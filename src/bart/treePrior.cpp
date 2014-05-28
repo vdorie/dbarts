@@ -1,0 +1,188 @@
+#include "config.hpp"
+#include <bart/model.hpp>
+
+#include <cmath>
+#include <bart/cstdint>
+
+#include <external/alloca.h>
+#include <external/io.h>
+#include <external/stats.h>
+
+#include <bart/bartFit.hpp>
+#include <bart/data.hpp>
+#include <bart/types.hpp>
+#include "functions.hpp"
+#include "node.hpp"
+#include "tree.hpp"
+
+using std::uint32_t;
+using std::uint64_t;
+using std::int32_t;
+
+
+
+namespace {
+  double computeTreeLogProbability(const bart::CGMPrior& prior, const bart::BARTFit& fit, const bart::Node& node);  
+}
+
+namespace bart {
+  CGMPrior::CGMPrior(const Control& control) : base(control.base), power(control.power) { }
+  
+  double CGMPrior::computeGrowthProbability(const BARTFit& fit, const Node& node) const
+  {
+    if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
+
+#ifdef BART_EXACT
+    if (node.getNumObservationsInNode() < 5) {
+			return 0.001 * base / std::pow(1.0 + node.getDepth(), power);
+		}
+#endif
+    
+    return base / std::pow(1.0 + (double) node.getDepth(), power);
+  }
+  
+  double CGMPrior::computeTreeLogProbability(const BARTFit& fit, const Tree& tree) const
+  {
+    return ::computeTreeLogProbability(*this, fit, tree.top);
+  }
+  
+  double CGMPrior::computeSplitVariableLogProbability(const BARTFit& fit, const Node& node) const
+  {
+    return -std::log(node.getNumVariablesAvailableForSplit(fit.data.numPredictors));
+  }
+  
+  double CGMPrior::computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const
+  {
+    int32_t variableIndex = node.rule.variableIndex;
+    
+    double result;
+    
+    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
+      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+      
+      bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
+      
+      setCategoryReachability(fit, node, variableIndex, categoriesCanReachNode);
+      
+      uint32_t numCategoriesCanReachNode = 0;
+      for (size_t i = 0; i < numCategories; ++i) if (categoriesCanReachNode[i]) ++numCategoriesCanReachNode;
+      
+      result  = std::log(std::pow(2.0, (double) numCategoriesCanReachNode - 1.0) - 1.0);
+      result -= std::log(std::pow(2.0, (double) (numCategories - numCategoriesCanReachNode)));
+      
+      ext_stackFree(categoriesCanReachNode);
+    } else {
+      int32_t leftCutIndex, rightCutIndex;
+      setSplitInterval(fit, node, variableIndex, &leftCutIndex, &rightCutIndex);
+      result = -std::log((double) (rightCutIndex - leftCutIndex + 1));
+    }
+    
+    return result;
+  }
+  
+  Rule CGMPrior::drawRuleAndVariable(const BARTFit& fit, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const
+  {
+    int32_t variableIndex = drawSplitVariable(fit, node);
+    return drawRuleForVariable(fit, node, variableIndex, exhaustedLeftSplits, exhaustedRightSplits);
+  }
+  
+  int32_t CGMPrior::drawSplitVariable(const BARTFit& fit, const Node& node) const
+  {
+    size_t numGoodVariables = node.getNumVariablesAvailableForSplit(fit.data.numPredictors);
+    
+    int32_t variableNumber = ext_simulateIntegerUniformInRange(0, numGoodVariables);
+    
+    return findIndexOfIthPositiveValue(node.variablesAvailableForSplit, fit.data.numPredictors, variableNumber);
+  }
+  
+  Rule CGMPrior::drawRuleForVariable(const BARTFit& fit, const Node& node, int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const
+  {
+    Rule result;
+    
+    result.variableIndex = variableIndex;
+    
+    *exhaustedLeftSplits = false;
+    *exhaustedRightSplits = false;
+    
+    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
+      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+      
+      bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
+      // result.categoryDirections = new CategoryBranchingType[numCategories];
+      result.categoryDirections = 0l;
+      
+      setCategoryReachability(fit, node, variableIndex, categoriesCanReachNode);
+      
+      uint32_t numCategoriesCanReachNode = 0;
+      for (uint32_t i = 0; i < numCategories; ++i) if (categoriesCanReachNode[i]) ++numCategoriesCanReachNode;
+      if (numCategoriesCanReachNode < 2) {
+        ext_stackFree(categoriesCanReachNode);
+        ext_throwError("error in TreePrior::drawRule: less than 2 values left for cat var\n");
+      }
+      
+      bool* sendCategoriesRight = ext_stackAllocate(numCategoriesCanReachNode, bool);
+      sendCategoriesRight[0] = true; // the first value always goes right so that at least one does
+      
+      uint64_t categoryIndex = (uint64_t) ext_simulateIntegerUniformInRange(0, std::pow(2.0, (double) numCategoriesCanReachNode - 1.0) - 1.0);
+      setBinaryRepresentation(numCategoriesCanReachNode - 1, categoryIndex, sendCategoriesRight + 1);
+      
+      uint32_t sendIndex = 0;
+      for (uint32_t i = 0; i < numCategories; ++i) {
+        if (categoriesCanReachNode[i]) {
+          // result.categoryDirections[i] = sendCategoriesRight[sendIndex++] == true ? BART_CAT_RIGHT : BART_CAT_LEFT;
+          if (sendCategoriesRight[sendIndex++]) result.setCategoryGoesRight(i);
+          else result.setCategoryGoesLeft(i);
+        } else {
+          // result.categoryDirections[i] = ext_simulateBernoulli(0.5) == 1 ? BART_CAT_RIGHT : BART_CAT_LEFT;
+          if (ext_simulateBernoulli(0.5) == 1) result.setCategoryGoesRight(i);
+          else result.setCategoryGoesLeft(i);
+        }
+      }
+      
+      uint32_t numSentCategories = 0;
+      for (uint32_t i = 0; i < numCategoriesCanReachNode; ++i) {
+        if (sendCategoriesRight[i] == true) ++numSentCategories;
+      }
+      
+      if (numCategoriesCanReachNode - numSentCategories == 1) *exhaustedLeftSplits = true;
+      if (numSentCategories == 1) *exhaustedRightSplits = true;
+      
+      ext_stackFree(sendCategoriesRight);
+      ext_stackFree(categoriesCanReachNode);
+    } else {
+      int32_t leftIndex, rightIndex;
+      setSplitInterval(fit, node, variableIndex, &leftIndex, &rightIndex);
+      
+      int32_t numSplits = rightIndex - leftIndex + 1;
+      if (numSplits == 0) {
+        ext_printf("error in drawRuleFromPrior: no splits left for ordered var\n");
+      }
+      
+      result.splitIndex = ext_simulateIntegerUniformInRange(leftIndex, rightIndex + 1);
+      
+      if (result.splitIndex == leftIndex) *exhaustedLeftSplits = true;
+      if (result.splitIndex == rightIndex) *exhaustedRightSplits = true;
+    }
+    
+    return result;
+  } 
+}
+
+namespace {
+  double computeTreeLogProbability(const bart::CGMPrior& prior, const bart::BARTFit& fit, const bart::Node& node)
+  {
+    double probabilityNodeIsNotTerminal = prior.computeGrowthProbability(fit, node);
+    
+    if (node.isBottom()) return std::log(1.0 - probabilityNodeIsNotTerminal);
+    
+    double result;
+    
+    result  = std::log(probabilityNodeIsNotTerminal);
+    result += prior.computeSplitVariableLogProbability(fit, node);
+    result += prior.computeRuleForVariableLogProbability(fit, node);
+    
+    result = result + ::computeTreeLogProbability(prior, fit, *node.leftChild) + ::computeTreeLogProbability(prior, fit, *node.rightChild);
+    
+    return result;
+  }
+}

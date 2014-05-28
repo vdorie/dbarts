@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -f src/Makevars ]; then
+  (cd src; make -f Makevars clean)
+else
+  (cd src; make -f Makevars.in clean)
+fi
+rm -rf autom4te.cache
+rm -f config.log
+rm -f config.status
+rm -f src/config.hpp
+rm -f src/bart/config.hpp
+rm -f src/external/config.h
+rm -f src/Makevars

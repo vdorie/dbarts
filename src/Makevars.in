@@ -1,0 +1,37 @@
+## pass -DBART_EXACT to get same results as BART, including excess random calls
+BART_EXACT=@bart_exact@
+
+INST_DIR=../inst
+
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
+PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
+PKG_LIBS=@PTHREAD_LIBS@ $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a
+
+.PHONY: all bart/libbart.a external/libexternal.a clean
+
+all: $(SHLIB)
+
+$(SHLIB): bart/libbart.a external/libexternal.a
+
+bart/libbart.a:
+	@(cd bart && $(MAKE) libbart.a \
+	  CXX="$(CXX)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
+	  CPPFLAGS="@PTHREAD_CFLAGS@ $(CPPFLAGS) $(BART_EXACT)" \
+	  CXXFLAGS="$(R_XTRA_CXXFLAGS) $(CXXPICFLAGS) $(CXXFLAGS)" \
+	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
+	  INST_DIR="$(INST_DIR)")
+
+
+external/libexternal.a :
+	@(cd external && $(MAKE) libexternal.a \
+	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
+	  CPPFLAGS="@PTHREAD_CFLAGS@ $(CPPFLAGS)" \
+	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
+	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
+	  INST_DIR="$(INST_DIR)")
+
+
+clean :
+	@(cd bart && $(MAKE) clean)
+	@(cd external && $(MAKE) clean)
+	rm -f *.so *.o
