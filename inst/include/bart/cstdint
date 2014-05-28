@@ -13,10 +13,10 @@ namespace std {
   using ::uint16_t;
   using ::uint32_t;
 
-#    if defined(int64_t) || defined(__WIN32)
+// [u]int64_t gets defined by configure so should always exist
+// despite not being part of the standard
   using ::int64_t;
   using ::uint64_t;
-#    endif
 
   using ::int_least8_t;
   using ::int_least16_t;
