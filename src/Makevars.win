@@ -3,9 +3,9 @@ BART_EXACT=-DBART_EXACT
 
 INST_DIR=../inst
 
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude -D_REENTRANT
-PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude -D_REENTRANT
-PKG_LIBS= -lpthread $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
+PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
+PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a -lpthread 
 
 .PHONY: all bart/libbart.a external/libexternal.a clean
 
@@ -16,7 +16,7 @@ $(SHLIB): bart/libbart.a external/libexternal.a
 bart/libbart.a:
 	@(cd bart && $(MAKE) libbart.a \
 	  CXX="$(CXX)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="-D_THREAD_SAFE -pthread $(CPPFLAGS) $(BART_EXACT)" \
+	  CPPFLAGS="-pthread $(CPPFLAGS) $(BART_EXACT)" \
 	  CXXFLAGS="$(R_XTRA_CXXFLAGS) $(CXXPICFLAGS) $(CXXFLAGS)" \
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
 	  INST_DIR="$(INST_DIR)")
@@ -25,7 +25,7 @@ bart/libbart.a:
 external/libexternal.a :
 	@(cd external && $(MAKE) libexternal.a \
 	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="-D_THREAD_SAFE -pthread $(CPPFLAGS)" \
+	  CPPFLAGS="-pthread $(CPPFLAGS)" \
 	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
 	  INST_DIR="$(INST_DIR)")
@@ -34,4 +34,4 @@ external/libexternal.a :
 clean :
 	@(cd bart && $(MAKE) clean)
 	@(cd external && $(MAKE) clean)
-	rm -f *.so *.o
+	rm -f *.so *.dll *.o

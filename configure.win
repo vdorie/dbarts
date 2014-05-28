@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cp -f src/config.hpp.win src/config.hpp
+cp -f src/bart/config.hpp.win src/bart/config.hpp
+cp -f src/external/config.h.win src/external/config.h

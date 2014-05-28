@@ -13,9 +13,9 @@ namespace std {
   using ::uint16_t;
   using ::uint32_t;
 
-#    ifdef int64_t
-  using ::int64_t
-  using ::uint64_t
+#    if defined(int64_t) || defined(__WIN32)
+  using ::int64_t;
+  using ::uint64_t;
 #    endif
 
   using ::int_least8_t;

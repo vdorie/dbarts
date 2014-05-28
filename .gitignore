@@ -1,1 +1,11 @@
 .DS_Store
+*.o
+*.so
+*.a
+*.dll
+src/Makevars
+config.log
+config.status
+src/config.hpp
+src/bart/config.hpp
+src/external/config.h

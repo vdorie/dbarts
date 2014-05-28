@@ -5,7 +5,7 @@ INST_DIR=../inst
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
 PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
-PKG_LIBS=@PTHREAD_LIBS@ $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a
+PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a @PTHREAD_LIBS@ 
 
 .PHONY: all bart/libbart.a external/libexternal.a clean
 
@@ -34,4 +34,4 @@ external/libexternal.a :
 clean :
 	@(cd bart && $(MAKE) clean)
 	@(cd external && $(MAKE) clean)
-	rm -f *.so *.o
+	rm -f *.so *.dll *.o

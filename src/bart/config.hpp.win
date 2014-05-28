@@ -1,0 +1,12 @@
+/* #define HAVE_CSTDINT 1 */
+#define HAVE_GETTIMEOFDAY 1
+#define HAVE_STDINT_H 1
+#define HAVE_SYS_TIME_H 1
+/* #define HAVE_ALLOCA_H 1 */
+#define STDC_HEADERS 1
+
+#define PACKAGE_BUGREPORT "vjd4@nyu.edu"
+#define PACKAGE_NAME "cbart"
+#define PACKAGE_STRING "cbart 0.8"
+#define PACKAGE_TARNAME "cbart"
+#define PACKAGE_VERSION "0.8"
