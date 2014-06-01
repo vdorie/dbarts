@@ -6,6 +6,7 @@
 src/Makevars
 config.log
 config.status
+autom4te.cache
 src/config.hpp
 src/bart/config.hpp
 src/external/config.h
