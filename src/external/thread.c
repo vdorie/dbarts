@@ -127,18 +127,18 @@ void ext_mt_getNumThreadsForJob(const ext_mt_manager_t restrict threadManager, s
   size_t numThreadsManaged = 0;
   if (numElements < 2 * minNumElementsPerThread || threadManager == NULL ||
       (numThreadsManaged = ext_mt_getNumThreads(threadManager)) <= 1) {
-    *numThreadsPtr = 1;
+    if (numThreadsPtr != NULL) *numThreadsPtr = 1;
     *numElementsPerThreadPtr = numElements;
     return;
   }
   
-  size_t numThreads = numElements / minNumElementsPerThread;
+  size_t numThreads = minNumElementsPerThread == 0 ? numElements : numElements / minNumElementsPerThread;
   if (numThreads > numThreadsManaged) numThreads = numThreadsManaged;
   
   size_t numElementsPerThread = numElements / numThreads;
   if (numElements % numThreads != 0) numElementsPerThread += 1;
   
-  *numThreadsPtr = numThreads;
+  if (numThreadsPtr != NULL) *numThreadsPtr = numThreads;
   *numElementsPerThreadPtr = numElementsPerThread;
 }
 

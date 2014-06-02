@@ -292,6 +292,7 @@ extern "C" {
     R_RegisterCCallable("cbart", "bart_invalidateFit", (DL_FUNC) bart_invalidateFit);
     
     R_RegisterCCallable("cbart", "bart_runSampler", (DL_FUNC) bart_runSampler);
+    R_RegisterCCallable("cbart", "bart_runSamplerForIterations", (DL_FUNC) bart_runSamplerForIterations);
     R_RegisterCCallable("cbart", "bart_setResponse", (DL_FUNC) bart_setResponse);
   }
 }

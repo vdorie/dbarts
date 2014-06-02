@@ -1,6 +1,8 @@
 #ifndef BART_R_C_INTERFACE_H
 #define BART_R_C_INTERFACE_H
 
+#include <cstddef> // size_t
+
 namespace bart {
   struct Control;
   struct Model;
@@ -22,6 +24,7 @@ extern "C" {
   void bart_invalidateFit(bart::BARTFit* fit);
   
   bart::Results* bart_runSampler(bart::BARTFit* fit);
+  bart::Results* bart_runSamplerForIterations(bart::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
   void bart_setResponse(bart::BARTFit* fit, const double* newResponse);
   
   

@@ -31,6 +31,10 @@ extern "C" {
     return fit->runSampler();
   }
   
+  Results* bart_runSamplerForIterations(BARTFit* fit, size_t numBurnIn, size_t numSamples) {
+    return fit->runSampler(numBurnIn, numSamples);
+  }
+  
   void bart_setResponse(BARTFit* fit, const double* newResponse) {
     fit->setResponse(newResponse);
   }
