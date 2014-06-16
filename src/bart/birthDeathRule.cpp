@@ -45,8 +45,8 @@ namespace bart {
   {
     double ratio;
     
-    State* oldStatePtr = ext_stackAllocate(1, State);
-    State& oldState(*oldStatePtr);
+    ::State* oldStatePtr = ext_stackAllocate(1, ::State);
+    ::State& oldState(*oldStatePtr);
     
     // Rather than flipping a coin to see if birth or death, we have to first check that either is possible.
     // Since that involves pretty much finding a node to give birth, we just do that and then possibly ignore

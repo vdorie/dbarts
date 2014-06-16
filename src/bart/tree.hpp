@@ -35,6 +35,8 @@ namespace bart {
     void setNodeAverages(const BARTFit& fit, const double* y);
     
     void countVariableUses(uint32_t* variableCounts);
+    
+    const char* createString() const;
   };
   
   

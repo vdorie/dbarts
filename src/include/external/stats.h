@@ -16,6 +16,7 @@ extern "C" {
 #define ext_simulateBernoulli(_P_) (unif_rand() < (_P_) ? 1u : 0u)
   
 #define ext_quantileOfChiSquared(_P_, _NU_) qchisq((_P_), (_NU_), 1, 0)
+#define ext_percentileOfChiSquared(_Q_, _NU_) pchisq((_Q_), (_NU_), 1, 0)
   
 #define ext_densityOfNormal(_X_, _MU_, _SIGMA_) dnorm((_X_), (_MU_), (_SIGMA_), 0)
 #define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) pnorm((_Q_), (_MU_), (_SIGMA_), 1, 0)

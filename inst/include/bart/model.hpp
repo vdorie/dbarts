@@ -11,9 +11,13 @@
 // conditional on being inside a birthOrDeath step
 #define BART_BIRTH_PROBABILITY          0.5
 
-#define BART_DEFAULT_NORMAL_PRECISION 1.0
-#define BART_DEFAULT_CHISQ_DF         3
-#define BART_DEFAULT_CHISQ_SCALE      1.0
+#define BART_DEFAULT_NORMAL_PRIOR_K       2.0
+#define BART_DEFAULT_CHISQ_PRIOR_DF       3.0
+#define BART_DEFAULT_CHISQ_PRIOR_QUANTILE 0.9
+
+#define BART_DEFAULT_TREE_PRIOR_POWER 2.0
+#define BART_DEFAULT_TREE_PRIOR_BASE  0.95
+
 
 namespace bart {
   struct TreePrior;
@@ -57,15 +61,15 @@ namespace bart {
     virtual Rule drawRuleAndVariable(const BARTFit& fit, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
     virtual std::int32_t drawSplitVariable(const BARTFit& fit, const Node& node) const = 0;
     virtual Rule drawRuleForVariable(const BARTFit& fit, const Node& node, std::int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
+    
+    virtual ~TreePrior() { }
   };
   
   struct EndNodePrior {
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const = 0;
     virtual double drawFromPosterior(double ybar, std::size_t numObservations, double residualVariance) const = 0;
     
-    
-    EndNodePrior() { }
-    EndNodePrior(const Control&) { }
+    virtual ~EndNodePrior() { }
   };
   
   // the virtual scale accessors are for the conditional bart, which can have its data rescaled
@@ -73,20 +77,21 @@ namespace bart {
   struct ResidualVariancePrior {
     virtual double drawFromPosterior(std::size_t numObservations, double sumOfSquaredResiduals) const = 0;
     
-    ResidualVariancePrior() { }
-    ResidualVariancePrior(const Control&) { }
     virtual double getScale() const = 0;
     virtual void setScale(double scale) = 0;
+    
+    virtual ~ResidualVariancePrior() { }
   };
   
   // for lack of a better name, calling it the Chipman, George, and McCullough prior
   // Pr(node splits) = base / (1 + depth)^power
+  
   struct CGMPrior : TreePrior {
     double base;
     double power;
     
     CGMPrior() { }
-    CGMPrior(const Control& control);
+    CGMPrior(double base, double power) : base(base), power(power) { }
     virtual ~CGMPrior() { }
     
     virtual double computeGrowthProbability(const BARTFit& fit, const Node& node) const;
@@ -104,9 +109,8 @@ namespace bart {
   struct NormalPrior : EndNodePrior {
     double precision;
     
-    NormalPrior() :
-      precision(BART_DEFAULT_NORMAL_PRECISION) { }    
-    NormalPrior(const Control& control);
+    NormalPrior() : precision(1.0) { }
+    NormalPrior(const Control& control, double k);
     virtual ~NormalPrior() { }
     
     virtual double drawFromPosterior(double ybar, std::size_t numObservations, double residualVariance) const;
@@ -115,14 +119,14 @@ namespace bart {
   
   // sigmaSq ~ chisq(df, scale)
   struct ChiSquaredPrior : ResidualVariancePrior {
-    std::size_t degreesOfFreedom;
+    double degreesOfFreedom;
     double scale;
     
     
     ChiSquaredPrior() :
-      degreesOfFreedom(BART_DEFAULT_CHISQ_DF),
-      scale(BART_DEFAULT_CHISQ_SCALE) { }
-    ChiSquaredPrior(const Control& control);
+      degreesOfFreedom(BART_DEFAULT_CHISQ_PRIOR_DF),
+      scale(1.0) { }
+    ChiSquaredPrior(double degreesOfFreedom, double quantile);
     virtual ~ChiSquaredPrior() { }
     
     virtual double getScale() const { return scale; }

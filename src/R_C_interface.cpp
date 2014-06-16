@@ -42,15 +42,15 @@ extern "C" {
   CGMPrior* bart_createCGMPrior() {
     return new CGMPrior;
   }
-  CGMPrior* bart_createCGMPriorFromControl(const Control* control) {
-    return new CGMPrior(*control);
+  CGMPrior* bart_createCGMPriorFromOptions(double base, double power) {
+    return new CGMPrior(base, power);
   }
   void bart_destroyCGMPrior(CGMPrior* prior) {
     delete prior;
   }
-  void bart_initializeCGMPriorFromControl(CGMPrior* prior, const Control* control)
+  void bart_initializeCGMPriorFromOptions(CGMPrior* prior, double base, double power)
   {
-    new (prior) CGMPrior(*control);
+    new (prior) CGMPrior(base, power);
   }
   void bart_invalidateCGMPrior(CGMPrior* prior) {
     prior->~CGMPrior();
@@ -59,15 +59,15 @@ extern "C" {
   NormalPrior* bart_createNormalPrior() {
     return new NormalPrior;
   }
-  NormalPrior* bart_createNormalPriorFromControl(const Control* control) {
-    return new NormalPrior(*control);
+  NormalPrior* bart_createNormalPriorFromOptions(const Control* control, double k) {
+    return new NormalPrior(*control, k);
   }
   void bart_destroyNormalPrior(NormalPrior* prior) {
     delete prior;
   }
-  void bart_initializeNormalPriorFromControl(NormalPrior* prior, const Control* control)
+  void bart_initializeNormalPriorFromOptions(NormalPrior* prior, const Control* control, double k)
   {
-    new (prior) NormalPrior(*control);
+    new (prior) NormalPrior(*control, k);
   }
   void bart_invalidateNormalPrior(NormalPrior* prior) {
     prior->~NormalPrior();
@@ -76,15 +76,15 @@ extern "C" {
   ChiSquaredPrior* bart_createChiSquaredPrior() {
     return new ChiSquaredPrior;
   }
-  ChiSquaredPrior* bart_createChiSquaredPriorFromControl(const Control* control) {
-    return new ChiSquaredPrior(*control);
+  ChiSquaredPrior* bart_createChiSquaredPriorFromOptions(double degreesOfFreedom, double quantile) {
+    return new ChiSquaredPrior(degreesOfFreedom, quantile);
   }
   void bart_destroyChiSquaredPrior(ChiSquaredPrior* prior) {
     delete prior;
   }
-  void bart_initializeChiSquaredPriorFromControl(ChiSquaredPrior* prior, const Control* control)
+  void bart_initializeChiSquaredPriorFromOptions(ChiSquaredPrior* prior, double degreesOfFreedom, double quantile)
   {
-    new (prior) ChiSquaredPrior(*control);
+    new (prior) ChiSquaredPrior(degreesOfFreedom, quantile);
   }
   void bart_invalidateChiSquaredPrior(ChiSquaredPrior* prior) {
     prior->~ChiSquaredPrior();

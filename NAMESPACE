@@ -1,6 +1,7 @@
 useDynLib(cbart)
 
 export(cbart, bart)
+export(cbartControl)
 export(pdbart, pd2bart, plot.bart)
 
 S3method(plot, bart)

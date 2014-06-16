@@ -5,6 +5,7 @@
 
 #include <bart/bartFit.hpp>
 #include <bart/model.hpp>
+#include <bart/state.hpp>
 #include "node.hpp"
 
 using std::size_t;
@@ -21,7 +22,7 @@ namespace bart {
       
       if (bottomNode.getNumObservationsInNode() == 0) return -10000000.0;
       
-      logProbability += fit.model.muPrior->computeLogIntegratedLikelihood(fit, bottomNode, y, fit.sigma * fit.sigma);
+      logProbability += fit.model.muPrior->computeLogIntegratedLikelihood(fit, bottomNode, y, fit.state.sigma * fit.state.sigma);
     }
     
     return logProbability;

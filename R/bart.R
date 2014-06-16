@@ -1,4 +1,4 @@
-cbart <- function(
+old_bart <- function(
    x.train, y.train, x.test = matrix(0.0,0,0),
    sigest = NA, sigdf = 3L, sigquant = .90, 
    k = 2.0,
@@ -108,5 +108,3 @@ cbart <- function(
   class(retval) <- 'bart'
   return(invisible(retval))
 }
-
-bart <- cbart

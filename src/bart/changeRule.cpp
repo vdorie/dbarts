@@ -14,6 +14,7 @@
 
 #include <bart/bartFit.hpp>
 #include <bart/model.hpp>
+#include <bart/scratch.hpp>
 #include <bart/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
@@ -82,11 +83,11 @@ namespace bart {
     //given the node, choose a new variable for the new rule
     int32_t newVariableIndex = fit.model.treePrior->drawSplitVariable(fit, nodeToChange);
     
-    if (fit.variableTypes[newVariableIndex] == CATEGORICAL) {
+    if (fit.data.variableTypes[newVariableIndex] == CATEGORICAL) {
       // get the list of good cat rules given var choice
       uint32_t firstGoodCategory;
       
-      uint32_t numCategories = fit.numCutsPerVariable[newVariableIndex];
+      uint32_t numCategories = fit.scratch.numCutsPerVariable[newVariableIndex];
       size_t numCategoryCombinations = (1 << (numCategories - 1)) - 1;
       // bool* categoryCombinationsAreGood = new bool[numCategoryCombinations];
       bool* categoryCombinationsAreGood = ext_stackAllocate(numCategoryCombinations, bool);
@@ -107,7 +108,7 @@ namespace bart {
         XLogL = computeLogLikelihoodForBranch(fit, nodeToChange, y);
         
         // copy old rule
-        State oldState;
+        ::State oldState;
         oldState.store(fit, nodeToChange);
         
         // change rule at nodeToChange to the new one
@@ -180,7 +181,7 @@ namespace bart {
         XLogL  = computeLogLikelihoodForBranch(fit, nodeToChange, y);
         
         // copy old rule
-        State oldState;
+        ::State oldState;
         oldState.store(fit, nodeToChange);
         
         // change rule at nodeToChange to the new one
@@ -245,7 +246,7 @@ namespace bart {
   {
     int32_t leftIndex, rightIndex; 
     leftIndex = 0; // left value if you top out
-    rightIndex = fit.numCutsPerVariable[variableIndex] - 1; // right value if you top out
+    rightIndex = fit.scratch.numCutsPerVariable[variableIndex] - 1; // right value if you top out
     
     int32_t leftMin, leftMax, rightMin, rightMax;
     
@@ -266,7 +267,7 @@ namespace bart {
   void findOrdinalMinMaxSplitIndices(const BARTFit& fit, const Node& node, int32_t variableIndex, int32_t* min, int32_t* max)
   //used to find good ord rule, go down tree adjusting min and max whenever VarI is used
   {
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) ext_printf("error in findOrdinalMinMaxSplitIndices, called on CATEGORICAL var\n");
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) ext_printf("error in findOrdinalMinMaxSplitIndices, called on CATEGORICAL var\n");
     
     if (!node.isBottom()) {
       if (variableIndex == node.rule.variableIndex) {
@@ -287,7 +288,7 @@ namespace bart {
   //	on exit 1 if rule ok 0 otherwise, already allocated
   //firstone: first category still "alive" at node n, depends on tree above n
   {
-    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
     bool* sel = ext_stackAllocate(numCategories, bool);
     
     bool* categoriesGoRight = ext_stackAllocate(numCategories, bool);

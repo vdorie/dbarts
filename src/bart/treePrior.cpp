@@ -10,6 +10,7 @@
 
 #include <bart/bartFit.hpp>
 #include <bart/data.hpp>
+#include <bart/scratch.hpp>
 #include <bart/types.hpp>
 #include "functions.hpp"
 #include "node.hpp"
@@ -26,8 +27,6 @@ namespace {
 }
 
 namespace bart {
-  CGMPrior::CGMPrior(const Control& control) : base(control.base), power(control.power) { }
-  
   double CGMPrior::computeGrowthProbability(const BARTFit& fit, const Node& node) const
   {
     if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
@@ -57,8 +56,8 @@ namespace bart {
     
     double result;
     
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
-      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
+      uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
       
       bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
       
@@ -104,8 +103,8 @@ namespace bart {
     *exhaustedLeftSplits = false;
     *exhaustedRightSplits = false;
     
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
-      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
+      uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
       
       bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
       // result.categoryDirections = new CategoryBranchingType[numCategories];

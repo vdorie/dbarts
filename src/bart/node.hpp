@@ -99,8 +99,10 @@ namespace bart {
     double computeVariance(const BARTFit& fit, const double* y) const;
     
     size_t getNumObservationsInNode() const;
+    void addObservationsToChildren(const BARTFit& fit);
     void addObservationsToChildren(const BARTFit& fit, const double* y); // computes averages in bottom nodes as it goes
     void clearObservations();
+    void clear();
     
     double drawFromPosterior(const EndNodePrior& endNodePrior, double residualVariance) const;
     void setPredictions(double* y_hat, double prediction) const;

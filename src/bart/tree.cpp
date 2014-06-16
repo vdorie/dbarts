@@ -2,6 +2,8 @@
 #include "tree.hpp"
 
 #include <bart/cstdint>
+#include <cstring>
+#include <cstdio>
 
 #include <external/alloca.h>
 #include <external/stats.h>
@@ -9,6 +11,8 @@
 #include <bart/bartFit.hpp>
 #include <bart/data.hpp>
 #include <bart/model.hpp>
+#include <bart/scratch.hpp>
+#include <bart/state.hpp>
 
 using std::uint32_t;
 
@@ -20,8 +24,6 @@ namespace {
                                           const double* Xt, size_t numObservations)
   {
     if (numObservations == 0) return NULL;
-    
-    // bart::NodeIndexMap nodeToIndexMap(top.getBottomIndexMap());
     
     size_t* map = new size_t[numObservations];
         
@@ -58,14 +60,14 @@ namespace bart {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double posteriorPrediction = bottomNode.drawFromPosterior(*fit.model.muPrior, fit.sigma * fit.sigma);
+      double posteriorPrediction = bottomNode.drawFromPosterior(*fit.model.muPrior, fit.state.sigma * fit.state.sigma);
       bottomNode.setPredictions(trainingFits, posteriorPrediction);
       
       if (testFits != NULL) nodePosteriorPredictions[i] = posteriorPrediction;
     }
     
     if (testFits != NULL) {
-      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.Xt_test, fit.data.numTestObservations);
+      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.Xt_test, fit.data.numTestObservations);
       for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = nodePosteriorPredictions[observationNodeMap[i]];
       delete [] observationNodeMap;
       
@@ -76,7 +78,4 @@ namespace bart {
   void Tree::countVariableUses(uint32_t* variableCounts) {
     top.countVariableUses(variableCounts);
   }
-  
-
-  // static Node* Tree::duplicateBranch(const BARTFit& fit, const Node* node);
 }

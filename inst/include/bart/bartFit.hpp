@@ -11,41 +11,19 @@
 #include "control.hpp"
 #include "data.hpp"
 #include "model.hpp"
+#include "scratch.hpp"
+#include "state.hpp"
 
 namespace bart {
   struct Results;
   
-  struct Tree;
-  
-  struct ScaleFactor {
-    double min, max, range;
-  };
-  
   struct BARTFit {
-    Control control;
+    Control control; // top three are passed in from elsewhere
     Model model;
     Data data;
     
-    double* yRescaled;
-    double* Xt; // used for pulling out rows of X
-    double* Xt_test;
-    double* treeY;
-    double* weights;
-    
-    VariableType* variableTypes;
-    uint32_t* numCutsPerVariable;
-    double** cutPoints; // used to be RuleMat
-    
-    Tree* trees;
-    size_t* treeIndices;
-    
-    double* treeFits;      // numObs x numTrees;     vals for tree <=> x + i * numObs
-    double* totalFits;
-    double* totalTestFits; // numTestObs x 1
-    
-    
-    ScaleFactor dataScale;
-    double sigma;
+    Scratch scratch;
+    State state;
     
     ext_mt_manager_t threadManager;
     

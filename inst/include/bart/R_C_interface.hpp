@@ -29,21 +29,21 @@ extern "C" {
   
   
   bart::CGMPrior* bart_createCGMPrior();
-  bart::CGMPrior* bart_createCGMPriorFromControl(const bart::Control* control);
+  bart::CGMPrior* bart_createCGMPriorFromOptions(double base, double power);
   void bart_destroyCGMPrior(bart::CGMPrior* prior);
-  void bart_initializeCGMPriorFromControl(bart::CGMPrior* prior, const bart::Control* control);
+  void bart_initializeCGMPriorFromOptions(bart::CGMPrior* prior, double base, double power);
   void bart_invalidateCGMPrior(bart::CGMPrior* prior);
   
   bart::NormalPrior* bart_createNormalPrior();
-  bart::NormalPrior* bart_createNormalPriorFromControl(const bart::Control* control);
+  bart::NormalPrior* bart_createNormalPriorFromOptions(const bart::Control* control, double k);
   void bart_destroyNormalPrior(bart::NormalPrior* prior);
-  void bart_initializeNormalPriorFromControl(bart::NormalPrior* prior, const bart::Control* control);
+  void bart_initializeNormalPriorFromOptions(bart::NormalPrior* prior, const bart::Control* control, double k);
   void bart_invalidateNormalPrior(bart::NormalPrior* prior);
   
   bart::ChiSquaredPrior* bart_createChiSquaredPrior();
-  bart::ChiSquaredPrior* bart_createChiSquaredPriorFromControl(const bart::Control* control);
+  bart::ChiSquaredPrior* bart_createChiSquaredPriorFromOptions(double degreesOfFreedom, double quantile);
   void bart_destroyChiSquaredPrior(bart::ChiSquaredPrior* prior);
-  void bart_initializeChiSquaredPriorFromControl(bart::ChiSquaredPrior* prior, const bart::Control* control);
+  void bart_initializeChiSquaredPriorFromOptions(bart::ChiSquaredPrior* prior, double degreesOfFreedom, double quantile);
   void bart_invalidateChiSquaredPrior(bart::ChiSquaredPrior* prior);
 }
 #endif // BART_R_C_INTERFACE_H

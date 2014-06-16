@@ -13,6 +13,7 @@
 #include <bart/bartFit.hpp>
 #include <bart/data.hpp>
 #include <bart/model.hpp>
+#include <bart/scratch.hpp>
 #include "functions.hpp"
 
 using std::uint64_t;
@@ -22,9 +23,9 @@ namespace bart {
   double Rule::getSplitValue(const BARTFit& fit) const
   {
     if (variableIndex < 0) return -1000.0;
-    if (fit.variableTypes[variableIndex] != ORDINAL) return -2000.0;
+    if (fit.data.variableTypes[variableIndex] != ORDINAL) return -2000.0;
     
-    return fit.cutPoints[variableIndex][splitIndex];
+    return fit.scratch.cutPoints[variableIndex][splitIndex];
   }
   
   Rule::Rule() : variableIndex(BART_INVALID_RULE_VARIABLE), splitIndex(BART_INVALID_RULE_VARIABLE)
@@ -44,14 +45,14 @@ namespace bart {
   
   bool Rule::goesRight(const BARTFit& fit, const double* x) const
   {
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       // x is a double, but that is 64 bits wide, and as such we can treat it as
       // a 64 bit integer
       uint32_t categoryId = (uint32_t) *((const uint64_t*) (x + variableIndex));
       
       return categoryGoesRight(categoryId);
     } else {
-      const double* splitValues = fit.cutPoints[variableIndex];
+      const double* splitValues = fit.scratch.cutPoints[variableIndex];
       
       return x[variableIndex] > splitValues[splitIndex];
     }
@@ -89,7 +90,7 @@ namespace bart {
     
     variableIndex = other.variableIndex;
     
-    if (fit.variableTypes[variableIndex] == ORDINAL) {
+    if (fit.data.variableTypes[variableIndex] == ORDINAL) {
       splitIndex = other.splitIndex;
     } else {
       categoryDirections = other.categoryDirections;
@@ -107,7 +108,7 @@ namespace bart {
   bool Rule::equals(const BARTFit& fit, const Rule& other) const {
     if (variableIndex != other.variableIndex) return false;
     
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       return categoryDirections == other.categoryDirections;
     }
     
@@ -127,6 +128,18 @@ namespace bart {
     } else {
       average = 0.0;
     }
+  }
+  
+  void Node::clear()
+  {
+    if (!isBottom()) {
+      delete leftChild;
+      delete rightChild;
+      
+      leftChild = NULL;
+    }
+    clearObservations();
+    rule.invalidate();
   }
   
   Node::Node(size_t* observationIndices, size_t numObservationsInNode, size_t numPredictors) :
@@ -186,9 +199,9 @@ namespace bart {
     if (!isBottom()) {
       ext_printf(" var: %d ", rule.variableIndex);
       
-      if (fit.variableTypes[rule.variableIndex] == CATEGORICAL) {
+      if (fit.data.variableTypes[rule.variableIndex] == CATEGORICAL) {
         ext_printf("CATRule: ");
-        for (size_t i = 0; 0 < fit.numCutsPerVariable[rule.variableIndex]; ++i) ext_printf(" %u", (rule.categoryDirections >> i) & 1);
+        for (size_t i = 0; 0 < fit.scratch.numCutsPerVariable[rule.variableIndex]; ++i) ext_printf(" %u", (rule.categoryDirections >> i) & 1);
       } else {
         ext_printf("ORDRule: (%d)=%f", rule.splitIndex, rule.getSplitValue(fit));
       }
@@ -359,7 +372,7 @@ namespace {
     
     IndexOrdering(const BARTFit& fit, const Rule &rule) : fit(fit), rule(rule) { }
     
-    bool operator()(size_t i) const { return rule.goesRight(fit, fit.Xt + i * fit.data.numPredictors); }
+    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.Xt + i * fit.data.numPredictors); }
   };
   
   // returns how many observations are on the "left"
@@ -581,8 +594,34 @@ namespace bart {
     
     
     leftChild->addObservationsToChildren(fit, y);
-    rightChild->addObservationsToChildren(fit, y); 
+    rightChild->addObservationsToChildren(fit, y);
+  }
+  
+  void Node::addObservationsToChildren(const BARTFit& fit) {
+    if (isBottom()) {
+      average = 0.0;
+      return;
+    }
     
+    leftChild->clearObservations();
+    rightChild->clearObservations();
+    
+    size_t numOnLeft;
+    IndexOrdering ordering(fit, rule);
+    
+    numOnLeft = (isTop() ?
+                 partitionRange(observationIndices, 0, numObservationsInNode, ordering) :
+                 partitionIndices(observationIndices, numObservationsInNode, ordering));
+    
+    
+    leftChild->observationIndices = observationIndices;
+    leftChild->numObservationsInNode = numOnLeft;
+    rightChild->observationIndices = observationIndices + numOnLeft;
+    rightChild->numObservationsInNode = numObservationsInNode - numOnLeft;
+    
+    
+    leftChild->addObservationsToChildren(fit);
+    rightChild->addObservationsToChildren(fit);
   }
 	
   void Node::setAverage(const BARTFit& fit, const double* y)

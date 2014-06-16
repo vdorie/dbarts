@@ -12,10 +12,9 @@ using std::size_t;
 using std::uint32_t;
 
 namespace bart {
-  NormalPrior::NormalPrior(const Control& control) :
-    precision(1.0)
+  NormalPrior::NormalPrior(const Control& control, double k)
   {
-    double sigma = (control.responseIsBinary ? 3.0 : 0.5) /  (control.kFactor * std::sqrt((double) control.numTrees));
+    double sigma = (control.responseIsBinary ? 3.0 : 0.5) /  (k * std::sqrt((double) control.numTrees));
     precision = 1.0 / (sigma * sigma);
   }
   
@@ -46,9 +45,9 @@ namespace bart {
     return result;
   }
   
-  ChiSquaredPrior::ChiSquaredPrior(const Control& control) :
-    degreesOfFreedom((double) control.sigmaDf),
-    scale(ext_quantileOfChiSquared(1.0 - control.sigmaQuantile, (double) control.sigmaDf) / (double) control.sigmaDf)
+  ChiSquaredPrior::ChiSquaredPrior(double degreesOfFreedom, double quantile) :
+    degreesOfFreedom(degreesOfFreedom),
+    scale(ext_quantileOfChiSquared(1.0 - quantile, degreesOfFreedom) / degreesOfFreedom)
   {
   }
   

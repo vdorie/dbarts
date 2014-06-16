@@ -9,6 +9,7 @@
 
 #include <bart/bartFit.hpp>
 #include <bart/model.hpp>
+#include <bart/scratch.hpp>
 #include <bart/types.hpp>
 #include "birthDeathRule.hpp"
 #include "changeRule.hpp"
@@ -24,8 +25,8 @@ namespace bart {
   
   void updateVariablesAvailable(const BARTFit& fit, Node& node, int32_t variableIndex)
   {
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = new bool[fit.numCutsPerVariable[variableIndex]];
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
+      bool* catGoesRight = new bool[fit.scratch.numCutsPerVariable[variableIndex]];
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       // note catGoesRight is deleted in here
@@ -40,7 +41,7 @@ namespace bart {
   void updateOrdinalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, int32_t leftIndex, int32_t rightIndex)
   {
     int32_t numSplits = rightIndex - leftIndex + 1;
-    node->variablesAvailableForSplit[variableIndex] = numSplits >= 1;
+    node->variablesAvailableForSplit[variableIndex] = (numSplits >= 1);
     
     if (!node->isBottom()) {
       int32_t leftChildLeftIndex, leftChildRightIndex, rightChildLeftIndex, rightChildRightIndex;
@@ -61,7 +62,7 @@ namespace bart {
   
   void updateCategoricalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, bool* catGoesRight)
   {
-    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
 
 
     node->variablesAvailableForSplit[variableIndex] = countTrueValues(catGoesRight, numCategories) >= 2;
@@ -146,9 +147,9 @@ namespace bart {
 
   void setCategoryReachability(const BARTFit& fit, const Node& node, int32_t variableIndex, bool* categoriesCanReachNode)
   {
-    if (fit.variableTypes[variableIndex] != CATEGORICAL) ext_throwError("error in setCategoryBranching: not a categorical variable\n");
+    if (fit.data.variableTypes[variableIndex] != CATEGORICAL) ext_throwError("error in setCategoryBranching: not a categorical variable\n");
     
-    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
     for (uint32_t i = 0; i < numCategories; ++i) categoriesCanReachNode[i] = true;
     
     const Node* curr = &node;
@@ -195,7 +196,7 @@ namespace bart {
     if (variableIndex == BART_INVALID_RULE_VARIABLE) {
       ext_throwError("error in getSplitInterval: variable index invalid\n");
     }
-    if (fit.variableTypes[variableIndex] != ORDINAL) {
+    if (fit.data.variableTypes[variableIndex] != ORDINAL) {
       ext_throwError("error in getSplitInterval: variable not ordered\n");
     }
     
@@ -203,7 +204,7 @@ namespace bart {
     bool rightFound = false;
     
     *leftIndex = 0; // left value if you top out
-    *rightIndex = fit.numCutsPerVariable[variableIndex] - 1; // right value if you top out
+    *rightIndex = fit.scratch.numCutsPerVariable[variableIndex] - 1; // right value if you top out
     
     bool isRightChild;
     

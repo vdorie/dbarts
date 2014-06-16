@@ -1,9 +1,10 @@
 v0.8 : initial public release
-  check makefiles for parallel make
-  configure script to detect gcc and set whiny compiler options
   support serialization so that can be stopped/started and saved
   call-back mechanism in R
   documentation
+  weights
+  causal
+  
   
 v0.9 : stuff to add
   categorical variable detection/use
@@ -15,11 +16,13 @@ v0.9 : stuff to add
   "functions" getting a better organizing principle
   general encapsulation of node implementation
   binary
-  weights
   look into speed change in tracking variables avail for split
   cleanup pthreads
   opaquify Fit object w/scratch, state objects
   
 
 v1.0 : cleanup, bug fixes
+  rethink model/prior interface
   thread cancellation
+  check bounds on parameters for CGM prior
+  verify that all of state is necessary to store

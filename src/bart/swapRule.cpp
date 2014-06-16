@@ -12,6 +12,7 @@
 
 #include <bart/bartFit.hpp>
 #include <bart/model.hpp>
+#include <bart/scratch.hpp>
 #include <bart/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
@@ -106,7 +107,7 @@ namespace bart {
       
       //if the swap was ok (rules made sense)
       if (swapIsSensible) {
-        State oldState;
+        ::State oldState;
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
@@ -159,7 +160,7 @@ namespace bart {
         parent.rule.swapWith(parent.leftChild->rule);
         std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(bart::Rule));
         
-        State oldState;
+        ::State oldState;
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
@@ -212,7 +213,7 @@ namespace bart {
   {
     if (node.isBottom()) return true;
     
-    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
     
     bool* leftChildCategories  = ext_stackAllocate(numCategories, bool);
     bool* rightChildCategories = ext_stackAllocate(numCategories, bool);
@@ -288,8 +289,8 @@ namespace bart {
   bool ruleIsValid(const BARTFit& fit, const Node& node, int32_t variableIndex)
   //starting at node n, check rules using VarI to see if they make sense
   {
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = ext_stackAllocate(fit.numCutsPerVariable[variableIndex], bool);
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
+      bool* catGoesRight = ext_stackAllocate(fit.scratch.numCutsPerVariable[variableIndex], bool);
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       bool result = categoricalRuleIsValid(fit, node, variableIndex, catGoesRight);
