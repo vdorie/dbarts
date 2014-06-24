@@ -13,10 +13,16 @@ extern "C" {
   // z = alpha * x + y; z must be distinct from x and y
   void ext_addVectors(const double* restrict x, ext_size_t length, double alpha, const double* restrict y, double* restrict z);
   
+  // x: = alpha
+  void ext_setVectorToConstant(double* x, ext_size_t length, double alpha);
+  
   // x := alpha * x
   void ext_scalarMultiplyVectorInPlace(double* x, ext_size_t length, double alpha);
   // y = alpha * x; y must be distinct from x
   void ext_scalarMultiplyVector(const double* restrict x, ext_size_t length, double alpha, double* restrict y);
+  
+  // x := x + alpha
+  void ext_addScalarToVectorInPlace(double* x, ext_size_t length, double alpha);
   
   // z = x .* y; z must be distinct from x and y
   void ext_hadamardMultiplyVectors(const double* restrict x, ext_size_t length, const double* restrict y, double* restrict z);
@@ -37,8 +43,6 @@ extern "C" {
   int ext_findLeastSquaresFitInPlace(double* y, ext_size_t n, double* x, ext_size_t p, double* b,
                                      double tolerance, double* residuals, char** message);
   
-  
-  void ext_setVectorToConstant(double* x, ext_size_t length, double alpha);
 
 #ifdef __cplusplus
 }

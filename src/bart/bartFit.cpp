@@ -515,17 +515,24 @@ namespace {
       scratch.dataScale.max = 1.0;
       scratch.dataScale.range = 1.0;
     } else {
-      scratch.dataScale.min = data.y[0];
-      scratch.dataScale.max = data.y[0];
+      if (data.offset != NULL) {
+        ext_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
+      } else {
+        std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
+      }
+      
+      scratch.dataScale.min = yRescaled[0];
+      scratch.dataScale.max = yRescaled[0];
       for (size_t i = 1; i < data.numObservations; ++i) {
-        if (data.y[i] < scratch.dataScale.min) scratch.dataScale.min = data.y[i];
-        if (data.y[i] > scratch.dataScale.max) scratch.dataScale.max = data.y[i];
+        if (yRescaled[i] < scratch.dataScale.min) scratch.dataScale.min = yRescaled[i];
+        if (yRescaled[i] > scratch.dataScale.max) scratch.dataScale.max = yRescaled[i];
       }
       scratch.dataScale.range = scratch.dataScale.max - scratch.dataScale.min;
       
-      // yRescaled = -0.5 + (y - min) / (max - min)
-      ext_setVectorToConstant(yRescaled, data.numObservations, -0.5 - scratch.dataScale.min / scratch.dataScale.range);
-      ext_addVectorsInPlace((const double*) data.y, data.numObservations, 1.0 / scratch.dataScale.range, yRescaled);
+      // yRescaled = (y - offset - min) / (max - min) - 0.5
+      ext_addScalarToVectorInPlace(yRescaled, data.numObservations, -scratch.dataScale.min);
+      ext_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / scratch.dataScale.range);
+      ext_addScalarToVectorInPlace(yRescaled, data.numObservations, -0.5);
     }
   }
   
@@ -559,39 +566,40 @@ namespace {
     const Control& control(fit.control);
     const Scratch& scratch(fit.scratch);
     
-    size_t offset;
+    size_t sampleOffset;
     
     if (control.responseIsBinary) {
-      offset = simNum * data.numObservations;
+      sampleOffset = simNum * data.numObservations;
       if (control.keepTrainingFits) {
-        double* trainingSamples = results.trainingSamples + offset;
+        double* trainingSamples = results.trainingSamples + sampleOffset;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
       }
       
-      offset = simNum * data.numTestObservations;
-      std::memcpy(results.testSamples + offset, testSample, data.numTestObservations * sizeof(double));
+      sampleOffset = simNum * data.numTestObservations;
+      std::memcpy(results.testSamples + sampleOffset, testSample, data.numTestObservations * sizeof(double));
       
       results.sigmaSamples[simNum] = 1.0;
       
     } else {
-      offset = simNum * data.numObservations;
+      sampleOffset = simNum * data.numObservations;
       if (control.keepTrainingFits) {
-        double* trainingSamples = results.trainingSamples + offset;
-        // set training to dataScale.range * (totalFits + 0.5) + dataScale.min
+        double* trainingSamples = results.trainingSamples + sampleOffset;
+        // set training to dataScale.range * (totalFits + 0.5) + dataScale.min + offset
         ext_setVectorToConstant(trainingSamples, data.numObservations, scratch.dataScale.range * 0.5 + scratch.dataScale.min);
         ext_addVectorsInPlace(trainingSample, data.numObservations, scratch.dataScale.range, trainingSamples);
+        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
-      offset = simNum * data.numTestObservations;
-      double* testSamples = results.testSamples + offset;
+      sampleOffset = simNum * data.numTestObservations;
+      double* testSamples = results.testSamples + sampleOffset;
       ext_setVectorToConstant(testSamples, data.numTestObservations, scratch.dataScale.range * 0.5 + scratch.dataScale.min);
       ext_addVectorsInPlace(testSample, data.numTestObservations, scratch.dataScale.range, testSamples);
       
       results.sigmaSamples[simNum] = sigma * scratch.dataScale.range;
     }
     
-    offset = simNum * data.numPredictors;
-    for (size_t i = 0; i < data.numPredictors; ++i) results.variableCountSamples[offset + i] = variableCounts[i];
+    sampleOffset = simNum * data.numPredictors;
+    for (size_t i = 0; i < data.numPredictors; ++i) results.variableCountSamples[sampleOffset + i] = variableCounts[i];
   }
   
   

@@ -1,9 +1,7 @@
 v0.8 : initial public release
   call-back mechanism in R
   documentation
-  offset
   binary outcomes
-  safe unload
   
 v0.9 : stuff to add
   categorical variable detection/use

@@ -27,18 +27,39 @@ void ext_addVectors(const double* restrict x, size_t length, double alpha, const
 {
   if (length == 0) return;
   
-  size_t lengthMod4 = length % 4;
+  size_t lengthMod5 = length % 5;
   
-  if (lengthMod4 != 0) {
-    for (size_t i = 0; i < lengthMod4; ++i) z[i] = y[i] + alpha * x[i];
-    if (length < 4) return;
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) z[i] = y[i] + alpha * x[i];
+    if (length < 5) return;
   }
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for (size_t i = lengthMod5; i < length; i += 5) {
     z[i] = y[i] + alpha * x[i];
     z[i + 1] = y[i + 1] + alpha * x[i + 1];
     z[i + 2] = y[i + 2] + alpha * x[i + 2];
     z[i + 3] = y[i + 3] + alpha * x[i + 3];
+    z[i + 4] = y[i + 4] + alpha * x[i + 4];
+  }
+}
+
+void ext_setVectorToConstant(double* x, size_t length, double alpha)
+{
+  if (length == 0) return;
+  
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) x[i] = alpha;
+    if (length < 5) return;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    x[i]     = alpha;
+    x[i + 1] = alpha;
+    x[i + 2] = alpha;
+    x[i + 3] = alpha;
+    x[i + 4] = alpha;
   }
 }
 
@@ -46,18 +67,39 @@ void ext_scalarMultiplyVectorInPlace(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   
-  size_t lengthMod4 = length % 4;
+  size_t lengthMod5 = length % 5;
     
-  if (lengthMod4 != 0) {
-    for (size_t i = 0; i < lengthMod4; ++i) x[i] *= alpha;
-    if (length < 4) return;
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= alpha;
+    if (length < 5) return;
   }
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for (size_t i = lengthMod5; i < length; i += 5) {
     x[i] *= alpha;
     x[i + 1] *= alpha;
     x[i + 2] *= alpha;
     x[i + 3] *= alpha;
+    x[i + 4] *= alpha;
+  }
+}
+
+void ext_addScalarToVectorInPlace(double* x, size_t length, double alpha)
+{
+  if (length == 0) return;
+  
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= alpha;
+    if (length < 5) return;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    x[i]     += alpha;
+    x[i + 1] += alpha;
+    x[i + 2] += alpha;
+    x[i + 3] += alpha;
+    x[i + 4] += alpha;
   }
 }
 
@@ -66,18 +108,19 @@ void ext_scalarMultiplyVector(const double* restrict x, size_t length, double al
 {
   if (length == 0) return;
   
-  size_t lengthMod4 = length % 4;
+  size_t lengthMod5 = length % 5;
   
-  if (lengthMod4 != 0) {
-    for (size_t i = 0; i < lengthMod4; ++i) y[i] = alpha * x[i];
-    if (length < 4) return;
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) y[i] = alpha * x[i];
+    if (length < 5) return;
   }
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
-    y[i] = alpha * x[i];
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    y[i]     = alpha * x[i];
     y[i + 1] = alpha * x[i + 1];
     y[i + 2] = alpha * x[i + 2];
     y[i + 3] = alpha * x[i + 3];
+    y[i + 4] = alpha * x[i + 4];
   }
 }
 
@@ -85,18 +128,19 @@ void ext_hadamardMultiplyVectors(const double* restrict x, size_t length, const 
 {
   if (length == 0) return;
   
-  size_t lengthMod4 = length % 4;
+  size_t lengthMod5 = length % 5;
   
-  if (lengthMod4 != 0) {
-    for (size_t i = 0; i < lengthMod4; ++i) z[i] = y[i] * x[i];
-    if (length < 4) return;
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) z[i] = y[i] * x[i];
+    if (length < 5) return;
   }
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for (size_t i = lengthMod5; i < length; i += 5) {
     z[i] = y[i] * x[i];
     z[i + 1] = y[i + 1] * x[i + 1];
     z[i + 2] = y[i + 2] * x[i + 2];
     z[i + 3] = y[i + 3] * x[i + 3];
+    z[i + 4] = y[i + 4] * x[i + 4];
   }
 }
 
@@ -151,8 +195,9 @@ double ext_sumVectorElements(const double* x, size_t length)
     if (length < 5) return result;
   }
   
-  for (size_t i = lengthMod5; i < length; i += 5)
+  for (size_t i = lengthMod5; i < length; i += 5) {
     result += x[i] + x[i + 1] + x[i + 2] + x[i + 3] + x[i + 4];
+  }
   
   return result;
 }
@@ -167,26 +212,6 @@ double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
   F77_NAME(dlassq)(&length, x, &increment, &scale, &sum);
   
   return scale * scale * sum;
-}
-
-void ext_setVectorToConstant(double* x, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[i] = alpha;
-  if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    x[i]     = alpha;
-    x[i + 1] = alpha;
-    x[i + 2] = alpha;
-    x[i + 3] = alpha;
-    x[i + 4] = alpha;
-  }
 }
 
 // LS solution to Xb = y, or b = (X'X)^-1 X'y
