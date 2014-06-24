@@ -28,16 +28,6 @@ namespace bart {
     return fit.scratch.cutPoints[variableIndex][splitIndex];
   }
   
-  Rule::Rule() : variableIndex(BART_INVALID_RULE_VARIABLE), splitIndex(BART_INVALID_RULE_VARIABLE)
-  {
-  }
-  
-  Rule::Rule(const Rule& other) : variableIndex(other.variableIndex),
-    splitIndex(other.splitIndex)
-  {
-
-  }
-  
   void Rule::invalidate() {
     variableIndex = BART_INVALID_RULE_VARIABLE;
     splitIndex = BART_INVALID_RULE_VARIABLE;
@@ -58,29 +48,7 @@ namespace bart {
     }
   }
   
-  /*bool Rule::goesRight(const BARTFit& fit, const double* x) const
-  {
-    if (variableIndex == BART_INVALID_RULE_VARIABLE) ext_throwError("invalid rule for in Rule::goesRight");
-    
-    if (fit.variableTypes[variableIndex] == CATEGORICAL) {
-      
-      size_t numCategories = fit.numCutsPerVariable[splitIndex];
-
-      
-      uint32_t categoryId;
-      for (categoryId = 0; categoryId < numCategories; ++categoryId) if (x[variableIndex] == categoryValues[categoryId]) break;
-      
-      if (categoryId == numCategories) ext_throwError("error in Rule::goesRight, no match found for cat variable");
-      
-      return categoryGoesRight(categoryId);
-    } else {
-      const double*& splitValues(fit.cutPoints[variableIndex]);
-    
-      return x[variableIndex] > splitValues[splitIndex];
-    }
-  } */
-  
-  void Rule::copyFrom(const BARTFit& fit, const Rule& other)
+  void Rule::copyFrom(const Rule& other)
   {
     if (other.variableIndex == BART_INVALID_RULE_VARIABLE) {
       variableIndex = BART_INVALID_RULE_VARIABLE;
@@ -89,29 +57,20 @@ namespace bart {
     }
     
     variableIndex = other.variableIndex;
-    
-    if (fit.data.variableTypes[variableIndex] == ORDINAL) {
-      splitIndex = other.splitIndex;
-    } else {
-      categoryDirections = other.categoryDirections;
-    }
+    splitIndex    = other.splitIndex;
   }
   
   void Rule::swapWith(Rule& other)
   {
-    Rule temp;
-    std::memcpy(&temp, (const void*) &other, sizeof(Rule));
-    std::memcpy(&other, this,  sizeof(Rule));
-    std::memcpy(this, &temp, sizeof(Rule));
+    Rule temp(other);
+    other = *this;
+    *this = temp;
   }
 
-  bool Rule::equals(const BARTFit& fit, const Rule& other) const {
+  bool Rule::equals(const Rule& other) const {
     if (variableIndex != other.variableIndex) return false;
     
-    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      return categoryDirections == other.categoryDirections;
-    }
-    
+    // since is a union of variables of the same width, bit-wise equality is sufficient
     return splitIndex == other.splitIndex;
   }
   
@@ -120,13 +79,13 @@ namespace bart {
   {
     if (!isTop()) {
       observationIndices = NULL;
-      numObservationsInNode = 0;
+      numObservations = 0;
     }
     if (!isBottom()) {
       leftChild->clearObservations();
-      rightChild->clearObservations();
+      p.rightChild->clearObservations();
     } else {
-      average = 0.0;
+      m.average = 0.0;
     }
   }
   
@@ -134,25 +93,25 @@ namespace bart {
   {
     if (!isBottom()) {
       delete leftChild;
-      delete rightChild;
+      delete p.rightChild;
       
       leftChild = NULL;
+      p.rule.invalidate();
     }
     clearObservations();
-    rule.invalidate();
   }
   
-  Node::Node(size_t* observationIndices, size_t numObservationsInNode, size_t numPredictors) :
-    parent(NULL), leftChild(NULL), average(0.0), enumerationIndex(BART_INVALID_NODE_ENUM), variablesAvailableForSplit(NULL),
-    observationIndices(observationIndices), numObservationsInNode(numObservationsInNode)
+  Node::Node(size_t* observationIndices, size_t numObservations, size_t numPredictors) :
+    parent(NULL), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM), variablesAvailableForSplit(NULL),
+    observationIndices(observationIndices), numObservations(numObservations)
   {
     variablesAvailableForSplit = new bool[numPredictors];
     for (size_t i = 0; i < numPredictors; ++i) variablesAvailableForSplit[i] = true;
   }
   
   Node::Node(const Node& parent, size_t numPredictors) :
-    parent(const_cast<Node*>(&parent)), leftChild(NULL), average(0.0), enumerationIndex(BART_INVALID_NODE_ENUM),
-    variablesAvailableForSplit(NULL), observationIndices(NULL), numObservationsInNode(0)
+    parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM),
+    variablesAvailableForSplit(NULL), observationIndices(NULL), numObservations(0)
   {
     variablesAvailableForSplit = new bool[numPredictors];
     std::memcpy(variablesAvailableForSplit, parent.variablesAvailableForSplit, sizeof(bool) * numPredictors);
@@ -162,7 +121,7 @@ namespace bart {
   {
     if (leftChild != NULL) {
       delete leftChild; leftChild = NULL;
-      delete rightChild; rightChild = NULL;
+      delete p.rightChild; p.rightChild = NULL;
     }
     delete [] variablesAvailableForSplit; variablesAvailableForSplit = NULL;
   }
@@ -171,16 +130,20 @@ namespace bart {
   {
     parent = other.parent;
     leftChild = other.leftChild;
-    if (leftChild != NULL) rightChild = other.rightChild;
-    else average = other.average;
-    
-    rule.copyFrom(fit, other.rule);
+    if (leftChild != NULL) {
+      p.rightChild = other.p.rightChild;
+      p.rule.copyFrom(other.p.rule);
+    }
+    else {
+      m.average = other.m.average;
+      m.numEffectiveObservations = other.m.numEffectiveObservations;
+    }
     
     enumerationIndex = other.enumerationIndex;
     std::memcpy(variablesAvailableForSplit, other.variablesAvailableForSplit, sizeof(bool) * fit.data.numPredictors);
     
     observationIndices = other.observationIndices;
-    numObservationsInNode = other.numObservationsInNode;
+    numObservations = other.numObservations;
   }
   
   void Node::print(const BARTFit& fit) const
@@ -190,29 +153,29 @@ namespace bart {
     for (size_t i = 0; i < depth; ++i) ext_printf("  ");
     
     ext_printf("node:");
-    ext_printf(" n: %lu", getNumObservationsInNode());
+    ext_printf(" n: %lu", getNumObservations());
     ext_printf(" TBN: %u%u%u", isTop(), isBottom(), childrenAreBottom());
     ext_printf(" Avail: ");
     
     for (size_t i = 0; i < fit.data.numPredictors; ++i) ext_printf("%u", variablesAvailableForSplit[i]);
     
     if (!isBottom()) {
-      ext_printf(" var: %d ", rule.variableIndex);
+      ext_printf(" var: %d ", p.rule.variableIndex);
       
-      if (fit.data.variableTypes[rule.variableIndex] == CATEGORICAL) {
+      if (fit.data.variableTypes[p.rule.variableIndex] == CATEGORICAL) {
         ext_printf("CATRule: ");
-        for (size_t i = 0; 0 < fit.scratch.numCutsPerVariable[rule.variableIndex]; ++i) ext_printf(" %u", (rule.categoryDirections >> i) & 1);
+        for (size_t i = 0; 0 < fit.scratch.numCutsPerVariable[p.rule.variableIndex]; ++i) ext_printf(" %u", (p.rule.categoryDirections >> i) & 1);
       } else {
-        ext_printf("ORDRule: (%d)=%f", rule.splitIndex, rule.getSplitValue(fit));
+        ext_printf("ORDRule: (%d)=%f", p.rule.splitIndex, p.rule.getSplitValue(fit));
       }
     } else {
-      ext_printf(" ave: %f", average);
+      ext_printf(" ave: %f", m.average);
     }
     ext_printf("\n");
     
     if (!isBottom()) {
       leftChild->print(fit);
-      rightChild->print(fit);
+      p.rightChild->print(fit);
     }
   }
   
@@ -221,7 +184,7 @@ namespace bart {
     if (isBottom()) {
       return 1;
     } else {
-      return leftChild->getNumBottomNodes() + rightChild->getNumBottomNodes();
+      return leftChild->getNumBottomNodes() + p.rightChild->getNumBottomNodes();
     }
   }
   
@@ -229,23 +192,23 @@ namespace bart {
   {
     if (isBottom()) return 0;
     
-    return leftChild->getNumNotBottomNodes() + rightChild->getNumNotBottomNodes() + 1;
+    return leftChild->getNumNotBottomNodes() + p.rightChild->getNumNotBottomNodes() + 1;
   }
   
   size_t Node::getNumNoGrandNodes() const
   {
     if (isBottom()) return 0;
     if (childrenAreBottom()) return 1;
-    return (leftChild->getNumNoGrandNodes() + rightChild->getNumNoGrandNodes());
+    return (leftChild->getNumNoGrandNodes() + p.rightChild->getNumNoGrandNodes());
   }
   
   size_t Node::getNumSwappableNodes() const
   {
     if (isBottom() || childrenAreBottom()) return 0;
     if ((leftChild->isBottom()  || leftChild->childrenAreBottom()) &&
-        (rightChild->isBottom() || rightChild->childrenAreBottom())) return 1;
+        (p.rightChild->isBottom() || p.rightChild->childrenAreBottom())) return 1;
     
-    return (leftChild->getNumSwappableNodes() + rightChild->getNumSwappableNodes() + 1);
+    return (leftChild->getNumSwappableNodes() + p.rightChild->getNumSwappableNodes() + 1);
   }
 }
 
@@ -259,7 +222,7 @@ namespace {
     }
     
     fillBottomVector(*node.leftChild, result);
-    fillBottomVector(*node.rightChild, result);
+    fillBottomVector(*node.p.rightChild, result);
   }
   
   void fillAndEnumerateBottomVector(bart::Node& node, bart::NodeVector& result, size_t& index)
@@ -270,8 +233,8 @@ namespace {
       return;
     }
     
-    fillAndEnumerateBottomVector(*node.leftChild, result, index);
-    fillAndEnumerateBottomVector(*node.rightChild, result, index);
+    fillAndEnumerateBottomVector(*node.getLeftChild(), result, index);
+    fillAndEnumerateBottomVector(*node.getRightChild(), result, index);
   }
   
   void fillNoGrandVector(const bart::Node& node, bart::NodeVector& result)
@@ -282,8 +245,8 @@ namespace {
       return;
     }
 
-    fillNoGrandVector(*node.leftChild, result);
-    fillNoGrandVector(*node.rightChild, result);
+    fillNoGrandVector(*node.getLeftChild(), result);
+    fillNoGrandVector(*node.getRightChild(), result);
   }
   
   void fillNotBottomVector(const bart::Node& node, bart::NodeVector& result)
@@ -295,7 +258,7 @@ namespace {
     }
   
     fillNotBottomVector(*node.leftChild, result);
-    fillNotBottomVector(*node.rightChild, result);
+    fillNotBottomVector(*node.p.rightChild, result);
     
     result.push_back(const_cast<bart::Node*>(&node));
   }
@@ -304,13 +267,13 @@ namespace {
   {
     if (node.isBottom() || node.childrenAreBottom()) return;
     if ((node.leftChild->isBottom()  || node.leftChild->childrenAreBottom()) && 
-        (node.rightChild->isBottom() || node.rightChild->childrenAreBottom())) {
+        (node.p.rightChild->isBottom() || node.p.rightChild->childrenAreBottom())) {
       result.push_back(const_cast<bart::Node*>(&node));
       return;
     }
     
     fillSwappableVector(*node.leftChild, result);
-    fillSwappableVector(*node.rightChild, result);
+    fillSwappableVector(*node.p.rightChild, result);
     
     result.push_back(const_cast<bart::Node*>(&node));
   }
@@ -356,7 +319,7 @@ namespace bart {
   {
     if (isBottom()) return const_cast<Node*>(this);
     
-    if (rule.goesRight(fit, x)) return rightChild->findBottomNode(fit, x);
+    if (p.rule.goesRight(fit, x)) return p.rightChild->findBottomNode(fit, x);
     
     return leftChild->findBottomNode(fit, x);
   }
@@ -535,27 +498,39 @@ namespace {
 namespace bart {
   void Node::addObservationsToChildren(const BARTFit& fit, const double* y) {
     if (isBottom()) {
-      if (isTop())
-        average = ext_mt_computeMean(fit.threadManager, y, numObservationsInNode);
-      else
-        average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservationsInNode);
+      if (isTop()) {
+        if (fit.data.weights == NULL) {
+          m.average = ext_mt_computeMean(fit.threadManager, y, numObservations);
+          m.numEffectiveObservations = (double) numObservations;
+        } else {
+          m.average = ext_mt_computeWeightedMean(fit.threadManager, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
+        }
+      } else {
+        if (fit.data.weights == NULL) {
+          m.average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservations);
+          m.numEffectiveObservations = (double) numObservations;
+        } else {
+          m.average = ext_mt_computeIndexedWeightedMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
+        }
+      }
+      
       return;
     }
     
     leftChild->clearObservations();
-    rightChild->clearObservations();
+    p.rightChild->clearObservations();
     
     /*size_t numThreads, numElementsPerThread;
-    ext_mt_getNumThreadsForJob(fit.threadManager, numObservationsInNode, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
+    ext_mt_getNumThreadsForJob(fit.threadManager, numObservations, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
                                &numThreads, &numElementsPerThread); */
     
     size_t numOnLeft;
-    IndexOrdering ordering(fit, rule);
+    IndexOrdering ordering(fit, p.rule);
     
     //if (numThreads <= 1) {
       numOnLeft = (isTop() ?
-                   partitionRange(observationIndices, 0, numObservationsInNode, ordering) :
-                   partitionIndices(observationIndices, numObservationsInNode, ordering));
+                   partitionRange(observationIndices, 0, numObservations, ordering) :
+                   partitionIndices(observationIndices, numObservations, ordering));
     /*} else {
       PartitionThreadData* threadData = ext_stackAllocate(numThreads, PartitionThreadData);
       void** threadDataPtrs = ext_stackAllocate(numThreads, void*);
@@ -570,7 +545,7 @@ namespace bart {
       }
       threadData[i].indices = observationIndices + i * numElementsPerThread;
       threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
-      threadData[i].length = numObservationsInNode - i * numElementsPerThread;
+      threadData[i].length = numObservations - i * numElementsPerThread;
       threadData[i].ordering = &ordering;
       threadDataPtrs[i] = &threadData[i];
      
@@ -588,50 +563,60 @@ namespace bart {
     
     
     leftChild->observationIndices = observationIndices;
-    leftChild->numObservationsInNode = numOnLeft;
-    rightChild->observationIndices = observationIndices + numOnLeft;
-    rightChild->numObservationsInNode = numObservationsInNode - numOnLeft;
+    leftChild->numObservations = numOnLeft;
+    p.rightChild->observationIndices = observationIndices + numOnLeft;
+    p.rightChild->numObservations = numObservations - numOnLeft;
     
     
     leftChild->addObservationsToChildren(fit, y);
-    rightChild->addObservationsToChildren(fit, y);
+    p.rightChild->addObservationsToChildren(fit, y);
   }
   
   void Node::addObservationsToChildren(const BARTFit& fit) {
     if (isBottom()) {
-      average = 0.0;
+      m.average = 0.0;
       return;
     }
     
     leftChild->clearObservations();
-    rightChild->clearObservations();
+    p.rightChild->clearObservations();
     
     size_t numOnLeft;
-    IndexOrdering ordering(fit, rule);
+    IndexOrdering ordering(fit, p.rule);
     
     numOnLeft = (isTop() ?
-                 partitionRange(observationIndices, 0, numObservationsInNode, ordering) :
-                 partitionIndices(observationIndices, numObservationsInNode, ordering));
+                 partitionRange(observationIndices, 0, numObservations, ordering) :
+                 partitionIndices(observationIndices, numObservations, ordering));
     
     
     leftChild->observationIndices = observationIndices;
-    leftChild->numObservationsInNode = numOnLeft;
-    rightChild->observationIndices = observationIndices + numOnLeft;
-    rightChild->numObservationsInNode = numObservationsInNode - numOnLeft;
+    leftChild->numObservations = numOnLeft;
+    p.rightChild->observationIndices = observationIndices + numOnLeft;
+    p.rightChild->numObservations = numObservations - numOnLeft;
     
     
     leftChild->addObservationsToChildren(fit);
-    rightChild->addObservationsToChildren(fit);
+    p.rightChild->addObservationsToChildren(fit);
   }
 	
   void Node::setAverage(const BARTFit& fit, const double* y)
   {
     leftChild = NULL;
     
+    size_t numObservations = getNumObservations();
+    
     if (isTop()) {
-      average = ext_mt_computeMean(fit.threadManager, y, numObservationsInNode);
+      if (fit.data.weights == NULL) {
+        m.average = ext_mt_computeMean(fit.threadManager, y, numObservations);
+        m.numEffectiveObservations = (double) numObservations;
+      }
+      else m.average = ext_mt_computeWeightedMean(fit.threadManager, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
     } else {
-      average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservationsInNode);
+      if (fit.data.weights == NULL) {
+        m.average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservations);
+        m.numEffectiveObservations = (double) numObservations;
+      }
+      else m.average = ext_mt_computeIndexedWeightedMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
     }
   }
   
@@ -643,35 +628,57 @@ namespace bart {
     }
     
     leftChild->setAverages(fit, y);
-    rightChild->setAverages(fit, y);
+    p.rightChild->setAverages(fit, y);
   }
   
   double Node::computeVariance(const BARTFit& fit, const double* y) const
   {
     if (isTop()) {
-      return ext_mt_computeVarianceForKnownMean(fit.threadManager, y, numObservationsInNode, average);
+      if (fit.data.weights == NULL) {
+        return ext_mt_computeVarianceForKnownMean(fit.threadManager, y, numObservations, getAverage());
+      } else {
+        return ext_mt_computeWeightedVarianceForKnownMean(fit.threadManager, y, numObservations, fit.data.weights, getAverage());
+      }
     } else {
-      return ext_mt_computeIndexedVarianceForKnownMean(fit.threadManager, y, observationIndices, numObservationsInNode, average);
+      if (fit.data.weights == NULL) {
+        return ext_mt_computeIndexedVarianceForKnownMean(fit.threadManager, y, observationIndices, numObservations, getAverage());
+      } else {
+        return ext_mt_computeIndexedWeightedVarianceForKnownMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, getAverage());
+      }
     }
   }
   
   double Node::drawFromPosterior(const EndNodePrior& endNodePrior, double residualVariance) const
   {
-    size_t numObservationsInNode = getNumObservationsInNode();
-    
-    if (numObservationsInNode == 0) return 0.0;
+    if (getNumObservations() == 0) return 0.0;
       
-    return endNodePrior.drawFromPosterior(getAverage(), numObservationsInNode, residualVariance);
+    return endNodePrior.drawFromPosterior(getAverage(), getNumEffectiveObservations(), residualVariance);
   }
   
-  void Node::setPredictions(double* y_hat, double prediction) const
+  void Node::setPredictions(double* restrict y_hat, double prediction) const restrict
   {
+    size_t numObservations = getNumObservations();
+    
     if (isTop()) {
-      ext_setVectorToConstant(y_hat, numObservationsInNode, prediction);
+      ext_setVectorToConstant(y_hat, numObservations, prediction);
       return;
     }
     
-    for (size_t i = 0; i < numObservationsInNode; ++i) y_hat[observationIndices[i]] = prediction;
+    size_t i = 0;
+    size_t lengthMod5 = numObservations % 5;
+    
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) y_hat[observationIndices[i]] = prediction;
+      if (numObservations < 5) return;
+    }
+    
+    for ( ; i < numObservations; i += 5) {
+      y_hat[observationIndices[i]]     = prediction;
+      y_hat[observationIndices[i + 1]] = prediction;
+      y_hat[observationIndices[i + 2]] = prediction;
+      y_hat[observationIndices[i + 3]] = prediction;
+      y_hat[observationIndices[i + 4]] = prediction;
+    }
   }
   
   size_t Node::getDepth() const
@@ -691,13 +698,13 @@ namespace bart {
   {
     if (childrenAreBottom()) return 1;
     if (isBottom()) return 0;
-    return (1 + (size_t) std::max(leftChild->getDepthBelow(), rightChild->getDepthBelow()));
+    return (1 + (size_t) std::max(leftChild->getDepthBelow(), p.rightChild->getDepthBelow()));
   }
   
   size_t Node::getNumNodesBelow() const
   {
     if (isBottom()) return 0;
-    return 2 + leftChild->getNumNodesBelow() + rightChild->getNumNodesBelow();
+    return 2 + leftChild->getNumNodesBelow() + p.rightChild->getNumNodesBelow();
   }
   
   size_t Node::getNumVariablesAvailableForSplit(size_t numVariables) const {
@@ -707,34 +714,36 @@ namespace bart {
   void Node::split(const BARTFit& fit, const Rule& newRule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits) {
     if (newRule.variableIndex < 0) ext_throwError("error in split: rule not set\n");
     
-    std::memcpy(&rule, &newRule, sizeof(Rule));
+    p.rule = newRule;
     
-    leftChild  = new Node(*this, fit.data.numPredictors);
-    rightChild = new Node(*this, fit.data.numPredictors);
+    leftChild    = new Node(*this, fit.data.numPredictors);
+    p.rightChild = new Node(*this, fit.data.numPredictors);
     
-    if (exhaustedLeftSplits)   leftChild->variablesAvailableForSplit[rule.variableIndex] = false;
-    if (exhaustedRightSplits) rightChild->variablesAvailableForSplit[rule.variableIndex] = false;
+    if (exhaustedLeftSplits)     leftChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
+    if (exhaustedRightSplits) p.rightChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
     
     addObservationsToChildren(fit, y);
   }
 
   void Node::orphanChildren() {
-    double numObservationsInNode = (double) getNumObservationsInNode();
-    double mu = leftChild->getAverage() * ((double) leftChild->getNumObservationsInNode() / numObservationsInNode) +
-                rightChild->getAverage() * ((double) rightChild->getNumObservationsInNode() / numObservationsInNode);
-    leftChild = NULL;
-    setAverage(mu);
+    // do this w/o clobbering children pointers until details are nailed down
+    double numEffectiveObservations = leftChild->m.numEffectiveObservations + p.rightChild->m.numEffectiveObservations;
     
-    rule.invalidate();
+    double average = leftChild->m.average * (leftChild->m.numEffectiveObservations / numEffectiveObservations) +
+                     p.rightChild->m.average * (p.rightChild->m.numEffectiveObservations / numEffectiveObservations);
+    
+    leftChild = NULL;
+    m.average = average;
+    m.numEffectiveObservations = numEffectiveObservations;
   }
   
   void Node::countVariableUses(uint32_t* variableCounts) const
   {
     if (isBottom()) return;
     
-    ++variableCounts[rule.variableIndex];
+    ++variableCounts[p.rule.variableIndex];
     
     leftChild->countVariableUses(variableCounts);
-    rightChild->countVariableUses(variableCounts);
+    p.rightChild->countVariableUses(variableCounts);
   }
 }

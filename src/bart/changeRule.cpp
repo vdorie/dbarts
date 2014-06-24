@@ -37,12 +37,13 @@ namespace {
     bart::Rule rule;
     
     double* averages;
+    double* numEffectiveObservations;
     
     size_t numNodesInSubtree;
     bool* variablesAvailable;
 
     size_t** observationIndicesPtrs; // duplicates where original was pointing
-    size_t* numObservationsInNodes;  // duplicates length of original
+    size_t* numObservations;         // duplicates length of original
     size_t** observationIndices;     // duplicates content of original
     
     void store(const bart::BARTFit& fit, const bart::Node& node);
@@ -115,26 +116,22 @@ namespace bart {
         bool* sel = ext_stackAllocate(numCategories - 1, bool);
         setBinaryRepresentation(numCategories - 1, categoryCombinationNumber, sel);
         
-        nodeToChange.rule.variableIndex = newVariableIndex;
-        // nodeToChange.rule.categoryDirections = new CategoryBranchingType[numCategories];
-        // for (size_t j = 0; (int32_t) j < firstGoodCategory; ++j) nodeToChange.rule.categoryDirections[j] = sel[j];
-        // nodeToChange.rule.categoryDirections[firstGoodCategory] = BART_CAT_RIGHT;
-        // for (size_t j = firstGoodCategory + 1; j < numCategories; ++j) nodeToChange.rule.categoryDirections[j] = sel[j - 1];
-        nodeToChange.rule.categoryDirections = 0u;
+        nodeToChange.p.rule.variableIndex = newVariableIndex;
+        nodeToChange.p.rule.categoryDirections = 0u;
         for (size_t j = 0; j < firstGoodCategory; ++j) {
-          if (sel[j] == true) nodeToChange.rule.setCategoryGoesRight(j);
-          else nodeToChange.rule.setCategoryGoesLeft(j);
+          if (sel[j] == true) nodeToChange.p.rule.setCategoryGoesRight(j);
+          else nodeToChange.p.rule.setCategoryGoesLeft(j);
         }
-        nodeToChange.rule.setCategoryGoesRight(firstGoodCategory);
+        nodeToChange.p.rule.setCategoryGoesRight(firstGoodCategory);
         for (size_t j = firstGoodCategory + 1; j < numCategories; ++j) {
-          if (sel[j - 1] == true) nodeToChange.rule.setCategoryGoesRight(j);
-          else nodeToChange.rule.setCategoryGoesLeft(j);
+          if (sel[j - 1] == true) nodeToChange.p.rule.setCategoryGoesRight(j);
+          else nodeToChange.p.rule.setCategoryGoesLeft(j);
         }
         
-        //fix data at nodes below nodeToChange given new rule
+        // fix data at nodes below nodeToChange given new rule
         nodeToChange.addObservationsToChildren(fit, y);
         
-        //  fix VarAvail
+        // fix VarAvail
         updateVariablesAvailable(fit, nodeToChange, newVariableIndex);
         if (newVariableIndex != oldState.rule.variableIndex) updateVariablesAvailable(fit, nodeToChange, oldState.rule.variableIndex);
         
@@ -185,8 +182,8 @@ namespace bart {
         oldState.store(fit, nodeToChange);
         
         // change rule at nodeToChange to the new one
-        nodeToChange.rule.variableIndex = newVariableIndex;
-        nodeToChange.rule.splitIndex = newRuleIndex;
+        nodeToChange.p.rule.variableIndex = newVariableIndex;
+        nodeToChange.p.rule.splitIndex    = newRuleIndex;
         
         nodeToChange.addObservationsToChildren(fit, y);
         
@@ -227,16 +224,16 @@ namespace bart {
       while (curr != bottomVector[index]) ++index;
       nodesAreReachable[index] = true;
     } else {
-      if (curr->rule.variableIndex == variableIndex) {
+      if (curr->p.rule.variableIndex == variableIndex) {
 //        if (curr->rule.categoryDirections[categoryIndex] == BART_CAT_RIGHT) {
-        if (curr->rule.categoryGoesRight(categoryIndex)) {
-          findReachableBottomNodesForCategory(curr->rightChild, variableIndex, categoryIndex, bottomVector, nodesAreReachable);
+        if (curr->p.rule.categoryGoesRight(categoryIndex)) {
+          findReachableBottomNodesForCategory(curr->getRightChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);
         } else {
-          findReachableBottomNodesForCategory(curr->leftChild, variableIndex, categoryIndex, bottomVector, nodesAreReachable);
+          findReachableBottomNodesForCategory(curr->getLeftChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);
         }
       } else {
-        findReachableBottomNodesForCategory(curr->rightChild, variableIndex, categoryIndex, bottomVector, nodesAreReachable);
-        findReachableBottomNodesForCategory(curr->leftChild, variableIndex, categoryIndex, bottomVector, nodesAreReachable);
+        findReachableBottomNodesForCategory(curr->getRightChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);
+        findReachableBottomNodesForCategory(curr->getLeftChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);
       }
     }
   }
@@ -257,8 +254,8 @@ namespace bart {
     leftMax  = leftIndex - 1;
     rightMax = leftIndex - 1;
     
-    findOrdinalMinMaxSplitIndices(fit, *node.leftChild, variableIndex, &leftMin, &leftMax);
-    findOrdinalMinMaxSplitIndices(fit, *node.rightChild, variableIndex, &rightMin, &rightMax);
+    findOrdinalMinMaxSplitIndices(fit, *node.getLeftChild(), variableIndex, &leftMin, &leftMax);
+    findOrdinalMinMaxSplitIndices(fit, *node.getRightChild(), variableIndex, &rightMin, &rightMax);
     
     *lowerIndex = std::max(leftIndex, leftMax + 1);
     *upperIndex = std::min(rightIndex, rightMin - 1);
@@ -267,15 +264,15 @@ namespace bart {
   void findOrdinalMinMaxSplitIndices(const BARTFit& fit, const Node& node, int32_t variableIndex, int32_t* min, int32_t* max)
   //used to find good ord rule, go down tree adjusting min and max whenever VarI is used
   {
-    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) ext_printf("error in findOrdinalMinMaxSplitIndices, called on CATEGORICAL var\n");
+    if (fit.data.variableTypes[variableIndex] == CATEGORICAL) ext_throwError("error in findOrdinalMinMaxSplitIndices, called on CATEGORICAL var");
     
     if (!node.isBottom()) {
-      if (variableIndex == node.rule.variableIndex) {
-        if (node.rule.splitIndex < *min) *min = node.rule.splitIndex;
-        if (node.rule.splitIndex > *max) *max = node.rule.splitIndex;
+      if (variableIndex == node.p.rule.variableIndex) {
+        if (node.p.rule.splitIndex < *min) *min = node.p.rule.splitIndex;
+        if (node.p.rule.splitIndex > *max) *max = node.p.rule.splitIndex;
       }
-      findOrdinalMinMaxSplitIndices(fit, *node.leftChild, variableIndex, min, max);
-      findOrdinalMinMaxSplitIndices(fit, *node.rightChild, variableIndex, min, max);
+      findOrdinalMinMaxSplitIndices(fit, *node.getLeftChild(), variableIndex, min, max);
+      findOrdinalMinMaxSplitIndices(fit, *node.getRightChild(), variableIndex, min, max);
     }
   }
   
@@ -302,11 +299,11 @@ namespace bart {
     
     bool* sel1 = ext_stackAllocate(numCategories - 1, bool);
     
-    NodeVector leftBottomVector(node.leftChild->getBottomVector());
+    NodeVector leftBottomVector(node.getLeftChild()->getBottomVector());
     size_t numLeftBottomNodes = leftBottomVector.size();
     bool* leftNodesAreReachable = ext_stackAllocate(numLeftBottomNodes, bool);
     
-    NodeVector rightBottomVector(node.rightChild->getBottomVector());
+    NodeVector rightBottomVector(node.getRightChild()->getBottomVector());
     size_t numRightBottomNodes = rightBottomVector.size();
     bool* rightNodesAreReachable = ext_stackAllocate(numRightBottomNodes, bool);
     
@@ -328,9 +325,9 @@ namespace bart {
       for (size_t j = 0; j < numCategories; ++j) {
         if (categoriesGoRight[j] == true) {
           if (sel[j] == true) {
-            findReachableBottomNodesForCategory(node.rightChild, variableIndex, j, rightBottomVector, rightNodesAreReachable);
+            findReachableBottomNodesForCategory(node.getRightChild(), variableIndex, j, rightBottomVector, rightNodesAreReachable);
           } else {
-            findReachableBottomNodesForCategory(node.leftChild, variableIndex, j, leftBottomVector, leftNodesAreReachable);
+            findReachableBottomNodesForCategory(node.getLeftChild(), variableIndex, j, leftBottomVector, leftNodesAreReachable);
           }
         }
         if (allTrue(leftNodesAreReachable, numLeftBottomNodes) &&
@@ -382,51 +379,54 @@ namespace {
     std::memcpy(state.variablesAvailable + nodeIndex * fit.data.numPredictors, node.variablesAvailableForSplit, fit.data.numPredictors * sizeof(bool));
     
     state.observationIndicesPtrs[nodeIndex] = node.observationIndices;
-    state.numObservationsInNodes[nodeIndex] = node.numObservationsInNode;
-    state.observationIndices[nodeIndex] = new size_t[node.numObservationsInNode];
-    std::memcpy(state.observationIndices[nodeIndex], (const size_t*) node.observationIndices, node.numObservationsInNode * sizeof(size_t));
+    state.numObservations[nodeIndex] = node.numObservations;
+    state.observationIndices[nodeIndex] = new size_t[node.numObservations];
+    std::memcpy(state.observationIndices[nodeIndex], (const size_t*) node.observationIndices, node.numObservations * sizeof(size_t));
     
     ++nodeIndex;
     
     if (node.isBottom()) {
-      state.averages[bottomNodeIndex++] = node.getAverage();
+      state.averages[bottomNodeIndex] = node.getAverage();
+      state.numEffectiveObservations[bottomNodeIndex++] = node.getNumEffectiveObservations();
       return;
     }
     
-    storeTree(state, fit, *node.leftChild, nodeIndex, bottomNodeIndex);
-    storeTree(state, fit, *node.rightChild, nodeIndex, bottomNodeIndex);
+    storeTree(state, fit, *node.getLeftChild(), nodeIndex, bottomNodeIndex);
+    storeTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
   void restoreTree(State& state, const bart::BARTFit& fit, bart::Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
     std::memcpy(node.variablesAvailableForSplit, state.variablesAvailable + nodeIndex * fit.data.numPredictors, fit.data.numPredictors * sizeof(bool));
 
     node.observationIndices = state.observationIndicesPtrs[nodeIndex];
-    node.numObservationsInNode = state.numObservationsInNodes[nodeIndex];
-    std::memcpy(node.observationIndices, (const size_t*) state.observationIndices[nodeIndex], state.numObservationsInNodes[nodeIndex] * sizeof(size_t));
+    node.numObservations = state.numObservations[nodeIndex];
+    std::memcpy(node.observationIndices, (const size_t*) state.observationIndices[nodeIndex], state.numObservations[nodeIndex] * sizeof(size_t));
     
     ++nodeIndex;
     
     if (node.isBottom()) {
-      node.setAverage(state.averages[bottomNodeIndex++]);
+      node.setAverage(state.averages[bottomNodeIndex]);
+      node.setNumEffectiveObservations(state.numEffectiveObservations[bottomNodeIndex++]);
       return;
     }
     
-    restoreTree(state, fit, *node.leftChild, nodeIndex, bottomNodeIndex);
-    restoreTree(state, fit, *node.rightChild, nodeIndex, bottomNodeIndex);
+    restoreTree(state, fit, *node.getLeftChild(), nodeIndex, bottomNodeIndex);
+    restoreTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
   void State::store(const bart::BARTFit& fit, const bart::Node& node) {
-    std::memcpy(&rule, &node.rule, sizeof(bart::Rule));
+    rule = node.p.rule;
     
     size_t numBottomNodes = node.getNumBottomNodes();
     
     averages = new double[numBottomNodes];
+    numEffectiveObservations = new double[numBottomNodes];
     
     numNodesInSubtree = 1 + node.getNumNodesBelow();
     variablesAvailable = new bool[numNodesInSubtree * fit.data.numPredictors];
     
     observationIndicesPtrs = new size_t*[numNodesInSubtree];
-    numObservationsInNodes = new size_t[numNodesInSubtree];
+    numObservations = new size_t[numNodesInSubtree];
     observationIndices = new size_t*[numNodesInSubtree];
     
     size_t nodeIndex = 0, bottomNodeIndex = 0;
@@ -435,36 +435,30 @@ namespace {
   
   void State::destroy() {
     delete [] averages;
+    delete [] numEffectiveObservations;
     
     delete [] variablesAvailable;
     
     delete [] observationIndicesPtrs;
-    delete [] numObservationsInNodes;
+    delete [] numObservations;
     for (size_t i = 0; i < numNodesInSubtree; ++i) delete [] observationIndices[i];
     delete [] observationIndices;
-    
-    // I'm having trouble calling whatever ~bart::IndexVector() should be w/o the typedef
-    // typedef bart::IndexVector BartIndexVector;
-    // for (size_t i = 0; i < numNodesInSubtree; ++i) observationsInNodes[i].~BartIndexVector();
-    // ::operator delete(observationsInNodes);
   }
   
   void State::restore(const bart::BARTFit& fit, bart::Node& node) {
-    std::memcpy(&node.rule, &rule, sizeof(bart::Rule));
+    node.p.rule = rule;
         
     size_t nodeIndex = 0, bottomNodeIndex = 0;
     restoreTree(*this, fit, node, nodeIndex, bottomNodeIndex);
     
     delete [] averages;
+    delete [] numEffectiveObservations;
+    
     delete [] variablesAvailable;
     
     delete [] observationIndicesPtrs;
-    delete [] numObservationsInNodes;
+    delete [] numObservations;
     for (size_t i = 0; i < numNodesInSubtree; ++i) delete [] observationIndices[i];
     delete [] observationIndices;
-    
-    // typedef bart::IndexVector BartIndexVector;
-    // for (size_t i = 0; i < numNodesInSubtree; ++i) observationsInNodes[i].~BartIndexVector();
-    // ::operator delete(observationsInNodes);
   }
 }

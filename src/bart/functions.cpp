@@ -50,13 +50,13 @@ namespace bart {
       leftChildRightIndex = rightIndex;
       rightChildRightIndex = rightIndex;
       
-      if (node->rule.variableIndex == variableIndex) {
-        leftChildRightIndex = node->rule.splitIndex - 1;
-        rightChildLeftIndex = node->rule.splitIndex + 1;
+      if (node->p.rule.variableIndex == variableIndex) {
+        leftChildRightIndex = node->p.rule.splitIndex - 1;
+        rightChildLeftIndex = node->p.rule.splitIndex + 1;
       }
       
-      updateOrdinalVariablesAvailable(fit, node->leftChild, variableIndex, leftChildLeftIndex, leftChildRightIndex);
-      updateOrdinalVariablesAvailable(fit, node->rightChild, variableIndex, rightChildLeftIndex, rightChildRightIndex);
+      updateOrdinalVariablesAvailable(fit, node->getLeftChild(), variableIndex, leftChildLeftIndex, leftChildRightIndex);
+      updateOrdinalVariablesAvailable(fit, node->getRightChild(), variableIndex, rightChildLeftIndex, rightChildRightIndex);
     }
   }
   
@@ -76,11 +76,11 @@ namespace bart {
         rightChildCategories[i] = catGoesRight[i];
       }
       
-      if (node->rule.variableIndex == variableIndex) {
+      if (node->p.rule.variableIndex == variableIndex) {
         uint32_t categoryMask = 1u;
         for (size_t i = 0; i < numCategories; ++i) {
           if (catGoesRight[i] == true) {
-            if ((node->rule.categoryDirections & categoryMask) != 0) {
+            if ((node->p.rule.categoryDirections & categoryMask) != 0) {
               leftChildCategories[i] = false;
             } else {
               rightChildCategories[i] = false;
@@ -90,13 +90,14 @@ namespace bart {
         }
       }
       
-      updateCategoricalVariablesAvailable(fit, node->leftChild, variableIndex, leftChildCategories);
-      updateCategoricalVariablesAvailable(fit, node->rightChild, variableIndex, rightChildCategories);
+      updateCategoricalVariablesAvailable(fit, node->getLeftChild(), variableIndex, leftChildCategories);
+      updateCategoricalVariablesAvailable(fit, node->getRightChild(), variableIndex, rightChildCategories);
     }
     
     delete [] catGoesRight;
   }
   
+  // extern bool printMyShit;
   
   double metropolisJumpForTree(const BARTFit& fit, Tree& tree, const double* y,
                                bool* stepTaken, StepType* stepType)
@@ -123,7 +124,7 @@ namespace bart {
       *stepType = CHANGE;
     }
     // const char * const jumpNames[] = { "birth", "death", "swap", "change" };
-    // ext_printf("jump: %s, succ: %s, u: %f\n", jumpNames[*stepType], *stepTaken ? "true" : "false", u);
+    // if (printMyShit) ext_printf("jump: %s, succ: %s, u: %f\n", jumpNames[*stepType], *stepTaken ? "true" : "false", u);
     
 
     return alpha;
@@ -156,14 +157,14 @@ namespace bart {
     const Node* parent;
     while (!curr->isTop()) {
       parent = curr->parent;
-      if (parent->rule.variableIndex == variableIndex) {
-        if (curr == parent->leftChild) {
+      if (parent->p.rule.variableIndex == variableIndex) {
+        if (curr == parent->getLeftChild()) {
           for (uint32_t i = 0; i < numCategories; ++i) { // parent woulda taken this right, but we're left child
-            if (parent->rule.categoryGoesRight(i)) categoriesCanReachNode[i] = false;
+            if (parent->p.rule.categoryGoesRight(i)) categoriesCanReachNode[i] = false;
           }
         } else {
           for (uint32_t i = 0; i < numCategories; ++i) {
-            if (parent->rule.categoryGoesRight(i) == false) categoriesCanReachNode[i] = false;
+            if (parent->p.rule.categoryGoesRight(i) == false) categoriesCanReachNode[i] = false;
 
           }
         }
@@ -213,7 +214,7 @@ namespace bart {
     // move up tree until you have topped out or found both left and right
     while (!curr->isTop() && !(leftFound && rightFound)) {
       
-      if (curr == curr->parent->rightChild) {
+      if (curr == curr->parent->getRightChild()) {
         isRightChild = true;
       } else {
         isRightChild = false;
@@ -222,14 +223,14 @@ namespace bart {
       curr = curr->parent;
       
       // if you find the variable set the left or right
-      if (curr->rule.variableIndex == variableIndex) {
+      if (curr->p.rule.variableIndex == variableIndex) {
         if (isRightChild && !leftFound) {
           leftFound = true;
-          *leftIndex = curr->rule.splitIndex + 1;
+          *leftIndex = curr->p.rule.splitIndex + 1;
         }
         if (!isRightChild && !rightFound) {
           rightFound = true;
-          *rightIndex = curr->rule.splitIndex - 1;
+          *rightIndex = curr->p.rule.splitIndex - 1;
         }
       }
     }

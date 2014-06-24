@@ -20,6 +20,8 @@ extern "C" {
   
   // z = x .* y; z must be distinct from x and y
   void ext_hadamardMultiplyVectors(const double* restrict x, ext_size_t length, const double* restrict y, double* restrict z);
+  // x := x. * y; x and y should be distinct
+  void ext_hadamardMultiplyVectorsInPlace(double* restrict x, ext_size_t length, const double* restrict y);
   
   // b = Ax
   void ext_leftMultiplyMatrixAndVector(const double* A, ext_size_t n, ext_size_t p, const double* x, double* b);

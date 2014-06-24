@@ -18,6 +18,13 @@ AC_ARG_ENABLE([bart-exact],
               [bart_exact=-DBART_EXACT])
 AC_SUBST(bart_exact)
 
+AC_ARG_ENABLE([thread-safe-unload],
+              [AS_HELP_STRING([--enable-thread-safe-unload],
+                              [block when adding/deleting fits for the purposes of package reloading])],
+              [thread_safe_unload=-DTHREAD_SAFE_UNLOAD],
+              [unset thread_safe_unload])
+AC_SUBST(thread_safe_unload)
+
 # Checks for programs.
 : ${R_HOME=`R RHOME`}
 if test -z "${R_HOME}"; then
@@ -40,7 +47,9 @@ AC_PROG_CXX
 AC_PROG_CXXCPP
 
 AC_LANG(C)
+AC_LANG_PUSH(C++)
 AC_C_RESTRICT
+AC_LANG_POP(C++)
 
 # Checks for libraries.
 AX_PTHREAD
@@ -53,7 +62,7 @@ AC_LANG_PUSH(C++)
 AC_CHECK_HEADERS([cstdint])
 AC_LANG_POP(C++)
 
-if test “$ac_cv_header_cstdint” == no
+if test "$ac_cv_header_cstdint" == no
 then
   AC_CHECK_HEADER([stdint.h])
 fi

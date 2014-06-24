@@ -653,6 +653,7 @@ build_alias
 host_alias
 target_alias
 bart_exact
+thread_safe_unload
 CC
 CFLAGS
 LDFLAGS
@@ -1273,6 +1274,9 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-bart-exact    add/remove unnecessary calls to RNG to get results
                           identical to BayesTree
+  --enable-thread-safe-unload
+                          block when adding/deleting fits for the purposes of
+                          package reloading
 
 Some influential environment variables:
   CC          C compiler command
@@ -1869,6 +1873,15 @@ if test "${enable_bart_exact+set}" = set; then
   enableval=$enable_bart_exact; unset bart_exact
 else
   bart_exact=-DBART_EXACT
+fi
+
+
+
+# Check whether --enable-thread-safe-unload was given.
+if test "${enable_thread_safe_unload+set}" = set; then
+  enableval=$enable_thread_safe_unload; thread_safe_unload=-DTHREAD_SAFE_UNLOAD
+else
+  unset thread_safe_unload
 fi
 
 
@@ -3835,6 +3848,12 @@ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
+ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
 
 { echo "$as_me:$LINENO: checking for C/C++ restrict keyword" >&5
 echo $ECHO_N "checking for C/C++ restrict keyword... $ECHO_C" >&6; }
@@ -3880,7 +3899,7 @@ eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
   cat conftest.err >&5
   echo "$as_me:$LINENO: \$? = $ac_status" >&5
   (exit $ac_status); } && {
-	 test -z "$ac_c_werror_flag" ||
+	 test -z "$ac_cxx_werror_flag" ||
 	 test ! -s conftest.err
        } && test -s conftest.$ac_objext; then
   ac_cv_c_restrict=$ac_kw
@@ -3910,6 +3929,12 @@ _ACEOF
 _ACEOF
  ;;
  esac
+
+ac_ext=c
+ac_cpp='$CPP $CPPFLAGS'
+ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 # Checks for libraries.
@@ -3994,6 +4019,7 @@ shift; shift
 host_os=$*
 IFS=$ac_save_IFS
 case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
+
 
 
 
@@ -4583,7 +4609,6 @@ ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ex
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
 
-
 { echo "$as_me:$LINENO: checking for grep that handles long lines and -e" >&5
 echo $ECHO_N "checking for grep that handles long lines and -e... $ECHO_C" >&6; }
 if test "${ac_cv_path_GREP+set}" = set; then
@@ -5141,7 +5166,7 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
-if test “$ac_cv_header_cstdint” == no
+if test "$ac_cv_header_cstdint" == no
 then
 
 if test "${ac_cv_header_stdint_h+set}" = set; then
@@ -6729,6 +6754,7 @@ build_alias!$build_alias$ac_delim
 host_alias!$host_alias$ac_delim
 target_alias!$target_alias$ac_delim
 bart_exact!$bart_exact$ac_delim
+thread_safe_unload!$thread_safe_unload$ac_delim
 CC!$CC$ac_delim
 CFLAGS!$CFLAGS$ac_delim
 LDFLAGS!$LDFLAGS$ac_delim
@@ -6761,7 +6787,7 @@ LIBOBJS!$LIBOBJS$ac_delim
 LTLIBOBJS!$LTLIBOBJS$ac_delim
 _ACEOF
 
-  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 68; then
+  if test `sed -n "s/.*$ac_delim\$/X/p" conf$$subs.sed | grep -c X` = 69; then
     break
   elif $ac_last_try; then
     { { echo "$as_me:$LINENO: error: could not make $CONFIG_STATUS" >&5

@@ -57,6 +57,9 @@ namespace {
 }
 
 namespace bart {
+  
+  // bool printMyShit;
+  
   void BARTFit::setResponse(const double* newY) {
     double sigmaUnscaled = state.sigma * scratch.dataScale.range;
     double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
@@ -159,7 +162,7 @@ namespace bart {
     time_t endTime;
     startTime = time(NULL);
 #endif
-  
+    // printMyShit = false;
     for (uint32_t k = 0; k < totalNumIterations; ++k) {
       majorIterationNum = k / control.treeThinningRate;
       if (control.verbose && (majorIterationNum + 1) % control.printEvery == 0)
@@ -168,7 +171,8 @@ namespace bart {
       isThinningIteration = ((k + 1) % control.treeThinningRate != 0);
       
       if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
-            
+      
+      // if (k == 1049) printMyShit = true;
       for (size_t i = 0; i < control.numTrees; ++i) {
         double* oldTreeFits = state.treeFits + i * data.numObservations;
         
@@ -180,27 +184,31 @@ namespace bart {
         
         state.trees[i].setNodeAverages(*this, scratch.treeY);
         
-        /*if (k == 6 && i == 131) {
+        /* if (k == 0 && i == 3) {
           ext_printf("**before:\n");
-          trees[i].top.print(*this);
-          //ext_printf("  left child obs :\n    ");
-          //for (size_t j = 0; j < trees[i].top.leftChild->numObservationsInNode; ++j) ext_printf("%2lu, ", trees[i].top.leftChild->observationIndices[j]);
-          //ext_printf("\n  right child obs:\n    ");
-          //for (size_t j = 0; j < trees[i].top.rightChild->numObservationsInNode; ++j) ext_printf("%2lu, ", trees[i].top.rightChild->observationIndices[j]);
-          //ext_printf("\n");
-        }*/
-        //ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
+          state.trees[i].top.print(*this);
+          if (!state.trees[i].top.isBottom()) {
+            ext_printf("  left child obs :\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            ext_printf("\n  right child obs:\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+            ext_printf("\n");
+          }
+        } */
+        // if (printMyShit) ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
-        /*if (k == 1 && i == 20) {
+        /* if (k == 0 && i == 3) {
           ext_printf("**after:\n");
-          trees[i].top.print(*this);
-          ext_printf("  left child obs :\n    ");
-          for (size_t j = 0; j < trees[i].top.leftChild->numObservationsInNode; ++j) ext_printf("%2lu, ", trees[i].top.leftChild->observationIndices[j]);
-          ext_printf("\n  right child obs:\n    ");
-          for (size_t j = 0; j < trees[i].top.rightChild->numObservationsInNode; ++j) ext_printf("%2lu, ", trees[i].top.rightChild->observationIndices[j]);
+          state.trees[i].top.print(*this);
+          if (!state.trees[i].top.isBottom()) {
+            ext_printf("  left child obs :\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            ext_printf("\n  right child obs:\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+          }
           ext_printf("\n");
         } */
-        //trees[i].top.print(*this);
+        // if (printMyShit) state.trees[i].top.print(*this);
         
         state.trees[i].getCurrentFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
         

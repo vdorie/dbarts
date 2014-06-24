@@ -100,6 +100,26 @@ void ext_hadamardMultiplyVectors(const double* restrict x, size_t length, const 
   }
 }
 
+void ext_hadamardMultiplyVectorsInPlace(double* restrict x, size_t length, const double* restrict y)
+{
+  if (length == 0) return;
+  
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= y[i];
+    if (length < 5) return;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    x[i] *= y[i];
+    x[i + 1] *= y[i + 1];
+    x[i + 2] *= y[i + 2];
+    x[i + 3] *= y[i + 3];
+    x[i + 4] *= y[i + 4];
+  }
+}
+
 // b = Ax
 void ext_leftMultiplyMatrixAndVector(const double* A, size_t n, size_t p, const double* x, double* b)
 {

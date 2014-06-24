@@ -32,12 +32,18 @@ int64_t ext_simulateIntegerUniformInRange(int64_t min_inclusive, int64_t max_exc
 uint64_t ext_simulateUnsignedIntegerUniformInRange(uint64_t min_inclusive, uint64_t max_exclusive);
   
 double ext_computeMean(const double* x, ext_size_t length);
-double ext_computeIndexedMean(const double* restrict x, const ext_size_t* restrict indices, size_t length);
+// weighted mean = w'x / w'1; n will be set to w'1 if not NULL
+double ext_computeIndexedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length);
+double ext_computeWeightedMean(const double* restrict x, ext_size_t length, const double* restrict w, double* restrict n);
+double ext_computeIndexedWeightedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, const double* restrict w, double* restrict n);
+  
 // variance := ssr / (n - 1)
 double ext_computeVariance(const double* restrict x, ext_size_t length, double* restrict mean);
-double ext_computeVarianceForKnownMean(const double* x, size_t length, double mean);
-double ext_computeIndexedVariance(const double* restrict x, const ext_size_t* restrict indices, size_t length, double* restrict mean);
-double ext_computeIndexedVarianceForKnownMean(const double* restrict x, const ext_size_t* restrict indices, size_t length, double mean);
+double ext_computeVarianceForKnownMean(const double* x, ext_size_t length, double mean);
+double ext_computeIndexedVariance(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, double* restrict mean);
+double ext_computeIndexedVarianceForKnownMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, double mean);
+double ext_computeWeightedVarianceForKnownMean(const double* restrict x, ext_size_t length, const double* restrict w, double mean);
+double ext_computeIndexedWeightedVarianceForKnownMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, const double* restrict w, double mean);
   
 double ext_computeAndSumSquaresOfResiduals(const double* y, ext_size_t length, double y_hat);
 double ext_computeAndSumSquaresOfResidualsForVector(const double* restrict y, ext_size_t length, const double* restrict y_hat);

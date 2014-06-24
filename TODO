@@ -1,25 +1,25 @@
 v0.8 : initial public release
-  support serialization so that can be stopped/started and saved
   call-back mechanism in R
   documentation
-  weights
-  causal
-  
+  offset
+  binary outcomes
+  safe unload
   
 v0.9 : stuff to add
   categorical variable detection/use
     cleanup old array of bools vs. bits in a uint
     check that using values of uints hiding w/in doubles makes sense
+  warn on possible factors
   change and swap rule variable names
   change and swap rule encapsulation
     unify node state store/restore
   "functions" getting a better organizing principle
   general encapsulation of node implementation
-  binary
   look into speed change in tracking variables avail for split
   cleanup pthreads
-  opaquify Fit object w/scratch, state objects
-  
+  pdbart/pdbart2
+  causal
+  predict
 
 v1.0 : cleanup, bug fixes
   rethink model/prior interface

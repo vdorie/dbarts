@@ -20,8 +20,8 @@
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 
-#ifdef SAFE_UNLOAD
 #include <set>
+#ifdef THREAD_SAFE_UNLOAD
 #include <pthread.h>
 #endif
 
@@ -42,9 +42,14 @@ namespace {
   
   void deleteFit(bart::BARTFit* fit);
   
-#ifdef SAFE_UNLOAD
-  typedef std::set<bart::BARTFit*> FitSet;
-  FitSet activeFits;
+  struct ExternalPointerComparator {
+    bool operator()(const SEXP& lhs, const SEXP& rhs) const {
+      return R_ExternalPtrAddr(const_cast<SEXP>(lhs)) < R_ExternalPtrAddr(const_cast<SEXP>(rhs));
+    }
+  };
+  typedef std::set<SEXP, ExternalPointerComparator> PointerSet;
+  PointerSet activeFits;
+#ifdef THREAD_SAFE_UNLOAD
   pthread_mutex_t fitMutex;
 #endif
 }
@@ -52,22 +57,23 @@ namespace {
 extern "C" {
   static void fitFinalizer(SEXP fitExpr)
   {
-#ifdef SAFE_UNLOAD
-    Rprintf("finalizer\n");
-#endif
+//    Rprintf("finalizing ");
     bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-#ifdef SAFE_UNLOAD
-    Rprintf("  addr: %p\n", fit);
-#endif
+//    Rprintf("%p\n", fit);
     if (fit == NULL) return;
     
-#ifdef SAFE_UNLOAD
+    
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
-    if (activeFits.find(fit) == activeFits.end()) {
+#endif
+    if (activeFits.find(fitExpr) == activeFits.end()) {
+#ifdef THREAD_SAFE_UNLOAD
       pthread_mutex_unlock(&fitMutex);
+#endif
       return;
     }
-    activeFits.erase(fit);
+    activeFits.erase(fitExpr);
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
 #endif
     
@@ -93,17 +99,19 @@ extern "C" {
     bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) return ScalarLogical(FALSE);
     
-#ifdef SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
-    if (activeFits.find(fit) != activeFits.end()) {
+#endif
+    if (activeFits.find(fitExpr) != activeFits.end()) {
+#ifdef THREAD_SAFE_UNLOAD
       pthread_mutex_unlock(&fitMutex);
+#endif
       return ScalarLogical(TRUE);
     }
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
-    return ScalarLogical(FALSE);
-#else
-    return ScalarLogical(TRUE);
 #endif
+    return ScalarLogical(FALSE);
   }
   
   SEXP cbart_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
@@ -131,9 +139,11 @@ extern "C" {
     SEXP result = PROTECT(R_MakeExternalPtr(fit, NULL_USER_OBJECT, NULL_USER_OBJECT));
     R_RegisterCFinalizerEx(result, fitFinalizer, (Rboolean) TRUE);
     
-#ifdef SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
-    activeFits.insert(fit);
+#endif
+    activeFits.insert(result);
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
 #endif
 
@@ -182,7 +192,6 @@ extern "C" {
     int i_temp;
     size_t numBurnIn, numSamples;
     
-    
     if (!isInteger(numBurnInExpr)) error("Number of burn-in steps must be of integer type.");
     if (length(numBurnInExpr) == 0) error("Number of burn-in steps must be of length at least 1.");
     i_temp = INTEGER(numBurnInExpr)[0];
@@ -196,7 +205,7 @@ extern "C" {
     numSamples = i_temp == NA_INTEGER ? fit->control.numSamples : (size_t) i_temp;
     
     GetRNGstate();
-    
+        
     bart::Results* bartResults = fit->runSampler(numBurnIn, numSamples);
     
     PutRNGstate();
@@ -253,23 +262,24 @@ extern "C" {
     return(resultExpr);
   }
   
-#ifdef SAFE_UNLOAD
   SEXP cbart_finalize(void) {
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
-    /* Rprintf("fits:\n");
-    for (FitSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
-      Rprintf("  %p\n", *it);
-      ++it;
-    } */
-    for (FitSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
-      bart::BARTFit* fit = *it;
+#endif
+    for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
+      SEXP fitExpr = *it;
+      bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
+      
       deleteFit(fit);
-      FitSet::iterator prev = it;
+      PointerSet::iterator prev = it;
       ++it;
       activeFits.erase(prev);
+      R_ClearExternalPtr(fitExpr);
     }
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
+#endif
     
     return NULL_USER_OBJECT;
   }
@@ -279,17 +289,33 @@ extern "C" {
 /*  void R_unload_cbart(DllInfo* info)
   {
     pthread_mutex_lock(&fitMutex);
-    for (FitSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
+    for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
       bart::BARTFit* fit = *it;
       deleteFit(fit);
-      FitSet::iterator prev = it;
+      PointerSet::iterator prev = it;
       ++it;
       activeFits.erase(prev);
     }
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
   }*/
-#endif
+}
+#include <external/stats.h>
+extern "C" {
+  SEXP cbart_weightedMean(SEXP xExpr, SEXP wExpr, SEXP nExpr)
+  {
+    size_t n = length(xExpr);
+    if (n == 0) {
+      if (!isNull(nExpr) && length(nExpr) > 0) REAL(nExpr)[0] = 0.0;
+      return ScalarReal(0.0);
+    }
+    if (length(wExpr) != n) error("Length of x != length of w.");
+    
+    double* nPtr = NULL;
+    if (!isNull(nExpr) && length(nExpr) > 0) nPtr = REAL(nExpr);
+    
+    return ScalarReal(ext_computeWeightedMean(REAL(xExpr), n, REAL(wExpr), nPtr));
+  }
   
 #define CALLDEF(name, n)  {#name, (DL_FUNC) &name, n}
   
@@ -301,9 +327,9 @@ extern "C" {
     CALLDEF(cbart_createState, 1),
     CALLDEF(cbart_storeState, 2),
     CALLDEF(cbart_restoreState, 2),
-#ifdef SAFE_UNLOAD
+    CALLDEF(cbart_weightedMean, 3),
     CALLDEF(cbart_finalize, 0),
-#endif
+
     {NULL, NULL, 0}
   };
 
@@ -312,7 +338,7 @@ extern "C" {
     R_registerRoutines(info, NULL, callMethods, NULL, NULL);
     R_useDynamicSymbols(info, FALSE);
     
-#ifdef SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_init(&fitMutex, NULL);
 #endif
     
@@ -744,9 +770,7 @@ namespace {
   }
   
   void deleteFit(bart::BARTFit* fit) {
-#ifdef SAFE_UNLOAD
-    Rprintf("deleting %p\n", fit);
-#endif
+//    Rprintf("deleting %p\n", fit);
     if (fit == NULL) return;
     
     delete fit->model.treePrior;

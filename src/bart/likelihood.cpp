@@ -20,7 +20,7 @@ namespace bart {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomVector[i]);
       
-      if (bottomNode.getNumObservationsInNode() == 0) return -10000000.0;
+      if (bottomNode.getNumObservations() == 0) return -10000000.0;
       
       logProbability += fit.model.muPrior->computeLogIntegratedLikelihood(fit, bottomNode, y, fit.state.sigma * fit.state.sigma);
     }

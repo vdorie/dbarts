@@ -67,7 +67,7 @@ namespace bart {
   
   struct EndNodePrior {
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const = 0;
-    virtual double drawFromPosterior(double ybar, std::size_t numObservations, double residualVariance) const = 0;
+    virtual double drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const = 0;
     
     virtual ~EndNodePrior() { }
   };
@@ -113,8 +113,8 @@ namespace bart {
     NormalPrior(const Control& control, double k);
     virtual ~NormalPrior() { }
     
-    virtual double drawFromPosterior(double ybar, std::size_t numObservations, double residualVariance) const;
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const;
+    virtual double drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const;
   };
   
   // sigmaSq ~ chisq(df, scale)

@@ -1,10 +1,11 @@
 ## pass -DBART_EXACT to get same results as BART, including excess random calls
 BART_EXACT=@bart_exact@
+THREAD_SAFE_UNLOAD=@thread_safe_unload@
 
 INST_DIR=../inst
 
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
-PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
+PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
 PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a @PTHREAD_LIBS@ 
 
 .PHONY: all bart/libbart.a external/libexternal.a clean

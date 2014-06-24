@@ -128,7 +128,11 @@ setClass("cbartData",
              return("Variable types must all be ordinal or categorical.")
            
            if (!is.null(object@x.test) && ncol(object@x.test) != ncol(object@x)) return("'x.test' must be null or have number of columns equal to 'x'.")
-           if (!is.null(object@weights) && length(object@weights) != numObservations) return("'weights' must be null or have length equal to that of 'y'.")
+           if (!is.null(object@weights)) {
+             if (length(object@weights) != numObservations) return("'weights' must be null or have length equal to that of 'y'.")
+             if (anyNA(object@weights)) return("'weights' cannot be NA.")
+             if (any(object@weights <= 0.0)) return("'weights' must all be positive.")
+           }
            if (!is.null(object@offset) && length(object@offset) != numObservations) return("'offset' must be null or have length equal to that of 'y'.")
            if (!is.na(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("Length of 'n.cuts' must equal number of columns in 'x'.")
            

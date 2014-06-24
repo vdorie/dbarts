@@ -48,13 +48,13 @@ namespace {
         return;
       }
       
-      writeInt(node.rule.variableIndex);
+      writeInt(node.p.rule.variableIndex);
       writeChar(' ');
-      writeInt(node.rule.splitIndex);
+      writeInt(node.p.rule.splitIndex);
       writeChar(' ');
       
-      writeNode(*node.leftChild);
-      writeNode(*node.rightChild);
+      writeNode(*node.getLeftChild());
+      writeNode(*node.getRightChild());
     }
     
     void reallocate() {
@@ -90,8 +90,8 @@ namespace {
     
     
     errno = 0;
-    node.rule.variableIndex = strtol(buffer, NULL, 10);
-    if (node.rule.variableIndex == 0 && errno != 0)
+    node.p.rule.variableIndex = strtol(buffer, NULL, 10);
+    if (node.p.rule.variableIndex == 0 && errno != 0)
       error("Unable to parse tree string: %s", strerror(errno));
     
     size_t bufferPos = 0;
@@ -104,15 +104,15 @@ namespace {
     ++pos;
     
     errno = 0;
-    node.rule.splitIndex = strtol(buffer, NULL, 10);
-    if (node.rule.splitIndex == 0 && errno != 0)
+    node.p.rule.splitIndex = strtol(buffer, NULL, 10);
+    if (node.p.rule.splitIndex == 0 && errno != 0)
       error("Unable to parse tree string: %s", strerror(errno));
     
     node.leftChild  = new bart::Node(node, numPredictors);
-    node.rightChild = new bart::Node(node, numPredictors);
+    node.p.rightChild = new bart::Node(node, numPredictors);
     
-    pos += readNode(*node.leftChild, treeString + pos, numPredictors);
-    pos += readNode(*node.rightChild, treeString + pos, numPredictors);
+    pos += readNode(*node.getLeftChild(), treeString + pos, numPredictors);
+    pos += readNode(*node.getRightChild(), treeString + pos, numPredictors);
     
     return pos;
   }
@@ -145,7 +145,7 @@ namespace bart {
     for (size_t i = 0; i < fit.control.numTrees; ++i) {
       trees[i].top.clear();
       readNode(trees[i].top, treeStrings[i], fit.data.numPredictors);
-      updateVariablesAvailable(fit, trees[i].top, trees[i].top.rule.variableIndex);
+      updateVariablesAvailable(fit, trees[i].top, trees[i].top.p.rule.variableIndex);
       
       trees[i].top.addObservationsToChildren(fit);
     }

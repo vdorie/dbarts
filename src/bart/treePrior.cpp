@@ -32,7 +32,7 @@ namespace bart {
     if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
 
 #ifdef BART_EXACT
-    if (node.getNumObservationsInNode() < 5) {
+    if (node.getNumObservations() < 5) {
 			return 0.001 * base / std::pow(1.0 + node.getDepth(), power);
 		}
 #endif
@@ -52,7 +52,7 @@ namespace bart {
   
   double CGMPrior::computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const
   {
-    int32_t variableIndex = node.rule.variableIndex;
+    int32_t variableIndex = node.p.rule.variableIndex;
     
     double result;
     
@@ -96,7 +96,7 @@ namespace bart {
   
   Rule CGMPrior::drawRuleForVariable(const BARTFit& fit, const Node& node, int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const
   {
-    Rule result;
+    Rule result = { BART_INVALID_RULE_VARIABLE, { BART_INVALID_RULE_VARIABLE } };
     
     result.variableIndex = variableIndex;
     
@@ -180,7 +180,7 @@ namespace {
     result += prior.computeSplitVariableLogProbability(fit, node);
     result += prior.computeRuleForVariableLogProbability(fit, node);
     
-    result = result + ::computeTreeLogProbability(prior, fit, *node.leftChild) + ::computeTreeLogProbability(prior, fit, *node.rightChild);
+    result = result + ::computeTreeLogProbability(prior, fit, *node.getLeftChild()) + ::computeTreeLogProbability(prior, fit, *node.getRightChild());
     
     return result;
   }

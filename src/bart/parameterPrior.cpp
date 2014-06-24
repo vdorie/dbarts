@@ -18,30 +18,30 @@ namespace bart {
     precision = 1.0 / (sigma * sigma);
   }
   
-  double NormalPrior::drawFromPosterior(double ybar, size_t numObservations, double residualVariance) const {
-    double dataWeight = ((double) numObservations) / residualVariance;
+  double NormalPrior::drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const {
+    double posteriorPrecision = numEffectiveObservations / residualVariance;
     
-    double posteriorMean = dataWeight * ybar / (precision + dataWeight);
-    double posteriorSd   = 1.0 / std::sqrt(precision + dataWeight);
+    double posteriorMean = posteriorPrecision * ybar / (this->precision + posteriorPrecision);
+    double posteriorSd   = 1.0 / std::sqrt(this->precision + posteriorPrecision);
     
     return posteriorMean + posteriorSd * ext_simulateStandardNormal();
   }
   
-  double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const {
-    size_t numObservationsInNode = node.getNumObservationsInNode();
+  double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const
+  {
+    size_t numObservationsInNode = node.getNumObservations();
+    if (numObservationsInNode == 0) return 0.0;
     
-    double dataWeight = 0.0, varianceInNode = 0.0, ybar = 0.0;
-    
-    if (numObservationsInNode > 0) {
-      ybar = node.getAverage();
-      varianceInNode = node.computeVariance(fit, y);
+    double y_bar = node.getAverage();
+    double var_y = node.computeVariance(fit, y);
       
-      dataWeight = (double) numObservationsInNode / residualVariance;
-    }
+    double posteriorPrecision = node.getNumEffectiveObservations() / residualVariance;
     
-    double result = 0.5 * std::log(precision / (precision + dataWeight));
-    result -= 0.5 * (varianceInNode / residualVariance) * (double) (numObservationsInNode - 1);
-    result -= 0.5 * (precision * dataWeight * ybar * ybar) / (precision + dataWeight);
+    double result;
+    result  = 0.5 * std::log(this->precision / (this->precision + posteriorPrecision));
+    result -= 0.5 * (var_y / residualVariance) * (double) (numObservationsInNode - 1);
+    result -= 0.5 * ((this->precision * y_bar) * (posteriorPrecision * y_bar)) / (this->precision + posteriorPrecision);
+    
     return result;
   }
   

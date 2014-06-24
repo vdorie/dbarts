@@ -74,8 +74,8 @@ namespace bart {
       nodeToChange.split(fit, newRule, y, exhaustedLeftSplits, exhaustedRightSplits);
       
       // determine how to go backwards
-      double leftPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.leftChild);
-      double rightPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.rightChild);
+      double leftPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
+      double rightPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double newPriorProbability = parentPriorGrowthProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
 
       double newLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
@@ -112,8 +112,8 @@ namespace bart {
       Node& nodeToChange(*nodeToChangePtr);
       
       double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, nodeToChange);
-      double leftPriorGrowthProbability   = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.leftChild);
-      double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.rightChild);
+      double leftPriorGrowthProbability   = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
+      double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double oldLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
       
       oldState.store(nodeToChange);
@@ -280,19 +280,20 @@ namespace {
   }
   
   void State::destroy() {
-    if (node.leftChild != NULL) {
+    if (node.getLeftChild() != NULL) {
       // successful death step
-      delete node.leftChild;
-      delete node.rightChild;
+      delete node.getLeftChild();
+      delete node.getRightChild();
     }
   }
   
   void State::restore(bart::Node& other) const {
-    if (node.leftChild == NULL) {
+    if (node.getLeftChild() == NULL) {
       // failed birth step
-      if (other.leftChild != NULL) {
+      if (other.getLeftChild() != NULL) {
+        // TODO: clean this up
         delete other.leftChild; other.leftChild = NULL;
-        delete other.rightChild; other.rightChild = NULL;
+        delete other.p.rightChild; other.p.rightChild = NULL;
       }
     }
     std::memcpy(&other, &node, sizeof(bart::Node));
