@@ -18,6 +18,7 @@ v0.9 : stuff to add
   pdbart/pdbart2
   causal
   predict
+  handle updating y for binary better w/r/t latents
 
 v1.0 : cleanup, bug fixes
   rethink model/prior interface

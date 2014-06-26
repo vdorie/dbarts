@@ -44,7 +44,7 @@ namespace {
   
   void rescaleResponse(BARTFit& fit);
   
-  void sampleBinaryOffsets(BARTFit& fit, const double* fits, double* yRescaled);
+  void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* yRescaled);
   void storeSamples(const BARTFit& fit, Results& results, const double* trainingSample, const double* testSample,
                     double sigma, const uint32_t* variableCounts, size_t simNum);
   void countVariableUses(const BARTFit& fit, uint32_t* variableCounts);
@@ -184,31 +184,31 @@ namespace bart {
         
         state.trees[i].setNodeAverages(*this, scratch.treeY);
         
-        /* if (k == 0 && i == 3) {
+        /*if (k == 0 && i == 3) {
           ext_printf("**before:\n");
           state.trees[i].top.print(*this);
           if (!state.trees[i].top.isBottom()) {
             ext_printf("  left child obs :\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
             ext_printf("\n  right child obs:\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
             ext_printf("\n");
           }
-        } */
-        // if (printMyShit) ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
+        //} */
+        //  ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
-        /* if (k == 0 && i == 3) {
-          ext_printf("**after:\n");
+        //if (k == 0 && i == 3) {
+         /* ext_printf("**after:\n");
           state.trees[i].top.print(*this);
           if (!state.trees[i].top.isBottom()) {
             ext_printf("  left child obs :\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
             ext_printf("\n  right child obs:\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservationsInNode(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
           }
           ext_printf("\n");
-        } */
-        // if (printMyShit) state.trees[i].top.print(*this);
+        //} */
+        // state.trees[i].top.print(*this);
         
         state.trees[i].getCurrentFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
         
@@ -224,7 +224,7 @@ namespace bart {
       }
       
       if (control.responseIsBinary) {
-        sampleBinaryOffsets(*this, scratch.yRescaled, state.totalFits);
+        sampleProbitLatentVariables(*this, state.totalFits, const_cast<double*>(scratch.yRescaled));
       } else {
         double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
         state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(data.numObservations, sumOfSquaredResiduals));
@@ -247,7 +247,7 @@ namespace bart {
         }
       }
     }
-
+    
 #ifdef HAVE_GETTIMEOFDAY
     gettimeofday(&endTime, NULL);
 #else
@@ -506,14 +506,16 @@ namespace {
     
     double* yRescaled = const_cast<double*>(fit.scratch.yRescaled);
     if (control.responseIsBinary) {
-      // yRescaled = 2.0 * y - 1.0 - offset => map to -1 and 1
+      // for binary "yRescaled" are actually latent vars
+      // yRescaled = 2.0 * y - 1.0 - offset
       ext_setVectorToConstant(yRescaled, data.numObservations, -1.0);
       if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
-      ext_addVectorsInPlace((const double*) data.y, data.numObservations, 2.0, yRescaled);
+      ext_addVectorsInPlace(data.y, data.numObservations, 2.0, yRescaled);
       
-      scratch.dataScale.min = 0.0;
-      scratch.dataScale.max = 1.0;
-      scratch.dataScale.range = 1.0;
+      // shouldn't be used, but will leave at reasonable values
+      scratch.dataScale.min = -1.0;
+      scratch.dataScale.max =  1.0;
+      scratch.dataScale.range = 2.0;
     } else {
       if (data.offset != NULL) {
         ext_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
@@ -536,26 +538,22 @@ namespace {
     }
   }
   
-  void sampleBinaryOffsets(BARTFit& fit, const double* fits, double* yRescaled) {
-    double u, zScore;
-    
+  // multithread-this!
+  void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* z) {
     for (size_t i = 0; i < fit.data.numObservations; ++i) {
-      u = ext_simulateContinuousUniform();
+      double prob;
       
-      double quantile = fits[i];
-      if (fit.data.offset != NULL) quantile += fit.data.offset[i];
+      double mean = fits[i];
+      if (fit.data.offset != NULL) mean += fit.data.offset[i];
       
+      double u = ext_simulateContinuousUniform();
       if (fit.data.y[i] > 0.0) {
-        double prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(-quantile, 0.0, 1.0);
-        
-        zScore =  ext_quantileOfNormal(prob, 0.0, 1.0);
+        prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
       } else {
-        double prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal( quantile, 0.0, 1.0);
-        
-        zScore = -ext_quantileOfNormal(prob, 0.0, 1.0);
+        prob = u * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
       }
       
-      yRescaled[i] = fits[i] + zScore;
+      z[i] = ext_quantileOfNormal(prob, mean, 1.0);
     }
   }
   
