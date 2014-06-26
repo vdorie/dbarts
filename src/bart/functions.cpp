@@ -97,8 +97,6 @@ namespace bart {
     delete [] catGoesRight;
   }
   
-  // extern bool printMyShit;
-  
   double metropolisJumpForTree(const BARTFit& fit, Tree& tree, const double* y,
                                bool* stepTaken, StepType* stepType)
   { 
@@ -124,7 +122,7 @@ namespace bart {
       *stepType = CHANGE;
     }
     // const char * const jumpNames[] = { "birth", "death", "swap", "change" };
-    // if (printMyShit) ext_printf("jump: %s, succ: %s, u: %f\n", jumpNames[*stepType], *stepTaken ? "true" : "false", u);
+    // ext_printf("jump: %s, succ: %s, u: %f\n", jumpNames[*stepType], *stepTaken ? "true" : "false", u);
     
 
     return alpha;

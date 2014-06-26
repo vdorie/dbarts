@@ -84,14 +84,26 @@ bart <- function(
    verbose = TRUE
 )
 {
-  control <- cbartControl(keepTrainingFits = keeptrainfits, useQuantiles = usequants,
-                          n.burn = nskip, n.trees = ntree, n.thin = keepevery,
-                          printEvery = printevery, printCutoffs = printcutoffs,
+  control <- cbartControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
+                          n.burn = as.integer(nskip), n.trees = as.integer(ntree),
+                          n.thin = as.integer(keepevery),
+                          printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
                           call = match.call())
+
+  tree.prior <- quote(cgm(power, base))
+  tree.prior[[2]] <- power; tree.prior[[3]] <- base
+
+  node.prior <- quote(normal(k))
+  node.prior[[2]] <- k
+
+  resid.prior <- quote(chisq(sigdf, sigquant))
+  resid.prior[[2]] <- sigdf; resid.prior[[3]] <- sigquant
   
-  sampler <- cbart(x.train, y.train, x.test, NULL, NULL, NULL,
-                   verbose, ndpost, cgm(power, base), normal(k), chisq(sigdf, sigquant),
-                   control, as.numeric(sigest))
+  args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = NULL,
+               offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
+               tree.prior = tree.prior, node.prior = node.prior,
+               resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
+  sampler <- do.call("cbart", args, envir = parent.frame(1L))
 
   samples <- sampler$run()
 

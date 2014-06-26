@@ -53,6 +53,9 @@ cbart <- function(formula, data, test, subset, weights, offset,
 
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
+  if (!control@binary && !is.null(data@offset) && length(unique(data@offset)) == 1) {
+    data@offset <- NULL
+  }
 
   parsePriorsCall <- stripExtraArguments(matchedCall, "tree.prior", "node.prior", "resid.prior")
   parsePriorsCall <- setDefaultsFromFormals(parsePriorsCall, formals(cbart), "tree.prior", "node.prior", "resid.prior")

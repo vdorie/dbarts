@@ -58,8 +58,6 @@ namespace {
 
 namespace bart {
   
-  // bool printMyShit;
-  
   void BARTFit::setResponse(const double* newY) {
     double sigmaUnscaled = state.sigma * scratch.dataScale.range;
     double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
@@ -162,7 +160,7 @@ namespace bart {
     time_t endTime;
     startTime = time(NULL);
 #endif
-    // printMyShit = false;
+    
     for (uint32_t k = 0; k < totalNumIterations; ++k) {
       majorIterationNum = k / control.treeThinningRate;
       if (control.verbose && (majorIterationNum + 1) % control.printEvery == 0)
@@ -172,7 +170,7 @@ namespace bart {
       
       if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
       
-      // if (k == 1049) printMyShit = true;
+
       for (size_t i = 0; i < control.numTrees; ++i) {
         double* oldTreeFits = state.treeFits + i * data.numObservations;
         
@@ -195,7 +193,7 @@ namespace bart {
             ext_printf("\n");
           }
         //} */
-        //  ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
+        // ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
         //if (k == 0 && i == 3) {
          /* ext_printf("**after:\n");

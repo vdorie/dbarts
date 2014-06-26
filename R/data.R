@@ -48,7 +48,7 @@ parseData <- function(formula, data, test, subset, weights, offset)
     
     offset <- as.vector(model.offset(modelFrame))
     if (!is.null(offset) && length(offset) != numObservations)
-      stop("Length of 'offset' must be equal to length of 'y'.")
+
 
     modelTerms <- terms(modelFrame)
     if (is.empty.model(modelTerms)) stop("Covariates must be specified for regression tree analysis.")
@@ -62,12 +62,16 @@ parseData <- function(formula, data, test, subset, weights, offset)
     
     x <- model.matrix(modelTerms, modelFrame, contrasts)
     
-  } else if (is.numeric(formula)) {
+  } else if (is.numeric(formula) || is.data.frame(formula)) {
     ## backwards compatibility of bart(x.train, y.train, x.test)
     if (missing(data) || is.null(data)) stop("When 'formula' is numeric, 'data' must be specified.")
-    if (!is.numeric(data)) stop("When 'formula' is numeric, 'data' must be numeric as well.")
+    if (!is.numeric(data) && !is.data.frame(data) && !is.integer(data) && !is.factor(data)) stop("When 'formula' is numeric, 'data' must be numeric as well.")
 
-    y <- as.numeric(data)
+    if (is.factor(data)) {
+      y <- as.numeric(as.integer(data) - 1L)
+    } else {
+      y <- as.numeric(data)
+    }
     if (NROW(formula) != NROW(y))
       stop("'x' must have the same number of observations as 'y'.")
     initialNumObservations <- NROW(y)
@@ -75,6 +79,7 @@ parseData <- function(formula, data, test, subset, weights, offset)
     if (missing(subset) || is.null(subset)) subset <- seq.int(length(y))
     y <- y[subset]
 
+    if (is.data.frame(formula)) formula <- makeModelMatrixFromDataFrame(formula)
     x <- if (!is.matrix(formula)) formula[subset] else formula[subset,]
     
     
@@ -87,9 +92,12 @@ parseData <- function(formula, data, test, subset, weights, offset)
     if (missing(offset)) offset <- NULL
     if (!is.null(offset)) {
       if (!is.numeric(offset)) stop("Offset must be a numeric vector.")
+      if (length(offset) == 1) offset <- rep_len(offset, initialNumObservations)
       if (length(offset) != initialNumObservations) stop("Length of 'offset' must equal length of 'y'.")
       offset <- offset[subset]
     }
+  } else {
+    stop("Unrecognized formula for data. Must be coercible to numeric types.")
   }
 
   if (is.vector(x)) x <- as.matrix(x)
