@@ -1,7 +1,7 @@
-#ifndef BART_SWAP_RULE_HPP
-#define BART_SWAP_RULE_HPP
+#ifndef DBARTS_SWAP_RULE_HPP
+#define DBARTS_SWAP_RULE_HPP
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   struct Tree;
   

@@ -1,23 +1,23 @@
 #include "config.hpp"
 #include "tree.hpp"
 
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <cstring>
 #include <cstdio>
 
 #include <external/alloca.h>
 #include <external/stats.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/data.hpp>
-#include <bart/model.hpp>
-#include <bart/scratch.hpp>
-#include <bart/state.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/data.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/state.hpp>
 
 using std::uint32_t;
 
 namespace {
-  using namespace bart;
+  using namespace dbarts;
   
   // multithread me!
   size_t* createObservationToNodeIndexMap(const BARTFit& fit, const Node& top,
@@ -37,7 +37,7 @@ namespace {
   }
 }
 
-namespace bart {
+namespace dbarts {
   void Tree::setNodeAverages(const BARTFit& fit, const double* y) {
     NodeVector bottomNodes(getBottomNodes());
     

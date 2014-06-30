@@ -72,23 +72,23 @@ packageSamples <- function(fit, samples)
 
 
 bart <- function(
-   x.train, y.train, x.test = matrix(0.0,0,0),
-   sigest = NA, sigdf = 3, sigquant = .90, 
+   x.train, y.train, x.test = matrix(0.0, 0L, 0L),
+   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90, 
    k = 2.0,
-   power = 2.0, base = .95,
-   binaryOffset = 0,
+   power = 2.0, base = 0.95,
+   binaryOffset = 0.0,
    ntree = 200L,
-   ndpost = 1000L, nskip = 100L, nthread = 1L,
+   ndpost = 1000L, nskip = 100L,
    printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
    usequants = FALSE, numcut = 100L, printcutoffs = 0L,
    verbose = TRUE
 )
 {
-  control <- cbartControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
-                          n.burn = as.integer(nskip), n.trees = as.integer(ntree),
-                          n.thin = as.integer(keepevery),
-                          printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
-                          call = match.call())
+  control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
+                           n.burn = as.integer(nskip), n.trees = as.integer(ntree),
+                           n.thin = as.integer(keepevery),
+                           printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
+                           call = match.call())
 
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2]] <- power; tree.prior[[3]] <- base
@@ -103,7 +103,7 @@ bart <- function(
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
                tree.prior = tree.prior, node.prior = node.prior,
                resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
-  sampler <- do.call("cbart", args, envir = parent.frame(1L))
+  sampler <- do.call("dbarts", args, envir = parent.frame(1L))
 
   samples <- sampler$run()
 
@@ -111,4 +111,10 @@ bart <- function(
   rm(sampler, samples)
   
   return(result)
+}
+
+makeind <- function(x, all = TRUE)
+{
+  ignored <- all ## for R check
+  makeModelMatrixFromDataFrame(x)
 }

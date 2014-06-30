@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include <cstring>
 #include <cstddef>
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <cmath>
 
 #include <R.h>
@@ -9,13 +9,13 @@
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/control.hpp>
-#include <bart/data.hpp>
-#include <bart/model.hpp>
-#include <bart/results.hpp>
-#include <bart/types.hpp>
-#include <bart/R_C_interface.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/control.hpp>
+#include <dbarts/data.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/results.hpp>
+#include <dbarts/types.hpp>
+#include <dbarts/R_C_interface.hpp>
 
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
@@ -28,19 +28,21 @@
 using std::size_t;
 
 namespace {
-  void initializeControlFromExpression(bart::Control& control, SEXP controlExpr);
-  void initializeModelFromExpression(bart::Model& model, SEXP modelExpr, const bart::Control& control);
-  void initializeDataFromExpression(bart::Data& data, SEXP dataExpr);
+  using namespace dbarts;
   
-  void initializeStateFromExpression(const bart::BARTFit& fit, bart::State& state, SEXP stateExpr);
-  SEXP createStateExpressionFromFit(const bart::BARTFit& fit); // result has a protect count of 1
-  void storeStateExpressionFromFit(const bart::BARTFit& fit, SEXP stateExpr);
+  void initializeControlFromExpression(Control& control, SEXP controlExpr);
+  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control);
+  void initializeDataFromExpression(Data& data, SEXP dataExpr);
+  
+  void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr);
+  SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
+  void storeStateExpressionFromFit(const BARTFit& fit, SEXP stateExpr);
   
   SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, int length);
   SEXP SET_DIMS(SEXP obj, int numRows, int numCols);
   bool isS4Null(SEXP expr);
   
-  void deleteFit(bart::BARTFit* fit);
+  void deleteFit(BARTFit* fit);
   
   struct ExternalPointerComparator {
     bool operator()(const SEXP& lhs, const SEXP& rhs) const {
@@ -55,10 +57,12 @@ namespace {
 }
 
 extern "C" {
+  using namespace dbarts;
+  
   static void fitFinalizer(SEXP fitExpr)
   {
 //    Rprintf("finalizing ");
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
 //    Rprintf("%p\n", fit);
     if (fit == NULL) return;
     
@@ -82,10 +86,10 @@ extern "C" {
     R_ClearExternalPtr(fitExpr);
   }
   
-  SEXP cbart_setY(SEXP fitExpr, SEXP y)
+  SEXP dbarts_setY(SEXP fitExpr, SEXP y)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("cbart_setY called on NULL external pointer.");
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setY called on NULL external pointer.");
     
     if (!isReal(y)) error("y must be of type real.");
     if ((size_t) length(y) != fit->data.numObservations) error("Length of new y does not match old.");
@@ -94,9 +98,9 @@ extern "C" {
     return NULL_USER_OBJECT;
   }
   
-  SEXP cbart_isValidPointer(SEXP fitExpr)
+  SEXP dbarts_isValidPointer(SEXP fitExpr)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) return ScalarLogical(FALSE);
     
 #ifdef THREAD_SAFE_UNLOAD
@@ -114,27 +118,27 @@ extern "C" {
     return ScalarLogical(FALSE);
   }
   
-  SEXP cbart_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
+  SEXP dbarts_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
   {
-    bart::Control control;
-    bart::Model model;
-    bart::Data data;
+    Control control;
+    Model model;
+    Data data;
     
     SEXP classExpr = GET_CLASS(controlExpr);
-    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "cbartControl") != 0) error("'control' argument to cbart_create not of class 'cbartControl'.");
+    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
     
     classExpr = GET_CLASS(modelExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "cbartModel") != 0) error("'model' argument to cbart_create not of class 'cbartModel'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'.");
     
     classExpr = GET_CLASS(dataExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "cbartData") != 0) error("'data' argument to cbart_create not of class 'cbartData'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_create not of class 'dbartsData'.");
     
     
     initializeControlFromExpression(control, controlExpr);
     initializeModelFromExpression(model, modelExpr, control);
     initializeDataFromExpression(data, dataExpr);
     
-    bart::BARTFit* fit = new bart::BARTFit(control, model, data);
+    BARTFit* fit = new BARTFit(control, model, data);
     
     SEXP result = PROTECT(R_MakeExternalPtr(fit, NULL_USER_OBJECT, NULL_USER_OBJECT));
     R_RegisterCFinalizerEx(result, fitFinalizer, (Rboolean) TRUE);
@@ -152,10 +156,10 @@ extern "C" {
     return result;
   }
   
-  SEXP cbart_createState(SEXP fitExpr)
+  SEXP dbarts_createState(SEXP fitExpr)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("cbart_createState called on NULL external pointer.");
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_createState called on NULL external pointer.");
     
     SEXP result = createStateExpressionFromFit(*fit);
     
@@ -164,30 +168,30 @@ extern "C" {
     return result;
   }
   
-  SEXP cbart_restoreState(SEXP fitExpr, SEXP stateExpr)
+  SEXP dbarts_restoreState(SEXP fitExpr, SEXP stateExpr)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("cbart_restoreState called on NULL external pointer.");
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_restoreState called on NULL external pointer.");
     
     initializeStateFromExpression(*fit, fit->state, stateExpr);
     
     return NULL_USER_OBJECT;
   }
   
-  SEXP cbart_storeState(SEXP fitExpr, SEXP stateExpr)
+  SEXP dbarts_storeState(SEXP fitExpr, SEXP stateExpr)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("cbart_storeState called on NULL external pointer.");
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_storeState called on NULL external pointer.");
     
     storeStateExpressionFromFit(*fit, stateExpr);
     
     return NULL_USER_OBJECT;
   }
   
-  SEXP cbart_run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
+  SEXP dbarts_run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
   {
-    bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("cbart_run called on NULL external pointer.");
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_run called on NULL external pointer.");
     
     int i_temp;
     size_t numBurnIn, numSamples;
@@ -206,7 +210,7 @@ extern "C" {
     
     GetRNGstate();
         
-    bart::Results* bartResults = fit->runSampler(numBurnIn, numSamples);
+    Results* bartResults = fit->runSampler(numBurnIn, numSamples);
     
     PutRNGstate();
     
@@ -262,13 +266,13 @@ extern "C" {
     return(resultExpr);
   }
   
-  SEXP cbart_finalize(void) {
+  SEXP dbarts_finalize(void) {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
     for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
       SEXP fitExpr = *it;
-      bart::BARTFit* fit = static_cast<bart::BARTFit*>(R_ExternalPtrAddr(fitExpr));
+      BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
       
       deleteFit(fit);
       PointerSet::iterator prev = it;
@@ -286,11 +290,11 @@ extern "C" {
   
   // as of R 3.1, auto-unload never gets called so screw that
   
-/*  void R_unload_cbart(DllInfo* info)
+/*  void R_unload_dbarts(DllInfo* info)
   {
     pthread_mutex_lock(&fitMutex);
     for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
-      bart::BARTFit* fit = *it;
+      BARTFit* fit = *it;
       deleteFit(fit);
       PointerSet::iterator prev = it;
       ++it;
@@ -300,40 +304,25 @@ extern "C" {
     pthread_mutex_destroy(&fitMutex);
   }*/
 }
-#include <external/stats.h>
+
 extern "C" {
-  SEXP cbart_weightedMean(SEXP xExpr, SEXP wExpr, SEXP nExpr)
-  {
-    size_t n = length(xExpr);
-    if (n == 0) {
-      if (!isNull(nExpr) && length(nExpr) > 0) REAL(nExpr)[0] = 0.0;
-      return ScalarReal(0.0);
-    }
-    if (length(wExpr) != n) error("Length of x != length of w.");
-    
-    double* nPtr = NULL;
-    if (!isNull(nExpr) && length(nExpr) > 0) nPtr = REAL(nExpr);
-    
-    return ScalarReal(ext_computeWeightedMean(REAL(xExpr), n, REAL(wExpr), nPtr));
-  }
-  
+
 #define CALLDEF(name, n)  {#name, (DL_FUNC) &name, n}
   
   static R_CallMethodDef callMethods[] = {
-    CALLDEF(cbart_create, 3),
-    CALLDEF(cbart_run, 3),
-    CALLDEF(cbart_setY, 2),
-    CALLDEF(cbart_isValidPointer, 1),
-    CALLDEF(cbart_createState, 1),
-    CALLDEF(cbart_storeState, 2),
-    CALLDEF(cbart_restoreState, 2),
-    CALLDEF(cbart_weightedMean, 3),
-    CALLDEF(cbart_finalize, 0),
+    CALLDEF(dbarts_create, 3),
+    CALLDEF(dbarts_run, 3),
+    CALLDEF(dbarts_setY, 2),
+    CALLDEF(dbarts_isValidPointer, 1),
+    CALLDEF(dbarts_createState, 1),
+    CALLDEF(dbarts_storeState, 2),
+    CALLDEF(dbarts_restoreState, 2),
+    CALLDEF(dbarts_finalize, 0),
 
     {NULL, NULL, 0}
   };
 
-  void R_init_cbart(DllInfo* info)
+  void R_init_dbarts(DllInfo* info)
   {
     R_registerRoutines(info, NULL, callMethods, NULL, NULL);
     R_useDynamicSymbols(info, FALSE);
@@ -342,36 +331,37 @@ extern "C" {
     pthread_mutex_init(&fitMutex, NULL);
 #endif
     
-    R_RegisterCCallable("cbart", "bart_createCGMPrior", (DL_FUNC) bart_createCGMPrior);
-    R_RegisterCCallable("cbart", "bart_createCGMPriorFromOptions", (DL_FUNC) bart_createCGMPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_destroyCGMPrior", (DL_FUNC) bart_destroyCGMPrior);
-    R_RegisterCCallable("cbart", "bart_initializeCGMPriorFromOptions", (DL_FUNC) bart_initializeCGMPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_invalidateCGMPrior", (DL_FUNC) bart_invalidateCGMPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createCGMPrior", (DL_FUNC) dbarts_createCGMPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createCGMPriorFromOptions", (DL_FUNC) dbarts_createCGMPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_destroyCGMPrior", (DL_FUNC) dbarts_destroyCGMPrior);
+    R_RegisterCCallable("dbarts", "dbarts_initializeCGMPriorFromOptions", (DL_FUNC) dbarts_initializeCGMPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_invalidateCGMPrior", (DL_FUNC) dbarts_invalidateCGMPrior);
     
-    R_RegisterCCallable("cbart", "bart_createNormalPrior", (DL_FUNC) bart_createNormalPrior);
-    R_RegisterCCallable("cbart", "bart_createNormalPriorFromOptions", (DL_FUNC) bart_createNormalPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_destroyNormalPrior", (DL_FUNC) bart_destroyNormalPrior);
-    R_RegisterCCallable("cbart", "bart_initializeNormalPriorFromOptions", (DL_FUNC) bart_initializeNormalPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_invalidateNormalPrior", (DL_FUNC) bart_invalidateNormalPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createNormalPrior", (DL_FUNC) dbarts_createNormalPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createNormalPriorFromOptions", (DL_FUNC) dbarts_createNormalPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_destroyNormalPrior", (DL_FUNC) dbarts_destroyNormalPrior);
+    R_RegisterCCallable("dbarts", "dbarts_initializeNormalPriorFromOptions", (DL_FUNC) dbarts_initializeNormalPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_invalidateNormalPrior", (DL_FUNC) dbarts_invalidateNormalPrior);
     
-    R_RegisterCCallable("cbart", "bart_createChiSquaredPrior", (DL_FUNC) bart_createChiSquaredPrior);
-    R_RegisterCCallable("cbart", "bart_createChiSquaredPriorFromOptions", (DL_FUNC) bart_createChiSquaredPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_destroyChiSquaredPrior", (DL_FUNC) bart_destroyChiSquaredPrior);
-    R_RegisterCCallable("cbart", "bart_initializeChiSquaredPriorFromOptions", (DL_FUNC) bart_initializeChiSquaredPriorFromOptions);
-    R_RegisterCCallable("cbart", "bart_invalidateChiSquaredPrior", (DL_FUNC) bart_invalidateChiSquaredPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createChiSquaredPrior", (DL_FUNC) dbarts_createChiSquaredPrior);
+    R_RegisterCCallable("dbarts", "dbarts_createChiSquaredPriorFromOptions", (DL_FUNC) dbarts_createChiSquaredPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_destroyChiSquaredPrior", (DL_FUNC) dbarts_destroyChiSquaredPrior);
+    R_RegisterCCallable("dbarts", "dbarts_initializeChiSquaredPriorFromOptions", (DL_FUNC) dbarts_initializeChiSquaredPriorFromOptions);
+    R_RegisterCCallable("dbarts", "dbarts_invalidateChiSquaredPrior", (DL_FUNC) dbarts_invalidateChiSquaredPrior);
 
-    R_RegisterCCallable("cbart", "bart_createFit", (DL_FUNC) bart_createFit);
-    R_RegisterCCallable("cbart", "bart_initializeFit", (DL_FUNC) bart_initializeFit);
-    R_RegisterCCallable("cbart", "bart_destroyFit", (DL_FUNC) bart_destroyFit);
-    R_RegisterCCallable("cbart", "bart_invalidateFit", (DL_FUNC) bart_invalidateFit);
+    R_RegisterCCallable("dbarts", "dbarts_createFit", (DL_FUNC) dbarts_createFit);
+    R_RegisterCCallable("dbarts", "dbarts_initializeFit", (DL_FUNC) dbarts_initializeFit);
+    R_RegisterCCallable("dbarts", "dbarts_destroyFit", (DL_FUNC) dbarts_destroyFit);
+    R_RegisterCCallable("dbarts", "dbarts_invalidateFit", (DL_FUNC) dbarts_invalidateFit);
     
-    R_RegisterCCallable("cbart", "bart_runSampler", (DL_FUNC) bart_runSampler);
-    R_RegisterCCallable("cbart", "bart_runSamplerForIterations", (DL_FUNC) bart_runSamplerForIterations);
-    R_RegisterCCallable("cbart", "bart_setResponse", (DL_FUNC) bart_setResponse);
+    R_RegisterCCallable("dbarts", "dbarts_runSampler", (DL_FUNC) dbarts_runSampler);
+    R_RegisterCCallable("dbarts", "dbarts_runSamplerForIterations", (DL_FUNC) dbarts_runSamplerForIterations);
+    R_RegisterCCallable("dbarts", "dbarts_setResponse", (DL_FUNC) dbarts_setResponse);
   }
 }
 
 namespace {
+  using namespace dbarts;
   
   SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, int length)
   {
@@ -404,7 +394,7 @@ namespace {
     return false;
   }
   
-  void initializeControlFromExpression(bart::Control& control, SEXP controlExpr)
+  void initializeControlFromExpression(Control& control, SEXP controlExpr)
   {
     int i_temp;
     
@@ -497,7 +487,7 @@ namespace {
     control.printCutoffs = (uint32_t) i_temp;
   }
   
-  void initializeModelFromExpression(bart::Model& model, SEXP modelExpr, const bart::Control& control)
+  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
   {
     double d_temp;
     
@@ -539,8 +529,8 @@ namespace {
     
     SEXP priorExpr = GET_ATTR(modelExpr, install("tree.prior"));
     // slotExpr = GET_CLASS(priorExpr);
-    // if (strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "cbartControl") != 0) error("'control' argument to cbart_create not of class 'cbartControl'.");
-    bart::CGMPrior* treePrior = new bart::CGMPrior;
+    // if (strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    CGMPrior* treePrior = new CGMPrior;
     model.treePrior = treePrior;
     
     slotExpr = GET_ATTR(priorExpr, install("power"));
@@ -568,7 +558,7 @@ namespace {
     d_temp = REAL(slotExpr)[0];
     if (ISNAN(d_temp)) error("k must be a real number.");
     if (d_temp <= 0.0) error("k must be positive.");
-    model.muPrior = new bart::NormalPrior(control, d_temp);
+    model.muPrior = new NormalPrior(control, d_temp);
     
     
     
@@ -587,10 +577,10 @@ namespace {
     d_temp = REAL(slotExpr)[0];
     if (ISNAN(d_temp)) error("sigma prior quantile must be a real number.");
     if (d_temp <= 0.0 || d_temp >= 1.0) error("sigma prior quantile must be in (0, 1).");
-    model.sigmaSqPrior = new bart::ChiSquaredPrior(sigmaPriorDf, d_temp);
+    model.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, d_temp);
   }
 
-  void initializeDataFromExpression(bart::Data& data, SEXP dataExpr)
+  void initializeDataFromExpression(Data& data, SEXP dataExpr)
   {
     int* dims;
     
@@ -612,8 +602,8 @@ namespace {
     if (!isInteger(slotExpr)) error("Variable types must be of type integer.");
     if ((size_t) length(slotExpr) != data.numPredictors) error("Length of variable types must equal number of columns in x.");
     int* i_variableTypes = INTEGER(slotExpr);
-    bart::VariableType* variableTypes = new bart::VariableType[data.numPredictors];
-    for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (i_variableTypes[i] == 0 ? bart::ORDINAL : bart::CATEGORICAL);
+    VariableType* variableTypes = new VariableType[data.numPredictors];
+    for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
     data.variableTypes = variableTypes;
     
     slotExpr = GET_ATTR(dataExpr, install("x.test"));
@@ -665,13 +655,13 @@ namespace {
     data.maxNumCuts = maxNumCuts;
   }
   
-  SEXP createStateExpressionFromFit(const bart::BARTFit& fit)
+  SEXP createStateExpressionFromFit(const BARTFit& fit)
   {
-    const bart::Control& control(fit.control);
-    const bart::Data& data(fit.data);
-    const bart::State& state(fit.state);
+    const Control& control(fit.control);
+    const Data& data(fit.data);
+    const State& state(fit.state);
     
-    SEXP result = PROTECT(result = NEW_OBJECT(MAKE_CLASS("cbartState")));
+    SEXP result = PROTECT(result = NEW_OBJECT(MAKE_CLASS("dbartsState")));
     
     SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, (int) (data.numObservations * control.numTrees));
     SET_DIMS(slotExpr, data.numObservations, control.numTrees);
@@ -702,11 +692,11 @@ namespace {
     return result;
   }
   
-  void storeStateExpressionFromFit(const bart::BARTFit& fit, SEXP stateExpr)
+  void storeStateExpressionFromFit(const BARTFit& fit, SEXP stateExpr)
   {
-    const bart::Control& control(fit.control);
-    const bart::Data& data(fit.data);
-    const bart::State& state(fit.state);
+    const Control& control(fit.control);
+    const Data& data(fit.data);
+    const State& state(fit.state);
     
     SEXP slotExpr = GET_ATTR(stateExpr, install("fit.tree"));
     SEXP dimsExpr = GET_DIM(slotExpr);
@@ -740,10 +730,10 @@ namespace {
     delete [] treeStrings;
   }
   
-  void initializeStateFromExpression(const bart::BARTFit& fit, bart::State& state, SEXP stateExpr)
+  void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr)
   {
-    const bart::Control& control(fit.control);
-    const bart::Data& data(fit.data);
+    const Control& control(fit.control);
+    const Data& data(fit.data);
     
     SEXP slotExpr = GET_ATTR(stateExpr, install("fit.tree"));
     std::memcpy(state.treeFits, (const double*) REAL(slotExpr), data.numObservations * control.numTrees * sizeof(double));
@@ -769,7 +759,7 @@ namespace {
     ext_stackFree(treeStrings);
   }
   
-  void deleteFit(bart::BARTFit* fit) {
+  void deleteFit(BARTFit* fit) {
 //    Rprintf("deleting %p\n", fit);
     if (fit == NULL) return;
     

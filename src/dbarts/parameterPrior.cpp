@@ -1,17 +1,17 @@
 #include "config.hpp"
-#include <bart/model.hpp>
+#include <dbarts/model.hpp>
 
 #include <cmath>
 
 #include <external/stats.h>
 
-#include <bart/control.hpp>
+#include <dbarts/control.hpp>
 #include "node.hpp"
 
 using std::size_t;
 using std::uint32_t;
 
-namespace bart {
+namespace dbarts {
   NormalPrior::NormalPrior(const Control& control, double k)
   {
     double sigma = (control.responseIsBinary ? 3.0 : 0.5) /  (k * std::sqrt((double) control.numTrees));

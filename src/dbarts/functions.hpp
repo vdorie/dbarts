@@ -1,16 +1,16 @@
-#ifndef BART_FUNCTIONS_HPP
-#define BART_FUNCTIONS_HPP
+#ifndef DBARTS_FUNCTIONS_HPP
+#define DBARTS_FUNCTIONS_HPP
 
 #include <cstddef>
-#include "bart/cstdint"
+#include <dbarts/cstdint>
 
-#include <bart/types.hpp>
+#include <dbarts/types.hpp>
 
 using std::size_t;
 using std::int32_t;
 using std::uint32_t;
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   struct Node;
   struct Tree;

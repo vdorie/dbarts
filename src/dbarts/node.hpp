@@ -1,20 +1,20 @@
-#ifndef BART_NODE_HPP
-#define BART_NODE_HPP
+#ifndef DBARTS_NODE_HPP
+#define DBARTS_NODE_HPP
 
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <cstddef>
-using std::size_t;
-using std::uint32_t;
-
 #include <vector>
 
-#include <bart/types.hpp>
+#include <dbarts/types.hpp>
 
-namespace bart {
+namespace dbarts {
+  using std::size_t;
+  using std::uint32_t;
+  
   struct BARTFit;
   struct EndNodePrior;
   
-#define BART_INVALID_RULE_VARIABLE -1
+#define DBARTS_INVALID_RULE_VARIABLE -1
   struct Rule {
     int32_t variableIndex;
     

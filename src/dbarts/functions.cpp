@@ -1,16 +1,16 @@
 #include "config.hpp"
 #include "functions.hpp"
 
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <vector>
 
 #include <external/io.h>
 #include <external/stats.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/model.hpp>
-#include <bart/scratch.hpp>
-#include <bart/types.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/types.hpp>
 #include "birthDeathRule.hpp"
 #include "changeRule.hpp"
 #include "node.hpp"
@@ -19,7 +19,7 @@
 using std::int32_t;
 using std::uint32_t;
 
-namespace bart {
+namespace dbarts {
   void updateCategoricalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, bool* catGoesRight);
   void updateOrdinalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, int32_t leftIndex, int32_t rightIndex);
   
@@ -182,7 +182,7 @@ namespace bart {
       }
     }
     
-    return BART_INVALID_RULE_VARIABLE;
+    return DBARTS_INVALID_RULE_VARIABLE;
   }
   
   // get interval of available splits for ordered variable
@@ -192,7 +192,7 @@ namespace bart {
   //   if left child, split to left of it
   void setSplitInterval(const BARTFit& fit, const Node& startNode, int32_t variableIndex, int32_t* leftIndex, int32_t* rightIndex)
   {
-    if (variableIndex == BART_INVALID_RULE_VARIABLE) {
+    if (variableIndex == DBARTS_INVALID_RULE_VARIABLE) {
       ext_throwError("error in getSplitInterval: variable index invalid\n");
     }
     if (fit.data.variableTypes[variableIndex] != ORDINAL) {

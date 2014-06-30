@@ -1,7 +1,7 @@
-Package: cbart
+Package: dbarts
 Version: 0.8
 Date: $Date$
-Title: Conditional Bayesian Additive Regression Trees
+Title: Discrete Bayesian Additive Regression Trees Sampler
 Author: Vincent Dorie <vjd4@nyu.edu>, Hugh Chipman <hugh.chipman@gmail.com>,
         Robert McCulloch <robert.mcculloch1@gmail.com>
 Maintainer: Vincent Dorie <vjd4@nyu.edu>

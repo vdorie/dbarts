@@ -1,25 +1,25 @@
-#ifndef BART_MODEL_HPP
-#define BART_MODEL_HPP
+#ifndef DBARTS_MODEL_HPP
+#define DBARTS_MODEL_HPP
 
 #include <cstddef>
 #include "cstdint"
 
 // can make these kinds of adjustments to trees during MCMC
-#define BART_BIRTH_OR_DEATH_PROBABILITY 0.5
-#define BART_SWAP_PROBABILITY           0.1
-#define BART_CHANGE_PROBABILITY         0.4
+#define DBARTS_BIRTH_OR_DEATH_PROBABILITY 0.5
+#define DBARTS_SWAP_PROBABILITY           0.1
+#define DBARTS_CHANGE_PROBABILITY         0.4
 // conditional on being inside a birthOrDeath step
-#define BART_BIRTH_PROBABILITY          0.5
+#define DBARTS_BIRTH_PROBABILITY          0.5
 
-#define BART_DEFAULT_NORMAL_PRIOR_K       2.0
-#define BART_DEFAULT_CHISQ_PRIOR_DF       3.0
-#define BART_DEFAULT_CHISQ_PRIOR_QUANTILE 0.9
+#define DBARTS_DEFAULT_NORMAL_PRIOR_K       2.0
+#define DBARTS_DEFAULT_CHISQ_PRIOR_DF       3.0
+#define DBARTS_DEFAULT_CHISQ_PRIOR_QUANTILE 0.9
 
-#define BART_DEFAULT_TREE_PRIOR_POWER 2.0
-#define BART_DEFAULT_TREE_PRIOR_BASE  0.95
+#define DBARTS_DEFAULT_TREE_PRIOR_POWER 2.0
+#define DBARTS_DEFAULT_TREE_PRIOR_BASE  0.95
 
 
-namespace bart {
+namespace dbarts {
   struct TreePrior;
   struct EndNodePrior;
   struct ResidualVariancePrior;
@@ -36,10 +36,10 @@ namespace bart {
     ResidualVariancePrior* sigmaSqPrior;
     
     Model() : 
-      birthOrDeathProbability(BART_BIRTH_OR_DEATH_PROBABILITY),
-      swapProbability(BART_SWAP_PROBABILITY),
-      changeProbability(BART_CHANGE_PROBABILITY),
-      birthProbability(BART_BIRTH_PROBABILITY), treePrior(NULL), muPrior(NULL), sigmaSqPrior(NULL)
+      birthOrDeathProbability(DBARTS_BIRTH_OR_DEATH_PROBABILITY),
+      swapProbability(DBARTS_SWAP_PROBABILITY),
+      changeProbability(DBARTS_CHANGE_PROBABILITY),
+      birthProbability(DBARTS_BIRTH_PROBABILITY), treePrior(NULL), muPrior(NULL), sigmaSqPrior(NULL)
     {
     }
   };
@@ -124,7 +124,7 @@ namespace bart {
     
     
     ChiSquaredPrior() :
-      degreesOfFreedom(BART_DEFAULT_CHISQ_PRIOR_DF),
+      degreesOfFreedom(DBARTS_DEFAULT_CHISQ_PRIOR_DF),
       scale(1.0) { }
     ChiSquaredPrior(double degreesOfFreedom, double quantile);
     virtual ~ChiSquaredPrior() { }
@@ -134,6 +134,6 @@ namespace bart {
     
     virtual double drawFromPosterior(std::size_t numObservations, double sumOfSquaredResiduals) const;
   };
-} // namespace bart
+} // namespace dbarts
 
-#endif // BART_MODEL_HPP
+#endif // DBARTS_MODEL_HPP

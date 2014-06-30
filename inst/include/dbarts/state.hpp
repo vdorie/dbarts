@@ -1,15 +1,15 @@
-#ifndef BART_STATE_HPP
-#define BART_STATE_HPP
+#ifndef DBARTS_STATE_HPP
+#define DBARTS_STATE_HPP
 
 #include <cstddef>
 
-namespace bart {
+namespace dbarts {
   struct Tree;
   struct BARTFit;
   
   struct State {
     Tree* trees;
-    size_t* treeIndices;
+    std::size_t* treeIndices;
     
     double* treeFits;      // numObs x numTrees;     vals for tree <=> x + i * numObs
     double* totalFits;
@@ -20,6 +20,6 @@ namespace bart {
     const char* const* createTreeStrings(const BARTFit& fit) const;
     void recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings);
   };
-} // namespace bart
+} // namespace dbarts
 
-#endif // BART_STATE_HPP
+#endif // DBARTS_STATE_HPP

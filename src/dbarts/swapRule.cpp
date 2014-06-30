@@ -3,17 +3,17 @@
 
 #include <cstddef>
 #include <cmath>
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <cstring>
 
 #include <external/stats.h>
 #include <external/io.h>
 #include <external/alloca.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/model.hpp>
-#include <bart/scratch.hpp>
-#include <bart/types.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
 #include "node.hpp"
@@ -26,10 +26,12 @@ using std::uint32_t;
 // re-write this yet
 
 namespace {
+  using namespace dbarts;
+  
   // State doesn't handle the sloppiness of swapping with both children, only
   // cares about one. When both are swapped, deals w/left child's rule only.
   struct State {
-    bart::Rule parentRule;
+    Rule parentRule;
     
     double* averages;
     double* numEffectiveObservations;
@@ -41,13 +43,13 @@ namespace {
     size_t* numObservations;  // duplicates length of original
     size_t** observationIndices;     // duplicates content of original
     
-    void store(const bart::BARTFit& fit, const bart::Node& node);
+    void store(const BARTFit& fit, const Node& node);
     void destroy();
-    void restore(const bart::BARTFit& fit, bart::Node& node); // destroys state's internals
+    void restore(const BARTFit& fit, Node& node); // destroys state's internals
   };
 }
 
-namespace bart {
+namespace dbarts {
   bool categoricalRuleIsValid(const BARTFit& fit, const Node& node, int32_t variableIndex, bool* catGoesRight);
   bool ordinalRuleIsValid(const Node& node, int32_t variableIndex, int32_t leftIndex, int32_t rightIndex);
   bool ruleIsValid(const BARTFit& fit, const Node& node, int32_t variableIndex);
@@ -72,8 +74,8 @@ namespace bart {
     Node& rightChild(*parent.getRightChild());
     
     bool leftHasRule = false, rightHasRule = false;
-    if ( !leftChild.isBottom() &&  leftChild.p.rule.variableIndex != BART_INVALID_RULE_VARIABLE) leftHasRule  = true;
-    if (!rightChild.isBottom() && rightChild.p.rule.variableIndex != BART_INVALID_RULE_VARIABLE) rightHasRule = true;
+    if ( !leftChild.isBottom() &&  leftChild.p.rule.variableIndex != DBARTS_INVALID_RULE_VARIABLE) leftHasRule  = true;
+    if (!rightChild.isBottom() && rightChild.p.rule.variableIndex != DBARTS_INVALID_RULE_VARIABLE) rightHasRule = true;
     
     if (!leftHasRule && !rightHasRule) ext_throwError("error in SwapRule: neither child of parent has a rule\n");
     
@@ -147,12 +149,12 @@ namespace bart {
       }
     } else {
       Rule oldRightChildRule = rightChild.p.rule;
-      // std::memcpy(&oldRightChildRule, &parent.rightChild->rule, sizeof(bart::Rule));
+      // std::memcpy(&oldRightChildRule, &parent.rightChild->rule, sizeof(Rule));
       
       parent.p.rule.swapWith(leftChild.p.rule);
       // temporarily just copy in left rule; give ownership over memory if step not rejected
       rightChild.p.rule = leftChild.p.rule;
-      // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(bart::Rule));
+      // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(Rule));
       
       //check if rule is ok
       int32_t parentVariableIndex = parent.p.rule.variableIndex;
@@ -165,7 +167,7 @@ namespace bart {
         // swap back to calculate probabilities
         parent.p.rule.swapWith(leftChild.p.rule);
         rightChild.p.rule = leftChild.p.rule;
-        // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(bart::Rule));
+        // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(Rule));
         
         ::State oldState;
         oldState.store(fit, parent);
@@ -175,7 +177,7 @@ namespace bart {
         
         parent.p.rule.swapWith(leftChild.p.rule);
         rightChild.p.rule = leftChild.p.rule;
-        // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(bart::Rule));
+        // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(Rule));
         
         parent.addObservationsToChildren(fit, y);
         
@@ -201,7 +203,7 @@ namespace bart {
           oldState.restore(fit, parent);
           // reject, so copy back in old right rule
           rightChild.p.rule = oldRightChildRule;
-          // std::memcpy(&parent.rightChild->rule, &oldRightChildRule, sizeof(bart::Rule));
+          // std::memcpy(&parent.rightChild->rule, &oldRightChildRule, sizeof(Rule));
           
           *stepTaken = false;
         }
@@ -209,7 +211,7 @@ namespace bart {
         // checkrule failed, swap back
         parent.p.rule.swapWith(leftChild.p.rule);
         rightChild.p.rule = oldRightChildRule;
-        // std::memcpy(&parent.rightChild->rule, &oldRightChildRule, sizeof(bart::Rule));
+        // std::memcpy(&parent.rightChild->rule, &oldRightChildRule, sizeof(Rule));
         
         alpha = -1.0;
         *stepTaken = false;
@@ -316,7 +318,9 @@ namespace bart {
 
 // see comments in changeRule.cpp for what the heck I'm doing here
 namespace {
-  void storeTree(State& state, const bart::BARTFit& fit, const bart::Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
+  using namespace dbarts;
+  
+  void storeTree(::State& state, const BARTFit& fit, const Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
     // copy variables available w/brute force
     std::memcpy(state.variablesAvailable + nodeIndex * fit.data.numPredictors, node.variablesAvailableForSplit, fit.data.numPredictors * sizeof(bool));
 
@@ -337,7 +341,7 @@ namespace {
     storeTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
-  void restoreTree(State& state, const bart::BARTFit& fit, bart::Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
+  void restoreTree(::State& state, const BARTFit& fit, Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
     std::memcpy(node.variablesAvailableForSplit, state.variablesAvailable + nodeIndex * fit.data.numPredictors, fit.data.numPredictors * sizeof(bool));
 
     node.observationIndices = state.observationIndicesPtrs[nodeIndex];
@@ -356,7 +360,7 @@ namespace {
     restoreTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
-  void State::store(const bart::BARTFit& fit, const bart::Node& node) {
+  void ::State::store(const BARTFit& fit, const Node& node) {
     parentRule = node.p.rule;
                 
     size_t numBottomNodes = node.getNumBottomNodes();
@@ -387,7 +391,7 @@ namespace {
     delete [] observationIndices;
   }
   
-  void State::restore(const bart::BARTFit& fit, bart::Node& node) {
+  void State::restore(const BARTFit& fit, Node& node) {
     bool leftWasSwapped = parentRule.equals(node.getLeftChild()->p.rule);
     node.p.rule.swapWith(leftWasSwapped ? node.getLeftChild()->p.rule : node.getRightChild()->p.rule);
     

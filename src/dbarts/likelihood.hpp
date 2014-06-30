@@ -1,7 +1,7 @@
-#ifndef BART_LIKELIHOOD_HPP
-#define BART_LIKELIHOOD_HPP
+#ifndef DBARTS_LIKELIHOOD_HPP
+#define DBARTS_LIKELIHOOD_HPP
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   struct Node;
   

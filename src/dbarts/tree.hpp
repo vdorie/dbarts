@@ -1,15 +1,15 @@
-#ifndef BART_TREE_HPP
-#define BART_TREE_HPP
+#ifndef DBARTS_TREE_HPP
+#define DBARTS_TREE_HPP
 
 #include <cstddef>
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 
 #include "node.hpp"
 
 using std::size_t;
 using std::uint32_t;
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   
   struct Tree {

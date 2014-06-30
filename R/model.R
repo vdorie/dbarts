@@ -1,4 +1,4 @@
-setMethod("initialize", "cbartModel",
+setMethod("initialize", "dbartsModel",
           function(.Object, tree.prior, node.prior, resid.prior,
                    p.birth_death = 0.5, p.swap = 0.1, p.change = 0.4,
                    p.birth = 0.5)
@@ -23,9 +23,9 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   evalEnv <- new.env(parent = parentEnv)
   evalEnv$control <- control
   evalEnv$data <- data
-  evalEnv$cgm <- cbart:::cgm
-  evalEnv$normal <- cbart:::normal
-  evalEnv$chisq <- cbart:::chisq
+  evalEnv$cgm <- dbarts:::cgm
+  evalEnv$normal <- dbarts:::normal
+  evalEnv$chisq <- dbarts:::chisq
 
   if (is.symbol(matchedCall$tree.prior)) matchedCall$tree.prior <- call(as.character(matchedCall$tree.prior))
   if (is.symbol(matchedCall$node.prior)) matchedCall$node.prior <- call(as.character(matchedCall$node.prior))
@@ -41,17 +41,17 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
 
 cgm <- function(power = 2, base = 0.95)
 {
-  new("cbartCGMPrior", power = power, base = base)
+  new("dbartsCGMPrior", power = power, base = base)
 }
 
 normal <- function(k = 2.0)
 {
-  new("cbartNormalPrior", k = k)
+  new("dbartsNormalPrior", k = k)
 }
 
 chisq <- function(df = 3, quant = 0.9)
 {
-  new("cbartChiSqPrior", df = df, quantile = quant)
+  new("dbartsChiSqPrior", df = df, quantile = quant)
 }
     
 

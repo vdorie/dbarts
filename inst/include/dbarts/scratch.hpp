@@ -1,10 +1,10 @@
 // stuff that can be figured out from Control, Model, and Data
-#ifndef BART_SCRATCH_HPP
-#define BART_SCRATCH_HPP
+#ifndef DBARTS_SCRATCH_HPP
+#define DBARTS_SCRATCH_HPP
 
 #include "cstdint" // int types
 
-namespace bart {
+namespace dbarts {
   struct ScaleFactor { double min, max, range; };
   
   struct Scratch {
@@ -15,9 +15,9 @@ namespace bart {
     
     ScaleFactor dataScale;
     
-    const uint32_t* numCutsPerVariable;
+    const std::uint32_t* numCutsPerVariable;
     const double* const* cutPoints;
   };
-} // namespace bart
+} // namespace dbarts
 
-#endif // BART_SCRATCH_HPP
+#endif // DBARTS_SCRATCH_HPP

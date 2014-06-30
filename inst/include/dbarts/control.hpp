@@ -1,10 +1,10 @@
-#ifndef BART_CONTROL_HPP
-#define BART_CONTROL_HPP
+#ifndef DBARTS_CONTROL_HPP
+#define DBARTS_CONTROL_HPP
 
 #include <cstddef> // size_t
 #include "cstdint" // int types
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   
   typedef void (*CallbackFunction)(void* data, BARTFit& fit, bool isBurningIn,
@@ -35,15 +35,24 @@ namespace bart {
       numSamples(1000), numBurnIn(100), numTrees(200), numThreads(1), treeThinningRate(1), printEvery(100),
       printCutoffs(0), callback(NULL), callbackData(NULL)
     { }
-    Control(std::size_t numSamples, std::size_t numBurnIn, std::size_t numTrees, std::size_t numThreads, std::uint32_t treeThinningRate, bool keepTrainingFits,
-            bool verbose, uint32_t printEvery,
-            bool responseIsBinary, bool useQuantiles, uint32_t printCutoffs,
-            CallbackFunction callback, void* callbackData) :
+    Control(std::size_t numSamples,
+            std::size_t numBurnIn,
+            std::size_t numTrees,
+            std::size_t numThreads,
+            std::uint32_t treeThinningRate,
+            bool keepTrainingFits,
+            bool verbose,
+            uint32_t printEvery,
+            bool responseIsBinary,
+            bool useQuantiles,
+            uint32_t printCutoffs,
+            CallbackFunction callback,
+            void* callbackData) :
       responseIsBinary(responseIsBinary), verbose(verbose), keepTrainingFits(keepTrainingFits), useQuantiles(useQuantiles),
       numSamples(numSamples), numBurnIn(numBurnIn), numTrees(numTrees), numThreads(numThreads), treeThinningRate(treeThinningRate), printEvery(printEvery),
       printCutoffs(printCutoffs), callback(callback), callbackData(callbackData)
     { }
   };
-} // namespace bart
+} // namespace dbarts
 
 #endif // BART_CONTROL_HPP

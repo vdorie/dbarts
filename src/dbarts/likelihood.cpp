@@ -3,14 +3,14 @@
 
 #include <cstddef>
 
-#include <bart/bartFit.hpp>
-#include <bart/model.hpp>
-#include <bart/state.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/state.hpp>
 #include "node.hpp"
 
 using std::size_t;
 
-namespace bart {
+namespace dbarts {
   double computeLogLikelihoodForBranch(const BARTFit& fit, const Node& branch, const double* y)
   {
     NodeVector bottomVector(branch.getBottomVector());

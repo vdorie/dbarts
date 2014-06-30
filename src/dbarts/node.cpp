@@ -10,15 +10,15 @@
 #include <external/stats.h>
 #include <external/stats_mt.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/data.hpp>
-#include <bart/model.hpp>
-#include <bart/scratch.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/data.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
 #include "functions.hpp"
 
 using std::uint64_t;
 
-namespace bart {
+namespace dbarts {
   
   double Rule::getSplitValue(const BARTFit& fit) const
   {
@@ -29,8 +29,8 @@ namespace bart {
   }
   
   void Rule::invalidate() {
-    variableIndex = BART_INVALID_RULE_VARIABLE;
-    splitIndex = BART_INVALID_RULE_VARIABLE;
+    variableIndex = DBARTS_INVALID_RULE_VARIABLE;
+    splitIndex = DBARTS_INVALID_RULE_VARIABLE;
   }
   
   bool Rule::goesRight(const BARTFit& fit, const double* x) const
@@ -50,9 +50,9 @@ namespace bart {
   
   void Rule::copyFrom(const Rule& other)
   {
-    if (other.variableIndex == BART_INVALID_RULE_VARIABLE) {
-      variableIndex = BART_INVALID_RULE_VARIABLE;
-      splitIndex    = BART_INVALID_RULE_VARIABLE;
+    if (other.variableIndex == DBARTS_INVALID_RULE_VARIABLE) {
+      variableIndex = DBARTS_INVALID_RULE_VARIABLE;
+      splitIndex    = DBARTS_INVALID_RULE_VARIABLE;
       return;
     }
     
@@ -214,10 +214,12 @@ namespace bart {
 
 // NOTE: below assumes that walk tree on left
 namespace {
-  void fillBottomVector(const bart::Node& node, bart::NodeVector& result)
+  using namespace dbarts;
+  
+  void fillBottomVector(const Node& node, NodeVector& result)
   {
     if (node.isBottom()) {
-      result.push_back(const_cast<bart::Node*>(&node));
+      result.push_back(const_cast<Node*>(&node));
       return;
     }
     
@@ -225,7 +227,7 @@ namespace {
     fillBottomVector(*node.p.rightChild, result);
   }
   
-  void fillAndEnumerateBottomVector(bart::Node& node, bart::NodeVector& result, size_t& index)
+  void fillAndEnumerateBottomVector(Node& node, NodeVector& result, size_t& index)
   {
     if (node.isBottom()) {
       result.push_back(&node);
@@ -237,11 +239,11 @@ namespace {
     fillAndEnumerateBottomVector(*node.getRightChild(), result, index);
   }
   
-  void fillNoGrandVector(const bart::Node& node, bart::NodeVector& result)
+  void fillNoGrandVector(const Node& node, NodeVector& result)
   {
     if (node.isBottom()) return;
     if (node.childrenAreBottom()) {
-      result.push_back(const_cast<bart::Node*>(&node));
+      result.push_back(const_cast<Node*>(&node));
       return;
     }
 
@@ -249,36 +251,36 @@ namespace {
     fillNoGrandVector(*node.getRightChild(), result);
   }
   
-  void fillNotBottomVector(const bart::Node& node, bart::NodeVector& result)
+  void fillNotBottomVector(const Node& node, NodeVector& result)
   {
     if (node.isBottom()) return;
     if (node.childrenAreBottom()) {
-      result.push_back(const_cast<bart::Node*>(&node));
+      result.push_back(const_cast<Node*>(&node));
       return;
     }
   
     fillNotBottomVector(*node.leftChild, result);
     fillNotBottomVector(*node.p.rightChild, result);
     
-    result.push_back(const_cast<bart::Node*>(&node));
+    result.push_back(const_cast<Node*>(&node));
   }
   
-  void fillSwappableVector(const bart::Node& node, bart::NodeVector& result)
+  void fillSwappableVector(const Node& node, NodeVector& result)
   {
     if (node.isBottom() || node.childrenAreBottom()) return;
     if ((node.leftChild->isBottom()  || node.leftChild->childrenAreBottom()) && 
         (node.p.rightChild->isBottom() || node.p.rightChild->childrenAreBottom())) {
-      result.push_back(const_cast<bart::Node*>(&node));
+      result.push_back(const_cast<Node*>(&node));
       return;
     }
     
     fillSwappableVector(*node.leftChild, result);
     fillSwappableVector(*node.p.rightChild, result);
     
-    result.push_back(const_cast<bart::Node*>(&node));
+    result.push_back(const_cast<Node*>(&node));
   }
 }
-namespace bart {  
+namespace dbarts {
   NodeVector Node::getBottomVector() const
   {
     NodeVector result;
@@ -327,7 +329,7 @@ namespace bart {
 
 
 namespace {
-  using namespace bart;
+  using namespace dbarts;
   
   struct IndexOrdering {
     const BARTFit& fit;
@@ -495,7 +497,7 @@ namespace {
 // MT not worth it for this, apparently
 // #define MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD 5000
 
-namespace bart {
+namespace dbarts {
   void Node::addObservationsToChildren(const BARTFit& fit, const double* y) {
     if (isBottom()) {
       if (isTop()) {

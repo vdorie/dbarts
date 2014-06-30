@@ -1,9 +1,9 @@
-#ifndef BART_RESULTS_HPP
-#define BART_RESULTS_HPP
+#ifndef DBARTS_RESULTS_HPP
+#define DBARTS_RESULTS_HPP
 
 #include <cstddef> // size_t
 
-namespace bart {
+namespace dbarts {
   struct Results {
     double* sigmaSamples;         // 1 x numSamples
     double* trainingSamples;      // numObservations x numSamples
@@ -15,8 +15,10 @@ namespace bart {
     std::size_t numTestObservations;
     std::size_t numSamples;
   
-    Results(std::size_t numObservations, std::size_t numPredictors,
-            std::size_t numTestObservations, std::size_t numSamples) :
+    Results(std::size_t numObservations,
+            std::size_t numPredictors,
+            std::size_t numTestObservations,
+            std::size_t numSamples) :
       sigmaSamples(NULL), trainingSamples(NULL), testSamples(NULL), variableCountSamples(NULL),
       numObservations(numObservations), numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples)
     {
@@ -37,6 +39,6 @@ namespace bart {
     std::size_t getNumTestSamples() { return numTestObservations * numSamples; }
     std::size_t getNumVariableCountSamples() { return numPredictors * numSamples; }
   };
-} // namespace bart
+} // namespace dbarts
 
-#endif // BART_RESULTS_HPP
+#endif // DBARTS_RESULTS_HPP

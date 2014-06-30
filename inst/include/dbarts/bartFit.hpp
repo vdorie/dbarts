@@ -1,5 +1,5 @@
-#ifndef BART_BART_FIT_HPP
-#define BART_BART_FIT_HPP
+#ifndef DBARTS_BART_FIT_HPP
+#define DBARTS_BART_FIT_HPP
 
 #include <cstddef> // size_t
 #include "cstdint" // uint32_t
@@ -14,7 +14,7 @@
 #include "scratch.hpp"
 #include "state.hpp"
 
-namespace bart {
+namespace dbarts {
   struct Results;
   
   struct BARTFit {
@@ -44,6 +44,6 @@ namespace bart {
     // be changed in place
     void setResponse(const double* newResponse);
   };
-} // namespace bart
+} // namespace dbarts
 
-#endif // BART_BART_FIT_HPP
+#endif // DBARTS_BART_FIT_HPP

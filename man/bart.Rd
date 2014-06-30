@@ -1,195 +1,179 @@
 \name{bart}
-\title{Bayesian Additive Regression Trees}
 \alias{bart}
 \alias{plot.bart}
+\title{Bayesian Additive Regression Trees}
 \description{
-BART is a Bayesian \dQuote{sum-of-trees} model.\cr
-For numeric response \eqn{y}, we have
-\eqn{y = f(x) + \epsilon}{y = f(x) + e},
-where \eqn{\epsilon \sim N(0,\sigma^2)}{e ~ N(0,sigma\^2)}.\cr
-For a binary response \eqn{y}, \eqn{P(Y=1 | x) = F(f(x))}, where \eqn{F}
+BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
+
+\itemize{
+  \item For numeric response \eqn{y = f(x) + \epsilon}{y = f(x) + \epsilon},
+where \eqn{\epsilon \sim N(0, \sigma^2)}{\epsilon ~ N(0, \sigma^2)}.
+  \item For binary response \eqn{y}, \eqn{P(Y = 1 \mid x) = \Phi(f(x))}{P(Y = 1 | x) = \Phi(f(x))}, where \eqn{\Phi}
 denotes the standard normal cdf (probit link).
-
-In both cases, \eqn{f} is the sum of many tree models.
-The goal is to have very flexible inference for the uknown
-function \eqn{f}.
-
-In the spirit of \dQuote{ensemble models}, 
-each tree is constrained by a prior to be a weak learner
-so that it contributes a
-small amount to the overall fit.
+}
 }
 \usage{
-bart(
-   x.train, y.train, x.test=matrix(0.0,0,0),
-   sigest=NA, sigdf=3, sigquant=.90,
-   k=2.0,
-   power=2.0, base=.95,
-   binaryOffset=0,
-   ntree=200,
-   ndpost=1000, nskip=100,
-   printevery=100, keepevery=1, keeptrainfits=TRUE,
-   usequants=FALSE, numcut=100, printcutoffs=0,
-   verbose=TRUE)
-\method{plot}{bart}(
-   x,
-   plquants=c(.05,.95), cols =c('blue','black'),
-   \dots)
+bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
+     sigest = NA, sigdf = 3, sigquant = 0.90,
+     k = 2.0,
+     power = 2.0, base = 0.95,
+     binaryOffset = 0.0,
+     ntree = 200,
+     ndpost = 1000, nskip = 100,
+     printevery = 100, keepevery = 1, keeptrainfits = TRUE,
+     usequants = FALSE, numcut = 100, printcutoffs = 0,
+     verbose = TRUE)
+\method{plot}{bart}(x,
+     plquants = c(0.05, 0.95), cols = c('blue', 'black'),
+     \dots)
 }
 \arguments{
    \item{x.train}{
-   Explanatory variables for training (in sample) data.\cr
-   May be a matrix or a data frame,
-   with (as usual) rows corresponding to observations and columns to variables.\cr
-   If a variable is a factor in a data frame, it is replaced with dummies.
-   Note that q dummies are created if q>2 and
-   one dummy is created if q=2, where q is the number of levels of the factor.
-   \code{makeind} is used to generate the dummies.
-   \code{bart} will generate draws of \eqn{f(x)} for each \eqn{x}
-   which is a row of x.train.
+     Explanatory variables for training (in sample) data. May be a matrix or a data frame,
+     with rows corresponding to observations and columns to variables.
+     If a variable is a factor in a data frame, it is replaced with dummies.
+     Note that \eqn{q} dummies are created if \eqn{q > 2} and
+     one dummy is created if \eqn{q = 2}, where \eqn{q} is the number of levels of the factor.
    }
 
    \item{y.train}{
-   Dependent variable for training (in sample) data.\cr
-   If y is numeric a continous response model is fit (normal errors).\cr
-   If y is a factor (or just has values 0 and 1) then a binary response model
-   with a probit link is fit.
+     Dependent variable for training (in sample) data. If \code{y.train} is numeric a continous response
+     model is fit (normal errors). If \code{y.train} is a binary factor or has only values 0 and 1, then
+     a binary response model with a probit link is fit.
    }
 
    \item{x.test}{
-   Explanatory variables for test (out of sample) data.\cr
-   Should have same structure as x.train.\cr
-   \code{bart} will generate draws of \eqn{f(x)} for each \eqn{x} which is a row of x.test.
+     Explanatory variables for test (out of sample) data. Should have same column structure as
+     \code{x.train}. \code{bart} will generate draws of \eqn{f(x)} for each \eqn{x} which is a
+     row of \code{x.test}.
    }
 
    \item{sigest}{
-   The prior for the error variance  (\eqn{\sigma^2}{sigma\^2}) is inverted chi-squared
-   (the standard conditionally conjugate prior).
-   The prior is specified by choosing the degrees of freedom, a rough estimate of the
-   corresponding standard deviation and a quantile to put this rough estimate at.
-   If sigest=NA then the rough estimate will be the usual least squares estimator.
-   Otherwise the supplied value will be used.
-   Not used if y is binary.
+   	 For continuous response models, an estimate of the error variance, \eqn{\sigma^2},
+   	 used to calibrate an inverse-chi-squared prior used on that parameter. If not supplied,
+   	 the least-squares estimate is derived instead. See \code{sigquant} for more information. Not applicable when \eqn{y} is binary.
    }
 
    \item{sigdf}{
-   Degrees of freedom for error variance prior.
-   Not used if y is binary.
+     Degrees of freedom for error variance prior. Not applicable when \eqn{y} is binary.
    }
 
    \item{sigquant}{
-   The quantile of the prior that the rough estimate (see sigest) is placed at.
-   The closer the quantile is to 1,
-   the more aggresive the fit will be as you are putting more prior weight
-   on error standard deviations (\eqn{\sigma}{sigma}) less than the rough estimate.
-   Not used if y is binary.
+     The quantile of the error variance prior that the rough estimate
+     (\code{sigest}) is placed at. The closer the quantile is to 1,
+     the more aggresive the fit will be as you are putting more prior weight
+     on error standard deviations (\eqn{\sigma}) less than the rough estimate.
+     Not applicable when \eqn{y} is binary.
    }
 
    \item{k}{
-   For numeric y,
-   k is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from +/-.5.
-   The response (y.train) is internally scaled to range from -.5 to .5.
-   For binary y,
-   k is the number of prior standard deviations \eqn{f(x)} is away from +/-3.
-   In both cases, the bigger k is, the more conservative the fitting will be.
+     For numeric \eqn{y},
+     \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}.
+     The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}.
+     For binary \eqn{y}, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from
+     \eqn{\pm 3}{+/- 3}. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be.
    }
 
    \item{power}{
-   Power parameter for tree prior.
+     Power parameter for tree prior.
    }
 
    \item{base}{
-   Base parameter for tree prior.
+     Base parameter for tree prior.
    }
 
    \item{binaryOffset}{
-   Used for binary \eqn{y}.\cr
-   The model is \eqn{P(Y=1 | x) = F(f(x) + binaryOffset)}.\cr
-   The idea is that \eqn{f} is shrunk towards 0, so the offset allows you to shrink towards
-   a probability other than .5.
+     Used for binary \eqn{y}. When present, the model is
+       \eqn{P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})}{P(Y = 1 | x) = \Phi(f(x) + binaryOffset)},
+     allowing fits with probabilities shrunk towards values other than \eqn{0.5}.
    }
 
    \item{ntree}{
-   The number of trees in the sum.
+     The number of trees in the sum-of-trees formulation.
    }
 
    \item{ndpost}{
-   The number of posterior draws after burn in, ndpost/keepevery will actually be returned.
+     The number of posterior draws after burn in, \code{ndpost / keepevery} will actually be returned.
    }
 
    \item{nskip}{
-   Number of MCMC iterations to be treated as burn in.
+     Number of MCMC iterations to be treated as burn in.
    }
 
    \item{printevery}{
-   As the MCMC runs, a message is printed every printevery draws.
+     As the MCMC runs, a message is printed every \code{printevery} draws.
    }
 
    \item{keepevery}{
-   Every keepevery draw is kept to be returned to the user.\cr
-   A \dQuote{draw} will consist of values of the error standard deviation (\eqn{\sigma}{sigma})
-   and \eqn{f^*(x)}{f*(x)}
-   at \eqn{x} = rows from the train(optionally) and test data, where \eqn{f^*}{f*} denotes
-   the current draw of \eqn{f}.
+     Every \code{keepevery} draw is kept to be returned to the user. Useful for \dQuote{thinning}
+     samples.
    }
 
    \item{keeptrainfits}{
-   If true the draws of \eqn{f(x)} for \eqn{x} = rows of x.train are returned.
+     If \code{TRUE} the draws of \eqn{f(x)} for \eqn{x} corresponding to the rows of \code{x.train} are returned.
    }
 
    \item{usequants}{
-   Decision rules in the tree are of the form
-   \eqn{x \le c}{x <= c}  vs. \eqn{x > c}
-   for each variable corresponding to a column of x.train.
-   usequants determines how the set of possible c is determined.
-   If usequants is true, then the c are
-   a subset of the values (xs[i]+xs[i+1])/2 where xs is
-   unique sorted values obtained from
-   the corresponding column of x.train.
-   If usequants is false, the cutoffs are equally spaced across the
-   range of values taken on by the corresponding
-   column of x.train.
+     When \code{TRUE}, determine tree decision rules using estimated quantiles derived
+     from the \code{x.train} variables. When \code{FALSE}, splits are determined using
+     values equally spaced across the range of a variable.
+     %Decision rules in the tree are of the form
+     %\eqn{x \le c}{x \le c}  vs. \eqn{x > c}
+     %for each variable corresponding to a column of \code{x.train}.
+     %\code{usequants} determines how the set of possible \eqn{c} is determined.
+     %If \code{usequants} is \code{TRUE}, then the \eqn{c} are
+     %a subset of the values \code{(xs[i] + xs[i + 1]) / 2} where \code{xs} is
+     %unique sorted values obtained from
+     %the corresponding column of \code{x.train}.
+     %If \code{usequants} is \code{FALSE}, the cutoffs are equally spaced across the
+     %range of values taken on by the corresponding
+     %column of \code{x.train}.
    }
    
    \item{numcut}{
-   The number of possible values of c (see usequants).
-   If a single number if given, this is used for all variables.
-   Otherwise a vector with length equal to ncol(x.train) is required,
-   where the \eqn{i^{th}}{i^th} element gives the number of c used for
-   the \eqn{i^{th}}{i^th} variable in x.train.
-   If usequants is false, numcut equally spaced cutoffs
-   are used covering the range of values in the corresponding
-   column of x.train.  If usequants is true, then  min(numcut, the number of unique values in the
-   corresponding columns of x.train - 1) c values are used.
+   	 The number of possible values used in decision rules (see \code{usequants}). If a single
+   	 number, it is recycled for all variables; otherwise must be a vector of length equal to
+   	 \code{ncol(x.train)}. Can be truncated if more values are requested than present in the
+   	 training data.
+   	 
+%     The number of possible values of c (see usequants).
+%   If a single number if given, this is used for all variables.
+%   Otherwise a vector with length equal to ncol(x.train) is required,
+%   where the \eqn{i^{th}}{i^th} element gives the number of c used for
+%   the \eqn{i^{th}}{i^th} variable in x.train.
+%   If usequants is false, numcut equally spaced cutoffs
+%   are used covering the range of values in the corresponding
+%   column of x.train.  If usequants is true, then  min(numcut, the number of unique values in the
+%   corresponding columns of x.train - 1) c values are used.
    }
 
    \item{printcutoffs}{
-   The number of cutoff rules c to printed to screen before the MCMC is run.
-   Give a single integer, the same value will be used for all variables.
-   If 0, nothing is printed.
+     The number of cutoff rules to printed to screen before the MCMC is run.
+     Given a single integer, the same value will be used for all variables.
+     If 0, nothing is printed.
    }
 
    \item{verbose}{
-   Logical, if FALSE supress printing.
+     Logical; if \code{FALSE} supress printing.
    }
 
    \item{x}{
-   Value returned by \code{bart} which contains the information to be plotted.
+     Object of class \code{bart}, returned by function \code{bart}, which contains the information to be plotted.
    }
 
    \item{plquants}{
-   In the plots, beliefs about \eqn{f(x)} are indicated by plotting the
-   posterior median and a lower and upper quantile.
-   plquants is a double vector of length two giving the lower and upper quantiles.
+     In the plots, beliefs about \eqn{f(x)} are indicated by plotting the
+     posterior median and a lower and upper quantile. \code{plquants} is a double vector
+     of length two giving the lower and upper quantiles.
    }
 
    \item{cols}{
-   Vector of two colors.  First color is used to plot the median of \eqn{f(x)} and
-   the second color is used to plot the lower and upper quantiles.
+     Vector of two colors. First color is used to plot the median of \eqn{f(x)} and
+     the second color is used to plot the lower and upper quantiles.
    }
 
    \item{\dots}{
-   Additional arguments passed on to plot.
+     Additional arguments passed on to plot.
    }
 }
 \details{

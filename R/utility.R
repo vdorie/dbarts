@@ -37,6 +37,7 @@ makeModelMatrixFromDataFrame <- function(x) {
   
 
   factorToMatrix <- function(factor) {
+    if (nlevels(factor) == 2) return(as.matrix(as.numeric(as.integer(factor) - 1L)))
     sapply(levels(factor), function(level) ifelse(factor == level, 1, 0))
   }
 
@@ -47,7 +48,11 @@ makeModelMatrixFromDataFrame <- function(x) {
     x_i <- x[[index]]
     if (is.factor(x_i)) {
       result <- factorToMatrix(x_i)
-      colnames(result) <- paste0(termNames[index], ".", levels(x_i))
+      if (nlevels(x_i) > 2) {
+        colnames(result) <- paste0(termNames[index], ".", levels(x_i))
+      } else {
+        colnames(result) <- termNames[index]
+      }
       return(result)
     }
     if (is.matrix(x_i)) {

@@ -1,10 +1,10 @@
 #include "config.hpp"
-#include <bart/bartFit.hpp>
+#include <dbarts/bartFit.hpp>
 
 #include <cmath>     // sqrt
 #include <cstring>   // memcpy
 #include <cstddef>   // size_t
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #if !defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
 #undef HAVE_GETTIMEOFDAY
 #endif
@@ -23,7 +23,7 @@
 #include <external/stats.h>
 #include <external/linearAlgebra.h>
 
-#include <bart/results.hpp>
+#include <dbarts/results.hpp>
 #include "functions.hpp"
 #include "tree.hpp"
 
@@ -32,7 +32,7 @@ using std::uint32_t;
 
 
 namespace {
-  using namespace bart;
+  using namespace dbarts;
 
   void allocateMemory(BARTFit& fit);
   void setPrior(BARTFit& fit);
@@ -43,6 +43,7 @@ namespace {
   void printTerminalSummary(const BARTFit& fit, double runningTime);
   
   void rescaleResponse(BARTFit& fit);
+  // void resampleTreeFits(BARTFit& fit);
   
   void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* yRescaled);
   void storeSamples(const BARTFit& fit, Results& results, const double* trainingSample, const double* testSample,
@@ -56,35 +57,26 @@ namespace {
 #endif
 }
 
-namespace bart {
+namespace dbarts {
   
   void BARTFit::setResponse(const double* newY) {
-    double sigmaUnscaled = state.sigma * scratch.dataScale.range;
-    double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
-    
-    data.y = newY;
-    
-    rescaleResponse(*this);
-    
-    state.sigma = sigmaUnscaled / scratch.dataScale.range;
-    model.sigmaSqPrior->setScale(priorUnscaled / (scratch.dataScale.range * scratch.dataScale.range));
-    
-    
-    // rebuild the total fit and tree fits, manually
-    ext_setVectorToConstant(state.totalFits, data.numObservations, 0.0);
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      double* currFits = state.treeFits + i * data.numObservations;
+    if (!control.responseIsBinary) {
+      double sigmaUnscaled = state.sigma * scratch.dataScale.range;
+      double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
       
-      // treeY = y - totalFits
-      std::memcpy(scratch.treeY, scratch.yRescaled, data.numObservations * sizeof(double));
-      ext_addVectorsInPlace((const double*) state.totalFits, data.numObservations, -1.0, scratch.treeY);
-    
-      state.trees[i].setNodeAverages(*this, scratch.treeY);
-      state.trees[i].getCurrentFits(*this, currFits, NULL);
-    
-      // totalFits += currFits
-      ext_addVectorsInPlace((const double*) currFits, data.numObservations, 1.0, state.totalFits);
+      data.y = newY;
+      
+      rescaleResponse(*this);
+      
+      state.sigma = sigmaUnscaled / scratch.dataScale.range;
+      model.sigmaSqPrior->setScale(priorUnscaled / (scratch.dataScale.range * scratch.dataScale.range));
+    } else {
+      data.y = newY;
+      
+      sampleProbitLatentVariables(*this, const_cast<const double*>(state.totalFits), const_cast<double*>(scratch.yRescaled));
     }
+    
+    // resampleTreeFits(*this);
   }
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
@@ -223,6 +215,7 @@ namespace bart {
       
       if (control.responseIsBinary) {
         sampleProbitLatentVariables(*this, state.totalFits, const_cast<double*>(scratch.yRescaled));
+        // resampleTreeFits(*this);
       } else {
         double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
         state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(data.numObservations, sumOfSquaredResiduals));
@@ -261,11 +254,11 @@ namespace bart {
     
     return resultsPointer;
   }
-} // namespace bart
+} // namespace dbarts
 
 
 namespace {
-  using namespace bart;
+  using namespace dbarts;
   
   void printInitialSummary(const BARTFit& fit) {
     const Control& control(fit.control);
@@ -535,6 +528,29 @@ namespace {
       ext_addScalarToVectorInPlace(yRescaled, data.numObservations, -0.5);
     }
   }
+  
+  /* void resampleTreeFits(BARTFit& fit) {
+    const Data& data(fit.data);
+    const Control& control(fit.control);
+    State& state(fit.state);
+    Scratch& scratch(fit.scratch);
+    
+    // rebuild the total fit and tree fits, manually
+    ext_setVectorToConstant(state.totalFits, data.numObservations, 0.0);
+    for (size_t i = 0; i < control.numTrees; ++i) {
+      double* currFits = state.treeFits + i * data.numObservations;
+      
+      // treeY = y - totalFits
+      std::memcpy(scratch.treeY, scratch.yRescaled, data.numObservations * sizeof(double));
+      ext_addVectorsInPlace((const double*) state.totalFits, data.numObservations, -1.0, scratch.treeY);
+      
+      state.trees[i].setNodeAverages(fit, scratch.treeY);
+      state.trees[i].getCurrentFits(fit, currFits, NULL);
+      
+      // totalFits += currFits
+      ext_addVectorsInPlace((const double*) currFits, data.numObservations, 1.0, state.totalFits);
+    }
+  } */
   
   // multithread-this!
   void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* z) {

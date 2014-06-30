@@ -5,16 +5,16 @@ INST_DIR=../inst
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
 PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
-PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) bart/libbart.a external/libexternal.a -lpthread 
+PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) dbarts/libdbarts.a external/libexternal.a -lpthread 
 
-.PHONY: all bart/libbart.a external/libexternal.a clean
+.PHONY: all dbarts/libdbarts.a external/libexternal.a clean
 
 all: $(SHLIB)
 
-$(SHLIB): bart/libbart.a external/libexternal.a
+$(SHLIB): dbarts/libdbarts.a external/libexternal.a
 
-bart/libbart.a:
-	@(cd bart && $(MAKE) libbart.a \
+dbarts/libdbarts.a:
+	@(cd dbarts && $(MAKE) libdbarts.a \
 	  CXX="$(CXX)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
 	  CPPFLAGS="-pthread $(CPPFLAGS) $(BART_EXACT)" \
 	  CXXFLAGS="$(R_XTRA_CXXFLAGS) $(CXXPICFLAGS) $(CXXFLAGS)" \
@@ -32,6 +32,6 @@ external/libexternal.a :
 
 
 clean :
-	@(cd bart && $(MAKE) clean)
+	@(cd dbarts && $(MAKE) clean)
 	@(cd external && $(MAKE) clean)
 	rm -f *.so *.dll *.o

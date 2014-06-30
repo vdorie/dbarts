@@ -1,17 +1,17 @@
 #include "config.hpp"
-#include <bart/model.hpp>
+#include <dbarts/model.hpp>
 
 #include <cmath>
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 
 #include <external/alloca.h>
 #include <external/io.h>
 #include <external/stats.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/data.hpp>
-#include <bart/scratch.hpp>
-#include <bart/types.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/data.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "node.hpp"
 #include "tree.hpp"
@@ -23,10 +23,12 @@ using std::int32_t;
 
 
 namespace {
-  double computeTreeLogProbability(const bart::CGMPrior& prior, const bart::BARTFit& fit, const bart::Node& node);  
+  using namespace dbarts;
+  
+  double computeTreeLogProbability(const CGMPrior& prior, const BARTFit& fit, const Node& node);
 }
 
-namespace bart {
+namespace dbarts {
   double CGMPrior::computeGrowthProbability(const BARTFit& fit, const Node& node) const
   {
     if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
@@ -96,7 +98,7 @@ namespace bart {
   
   Rule CGMPrior::drawRuleForVariable(const BARTFit& fit, const Node& node, int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const
   {
-    Rule result = { BART_INVALID_RULE_VARIABLE, { BART_INVALID_RULE_VARIABLE } };
+    Rule result = { DBARTS_INVALID_RULE_VARIABLE, { DBARTS_INVALID_RULE_VARIABLE } };
     
     result.variableIndex = variableIndex;
     
@@ -168,7 +170,9 @@ namespace bart {
 }
 
 namespace {
-  double computeTreeLogProbability(const bart::CGMPrior& prior, const bart::BARTFit& fit, const bart::Node& node)
+  using namespace dbarts;
+  
+  double computeTreeLogProbability(const CGMPrior& prior, const BARTFit& fit, const Node& node)
   {
     double probabilityNodeIsNotTerminal = prior.computeGrowthProbability(fit, node);
     

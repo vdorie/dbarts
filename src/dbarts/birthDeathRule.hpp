@@ -1,7 +1,7 @@
-#ifndef BART_BIRTH_DEATH_RULE_HPP
-#define BART_BIRTH_DEATH_RULE_HPP
+#ifndef DBARTS_BIRTH_DEATH_RULE_HPP
+#define DBARTS_BIRTH_DEATH_RULE_HPP
 
-namespace bart {
+namespace dbarts {
   struct BARTFit;
   struct Tree;
   

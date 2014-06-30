@@ -1,19 +1,22 @@
 #include "config.hpp"
-#include <bart/state.hpp>
+#include <dbarts/state.hpp>
 
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
 
-#include <bart/bartFit.hpp>
-#include <bart/control.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/control.hpp>
 #include "functions.hpp"
 #include "node.hpp"
 #include "tree.hpp"
 
 #define BASE_BUFFER_SIZE 1024
 #define INT_BUFFER_SIZE 16
+
 namespace {
+  using namespace dbarts;
+  
   struct StringWriter {
     char* buffer;
     size_t length;
@@ -42,7 +45,7 @@ namespace {
       writeString(intBuffer, bytesWritten);
     }
     
-    void writeNode(const bart::Node& node) {
+    void writeNode(const Node& node) {
       if (node.isBottom()) {
         writeChar('.');
         return;
@@ -72,7 +75,9 @@ namespace {
 #include <external/io.h>
 
 namespace {
-  size_t readNode(bart::Node& node, const char* treeString, size_t numPredictors) {
+  using namespace dbarts;
+  
+  size_t readNode(Node& node, const char* treeString, size_t numPredictors) {
     if (treeString[0] == '\0') return 0;
     if (treeString[0] == '.') return 1;
     
@@ -108,8 +113,8 @@ namespace {
     if (node.p.rule.splitIndex == 0 && errno != 0)
       error("Unable to parse tree string: %s", strerror(errno));
     
-    node.leftChild  = new bart::Node(node, numPredictors);
-    node.p.rightChild = new bart::Node(node, numPredictors);
+    node.leftChild  = new Node(node, numPredictors);
+    node.p.rightChild = new Node(node, numPredictors);
     
     pos += readNode(*node.getLeftChild(), treeString + pos, numPredictors);
     pos += readNode(*node.getRightChild(), treeString + pos, numPredictors);
@@ -119,7 +124,7 @@ namespace {
 }
 
 
-namespace bart {
+namespace dbarts {
   const char* const* State::createTreeStrings(const BARTFit& fit) const
   {
     StringWriter writer;

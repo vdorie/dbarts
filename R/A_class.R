@@ -1,30 +1,30 @@
 ## stupid file name to load first
 
-setClass("cbartTreePrior")
-setClass("cbartCGMPrior", contains = "cbartTreePrior",
+setClass("dbartsTreePrior")
+setClass("dbartsCGMPrior", contains = "dbartsTreePrior",
          slots = list(power = "numeric", base = "numeric"),
          validity = function(object) {
            if (object@power <= 0.0) return("'power' must be positive.")
            if (object@base <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1).")
          })
 
-setClass("cbartNodePrior")
-setClass("cbartNormalPrior", contains = "cbartNodePrior",
+setClass("dbartsNodePrior")
+setClass("dbartsNormalPrior", contains = "dbartsNodePrior",
          slots = list(k = "numeric"),
          validity = function(object) {
            if (object@k <= 0.0) return("'k' must be positive.")
          })
 
-setClass("cbartResidPrior")
-setClass("cbartChiSqPrior", contains = "cbartResidPrior",
+setClass("dbartsResidPrior")
+setClass("dbartsChiSqPrior", contains = "dbartsResidPrior",
          slots = list(df = "numeric", quantile = "numeric"),
          validity = function(object) {
            if (object@df <= 0.0) return("'df' must be positive.")
            if (object@quantile <= 0.0) return("'quantile' must be positive.")
          })
 
-cbartControl <-
-  setClass("cbartControl",
+dbartsControl <-
+  setClass("dbartsControl",
            slots =
            list(binary           = "logical",
                 verbose          = "logical",
@@ -63,14 +63,14 @@ cbartControl <-
              if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer.")
              if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer.")
 
-             ## handle this in particular b/c it is set through cbart, not
+             ## handle this in particular b/c it is set through dbarts, not
              ## standard initializer
              if (!is.na(object@n.samples) && object@n.samples <= 0L) return("'n.samples' must be a positive integer.")
 
              TRUE
            })
 
-setClass("cbartModel",
+setClass("dbartsModel",
          slots =
          list(p.birth_death = "numeric",
               p.swap        = "numeric",
@@ -78,17 +78,17 @@ setClass("cbartModel",
               
               p.birth = "numeric",
 
-              tree.prior  = "cbartTreePrior",
-              node.prior  = "cbartNodePrior",
-              resid.prior = "cbartResidPrior"),
+              tree.prior  = "dbartsTreePrior",
+              node.prior  = "dbartsNodePrior",
+              resid.prior = "dbartsResidPrior"),
          prototype =
          list(p.birth_death = 1.0,
               p.swap        = 0.0,
               p.change      = 0.0,
               p.birth       = 0.5,
-              tree.prior    = new("cbartCGMPrior"),
-              node.prior    = new("cbartNormalPrior"),
-              resid.prior   = new("cbartChiSqPrior")),
+              tree.prior    = new("dbartsCGMPrior"),
+              node.prior    = new("dbartsNormalPrior"),
+              resid.prior   = new("dbartsChiSqPrior")),
          validity = function(object) {
            proposalProbs <- c(object@p.birth_death, object@p.swap, object@p.change)
            if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) return("Rule proposal probabilities must be in [0, 1].")
@@ -100,7 +100,7 @@ setClass("cbartModel",
 setClassUnion("matrixOrNULL", c("matrix", "NULL"))
 setClassUnion("numericOrNULL", c("numeric", "NULL"))
 
-setClass("cbartData",
+setClass("dbartsData",
          slots =
          list(y        = "numeric",
               x        = "matrix",
@@ -140,7 +140,7 @@ setClass("cbartData",
          })
 
 ## this shouldn't ever get created, used, modified, whathaveyou
-setClass("cbartState",
+setClass("dbartsState",
          slots =
          list(fit.tree  = "numeric",
               fit.total = "numeric",

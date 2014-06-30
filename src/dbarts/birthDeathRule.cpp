@@ -9,8 +9,8 @@
 #include <external/linearAlgebra.h>
 #include <external/stats.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/model.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/model.hpp>
 #include "likelihood.hpp"
 #include "node.hpp"
 #include "tree.hpp"
@@ -19,17 +19,18 @@ using std::size_t;
 
 
 namespace {
+  using namespace dbarts;
   struct State {
-    bart::Node node;
+    Node node;
     
-    void store(const bart::Node& other);
+    void store(const Node& other);
     void destroy();
-    void restore(bart::Node& other) const;
+    void restore(Node& other) const;
   };
 }
 
 
-namespace bart {
+namespace dbarts {
   Node* drawBirthableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability);
   Node* drawChildrenKillableNode(const Tree& tree, double* nodeSelectionProbability);
   
@@ -275,11 +276,13 @@ namespace bart {
 }
 
 namespace {
-  void State::store(const bart::Node& other) {
-    std::memcpy(&node, &other, sizeof(bart::Node));
+  using namespace dbarts;
+  
+  void ::State::store(const Node& other) {
+    std::memcpy(&node, &other, sizeof(Node));
   }
   
-  void State::destroy() {
+  void ::State::destroy() {
     if (node.getLeftChild() != NULL) {
       // successful death step
       delete node.getLeftChild();
@@ -287,7 +290,7 @@ namespace {
     }
   }
   
-  void State::restore(bart::Node& other) const {
+  void ::State::restore(Node& other) const {
     if (node.getLeftChild() == NULL) {
       // failed birth step
       if (other.getLeftChild() != NULL) {
@@ -296,6 +299,6 @@ namespace {
         delete other.p.rightChild; other.p.rightChild = NULL;
       }
     }
-    std::memcpy(&other, &node, sizeof(bart::Node));
+    std::memcpy(&other, &node, sizeof(Node));
   }
 }

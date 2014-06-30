@@ -1,7 +1,8 @@
 v0.8 : initial public release
   call-back mechanism in R
   documentation
-  binary outcomes
+  update offset
+  update covariates
   
 v0.9 : stuff to add
   categorical variable detection/use

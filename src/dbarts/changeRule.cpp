@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include "changeRule.hpp"
 
-#include <bart/cstdint>
+#include <dbarts/cstdint>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -12,10 +12,10 @@
 #include <external/io.h>
 #include <external/alloca.h>
 
-#include <bart/bartFit.hpp>
-#include <bart/model.hpp>
-#include <bart/scratch.hpp>
-#include <bart/types.hpp>
+#include <dbarts/bartFit.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
 #include "node.hpp"
@@ -30,11 +30,12 @@ using std::uint64_t;
 // re-write this yet
 
 namespace {
+  using namespace dbarts;
   // Since a change rule, well, changes the rule at a node it does not influence the 
   // tree structure. Thus, we store the innards of nodes of the tree flattened by
   // imposing a particular tree-walking order.
   struct State {
-    bart::Rule rule;
+    Rule rule;
     
     double* averages;
     double* numEffectiveObservations;
@@ -46,13 +47,13 @@ namespace {
     size_t* numObservations;         // duplicates length of original
     size_t** observationIndices;     // duplicates content of original
     
-    void store(const bart::BARTFit& fit, const bart::Node& node);
+    void store(const BARTFit& fit, const Node& node);
     void destroy();
-    void restore(const bart::BARTFit& fit, bart::Node& node); // invalidates afterwards
+    void restore(const BARTFit& fit, Node& node); // invalidates afterwards
   };
 }
 
-namespace bart {
+namespace dbarts {
   void findReachableBottomNodesForCategory(const Node* curr, int32_t variableIndex, size_t categoryIndex, NodeVector& bottomVector, bool* nodesAreReachable);
   void findGoodOrdinalRules(const BARTFit& fit, const Node& node, int32_t variableIndex, int32_t* lowerIndex, int32_t* upperIndex);
   void findOrdinalMinMaxSplitIndices(const BARTFit& fit, const Node& node, int32_t variableIndex, int32_t* min, int32_t* max);
@@ -374,7 +375,9 @@ namespace bart {
 // Also, it is a bit of a mess since I flatten the tree below.
 
 namespace {
-  void storeTree(State& state, const bart::BARTFit& fit, const bart::Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
+  using namespace dbarts;
+  
+  void storeTree(::State& state, const BARTFit& fit, const Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
     // copy variables available w/brute force
     std::memcpy(state.variablesAvailable + nodeIndex * fit.data.numPredictors, node.variablesAvailableForSplit, fit.data.numPredictors * sizeof(bool));
     
@@ -395,7 +398,7 @@ namespace {
     storeTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
-  void restoreTree(State& state, const bart::BARTFit& fit, bart::Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
+  void restoreTree(::State& state, const BARTFit& fit, Node& node, size_t& nodeIndex, size_t& bottomNodeIndex) {
     std::memcpy(node.variablesAvailableForSplit, state.variablesAvailable + nodeIndex * fit.data.numPredictors, fit.data.numPredictors * sizeof(bool));
 
     node.observationIndices = state.observationIndicesPtrs[nodeIndex];
@@ -414,7 +417,7 @@ namespace {
     restoreTree(state, fit, *node.getRightChild(), nodeIndex, bottomNodeIndex);
   }
   
-  void State::store(const bart::BARTFit& fit, const bart::Node& node) {
+  void ::State::store(const BARTFit& fit, const Node& node) {
     rule = node.p.rule;
     
     size_t numBottomNodes = node.getNumBottomNodes();
@@ -433,7 +436,7 @@ namespace {
     storeTree(*this, fit, node, nodeIndex, bottomNodeIndex);
   }
   
-  void State::destroy() {
+  void ::State::destroy() {
     delete [] averages;
     delete [] numEffectiveObservations;
     
@@ -445,7 +448,7 @@ namespace {
     delete [] observationIndices;
   }
   
-  void State::restore(const bart::BARTFit& fit, bart::Node& node) {
+  void ::State::restore(const BARTFit& fit, Node& node) {
     node.p.rule = rule;
         
     size_t nodeIndex = 0, bottomNodeIndex = 0;
