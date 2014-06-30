@@ -4,6 +4,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>

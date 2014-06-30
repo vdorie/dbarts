@@ -661,7 +661,7 @@ namespace {
     const Data& data(fit.data);
     const State& state(fit.state);
     
-    SEXP result = PROTECT(result = NEW_OBJECT(MAKE_CLASS("dbartsState")));
+    SEXP result = PROTECT(NEW_OBJECT(MAKE_CLASS("dbartsState")));
     
     SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, (int) (data.numObservations * control.numTrees));
     SET_DIMS(slotExpr, data.numObservations, control.numTrees);
@@ -720,7 +720,7 @@ namespace {
     REAL(slotExpr)[0] = state.sigma;
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
-    if (GET_LENGTH(slotExpr) != control.numTrees) error("Length of state@trees does not match object.");
+    if (GET_LENGTH(slotExpr) != (int) control.numTrees) error("Length of state@trees does not match object.");
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {

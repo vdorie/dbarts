@@ -5,6 +5,14 @@
 /* #define HAVE_ALLOCA_H 1 */
 #define STDC_HEADERS 1
 
+#ifdef __GNUG__
+#  define restrict __restrict__
+#elif defined(_MSC_VER)
+#  define restrict __restrict
+#else
+#  define restrict
+#endif
+
 #define PACKAGE_BUGREPORT "vjd4@nyu.edu"
 #define PACKAGE_NAME "cbart"
 #define PACKAGE_STRING "cbart 0.8"
