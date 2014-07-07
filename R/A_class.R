@@ -37,6 +37,7 @@ dbartsControl <-
                 n.thin           = "integer",
                 printEvery       = "integer",
                 printCutoffs     = "integer",
+                updateState      = "logical",
                 call             = "language"),
            prototype =
            list(binary           = FALSE,
@@ -50,6 +51,7 @@ dbartsControl <-
                 n.thin           = 1L,
                 printEvery       = 100L,
                 printCutoffs     = 0L,
+                updateState      = TRUE,
                 call             = quote(quote(NA()))),
            validity = function(object) {
              if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE.")
@@ -62,6 +64,8 @@ dbartsControl <-
              
              if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer.")
              if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer.")
+
+             if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE.")
 
              ## handle this in particular b/c it is set through dbarts, not
              ## standard initializer

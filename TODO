@@ -1,8 +1,5 @@
 v0.8 : initial public release
-  call-back mechanism in R
   documentation
-  update offset
-  update covariates
   
 v0.9 : stuff to add
   categorical variable detection/use
@@ -26,3 +23,4 @@ v1.0 : cleanup, bug fixes
   thread cancellation
   check bounds on parameters for CGM prior
   verify that all of state is necessary to store
+  unify R coding style to ALL caps or not

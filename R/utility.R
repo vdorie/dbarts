@@ -1,9 +1,28 @@
-stripExtraArguments <- function(call, ...)
+prepareCallWithArguments <- function(call, name, ...)
 {
   argsToKeep <- unlist(list(...))
   matchIndices <- match(argsToKeep, names(call), nomatch = 0L)
   
   call <- call[c(1L, matchIndices)]
+  call[[1]] <- name
+  call
+}
+
+addCallArgument <- function(call, position, argument)
+{
+  if (is.character(position)) {
+    name <- position
+    position <- length(call) + 1L
+  } else {
+    position <- as.integer(position) + 1L
+    for (i in length(call):position) {
+      call[[i + 1]] <- call[[i]]
+      names(call)[[i + 1]] <- names(call)[[i]]
+    }
+    name <- ""
+  }
+  call[[position]] <- argument
+  names(call)[[position]] <- name
   call
 }
 

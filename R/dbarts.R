@@ -9,26 +9,35 @@ setMethod("initialize", "dbartsControl",
   .Object
 })
 
-validateArgumentsInEnvironment <- function(control, verbose, n.samples, sigma, envir) {
-  if (!missing(control) && !inherits(control, "dbartsControl"))
-    stop("'control' argument must be of class dbartsControl; use dbartsControl() function to create.")
-  envir$control <- control
-
+validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, sigma)
+{
+  controlIsMissing <- missing(control)
   
-  if (!is.logical(verbose) || is.na(verbose)) stop("'verbose' argument to dbarts must be TRUE/FALSE.")
-  tryCatch(n.samples <- as.integer(n.samples), warning = function(e)
-           stop("'n.samples' argument to dbarts must be coerceable to integer type."))
-  if (n.samples <= 0L) return("'n.samples' argument to dbarts must be a positive integer.")
-  envir$control@n.samples <- n.samples
-  envir$control@verbose <- verbose
+  if (!controlIsMissing) {
+    if (!inherits(control, "dbartsControl"))
+      stop("'control' argument must be of class dbartsControl; use dbartsControl() function to create.")
+    envir$control <- control
+  }
 
-  if (!is.na(sigma)) {
+  if (!missing(verbose)) {
+    if (!is.logical(verbose) || is.na(verbose)) stop("'verbose' argument to dbarts must be TRUE/FALSE.")
+  } else if (!controlIsMissing) {
+    envir$verbose <- control@verbose
+  }
+  if (!missing(n.samples)) {
+    tryCatch(n.samples <- as.integer(n.samples), warning = function(e)
+             stop("'n.samples' argument to dbarts must be coerceable to integer type."))
+    if (n.samples <= 0L) return("'n.samples' argument to dbarts must be a positive integer.")
+    envir$control@n.samples <- n.samples
+  }
+
+  if (!missing(sigma) && !is.na(sigma)) {
     tryCatch(sigma <- as.double(sigma), warning = function(e)
              stop("'sigma' argument to dbarts must be coerceable to numeric type."))
     if (sigma <= 0.0) stop("'sigma' argument to dbarts must be positive.")
+    
+    envir$sigma <- sigma
   }
-
-  envir$sigma <- sigma
 }
 
 dbarts <- function(formula, data, test, subset, weights, offset,
@@ -38,13 +47,13 @@ dbarts <- function(formula, data, test, subset, weights, offset,
 {
   matchedCall <- match.call()
 
-  do.call(validateArgumentsInEnvironment,
-          list(control = control, verbose = verbose, n.samples = n.samples, sigma = sigma, envir = sys.frame(sys.nframe())),
-          envir = parent.frame(1L))
+  validateCall <- prepareCallWithArguments(matchedCall, quote(dbarts:::validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
+  validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
+  eval(validateCall, parent.frame(1L))
+  
   if (!is.symbol(control@call[[1]])) control@call <- matchedCall
 
-  parseDataCall <- stripExtraArguments(matchedCall, "formula", "data", "test", "subset", "weights", "offset")
-  parseDataCall[[1L]] <- quote(dbarts:::parseData)
+  parseDataCall <- prepareCallWithArguments(matchedCall, quote(dbarts:::parseData), "formula", "data", "test", "subset", "weights", "offset")
   modelMatrices <- eval(parseDataCall, parent.frame(1L))
   
   data <- new("dbartsData", modelMatrices, attr(control, "n.cuts"), sigma)
@@ -57,9 +66,8 @@ dbarts <- function(formula, data, test, subset, weights, offset,
     data@offset <- NULL
   }
 
-  parsePriorsCall <- stripExtraArguments(matchedCall, "tree.prior", "node.prior", "resid.prior")
+  parsePriorsCall <- prepareCallWithArguments(matchedCall, quote(dbarts:::parsePriors), "tree.prior", "node.prior", "resid.prior")
   parsePriorsCall <- setDefaultsFromFormals(parsePriorsCall, formals(dbarts), "tree.prior", "node.prior", "resid.prior")
-  parsePriorsCall[[1]] <- quote(dbarts:::parsePriors)
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
   parsePriorsCall$parentEnv <- parent.frame(1L)
@@ -95,21 +103,69 @@ dbartsSampler <-
                   state   <<- NULL
                   pointer <<- .Call("dbarts_create", control, model, data)
                 },
-                run = function(numBurnIn, numSamples) {
+                run = function(numBurnIn, numSamples, updateState = NA) {
                   if (missing(numBurnIn))  numBurnIn  <- NA_integer_
                   if (missing(numSamples)) numSamples <- NA_integer_
                   
                   ptr <- getPointer()
                   samples <- .Call("dbarts_run", ptr, as.integer(numBurnIn), as.integer(numSamples))
 
-                  updateState(ptr)
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
 
                   return(samples)
                 },
-                setY = function(y) {
-                  .Call("dbarts_setY", getPointer(), as.double(y))
+                setY = function(y, updateState = NA) {
+                  ptr <- getPointer()
+                  data@y <<- as.double(y)
+                  .Call("dbarts_setResponse", ptr, data@y)
 
-                  invisible(updateState(ptr))
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
+                },
+                setOffset = function(offset, updateState = NA) {
+                  ptr <- getPointer()
+                  data@offset <<- as.double(offset)
+                  .Call("dbarts_setOffset", ptr, data@offset)
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+                  
+                  invisible(NULL)
+                },
+                setX = function(x, column, updateState = NA) {
+                  if (is.character(column)) {
+                    if (is.null(colnames(data@x))) stop("Column names not specified at initialization, so cannot be replaced by name.")
+                    
+                    column <- match(column, colnames(data@x))
+                    if (is.na(column)) stop("Column name not found in names of current X.")
+                  }
+
+                  ptr <- getPointer()
+                  .Call("dbarts_setPredictor", ptr, as.double(x), as.integer(column))
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
+                },
+                setX.test = function(x.test, column, updateState = NA) {
+                  if (is.character(column)) {
+                    if (is.null(colnames(data@x.text))) stop("Column names not specified at initialization, so cannot be replaced by name.")
+                    
+                    column <- match(column, colnames(data@x.test))
+                    if (is.na(column)) stop("Column name not found in names of current X.test.")
+                  }
+
+                  ptr <- getPointer()
+                  .Call("dbarts_setTestPredictor", ptr, as.double(x.test), as.integer(column))
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
                 },
                 getPointer = function() {
                   if (.Call("dbarts_isValidPointer", pointer) == FALSE) {
@@ -124,7 +180,7 @@ dbartsSampler <-
                   
                   return(pointer)
                 },
-                updateState = function(ptr) {
+                storeState = function(ptr = getPointer()) {
                   if (is.null(state)) {
                     state <<- .Call("dbarts_createState", ptr)
                   } else {

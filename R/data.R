@@ -38,6 +38,7 @@ parseData <- function(formula, data, test, subset, weights, offset)
     modelFrame <- eval(modelFrameCall, parent.frame())
 
     y <- model.response(modelFrame, "numeric")
+    if (is.null(y)) y <- rep(0, NROW(modelFrame))
     numObservations <- NROW(y)
     
     weights <- as.vector(model.weights(modelFrame))
@@ -47,8 +48,7 @@ parseData <- function(formula, data, test, subset, weights, offset)
     }
     
     offset <- as.vector(model.offset(modelFrame))
-    if (!is.null(offset) && length(offset) != numObservations)
-
+    if (!is.null(offset) && length(offset) != numObservations) stop("Length of offset must be equal to that of y.")
 
     modelTerms <- terms(modelFrame)
     if (is.empty.model(modelTerms)) stop("Covariates must be specified for regression tree analysis.")
@@ -64,7 +64,7 @@ parseData <- function(formula, data, test, subset, weights, offset)
     
   } else if (is.numeric(formula) || is.data.frame(formula)) {
     ## backwards compatibility of bart(x.train, y.train, x.test)
-    if (missing(data) || is.null(data)) stop("When 'formula' is numeric, 'data' must be specified.")
+    if (missing(data) || is.null(data)) data <- rep(0, NROW(formula))
     if (!is.numeric(data) && !is.data.frame(data) && !is.integer(data) && !is.factor(data)) stop("When 'formula' is numeric, 'data' must be numeric as well.")
 
     if (is.factor(data)) {

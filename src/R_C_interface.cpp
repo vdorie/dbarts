@@ -39,6 +39,14 @@ extern "C" {
     fit->setResponse(newResponse);
   }
   
+  void dbarts_setOffset(BARTFit* fit, const double* newOffset) {
+    fit->setOffset(newOffset);
+  }
+  
+  void dbarts_setPredictor(BARTFit* fit, const double* newPredictor, size_t predictorColumn) {
+    fit->setPredictor(newPredictor, predictorColumn);
+  }
+  
   CGMPrior* dbarts_createCGMPrior() {
     return new CGMPrior;
   }

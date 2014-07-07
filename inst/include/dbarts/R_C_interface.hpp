@@ -1,5 +1,5 @@
-#ifndef DBARTS_R_C_INTERFACE_H
-#define DBARTS_R_C_INTERFACE_H
+#ifndef DBARTS_R_C_INTERFACE_HPP
+#define DBARTS_R_C_INTERFACE_HPP
 
 #include <cstddef> // size_t
 
@@ -26,7 +26,8 @@ extern "C" {
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);
-  
+  void dbarts_setOffset(dbarts::BARTFit* fit, const double* newOffset);
+  void dbarts_setPredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t predictorColumn);
   
   dbarts::CGMPrior* dbarts_createCGMPrior();
   dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power);
@@ -47,4 +48,4 @@ extern "C" {
   void dbarts_invalidateChiSquaredPrior(dbarts::ChiSquaredPrior* prior);
 }
 
-#endif // DBARTS_R_C_INTERFACE_H
+#endif // DBARTS_R_C_INTERFACE_HPP

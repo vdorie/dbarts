@@ -37,11 +37,17 @@ namespace {
   void allocateMemory(BARTFit& fit);
   void setPrior(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
+  void setCutPointsFromQuantiles(BARTFit& fit, const double* x, uint32_t maxNumCuts,
+                                 uint32_t& numCutsPerVariable, double*& cutPoints,
+                                 std::set<double>& uniqueElements, std::vector<double>& sortedElements);
+  void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
+                             uint32_t& numCutsPerVariable, double*& cutPoints);
   void setInitialFit(BARTFit& fit);
   
   void printInitialSummary(const BARTFit& fit);
   void printTerminalSummary(const BARTFit& fit, double runningTime);
   
+  void initializeLatents(BARTFit& fit);
   void rescaleResponse(BARTFit& fit);
   // void resampleTreeFits(BARTFit& fit);
   
@@ -49,6 +55,7 @@ namespace {
   void storeSamples(const BARTFit& fit, Results& results, const double* trainingSample, const double* testSample,
                     double sigma, const uint32_t* variableCounts, size_t simNum);
   void countVariableUses(const BARTFit& fit, uint32_t* variableCounts);
+  
   
 #ifdef HAVE_GETTIMEOFDAY
   double subtractTimes(struct timeval end, struct timeval start);
@@ -77,6 +84,57 @@ namespace dbarts {
     }
     
     // resampleTreeFits(*this);
+  }
+  
+  void BARTFit::setOffset(const double* newOffset) {
+    if (!control.responseIsBinary) {
+      double sigmaUnscaled = state.sigma * scratch.dataScale.range;
+      double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
+      
+      data.offset = newOffset;
+      
+      rescaleResponse(*this);
+      
+      state.sigma = sigmaUnscaled / scratch.dataScale.range;
+      model.sigmaSqPrior->setScale(priorUnscaled / (scratch.dataScale.range * scratch.dataScale.range));
+    } else {
+      data.offset = newOffset;
+      
+      sampleProbitLatentVariables(*this, const_cast<const double*>(state.totalFits), const_cast<double*>(scratch.yRescaled));
+    }
+  }
+  
+  void BARTFit::setPredictor(const double* newPredictor, size_t predictorColumn) {
+    uint32_t& numCutsPerVariable(const_cast<uint32_t*>(scratch.numCutsPerVariable)[predictorColumn]);
+    double* cutPoints = const_cast<double**>(scratch.cutPoints)[predictorColumn];
+    
+    if (control.useQuantiles) {
+      if (data.maxNumCuts == NULL) ext_throwError("Num cuts cannot be NULL if useQuantiles is true.");
+      
+      std::set<double> uniqueElements;
+      std::vector<double> sortedElements(data.numObservations);
+      
+      setCutPointsFromQuantiles(*this, newPredictor, data.maxNumCuts[predictorColumn],
+                                numCutsPerVariable, cutPoints,
+                                uniqueElements, sortedElements);
+    } else {
+      setCutPointsUniformly(*this, newPredictor, data.maxNumCuts[predictorColumn],
+                            numCutsPerVariable, cutPoints);
+    }
+
+    std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, newPredictor, data.numObservations * sizeof(double));    
+    double* Xt = const_cast<double*>(scratch.Xt);
+    for (size_t row = 0; row < data.numObservations; ++row) {
+      Xt[row * data.numPredictors + predictorColumn] = newPredictor[row];
+    }
+  }
+  
+  void BARTFit::setTestPredictor(const double* newTestPredictor, size_t predictorColumn) {
+    std::memcpy(const_cast<double*>(data.X_test) + predictorColumn * data.numTestObservations, newTestPredictor, data.numTestObservations * sizeof(double));    
+    double* Xt_test = const_cast<double*>(scratch.Xt_test);
+    for (size_t row = 0; row < data.numTestObservations; ++row) {
+      Xt_test[row * data.numPredictors + predictorColumn] = newTestPredictor[row];
+    }
   }
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
@@ -351,7 +409,9 @@ namespace {
     State& state(fit.state);
         
     scratch.yRescaled = new double[data.numObservations];
-    rescaleResponse(fit);
+    
+    if (control.responseIsBinary) initializeLatents(fit);
+    else rescaleResponse(fit);
     
     scratch.Xt = new double[data.numObservations * data.numPredictors];
     double* Xt = const_cast<double*>(scratch.Xt);
@@ -404,68 +464,95 @@ namespace {
     Data& data(fit.data);
     Scratch& scratch(fit.scratch);
     
-    const double* xCol;
     uint32_t* numCutsPerVariable = const_cast<uint32_t*>(scratch.numCutsPerVariable);
     double** cutPoints = const_cast<double**>(scratch.cutPoints);
+    for (size_t i = 0; i < data.numPredictors; ++i) {
+      numCutsPerVariable[i] = (uint32_t) -1;
+      cutPoints[i] = NULL;
+    }
     
     if (control.useQuantiles) {
-      size_t colNumElements, colFactor, colNumCuts, colIndex, colOffset;
-      
-      if (data.maxNumCuts == NULL) ext_throwError("num cuts cannot be NULL if useQuantiles is true.");
+      if (data.maxNumCuts == NULL) ext_throwError("Num cuts cannot be NULL if useQuantiles is true.");
       
        // sets are inherently sorted, should be a binary tree back there somewhere
       std::set<double> uniqueElements;
       std::vector<double> sortedElements(data.numObservations);
       
       for (size_t i = 0; i < data.numPredictors; ++i) {
-        uniqueElements.clear();
-        xCol = fit.data.X + i * data.numObservations;
-        
-        for (size_t j = 0; j < data.numObservations; ++j) uniqueElements.insert(xCol[j]);
-        colNumElements = uniqueElements.size();
-        
-        if (colNumElements <= data.maxNumCuts[i] + 1) {
-          colFactor = 1;
-          colNumCuts = colNumElements - 1;
-          colOffset = 0;
-        } else {
-          colNumCuts = data.maxNumCuts[i];
-          colFactor = colNumCuts / colNumElements;
-          colOffset = colFactor / 2;
-        }
-        
-        numCutsPerVariable[i] = colNumCuts;
-        cutPoints[i] = new double[colNumCuts];
-        
-        sortedElements.clear();
-        sortedElements.assign(uniqueElements.begin(), uniqueElements.end());
-        
-        for (size_t j = 0; j < colNumCuts; ++j) {
-          colIndex = std::min(j * colFactor + colOffset, colNumElements - 2);
-          cutPoints[i][j] = 0.5 * (sortedElements[colIndex] + sortedElements[colIndex + 1]);
-        }
+        setCutPointsFromQuantiles(fit, data.X + i * data.numObservations, data.maxNumCuts[i],
+                                  numCutsPerVariable[i], cutPoints[i],
+                                  uniqueElements, sortedElements);
       }
     } else {
-      double xMax, xMin, xIncrement;
-      
       for (size_t i = 0; i < data.numPredictors; ++i) {
-        xCol = fit.data.X + i * data.numObservations;
-        
-        xMax = xCol[0]; xMin = xCol[0];
-        for (size_t j = 1; j < data.numObservations; ++j) {
-          double x_j = xCol[j];
-          if (x_j < xMin) xMin = x_j;
-          if (x_j > xMax) xMax = x_j;
-        }
-        
-        numCutsPerVariable[i] = data.maxNumCuts[i];
-        cutPoints[i] = new double[numCutsPerVariable[i]];
-        
-        xIncrement = (xMax - xMin) / (numCutsPerVariable[i] + 1);
-        
-        for (size_t j = 0; j < numCutsPerVariable[i]; ++j) cutPoints[i][j] = xMin + ((double) (j + 1)) * xIncrement;
+        setCutPointsUniformly(fit, data.X + i * data.numObservations, data.maxNumCuts[i],
+                              numCutsPerVariable[i], cutPoints[i]);
       }
     }
+  }
+  
+  void setCutPointsFromQuantiles(BARTFit& fit, const double* x, uint32_t maxNumCuts,
+                                 uint32_t& numCutsPerVariable, double*& cutPoints,
+                                 std::set<double>& uniqueElements, std::vector<double>& sortedElements)
+  {
+    Data& data(fit.data);
+    
+    // sets are inherently sorted, should be a binary tree back there somewhere
+    uniqueElements.clear();
+    for (size_t i = 0; i < data.numObservations; ++i) uniqueElements.insert(x[i]);
+    
+    size_t numUniqueElements = uniqueElements.size();
+      
+    size_t step, numCuts, offset;
+    if (numUniqueElements <= maxNumCuts + 1) {
+      numCuts = numUniqueElements - 1;
+      step = 1;
+      offset = 0;
+    } else {
+      numCuts = maxNumCuts;
+      step = numCuts / numUniqueElements;
+      offset = step / 2;
+    }
+    
+    if (numCutsPerVariable != (uint32_t) -1) {
+      if (numCuts < numCutsPerVariable) ext_throwError("Number of induced cut points in new predictor less than previous: old splits would be invalid.");
+      if (numCuts > numCutsPerVariable) ext_issueWarning("Number of induced cut points in new predictor greater than previous: ignoring extra quantiles.");
+    } else {
+      numCutsPerVariable = numCuts;
+      cutPoints = new double[numCuts];
+    }
+    
+    sortedElements.clear();
+    sortedElements.assign(uniqueElements.begin(), uniqueElements.end());
+      
+    for (size_t i = 0; i < numCutsPerVariable; ++i) {
+      size_t index = std::min(i * step + offset, numUniqueElements - 2);
+      cutPoints[i] = 0.5 * (sortedElements[index] + sortedElements[index + 1]);
+    }
+  }
+  
+  void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
+                             uint32_t& numCutsPerVariable, double*& cutPoints)
+  {
+    Data& data(fit.data);
+    
+    double xMax, xMin, xIncrement;
+    
+    xMax = x[0]; xMin = x[0];
+    for (size_t i = 1; i < data.numObservations; ++i) {
+      double x_i = x[i];
+      if (x_i < xMin) xMin = x_i;
+      if (x_i > xMax) xMax = x_i;
+    }
+    
+    if (numCutsPerVariable == (uint32_t) -1) {
+      numCutsPerVariable = maxNumCuts;
+      cutPoints = new double[numCutsPerVariable];
+    }
+      
+    xIncrement = (xMax - xMin) / (double) (numCutsPerVariable + 1);
+      
+    for (size_t i = 0; i < numCutsPerVariable; ++i) cutPoints[i] = xMin + ((double) (i + 1)) * xIncrement;
   }
   
   void setInitialFit(BARTFit& fit) {
@@ -486,47 +573,51 @@ namespace {
     
     if (data.numTestObservations > 0) {
       state.totalTestFits = new double[data.numTestObservations];
-      for (size_t offset = 0; offset < data.numTestObservations; ++offset) state.totalTestFits[offset] = 0.0;
+      for (size_t i = 0; i < data.numTestObservations; ++i) state.totalTestFits[i] = 0.0;
     }
+  }
+  
+  void initializeLatents(BARTFit& fit) {
+    const Data& data(fit.data);
+    Scratch& scratch(fit.scratch);
+    
+    double* z = const_cast<double*>(fit.scratch.yRescaled);
+    
+    // z = 2.0 * y - 1.0 - offset; so -1 if y == 0 and 1 if y == 1 when offset == 0
+    ext_setVectorToConstant(z, data.numObservations, -1.0);
+    if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
+    ext_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    
+    // shouldn't be used, but will leave at reasonable values
+    scratch.dataScale.min = -1.0;
+    scratch.dataScale.max =  1.0;
+    scratch.dataScale.range = 2.0;
   }
   
   void rescaleResponse(BARTFit& fit) {
     const Data& data(fit.data);
-    const Control& control(fit.control);
     Scratch& scratch(fit.scratch);
     
     double* yRescaled = const_cast<double*>(fit.scratch.yRescaled);
-    if (control.responseIsBinary) {
-      // for binary "yRescaled" are actually latent vars
-      // yRescaled = 2.0 * y - 1.0 - offset
-      ext_setVectorToConstant(yRescaled, data.numObservations, -1.0);
-      if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
-      ext_addVectorsInPlace(data.y, data.numObservations, 2.0, yRescaled);
-      
-      // shouldn't be used, but will leave at reasonable values
-      scratch.dataScale.min = -1.0;
-      scratch.dataScale.max =  1.0;
-      scratch.dataScale.range = 2.0;
+    
+    if (data.offset != NULL) {
+      ext_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
     } else {
-      if (data.offset != NULL) {
-        ext_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
-      } else {
-        std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
-      }
-      
-      scratch.dataScale.min = yRescaled[0];
-      scratch.dataScale.max = yRescaled[0];
-      for (size_t i = 1; i < data.numObservations; ++i) {
-        if (yRescaled[i] < scratch.dataScale.min) scratch.dataScale.min = yRescaled[i];
-        if (yRescaled[i] > scratch.dataScale.max) scratch.dataScale.max = yRescaled[i];
-      }
-      scratch.dataScale.range = scratch.dataScale.max - scratch.dataScale.min;
-      
-      // yRescaled = (y - offset - min) / (max - min) - 0.5
-      ext_addScalarToVectorInPlace(yRescaled, data.numObservations, -scratch.dataScale.min);
-      ext_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / scratch.dataScale.range);
-      ext_addScalarToVectorInPlace(yRescaled, data.numObservations, -0.5);
+      std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
     }
+    
+    scratch.dataScale.min = yRescaled[0];
+    scratch.dataScale.max = yRescaled[0];
+    for (size_t i = 1; i < data.numObservations; ++i) {
+      if (yRescaled[i] < scratch.dataScale.min) scratch.dataScale.min = yRescaled[i];
+      if (yRescaled[i] > scratch.dataScale.max) scratch.dataScale.max = yRescaled[i];
+    }
+    scratch.dataScale.range = scratch.dataScale.max - scratch.dataScale.min;
+    
+    // yRescaled = (y - offset - min) / (max - min) - 0.5
+    ext_addScalarToVectorInPlace(   yRescaled, data.numObservations, -scratch.dataScale.min);
+    ext_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / scratch.dataScale.range);
+    ext_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5);
   }
   
   /* void resampleTreeFits(BARTFit& fit) {

@@ -8,7 +8,7 @@ namespace dbarts {
   struct ScaleFactor { double min, max, range; };
   
   struct Scratch {
-    const double* yRescaled;
+    const double* yRescaled; // this isn't strictly const, but can only be modified in very select ways
     const double* Xt;
     const double* Xt_test;
     double* treeY;

@@ -54,16 +54,13 @@ namespace {
 #ifdef THREAD_SAFE_UNLOAD
   pthread_mutex_t fitMutex;
 #endif
-}
 
-extern "C" {
-  using namespace dbarts;
   
-  static void fitFinalizer(SEXP fitExpr)
+  void fitFinalizer(SEXP fitExpr)
   {
-//    Rprintf("finalizing ");
+    // Rprintf("finalizing ");
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-//    Rprintf("%p\n", fit);
+    // Rprintf("%p\n", fit);
     if (fit == NULL) return;
     
     
@@ -86,7 +83,7 @@ extern "C" {
     R_ClearExternalPtr(fitExpr);
   }
   
-  SEXP dbarts_setY(SEXP fitExpr, SEXP y)
+  SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_setY called on NULL external pointer.");
@@ -98,7 +95,64 @@ extern "C" {
     return NULL_USER_OBJECT;
   }
   
-  SEXP dbarts_isValidPointer(SEXP fitExpr)
+  SEXP setOffset(SEXP fitExpr, SEXP offsetExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setOffset called on NULL external pointer.");
+    
+    double* offset = NULL;
+    if (isReal(offsetExpr)) {
+      offset = REAL(offsetExpr);
+      if ((size_t) length(offsetExpr) != fit->data.numObservations) error("Length of new offset does not match y.");
+    } else if (!isNull(offsetExpr) && !isS4Null(offsetExpr)) {
+      error("offset must be of type real or NULL.");
+    }
+    fit->setOffset(offset);
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP setPredictor(SEXP fitExpr, SEXP x, SEXP jExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setPredictor called on NULL external pointer.");
+    
+    if (!isReal(x)) error("x must be of type real.");
+    if ((size_t) length(x) != fit->data.numObservations) error("Length of new x does not match y.");
+    if (!isInteger(jExpr)) error("Column must be of type integer.");
+    if (length(jExpr) == 0) error("Length of column is 0.");
+    
+    int j = INTEGER(jExpr)[0] - 1;
+    
+    if (j < 0 || j >= fit->data.numPredictors) error("Column is out of range.");
+    
+    fit->setPredictor(REAL(x), (size_t) j);
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP setTestPredictor(SEXP fitExpr, SEXP x_test, SEXP jExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setTestPredictor called on NULL external pointer.");
+    
+    if (fit->data.X_test == NULL) error("Test matrix must exist at object creation to be updated.");
+    
+    if (!isReal(x_test)) error("x must be of type real.");
+    if ((size_t) length(x_test) != fit->data.numTestObservations) error("Length of new x_test does not match old.");
+    if (!isInteger(jExpr)) error("Column must be of type integer.");
+    if (length(jExpr) == 0) error("Length of column is 0.");
+    
+    int j = INTEGER(jExpr)[0] - 1;
+    
+    if (j < 0 || j >= fit->data.numPredictors) error("Column is out of range.");
+    
+    fit->setTestPredictor(REAL(x_test), (size_t) j);
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP isValidPointer(SEXP fitExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) return ScalarLogical(FALSE);
@@ -118,7 +172,7 @@ extern "C" {
     return ScalarLogical(FALSE);
   }
   
-  SEXP dbarts_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
+  SEXP create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
   {
     Control control;
     Model model;
@@ -156,7 +210,7 @@ extern "C" {
     return result;
   }
   
-  SEXP dbarts_createState(SEXP fitExpr)
+  SEXP createState(SEXP fitExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_createState called on NULL external pointer.");
@@ -168,7 +222,7 @@ extern "C" {
     return result;
   }
   
-  SEXP dbarts_restoreState(SEXP fitExpr, SEXP stateExpr)
+  SEXP restoreState(SEXP fitExpr, SEXP stateExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_restoreState called on NULL external pointer.");
@@ -178,7 +232,7 @@ extern "C" {
     return NULL_USER_OBJECT;
   }
   
-  SEXP dbarts_storeState(SEXP fitExpr, SEXP stateExpr)
+  SEXP storeState(SEXP fitExpr, SEXP stateExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_storeState called on NULL external pointer.");
@@ -188,7 +242,7 @@ extern "C" {
     return NULL_USER_OBJECT;
   }
   
-  SEXP dbarts_run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
+  SEXP run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_run called on NULL external pointer.");
@@ -266,7 +320,7 @@ extern "C" {
     return(resultExpr);
   }
   
-  SEXP dbarts_finalize(void) {
+  SEXP finalize(void) {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
@@ -303,60 +357,78 @@ extern "C" {
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
   }*/
-}
-
-extern "C" {
 
 #define CALLDEF(name, n)  {#name, (DL_FUNC) &name, n}
   
-  static R_CallMethodDef callMethods[] = {
-    CALLDEF(dbarts_create, 3),
-    CALLDEF(dbarts_run, 3),
-    CALLDEF(dbarts_setY, 2),
-    CALLDEF(dbarts_isValidPointer, 1),
-    CALLDEF(dbarts_createState, 1),
-    CALLDEF(dbarts_storeState, 2),
-    CALLDEF(dbarts_restoreState, 2),
-    CALLDEF(dbarts_finalize, 0),
-
-    {NULL, NULL, 0}
+  R_CallMethodDef R_callMethods[] = {
+    { "dbarts_create", (DL_FUNC) &create, 3 },
+    { "dbarts_run", (DL_FUNC) &run, 3 },
+    { "dbarts_setResponse", (DL_FUNC) &setResponse, 2 },
+    { "dbarts_setOffset", (DL_FUNC) &setOffset, 2 },
+    { "dbarts_setPredictor", (DL_FUNC) &setPredictor, 3 },
+    { "dbarts_setTestPredictor", (DL_FUNC) &setTestPredictor, 3 },
+    { "dbarts_isValidPointer", (DL_FUNC) &isValidPointer, 1 },
+    { "dbarts_createState", (DL_FUNC) &createState, 1 },
+    { "dbarts_storeState", (DL_FUNC) &storeState, 2 },
+    { "dbarts_restoreState", (DL_FUNC) &restoreState, 2},
+    { "dbarts_finalize", (DL_FUNC) &finalize, 0 },
+    { NULL, NULL, 0 }
   };
+  
+  struct C_CallMethodDef {
+    const char* package;
+    const char* name;
+    DL_FUNC function;
+  };
+  
+  C_CallMethodDef C_callMethods[] = {
+    { "dbarts", "createCGMPrior", (DL_FUNC) dbarts_createCGMPrior },
+    { "dbarts", "createCGMPriorFromOptions", (DL_FUNC) dbarts_createCGMPriorFromOptions },
+    { "dbarts", "destroyCGMPrior", (DL_FUNC) dbarts_destroyCGMPrior },
+    { "dbarts", "initializeCGMPriorFromOptions", (DL_FUNC) dbarts_initializeCGMPriorFromOptions },
+    { "dbarts", "invalidateCGMPrior", (DL_FUNC) dbarts_invalidateCGMPrior },
+    
+    { "dbarts", "createNormalPrior", (DL_FUNC) dbarts_createNormalPrior },
+    { "dbarts", "createNormalPriorFromOptions", (DL_FUNC) dbarts_createNormalPriorFromOptions },
+    { "dbarts", "destroyNormalPrior", (DL_FUNC) dbarts_destroyNormalPrior },
+    { "dbarts", "initializeNormalPriorFromOptions", (DL_FUNC) dbarts_initializeNormalPriorFromOptions },
+    { "dbarts", "invalidateNormalPrior", (DL_FUNC) dbarts_invalidateNormalPrior },
+    
+    { "dbarts", "createChiSquaredPrior", (DL_FUNC) dbarts_createChiSquaredPrior },
+    { "dbarts", "createChiSquaredPriorFromOptions", (DL_FUNC) dbarts_createChiSquaredPriorFromOptions },
+    { "dbarts", "destroyChiSquaredPrior", (DL_FUNC) dbarts_destroyChiSquaredPrior },
+    { "dbarts", "initializeChiSquaredPriorFromOptions", (DL_FUNC) dbarts_initializeChiSquaredPriorFromOptions },
+    { "dbarts", "invalidateChiSquaredPrior", (DL_FUNC) dbarts_invalidateChiSquaredPrior },
 
+    { "dbarts", "createFit", (DL_FUNC) dbarts_createFit },
+    { "dbarts", "initializeFit", (DL_FUNC) dbarts_initializeFit },
+    { "dbarts", "destroyFit", (DL_FUNC) dbarts_destroyFit },
+    { "dbarts", "invalidateFit", (DL_FUNC) dbarts_invalidateFit },
+    
+    { "dbarts", "runSampler", (DL_FUNC) dbarts_runSampler },
+    { "dbarts", "runSamplerForIterations", (DL_FUNC) dbarts_runSamplerForIterations },
+    { "dbarts", "setResponse", (DL_FUNC) dbarts_setResponse },
+    { "dbarts", "setOffset", (DL_FUNC) dbarts_setOffset },
+    { NULL, NULL, 0 }
+  };
+  
+} // end anonymous namespace
+
+extern "C" {
   void R_init_dbarts(DllInfo* info)
   {
-    R_registerRoutines(info, NULL, callMethods, NULL, NULL);
+    R_registerRoutines(info, NULL, R_callMethods, NULL, NULL);
     R_useDynamicSymbols(info, FALSE);
     
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_init(&fitMutex, NULL);
 #endif
     
-    R_RegisterCCallable("dbarts", "dbarts_createCGMPrior", (DL_FUNC) dbarts_createCGMPrior);
-    R_RegisterCCallable("dbarts", "dbarts_createCGMPriorFromOptions", (DL_FUNC) dbarts_createCGMPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_destroyCGMPrior", (DL_FUNC) dbarts_destroyCGMPrior);
-    R_RegisterCCallable("dbarts", "dbarts_initializeCGMPriorFromOptions", (DL_FUNC) dbarts_initializeCGMPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_invalidateCGMPrior", (DL_FUNC) dbarts_invalidateCGMPrior);
-    
-    R_RegisterCCallable("dbarts", "dbarts_createNormalPrior", (DL_FUNC) dbarts_createNormalPrior);
-    R_RegisterCCallable("dbarts", "dbarts_createNormalPriorFromOptions", (DL_FUNC) dbarts_createNormalPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_destroyNormalPrior", (DL_FUNC) dbarts_destroyNormalPrior);
-    R_RegisterCCallable("dbarts", "dbarts_initializeNormalPriorFromOptions", (DL_FUNC) dbarts_initializeNormalPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_invalidateNormalPrior", (DL_FUNC) dbarts_invalidateNormalPrior);
-    
-    R_RegisterCCallable("dbarts", "dbarts_createChiSquaredPrior", (DL_FUNC) dbarts_createChiSquaredPrior);
-    R_RegisterCCallable("dbarts", "dbarts_createChiSquaredPriorFromOptions", (DL_FUNC) dbarts_createChiSquaredPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_destroyChiSquaredPrior", (DL_FUNC) dbarts_destroyChiSquaredPrior);
-    R_RegisterCCallable("dbarts", "dbarts_initializeChiSquaredPriorFromOptions", (DL_FUNC) dbarts_initializeChiSquaredPriorFromOptions);
-    R_RegisterCCallable("dbarts", "dbarts_invalidateChiSquaredPrior", (DL_FUNC) dbarts_invalidateChiSquaredPrior);
-
-    R_RegisterCCallable("dbarts", "dbarts_createFit", (DL_FUNC) dbarts_createFit);
-    R_RegisterCCallable("dbarts", "dbarts_initializeFit", (DL_FUNC) dbarts_initializeFit);
-    R_RegisterCCallable("dbarts", "dbarts_destroyFit", (DL_FUNC) dbarts_destroyFit);
-    R_RegisterCCallable("dbarts", "dbarts_invalidateFit", (DL_FUNC) dbarts_invalidateFit);
-    
-    R_RegisterCCallable("dbarts", "dbarts_runSampler", (DL_FUNC) dbarts_runSampler);
-    R_RegisterCCallable("dbarts", "dbarts_runSamplerForIterations", (DL_FUNC) dbarts_runSamplerForIterations);
-    R_RegisterCCallable("dbarts", "dbarts_setResponse", (DL_FUNC) dbarts_setResponse);
+    C_CallMethodDef* method = C_callMethods;
+    while (method->package != NULL) {
+      R_RegisterCCallable(method->package, method->name, method->function);
+      ++method;
+    }
   }
 }
 
@@ -594,7 +666,7 @@ namespace {
     if (!isReal(slotExpr)) error("x must be of type real.");
     dims = INTEGER(GET_ATTR(slotExpr, R_DimSymbol));
     if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x must be a matrix, i.e. have two dimensions.");
-    if (dims[0] != (int) data.numObservations) error("Number of rows of x and length of y must be equal.");
+    if ((size_t) dims[0] != data.numObservations) error("Number of rows of x and length of y must be equal.");
     data.X = REAL(slotExpr);
     data.numPredictors = dims[1];
     
@@ -614,7 +686,7 @@ namespace {
       if (!isReal(slotExpr)) error ("x.test must be of type real.");
       dims = INTEGER(GET_ATTR(slotExpr, R_DimSymbol));
       if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x.test must be a matrix, i.e. have two dimensions.");
-      if (dims[1] != (int) data.numPredictors) error("Number of columns of x.test and x must be equal.");
+      if ((size_t) dims[1] != data.numPredictors) error("Number of columns of x.test and x must be equal.");
       data.X_test = REAL(slotExpr);
       data.numTestObservations = dims[0];
     }
@@ -624,7 +696,7 @@ namespace {
       data.weights = NULL;
     } else {
       if (!isReal(slotExpr)) error("weights must be of type real.");
-      if (length(slotExpr) != (int) data.numObservations) error("Length of weights must equal length of y.");
+      if ((size_t) length(slotExpr) != data.numObservations) error("Length of weights must equal length of y.");
       data.weights = REAL(slotExpr);
     }
     
@@ -633,7 +705,7 @@ namespace {
       data.weights = NULL;
     } else {
       if (!isReal(slotExpr)) error("offset must be of type real.");
-      if (length(slotExpr) != (int) data.numObservations) error("Length of offset must equal length of y.");
+      if ((size_t) length(slotExpr) != data.numObservations) error("Length of offset must equal length of y.");
       data.offset = REAL(slotExpr);
     }
     
@@ -648,7 +720,7 @@ namespace {
     
     slotExpr = GET_ATTR(dataExpr, install("n.cuts"));
     if (!isInteger(slotExpr)) error("Maximum number of cuts must be of integer type.");
-    if (length(slotExpr) != (int) data.numPredictors) error("Length of maximum number of cuts and the number of columns of x must be equal.");
+    if ((size_t) length(slotExpr) != data.numPredictors) error("Length of maximum number of cuts and the number of columns of x must be equal.");
     int* i_maxNumCuts = INTEGER(slotExpr);
     uint32_t* maxNumCuts = new uint32_t[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) maxNumCuts[i] = (uint32_t) i_maxNumCuts[i];
@@ -702,16 +774,16 @@ namespace {
     SEXP dimsExpr = GET_DIM(slotExpr);
     if (GET_LENGTH(dimsExpr) != 2) error("Dimensions of state@fit.tree indicate that it is not a matrix.");
     int* dims = INTEGER(dimsExpr);
-    if (dims[0] != (int) data.numObservations || dims[1] != (int) control.numTrees) error("Dimensions of state@fit.tree do not match object.");
+    if ((size_t) dims[0] != data.numObservations || (size_t) dims[1] != control.numTrees) error("Dimensions of state@fit.tree do not match object.");
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
     slotExpr = GET_ATTR(stateExpr, install("fit.total"));
-    if (GET_LENGTH(slotExpr) != (int) data.numObservations) error("Length of state@fit.total does not match object.");
+    if ((size_t) GET_LENGTH(slotExpr) != data.numObservations) error("Length of state@fit.total does not match object.");
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
     if (data.numTestObservations != 0) {
       slotExpr = GET_ATTR(stateExpr, install("fit.test"));
-      if (GET_LENGTH(slotExpr) != (int) data.numTestObservations) error("Length of state@fit.test does not match object.");
+      if ((size_t) GET_LENGTH(slotExpr) != data.numTestObservations) error("Length of state@fit.test does not match object.");
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
@@ -720,7 +792,7 @@ namespace {
     REAL(slotExpr)[0] = state.sigma;
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
-    if (GET_LENGTH(slotExpr) != (int) control.numTrees) error("Length of state@trees does not match object.");
+    if ((size_t) GET_LENGTH(slotExpr) != control.numTrees) error("Length of state@trees does not match object.");
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
@@ -760,7 +832,7 @@ namespace {
   }
   
   void deleteFit(BARTFit* fit) {
-//    Rprintf("deleting %p\n", fit);
+    // Rprintf("deleting %p\n", fit);
     if (fit == NULL) return;
     
     delete fit->model.treePrior;

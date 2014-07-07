@@ -30,19 +30,17 @@ namespace dbarts {
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();
     
-    
-    // creates a results object
     Results* runSampler();
     Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
     
-    // general work flow:
-    //   sample treeThinningRate trees
-    //   store current test/training predictions, sigma
-    //   pass to call back function
-    //
-    // call back can change Y, but must call the following. can even
-    // be changed in place
-    void setResponse(const double* newResponse);
+    
+    // setResponse and setOffset replace the local copy (or can even be modified 
+    // in place), however because setPredictor only works on a single column it
+    // necessarily modifies in place
+    void setResponse(const double* newResponse); 
+    void setOffset(const double* newOffset);
+    void setPredictor(const double* newPredictor, std::size_t predictorColumn);
+    void setTestPredictor(const double* newTestPredictor, std::size_t predictorColumn);
   };
 } // namespace dbarts
 
