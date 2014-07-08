@@ -1,7 +1,7 @@
 #ifndef DBARTS_NODE_HPP
 #define DBARTS_NODE_HPP
 
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 #include <cstddef>
 #include <vector>
 

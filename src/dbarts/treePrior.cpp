@@ -2,7 +2,7 @@
 #include <dbarts/model.hpp>
 
 #include <cmath>
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 
 #include <external/alloca.h>
 #include <external/io.h>

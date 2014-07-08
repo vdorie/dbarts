@@ -2,15 +2,15 @@
 #define DBARTS_FUNCTIONS_HPP
 
 #include <cstddef>
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 
 #include <dbarts/types.hpp>
 
-using std::size_t;
-using std::int32_t;
-using std::uint32_t;
-
 namespace dbarts {
+  using std::size_t;
+  using std::int32_t;
+  using std::uint32_t;
+  
   struct BARTFit;
   struct Node;
   struct Tree;

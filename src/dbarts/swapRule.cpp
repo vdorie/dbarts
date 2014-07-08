@@ -3,7 +3,7 @@
 
 #include <cstddef>
 #include <cmath>
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 #include <cstring>
 
 #include <external/stats.h>

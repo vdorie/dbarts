@@ -2,7 +2,7 @@
 #ifndef DBARTS_SCRATCH_HPP
 #define DBARTS_SCRATCH_HPP
 
-#include "cstdint" // int types
+#include "cstdint.hpp" // int types
 
 namespace dbarts {
   struct ScaleFactor { double min, max, range; };

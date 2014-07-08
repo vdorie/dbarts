@@ -20,6 +20,39 @@ setMethod("initialize", "dbartsData",
   .Object
 })
 
+validateXTest <- function(x.test, numPredictors, predictorNames)
+{
+  if (is.null(x.test)) return(x.test)
+  
+  if (is.data.frame(x.test)) x.test <- makeModelMatrixFromDataFrame(x.test)
+  if (!is.matrix(x.test)) x.test <- as.matrix(x.test)
+
+    
+  if (!identical(ncol(x.test), numPredictors))
+    stop("Number of columns in 'test' must be equal to that of 'x'.")
+  if (numPredictors > 1) {
+    xIsNamed    <- !is.null(predictorNames)
+    testIsNamed <- !is.null(colnames(x.test))
+    
+    columnIndices <- seq.int(numPredictors)
+    if ((xIsNamed && !testIsNamed) || (!xIsNamed && testIsNamed)) {
+      warning("'x' and 'test' are not both named. Columns of test matrix will be selected by position.")
+    } else if (xIsNamed && testIsNamed){
+      matchIndices <- match(predictorNames, colnames(x.test))
+      if (any(is.na(matchIndices))) {
+        warning("Column names of 'test' does not equal that of 'x': '", toString(predictorNames),
+                "'. Match will be made by position.")
+        columnIndices <- matchIndices
+      }
+    }
+    
+    x.test <- x.test[, columnIndices]
+    if (xIsNamed) colnames(x.test) <- predictorNames
+  }
+  
+  x.test
+}
+
 parseData <- function(formula, data, test, subset, weights, offset)
 {
   ## default case of fn(y ~ x, data, ...)
@@ -105,36 +138,8 @@ parseData <- function(formula, data, test, subset, weights, offset)
 
   
   x.test <- NULL
-  if (!missing(test) && !is.null(test) && NCOL(test) > 0) {
-    if (is.data.frame(test)) test <- makeModelMatrixFromDataFrame(test)
-    if (!is.matrix(test)) test <- as.matrix(test)
-
-    numPredictors <- ncol(x)
-    
-    if (!identical(ncol(test), numPredictors))
-      stop("Number of columns in 'test' must be equal to that of 'x'.")
-    if (numPredictors == 1) {
-      x.test <- test
-    } else {
-      xIsNamed    <- !is.null(colnames(x))
-      testIsNamed <- !is.null(colnames(test))
-
-      columnIndices <- seq.int(numPredictors)
-      if ((xIsNamed && !testIsNamed) || (!xIsNamed && testIsNamed)) {
-        warning("'x' and 'test' are not both named. Columns of test matrix will be selected by position.")
-      } else if (xIsNamed && testIsNamed){
-        matchIndices <- match(colnames(x), colnames(test))
-        if (any(is.na(matchIndices))) {
-          warning("Column names of 'test' does not equal that of 'x': '", toString(colnames(x)),
-                  "'. Match will be made by position.")
-          columnIndices <- matchIndices
-        }
-      }
-      
-      x.test <- test[, columnIndices]
-      if (xIsNamed) colnames(x.test) <- colnames(x)
-    }
-  }
+  if (!missing(test) && !is.null(test) && NCOL(test) > 0)
+    x.test <- validateXTest(test, ncol(x), colnames(x))
   
   list(y = y, x = x, x.test = x.test, weights = weights, offset = offset)
 }

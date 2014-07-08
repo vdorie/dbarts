@@ -2,8 +2,8 @@
 #  include <cstdint>
 #else
 #  include <stdint.h>
-#  ifndef BART_CSTDINT
-#  define BART_CSTDINT
+#  ifndef BART_CSTDINT_HPP
+#  define BART_CSTDINT_HPP
 
 namespace std {
   using ::int8_t;
@@ -42,5 +42,5 @@ namespace std {
   using ::intmax_t;
   using ::uintmax_t;
 }
-#  endif // BART_CSTDINT
+#  endif // BART_CSTDINT_HPP
 #endif // HAVE_CSTDINT

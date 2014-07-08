@@ -1,7 +1,6 @@
 #include "config.hpp"
 #include "tree.hpp"
 
-#include <dbarts/cstdint>
 #include <cstring>
 #include <cstdio>
 

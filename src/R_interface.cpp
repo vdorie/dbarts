@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include <cstring>
 #include <cstddef>
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 #include <cmath>
 
 #include <R.h>
@@ -152,6 +152,40 @@ namespace {
     return NULL_USER_OBJECT;
   }
   
+  SEXP setTestPredictors(SEXP fitExpr, SEXP x_test)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setTestPredictors called on NULL external pointer.");
+    
+    if (isNull(x_test) || isS4Null(x_test)) {
+      fit->setTestPredictors(NULL, 0);
+    
+      return NULL_USER_OBJECT;
+    }
+    
+    if (!isReal(x_test)) error("x.test must be of type real.");
+    SEXP dimsExpr = GET_DIM(x_test);
+    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions.");
+    int* dims = INTEGER(dimsExpr);
+    if ((size_t) dims[1] != fit->data.numPredictors) error("Number of columns of x.test and x must be equal.");
+    
+    fit->setTestPredictors(REAL(x_test), dims[0]);
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP setControl(SEXP fitExpr, SEXP controlExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setControl called on NULL external pointer.");
+    
+    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    
+    initializeControlFromExpression(fit->control, controlExpr);
+    
+    return NULL_USER_OBJECT;
+  }
+  
   SEXP isValidPointer(SEXP fitExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
@@ -179,7 +213,7 @@ namespace {
     Data data;
     
     SEXP classExpr = GET_CLASS(controlExpr);
-    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
     
     classExpr = GET_CLASS(modelExpr);
     if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'.");
@@ -195,7 +229,7 @@ namespace {
     BARTFit* fit = new BARTFit(control, model, data);
     
     SEXP result = PROTECT(R_MakeExternalPtr(fit, NULL_USER_OBJECT, NULL_USER_OBJECT));
-    R_RegisterCFinalizerEx(result, fitFinalizer, (Rboolean) TRUE);
+    R_RegisterCFinalizerEx(result, fitFinalizer, (Rboolean) FALSE);
     
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
@@ -367,6 +401,8 @@ namespace {
     { "dbarts_setOffset", (DL_FUNC) &setOffset, 2 },
     { "dbarts_setPredictor", (DL_FUNC) &setPredictor, 3 },
     { "dbarts_setTestPredictor", (DL_FUNC) &setTestPredictor, 3 },
+    { "dbarts_setTestPredictors", (DL_FUNC) &setTestPredictors, 2 },
+    { "dbarts_setControl", (DL_FUNC) &setControl, 2 },
     { "dbarts_isValidPointer", (DL_FUNC) &isValidPointer, 1 },
     { "dbarts_createState", (DL_FUNC) &createState, 1 },
     { "dbarts_storeState", (DL_FUNC) &storeState, 2 },
@@ -752,6 +788,9 @@ namespace {
     slotExpr = ALLOC_SLOT(result, install("sigma"), REALSXP, 1);
     REAL(slotExpr)[0] = state.sigma;
     
+    slotExpr = ALLOC_SLOT(result, install("runningTime"), REALSXP, 1);
+    REAL(slotExpr)[0] = state.runningTime;
+    
     slotExpr = ALLOC_SLOT(result, install("trees"), STRSXP, (int) control.numTrees);
 
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
@@ -791,6 +830,10 @@ namespace {
     if (GET_LENGTH(slotExpr) != 1) error("Length of state@sigma does not match object.");
     REAL(slotExpr)[0] = state.sigma;
     
+    slotExpr = GET_ATTR(stateExpr, install("runningTime"));
+    if (GET_LENGTH(slotExpr) != 1) error("Length of state@runningTime does not match object.");
+    REAL(slotExpr)[0] = state.runningTime;
+    
     slotExpr = GET_ATTR(stateExpr, install("trees"));
     if ((size_t) GET_LENGTH(slotExpr) != control.numTrees) error("Length of state@trees does not match object.");
     
@@ -820,6 +863,9 @@ namespace {
     
     slotExpr = GET_ATTR(stateExpr, install("sigma"));
     state.sigma = REAL(slotExpr)[0];
+    
+    slotExpr = GET_ATTR(stateExpr, install("runningTime"));
+    state.runningTime = REAL(slotExpr)[0];
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
     const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);

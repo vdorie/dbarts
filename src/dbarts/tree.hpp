@@ -2,14 +2,14 @@
 #define DBARTS_TREE_HPP
 
 #include <cstddef>
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 
 #include "node.hpp"
 
-using std::size_t;
-using std::uint32_t;
-
 namespace dbarts {
+  using std::size_t;
+  using std::uint32_t;
+  
   struct BARTFit;
   
   struct Tree {

@@ -146,9 +146,10 @@ setClass("dbartsData",
 ## this shouldn't ever get created, used, modified, whathaveyou
 setClass("dbartsState",
          slots =
-         list(fit.tree  = "numeric",
-              fit.total = "numeric",
-              fit.test  = "numeric",
-              sigma     = "numeric",
-              trees     = "character"))
+         list(fit.tree    = "numeric",
+              fit.total   = "numeric",
+              fit.test    = "numeric",
+              sigma       = "numeric",
+              runningTime = "numeric",
+              trees       = "character"))
               

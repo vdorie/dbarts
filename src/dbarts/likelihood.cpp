@@ -8,9 +8,9 @@
 #include <dbarts/state.hpp>
 #include "node.hpp"
 
-using std::size_t;
-
 namespace dbarts {
+  using std::size_t;
+  
   double computeLogLikelihoodForBranch(const BARTFit& fit, const Node& branch, const double* y)
   {
     NodeVector bottomVector(branch.getBottomVector());

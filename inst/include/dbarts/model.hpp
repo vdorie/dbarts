@@ -2,7 +2,7 @@
 #define DBARTS_MODEL_HPP
 
 #include <cstddef>
-#include "cstdint"
+#include "cstdint.hpp"
 
 // can make these kinds of adjustments to trees during MCMC
 #define DBARTS_BIRTH_OR_DEATH_PROBABILITY 0.5

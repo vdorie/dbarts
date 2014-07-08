@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include "changeRule.hpp"
 
-#include <dbarts/cstdint>
+#include <dbarts/cstdint.hpp>
 #include <cmath>
 #include <cstddef>
 #include <cstring>

@@ -23,6 +23,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
      verbose = TRUE)
+     
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
      \dots)
@@ -116,35 +117,13 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
    \item{usequants}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived
      from the \code{x.train} variables. When \code{FALSE}, splits are determined using
-     values equally spaced across the range of a variable.
-     %Decision rules in the tree are of the form
-     %\eqn{x \le c}{x \le c}  vs. \eqn{x > c}
-     %for each variable corresponding to a column of \code{x.train}.
-     %\code{usequants} determines how the set of possible \eqn{c} is determined.
-     %If \code{usequants} is \code{TRUE}, then the \eqn{c} are
-     %a subset of the values \code{(xs[i] + xs[i + 1]) / 2} where \code{xs} is
-     %unique sorted values obtained from
-     %the corresponding column of \code{x.train}.
-     %If \code{usequants} is \code{FALSE}, the cutoffs are equally spaced across the
-     %range of values taken on by the corresponding
-     %column of \code{x.train}.
+     values equally spaced across the range of a variable. See details for more information.
    }
    
    \item{numcut}{
-   	 The number of possible values used in decision rules (see \code{usequants}). If a single
+   	 The maximum number of possible values used in decision rules (see \code{usequants}, details). If a single
    	 number, it is recycled for all variables; otherwise must be a vector of length equal to
-   	 \code{ncol(x.train)}. Can be truncated if more values are requested than present in the
-   	 training data.
-   	 
-%     The number of possible values of c (see usequants).
-%   If a single number if given, this is used for all variables.
-%   Otherwise a vector with length equal to ncol(x.train) is required,
-%   where the \eqn{i^{th}}{i^th} element gives the number of c used for
-%   the \eqn{i^{th}}{i^th} variable in x.train.
-%   If usequants is false, numcut equally spaced cutoffs
-%   are used covering the range of values in the corresponding
-%   column of x.train.  If usequants is true, then  min(numcut, the number of unique values in the
-%   corresponding columns of x.train - 1) c values are used.
+   	 \code{ncol(x.train)}. Fewer rules may be used if a covariate lacks enough unique values.
    }
 
    \item{printcutoffs}{
@@ -177,64 +156,77 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
    }
 }
 \details{
-   BART is an Bayesian MCMC method. 
-   At each MCMC interation, we produce a draw from the joint posterior
-   \eqn{(f,\sigma) | (x,y)}{(f,sigma) \| (x,y)} in the numeric \eqn{y} case
-   and just \eqn{f} in the binary \eqn{y} case.
+  BART is an Bayesian MCMC method. 
+  At each MCMC interation, we produce a draw from the joint posterior
+  \eqn{(f, \sigma) \mid (x, y)}{(f, \sigma) | (x, y)} in the numeric \eqn{y} case
+  and just \eqn{f} in the binary \eqn{y} case.
 
-   Thus, unlike a lot of other modelling methods in R, we do not produce a single model object
-   from which fits and summaries may be extracted.  The output consists of values
-   \eqn{f^*(x)}{f*(x)} (and \eqn{\sigma^*}{sigma*} in the numeric case) where * denotes a particular draw.
-   The \eqn{x} is either a row from the training data (x.train) or the test data (x.test).
+  Thus, unlike a lot of other modeling methods in R, \code{bart} does not produce a single model object
+  from which fits and summaries may be extracted. The output consists of values
+  \eqn{f^*(x)}{f*(x)} (and \eqn{\sigma^*}{\sigma*} in the numeric case) where * denotes a particular draw.
+  The \eqn{x} is either a row from the training data (\code{x.train}) or the test data (\code{x.test}).
+  
+  \subsection{Decision Rules}{
+    Decision rules for any tree are of the form \eqn{x \le c}  vs. \eqn{x > c}
+    for each \sQuote{\eqn{x}} corresponding to a column of \code{x.train}.
+    \code{usequants} determines the means by which the set of possible \eqn{c} is
+    determined. If \code{usequants} is \code{TRUE}, then the \eqn{c} are
+    a subset of the values interpolated half-way between the unique, sorted values
+    obtained from the corresponding column of \code{x.train}.
+    If \code{usequants} is \code{FALSE}, the cutoffs are equally spaced across the
+    range of values taken on by the corresponding
+    column of \code{x.train}.
+     
+  	The number of possible values of \eqn{c} is determined by \code{numcut}.
+    If \code{usequants} is \code{FALSE}, \code{numcut} equally spaced cutoffs
+    are used covering the range of values in the corresponding
+    column of \code{x.train}. If \code{usequants} is \code{TRUE}, then for a variable
+    the minimum of \code{numcut} and one less than the number
+    of unique elements for that variable are used.
+  }
 }
 \value{
-   The \code{plot} method sets mfrow to c(1,2) and makes two plots.\cr
-   The first plot is the sequence of kept draws of \eqn{\sigma}{sigma}
-   including the burn-in draws.  Initially these draws will decline as BART finds fit
-   and then level off when the MCMC has burnt in.\cr
-   The second plot has \eqn{y} on the horizontal axis and posterior intervals for
-   the corresponding \eqn{f(x)} on the vertical axis. 
-   
+  \code{bart} returns a list assigned class \code{bart}. For applicable
+  quantities, \code{ndpost / keepevery} samples are returned.
+  In the numeric \eqn{y} case, the list has components:
 
-   \code{bart} returns a list assigned class \sQuote{bart}.
-   In the numeric \eqn{y} case, the list has components:
+  \item{\code{yhat.train}}{
+        A matrix of posterior samples. The \eqn{(i, j)} value is \eqn{f^*(x_j)}{f*(x_j)}
+        for the \eqn{i}th kept draw of of the posterior of \eqn{f}
+        and the \eqn{j}th row of \code{x.train}.}
+  \item{\code{yhat.test}}{
+      Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.}
+  \item{\code{yhat.train.mean}}{
+        Mean of \code{yhat.train} columns.}
+  \item{\code{yhat.test.mean}}{
+        Mean of \code{yhat.test} columns.}
+  \item{\code{sigma}}{
+        Posterior samples of \code{sigma}, the residual/error standard deviation.}
+  \item{\code{first.sigma}}{
+        Burn-in draws of \code{sigma}.}
+  \item{\code{varcount}}{
+        A matrix with number of rows equal to the number of kept draws and each column
+        corresponding to a training variable. Contains the total count of the number of
+        times that variable is used in a tree decision rule (over all trees).}
+  \item{\code{sigest}}{
+        The rough error standard deviation (\eqn{\sigma}) used in the prior.}
+  \item{\code{y}}{
+        The input dependent vector of values for the dependent variable.
+        This is used in \code{plot.bart}.}
+    
+  In the binary \eqn{y} case, the returned list has the components
+  \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list 
+  has a \code{binaryOffset} component giving the value used.
 
-   \item{yhat.train}{
-   A matrix with (ndpost/keepevery) rows and nrow(x.train) columns.
-   Each row corresponds to a draw \eqn{f^*}{f*} from the posterior of \eqn{f}
-   and each column corresponds to a row of x.train.
-   The \eqn{(i,j)} value is \eqn{f^*(x)}{f*(x)} for the \eqn{i^{th}}{i\^th} kept draw of \eqn{f}
-   and the \eqn{j^{th}}{j\^th} row of x.train.\cr
-   Burn-in is dropped.
-   }
-   
-   \item{yhat.test}{Same as yhat.train but now the x's are the rows of the test data.}
-   \item{yhat.train.mean}{train data fits = mean of yhat.train columns.}
-   \item{yhat.test.mean}{test data fits = mean of yhat.test columns.}
-   \item{sigma}{post burn in draws of sigma, length = ndpost/keepevery.}
-   \item{first.sigma}{burn-in draws of sigma.}
-   \item{varcount}{a matrix with (ndpost/keepevery) rows and nrow(x.train) columns.
-   Each row is for a draw. For each variable (corresponding to the columns),
-   the total count of the number of times
-   that variable is used in a tree decision rule (over all trees) is given.}
+  Note that in the binary \eqn{y}, case \code{yhat.train} and \code{yhat.test} are
+  \eqn{f(x) + \mathrm{binaryOffset}}{f(x) + binaryOffset}. For draws of the probability
+  \eqn{P(Y = 1 | x)}, apply the normal cdf (\code{pnorm}) to these values.\cr\cr
 
-   \item{sigest}{
-   The rough error standard deviation (\eqn{\sigma}{sigma}) used in the prior.
-   }
- 
-   \item{y}{
-   The input dependent vector of values for the dependent variable.\cr
-   This is used in plot.bart.
-   }
-
-   In the binary \eqn{y} case, the returned list has the components
-   yhat.train, yhat.test, and varcount as above.  In addition the list 
-   has a binaryOffset component giving the value used.
-
-   Note that in the binary \eqn{y}, case yhat.train and yhat.test are
-   \eqn{f(x)} + binaryOffset.  If you want draws of the probability
-   \eqn{P(Y=1 | x)} you need to apply the normal cdf (\code{pnorm})
-   to these values.
+  The \code{plot} method sets \code{mfrow} to \code{c(1,2)} and makes two plots.
+  The first plot is the sequence of kept draws of \eqn{\sigma}
+  including the burn-in draws. Initially these draws will decline as BART finds fit
+  and then level off when the MCMC has burnt in. The second plot has \eqn{y} on the
+  horizontal axis and posterior intervals for the corresponding \eqn{f(x)} on the vertical axis.
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2009)
@@ -252,37 +244,43 @@ Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
         \emph{The Annals of Statistics}, \bold{19}, 1--67.
 }
-\note{
-\emph{There was a bug in BayesTree\_0.1-0} (now fixed of course).\cr
-If the number of test observations was less than the number of trees
-(200 is the default), the yhat.test and yhat.test.mean components were suspect.
-}
 \author{
-Hugh Chipman: \email{hugh.chipman@gmail.com}\cr
-Robert McCulloch: \email{robert.mcculloch1@gmail.com}.
+Hugh Chipman: \email{hugh.chipman@gmail.com},\cr
+Robert McCulloch: \email{robert.mcculloch1@gmail.com},\cr
+Vincent Dorie: \email{vjd4@nyu.edu}.
 }
 \seealso{
 \code{\link{pdbart}}
 }
 \examples{
-##simulate data (example from Friedman MARS paper)
-f = function(x){
-10*sin(pi*x[,1]*x[,2]) + 20*(x[,3]-.5)^2+10*x[,4]+5*x[,5]
+## simulate data (example from Friedman MARS paper)
+## y = f(x) + epsilon , epsilon ~ N(0, sigma)
+## x consists of 10 variables, only first 5 matter
+
+f <- function(x) {
+    10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
+      10 * x[,4] + 5 * x[,5]
 }
-sigma = 1.0  #y = f(x) + sigma*z , z~N(0,1)
-n = 100      #number of observations
+
 set.seed(99)
-x=matrix(runif(n*10),n,10) #10 variables, only first 5 matter
-Ey = f(x)
-y=Ey+sigma*rnorm(n)
-lmFit = lm(y~.,data.frame(x,y)) #compare lm fit to BART later
-##run BART
+sigma <- 1.0
+n     <- 100
+
+x  <- matrix(runif(n * 10), n, 10)
+Ey <- f(x)
+y  <- rnorm(n, Ey, sigma)
+
+## run BART
 set.seed(99)
-bartFit = bart(x,y)
-plot(bartFit) # plot bart fit
-##compare BART fit to linear matter and truth = Ey
-fitmat = cbind(y,Ey,lmFit$fitted,bartFit$yhat.train.mean)
-colnames(fitmat) = c('y','Ey','lm','bart')
+bartFit <- bart(x, y)
+
+plot(bartFit)
+
+## compare BART fit to linear matter and truth = Ey
+lmFit <- lm(y ~ ., data.frame(x, y))
+
+fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
+colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 }
 \keyword{nonparametric}

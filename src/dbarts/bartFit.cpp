@@ -4,15 +4,16 @@
 #include <cmath>     // sqrt
 #include <cstring>   // memcpy
 #include <cstddef>   // size_t
-#include <dbarts/cstdint>
+
 #if !defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
 #undef HAVE_GETTIMEOFDAY
 #endif
 #ifdef HAVE_SYS_TIME_H
-#include <sys/time.h> // gettimeofday
+#  include <sys/time.h> // gettimeofday
 #else
-#include <time.h>
+#  include <time.h>
 #endif
+
 
 #include <set>       // used to sort and find 
 #include <vector>    //   split points;
@@ -30,7 +31,6 @@
 using std::size_t;
 using std::uint32_t;
 
-
 namespace {
   using namespace dbarts;
 
@@ -45,7 +45,7 @@ namespace {
   void setInitialFit(BARTFit& fit);
   
   void printInitialSummary(const BARTFit& fit);
-  void printTerminalSummary(const BARTFit& fit, double runningTime);
+  void printTerminalSummary(const BARTFit& fit);
   
   void initializeLatents(BARTFit& fit);
   void rescaleResponse(BARTFit& fit);
@@ -56,8 +56,7 @@ namespace {
                     double sigma, const uint32_t* variableCounts, size_t simNum);
   void countVariableUses(const BARTFit& fit, uint32_t* variableCounts);
   
-  
-#ifdef HAVE_GETTIMEOFDAY
+#ifdef HAVE_SYS_TIME_H
   double subtractTimes(struct timeval end, struct timeval start);
 #else
   double subtractTimes(time_t end, time_t start);
@@ -137,6 +136,30 @@ namespace dbarts {
     }
   }
   
+  void BARTFit::setTestPredictors(const double* X_test, size_t numTestObservations) {
+    if (numTestObservations == 0 || X_test == NULL) {
+      if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
+      data.X_test = NULL;
+      data.numTestObservations = 0;
+    } else {
+      data.X_test = X_test;
+      
+      if (numTestObservations != data.numTestObservations) {
+        if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
+        data.numTestObservations = numTestObservations;
+        
+        scratch.Xt_test = new double[data.numTestObservations * data.numPredictors];
+      }
+      
+      double* Xt_test = const_cast<double*>(scratch.Xt_test);
+      for (size_t col = 0; col < data.numPredictors; ++col) {
+        for (size_t row = 0; row < data.numTestObservations; ++row) {
+          Xt_test[row * data.numPredictors + col] = data.X_test[col * data.numTestObservations + row];
+        }
+      }
+    }
+  }
+  
   BARTFit::BARTFit(Control control, Model model, Data data) :
     control(control), model(model), data(data), scratch(), state(), threadManager(NULL)
   {
@@ -145,6 +168,8 @@ namespace dbarts {
     setPrior(*this);
     setInitialCutPoints(*this);
     setInitialFit(*this);
+
+    state.runningTime = 0.0;
 
     if (control.verbose) printInitialSummary(*this);
   }
@@ -201,7 +226,7 @@ namespace dbarts {
     
     if (control.verbose) ext_printf("Running mcmc loop:\n");
     
-#ifdef HAVE_GETTIMEOFDAY
+#ifdef HAVE_SYS_TIME_H
     struct timeval startTime;
     struct timeval endTime;
     gettimeofday(&startTime, NULL);
@@ -297,13 +322,15 @@ namespace dbarts {
       }
     }
     
-#ifdef HAVE_GETTIMEOFDAY
+#ifdef HAVE_SYS_TIME_H
     gettimeofday(&endTime, NULL);
 #else
     endTime = time(NULL);
 #endif
     
-    if (control.verbose) printTerminalSummary(*this, subtractTimes(endTime, startTime));
+    state.runningTime += subtractTimes(endTime, startTime);
+    
+    if (control.verbose) printTerminalSummary(*this);
     
     delete [] currFits;
     if (data.numTestObservations > 0) delete [] currTestFits;
@@ -377,8 +404,8 @@ namespace {
     }
   }
   
-  void printTerminalSummary(const BARTFit& fit, double runningTime) {
-    ext_printf("seconds in loop: %f\n", runningTime);
+  void printTerminalSummary(const BARTFit& fit) {
+    ext_printf("total seconds in loop: %f\n", fit.state.runningTime);
     
     ext_printf("\nTree sizes, last iteration:\n");
     for (size_t i = 0; i < fit.control.numTrees; ++i) {

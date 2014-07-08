@@ -1,43 +1,27 @@
-packageSamples <- function(fit, samples)
+packageBartResults <- function(fit, samples, burnInSigma)
 {
-  sigma <- samples$sigma
-  yhat.train <- t(samples$train)
-  yhat.train.mean <- if (all(!is.na(yhat.train))) apply(yhat.train, 2, mean) else NA
-  
-  yhat.test <- t(samples$test)
-  yhat.test.mean <- if (all(!is.na(yhat.test))) apply(yhat.test, 2, mean) else NA
-
-  varcount <- t(samples$varcount)
-  
-  result <- list(
-      sigma = sigma,
-      yhat.train = yhat.train,
-      yhat.train.mean = yhat.train.mean,
-      yhat.test = yhat.test,
-      yhat.test.mean = yhat.test.mean,
-      varcount = varcount)
-  
-  class(result) <- 'bart'
-  invisible(result)
-
-  
-  yhat.train <- yhat.test <- yhat.train.mean <- yhat.test.mean <- NULL
-  varcount <- NULL
-
   responseIsBinary <- fit$control@binary
-  
+
+  yhat.train <- NULL
   if (fit$control@keepTrainingFits) {
     yhat.train <- t(samples$train)
-    if (!responseIsBinary) {
-      yhat.train.mean <- apply(yhat.train, 2, mean)
-    }
+    if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, 2, mean)
   }
+
+  yhat.test <- NULL
   if (NROW(fit$data@x.test) > 0) {
     yhat.test <- t(samples$test)
-    if (!responseIsBinary) {
-      yhat.test.mean <- apply(yhat.test, 2, mean)
-    }
+    if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, 2, mean)
   }
+
+  if (!responseIsBinary) sigma <- samples$sigma else NA_real_
+  
+  sigma <- samples$sigma
+  yhat.train <- t(samples$train)
+  yhat.train.mean <- if (!responseIsBinary && !anyNA(yhat.train)) apply(yhat.train, 2, mean) else NA_real_
+  
+  yhat.test <- t(samples$test)
+  yhat.test.mean <- if (!responseIsBinary && !anyNA(yhat.test)) apply(yhat.test, 2, mean) else NA_real_
   
   if (responseIsBinary && !is.null(fit$data@offset)) {
     if (fit$control@keepTrainingFits) yhat.train <- yhat.train + fit$data@offset
@@ -56,7 +40,7 @@ packageSamples <- function(fit, samples)
   } else {
     result <- list(
       call = fit$control@call,
-      first.sigma = NA,
+      first.sigma = burnInSigma,
       sigma = sigma,
       sigest = fit$data@sigma,
       yhat.train = yhat.train,
@@ -105,9 +89,32 @@ bart <- function(
                resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
   sampler <- do.call("dbarts", args, envir = parent.frame(1L))
 
-  samples <- sampler$run()
+  control <- sampler$control
+  
+  burnInSigma <- NULL
+  if (nskip > 0L) {
+    oldX.test <- sampler$data@x.test
+    oldKeepTrainingFits <- control@keepTrainingFits
+    oldVerbose <- control@verbose
+      
+    if (length(x.test) > 0) sampler$setX.test(NULL)
+    control@keepTrainingFits <- FALSE
+    control@verbose <- FALSE
+    sampler$setControl(control)
 
-  result <- packageSamples(sampler, samples)
+    burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
+    
+    if (length(x.test) > 0) sampler$setX.test(oldX.test)
+    control@keepTrainingFits <- oldKeepTrainingFits
+    control@verbose <- oldVerbose
+    sampler$setControl(control)
+
+    samples <- sampler$run(0L, control@n.samples)
+  } else {
+    samples <- sampler$run()
+  }
+
+  result <- packageBartResults(sampler, samples, burnInSigma)
   rm(sampler, samples)
   
   return(result)

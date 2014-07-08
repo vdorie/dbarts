@@ -17,6 +17,8 @@ namespace dbarts {
 
     double sigma;
     
+    double runningTime;
+    
     const char* const* createTreeStrings(const BARTFit& fit) const;
     void recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings);
   };

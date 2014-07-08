@@ -1,7 +1,6 @@
 #include "config.hpp"
 #include "functions.hpp"
 
-#include <dbarts/cstdint>
 #include <vector>
 
 #include <external/io.h>

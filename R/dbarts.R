@@ -115,6 +115,15 @@ dbartsSampler <-
 
                   return(samples)
                 },
+                setControl = function(control) {
+                  if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl.")
+                  
+                  ptr <- getPointer()
+                  control <<- control
+                  uniqueResponses <- unique(data@y)
+                  if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <<- TRUE
+                  invisible(.Call("dbarts_setControl", ptr, control))
+                },
                 setY = function(y, updateState = NA) {
                   ptr <- getPointer()
                   data@y <<- as.double(y)
@@ -152,15 +161,23 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setX.test = function(x.test, column, updateState = NA) {
-                  if (is.character(column)) {
-                    if (is.null(colnames(data@x.text))) stop("Column names not specified at initialization, so cannot be replaced by name.")
-                    
-                    column <- match(column, colnames(data@x.test))
-                    if (is.na(column)) stop("Column name not found in names of current X.test.")
-                  }
-
                   ptr <- getPointer()
-                  .Call("dbarts_setTestPredictor", ptr, as.double(x.test), as.integer(column))
+                  
+                  if (missing(column)) {
+                    x.test <- validateXTest(x.test, ncol(data@x), colnames(data@x))
+
+                    data@x.test <<- x.test
+                    .Call("dbarts_setTestPredictors", ptr, data@x.test)
+                  } else {
+                    if (is.character(column)) {
+                      if (is.null(colnames(data@x.test))) stop("Column names not specified at initialization, so cannot be replaced by name.")
+                      
+                      column <- match(column, colnames(data@x.test))
+                      if (is.na(column)) stop("Column name not found in names of current X.test.")
+                    }
+                    
+                    .Call("dbarts_setTestPredictor", ptr, as.double(x.test), as.integer(column))
+                  }
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
