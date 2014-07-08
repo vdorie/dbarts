@@ -1,8 +1,9 @@
 ## create the contents to be used in partial dependence plots
 pdbart = function (
    x.train, y.train,
-   xind=1:ncol(x.train), levs=NULL, levquants=c(.05,(1:9)/10,.95),
-   pl=TRUE,  plquants=c(.05,.95),
+   xind = seq_len(x.train),
+   levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+   pl = TRUE, plquants = c(0.05, 0.95),
    ...
 )
 {
@@ -57,8 +58,9 @@ pdbart = function (
 
 pd2bart = function (
    x.train, y.train,
-   xind=1:2, levs=NULL, levquants=c(.05,(1:9)/10,.95),
-   pl=TRUE, plquants=c(.05,.95), 
+   xind = c(1, 2),
+   levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+   pl = TRUE, plquants = c(0.05, 0.95), 
    ...
 )
 {

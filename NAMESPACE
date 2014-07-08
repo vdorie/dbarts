@@ -4,6 +4,8 @@ export(dbarts, bart)
 export(dbartsControl)
 export(pdbart, pd2bart, plot.bart)
 
+export(makeind, makeModelMatrixFromDataFrame)
+
 S3method(plot, bart)
 S3method(plot, pdbart)
 S3method(plot, pd2bart)

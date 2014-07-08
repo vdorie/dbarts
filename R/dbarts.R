@@ -1,13 +1,40 @@
 setMethod("initialize", "dbartsControl",
-          function(.Object, n.cuts = 100L, ...)
+          function(.Object, ...)
 {
   .Object <- callNextMethod()
   ## keep around but sorta hide
-  attr(.Object, "n.cuts") <- as.integer(n.cuts)
+##  attr(.Object, "n.cuts") <- as.integer(n.cuts)
 
   validObject(.Object)
   .Object
 })
+
+## we don't actually use these defaults; see class definition
+## this is only provided for UI hints. Exception is n.cuts, which
+## isn't part of class
+dbartsControl <-
+  function(verbose = TRUE, keepTrainingFits = TRUE, useQuantiles = FALSE,
+           n.samples = NA_integer_, n.cuts = 100L,
+           n.burn = 100L, n.trees = 200L, n.threads = 1L,
+           n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
+{
+  matchedCall <- match.call()
+  
+  argsToKeep <- names(formals(dbartsControl))
+  argsToKeep <- argsToKeep[argsToKeep != "n.cuts"]
+  
+  newCall <- call("new", "dbartsControl")
+
+  newRange <- seq_len(length(matchedCall) - 1L) + 2L
+  oldRange <- 1L + seq_len(length(matchedCall) - 1)
+  
+  newCall[newRange] <- matchedCall[oldRange]
+  names(newCall)[newRange] <- names(matchedCall)[oldRange]
+
+  result <- eval(newCall, parent.frame())
+  attr(result, "n.cuts") <- n.cuts
+  result
+}
 
 validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, sigma)
 {

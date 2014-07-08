@@ -1,6 +1,6 @@
 plot.bart = function(
    x,
-   plquants=c(.05,.95), cols =c('blue','black'),
+   plquants = c(0.05, 0.95), cols = c('blue','black'),
    ...
 )
 {
@@ -36,8 +36,8 @@ plot.bart = function(
 
 plot.pdbart = function(
    x,
-   xind = 1:length(x$fd),
-   plquants =c(.05,.95),cols=c('black','blue'),
+   xind = seq_len(length(x$fd)),
+   plquants = c(0.05, 0.95), cols = c('black','blue'),
    ...
 )
 {
@@ -53,8 +53,8 @@ plot.pdbart = function(
 
 plot.pd2bart = function(
    x,
-   plquants =c(.05,.95), contour.color='white',
-   justmedian=TRUE,
+   plquants = c(0.05, 0.95), contour.color='white',
+   justmedian = TRUE,
    ...
 )
 {

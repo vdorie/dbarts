@@ -23,56 +23,55 @@ setClass("dbartsChiSqPrior", contains = "dbartsResidPrior",
            if (object@quantile <= 0.0) return("'quantile' must be positive.")
          })
 
-dbartsControl <-
-  setClass("dbartsControl",
-           slots =
-           list(binary           = "logical",
-                verbose          = "logical",
-                keepTrainingFits = "logical",
-                useQuantiles     = "logical",
-                n.samples        = "integer",
-                n.burn           = "integer",
-                n.trees          = "integer",
-                n.threads        = "integer",
-                n.thin           = "integer",
-                printEvery       = "integer",
-                printCutoffs     = "integer",
-                updateState      = "logical",
-                call             = "language"),
-           prototype =
-           list(binary           = FALSE,
-                verbose          = TRUE,
-                keepTrainingFits = TRUE,
-                useQuantiles     = FALSE,
-                n.samples        = NA_integer_,
-                n.burn           = 100L,
-                n.trees          = 200L,
-                n.threads        = 1L,
-                n.thin           = 1L,
-                printEvery       = 100L,
-                printCutoffs     = 0L,
-                updateState      = TRUE,
-                call             = quote(quote(NA()))),
-           validity = function(object) {
-             if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE.")
-             if (is.na(object@useQuantiles))     return("'useQuantiles' must be TRUE/FALSE.")
-             
-             if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer.")
-             if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer.")
-             if (object@n.threads <= 0L) return("'n.threads' must be a positive integer.")
-             if (object@n.thin    <  0L) return("'n.thin' must be a non-negative integer.")
-             
-             if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer.")
-             if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer.")
-
-             if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE.")
-
-             ## handle this in particular b/c it is set through dbarts, not
-             ## standard initializer
-             if (!is.na(object@n.samples) && object@n.samples <= 0L) return("'n.samples' must be a positive integer.")
-
-             TRUE
-           })
+setClass("dbartsControl",
+         slots =
+         list(binary           = "logical",
+              verbose          = "logical",
+              keepTrainingFits = "logical",
+              useQuantiles     = "logical",
+              n.samples        = "integer",
+              n.burn           = "integer",
+              n.trees          = "integer",
+              n.threads        = "integer",
+              n.thin           = "integer",
+              printEvery       = "integer",
+              printCutoffs     = "integer",
+              updateState      = "logical",
+              call             = "language"),
+         prototype =
+         list(binary           = FALSE,
+              verbose          = TRUE,
+              keepTrainingFits = TRUE,
+              useQuantiles     = FALSE,
+              n.samples        = NA_integer_,
+              n.burn           = 100L,
+              n.trees          = 200L,
+              n.threads        = 1L,
+              n.thin           = 1L,
+              printEvery       = 100L,
+              printCutoffs     = 0L,
+              updateState      = TRUE,
+              call             = quote(quote(NA()))),
+         validity = function(object) {
+           if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE.")
+           if (is.na(object@useQuantiles))     return("'useQuantiles' must be TRUE/FALSE.")
+           
+           if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer.")
+           if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer.")
+           if (object@n.threads <= 0L) return("'n.threads' must be a positive integer.")
+           if (object@n.thin    <  0L) return("'n.thin' must be a non-negative integer.")
+           
+           if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer.")
+           if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer.")
+           
+           if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE.")
+           
+           ## handle this in particular b/c it is set through dbarts, not
+           ## standard initializer
+           if (!is.na(object@n.samples) && object@n.samples <= 0L) return("'n.samples' must be a positive integer.")
+           
+           TRUE
+         })
 
 setClass("dbartsModel",
          slots =

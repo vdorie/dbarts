@@ -241,11 +241,12 @@ namespace dbarts {
 #endif
     
     for (uint32_t k = 0; k < totalNumIterations; ++k) {
-      majorIterationNum = k / control.treeThinningRate;
-      if (control.verbose && (majorIterationNum + 1) % control.printEvery == 0)
-        ext_printf("iteration: %u (of %u)\n", majorIterationNum + 1, totalNumIterations);
-      
       isThinningIteration = ((k + 1) % control.treeThinningRate != 0);
+            
+      majorIterationNum = k / control.treeThinningRate;
+      
+      if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0)
+        ext_printf("iteration: %u (of %u)\n", majorIterationNum + 1, totalNumIterations / control.treeThinningRate);
       
       if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
       

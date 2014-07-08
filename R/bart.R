@@ -71,8 +71,8 @@ bart <- function(
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree),
                            n.thin = as.integer(keepevery),
-                           printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
-                           call = match.call())
+                           printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs))
+  control@call <- match.call()
 
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2]] <- power; tree.prior[[3]] <- base
