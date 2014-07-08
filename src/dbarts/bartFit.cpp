@@ -139,6 +139,8 @@ namespace dbarts {
   void BARTFit::setTestPredictors(const double* X_test, size_t numTestObservations) {
     if (numTestObservations == 0 || X_test == NULL) {
       if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
+      if (state.totalTestFits != NULL) delete [] state.totalTestFits; state.totalTestFits = NULL;
+      
       data.X_test = NULL;
       data.numTestObservations = 0;
     } else {
@@ -146,9 +148,11 @@ namespace dbarts {
       
       if (numTestObservations != data.numTestObservations) {
         if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
+        if (state.totalTestFits != NULL) delete [] state.totalTestFits; state.totalTestFits = NULL;
         data.numTestObservations = numTestObservations;
         
         scratch.Xt_test = new double[data.numTestObservations * data.numPredictors];
+        state.totalTestFits = new double[data.numTestObservations];
       }
       
       double* Xt_test = const_cast<double*>(scratch.Xt_test);
