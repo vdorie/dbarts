@@ -15,7 +15,7 @@ addCallArgument <- function(call, position, argument)
     position <- length(call) + 1L
   } else {
     position <- as.integer(position) + 1L
-    for (i in length(call):position) {
+    if (position <= length(call)) for (i in length(call):position) {
       call[[i + 1]] <- call[[i]]
       names(call)[[i + 1]] <- names(call)[[i]]
     }

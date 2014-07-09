@@ -13,31 +13,27 @@
    normal cdf, then the plots are all on the \eqn{f} scale.
 }
 \usage{
-   pdbart(
-      x.train, y.train,
-      xind = seq_len(ncol(x.train)),
-      levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-      pl = TRUE, plquants = c(0.05, 0.95),
-      \dots)
+pdbart(x.train, y.train,
+       xind = seq_len(ncol(x.train)),
+       levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+       pl = TRUE, plquants = c(0.05, 0.95),
+       \dots)
       
-   \method{plot}{pdbart}(
-      x,
-      xind = seq_len(x$fd),
-      plquants = c(0.05, 0.95), cols = c('black', 'blue'),
-      \dots)
+\method{plot}{pdbart}(x,
+     xind = seq_len(x$fd),
+     plquants = c(0.05, 0.95), cols = c('black', 'blue'),
+     \dots)
       
-   pd2bart(
-      x.train, y.train,
-      xind = c(1, 2),
-      levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-      pl = TRUE, plquants = c(0.05, 0.95),
-      \dots)
+pd2bart(x.train, y.train,
+       xind = c(1, 2),
+       levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+       pl = TRUE, plquants = c(0.05, 0.95),
+       \dots)
       
-   \method{plot}{pd2bart}(
-      x,
-      plquants = c(0.05, 0.95), contour.color = 'white',
-      justmedian = TRUE,
-      \dots)
+\method{plot}{pd2bart}(x,
+     plquants = c(0.05, 0.95), contour.color = 'white',
+     justmedian = TRUE,
+     \dots)
 }
 \arguments{
   \item{x.train}{

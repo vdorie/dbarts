@@ -51,11 +51,14 @@ validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, s
   } else if (!controlIsMissing) {
     envir$verbose <- control@verbose
   }
+  
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e)
              stop("'n.samples' argument to dbarts must be coerceable to integer type."))
     if (n.samples <= 0L) return("'n.samples' argument to dbarts must be a positive integer.")
     envir$control@n.samples <- n.samples
+  } else {
+    envir$control@n.samples <- formals(dbarts)[["n.samples"]]
   }
 
   if (!missing(sigma) && !is.na(sigma)) {
@@ -131,6 +134,8 @@ dbartsSampler <-
                   pointer <<- .Call("dbarts_create", control, model, data)
                 },
                 run = function(numBurnIn, numSamples, updateState = NA) {
+                  'Runs the posterior sampler for numBurnIn + numSamples iterations and
+                   returns a list with the results.'
                   if (missing(numBurnIn))  numBurnIn  <- NA_integer_
                   if (missing(numSamples)) numSamples <- NA_integer_
                   
@@ -143,15 +148,20 @@ dbartsSampler <-
                   return(samples)
                 },
                 setControl = function(control) {
+                  'Sets the control object for the sampler to a new one. Preserves the call() slot.'
                   if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl.")
+
+                  oldCall <- .self$control@call
                   
                   ptr <- getPointer()
                   control <<- control
                   uniqueResponses <- unique(data@y)
                   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <<- TRUE
+                  control@call <<- oldCall
                   invisible(.Call("dbarts_setControl", ptr, control))
                 },
-                setY = function(y, updateState = NA) {
+                setResponse = function(y, updateState = NA) {
+                  'Changes the response against which the sampler is fitted.'
                   ptr <- getPointer()
                   data@y <<- as.double(y)
                   .Call("dbarts_setResponse", ptr, data@y)
@@ -162,6 +172,7 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setOffset = function(offset, updateState = NA) {
+                  'Changes the offset slot used to adjust the response.'
                   ptr <- getPointer()
                   data@offset <<- as.double(offset)
                   .Call("dbarts_setOffset", ptr, data@offset)
@@ -171,7 +182,8 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
-                setX = function(x, column, updateState = NA) {
+                setPredictor = function(x, column, updateState = NA) {
+                  'Changes a single column of the predictor matrix.'
                   if (is.character(column)) {
                     if (is.null(colnames(data@x))) stop("Column names not specified at initialization, so cannot be replaced by name.")
                     
@@ -187,7 +199,8 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                setX.test = function(x.test, column, updateState = NA) {
+                setTestPredictor = function(x.test, column, updateState = NA) {
+                  'Changes either a single column or the entire test predictor matrix.'
                   ptr <- getPointer()
                   
                   if (missing(column)) {
@@ -212,6 +225,7 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 getPointer = function() {
+                  'Returns the underlying reference pointer, checking for consistency first.'
                   if (.Call("dbarts_isValidPointer", pointer) == FALSE) {
                     oldVerbose <- control@verbose
                     control@verbose <<- FALSE
@@ -225,6 +239,7 @@ dbartsSampler <-
                   return(pointer)
                 },
                 storeState = function(ptr = getPointer()) {
+                  'Updates the cached internal state used for saving/loading.'
                   if (is.null(state)) {
                     state <<- .Call("dbarts_createState", ptr)
                   } else {
