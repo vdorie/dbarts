@@ -51,7 +51,7 @@ namespace dbarts {
   {
   }
   
-  double ChiSquaredPrior::drawFromPosterior(size_t numObservations, double sumOfSquaredResiduals) const {
+  double ChiSquaredPrior::drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const {
     uint32_t posteriorDegreesOfFreedom = degreesOfFreedom + numObservations;
     
     double posteriorScale = ((double) degreesOfFreedom * scale + sumOfSquaredResiduals);

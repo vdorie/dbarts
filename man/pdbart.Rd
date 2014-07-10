@@ -20,7 +20,7 @@ pdbart(x.train, y.train,
        \dots)
       
 \method{plot}{pdbart}(x,
-     xind = seq_len(x$fd),
+     xind = seq_len(length(x$fd)),
      plquants = c(0.05, 0.95), cols = c('black', 'blue'),
      \dots)
       
@@ -102,7 +102,7 @@ pd2bart(x.train, y.train,
     A logical where if \code{TRUE} just one plot is created for
     the median of \eqn{f(x)} draws. If \code{FALSE}, three plots are created
     one for the median and two additional ones for the lower and upper quantiles.
-    In this case, \code{\link[par]{mfrow}} is set to \code{c(1,3)}.
+    In this case, \code{\link[=par]{mfrow}} is set to \code{c(1,3)}.
   }
 }
 \details{
@@ -202,6 +202,7 @@ Hugh Chipman: \email{hugh.chipman@acadiau.ca}.\cr
 Robert McCulloch: \email{robert.mcculloch@chicagogsb.edu}.
 }
 \examples{
+\dontrun{
 ## simulate data 
 f <- function(x) { return(0.5 * x[,1] + 2 * x[,2] * x[,3]) }
 
@@ -239,7 +240,7 @@ lmFit  <- lm(y ~., data.frame(x, y))
 fitmat <- cbind(y, Ey, lmFit$fitted, pdb1$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
-}
+}}
 \keyword{nonparametric}
 \keyword{tree}
 \keyword{regression}

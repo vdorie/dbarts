@@ -4,12 +4,12 @@
 AC_PREREQ(2.61)
 AC_INIT(dbarts, 0.8, vjd4@nyu.edu)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
-AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])
 AC_CONFIG_HEADER([src/dbarts/config.hpp])
 AC_CONFIG_HEADER([src/external/config.h])
 
-m4_include([m4/m4_ax_pthread.m4])
+m4_include([tools/m4/m4_ax_pthread.m4])
 
 AC_ARG_ENABLE([bart-exact],
               [AS_HELP_STRING([--disable-bart-exact],

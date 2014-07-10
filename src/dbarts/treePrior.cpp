@@ -34,8 +34,8 @@ namespace dbarts {
     if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
 
 #ifdef BART_EXACT
-    if (node.getNumObservations() < 5) {
-			return 0.001 * base / std::pow(1.0 + node.getDepth(), power);
+    if (node.getNumEffectiveObservations() < 5.0) {
+      return 0.001 * base / std::pow(1.0 + node.getDepth(), power);
 		}
 #endif
     

@@ -45,8 +45,10 @@ double ext_computeIndexedVarianceForKnownMean(const double* restrict x, const ex
 double ext_computeWeightedVarianceForKnownMean(const double* restrict x, ext_size_t length, const double* restrict w, double mean);
 double ext_computeIndexedWeightedVarianceForKnownMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, const double* restrict w, double mean);
   
-double ext_computeAndSumSquaresOfResiduals(const double* y, ext_size_t length, double y_hat);
-double ext_computeAndSumSquaresOfResidualsForVector(const double* restrict y, ext_size_t length, const double* restrict y_hat);
+// double ext_computeAndSumSquaresOfResiduals(const double* y, ext_size_t length, double y_hat);
+// double ext_computeAndSumSquaresOfResidualsForVector(const double* restrict y, ext_size_t length, const double* restrict y_hat);
+double ext_computeSumOfSquaredResiduals(const double* restrict x, ext_size_t length, const double* restrict x_hat);
+double ext_computeWeightedSumOfSquaredResiduals(const double* restrict x, ext_size_t length, const double* restrict w, const double* restrict x_hat);
   
 #ifdef __cplusplus
 }

@@ -7,7 +7,7 @@
 }
 \usage{
 dbarts(formula, data, test, subset, weights, offset,
-       verbose = TRUE, n.samples = 1000L,
+       verbose = FALSE, n.samples = 1000L,
        tree.prior = cgm, node.prior = normal, resid.prior = chisq,
        control = dbartsControl(), sigma = NA_real_)
 }
@@ -43,9 +43,9 @@ dbarts(formula, data, test, subset, weights, offset,
 \details{
   \dQuote{Discrete sampler} refers to that \code{dbarts} is implemented using \link{ReferenceClasses}, so that
   there exists a mutable object constructed in C++ that is largely obscured from R. The \code{dbarts} function
-  is the primary way of creating a \code{\link[dbartsSampler-class]{dbartsSampler}}, for which a variety of methods
+  is the primary way of creating a \code{\link[=dbartsSampler-class]{dbartsSampler}}, for which a variety of methods
   exist.
 }
 \value{
-  A reference object of \code{\link[dbartsSampler-class]{dbartsSampler}}.
+  A reference object of \code{\link[=dbartsSampler-class]{dbartsSampler}}.
 }

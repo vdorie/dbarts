@@ -11,3 +11,6 @@ exportClasses(dbartsSampler)
 S3method(plot, bart)
 S3method(plot, pdbart)
 S3method(plot, pd2bart)
+
+importFrom(methods, setRefClass, setClass, callNextMethod, validObject)
+importFrom(stats, lm)

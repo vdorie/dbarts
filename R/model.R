@@ -23,9 +23,9 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   evalEnv <- new.env(parent = parentEnv)
   evalEnv$control <- control
   evalEnv$data <- data
-  evalEnv$cgm <- dbarts:::cgm
-  evalEnv$normal <- dbarts:::normal
-  evalEnv$chisq <- dbarts:::chisq
+  evalEnv$cgm <- cgm
+  evalEnv$normal <- normal
+  evalEnv$chisq <- chisq
 
   if (is.symbol(matchedCall$tree.prior)) matchedCall$tree.prior <- call(as.character(matchedCall$tree.prior))
   if (is.symbol(matchedCall$node.prior)) matchedCall$node.prior <- call(as.character(matchedCall$node.prior))

@@ -29,7 +29,6 @@ namespace {
   };
 }
 
-
 namespace dbarts {
   Node* drawBirthableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability);
   Node* drawChildrenKillableNode(const Tree& tree, double* nodeSelectionProbability);
@@ -39,8 +38,7 @@ namespace dbarts {
   double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree, bool birthableNodeExists);
   double computeProbabilityOfSelectingNodeForDeath(const Tree& tree);
   double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree);
-  
-  
+    
   // returns probability of jump
   double birthOrDeathNode(const BARTFit& fit, Tree& tree, const double* y, bool* stepWasTaken, bool* stepWasBirth)
   {

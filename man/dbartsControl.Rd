@@ -5,7 +5,7 @@
   Convenience function to create a control object for use with a \code{\link{dbarts}} sampler.
 }
 \usage{
-dbartsControl(verbose = TRUE, keepTrainingFits = TRUE, useQuantiles = FALSE,
+dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
               n.samples = NA_integer_, n.cuts = 100L,
               n.burn = 100L, n.trees = 200L, n.threads = 1L,
               n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
@@ -20,7 +20,7 @@ dbartsControl(verbose = TRUE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    	 uniformly throughout the range of covariate values.}
    \item{n.samples}{A non-negative integer giving the default number of samples to return each time the
    	 sampler is run. Generally specified by \code{\link{dbarts}} instead, and can be overridden
-   	 on a per-use basis whenever the sampler is \code{\link[dbartsSampler-class]{run}}.}
+   	 on a per-use basis whenever the sampler is \code{\link[=dbartsSampler-class]{run}}.}
    \item{n.cuts}{A positive integer or integer vector giving the number of decision rules to be used
    	 for each given predictor. If of length less than the number of predictors, earlier values
    	 are recycled. If for any predictor more values are specified than are coherent, fewer may
@@ -38,9 +38,9 @@ dbartsControl(verbose = TRUE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    	 (after thinning) will issue a verbal statement. Must be a positive integer.}
    \item{printCutoffs}{A non-negative integer specifying how many of the decision rules for a variable are
    	 printed in verbose mode.}
-   \item{upateState}{Logical setting the default behavior for many \link[dbartsSampler]{sampler} methods
+   \item{updateState}{Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods
    	 with regards to the immediate updating of the cached state of the object. A current, cached state
-   	 is only useful when \link[save]{saving}/\link[load]{loading} the sampler.}
+   	 is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.}
 }
 \value{
   An object of class \code{dbartControl}.

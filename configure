@@ -1724,7 +1724,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
 ac_aux_dir=
-for ac_dir in build-aux "$srcdir"/build-aux; do
+for ac_dir in tools/build-aux "$srcdir"/tools/build-aux; do
   if test -f "$ac_dir/install-sh"; then
     ac_aux_dir=$ac_dir
     ac_install_sh="$ac_aux_dir/install-sh -c"
@@ -1740,8 +1740,8 @@ for ac_dir in build-aux "$srcdir"/build-aux; do
   fi
 done
 if test -z "$ac_aux_dir"; then
-  { { echo "$as_me:$LINENO: error: cannot find install-sh or install.sh in build-aux \"$srcdir\"/build-aux" >&5
-echo "$as_me: error: cannot find install-sh or install.sh in build-aux \"$srcdir\"/build-aux" >&2;}
+  { { echo "$as_me:$LINENO: error: cannot find install-sh or install.sh in tools/build-aux \"$srcdir\"/tools/build-aux" >&5
+echo "$as_me: error: cannot find install-sh or install.sh in tools/build-aux \"$srcdir\"/tools/build-aux" >&2;}
    { (exit 1); exit 1; }; }
 fi
 

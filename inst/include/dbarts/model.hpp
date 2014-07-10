@@ -75,7 +75,7 @@ namespace dbarts {
   // the virtual scale accessors are for the conditional bart, which can have its data rescaled
   // if your prior doesn't use them, ignore them
   struct ResidualVariancePrior {
-    virtual double drawFromPosterior(std::size_t numObservations, double sumOfSquaredResiduals) const = 0;
+    virtual double drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const = 0;
     
     virtual double getScale() const = 0;
     virtual void setScale(double scale) = 0;
@@ -132,7 +132,7 @@ namespace dbarts {
     virtual double getScale() const { return scale; }
     virtual void setScale(double scale) { this->scale = scale; }
     
-    virtual double drawFromPosterior(std::size_t numObservations, double sumOfSquaredResiduals) const;
+    virtual double drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const;
   };
 } // namespace dbarts
 

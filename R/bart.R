@@ -3,26 +3,21 @@ packageBartResults <- function(fit, samples, burnInSigma)
   responseIsBinary <- fit$control@binary
 
   yhat.train <- NULL
+  yhat.train.mean <- NULL
   if (fit$control@keepTrainingFits) {
     yhat.train <- t(samples$train)
     if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, 2, mean)
   }
 
   yhat.test <- NULL
+  yhat.test.mean <- NULL
   if (NROW(fit$data@x.test) > 0) {
     yhat.test <- t(samples$test)
     if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, 2, mean)
   }
 
-  if (!responseIsBinary) sigma <- samples$sigma else NA_real_
-  
-  sigma <- samples$sigma
-  yhat.train <- t(samples$train)
-  yhat.train.mean <- if (!responseIsBinary && !anyNA(yhat.train)) apply(yhat.train, 2, mean) else NA_real_
-  
-  yhat.test <- t(samples$test)
-  yhat.test.mean <- if (!responseIsBinary && !anyNA(yhat.test)) apply(yhat.test, 2, mean) else NA_real_
-  
+  if (!responseIsBinary) sigma <- samples$sigma
+    
   if (responseIsBinary && !is.null(fit$data@offset)) {
     if (fit$control@keepTrainingFits) yhat.train <- yhat.train + fit$data@offset
     if (NROW(fit$data@x.test) > 0)    yhat.test  <- yhat.test  + fit$data@offset

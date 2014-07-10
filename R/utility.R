@@ -88,3 +88,15 @@ makeModelMatrixFromDataFrame <- function(x) {
 
   return(matrix(unlist(termMatrices), nrow(x), dimnames = list(NULL, columnNames)))
 }
+
+## use this to produce calls of the form
+##  dbarts:::functionName
+## so that we can evaluate non-exported functions in
+## the user's environment
+quoteInNamespace <- function(name) {
+  result <- quote(a + b)
+  result[[1]] <- as.symbol(":::")
+  result[[2]] <- as.symbol("dbarts")
+  result[[3]] <- match.call()[[2]]
+  result
+}

@@ -24,7 +24,7 @@ namespace dbarts {
     {
       sigmaSamples = new double[getNumSigmaSamples()];
       trainingSamples = new double[getNumTrainingSamples()];
-      testSamples = new double[getNumTestSamples()];
+      if (numTestObservations > 0) testSamples = new double[getNumTestSamples()];
       variableCountSamples = new double[getNumVariableCountSamples()];
     }
     ~Results() {

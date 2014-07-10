@@ -1,5 +1,6 @@
 v0.8 : initial public release
   documentation
+  copy method for reference class
   
 v0.9 : stuff to add
   categorical variable detection/use
@@ -16,6 +17,7 @@ v0.9 : stuff to add
   pdbart/pdbart2
   causal
   predict
+  move n.eff cached calculation into scratch
   handle updating y for binary better w/r/t latents
 
 v1.0 : cleanup, bug fixes
@@ -24,3 +26,4 @@ v1.0 : cleanup, bug fixes
   check bounds on parameters for CGM prior
   verify that all of state is necessary to store
   unify R coding style to ALL caps or not
+  consistency of error message style

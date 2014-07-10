@@ -58,9 +58,13 @@ namespace {
   
   void fitFinalizer(SEXP fitExpr)
   {
-    // Rprintf("finalizing ");
+#ifndef THREAD_SAFE_UNLOAD
+    Rprintf("finalizing ");
+#endif
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    // Rprintf("%p\n", fit);
+#ifndef THREAD_SAFE_UNLOAD
+    Rprintf("%p\n", fit);
+#endif
     if (fit == NULL) return;
     
     
@@ -307,10 +311,15 @@ namespace {
     SEXP dimsExpr, namesExpr;
     int* dims;
     
+    int protectCount = 3;
+    
     SEXP resultExpr = PROTECT(allocVector(VECSXP, 4));
     SET_VECTOR_ELT(resultExpr, 0, allocVector(REALSXP, bartResults->getNumSigmaSamples()));
     SET_VECTOR_ELT(resultExpr, 1, allocVector(REALSXP, bartResults->getNumTrainingSamples()));
-    SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, bartResults->getNumTestSamples()));
+    if (fit->data.numTestObservations > 0)
+      SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, bartResults->getNumTestSamples()));
+    else
+      SET_VECTOR_ELT(resultExpr, 2, NULL_USER_OBJECT);
     SET_VECTOR_ELT(resultExpr, 3, allocVector(INTSXP, bartResults->getNumVariableCountSamples()));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
@@ -324,13 +333,16 @@ namespace {
     setAttrib(trainingSamples, R_DimSymbol, dimsExpr);
     std::memcpy(REAL(trainingSamples), (const double*) bartResults->trainingSamples, bartResults->getNumTrainingSamples() * sizeof(double));
     
-    SEXP testSamples = VECTOR_ELT(resultExpr, 2);
-    dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
-    dims = INTEGER(dimsExpr);
-    dims[0] = bartResults->numTestObservations;
-    dims[1] = bartResults->numSamples;
-    setAttrib(testSamples, R_DimSymbol, dimsExpr);
-    std::memcpy(REAL(testSamples), (const double*) bartResults->testSamples, bartResults->getNumTestSamples() * sizeof(double));
+    if (fit->data.numTestObservations > 0) {
+      SEXP testSamples = VECTOR_ELT(resultExpr, 2);
+      dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
+      dims = INTEGER(dimsExpr);
+      dims[0] = bartResults->numTestObservations;
+      dims[1] = bartResults->numSamples;
+      setAttrib(testSamples, R_DimSymbol, dimsExpr);
+      std::memcpy(REAL(testSamples), (const double*) bartResults->testSamples, bartResults->getNumTestSamples() * sizeof(double));
+      ++protectCount;
+    }
     
     SEXP variableCountSamples = VECTOR_ELT(resultExpr, 3);
     dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
@@ -349,7 +361,7 @@ namespace {
     SET_STRING_ELT(namesExpr, 2, mkChar("test"));
     SET_STRING_ELT(namesExpr, 3, mkChar("varcount"));
     
-    UNPROTECT(4);
+    UNPROTECT(protectCount);
     
     return(resultExpr);
   }
@@ -361,6 +373,9 @@ namespace {
     for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
       SEXP fitExpr = *it;
       BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+#ifndef THREAD_SAFE_UNLOAD
+      Rprintf("package finalizing %p\n", fit);
+#endif
       
       deleteFit(fit);
       PointerSet::iterator prev = it;
@@ -445,6 +460,9 @@ namespace {
     { "dbarts", "runSamplerForIterations", (DL_FUNC) dbarts_runSamplerForIterations },
     { "dbarts", "setResponse", (DL_FUNC) dbarts_setResponse },
     { "dbarts", "setOffset", (DL_FUNC) dbarts_setOffset },
+    { "dbarts", "setPredictor", (DL_FUNC) dbarts_setPredictor },
+    { "dbarts", "setTestPredictor", (DL_FUNC) dbarts_setTestPredictor },
+    { "dbarts", "setTestPredictors", (DL_FUNC) dbarts_setTestPredictors },
     { NULL, NULL, 0 }
   };
   
@@ -738,7 +756,7 @@ namespace {
     
     slotExpr = GET_ATTR(dataExpr, install("offset"));
     if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
-      data.weights = NULL;
+      data.offset = NULL;
     } else {
       if (!isReal(slotExpr)) error("offset must be of type real.");
       if ((size_t) length(slotExpr) != data.numObservations) error("Length of offset must equal length of y.");
@@ -878,7 +896,9 @@ namespace {
   }
   
   void deleteFit(BARTFit* fit) {
-    // Rprintf("deleting %p\n", fit);
+#ifndef THREAD_SAFE_UNLOAD
+    Rprintf("deleting %p\n", fit);
+#endif
     if (fit == NULL) return;
     
     delete fit->model.treePrior;

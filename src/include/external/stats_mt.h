@@ -23,8 +23,9 @@ double ext_mt_computeIndexedVarianceForKnownMean        (ext_mt_manager_t restri
 double ext_mt_computeWeightedVarianceForKnownMean       (ext_mt_manager_t restrict tm, const double* restrict x, ext_size_t length, const double* restrict w, double mean);
 double ext_mt_computeIndexedWeightedVarianceForKnownMean(ext_mt_manager_t restrict tm, const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, const double* restrict w, double mean);
 
-double ext_mt_computeAndSumSquaresOfResiduals(ext_mt_manager_t restrict threadManager, const double* restrict x, ext_size_t length, double x_hat);
-  
+double ext_mt_computeSumOfSquaredResiduals(ext_mt_manager_t restrict threadManager, const double* restrict x, ext_size_t length, const double* restrict x_hat);
+double ext_mt_computeWeightedSumOfSquaredResiduals(ext_mt_manager_t restrict threadManager, const double* restrict x, ext_size_t length, const double* restrict w, const double* restrict x_hat);
+
   
 #ifdef __cplusplus
 }

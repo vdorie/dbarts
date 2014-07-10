@@ -34,15 +34,15 @@
 #define          ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD 5000
 #define ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 12000
 
-#define                 WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 150000
-#define        UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 125000
-#define          ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 7500
-#define ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 35000
+#define                 WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 150000
+#define        UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 125000
+#define          ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
+#define ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
 
-#define                 WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 150000
-#define        UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 125000
-#define          ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 7500
-#define ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 35000
+#define                 WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 150000
+#define        UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 125000
+#define          ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
+#define ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
 
 #define                 INDEXED_MEAN_MIN_NUM_VALUES_PER_THREAD 100000
 #define        INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD 100000
@@ -59,15 +59,18 @@
 #define          INDEXED_ONLINE_VAR_MIN_NUM_VALUES_PER_THREAD 5000
 #define INDEXED_ONLINE_UNROLLED_VAR_MIN_NUM_VALUES_PER_THREAD 12000
 
-#define                 INDEXED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 60000
-#define        INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 35000
-#define          INDEXED_ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 7500
-#define INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 30000
+#define                 INDEXED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 60000
+#define        INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
+#define          INDEXED_ONLINE_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
+#define INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD 30000
 
-#define                 INDEXED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 60000
-#define        INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 35000
-#define          INDEXED_ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 7500
-#define INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 5 // 25000
+#define                 INDEXED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 60000
+#define        INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 35000
+#define          INDEXED_ONLINE_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 7500
+#define INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD 25000
+
+#define          SSR_MIN_NUM_VALUES_PER_THREAD 75000
+#define WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD 60000
 
 // if < value, calculate straightup; otherwise use online
 // algorithm to reduce round-off err
@@ -125,7 +128,6 @@ UNUSED static double computeOnlineWeightedVarianceForKnownMean               (co
 UNUSED static double computeIndexedOnlineWeightedVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
 static double computeOnlineUnrolledWeightedVarianceForKnownMean       (const double* restrict x, size_t length, const double* restrict w, double mean);
 static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-
 
 UNUSED static double mt_computeMean(ext_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
 UNUSED static double mt_computeIndexedMean(ext_mt_manager_t restrict threadManager, const double* restrict x, const size_t* indices, size_t length);
@@ -239,7 +241,6 @@ double ext_computeIndexedWeightedVarianceForKnownMean(const double* restrict x, 
   return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
 }
 
-
 #define minimum(_A_, _B_) ((_A_) < (_B_) ? (_A_) : (_B_))
 
 // if the data for any thread would, by itself, trigger a fall-back to single threaded
@@ -333,7 +334,6 @@ double ext_mt_computeIndexedWeightedVarianceForKnownMean(ext_mt_manager_t restri
   if (length / numThreads >= onlineCutoff) return mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(threadManager, x, indices, length, w, mean);
   return mt_computeIndexedUnrolledWeightedVarianceForKnownMean(threadManager, x, indices, length, w, mean);
 }
-
 
 // work-horse implementations; indexed versions follow regular b/c implementations are highly similar
 
@@ -1039,7 +1039,7 @@ static double computeIndexedUnrolledWeightedVarianceForKnownMean(const double* r
   
   double result = 0.0;
   if (lengthMod5 != 0) {
-    for ( ; i < lengthMod5; ++i) result += w[i] * (x[indices[i]] - mean) * (x[indices[i]] - mean);
+    for ( ; i < lengthMod5; ++i) result += w[indices[i]] * (x[indices[i]] - mean) * (x[indices[i]] - mean);
     if (length < 5) return result / (double) (length - 1);
   }
   
@@ -2480,4 +2480,178 @@ static double mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(ext_mt
   ext_mt_runTasks(threadManager, &computeIndexedWeightedVarianceForKnownMeanTask, threadDataPtrs, numThreads);
   
   return aggregateIndexedWeightedVarianceForKnownMeanData(threadData, numThreads);
+}
+
+
+
+
+double ext_computeSumOfSquaredResiduals(const double* restrict x, ext_size_t length, const double* restrict x_hat)
+{
+  if (length == 0) return 0.0;
+  
+  double result = 0.0;
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
+    if (length < 5) return result;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
+              (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
+              (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
+              (x[i + 3] - x_hat[i + 3]) * (x[i + 3] - x_hat[i + 3]) +
+              (x[i + 4] - x_hat[i + 4]) * (x[i + 4] - x_hat[i + 4]);
+  }
+  return result;
+}
+
+double ext_computeWeightedSumOfSquaredResiduals(const double* restrict x, size_t length, const double* restrict w, const double* restrict x_hat)
+{
+  if (length == 0) return 0.0;
+  
+  double result = 0.0;
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
+    if (length < 5) return result;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
+              w[i + 1] * (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
+              w[i + 2] * (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
+              w[i + 3] * (x[i + 3] - x_hat[i + 3]) * (x[i + 3] - x_hat[i + 3]) +
+              w[i + 4] * (x[i + 4] - x_hat[i + 4]) * (x[i + 4] - x_hat[i + 4]);
+  }
+  return result;
+}
+
+typedef double (*sumOfSquaredResidualsFunction)(const double* restrict x, size_t length, const double* restrict x_hat);
+typedef double (*weightedSumOfSquaredResidualsFunction)(const double* restrict x, size_t length, const double* restrict w, const double* restrict x_hat);
+
+typedef struct {
+  const double* x;
+  size_t length;
+  const double* x_hat;
+  double result;
+  sumOfSquaredResidualsFunction function;
+} SumOfSquaredResidualsData;
+
+typedef struct {
+  const double* x;
+  size_t length;
+  const double* w;
+  const double* x_hat;
+  double result;
+  weightedSumOfSquaredResidualsFunction function;
+} WeightedSumOfSquaredResidualsData;
+
+
+static void computeSumOfSquaredResidualsTask(void* v_data)
+{
+  SumOfSquaredResidualsData* data = (SumOfSquaredResidualsData*) v_data;
+  data->result = data->function(data->x, data->length, data->x_hat);
+}
+
+static void computeWeightedSumOfSquaredResidualsTask(void* v_data)
+{
+  WeightedSumOfSquaredResidualsData* data = (WeightedSumOfSquaredResidualsData*) v_data;
+  data->result = data->function(data->x, data->length, data->w, data->x_hat);
+}
+
+static void setupSumOfSquaredResidualsData(const double* restrict x, size_t length, const double* restrict x_hat,
+                                           SumOfSquaredResidualsData* restrict threadData, size_t numThreads,
+                                           size_t numValuesPerThread, sumOfSquaredResidualsFunction function)
+{
+  size_t i = 0;
+  for ( ; i < numThreads - 1; ++i) {
+    threadData[i].x = x + i * numValuesPerThread;
+    threadData[i].length = numValuesPerThread;
+    threadData[i].x_hat = x_hat + i * numValuesPerThread;
+    threadData[i].function = function;
+  }
+  threadData[i].x = x + i * numValuesPerThread;
+  threadData[i].length = length - i * numValuesPerThread;
+  threadData[i].x_hat = x_hat + i * numValuesPerThread;
+  threadData[i].function = function;
+}
+
+static void setupWeightedSumOfSquaredResidualsData(const double* restrict x, size_t length,
+                                                   const double* restrict w, const double* restrict x_hat,
+                                                   WeightedSumOfSquaredResidualsData* restrict threadData, size_t numThreads,
+                                                   size_t numValuesPerThread, weightedSumOfSquaredResidualsFunction function)
+{
+  size_t i = 0;
+  for ( ; i < numThreads - 1; ++i) {
+    threadData[i].x = x + i * numValuesPerThread;
+    threadData[i].length = numValuesPerThread;
+    threadData[i].w = w + i * numValuesPerThread;
+    threadData[i].x_hat = x_hat + i * numValuesPerThread;
+    threadData[i].function = function;
+  }
+  threadData[i].x = x + i * numValuesPerThread;
+  threadData[i].length = length - i * numValuesPerThread;
+  threadData[i].w = w + i * numValuesPerThread;
+  threadData[i].x_hat = x_hat + i * numValuesPerThread;
+  threadData[i].function = function;
+}
+
+static double aggregateSumOfSquaredResidualsData(const SumOfSquaredResidualsData* threadData, size_t numThreads)
+{
+  double result = threadData[0].result;
+  for (size_t i = 1; i < numThreads; ++i) {
+    result += threadData[i].result;
+  }
+  return result;
+}
+
+static double aggregateWeightedSumOfSquaredResidualsData(const WeightedSumOfSquaredResidualsData* threadData, size_t numThreads)
+{
+  double result = threadData[0].result;
+  for (size_t i = 1; i < numThreads; ++i) result += threadData[i].result;
+  return result;
+}
+
+
+double ext_mt_computeSumOfSquaredResiduals(ext_mt_manager_t restrict threadManager, const double* restrict x, size_t length,
+                                       const double* restrict x_hat)
+{
+  size_t numThreads, numValuesPerThread;
+  ext_mt_getNumThreadsForJob(threadManager, length, SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread);
+  
+  if (numThreads <= 1) return ext_computeSumOfSquaredResiduals(x, length, x_hat);
+  
+  SumOfSquaredResidualsData threadData[numThreads];
+  setupSumOfSquaredResidualsData(x, length, x_hat, threadData, numThreads, numValuesPerThread, &ext_computeSumOfSquaredResiduals);
+  
+  void* threadDataPtrs[numThreads];
+  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
+  
+  
+  ext_mt_runTasks(threadManager, &computeSumOfSquaredResidualsTask, threadDataPtrs, numThreads);
+  
+  return aggregateSumOfSquaredResidualsData(threadData, numThreads);
+}
+
+double ext_mt_computeWeightedSumOfSquaredResiduals(ext_mt_manager_t restrict threadManager, const double* restrict x, size_t length,
+                                                   const double* restrict w, const double* restrict x_hat)
+{
+  size_t numThreads, numValuesPerThread;
+  ext_mt_getNumThreadsForJob(threadManager, length, WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD, &numThreads, &numValuesPerThread);
+  
+  if (numThreads <= 1) return ext_computeWeightedSumOfSquaredResiduals(x, length, w, x_hat);
+  
+  WeightedSumOfSquaredResidualsData threadData[numThreads];
+  setupWeightedSumOfSquaredResidualsData(x, length, w, x_hat, threadData, numThreads, numValuesPerThread, &ext_computeWeightedSumOfSquaredResiduals);
+  
+  void* threadDataPtrs[numThreads];
+  for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
+  
+  
+  ext_mt_runTasks(threadManager, &computeWeightedSumOfSquaredResidualsTask, threadDataPtrs, numThreads);
+  
+  return aggregateWeightedSumOfSquaredResidualsData(threadData, numThreads);
 }

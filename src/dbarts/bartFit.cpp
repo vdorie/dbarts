@@ -22,6 +22,7 @@
 #include <external/alloca.h>
 #include <external/io.h>
 #include <external/stats.h>
+#include <external/stats_mt.h>
 #include <external/linearAlgebra.h>
 
 #include <dbarts/results.hpp>
@@ -207,7 +208,7 @@ namespace dbarts {
   {
     return runSampler(control.numBurnIn, control.numSamples);
   }
-  
+    
   Results* BARTFit::runSampler(size_t numBurnIn, size_t numSamples)
   {
     bool stepTaken, isThinningIteration;
@@ -216,6 +217,9 @@ namespace dbarts {
     Results* resultsPointer = new Results(data.numObservations, data.numPredictors,
                                           data.numTestObservations, numSamples);
     Results& results(*resultsPointer);
+    
+    double numEffectiveObservations = 
+      data.weights == NULL ? (double) data.numObservations : ext_sumVectorElements(data.weights, data.numObservations);
     
     
     double* currFits = new double[data.numObservations];
@@ -262,7 +266,7 @@ namespace dbarts {
         
         state.trees[i].setNodeAverages(*this, scratch.treeY);
         
-        /*if (k == 0 && i == 3) {
+        /*if (k == 1 && i <= 1) {
           ext_printf("**before:\n");
           state.trees[i].top.print(*this);
           if (!state.trees[i].top.isBottom()) {
@@ -272,11 +276,11 @@ namespace dbarts {
             for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
             ext_printf("\n");
           }
-        //} */
+        } */
         // ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
-        //if (k == 0 && i == 3) {
-         /* ext_printf("**after:\n");
+        /* if (k == 1 && i <= 3) {
+         ext_printf("**after:\n");
           state.trees[i].top.print(*this);
           if (!state.trees[i].top.isBottom()) {
             ext_printf("  left child obs :\n    ");
@@ -285,7 +289,7 @@ namespace dbarts {
             for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
           }
           ext_printf("\n");
-        //} */
+        } */
         // state.trees[i].top.print(*this);
         
         state.trees[i].getCurrentFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
@@ -305,8 +309,14 @@ namespace dbarts {
         sampleProbitLatentVariables(*this, state.totalFits, const_cast<double*>(scratch.yRescaled));
         // resampleTreeFits(*this);
       } else {
-        double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
-        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(data.numObservations, sumOfSquaredResiduals));
+        double sumOfSquaredResiduals;
+        if (data.weights != NULL) {
+          sumOfSquaredResiduals = ext_mt_computeWeightedSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, data.weights, state.totalFits);
+        } else {
+          sumOfSquaredResiduals = ext_mt_computeSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, state.totalFits);
+        }
+        // double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
+        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(numEffectiveObservations, sumOfSquaredResiduals));
       }
       
       if (!isThinningIteration) {
@@ -381,6 +391,7 @@ namespace {
     ext_printf("\tnumber of training observations: %u\n", data.numObservations);
     ext_printf("\tnumber of test observations: %u\n", data.numTestObservations);
     ext_printf("\tnumber of explanatory variables: %u\n\n", data.numPredictors);
+    if (data.weights != NULL) ext_printf("\tusing observation weights\n");
     
     
     ext_printf("\nCutoff rules c in x<=c vs x>c\n");

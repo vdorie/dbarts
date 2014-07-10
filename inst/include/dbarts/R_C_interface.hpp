@@ -28,6 +28,8 @@ extern "C" {
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);
   void dbarts_setOffset(dbarts::BARTFit* fit, const double* newOffset);
   void dbarts_setPredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t predictorColumn);
+  void dbarts_setTestPredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t predictorColumn);
+  void dbarts_setTestPredictors(dbarts::BARTFit* fit, const double* newPredictors, std::size_t numTestObservations);
   
   dbarts::CGMPrior* dbarts_createCGMPrior();
   dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power);

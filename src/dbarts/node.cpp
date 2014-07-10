@@ -632,7 +632,7 @@ namespace dbarts {
     leftChild->setAverages(fit, y);
     p.rightChild->setAverages(fit, y);
   }
-  
+
   double Node::computeVariance(const BARTFit& fit, const double* y) const
   {
     if (isTop()) {
