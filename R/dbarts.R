@@ -154,6 +154,29 @@ dbartsSampler <-
 
                   samples
                 },
+                copy = function(shallow = FALSE)
+                {
+                  newData <- data
+                  if (!shallow) {
+                    newData@x <- newData@x + 0
+                    if (!is.null(data@x.test)) newData@x.test <- newData@x.test + 0
+                  }
+                  dupe <- do.call(dbartsSampler$new, list(control, model, newData))
+
+                  if (!is.null(state)) {
+                    newState <- state
+                    newState@fit.tree <- newState@fit.tree + 0
+                    newState@fit.total <- newState@fit.total + 0
+                    if (!is.null(data@x.test)) newState@fit.test <- newState@fit.test + 0
+                    newState@sigma <- newState@sigma + 0
+                    newState@runningTime <- newState@runningTime + 0
+                    newState@trees <- paste0(newState@trees, "")
+
+                    dupe$setState(newState)
+                  }
+
+                  dupe
+                },    
                 show = function() {
                   'Pretty prints the object.'
                   
@@ -280,6 +303,25 @@ dbartsSampler <-
                   }
                   
                   pointer
+                },
+                setState = function(newState) {
+                  'Sets the internal state from a cache.'
+                  if (!is(newState, "dbartsState")) stop("'state' must inherit from dbartsState")
+                  
+                  if (.Call("dbarts_isValidPointer", pointer) == FALSE) {
+                    oldVerbose <- control@verbose
+                    control@verbose <<- FALSE
+                    pointer <<- .Call("dbarts_create", control, model, data)
+                    if (control@verbose != oldVerbose) {
+                      control@verbose <<- oldVerbose
+                      .Call("dbarts_setControl", pointer, control)
+                    }
+                  }
+                  if (!is.null(newState)) {
+                    state <<- .Call("dbarts_restoreState", pointer, newState)
+                  }
+
+                  invisible(NULL)
                 },
                 storeState = function(ptr = getPointer()) {
                   'Updates the cached internal state used for saving/loading.'

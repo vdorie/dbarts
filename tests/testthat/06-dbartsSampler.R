@@ -50,6 +50,32 @@ test_that("dbarts sampler updates correctly", {
   expect_equal(sampler$data@x.test, as.matrix(test))
 })
 
+test_that("dbarts sampler shallow/deep copies", {
+  train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
+  test <- data.frame(x = testData$x, z = 1 - testData$z)
+  
+  control <- dbartsControl(updateState = FALSE, verbose = FALSE,
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+  sampler <- dbarts(y ~ x + z, train, test, control = control)
+
+  shallowCopy <- sampler$copy(TRUE)
+
+  n <- testData$n
+  
+  sampler$setPredictor(numeric(n), 2)
+  expect_equal(sampler$data@x, shallowCopy$data@x)
+  
+  rm(shallowCopy)
+  gc(verbose = FALSE)
+
+  deepCopy <- sampler$copy(FALSE)
+
+  sampler$setPredictor(z, 2)
+  expect_false(all(sampler$data@x[,2] == deepCopy$data@x[,2]))
+})
+  
+  
+
 test_that("dbarts sampler runs", {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
   test <- data.frame(x = testData$x, z = 1 - testData$z)
