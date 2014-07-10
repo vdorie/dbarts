@@ -58,11 +58,11 @@ namespace {
   
   void fitFinalizer(SEXP fitExpr)
   {
-#ifndef THREAD_SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     Rprintf("finalizing ");
 #endif
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-#ifndef THREAD_SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     Rprintf("%p\n", fit);
 #endif
     if (fit == NULL) return;
@@ -373,7 +373,7 @@ namespace {
     for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
       SEXP fitExpr = *it;
       BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-#ifndef THREAD_SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
       Rprintf("package finalizing %p\n", fit);
 #endif
       
@@ -896,7 +896,7 @@ namespace {
   }
   
   void deleteFit(BARTFit* fit) {
-#ifndef THREAD_SAFE_UNLOAD
+#ifdef THREAD_SAFE_UNLOAD
     Rprintf("deleting %p\n", fit);
 #endif
     if (fit == NULL) return;

@@ -1,5 +1,3 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"))
-
 context("dbartsControl")
 
 test_that("logical arguments are identified and 'bounded'", {
@@ -47,4 +45,17 @@ test_that("integer arguments are identified and bounded", {
   expect_error(dbartsControl(n.cuts = "not-an-integer"))
   expect_error(dbartsControl(n.cuts = NA_integer_))
   expect_error(dbartsControl(n.cuts = -1L))
+})
+
+source(system.file("common", "friedmanData.R", package = "dbarts"))
+
+test_that("control argument works", {
+  n.samples <- 500L
+  n.trees <- 50L
+  control <- dbartsControl(n.samples = n.samples, verbose = TRUE, n.trees = n.trees)
+  sampler <- dbarts(y ~ x, testData, control = control)
+
+  expect_equal(sampler$control@n.trees, n.trees)
+  expect_equal(sampler$control@verbose, TRUE)
+  expect_equal(sampler$control@n.samples, n.samples)
 })

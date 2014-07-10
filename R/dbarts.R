@@ -60,7 +60,7 @@ validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, s
              stop("'n.samples' argument to dbarts must be coerceable to integer type"))
     if (n.samples <= 0L) return("'n.samples' argument to dbarts must be a positive integer")
     envir$control@n.samples <- n.samples
-  } else {
+  } else if (controlIsMissing || is.na(control@n.samples)) {
     envir$control@n.samples <- formals(dbarts)[["n.samples"]]
   }
 
