@@ -39,5 +39,8 @@
   	For \code{setTestPredictor} only, if missing implies that \code{x} is to replace the entire test predictor matrix.}
 }
 \details{
-  Huzzah!
+  A \code{dbartsSampler} is a \dQuote{mutable} object which contains information pertaining to
+  fitting a Bayesian additive regression tree model. The sampler is first created and then,
+  in a separate instruction, run or modified. In this way, MCMC samplers can be constructed
+  with BART components filling arbitrary roles.
 }

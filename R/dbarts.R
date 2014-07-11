@@ -2,8 +2,6 @@ setMethod("initialize", "dbartsControl",
           function(.Object, ...)
 {
   .Object <- callNextMethod()
-  ## keep around but sorta hide
-##  attr(.Object, "n.cuts") <- as.integer(n.cuts)
 
   validObject(.Object)
   .Object
@@ -83,8 +81,8 @@ dbarts <- function(formula, data, test, subset, weights, offset,
   validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
   eval(validateCall, parent.frame(1L), asNamespace("dbarts"))
-  
-  if (!is.symbol(control@call[[1]])) control@call <- matchedCall
+
+  if (control@call[[1]] != call("NA")[[1]]) control@call <- matchedCall
   control@verbose <- verbose
 
   parseDataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(parseData), "formula", "data", "test", "subset", "weights", "offset")
@@ -161,7 +159,7 @@ dbartsSampler <-
                     newData@x <- newData@x + 0
                     if (!is.null(data@x.test)) newData@x.test <- newData@x.test + 0
                   }
-                  dupe <- do.call(dbartsSampler$new, list(control, model, newData))
+                  dupe <- dbartsSampler$new(control, model, newData)
 
                   if (!is.null(state)) {
                     newState <- state
@@ -185,40 +183,37 @@ dbartsSampler <-
                   writeLines(deparse(control@call))
                   cat("\n")
                   
-                  if (FALSE) {
-                    xDisplay <- NULL
-                    stringConnection <- textConnection("xDisplay", "w", local = TRUE)
-                    sink(stringConnection)
+                  ##xDisplay <- NULL
+                  ##stringConnection <- textConnection("xDisplay", "w", local = TRUE)
+                  ##sink(stringConnection)
                     
-                    cat("  x:")
-                    if (!is.null(colnames(data@x))) {
-                      for (i in 1:min(ncol(data@x), 10)) cat(sprintf(" %8.8s", colnames(data@x)[i]))
-                      if (ncol(data@x) > 10) cat(" ...")
-                      cat("\n")
-                      for (i in 1:min(nrow(data@x), 3)) {
-                        cat("    ")
-                        for (j in 1:min(ncol(data@x), 10)) cat(sprintf("     %4.4s", data@x[i,j]))
-                        cat("\n")
-                      }
-                    }
-                    sink()
-                    close(stringConnection)
+                  ##cat("  x:")
+                  ##if (!is.null(colnames(data@x))) {
+                  ##  for (i in 1:min(ncol(data@x), 10)) cat(sprintf(" %8.8s", colnames(data@x)[i]))
+                  ##  if (ncol(data@x) > 10) cat(" ...")
+                  ##  cat("\n")
+                  ##  for (i in 1:min(nrow(data@x), 3)) {
+                  ##    cat("    ")
+                  ##    for (j in 1:min(ncol(data@x), 10)) cat(sprintf("     %4.4s", data@x[i,j]))
+                  ##    cat("\n")
+                  ##  }
+                  ##}
+                  ##sink()
+                  ##close(stringConnection)
                     
-                    writeLines(xDisplay)
-                  }
+                  ##writeLines(xDisplay)
                   
                 },
-                setControl = function(control) {
+                setControl = function(newControl) {
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'
-                  if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl.")
+                  
+                  if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl.")
 
-                  oldCall <- .self$control@call
+                  newControl@binary <- control@binary
+                  newControl@call   <- control@call
                   
                   ptr <- getPointer()
-                  control <<- control
-                  uniqueResponses <- unique(data@y)
-                  if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <<- TRUE
-                  control@call <<- oldCall
+                  control <<- newControl
                   .Call("dbarts_setControl", ptr, control)
                   
                   invisible(NULL)

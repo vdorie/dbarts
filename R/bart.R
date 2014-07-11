@@ -1,4 +1,4 @@
-packageBartResults <- function(fit, samples, burnInSigma)
+packageBartResults <- function(fit, samples, burnInSigma = NULL)
 {
   responseIsBinary <- fit$control@binary
 

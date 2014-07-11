@@ -1,5 +1,5 @@
 ## create the contents to be used in partial dependence plots
-pdbart = function (
+pdbart <- function (
    x.train, y.train,
    xind = seq_len(ncol(x.train)),
    levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
@@ -56,7 +56,7 @@ pdbart = function (
    return(retval)
 }
 
-pd2bart = function (
+pd2bart <- function (
    x.train, y.train,
    xind = c(1, 2),
    levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),

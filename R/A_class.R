@@ -5,7 +5,7 @@ setClass("dbartsCGMPrior", contains = "dbartsTreePrior",
          slots = list(power = "numeric", base = "numeric"),
          validity = function(object) {
            if (object@power <= 0.0) return("'power' must be positive")
-           if (object@base <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1)")
+           if (object@base  <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1)")
          })
 
 setClass("dbartsNodePrior")
@@ -51,7 +51,8 @@ setClass("dbartsControl",
               printEvery       = 100L,
               printCutoffs     = 0L,
               updateState      = TRUE,
-              call             = quote(quote(NA()))),
+              call = quote(call("NA"))),
+##              call             = quote(quote(NA()))),
          validity = function(object) {
            if (is.na(object@verbose))          return("'verbose' must be TRUE/FALSE")
            if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE")
