@@ -2,7 +2,7 @@
 #define DBARTS_CONTROL_HPP
 
 #include <cstddef> // size_t
-#include "cstdint" // int types
+#include "cstdint.hpp" // int types
 
 namespace dbarts {
   struct BARTFit;

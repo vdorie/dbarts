@@ -1,5 +1,5 @@
 Package: dbarts
-Version: 0.8
+Version: 0.8-0
 Date: $Date$
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Author: Hugh Chipman <hugh.chipman@gmail.com>, Robert McCulloch <robert.mcculloch1@gmail.com>, Vincent Dorie <vjd4@nyu.edu>

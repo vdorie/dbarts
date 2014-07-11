@@ -128,7 +128,7 @@ namespace {
     
     int j = INTEGER(jExpr)[0] - 1;
     
-    if (j < 0 || j >= fit->data.numPredictors) error("Column is out of range.");
+    if (j < 0 || j >= (int) fit->data.numPredictors) error("Column is out of range.");
     
     fit->setPredictor(REAL(x), (size_t) j);
     
@@ -149,7 +149,7 @@ namespace {
     
     int j = INTEGER(jExpr)[0] - 1;
     
-    if (j < 0 || j >= fit->data.numPredictors) error("Column is out of range.");
+    if (j < 0 || j >= (int) fit->data.numPredictors) error("Column is out of range.");
     
     fit->setTestPredictor(REAL(x_test), (size_t) j);
     
