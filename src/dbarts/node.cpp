@@ -658,7 +658,7 @@ namespace dbarts {
   }
   
   // these could potentially be multithreaded, but the gains are probably minimal
-  void Node::setPredictions(double* restrict y_hat, double prediction) const
+  void Node::setPredictions(double* y_hat, double prediction) const
   {
     if (isTop()) {
       ext_setVectorToConstant(y_hat, getNumObservations(), prediction);
