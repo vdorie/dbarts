@@ -63,6 +63,26 @@ void ext_setVectorToConstant(double* x, size_t length, double alpha)
   }
 }
 
+void ext_setIndexedVectorToConstant(double* restrict x, const size_t* restrict indices, size_t length, double alpha)
+{
+  if (length == 0) return;
+  
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for (size_t i = 0; i < lengthMod5; ++i) x[indices[i]] = alpha;
+    if (length < 5) return;
+  }
+  
+  for (size_t i = lengthMod5; i < length; i += 5) {
+    x[indices[i]]     = alpha;
+    x[indices[i + 1]] = alpha;
+    x[indices[i + 2]] = alpha;
+    x[indices[i + 3]] = alpha;
+    x[indices[i + 4]] = alpha;
+  }
+}
+
 void ext_scalarMultiplyVectorInPlace(double* x, size_t length, double alpha)
 {
   if (length == 0) return;

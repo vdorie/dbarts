@@ -15,6 +15,7 @@ extern "C" {
   
   // x: = alpha
   void ext_setVectorToConstant(double* x, ext_size_t length, double alpha);
+  void ext_setIndexedVectorToConstant(double* restrict x, const ext_size_t* restrict indices, ext_size_t length, double alpha);
   
   // x := alpha * x
   void ext_scalarMultiplyVectorInPlace(double* x, ext_size_t length, double alpha);

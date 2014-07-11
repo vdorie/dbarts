@@ -1,7 +1,5 @@
-v0.8 : initial public release
-  documentation
-  
 v0.9 : stuff to add
+  fix crappy description
   categorical variable detection/use
     cleanup old array of bools vs. bits in a uint
     check that using values of uints hiding w/in doubles makes sense

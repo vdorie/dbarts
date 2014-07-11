@@ -657,30 +657,15 @@ namespace dbarts {
     return endNodePrior.drawFromPosterior(getAverage(), getNumEffectiveObservations(), residualVariance);
   }
   
-  void Node::setPredictions(double* restrict y_hat, double prediction) const restrict
+  // these could potentially be multithreaded, but the gains are probably minimal
+  void Node::setPredictions(double* restrict y_hat, double prediction) const
   {
-    size_t numObservations = getNumObservations();
-    
     if (isTop()) {
-      ext_setVectorToConstant(y_hat, numObservations, prediction);
+      ext_setVectorToConstant(y_hat, getNumObservations(), prediction);
       return;
     }
     
-    size_t i = 0;
-    size_t lengthMod5 = numObservations % 5;
-    
-    if (lengthMod5 != 0) {
-      for ( ; i < lengthMod5; ++i) y_hat[observationIndices[i]] = prediction;
-      if (numObservations < 5) return;
-    }
-    
-    for ( ; i < numObservations; i += 5) {
-      y_hat[observationIndices[i]]     = prediction;
-      y_hat[observationIndices[i + 1]] = prediction;
-      y_hat[observationIndices[i + 2]] = prediction;
-      y_hat[observationIndices[i + 3]] = prediction;
-      y_hat[observationIndices[i + 4]] = prediction;
-    }
+    ext_setIndexedVectorToConstant(y_hat, observationIndices, getNumObservations(), prediction);
   }
   
   size_t Node::getDepth() const

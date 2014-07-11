@@ -4,7 +4,18 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#ifdef HAVE_SNPRINTF
 #include <cstdio>
+#else
+extern "C" {
+#  include <stdio.h>
+}
+namespace std {
+  using ::snprintf;
+}
+#endif
+
+#include <external/io.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>
@@ -36,13 +47,13 @@ namespace {
     
     void writeInt(int32_t i) {
       char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
+      int bytesWritten = std::snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
       writeString(intBuffer, bytesWritten);
     }
     
     void writeUInt(uint32_t u) {
       char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
+      int bytesWritten = std::snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
       writeString(intBuffer, bytesWritten);
     }
     
@@ -70,10 +81,7 @@ namespace {
       buffer = temp;
     }
   };
-  
 }
-
-#include <external/io.h>
 
 namespace {
   using namespace dbarts;
@@ -91,28 +99,28 @@ namespace {
       ++pos;
     }
     
-    if (pos == INT_BUFFER_SIZE) error("Unable to parse tree string: expected integer.");
+    if (pos == INT_BUFFER_SIZE) ext_throwError("Unable to parse tree string: expected integer.");
     buffer[pos++] = '\0';
     
     
     errno = 0;
     node.p.rule.variableIndex = strtol(buffer, NULL, 10);
     if (node.p.rule.variableIndex == 0 && errno != 0)
-      error("Unable to parse tree string: %s", strerror(errno));
+      ext_throwError("Unable to parse tree string: %s", strerror(errno));
     
     size_t bufferPos = 0;
     while (treeString[pos] != ' ' && bufferPos < INT_BUFFER_SIZE) {
       buffer[bufferPos++] = treeString[pos++];
     }
     
-    if (pos == INT_BUFFER_SIZE) error("Unable to parse tree string: expected integer.");
+    if (pos == INT_BUFFER_SIZE) ext_throwError("Unable to parse tree string: expected integer.");
     buffer[bufferPos++] = '\0';
     ++pos;
     
     errno = 0;
     node.p.rule.splitIndex = strtol(buffer, NULL, 10);
     if (node.p.rule.splitIndex == 0 && errno != 0)
-      error("Unable to parse tree string: %s", strerror(errno));
+      ext_throwError("Unable to parse tree string: %s", strerror(errno));
     
     node.leftChild  = new Node(node, numPredictors);
     node.p.rightChild = new Node(node, numPredictors);

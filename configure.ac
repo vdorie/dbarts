@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(dbarts, 0.8, vjd4@nyu.edu)
+AC_INIT(dbarts, 0.8.1, vjd4@nyu.edu)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])
@@ -76,6 +76,10 @@ AC_TYPE_UINT64_T
 # Checks for library functions.
 AC_CHECK_FUNCS([gettimeofday])
 AC_FUNC_ALLOCA
+
+AC_LANG_PUSH(C++)
+AC_CHECK_FUNCS([snprintf])
+AC_LANG_POP
 
 
 AC_CONFIG_FILES([src/Makevars])

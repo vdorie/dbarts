@@ -27,18 +27,18 @@ $(INCLUDE_DIR)/external/thread.h : $(INCLUDE_DIR)/external/stddef.h
 
 
 linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/external/linearAlgebra.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
 
 io.o : io.c $(INCLUDE_DIR)/external/io.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c io.c -o io.o
 
 moments.o : moments.c $(INCLUDE_DIR)/external/stats.h $(INCLUDE_DIR)/external/stats_mt.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
 
 stats.o : stats.c $(INCLUDE_DIR)/external/stats.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c stats.c -o stats.o
 
 thread.o : thread.c pthread.c $(INCLUDE_DIR)/external/thread.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c thread.c -o thread.o
 
 pthread.c :
