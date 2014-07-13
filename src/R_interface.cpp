@@ -55,8 +55,10 @@ namespace {
   pthread_mutex_t fitMutex;
 #endif
 
-  
-  void fitFinalizer(SEXP fitExpr)
+}
+
+extern "C" {  
+  static void fitFinalizer(SEXP fitExpr)
   {
 #ifdef THREAD_SAFE_UNLOAD
     Rprintf("finalizing ");
@@ -86,7 +88,9 @@ namespace {
     
     R_ClearExternalPtr(fitExpr);
   }
-  
+}
+
+namespace {
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

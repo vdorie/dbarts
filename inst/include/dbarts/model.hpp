@@ -130,7 +130,7 @@ namespace dbarts {
     virtual ~ChiSquaredPrior() { }
     
     virtual double getScale() const { return scale; }
-    virtual void setScale(double scale) { this->scale = scale; }
+    virtual void setScale(double newScale) { scale = newScale; }
     
     virtual double drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const;
   };

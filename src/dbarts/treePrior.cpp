@@ -49,7 +49,7 @@ namespace dbarts {
   
   double CGMPrior::computeSplitVariableLogProbability(const BARTFit& fit, const Node& node) const
   {
-    return -std::log(node.getNumVariablesAvailableForSplit(fit.data.numPredictors));
+    return -std::log((double) node.getNumVariablesAvailableForSplit(fit.data.numPredictors));
   }
   
   double CGMPrior::computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const

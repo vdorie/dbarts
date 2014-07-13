@@ -79,6 +79,21 @@ AC_FUNC_ALLOCA
 
 AC_LANG_PUSH(C++)
 AC_CHECK_FUNCS([snprintf])
+
+## check that snprintf is in namespace std
+if test "$ac_cv_func_snprintf" == yes
+then
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+      [[#include <cstdio>]],
+      [[std::snprintf;]])
+  ], [
+      AC_MSG_RESULT([checking for std::snprintf... yes])
+      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 1, [Define to 1 if `snprintf' is defined in namespace `std'.])
+  ], [
+      AC_MSG_RESULT([checking for std::snprintf... no])
+##      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 0, [Define to 1 if `snprintf' is defined in namespace `std'.])
+  ])
+fi
 AC_LANG_POP
 
 

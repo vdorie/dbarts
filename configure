@@ -6196,6 +6196,65 @@ _ACEOF
 fi
 done
 
+
+## check that snprintf is in namespace std
+if test "$ac_cv_func_snprintf" == yes
+then
+  cat >conftest.$ac_ext <<_ACEOF
+/* confdefs.h.  */
+_ACEOF
+cat confdefs.h >>conftest.$ac_ext
+cat >>conftest.$ac_ext <<_ACEOF
+/* end confdefs.h.  */
+#include <cstdio>
+int
+main ()
+{
+std::snprintf;
+  ;
+  return 0;
+}
+
+_ACEOF
+rm -f conftest.$ac_objext
+if { (ac_try="$ac_compile"
+case "(($ac_try" in
+  *\"* | *\`* | *\\*) ac_try_echo=\$ac_try;;
+  *) ac_try_echo=$ac_try;;
+esac
+eval "echo \"\$as_me:$LINENO: $ac_try_echo\"") >&5
+  (eval "$ac_compile") 2>conftest.er1
+  ac_status=$?
+  grep -v '^ *+' conftest.er1 >conftest.err
+  rm -f conftest.er1
+  cat conftest.err >&5
+  echo "$as_me:$LINENO: \$? = $ac_status" >&5
+  (exit $ac_status); } && {
+	 test -z "$ac_cxx_werror_flag" ||
+	 test ! -s conftest.err
+       } && test -s conftest.$ac_objext; then
+
+      { echo "$as_me:$LINENO: result: checking for std::snprintf... yes" >&5
+echo "${ECHO_T}checking for std::snprintf... yes" >&6; }
+
+cat >>confdefs.h <<_ACEOF
+#define HAVE_STD_SNPRINTF 1
+_ACEOF
+
+
+else
+  echo "$as_me: failed program was:" >&5
+sed 's/^/| /' conftest.$ac_ext >&5
+
+
+      { echo "$as_me:$LINENO: result: checking for std::snprintf... no" >&5
+echo "${ECHO_T}checking for std::snprintf... no" >&6; }
+##      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 0, [Define to 1 if `snprintf' is defined in namespace `std'.])
+
+fi
+
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'

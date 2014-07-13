@@ -176,7 +176,7 @@ namespace dbarts {
 
     state.runningTime = 0.0;
 
-    if (control.verbose) printInitialSummary(*this);
+    if (this->control.verbose) printInitialSummary(*this);
   }
   
   BARTFit::~BARTFit()

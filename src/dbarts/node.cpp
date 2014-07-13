@@ -114,7 +114,7 @@ namespace dbarts {
     variablesAvailableForSplit(NULL), observationIndices(NULL), numObservations(0)
   {
     variablesAvailableForSplit = new bool[numPredictors];
-    std::memcpy(variablesAvailableForSplit, parent.variablesAvailableForSplit, sizeof(bool) * numPredictors);
+    std::memcpy(variablesAvailableForSplit, this->parent->variablesAvailableForSplit, sizeof(bool) * numPredictors);
   }
   
   Node::~Node()
@@ -604,9 +604,7 @@ namespace dbarts {
   void Node::setAverage(const BARTFit& fit, const double* y)
   {
     leftChild = NULL;
-    
-    size_t numObservations = getNumObservations();
-    
+        
     if (isTop()) {
       if (fit.data.weights == NULL) {
         m.average = ext_mt_computeMean(fit.threadManager, y, numObservations);

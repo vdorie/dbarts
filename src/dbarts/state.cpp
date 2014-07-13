@@ -5,14 +5,15 @@
 #include <cstdlib>
 #include <cstring>
 #ifdef HAVE_SNPRINTF
-#include <cstdio>
+#  include <cstdio>
 #else
 extern "C" {
 #  include <stdio.h>
 }
-namespace std {
-  using ::snprintf;
-}
+#endif
+
+#ifdef HAVE_STD_SNPRINTF
+using std::snprintf;
 #endif
 
 #include <external/io.h>
@@ -47,13 +48,13 @@ namespace {
     
     void writeInt(int32_t i) {
       char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = std::snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
+      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
       writeString(intBuffer, bytesWritten);
     }
     
     void writeUInt(uint32_t u) {
       char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = std::snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
+      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
       writeString(intBuffer, bytesWritten);
     }
     
