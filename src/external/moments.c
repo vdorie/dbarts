@@ -2005,7 +2005,7 @@ static void setupIndexedWeightedMeanData(IndexedWeightedMeanData* restrict threa
   threadData[i].function = function;
 }
 
-static double aggregateWeightedMeanResults(const WeightedMeanData* restrict threadData, size_t numThreads, restrict double* nPtr)
+static double aggregateWeightedMeanResults(const WeightedMeanData* restrict threadData, size_t numThreads, double* restrict nPtr)
 {
   double result = threadData[0].result;
   double n      = threadData[0].n;
@@ -2017,7 +2017,7 @@ static double aggregateWeightedMeanResults(const WeightedMeanData* restrict thre
   return result;
 }
 
-static double aggregateIndexedWeightedMeanResults(const IndexedWeightedMeanData* restrict threadData, size_t numThreads, restrict double* nPtr)
+static double aggregateIndexedWeightedMeanResults(const IndexedWeightedMeanData* restrict threadData, size_t numThreads, double* restrict nPtr)
 {
   double result = threadData[0].result;
   double n      = threadData[0].n;
