@@ -91,7 +91,7 @@ namespace dbarts {
   {
     size_t numGoodVariables = node.getNumVariablesAvailableForSplit(fit.data.numPredictors);
     
-    size_t variableNumber = (size_t) ext_simulateIntegerUniformInRange(0, numGoodVariables);
+    size_t variableNumber = ext_simulateUnsignedIntegerUniformInRange(0, numGoodVariables);
     
     return findIndexOfIthPositiveValue(node.variablesAvailableForSplit, fit.data.numPredictors, variableNumber);
   }
@@ -125,7 +125,7 @@ namespace dbarts {
       sendCategoriesRight[0] = true; // the first value always goes right so that at least one does
       
       uint64_t categoryIndex = (uint64_t) ext_simulateIntegerUniformInRange(0, (int64_t) (std::pow(2.0, (double) numCategoriesCanReachNode - 1.0) - 1.0));
-      setBinaryRepresentation(numCategoriesCanReachNode - 1, categoryIndex, sendCategoriesRight + 1);
+      setBinaryRepresentation(numCategoriesCanReachNode - 1, (uint32_t) categoryIndex, sendCategoriesRight + 1);
       
       uint32_t sendIndex = 0;
       for (uint32_t i = 0; i < numCategories; ++i) {

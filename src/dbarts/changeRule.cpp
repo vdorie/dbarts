@@ -79,7 +79,7 @@ namespace dbarts {
     
     // randomly choose a notBottom node = nodeToChange
     //u=ran1(&idum);
-    size_t nodeIndex = (size_t) ext_simulateIntegerUniformInRange(0, numNotBottomNodes);
+    size_t nodeIndex = (size_t) ext_simulateIntegerUniformInRange(0, (int64_t) numNotBottomNodes);
     Node& nodeToChange(*notBottomNodes[nodeIndex]);
     
     //given the node, choose a new variable for the new rule
@@ -95,7 +95,7 @@ namespace dbarts {
       bool* categoryCombinationsAreGood = ext_stackAllocate(numCategoryCombinations, bool);
       
       findGoodCategoricalRules(fit, nodeToChange, newVariableIndex, categoryCombinationsAreGood, &firstGoodCategory);
-      uint32_t numGoodRules = countTrueValues(categoryCombinationsAreGood, numCategoryCombinations);
+      uint64_t numGoodRules = countTrueValues(categoryCombinationsAreGood, numCategoryCombinations);
       
       //if there are any good cat rules
       if (numGoodRules > 0) {
@@ -120,13 +120,13 @@ namespace dbarts {
         nodeToChange.p.rule.variableIndex = newVariableIndex;
         nodeToChange.p.rule.categoryDirections = 0u;
         for (size_t j = 0; j < firstGoodCategory; ++j) {
-          if (sel[j] == true) nodeToChange.p.rule.setCategoryGoesRight(j);
-          else nodeToChange.p.rule.setCategoryGoesLeft(j);
+          if (sel[j] == true) nodeToChange.p.rule.setCategoryGoesRight((uint32_t) j);
+          else nodeToChange.p.rule.setCategoryGoesLeft((uint32_t) j);
         }
         nodeToChange.p.rule.setCategoryGoesRight(firstGoodCategory);
         for (size_t j = firstGoodCategory + 1; j < numCategories; ++j) {
-          if (sel[j - 1] == true) nodeToChange.p.rule.setCategoryGoesRight(j);
-          else nodeToChange.p.rule.setCategoryGoesLeft(j);
+          if (sel[j - 1] == true) nodeToChange.p.rule.setCategoryGoesRight((uint32_t)  j);
+          else nodeToChange.p.rule.setCategoryGoesLeft((uint32_t) j);
         }
         
         // fix data at nodes below nodeToChange given new rule
@@ -227,7 +227,7 @@ namespace dbarts {
     } else {
       if (curr->p.rule.variableIndex == variableIndex) {
 //        if (curr->rule.categoryDirections[categoryIndex] == BART_CAT_RIGHT) {
-        if (curr->p.rule.categoryGoesRight(categoryIndex)) {
+        if (curr->p.rule.categoryGoesRight((uint32_t) categoryIndex)) {
           findReachableBottomNodesForCategory(curr->getRightChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);
         } else {
           findReachableBottomNodesForCategory(curr->getLeftChild(), variableIndex, categoryIndex, bottomVector, nodesAreReachable);

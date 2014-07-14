@@ -1335,7 +1335,7 @@ static double mt_computeIndexedUnrolledMean(ext_mt_manager_t restrict threadMana
 static double mt_computeIndexedOnlineMean(ext_mt_manager_t restrict threadManager, const double* restrict x, const size_t* restrict indices, size_t length)
 {
   size_t numThreads, numValuesPerThread;
-  ext_mt_getNumThreadsForJob(threadManager, length, ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD,
+  ext_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_MEAN_MIN_NUM_VALUES_PER_THREAD,
                              &numThreads, &numValuesPerThread);
   
   if (numThreads <= 1) return computeIndexedOnlineMean(x, indices, length);
@@ -1381,7 +1381,7 @@ static double mt_computeOnlineUnrolledMean(ext_mt_manager_t restrict threadManag
 static double mt_computeIndexedOnlineUnrolledMean(ext_mt_manager_t restrict threadManager, const double* restrict x, const size_t* restrict indices, size_t length)
 {
   size_t numThreads, numValuesPerThread;
-  ext_mt_getNumThreadsForJob(threadManager, length, ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+  ext_mt_getNumThreadsForJob(threadManager, length, INDEXED_ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
                            &numThreads, &numValuesPerThread);
   
   if (numThreads <= 1) return computeIndexedOnlineUnrolledMean(x, indices, length);

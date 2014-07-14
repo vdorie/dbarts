@@ -259,7 +259,7 @@ namespace dbarts {
       return NULL;
     }
     
-    size_t index = (size_t) ext_simulateIntegerUniformInRange(0, numNodesWhoseChildrenAreBottom);
+    size_t index = (size_t) ext_simulateIntegerUniformInRange(0, (int64_t) numNodesWhoseChildrenAreBottom);
     *nodeSelectionProbability = 1.0 / (double) numNodesWhoseChildrenAreBottom;
     
     return nodesWhoseChildrenAreBottom[index];

@@ -566,7 +566,7 @@ namespace {
       if (numCuts < numCutsPerVariable) ext_throwError("Number of induced cut points in new predictor less than previous: old splits would be invalid.");
       if (numCuts > numCutsPerVariable) ext_issueWarning("Number of induced cut points in new predictor greater than previous: ignoring extra quantiles.");
     } else {
-      numCutsPerVariable = numCuts;
+      numCutsPerVariable = (uint32_t) numCuts;
       cutPoints = new double[numCuts];
     }
     

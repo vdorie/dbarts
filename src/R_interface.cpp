@@ -351,8 +351,8 @@ namespace {
     SEXP variableCountSamples = VECTOR_ELT(resultExpr, 3);
     dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
     dims = INTEGER(dimsExpr);
-    dims[0] = bartResults->numPredictors;
-    dims[1] = bartResults->numSamples;
+    dims[0] = (int) bartResults->numPredictors;
+    dims[1] = (int) bartResults->numSamples;
     setAttrib(variableCountSamples, R_DimSymbol, dimsExpr);
     int* variableCountStorage = INTEGER(variableCountSamples);
     size_t length = bartResults->getNumVariableCountSamples();
@@ -600,7 +600,7 @@ namespace {
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 1;
     if (i_temp < 0) error("Tree thinning rate must be non-negative.");
-    control.treeThinningRate = (size_t) i_temp;
+    control.treeThinningRate = (uint32_t) i_temp;
     
     
     slotExpr = GET_ATTR(controlExpr, install("printEvery"));
@@ -750,7 +750,7 @@ namespace {
       if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x.test must be a matrix, i.e. have two dimensions.");
       if ((size_t) dims[1] != data.numPredictors) error("Number of columns of x.test and x must be equal.");
       data.X_test = REAL(slotExpr);
-      data.numTestObservations = dims[0];
+      data.numTestObservations = (size_t) dims[0];
     }
     
     slotExpr = GET_ATTR(dataExpr, install("weights"));

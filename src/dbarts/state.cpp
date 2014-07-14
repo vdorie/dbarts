@@ -105,7 +105,7 @@ namespace {
     
     
     errno = 0;
-    node.p.rule.variableIndex = strtol(buffer, NULL, 10);
+    node.p.rule.variableIndex = (int32_t) strtol(buffer, NULL, 10);
     if (node.p.rule.variableIndex == 0 && errno != 0)
       ext_throwError("Unable to parse tree string: %s", strerror(errno));
     
@@ -119,7 +119,7 @@ namespace {
     ++pos;
     
     errno = 0;
-    node.p.rule.splitIndex = strtol(buffer, NULL, 10);
+    node.p.rule.splitIndex = (int32_t) strtol(buffer, NULL, 10);
     if (node.p.rule.splitIndex == 0 && errno != 0)
       ext_throwError("Unable to parse tree string: %s", strerror(errno));
     
