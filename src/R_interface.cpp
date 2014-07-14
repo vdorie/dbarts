@@ -50,7 +50,7 @@ namespace {
     }
   };
   typedef std::set<SEXP, ExternalPointerComparator> PointerSet;
-  PointerSet activeFits;
+  PointerSet* activeFits;
 #ifdef THREAD_SAFE_UNLOAD
   pthread_mutex_t fitMutex;
 #endif
@@ -73,13 +73,13 @@ extern "C" {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
-    if (activeFits.find(fitExpr) == activeFits.end()) {
+    if (activeFits->find(fitExpr) == activeFits->end()) {
 #ifdef THREAD_SAFE_UNLOAD
       pthread_mutex_unlock(&fitMutex);
 #endif
       return;
     }
-    activeFits.erase(fitExpr);
+    activeFits->erase(fitExpr);
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
 #endif
@@ -177,7 +177,7 @@ namespace {
     int* dims = INTEGER(dimsExpr);
     if ((size_t) dims[1] != fit->data.numPredictors) error("Number of columns of x.test and x must be equal.");
     
-    fit->setTestPredictors(REAL(x_test), dims[0]);
+    fit->setTestPredictors(REAL(x_test), (size_t) dims[0]);
     
     return NULL_USER_OBJECT;
   }
@@ -202,7 +202,7 @@ namespace {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
-    if (activeFits.find(fitExpr) != activeFits.end()) {
+    if (activeFits->find(fitExpr) != activeFits->end()) {
 #ifdef THREAD_SAFE_UNLOAD
       pthread_mutex_unlock(&fitMutex);
 #endif
@@ -242,7 +242,7 @@ namespace {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
-    activeFits.insert(result);
+    activeFits->insert(result);
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
 #endif
@@ -318,13 +318,13 @@ namespace {
     int protectCount = 3;
     
     SEXP resultExpr = PROTECT(allocVector(VECSXP, 4));
-    SET_VECTOR_ELT(resultExpr, 0, allocVector(REALSXP, bartResults->getNumSigmaSamples()));
-    SET_VECTOR_ELT(resultExpr, 1, allocVector(REALSXP, bartResults->getNumTrainingSamples()));
+    SET_VECTOR_ELT(resultExpr, 0, allocVector(REALSXP, (int) bartResults->getNumSigmaSamples()));
+    SET_VECTOR_ELT(resultExpr, 1, allocVector(REALSXP, (int) bartResults->getNumTrainingSamples()));
     if (fit->data.numTestObservations > 0)
-      SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, bartResults->getNumTestSamples()));
+      SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, (int) bartResults->getNumTestSamples()));
     else
       SET_VECTOR_ELT(resultExpr, 2, NULL_USER_OBJECT);
-    SET_VECTOR_ELT(resultExpr, 3, allocVector(INTSXP, bartResults->getNumVariableCountSamples()));
+    SET_VECTOR_ELT(resultExpr, 3, allocVector(INTSXP, (int) bartResults->getNumVariableCountSamples()));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
     std::memcpy(REAL(sigmaSamples), (const double*) bartResults->sigmaSamples, bartResults->getNumSigmaSamples() * sizeof(double));
@@ -332,8 +332,8 @@ namespace {
     SEXP trainingSamples = VECTOR_ELT(resultExpr, 1);
     dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
     dims = INTEGER(dimsExpr);
-    dims[0] = bartResults->numObservations;
-    dims[1] = bartResults->numSamples;
+    dims[0] = (int) bartResults->numObservations;
+    dims[1] = (int) bartResults->numSamples;
     setAttrib(trainingSamples, R_DimSymbol, dimsExpr);
     std::memcpy(REAL(trainingSamples), (const double*) bartResults->trainingSamples, bartResults->getNumTrainingSamples() * sizeof(double));
     
@@ -341,8 +341,8 @@ namespace {
       SEXP testSamples = VECTOR_ELT(resultExpr, 2);
       dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
       dims = INTEGER(dimsExpr);
-      dims[0] = bartResults->numTestObservations;
-      dims[1] = bartResults->numSamples;
+      dims[0] = (int) bartResults->numTestObservations;
+      dims[1] = (int) bartResults->numSamples;
       setAttrib(testSamples, R_DimSymbol, dimsExpr);
       std::memcpy(REAL(testSamples), (const double*) bartResults->testSamples, bartResults->getNumTestSamples() * sizeof(double));
       ++protectCount;
@@ -376,7 +376,7 @@ namespace {
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
 #endif
-    for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
+    for (PointerSet::iterator it = activeFits->begin(); it != activeFits->end(); ) {
       SEXP fitExpr = *it;
       BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
 #ifdef THREAD_SAFE_UNLOAD
@@ -386,13 +386,15 @@ namespace {
       deleteFit(fit);
       PointerSet::iterator prev = it;
       ++it;
-      activeFits.erase(prev);
+      activeFits->erase(prev);
       R_ClearExternalPtr(fitExpr);
     }
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
 #endif
+    
+    delete activeFits;
     
     return NULL_USER_OBJECT;
   }
@@ -402,19 +404,17 @@ namespace {
 /*  void R_unload_dbarts(DllInfo* info)
   {
     pthread_mutex_lock(&fitMutex);
-    for (PointerSet::iterator it = activeFits.begin(); it != activeFits.end(); ) {
+    for (PointerSet::iterator it = activeFits->begin(); it != activeFits->end(); ) {
       BARTFit* fit = *it;
       deleteFit(fit);
       PointerSet::iterator prev = it;
       ++it;
-      activeFits.erase(prev);
+      activeFits->erase(prev);
     }
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
   }*/
 
-#define CALLDEF(name, n)  {#name, (DL_FUNC) &name, n}
-  
   R_CallMethodDef R_callMethods[] = {
     { "dbarts_create", (DL_FUNC) &create, 3 },
     { "dbarts_run", (DL_FUNC) &run, 3 },
@@ -480,15 +480,17 @@ extern "C" {
     R_registerRoutines(info, NULL, R_callMethods, NULL, NULL);
     R_useDynamicSymbols(info, FALSE);
     
-#ifdef THREAD_SAFE_UNLOAD
-    pthread_mutex_init(&fitMutex, NULL);
-#endif
-    
     C_CallMethodDef* method = C_callMethods;
     while (method->package != NULL) {
       R_RegisterCCallable(method->package, method->name, method->function);
       ++method;
     }
+    
+#ifdef THREAD_SAFE_UNLOAD
+    pthread_mutex_init(&fitMutex, NULL);
+#endif
+    
+    activeFits = new PointerSet;
   }
 }
 
@@ -720,7 +722,7 @@ namespace {
     if (!isReal(slotExpr)) error("y must be of type real.");
     if (length(slotExpr) == 0) error("Length of y must be greater than 0.");
     data.y = REAL(slotExpr);
-    data.numObservations = length(slotExpr);
+    data.numObservations = (size_t) length(slotExpr);
     
     slotExpr = GET_ATTR(dataExpr, install("x"));
     if (!isReal(slotExpr)) error("x must be of type real.");
@@ -728,7 +730,7 @@ namespace {
     if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x must be a matrix, i.e. have two dimensions.");
     if ((size_t) dims[0] != data.numObservations) error("Number of rows of x and length of y must be equal.");
     data.X = REAL(slotExpr);
-    data.numPredictors = dims[1];
+    data.numPredictors = (size_t) dims[1];
     
     slotExpr = GET_ATTR(dataExpr, install("varTypes"));
     if (!isInteger(slotExpr)) error("Variable types must be of type integer.");
@@ -796,7 +798,7 @@ namespace {
     SEXP result = PROTECT(NEW_OBJECT(MAKE_CLASS("dbartsState")));
     
     SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, (int) (data.numObservations * control.numTrees));
-    SET_DIMS(slotExpr, data.numObservations, control.numTrees);
+    SET_DIMS(slotExpr, (int) data.numObservations, (int) control.numTrees);
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
     slotExpr = ALLOC_SLOT(result, install("fit.total"), REALSXP, (int) data.numObservations);
@@ -819,7 +821,7 @@ namespace {
 
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, i, CREATE_STRING_VECTOR(treeStrings[i]));
+      SET_STRING_ELT(slotExpr, (int) i, CREATE_STRING_VECTOR(treeStrings[i]));
       delete [] treeStrings[i];
     }
     delete [] treeStrings;
@@ -863,7 +865,7 @@ namespace {
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, i, CREATE_STRING_VECTOR(treeStrings[i]));
+      SET_STRING_ELT(slotExpr, (int) i, CREATE_STRING_VECTOR(treeStrings[i]));
       delete [] treeStrings[i];
     }
     delete [] treeStrings;
@@ -894,7 +896,7 @@ namespace {
     slotExpr = GET_ATTR(stateExpr, install("trees"));
     const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);
     for (size_t i = 0; i < control.numTrees; ++i) {
-      treeStrings[i] = CHAR(STRING_ELT(slotExpr, i));
+      treeStrings[i] = CHAR(STRING_ELT(slotExpr, (int) i));
     }
     state.recreateTreesFromStrings(fit, treeStrings);
     

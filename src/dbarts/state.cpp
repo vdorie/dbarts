@@ -49,14 +49,14 @@ namespace {
     void writeInt(int32_t i) {
       char intBuffer[INT_BUFFER_SIZE];
       int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
-      writeString(intBuffer, bytesWritten);
+      writeString(intBuffer, (size_t) bytesWritten);
     }
     
-    void writeUInt(uint32_t u) {
+    /* void writeUInt(uint32_t u) {
       char intBuffer[INT_BUFFER_SIZE];
       int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
-      writeString(intBuffer, bytesWritten);
-    }
+      writeString(intBuffer, (size_t) bytesWritten);
+    } */
     
     void writeNode(const Node& node) {
       if (node.isBottom()) {

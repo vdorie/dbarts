@@ -1,4 +1,4 @@
-#if HAVE_CSTDINT
+#ifdef HAVE_CSTDINT
 #  include <cstdint>
 #else
 #  include <stdint.h>

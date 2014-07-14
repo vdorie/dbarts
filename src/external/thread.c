@@ -105,14 +105,14 @@ int ext_mt_create(ext_mt_manager_t* _manager, size_t numThreads)
   return result;
 }
 
-size_t ext_mt_getThreadId(const ext_mt_manager_t manager)
+/* size_t ext_mt_getThreadId(const ext_mt_manager_t manager)
 {
   Thread nativeThreadId = pthread_self();
   size_t i;
   for (i = 0; i < manager->numThreads; ++i) if (nativeThreadId == manager->threads[i]) break;
   
   return i;
-}
+} */
 
 size_t ext_mt_getNumThreads(const ext_mt_manager_t manager)
 {

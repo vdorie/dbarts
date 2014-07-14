@@ -52,10 +52,10 @@ namespace dbarts {
   }
   
   double ChiSquaredPrior::drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const {
-    uint32_t posteriorDegreesOfFreedom = degreesOfFreedom + numObservations;
+    double posteriorDegreesOfFreedom = degreesOfFreedom + numObservations;
     
-    double posteriorScale = ((double) degreesOfFreedom * scale + sumOfSquaredResiduals);
+    double posteriorScale = degreesOfFreedom * scale + sumOfSquaredResiduals;
     
-    return posteriorScale / ext_simulateChiSquared((double) posteriorDegreesOfFreedom);
+    return posteriorScale / ext_simulateChiSquared(posteriorDegreesOfFreedom);
   }
 }

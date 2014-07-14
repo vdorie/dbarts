@@ -79,7 +79,7 @@ namespace dbarts {
     
     // randomly choose a notBottom node = nodeToChange
     //u=ran1(&idum);
-    int32_t nodeIndex = ext_simulateIntegerUniformInRange(0, numNotBottomNodes);
+    size_t nodeIndex = (size_t) ext_simulateIntegerUniformInRange(0, numNotBottomNodes);
     Node& nodeToChange(*notBottomNodes[nodeIndex]);
     
     //given the node, choose a new variable for the new rule
@@ -172,7 +172,7 @@ namespace dbarts {
       
       // if there are any rules
       if (numSplitVariables > 0) {
-        int32_t newRuleIndex = ext_simulateIntegerUniformInRange(left, right + 1);
+        int32_t newRuleIndex = (int32_t) ext_simulateIntegerUniformInRange(left, right + 1);
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
@@ -244,7 +244,7 @@ namespace dbarts {
   {
     int32_t leftIndex, rightIndex; 
     leftIndex = 0; // left value if you top out
-    rightIndex = fit.scratch.numCutsPerVariable[variableIndex] - 1; // right value if you top out
+    rightIndex = (int32_t) fit.scratch.numCutsPerVariable[variableIndex] - 1; // right value if you top out
     
     int32_t leftMin, leftMax, rightMin, rightMax;
     
@@ -315,7 +315,7 @@ namespace dbarts {
     
     // enumerate through all possible category branches and test them for validity
     for (uint64_t i = 0; i < numCategoryCombinations; ++i) {
-      setBinaryRepresentation(numCategories - 1, i, sel1);
+      setBinaryRepresentation(numCategories - 1, (uint32_t) i, sel1);
       
       for (size_t j = 0; j < *firstGoodCategory; ++j) sel[j] = sel1[j];
       for (size_t j = *firstGoodCategory + 1; j < numCategories; ++j) sel[j] = sel1[j - 1];
