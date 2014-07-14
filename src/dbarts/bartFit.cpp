@@ -192,8 +192,8 @@ namespace dbarts {
     }
     delete [] scratch.cutPoints; scratch.cutPoints = NULL;
     
-    if (state.trees != NULL) for (size_t i = 0; i < control.numTrees; ++i) state.trees[i].~Tree();
-    ::operator delete(state.trees); state.trees = NULL;
+    if (state.trees != NULL) for (size_t i = control.numTrees; i > 0; ) state.trees[--i].~Tree();
+    ::operator delete (state.trees); state.trees = NULL;
     delete [] state.treeIndices; state.treeIndices = NULL;
     
     delete [] state.treeFits; state.treeFits = NULL;
@@ -483,8 +483,13 @@ namespace {
     const double** cutPoints = const_cast<const double**>(scratch.cutPoints);
     for (size_t i = 0; i < data.numPredictors; ++i) cutPoints[i] = NULL;
     
-    state.trees = static_cast<Tree*>(::operator new[] (control.numTrees * sizeof(Tree)));
+    state.trees = static_cast<Tree*>(::operator new (control.numTrees * sizeof(Tree)));
     state.treeIndices = new size_t[data.numObservations * control.numTrees];
+    
+    
+    for (size_t i = 0; i < control.numTrees; ++i) {
+      new (state.trees + i) Tree(state.treeIndices + i * data.numObservations, data.numObservations, data.numPredictors);
+    }
     
     if (control.numThreads > 1 && ext_mt_create(&fit.threadManager, control.numThreads) != 0) {
       ext_printMessage("Unable to multi-thread, defaulting to single.");
@@ -602,10 +607,6 @@ namespace {
     Control& control(fit.control);
     Data& data(fit.data);
     State& state(fit.state);
-    
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      new (state.trees + i) Tree(state.treeIndices + i * data.numObservations, data.numObservations, data.numPredictors);
-    }
     
     size_t length = data.numObservations * control.numTrees;
     state.treeFits = new double[length];

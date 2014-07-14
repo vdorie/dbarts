@@ -367,6 +367,8 @@ namespace {
     
     UNPROTECT(protectCount);
     
+    delete bartResults;
+    
     return(resultExpr);
   }
   
