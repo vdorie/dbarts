@@ -628,14 +628,26 @@ namespace {
     double* z = const_cast<double*>(fit.scratch.yRescaled);
     
     // z = 2.0 * y - 1.0 - offset; so -1 if y == 0 and 1 if y == 1 when offset == 0
+#ifndef MATCH_BAYES_TREE
     ext_setVectorToConstant(z, data.numObservations, -1.0);
     if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
     ext_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
     
-    // shouldn't be used, but will leave at reasonable values
+    // shouldn't be used, but will leave at reasonable values; if anyone cares, should
+    // look at offset var for min/max/range
     scratch.dataScale.min = -1.0;
     scratch.dataScale.max =  1.0;
     scratch.dataScale.range = 2.0;
+#else
+    // BayesTree initialized the latents to be -2 and 0; was probably a bug
+    ext_setVectorToConstant(z, data.numObservations, -2.0);
+    if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
+    ext_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    
+    scratch.dataScale.min = -2.0;
+    scratch.dataScale.max =  0.0;
+    scratch.dataScale.range = 2.0;
+#endif
   }
   
   void rescaleResponse(BARTFit& fit) {
@@ -689,7 +701,18 @@ namespace {
   
   // multithread-this!
   void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* z) {
-    for (size_t i = 0; i < fit.data.numObservations; ++i) {
+    for (size_t i = 0; i < fit.data.numObservations; ++i) {      
+#ifndef MATCH_BAYES_TREE
+      double mean = fits[i];
+      double offset = 0.0;
+      if (fit.data.offset != NULL) offset = fit.data.offset[i];
+      
+      if (fit.data.y[i] > 0.0) {
+        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, offset);
+      } else {
+        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, offset);
+      }
+#else
       double prob;
       
       double mean = fits[i];
@@ -698,11 +721,13 @@ namespace {
       double u = ext_simulateContinuousUniform();
       if (fit.data.y[i] > 0.0) {
         prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
+        z[i] = ext_quantileOfNormal(prob, mean, 1.0);
       } else {
-        prob = u * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
+        prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(0.0, -mean, 1.0);
+        z[i] = mean - ext_quantileOfNormal(prob, 0.0, 1.0);
       }
+#endif
       
-      z[i] = ext_quantileOfNormal(prob, mean, 1.0);
     }
   }
   
@@ -734,7 +759,7 @@ namespace {
         // set training to dataScale.range * (totalFits + 0.5) + dataScale.min + offset
         ext_setVectorToConstant(trainingSamples, data.numObservations, scratch.dataScale.range * 0.5 + scratch.dataScale.min);
         ext_addVectorsInPlace(trainingSample, data.numObservations, scratch.dataScale.range, trainingSamples);
-        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
+        // if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       sampleOffset = simNum * data.numTestObservations;

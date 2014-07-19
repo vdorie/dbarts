@@ -1,5 +1,5 @@
-## pass -DBART_EXACT to get same results as BART, including excess random calls
-BART_EXACT=-DBART_EXACT
+## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
+MATCH_BAYES_TREE=
 
 INST_DIR=../inst
 
@@ -16,7 +16,7 @@ $(SHLIB): dbarts/libdbarts.a external/libexternal.a
 dbarts/libdbarts.a:
 	@(cd dbarts && $(MAKE) libdbarts.a \
 	  CXX="$(CXX)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="-pthread $(CPPFLAGS) $(BART_EXACT)" \
+	  CPPFLAGS="-pthread $(CPPFLAGS) $(MATCH_BAYES_TREE)" \
 	  CXXFLAGS="$(R_XTRA_CXXFLAGS) $(CXXPICFLAGS) $(CXXFLAGS)" \
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
 	  INST_DIR="$(INST_DIR)")

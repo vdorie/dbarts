@@ -3,6 +3,7 @@
 *.so
 *.a
 *.dll
+a.out.dSYM
 src/Makevars
 config.log
 config.status

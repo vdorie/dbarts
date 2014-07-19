@@ -652,7 +652,7 @@ LIBS
 build_alias
 host_alias
 target_alias
-bart_exact
+match_bayes_tree
 thread_safe_unload
 CC
 CFLAGS
@@ -1272,8 +1272,8 @@ if test -n "$ac_init_help"; then
 Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
-  --disable-bart-exact    add/remove unnecessary calls to RNG to get results
-                          identical to BayesTree
+  --enable-match-bayes-tree
+                          get results identical to BayesTree
   --enable-thread-safe-unload
                           block when adding/deleting fits for the purposes of
                           package reloading
@@ -1868,11 +1868,11 @@ ac_config_headers="$ac_config_headers src/external/config.h"
 
 
 
-# Check whether --enable-bart-exact was given.
-if test "${enable_bart_exact+set}" = set; then
-  enableval=$enable_bart_exact; unset bart_exact
+# Check whether --enable-match-bayes-tree was given.
+if test "${enable_match_bayes_tree+set}" = set; then
+  enableval=$enable_match_bayes_tree; match_bayes_tree=-DMATCH_BAYES_TREE
 else
-  bart_exact=-DBART_EXACT
+  unset match_bayes_tree
 fi
 
 
@@ -6919,7 +6919,7 @@ LIBS!$LIBS$ac_delim
 build_alias!$build_alias$ac_delim
 host_alias!$host_alias$ac_delim
 target_alias!$target_alias$ac_delim
-bart_exact!$bart_exact$ac_delim
+match_bayes_tree!$match_bayes_tree$ac_delim
 thread_safe_unload!$thread_safe_unload$ac_delim
 CC!$CC$ac_delim
 CFLAGS!$CFLAGS$ac_delim

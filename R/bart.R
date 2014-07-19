@@ -18,10 +18,10 @@ packageBartResults <- function(fit, samples, burnInSigma = NULL)
 
   if (!responseIsBinary) sigma <- samples$sigma
     
-  if (responseIsBinary && !is.null(fit$data@offset)) {
-    if (fit$control@keepTrainingFits) yhat.train <- yhat.train + fit$data@offset
-    if (NROW(fit$data@x.test) > 0)    yhat.test  <- yhat.test  + fit$data@offset
-  }
+  ##if (responseIsBinary && !is.null(fit$data@offset)) {
+  ##  if (fit$control@keepTrainingFits) yhat.train <- yhat.train + fit$data@offset
+  ##  if (NROW(fit$data@x.test) > 0)    yhat.test  <- yhat.test  + fit$data@offset
+  ##}
 
   varcount <- t(samples$varcount)
   
