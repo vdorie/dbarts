@@ -708,9 +708,9 @@ namespace {
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, offset);
+        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, -offset);
       } else {
-        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, offset);
+        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, -offset);
       }
 #else
       double prob;
