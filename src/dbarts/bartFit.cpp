@@ -708,9 +708,9 @@ namespace {
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, offset);
+        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, -offset);
       } else {
-        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, offset);
+        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, -offset);
       }
 #else
       double prob;
@@ -745,6 +745,7 @@ namespace {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + sampleOffset;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
+        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       sampleOffset = simNum * data.numTestObservations;
