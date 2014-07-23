@@ -745,6 +745,7 @@ namespace {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + sampleOffset;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
+        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       sampleOffset = simNum * data.numTestObservations;
