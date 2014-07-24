@@ -5,7 +5,9 @@ Discrete Bayesian Additive Regression Trees Sampler
 
 A package for R, with C/C++.
 
-Steps to install:
+Pre-built binaries of the package are available on http://cran.r-project.org/web/packages/dbarts/index.html. These can be installed from within R using the typical `install.packages()` mechanism.
+
+Steps to install from source:
 
   1. Install development tools for your operating system:
 
@@ -15,8 +17,8 @@ Steps to install:
 
   2. Install the devtools package from within R:
 
-    install.packages("devtools")
+    `install.packages("devtools")`
 
   3. Run:
 
-    install_github("dbarts", "vdorie")
+    `install_github("dbarts", "vdorie")`

@@ -60,12 +60,12 @@ bart <- function(
    ndpost = 1000L, nskip = 100L,
    printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
    usequants = FALSE, numcut = 100L, printcutoffs = 0L,
-   verbose = TRUE
+   verbose = TRUE, nthread = 1L
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree),
-                           n.thin = as.integer(keepevery),
+                           n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs))
   control@call <- match.call()
 

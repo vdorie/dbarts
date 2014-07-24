@@ -38,7 +38,7 @@ typedef struct {
 UNUSED static IndexArrayQueue* createIndexArrayQueue(size_t queueSize); // returns NULL if an error occurs
 UNUSED static void destroyIndexArrayQueue(IndexArrayQueue* queue);
 static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize);
-static void strikeIndexArrayQueue(IndexArrayQueue* queue);
+static void invalidateIndexArrayQueue(IndexArrayQueue* queue);
 
 static size_t IAQ_INVALID = ((size_t) -1);
 static int push(IndexArrayQueue* queue, size_t element); // can return ENOBUFS if full
@@ -121,14 +121,15 @@ size_t ext_mt_getNumThreads(const ext_mt_manager_t manager)
 }
 
 
-void ext_mt_getNumThreadsForJob(const ext_mt_manager_t restrict threadManager, size_t numElements,
-                                size_t minNumElementsPerThread, size_t* restrict numThreadsPtr, size_t* restrict numElementsPerThreadPtr)
+void ext_mt_getNumThreadsForJob(const ext_mt_manager_t restrict threadManager, size_t numElements, size_t minNumElementsPerThread,
+                                size_t* restrict numThreadsPtr, size_t* restrict numElementsPerThreadPtr, size_t* restrict offByOneIndexPtr)
 {
   size_t numThreadsManaged = 0;
   if (numElements < 2 * minNumElementsPerThread || threadManager == NULL ||
       (numThreadsManaged = ext_mt_getNumThreads(threadManager)) <= 1) {
     if (numThreadsPtr != NULL) *numThreadsPtr = 1;
     *numElementsPerThreadPtr = numElements;
+    *offByOneIndexPtr = 1;
     return;
   }
   
@@ -136,10 +137,13 @@ void ext_mt_getNumThreadsForJob(const ext_mt_manager_t restrict threadManager, s
   if (numThreads > numThreadsManaged) numThreads = numThreadsManaged;
   
   size_t numElementsPerThread = numElements / numThreads;
-  if (numElements % numThreads != 0) numElementsPerThread += 1;
+  size_t offByOneIndex = numElements % numThreads;
+  if (offByOneIndex != 0) numElementsPerThread += 1;
+  else offByOneIndex = numThreads;
   
   if (numThreadsPtr != NULL) *numThreadsPtr = numThreads;
   *numElementsPerThreadPtr = numElementsPerThread;
+  *offByOneIndexPtr = offByOneIndex;
 }
 
 int ext_mt_runTasks(ext_mt_manager_t restrict manager, ext_mt_taskFunction_t function,
@@ -227,7 +231,7 @@ int ext_mt_destroy(ext_mt_manager_t manager)
       result |= joinThread(manager->threads[i]);
   }
   
-  strikeIndexArrayQueue(&manager->threadQueue);
+  invalidateIndexArrayQueue(&manager->threadQueue);
   
   if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
   
@@ -293,7 +297,7 @@ ext_mt_initialization_failed:
   if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
   if (manager->threadData != NULL) { free(manager->threadData); manager->threadData = NULL; }
   
-  strikeIndexArrayQueue(&manager->threadQueue);
+  invalidateIndexArrayQueue(&manager->threadQueue);
   
   if (mutexInitialized) destroyMutex(manager->mutex);
   if (threadIsActiveInitialized) destroyCondition(manager->threadIsActive);
@@ -354,11 +358,11 @@ static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
 
 static void destroyIndexArrayQueue(IndexArrayQueue* queue)
 {
-  strikeIndexArrayQueue(queue);
+  invalidateIndexArrayQueue(queue);
   if (queue != NULL) free(queue);
 }
 
-static void strikeIndexArrayQueue(IndexArrayQueue* queue)
+static void invalidateIndexArrayQueue(IndexArrayQueue* queue)
 {
   if (queue == NULL || queue->elements == NULL) return;
   free(queue->elements);

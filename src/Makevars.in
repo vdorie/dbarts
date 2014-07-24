@@ -36,3 +36,16 @@ clean :
 	@(cd dbarts && $(MAKE) clean)
 	@(cd external && $(MAKE) clean)
 	rm -f *.so *.dll *.o
+
+momentsTest : external/pthread.c
+	$(eval CC := $(shell R CMD config CC))
+	$(eval CPPFLAGS := $(shell R CMD config CPPFLAGS))
+	$(eval CFLAGS := $(shell R CMD config CFLAGS))
+	$(eval R_XTRA_CPPFLAGS := $(shell R CMD config --cppflags))
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(R_XTRA_CPPFLAGS) @PTHREAD_CFLAGS@ \
+	  -Iinclude -DMOMENTS_TEST -c external/moments.c -o momentsTest.o
+
+	$(eval LDFLAGS := $(shell R CMD config LDFLAGS))
+	$(eval R_XTRA_LDFLAGS := $(shell R CMD config --ldflags))
+
+	$(CC) $(LDFLAGS) $(R_XTRA_LDFLAGS) @PTHREAD_LIBS@ momentsTest.o external/thread.o -o momentsTest
