@@ -30,6 +30,7 @@ namespace {
 }
 
 namespace dbarts {
+  
   Node* drawBirthableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability);
   Node* drawChildrenKillableNode(const Tree& tree, double* nodeSelectionProbability);
   
@@ -122,7 +123,7 @@ namespace dbarts {
       
       double newLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
       transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, true);
-#ifdef BART_EXACT
+#ifdef MATCH_BAYES_TREE
       ext_simulateContinuousUniform();
 #endif
       double transitionProbabilityOfSelectingNodeForBirth = computeProbabilityOfSelectingNodeForBirth(fit, tree);
@@ -137,7 +138,6 @@ namespace dbarts {
       double likelihoodRatio = std::exp(newLogLikelihood - oldLogLikelihood);
       
       ratio = priorRatio * likelihoodRatio * transitionRatio;
-      
       
       if (ext_simulateContinuousUniform() < ratio) {
         oldState.destroy();
@@ -170,7 +170,7 @@ namespace dbarts {
       }
     }
     
-#ifdef BART_EXACT
+#ifdef MATCH_BAYES_TREE
     if (birthableNodeExists) ext_simulateContinuousUniform();
 #endif
     
@@ -215,7 +215,7 @@ namespace dbarts {
   {
     Node* result = NULL;
     
-#ifndef BART_EXACT
+#ifndef MATCH_BAYES_TREE
     if (tree.hasSingleNode()) {
       *nodeSelectionProbability = 1.0;
       return tree.getTop();

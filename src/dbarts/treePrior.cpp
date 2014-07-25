@@ -33,7 +33,7 @@ namespace dbarts {
   {
     if (node.getNumVariablesAvailableForSplit(fit.data.numPredictors) == 0) return 0.0;
 
-#ifdef BART_EXACT
+#ifdef MATCH_BAYES_TREE
     if (node.getNumEffectiveObservations() < 5.0) {
       return 0.001 * base / std::pow(1.0 + node.getDepth(), power);
 		}

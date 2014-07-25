@@ -23,6 +23,7 @@ extern "C" {
 #define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) qnorm((_P_), (_MU_), (_SIGMA_), 1, 0)
 #define ext_simulateNormal(_MU_, _SIGMA_) rnorm((_MU_), (_SIGMA_))
 #define ext_simulateStandardNormal() norm_rand()
+#define ext_simulateExponential(_M_) rexp((_M_))
   
 #define EXT_DISCRETE_DRAW_FAILURE ((ext_size_t) -1)
 ext_size_t ext_drawFromDiscreteDistribution(const double* probabilities, ext_size_t length);
@@ -30,7 +31,13 @@ ext_size_t ext_drawFromDiscreteDistribution(const double* probabilities, ext_siz
   // random in [min, min + 1, ..., max - 1, max)
 int64_t ext_simulateIntegerUniformInRange(int64_t min_inclusive, int64_t max_exclusive);
 uint64_t ext_simulateUnsignedIntegerUniformInRange(uint64_t min_inclusive, uint64_t max_exclusive);
-  
+
+// standard normal truncated below at lowerBound, using Robert (1995)
+double ext_simulateLowerTruncatedStandardNormal(double lowerBound);
+// use the previous to generate truncated normals with sd 1 and nonzero mean
+double ext_simulateLowerTruncatedNormalScale1(double mean, double bound);
+double ext_simulateUpperTruncatedNormalScale1(double mean, double bound);
+
 double ext_computeMean(const double* x, ext_size_t length);
 // weighted mean = w'x / w'1; n will be set to w'1 if not NULL
 double ext_computeIndexedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length);

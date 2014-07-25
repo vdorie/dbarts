@@ -23,9 +23,6 @@ namespace dbarts {
       uint32_t categoryDirections;
     };
     
-    // Rule();
-    // Rule(const Rule& other); // copy constructor; duplicates
-    
     void invalidate();
     
     bool goesRight(const BARTFit& fit, const double* x) const;
@@ -163,7 +160,14 @@ namespace dbarts {
 
   inline size_t Node::getNumObservations() const { return numObservations; }
   inline double Node::getAverage() const { return m.average; }
+
+#ifdef MATCH_BAYES_TREE
+  // This only means something if weights are supplied, which BayesTree didn't have.
+  // It is also only meaningful on non-end nodes when using MATCH_BAYES_TREE.
+  inline double Node::getNumEffectiveObservations() const { if (leftChild == NULL) return m.numEffectiveObservations; else return leftChild->getNumEffectiveObservations() + p.rightChild->getNumEffectiveObservations(); }
+#else
   inline double Node::getNumEffectiveObservations() const { return m.numEffectiveObservations; }
+#endif
   inline void Node::setAverage(double newAverage) { leftChild = NULL; m.average = newAverage; }
   inline void Node::setNumEffectiveObservations(double n) { leftChild = NULL; m.numEffectiveObservations = n; }
   

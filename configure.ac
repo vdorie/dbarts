@@ -11,12 +11,12 @@ AC_CONFIG_HEADER([src/external/config.h])
 
 m4_include([tools/m4/m4_ax_pthread.m4])
 
-AC_ARG_ENABLE([bart-exact],
-              [AS_HELP_STRING([--disable-bart-exact],
-                              [add/remove unnecessary calls to RNG to get results identical to BayesTree])],
-              [unset bart_exact],
-              [bart_exact=-DBART_EXACT])
-AC_SUBST(bart_exact)
+AC_ARG_ENABLE([match-bayes-tree],
+              [AS_HELP_STRING([--enable-match-bayes-tree],
+                              [get results identical to BayesTree])],
+              [match_bayes_tree=-DMATCH_BAYES_TREE],
+              [unset match_bayes_tree])
+AC_SUBST(match_bayes_tree)
 
 AC_ARG_ENABLE([thread-safe-unload],
               [AS_HELP_STRING([--enable-thread-safe-unload],

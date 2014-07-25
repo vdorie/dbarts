@@ -1,4 +1,4 @@
-getFriedmanData <- function() {
+generateFriedmanData <- function() {
   f <- function(x) {
     10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 + 10 * x[,4] + 5 * x[,5]
   }
@@ -12,5 +12,5 @@ getFriedmanData <- function() {
   
   list(x = x, y = y)
 }
-testData <- getFriedmanData()
-rm(getFriedmanData)
+testData <- generateFriedmanData()
+rm(generateFriedmanData)

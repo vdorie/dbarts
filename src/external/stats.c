@@ -51,6 +51,36 @@ uint64_t ext_simulateUnsignedIntegerUniformInRange(uint64_t min_inclusive, uint6
   return actualMin + (uint64_t) (u * range);
 }
 
+double ext_simulateLowerTruncatedStandardNormal(double lowerBound)
+{
+  double x;
+  if (lowerBound < 0.0) {
+    x = ext_simulateStandardNormal();
+    while (x < lowerBound) x = ext_simulateStandardNormal();
+  } else {
+    double a = 0.5 * (lowerBound + sqrt(lowerBound * lowerBound + 4.0));
+    double u, r;
+    
+    do {
+      x = ext_simulateExponential(1.0 / a) + lowerBound;
+      u = ext_simulateContinuousUniform();
+      double diff = x - a;
+      r = exp(-0.5 * diff * diff);
+    } while (u > r);
+  }
+  return x;
+}
+
+double ext_simulateLowerTruncatedNormalScale1(double mean, double bound) {
+  return mean + ext_simulateLowerTruncatedStandardNormal(bound - mean);
+}
+
+double ext_simulateUpperTruncatedNormalScale1(double mean, double bound) {
+  // return -ext_simulateLowerTruncatedNormalScale1(-mean, -bound);
+  return mean - ext_simulateLowerTruncatedStandardNormal(mean - bound);
+  // return -mean - ext_simulateLowerTruncatedStandardNormal(mean - bound);
+}
+
 /*
 double ext_computeAndSumSquaresOfResiduals(const double* x, size_t length, double x_hat)
 {

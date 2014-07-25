@@ -5,6 +5,7 @@ if [ -f src/Makevars ]; then
 else
   (cd src; make -f Makevars.in clean)
 fi
+rm -rf a.out.dSYM
 rm -rf autom4te.cache
 rm -rf a.out.dSYM
 rm -f config.log
