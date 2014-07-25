@@ -737,27 +737,24 @@ namespace {
     const Control& control(fit.control);
     const Scratch& scratch(fit.scratch);
     
-    size_t sampleOffset;
-    
     if (control.responseIsBinary) {
-      sampleOffset = simNum * data.numObservations;
       if (control.keepTrainingFits) {
-        double* trainingSamples = results.trainingSamples + sampleOffset;
+        double* trainingSamples = results.trainingSamples + simNum * data.numObservations;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
         if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       if (data.numTestObservations > 0) {
-        sampleOffset = simNum * data.numTestObservations;
-        std::memcpy(results.testSamples + sampleOffset, testSample, data.numTestObservations * sizeof(double));
+        double* testSamples = results.testSamples + simNum * data.numTestObservations;
+        std::memcpy(testSamples, testSample, data.numTestObservations * sizeof(double));
+        if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
       
       results.sigmaSamples[simNum] = 1.0;
       
     } else {
-      sampleOffset = simNum * data.numObservations;
       if (control.keepTrainingFits) {
-        double* trainingSamples = results.trainingSamples + sampleOffset;
+        double* trainingSamples = results.trainingSamples + simNum * data.numObservations;
         // set training to dataScale.range * (totalFits + 0.5) + dataScale.min + offset
         ext_setVectorToConstant(trainingSamples, data.numObservations, scratch.dataScale.range * 0.5 + scratch.dataScale.min);
         ext_addVectorsInPlace(trainingSample, data.numObservations, scratch.dataScale.range, trainingSamples);
@@ -765,17 +762,17 @@ namespace {
       }
       
       if (data.numTestObservations > 0) {
-        sampleOffset = simNum * data.numTestObservations;
-        double* testSamples = results.testSamples + sampleOffset;
+        double* testSamples = results.testSamples + simNum * data.numTestObservations;
         ext_setVectorToConstant(testSamples, data.numTestObservations, scratch.dataScale.range * 0.5 + scratch.dataScale.min);
         ext_addVectorsInPlace(testSample, data.numTestObservations, scratch.dataScale.range, testSamples);
+        if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
       
       results.sigmaSamples[simNum] = sigma * scratch.dataScale.range;
     }
     
-    sampleOffset = simNum * data.numPredictors;
-    for (size_t i = 0; i < data.numPredictors; ++i) results.variableCountSamples[sampleOffset + i] = variableCounts[i];
+    double* variableCountSamples = results.variableCountSamples + simNum * data.numPredictors;
+    for (size_t i = 0; i < data.numPredictors; ++i) variableCountSamples[i] = (double) variableCounts[i];
   }
   
   

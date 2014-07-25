@@ -771,6 +771,15 @@ namespace {
       data.offset = REAL(slotExpr);
     }
     
+    slotExpr = GET_ATTR(dataExpr, install("testOffset"));
+    if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
+      data.testOffset = NULL;
+    } else {
+      if (!isReal(slotExpr)) error("Test offset must be of type real.");
+      if ((size_t) length(slotExpr) != data.numTestObservations) error("Length of test offset must equal number of test rows.");
+      data.testOffset = REAL(slotExpr);
+    }
+    
     slotExpr = GET_ATTR(dataExpr, install("sigma"));
     if (!isReal(slotExpr)) error("sigma estimate must be of type real.");
     if (length(slotExpr) != 1) error("sigma estimate must be of length 1.");
