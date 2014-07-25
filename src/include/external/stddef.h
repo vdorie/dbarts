@@ -9,14 +9,15 @@
 #define ext_size_t size_t
 #endif
 
-#ifndef restrict
-# ifdef __restrict
-#  define restrict __restrict
-# elif defined(__restrict__)
-#  define restrict __restrict__
-# else
-#  define restrict
-# endif
+
+#if !defined(restrict) && defined(__cplusplus) && __cplusplus < 201103L
+#  ifdef __restrict
+#    define restrict __restrict
+#  elif defined(__restrict__)
+#    define restrict __restrict__
+#  else
+#    define restrict
+#  endif
 #endif
 
 #endif // EXTERNAL_STDDEF_H

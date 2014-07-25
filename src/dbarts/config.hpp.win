@@ -6,16 +6,18 @@
 #define STDC_HEADERS 1
 #define HAVE_SNPRINTF 1
 
-#ifdef __GNUG__
-#  define restrict __restrict__
-#elif defined(_MSC_VER)
-#  define restrict __restrict
-#else
-#  define restrict
+#if __cplusplus < 201103L
+#  ifdef __GNUG__
+#    define restrict __restrict__
+#  elif defined(_MSC_VER)
+#    define restrict __restrict
+#  else
+#    define restrict
+#  endif
 #endif
 
 #define PACKAGE_BUGREPORT "vjd4@nyu.edu"
-#define PACKAGE_NAME "cbart"
-#define PACKAGE_STRING "cbart 0.8.1"
-#define PACKAGE_TARNAME "cbart"
-#define PACKAGE_VERSION "0.8.1"
+#define PACKAGE_NAME "dbarts"
+#define PACKAGE_STRING "dbarts 0.8.4"
+#define PACKAGE_TARNAME "dbarts"
+#define PACKAGE_VERSION "0.8.4"
