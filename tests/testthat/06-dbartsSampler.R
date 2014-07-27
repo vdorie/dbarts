@@ -73,8 +73,69 @@ test_that("dbarts sampler shallow/deep copies", {
   sampler$setPredictor(z, 2)
   expect_false(all(sampler$data@x[,2] == deepCopy$data@x[,2]))
 })
+
+source(system.file("common", "probitData.R", package = "dbarts"))
+
+test_that("dbarts sampler correctly updates test offsets only when applicable", {
+  n <- nrow(testData$X)
+    
+  sampler <- dbarts(Z ~ X, testData, testData$X)
+  
+  sampler$setOffset(0.2)
+  expect_equal(sampler$data@offset, rep_len(0.2, n))
+  expect_null(sampler$data@offset.test)
+
+  sampler$setOffset(NULL)
+  expect_null(sampler$data@offset)
+  expect_null(sampler$data@offset.test)
+
+  sampler$setOffset(runif(n))
+  expect_null(sampler$data@offset.test)
   
   
+  sampler <- dbarts(Z ~ X, testData, offset = 0.2)
+
+  expect_null(sampler$data@offset.test)
+
+  sampler$setOffset(-0.1)
+  expect_equal(sampler$data@offset, rep_len(-0.1, n))
+  expect_null(sampler$data@offset.test)
+  
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2)
+
+  sampler$setOffset(0.1)
+  expect_equal(sampler$data@offset, rep_len(0.1, n))
+  expect_equal(sampler$data@offset.test, rep_len(0.1, n))
+  
+  sampler$setTestOffset(0.2)
+  expect_equal(sampler$data@offset.test, rep_len(0.2, n))
+
+  sampler$setOffset(-0.1)
+  expect_equal(sampler$data@offset, rep_len(-0.1, n))
+  expect_equal(sampler$data@offset.test, rep_len(0.2, n))
+
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X[-1,], offset = 0.2)
+
+  expect_equal(sampler$data@offset.test, rep_len(0.2, n - 1))
+  
+  sampler$setOffset(0.1)
+  expect_equal(sampler$data@offset, rep_len(0.1, n))
+  expect_equal(sampler$data@offset.test, rep_len(0.1, n - 1))
+
+  sampler$setOffset(rep_len(-0.1, n))
+  expect_equal(sampler$data@offset, rep_len(-0.1, n))
+  expect_null(sampler$data@offset.test)
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = -0.1)
+  sampler$setOffset(0.3)
+
+  expect_equal(sampler$data@offset, rep_len(0.3, n))
+  expect_equal(sampler$data@offset.test, rep_len(-0.1, n))
+})
+
+source(system.file("common", "hillData.R", package = "dbarts"))
 
 test_that("dbarts sampler runs", {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)

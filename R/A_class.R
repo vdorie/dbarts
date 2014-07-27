@@ -107,23 +107,30 @@ setClassUnion("numericOrNULL", c("numeric", "NULL"))
 
 setClass("dbartsData",
          slots =
-         list(y        = "numeric",
-              x        = "matrix",
-              varTypes = "integer",
-              x.test   = "matrixOrNULL",
-              weights  = "numericOrNULL",
-              offset   = "numericOrNULL",
-              n.cuts   = "integer",
-              sigma    = "numeric"),
+         list(y           = "numeric",
+              x           = "matrix",
+              varTypes    = "integer",
+              x.test      = "matrixOrNULL",
+              weights     = "numericOrNULL",
+              offset      = "numericOrNULL",
+              offset.test = "numericOrNULL",
+              n.cuts      = "integer",
+              sigma       = "numeric",
+
+              testUsesRegularOffset   = "logical"),
          prototype =
-         list(y        = numeric(0),
-              x        = matrix(0, 0, 0),
-              varTypes = integer(0),
-              x.test   = NULL,
-              weights  = NULL,
-              offset   = NULL,
-              n.cuts   = integer(0),
-              sigma    = NA_real_),
+         list(y           = numeric(0),
+              x           = matrix(0, 0, 0),
+              varTypes    = integer(0),
+              x.test      = NULL,
+              weights     = NULL,
+              offset      = NULL,
+              offset.test = NULL,
+              n.cuts      = integer(0),
+              sigma       = NA_real_,
+
+              testUsesRegularOffset   = NA
+              ),
          validity = function(object) {
            numObservations <- length(object@y)
            if (nrow(object@x) != numObservations) return("number of rows of 'x' must equal length of 'y'")

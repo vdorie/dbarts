@@ -42,9 +42,11 @@ test_that("binary example using close to linear function provides sensible resul
   bartFit <- bart(testData$x[fitSubset,], testData$y[fitSubset], testData$x[testSubset,],
                   binaryOffset = testData$offset, verbose = FALSE)
   
-  mu.hat.bart <- colMeans(bartFit$yhat.test) + testData$offset
+  mu.hat.bart <- colMeans(bartFit$yhat.test)
   
   mu <- testData$mu[testSubset]
 
   expect_true(cor(mu, mu.hat.glm) < cor(mu, mu.hat.bart))
+  expect_true((range(mu.hat.bart) * 1.2)[1] >= range(mu)[1])
+  expect_true((range(mu.hat.bart) * 1.2)[2] <= range(mu)[2])
 })

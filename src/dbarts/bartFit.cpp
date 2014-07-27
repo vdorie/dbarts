@@ -138,12 +138,23 @@ namespace dbarts {
   }
   
   void BARTFit::setTestPredictors(const double* X_test, size_t numTestObservations) {
+    setTestPredictors(X_test, (const double*) this, numTestObservations);
+  }
+  
+  void BARTFit::setTestOffset(const double* testOffset) {
+    data.testOffset = testOffset;
+  }
+  
+  // setting testOffset to NULL is valid
+  // an invalid pointer address for testOffset is the object itself
+  void BARTFit::setTestPredictors(const double* X_test, const double* testOffset, size_t numTestObservations) {
     if (numTestObservations == 0 || X_test == NULL) {
       if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
       if (state.totalTestFits != NULL) delete [] state.totalTestFits; state.totalTestFits = NULL;
       
       data.X_test = NULL;
       data.numTestObservations = 0;
+      data.testOffset = NULL;
     } else {
       data.X_test = X_test;
       
@@ -162,6 +173,8 @@ namespace dbarts {
           Xt_test[row * data.numPredictors + col] = data.X_test[col * data.numTestObservations + row];
         }
       }
+      
+      if (testOffset != (const double*) this) data.testOffset = testOffset;
     }
   }
   
@@ -415,6 +428,20 @@ namespace {
         
         ext_printf("%f", scratch.cutPoints[i][scratch.numCutsPerVariable[i] - 1]);
         ext_printf("\n");
+      }
+    }
+    
+    if (data.offset != NULL || (data.numTestObservations > 0 && data.testOffset != NULL)) {
+      ext_printf("\noffsets:\n");
+      
+      if (data.offset != NULL) {
+        ext_printf("\treg : %.2f", data.offset[0]);
+        for (size_t i = 1; i < (5 < data.numObservations ? 5 : data.numObservations); ++i) ext_printf(" %.2f", data.offset[i]);
+        ext_printf("\n");
+      }
+      if (data.numTestObservations > 0 && data.testOffset != NULL) {
+        ext_printf("\ttest: %.2f", data.testOffset[0]);
+        for (size_t i = 1; i < (5 < data.numTestObservations ? 5 : data.numTestObservations); ++i) ext_printf(" %.2f", data.testOffset[i]);
       }
     }
   }

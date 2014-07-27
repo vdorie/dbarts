@@ -6,7 +6,7 @@
   Regreesion Trees model. Internally stores state in such a way as to be mutable.
 }
 \usage{
-dbarts(formula, data, test, subset, weights, offset,
+dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
        verbose = FALSE, n.samples = 1000L,
        tree.prior = cgm, node.prior = normal, resid.prior = chisq,
        control = dbartsControl(), sigma = NA_real_)
@@ -27,6 +27,7 @@ dbarts(formula, data, test, subset, weights, offset,
   	function, \eqn{f(x)}, and the response \eqn{y}. Only is useful for binary responses, in which case the
   	model fit is to assume \eqn{P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})}{P(Y = 1 | X = x) = \Phi(f(x) + offset)},
   	where \eqn{\Phi} is the standard normal cumulative distribution function.}
+  \item{offset.test}{The equivalent of \code{offset} for test observations. Will attempt to use \code{offset} when applicable.}
   \item{verbose}{A logical determining if additional output is printed to the console. See \code{\link{dbartsControl}}.}
   \item{n.samples}{A positive integer setting the default number of posterior samples to be returned for each run of
   	the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}.}

@@ -41,7 +41,10 @@ namespace dbarts {
     void setOffset(const double* newOffset);
     void setPredictor(const double* newPredictor, std::size_t predictorColumn);
     void setTestPredictor(const double* newTestPredictor, std::size_t predictorColumn);
+    
     void setTestPredictors(const double* newTestPredictor, std::size_t numTestObservations);
+    void setTestOffset(const double* newTestOffset);
+    void setTestPredictors(const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
   };
 } // namespace dbarts
 

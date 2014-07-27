@@ -160,7 +160,7 @@ namespace {
     return NULL_USER_OBJECT;
   }
   
-  SEXP setTestPredictors(SEXP fitExpr, SEXP x_test)
+  SEXP setTestPredictors(SEXP fitExpr, SEXP x_test, SEXP offset_test)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_setTestPredictors called on NULL external pointer.");
@@ -177,7 +177,33 @@ namespace {
     int* dims = INTEGER(dimsExpr);
     if ((size_t) dims[1] != fit->data.numPredictors) error("Number of columns of x.test and x must be equal.");
     
-    fit->setTestPredictors(REAL(x_test), (size_t) dims[0]);
+    if (isNull(offset_test)) {
+      fit->setTestPredictors(REAL(x_test), NULL, (size_t) dims[0]);
+    } else {
+      if (!isReal(offset_test)) error("offset.test must be of type real");
+      if (GET_LENGTH(offset_test) == 1 && REAL(offset_test)[0] == NA_REAL) {
+        fit->setTestPredictors(REAL(x_test), (size_t) dims[0]);
+      } else {
+        if (GET_LENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");
+        fit->setTestPredictors(REAL(x_test), REAL(offset_test), (size_t) dims[0]);
+      }
+    }
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP setTestOffset(SEXP fitExpr, SEXP offset_test)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setTestOffset called on NULL external pointer.");
+    
+    if (isNull(offset_test)) {
+      fit->setTestOffset(NULL);
+    } else {
+      if (!isReal(offset_test)) error("offset.test must be of type real");
+      if (fit->data.numTestObservations != (size_t) GET_LENGTH(offset_test)) error("length of offset.test must equal number of rows in x.test");
+      fit->setTestOffset(REAL(offset_test));
+    }
     
     return NULL_USER_OBJECT;
   }
@@ -422,7 +448,8 @@ namespace {
     { "dbarts_setOffset", (DL_FUNC) &setOffset, 2 },
     { "dbarts_setPredictor", (DL_FUNC) &setPredictor, 3 },
     { "dbarts_setTestPredictor", (DL_FUNC) &setTestPredictor, 3 },
-    { "dbarts_setTestPredictors", (DL_FUNC) &setTestPredictors, 2 },
+    { "dbarts_setTestPredictors", (DL_FUNC) &setTestPredictors, 3 },
+    { "dbarts_setTestOffset", (DL_FUNC) &setTestOffset, 2 },
     { "dbarts_setControl", (DL_FUNC) &setControl, 2 },
     { "dbarts_isValidPointer", (DL_FUNC) &isValidPointer, 1 },
     { "dbarts_createState", (DL_FUNC) &createState, 1 },
@@ -469,6 +496,8 @@ namespace {
     { "dbarts", "setPredictor", (DL_FUNC) dbarts_setPredictor },
     { "dbarts", "setTestPredictor", (DL_FUNC) dbarts_setTestPredictor },
     { "dbarts", "setTestPredictors", (DL_FUNC) dbarts_setTestPredictors },
+    { "dbarts", "setTestOffset", (DL_FUNC) dbarts_setTestOffset },
+    { "dbarts", "setTestPredictorsAndOffset", (DL_FUNC) dbarts_setTestPredictorsAndOffset },
     { NULL, NULL, 0 }
   };
   
@@ -771,7 +800,7 @@ namespace {
       data.offset = REAL(slotExpr);
     }
     
-    slotExpr = GET_ATTR(dataExpr, install("testOffset"));
+    slotExpr = GET_ATTR(dataExpr, install("offset.test"));
     if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
       data.testOffset = NULL;
     } else {

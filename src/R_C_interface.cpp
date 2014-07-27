@@ -51,8 +51,16 @@ extern "C" {
     fit->setTestPredictor(newPredictor, predictorColumn);
   }
   
-  void dbarts_setTestPredictors(BARTFit* fit, const double* newPredictor, size_t numTestObservations) {
-    fit->setTestPredictors(newPredictor, numTestObservations);
+  void dbarts_setTestPredictors(BARTFit* fit, const double* newPredictors, size_t numTestObservations) {
+    fit->setTestPredictors(newPredictors, numTestObservations);
+  }
+  
+  void dbarts_setTestOffset(BARTFit* fit, const double* newTestOffset) {
+    fit->setTestOffset(newTestOffset);
+  }
+  
+  void dbarts_setTestPredictorsAndOffset(BARTFit* fit, const double* newPredictors, const double* newTestOffset, size_t numTestObservations) {
+    fit->setTestPredictors(newPredictors, newTestOffset, numTestObservations);
   }
   
   CGMPrior* dbarts_createCGMPrior() {

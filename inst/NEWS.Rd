@@ -14,6 +14,8 @@
       \item By default, no longer attempts to obtain identical results as
       BayesTree. To recover this behavior, compile from source with 
       \code{configure.args = "--enable-match-bayes-tree"}.
+      \item Changing the entirety of the test matrix using \code{setTestPredictor}
+      no longer allowed. Use \code{setTestPredictors} instead.
     }
   }
   \subsection{BUG FIXES}{

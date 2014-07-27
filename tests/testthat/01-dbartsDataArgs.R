@@ -1,6 +1,6 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"))
-
 context("dbarts data arguments")
+
+source(system.file("common", "friedmanData.R", package = "dbarts"))
 
 test_that("formula specification raises errors", {
   expect_error(dbarts("not-a-formula", testData))
@@ -81,3 +81,103 @@ test_that("test argument creates valid objects", {
   expect_is(dbarts(y ~ x, testData, testData$x[11:20,]), "dbartsSampler")
 })
 
+rm(testData)
+
+source(system.file("common", "probitData.R", package = "dbarts"))
+
+test_that("test offset fills in control logicals depending on specification", {
+  sampler <- dbarts(Z ~ X, testData, testData$X)
+  
+  expect_that(sampler$data@offset,      is_null())
+  expect_that(sampler$data@offset.test, is_null())
+  expect_that(sampler$data@testUsesRegularOffset, equals(NA))
+
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2)
+  
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.2, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(TRUE))
+
+
+  otherOffset <- 0.2 + 0.1
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = otherOffset)
+
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.3, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.3, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(TRUE))
+  
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = NULL)
+
+  expect_that(sampler$data@offset[1:5], equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test, is_null())
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+  
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = 0.1)
+
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.1, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = offset + 0.1)
+  
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.3, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = offset)
+  
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.2, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(TRUE))
+
+
+  otherOffset <- runif(nrow(testData$X))
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = otherOffset)
+  
+  expect_that(sampler$data@offset[1:5],      equals(otherOffset[1:5]))
+  expect_that(sampler$data@offset.test[1:5], equals(otherOffset[1:5]))
+  expect_that(sampler$data@testUsesRegularOffset, equals(TRUE))
+
+
+  expect_error(dbarts(Z ~ X, testData, testData$X[-1,], offset = otherOffset))
+
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = otherOffset, offset.test = NULL)
+  
+  expect_that(sampler$data@offset[1:5], equals(otherOffset[1:5]))
+  expect_that(sampler$data@offset.test, is_null())
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = offset, offset.test = 0.2)
+
+  expect_that(sampler$data@offset[1:5],      equals(offset[1:5]))
+  expect_that(sampler$data@offset.test[1:5], equals(rep(0.2, 5)))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = offset, offset.test = offset + 0.1)
+
+  expect_that(sampler$data@offset[1:5],      equals(offset[1:5]))
+  expect_that(sampler$data@offset.test[1:5], equals(offset[1:5] + 0.1))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = otherOffset)
+  
+  expect_that(sampler$data@offset[1:5],      equals(rep(0.2, 5)))
+  expect_that(sampler$data@offset.test[1:5], equals(otherOffset[1:5]))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = NULL, offset.test = otherOffset)
+  
+  expect_that(sampler$data@offset,           is_null())
+  expect_that(sampler$data@offset.test[1:5], equals(otherOffset[1:5]))
+  expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
+})
