@@ -267,6 +267,7 @@ namespace {
     
 #ifdef THREAD_SAFE_UNLOAD
     pthread_mutex_lock(&fitMutex);
+    Rprintf("creating   %p\n", fit);
 #endif
     activeFits->insert(result);
 #ifdef THREAD_SAFE_UNLOAD
@@ -943,7 +944,7 @@ namespace {
   
   void deleteFit(BARTFit* fit) {
 #ifdef THREAD_SAFE_UNLOAD
-    Rprintf("deleting %p\n", fit);
+    Rprintf("deleting   %p\n", fit);
 #endif
     if (fit == NULL) return;
     

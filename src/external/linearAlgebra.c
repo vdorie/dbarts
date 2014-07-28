@@ -283,7 +283,7 @@ int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, dou
     }
   }
   
-  if (_residuals == NULL) ext_stackFree(residuals);
+  if (_residuals == NULL) { ext_stackFree(residuals); }
   
   if (!allKosher) {
     message[0] = "non-finite solution to least squares fit";

@@ -76,7 +76,7 @@ test_that("dbarts sampler shallow/deep copies", {
 
 source(system.file("common", "probitData.R", package = "dbarts"))
 
-test_that("dbarts sampler correctly updates test offsets only when applicable", {
+test_that("dbarts sampler correctly updates R test offsets only when applicable", {
   n <- nrow(testData$X)
     
   sampler <- dbarts(Z ~ X, testData, testData$X)
@@ -174,4 +174,21 @@ test_that("dbarts sampler runs", {
   expect_equal(p, 0.459823235825831)
   expect_equal(samples$train[1:5], c(94.4144689198833, 89.4520172313702, 93.2821083074909, 96.499552417188, 97.0400773954802))
   expect_equal(samples$test[1:5], c(89.5592665825945, 94.4797604402427, 94.4227067142213, 92.7638379016566, 91.7194156602015))
+})
+
+source(system.file("common", "probitData.R", package = "dbarts"))
+
+test_that("dbarts sampler updates offsets in C++", {
+  control <- dbartsControl(updateState = FALSE, n.burn = 0L, n.samples = 1L, verbose = FALSE)
+  sampler <- dbarts(Z ~ X, testData, testData$X[1:200,], 1:200,
+                    control = control)
+  
+  sampler$setOffset(0.5)
+  set.seed(0)
+  samples <- sampler$run(25, 1)
+  expect_equal(as.double(samples$train - samples$test), rep_len(0.5, 200))
+
+  sampler$setTestOffset(0.5)
+  samples <- sampler$run(0, 1)
+  expect_equal(samples$train, samples$test)
 })
