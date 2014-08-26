@@ -24,7 +24,7 @@ test_that("basic probit example with offset regression test", {
   expect_equal(bartFit$varcount[n.sims,], c(25, 21, 23))
 })
 
-rm(testData)
+## rm(testData)
 
 source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"))
 

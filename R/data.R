@@ -78,7 +78,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
 
     ## pull out offset if it is a scalar, else model.frame will bug out
-    if (!dataIsMissing && is.list(data) && !offsetIsMissing) {
+    if (!dataIsMissing && !is.data.frame(data) && !offsetIsMissing) {
       temp <- NULL
       tryResult <-
         tryCatch(temp <- eval(call("$", as.symbol("data"), matchedCall$offset)), error = function(e) e)
@@ -135,11 +135,12 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
       if (numFactorTerms == 0) NULL else lapply(modelFrame[,termIsFactor], contrasts, contrasts = FALSE)
     
     x <- model.matrix(modelTerms, modelFrame, contrasts)
+    
 
     
     if (!testIsMissing) {
       foundTest <- FALSE
-      if (!dataIsMissing && is.list(data)) {
+      if (!dataIsMissing && !is.data.frame(data)) {
         tryResult <-
           tryCatch(temp <- eval(call("$", as.symbol("data"), matchedCall$test)), error = function(e) e)
         
@@ -198,7 +199,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
   if (is.vector(x)) x <- as.matrix(x)
   if (is.data.frame(x)) x <- makeModelMatrixFromDataFrame(x)
 
-  
+
   x.test <- NULL
   if (!testIsMissing && !is.null(test) && NCOL(test) > 0)
     x.test <- validateXTest(test, ncol(x), colnames(x))
@@ -217,14 +218,21 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     } else if (!is.null(matchedCall$offset.test)) {
       ## test.offset could have been something like (offset + 0.5), and we would just have redefined offset
       if (is.language(matchedCall$offset.test)) {
-        if (identical(offsetGivenAsScalar, TRUE)) {
-          temp <- offset
-          offset <- offset[1]
-          offset.test <- eval(matchedCall$offset.test)
-          offset <- temp
+
+
+        ## we can also have wierdness such as (offset + variable), where offset is now in our
+        ## our environment but the variable is in the caller
+        testReferencesOffset <- any(as.list(matchedCall$offset.test) == "offset")
+        
+        evalEnv <- if (testReferencesOffset) {
+          result <- new.env(parent = parent.frame())
+          result$offset <- if (offsetGivenAsScalar == TRUE) offset[1] else offset
+          result
         } else {
-          offset.test <- eval(matchedCall$offset.test)
+          parent.frame()
         }
+        
+        offset.test <- eval(matchedCall$offset.test, evalEnv)
       }
         
       if (length(offset.test) == 1) {

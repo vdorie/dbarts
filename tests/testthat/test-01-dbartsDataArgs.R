@@ -81,7 +81,7 @@ test_that("test argument creates valid objects", {
   expect_is(dbarts(y ~ x, testData, testData$x[11:20,]), "dbartsSampler")
 })
 
-rm(testData)
+## rm(testData)
 
 source(system.file("common", "probitData.R", package = "dbarts"))
 
@@ -154,17 +154,17 @@ test_that("test offset fills in control logicals depending on specification", {
   expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
 
 
-  sampler <- dbarts(Z ~ X, testData, testData$X, offset = offset, offset.test = 0.2)
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = otherOffset, offset.test = 0.2)
 
-  expect_that(sampler$data@offset[1:5],      equals(offset[1:5]))
+  expect_that(sampler$data@offset[1:5],      equals(otherOffset[1:5]))
   expect_that(sampler$data@offset.test[1:5], equals(rep(0.2, 5)))
   expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
 
 
-  sampler <- dbarts(Z ~ X, testData, testData$X, offset = offset, offset.test = offset + 0.1)
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = otherOffset, offset.test = offset + 0.1)
 
-  expect_that(sampler$data@offset[1:5],      equals(offset[1:5]))
-  expect_that(sampler$data@offset.test[1:5], equals(offset[1:5] + 0.1))
+  expect_that(sampler$data@offset[1:5],      equals(otherOffset[1:5]))
+  expect_that(sampler$data@offset.test[1:5], equals(otherOffset[1:5] + 0.1))
   expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
 
 

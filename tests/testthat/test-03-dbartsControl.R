@@ -32,7 +32,7 @@ test_that("integer arguments are identified and bounded", {
 
   expect_error(dbartsControl(n.thin = "not-an-integer"))
   expect_error(dbartsControl(n.thin = NA_integer_))
-  expect_error(dbartsControl(n.thin = 0L))
+  expect_error(dbartsControl(n.thin = -1L))
 
   expect_error(dbartsControl(printEvery = "not-an-integer"))
   expect_error(dbartsControl(printEvery = NA_integer_))
@@ -52,10 +52,10 @@ source(system.file("common", "friedmanData.R", package = "dbarts"))
 test_that("control argument works", {
   n.samples <- 500L
   n.trees <- 50L
-  control <- dbartsControl(n.samples = n.samples, verbose = TRUE, n.trees = n.trees)
+  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees)
   sampler <- dbarts(y ~ x, testData, control = control)
 
   expect_equal(sampler$control@n.trees, n.trees)
-  expect_equal(sampler$control@verbose, TRUE)
+  expect_equal(sampler$control@verbose, FALSE)
   expect_equal(sampler$control@n.samples, n.samples)
 })

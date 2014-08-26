@@ -1,6 +1,6 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"))
-
 context("bart w/continuous response")
+
+source(system.file("common", "friedmanData.R", package = "dbarts"))
 
 test_that("basic Friedman example passes regression test", {
   set.seed(99)

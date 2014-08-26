@@ -181,7 +181,7 @@ namespace {
       fit->setTestPredictors(REAL(x_test), NULL, (size_t) dims[0]);
     } else {
       if (!isReal(offset_test)) error("offset.test must be of type real");
-      if (GET_LENGTH(offset_test) == 1 && REAL(offset_test)[0] == NA_REAL) {
+      if (GET_LENGTH(offset_test) == 1 && ISNA(REAL(offset_test)[0])) {
         fit->setTestPredictors(REAL(x_test), (size_t) dims[0]);
       } else {
         if (GET_LENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");

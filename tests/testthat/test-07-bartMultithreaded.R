@@ -1,6 +1,6 @@
-source(system.file("common", "multithreadData.R", package = "dbarts"))
-
 context("multithreaded bart")
+
+source(system.file("common", "multithreadData.R", package = "dbarts"))
 
 test_that("multithreaded matches single threaded", {
   ## something weak so that it runs quickly w/500k observations
@@ -22,4 +22,4 @@ test_that("multithreaded matches single threaded", {
   expect_identical(multiThreadedFit$yhat.test, NULL)
   expect_identical(multiThreadedFit$yhat.test.mean, NULL)
   expect_equal(singleThreadedFit$varcount[n.sims,], multiThreadedFit$varcount[n.sims,])
-}
+})

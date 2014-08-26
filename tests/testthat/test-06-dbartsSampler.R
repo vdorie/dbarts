@@ -43,10 +43,10 @@ test_that("dbarts sampler updates correctly", {
   sampler$setTestPredictor(x = 1 - z, column = 2)
   expect_equal(as.numeric(sampler$data@x.test[,2]), 1 - z)
 
-  sampler$setTestPredictor(NULL)
+  sampler$setTestPredictors(NULL)
   expect_identical(sampler$data@x.test, NULL)
 
-  sampler$setTestPredictor(test)
+  sampler$setTestPredictors(test)
   expect_equal(sampler$data@x.test, as.matrix(test))
 })
 
@@ -70,7 +70,7 @@ test_that("dbarts sampler shallow/deep copies", {
 
   deepCopy <- sampler$copy(FALSE)
 
-  sampler$setPredictor(z, 2)
+  sampler$setPredictor(train$z, 2)
   expect_false(all(sampler$data@x[,2] == deepCopy$data@x[,2]))
 })
 
