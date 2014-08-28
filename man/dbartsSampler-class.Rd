@@ -50,3 +50,8 @@
   in a separate instruction, run or modified. In this way, MCMC samplers can be constructed
   with BART components filling arbitrary roles.
 }
+\value{
+  For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}.
+  
+  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node.
+}

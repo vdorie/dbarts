@@ -134,9 +134,7 @@ namespace {
     
     if (j < 0 || j >= (int) fit->data.numPredictors) error("Column is out of range.");
     
-    fit->setPredictor(REAL(x), (size_t) j);
-    
-    return NULL_USER_OBJECT;
+    return ScalarLogical(fit->setPredictor(REAL(x), (size_t) j));
   }
   
   SEXP setTestPredictor(SEXP fitExpr, SEXP x_test, SEXP jExpr)

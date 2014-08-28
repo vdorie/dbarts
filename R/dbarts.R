@@ -278,7 +278,7 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setPredictor = function(x, column, updateState = NA) {
-                  'Changes a single column of the predictor matrix.'
+                  'Changes a single column of the predictor matrix. TRUE/FALSE returned as to whether or not the operation was successful.'
                   if (is.character(column)) {
                     if (is.null(colnames(data@x))) stop("column names not specified at initialization, so cannot be replaced by name")
                     
@@ -287,12 +287,12 @@ dbartsSampler <-
                   }
 
                   ptr <- getPointer()
-                  .Call("dbarts_setPredictor", ptr, as.double(x), as.integer(column))
+                  updateSuccessful <- .Call("dbarts_setPredictor", ptr, as.double(x), as.integer(column))
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 
-                  invisible(NULL)
+                  return(updateSuccessful)
                 },
                 setTestPredictor = function(x.test, column, updateState = NA) {
                   'Changes a single column of the test predictor matrix.'

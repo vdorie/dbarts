@@ -526,42 +526,45 @@ namespace dbarts {
     ext_mt_getNumThreadsForJob(fit.threadManager, numObservations, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
                                &numThreads, &numElementsPerThread); */
     
-    size_t numOnLeft;
-    IndexOrdering ordering(fit, p.rule);
+    size_t numOnLeft = 0;
     
-    //if (numThreads <= 1) {
-      numOnLeft = (isTop() ?
-                   partitionRange(observationIndices, 0, numObservations, ordering) :
-                   partitionIndices(observationIndices, numObservations, ordering));
-    /*} else {
-      PartitionThreadData* threadData = ext_stackAllocate(numThreads, PartitionThreadData);
-      void** threadDataPtrs = ext_stackAllocate(numThreads, void*);
+    if (numObservations > 0) {
+      IndexOrdering ordering(fit, p.rule);
+    
+      //if (numThreads <= 1) {
+        numOnLeft = (isTop() ?
+                     partitionRange(observationIndices, 0, numObservations, ordering) :
+                     partitionIndices(observationIndices, numObservations, ordering));
+      /*} else {
+        PartitionThreadData* threadData = ext_stackAllocate(numThreads, PartitionThreadData);
+        void** threadDataPtrs = ext_stackAllocate(numThreads, void*);
       
-      size_t i;
-      for (i = 0; i < numThreads - 1; ++i) {
+        size_t i;
+        for (i = 0; i < numThreads - 1; ++i) {
+          threadData[i].indices = observationIndices + i * numElementsPerThread;
+          threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
+          threadData[i].length = numElementsPerThread;
+          threadData[i].ordering = &ordering;
+          threadDataPtrs[i] = &threadData[i];
+        }
         threadData[i].indices = observationIndices + i * numElementsPerThread;
         threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
-        threadData[i].length = numElementsPerThread;
+        threadData[i].length = numObservations - i * numElementsPerThread;
         threadData[i].ordering = &ordering;
         threadDataPtrs[i] = &threadData[i];
-      }
-      threadData[i].indices = observationIndices + i * numElementsPerThread;
-      threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
-      threadData[i].length = numObservations - i * numElementsPerThread;
-      threadData[i].ordering = &ordering;
-      threadDataPtrs[i] = &threadData[i];
      
       
       
-      ext_mt_runTasks(fit.threadManager, &partitionTask, threadDataPtrs, numThreads);
+        ext_mt_runTasks(fit.threadManager, &partitionTask, threadDataPtrs, numThreads);
       
       
       
-      numOnLeft = mergePartitions(threadData, numThreads);
+        numOnLeft = mergePartitions(threadData, numThreads);
       
-      ext_stackFree(threadDataPtrs);
-      ext_stackFree(threadData);
-    } */
+        ext_stackFree(threadDataPtrs);
+        ext_stackFree(threadData);
+      } */
+    }
     
     
     leftChild->observationIndices = observationIndices;
@@ -583,19 +586,19 @@ namespace dbarts {
     leftChild->clearObservations();
     p.rightChild->clearObservations();
     
-    size_t numOnLeft;
-    IndexOrdering ordering(fit, p.rule);
+    size_t numOnLeft = 0;
+    if (numObservations > 0) {
+      IndexOrdering ordering(fit, p.rule);
     
-    numOnLeft = (isTop() ?
-                 partitionRange(observationIndices, 0, numObservations, ordering) :
-                 partitionIndices(observationIndices, numObservations, ordering));
-    
+      numOnLeft = (isTop() ?
+                   partitionRange(observationIndices, 0, numObservations, ordering) :
+                   partitionIndices(observationIndices, numObservations, ordering));
+    }
     
     leftChild->observationIndices = observationIndices;
     leftChild->numObservations = numOnLeft;
     p.rightChild->observationIndices = observationIndices + numOnLeft;
     p.rightChild->numObservations = numObservations - numOnLeft;
-    
     
     leftChild->addObservationsToChildren(fit);
     p.rightChild->addObservationsToChildren(fit);

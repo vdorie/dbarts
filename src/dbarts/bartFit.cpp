@@ -104,10 +104,20 @@ namespace dbarts {
     }
   }
   
-  void BARTFit::setPredictor(const double* newPredictor, size_t predictorColumn) {
+  bool BARTFit::setPredictor(const double* newPredictor, size_t predictorColumn) {
     uint32_t& numCutsPerVariable(const_cast<uint32_t*>(scratch.numCutsPerVariable)[predictorColumn]);
-    double* cutPoints = const_cast<double**>(scratch.cutPoints)[predictorColumn];
     
+    // store old in case we need to revert
+    double* oldPredictor = new double[data.numObservations];
+    uint32_t oldNumCuts  = numCutsPerVariable;
+    double* oldCutPoints = new double[oldNumCuts];
+    
+    std::memcpy(oldCutPoints, scratch.cutPoints[predictorColumn], oldNumCuts * sizeof(double));
+    std::memcpy(oldPredictor, data.X + predictorColumn * data.numObservations, data.numObservations * sizeof(double));
+    
+    
+    // set the new cut points for the column
+    double* cutPoints = const_cast<double**>(scratch.cutPoints)[predictorColumn];
     if (control.useQuantiles) {
       if (data.maxNumCuts == NULL) ext_throwError("Num cuts cannot be NULL if useQuantiles is true.");
       
@@ -122,11 +132,79 @@ namespace dbarts {
                             numCutsPerVariable, cutPoints);
     }
 
-    std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, newPredictor, data.numObservations * sizeof(double));    
+    // copy in new column
+    std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, newPredictor, data.numObservations * sizeof(double));
     double* Xt = const_cast<double*>(scratch.Xt);
     for (size_t row = 0; row < data.numObservations; ++row) {
       Xt[row * data.numPredictors + predictorColumn] = newPredictor[row];
     }
+    
+    // recover the node mus and check that no end-nodes are empty
+    bool anyLeafNodeIsEmpty = false;
+    double** nodePosteriorPredictions = new double*[control.numTrees];
+    for (size_t i = 0; i < control.numTrees; ++i) nodePosteriorPredictions[i] = NULL;
+    
+    size_t treeNum; // use this in case we need to back out
+    for (treeNum = 0; treeNum < control.numTrees && anyLeafNodeIsEmpty == false; ++treeNum) {
+      const double* treeFits = state.treeFits + treeNum * data.numObservations;
+      
+      nodePosteriorPredictions[treeNum] = state.trees[treeNum].recoverAveragesFromFits(*this, treeFits);
+      
+      // reset which obs in each node now that predictor has changed
+      state.trees[treeNum].top.addObservationsToChildren(*this);
+      
+      NodeVector bottomNodes(state.trees[treeNum].top.getBottomVector());
+      size_t numBottomNodes = bottomNodes.size();
+      
+      // check that the new state is valid
+      for (size_t j = 0; j < numBottomNodes; ++j) {
+        if (bottomNodes[j]->getNumObservations() == 0) {
+          anyLeafNodeIsEmpty = true;
+          break;
+        }
+      }
+    }
+    
+    // roll back any changes if necessary
+    if (anyLeafNodeIsEmpty) {
+      if (oldNumCuts != numCutsPerVariable) {
+        double** cutPointsArray = const_cast<double**>(scratch.cutPoints);
+        
+        delete [] cutPointsArray[predictorColumn];
+        cutPointsArray[predictorColumn] = new double[oldNumCuts];
+        numCutsPerVariable = oldNumCuts;
+      }
+      
+      std::memcpy(const_cast<double**>(scratch.cutPoints)[predictorColumn], oldCutPoints, oldNumCuts * sizeof(double));
+      std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, oldPredictor, data.numObservations * sizeof(double));
+      for (size_t row = 0; row < data.numObservations; ++row) {
+        Xt[row * data.numPredictors + predictorColumn] = oldPredictor[row];
+      }
+      
+      for (size_t i = 0; i < treeNum; ++i) {
+        state.trees[i].top.addObservationsToChildren(*this);
+      }
+    } else {
+      // go back across bottoms and set predictions to those mus for obs now in node
+      for (size_t i = 0; i < control.numTrees; ++i) {
+        double* treeFits = state.treeFits + i * data.numObservations;
+        
+        ext_addVectorsInPlace(treeFits, data.numObservations, -1.0, state.totalFits);
+        
+        state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions[i], treeFits, NULL);
+        
+        ext_addVectorsInPlace(treeFits, data.numObservations, 1.0, state.totalFits);
+      }
+    }
+    
+    for (size_t i = 0; i < control.numTrees; ++i) delete [] nodePosteriorPredictions[i];
+    delete [] nodePosteriorPredictions;
+    
+    
+    delete [] oldCutPoints;
+    delete [] oldPredictor;
+    
+    return(anyLeafNodeIsEmpty != true);
   }
   
   void BARTFit::setTestPredictor(const double* newTestPredictor, size_t predictorColumn) {
@@ -135,6 +213,22 @@ namespace dbarts {
     for (size_t row = 0; row < data.numTestObservations; ++row) {
       Xt_test[row * data.numPredictors + predictorColumn] = newTestPredictor[row];
     }
+    
+    double* currTestFits = new double[data.numTestObservations];
+    
+    ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
+    
+    for (size_t i = 0; i < control.numTrees; ++i) {
+      const double* treeFits = state.treeFits + i * data.numObservations;
+      
+      const double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, treeFits);
+      
+      state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
+      
+      ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+    }
+    
+    delete [] currTestFits;
   }
   
   void BARTFit::setTestPredictors(const double* X_test, size_t numTestObservations) {
@@ -175,6 +269,22 @@ namespace dbarts {
       }
       
       if (testOffset != (const double*) this) data.testOffset = testOffset;
+      
+      double* currTestFits = new double[data.numTestObservations];
+    
+      ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
+    
+      for (size_t i = 0; i < control.numTrees; ++i) {
+        const double* treeFits = state.treeFits + i * data.numObservations;
+      
+        const double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, treeFits);
+      
+        state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
+      
+        ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+      }
+      
+      delete [] currTestFits;
     }
   }
   
@@ -305,7 +415,7 @@ namespace dbarts {
         } */
         // state.trees[i].top.print(*this);
         
-        state.trees[i].getCurrentFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
+        state.trees[i].sampleAveragesAndSetFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - oldTreeFits
         ext_addVectorsInPlace((const double*) oldTreeFits, data.numObservations, -1.0, state.totalFits);
@@ -718,7 +828,7 @@ namespace {
       ext_addVectorsInPlace((const double*) state.totalFits, data.numObservations, -1.0, scratch.treeY);
       
       state.trees[i].setNodeAverages(fit, scratch.treeY);
-      state.trees[i].getCurrentFits(fit, currFits, NULL);
+      state.trees[i].sampleAveragesAndSetFits(fit, currFits, NULL);
       
       // totalFits += currFits
       ext_addVectorsInPlace((const double*) currFits, data.numObservations, 1.0, state.totalFits);
