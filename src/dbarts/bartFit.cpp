@@ -38,6 +38,7 @@ namespace {
   void allocateMemory(BARTFit& fit);
   void setPrior(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
+  void setCutPoints(BARTFit& fit, const size_t* columns, size_t numColumns);
   void setCutPointsFromQuantiles(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                                  uint32_t& numCutsPerVariable, double*& cutPoints,
                                  std::set<double>& uniqueElements, std::vector<double>& sortedElements);
@@ -104,87 +105,124 @@ namespace dbarts {
     }
   }
   
-  bool BARTFit::setPredictor(const double* newPredictor, size_t predictorColumn) {
-    uint32_t& numCutsPerVariable(const_cast<uint32_t*>(scratch.numCutsPerVariable)[predictorColumn]);
+  bool BARTFit::setPredictor(const double* newPredictor)
+  {
+    size_t* columns = ext_stackAllocate(data.numPredictors, size_t);
+    for (size_t i = 0; i < data.numPredictors; ++i) columns[i] = i;
     
-    // store old in case we need to revert
-    double* oldPredictor = new double[data.numObservations];
-    uint32_t oldNumCuts  = numCutsPerVariable;
-    double* oldCutPoints = new double[oldNumCuts];
+    setCutPoints(*this, columns, data.numPredictors);
     
-    std::memcpy(oldCutPoints, scratch.cutPoints[predictorColumn], oldNumCuts * sizeof(double));
-    std::memcpy(oldPredictor, data.X + predictorColumn * data.numObservations, data.numObservations * sizeof(double));
+    ext_stackFree(columns);
     
+    data.X = newPredictor;
     
-    // set the new cut points for the column
-    double* cutPoints = const_cast<double**>(scratch.cutPoints)[predictorColumn];
-    if (control.useQuantiles) {
-      if (data.maxNumCuts == NULL) ext_throwError("Num cuts cannot be NULL if useQuantiles is true.");
-      
-      std::set<double> uniqueElements;
-      std::vector<double> sortedElements(data.numObservations);
-      
-      setCutPointsFromQuantiles(*this, newPredictor, data.maxNumCuts[predictorColumn],
-                                numCutsPerVariable, cutPoints,
-                                uniqueElements, sortedElements);
-    } else {
-      setCutPointsUniformly(*this, newPredictor, data.maxNumCuts[predictorColumn],
-                            numCutsPerVariable, cutPoints);
-    }
-
-    // copy in new column
-    std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, newPredictor, data.numObservations * sizeof(double));
     double* Xt = const_cast<double*>(scratch.Xt);
-    for (size_t row = 0; row < data.numObservations; ++row) {
-      Xt[row * data.numPredictors + predictorColumn] = newPredictor[row];
+    for (size_t col = 0; col < data.numPredictors; ++col) {
+      for (size_t row = 0; row < data.numObservations; ++row) {
+        Xt[row * data.numPredictors + col] = data.X[row + col * data.numObservations];
+      }
     }
     
-    // recover the node mus and check that no end-nodes are empty
-    bool anyLeafNodeIsEmpty = false;
+    bool treesAreValid = true;
+    
     double** nodePosteriorPredictions = new double*[control.numTrees];
     for (size_t i = 0; i < control.numTrees; ++i) nodePosteriorPredictions[i] = NULL;
     
-    size_t treeNum; // use this in case we need to back out
-    for (treeNum = 0; treeNum < control.numTrees && anyLeafNodeIsEmpty == false; ++treeNum) {
+    size_t treeNum;
+    for (treeNum = 0; treeNum < control.numTrees && treesAreValid == true; ++treeNum) {
       const double* treeFits = state.treeFits + treeNum * data.numObservations;
       
       nodePosteriorPredictions[treeNum] = state.trees[treeNum].recoverAveragesFromFits(*this, treeFits);
       
-      // reset which obs in each node now that predictor has changed
       state.trees[treeNum].top.addObservationsToChildren(*this);
       
-      NodeVector bottomNodes(state.trees[treeNum].top.getBottomVector());
-      size_t numBottomNodes = bottomNodes.size();
-      
-      // check that the new state is valid
-      for (size_t j = 0; j < numBottomNodes; ++j) {
-        if (bottomNodes[j]->getNumObservations() == 0) {
-          anyLeafNodeIsEmpty = true;
-          break;
-        }
+      treesAreValid &= state.trees[treeNum].isValid();
+    }
+    
+    
+    if (treesAreValid) {
+      // go back across bottoms and set predictions to those mus for obs now in node
+      for (size_t i = 0; i < control.numTrees; ++i) {
+        double* treeFits = state.treeFits + i * data.numObservations;
+        
+        ext_addVectorsInPlace(treeFits, data.numObservations, -1.0, state.totalFits);
+        
+        state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions[i], treeFits, NULL);
+        
+        ext_addVectorsInPlace(treeFits, data.numObservations, 1.0, state.totalFits);
       }
     }
     
-    // roll back any changes if necessary
-    if (anyLeafNodeIsEmpty) {
-      if (oldNumCuts != numCutsPerVariable) {
-        double** cutPointsArray = const_cast<double**>(scratch.cutPoints);
-        
-        delete [] cutPointsArray[predictorColumn];
-        cutPointsArray[predictorColumn] = new double[oldNumCuts];
-        numCutsPerVariable = oldNumCuts;
-      }
-      
-      std::memcpy(const_cast<double**>(scratch.cutPoints)[predictorColumn], oldCutPoints, oldNumCuts * sizeof(double));
-      std::memcpy(const_cast<double*>(data.X) + predictorColumn * data.numObservations, oldPredictor, data.numObservations * sizeof(double));
+    
+    for (size_t i = 0; i < control.numTrees; ++i) delete [] nodePosteriorPredictions[i];
+    delete [] nodePosteriorPredictions;
+    
+    return treesAreValid;
+  }
+  
+  bool BARTFit::updatePredictor(const double* newPredictor, size_t column)
+  {
+    return updatePredictors(newPredictor, &column, 1);
+  }
+  
+  bool BARTFit::updatePredictors(const double* newPredictor, const size_t* columns, size_t numColumns)
+  {
+    // store current
+    double* oldPredictor = new double[data.numObservations * numColumns];
+    double** oldCutPoints = new double*[numColumns];
+    
+    for (size_t i = 0; i < numColumns; ++i) {
+      std::memcpy(oldPredictor + i * data.numObservations, data.X + columns[i] * data.numObservations, data.numObservations * sizeof(double));
+      oldCutPoints[i] = new double[scratch.numCutsPerVariable[columns[i]]];
+      std::memcpy(oldCutPoints[i], scratch.cutPoints[columns[i]], scratch.numCutsPerVariable[columns[i]] * sizeof(double));
+    }
+    
+    
+    // install new
+    setCutPoints(*this, columns, numColumns);
+    
+    double* X  = const_cast<double*>(data.X);
+    double* Xt = const_cast<double*>(scratch.Xt);
+    for (size_t i = 0; i < numColumns; ++i) {
+      std::memcpy(X + columns[i] * data.numObservations, newPredictor + i * data.numObservations, data.numObservations * sizeof(double));
       for (size_t row = 0; row < data.numObservations; ++row) {
-        Xt[row * data.numPredictors + predictorColumn] = oldPredictor[row];
+        Xt[row * data.numPredictors + columns[i]] = newPredictor[row + i * data.numObservations];
+      }
+    }
+    
+    
+    // check validity of new columns and recover node posterior samples
+    bool treesAreValid = true;
+    
+    double** nodePosteriorPredictions = new double*[control.numTrees];
+    for (size_t i = 0; i < control.numTrees; ++i) nodePosteriorPredictions[i] = NULL;
+    
+    size_t treeNum;
+    for (treeNum = 0; treeNum < control.numTrees && treesAreValid == true; ++treeNum) {
+      const double* treeFits = state.treeFits + treeNum * data.numObservations;
+      
+      nodePosteriorPredictions[treeNum] = state.trees[treeNum].recoverAveragesFromFits(*this, treeFits);
+      
+      state.trees[treeNum].top.addObservationsToChildren(*this);
+      
+      treesAreValid &= state.trees[treeNum].isValid();
+    }
+    
+    
+    if (!treesAreValid) {
+      for (size_t i = 0; i < numColumns; ++i) {
+        std::memcpy(X + columns[i] * data.numObservations, oldPredictor + i * data.numObservations, data.numObservations * sizeof(double));
+        
+        std::memcpy(const_cast<double**>(scratch.cutPoints)[columns[i]], oldCutPoints[i], scratch.numCutsPerVariable[columns[i]] * sizeof(double));
+        
+        for (size_t row = 0; row < data.numObservations; ++row) {
+          Xt[row * data.numPredictors + columns[i]] = oldPredictor[row + i * data.numObservations];
+        }
       }
       
-      for (size_t i = 0; i < treeNum; ++i) {
-        state.trees[i].top.addObservationsToChildren(*this);
-      }
+      for (size_t i = 0; i < treeNum; ++i) state.trees[i].top.addObservationsToChildren(*this);
     } else {
+      
       // go back across bottoms and set predictions to those mus for obs now in node
       for (size_t i = 0; i < control.numTrees; ++i) {
         double* treeFits = state.treeFits + i * data.numObservations;
@@ -200,51 +238,27 @@ namespace dbarts {
     for (size_t i = 0; i < control.numTrees; ++i) delete [] nodePosteriorPredictions[i];
     delete [] nodePosteriorPredictions;
     
-    
+    for (size_t i = 0; i < numColumns; ++i) delete [] oldCutPoints[i];
     delete [] oldCutPoints;
     delete [] oldPredictor;
     
-    return(anyLeafNodeIsEmpty != true);
+    return treesAreValid;
   }
   
-  void BARTFit::setTestPredictor(const double* newTestPredictor, size_t predictorColumn) {
-    std::memcpy(const_cast<double*>(data.X_test) + predictorColumn * data.numTestObservations, newTestPredictor, data.numTestObservations * sizeof(double));    
-    double* Xt_test = const_cast<double*>(scratch.Xt_test);
-    for (size_t row = 0; row < data.numTestObservations; ++row) {
-      Xt_test[row * data.numPredictors + predictorColumn] = newTestPredictor[row];
-    }
-    
-    double* currTestFits = new double[data.numTestObservations];
-    
-    ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
-    
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      const double* treeFits = state.treeFits + i * data.numObservations;
-      
-      const double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, treeFits);
-      
-      state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
-      
-      ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
-    }
-    
-    delete [] currTestFits;
+  void BARTFit::setTestPredictor(const double* newTestPredictor, size_t numTestObservations) {
+    setTestPredictorAndOffset(newTestPredictor, (const double*) this, numTestObservations);
   }
   
-  void BARTFit::setTestPredictors(const double* X_test, size_t numTestObservations) {
-    setTestPredictors(X_test, (const double*) this, numTestObservations);
-  }
-  
-  void BARTFit::setTestOffset(const double* testOffset) {
-    data.testOffset = testOffset;
+  void BARTFit::setTestOffset(const double* newTestOffset) {
+     data.testOffset = newTestOffset;
   }
   
   // setting testOffset to NULL is valid
-  // an invalid pointer address for testOffset is the object itself
-  void BARTFit::setTestPredictors(const double* X_test, const double* testOffset, size_t numTestObservations) {
+  // an invalid pointer address for testOffset is the object itself; when invalid, it is not updated
+  void BARTFit::setTestPredictorAndOffset(const double* X_test, const double* testOffset, size_t numTestObservations) {
     if (numTestObservations == 0 || X_test == NULL) {
-      if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
-      if (state.totalTestFits != NULL) delete [] state.totalTestFits; state.totalTestFits = NULL;
+      if (scratch.Xt_test != NULL) { delete [] scratch.Xt_test; scratch.Xt_test = NULL; }
+      if (state.totalTestFits != NULL) { delete [] state.totalTestFits; state.totalTestFits = NULL; }
       
       data.X_test = NULL;
       data.numTestObservations = 0;
@@ -253,8 +267,8 @@ namespace dbarts {
       data.X_test = X_test;
       
       if (numTestObservations != data.numTestObservations) {
-        if (scratch.Xt_test != NULL) delete [] scratch.Xt_test; scratch.Xt_test = NULL;
-        if (state.totalTestFits != NULL) delete [] state.totalTestFits; state.totalTestFits = NULL;
+        if (scratch.Xt_test != NULL) { delete [] scratch.Xt_test; scratch.Xt_test = NULL; }
+        if (state.totalTestFits != NULL) { delete [] state.totalTestFits; state.totalTestFits = NULL; }
         data.numTestObservations = numTestObservations;
         
         scratch.Xt_test = new double[data.numTestObservations * data.numPredictors];
@@ -286,6 +300,40 @@ namespace dbarts {
       
       delete [] currTestFits;
     }
+  }
+  
+  void BARTFit::updateTestPredictor(const double* newTestPredictor, size_t column) {
+    updateTestPredictors(newTestPredictor, &column, 1);
+  }
+  
+  void BARTFit::updateTestPredictors(const double* newTestPredictor, const size_t* columns, size_t numColumns) {
+    double* X_test = const_cast<double*>(data.X_test);
+    double* Xt_test = const_cast<double*>(scratch.Xt_test);
+    
+    for (size_t i = 0; i < numColumns; ++i) {
+      size_t col = columns[i];
+      std::memcpy(X_test + col * data.numTestObservations, newTestPredictor + i * data.numTestObservations, data.numTestObservations * sizeof(double));
+      
+      for (size_t row = 0; row < data.numTestObservations; ++row) {
+        Xt_test[row * data.numPredictors + col] = newTestPredictor[row + i * data.numTestObservations];
+      }
+    }
+    
+    double* currTestFits = new double[data.numTestObservations];
+    
+    ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
+    
+    for (size_t i = 0; i < control.numTrees; ++i) {
+      const double* treeFits = state.treeFits + i * data.numObservations;
+      
+      const double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, treeFits);
+      
+      state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
+      
+      ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+    }
+    
+    delete [] currTestFits;
   }
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
@@ -644,7 +692,6 @@ namespace {
   }
   
   void setInitialCutPoints(BARTFit& fit) {
-    Control& control(fit.control);
     Data& data(fit.data);
     Scratch& scratch(fit.scratch);
     
@@ -655,6 +702,23 @@ namespace {
       cutPoints[i] = NULL;
     }
     
+    size_t* columns = ext_stackAllocate(data.numPredictors, size_t);
+    for (size_t i = 0; i < data.numPredictors; ++i) columns[i] = i;
+    
+    setCutPoints(fit, columns, data.numPredictors);
+    
+    ext_stackFree(columns);
+  }
+  
+  void setCutPoints(BARTFit& fit, const size_t* columns, size_t numColumns)
+  {
+    Control& control(fit.control);
+    Data& data(fit.data);
+    Scratch& scratch(fit.scratch);
+    
+    uint32_t* numCutsPerVariable = const_cast<uint32_t*>(scratch.numCutsPerVariable);
+    double** cutPoints = const_cast<double**>(scratch.cutPoints);
+        
     if (control.useQuantiles) {
       if (data.maxNumCuts == NULL) ext_throwError("Num cuts cannot be NULL if useQuantiles is true.");
       
@@ -662,15 +726,19 @@ namespace {
       std::set<double> uniqueElements;
       std::vector<double> sortedElements(data.numObservations);
       
-      for (size_t i = 0; i < data.numPredictors; ++i) {
-        setCutPointsFromQuantiles(fit, data.X + i * data.numObservations, data.maxNumCuts[i],
-                                  numCutsPerVariable[i], cutPoints[i],
+      for (size_t i = 0; i < numColumns; ++i) {
+        size_t col = columns[i];
+        
+        setCutPointsFromQuantiles(fit, data.X + col * data.numObservations, data.maxNumCuts[col],
+                                  numCutsPerVariable[col], cutPoints[col],
                                   uniqueElements, sortedElements);
       }
     } else {
-      for (size_t i = 0; i < data.numPredictors; ++i) {
-        setCutPointsUniformly(fit, data.X + i * data.numObservations, data.maxNumCuts[i],
-                              numCutsPerVariable[i], cutPoints[i]);
+      for (size_t i = 0; i < numColumns; ++i) {
+        size_t col = columns[i];
+        
+        setCutPointsUniformly(fit, data.X + col * data.numObservations, data.maxNumCuts[col],
+                              numCutsPerVariable[col], cutPoints[col]);
       }
     }
   }

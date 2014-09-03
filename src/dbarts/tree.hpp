@@ -39,6 +39,8 @@ namespace dbarts {
     void countVariableUses(uint32_t* variableCounts);
     
     const char* createString() const;
+    
+    bool isValid() const;
   };
   
   

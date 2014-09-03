@@ -25,14 +25,25 @@ extern "C" {
   
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
+  
+  // settors simply replace local pointers to variables. dimensions much match
+  // update modifies the local copy (which may belong to someone else)
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);
   void dbarts_setOffset(dbarts::BARTFit* fit, const double* newOffset);
-  void dbarts_setPredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t predictorColumn);
-  void dbarts_setTestPredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t predictorColumn);
-  void dbarts_setTestPredictors(dbarts::BARTFit* fit, const double* newPredictors, std::size_t numTestObservations);
-  void dbarts_setTestOffset(dbarts::BARTFit* fit, const double* newTestOffset);
-  void dbarts_setTestPredictorsAndOffset(dbarts::BARTFit* fit, const double* newPredictors, const double* newTestOffset, std::size_t numTestObservations);
   
+  // predictor changes will return false if the new covariates would leave the sampler in an invalid state
+  // (i.e. with an empty terminal node); the update functions auto-revert to the previous while set does not
+  int dbarts_setPredictor(dbarts::BARTFit* fit, const double* newPredictor); // != 0 if update leaves sampler in invalid state; set with a valid one to proceed
+  int dbarts_updatePredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t column); // false if same, but reverts on own
+  int dbarts_updatePredictors(dbarts::BARTFit* fit, const double* newPredictor, const std::size_t* columns, std::size_t numColumns);
+  
+  void dbarts_setTestPredictor(dbarts::BARTFit* fit, const double* newTestPredictor, std::size_t numTestObservations);
+  void dbarts_setTestOffset(dbarts::BARTFit* fit, const double* newTestOffset);
+  void dbarts_setTestPredictorAndOffset(dbarts::BARTFit* fit, const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
+  
+  void dbarts_updateTestPredictor(dbarts::BARTFit* fit, const double* newTestPredictor, std::size_t column);
+  void dbarts_updateTestPredictors(dbarts::BARTFit* fit, const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
+    
   dbarts::CGMPrior* dbarts_createCGMPrior();
   dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power);
   void dbarts_destroyCGMPrior(dbarts::CGMPrior* prior);

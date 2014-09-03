@@ -116,4 +116,15 @@ namespace dbarts {
   void Tree::countVariableUses(uint32_t* variableCounts) {
     top.countVariableUses(variableCounts);
   }
+  
+  bool Tree::isValid() const {
+    const NodeVector bottomNodes(top.getBottomVector());
+    size_t numBottomNodes = bottomNodes.size();
+    
+    for (size_t j = 0; j < numBottomNodes; ++j) {
+      if (bottomNodes[j]->getNumObservations() == 0) return false;
+    }
+    
+    return true;
+  }
 }

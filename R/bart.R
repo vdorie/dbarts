@@ -94,14 +94,14 @@ bart <- function(
     oldKeepTrainingFits <- control@keepTrainingFits
     oldVerbose <- control@verbose
 
-    if (length(x.test) > 0) sampler$setTestPredictors(NULL, NULL, updateState = FALSE)
+    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL, updateState = FALSE)
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
 
     burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
     
-    if (length(x.test) > 0) sampler$setTestPredictors(oldX.test, oldOffset.test, updateState = FALSE)
+    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
     sampler$setControl(control)
