@@ -45,6 +45,9 @@ namespace dbarts {
     void setTestPredictors(const double* newTestPredictor, std::size_t numTestObservations);
     void setTestOffset(const double* newTestOffset);
     void setTestPredictors(const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
+    
+    bool saveToFile(const char* fileName) const;
+    BARTFit* BARTFit::loadFromFile(const char* fileName);
   };
 } // namespace dbarts
 

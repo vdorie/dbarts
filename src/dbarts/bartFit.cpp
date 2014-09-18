@@ -16,7 +16,7 @@
 
 
 #include <set>       // used to sort and find 
-#include <vector>    //   split points;
+#include <vector>    //   split points
 #include <algorithm> // integer min
 
 #include <external/alloca.h>
@@ -819,4 +819,30 @@ namespace {
 #else
   double subtractTimes(time_t end, time_t start) { return (double) (end - start); }
 #endif
+}
+
+namespace {
+  bool writeAll(int fileDesciptor, void* buffer, size_t bufferSize) 
+  {
+    ssize_t bytesWritten = 0;
+    
+    while (bytesWritten < bufferSize) {
+      bytesWritten += write(fileDescriptor, buffer + bytesWritten )
+    }
+  }
+}
+namespace dbarts {
+  bool saveToFile(const char* fileName)
+  {
+    int fileDesc = open(fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fileDesc == -1) {
+      ext_issueWarning("unable to open file: %s", std::strerror(errno));
+      return false;
+    }
+    
+    uint8_t versionBuffer[8] = { '0', '0', '.', '0', '8', '.', '0', '0' };
+    
+    ssize_t bytesWritten = write(fileDesc, versionBuffer, 8);
+    
+  }
 }
