@@ -109,12 +109,10 @@ void ext_addScalarToVectorInPlace(double* x, size_t length, double alpha)
   
   size_t lengthMod5 = length % 5;
   
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= alpha;
-    if (length < 5) return;
-  }
+  size_t i = 0;
+  for ( /* */ ; i < lengthMod5; ++i) x[i] += alpha;
   
-  for (size_t i = lengthMod5; i < length; i += 5) {
+  for ( /* */ ; i < length; i += 5) {
     x[i]     += alpha;
     x[i + 1] += alpha;
     x[i + 2] += alpha;
