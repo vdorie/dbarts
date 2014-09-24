@@ -13,6 +13,7 @@ Suggests:
   testthat
 Description: Fits Bayesian additive regression trees (BART) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/MH sampler. Also serves as a drop-in replacement for package BayesTree.
 NeedsCompilation: yes
+Biarch: TRUE
 License: GPL (>= 2)
 URL: https://github.com/vdorie/dbarts
 BugReports: https://github.com/vdorie/dbarts/issues
