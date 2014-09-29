@@ -98,7 +98,12 @@ namespace {
     
     if (!isReal(y)) error("y must be of type real.");
     if ((size_t) length(y) != fit->data.numObservations) error("Length of new y does not match old.");
+    
+    if (fit->control.responseIsBinary) GetRNGstate();
+        
     fit->setResponse(REAL(y));
+    
+    if (fit->control.responseIsBinary) PutRNGstate();
     
     return NULL_USER_OBJECT;
   }
@@ -115,7 +120,12 @@ namespace {
     } else if (!isNull(offsetExpr) && !isS4Null(offsetExpr)) {
       error("offset must be of type real or NULL.");
     }
+    
+    if (fit->control.responseIsBinary) GetRNGstate();
+    
     fit->setOffset(offset);
+    
+    if (fit->control.responseIsBinary) PutRNGstate();
     
     return NULL_USER_OBJECT;
   }
