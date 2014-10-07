@@ -512,7 +512,6 @@ namespace {
     state.trees = static_cast<Tree*>(::operator new (control.numTrees * sizeof(Tree)));
     state.treeIndices = new size_t[data.numObservations * control.numTrees];
     
-    
     for (size_t i = 0; i < control.numTrees; ++i) {
       new (state.trees + i) Tree(state.treeIndices + i * data.numObservations, data.numObservations, data.numPredictors);
     }
@@ -821,28 +820,105 @@ namespace {
 #endif
 }
 
-namespace {
-  bool writeAll(int fileDesciptor, void* buffer, size_t bufferSize) 
-  {
-    ssize_t bytesWritten = 0;
-    
-    while (bytesWritten < bufferSize) {
-      bytesWritten += write(fileDescriptor, buffer + bytesWritten )
-    }
-  }
-}
+#include <external/binaryIO.h>
+#include <sys/stat.h> // permissions
+#include <fcntl.h>    // open flags
+#include <unistd.h>   // unlink
+#include "binaryIO.hpp"
+
+#define VERSION_STRING_LENGTH 8
+
 namespace dbarts {
-  bool saveToFile(const char* fileName)
+  
+  bool BARTFit::saveToFile(const char* fileName) const
   {
-    int fileDesc = open(fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    if (fileDesc == -1) {
-      ext_issueWarning("unable to open file: %s", std::strerror(errno));
+    ext_binaryIO bio;
+    int errorCode = ext_bio_initialize(&bio, fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    
+    if (errorCode != 0) {
+      ext_issueWarning("unable to open file: %s", std::strerror(errorCode));
+      
       return false;
     }
     
-    uint8_t versionBuffer[8] = { '0', '0', '.', '0', '8', '.', '0', '0' };
+    // because of a peculiarity of how this gets mucked around on creation, this is necessary
+    double scaleFactor = control.responseIsBinary ? 1.0 : (data.sigmaEstimate / scratch.dataScale.range);
+    double originalScale = model.sigmaSqPrior->getScale();
+    model.sigmaSqPrior->setScale(originalScale / (scaleFactor * scaleFactor));
     
-    ssize_t bytesWritten = write(fileDesc, versionBuffer, 8);
+    if (ext_bio_writeNChars(&bio, "00.08.00", VERSION_STRING_LENGTH) != 0) goto save_failed;
     
+    if (writeControl(control, &bio) == false) goto save_failed;
+    ext_printf("wrote control\n");
+    if (writeModel(model, &bio) == false) goto save_failed;
+    ext_printf("wrote model\n");
+    if (writeData(data, &bio) == false) goto save_failed;
+    ext_printf("wrote model\n");
+    
+    if (writeState(state, &bio, control, data) == false) goto save_failed;
+    ext_printf("wrote state\n");
+    
+    ext_bio_invalidate(&bio);
+    
+    model.sigmaSqPrior->setScale(originalScale);
+    
+    printTerminalSummary(*this);
+    
+    return true;
+    
+save_failed:
+    ext_bio_invalidate(&bio);
+    model.sigmaSqPrior->setScale(originalScale);
+    unlink(fileName);
+    return false; 
+  }
+  
+  
+  BARTFit* BARTFit::loadFromFile(const char* fileName) {
+    ext_binaryIO bio;
+    int errorCode = ext_bio_initialize(&bio, fileName, O_RDONLY, 0);
+    if (errorCode != 0) { ext_issueWarning("unable to open file: %s", std::strerror(errorCode)); return NULL; }
+    
+    char versionString[8];
+    if (ext_bio_readNChars(&bio, versionString, VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unable to read version string from file"); return NULL; }
+    
+    if (strncmp(versionString, "00.08.00", VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unrecognized file formal"); return NULL; }
+    
+    Control control;
+    Model model;
+    Data data;
+    BARTFit* result = NULL;;
+    
+    if (readControl(control, &bio) == false) goto load_failed;
+    ext_printf("read control\n");
+    if (readModel(model, &bio) == false) goto load_failed;
+    ext_printf("read model\n");
+    if (readData(data, &bio) == false) goto load_failed;
+    ext_printf("read data\n");
+    
+    result = new BARTFit(control, model, data);
+    
+    if (readState(result->state, &bio, result->control, result->data) == false) goto load_failed;
+    ext_printf("read state\n");
+    
+    ext_bio_invalidate(&bio);
+    
+    printTerminalSummary(*result);
+    
+    return result;
+    
+load_failed:
+    ext_bio_invalidate(&bio);
+    
+    delete result;
+    
+    delete [] data.maxNumCuts;
+    delete [] data.variableTypes;
+      
+    delete model.sigmaSqPrior;
+    delete model.muPrior;
+    delete model.treePrior;
+    
+    return NULL;
   }
 }

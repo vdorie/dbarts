@@ -31,8 +31,11 @@ namespace {
   using namespace dbarts;
   
   void initializeControlFromExpression(Control& control, SEXP controlExpr);
+  SEXP createControlExpressionFromFit(const BARTFit& fit);
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control);
+  SEXP createModelExpressionFromFit(const BARTFit& fit);
   void initializeDataFromExpression(Data& data, SEXP dataExpr);
+  SEXP createDataExpressionFromFit(const BARTFit& fit);
   
   void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr);
   SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
@@ -91,6 +94,32 @@ extern "C" {
 }
 
 namespace {
+  using namespace dbarts;
+  
+  SEXP saveToFile(SEXP fitExpr, SEXP fileName)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setY called on NULL external pointer.");
+    
+    return ScalarLogical(fit->saveToFile(CHAR(STRING_ELT(fileName, 0))));
+  }
+  
+  SEXP loadFromFile(SEXP fileName)
+  {
+    BARTFit* fit = BARTFit::loadFromFile(CHAR(STRING_ELT(fileName, 0)));
+    
+    delete [] fit->data.maxNumCuts;
+    delete [] fit->data.variableTypes;
+      
+    delete fit->model.sigmaSqPrior;
+    delete fit->model.muPrior;
+    delete fit->model.treePrior;
+    
+    delete fit;
+    
+    return NULL_USER_OBJECT;
+  }
+  
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
@@ -467,6 +496,8 @@ namespace {
     { "dbarts_storeState", (DL_FUNC) &storeState, 2 },
     { "dbarts_restoreState", (DL_FUNC) &restoreState, 2},
     { "dbarts_finalize", (DL_FUNC) &finalize, 0 },
+    { "dbarts_saveToFile", (DL_FUNC) &saveToFile, 2 },
+    { "dbarts_loadFromFile", (DL_FUNC) &loadFromFile, 1 },
     { NULL, NULL, 0 }
   };
   

@@ -3,8 +3,8 @@ INCLUDE_DIR=../include
 PKG_CPPFLAGS=-I$(INCLUDE_DIR)
 ALL_CPPFLAGS=$(R_XTRA_CPPFLAGS) $(PKG_CPPFLAGS) $(CPPFLAGS)
 
-LOCAL_SOURCES = io.c linearAlgebra.c moments.c stats.c thread.c
-LOCAL_OBJECTS = io.o linearAlgebra.o moments.o stats.o thread.o
+LOCAL_SOURCES = binaryIO.c io.c linearAlgebra.c moments.c stats.c thread.c
+LOCAL_OBJECTS = binaryIO.o io.o linearAlgebra.o moments.o stats.o thread.o
 
 all : libexternal.a
 
@@ -18,6 +18,7 @@ clean :
 rebuild : clean all
 
 $(INCLUDE_DIR)/external/alloca.h : $(INCLUDE_DIR)/external/stddef.h
+$(INCLUDE_DIR)/external/binaryIO.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/io.h :
 $(INCLUDE_DIR)/external/linearAlgebra.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/stats_mt.h : $(INCLUDE_DIR)/external/stddef.h $(INCLUDE_DIR)/external/thread.h
@@ -25,12 +26,14 @@ $(INCLUDE_DIR)/external/stats.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/stddef.h :
 $(INCLUDE_DIR)/external/thread.h : $(INCLUDE_DIR)/external/stddef.h
 
-
-linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/external/linearAlgebra.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
+binaryIO.o : binaryIO.c $(INCLUDE_DIR)/external/binaryIO.h
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c binaryIO.c -o binaryIO.o
 
 io.o : io.c $(INCLUDE_DIR)/external/io.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c io.c -o io.o
+
+linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/external/linearAlgebra.h
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
 
 moments.o : moments.c $(INCLUDE_DIR)/external/stats.h $(INCLUDE_DIR)/external/stats_mt.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
