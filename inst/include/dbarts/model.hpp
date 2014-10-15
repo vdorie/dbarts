@@ -18,6 +18,7 @@
 #define DBARTS_DEFAULT_TREE_PRIOR_POWER 2.0
 #define DBARTS_DEFAULT_TREE_PRIOR_BASE  0.95
 
+struct ext_rng;
 
 namespace dbarts {
   struct TreePrior;
@@ -67,7 +68,7 @@ namespace dbarts {
   
   struct EndNodePrior {
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const = 0;
-    virtual double drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const = 0;
+    virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const = 0;
     
     virtual ~EndNodePrior() { }
   };
@@ -75,7 +76,7 @@ namespace dbarts {
   // the virtual scale accessors are for the conditional bart, which can have its data rescaled
   // if your prior doesn't use them, ignore them
   struct ResidualVariancePrior {
-    virtual double drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const = 0;
+    virtual double drawFromPosterior(ext_rng* rng, double numObservations, double sumOfSquaredResiduals) const = 0;
     
     virtual double getScale() const = 0;
     virtual void setScale(double scale) = 0;
@@ -114,7 +115,7 @@ namespace dbarts {
     virtual ~NormalPrior() { }
     
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const;
-    virtual double drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const;
+    virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const;
   };
   
   // sigmaSq ~ chisq(df, scale)
@@ -132,7 +133,7 @@ namespace dbarts {
     virtual double getScale() const { return scale; }
     virtual void setScale(double newScale) { scale = newScale; }
     
-    virtual double drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const;
+    virtual double drawFromPosterior(ext_rng* rng, double numObservations, double sumOfSquaredResiduals) const;
   };
 } // namespace dbarts
 

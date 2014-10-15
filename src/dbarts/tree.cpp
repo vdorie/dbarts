@@ -59,7 +59,7 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double posteriorPrediction = bottomNode.drawFromPosterior(*fit.model.muPrior, fit.state.sigma * fit.state.sigma);
+      double posteriorPrediction = bottomNode.drawFromPosterior(fit.control.rng, *fit.model.muPrior, fit.state.sigma * fit.state.sigma);
       bottomNode.setPredictions(trainingFits, posteriorPrediction);
       
       if (testFits != NULL) nodePosteriorPredictions[i] = posteriorPrediction;

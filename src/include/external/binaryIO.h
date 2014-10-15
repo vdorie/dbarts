@@ -2,12 +2,11 @@
 #define EXTERNAL_BINARY_IO_H
 
 #include "stddef.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
   
 // This is pretty rudimentary. It assumes that doubles are IEEE 754 Annex F IEC 60559.
 // A byte has to be 8 bits. On the other hand, size_ts are up-cast to 64 bit unsigned integers, 

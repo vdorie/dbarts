@@ -70,6 +70,7 @@ then
 fi
 
 AC_CHECK_HEADERS([sys/time.h])
+AC_CHECK_HEADERS([unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_INT64_T
@@ -77,6 +78,7 @@ AC_TYPE_UINT64_T
 
 # Checks for library functions.
 AC_CHECK_FUNCS([gettimeofday])
+AC_CHECK_FUNCS([clock_gettime])
 AC_FUNC_ALLOCA
 
 AC_LANG_PUSH(C++)

@@ -3,8 +3,8 @@ INCLUDE_DIR=../include
 PKG_CPPFLAGS=-I$(INCLUDE_DIR)
 ALL_CPPFLAGS=$(R_XTRA_CPPFLAGS) $(PKG_CPPFLAGS) $(CPPFLAGS)
 
-LOCAL_SOURCES = binaryIO.c io.c linearAlgebra.c moments.c stats.c thread.c
-LOCAL_OBJECTS = binaryIO.o io.o linearAlgebra.o moments.o stats.o thread.o
+LOCAL_SOURCES = binaryIO.c io.c linearAlgebra.c moments.c randomBase.c randomNorm.c random.c thread.c
+LOCAL_OBJECTS = binaryIO.o io.o linearAlgebra.o moments.o randomBase.o randomNorm.o random.o thread.o
 
 all : libexternal.a
 
@@ -21,6 +21,7 @@ $(INCLUDE_DIR)/external/alloca.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/binaryIO.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/io.h :
 $(INCLUDE_DIR)/external/linearAlgebra.h : $(INCLUDE_DIR)/external/stddef.h
+$(INCLUDE_DIR)/external/random.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/stats_mt.h : $(INCLUDE_DIR)/external/stddef.h $(INCLUDE_DIR)/external/thread.h
 $(INCLUDE_DIR)/external/stats.h : $(INCLUDE_DIR)/external/stddef.h
 $(INCLUDE_DIR)/external/stddef.h :
@@ -38,8 +39,14 @@ linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/external/linearAlgebra.h
 moments.o : moments.c $(INCLUDE_DIR)/external/stats.h $(INCLUDE_DIR)/external/stats_mt.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
 
-stats.o : stats.c $(INCLUDE_DIR)/external/stats.h
-	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c stats.c -o stats.o
+randomBase.o : randomBase.c $(INCLUDE_DIR)/external/random.h
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c randomBase.c -o randomBase.o
+
+randomNorm.o : randomNorm.c $(INCLUDE_DIR)/external/random.h
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c randomNorm.c -o randomNorm.o
+
+random.o : random.c $(INCLUDE_DIR)/external/random.h
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c random.c -o random.o
 
 thread.o : thread.c pthread.c $(INCLUDE_DIR)/external/thread.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c thread.c -o thread.o

@@ -7,6 +7,8 @@
 
 #include <dbarts/types.hpp>
 
+struct ext_rng;
+
 namespace dbarts {
   using std::size_t;
   using std::uint32_t;
@@ -118,7 +120,7 @@ namespace dbarts {
     void clearObservations();
     void clear();
     
-    double drawFromPosterior(const EndNodePrior& endNodePrior, double residualVariance) const;
+    double drawFromPosterior(ext_rng* rng, const EndNodePrior& endNodePrior, double residualVariance) const;
     void setPredictions(double* y_hat, double prediction) const;
         
     size_t getDepth() const;

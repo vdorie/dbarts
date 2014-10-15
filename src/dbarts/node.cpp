@@ -648,11 +648,11 @@ namespace dbarts {
     }
   }
   
-  double Node::drawFromPosterior(const EndNodePrior& endNodePrior, double residualVariance) const
+  double Node::drawFromPosterior(ext_rng* rng, const EndNodePrior& endNodePrior, double residualVariance) const
   {
     if (getNumObservations() == 0) return 0.0;
       
-    return endNodePrior.drawFromPosterior(getAverage(), getNumEffectiveObservations(), residualVariance);
+    return endNodePrior.drawFromPosterior(rng, getAverage(), getNumEffectiveObservations(), residualVariance);
   }
   
   // these could potentially be multithreaded, but the gains are probably minimal

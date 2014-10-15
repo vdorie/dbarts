@@ -19,6 +19,7 @@
 
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
+#include <external/random.h>
 
 #include <set>
 #ifdef THREAD_SAFE_UNLOAD
@@ -31,11 +32,11 @@ namespace {
   using namespace dbarts;
   
   void initializeControlFromExpression(Control& control, SEXP controlExpr);
-  SEXP createControlExpressionFromFit(const BARTFit& fit);
+  // SEXP createControlExpressionFromFit(const BARTFit& fit);
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control);
-  SEXP createModelExpressionFromFit(const BARTFit& fit);
+  // SEXP createModelExpressionFromFit(const BARTFit& fit);
   void initializeDataFromExpression(Data& data, SEXP dataExpr);
-  SEXP createDataExpressionFromFit(const BARTFit& fit);
+  // SEXP createDataExpressionFromFit(const BARTFit& fit);
   
   void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr);
   SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
@@ -95,6 +96,64 @@ extern "C" {
 
 namespace {
   using namespace dbarts;
+  
+  SEXP simulateContinuousUniformsWithSeed(SEXP nExpr, SEXP seedExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    uint_least32_t seed = (uint_least32_t) INTEGER(seedExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng* rng = ext_rng_create(algorithmType, NULL);
+    if (rng == NULL) return NULL_USER_OBJECT;
+    if (ext_rng_setStandardNormalAlgorithm(rng, stdNormalType) != 0) return (ext_rng_destroy(rng), NULL_USER_OBJECT);
+    ext_rng_setSeed(rng, seed);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateContinuousUniform(rng);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  SEXP simulateContinuousUniforms(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng* rng = ext_rng_create(algorithmType, 1 + (int*) INTEGER(seedsExpr));
+    if (ext_rng_setStandardNormalAlgorithm(rng, stdNormalType) != 0) return (ext_rng_destroy(rng), NULL_USER_OBJECT);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateContinuousUniform(rng);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
   
   SEXP saveToFile(SEXP fitExpr, SEXP fileName)
   {
@@ -498,6 +557,8 @@ namespace {
     { "dbarts_finalize", (DL_FUNC) &finalize, 0 },
     { "dbarts_saveToFile", (DL_FUNC) &saveToFile, 2 },
     { "dbarts_loadFromFile", (DL_FUNC) &loadFromFile, 1 },
+    { "dbarts_runif", (DL_FUNC) &simulateContinuousUniforms, 1 },
+    { "dbarts_runif_seed", (DL_FUNC) &simulateContinuousUniformsWithSeed, 2 },
     { NULL, NULL, 0 }
   };
   
@@ -690,6 +751,9 @@ namespace {
     if (i_temp == NA_INTEGER) i_temp = 0;
     if (i_temp < 0) error("Print cutoffs must be non-negative.");
     control.printCutoffs = (uint32_t) i_temp;
+    
+    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeedFromClock(control.rng);
   }
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
@@ -988,6 +1052,8 @@ namespace {
     Rprintf("deleting   %p\n", fit);
 #endif
     if (fit == NULL) return;
+    
+    ext_rng_destroy(fit->control.rng);
     
     delete fit->model.treePrior;
     delete fit->model.muPrior;

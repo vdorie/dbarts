@@ -4,6 +4,8 @@
 #include <cstddef> // size_t
 #include "cstdint.hpp" // int types
 
+#include <external/random.h>
+
 namespace dbarts {
   struct BARTFit;
   
@@ -26,6 +28,8 @@ namespace dbarts {
     std::uint32_t printEvery;
     std::uint32_t printCutoffs;
     
+    ext_rng* rng;
+    
     CallbackFunction callback;
     void* callbackData;
     
@@ -33,7 +37,7 @@ namespace dbarts {
     Control() :
       responseIsBinary(false), verbose(true), keepTrainingFits(true), useQuantiles(false),
       numSamples(1000), numBurnIn(100), numTrees(200), numThreads(1), treeThinningRate(1), printEvery(100),
-      printCutoffs(0), callback(NULL), callbackData(NULL)
+      printCutoffs(0), rng(NULL), callback(NULL), callbackData(NULL)
     { }
     Control(std::size_t numSamples,
             std::size_t numBurnIn,
@@ -46,11 +50,12 @@ namespace dbarts {
             bool responseIsBinary,
             bool useQuantiles,
             uint32_t printCutoffs,
+            ext_rng* rng,
             CallbackFunction callback,
             void* callbackData) :
       responseIsBinary(responseIsBinary), verbose(verbose), keepTrainingFits(keepTrainingFits), useQuantiles(useQuantiles),
       numSamples(numSamples), numBurnIn(numBurnIn), numTrees(numTrees), numThreads(numThreads), treeThinningRate(treeThinningRate), printEvery(printEvery),
-      printCutoffs(printCutoffs), callback(callback), callbackData(callbackData)
+      printCutoffs(printCutoffs), rng(rng), callback(callback), callbackData(callbackData)
     { }
   };
 } // namespace dbarts

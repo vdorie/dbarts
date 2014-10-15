@@ -6,9 +6,9 @@
 #include <dbarts/cstdint.hpp>
 #include <cstring>
 
-#include <external/stats.h>
-#include <external/io.h>
 #include <external/alloca.h>
+#include <external/io.h>
+#include <external/random.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
@@ -67,7 +67,7 @@ namespace dbarts {
     if (numSwappableNodes == 0) return -1.0;
     
     // randomly choose a node with a swappable rule = parent
-    uint32_t nodeIndex = (uint32_t) ext_simulateUnsignedIntegerUniformInRange(0, numSwappableNodes);
+    uint32_t nodeIndex = (uint32_t) ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numSwappableNodes);
     
     Node& parent(*swappableNodes[nodeIndex]);
     Node& leftChild(*parent.getLeftChild());
@@ -87,7 +87,7 @@ namespace dbarts {
       Node* childPtr;
       
       if (leftHasRule && rightHasRule) {
-        if (ext_simulateBernoulli(0.5) == 1) {
+        if (ext_rng_simulateBernoulli(fit.control.rng, 0.5) == 1) {
           childPtr = &leftChild;
         } else {
           childPtr = &rightChild;
@@ -137,7 +137,7 @@ namespace dbarts {
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_simulateBernoulli(alpha) == 1) {
+        if (ext_rng_simulateBernoulli(fit.control.rng, alpha) == 1) {
           oldState.destroy();
           
           *stepTaken = true;
@@ -193,7 +193,7 @@ namespace dbarts {
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_simulateBernoulli(alpha) == 1) {
+        if (ext_rng_simulateBernoulli(fit.control.rng, alpha) == 1) {
           oldState.destroy();
           // accept, so make right rule copy deep and trash old
           rightChild.p.rule.copyFrom(leftChild.p.rule);

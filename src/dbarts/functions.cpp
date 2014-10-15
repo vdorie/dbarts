@@ -4,7 +4,7 @@
 #include <vector>
 
 #include <external/io.h>
-#include <external/stats.h>
+#include <external/random.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
@@ -104,7 +104,7 @@ namespace dbarts {
     
     
     
-    double u = ext_simulateContinuousUniform();
+    double u = ext_rng_simulateContinuousUniform(fit.control.rng);
     // ext_printf("type: %s; ", u < fit.model.birthOrDeathProbability ? "birth/death" : (u < fit.model.birthOrDeathProbability + fit.model.swapProbability ? "swap" : "change"));
     if (u < fit.model.birthOrDeathProbability) {
       alpha = birthOrDeathNode(fit, tree, y, stepTaken, &birthedTree);

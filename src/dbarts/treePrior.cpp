@@ -91,7 +91,7 @@ namespace dbarts {
   {
     size_t numGoodVariables = node.getNumVariablesAvailableForSplit(fit.data.numPredictors);
     
-    size_t variableNumber = ext_simulateUnsignedIntegerUniformInRange(0, numGoodVariables);
+    size_t variableNumber = ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numGoodVariables);
     
     return findIndexOfIthPositiveValue(node.variablesAvailableForSplit, fit.data.numPredictors, variableNumber);
   }
@@ -124,7 +124,7 @@ namespace dbarts {
       bool* sendCategoriesRight = ext_stackAllocate(numCategoriesCanReachNode, bool);
       sendCategoriesRight[0] = true; // the first value always goes right so that at least one does
       
-      uint64_t categoryIndex = (uint64_t) ext_simulateIntegerUniformInRange(0, (int64_t) (std::pow(2.0, (double) numCategoriesCanReachNode - 1.0) - 1.0));
+      uint64_t categoryIndex = (uint64_t) ext_rng_simulateIntegerUniformInRange(fit.control.rng, 0, (int64_t) (std::pow(2.0, (double) numCategoriesCanReachNode - 1.0) - 1.0));
       setBinaryRepresentation(numCategoriesCanReachNode - 1, (uint32_t) categoryIndex, sendCategoriesRight + 1);
       
       uint32_t sendIndex = 0;
@@ -135,7 +135,7 @@ namespace dbarts {
           else result.setCategoryGoesLeft(i);
         } else {
           // result.categoryDirections[i] = ext_simulateBernoulli(0.5) == 1 ? BART_CAT_RIGHT : BART_CAT_LEFT;
-          if (ext_simulateBernoulli(0.5) == 1) result.setCategoryGoesRight(i);
+          if (ext_rng_simulateBernoulli(fit.control.rng, 0.5) == 1) result.setCategoryGoesRight(i);
           else result.setCategoryGoesLeft(i);
         }
       }
@@ -159,7 +159,7 @@ namespace dbarts {
         ext_printf("error in drawRuleFromPrior: no splits left for ordered var\n");
       }
       
-      result.splitIndex = (int32_t) ext_simulateIntegerUniformInRange(leftIndex, rightIndex + 1);
+      result.splitIndex = (int32_t) ext_rng_simulateIntegerUniformInRange(fit.control.rng, leftIndex, rightIndex + 1);
       
       if (result.splitIndex == leftIndex) *exhaustedLeftSplits = true;
       if (result.splitIndex == rightIndex) *exhaustedRightSplits = true;

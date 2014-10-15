@@ -21,6 +21,7 @@
 
 #include <external/alloca.h>
 #include <external/io.h>
+#include <external/random.h>
 #include <external/stats.h>
 #include <external/stats_mt.h>
 #include <external/linearAlgebra.h>
@@ -328,7 +329,7 @@ namespace dbarts {
           sumOfSquaredResiduals = ext_mt_computeSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, state.totalFits);
         }
         // double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
-        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(numEffectiveObservations, sumOfSquaredResiduals));
+        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(control.rng, numEffectiveObservations, sumOfSquaredResiduals));
       }
       
       if (!isThinningIteration) {
@@ -733,9 +734,9 @@ namespace {
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_simulateLowerTruncatedNormalScale1(mean, -offset);
+        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(fit.control.rng, mean, -offset);
       } else {
-        z[i] = ext_simulateUpperTruncatedNormalScale1(mean, -offset);
+        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(fit.control.rng, mean, -offset);
       }
 #else
       double prob;
@@ -743,7 +744,7 @@ namespace {
       double mean = fits[i];
       if (fit.data.offset != NULL) mean += fit.data.offset[i];
       
-      double u = ext_simulateContinuousUniform();
+      double u = ext_rng_simulateContinuousUniform(fit.control.rng);
       if (fit.data.y[i] > 0.0) {
         prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
         z[i] = ext_quantileOfNormal(prob, mean, 1.0);

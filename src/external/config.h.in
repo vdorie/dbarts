@@ -18,6 +18,12 @@
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* Define to 1 if you have the unistd header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the `clock_gettime' function. */
+#undef HAVE_CLOCK_GETTIME
+
 /* Define to 1 if you have the alloca header file. */
 #undef HAVE_ALLOCA_H
 

@@ -1,6 +1,7 @@
 /* #define HAVE_ALLOCA_H 1 */
 #define HAVE_STDINT_H 1
 #define STDC_HEADERS 1
+#define HAVE_UNISTD_H 1
 
 #define PACKAGE_BUGREPORT "vjd4@nyu.edu"
 #define PACKAGE_NAME "dbarts"

@@ -3,6 +3,7 @@
 
 #include <cmath>
 
+#include <external/random.h>
 #include <external/stats.h>
 
 #include <dbarts/control.hpp>
@@ -18,13 +19,13 @@ namespace dbarts {
     precision = 1.0 / (sigma * sigma);
   }
   
-  double NormalPrior::drawFromPosterior(double ybar, double numEffectiveObservations, double residualVariance) const {
+  double NormalPrior::drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const {
     double posteriorPrecision = numEffectiveObservations / residualVariance;
     
     double posteriorMean = posteriorPrecision * ybar / (this->precision + posteriorPrecision);
     double posteriorSd   = 1.0 / std::sqrt(this->precision + posteriorPrecision);
     
-    return posteriorMean + posteriorSd * ext_simulateStandardNormal();
+    return posteriorMean + posteriorSd * ext_rng_simulateStandardNormal(rng);
   }
   
   double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const
@@ -51,11 +52,11 @@ namespace dbarts {
   {
   }
   
-  double ChiSquaredPrior::drawFromPosterior(double numObservations, double sumOfSquaredResiduals) const {
+  double ChiSquaredPrior::drawFromPosterior(ext_rng* rng, double numObservations, double sumOfSquaredResiduals) const {
     double posteriorDegreesOfFreedom = degreesOfFreedom + numObservations;
     
     double posteriorScale = degreesOfFreedom * scale + sumOfSquaredResiduals;
     
-    return posteriorScale / ext_simulateChiSquared(posteriorDegreesOfFreedom);
+    return posteriorScale / ext_rng_simulateChiSquared(rng, posteriorDegreesOfFreedom);
   }
 }
