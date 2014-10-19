@@ -18,7 +18,7 @@ typedef enum {
     EXT_RNG_ALGORITHM_SUPER_DUPER,
     EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
     EXT_RNG_ALGORITHM_KNUTH_TAOCP,
-    EXT_RNG_ALGORITHM_USER_UNIF,
+    EXT_RNG_ALGORITHM_USER_UNIFORM,
     EXT_RNG_ALGORITHM_KNUTH_TAOCP2,
     EXT_RNG_ALGORITHM_LECUYER_CMRG
 } ext_rng_algorithm_t;
@@ -39,6 +39,9 @@ void ext_rng_destroy(ext_rng* generator);
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm);
 int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed);
 int ext_rng_setSeedFromClock(ext_rng* generator);
+
+void* ext_rng_getState(ext_rng* generator);
+int ext_rng_setState(ext_rng* generator, void* state);
 
 double ext_rng_simulateContinuousUniform(ext_rng* generator); // randomBase.c
 double ext_rng_simulateStandardNormal(ext_rng* generator);    // randomNorm.c

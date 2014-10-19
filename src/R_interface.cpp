@@ -7,6 +7,7 @@
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
+#include <Rmath.h>
 #include <R_ext/Rdynload.h>
 
 #include <dbarts/bartFit.hpp>
@@ -97,12 +98,12 @@ extern "C" {
 namespace {
   using namespace dbarts;
   
-  SEXP simulateContinuousUniformsWithSeed(SEXP nExpr, SEXP seedExpr)
+  double simulateContinuousUniform(void*);
+  
+  SEXP simulateContinuousUniforms(SEXP nExpr)
   {
     size_t n = 0;
     if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
-    
-    uint_least32_t seed = (uint_least32_t) INTEGER(seedExpr)[0];
     
     SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
     if (seedsExpr == R_UnboundValue) GetRNGstate();
@@ -110,13 +111,14 @@ namespace {
     
     uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
     
-    ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
     ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
     
-    ext_rng* rng = ext_rng_create(algorithmType, NULL);
-    if (rng == NULL) return NULL_USER_OBJECT;
-    if (ext_rng_setStandardNormalAlgorithm(rng, stdNormalType) != 0) return (ext_rng_destroy(rng), NULL_USER_OBJECT);
-    ext_rng_setSeed(rng, seed);
+    ext_rng_user_uniform_state rngState;
+    rngState.simulateContinuousUniform = &simulateContinuousUniform;
+    rngState.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
     
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
     double* result = REAL(resultExpr);
@@ -127,6 +129,8 @@ namespace {
     UNPROTECT(1);
     return resultExpr;
   }
+  
+  /* double simulateContinuousUniform(void*) { return unif_rand(); }
   
   SEXP simulateContinuousUniforms(SEXP nExpr)
   {
@@ -142,7 +146,31 @@ namespace {
     ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
     ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
     
-    ext_rng* rng = ext_rng_create(algorithmType, 1 + (int*) INTEGER(seedsExpr));
+    void* state = (void*) (1 + INTEGER(seedsExpr));
+    switch (algorithmType) {
+      case EXT_RNG_ALGORITHM_KNUTH_TAOCP:
+      case EXT_RNG_ALGORITHM_KNUTH_TAOCP2:
+      {
+        ext_rng_knuth_state* kt = (ext_rng_knuth_state*) malloc(sizeof(ext_rng_knuth_state));
+        memcpy(kt->state1, state, EXT_RNG_KNUTH_NUM_RANDOM * sizeof(uint_least32_t));
+        kt->info = EXT_RNG_KNUTH_NUM_RANDOM; // this is a static var which we cannot access
+        for (size_t i = 0; i < EXT_RNG_KNUTH_QUALITY; ++i) kt->state2[i] = 0; // also static
+        state = kt;
+      }
+      break;
+      case EXT_RNG_ALGORITHM_USER_UNIFORM:
+      {
+        ext_rng_user_uniform_state* uu = (ext_rng_user_uniform_state*) malloc(sizeof(ext_rng_user_uniform_state));
+        uu->simulateContinuousUniform = &simulateContinuousUniform;
+        uu->state = NULL;
+        state = uu;
+      }
+      break;
+      default:
+      break;
+    }
+    
+    ext_rng* rng = ext_rng_create(algorithmType, state);
     if (ext_rng_setStandardNormalAlgorithm(rng, stdNormalType) != 0) return (ext_rng_destroy(rng), NULL_USER_OBJECT);
     
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
@@ -151,9 +179,12 @@ namespace {
     
     ext_rng_destroy(rng);
     
+    if (algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP || algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP2 || algorithmType == EXT_RNG_ALGORITHM_USER_UNIFORM)
+      free(state);
+    
     UNPROTECT(1);
     return resultExpr;
-  }
+  } */
   
   SEXP saveToFile(SEXP fitExpr, SEXP fileName)
   {
@@ -558,7 +589,6 @@ namespace {
     { "dbarts_saveToFile", (DL_FUNC) &saveToFile, 2 },
     { "dbarts_loadFromFile", (DL_FUNC) &loadFromFile, 1 },
     { "dbarts_runif", (DL_FUNC) &simulateContinuousUniforms, 1 },
-    { "dbarts_runif_seed", (DL_FUNC) &simulateContinuousUniformsWithSeed, 2 },
     { NULL, NULL, 0 }
   };
   
@@ -660,6 +690,8 @@ namespace {
     return false;
   }
   
+  double simulateContinuousUniform(void*) { return unif_rand(); }
+  
   void initializeControlFromExpression(Control& control, SEXP controlExpr)
   {
     int i_temp;
@@ -752,8 +784,21 @@ namespace {
     if (i_temp < 0) error("Print cutoffs must be non-negative.");
     control.printCutoffs = (uint32_t) i_temp;
     
-    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-    ext_rng_setSeedFromClock(control.rng);
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_user_uniform_state rngState;
+    rngState.simulateContinuousUniform = &simulateContinuousUniform;
+    rngState.state = NULL;
+    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
+    ext_rng_setStandardNormalAlgorithm(control.rng, stdNormalType);
   }
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)

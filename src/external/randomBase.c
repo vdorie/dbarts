@@ -109,6 +109,22 @@ int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNorma
   return 0;
 }
 
+void* ext_rng_getState(ext_rng* generator)
+{
+  if (generator == NULL) return NULL;
+  
+  return generator->state;
+}
+
+int ext_rng_setState(ext_rng* generator, void* state)
+{
+  if (generator == NULL) return EFAULT;
+  
+  generator->state = state;
+  
+  return 0;
+}
+
 
 #define LECUYER_M1 4294967087
 #define LECUYER_M2 4294944443
@@ -120,7 +136,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
 {
   if (generator == NULL) return EFAULT;
   if (generator->algorithm < EXT_RNG_ALGORITHM_WICHMANN_HILL || generator->algorithm > EXT_RNG_ALGORITHM_LECUYER_CMRG ||
-      generator->algorithm == EXT_RNG_ALGORITHM_USER_UNIF) return EINVAL;
+      generator->algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM) return EINVAL;
   
   size_t stateLength = stateLengths[generator->algorithm];
   uint_least32_t* state = (uint_least32_t*) generator->state;
@@ -159,7 +175,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
       }
     }
     break;
-    case EXT_RNG_ALGORITHM_USER_UNIF:
+    case EXT_RNG_ALGORITHM_USER_UNIFORM:
     ext_issueWarning("cannot set seed intenerally for user uniform generator");
     break;
     default:
@@ -295,7 +311,7 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
 {
   double result;
   
-  int_least32_t* state = (int_least32_t*) generator->state;
+  uint_least32_t* state = (uint_least32_t*) generator->state;
   
   switch (generator->algorithm) {
     case EXT_RNG_ALGORITHM_WICHMANN_HILL:
@@ -336,7 +352,7 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
       result = (double) knuth_getNext((KnuthState*) generator->state) * KNUTH_CONSTANT;
     }
     break;
-    case EXT_RNG_ALGORITHM_USER_UNIF:
+    case EXT_RNG_ALGORITHM_USER_UNIFORM:
     {
       UserUniformState* userUniform = (UserUniformState*) generator->state;
       result = userUniform->simulateContinuousUniform(userUniform->state);
@@ -525,7 +541,8 @@ static double mersenneTwister_getNext(MersenneTwisterState* mt)
 #define modulus 1073741824 // 2^30
 #define KKK (longLag + longLag - 1) // someone really needs better variable names than KKK
 #define KKL (longLag - shortLag)
-#define mod_diff(x, y) (((x) - (y)) & (modulus - 1))
+#define differenceModulo(_X_, _Y_) (((_X_) - (_Y_)) & (modulus - 1))
+#define isOdd(_X_) ((_X_) & 1)
 
 #define TT 70 // guaranteed separation between streams
 
@@ -533,10 +550,10 @@ static void knuth_setSeed(KnuthState* kt, uint_least32_t seed)
 {
   seed %= 1073741821;
   
-  uint_least32_t* temp = ext_stackAllocate(KKK, uint_least32_t);
-  
   uint_least32_t ss = seed - (seed % 2) + 2;
   
+  uint_least32_t temp[KKK];
+    
   for (size_t j = 0; j < longLag; ++j) {
     temp[j] = ss;
     ss <<= 1;
@@ -544,33 +561,35 @@ static void knuth_setSeed(KnuthState* kt, uint_least32_t seed)
   }
   temp[1]++;
   
+  for (size_t j = longLag; j < KKK; ++j) temp[j] = 0;
+  
   ss = seed;
   size_t t = TT - 1;
   while (t > 0) {
     for (size_t j = longLag - 1; j > 0; --j) temp[j + j] = temp[j];
     
-    for (size_t j = KKK - 1; j >= KKL; j -= 2) temp[KKK - j + 2] = temp[j] - (temp[j] % 2);
+    for (size_t j = KKK - 1; j >= KKL + 1; j -= 2) temp[KKK - j] = temp[j] - (temp[j] % 2);
     
     for (size_t j = KKK - 1; j >= longLag; --j) if (temp[j] % 2 == 1) {
-      temp[j - KKL] = mod_diff(temp[j - KKL], temp[j]);
-      temp[j - longLag] = mod_diff(temp[j - longLag], temp[j]);
+      temp[j - KKL] = differenceModulo(temp[j - KKL], temp[j]);
+      temp[j - longLag] = differenceModulo(temp[j - longLag], temp[j]);
     }
-    if (ss % 2 == 1) {
+    if (isOdd(ss)) {
       for (size_t j = longLag; j > 0; --j) temp[j] = temp[j - 1];
       temp[0] = temp[longLag];
       if (temp[longLag] % 2 == 1)
-        temp[shortLag] = mod_diff(temp[shortLag], temp[longLag]);
+        temp[shortLag] =  differenceModulo(temp[shortLag], temp[longLag]);
     }
     if (ss != 0) ss /= 2;
     else t--;
   }
   
   uint_least32_t* state = kt->state1;
-  //  rs <- c(X[(LL + 1L):KK], X[1L:LL])
+  
   memcpy(state, temp + shortLag, KKL * sizeof(uint_least32_t));
   memcpy(state + KKL, temp, shortLag * sizeof(uint_least32_t));
   
-  ext_stackFree(temp);
+  kt->info = EXT_RNG_KNUTH_NUM_RANDOM;
 }
 
 static void knuth_randomizeArray(KnuthState* kt, uint_least32_t* array, size_t length);
@@ -595,13 +614,13 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed)
   while (t > 0) {
     for (size_t j = longLag - 1; j > 0; --j) { temp[j + j] = temp[j]; temp[j + j - 1] = 0; }
     for (size_t j = KKK - 1; j >= longLag; --j) {
-      temp[j - KKL] = mod_diff(temp[j - KKL], temp[j]);
-      temp[j - longLag] = mod_diff(temp[j - longLag], temp[j]);
+      temp[j - KKL] = differenceModulo(temp[j - KKL], temp[j]);
+      temp[j - longLag] = differenceModulo(temp[j - longLag], temp[j]);
     }
-    if (ss % 2 == 1) {
+    if (isOdd(ss)) {
       for (size_t j = longLag; j > 0; --j) temp[j] = temp[j - 1];
       temp[0] = temp[longLag];
-      temp[shortLag] = mod_diff(temp[shortLag], temp[longLag]);
+      temp[shortLag] = differenceModulo(temp[shortLag], temp[longLag]);
     }
     if (ss != 0) ss /= 2;
     else t--;
@@ -609,14 +628,14 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed)
   
   uint_least32_t* state = kt->state1;
     
-  // for (size_t j = 0; j < shortLag; ++j) state[j + KKL] = temp[j];
-  // for (size_t j = shortLag; j < longLag; ++j) state[j - shortLag] = temp[j];
   memcpy(state, temp + shortLag, KKL * sizeof(uint_least32_t));
   memcpy(state + KKL, temp, shortLag * sizeof(uint_least32_t));
   
   for (size_t j = 0; j < 10; ++j) knuth_randomizeArray(kt, temp, KKK);
   
   ext_stackFree(temp);
+  
+  kt->info = EXT_RNG_KNUTH_NUM_RANDOM;
 }
 
 static void knuth_randomizeArray(KnuthState* kt, uint_least32_t* array, size_t length)
@@ -624,10 +643,10 @@ static void knuth_randomizeArray(KnuthState* kt, uint_least32_t* array, size_t l
   size_t i, j;
   
   for (j = 0; j < longLag; ++j) array[j] = kt->state1[j];
-  for ( ; j < length; ++j) array[j] = mod_diff(array[j - longLag], array[j - shortLag]);
+  for ( ; j < length; ++j) array[j] = differenceModulo(array[j - longLag], array[j - shortLag]);
   
-  for (i = 0; i < shortLag; ++i, ++j) kt->state1[i] = mod_diff(array[j - longLag], array[j - shortLag]);
-  for ( ; i < longLag; ++i, ++j) kt->state1[i] = mod_diff(array[j - longLag], kt->state1[i - shortLag]);
+  for (i = 0; i < shortLag; ++i, ++j) kt->state1[i] = differenceModulo(array[j - longLag], array[j - shortLag]);
+  for ( ; i < longLag; ++i, ++j) kt->state1[i] = differenceModulo(array[j - longLag], kt->state1[i - shortLag]);
 }
 
 static void knuth_cycleArray(KnuthState* kt);
@@ -654,4 +673,5 @@ static void knuth_cycleArray(KnuthState* kt)
 #undef modulus
 #undef KKK
 #undef KKL
-#undef mod_diff
+#undef differenceModulo
+#undef isOdd
