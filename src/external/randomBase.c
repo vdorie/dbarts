@@ -40,6 +40,15 @@ static const char* const rngNames[] = {
   "L'Ecuyer-CMRG"
 };
 
+/* static const char* const normalNames[] = {
+  "Buggy Kinderman-Ramage",
+  "Ahrens-Dieter",
+  "Box-Muller",
+  "User",
+  "Inversion",
+  "Kinderman-Ramage"
+}; */
+
 typedef ext_rng_mersenne_twister_state MersenneTwisterState;
 typedef ext_rng_knuth_state KnuthState;
 typedef ext_rng_user_uniform_state UserUniformState;
@@ -102,25 +111,10 @@ int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNorma
   if (generator == NULL) return EFAULT;
   
   if (standardNormalAlgorithm < EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE ||
-    standardNormalAlgorithm > EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE) return EINVAL;
+      standardNormalAlgorithm > EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE || 
+      standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) return EINVAL;
   
   generator->standardNormalAlgorithm = standardNormalAlgorithm;
-  
-  return 0;
-}
-
-void* ext_rng_getState(ext_rng* generator)
-{
-  if (generator == NULL) return NULL;
-  
-  return generator->state;
-}
-
-int ext_rng_setState(ext_rng* generator, void* state)
-{
-  if (generator == NULL) return EFAULT;
-  
-  generator->state = state;
   
   return 0;
 }

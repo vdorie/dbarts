@@ -27,7 +27,7 @@ typedef enum {
     EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE = 0,
     EXT_RNG_STANDARD_NORMAL_AHRENS_DIETER,
     EXT_RNG_STANDARD_NORMAL_BOX_MULLER,
-//    EXT_RNG_STANDARD_NORMAL_USER_NORM,
+    EXT_RNG_STANDARD_NORMAL_USER_NORM, // not actually supported
     EXT_RNG_STANDARD_NORMAL_INVERSION,
     EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE
 } ext_rng_standardNormal_t;
@@ -39,9 +39,6 @@ void ext_rng_destroy(ext_rng* generator);
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm);
 int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed);
 int ext_rng_setSeedFromClock(ext_rng* generator);
-
-void* ext_rng_getState(ext_rng* generator);
-int ext_rng_setState(ext_rng* generator, void* state);
 
 double ext_rng_simulateContinuousUniform(ext_rng* generator); // randomBase.c
 double ext_rng_simulateStandardNormal(ext_rng* generator);    // randomNorm.c

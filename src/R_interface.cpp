@@ -130,6 +130,67 @@ namespace {
     return resultExpr;
   }
   
+  SEXP simulateNormals(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_user_uniform_state rngState;
+    rngState.simulateContinuousUniform = &simulateContinuousUniform;
+    rngState.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateStandardNormal(rng);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  SEXP simulateExponentials(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_user_uniform_state rngState;
+    rngState.simulateContinuousUniform = &simulateContinuousUniform;
+    rngState.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateExponential(rng, 1.0);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  
   /* double simulateContinuousUniform(void*) { return unif_rand(); }
   
   SEXP simulateContinuousUniforms(SEXP nExpr)
@@ -589,6 +650,8 @@ namespace {
     { "dbarts_saveToFile", (DL_FUNC) &saveToFile, 2 },
     { "dbarts_loadFromFile", (DL_FUNC) &loadFromFile, 1 },
     { "dbarts_runif", (DL_FUNC) &simulateContinuousUniforms, 1 },
+    { "dbarts_rnorm", (DL_FUNC) &simulateNormals, 1 },
+    { "dbarts_rexp", (DL_FUNC) &simulateExponentials, 1 },
     { NULL, NULL, 0 }
   };
   
