@@ -97,10 +97,8 @@ extern "C" {
 
 namespace {
   using namespace dbarts;
-  
-  double simulateContinuousUniform(void*);
-  
-  SEXP simulateContinuousUniforms(SEXP nExpr)
+    
+/*  static SEXP simulateContinuousUniform(SEXP nExpr)
   {
     size_t n = 0;
     if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
@@ -109,17 +107,16 @@ namespace {
     if (seedsExpr == R_UnboundValue) GetRNGstate();
     if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
     
-    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    // uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
     
     // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
-    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    // ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
     
-    ext_rng_user_uniform_state rngState;
-    rngState.simulateContinuousUniform = &simulateContinuousUniform;
-    rngState.state = NULL;
-    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
-    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
-    
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+        
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
     double* result = REAL(resultExpr);
     for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateContinuousUniform(rng);
@@ -130,7 +127,7 @@ namespace {
     return resultExpr;
   }
   
-  SEXP simulateNormals(SEXP nExpr)
+  static SEXP simulateNormal(SEXP nExpr)
   {
     size_t n = 0;
     if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
@@ -144,11 +141,11 @@ namespace {
     // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
     ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
     
-    ext_rng_user_uniform_state rngState;
-    rngState.simulateContinuousUniform = &simulateContinuousUniform;
-    rngState.state = NULL;
-    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
-    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, NULL);
     
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
     double* result = REAL(resultExpr);
@@ -160,7 +157,7 @@ namespace {
     return resultExpr;
   }
   
-  SEXP simulateExponentials(SEXP nExpr)
+  static SEXP simulateExponential(SEXP nExpr)
   {
     size_t n = 0;
     if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
@@ -174,11 +171,11 @@ namespace {
     // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
     ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
     
-    ext_rng_user_uniform_state rngState;
-    rngState.simulateContinuousUniform = &simulateContinuousUniform;
-    rngState.state = NULL;
-    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
-    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType);
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, NULL);
     
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
     double* result = REAL(resultExpr);
@@ -190,14 +187,8 @@ namespace {
     return resultExpr;
   }
   
-  
-  /* double simulateContinuousUniform(void*) { return unif_rand(); }
-  
-  SEXP simulateContinuousUniforms(SEXP nExpr)
+  static ext_rng* createRNG()
   {
-    size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
-    
     SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
     if (seedsExpr == R_UnboundValue) GetRNGstate();
     if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
@@ -212,7 +203,7 @@ namespace {
       case EXT_RNG_ALGORITHM_KNUTH_TAOCP:
       case EXT_RNG_ALGORITHM_KNUTH_TAOCP2:
       {
-        ext_rng_knuth_state* kt = (ext_rng_knuth_state*) malloc(sizeof(ext_rng_knuth_state));
+        ext_rng_knuthState* kt = (ext_rng_knuthState*) malloc(sizeof(ext_rng_knuthState));
         memcpy(kt->state1, state, EXT_RNG_KNUTH_NUM_RANDOM * sizeof(uint_least32_t));
         kt->info = EXT_RNG_KNUTH_NUM_RANDOM; // this is a static var which we cannot access
         for (size_t i = 0; i < EXT_RNG_KNUTH_QUALITY; ++i) kt->state2[i] = 0; // also static
@@ -221,10 +212,10 @@ namespace {
       break;
       case EXT_RNG_ALGORITHM_USER_UNIFORM:
       {
-        ext_rng_user_uniform_state* uu = (ext_rng_user_uniform_state*) malloc(sizeof(ext_rng_user_uniform_state));
-        uu->simulateContinuousUniform = &simulateContinuousUniform;
-        uu->state = NULL;
-        state = uu;
+        ext_rng_userFunction* uniformFunction = (ext_rng_userFunction*) malloc(sizeof(ext_rng_userFunction));
+        uniformFunction->f.stateless = &unif_rand;
+        uniformFunction->state = NULL;
+        state = uniformFunction;
       }
       break;
       default:
@@ -232,7 +223,47 @@ namespace {
     }
     
     ext_rng* rng = ext_rng_create(algorithmType, state);
-    if (ext_rng_setStandardNormalAlgorithm(rng, stdNormalType) != 0) return (ext_rng_destroy(rng), NULL_USER_OBJECT);
+    if (algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP || algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP2 || algorithmType == EXT_RNG_ALGORITHM_USER_UNIFORM) free(state);
+    if (rng == NULL) return NULL; 
+    
+    void* normalState = NULL;
+    switch (stdNormalType) {
+      case EXT_RNG_STANDARD_NORMAL_BOX_MULLER:
+      normalState = malloc(sizeof(double));
+      *((double*) normalState) = 0.0; // static var, again
+      break;
+      case EXT_RNG_STANDARD_NORMAL_USER_NORM:
+      {
+        ext_rng_userFunction* normalFunction = (ext_rng_userFunction*) malloc(sizeof(ext_rng_userFunction));
+        normalFunction->f.stateless = &norm_rand;
+        normalFunction->state = NULL;
+        normalState = normalFunction;
+      }
+      break;
+      default:
+      break;
+    }
+    
+    int errorCode = ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, normalState);
+    if (stdNormalType == EXT_RNG_STANDARD_NORMAL_BOX_MULLER || stdNormalType == EXT_RNG_STANDARD_NORMAL_USER_NORM) free(normalState);
+    
+    if (errorCode != 0) {
+      ext_rng_destroy(rng);
+      return NULL;
+    }
+    
+    return rng;
+  }
+  
+  // takes type of generator from R and uses internal implementation
+  static SEXP simulateContinuousUniformInternally(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    ext_rng* rng = createRNG();
+    
+    if (rng == NULL) return NULL_USER_OBJECT;
     
     SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
     double* result = REAL(resultExpr);
@@ -240,8 +271,26 @@ namespace {
     
     ext_rng_destroy(rng);
     
-    if (algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP || algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP2 || algorithmType == EXT_RNG_ALGORITHM_USER_UNIFORM)
-      free(state);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  static SEXP simulateNormalInternally(SEXP nExpr)
+   {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    ext_rng* rng = createRNG();
+    
+    if (rng == NULL) return NULL_USER_OBJECT;
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateStandardNormal(rng);
+    
+    ext_rng_destroy(rng);
+    
     
     UNPROTECT(1);
     return resultExpr;
@@ -739,9 +788,12 @@ namespace {
     { "dbarts_finalize", (DL_FUNC) &finalize, 0 },
     { "dbarts_saveToFile", (DL_FUNC) &saveToFile, 2 },
     { "dbarts_loadFromFile", (DL_FUNC) &loadFromFile, 1 },
-    { "dbarts_runif", (DL_FUNC) &simulateContinuousUniforms, 1 },
-    { "dbarts_rnorm", (DL_FUNC) &simulateNormals, 1 },
-    { "dbarts_rexp", (DL_FUNC) &simulateExponentials, 1 },
+    // below: testing
+//    { "dbarts_runif", (DL_FUNC) &simulateContinuousUniform, 1 },     
+//    { "dbarts_runif", (DL_FUNC) &simulateContinuousUniformInternally, 1 },
+//    { "dbarts_rnorm", (DL_FUNC) &simulateNormal, 1 },
+//    { "dbarts_rnorm", (DL_FUNC) &simulateNormalInternally, 1 },
+//    { "dbarts_rexp", (DL_FUNC) &simulateExponential, 1 },
     { NULL, NULL, 0 }
   };
   
@@ -846,8 +898,6 @@ namespace {
     return false;
   }
   
-  double simulateContinuousUniform(void*) { return unif_rand(); }
-  
   void initializeControlFromExpression(Control& control, SEXP controlExpr)
   {
     int i_temp;
@@ -940,21 +990,15 @@ namespace {
     if (i_temp < 0) error("Print cutoffs must be non-negative.");
     control.printCutoffs = (uint32_t) i_temp;
     
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
     
-    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
-    if (seedsExpr == R_UnboundValue) GetRNGstate();
-    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
-    
-    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
-    
-    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
-    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
-    
-    ext_rng_user_uniform_state rngState;
-    rngState.simulateContinuousUniform = &simulateContinuousUniform;
-    rngState.state = NULL;
-    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &rngState);
-    ext_rng_setStandardNormalAlgorithm(control.rng, stdNormalType);
+    ext_rng_userFunction normalFunction;
+    normalFunction.f.stateless = &norm_rand;
+    normalFunction.state = NULL;
+    ext_rng_setStandardNormalAlgorithm(control.rng, EXT_RNG_STANDARD_NORMAL_USER_NORM, &normalFunction);
   }
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)

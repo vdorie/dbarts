@@ -12,9 +12,13 @@
 struct ext_rng {
   ext_rng_algorithm_t algorithm;
   ext_rng_standardNormal_t standardNormalAlgorithm;
-  double normalState;
-  double gammaState[9];
   void* state;
+  
+  union {
+    double nextNormal; // used in BOX_MULLER
+    ext_rng_userFunction simulateNormal;
+  } normalState;
+  double gammaState[9];
 };
 
 static double simulateStandardExponential(ext_rng* generator);

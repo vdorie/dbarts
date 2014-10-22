@@ -49,19 +49,23 @@ static const char* const rngNames[] = {
   "Kinderman-Ramage"
 }; */
 
-typedef ext_rng_mersenne_twister_state MersenneTwisterState;
-typedef ext_rng_knuth_state KnuthState;
-typedef ext_rng_user_uniform_state UserUniformState;
+typedef ext_rng_mersenneTwisterState MersenneTwisterState;
+typedef ext_rng_knuthState KnuthState;
+typedef ext_rng_userFunction UserFunction;
 
-static const size_t stateLengths[] = { 3, 2, 2, sizeof(MersenneTwisterState), sizeof(KnuthState), sizeof(UserUniformState), sizeof(KnuthState), 6 };
+static const size_t stateLengths[] = { 3, 2, 2, sizeof(MersenneTwisterState), sizeof(KnuthState), sizeof(UserFunction), sizeof(KnuthState), 6 };
 
 // this is duplicated in randomBase.c, randomNorm.c, and random.c
 struct ext_rng {
   ext_rng_algorithm_t algorithm;
   ext_rng_standardNormal_t standardNormalAlgorithm;
-  double normalState;
-  double gammaState[9];
   void* state;
+  
+  union {
+    double nextNormal; // used in BOX_MULLER
+    ext_rng_userFunction simulateNormal;
+  } normalState;
+  double gammaState[9];
 };
 
 ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
@@ -75,8 +79,10 @@ ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
   if (result == NULL) return NULL;
   
   result->algorithm = algorithm;
-  result->standardNormalAlgorithm = STANDARD_NORMAL_DEFAULT;
-  result->normalState = 0.0;
+  if ((errno = ext_rng_setStandardNormalAlgorithm(result, STANDARD_NORMAL_DEFAULT, NULL)) != 0) {
+    free(result);
+    return NULL;
+  }
   
   size_t stateLength = stateLengths[algorithm] * sizeof(uint_least32_t);
   
@@ -91,7 +97,7 @@ ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
   } else {
     if (algorithm == EXT_RNG_ALGORITHM_MERSENNE_TWISTER) {
       MersenneTwisterState* state = (MersenneTwisterState*) result->state;
-      state->info = 625;
+      state->info = EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM + 1;
     }
   }
   
@@ -106,15 +112,24 @@ void ext_rng_destroy(ext_rng* generator)
   free(generator);
 }
 
-int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm)
+int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state)
 {
   if (generator == NULL) return EFAULT;
   
   if (standardNormalAlgorithm < EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE ||
-      standardNormalAlgorithm > EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE || 
-      standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) return EINVAL;
+      standardNormalAlgorithm > EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE) return EINVAL;
   
   generator->standardNormalAlgorithm = standardNormalAlgorithm;
+  
+  if (standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_BOX_MULLER) {
+    generator->normalState.nextNormal = (state != NULL ? *((double*) state) : 0.0);
+  } else if (standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) {
+    if (state != NULL) {
+      memcpy(&generator->normalState, state, sizeof(ext_rng_userFunction));
+    } else {
+      return EINVAL;
+    }
+  }
   
   return 0;
 }
@@ -129,12 +144,11 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed);
 int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
 {
   if (generator == NULL) return EFAULT;
-  if (generator->algorithm < EXT_RNG_ALGORITHM_WICHMANN_HILL || generator->algorithm > EXT_RNG_ALGORITHM_LECUYER_CMRG ||
-      generator->algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM) return EINVAL;
+  if (generator->algorithm < EXT_RNG_ALGORITHM_WICHMANN_HILL || generator->algorithm > EXT_RNG_ALGORITHM_LECUYER_CMRG) return EINVAL;
   
   size_t stateLength = stateLengths[generator->algorithm];
   uint_least32_t* state = (uint_least32_t*) generator->state;
-  generator->normalState = 0.0;
+  if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) generator->normalState.nextNormal = 0.0;
 
   // initial scrambling
   for (size_t j = 0; j < 50; ++j) seed = (69069 * seed + 1);
@@ -170,7 +184,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     }
     break;
     case EXT_RNG_ALGORITHM_USER_UNIFORM:
-    ext_issueWarning("cannot set seed intenerally for user uniform generator");
+    return EINVAL;
     break;
     default:
     break;
@@ -348,8 +362,8 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
     break;
     case EXT_RNG_ALGORITHM_USER_UNIFORM:
     {
-      UserUniformState* userUniform = (UserUniformState*) generator->state;
-      result = userUniform->simulateContinuousUniform(userUniform->state);
+      UserFunction* function = (UserFunction*) generator->state;
+      result = (function->state == NULL ? function->f.stateless() : function->f.stateful(function->state));
     }
     break;
     case EXT_RNG_ALGORITHM_LECUYER_CMRG:

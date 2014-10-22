@@ -16,9 +16,13 @@
 struct ext_rng {
   ext_rng_algorithm_t algorithm;
   ext_rng_standardNormal_t standardNormalAlgorithm;
-  double normalState;
-  double gammaState[9];
   void* state;
+  
+  union {
+    double nextNormal; // used in BOX_MULLER
+    ext_rng_userFunction simulateNormal;
+  } normalState;
+  double gammaState[9];
 };
 
 
@@ -272,14 +276,14 @@ deliver:
     
     case EXT_RNG_STANDARD_NORMAL_BOX_MULLER:
     {
-	    if (generator->normalState != 0.0) { /* An exact test is intentional */
-        double s = generator->normalState;
-        generator->normalState = 0.0;
+	    if (generator->normalState.nextNormal != 0.0) { /* An exact test is intentional */
+        double s = generator->normalState.nextNormal;
+        generator->normalState.nextNormal = 0.0;
         return s;
       } else {
 	      double theta = 2.0 * M_PI * ext_rng_simulateContinuousUniform(generator);
         double R = sqrt(-2.0 * log(ext_rng_simulateContinuousUniform(generator))) + 10.0 * DBL_MIN; /* ensure non-zero */
-        generator->normalState = R * sin(theta);
+        generator->normalState.nextNormal = R * sin(theta);
 	      return R * cos(theta);
       }
     }
@@ -295,6 +299,10 @@ deliver:
     }
     break;
 #undef BIG
+    case EXT_RNG_STANDARD_NORMAL_USER_NORM:
+    return (generator->normalState.simulateNormal.state == NULL ? generator->normalState.simulateNormal.f.stateless() :
+              generator->normalState.simulateNormal.f.stateful(generator->normalState.simulateNormal.state));
+    break;
     default:
     ext_throwError("unsupported standard normal generator type");
     break;

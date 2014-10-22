@@ -27,16 +27,18 @@ typedef enum {
     EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE = 0,
     EXT_RNG_STANDARD_NORMAL_AHRENS_DIETER,
     EXT_RNG_STANDARD_NORMAL_BOX_MULLER,
-    EXT_RNG_STANDARD_NORMAL_USER_NORM, // not actually supported
+    EXT_RNG_STANDARD_NORMAL_USER_NORM,
     EXT_RNG_STANDARD_NORMAL_INVERSION,
     EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE
 } ext_rng_standardNormal_t;
 
 
 // state can be null; size is determined by algorithm; see below for a few state structs
-ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state);
+ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* state);
 void ext_rng_destroy(ext_rng* generator);
-int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm);
+// state can be null; for BOX_MULLER, it should point to a double that is the next number, or 0.0 if that isn't set yet
+// for USER_NORM, it should be a userFunction outlined below
+int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state);
 int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed);
 int ext_rng_setSeedFromClock(ext_rng* generator);
 
@@ -74,19 +76,24 @@ typedef struct {
   uint_least32_t state1[EXT_RNG_KNUTH_NUM_RANDOM];
   int_least32_t info;
   uint_least32_t state2[EXT_RNG_KNUTH_QUALITY];
-} ext_rng_knuth_state;
+} ext_rng_knuthState;
 
 #define EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM 624
 
 typedef struct {
   int_least32_t info;
   uint_least32_t state[EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM];
-} ext_rng_mersenne_twister_state;
+} ext_rng_mersenneTwisterState;
 
+// used for EXT_RNG_ALGORITHM_USER_UNIFORM and EXT_RNG_STANDARD_NORMAL_USER_NORM
 typedef struct {
-  double (*simulateContinuousUniform)(void* state);
+  union {
+    double (*stateless)(void); // used if state is NULL to avoid a pointless function call
+    double (*stateful)(void*);
+  } f;
+
   void* state;
-} ext_rng_user_uniform_state;
+} ext_rng_userFunction;
 
 #ifdef __cplusplus
 }
