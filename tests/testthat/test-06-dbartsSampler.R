@@ -19,9 +19,14 @@ test_that("dbarts sampler settors raise errors", {
   expect_error(sampler$setTestPredictor(numeric(0), 1))
   expect_error(sampler$setTestPredictor(numeric(0)))
   expect_error(sampler$setTestPredictor(testData$z, 3))
+
+  n <- length(testData$y)
+  expect_error(sampler$setPredictor(matrix(numeric(n * 3), n)))
+  expect_error(sampler$setPredictor(matrix(numeric((n - 1) * 2), n - 1)))
+  expect_error(sampler$setPredictor(matrix(numeric(n * 2), n), 1))
 })
 
-test_that("dbarts sampler updates correctly", {
+test_that("dbarts sampler updates predictors correctly", {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
   test <- data.frame(x = testData$x, z = 1 - testData$z)
   
@@ -43,11 +48,19 @@ test_that("dbarts sampler updates correctly", {
   sampler$setTestPredictor(x = 1 - z, column = 2)
   expect_equal(as.numeric(sampler$data@x.test[,2]), 1 - z)
 
-  sampler$setTestPredictors(NULL)
+  sampler$setTestPredictor(NULL)
   expect_identical(sampler$data@x.test, NULL)
 
-  sampler$setTestPredictors(test)
+  sampler$setTestPredictor(test)
   expect_equal(sampler$data@x.test, as.matrix(test))
+
+  new.x <- rnorm(n)
+  new.z <- as.double(rbinom(n, 1, 0.5))
+  new.data <- cbind(new.x, new.z)
+  sampler$setPredictor(new.data)
+
+  
+  expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
 })
 
 test_that("dbarts sampler shallow/deep copies", {
@@ -161,19 +174,21 @@ test_that("dbarts sampler runs", {
     p1 <- dnorm(y, mu1, samples$sigma[1]) * p
     p.z <- p1 / (p0 + p1)
 
-    z <- rbinom(n, 1, p.z)
+    new.z <- rbinom(n, 1, p.z)
+    while (sampler$setPredictor(x = new.z, column = 2) == FALSE) {
+      new.z <- rbinom(n, 1, p.z)
+    }
+    z <- new.z
+    sampler$setTestPredictor(x = 1 - z, column = 2)
 
     n1 <- sum(z); n0 <- n - n1
     p <- rbeta(1, 1 + n0, 1 + n1)
-
-    sampler$setPredictor(x = z, column = 2)
-    sampler$setTestPredictor(x = 1 - z, column = 2)
   }
 
-  expect_equal(z[1:20], c(0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0))
-  expect_equal(p, 0.459823235825831)
-  expect_equal(samples$train[1:5], c(94.4144689198833, 89.4520172313702, 93.2821083074909, 96.499552417188, 97.0400773954802))
-  expect_equal(samples$test[1:5], c(89.5592665825945, 94.4797604402427, 94.4227067142213, 92.7638379016566, 91.7194156602015))
+  expect_equal(z[1:20], c(0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0))
+  expect_equal(p, 0.470788237121872)
+  expect_equal(samples$train[1:5], c(89.6662721124284, 89.6662721124284, 94.4644684264674, 92.3429201084874, 91.1812768131237))
+  expect_equal(samples$test[1:5], c(94.6496627941143, 94.6496627941143, 93.0602674319221, 91.9088151870825, 95.6941612719439))
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"))

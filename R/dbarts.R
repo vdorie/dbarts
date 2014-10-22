@@ -278,41 +278,60 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setPredictor = function(x, column, updateState = NA) {
-                  'Changes a single column of the predictor matrix.'
-                  if (is.character(column)) {
+                  'Changes a single column of the predictor matrix. TRUE/FALSE returned as to whether or not the operation was successful.'
+
+                  columnIsMissing <- missing(column)
+
+                  if (!columnIsMissing && is.character(column)) {
                     if (is.null(colnames(data@x))) stop("column names not specified at initialization, so cannot be replaced by name")
                     
                     column <- match(column, colnames(data@x))
                     if (is.na(column)) stop("column name not found in names of current X")
                   }
-
+                  
+                  x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
+                  
                   ptr <- getPointer()
-                  .Call("dbarts_setPredictor", ptr, as.double(x), as.integer(column))
-
+                  updateSuccessful <-
+                    if (columnIsMissing) {
+                      data@x <<- x
+                      .Call("dbarts_setPredictor", ptr, x)
+                    } else {
+                      .Call("dbarts_updatePredictor", ptr, x, as.integer(column))
+                    }
+                  
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 
-                  invisible(NULL)
+                  return(updateSuccessful)
                 },
                 setTestPredictor = function(x.test, column, updateState = NA) {
                   'Changes a single column of the test predictor matrix.'
-                  ptr <- getPointer()
+
+                  columnIsMissing <- missing(column)
                   
-                  if (is.character(column)) {
+                  if (!columnIsMissing && is.character(column)) {
                     if (is.null(colnames(data@x.test))) stop("column names not specified at initialization, so cannot be replaced by name")
                     
                     column <- match(column, colnames(data@x.test))
                     if (is.na(column)) stop("column name not found in names of current test predictor matrix")
                   }
                   
-                  .Call("dbarts_setTestPredictor", ptr, as.double(x.test), as.integer(column))
+                  ptr <- getPointer()
+                  if (columnIsMissing) {
+                    data@x.test <<- validateXTest(x.test, ncol(data@x), colnames(data@x))
+                    .Call("dbarts_setTestPredictor", ptr, data@x.test)
+                  } else {
+                    x.test <- if (is.matrix(x.test)) matrix(as.double(x.test), nrow(x.test)) else as.double(x.test)
+                    .Call("dbarts_updateTestPredictor", ptr, x.test, as.integer(column))
+                  }
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 
                   invisible(NULL)
                 },
-                setTestPredictors = function(x.test, offset.test, updateState = NA) {
+                setTestPredictorAndOffset = function(x.test, offset.test, updateState = NA) {
                    'Changes the test predictor matrix, and optionally the test offset.'
                    ptr <- getPointer()
 
@@ -336,10 +355,10 @@ dbartsSampler <-
 
                      data@x.test <<- x.test
                      data@offset.test <<- offset.test 
-                     .Call("dbarts_setTestPredictors", ptr, data@x.test, data@offset.test)
+                     .Call("dbarts_setTestPredictorAndOffset", ptr, data@x.test, data@offset.test)
                    } else {
                      data@x.test <<- x.test
-                     .Call("dbarts_setTestPredictors", ptr, data@x.test, NA_real_)
+                     .Call("dbarts_setTestPredictorAndOffset", ptr, data@x.test, NA_real_)
                    }
 
                    if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))

@@ -34,17 +34,23 @@ namespace dbarts {
     Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
     
     
-    // setResponse and setOffset replace the local copy (or can even be modified 
-    // in place), however because setPredictor only works on a single column it
-    // necessarily modifies in place
+    // settors simply replace local pointers to variables. dimensions much match
+    // update modifies the local copy (which may belong to someone else)
     void setResponse(const double* newResponse); 
     void setOffset(const double* newOffset);
-    void setPredictor(const double* newPredictor, std::size_t predictorColumn);
-    void setTestPredictor(const double* newTestPredictor, std::size_t predictorColumn);
     
-    void setTestPredictors(const double* newTestPredictor, std::size_t numTestObservations);
+    // predictor changes will return false if the new covariates would leave the sampler in an invalid state
+    // (i.e. with an empty terminal node); the update functions auto-revert to the previous while set does not
+    bool setPredictor(const double* newPredictor);
+    bool updatePredictor(const double* newPredictor, std::size_t column); // false if same, but reverts on own
+    bool updatePredictors(const double* newPredictor, const std::size_t* columns, std::size_t numColumns); 
+    
+    void setTestPredictor(const double* newTestPredictor, std::size_t numTestObservations);
     void setTestOffset(const double* newTestOffset);
-    void setTestPredictors(const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
+    void setTestPredictorAndOffset(const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
+    
+    void updateTestPredictor(const double* newTestPredictor, std::size_t column);
+    void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
     
     bool saveToFile(const char* fileName) const;
     static BARTFit* loadFromFile(const char* fileName);

@@ -310,74 +310,85 @@ namespace {
     return NULL_USER_OBJECT;
   }
   
-  SEXP setPredictor(SEXP fitExpr, SEXP x, SEXP jExpr)
+  SEXP setPredictor(SEXP fitExpr, SEXP x)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_setPredictor called on NULL external pointer.");
     
-    if (!isReal(x)) error("x must be of type real.");
-    if ((size_t) length(x) != fit->data.numObservations) error("Length of new x does not match y.");
-    if (!isInteger(jExpr)) error("Column must be of type integer.");
-    if (length(jExpr) == 0) error("Length of column is 0.");
+    if (!isReal(x)) error("x must be of type real");
     
-    int j = INTEGER(jExpr)[0] - 1;
+    SEXP dimsExpr = GET_DIM(x);
     
-    if (j < 0 || j >= (int) fit->data.numPredictors) error("Column is out of range.");
+    if (isNull(dimsExpr) || LENGTH(dimsExpr) != 2) error("x must be a matrix, i.e. have two dimensions");
+    int* dims = INTEGER(dimsExpr);
     
-    fit->setPredictor(REAL(x), (size_t) j);
+    if ((size_t) dims[0] != fit->data.numObservations) error("number of rows in new x does not match y");
+    if ((size_t) dims[1] != fit->data.numPredictors) error("number of columns in new x does not match old");
     
-    return NULL_USER_OBJECT;
+    return ScalarLogical(fit->setPredictor(REAL(x)));
   }
   
-  SEXP setTestPredictor(SEXP fitExpr, SEXP x_test, SEXP jExpr)
+  SEXP updatePredictor(SEXP fitExpr, SEXP x, SEXP colsExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_updatePredictor called on NULL external pointer");
+    
+    if (!isReal(x)) error("x must be of type real");
+    if (!isInteger(colsExpr)) error("columns must be of type integer");
+    
+    SEXP dimsExpr = GET_DIM(x);
+    int* dims = NULL;
+    
+    if (!isNull(dimsExpr)) {
+      int numDims = GET_LENGTH(dimsExpr);
+      
+      if (numDims != 1 && numDims != 2) error("x must be a vector or a matrix");
+      if (numDims == 2) dims = INTEGER(dimsExpr);
+    }
+    
+    if (length(colsExpr) == 0) error("length of columns is 0");
+
+    if (dims != NULL) {
+      if ((size_t) dims[0] != fit->data.numObservations) error("number of rows of new x does not match y");
+      if ((size_t) dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
+    } else {
+      if ((size_t) length(x) != fit->data.numObservations) error("length of new x does not match y");
+    }
+    
+    
+    int* colsInt = INTEGER(colsExpr);
+    size_t numCols = LENGTH(colsExpr);
+    size_t* cols = ext_stackAllocate(numCols, size_t);
+    for (size_t i = 0 ; i < numCols; ++i) {
+      cols[i] = colsInt[i] - 1;
+      if (cols[i] >= fit->data.numPredictors) error("column '%d' is out of range", colsInt[i]);
+    }
+    
+    bool result = fit->updatePredictors(REAL(x), cols, numCols);
+    
+    ext_stackFree(cols);
+    
+    return ScalarLogical(result);
+  }
+  
+  SEXP setTestPredictor(SEXP fitExpr, SEXP x_test)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_setTestPredictor called on NULL external pointer.");
     
-    if (fit->data.X_test == NULL) error("Test matrix must exist at object creation to be updated.");
-    
-    if (!isReal(x_test)) error("x must be of type real.");
-    if ((size_t) length(x_test) != fit->data.numTestObservations) error("Length of new x_test does not match old.");
-    if (!isInteger(jExpr)) error("Column must be of type integer.");
-    if (length(jExpr) == 0) error("Length of column is 0.");
-    
-    int j = INTEGER(jExpr)[0] - 1;
-    
-    if (j < 0 || j >= (int) fit->data.numPredictors) error("Column is out of range.");
-    
-    fit->setTestPredictor(REAL(x_test), (size_t) j);
-    
-    return NULL_USER_OBJECT;
-  }
-  
-  SEXP setTestPredictors(SEXP fitExpr, SEXP x_test, SEXP offset_test)
-  {
-    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setTestPredictors called on NULL external pointer.");
-    
     if (isNull(x_test) || isS4Null(x_test)) {
-      fit->setTestPredictors(NULL, 0);
+      fit->setTestPredictor(NULL, 0);
     
       return NULL_USER_OBJECT;
     }
     
-    if (!isReal(x_test)) error("x.test must be of type real.");
+    if (!isReal(x_test)) error("x.test must be of type real");
     SEXP dimsExpr = GET_DIM(x_test);
-    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions.");
+    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
     int* dims = INTEGER(dimsExpr);
-    if ((size_t) dims[1] != fit->data.numPredictors) error("Number of columns of x.test and x must be equal.");
+    if ((size_t) dims[1] != fit->data.numPredictors) error("number of columns of x.test and x must be equal");
     
-    if (isNull(offset_test)) {
-      fit->setTestPredictors(REAL(x_test), NULL, (size_t) dims[0]);
-    } else {
-      if (!isReal(offset_test)) error("offset.test must be of type real");
-      if (GET_LENGTH(offset_test) == 1 && ISNA(REAL(offset_test)[0])) {
-        fit->setTestPredictors(REAL(x_test), (size_t) dims[0]);
-      } else {
-        if (GET_LENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");
-        fit->setTestPredictors(REAL(x_test), REAL(offset_test), (size_t) dims[0]);
-      }
-    }
+    fit->setTestPredictor(REAL(x_test), (size_t) dims[0]);
     
     return NULL_USER_OBJECT;
   }
@@ -394,6 +405,83 @@ namespace {
       if (fit->data.numTestObservations != (size_t) GET_LENGTH(offset_test)) error("length of offset.test must equal number of rows in x.test");
       fit->setTestOffset(REAL(offset_test));
     }
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP setTestPredictorAndOffset(SEXP fitExpr, SEXP x_test, SEXP offset_test)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setTestPredictorAndOffset called on NULL external pointer.");
+    
+    if (isNull(x_test) || isS4Null(x_test)) {
+      fit->setTestPredictor(NULL, 0);
+    
+      return NULL_USER_OBJECT;
+    }
+    
+    if (!isReal(x_test)) error("x.test must be of type real");
+    SEXP dimsExpr = GET_DIM(x_test);
+    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
+    int* dims = INTEGER(dimsExpr);
+    if ((size_t) dims[1] != fit->data.numPredictors) error("number of columns of x.test and x must be equal");
+    
+    if (isNull(offset_test)) {
+      fit->setTestPredictorAndOffset(REAL(x_test), NULL, (size_t) dims[0]);
+    } else {
+      if (!isReal(offset_test)) error("offset.test must be of type real");
+      if (GET_LENGTH(offset_test) == 1 && ISNA(REAL(offset_test)[0])) {
+        fit->setTestPredictor(REAL(x_test), (size_t) dims[0]);
+      } else {
+        if (GET_LENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");
+        fit->setTestPredictorAndOffset(REAL(x_test), REAL(offset_test), (size_t) dims[0]);
+      }
+    }
+    
+    return NULL_USER_OBJECT;
+  }
+  
+  SEXP updateTestPredictor(SEXP fitExpr, SEXP x_test, SEXP colsExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_updateTestPredictor called on NULL external pointer.");
+    
+    if (fit->data.X_test == NULL) error("test matrix must exist at object creation to be updated");
+    
+    if (!isReal(x_test)) error("x must be of type real");
+    if (!isInteger(colsExpr)) error("columns must be of type integer");
+    
+    SEXP dimsExpr = GET_DIM(x_test);
+    int* dims = NULL;
+    
+    if (!isNull(dimsExpr)) {
+      int numDims = GET_LENGTH(dimsExpr);
+      
+      if (numDims != 1 && numDims != 2) error("x must be a vector or a matrix");
+      if (numDims == 2) dims = INTEGER(dimsExpr);
+    }
+    
+    if (length(colsExpr) == 0) error("length of columns is 0");
+
+    if (dims != NULL) {
+      if ((size_t) dims[0] != fit->data.numTestObservations) error("number of rows of new x does not match old x.test");
+      if ((size_t) dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
+    } else {
+      if ((size_t) length(x_test) != fit->data.numTestObservations) error("length of new x does not match old x.test");
+    }
+    
+    
+    int* colsInt = INTEGER(colsExpr);
+    size_t numCols = LENGTH(colsExpr);
+    size_t* cols = ext_stackAllocate(numCols, size_t);
+    for (size_t i = 0 ; i < numCols; ++i) {
+      cols[i] = colsInt[i] - 1;
+      if (cols[i] >= fit->data.numPredictors) error("column '%d' is out of range", colsInt[i]);
+    }
+    
+    fit->updateTestPredictors(REAL(x_test), cols, numCols);
+    
+    ext_stackFree(cols);
     
     return NULL_USER_OBJECT;
   }
@@ -637,10 +725,12 @@ namespace {
     { "dbarts_run", (DL_FUNC) &run, 3 },
     { "dbarts_setResponse", (DL_FUNC) &setResponse, 2 },
     { "dbarts_setOffset", (DL_FUNC) &setOffset, 2 },
-    { "dbarts_setPredictor", (DL_FUNC) &setPredictor, 3 },
-    { "dbarts_setTestPredictor", (DL_FUNC) &setTestPredictor, 3 },
-    { "dbarts_setTestPredictors", (DL_FUNC) &setTestPredictors, 3 },
+    { "dbarts_setPredictor", (DL_FUNC) &setPredictor, 2 },
+    { "dbarts_updatePredictor", (DL_FUNC) &updatePredictor, 3 },
+    { "dbarts_setTestPredictor", (DL_FUNC) &setTestPredictor, 2 },
     { "dbarts_setTestOffset", (DL_FUNC) &setTestOffset, 2 },
+    { "dbarts_setTestPredictorAndOffset", (DL_FUNC) &setTestPredictorAndOffset, 3 },
+    { "dbarts_updateTestPredictor", (DL_FUNC) &updateTestPredictor, 3 },
     { "dbarts_setControl", (DL_FUNC) &setControl, 2 },
     { "dbarts_isValidPointer", (DL_FUNC) &isValidPointer, 1 },
     { "dbarts_createState", (DL_FUNC) &createState, 1 },
@@ -690,10 +780,13 @@ namespace {
     { "dbarts", "setResponse", (DL_FUNC) dbarts_setResponse },
     { "dbarts", "setOffset", (DL_FUNC) dbarts_setOffset },
     { "dbarts", "setPredictor", (DL_FUNC) dbarts_setPredictor },
+    { "dbarts", "updatePredictor", (DL_FUNC) dbarts_updatePredictor },
+    { "dbarts", "updatePredictors", (DL_FUNC) dbarts_updatePredictors },
     { "dbarts", "setTestPredictor", (DL_FUNC) dbarts_setTestPredictor },
-    { "dbarts", "setTestPredictors", (DL_FUNC) dbarts_setTestPredictors },
     { "dbarts", "setTestOffset", (DL_FUNC) dbarts_setTestOffset },
-    { "dbarts", "setTestPredictorsAndOffset", (DL_FUNC) dbarts_setTestPredictorsAndOffset },
+    { "dbarts", "setTestPredictorsAndOffset", (DL_FUNC) dbarts_setTestPredictorAndOffset },
+    { "dbarts", "updateTestPredictor", (DL_FUNC) dbarts_updateTestPredictor },
+    { "dbarts", "updateTestPredictors", (DL_FUNC) dbarts_updateTestPredictors },
     { NULL, NULL, 0 }
   };
   

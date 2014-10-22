@@ -17,7 +17,9 @@ namespace dbarts {
     
     Tree(size_t* indices, size_t numObservations, size_t numPredictors) : top(indices, numObservations, numPredictors) { }
     
-    void getCurrentFits(const BARTFit& fit, double* trainingFits, double* testFits);
+    void sampleAveragesAndSetFits(const BARTFit& fit, double* trainingFits, double* testFits);
+    double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates response; are ordered as bottom nodes are
+    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
     
     Node* getTop() const;
     bool hasSingleNode() const;
@@ -37,6 +39,8 @@ namespace dbarts {
     void countVariableUses(uint32_t* variableCounts);
     
     const char* createString() const;
+    
+    bool isValid() const;
   };
   
   

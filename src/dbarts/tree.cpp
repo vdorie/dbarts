@@ -47,7 +47,7 @@ namespace dbarts {
     }
   }
   
-  void Tree::getCurrentFits(const BARTFit& fit, double* trainingFits, double* testFits)
+  void Tree::sampleAveragesAndSetFits(const BARTFit& fit, double* trainingFits, double* testFits)
   {
     NodeVector bottomNodes(top.getAndEnumerateBottomVector());
     size_t numBottomNodes = bottomNodes.size();
@@ -70,11 +70,61 @@ namespace dbarts {
       for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = nodePosteriorPredictions[observationNodeMap[i]];
       delete [] observationNodeMap;
       
-       ext_stackFree(nodePosteriorPredictions);
+      ext_stackFree(nodePosteriorPredictions);
+    }
+  }
+  
+  double* Tree::recoverAveragesFromFits(const BARTFit& fit, const double* treeFits)
+  {
+    NodeVector bottomNodes(top.getBottomVector());
+    size_t numBottomNodes = bottomNodes.size();
+    
+    double* result = new double[numBottomNodes];
+    for (size_t i = 0; i < numBottomNodes; ++i) {
+      if (bottomNodes[i]->isTop()) {
+        result[i] = treeFits[0];
+      } else if (bottomNodes[i]->getNumObservations() > 0) {
+        result[i] = treeFits[bottomNodes[i]->observationIndices[0]];
+      } else {
+        result[i] = 0.0;
+      }
+    }
+    
+    return(result);
+  }
+  
+  void Tree::setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits)
+  {
+    NodeVector bottomNodes(top.getAndEnumerateBottomVector());
+    size_t numBottomNodes = bottomNodes.size();
+    
+    if (trainingFits != NULL) {
+      for (size_t i = 0; i < numBottomNodes; ++i) {
+        const Node& bottomNode(*bottomNodes[i]);
+        
+        bottomNode.setPredictions(trainingFits, posteriorPredictions[i]);
+      }
+    }
+    
+    if (testFits != NULL) {
+      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.Xt_test, fit.data.numTestObservations);
+      for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = posteriorPredictions[observationNodeMap[i]];
+      delete [] observationNodeMap;
     }
   }
   
   void Tree::countVariableUses(uint32_t* variableCounts) {
     top.countVariableUses(variableCounts);
+  }
+  
+  bool Tree::isValid() const {
+    const NodeVector bottomNodes(top.getBottomVector());
+    size_t numBottomNodes = bottomNodes.size();
+    
+    for (size_t j = 0; j < numBottomNodes; ++j) {
+      if (bottomNodes[j]->getNumObservations() == 0) return false;
+    }
+    
+    return true;
   }
 }
