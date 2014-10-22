@@ -8,8 +8,14 @@
 extern "C" {
 #endif
   
+  typedef enum {
+    EXT_TRIANGLE_TYPE_BOTH,
+    EXT_TRIANGLE_TYPE_UPPER,
+    EXT_TRIANGLE_TYPE_LOWER
+  } ext_triangleType;
+  
   // y := alpha * x + y
-  void ext_addVectorsInPlace(const double* x, ext_size_t length, double alpha, double* y);
+  void ext_addVectorsInPlace(const double* restrict x, ext_size_t length, double alpha, double* restrict y);
   // z = alpha * x + y; z must be distinct from x and y
   void ext_addVectors(const double* restrict x, ext_size_t length, double alpha, const double* restrict y, double* restrict z);
   
@@ -43,7 +49,23 @@ extern "C" {
                               double tolerance, double* residuals, char** message);
   int ext_findLeastSquaresFitInPlace(double* y, ext_size_t n, double* x, ext_size_t p, double* b,
                                      double tolerance, double* residuals, char** message);
-  
+
+  // returns 0 for success, EINVAL for an invalid argument, and EDOM if matrix is not symm pos def
+  int ext_getSymmetricPositiveDefiniteTriangularFactorization(const double* restrict x, ext_size_t dim, ext_triangleType triangleType, double* restrict result);
+  int ext_getSymmetricPositiveDefiniteTriangularFactorizationInPlace(double* x, ext_size_t dim, ext_triangleType triangleType);
+
+  // X'X if use transpose is false, XX' otherwise
+  // stores only upper, lower, or both parts of result depending
+  void ext_getSingleMatrixCrossproduct(const double* restrict x, ext_size_t numRows, ext_size_t numCols,
+                                       double* restrict result, int useTranspose, ext_triangleType triangleType);
+
+  // x := solve(Ax = b) or solve(A'x = b), A triangular
+  // returns 0 for success, EINVAL for an invalid argument, and EDOM if matrix is not symm pos def
+  int ext_solveTriangularSystemInPlace(const double* restrict lhs, ext_size_t lhsDim, int useTranspose, ext_triangleType triangleType,
+                                       double* restrict rhs, ext_size_t rhsDim);
+                                       
+  void ext_multiplyMatrixIntoVector(const double* restrict matrix, ext_size_t numRows, ext_size_t numCols, int useTranspose,
+                                    const double* restrict vector, double* restrict result);
 
 #ifdef __cplusplus
 }

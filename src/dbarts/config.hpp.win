@@ -6,16 +6,6 @@
 #define STDC_HEADERS 1
 #define HAVE_SNPRINTF 1
 
-#if __cplusplus < 201103L
-#  ifdef __GNUG__
-#    define restrict __restrict__
-#  elif defined(_MSC_VER)
-#    define restrict __restrict
-#  else
-#    define restrict
-#  endif
-#endif
-
 #define PACKAGE_BUGREPORT "vjd4@nyu.edu"
 #define PACKAGE_NAME "dbarts"
 #define PACKAGE_STRING "dbarts 0.8.4"

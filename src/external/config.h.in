@@ -40,4 +40,5 @@
    such a type exists and the standard includes do not define it. */
 #undef uint64_t
 
+/* Define to 1 if words are stored in a big-endian format. */
 #undef WORDS_BIGENDIAN

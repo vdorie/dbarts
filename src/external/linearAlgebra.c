@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <errno.h>
 
 #include <R.h>
 #include <Rdefines.h>
@@ -16,7 +17,7 @@
 
 static const int increment = 1;
 
-void ext_addVectorsInPlace(const double* restrict x, size_t u_length, double alpha, double* y)
+void ext_addVectorsInPlace(const double* restrict x, size_t u_length, double alpha, double* restrict y)
 {
   int length = (int) u_length;
   
@@ -293,4 +294,127 @@ int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, dou
   for (size_t i = 0; i < p; ++i) b[pivot[i]] = temp[i];
   
   return (int) rank;
+}
+
+int ext_getSymmetricPositiveDefiniteTriangularFactorization(const double* restrict x,
+                                                            size_t dim,
+                                                            ext_triangleType triangleType,
+                                                            double* restrict result)
+{
+  if (triangleType == EXT_TRIANGLE_TYPE_BOTH) return EINVAL;
+  
+  char useLowerTriangle = (triangleType == EXT_TRIANGLE_TYPE_UPPER ? 'U' : 'L');
+  
+  memcpy(result, x, dim * dim * sizeof(double));
+  
+  int i_dim = (int) dim;
+  
+  int lapackResult;
+  
+  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, result, &i_dim, &lapackResult);
+  
+  if (lapackResult < 0) return EINVAL;
+  if (lapackResult > 0) return EDOM;
+  
+  return 0;
+}
+
+int ext_getSymmetricPositiveDefiniteTriangularFactorizationInPlace(double* x, size_t dim, ext_triangleType triangleType)
+{
+  if (triangleType == EXT_TRIANGLE_TYPE_BOTH) return EINVAL;
+  
+  char useLowerTriangle = (triangleType == EXT_TRIANGLE_TYPE_UPPER ? 'U' : 'L');
+  
+  int i_dim = (int) dim;
+  
+  int lapackResult;
+  
+  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, x, &i_dim, &lapackResult);
+  
+  if (lapackResult < 0) return EINVAL;
+  if (lapackResult > 0) return EDOM;
+  
+  return 0;
+}
+
+
+void ext_getSingleMatrixCrossproduct(const double* restrict x, size_t numRows, size_t numCols,
+                                     double* restrict result, int useTranspose, ext_triangleType triangleType)
+{
+  // for us, transpose is AA', for BLAS it is the reverse (A'A)
+  char shouldTransposeMatrix = (useTranspose ? 'N' : 'T');
+  char useLowerTriangle = (triangleType == EXT_TRIANGLE_TYPE_UPPER ? 'U' : 'L');
+  
+  int outputDimension  = (int) (useTranspose ? numRows : numCols);
+  int inputDimension   = (int) (useTranspose ? numCols : numRows); // if user specifies transpose, he/she wants AA'
+  double d_one  = 1.0;
+  double d_zero = 0.0;
+  
+  int i_numRows = (int) numRows;
+  
+  F77_CALL(dsyrk)(&useLowerTriangle, &shouldTransposeMatrix,
+                  &outputDimension,
+                  &inputDimension, &d_one, x,
+                  &i_numRows, &d_zero,
+                  result, &outputDimension);
+  
+  if (triangleType != EXT_TRIANGLE_TYPE_BOTH) return;
+  
+  // copy in rest of product
+  for (size_t col = 1; col < (size_t) outputDimension; ++col) {
+    for (size_t row = 0; row < col; ++row) {
+      result[row + outputDimension * col] = result[col + outputDimension * row];
+    }
+  }
+}
+
+// solves x := A x = y, where A is triangular
+int ext_solveTriangularSystemInPlace(const double* restrict lhs, size_t lhsDim, int useTranspose, ext_triangleType triangleType,
+                                     double* restrict rhs, size_t rhsDim)
+{
+  char useLowerTriangle = (triangleType == EXT_TRIANGLE_TYPE_UPPER ? 'U' : 'L');
+  char shouldTransposeMatrix = (useTranspose ? 'T' : 'N');
+  char isUnitDiagonal = 'N';
+  
+  int i_lhsDim = (int) lhsDim;
+  int i_rhsDim = (int) rhsDim;
+  
+  int lapackResult;
+  
+  F77_CALL(dtrtrs)(&useLowerTriangle, &shouldTransposeMatrix, &isUnitDiagonal,
+                   &i_lhsDim, &i_rhsDim, lhs, &i_lhsDim, rhs, &i_lhsDim, &lapackResult);
+  
+  if (lapackResult < 0) return EINVAL;
+  if (lapackResult > 0) return EDOM;
+  
+  return 0;
+}
+
+void ext_multiplyMatrixIntoVector(const double* restrict matrix, size_t numRows, size_t numCols, int useTranspose,
+                                  const double* restrict vector, double* restrict result)
+{
+  if (!useTranspose) {
+    for (size_t row = 0; row < numRows; ++row) {
+      *result = 0.0;
+      for (size_t col = 0; col < numCols; ++col) {
+        *result += *matrix * *vector;
+        matrix += numRows;
+        ++vector;
+      }
+      ++result;
+      matrix -= numRows * numCols - 1;
+      vector -= numCols;
+    }
+  } else {
+    for (size_t col = 0; col < numCols; ++col) {
+      *result = 0.0;
+      for (size_t row = 0; row < numRows; ++row) {
+        *result += *matrix * *vector;
+        ++matrix;
+        ++vector;
+      }
+      ++result;
+      vector -= numRows;
+    }
+  }
 }

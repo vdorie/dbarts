@@ -2,7 +2,6 @@
 #define EXTERNAL_STATS_H
 
 #include "stddef.h"
-#include <stdint.h>
 
 #include <Rmath.h>
 
