@@ -124,15 +124,15 @@ namespace dbarts {
       }
     }
     
-    bool treesAreValid = true;
-    
     double** nodePosteriorPredictions = new double*[control.numTrees];
     for (size_t i = 0; i < control.numTrees; ++i) nodePosteriorPredictions[i] = NULL;
     
-    size_t treeNum;
-    for (treeNum = 0; treeNum < control.numTrees && treesAreValid == true; ++treeNum) {
+    bool treesAreValid = true;
+    size_t treeNum = 0;
+    for ( ; treeNum < control.numTrees && treesAreValid == true; ++treeNum) {
       const double* treeFits = state.treeFits + treeNum * data.numObservations;
       
+      // next allocates memory
       nodePosteriorPredictions[treeNum] = state.trees[treeNum].recoverAveragesFromFits(*this, treeFits);
       
       state.trees[treeNum].top.addObservationsToChildren(*this);
@@ -155,7 +155,7 @@ namespace dbarts {
     }
     
     
-    for (size_t i = 0; i < control.numTrees; ++i) delete [] nodePosteriorPredictions[i];
+    for (size_t i = control.numTrees; i > 0; --i) delete [] nodePosteriorPredictions[i - 1];
     delete [] nodePosteriorPredictions;
     
     return treesAreValid;
@@ -236,7 +236,7 @@ namespace dbarts {
       }
     }
     
-    for (size_t i = 0; i < control.numTrees; ++i) delete [] nodePosteriorPredictions[i];
+    for (size_t i = control.numTrees; i > 0; --i) delete [] nodePosteriorPredictions[i - 1];
     delete [] nodePosteriorPredictions;
     
     for (size_t i = 0; i < numColumns; ++i) delete [] oldCutPoints[i];
@@ -297,6 +297,8 @@ namespace dbarts {
         state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
       
         ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+        
+        delete [] nodePosteriorPredictions;
       }
       
       delete [] currTestFits;
@@ -332,6 +334,8 @@ namespace dbarts {
       state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, NULL, currTestFits);
       
       ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+      
+      delete [] nodePosteriorPredictions;
     }
     
     delete [] currTestFits;
@@ -1006,6 +1010,13 @@ namespace {
 #include "binaryIO.hpp"
 
 #define VERSION_STRING_LENGTH 8
+
+#ifndef S_IRGRP
+#define S_IRGRP 0
+#endif
+#ifndef S_IROTH
+#define S_IROTH 0
+#endif
 
 namespace dbarts {
   

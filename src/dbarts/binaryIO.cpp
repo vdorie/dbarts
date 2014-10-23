@@ -126,7 +126,7 @@ read_control_cleanup:
     errorCode = ext_bio_writeNUnsigned32BitIntegers(bio, data.maxNumCuts, data.numPredictors);
     
 write_data_cleanup:
-    if (variableTypes != NULL) ext_stackFree(variableTypes);
+    if (variableTypes != NULL) { ext_stackFree(variableTypes); }
 
     if (errorCode != 0) ext_issueWarning("error writing data object: %s", std::strerror(errorCode));
     

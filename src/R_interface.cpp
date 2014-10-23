@@ -399,7 +399,7 @@ namespace {
 
     if (dims != NULL) {
       if ((size_t) dims[0] != fit->data.numObservations) error("number of rows of new x does not match y");
-      if ((size_t) dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
+      if (dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
     } else {
       if ((size_t) length(x) != fit->data.numObservations) error("length of new x does not match y");
     }
@@ -514,7 +514,7 @@ namespace {
 
     if (dims != NULL) {
       if ((size_t) dims[0] != fit->data.numTestObservations) error("number of rows of new x does not match old x.test");
-      if ((size_t) dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
+      if (dims[1] != length(colsExpr)) error("number of columns of new x does not match length of columns to replace");
     } else {
       if ((size_t) length(x_test) != fit->data.numTestObservations) error("length of new x does not match old x.test");
     }
@@ -990,15 +990,17 @@ namespace {
     if (i_temp < 0) error("Print cutoffs must be non-negative.");
     control.printCutoffs = (uint32_t) i_temp;
     
-    ext_rng_userFunction uniformFunction;
-    uniformFunction.f.stateless = &unif_rand;
-    uniformFunction.state = NULL;
-    control.rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
-    
-    ext_rng_userFunction normalFunction;
-    normalFunction.f.stateless = &norm_rand;
-    normalFunction.state = NULL;
-    ext_rng_setStandardNormalAlgorithm(control.rng, EXT_RNG_STANDARD_NORMAL_USER_NORM, &normalFunction);
+    if (control.rng == NULL) {
+      ext_rng_userFunction uniformFunction;
+      uniformFunction.f.stateless = &unif_rand;
+      uniformFunction.state = NULL;
+      control.rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+      
+      ext_rng_userFunction normalFunction;
+      normalFunction.f.stateless = &norm_rand;
+      normalFunction.state = NULL;
+      ext_rng_setStandardNormalAlgorithm(control.rng, EXT_RNG_STANDARD_NORMAL_USER_NORM, &normalFunction);
+    }
   }
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)

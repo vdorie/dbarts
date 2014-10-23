@@ -211,7 +211,7 @@ static double simulateStandardExponential(ext_rng* generator)
     /* q[k-1] = sum(log(2)^k / k!)  k=1,..,n, */
     /* The highest n (here 16) is determined by q[n-1] = 1.0 */
     /* within standard precision */
-  const static double q[] = {
+  static const double q[] = {
     0.6931471805599453, 0.9333736875190459, 0.9888777961838675, 0.9984959252914960,
     0.9998292811061389, 0.9999833164100727, 0.9999985691438767, 0.9999998906925558,
     0.9999999924734159, 0.9999999995283275, 0.9999999999728814, 0.9999999999985598,

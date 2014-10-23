@@ -8,6 +8,10 @@
 #include <errno.h>
 #include <limits.h>
 
+#ifndef EOVERFLOW // needed for mingw
+#define EOVERFLOW EFBIG
+#endif
+
 #ifndef WORDS_BIGENDIAN
 #define XOR_SWAP(_X_, _Y_) { (_X_) ^= (_Y_); (_Y_) ^= (_X_); (_X_) ^= (_Y_); }
 
@@ -59,6 +63,11 @@ void ext_bio_destroy(ext_binaryIO* bio)
   free(bio);
 }
 
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#endif
+
 int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, int permissionsFlag)
 {
   if (bio == NULL) return EFAULT;
@@ -70,7 +79,19 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
   if (bio->fileDescriptor == -1) return errno;
   
   errno = 0;
+#ifdef _WIN32
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+
+  long pageSize = si.dwPageSize;
+#elif defined(_SC_PAGE_SIZE)
   long pageSize = sysconf(_SC_PAGE_SIZE);
+#elif defined(_SC_PAGESIZE)
+  long pageSize = sysconf(_SC_PAGESIZE)
+#else
+  long pageSize = 4096;
+#endif
+
   if (pageSize <= 0 || errno != 0) pageSize = 4096; // sure, why not?
   bio->bufferLength = pageSize;
     
@@ -589,8 +610,8 @@ static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restri
     return fillLength;
   }
   
-  size_t i;
-  for (size_t i = 0; i < fillLength; ++i) {
+  size_t i = 0;
+  for ( ; i < fillLength; ++i) {
     if (buffer[i] > (uint64_t) SIZE_MAX) {
       errno = EOVERFLOW;
       return 0;

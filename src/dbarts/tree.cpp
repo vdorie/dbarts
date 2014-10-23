@@ -74,7 +74,7 @@ namespace dbarts {
     }
   }
   
-  double* Tree::recoverAveragesFromFits(const BARTFit& fit, const double* treeFits)
+  double* Tree::recoverAveragesFromFits(const BARTFit&, const double* treeFits)
   {
     NodeVector bottomNodes(top.getBottomVector());
     size_t numBottomNodes = bottomNodes.size();

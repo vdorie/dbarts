@@ -15,9 +15,12 @@
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h> // getpid
+#elif defined(_WIN32)
+#include <process.h>
 #endif
 
-#if !defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME) && defined(HAVE_GETTIMEOFDAY)
+// clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
+#if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #include <sys/time.h>
 #else
 #include <time.h>
@@ -70,7 +73,7 @@ struct ext_rng {
 
 ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
 {
-  if (algorithm < EXT_RNG_ALGORITHM_WICHMANN_HILL || algorithm > EXT_RNG_ALGORITHM_LECUYER_CMRG) {
+  if (algorithm >= EXT_RNG_ALGORITHM_INVALID) {
     errno = EINVAL;
     return NULL;
   }
@@ -101,6 +104,8 @@ ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
     }
   }
   
+  for (size_t i = 0; i < 9; ++i) result->gammaState[i] = 0.0;
+  
   return result;
 }
 
@@ -116,8 +121,7 @@ int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNorma
 {
   if (generator == NULL) return EFAULT;
   
-  if (standardNormalAlgorithm < EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE ||
-      standardNormalAlgorithm > EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE) return EINVAL;
+  if (standardNormalAlgorithm >= EXT_RNG_STANDARD_NORMAL_INVALID) return EINVAL;
   
   generator->standardNormalAlgorithm = standardNormalAlgorithm;
   
@@ -144,7 +148,6 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed);
 int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
 {
   if (generator == NULL) return EFAULT;
-  if (generator->algorithm < EXT_RNG_ALGORITHM_WICHMANN_HILL || generator->algorithm > EXT_RNG_ALGORITHM_LECUYER_CMRG) return EINVAL;
   
   size_t stateLength = stateLengths[generator->algorithm];
   uint_least32_t* state = (uint_least32_t*) generator->state;
@@ -306,7 +309,7 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
 #define KNUTH_CONSTANT         9.31322574615479e-10
 
 // guarantees results in (0, 1)
-static double inline truncateToUnitInterval(double x) {
+inline static double truncateToUnitInterval(double x) {
   if (x <= 0.0) return 0.5 * THIRTY_TWO_BIT_INVERSE;
   if ((1.0 - x) <= 0.0) return 1.0 - 0.5 * THIRTY_TWO_BIT_INVERSE;
   return x;
