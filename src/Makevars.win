@@ -5,7 +5,7 @@ INST_DIR=../inst
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
 PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
-PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) dbarts/libdbarts.a external/libexternal.a -lpthread 
+PKG_LIBS= dbarts/libdbarts.a external/libexternal.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
 
 .PHONY: all dbarts/libdbarts.a external/libexternal.a clean
 
