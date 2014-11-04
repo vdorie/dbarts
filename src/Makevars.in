@@ -6,7 +6,7 @@ INST_DIR=../inst
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
 PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
-PKG_LIBS=$(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) dbarts/libdbarts.a external/libexternal.a @PTHREAD_LIBS@ 
+PKG_LIBS=dbarts/libdbarts.a external/libexternal.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
 
 .PHONY: all dbarts/libdbarts.a external/libexternal.a clean
 
