@@ -16,7 +16,7 @@ extern "C" {
 typedef struct ext_binaryIO
 {
   int fileDescriptor;
-  char* buffer;
+  void* buffer;
   size_t bufferLength;
   
 } ext_binaryIO;

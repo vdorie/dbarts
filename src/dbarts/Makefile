@@ -40,7 +40,7 @@ prior.hpp :
 swapRule.hpp : 
 tree.hpp : node.hpp
 
-bartFit.o : bartFit.cpp $(BART_INC)/bartFit.hpp $(BART_INC)/results.hpp functions.hpp tree.hpp
+bartFit.o : bartFit.cpp $(BART_INC)/bartFit.hpp $(BART_INC)/results.hpp binaryIO.hpp functions.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c bartFit.cpp -o bartFit.o
 
 binaryIO.o : binaryIO.cpp binaryIO.hpp $(BART_INC)/control.hpp $(BART_INC)/data.hpp $(BART_INC)/model.hpp $(BART_INC)/state.hpp tree.hpp

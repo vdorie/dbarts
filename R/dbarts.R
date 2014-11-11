@@ -130,7 +130,6 @@ dbartsSampler <-
                 initialize =
                   function(control, model, data, ...)
                 {
-                  ## cat("given x: "); .Call("dbarts_printAddress", data@x); cat("\n")
                   if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl")
                   if (!inherits(model, "dbartsModel")) stop("'model' must inherit from dbartsModel")
                   if (!inherits(data, "dbartsData")) stop("'data' must inherit from dbartsData")
@@ -140,14 +139,6 @@ dbartsSampler <-
                   data    <<- data
                   state   <<- NULL
                   pointer <<- .Call("dbarts_create", control, model, data)
-                  ## selfEnv <- as.environment(.self)
-                  ## selfEnv$control <- control
-                  ## selfEnv$model <- model
-                  ## selfEnv$data <- data
-                  ## selfEnv$state <- NULL
-                  ## pointer <<- .Call("dbarts_create", selfEnv$control, selfEnv$model, selfEnv$data)
-
-                  ## cat("set x: "); .Call("dbarts_printAddress", selfEnv$data@x); cat("\n")
                   
                   callSuper(...)
                 },

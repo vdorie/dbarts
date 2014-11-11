@@ -3,7 +3,7 @@
 #include <sys/stat.h> // file permissions
 #include <fcntl.h>    // open
 #include <unistd.h>   // close, write, sysconf
-#include <stdlib.h>   // malloc
+#include <stdlib.h>   // malloc, posix_memalign
 #include <string.h>   // memcpy
 #include <errno.h>
 #include <limits.h>
@@ -93,14 +93,21 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
 #endif
 
   if (pageSize <= 0 || errno != 0) pageSize = 4096; // sure, why not?
-  bio->bufferLength = pageSize;
-    
-  bio->buffer = (char*) malloc(bio->bufferLength);
-  if (bio->buffer == NULL) {
+  bio->bufferLength = (size_t) pageSize;
+  
+  // practically needs to hold at least one 64 bit int
+  while (bio->bufferLength < sizeof(uint64_t)) bio->bufferLength <<= 1;
+  
+  size_t alignment = sizeof(uint64_t);
+  if (alignment % sizeof(void*) != 0) alignment *= sizeof(void*);
+  
+  int errorCode = posix_memalign(&bio->buffer, alignment, bio->bufferLength);
+  if (errorCode != 0) {
+    if (bio->buffer != NULL) free(bio->buffer);
     close(bio->fileDescriptor);
     bio->fileDescriptor = -1;
     bio->bufferLength = 0;
-    return ENOMEM;
+    return errorCode;
   }
   
   return 0;
@@ -154,7 +161,7 @@ int ext_bio_writeNChars(ext_binaryIO* bio, const char* c, size_t length)
     ssize_t bytesWritten = write(bio->fileDescriptor, c + totalBytesWritten, length - totalBytesWritten);
     if (bytesWritten == 0) return EIO;
     if (bytesWritten < 0) return errno;
-    totalBytesWritten += bytesWritten;
+    totalBytesWritten += (size_t) bytesWritten;
   }
   
   return 0;
@@ -196,10 +203,10 @@ int ext_bio_writeNSizeTypes(ext_binaryIO* bio, const size_t* v, size_t length)
     size_t bytesToWrite = itemsWritten * sizeof(uint64_t);
     
     while (totalBytesWritten < bytesToWrite) {
-      ssize_t bytesWritten = write(bio->fileDescriptor, bio->buffer, bytesToWrite - totalBytesWritten);
+      ssize_t bytesWritten = write(bio->fileDescriptor, (char*) bio->buffer, bytesToWrite - totalBytesWritten);
       if (bytesWritten == 0) return EIO;
       if (bytesWritten < 0) return errno;
-      totalBytesWritten += bytesWritten;
+      totalBytesWritten += (size_t) bytesWritten;
     }
     
     totalItemsWritten += itemsWritten;
@@ -241,10 +248,10 @@ int ext_bio_writeNUnsigned32BitIntegers(ext_binaryIO* bio, const uint32_t* u, si
     size_t bytesToWrite = itemsWritten * sizeof(uint32_t);
     
     while (totalBytesWritten < bytesToWrite) {
-      ssize_t bytesWritten = write(bio->fileDescriptor, bio->buffer, bytesToWrite - totalBytesWritten);
+      ssize_t bytesWritten = write(bio->fileDescriptor, (char*) bio->buffer, bytesToWrite - totalBytesWritten);
       if (bytesWritten == 0) return EIO;
       if (bytesWritten < 0) return errno;
-      totalBytesWritten += bytesWritten;
+      totalBytesWritten += (size_t) bytesWritten;
     }
     
     totalItemsWritten += itemsWritten;
@@ -297,10 +304,10 @@ int ext_bio_writeNDoubles(ext_binaryIO* bio, const double* d, size_t length)
     size_t bytesToWrite = itemsWritten * sizeof(double);
     
     while (totalBytesWritten < bytesToWrite) {
-      ssize_t bytesWritten = write(bio->fileDescriptor, bio->buffer, bytesToWrite - totalBytesWritten);
+      ssize_t bytesWritten = write(bio->fileDescriptor, (char*) bio->buffer, bytesToWrite - totalBytesWritten);
       if (bytesWritten == 0) return EIO;
       if (bytesWritten < 0) return errno;
-      totalBytesWritten += bytesWritten;
+      totalBytesWritten += (size_t) bytesWritten;
     }
     
     totalItemsWritten += itemsWritten;
@@ -351,7 +358,7 @@ int ext_bio_readNChars(ext_binaryIO* bio, char* c, size_t length)
     ssize_t bytesRead = read(bio->fileDescriptor, c + totalBytesRead, length - totalBytesRead);
     if (bytesRead == 0) return EIO;
     if (bytesRead < 0) return errno;
-    totalBytesRead += bytesRead;
+    totalBytesRead += (size_t) bytesRead;
   }
   
   return 0;
@@ -411,10 +418,10 @@ int ext_bio_readNSizeTypes(ext_binaryIO* bio, size_t* s, size_t length)
     size_t bytesToRead = itemsToRead * sizeof(uint64_t);
     
     while (totalBytesRead < bytesToRead) {
-      ssize_t bytesRead = read(bio->fileDescriptor, bio->buffer, bytesToRead - totalBytesRead);
+      ssize_t bytesRead = read(bio->fileDescriptor, (char*) bio->buffer, bytesToRead - totalBytesRead);
       if (bytesRead == 0) return EIO;
       if (bytesRead < 0) return errno;
-      totalBytesRead += bytesRead;
+      totalBytesRead += (size_t) bytesRead;
     }
     
     size_t itemsRead = fillSizeTypesFromBuffer(bio, s + totalItemsRead, itemsToRead);
@@ -473,10 +480,10 @@ int ext_bio_readNUnsigned32BitIntegers(ext_binaryIO* bio, uint32_t* u, size_t le
     size_t bytesToRead = itemsToRead * sizeof(uint32_t);
     
     while (totalBytesRead < bytesToRead) {
-      ssize_t bytesRead = read(bio->fileDescriptor, bio->buffer, bytesToRead - totalBytesRead);
+      ssize_t bytesRead = read(bio->fileDescriptor, (char*) bio->buffer, bytesToRead - totalBytesRead);
       if (bytesRead == 0) return EIO;
       if (bytesRead < 0) return errno;
-      totalBytesRead += bytesRead;
+      totalBytesRead += (size_t) bytesRead;
     }
     
     totalItemsRead += fillUnsigned32BitIntegersFromBuffer(bio, u + totalItemsRead, itemsToRead);
@@ -543,10 +550,10 @@ int ext_bio_readNDoubles(ext_binaryIO* bio, double* d, size_t length)
     size_t bytesToRead = itemsToRead * sizeof(double);
     
     while (totalBytesRead < bytesToRead) {
-      ssize_t bytesRead = read(bio->fileDescriptor, bio->buffer, bytesToRead - totalBytesRead);
+      ssize_t bytesRead = read(bio->fileDescriptor, (char*) bio->buffer, bytesToRead - totalBytesRead);
       if (bytesRead == 0) return EIO;
       if (bytesRead < 0) return errno;
-      totalBytesRead += bytesRead;
+      totalBytesRead += (size_t) bytesRead;
     }
     
     totalItemsRead += fillDoublesFromBuffer(bio, d + totalItemsRead, itemsToRead);
@@ -560,7 +567,11 @@ static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* 
 {
   if (length == 0) return 0;
   
+  // purposefully aligned this stupid pointer
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint64_t* restrict buffer = (uint64_t* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(uint64_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -596,7 +607,10 @@ static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restri
 {
   if (length == 0) return 0;
   
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint64_t* restrict buffer = (uint64_t* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(uint64_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -635,7 +649,10 @@ static size_t fillBufferFromDoubles(ext_binaryIO* restrict bio, const double* re
 {
   if (length == 0) return 0;
   
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   double* restrict buffer = (double* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(double);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -652,7 +669,10 @@ static size_t fillDoublesFromBuffer(ext_binaryIO* restrict bio, double* restrict
 {
   if (length == 0) return 0;
   
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   double* restrict buffer = (double* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(double);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -669,7 +689,10 @@ static size_t fillBufferFromUnsigned32BitIntegers(ext_binaryIO* restrict bio, co
 {
   if (length == 0) return 0;
   
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint32_t* restrict buffer = (uint32_t* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(uint32_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -686,7 +709,10 @@ static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, ui
 {
   if (length == 0) return 0;
   
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint32_t* restrict buffer = (uint32_t* restrict) bio->buffer;
+#pragma GCC diagnostic pop
   size_t bufferLength = bio->bufferLength / sizeof(uint32_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -702,7 +728,10 @@ static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, ui
 #ifndef WORDS_BIGENDIAN
 static void swapEndiannessFor4ByteWords(char* c, size_t length)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint32_t* u = (uint32_t*) c;
+#pragma GCC diagnostic pop
   
   size_t lengthMod5 = length % 5;
   size_t i = 0;
@@ -719,7 +748,10 @@ static void swapEndiannessFor4ByteWords(char* c, size_t length)
 
 static void swapEndiannessFor8ByteWords(char* c, size_t length)
 {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
   uint64_t* u = (uint64_t*) c;
+#pragma GCC diagnostic pop
   
   size_t lengthMod5 = length % 5;
   size_t i = 0;

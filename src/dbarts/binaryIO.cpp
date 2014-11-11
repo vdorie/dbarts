@@ -118,7 +118,7 @@ read_control_cleanup:
       (errorCode = ext_bio_writeNDoubles(bio, data.testOffset, data.numTestObservations)) != 0) goto write_data_cleanup;
     
     variableTypes = ext_stackAllocate(data.numPredictors, uint32_t);
-    for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (uint32_t) data.variableTypes[i];
+    for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = static_cast<uint32_t>(data.variableTypes[i]);
     
     if ((errorCode = ext_bio_writeNUnsigned32BitIntegers(bio, variableTypes, data.numPredictors)) != 0) goto write_data_cleanup;
     
@@ -147,39 +147,39 @@ write_data_cleanup:
     
     
     data.y = new double[data.numObservations];
-    if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.y, data.numObservations)) != 0) goto read_data_cleanup;
+    if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.y), data.numObservations)) != 0) goto read_data_cleanup;
     
     data.X = new double[data.numObservations * data.numPredictors];
-    if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.X, data.numObservations * data.numPredictors)) != 0) goto read_data_cleanup;
+    if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.X), data.numObservations * data.numPredictors)) != 0) goto read_data_cleanup;
     
     if (data.numTestObservations > 0) {
       data.X_test = new double[data.numTestObservations * data.numPredictors];
-      if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.X_test, data.numTestObservations * data.numPredictors)) != 0) goto read_data_cleanup;
+      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.X_test), data.numTestObservations * data.numPredictors)) != 0) goto read_data_cleanup;
     } else data.X_test = NULL;
     
     if (dataFlags & DATA_HAS_WEIGHTS) {
       data.weights = new double[data.numObservations];
-      if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.weights, data.numObservations)) != 0) goto read_data_cleanup;
+      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.weights), data.numObservations)) != 0) goto read_data_cleanup;
     } else data.weights = NULL;
     
     if (dataFlags & DATA_HAS_OFFSET) {
       data.offset = new double[data.numObservations];
-      if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.offset, data.numObservations)) != 0) goto read_data_cleanup;
+      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.offset), data.numObservations)) != 0) goto read_data_cleanup;
     } else data.offset = NULL;
     
     if (dataFlags & DATA_HAS_TEST_OFFSET) {
       data.testOffset = new double[data.numTestObservations];
-      if ((errorCode = ext_bio_readNDoubles(bio, (double*) data.testOffset, data.numTestObservations)) != 0) goto read_data_cleanup;
+      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.testOffset), data.numTestObservations)) != 0) goto read_data_cleanup;
     } else data.testOffset = NULL;
     
     variableTypes = ext_stackAllocate(data.numPredictors, uint32_t);
     if ((errorCode = ext_bio_readNUnsigned32BitIntegers(bio, variableTypes, data.numPredictors)) != 0) goto read_data_cleanup;
     data.variableTypes = new VariableType[data.numPredictors];
-    for (size_t i = 0; i < data.numPredictors; ++i) ((VariableType *) data.variableTypes)[i] = (VariableType) variableTypes[i];
+    for (size_t i = 0; i < data.numPredictors; ++i) const_cast<VariableType*>(data.variableTypes)[i] = static_cast<VariableType>(variableTypes[i]);
     
     if (dataFlags & DATA_HAS_MAX_NUM_CUTS) {
       data.maxNumCuts = new uint32_t[data.numPredictors];
-      if ((errorCode = ext_bio_readNUnsigned32BitIntegers(bio, (uint32_t*) data.maxNumCuts, data.numPredictors)) != 0) goto read_data_cleanup; 
+      if ((errorCode = ext_bio_readNUnsigned32BitIntegers(bio, const_cast<uint32_t*>(data.maxNumCuts), data.numPredictors)) != 0) goto read_data_cleanup; 
     } else data.maxNumCuts = NULL;
     
 read_data_cleanup:
@@ -213,16 +213,16 @@ read_data_cleanup:
     
     // this needs some seeerious work
     if ((errorCode = ext_bio_writeNChars(bio, "cgm ", 4)) != 0) goto write_model_cleanup;
-    if ((errorCode = ext_bio_writeDouble(bio, ((CGMPrior*) model.treePrior)->base)) != 0) goto write_model_cleanup;
-    if ((errorCode = ext_bio_writeDouble(bio, ((CGMPrior*) model.treePrior)->power)) != 0) goto write_model_cleanup;
+    if ((errorCode = ext_bio_writeDouble(bio, static_cast<CGMPrior*>(model.treePrior)->base)) != 0) goto write_model_cleanup;
+    if ((errorCode = ext_bio_writeDouble(bio, static_cast<CGMPrior*>(model.treePrior)->power)) != 0) goto write_model_cleanup;
     
     
     if ((errorCode = ext_bio_writeNChars(bio, "nrml", 4)) != 0) goto write_model_cleanup;
-    if ((errorCode = ext_bio_writeDouble(bio, ((NormalPrior*) model.muPrior)->precision)) != 0) goto write_model_cleanup;
+    if ((errorCode = ext_bio_writeDouble(bio, static_cast<NormalPrior*>(model.muPrior)->precision)) != 0) goto write_model_cleanup;
     
     if ((errorCode = ext_bio_writeNChars(bio, "chsq", 4)) != 0) goto write_model_cleanup;
-    if ((errorCode = ext_bio_writeDouble(bio, ((ChiSquaredPrior*) model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto write_model_cleanup;
-    if ((errorCode = ext_bio_writeDouble(bio, ((ChiSquaredPrior*) model.sigmaSqPrior)->scale)) != 0) goto write_model_cleanup;
+    if ((errorCode = ext_bio_writeDouble(bio, static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto write_model_cleanup;
+    if ((errorCode = ext_bio_writeDouble(bio, static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->scale)) != 0) goto write_model_cleanup;
     
 write_model_cleanup:
     if (errorCode != 0) ext_issueWarning("error writing model object: %s", std::strerror(errorCode));
@@ -245,23 +245,23 @@ write_model_cleanup:
     if (strncmp(priorName, "cgm ", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.treePrior = new CGMPrior;
-    if ((errorCode = ext_bio_readDouble(bio, &((CGMPrior*) model.treePrior)->base)) != 0) goto read_model_cleanup;
-    if ((errorCode = ext_bio_readDouble(bio, &((CGMPrior*) model.treePrior)->power)) != 0) goto read_model_cleanup;
+    if ((errorCode = ext_bio_readDouble(bio, &static_cast<CGMPrior*>(model.treePrior)->base)) != 0) goto read_model_cleanup;
+    if ((errorCode = ext_bio_readDouble(bio, &static_cast<CGMPrior*>(model.treePrior)->power)) != 0) goto read_model_cleanup;
     
     
     if ((errorCode = ext_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
     if (strncmp(priorName, "nrml", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.muPrior = new NormalPrior;
-    if ((errorCode = ext_bio_readDouble(bio, &((NormalPrior*) model.muPrior)->precision)) != 0) goto read_model_cleanup;
+    if ((errorCode = ext_bio_readDouble(bio, &static_cast<NormalPrior*>(model.muPrior)->precision)) != 0) goto read_model_cleanup;
     
     
     if ((errorCode = ext_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
     if (strncmp(priorName, "chsq", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.sigmaSqPrior = new ChiSquaredPrior;
-    if ((errorCode = ext_bio_readDouble(bio, &((ChiSquaredPrior*) model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
-    if ((errorCode = ext_bio_readDouble(bio, &((ChiSquaredPrior*) model.sigmaSqPrior)->scale)) != 0) goto read_model_cleanup;
+    if ((errorCode = ext_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
+    if ((errorCode = ext_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->scale)) != 0) goto read_model_cleanup;
     
 read_model_cleanup:
     
@@ -347,7 +347,7 @@ namespace {
     observationOffset = node.observationIndices - treeIndices;
     if (observationOffset < 0) {
       errorCode = EINVAL; goto write_node_cleanup;
-    } else if ((errorCode = ext_bio_writeSizeType(bio, (size_t) observationOffset)) != 0) goto write_node_cleanup;
+    } else if ((errorCode = ext_bio_writeSizeType(bio, static_cast<size_t>(observationOffset))) != 0) goto write_node_cleanup;
     
     if ((errorCode = ext_bio_writeSizeType(bio, node.enumerationIndex)) != 0) goto write_node_cleanup;
     if ((errorCode = ext_bio_writeSizeType(bio, node.numObservations)) != 0) goto write_node_cleanup;
@@ -360,15 +360,15 @@ namespace {
     if (node.leftChild != NULL) {
       nodeFlags += NODE_HAS_CHILDREN;
       
-      if ((errorCode = ext_bio_writeChar(bio, (char) nodeFlags)) != 0) goto write_node_cleanup;
+      if ((errorCode = ext_bio_writeChar(bio, *reinterpret_cast<char*>(&nodeFlags))) != 0) goto write_node_cleanup;
       
-      if ((errorCode = ext_bio_writeUnsigned32BitInteger(bio, *((uint32_t*) &node.p.rule.variableIndex))) != 0) goto write_node_cleanup;
+      if ((errorCode = ext_bio_writeUnsigned32BitInteger(bio, *(reinterpret_cast<uint32_t*>(&node.p.rule.variableIndex)))) != 0) goto write_node_cleanup;
       if ((errorCode = ext_bio_writeUnsigned32BitInteger(bio, node.p.rule.categoryDirections)) != 0) goto write_node_cleanup;
       
       if ((errorCode = writeNode(*node.leftChild, bio, data, treeIndices))) goto write_node_cleanup;
       if ((errorCode = writeNode(*node.p.rightChild, bio, data, treeIndices))) goto write_node_cleanup;
     } else {
-      if ((errorCode = ext_bio_writeChar(bio, (char) nodeFlags)) != 0) goto write_node_cleanup;
+      if ((errorCode = ext_bio_writeChar(bio, *reinterpret_cast<char*>(&nodeFlags))) != 0) goto write_node_cleanup;
       
       if ((errorCode = ext_bio_writeDouble(bio, node.m.average)) != 0) goto write_node_cleanup;
       if ((errorCode = ext_bio_writeDouble(bio, node.m.numEffectiveObservations)) != 0) goto write_node_cleanup;
@@ -396,7 +396,7 @@ write_node_cleanup:
     
     if ((errorCode = ext_bio_readSizeType(bio, &observationOffset)) != 0) goto read_node_cleanup;
     if (observationOffset >= data.numObservations) { errorCode = EINVAL; goto read_node_cleanup; }
-    node.observationIndices = (size_t*) treeIndices + observationOffset;
+    node.observationIndices = const_cast<size_t*>(treeIndices) + observationOffset;
     
     if ((errorCode = ext_bio_readSizeType(bio, &node.enumerationIndex)) != 0) goto read_node_cleanup;
     if ((errorCode = ext_bio_readSizeType(bio, &node.numObservations)) != 0) goto read_node_cleanup;
@@ -406,12 +406,12 @@ write_node_cleanup:
       node.variablesAvailableForSplit[i] = (variablesAvailableForSplit & (1 << i)) != 0;
     }
     
-    if ((errorCode = ext_bio_readChar(bio, (char*) &nodeFlags)) != 0) goto read_node_cleanup;
+    if ((errorCode = ext_bio_readChar(bio, reinterpret_cast<char*>(&nodeFlags))) != 0) goto read_node_cleanup;
     
     if (nodeFlags > NODE_HAS_CHILDREN) { errorCode = EINVAL; goto read_node_cleanup; }
     
     if (nodeFlags & NODE_HAS_CHILDREN) {
-      if ((errorCode = ext_bio_readUnsigned32BitInteger(bio, (uint32_t*) &node.p.rule.variableIndex)) != 0) goto read_node_cleanup;
+      if ((errorCode = ext_bio_readUnsigned32BitInteger(bio, reinterpret_cast<uint32_t*>(&node.p.rule.variableIndex))) != 0) goto read_node_cleanup;
       if ((errorCode = ext_bio_readUnsigned32BitInteger(bio, &node.p.rule.categoryDirections)) != 0) goto read_node_cleanup;
       
       leftChild = new dbarts::Node(node, data.numPredictors);
