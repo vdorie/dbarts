@@ -1,5 +1,8 @@
+v0.85 : 
+  abstract out end-node and response models
+
 v0.9 : stuff to add
-  fix crappy description
+    implement at least one other model type
   categorical variable detection/use
     cleanup old array of bools vs. bits in a uint
     check that using values of uints hiding w/in doubles makes sense
@@ -18,7 +21,6 @@ v0.9 : stuff to add
   handle updating y for binary better w/r/t latents
 
 v1.0 : cleanup, bug fixes
-  rethink model/prior interface
   thread cancellation
   check bounds on parameters for CGM prior
   verify that all of state is necessary to store

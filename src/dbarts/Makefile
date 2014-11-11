@@ -4,10 +4,10 @@ HEADERS=-I../$(INST_DIR)/include -I../include
 PKG_CPPFLAGS=$(HEADERS)
 ALL_CPPFLAGS=$(R_XTRA_CPPFLAGS) $(PKG_CPPFLAGS) $(CPPFLAGS)
 
-LOCAL_SOURCES = bartFit.cpp binaryIO.cpp birthDeathRule.cpp changeRule.cpp functions.cpp \
+LOCAL_SOURCES=bartFit.cpp birthDeathRule.cpp changeRule.cpp functions.cpp \
           likelihood.cpp node.cpp parameterPrior.cpp state.cpp \
           swapRule.cpp tree.cpp treePrior.cpp
-LOCAL_OBJECTS = bartFit.o binaryIO.o birthDeathRule.o changeRule.o functions.o \
+LOCAL_OBJECTS=bartFit.o birthDeathRule.o changeRule.o functions.o \
           likelihood.o node.o parameterPrior.o state.o \
           swapRule.o tree.o treePrior.o
 
@@ -39,11 +39,8 @@ prior.hpp :
 swapRule.hpp : 
 tree.hpp : node.hpp
 
-bartFit.o : bartFit.cpp $(BART_INC)/bartFit.hpp binaryIO.hpp $(BART_INC)/results.hpp functions.hpp tree.hpp
+bartFit.o : bartFit.cpp $(BART_INC)/bartFit.hpp $(BART_INC)/results.hpp functions.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c bartFit.cpp -o bartFit.o
-
-binaryIO.o : binaryIO.cpp $(BART_INC)/control.hpp $(BART_INC)/data.hpp $(BART_INC)/model.hpp
-	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c binaryIO.cpp -o binaryIO.o
 
 birthDeathRule.o : birthDeathRule.cpp birthDeathRule.hpp functions.hpp likelihood.hpp node.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c birthDeathRule.cpp -o birthDeathRule.o

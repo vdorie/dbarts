@@ -67,7 +67,7 @@ namespace dbarts {
       EndNodeMembers m;
     };
     
-#define BART_INVALID_NODE_ENUM ((size_t) -1)
+#define BART_INVALID_NODE_ENUM static_cast<size_t>(-1)
     size_t enumerationIndex;
     bool* variablesAvailableForSplit;
     

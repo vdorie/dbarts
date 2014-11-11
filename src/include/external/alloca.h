@@ -38,11 +38,20 @@ extern "C" {
 #endif
 
 #ifdef alloca
-# define ext_stackAllocate(_N_, _T_) (_T_ *) alloca(((ext_size_t) (_N_)) * sizeof(_T_))
-# define ext_stackFree(_P_)
+#  ifdef __cplusplus
+#    define ext_stackAllocate(_N_, _T_) static_cast<_T_*>(alloca(static_cast<ext_size_t>(_N_) * sizeof(_T_)))
+#  else
+#    define ext_stackAllocate(_N_, _T_) (_T_ *) alloca(((ext_size_t) (_N_)) * sizeof(_T_))
+#  endif
+#  define ext_stackFree(_P_)
 #else
-# define ext_stackAllocate(_N_, _T_) (_T_ *) malloc(((ext_size_t) (_N_)) * sizeof(_T_))
-# define ext_stackFree(_P_) free(_P_)
+#  ifdef __cplusplus
+#    define ext_stackAllocate(_N_, _T_) static_cast<_T_*>(::operator new(static_cast<ext_size_t>(_N_) * sizeof(_T_)))
+#    define ext_stackFree(_P_) ::operator delete(_P_)
+#  else
+#    define ext_stackAllocate(_N_, _T_) (_T_ *) malloc(((ext_size_t) (_N_)) * sizeof(_T_))
+#    define ext_stackFree(_P_) free(_P_)
+#  endif
 #endif
 
 #endif // EXTERNAL_ALLOCA_H

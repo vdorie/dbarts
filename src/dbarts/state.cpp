@@ -49,7 +49,7 @@ namespace {
     void writeInt(int32_t i) {
       char intBuffer[INT_BUFFER_SIZE];
       int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
-      writeString(intBuffer, (size_t) bytesWritten);
+      writeString(intBuffer, static_cast<size_t>(bytesWritten));
     }
     
     /* void writeUInt(uint32_t u) {
@@ -75,7 +75,7 @@ namespace {
     
     void reallocate() {
       char* temp = new char[length + BASE_BUFFER_SIZE];
-      std::memcpy(temp, (const char*) buffer, length * sizeof(char));
+      std::memcpy(temp, const_cast<const char*>(buffer), length * sizeof(char));
       
       length += BASE_BUFFER_SIZE;
       delete [] buffer;
@@ -105,7 +105,7 @@ namespace {
     
     
     errno = 0;
-    node.p.rule.variableIndex = (int32_t) strtol(buffer, NULL, 10);
+    node.p.rule.variableIndex = static_cast<int32_t>(strtol(buffer, NULL, 10));
     if (node.p.rule.variableIndex == 0 && errno != 0)
       ext_throwError("Unable to parse tree string: %s", strerror(errno));
     
@@ -119,7 +119,7 @@ namespace {
     ++pos;
     
     errno = 0;
-    node.p.rule.splitIndex = (int32_t) strtol(buffer, NULL, 10);
+    node.p.rule.splitIndex = static_cast<int32_t>(strtol(buffer, NULL, 10));
     if (node.p.rule.splitIndex == 0 && errno != 0)
       ext_throwError("Unable to parse tree string: %s", strerror(errno));
     

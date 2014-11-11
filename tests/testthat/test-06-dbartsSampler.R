@@ -42,7 +42,10 @@ test_that("dbarts sampler updates predictors correctly", {
   sampler$setOffset(NULL)
   expect_identical(sampler$data@offset, NULL)
   
-  sampler$setPredictor(x = z, column = 2)
+  invisible(sampler$setPredictor(numeric(n), 2))
+  expect_equal(as.numeric(sampler$data@x[,2]), numeric(n))
+  
+  invisible(sampler$setPredictor(x = z, column = 2))
   expect_equal(as.numeric(sampler$data@x[,2]), z)
   
   sampler$setTestPredictor(x = 1 - z, column = 2)
@@ -57,7 +60,7 @@ test_that("dbarts sampler updates predictors correctly", {
   new.x <- rnorm(n)
   new.z <- as.double(rbinom(n, 1, 0.5))
   new.data <- cbind(new.x, new.z)
-  sampler$setPredictor(new.data)
+  invisible(sampler$setPredictor(new.data))
 
   
   expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
@@ -75,7 +78,7 @@ test_that("dbarts sampler shallow/deep copies", {
 
   n <- testData$n
   
-  sampler$setPredictor(numeric(n), 2)
+  invisible(sampler$setPredictor(numeric(n), 2))
   expect_equal(sampler$data@x, shallowCopy$data@x)
   
   rm(shallowCopy)
@@ -83,8 +86,11 @@ test_that("dbarts sampler shallow/deep copies", {
 
   deepCopy <- sampler$copy(FALSE)
 
-  sampler$setPredictor(train$z, 2)
+  invisible(sampler$setPredictor(1 - train$z, 2))
   expect_false(all(sampler$data@x[,2] == deepCopy$data@x[,2]))
+  
+  invisible(sampler$setPredictor(deepCopy$data@x[,2], 2))
+  expect_equal(sampler$data@x, deepCopy$data@x)
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"))

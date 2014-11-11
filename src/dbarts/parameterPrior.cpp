@@ -15,7 +15,7 @@ using std::uint32_t;
 namespace dbarts {
   NormalPrior::NormalPrior(const Control& control, double k)
   {
-    double sigma = (control.responseIsBinary ? 3.0 : 0.5) /  (k * std::sqrt((double) control.numTrees));
+    double sigma = (control.responseIsBinary ? 3.0 : 0.5) /  (k * std::sqrt(static_cast<double>(control.numTrees)));
     precision = 1.0 / (sigma * sigma);
   }
   
@@ -40,7 +40,7 @@ namespace dbarts {
     
     double result;
     result  = 0.5 * std::log(this->precision / (this->precision + posteriorPrecision));
-    result -= 0.5 * (var_y / residualVariance) * (double) (numObservationsInNode - 1);
+    result -= 0.5 * (var_y / residualVariance) * static_cast<double>(numObservationsInNode - 1);
     result -= 0.5 * ((this->precision * y_bar) * (posteriorPrecision * y_bar)) / (this->precision + posteriorPrecision);
     
     return result;

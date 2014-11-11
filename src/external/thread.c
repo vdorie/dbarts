@@ -62,16 +62,16 @@ typedef struct _ext_mt_manager_t {
 } _ext_mt_manager_t;
 
 
-int ext_mt_create(ext_mt_manager_t* _manager, size_t numThreads)
+int ext_mt_create(ext_mt_manager_t* managerPtr, size_t numThreads)
 {
-  *_manager = (ext_mt_manager_t) malloc(sizeof(_ext_mt_manager_t));
-  if (*_manager == NULL) return ENOMEM;
+  *managerPtr = (ext_mt_manager_t) malloc(sizeof(_ext_mt_manager_t));
+  if (*managerPtr == NULL) return ENOMEM;
   
-  ext_mt_manager_t manager = *_manager;
+  ext_mt_manager_t manager = *managerPtr;
   
   int result = initializeManager(manager, numThreads);
   if (result != 0) {
-    *_manager = NULL;
+    *managerPtr = NULL;
     return result;
   }
   
@@ -99,7 +99,7 @@ int ext_mt_create(ext_mt_manager_t* _manager, size_t numThreads)
   
   if (result != 0) {
     ext_mt_destroy(manager);
-    *_manager = NULL;
+    *managerPtr = NULL;
   }
   
   return result;
@@ -256,6 +256,7 @@ static int initializeManager(ext_mt_manager_t manager, size_t numThreads)
   int result;
   
   manager->numThreadsRunning = 0;
+  manager->numThreadsActive = 0;
   manager->numThreads = numThreads;
   manager->threads = NULL;
   manager->threadData = NULL;

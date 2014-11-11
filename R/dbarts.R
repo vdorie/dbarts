@@ -130,6 +130,7 @@ dbartsSampler <-
                 initialize =
                   function(control, model, data, ...)
                 {
+                  ## cat("given x: "); .Call("dbarts_printAddress", data@x); cat("\n")
                   if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl")
                   if (!inherits(model, "dbartsModel")) stop("'model' must inherit from dbartsModel")
                   if (!inherits(data, "dbartsData")) stop("'data' must inherit from dbartsData")
@@ -139,7 +140,15 @@ dbartsSampler <-
                   data    <<- data
                   state   <<- NULL
                   pointer <<- .Call("dbarts_create", control, model, data)
+                  ## selfEnv <- as.environment(.self)
+                  ## selfEnv$control <- control
+                  ## selfEnv$model <- model
+                  ## selfEnv$data <- data
+                  ## selfEnv$state <- NULL
+                  ## pointer <<- .Call("dbarts_create", selfEnv$control, selfEnv$model, selfEnv$data)
 
+                  ## cat("set x: "); .Call("dbarts_printAddress", selfEnv$data@x); cat("\n")
+                  
                   callSuper(...)
                 },
                 run = function(numBurnIn, numSamples, updateState = NA) {
@@ -158,25 +167,34 @@ dbartsSampler <-
                 },
                 copy = function(shallow = FALSE)
                 {
-                  newData <- data
-                  if (!shallow) {
-                    newData@x <- newData@x + 0
-                    if (!is.null(data@x.test)) newData@x.test <- newData@x.test + 0
-                  }
-                  dupe <- dbartsSampler$new(control, model, newData)
+                  dupe <-
+                    if (shallow) {
+                      dbartsSampler$new(control, model, data)
+                    } else {
+                      newData <- data
+                      ## only need to dupe things that can be changed internally, as the rest will be
+                      ## simply swapped out
+                      newData@x <- .Call("dbarts_deepCopy", data@x)
+                      if (!is.null(data@x.test)) {
+                        newData@x.test <- .Call("dbarts_deepCopy", data@x.test)
+                      }
+                      dupe <- dbartsSampler$new(control, model, newData)
+                    }
 
                   if (!is.null(state)) {
                     newState <- state
-                    newState@fit.tree <- newState@fit.tree + 0
-                    newState@fit.total <- newState@fit.total + 0
-                    if (!is.null(data@x.test)) newState@fit.test <- newState@fit.test + 0
-                    newState@sigma <- newState@sigma + 0
-                    newState@runningTime <- newState@runningTime + 0
-                    newState@trees <- paste0(newState@trees, "")
+                    newState@fit.tree <- .Call("dbarts_deepCopy", state@fit.tree)
+                    newState@fit.total <- .Call("dbarts_deepCopy", state@fit.total)
+                    if (!is.null(data@x.test)) {
+                      newState@fit.test <- .Call("dbarts_deepCopy", state@fit.test)
+                    }
+                    newState@sigma <- .Call("dbarts_deepCopy", state@sigma)
+                    newState@runningTime <- .Call("dbarts_deepCopy", state@runningTime)
+                    newState@trees <- .Call("dbarts_deepCopy", state@trees)
 
                     dupe$setState(newState)
                   }
-
+                  
                   dupe
                 },    
                 show = function() {
@@ -225,6 +243,7 @@ dbartsSampler <-
                 setResponse = function(y, updateState = NA) {
                   'Changes the response against which the sampler is fitted.'
                   ptr <- getPointer()
+                  
                   data@y <<- as.double(y)
                   .Call("dbarts_setResponse", ptr, data@y)
 
@@ -264,7 +283,7 @@ dbartsSampler <-
                       }
                     }
                   }
-                  
+
                   data@offset <<- offset
                   .Call("dbarts_setOffset", ptr, data@offset)
                   if (!identical(offset.test, NA)) {
@@ -278,7 +297,7 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setPredictor = function(x, column, updateState = NA) {
-                  'Changes a single column of the predictor matrix. TRUE/FALSE returned as to whether or not the operation was successful.'
+                  'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. TRUE/FALSE returned as to whether or not the operation was successful.'
 
                   columnIsMissing <- missing(column)
 
@@ -354,7 +373,7 @@ dbartsSampler <-
                      data@testUsesRegularOffset <<- FALSE
 
                      data@x.test <<- x.test
-                     data@offset.test <<- offset.test 
+                     data@offset.test <<- offset.test
                      .Call("dbarts_setTestPredictorAndOffset", ptr, data@x.test, data@offset.test)
                    } else {
                      data@x.test <<- x.test
@@ -369,7 +388,7 @@ dbartsSampler <-
                 setTestOffset = function(offset.test, updateState = NA) {
                   'Changes the test offset.'
                   ptr <- getPointer()
-                  
+
                   data@testUsesRegularOffset <<- FALSE
                   if (!is.null(offset.test)) {
                     if (is.null(data@x.test)) stop("when test matrix is NULL, test offset must be as well")

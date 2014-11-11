@@ -42,7 +42,8 @@
   \item{offset.test}{A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing
   	for \code{setTestPredictors}.}
   \item{control}{An object inheriting from \code{\link{dbartsControl}}.}
-  \item{column}{An integer or character string specifying which column of the predictor matrix is to be replaced.}
+  \item{column}{An integer or character string vector specifying which column/columns of the predictor matrix is
+  	to be replaced. If missing, the entire matrix is substitude.}
 }
 \details{
   A \code{dbartsSampler} is a \dQuote{mutable} object which contains information pertaining to
@@ -53,5 +54,7 @@
 \value{
   For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}.
   
-  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node.
+  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful.
+  The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns
+  were replaced, on the update is rolled-back so that the sampler remains in a valid state.
 }

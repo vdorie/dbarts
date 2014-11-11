@@ -246,14 +246,14 @@ namespace dbarts {
     return treesAreValid;
   }
   
+#define INVALID_ADDRESS reinterpret_cast<const double*>(this)
   void BARTFit::setTestPredictor(const double* newTestPredictor, size_t numTestObservations) {
-    setTestPredictorAndOffset(newTestPredictor, (const double*) this, numTestObservations);
+    setTestPredictorAndOffset(newTestPredictor, INVALID_ADDRESS, numTestObservations);
   }
   
   void BARTFit::setTestOffset(const double* newTestOffset) {
      data.testOffset = newTestOffset;
   }
-  
   // setting testOffset to NULL is valid
   // an invalid pointer address for testOffset is the object itself; when invalid, it is not updated
   void BARTFit::setTestPredictorAndOffset(const double* X_test, const double* testOffset, size_t numTestObservations) {
@@ -283,7 +283,7 @@ namespace dbarts {
         }
       }
       
-      if (testOffset != (const double*) this) data.testOffset = testOffset;
+      if (testOffset != INVALID_ADDRESS) data.testOffset = testOffset;
       
       double* currTestFits = new double[data.numTestObservations];
     
@@ -304,6 +304,7 @@ namespace dbarts {
       delete [] currTestFits;
     }
   }
+#undef INVALID_ADDRESS
   
   void BARTFit::updateTestPredictor(const double* newTestPredictor, size_t column) {
     updateTestPredictors(newTestPredictor, &column, 1);
@@ -395,7 +396,7 @@ namespace dbarts {
     Results& results(*resultsPointer);
     
     double numEffectiveObservations = 
-      data.weights == NULL ? (double) data.numObservations : ext_sumVectorElements(data.weights, data.numObservations);
+      data.weights == NULL ? static_cast<double>(data.numObservations) : ext_sumVectorElements(data.weights, data.numObservations);
     
     
     double* currFits = new double[data.numObservations];
@@ -437,48 +438,24 @@ namespace dbarts {
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
         std::memcpy(scratch.treeY, scratch.yRescaled, data.numObservations * sizeof(double));
-        ext_addVectorsInPlace((const double*) state.totalFits, data.numObservations, -1.0, scratch.treeY);
-        ext_addVectorsInPlace((const double*) oldTreeFits, data.numObservations, 1.0, scratch.treeY);
+        ext_addVectorsInPlace(const_cast<const double*>(state.totalFits), data.numObservations, -1.0, scratch.treeY);
+        ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, scratch.treeY);
         
         state.trees[i].setNodeAverages(*this, scratch.treeY);
         
-        /* if (k == 1 && i <= 1) {
-          ext_printf("**before:\n");
-          state.trees[i].top.print(*this);
-          if (!state.trees[i].top.isBottom()) {
-            ext_printf("  left child obs :\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
-            ext_printf("\n  right child obs:\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
-            ext_printf("\n");
-          }
-        } */
-        // ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
-        /* if (k == 1 && i <= 3) {
-         ext_printf("**after:\n");
-          state.trees[i].top.print(*this);
-          if (!state.trees[i].top.isBottom()) {
-            ext_printf("  left child obs :\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
-            ext_printf("\n  right child obs:\n    ");
-            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
-          }
-          ext_printf("\n");
-        } */
-        // state.trees[i].top.print(*this);
         
         state.trees[i].sampleAveragesAndSetFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - oldTreeFits
-        ext_addVectorsInPlace((const double*) oldTreeFits, data.numObservations, -1.0, state.totalFits);
-        ext_addVectorsInPlace((const double*) currFits, data.numObservations, 1.0, state.totalFits);
+        ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, state.totalFits);
+        ext_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, 1.0, state.totalFits);
         
         if (!isThinningIteration && data.numTestObservations > 0) {
-          ext_addVectorsInPlace((const double*) currTestFits, data.numTestObservations, 1.0, state.totalTestFits);
+          ext_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, 1.0, state.totalTestFits);
         }
         
-        std::memcpy(oldTreeFits, (const double*) currFits, data.numObservations * sizeof(double));
+        std::memcpy(oldTreeFits, const_cast<const double*>(currFits), data.numObservations * sizeof(double));
       }
       
       if (control.responseIsBinary) {
@@ -490,7 +467,6 @@ namespace dbarts {
         } else {
           sumOfSquaredResiduals = ext_mt_computeSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, state.totalFits);
         }
-        // double sumOfSquaredResiduals = ext_computeAndSumSquaresOfResidualsForVector(scratch.yRescaled, data.numObservations, state.totalFits);
         state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(control.rng, numEffectiveObservations, sumOfSquaredResiduals));
       }
       
@@ -551,7 +527,7 @@ namespace {
     ext_printf("Prior:\n");
     // dirty hack... should have priors print themselves
     double sigma = std::sqrt(1.0 / static_cast<NormalPrior*>(model.muPrior)->precision);
-    double k = (control.responseIsBinary ? 3.0 : 0.5) /  (sigma * std::sqrt((double) control.numTrees));
+    double k = (control.responseIsBinary ? 3.0 : 0.5) /  (sigma * std::sqrt(static_cast<double>(control.numTrees)));
     ext_printf("\tk: %f\n", k);
     if (!control.responseIsBinary) {
       ChiSquaredPrior* residPrior = static_cast<ChiSquaredPrior*>(model.sigmaSqPrior);
@@ -624,7 +600,7 @@ namespace {
     ext_printf("Variable Usage, last iteration (var:count):\n");
     countVariableUses(fit, variableCounts);
     for (size_t i = 0; i < fit.data.numPredictors; ++i) {
-      ext_printf("(%lu: %u) ", (unsigned long int) (i + 1), variableCounts[i]);
+      ext_printf("(%lu: %u) ", static_cast<unsigned long int>(i + 1), variableCounts[i]);
       if ((i + 1) % 5 == 0) ext_printf("\n");
     }
     
@@ -702,7 +678,7 @@ namespace {
     uint32_t* numCutsPerVariable = const_cast<uint32_t*>(scratch.numCutsPerVariable);
     double** cutPoints = const_cast<double**>(scratch.cutPoints);
     for (size_t i = 0; i < data.numPredictors; ++i) {
-      numCutsPerVariable[i] = (uint32_t) -1;
+      numCutsPerVariable[i] = static_cast<uint32_t>(-1);
       cutPoints[i] = NULL;
     }
     
@@ -770,11 +746,11 @@ namespace {
       offset = step / 2;
     }
     
-    if (numCutsPerVariable != (uint32_t) -1) {
+    if (numCutsPerVariable != static_cast<uint32_t>(-1)) {
       if (numCuts < numCutsPerVariable) ext_throwError("Number of induced cut points in new predictor less than previous: old splits would be invalid.");
       if (numCuts > numCutsPerVariable) ext_issueWarning("Number of induced cut points in new predictor greater than previous: ignoring extra quantiles.");
     } else {
-      numCutsPerVariable = (uint32_t) numCuts;
+      numCutsPerVariable = static_cast<uint32_t>(numCuts);
       cutPoints = new double[numCuts];
     }
     
@@ -801,14 +777,14 @@ namespace {
       if (x_i > xMax) xMax = x_i;
     }
     
-    if (numCutsPerVariable == (uint32_t) -1) {
+    if (numCutsPerVariable == static_cast<uint32_t>(-1)) {
       numCutsPerVariable = maxNumCuts;
       cutPoints = new double[numCutsPerVariable];
     }
       
-    xIncrement = (xMax - xMin) / (double) (numCutsPerVariable + 1);
+    xIncrement = (xMax - xMin) / static_cast<double>(numCutsPerVariable + 1);
       
-    for (size_t i = 0; i < numCutsPerVariable; ++i) cutPoints[i] = xMin + ((double) (i + 1)) * xIncrement;
+    for (size_t i = 0; i < numCutsPerVariable; ++i) cutPoints[i] = xMin + (static_cast<double>(i + 1)) * xIncrement;
   }
   
   void setInitialFit(BARTFit& fit) {
@@ -981,7 +957,7 @@ namespace {
     }
     
     double* variableCountSamples = results.variableCountSamples + simNum * data.numPredictors;
-    for (size_t i = 0; i < data.numPredictors; ++i) variableCountSamples[i] = (double) variableCounts[i];
+    for (size_t i = 0; i < data.numPredictors; ++i) variableCountSamples[i] = static_cast<double>(variableCounts[i]);
   }
   
   
@@ -996,119 +972,9 @@ namespace {
 
 #ifdef HAVE_GETTIMEOFDAY
   double subtractTimes(struct timeval end, struct timeval start) {
-    return (1.0e6 * ((double) (end.tv_sec - start.tv_sec)) + (double) (end.tv_usec - start.tv_usec)) / 1.0e6;
+    return (1.0e6 * (static_cast<double>(end.tv_sec - start.tv_sec)) + static_cast<double>(end.tv_usec - start.tv_usec)) / 1.0e6;
   }
 #else
-  double subtractTimes(time_t end, time_t start) { return (double) (end - start); }
+  double subtractTimes(time_t end, time_t start) { return static_cast<double>(end - start); }
 #endif
-}
-
-#include <external/binaryIO.h>
-#include <sys/stat.h> // permissions
-#include <fcntl.h>    // open flags
-#include <unistd.h>   // unlink
-#include "binaryIO.hpp"
-
-#define VERSION_STRING_LENGTH 8
-
-#ifndef S_IRGRP
-#define S_IRGRP 0
-#endif
-#ifndef S_IROTH
-#define S_IROTH 0
-#endif
-
-namespace dbarts {
-  
-  bool BARTFit::saveToFile(const char* fileName) const
-  {
-    ext_binaryIO bio;
-    int errorCode = ext_bio_initialize(&bio, fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    
-    if (errorCode != 0) {
-      ext_issueWarning("unable to open file: %s", std::strerror(errorCode));
-      
-      return false;
-    }
-    
-    // because of a peculiarity of how this gets mucked around on creation, this is necessary
-    double scaleFactor = control.responseIsBinary ? 1.0 : (data.sigmaEstimate / scratch.dataScale.range);
-    double originalScale = model.sigmaSqPrior->getScale();
-    model.sigmaSqPrior->setScale(originalScale / (scaleFactor * scaleFactor));
-    
-    if (ext_bio_writeNChars(&bio, "00.08.00", VERSION_STRING_LENGTH) != 0) goto save_failed;
-    
-    if (writeControl(control, &bio) == false) goto save_failed;
-    ext_printf("wrote control\n");
-    if (writeModel(model, &bio) == false) goto save_failed;
-    ext_printf("wrote model\n");
-    if (writeData(data, &bio) == false) goto save_failed;
-    ext_printf("wrote model\n");
-    
-    if (writeState(state, &bio, control, data) == false) goto save_failed;
-    ext_printf("wrote state\n");
-    
-    ext_bio_invalidate(&bio);
-    
-    model.sigmaSqPrior->setScale(originalScale);
-    
-    printTerminalSummary(*this);
-    
-    return true;
-    
-save_failed:
-    ext_bio_invalidate(&bio);
-    model.sigmaSqPrior->setScale(originalScale);
-    unlink(fileName);
-    return false; 
-  }
-  
-  
-  BARTFit* BARTFit::loadFromFile(const char* fileName) {
-    ext_binaryIO bio;
-    int errorCode = ext_bio_initialize(&bio, fileName, O_RDONLY, 0);
-    if (errorCode != 0) { ext_issueWarning("unable to open file: %s", std::strerror(errorCode)); return NULL; }
-    
-    char versionString[8];
-    if (ext_bio_readNChars(&bio, versionString, VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unable to read version string from file"); return NULL; }
-    
-    if (strncmp(versionString, "00.08.00", VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unrecognized file formal"); return NULL; }
-    
-    Control control;
-    Model model;
-    Data data;
-    BARTFit* result = NULL;;
-    
-    if (readControl(control, &bio) == false) goto load_failed;
-    ext_printf("read control\n");
-    if (readModel(model, &bio) == false) goto load_failed;
-    ext_printf("read model\n");
-    if (readData(data, &bio) == false) goto load_failed;
-    ext_printf("read data\n");
-    
-    result = new BARTFit(control, model, data);
-    
-    if (readState(result->state, &bio, result->control, result->data) == false) goto load_failed;
-    ext_printf("read state\n");
-    
-    ext_bio_invalidate(&bio);
-    
-    printTerminalSummary(*result);
-    
-    return result;
-    
-load_failed:
-    ext_bio_invalidate(&bio);
-    
-    delete result;
-    
-    delete [] data.maxNumCuts;
-    delete [] data.variableTypes;
-      
-    delete model.sigmaSqPrior;
-    delete model.muPrior;
-    delete model.treePrior;
-    
-    return NULL;
-  }
 }

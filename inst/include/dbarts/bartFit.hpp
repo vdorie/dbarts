@@ -51,9 +51,6 @@ namespace dbarts {
     
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
-    
-    bool saveToFile(const char* fileName) const;
-    static BARTFit* loadFromFile(const char* fileName);
   };
 } // namespace dbarts
 

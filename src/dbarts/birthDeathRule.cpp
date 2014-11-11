@@ -190,7 +190,7 @@ namespace dbarts {
     size_t numNodesWhoseChildrenAreBottom = tree.getNumNodesWhoseChildrenAreBottom();
     if (numNodesWhoseChildrenAreBottom == 0) return 0.0;
     
-    return 1.0 / (double) numNodesWhoseChildrenAreBottom;
+    return 1.0 / static_cast<double>(numNodesWhoseChildrenAreBottom);
   }
                                                                                                       
   double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree)
@@ -259,8 +259,8 @@ namespace dbarts {
       return NULL;
     }
     
-    size_t index = (size_t) ext_rng_simulateIntegerUniformInRange(fit.control.rng, 0, (int64_t) numNodesWhoseChildrenAreBottom);
-    *nodeSelectionProbability = 1.0 / (double) numNodesWhoseChildrenAreBottom;
+    size_t index = ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numNodesWhoseChildrenAreBottom);
+    *nodeSelectionProbability = 1.0 / static_cast<double>(numNodesWhoseChildrenAreBottom);
     
     return nodesWhoseChildrenAreBottom[index];
   }

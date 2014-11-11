@@ -361,9 +361,10 @@ void ext_getSingleMatrixCrossproduct(const double* restrict x, size_t numRows, s
   if (triangleType != EXT_TRIANGLE_TYPE_BOTH) return;
   
   // copy in rest of product
-  for (size_t col = 1; col < (size_t) outputDimension; ++col) {
+  size_t u_outputDimension = (size_t) outputDimension;
+  for (size_t col = 1; col < u_outputDimension; ++col) {
     for (size_t row = 0; row < col; ++row) {
-      result[row + outputDimension * col] = result[col + outputDimension * row];
+      result[row + u_outputDimension * col] = result[col + u_outputDimension * row];
     }
   }
 }

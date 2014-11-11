@@ -1,19 +1,16 @@
 Package: dbarts
 Version: 0.8-4
-Date: 2014-07-24
+Date: 2014-11-11
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Author: Hugh Chipman <hugh.chipman@gmail.com>, Robert McCulloch <robert.mcculloch1@gmail.com>, Vincent Dorie <vjd4@nyu.edu>
 Maintainer: Vincent Dorie <vjd4@nyu.edu>
-Depends:
-  R (>= 3.0-0)
-Imports:
-  methods,
-  stats
-Suggests:
-  testthat
+Depends: R (>= 3.1-0)
+Imports: methods, stats
+Suggests: testthat (>= 0.9-0)
 Description: Fits Bayesian additive regression trees (BART) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/MH sampler. Also serves as a drop-in replacement for package BayesTree.
 NeedsCompilation: yes
 Biarch: yes
 License: GPL (>= 2)
 URL: https://github.com/vdorie/dbarts
 BugReports: https://github.com/vdorie/dbarts/issues
+Packaged: 2014-11-11 00:40:03 UTC; vdorie

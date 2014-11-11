@@ -143,7 +143,6 @@ jump:   /* */ ;
 deliver:
       return (s == 1.0) ? -(aa + w) : (aa + w);
     }
-    break;
     
     case EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE:
     /* see Reference above */
@@ -207,7 +206,6 @@ deliver:
           return (u2 < u3) ? tt : -tt;
       } while (true);
     }
-    break;
     
     
     case EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE: // see Reference above
@@ -268,7 +266,6 @@ deliver:
           return (u2 < u3) ? tt : -tt;
       } while (true);
     }
-    break;
 #undef A
 #undef g
 #undef C2
@@ -287,7 +284,6 @@ deliver:
 	      return R * cos(theta);
       }
     }
-    break;
     
     case EXT_RNG_STANDARD_NORMAL_INVERSION:
     {
@@ -297,15 +293,12 @@ deliver:
       u1 = (double) ((int_least32_t) (BIG * u1)) + ext_rng_simulateContinuousUniform(generator);
       return ext_quantileOfNormal(u1 / BIG, 0.0, 1.0);
     }
-    break;
 #undef BIG
     case EXT_RNG_STANDARD_NORMAL_USER_NORM:
     return (generator->normalState.simulateNormal.state == NULL ? generator->normalState.simulateNormal.f.stateless() :
               generator->normalState.simulateNormal.f.stateful(generator->normalState.simulateNormal.state));
-    break;
-    default:
+    case EXT_RNG_STANDARD_NORMAL_INVALID:
     ext_throwError("unsupported standard normal generator type");
-    break;
   }
   
   return NAN;
