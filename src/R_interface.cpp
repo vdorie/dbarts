@@ -102,6 +102,228 @@ extern "C" {
 namespace {
   using namespace dbarts;
   
+/*  static SEXP simulateContinuousUniform(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    // uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    // ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+        
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateContinuousUniform(rng);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  static SEXP simulateNormal(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, NULL);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateStandardNormal(rng);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  static SEXP simulateExponential(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    // ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    ext_rng_userFunction uniformFunction;
+    uniformFunction.f.stateless = &unif_rand;
+    uniformFunction.state = NULL;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_USER_UNIFORM, &uniformFunction);
+    ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, NULL);
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateExponential(rng, 1.0);
+    
+    ext_rng_destroy(rng);
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  static ext_rng* createRNG()
+  {
+    SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    if (seedsExpr == R_UnboundValue) GetRNGstate();
+    if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = eval(R_SeedsSymbol, R_GlobalEnv);
+    
+    uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+    
+    ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+    ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+    
+    void* state = (void*) (1 + INTEGER(seedsExpr));
+    switch (algorithmType) {
+      case EXT_RNG_ALGORITHM_KNUTH_TAOCP:
+      case EXT_RNG_ALGORITHM_KNUTH_TAOCP2:
+      {
+        ext_rng_knuthState* kt = (ext_rng_knuthState*) malloc(sizeof(ext_rng_knuthState));
+        memcpy(kt->state1, state, EXT_RNG_KNUTH_NUM_RANDOM * sizeof(uint_least32_t));
+        kt->info = EXT_RNG_KNUTH_NUM_RANDOM; // this is a static var which we cannot access
+        for (size_t i = 0; i < EXT_RNG_KNUTH_QUALITY; ++i) kt->state2[i] = 0; // also static
+        state = kt;
+      }
+      break;
+      case EXT_RNG_ALGORITHM_USER_UNIFORM:
+      {
+        ext_rng_userFunction* uniformFunction = (ext_rng_userFunction*) malloc(sizeof(ext_rng_userFunction));
+        uniformFunction->f.stateless = &unif_rand;
+        uniformFunction->state = NULL;
+        state = uniformFunction;
+      }
+      break;
+      default:
+      break;
+    }
+    
+    ext_rng* rng = ext_rng_create(algorithmType, state);
+    if (algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP || algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP2 || algorithmType == EXT_RNG_ALGORITHM_USER_UNIFORM) free(state);
+    if (rng == NULL) return NULL; 
+    
+    void* normalState = NULL;
+    switch (stdNormalType) {
+      case EXT_RNG_STANDARD_NORMAL_BOX_MULLER:
+      normalState = malloc(sizeof(double));
+      *((double*) normalState) = 0.0; // static var, again
+      break;
+      case EXT_RNG_STANDARD_NORMAL_USER_NORM:
+      {
+        ext_rng_userFunction* normalFunction = (ext_rng_userFunction*) malloc(sizeof(ext_rng_userFunction));
+        normalFunction->f.stateless = &norm_rand;
+        normalFunction->state = NULL;
+        normalState = normalFunction;
+      }
+      break;
+      default:
+      break;
+    }
+    
+    int errorCode = ext_rng_setStandardNormalAlgorithm(rng, stdNormalType, normalState);
+    if (stdNormalType == EXT_RNG_STANDARD_NORMAL_BOX_MULLER || stdNormalType == EXT_RNG_STANDARD_NORMAL_USER_NORM) free(normalState);
+    
+    if (errorCode != 0) {
+      ext_rng_destroy(rng);
+      return NULL;
+    }
+    
+    return rng;
+  }
+  
+  // takes type of generator from R and uses internal implementation
+  static SEXP simulateContinuousUniformInternally(SEXP nExpr)
+  {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    ext_rng* rng = createRNG();
+    
+    if (rng == NULL) return NULL_USER_OBJECT;
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateContinuousUniform(rng);
+    
+    ext_rng_destroy(rng);
+    
+    
+    UNPROTECT(1);
+    return resultExpr;
+  }
+  
+  static SEXP simulateNormalInternally(SEXP nExpr)
+   {
+    size_t n = 0;
+    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    
+    ext_rng* rng = createRNG();
+    
+    if (rng == NULL) return NULL_USER_OBJECT;
+    
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, n));
+    double* result = REAL(resultExpr);
+    for (size_t i = 0; i < n; ++i) result[i] = ext_rng_simulateStandardNormal(rng);
+    
+    ext_rng_destroy(rng);
+    
+    
+    UNPROTECT(1);
+    return resultExpr;
+  } */
+  
+  SEXP saveToFile(SEXP fitExpr, SEXP fileName)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setY called on NULL external pointer.");
+  
+    return ScalarLogical(fit->saveToFile(CHAR(STRING_ELT(fileName, 0))));
+  }
+
+  SEXP loadFromFile(SEXP fileName)
+  {
+    BARTFit* fit = BARTFit::loadFromFile(CHAR(STRING_ELT(fileName, 0)));
+  
+    delete [] fit->data.maxNumCuts;
+    delete [] fit->data.variableTypes;
+    
+    delete fit->model.sigmaSqPrior;
+    delete fit->model.muPrior;
+    delete fit->model.treePrior;
+  
+    delete fit;
+  
+    return NULL_USER_OBJECT;
+  }
+  
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
@@ -576,6 +798,15 @@ namespace {
     DEF_FUNC("dbarts_restoreState", restoreState, 2),
     DEF_FUNC("dbarts_finalize", finalize, 0),
     DEF_FUNC("dbarts_deepCopy", deepCopy, 1),
+    // experimental
+    DEF_FUNC("dbarts_saveToFile", saveToFile, 2),
+    DEF_FUNC("dbarts_loadFromFile", loadFromFile, 1),
+    // below: testing
+//    DEF_FUNC("dbarts_runif", simulateContinuousUniform, 1),
+//    DEF_FUNC("dbarts_runif", simulateContinuousUniformInternally, 1),
+//    DEF_FUNC("dbarts_rnorm", simulateNormal, 1),
+//    DEF_FUNC("dbarts_rnorm", simulateNormalInternally, 1),
+//    DEF_FUNC("dbarts_rexp", simulateExponential, 1),
     { NULL, NULL, 0 }
   };
 

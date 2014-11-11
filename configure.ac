@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(dbarts, 0.8.1, vjd4@nyu.edu)
+AC_INIT(dbarts, 0.8.5, vjd4@nyu.edu)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])

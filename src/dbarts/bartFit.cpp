@@ -443,7 +443,31 @@ namespace dbarts {
         
         state.trees[i].setNodeAverages(*this, scratch.treeY);
         
+        /* if (k == 1 && i <= 1) {
+          ext_printf("**before:\n");
+          state.trees[i].top.print(*this);
+          if (!state.trees[i].top.isBottom()) {
+            ext_printf("  left child obs :\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            ext_printf("\n  right child obs:\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+            ext_printf("\n");
+          }
+        } */
+        // ext_printf("iter %lu, tree %lu: ", k + 1, i + 1);
         metropolisJumpForTree(*this, state.trees[i], scratch.treeY, &stepTaken, &ignored);
+        /* if (k == 1 && i <= 3) {
+         ext_printf("**after:\n");
+          state.trees[i].top.print(*this);
+          if (!state.trees[i].top.isBottom()) {
+            ext_printf("  left child obs :\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getLeftChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getLeftChild()->observationIndices[j]);
+            ext_printf("\n  right child obs:\n    ");
+            for (size_t j = 0; j < state.trees[i].top.getRightChild()->getNumObservations(); ++j) ext_printf("%2lu, ", state.trees[i].top.getRightChild()->observationIndices[j]);
+          }
+          ext_printf("\n");
+        } */
+        // state.trees[i].top.print(*this);
         
         state.trees[i].sampleAveragesAndSetFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
         
@@ -977,4 +1001,114 @@ namespace {
 #else
   double subtractTimes(time_t end, time_t start) { return static_cast<double>(end - start); }
 #endif
+}
+
+#include <external/binaryIO.h>
+#include <sys/stat.h> // permissions
+#include <fcntl.h>    // open flags
+#include <unistd.h>   // unlink
+#include "binaryIO.hpp"
+
+#define VERSION_STRING_LENGTH 8
+
+#ifndef S_IRGRP
+#define S_IRGRP 0
+#endif
+#ifndef S_IROTH
+#define S_IROTH 0
+#endif
+
+namespace dbarts {
+  
+  bool BARTFit::saveToFile(const char* fileName) const
+  {
+    ext_binaryIO bio;
+    int errorCode = ext_bio_initialize(&bio, fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    
+    if (errorCode != 0) {
+      ext_issueWarning("unable to open file: %s", std::strerror(errorCode));
+      
+      return false;
+    }
+    
+    // because of a peculiarity of how this gets mucked around on creation, this is necessary
+    double scaleFactor = control.responseIsBinary ? 1.0 : (data.sigmaEstimate / scratch.dataScale.range);
+    double originalScale = model.sigmaSqPrior->getScale();
+    model.sigmaSqPrior->setScale(originalScale / (scaleFactor * scaleFactor));
+    
+    if (ext_bio_writeNChars(&bio, "00.08.00", VERSION_STRING_LENGTH) != 0) goto save_failed;
+    
+    if (writeControl(control, &bio) == false) goto save_failed;
+    ext_printf("wrote control\n");
+    if (writeModel(model, &bio) == false) goto save_failed;
+    ext_printf("wrote model\n");
+    if (writeData(data, &bio) == false) goto save_failed;
+    ext_printf("wrote model\n");
+    
+    if (writeState(state, &bio, control, data) == false) goto save_failed;
+    ext_printf("wrote state\n");
+    
+    ext_bio_invalidate(&bio);
+    
+    model.sigmaSqPrior->setScale(originalScale);
+    
+    printTerminalSummary(*this);
+    
+    return true;
+    
+save_failed:
+    ext_bio_invalidate(&bio);
+    model.sigmaSqPrior->setScale(originalScale);
+    unlink(fileName);
+    return false; 
+  }
+  
+  
+  BARTFit* BARTFit::loadFromFile(const char* fileName) {
+    ext_binaryIO bio;
+    int errorCode = ext_bio_initialize(&bio, fileName, O_RDONLY, 0);
+    if (errorCode != 0) { ext_issueWarning("unable to open file: %s", std::strerror(errorCode)); return NULL; }
+    
+    char versionString[8];
+    if (ext_bio_readNChars(&bio, versionString, VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unable to read version string from file"); return NULL; }
+    
+    if (strncmp(versionString, "00.08.00", VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unrecognized file formal"); return NULL; }
+    
+    Control control;
+    Model model;
+    Data data;
+    BARTFit* result = NULL;;
+    
+    if (readControl(control, &bio) == false) goto load_failed;
+    ext_printf("read control\n");
+    if (readModel(model, &bio) == false) goto load_failed;
+    ext_printf("read model\n");
+    if (readData(data, &bio) == false) goto load_failed;
+    ext_printf("read data\n");
+    
+    result = new BARTFit(control, model, data);
+    
+    if (readState(result->state, &bio, result->control, result->data) == false) goto load_failed;
+    ext_printf("read state\n");
+    
+    ext_bio_invalidate(&bio);
+    
+    printTerminalSummary(*result);
+    
+    return result;
+    
+load_failed:
+    ext_bio_invalidate(&bio);
+    
+    delete result;
+    
+    delete [] data.maxNumCuts;
+    delete [] data.variableTypes;
+      
+    delete model.sigmaSqPrior;
+    delete model.muPrior;
+    delete model.treePrior;
+    
+    return NULL;
+  }
 }
