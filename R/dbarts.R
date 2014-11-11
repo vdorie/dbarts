@@ -16,24 +16,23 @@ dbartsControl <-
            n.burn = 100L, n.trees = 200L, n.threads = 1L,
            n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
 {
-  matchedCall <- match.call()
+  result <- new("dbartsControl",
+                verbose = as.logical(verbose),
+                keepTrainingFits = as.logical(keepTrainingFits),
+                useQuantiles = as.logical(useQuantiles),
+                n.samples = coerceOrError(n.samples, "integer"),
+                n.burn = coerceOrError(n.burn, "integer"),
+                n.trees = coerceOrError(n.trees, "integer"),
+                n.threads = coerceOrError(n.threads, "integer"),
+                n.thin = coerceOrError(n.thin, "integer"),
+                printEvery = coerceOrError(printEvery, "integer"),
+                printCutoffs = coerceOrError(printCutoffs, "integer"),
+                updateState = as.logical(updateState))
   
-  argsToKeep <- names(formals(dbartsControl))
-  argsToKeep <- argsToKeep[argsToKeep != "n.cuts"]
-  
-  newCall <- call("new", "dbartsControl")
+  n.cuts <- coerceOrError(n.cuts, "integer")
+  if (n.cuts <= 0L) stop("'n.cuts' must be a positive integer")
+  attr(result, "n.cuts") <- n.cuts 
 
-  newRange <- seq_len(length(matchedCall) - 1L) + 2L
-  oldRange <- 1L + seq_len(length(matchedCall) - 1)
-  
-  newCall[newRange] <- matchedCall[oldRange]
-  names(newCall)[newRange] <- names(matchedCall)[oldRange]
-  
-  result <- eval(newCall, parent.frame())
-  attr(result, "n.cuts") <- as.integer(n.cuts)
-
-  if (attr(result, "n.cuts") <= 0L) stop("'n.cuts' must be a positive integer")
-  
   result
 }
 
@@ -56,7 +55,7 @@ validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, s
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e)
              stop("'n.samples' argument to dbarts must be coerceable to integer type"))
-    if (n.samples <= 0L) return("'n.samples' argument to dbarts must be a positive integer")
+    if (n.samples < 0L) return("'n.samples' argument to dbarts must be a non-negative integer")
     envir$control@n.samples <- n.samples
   } else if (controlIsMissing || is.na(control@n.samples)) {
     envir$control@n.samples <- formals(dbarts)[["n.samples"]]
@@ -154,6 +153,8 @@ dbartsSampler <-
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 
+                  if (is.null(samples)) return(invisible(NULL))
+                  
                   samples
                 },
                 copy = function(shallow = FALSE)

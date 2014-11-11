@@ -4,9 +4,9 @@ source(system.file("common", "multithreadData.R", package = "dbarts"))
 
 test_that("multithreaded matches single threaded", {
   ## something weak so that it runs quickly w/500k observations
-  n.sims <- 20L
+  n.sims <- 15L
   n.burn <- 0L
-  n.tree <- 5L
+  n.tree <- 3L
 
   set.seed(99)
   singleThreadedFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = n.tree, verbose = FALSE,

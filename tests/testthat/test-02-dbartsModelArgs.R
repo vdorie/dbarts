@@ -6,7 +6,7 @@ test_that("non-prior, model arguments raise errors", {
   expect_error(dbarts(y ~ x, testData, verbose = NA))
   expect_error(dbarts(y ~ x, testData, verbose = "not-a-logical"))
 
-  expect_error(dbarts(y ~ x, testData, n.samples = 0L))
+  expect_error(dbarts(y ~ x, testData, n.samples = -1L))
   expect_error(dbarts(y ~ x, testData, n.samples = "not-an-integer"))
 
   expect_error(dbarts(y ~ x, testData, sigma = -1.0))

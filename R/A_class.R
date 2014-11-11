@@ -70,7 +70,7 @@ setClass("dbartsControl",
            
            ## handle this in particular b/c it is set through dbarts, not
            ## standard initializer
-           if (!is.na(object@n.samples) && object@n.samples <= 0L) return("'n.samples' must be a positive integer")
+           if (!is.na(object@n.samples) && object@n.samples < 0L) return("'n.samples' must be a non-negative integer")
            
            TRUE
          })

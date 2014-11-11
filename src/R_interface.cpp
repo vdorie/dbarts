@@ -650,23 +650,28 @@ namespace {
     int i_temp;
     size_t numBurnIn, numSamples;
     
-    if (!isInteger(numBurnInExpr)) error("Number of burn-in steps must be of integer type.");
-    if (length(numBurnInExpr) == 0) error("Number of burn-in steps must be of length at least 1.");
+    if (!isInteger(numBurnInExpr)) error("number of burn-in steps must be of integer type.");
+    if (length(numBurnInExpr) == 0) error("number of burn-in steps must be of length at least 1.");
     i_temp = INTEGER(numBurnInExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp < 0) error("Number of burn-in steps must be non-negative.");
+    if (i_temp != NA_INTEGER && i_temp < 0) error("number of burn-in steps must be non-negative.");
     numBurnIn = i_temp == NA_INTEGER ? fit->control.numBurnIn : static_cast<size_t>(i_temp);
     
-    if (!isInteger(numSamplesExpr)) error("Number of samples must be of integer type.");
-    if (length(numSamplesExpr) == 0) error("Number of samples must be of length at least 1.");
+    if (!isInteger(numSamplesExpr)) error("number of samples must be of integer type.");
+    if (length(numSamplesExpr) == 0) error("number of samples must be of length at least 1.");
     i_temp = INTEGER(numSamplesExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp <= 0) error("Number of samples must be positive.");
+    if (i_temp != NA_INTEGER && i_temp < 0) error("number of samples must be non-negative.");
     numSamples = i_temp == NA_INTEGER ? fit->control.numSamples : static_cast<size_t>(i_temp);
+    
+    if (numBurnIn == 0 && numSamples == 0) error("either number of burn-in or samples must be positive");
     
     GetRNGstate();
         
     Results* bartResults = fit->runSampler(numBurnIn, numSamples);
     
     PutRNGstate();
+    
+    // can happen if numSamples == 0
+    if (bartResults == NULL) return NULL_USER_OBJECT;
     
     
     // create result storage and make it user friendly
@@ -727,7 +732,7 @@ namespace {
     
     delete bartResults;
     
-    return(resultExpr);
+    return resultExpr;
   }
   
   SEXP finalize(void) {
@@ -951,19 +956,19 @@ namespace {
     
     
     slotExpr = GET_ATTR(controlExpr, install("n.samples"));
-    if (!isInteger(slotExpr)) error("Number of samples must be of integer type.");
-    if (length(slotExpr) != 1) error("Number of samples must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of samples must be of integer type.");
+    if (length(slotExpr) != 1) error("number of samples must be of length 1.");
     i_temp = INTEGER(slotExpr)[0];
-    if (i_temp == NA_INTEGER) error("Number of samples cannot be NA.");
-    if (i_temp <= 0) error("Number of samples must be positive.");
+    if (i_temp == NA_INTEGER) error("number of samples cannot be NA.");
+    if (i_temp < 0) error("number of samples must be non-negative.");
     control.numSamples = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.burn"));
-    if (!isInteger(slotExpr)) error("Number of burn-in steps must be of integer type.");
-    if (length(slotExpr) != 1) error("Number of burn-in steps must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of burn-in steps must be of integer type.");
+    if (length(slotExpr) != 1) error("number of burn-in steps must be of length 1.");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 0;
-    if (i_temp < 0) error("Number of burn-in steps must be non-negative.");
+    if (i_temp < 0) error("number of burn-in steps must be non-negative.");
     control.numBurnIn = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.trees"));

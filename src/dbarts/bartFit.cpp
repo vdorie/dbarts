@@ -392,7 +392,7 @@ namespace dbarts {
     StepType ignored;
     
     Results* resultsPointer = new Results(data.numObservations, data.numPredictors,
-                                          data.numTestObservations, numSamples);
+                                          data.numTestObservations, numSamples == 0 ? 1 : numSamples); // ensure at least one sample for state's sake
     Results& results(*resultsPointer);
     
     double numEffectiveObservations = 
@@ -501,6 +501,7 @@ namespace dbarts {
         size_t simNum = (!isBurningIn ? majorIterationNum - numBurnIn : 0);
         
         countVariableUses(*this, variableCounts);
+        
         storeSamples(*this, results, state.totalFits, state.totalTestFits, state.sigma, variableCounts, simNum);
         
         if (control.callback != NULL) {
@@ -526,6 +527,10 @@ namespace dbarts {
     if (data.numTestObservations > 0) delete [] currTestFits;
     ext_stackFree(variableCounts);
     
+    if (numSamples == 0) {
+      delete resultsPointer;
+      return NULL;
+    }
     
     return resultsPointer;
   }

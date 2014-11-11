@@ -16,7 +16,7 @@ test_that("logical arguments are identified and 'bounded'", {
 
 test_that("integer arguments are identified and bounded", {
   expect_error(dbartsControl(n.samples = "not-an-integer"))
-  expect_error(dbartsControl(n.samples = 0L))
+  expect_error(dbartsControl(n.samples = -1L))
 
   expect_error(dbartsControl(n.burn = "not-an-integer"))
   expect_error(dbartsControl(n.burn = NA_integer_))

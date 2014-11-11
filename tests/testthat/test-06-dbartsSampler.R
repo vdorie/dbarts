@@ -164,6 +164,8 @@ test_that("dbarts sampler runs", {
                            n.burn = 0L, n.samples = 1L, n.thin = 5L)
   sampler <- dbarts(y ~ x + z, train, test, control = control)
 
+  expect_error(sampler$run(0, 0))
+  
   n <- testData$n
   y <- testData$y
   z <- testData$z

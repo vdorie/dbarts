@@ -1,3 +1,12 @@
+coerceOrError <- function(x, type)
+{
+  func <- switch(type, logical = as.logical, integer = as.integer)
+  result <- tryCatch(func(x), warning = function(e) e)
+  if (is(result, "warning")) stop(paste0("'", match.call()[[2]], "' must be coercible to type: ", type))
+  
+  result
+}
+  
 prepareCallWithArguments <- function(call, name, ...)
 {
   argsToKeep <- unlist(list(...))
