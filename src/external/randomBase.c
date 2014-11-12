@@ -56,7 +56,16 @@ typedef ext_rng_mersenneTwisterState MersenneTwisterState;
 typedef ext_rng_knuthState KnuthState;
 typedef ext_rng_userFunction UserFunction;
 
-static const size_t stateLengths[] = { 3, 2, 2, sizeof(MersenneTwisterState), sizeof(KnuthState), sizeof(UserFunction), sizeof(KnuthState), 6 };
+static const size_t stateLengths[] = {
+  3 * sizeof(uint_least32_t),
+  2 * sizeof(uint_least32_t),
+  2 * sizeof(uint_least32_t),
+  sizeof(MersenneTwisterState),
+  sizeof(KnuthState),
+  sizeof(UserFunction),
+  sizeof(KnuthState),
+  6 * sizeof(uint_least32_t)
+};
 
 // this is duplicated in randomBase.c, randomNorm.c, and random.c
 struct ext_rng {
@@ -87,7 +96,7 @@ ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
     return NULL;
   }
   
-  size_t stateLength = stateLengths[algorithm] * sizeof(uint_least32_t);
+  size_t stateLength = stateLengths[algorithm];
   
   result->state = malloc(stateLength);
   if (result->state == NULL) {
