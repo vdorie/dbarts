@@ -414,7 +414,10 @@ namespace {
     size_t* cols = ext_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
-      if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) error("column '%d' is out of range", colsInt[i]);
+      if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) {
+        ext_stackFree(cols);
+        error("column '%d' is out of range", colsInt[i]);
+      }
     }
     
     bool result = fit->updatePredictors(REAL(x), cols, numCols);
@@ -529,7 +532,10 @@ namespace {
     size_t* cols = ext_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
-      if (cols[i] >= fit->data.numPredictors) error("column '%d' is out of range", colsInt[i]);
+      if (cols[i] >= fit->data.numPredictors) {
+        ext_stackFree(cols);
+        error("column '%d' is out of range", colsInt[i]);
+      }
     }
     
     fit->updateTestPredictors(REAL(x_test), cols, numCols);
