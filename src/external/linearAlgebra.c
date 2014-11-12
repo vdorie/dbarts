@@ -241,7 +241,7 @@ int ext_findLeastSquaresFit(const double* y, size_t n, const double* x, size_t p
 {
   double* _x = malloc(n * p * sizeof(double));
   double _y[n];
-  if (_x == NULL || _y == NULL) {
+  if (_x == NULL) {
     if (message != NULL) message[0] = "unable to allocate memory for least-squares fit";
     return -1;
   }
