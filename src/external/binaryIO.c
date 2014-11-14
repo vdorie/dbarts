@@ -568,10 +568,14 @@ static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* 
   if (length == 0) return 0;
   
   // purposefully aligned this stupid pointer
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint64_t* restrict buffer = (uint64_t* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(uint64_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -607,10 +611,14 @@ static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restri
 {
   if (length == 0) return 0;
   
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint64_t* restrict buffer = (uint64_t* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(uint64_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -649,10 +657,14 @@ static size_t fillBufferFromDoubles(ext_binaryIO* restrict bio, const double* re
 {
   if (length == 0) return 0;
   
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   double* restrict buffer = (double* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(double);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -669,10 +681,14 @@ static size_t fillDoublesFromBuffer(ext_binaryIO* restrict bio, double* restrict
 {
   if (length == 0) return 0;
   
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   double* restrict buffer = (double* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(double);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -689,10 +705,14 @@ static size_t fillBufferFromUnsigned32BitIntegers(ext_binaryIO* restrict bio, co
 {
   if (length == 0) return 0;
   
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint32_t* restrict buffer = (uint32_t* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(uint32_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -709,10 +729,14 @@ static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, ui
 {
   if (length == 0) return 0;
   
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint32_t* restrict buffer = (uint32_t* restrict) bio->buffer;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   size_t bufferLength = bio->bufferLength / sizeof(uint32_t);
   size_t fillLength = (length < bufferLength ? length : bufferLength);
   
@@ -728,10 +752,14 @@ static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, ui
 #ifndef WORDS_BIGENDIAN
 static void swapEndiannessFor4ByteWords(char* c, size_t length)
 {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint32_t* u = (uint32_t*) c;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   
   size_t lengthMod5 = length % 5;
   size_t i = 0;
@@ -748,10 +776,14 @@ static void swapEndiannessFor4ByteWords(char* c, size_t length)
 
 static void swapEndiannessFor8ByteWords(char* c, size_t length)
 {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wcast-align"
+#endif
   uint64_t* u = (uint64_t*) c;
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
   
   size_t lengthMod5 = length % 5;
   size_t i = 0;
@@ -765,4 +797,5 @@ static void swapEndiannessFor8ByteWords(char* c, size_t length)
     swapEndiannessFor8ByteWord((char*) (u + i + 4));
   }
 }
+
 #endif

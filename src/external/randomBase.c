@@ -316,10 +316,12 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
 #define THIRTY_TWO_BIT_INVERSE 2.328306437080797e-10 /* = 1/(2^32 - 1) */
 #define KNUTH_CONSTANT         9.31322574615479e-10
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wuninitialized"
+#  if defined(__GNUC__) && !defined(__clang__)
+#    pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#  endif
 #endif
 // guarantees results in (0, 1)
 inline static double truncateToUnitInterval(double x) {
@@ -426,7 +428,9 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
   return truncateToUnitInterval(result);
 }
 
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
 
 /* ===================  Mersenne Twister ========================== */
 /* From http://www.math.keio.ac.jp/~matumoto/emt.html */

@@ -94,10 +94,14 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
   /* --- a >= 1 : GD algorithm --- */
   
   /* Step 1: Recalculations of s2, s, d if a has changed */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wfloat-equal"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
   if (shape != oldShape) {
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
     oldShape = shape;
     s2 = shape - 0.5;
     s = sqrt(s2);
@@ -117,10 +121,14 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
   if (d * u <= t * t * t) return scale * ret_val;
 
   /* Step 4: recalculations of q0, b, si, c if necessary */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wfloat-equal"
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
   if (shape != oldShape2) {
-#pragma GCC diagnostic pop
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
     oldShape2 = shape;
     r = 1.0 / shape;
     q0 = ((((((q7 * r + q6) * r + q5) * r + q4) * r + q3) * r
