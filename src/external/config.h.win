@@ -4,6 +4,7 @@
 #define HAVE_SYS_TIME_H 1
 #define STDC_HEADERS 1
 #define HAVE_SNPRINTF 1
+#define HAVE_MALLOC_H 1
 
 #define PACKAGE_BUGREPORT "vjd4@nyu.edu"
 #define PACKAGE_NAME "dbarts"
