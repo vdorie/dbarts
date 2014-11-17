@@ -71,6 +71,7 @@ fi
 
 AC_CHECK_HEADERS([sys/time.h])
 AC_CHECK_HEADERS([unistd.h])
+AC_CHECK_HEADERS([malloc.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_INT64_T

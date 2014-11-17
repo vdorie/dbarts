@@ -4,9 +4,17 @@
 #include <fcntl.h>    // open
 #include <unistd.h>   // close, write, sysconf
 #include <stdlib.h>   // malloc, posix_memalign
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>   // __mingw_aligned_malloc
+#endif
 #include <string.h>   // memcpy
 #include <errno.h>
 #include <limits.h>
+
+#ifdef _WIN32
+#  define WIN32_LEAN_AND_MEAN
+#  include <windows.h>
+#endif
 
 #ifndef EOVERFLOW // needed for mingw
 #define EOVERFLOW EFBIG
@@ -31,7 +39,7 @@ static inline void swapEndiannessFor8ByteWord(char* c)
 
 static void swapEndiannessFor4ByteWords(char* c, size_t length);
 static void swapEndiannessFor8ByteWords(char* c, size_t length);
-#endif
+#endif // WORDS_BIGENDIAN
 
 static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* restrict v, size_t length);
 static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restrict v, size_t length);
@@ -62,11 +70,6 @@ void ext_bio_destroy(ext_binaryIO* bio)
   ext_bio_invalidate(bio);
   free(bio);
 }
-
-#ifdef _WIN32
-#  define WIN32_LEAN_AND_MEAN
-#  include <windows.h>
-#endif
 
 int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, int permissionsFlag)
 {
@@ -101,9 +104,14 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
   size_t alignment = sizeof(uint64_t);
   if (alignment % sizeof(void*) != 0) alignment *= sizeof(void*);
   
+#ifdef __MINGW32__
+  bio->buffer = __mingw_aligned_malloc(bio->bufferLength, alignment);
+  if (bio->buffer == NULL) {
+#else
   int errorCode = posix_memalign(&bio->buffer, alignment, bio->bufferLength);
   if (errorCode != 0) {
     if (bio->buffer != NULL) free(bio->buffer);
+#endif
     close(bio->fileDescriptor);
     bio->fileDescriptor = -1;
     bio->bufferLength = 0;
@@ -123,7 +131,11 @@ void ext_bio_invalidate(ext_binaryIO* bio)
   }
   
   if (bio->buffer != NULL) {
+#ifdef __MINGW32__
+    __mingw_aligned_free(bio->buffer);
+#else
     free(bio->buffer);
+#endif
     bio->buffer = NULL;
   }
   
