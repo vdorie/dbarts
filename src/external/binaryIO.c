@@ -107,6 +107,7 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
 #ifdef __MINGW32__
   bio->buffer = __mingw_aligned_malloc(bio->bufferLength, alignment);
   if (bio->buffer == NULL) {
+    int errorCode = ENOMEM;
 #else
   int errorCode = posix_memalign(&bio->buffer, alignment, bio->bufferLength);
   if (errorCode != 0) {
