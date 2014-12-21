@@ -173,7 +173,8 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     {
       // this is broken for MT, as it treats the info slot as any-old-int, but is necessary
       // for backwards compatibility
-      for (size_t j = 0; j < stateLength; ++j) {
+      size_t numInts = stateLength / sizeof(uint_least32_t);
+      for (size_t j = 0; j < numInts; ++j) {
         seed = (69069 * seed + 1);
         state[j] = seed;
       }
@@ -188,7 +189,8 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     break;
     case EXT_RNG_ALGORITHM_LECUYER_CMRG:
     {
-      for (size_t j = 0; j < stateLength; ++j) {
+      size_t numInts = stateLength / sizeof(uint_least32_t);
+      for (size_t j = 0; j < numInts; ++j) {
         seed = (69069 * seed + 1);
         while (seed >= LECUYER_M2) seed = (69069 * seed + 1);
         state[j] = seed;
