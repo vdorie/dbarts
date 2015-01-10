@@ -610,6 +610,7 @@ namespace {
       if (data.numTestObservations > 0 && data.testOffset != NULL) {
         ext_printf("\ttest: %.2f", data.testOffset[0]);
         for (size_t i = 1; i < (5 < data.numTestObservations ? 5 : data.numTestObservations); ++i) ext_printf(" %.2f", data.testOffset[i]);
+        ext_printf("\n");
       }
     }
   }
