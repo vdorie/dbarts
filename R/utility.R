@@ -58,44 +58,13 @@ namedList <- function(...) {
 
 ## Turns data.frame w/factors into matrices of indicator variables. Differs from
 ## model.matrix as it doesn't drop columns for co-linearity even with multiple
-## factors. Also drops any non-numeric, non-factor columns.
-makeModelMatrixFromDataFrame <- function(x) {
-  if (!is.data.frame(x))
-    stop("x in makeModelMatrixFromDataFrame is not a dataframe")
+## factors 
+makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
+  if (!is.data.frame(x)) stop('x is not a dataframe')
+  if (is.logical(drop) && is.na(drop)) stop('when logical, drop must be TRUE or FALSE')
+  if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
   
-
-  factorToMatrix <- function(factor) {
-    if (nlevels(factor) == 2) return(as.matrix(as.numeric(as.integer(factor) - 1L)))
-    sapply(levels(factor), function(level) ifelse(factor == level, 1, 0))
-  }
-
-  numTerms <- length(x)
-  termNames <- names(x)
-
-  termMatrices <- lapply(seq.int(numTerms), function(index) {
-    x_i <- x[[index]]
-    if (is.factor(x_i)) {
-      result <- factorToMatrix(x_i)
-      if (nlevels(x_i) > 2) {
-        colnames(result) <- paste0(termNames[index], ".", levels(x_i))
-      } else {
-        colnames(result) <- termNames[index]
-      }
-      return(result)
-    }
-    if (is.matrix(x_i)) {
-      result <- x_i
-      colnames(result) <- paste0(termNames[index], ".", seq.int(ncol(x_i)))
-      return(result)
-    }
-
-    return(matrix(x_i, length(x_i),
-                  dimnames = list(NULL, termNames[index])))
-  })
-
-  columnNames <- unlist(lapply(termMatrices, colnames))
-
-  return(matrix(unlist(termMatrices), nrow(x), dimnames = list(NULL, columnNames)))
+  .Call("dbarts_makeModelMatrixFromDataFrame", x, drop)
 }
 
 ## use this to produce calls of the form

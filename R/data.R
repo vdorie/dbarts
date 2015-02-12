@@ -23,11 +23,11 @@ setMethod("initialize", "dbartsData",
   .Object
 })
 
-validateXTest <- function(x.test, numPredictors, predictorNames)
+validateXTest <- function(x.test, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)
   
-  if (is.data.frame(x.test)) x.test <- makeModelMatrixFromDataFrame(x.test)
+  if (is.data.frame(x.test)) x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
   if (!is.matrix(x.test)) x.test <- as.matrix(x.test)
 
   if (!is.numeric(x.test))
@@ -99,7 +99,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
                             names(modelFrameCall), nomatch = 0L)
     
     modelFrameCall <- modelFrameCall[c(1L, matchPositions)]
-    modelFrameCall$drop.unused.levels <- TRUE
+    modelFrameCall$drop.unused.levels <- FALSE
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     
     modelFrame <- eval(modelFrameCall, parent.frame())
@@ -126,15 +126,17 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
 
     modelTerms <- terms(modelFrame)
     if (is.empty.model(modelTerms)) stop("covariates must be specified for regression tree analysis")
-
-    attr(modelTerms, "intercept") <- 0L
-
-    termIsFactor <- sapply(modelFrame, is.factor)
-    numFactorTerms <- sum(termIsFactor)
-    contrasts <-
-      if (numFactorTerms == 0) NULL else lapply(modelFrame[,termIsFactor], contrasts, contrasts = FALSE)
     
-    x <- model.matrix(modelTerms, modelFrame, contrasts)
+    x <- makeModelMatrixFromDataFrame(modelFrame[attr(modelTerms, "term.labels")])
+
+    ##attr(modelTerms, "intercept") <- 0L
+
+    ##termIsFactor <- sapply(modelFrame, is.factor)
+    ##numFactorTerms <- sum(termIsFactor)
+    ##contrasts <-
+    ##  if (numFactorTerms == 0) NULL else lapply(modelFrame[,termIsFactor,drop=FALSE], contrasts, contrasts = FALSE)
+    
+    ##x <- model.matrix(modelTerms, modelFrame, contrasts)
     
 
     
@@ -152,7 +154,6 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
       if (!foundTest)
         test <- eval(matchedCall$test, environment(formula))
     }
-    
   } else if (is.numeric(formula) || is.data.frame(formula)) {
     ## backwards compatibility of bart(x.train, y.train, x.test)
     if (dataIsMissing || is.null(data)) data <- rep(0, NROW(formula))
@@ -202,7 +203,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
 
   x.test <- NULL
   if (!testIsMissing && !is.null(test) && NCOL(test) > 0)
-    x.test <- validateXTest(test, ncol(x), colnames(x))
+    x.test <- validateXTest(test, ncol(x), colnames(x), attr(x, "drop"))
 
   if (!is.null(x.test)) {
     if (missing(offset.test)) {

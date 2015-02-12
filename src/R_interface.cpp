@@ -18,6 +18,8 @@
 #include <dbarts/types.hpp>
 #include <dbarts/R_C_interface.hpp>
 
+#include "makeModelMatrixFromDataFrame.h"
+
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 #include <external/random.h>
@@ -772,7 +774,7 @@ namespace {
   {
     return duplicate(obj);
   }
-  
+    
   // as of R 3.1, auto-unload never gets called so screw that
   
 /*  void R_unload_dbarts(DllInfo* info)
@@ -818,6 +820,7 @@ namespace {
 //    DEF_FUNC("dbarts_rnorm", simulateNormal, 1),
 //    DEF_FUNC("dbarts_rnorm", simulateNormalInternally, 1),
 //    DEF_FUNC("dbarts_rexp", simulateExponential, 1),
+    DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", makeModelMatrixFromDataFrame, 2),
     { NULL, NULL, 0 }
   };
 

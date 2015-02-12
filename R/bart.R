@@ -120,5 +120,5 @@ bart <- function(
 makeind <- function(x, all = TRUE)
 {
   ignored <- all ## for R check
-  makeModelMatrixFromDataFrame(x)
+  makeModelMatrixFromDataFrame(x, TRUE)
 }

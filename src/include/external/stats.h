@@ -17,8 +17,8 @@ extern "C" {
 #define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) qnorm((_P_), (_MU_), (_SIGMA_), 1, 0)
 
 double ext_computeMean(const double* x, ext_size_t length);
-// weighted mean = w'x / w'1; n will be set to w'1 if not NULL
 double ext_computeIndexedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length);
+// weighted mean = w'x / w'1; n will be set to w'1 if not NULL
 double ext_computeWeightedMean(const double* restrict x, ext_size_t length, const double* restrict w, double* restrict n);
 double ext_computeIndexedWeightedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length, const double* restrict w, double* restrict n);
   

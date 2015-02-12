@@ -3,6 +3,7 @@
 *.so
 *.a
 *.dll
+*.swp
 a.out.dSYM
 src/Makevars
 config.log

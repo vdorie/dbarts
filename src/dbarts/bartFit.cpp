@@ -914,6 +914,7 @@ namespace {
   } */
   
   // multithread-this!
+  // 
   void sampleProbitLatentVariables(BARTFit& fit, const double* fits, double* z) {
     for (size_t i = 0; i < fit.data.numObservations; ++i) {      
 #ifndef MATCH_BAYES_TREE
