@@ -99,6 +99,7 @@ namespace dbarts {
     NodeVector getNotBottomVector() const;
     NodeVector getSwappableVector() const;
     
+    void enumerateBottomNodes();
     NodeVector getAndEnumerateBottomVector(); // the nodes will have their enumeration indices set to their array index
     
     Node* findBottomNode(const BARTFit& fit, const double* x) const;

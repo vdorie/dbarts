@@ -305,7 +305,7 @@ namespace {
   SEXP saveToFile(SEXP fitExpr, SEXP fileName)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_saveToFile called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_saveToFile called on NULL external pointer");
     
     return ScalarLogical(fit->saveToFile(CHAR(STRING_ELT(fileName, 0))));
   }
@@ -329,10 +329,10 @@ namespace {
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setY called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setY called on NULL external pointer");
     
-    if (!isReal(y)) error("y must be of type real.");
-    if (static_cast<size_t>(length(y)) != fit->data.numObservations) error("Length of new y does not match old.");
+    if (!isReal(y)) error("y must be of type real");
+    if (static_cast<size_t>(length(y)) != fit->data.numObservations) error("length of new y does not match old");
     
     if (fit->control.responseIsBinary) GetRNGstate();
         
@@ -346,14 +346,14 @@ namespace {
   SEXP setOffset(SEXP fitExpr, SEXP offsetExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setOffset called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setOffset called on NULL external pointer");
     
     double* offset = NULL;
     if (isReal(offsetExpr)) {
       offset = REAL(offsetExpr);
-      if (static_cast<size_t>(length(offsetExpr)) != fit->data.numObservations) error("Length of new offset does not match y.");
+      if (static_cast<size_t>(length(offsetExpr)) != fit->data.numObservations) error("length of new offset does not match y");
     } else if (!isNull(offsetExpr) && !isS4Null(offsetExpr)) {
-      error("offset must be of type real or NULL.");
+      error("offset must be of type real or NULL");
     }
     
     if (fit->control.responseIsBinary) GetRNGstate();
@@ -368,7 +368,7 @@ namespace {
   SEXP setPredictor(SEXP fitExpr, SEXP x)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setPredictor called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setPredictor called on NULL external pointer");
     
     if (!isReal(x)) error("x must be of type real");
     
@@ -432,7 +432,7 @@ namespace {
   SEXP setTestPredictor(SEXP fitExpr, SEXP x_test)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setTestPredictor called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setTestPredictor called on NULL external pointer");
     
     if (isNull(x_test) || isS4Null(x_test)) {
       fit->setTestPredictor(NULL, 0);
@@ -454,7 +454,7 @@ namespace {
   SEXP setTestOffset(SEXP fitExpr, SEXP offset_test)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setTestOffset called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setTestOffset called on NULL external pointer");
     
     if (isNull(offset_test)) {
       fit->setTestOffset(NULL);
@@ -470,7 +470,7 @@ namespace {
   SEXP setTestPredictorAndOffset(SEXP fitExpr, SEXP x_test, SEXP offset_test)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setTestPredictorAndOffset called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setTestPredictorAndOffset called on NULL external pointer");
     
     if (isNull(x_test) || isS4Null(x_test)) {
       fit->setTestPredictor(NULL, 0);
@@ -502,7 +502,7 @@ namespace {
   SEXP updateTestPredictor(SEXP fitExpr, SEXP x_test, SEXP colsExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_updateTestPredictor called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_updateTestPredictor called on NULL external pointer");
     
     if (fit->data.X_test == NULL) error("test matrix must exist at object creation to be updated");
     
@@ -550,9 +550,9 @@ namespace {
   SEXP setControl(SEXP fitExpr, SEXP controlExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setControl called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_setControl called on NULL external pointer");
     
-    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     
     initializeControlFromExpression(fit->control, controlExpr);
     
@@ -586,13 +586,13 @@ namespace {
     Data data;
     
     SEXP classExpr = GET_CLASS(controlExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     
     classExpr = GET_CLASS(modelExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'");
     
     classExpr = GET_CLASS(dataExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_create not of class 'dbartsData'.");
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_create not of class 'dbartsData'");
     
     
     initializeControlFromExpression(control, controlExpr);
@@ -621,7 +621,7 @@ namespace {
   SEXP createState(SEXP fitExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_createState called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_createState called on NULL external pointer");
     
     SEXP result = createStateExpressionFromFit(*fit);
     
@@ -633,7 +633,7 @@ namespace {
   SEXP restoreState(SEXP fitExpr, SEXP stateExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_restoreState called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_restoreState called on NULL external pointer");
     
     initializeStateFromExpression(*fit, fit->state, stateExpr);
     
@@ -643,7 +643,7 @@ namespace {
   SEXP storeState(SEXP fitExpr, SEXP stateExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_storeState called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_storeState called on NULL external pointer");
     
     storeStateExpressionFromFit(*fit, stateExpr);
     
@@ -653,21 +653,21 @@ namespace {
   SEXP run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_run called on NULL external pointer.");
+    if (fit == NULL) error("dbarts_run called on NULL external pointer");
     
     int i_temp;
     size_t numBurnIn, numSamples;
     
-    if (!isInteger(numBurnInExpr)) error("number of burn-in steps must be of integer type.");
-    if (length(numBurnInExpr) == 0) error("number of burn-in steps must be of length at least 1.");
+    if (!isInteger(numBurnInExpr)) error("number of burn-in steps must be of integer type");
+    if (length(numBurnInExpr) == 0) error("number of burn-in steps must be of length at least 1");
     i_temp = INTEGER(numBurnInExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp < 0) error("number of burn-in steps must be non-negative.");
+    if (i_temp != NA_INTEGER && i_temp < 0) error("number of burn-in steps must be non-negative");
     numBurnIn = i_temp == NA_INTEGER ? fit->control.numBurnIn : static_cast<size_t>(i_temp);
     
-    if (!isInteger(numSamplesExpr)) error("number of samples must be of integer type.");
-    if (length(numSamplesExpr) == 0) error("number of samples must be of length at least 1.");
+    if (!isInteger(numSamplesExpr)) error("number of samples must be of integer type");
+    if (length(numSamplesExpr) == 0) error("number of samples must be of length at least 1");
     i_temp = INTEGER(numSamplesExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp < 0) error("number of samples must be non-negative.");
+    if (i_temp != NA_INTEGER && i_temp < 0) error("number of samples must be non-negative");
     numSamples = i_temp == NA_INTEGER ? fit->control.numSamples : static_cast<size_t>(i_temp);
     
     if (numBurnIn == 0 && numSamples == 0) error("either number of burn-in or samples must be positive");
@@ -935,91 +935,91 @@ namespace {
     int i_temp;
     
     SEXP slotExpr = GET_ATTR(controlExpr, install("binary"));
-    if (!isLogical(slotExpr)) error("Binary response must be signified by logical type.");
-    if (length(slotExpr) != 1) error("Binary response signifier must be of length 1.");
+    if (!isLogical(slotExpr)) error("binary response must be signified by logical type");
+    if (length(slotExpr) != 1) error("binary response signifier must be of length 1");
     i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("Binary response must be either true or false.");
+    if (i_temp == NA_LOGICAL) error("binary response must be either true or false");
     control.responseIsBinary = (i_temp != FALSE);
     
     slotExpr = GET_ATTR(controlExpr, install("verbose"));
-    if (!isLogical(slotExpr)) error("Verbose must be signified by logical type.");
-    if (length(slotExpr) == 0) error("Verbose must be of length at least 1.");
+    if (!isLogical(slotExpr)) error("verbose must be signified by logical type");
+    if (length(slotExpr) == 0) error("verbose must be of length at least 1");
     i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("Verbose must be either true or false.");
+    if (i_temp == NA_LOGICAL) error("verbose must be either true or false");
     control.verbose = (i_temp != FALSE);
     
     slotExpr = GET_ATTR(controlExpr, install("keepTrainingFits"));
-    if (!isLogical(slotExpr)) error("Keep training fits must be signified by logical type.");
-    if (length(slotExpr) != 1) error("Keep training fits must be of length 1.");
+    if (!isLogical(slotExpr)) error("keep training fits must be signified by logical type");
+    if (length(slotExpr) != 1) error("keep training fits must be of length 1");
     i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("Keep training fits must be either true or false.");
+    if (i_temp == NA_LOGICAL) error("keep training fits must be either true or false");
     control.keepTrainingFits = (i_temp != FALSE);
     
     slotExpr = GET_ATTR(controlExpr, install("useQuantiles"));
-    if (!isLogical(slotExpr)) error("Use quantiles must be signified by logical type.");
-    if (length(slotExpr) != 1) error("Use quantiles must be of length 1.");
+    if (!isLogical(slotExpr)) error("use quantiles must be signified by logical type");
+    if (length(slotExpr) != 1) error("use quantiles must be of length 1");
     i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("Use quantiles must be either true or false.");
+    if (i_temp == NA_LOGICAL) error("use quantiles must be either true or false");
     control.useQuantiles = (i_temp != FALSE);
     
     
     
     slotExpr = GET_ATTR(controlExpr, install("n.samples"));
-    if (!isInteger(slotExpr)) error("number of samples must be of integer type.");
-    if (length(slotExpr) != 1) error("number of samples must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of samples must be of integer type");
+    if (length(slotExpr) != 1) error("number of samples must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
-    if (i_temp == NA_INTEGER) error("number of samples cannot be NA.");
-    if (i_temp < 0) error("number of samples must be non-negative.");
+    if (i_temp == NA_INTEGER) error("number of samples cannot be NA");
+    if (i_temp < 0) error("number of samples must be non-negative");
     control.numSamples = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.burn"));
-    if (!isInteger(slotExpr)) error("number of burn-in steps must be of integer type.");
-    if (length(slotExpr) != 1) error("number of burn-in steps must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of burn-in steps must be of integer type");
+    if (length(slotExpr) != 1) error("number of burn-in steps must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 0;
-    if (i_temp < 0) error("number of burn-in steps must be non-negative.");
+    if (i_temp < 0) error("number of burn-in steps must be non-negative");
     control.numBurnIn = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.trees"));
-    if (!isInteger(slotExpr)) error("Number of trees must be of integer type.");
-    if (length(slotExpr) != 1) error("Number of trees must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of trees must be of integer type");
+    if (length(slotExpr) != 1) error("number of trees must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
-    if (i_temp == NA_INTEGER) error("Number of trees cannot be NA.");
-    if (i_temp <= 0) error("Number of trees must be positive.");
+    if (i_temp == NA_INTEGER) error("number of trees cannot be NA");
+    if (i_temp <= 0) error("number of trees must be positive");
     control.numTrees = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.threads"));
-    if (!isInteger(slotExpr)) error("Number of threads must be of integer type.");
-    if (length(slotExpr) != 1) error("Number of threads must be of length 1.");
+    if (!isInteger(slotExpr)) error("number of threads must be of integer type");
+    if (length(slotExpr) != 1) error("number of threads must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 1;
-    if (i_temp <= 0) error("Number of threads must be positive.");
+    if (i_temp <= 0) error("number of threads must be positive");
     control.numThreads = static_cast<size_t>(i_temp);
     
     slotExpr = GET_ATTR(controlExpr, install("n.thin"));
-    if (!isInteger(slotExpr)) error("Tree thinning rate must be of integer type.");
-    if (length(slotExpr) != 1) error("Tree thinning rate must be of length 1.");
+    if (!isInteger(slotExpr)) error("tree thinning rate must be of integer type");
+    if (length(slotExpr) != 1) error("tree thinning rate must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 1;
-    if (i_temp < 0) error("Tree thinning rate must be non-negative.");
+    if (i_temp < 0) error("tree thinning rate must be non-negative");
     control.treeThinningRate = static_cast<uint32_t>(i_temp);
     
     
     slotExpr = GET_ATTR(controlExpr, install("printEvery"));
-    if (!isInteger(slotExpr)) error("Print every must be of integer type.");
-    if (length(slotExpr) != 1) error("Print every must be of length 1.");
+    if (!isInteger(slotExpr)) error("print every must be of integer type");
+    if (length(slotExpr) != 1) error("print every must be of length 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp != NA_INTEGER) {
-      if (i_temp <= 0) error("Print every must be positive.");
+      if (i_temp <= 0) error("print every must be positive");
       control.printEvery = static_cast<uint32_t>(i_temp);
     }
     
     slotExpr = GET_ATTR(controlExpr, install("printCutoffs"));
-    if (!isInteger(slotExpr)) error("Print cutoffs must be of integer type.");
-    if (length(slotExpr) == 0) error("Print cutoffs must be of length at least 1.");
+    if (!isInteger(slotExpr)) error("print cutoffs must be of integer type");
+    if (length(slotExpr) == 0) error("print cutoffs must be of length at least 1");
     i_temp = INTEGER(slotExpr)[0];
     if (i_temp == NA_INTEGER) i_temp = 0;
-    if (i_temp < 0) error("Print cutoffs must be non-negative.");
+    if (i_temp < 0) error("print cutoffs must be non-negative");
     control.printCutoffs = static_cast<uint32_t>(i_temp);
     
     if (control.rng == NULL) {
@@ -1040,72 +1040,72 @@ namespace {
     double d_temp;
     
     SEXP slotExpr = GET_ATTR(modelExpr, install("p.birth_death"));
-    if (!isReal(slotExpr)) error("Probability of birth/death rule must be of numeric type.");
-    if (length(slotExpr) != 1) error("Probability of birth/death rule must be of length 1.");
+    if (!isReal(slotExpr)) error("probability of birth/death rule must be of numeric type");
+    if (length(slotExpr) != 1) error("probability of birth/death rule must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Probability of birth/death rule must be a real number.");
-    if (d_temp <= 0.0 || d_temp > 1.0) error("Probability of birth/death rule must be in (0, 1].");
+    if (ISNAN(d_temp)) error("probability of birth/death rule must be a real number");
+    if (d_temp <= 0.0 || d_temp > 1.0) error("probability of birth/death rule must be in (0, 1]");
     model.birthOrDeathProbability = d_temp;
     
     slotExpr = GET_ATTR(modelExpr, install("p.swap"));
-    if (!isReal(slotExpr)) error("Probability of swap rule must be of numeric type.");
-    if (length(slotExpr) != 1) error("Probability of swap rule must be of length 1.");
+    if (!isReal(slotExpr)) error("probability of swap rule must be of numeric type");
+    if (length(slotExpr) != 1) error("probability of swap rule must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Probability of swap rule must be a real number.");
-    if (d_temp < 0.0 || d_temp >= 1.0) error("Probability of swap rule must be in [0, 1).");
+    if (ISNAN(d_temp)) error("probability of swap rule must be a real number");
+    if (d_temp < 0.0 || d_temp >= 1.0) error("probability of swap rule must be in [0, 1)");
     model.swapProbability = d_temp;
     
     slotExpr = GET_ATTR(modelExpr, install("p.change"));
-    if (!isReal(slotExpr)) error("Probability of change rule must be of numeric type.");
-    if (length(slotExpr) != 1) error("Probability of change rule must be of length 1.");
+    if (!isReal(slotExpr)) error("probability of change rule must be of numeric type");
+    if (length(slotExpr) != 1) error("probability of change rule must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Probability of change rule must be a real number.");
-    if (d_temp < 0.0 || d_temp >= 1.0) error("Probability of change rule must be in [0, 1).");
+    if (ISNAN(d_temp)) error("probability of change rule must be a real number");
+    if (d_temp < 0.0 || d_temp >= 1.0) error("probability of change rule must be in [0, 1)");
     model.changeProbability = d_temp;
     
     if (std::fabs(model.birthOrDeathProbability + model.swapProbability + model.changeProbability - 1.0) >= 1.0e-10)
-      error("Rule proposal probabilities must sum to 1.0");
+      error("rule proposal probabilities must sum to 1.0");
     
     slotExpr = GET_ATTR(modelExpr, install("p.birth"));
-    if (!isReal(slotExpr)) error("Probability of birth in birth/death rule must be of numeric type.");
-    if (length(slotExpr) != 1) error("Probability of birth in birth/death rule must be of length 1.");
+    if (!isReal(slotExpr)) error("probability of birth in birth/death rule must be of numeric type");
+    if (length(slotExpr) != 1) error("probability of birth in birth/death rule must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Probability of birth in birth/death rule must be a real number.");
-    if (d_temp <= 0.0 || d_temp >= 1.0) error("Probability of birth in birth/death rule must be in (0, 1).");
+    if (ISNAN(d_temp)) error("probability of birth in birth/death rule must be a real number");
+    if (d_temp <= 0.0 || d_temp >= 1.0) error("probability of birth in birth/death rule must be in (0, 1)");
     model.birthProbability = d_temp;
     
     
     SEXP priorExpr = GET_ATTR(modelExpr, install("tree.prior"));
     // slotExpr = GET_CLASS(priorExpr);
-    // if (strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'.");
+    // if (strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     CGMPrior* treePrior = new CGMPrior;
     model.treePrior = treePrior;
     
     slotExpr = GET_ATTR(priorExpr, install("power"));
-    if (!isReal(slotExpr)) error("Tree prior power must be of type real.");
-    if (length(slotExpr) != 1) error("Tree prior power must be of length 1.");
+    if (!isReal(slotExpr)) error("tree prior power must be of type real");
+    if (length(slotExpr) != 1) error("tree prior power must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Tree prior power be a real number.");
-    if (d_temp <= 0.0) error("Tree prior power must be positive.");
+    if (ISNAN(d_temp)) error("tree prior power be a real number");
+    if (d_temp <= 0.0) error("tree prior power must be positive");
     treePrior->power = d_temp;
     
     slotExpr = GET_ATTR(priorExpr, install("base"));
-    if (!isReal(slotExpr)) error("Tree prior base must be of type real.");
-    if (length(slotExpr) != 1) error("Tree prior power must be of length 1.");
+    if (!isReal(slotExpr)) error("tree prior base must be of type real");
+    if (length(slotExpr) != 1) error("tree prior power must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("Tree prior base be a real number.");
-    if (d_temp <= 0.0 || d_temp >= 1.0) error("Tree prior base must be in (0, 1).");
+    if (ISNAN(d_temp)) error("tree prior base be a real number");
+    if (d_temp <= 0.0 || d_temp >= 1.0) error("tree prior base must be in (0, 1)");
     treePrior->base = d_temp;
     
     
     priorExpr = GET_ATTR(modelExpr, install("node.prior"));
     
     slotExpr = GET_ATTR(priorExpr, install("k"));
-    if (!isReal(slotExpr)) error ("k must be of type real.");
-    if (length(slotExpr) != 1) error("k must be of length 1.");
+    if (!isReal(slotExpr)) error ("k must be of type real");
+    if (length(slotExpr) != 1) error("k must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("k must be a real number.");
-    if (d_temp <= 0.0) error("k must be positive.");
+    if (ISNAN(d_temp)) error("k must be a real number");
+    if (d_temp <= 0.0) error("k must be positive");
     model.muPrior = new NormalPrior(control, d_temp);
     
     
@@ -1113,18 +1113,18 @@ namespace {
     priorExpr = GET_ATTR(modelExpr, install("resid.prior"));
     
     slotExpr = GET_ATTR(priorExpr, install("df"));
-    if (!isReal(slotExpr)) error("sigma prior degrees of freedom must be of type real.");
-    if (length(slotExpr) != 1) error("sigma prior degrees of freedom must be of length 1.");
+    if (!isReal(slotExpr)) error("sigma prior degrees of freedom must be of type real");
+    if (length(slotExpr) != 1) error("sigma prior degrees of freedom must be of length 1");
     double sigmaPriorDf = REAL(slotExpr)[0];
-    if (ISNAN(sigmaPriorDf)) error("sigma prior degrees of freedom must be a real number.");
-    if (sigmaPriorDf <= 0.0) error("sigma prior degrees of freedom must be positive.");
+    if (ISNAN(sigmaPriorDf)) error("sigma prior degrees of freedom must be a real number");
+    if (sigmaPriorDf <= 0.0) error("sigma prior degrees of freedom must be positive");
     
     slotExpr = GET_ATTR(priorExpr, install("quantile"));
-    if (!isReal(slotExpr)) error ("sigma prior quantile must be of type real.");
-    if (length(slotExpr) != 1) error("sigma prior quantile must be of length 1.");
+    if (!isReal(slotExpr)) error ("sigma prior quantile must be of type real");
+    if (length(slotExpr) != 1) error("sigma prior quantile must be of length 1");
     d_temp = REAL(slotExpr)[0];
-    if (ISNAN(d_temp)) error("sigma prior quantile must be a real number.");
-    if (d_temp <= 0.0 || d_temp >= 1.0) error("sigma prior quantile must be in (0, 1).");
+    if (ISNAN(d_temp)) error("sigma prior quantile must be a real number");
+    if (d_temp <= 0.0 || d_temp >= 1.0) error("sigma prior quantile must be in (0, 1)");
     model.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, d_temp);
   }
 
@@ -1133,22 +1133,22 @@ namespace {
     int* dims;
     
     SEXP slotExpr = GET_ATTR(dataExpr, install("y"));
-    if (!isReal(slotExpr)) error("y must be of type real.");
-    if (length(slotExpr) == 0) error("Length of y must be greater than 0.");
+    if (!isReal(slotExpr)) error("y must be of type real");
+    if (length(slotExpr) == 0) error("length of y must be greater than 0");
     data.y = REAL(slotExpr);
     data.numObservations = static_cast<size_t>(length(slotExpr));
     
     slotExpr = GET_ATTR(dataExpr, install("x"));
-    if (!isReal(slotExpr)) error("x must be of type real.");
+    if (!isReal(slotExpr)) error("x must be of type real");
     dims = INTEGER(GET_ATTR(slotExpr, R_DimSymbol));
-    if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x must be a matrix, i.e. have two dimensions.");
-    if (static_cast<size_t>(dims[0]) != data.numObservations) error("Number of rows of x and length of y must be equal.");
+    if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x must be a matrix, i.e. have two dimensions");
+    if (static_cast<size_t>(dims[0]) != data.numObservations) error("number of rows of x and length of y must be equal");
     data.X = REAL(slotExpr);
     data.numPredictors = static_cast<size_t>(dims[1]);
     
     slotExpr = GET_ATTR(dataExpr, install("varTypes"));
-    if (!isInteger(slotExpr)) error("Variable types must be of type integer.");
-    if (static_cast<size_t>(length(slotExpr)) != data.numPredictors) error("Length of variable types must equal number of columns in x.");
+    if (!isInteger(slotExpr)) error("variable types must be of type integer");
+    if (static_cast<size_t>(length(slotExpr)) != data.numPredictors) error("length of variable types must equal number of columns in x");
     int* i_variableTypes = INTEGER(slotExpr);
     VariableType* variableTypes = new VariableType[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
@@ -1159,10 +1159,10 @@ namespace {
       data.X_test = NULL;
       data.numTestObservations = 0;
     } else {
-      if (!isReal(slotExpr)) error ("x.test must be of type real.");
+      if (!isReal(slotExpr)) error ("x.test must be of type real");
       dims = INTEGER(GET_ATTR(slotExpr, R_DimSymbol));
-      if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x.test must be a matrix, i.e. have two dimensions.");
-      if (static_cast<size_t>(dims[1]) != data.numPredictors) error("Number of columns of x.test and x must be equal.");
+      if (dims == NULL || length(GET_ATTR(slotExpr, R_DimSymbol)) != 2) error("x.test must be a matrix, i.e. have two dimensions");
+      if (static_cast<size_t>(dims[1]) != data.numPredictors) error("number of columns of x.test and x must be equal");
       data.X_test = REAL(slotExpr);
       data.numTestObservations = static_cast<size_t>(dims[0]);
     }
@@ -1171,8 +1171,8 @@ namespace {
     if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
       data.weights = NULL;
     } else {
-      if (!isReal(slotExpr)) error("weights must be of type real.");
-      if (static_cast<size_t>(length(slotExpr)) != data.numObservations) error("Length of weights must equal length of y.");
+      if (!isReal(slotExpr)) error("weights must be of type real");
+      if (static_cast<size_t>(length(slotExpr)) != data.numObservations) error("length of weights must equal length of y");
       data.weights = REAL(slotExpr);
     }
     
@@ -1180,8 +1180,8 @@ namespace {
     if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
       data.offset = NULL;
     } else {
-      if (!isReal(slotExpr)) error("offset must be of type real.");
-      if (static_cast<size_t>(length(slotExpr)) != data.numObservations) error("Length of offset must equal length of y.");
+      if (!isReal(slotExpr)) error("offset must be of type real");
+      if (static_cast<size_t>(length(slotExpr)) != data.numObservations) error("length of offset must equal length of y");
       data.offset = REAL(slotExpr);
     }
     
@@ -1189,23 +1189,23 @@ namespace {
     if (isS4Null(slotExpr) || isNull(slotExpr) || length(slotExpr) == 0) {
       data.testOffset = NULL;
     } else {
-      if (!isReal(slotExpr)) error("Test offset must be of type real.");
-      if (static_cast<size_t>(length(slotExpr)) != data.numTestObservations) error("Length of test offset must equal number of test rows.");
+      if (!isReal(slotExpr)) error("test offset must be of type real");
+      if (static_cast<size_t>(length(slotExpr)) != data.numTestObservations) error("length of test offset must equal number of test rows");
       data.testOffset = REAL(slotExpr);
     }
     
     slotExpr = GET_ATTR(dataExpr, install("sigma"));
-    if (!isReal(slotExpr)) error("sigma estimate must be of type real.");
-    if (length(slotExpr) != 1) error("sigma estimate must be of length 1.");
+    if (!isReal(slotExpr)) error("sigma estimate must be of type real");
+    if (length(slotExpr) != 1) error("sigma estimate must be of length 1");
     double d_temp = REAL(slotExpr)[0];
     if (ISNAN(d_temp)) d_temp = 1.0;
-    if (d_temp <= 0.0) error("sigma estimate must be positive.");
+    if (d_temp <= 0.0) error("sigma estimate must be positive");
     data.sigmaEstimate = d_temp;
     
     
     slotExpr = GET_ATTR(dataExpr, install("n.cuts"));
-    if (!isInteger(slotExpr)) error("Maximum number of cuts must be of integer type.");
-    if (static_cast<size_t>(length(slotExpr)) != data.numPredictors) error("Length of maximum number of cuts and the number of columns of x must be equal.");
+    if (!isInteger(slotExpr)) error("maximum number of cuts must be of integer type");
+    if (static_cast<size_t>(length(slotExpr)) != data.numPredictors) error("length of maximum number of cuts and the number of columns of x must be equal");
     int* i_maxNumCuts = INTEGER(slotExpr);
     uint32_t* maxNumCuts = new uint32_t[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) maxNumCuts[i] = static_cast<uint32_t>(i_maxNumCuts[i]);
@@ -1260,31 +1260,31 @@ namespace {
     
     SEXP slotExpr = GET_ATTR(stateExpr, install("fit.tree"));
     SEXP dimsExpr = GET_DIM(slotExpr);
-    if (GET_LENGTH(dimsExpr) != 2) error("Dimensions of state@fit.tree indicate that it is not a matrix.");
+    if (GET_LENGTH(dimsExpr) != 2) error("dimensions of state@fit.tree indicate that it is not a matrix");
     int* dims = INTEGER(dimsExpr);
-    if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) error("Dimensions of state@fit.tree do not match object.");
+    if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) error("dimensions of state@fit.tree do not match object");
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
     slotExpr = GET_ATTR(stateExpr, install("fit.total"));
-    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numObservations) error("Length of state@fit.total does not match object.");
+    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numObservations) error("length of state@fit.total does not match object");
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
     if (data.numTestObservations != 0) {
       slotExpr = GET_ATTR(stateExpr, install("fit.test"));
-      if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numTestObservations) error("Length of state@fit.test does not match object.");
+      if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numTestObservations) error("length of state@fit.test does not match object");
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
     slotExpr = GET_ATTR(stateExpr, install("sigma"));
-    if (GET_LENGTH(slotExpr) != 1) error("Length of state@sigma does not match object.");
+    if (GET_LENGTH(slotExpr) != 1) error("length of state@sigma does not match object");
     REAL(slotExpr)[0] = state.sigma;
     
     slotExpr = GET_ATTR(stateExpr, install("runningTime"));
-    if (GET_LENGTH(slotExpr) != 1) error("Length of state@runningTime does not match object.");
+    if (GET_LENGTH(slotExpr) != 1) error("length of state@runningTime does not match object");
     REAL(slotExpr)[0] = state.runningTime;
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
-    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != control.numTrees) error("Length of state@trees does not match object.");
+    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != control.numTrees) error("length of state@trees does not match object");
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {

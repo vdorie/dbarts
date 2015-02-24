@@ -21,6 +21,9 @@ namespace dbarts {
     double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates response; are ordered as bottom nodes are
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
     
+    void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints);
+    void collapseEmptyNodes(const BARTFit&fit, double* posteriorPredictions);
+    
     Node* getTop() const;
     bool hasSingleNode() const;
     

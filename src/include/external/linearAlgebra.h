@@ -40,7 +40,10 @@ extern "C" {
   void ext_leftMultiplyMatrixAndVector(const double* A, ext_size_t n, ext_size_t p, const double* x, double* b);
   
   double ext_sumVectorElements(const double* x, ext_size_t length);
+  double ext_sumIndexedVectorElements(const double* x, const ext_ext_t* indices, ext_size_t length);
   double ext_sumSquaresOfVectorElements(const double* x, ext_size_t length);
+  
+  void ext_transposeMatrix(const double* x, ext_size_t numRows, ext_size_t numCols, double* xt);
   
   // least squares solution to Xb = y
   // suggested tolerance: 1.0e-7

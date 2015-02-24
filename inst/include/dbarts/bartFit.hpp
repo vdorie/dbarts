@@ -52,6 +52,11 @@ namespace dbarts {
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
     
+    // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
+    // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
+    // invalid state
+    void setData(const Data& data);
+    
     bool saveToFile(const char* fileName) const;
     static BARTFit* loadFromFile(const char* fileName);
   };

@@ -226,6 +226,17 @@ namespace {
     fillBottomVector(*node.leftChild, result);
     fillBottomVector(*node.p.rightChild, result);
   }
+
+  void enumerateBottomNodes(Node& node, size_t& index)
+  {
+    if (node.isBottom()) {
+      node.enumerationIndex = index++;
+      return;
+    }
+    
+    enumerateBottomNodes(*node.getLeftChild(), index);
+    enumerateBottomNodes(*node.getRightChild(), index);
+  }
   
   void fillAndEnumerateBottomVector(Node& node, NodeVector& result, size_t& index)
   {
@@ -287,6 +298,12 @@ namespace dbarts {
     fillBottomVector(*this, result);
     return result;
   }
+
+  void Node::enumerateBottomNodes()
+  {
+    size_t index = 0;
+    enumerateBottomNodes(*this, index);
+   }
   
   NodeVector Node::getAndEnumerateBottomVector()
   {
@@ -564,17 +581,16 @@ namespace dbarts {
         ext_stackFree(threadDataPtrs);
         ext_stackFree(threadData);
       } */
+      
+      leftChild->observationIndices = observationIndices;
+      leftChild->numObservations = numOnLeft;
+      p.rightChild->observationIndices = observationIndices + numOnLeft;
+      p.rightChild->numObservations = numObservations - numOnLeft;
+      
+      
+      leftChild->addObservationsToChildren(fit, y);
+      p.rightChild->addObservationsToChildren(fit, y);
     }
-    
-    
-    leftChild->observationIndices = observationIndices;
-    leftChild->numObservations = numOnLeft;
-    p.rightChild->observationIndices = observationIndices + numOnLeft;
-    p.rightChild->numObservations = numObservations - numOnLeft;
-    
-    
-    leftChild->addObservationsToChildren(fit, y);
-    p.rightChild->addObservationsToChildren(fit, y);
   }
   
   void Node::addObservationsToChildren(const BARTFit& fit) {
@@ -590,18 +606,18 @@ namespace dbarts {
     if (numObservations > 0) {
       IndexOrdering ordering(fit, p.rule);
     
-      numOnLeft = (isTop() ?
+      size_t numOnLeft = (isTop() ?
                    partitionRange(observationIndices, 0, numObservations, ordering) :
                    partitionIndices(observationIndices, numObservations, ordering));
+      
+      leftChild->observationIndices = observationIndices;
+      leftChild->numObservations = numOnLeft;
+      p.rightChild->observationIndices = observationIndices + numOnLeft;
+      p.rightChild->numObservations = numObservations - numOnLeft;
+    
+      leftChild->addObservationsToChildren(fit);
+      p.rightChild->addObservationsToChildren(fit);
     }
-    
-    leftChild->observationIndices = observationIndices;
-    leftChild->numObservations = numOnLeft;
-    p.rightChild->observationIndices = observationIndices + numOnLeft;
-    p.rightChild->numObservations = numObservations - numOnLeft;
-    
-    leftChild->addObservationsToChildren(fit);
-    p.rightChild->addObservationsToChildren(fit);
   }
 	
   void Node::setAverage(const BARTFit& fit, const double* y)
@@ -724,7 +740,7 @@ namespace dbarts {
     m.average = average;
     m.numEffectiveObservations = numEffectiveObservations;
   }
-  
+    
   void Node::countVariableUses(uint32_t* variableCounts) const
   {
     if (isBottom()) return;
