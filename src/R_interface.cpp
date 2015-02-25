@@ -49,7 +49,7 @@ namespace {
   SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
   void storeStateExpressionFromFit(const BARTFit& fit, SEXP stateExpr);
   
-  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, int length);
+  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, R_xlen_t length);
   SEXP SET_DIMS(SEXP obj, int numRows, int numCols);
   bool isS4Null(SEXP expr);
   
@@ -672,6 +672,20 @@ namespace {
     
     if (numBurnIn == 0 && numSamples == 0) error("either number of burn-in or samples must be positive");
     
+    size_t numTrainingSamples = fit->data.numObservations * numSamples;
+    if (numSamples != 0 && numTrainingSamples / numSamples != fit->data.numObservations)
+      error("training sample array size exceeds machine's capacity");
+    R_xlen_t s_numTrainingSamples = static_cast<R_xlen_t>(numTrainingSamples);
+    if (s_numTrainingSamples < 0 || static_cast<size_t>(s_numTrainingSamples) != numTrainingSamples)
+      error("training sample array size cannot be represented by a signed integer on this machine");
+    
+    size_t numTestSamples = fit->data.numTestObservations * numSamples;
+     if (numSamples != 0 && numTestSamples / numSamples != fit->data.numTestObservations)
+      error("test sample array size exceeds machine's capacity");
+    R_xlen_t s_numTestSamples = static_cast<R_xlen_t>(numTestSamples);
+    if (s_numTestSamples < 0 || static_cast<size_t>(s_numTestSamples) != numTestSamples)
+      error("test sample array size cannot be represented by a signed integer on this machine");
+    
     GetRNGstate();
         
     Results* bartResults = fit->runSampler(numBurnIn, numSamples);
@@ -683,48 +697,35 @@ namespace {
     
     
     // create result storage and make it user friendly
-    SEXP dimsExpr, namesExpr;
-    int* dims;
+    SEXP namesExpr;
     
-    int protectCount = 3;
+    int protectCount = 0;
     
     SEXP resultExpr = PROTECT(allocVector(VECSXP, 4));
-    SET_VECTOR_ELT(resultExpr, 0, allocVector(REALSXP, static_cast<int>(bartResults->getNumSigmaSamples())));
-    SET_VECTOR_ELT(resultExpr, 1, allocVector(REALSXP, static_cast<int>(bartResults->getNumTrainingSamples())));
+    ++protectCount;
+    SET_VECTOR_ELT(resultExpr, 0, allocVector(REALSXP, static_cast<R_xlen_t>(bartResults->getNumSigmaSamples())));
+    SET_VECTOR_ELT(resultExpr, 1, allocVector(REALSXP, static_cast<R_xlen_t>(bartResults->getNumTrainingSamples())));
     if (fit->data.numTestObservations > 0)
-      SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, static_cast<int>(bartResults->getNumTestSamples())));
+      SET_VECTOR_ELT(resultExpr, 2, allocVector(REALSXP, static_cast<R_xlen_t>(bartResults->getNumTestSamples())));
     else
       SET_VECTOR_ELT(resultExpr, 2, NULL_USER_OBJECT);
-    SET_VECTOR_ELT(resultExpr, 3, allocVector(INTSXP, static_cast<int>(bartResults->getNumVariableCountSamples())));
+    SET_VECTOR_ELT(resultExpr, 3, allocVector(INTSXP, static_cast<R_xlen_t>(bartResults->getNumVariableCountSamples())));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
     std::memcpy(REAL(sigmaSamples), const_cast<const double*>(bartResults->sigmaSamples), bartResults->getNumSigmaSamples() * sizeof(double));
     
     SEXP trainingSamples = VECTOR_ELT(resultExpr, 1);
-    dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
-    dims = INTEGER(dimsExpr);
-    dims[0] = static_cast<int>(bartResults->numObservations);
-    dims[1] = static_cast<int>(bartResults->numSamples);
-    setAttrib(trainingSamples, R_DimSymbol, dimsExpr);
+    SET_DIMS(trainingSamples, bartResults->numObservations, bartResults->numSamples);
     std::memcpy(REAL(trainingSamples), const_cast<const double*>(bartResults->trainingSamples), bartResults->getNumTrainingSamples() * sizeof(double));
     
     if (fit->data.numTestObservations > 0) {
       SEXP testSamples = VECTOR_ELT(resultExpr, 2);
-      dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
-      dims = INTEGER(dimsExpr);
-      dims[0] = static_cast<int>(bartResults->numTestObservations);
-      dims[1] = static_cast<int>(bartResults->numSamples);
-      setAttrib(testSamples, R_DimSymbol, dimsExpr);
+      SET_DIMS(testSamples, bartResults->numTestObservations, bartResults->numSamples);
       std::memcpy(REAL(testSamples), const_cast<const double*>(bartResults->testSamples), bartResults->getNumTestSamples() * sizeof(double));
-      ++protectCount;
     }
     
     SEXP variableCountSamples = VECTOR_ELT(resultExpr, 3);
-    dimsExpr = PROTECT(dimsExpr = allocVector(INTSXP, 2));
-    dims = INTEGER(dimsExpr);
-    dims[0] = static_cast<int>(bartResults->numPredictors);
-    dims[1] = static_cast<int>(bartResults->numSamples);
-    setAttrib(variableCountSamples, R_DimSymbol, dimsExpr);
+    SET_DIMS(variableCountSamples, bartResults->numPredictors, bartResults->numSamples);
     int* variableCountStorage = INTEGER(variableCountSamples);
     size_t length = bartResults->getNumVariableCountSamples();
     // these likely need to be down-sized from 64 to 32 bits
@@ -899,7 +900,7 @@ extern "C" {
 namespace {
   using namespace dbarts;
   
-  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, int length)
+  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, R_xlen_t length)
   {
     SEXP val = allocVector(type, length);
     
@@ -1220,17 +1221,17 @@ namespace {
     
     SEXP result = PROTECT(NEW_OBJECT(MAKE_CLASS("dbartsState")));
     
-    SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, static_cast<int>(data.numObservations * control.numTrees));
+    SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
     SET_DIMS(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees));
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
-    slotExpr = ALLOC_SLOT(result, install("fit.total"), REALSXP, static_cast<int>(data.numObservations));
+    slotExpr = ALLOC_SLOT(result, install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
     if (data.numTestObservations == 0) {
       SET_SLOT(result, install("fit.test"), NULL_USER_OBJECT);
     } else {
-      slotExpr = ALLOC_SLOT(result, install("fit.test"), REALSXP, static_cast<int>(data.numTestObservations));
+      slotExpr = ALLOC_SLOT(result, install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
@@ -1240,11 +1241,11 @@ namespace {
     slotExpr = ALLOC_SLOT(result, install("runningTime"), REALSXP, 1);
     REAL(slotExpr)[0] = state.runningTime;
     
-    slotExpr = ALLOC_SLOT(result, install("trees"), STRSXP, static_cast<int>(control.numTrees));
+    slotExpr = ALLOC_SLOT(result, install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
 
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, static_cast<int>(i), CREATE_STRING_VECTOR(treeStrings[i]));
+      SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(i), CREATE_STRING_VECTOR(treeStrings[i]));
       delete [] treeStrings[i];
     }
     delete [] treeStrings;
@@ -1288,7 +1289,7 @@ namespace {
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, static_cast<int>(i), CREATE_STRING_VECTOR(treeStrings[i]));
+      SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(i), CREATE_STRING_VECTOR(treeStrings[i]));
       delete [] treeStrings[i];
     }
     delete [] treeStrings;
@@ -1319,7 +1320,7 @@ namespace {
     slotExpr = GET_ATTR(stateExpr, install("trees"));
     const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);
     for (size_t i = 0; i < control.numTrees; ++i) {
-      treeStrings[i] = CHAR(STRING_ELT(slotExpr, static_cast<int>(i)));
+      treeStrings[i] = CHAR(STRING_ELT(slotExpr, static_cast<R_xlen_t>(i)));
     }
     state.recreateTreesFromStrings(fit, treeStrings);
     
