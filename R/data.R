@@ -23,11 +23,13 @@ setMethod("initialize", "dbartsData",
   .Object
 })
 
-validateXTest <- function(x.test, numPredictors, predictorNames, drop)
+validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)
-  
-  if (is.data.frame(x.test)) x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
+  if (is.data.frame(x.test)) {
+    if (!is.null(termLabels)) x.test <- x.test[,termLabels]
+    x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
+  }
   if (!is.matrix(x.test)) x.test <- as.matrix(x.test)
 
   if (!is.numeric(x.test))
@@ -78,31 +80,42 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
 
     ## pull out offset if it is a scalar, else model.frame will bug out
-    if (!dataIsMissing && !is.data.frame(data) && !offsetIsMissing) {
-      temp <- NULL
-      tryResult <-
-        tryCatch(temp <- eval(call("$", as.symbol("data"), matchedCall$offset)), error = function(e) e)
-      if (is(tryResult, "error") || is.null(temp)) {
-        temp <- eval(matchedCall$offset, environment(formula))
+    if (!dataIsMissing && !offsetIsMissing) {
+      offsetFound <- FALSE
+      tempOffset <- NULL
+      if (is.data.frame(data)) {
+        if (is.symbol(matchedCall$offset) && any(names(data) == matchedCall$offset)) {
+          ## model.frame can find it later
+          offsetFound <- TRUE
+        }
+      } else {
+        ## data should be a list, which means "offset" might be a member of it
+        tryResult <- tryCatch(tempOffset <- eval(call("$", as.symbol("data"), matchedCall$offset)), error = function(e) e)
+        if (!is(tryResult, "error") && !is.null(tempOffset)) offsetFound <- TRUE
       }
-      if (!is.null(temp) && length(temp) == 1) {
-        offset <- temp
+      if (!offsetFound) {
+        tempOffset <- eval(matchedCall$offset, environment(formula))
+        if (!is.null(tempOffset)) offsetFound <- TRUE
+      }
+      if (offsetFound && !is.null(tempOffset)) {
+        offset <- tempOffset
         if (!is.numeric(offset)) stop("'offset' must be numeric")
-        offsetGivenAsScalar <- TRUE
+        offsetGivenAsScalar <- length(offset) == 1
         modelFrameArgs <- c("formula", "data", "subset", "weights")
       }
     }
-
     modelFrameCall <- matchedCall
 
-    matchPositions <- match(modelFrameArgs,
-                            names(modelFrameCall), nomatch = 0L)
-    
+    matchPositions <- match(modelFrameArgs, names(modelFrameCall), nomatch = 0L)
     modelFrameCall <- modelFrameCall[c(1L, matchPositions)]
     modelFrameCall$drop.unused.levels <- FALSE
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     
     modelFrame <- eval(modelFrameCall, parent.frame())
+    if (nrow(modelFrame) == 0) {
+      if (!is.null(matchedCall$subset)) stop("invalid 'subset'")
+      stop("empty data argument")
+    }
 
     y <- model.response(modelFrame, "numeric")
     if (is.null(y)) y <- rep(0, NROW(modelFrame))
@@ -114,7 +127,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
       weights <- rep_len(weights, numObservations)
     }
 
-    if (!identical(offsetGivenAsScalar, TRUE)) {
+    if (is.na(offsetGivenAsScalar)) {
       offset <- as.vector(model.offset(modelFrame))
       if (!is.null(offset)) {
         if (length(offset) != numObservations) stop("length of offset must be equal to that of y")
@@ -128,17 +141,6 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     if (is.empty.model(modelTerms)) stop("covariates must be specified for regression tree analysis")
     
     x <- makeModelMatrixFromDataFrame(modelFrame[attr(modelTerms, "term.labels")])
-
-    ##attr(modelTerms, "intercept") <- 0L
-
-    ##termIsFactor <- sapply(modelFrame, is.factor)
-    ##numFactorTerms <- sum(termIsFactor)
-    ##contrasts <-
-    ##  if (numFactorTerms == 0) NULL else lapply(modelFrame[,termIsFactor,drop=FALSE], contrasts, contrasts = FALSE)
-    
-    ##x <- model.matrix(modelTerms, modelFrame, contrasts)
-    
-
     
     if (!testIsMissing) {
       foundTest <- FALSE
@@ -203,7 +205,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
 
   x.test <- NULL
   if (!testIsMissing && !is.null(test) && NCOL(test) > 0)
-    x.test <- validateXTest(test, ncol(x), colnames(x), attr(x, "drop"))
+    x.test <- validateXTest(test, attr(x, "term.labels"), ncol(x), colnames(x), attr(x, "drop"))
 
   if (!is.null(x.test)) {
     if (missing(offset.test)) {

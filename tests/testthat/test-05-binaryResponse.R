@@ -50,3 +50,4 @@ test_that("binary example using close to linear function provides sensible resul
   expect_true((range(mu.hat.bart) * 1.2)[1] >= range(mu)[1])
   expect_true((range(mu.hat.bart) * 1.2)[2] <= range(mu)[2])
 })
+

@@ -64,7 +64,9 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (is.logical(drop) && is.na(drop)) stop('when logical, drop must be TRUE or FALSE')
   if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
   
-  .Call("dbarts_makeModelMatrixFromDataFrame", x, drop)
+  result <- .Call("dbarts_makeModelMatrixFromDataFrame", x, drop)
+  attr(result, "term.labels") <- names(x)
+  result
 }
 
 ## use this to produce calls of the form
