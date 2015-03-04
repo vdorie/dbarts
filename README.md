@@ -23,4 +23,4 @@ Steps to install from source:
 
   3. Run:
 
-    `install_github("dbarts", "vdorie")`
+    `install_github("vdorie/dbarts")`
