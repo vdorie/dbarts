@@ -102,6 +102,7 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     modelFrameCall$drop.unused.levels <- FALSE
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     
+    browser()
     modelFrame <- eval(modelFrameCall, parent.frame())
 
     y <- model.response(modelFrame, "numeric")

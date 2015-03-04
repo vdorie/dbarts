@@ -333,12 +333,12 @@ namespace dbarts {
   }
 
   void BARTFit::setData(const Data& newData) {
-    double** oldCutPoints = ext_stackAllocate(data.numPredictors, double*);
+    const double** oldCutPoints = ext_stackAllocate(data.numPredictors, const double*);
     
     for (size_t i = 0; i < data.numPredictors; ++i) {
       oldCutPoints[i] = scratch.cutPoints[i];
-      scratch.numCutsPerVariable[i] = static_cast<uint32_t>(-1);
-      scratch.cutPoints[i] = NULL;
+      const_cast<uint32_t*>(scratch.numCutsPerVariable)[i] = static_cast<uint32_t>(-1);
+      const_cast<double**>(scratch.cutPoints)[i] = NULL;
     }
     
     size_t oldNumObservations = data.numObservations;
@@ -363,8 +363,8 @@ namespace dbarts {
       state.totalFits = new double[data.numObservations];
     }
     
-    if (control.responseIsBinary) initializeLatents(fit);
-    else rescaleResponse(fit);
+    if (control.responseIsBinary) initializeLatents(*this);
+    else rescaleResponse(*this);
     
     ext_setVectorToConstant(state.totalFits, data.numObservations, 0.0);
     
@@ -397,17 +397,17 @@ namespace dbarts {
 
     
     for (size_t i = 0; i < control.numTrees; ++i) {
-      const double* oldTreeFits = oldTreeFits + i * oldNumObservations;
+      const double* oldTreeFits_i = oldTreeFits + i * oldNumObservations;
       
       // next allocates memory
-      double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, oldTreeFits);
+      double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, oldTreeFits_i);
       state.trees[i].mapOldCutPointsOntoNew(*this, oldCutPoints);
-      if (oldNumObservations != data.numObserations)
-        state.trees[i].observationIndices = state.treeIndices + i * data.numObservations;
+      if (oldNumObservations != data.numObservations)
+        state.trees[i].top.observationIndices = state.treeIndices + i * data.numObservations;
       state.trees[i].top.addObservationsToChildren(*this);
       state.trees[i].collapseEmptyNodes(*this, nodePosteriorPredictions);
       
-      double* currTreeFits = scratch.treeFits + i * data.numObservations;
+      double* currTreeFits = state.treeFits + i * data.numObservations;
       state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, currTreeFits, currTestFits);
       ext_addVectorsInPlace(currTreeFits, data.numObservations, 1.0, state.totalFits);
       

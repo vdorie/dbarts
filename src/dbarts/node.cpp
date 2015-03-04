@@ -302,7 +302,7 @@ namespace dbarts {
   void Node::enumerateBottomNodes()
   {
     size_t index = 0;
-    enumerateBottomNodes(*this, index);
+    ::enumerateBottomNodes(*this, index);
    }
   
   NodeVector Node::getAndEnumerateBottomVector()
@@ -543,9 +543,9 @@ namespace dbarts {
     ext_mt_getNumThreadsForJob(fit.threadManager, numObservations, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
                                &numThreads, &numElementsPerThread); */
     
-    size_t numOnLeft = 0;
     
     if (numObservations > 0) {
+      size_t numOnLeft = 0;
       IndexOrdering ordering(fit, p.rule);
     
       //if (numThreads <= 1) {
@@ -602,7 +602,6 @@ namespace dbarts {
     leftChild->clearObservations();
     p.rightChild->clearObservations();
     
-    size_t numOnLeft = 0;
     if (numObservations > 0) {
       IndexOrdering ordering(fit, p.rule);
     

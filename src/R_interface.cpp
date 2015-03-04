@@ -107,7 +107,7 @@ namespace {
 /*  static SEXP simulateContinuousUniform(SEXP nExpr)
   {
     size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    if (XLENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
     
     SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
     if (seedsExpr == R_UnboundValue) GetRNGstate();
@@ -136,7 +136,7 @@ namespace {
   static SEXP simulateNormal(SEXP nExpr)
   {
     size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    if (XLENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
     
     SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
     if (seedsExpr == R_UnboundValue) GetRNGstate();
@@ -166,7 +166,7 @@ namespace {
   static SEXP simulateExponential(SEXP nExpr)
   {
     size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    if (XLENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
     
     SEXP seedsExpr = findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
     if (seedsExpr == R_UnboundValue) GetRNGstate();
@@ -265,7 +265,7 @@ namespace {
   static SEXP simulateContinuousUniformInternally(SEXP nExpr)
   {
     size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    if (XLENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
     
     ext_rng* rng = createRNG();
     
@@ -285,7 +285,7 @@ namespace {
   static SEXP simulateNormalInternally(SEXP nExpr)
    {
     size_t n = 0;
-    if (LENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
+    if (XLENGTH(nExpr) > 0) n = (size_t) INTEGER(nExpr)[0];
     
     ext_rng* rng = createRNG();
     
@@ -374,7 +374,7 @@ namespace {
     
     SEXP dimsExpr = GET_DIM(x);
     
-    if (isNull(dimsExpr) || LENGTH(dimsExpr) != 2) error("x must be a matrix, i.e. have two dimensions");
+    if (isNull(dimsExpr) || XLENGTH(dimsExpr) != 2) error("x must be a matrix, i.e. have two dimensions");
     int* dims = INTEGER(dimsExpr);
     
     if (static_cast<size_t>(dims[0]) != fit->data.numObservations) error("number of rows in new x does not match y");
@@ -395,7 +395,7 @@ namespace {
     int* dims = NULL;
     
     if (!isNull(dimsExpr)) {
-      int numDims = GET_LENGTH(dimsExpr);
+      int numDims = XLENGTH(dimsExpr);
       
       if (numDims != 1 && numDims != 2) error("x must be a vector or a matrix");
       if (numDims == 2) dims = INTEGER(dimsExpr);
@@ -412,7 +412,7 @@ namespace {
     
     
     int* colsInt = INTEGER(colsExpr);
-    size_t numCols = static_cast<size_t>(LENGTH(colsExpr));
+    size_t numCols = static_cast<size_t>(XLENGTH(colsExpr));
     size_t* cols = ext_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
@@ -442,7 +442,7 @@ namespace {
     
     if (!isReal(x_test)) error("x.test must be of type real");
     SEXP dimsExpr = GET_DIM(x_test);
-    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
+    if (XLENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
     int* dims = INTEGER(dimsExpr);
     if (static_cast<size_t>(dims[1]) != fit->data.numPredictors) error("number of columns of x.test and x must be equal");
     
@@ -460,7 +460,7 @@ namespace {
       fit->setTestOffset(NULL);
     } else {
       if (!isReal(offset_test)) error("offset.test must be of type real");
-      if (fit->data.numTestObservations != static_cast<size_t>(GET_LENGTH(offset_test))) error("length of offset.test must equal number of rows in x.test");
+      if (fit->data.numTestObservations != static_cast<size_t>(XLENGTH(offset_test))) error("length of offset.test must equal number of rows in x.test");
       fit->setTestOffset(REAL(offset_test));
     }
     
@@ -480,7 +480,7 @@ namespace {
     
     if (!isReal(x_test)) error("x.test must be of type real");
     SEXP dimsExpr = GET_DIM(x_test);
-    if (GET_LENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
+    if (XLENGTH(dimsExpr) != 2) error("x.test must be a matrix, i.e. have two dimensions");
     int* dims = INTEGER(dimsExpr);
     if (static_cast<size_t>(dims[1]) != fit->data.numPredictors) error("number of columns of x.test and x must be equal");
     
@@ -488,10 +488,10 @@ namespace {
       fit->setTestPredictorAndOffset(REAL(x_test), NULL, static_cast<size_t>(dims[0]));
     } else {
       if (!isReal(offset_test)) error("offset.test must be of type real");
-      if (GET_LENGTH(offset_test) == 1 && ISNA(REAL(offset_test)[0])) {
+      if (XLENGTH(offset_test) == 1 && ISNA(REAL(offset_test)[0])) {
         fit->setTestPredictor(REAL(x_test), static_cast<size_t>(dims[0]));
       } else {
-        if (GET_LENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");
+        if (XLENGTH(offset_test) != dims[0]) error("length of offset.test must equal number of rows in x.test");
         fit->setTestPredictorAndOffset(REAL(x_test), REAL(offset_test), static_cast<size_t>(dims[0]));
       }
     }
@@ -513,7 +513,7 @@ namespace {
     int* dims = NULL;
     
     if (!isNull(dimsExpr)) {
-      int numDims = GET_LENGTH(dimsExpr);
+      int numDims = XLENGTH(dimsExpr);
       
       if (numDims != 1 && numDims != 2) error("x must be a vector or a matrix");
       if (numDims == 2) dims = INTEGER(dimsExpr);
@@ -530,7 +530,7 @@ namespace {
     
     
     int* colsInt = INTEGER(colsExpr);
-    size_t numCols = static_cast<size_t>(LENGTH(colsExpr));
+    size_t numCols = static_cast<size_t>(XLENGTH(colsExpr));
     size_t* cols = ext_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
@@ -674,17 +674,17 @@ namespace {
     
     size_t numTrainingSamples = fit->data.numObservations * numSamples;
     if (numSamples != 0 && numTrainingSamples / numSamples != fit->data.numObservations)
-      error("training sample array size exceeds machine's capacity");
+      error("training sample array size exceeds architecture's capacity");
     R_xlen_t s_numTrainingSamples = static_cast<R_xlen_t>(numTrainingSamples);
     if (s_numTrainingSamples < 0 || static_cast<size_t>(s_numTrainingSamples) != numTrainingSamples)
-      error("training sample array size cannot be represented by a signed integer on this machine");
+      error("training sample array size cannot be represented by a signed integer on this architecture");
     
     size_t numTestSamples = fit->data.numTestObservations * numSamples;
      if (numSamples != 0 && numTestSamples / numSamples != fit->data.numTestObservations)
-      error("test sample array size exceeds machine's capacity");
+      error("test sample array size exceeds architecture's capacity");
     R_xlen_t s_numTestSamples = static_cast<R_xlen_t>(numTestSamples);
     if (s_numTestSamples < 0 || static_cast<size_t>(s_numTestSamples) != numTestSamples)
-      error("test sample array size cannot be represented by a signed integer on this machine");
+      error("test sample array size cannot be represented by a signed integer on this architecture");
     
     GetRNGstate();
         
@@ -1261,31 +1261,31 @@ namespace {
     
     SEXP slotExpr = GET_ATTR(stateExpr, install("fit.tree"));
     SEXP dimsExpr = GET_DIM(slotExpr);
-    if (GET_LENGTH(dimsExpr) != 2) error("dimensions of state@fit.tree indicate that it is not a matrix");
+    if (XLENGTH(dimsExpr) != 2) error("dimensions of state@fit.tree indicate that it is not a matrix");
     int* dims = INTEGER(dimsExpr);
     if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) error("dimensions of state@fit.tree do not match object");
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
     slotExpr = GET_ATTR(stateExpr, install("fit.total"));
-    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numObservations) error("length of state@fit.total does not match object");
+    if (static_cast<size_t>(XLENGTH(slotExpr)) != data.numObservations) error("length of state@fit.total does not match object");
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
     if (data.numTestObservations != 0) {
       slotExpr = GET_ATTR(stateExpr, install("fit.test"));
-      if (static_cast<size_t>(GET_LENGTH(slotExpr)) != data.numTestObservations) error("length of state@fit.test does not match object");
+      if (static_cast<size_t>(XLENGTH(slotExpr)) != data.numTestObservations) error("length of state@fit.test does not match object");
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
     slotExpr = GET_ATTR(stateExpr, install("sigma"));
-    if (GET_LENGTH(slotExpr) != 1) error("length of state@sigma does not match object");
+    if (XLENGTH(slotExpr) != 1) error("length of state@sigma does not match object");
     REAL(slotExpr)[0] = state.sigma;
     
     slotExpr = GET_ATTR(stateExpr, install("runningTime"));
-    if (GET_LENGTH(slotExpr) != 1) error("length of state@runningTime does not match object");
+    if (XLENGTH(slotExpr) != 1) error("length of state@runningTime does not match object");
     REAL(slotExpr)[0] = state.runningTime;
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
-    if (static_cast<size_t>(GET_LENGTH(slotExpr)) != control.numTrees) error("length of state@trees does not match object");
+    if (static_cast<size_t>(XLENGTH(slotExpr)) != control.numTrees) error("length of state@trees does not match object");
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {

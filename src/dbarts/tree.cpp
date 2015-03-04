@@ -6,7 +6,7 @@
 
 #include <external/alloca.h>
 #include <external/stats.h>
-#include <extenal/linearAlgebra.h>
+#include <external/linearAlgebra.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/data.hpp>
@@ -125,15 +125,15 @@ namespace dbarts {
     mapCutPoints(top, fit, oldCutPoints);
   }
   
-  void collapseEmptyNodes(const BARTFit&fit, double* posteriorPredictions)
+  void Tree::collapseEmptyNodes(const BARTFit&fit, double* posteriorPredictions)
   {
-    enumerateBottomNodes(top);
-    collapseEmptyNodes(top, fit, posteriorPredictions);
+    top.enumerateBottomNodes();
+    ::collapseEmptyNodes(top, fit, posteriorPredictions);
     
     NodeVector bottomNodes(top.getBottomVector());
     size_t numBottomNodes = bottomNodes.size();
     for (size_t i = 0; i < numBottomNodes; ++i)
-      posteriorPredictions[i] = posteriorPredictions[bottomNodes[i]->getEnumerationIndex()];
+      posteriorPredictions[i] = posteriorPredictions[bottomNodes[i]->enumerationIndex];
   }
   
   
@@ -163,7 +163,7 @@ namespace {
     int32_t varIndex = n.p.rule.variableIndex;
     
     if (fit.data.variableTypes[varIndex] == ORDINAL) {
-      uint32_t numCuts = fit.scratch.numCutsPerVariable[varIndex];
+      int32_t numCuts = static_cast<int32_t>(fit.scratch.numCutsPerVariable[varIndex]);
       double oldCut = oldCutPoints[varIndex][n.p.rule.splitIndex];
       const double* cutPoints_i = fit.scratch.cutPoints[varIndex];
       
@@ -181,7 +181,7 @@ namespace {
         if (firstLessThan >= numCuts - 1) newIndex = numCuts - 1;
         else if (firstLessThan < 0) newIndex = 0;
         else if (cutPoints_i[firstLessThan + 1] == oldCut) newIndex = firstLessThan + 1;
-        else if (oldCut - cutPoints_i[firstLessThan] < cutPoints[firstLessThan + 1] - oldCut) newIndex = firstLessThan;
+        else if (oldCut - cutPoints_i[firstLessThan] < cutPoints_i[firstLessThan + 1] - oldCut) newIndex = firstLessThan;
         else newIndex = firstLessThan + 1;
         
         n.p.rule.splitIndex = newIndex;
@@ -196,29 +196,29 @@ namespace {
   {
     if (n.isBottom()) return; // only happens if is top and bottom
     
-    if (n.getLeftChild().getNumObservations() == 0 || n.getRightChild().getNumObservations() == 0) {
+    if (n.getLeftChild()->getNumObservations() == 0 || n.getRightChild()->getNumObservations() == 0) {
       const NodeVector bottomNodes(n.getBottomVector());
       size_t numBottomNodes = bottomNodes.size();
       double* weights = ext_stackAllocate(numBottomNodes, double);
       double* params  = ext_stackAllocate(numBottomNodes, double);
       
       for (size_t i = 0; i < numBottomNodes; ++i) {
-        Node& bottomNode(bottomNodes[i]);
-        weights[i] = fit.data.weights == NULL ? (double) bottomNode.getNumObservations() : ext_sumIndexedVectorElements(fit.data.weights, bottomNode.getObservationIndices());
+        Node& bottomNode(*bottomNodes[i]);
+        weights[i] = fit.data.weights == NULL ? (double) bottomNode.getNumObservations() : ext_sumIndexedVectorElements(fit.data.weights, bottomNode.observationIndices, bottomNode.getNumObservations());
         params[i] = posteriorPredictions[bottomNodes[i]->enumerationIndex];
       }
-      size_t leftMostEnumerationIndex = bottomNodes[0]->getEnumerationIndex();
+      size_t leftMostEnumerationIndex = bottomNodes[0]->enumerationIndex;
       delete n.getLeftChild();
       delete n.getRightChild();
       
       posteriorPredictions[leftMostEnumerationIndex] = ext_computeWeightedMean(params, numBottomNodes, weights, NULL);
-      n.setEnumerationIndex(leftMostEnumerationIndex);
+      n.enumerationIndex = leftMostEnumerationIndex;
       
       ext_stackFree(params);
       ext_stackFree(weights);
     } else {
-      if (!n.getLeftChild().isBottom()) collapseEmptyNodes(n.getLeftChild(), fit, posteriorPredictions);
-      if (!n.getRightChild().isBottom()) collapseEmptyNodes(n.getRightChild(), fit, posteriorPredictions);
+      if (!n.getLeftChild()->isBottom()) collapseEmptyNodes(*n.getLeftChild(), fit, posteriorPredictions);
+      if (!n.getRightChild()->isBottom()) collapseEmptyNodes(*n.getRightChild(), fit, posteriorPredictions);
     }
   }
 }
