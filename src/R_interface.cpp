@@ -68,7 +68,7 @@ namespace {
 
 }
 
-extern "C" {  
+extern "C" {
   static void fitFinalizer(SEXP fitExpr)
   {
 #ifdef THREAD_SAFE_UNLOAD
@@ -103,6 +103,42 @@ extern "C" {
 
 namespace {
   using namespace dbarts;
+  
+  static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr)
+  {
+    if (IS_NUMERIC(targetExpr)) {
+      if (!isNull(GET_DIM(targetExpr))) {
+        size_t numRows = INTEGER(GET_DIM(targetExpr))[0];
+        size_t index = INTEGER(indexExpr)[0] - 1;
+        
+        size_t length = XLENGTH(sourceExpr);
+        double* target = REAL(targetExpr);
+        const double* source = REAL(sourceExpr);
+        std::memcpy(target + index * numRows, source, length * sizeof(double));
+      } else {
+        size_t index = INTEGER(indexExpr)[0] - 1;
+        double* target = REAL(targetExpr);
+        double source = REAL(sourceExpr)[0];
+        target[index] = source;
+      }
+    } else if (IS_INTEGER(targetExpr)) {
+      if (!isNull(GET_DIM(targetExpr))) {
+        size_t numRows = INTEGER(GET_DIM(targetExpr))[0];
+        size_t index = INTEGER(indexExpr)[0] - 1;
+
+        size_t length = XLENGTH(sourceExpr);
+        int* target = INTEGER(targetExpr);
+        const int* source = INTEGER(sourceExpr);
+        std::memcpy(target + index * numRows, source, length * sizeof(int));
+      } else {
+        size_t index = INTEGER(indexExpr)[0] - 1;
+        int* target = INTEGER(targetExpr);
+        int source = INTEGER(sourceExpr)[0];
+        target[index] = source;
+      }
+    }
+    return NULL_USER_OBJECT;
+  }
   
 /*  static SEXP simulateContinuousUniform(SEXP nExpr)
   {
@@ -815,6 +851,7 @@ namespace {
     // experimental
     DEF_FUNC("dbarts_saveToFile", saveToFile, 2),
     DEF_FUNC("dbarts_loadFromFile", loadFromFile, 1),
+    DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
     // below: testing
 //    DEF_FUNC("dbarts_runif", simulateContinuousUniform, 1),
 //    DEF_FUNC("dbarts_runif", simulateContinuousUniformInternally, 1),

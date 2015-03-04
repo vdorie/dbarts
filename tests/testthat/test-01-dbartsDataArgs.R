@@ -181,3 +181,14 @@ test_that("test offset fills in control logicals depending on specification", {
   expect_that(sampler$data@offset.test[1:5], equals(otherOffset[1:5]))
   expect_that(sampler$data@testUsesRegularOffset, equals(FALSE))
 })
+
+source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"))
+
+test_that("bart creates viable sampler with formula, data specification", {
+  data <- data.frame(y = testData$y, x = testData$x)
+  modelFormula <- y ~ x.1 + x.2 + x.3
+  
+  expect_is(bart(modelFormula, data, nskip = 0L, ndpost = 1L, verbose = FALSE), "bart")
+  expect_is(bart(modelFormula, data[1:100,], data[101:200,], nskip = 0L, ndpost = 1L, verbose = FALSE), "bart")
+})
+

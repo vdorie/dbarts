@@ -330,7 +330,7 @@ dbartsSampler <-
                   
                   ptr <- getPointer()
                   if (columnIsMissing) {
-                    data@x.test <<- validateXTest(x.test, ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+                    data@x.test <<- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
                     .Call("dbarts_setTestPredictor", ptr, data@x.test)
                   } else {
                     x.test <- if (is.matrix(x.test)) matrix(as.double(x.test), nrow(x.test)) else as.double(x.test)
@@ -346,7 +346,7 @@ dbartsSampler <-
                    'Changes the test predictor matrix, and optionally the test offset.'
                    ptr <- getPointer()
 
-                   x.test <- validateXTest(x.test, ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+                   x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
 
                    if (!missing(offset.test)) {
                      if (is.null(x.test)) {
