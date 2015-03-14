@@ -618,7 +618,7 @@ namespace dbarts {
       p.rightChild->addObservationsToChildren(fit);
     }
   }
-	
+  
   void Node::setAverage(const BARTFit& fit, const double* y)
   {
     leftChild = NULL;

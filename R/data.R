@@ -111,7 +111,6 @@ parseData <- function(formula, data, test, subset, weights, offset, offset.test 
     modelFrameCall$drop.unused.levels <- FALSE
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     
-    browser()
     modelFrame <- eval(modelFrameCall, parent.frame())
     if (nrow(modelFrame) == 0) {
       if (!is.null(matchedCall$subset)) stop("invalid 'subset'")

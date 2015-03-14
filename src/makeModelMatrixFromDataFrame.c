@@ -10,6 +10,9 @@
 #include <Rinternals.h>
 
 #include <external/alloca.h>
+#include <external/linearAlgebra.h>
+
+#include <rc/util.h>
 
 typedef enum {
   REAL_VECTOR = 0,
@@ -23,7 +26,6 @@ typedef enum {
 } column_type;
 
 static bool numericVectorIsConstant(SEXP x, column_type t);
-static bool doubleVectorIsConstant(const double* d, size_t n);
 static bool integerVectorIsConstant(const int* i, size_t n);
 
 static size_t getNumRowsForDataFrame(SEXP x);
@@ -35,7 +37,6 @@ static int createMatrix(SEXP x, size_t numRows, SEXP result, const column_type* 
 static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, size_t levelIndex, SEXP resultNames, size_t resultIndex);
 
 
-static SEXP SET_DIMS(SEXP object, int numRows, int numCols);
 char* concatenateStrings(const char* s1, const char* s2);
 
 SEXP makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
@@ -75,7 +76,7 @@ SEXP makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   
   result = PROTECT(NEW_NUMERIC(numRows * numOutputColumns));
   ++protectCount;
-  SET_DIMS(result, (int) numRows, (int) numOutputColumns);
+  rc_setDims(result, (int) numRows, (int) numOutputColumns, -1);
   SET_DIMNAMES(result, NEW_LIST(2));
   SET_VECTOR_ELT(GET_DIMNAMES(result), 1, NEW_STRING(numOutputColumns));
   
@@ -145,7 +146,7 @@ static void tableFactor(SEXP x, int* instanceCounts)
 static bool numericVectorIsConstant(SEXP x, column_type t) {
   switch (t) {
     case REAL_VECTOR:
-    return doubleVectorIsConstant(REAL(x), (size_t) LENGTH(x));
+    return ext_vectorIsConstant(REAL(x), (size_t) LENGTH(x));
     case INTEGER_VECTOR:
     case LOGICAL_VECTOR:
     return integerVectorIsConstant(INTEGER(x), (size_t) LENGTH(x));
@@ -155,15 +156,9 @@ static bool numericVectorIsConstant(SEXP x, column_type t) {
   return false;
 }
 
-static bool doubleVectorIsConstant(const double* d, size_t n) {
-  for (size_t i = 1; i < n; ++i) {
-    if (d[i] != d[i - 1]) return false;
-  }
-  
-  return true;
-}
-
 static bool integerVectorIsConstant(const int* i, size_t n) {
+  if (n <= 1) return true;
+  
   for (size_t j = 1; j < n; ++j) {
     if (i[j] != i[j - 1]) return false;
   }
@@ -211,7 +206,7 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
             int* dropPattern = LOGICAL(VECTOR_ELT(dropPatternExpr, i));
             
             for (size_t j = 0; j < numCols; ++j) {
-              dropColumn = doubleVectorIsConstant(colData + j * numRows, numRows);
+              dropColumn = ext_vectorIsConstant(colData + j * numRows, numRows);
               dropPattern[j] = dropColumn;
               if (!dropColumn) *result += 1;
             }
@@ -457,18 +452,6 @@ static size_t getNumRowsForDataFrame(SEXP x)
   if (dims == NULL_USER_OBJECT) return (size_t) LENGTH(x_0);
   
   return (size_t) INTEGER(dims)[0];
-}
-
-static SEXP SET_DIMS(SEXP obj, int numRows, int numCols)
-{
-  SEXP dimsExp = NEW_INTEGER(2);
-  int* dims = INTEGER(dimsExp);
-  dims[0] = numRows;
-  dims[1] = numCols;
-  
-  SET_ATTR(obj, R_DimSymbol, dimsExp);
-  
-  return obj;
 }
 
 char* concatenateStrings(const char* s1, const char* s2)

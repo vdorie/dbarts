@@ -18,16 +18,22 @@
 #include <dbarts/types.hpp>
 #include <dbarts/R_C_interface.hpp>
 
-#include "makeModelMatrixFromDataFrame.h"
-
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 #include <external/random.h>
+
+#include <rc/bounds.h>
+#include <rc/util.h>
 
 #include <set>
 #ifdef THREAD_SAFE_UNLOAD
 #include <pthread.h>
 #endif
+
+#include "makeModelMatrixFromDataFrame.h"
+#include "xbart.hpp"
+
+#define Z_(_X_) static_cast<R_xlen_t>(_X_)
 
 using std::size_t;
 
@@ -49,8 +55,6 @@ namespace {
   SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
   void storeStateExpressionFromFit(const BARTFit& fit, SEXP stateExpr);
   
-  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, R_xlen_t length);
-  SEXP SET_DIMS(SEXP obj, int numRows, int numCols);
   bool isS4Null(SEXP expr);
   
   void deleteFit(BARTFit* fit);
@@ -583,6 +587,33 @@ namespace {
     return NULL_USER_OBJECT;
   }
   
+  SEXP setData(SEXP fitExpr, SEXP dataExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_setControl called on NULL external pointer");
+    
+    SEXP classExpr = GET_CLASS(dataExpr);
+    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_setData not of class 'dbartsData'");
+    
+    Data data;
+    initializeDataFromExpression(data, dataExpr);
+    
+    Data& oldData(fit->data);
+    
+    if (data.numPredictors != oldData.numPredictors) {
+      delete [] data.maxNumCuts;
+      delete [] data.variableTypes;
+      error("number of predictors between old and new data must be the same");
+    }
+    
+    fit->setData(data);
+    
+    delete [] oldData.maxNumCuts;
+    delete [] oldData.variableTypes;
+    
+    return R_NilValue;
+  }
+  
   SEXP setControl(SEXP fitExpr, SEXP controlExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
@@ -694,16 +725,10 @@ namespace {
     int i_temp;
     size_t numBurnIn, numSamples;
     
-    if (!isInteger(numBurnInExpr)) error("number of burn-in steps must be of integer type");
-    if (length(numBurnInExpr) == 0) error("number of burn-in steps must be of length at least 1");
-    i_temp = INTEGER(numBurnInExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp < 0) error("number of burn-in steps must be non-negative");
+    i_temp = rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GEQ, 0, RC_END);
     numBurnIn = i_temp == NA_INTEGER ? fit->control.numBurnIn : static_cast<size_t>(i_temp);
     
-    if (!isInteger(numSamplesExpr)) error("number of samples must be of integer type");
-    if (length(numSamplesExpr) == 0) error("number of samples must be of length at least 1");
-    i_temp = INTEGER(numSamplesExpr)[0];
-    if (i_temp != NA_INTEGER && i_temp < 0) error("number of samples must be non-negative");
+    i_temp = rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GEQ, 0, RC_END);    
     numSamples = i_temp == NA_INTEGER ? fit->control.numSamples : static_cast<size_t>(i_temp);
     
     if (numBurnIn == 0 && numSamples == 0) error("either number of burn-in or samples must be positive");
@@ -751,17 +776,17 @@ namespace {
     std::memcpy(REAL(sigmaSamples), const_cast<const double*>(bartResults->sigmaSamples), bartResults->getNumSigmaSamples() * sizeof(double));
     
     SEXP trainingSamples = VECTOR_ELT(resultExpr, 1);
-    SET_DIMS(trainingSamples, bartResults->numObservations, bartResults->numSamples);
+    rc_setDims(trainingSamples, static_cast<int>(bartResults->numObservations), static_cast<int>(bartResults->numSamples), -1);
     std::memcpy(REAL(trainingSamples), const_cast<const double*>(bartResults->trainingSamples), bartResults->getNumTrainingSamples() * sizeof(double));
     
     if (fit->data.numTestObservations > 0) {
       SEXP testSamples = VECTOR_ELT(resultExpr, 2);
-      SET_DIMS(testSamples, bartResults->numTestObservations, bartResults->numSamples);
+      rc_setDims(testSamples, static_cast<int>(bartResults->numTestObservations), static_cast<int>(bartResults->numSamples), -1);
       std::memcpy(REAL(testSamples), const_cast<const double*>(bartResults->testSamples), bartResults->getNumTestSamples() * sizeof(double));
     }
     
     SEXP variableCountSamples = VECTOR_ELT(resultExpr, 3);
-    SET_DIMS(variableCountSamples, bartResults->numPredictors, bartResults->numSamples);
+    rc_setDims(variableCountSamples, static_cast<int>(bartResults->numPredictors), static_cast<int>(bartResults->numSamples), -1);
     int* variableCountStorage = INTEGER(variableCountSamples);
     size_t length = bartResults->getNumVariableCountSamples();
     // these likely need to be down-sized from 64 to 32 bits
@@ -841,6 +866,7 @@ namespace {
     DEF_FUNC("dbarts_setTestOffset", setTestOffset, 2),
     DEF_FUNC("dbarts_setTestPredictorAndOffset", setTestPredictorAndOffset, 3),
     DEF_FUNC("dbarts_updateTestPredictor", updateTestPredictor, 3),
+    DEF_FUNC("dbarts_setData", setData, 2),
     DEF_FUNC("dbarts_setControl", setControl, 2),
     DEF_FUNC("dbarts_isValidPointer", isValidPointer, 1),
     DEF_FUNC("dbarts_createState", createState, 1),
@@ -859,6 +885,7 @@ namespace {
 //    DEF_FUNC("dbarts_rnorm", simulateNormalInternally, 1),
 //    DEF_FUNC("dbarts_rexp", simulateExponential, 1),
     DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", makeModelMatrixFromDataFrame, 2),
+    DEF_FUNC("dbarts_xbart", xbart, 9),
     { NULL, NULL, 0 }
   };
 
@@ -907,6 +934,7 @@ namespace {
     DEF_FUNC("setTestPredictorsAndOffset", dbarts_setTestPredictorAndOffset),
     DEF_FUNC("updateTestPredictor", dbarts_updateTestPredictor),
     DEF_FUNC("updateTestPredictors", dbarts_updateTestPredictors),
+    
     { NULL, 0 }
   };
   
@@ -937,26 +965,6 @@ extern "C" {
 namespace {
   using namespace dbarts;
   
-  SEXP ALLOC_SLOT(SEXP obj, SEXP nm, SEXPTYPE type, R_xlen_t length)
-  {
-    SEXP val = allocVector(type, length);
-    
-    SET_SLOT(obj, nm, val);
-    return val;
-  }
-  
-  SEXP SET_DIMS(SEXP obj, int numRows, int numCols)
-  {
-    SEXP dimsExp = NEW_INTEGER(2);
-    int* dims = INTEGER(dimsExp);
-    dims[0] = numRows;
-    dims[1] = numCols;
-    
-    SET_ATTR(obj, R_DimSymbol, dimsExp);
-    
-    return obj;
-  }
-  
   bool isS4Null(SEXP expr)
   {
     if (!isSymbol(expr)) return false;
@@ -973,25 +981,13 @@ namespace {
     int i_temp;
     
     SEXP slotExpr = GET_ATTR(controlExpr, install("binary"));
-    if (!isLogical(slotExpr)) error("binary response must be signified by logical type");
-    if (length(slotExpr) != 1) error("binary response signifier must be of length 1");
-    i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("binary response must be either true or false");
-    control.responseIsBinary = (i_temp != FALSE);
-    
+    control.responseIsBinary = rc_getBool(slotExpr, "binary response signifier", RC_LENGTH | RC_GEQ, Z_(1), RC_NA | RC_NO, RC_END);
+
     slotExpr = GET_ATTR(controlExpr, install("verbose"));
-    if (!isLogical(slotExpr)) error("verbose must be signified by logical type");
-    if (length(slotExpr) == 0) error("verbose must be of length at least 1");
-    i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("verbose must be either true or false");
-    control.verbose = (i_temp != FALSE);
+    control.verbose = rc_getBool(slotExpr, "verbose", RC_LENGTH | RC_GEQ, Z_(1), RC_NA | RC_NO, RC_END);
     
     slotExpr = GET_ATTR(controlExpr, install("keepTrainingFits"));
-    if (!isLogical(slotExpr)) error("keep training fits must be signified by logical type");
-    if (length(slotExpr) != 1) error("keep training fits must be of length 1");
-    i_temp = LOGICAL(slotExpr)[0];
-    if (i_temp == NA_LOGICAL) error("keep training fits must be either true or false");
-    control.keepTrainingFits = (i_temp != FALSE);
+    control.keepTrainingFits = rc_getBool(slotExpr, "keep training fits", RC_LENGTH | RC_GEQ, Z_(1), RC_NA | RC_NO, RC_END);
     
     slotExpr = GET_ATTR(controlExpr, install("useQuantiles"));
     if (!isLogical(slotExpr)) error("use quantiles must be signified by logical type");
@@ -1258,27 +1254,27 @@ namespace {
     
     SEXP result = PROTECT(NEW_OBJECT(MAKE_CLASS("dbartsState")));
     
-    SEXP slotExpr = ALLOC_SLOT(result, install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
-    SET_DIMS(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees));
+    SEXP slotExpr = rc_allocateInSlot(result, install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
+    rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
-    slotExpr = ALLOC_SLOT(result, install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
+    slotExpr = rc_allocateInSlot(result, install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
     if (data.numTestObservations == 0) {
       SET_SLOT(result, install("fit.test"), NULL_USER_OBJECT);
     } else {
-      slotExpr = ALLOC_SLOT(result, install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
+      slotExpr = rc_allocateInSlot(result, install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
-    slotExpr = ALLOC_SLOT(result, install("sigma"), REALSXP, 1);
+    slotExpr = rc_allocateInSlot(result, install("sigma"), REALSXP, 1);
     REAL(slotExpr)[0] = state.sigma;
     
-    slotExpr = ALLOC_SLOT(result, install("runningTime"), REALSXP, 1);
+    slotExpr = rc_allocateInSlot(result, install("runningTime"), REALSXP, 1);
     REAL(slotExpr)[0] = state.runningTime;
     
-    slotExpr = ALLOC_SLOT(result, install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
+    slotExpr = rc_allocateInSlot(result, install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
 
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {

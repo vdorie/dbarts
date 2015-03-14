@@ -1,12 +1,12 @@
 #ifndef XBART_HPP
 #define XBART_HPP
 
-#include <R.h>
-#include <Rdefines.h>
+#include <Rdefines.h> // SEXP
 
-extern "C" {
+namespace dbarts {
 
-SEXP xbart(SEXP fitExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP ntreeExpr, SEXP dropExpr);
+  SEXP xbart(SEXP fitExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP ntreeExpr, SEXP nskipExpr,
+             SEXP KExpr, SEXP resultTypeExpr, SEXP dropExpr);
 
 }
 

@@ -144,6 +144,7 @@ namespace dbarts {
         ext_addVectorsInPlace(treeFits, data.numObservations, -1.0, state.totalFits);
         
         state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions[i], treeFits, NULL);
+        for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j) updateVariablesAvailable(*this, state.trees[i].top, j);
         
         ext_addVectorsInPlace(treeFits, data.numObservations, 1.0, state.totalFits);
       }
@@ -226,6 +227,7 @@ namespace dbarts {
         ext_addVectorsInPlace(treeFits, data.numObservations, -1.0, state.totalFits);
         
         state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions[i], treeFits, NULL);
+        for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j) updateVariablesAvailable(*this, state.trees[i].top, j);
         
         ext_addVectorsInPlace(treeFits, data.numObservations, 1.0, state.totalFits);
       }
@@ -395,19 +397,40 @@ namespace dbarts {
       ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
     }
 
-    
     for (size_t i = 0; i < control.numTrees; ++i) {
       const double* oldTreeFits_i = oldTreeFits + i * oldNumObservations;
       
+      // ext_printf("updating tree %lu\n", i);
+      state.trees[i].top.enumerateBottomNodes();
+      
       // next allocates memory
       double* nodePosteriorPredictions = state.trees[i].recoverAveragesFromFits(*this, oldTreeFits_i);
-      state.trees[i].mapOldCutPointsOntoNew(*this, oldCutPoints);
-      if (oldNumObservations != data.numObservations)
+      // size_t numBottomNodes = state.trees[i].top.getNumBottomNodes();
+      //ext_printf("  post preds before: %f", nodePosteriorPredictions[0]);
+      //for (size_t i = 1; i < numBottomNodes; ++i) {
+      //  ext_printf(", %f", nodePosteriorPredictions[i]);
+      //}
+      //ext_printf("\n"); 
+      //ext_printf("  mapping cut points\n");
+      
+      state.trees[i].mapOldCutPointsOntoNew(*this, oldCutPoints, nodePosteriorPredictions);
+      if (oldNumObservations != data.numObservations) {
         state.trees[i].top.observationIndices = state.treeIndices + i * data.numObservations;
+        state.trees[i].top.numObservations = data.numObservations;
+      }
+      // ext_printf("  adding obs\n");
       state.trees[i].top.addObservationsToChildren(*this);
+      // ext_printf("  collapsing empty\n");
       state.trees[i].collapseEmptyNodes(*this, nodePosteriorPredictions);
+      //ext_printf("  updating vars available\n");
+      for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j) updateVariablesAvailable(*this, state.trees[i].top, j);
       
       double* currTreeFits = state.treeFits + i * data.numObservations;
+      // ext_printf("  post preds after: %f", nodePosteriorPredictions[0]);
+      // for (size_t i = 1; i < numBottomNodes; ++i) {
+      //   ext_printf(", %f", nodePosteriorPredictions[i]);
+      // }
+      // ext_printf("\n"); 
       state.trees[i].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, currTreeFits, currTestFits);
       ext_addVectorsInPlace(currTreeFits, data.numObservations, 1.0, state.totalFits);
       

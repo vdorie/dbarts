@@ -1,6 +1,7 @@
 #ifndef EXTERNAL_LINEAR_ALGEBRA_H
 #define EXTERNAL_LINEAR_ALGEBRA_H
 
+#include <stdbool.h>
 #include "stddef.h"
 #include <stdint.h>
 
@@ -21,6 +22,7 @@ extern "C" {
   
   // x: = alpha
   void ext_setVectorToConstant(double* x, ext_size_t length, double alpha);
+  bool ext_vectorIsConstant(const double* d, ext_size_t length);
   void ext_setIndexedVectorToConstant(double* restrict x, const ext_size_t* restrict indices, ext_size_t length, double alpha);
   
   // x := alpha * x

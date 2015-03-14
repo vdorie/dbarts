@@ -1,4 +1,4 @@
-#include <external/rc.h>
+#include <rc/bounds.h>
 
 #include <limits.h> // INT_MAX
 #include <math.h>   // isnan
@@ -171,13 +171,13 @@ void rc_checkInts(SEXP x, const char* name, ...)
       {
         _rc_boundType boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
-        for (size_t i = 0; i < length; ++i) checkIntConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) checkIntConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
       {
         rc_naAllowableType naOK = BOUND(arg);
-        for (size_t i = 0; i < length; ++i)
+        for (size_t i = 0; i < (size_t) length; ++i)
           if (results[i] == NA_INTEGER && naOK == RC_NO) error("%s cannot be NA", name);
       }
       default:
@@ -189,9 +189,9 @@ void rc_checkInts(SEXP x, const char* name, ...)
   va_end(argsPointer);
 }
 
-int rc_getDouble(SEXP x, const char* name, ...)
+double rc_getDouble(SEXP x, const char* name, ...)
 {
-  if (!IS_REAL(x)) error("%s must be of type real", name);
+  if (!IS_NUMERIC(x)) error("%s must be of type real", name);
   
   R_xlen_t length = XLENGTH(x);
   va_list argsPointer;
@@ -267,7 +267,7 @@ int rc_getDouble(SEXP x, const char* name, ...)
 
 void rc_checkDoubles(SEXP x, const char* name, ...)
 {
-  if (!IS_REAL(x)) error("%s must be of type real", name);
+  if (!IS_NUMERIC(x)) error("%s must be of type real", name);
   
   R_xlen_t length = XLENGTH(x);
   va_list argsPointer;
@@ -324,13 +324,13 @@ void rc_checkDoubles(SEXP x, const char* name, ...)
       {
         _rc_boundType boundType = BOUND(arg);
         double valueBound = va_arg(argsPointer, double);
-        for (size_t i = 0; i < length; ++i) checkDoubleConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) checkDoubleConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
       {
         rc_naAllowableType naOK = BOUND(arg);
-        for (size_t i = 0; i < length; ++i)
+        for (size_t i = 0; i < (size_t) length; ++i)
           if ((isnan(results[i]) || results[i] == NA_REAL) && naOK == RC_NO) error("%s cannot be NA", name);
       }
       default:
@@ -399,7 +399,7 @@ bool rc_getBool(SEXP x, const char* name, ...)
       case RC_VALUE:
       {
         int valueBound = va_arg(argsPointer, int);
-        checkLogicalConstraint(name, BOUND(arg), result, valueBound);
+        checkBoolConstraint(name, BOUND(arg), result, valueBound);
       }
       break;
       case RC_NA:
@@ -477,13 +477,13 @@ void rc_checkBools(SEXP x, const char* name, ...)
       {
         _rc_boundType boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
-        for (size_t i = 0; i < length; ++i) checkBoolConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) checkBoolConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
       {
         rc_naAllowableType naOK = BOUND(arg);
-        for (size_t i = 0; i < length; ++i)
+        for (size_t i = 0; i < (size_t) length; ++i)
           if (results[i] == NA_INTEGER && naOK == RC_NO) error("%s cannot be NA", name);
       }
       default:

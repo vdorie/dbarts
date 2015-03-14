@@ -64,6 +64,18 @@ void ext_setVectorToConstant(double* x, size_t length, double alpha)
   }
 }
 
+bool ext_vectorIsConstant(const double* x, size_t length)
+{
+  if (length <= 1) return true;
+  
+  for (size_t i = 1; i < length; ++i) {
+    if (x[i] != x[i - 1]) return false;
+  }
+  
+  return true;
+}
+
+
 void ext_setIndexedVectorToConstant(double* restrict x, const size_t* restrict indices, size_t length, double alpha)
 {
   if (length == 0) return;
