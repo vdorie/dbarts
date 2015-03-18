@@ -47,6 +47,8 @@ setDefaultsFromFormals <- function(call, formals, ...)
   call
 }
 
+is.formula <- function(x) is.language(x) && x[[1]] == '~'
+
 ## from lme4
 namedList <- function(...) {
   result <- list(...)
