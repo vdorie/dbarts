@@ -108,13 +108,24 @@ namespace {
   {
     if (IS_NUMERIC(targetExpr)) {
       if (!isNull(GET_DIM(targetExpr))) {
-        size_t numRows = INTEGER(GET_DIM(targetExpr))[0];
-        size_t index = INTEGER(indexExpr)[0] - 1;
+        SEXP dimsExpr = GET_DIM(targetExpr);
+        R_xlen_t numDims = XLENGTH(dimsExpr);
+        if (XLENGTH(indexExpr) != numDims - 1) error("all but the first array dimension must be specified");
+        
+        int* dims = INTEGER(dimsExpr);
+        int* indices = INTEGER(indexExpr);
+       
+        size_t offset = 0;
+        size_t stride = dims[0];
+        for (R_xlen_t i = 0; i < numDims - 1; ++i) {
+          offset += (indices[i] - 1) * stride;
+          stride *= dims[i + 1];
+        }
         
         size_t length = XLENGTH(sourceExpr);
         double* target = REAL(targetExpr);
         const double* source = REAL(sourceExpr);
-        std::memcpy(target + index * numRows, source, length * sizeof(double));
+        std::memcpy(target + offset, source, length * sizeof(double));
       } else {
         size_t index = INTEGER(indexExpr)[0] - 1;
         double* target = REAL(targetExpr);
@@ -123,13 +134,24 @@ namespace {
       }
     } else if (IS_INTEGER(targetExpr)) {
       if (!isNull(GET_DIM(targetExpr))) {
-        size_t numRows = INTEGER(GET_DIM(targetExpr))[0];
-        size_t index = INTEGER(indexExpr)[0] - 1;
-
+        SEXP dimsExpr = GET_DIM(targetExpr);
+        R_xlen_t numDims = XLENGTH(dimsExpr);
+        if (XLENGTH(indexExpr) != numDims - 1) error("all but the first array dimension must be specified");
+        
+        int* dims = INTEGER(dimsExpr);
+        int* indices = INTEGER(indexExpr);
+       
+        size_t offset = 0;
+        size_t stride = dims[0];
+        for (R_xlen_t i = 0; i < numDims - 1; ++i) {
+          offset += (indices[i] - 1) * stride;
+          stride *= dims[i + 1];
+        }
+        
         size_t length = XLENGTH(sourceExpr);
         int* target = INTEGER(targetExpr);
         const int* source = INTEGER(sourceExpr);
-        std::memcpy(target + index * numRows, source, length * sizeof(int));
+        std::memcpy(target + offset, source, length * sizeof(int));
       } else {
         size_t index = INTEGER(indexExpr)[0] - 1;
         int* target = INTEGER(targetExpr);
