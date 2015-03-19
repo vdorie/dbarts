@@ -883,7 +883,7 @@ namespace {
       if (yRescaled[i] > scratch.dataScale.max) scratch.dataScale.max = yRescaled[i];
     }
     scratch.dataScale.range = scratch.dataScale.max - scratch.dataScale.min;
-    if (scratch.dataScale.max - scratch.dataScale.min) scratch.dataScale.range = 1.0;
+    if (scratch.dataScale.max == scratch.dataScale.min) scratch.dataScale.range = 1.0;
         
     // yRescaled = (y - offset - min) / (max - min) - 0.5
     ext_addScalarToVectorInPlace(   yRescaled, data.numObservations, -scratch.dataScale.min);
