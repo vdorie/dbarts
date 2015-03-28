@@ -27,7 +27,8 @@ validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, dro
 {
   if (is.null(x.test)) return(x.test)
   if (is.data.frame(x.test)) {
-    if (!is.null(termLabels)) x.test <- x.test[,termLabels]
+    if (!is.null(termLabels))
+      x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test)
     x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
   }
   if (!is.matrix(x.test)) x.test <- as.matrix(x.test)

@@ -89,8 +89,8 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   
   data <- new("dbartsData", modelMatrices, attr(control, "n.cuts"), sigma)
   attr(control, "n.cuts") <- NULL
-  if (is.na(data@sigma))
-    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights))$sigma
+  if (is.na(data@sigma) && !control@binary)
+    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
 
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
