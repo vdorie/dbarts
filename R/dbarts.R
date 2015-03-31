@@ -84,11 +84,12 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   if (control@call != call("NA")[[1]]) control@call <- matchedCall
   control@verbose <- verbose
 
-  parseDataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(parseData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")
-  modelMatrices <- eval(parseDataCall, parent.frame(1L))
-  
-  data <- new("dbartsData", modelMatrices, attr(control, "n.cuts"), sigma)
+  dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")
+  data <- eval(dataCall, parent.frame(1L))
+  data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
+  data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
+  
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
 

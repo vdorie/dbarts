@@ -35,6 +35,18 @@ addCallArgument <- function(call, position, argument)
   call
 }
 
+subTermInLanguage <- function(lang, oldTerm, newTerm)
+{
+  for (i in seq_along(lang)) {
+    if (is.symbol(lang[[i]])) {
+      if (lang[[i]] == oldTerm) lang[[i]] <- newTerm
+    } else if (is.language(lang[[i]])) {
+      lang[[i]] <- subTermInLanguage(lang[[i]], oldTerm, newTerm)
+    }
+  }
+  return(lang)
+}
+
 setDefaultsFromFormals <- function(call, formals, ...)
 {
   argsToReplace <- list(...)

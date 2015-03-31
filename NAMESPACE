@@ -2,6 +2,7 @@ useDynLib(dbarts)
 
 export(dbarts, bart)
 export(dbartsControl)
+export(dbartsData)
 export(pdbart, pd2bart, plot.bart)
 
 export(makeind, makeModelMatrixFromDataFrame)

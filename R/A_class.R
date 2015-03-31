@@ -146,7 +146,7 @@ setClass("dbartsData",
              if (any(object@weights <= 0.0)) return("'weights' must all be positive")
            }
            if (!is.null(object@offset) && length(object@offset) != numObservations) return("'offset' must be null or have length equal to that of 'y'")
-           if (!is.na(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
+           if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
            
            if (!is.na(object@sigma) && object@sigma <= 0.0) return("'sigma' must be positive")
          })
