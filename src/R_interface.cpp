@@ -620,7 +620,7 @@ namespace {
     Data data;
     initializeDataFromExpression(data, dataExpr);
     
-    Data& oldData(fit->data);
+    Data oldData = fit->data;
     
     if (data.numPredictors != oldData.numPredictors) {
       delete [] data.maxNumCuts;
@@ -666,6 +666,40 @@ namespace {
     pthread_mutex_unlock(&fitMutex);
 #endif
     return ScalarLogical(FALSE);
+  }
+  
+  SEXP printTrees(SEXP fitExpr, SEXP treeIndicesExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) error("dbarts_printTrees called on NULL external pointer");
+    
+    size_t numTrees = fit->control.numTrees;
+    size_t* treeIndices;
+    
+    if (isNull(treeIndicesExpr)) {
+      treeIndices = ext_stackAllocate(fit->control.numTrees, size_t);
+      for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
+      
+      fit->printTrees(treeIndices, fit->control.numTrees);
+      
+      ext_stackFree(treeIndices);
+      return R_NilValue;
+    }
+    
+    if (XLENGTH(treeIndicesExpr) == 0) return R_NilValue;
+    
+    rc_checkInts(treeIndicesExpr, "tree indices", RC_VALUE | RC_GT, Z_(0), RC_VALUE | RC_LEQ, Z_(numTrees), RC_NA | RC_NO, RC_END);
+    
+    size_t numIndices = static_cast<size_t>(XLENGTH(treeIndicesExpr));
+    treeIndices = ext_stackAllocate(numIndices, size_t);
+    int* i_treeIndices = INTEGER(treeIndicesExpr);
+    for (size_t i = 0; i < numIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
+    
+    fit->printTrees(treeIndices, numIndices);
+    
+    ext_stackFree(treeIndices);
+    
+    return R_NilValue;
   }
   
   SEXP create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
@@ -880,6 +914,7 @@ namespace {
   R_CallMethodDef R_callMethods[] = {
     DEF_FUNC("dbarts_create", create, 3),
     DEF_FUNC("dbarts_run", run, 3),
+    DEF_FUNC("dbarts_printTrees", printTrees, 2),
     DEF_FUNC("dbarts_setResponse", setResponse, 2),
     DEF_FUNC("dbarts_setOffset", setOffset, 2),
     DEF_FUNC("dbarts_setPredictor", setPredictor, 2),
@@ -1318,17 +1353,28 @@ namespace {
     SEXP dimsExpr = GET_DIM(slotExpr);
     if (XLENGTH(dimsExpr) != 2) error("dimensions of state@fit.tree indicate that it is not a matrix");
     int* dims = INTEGER(dimsExpr);
-    if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) error("dimensions of state@fit.tree do not match object");
+    if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
+      // error("dimensions of state@fit.tree do not match object");
+      slotExpr = rc_allocateInSlot(stateExpr, install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
+      rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
+      
+      rc_allocateInSlot(stateExpr, install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
+      rc_allocateInSlot(stateExpr, install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
+    }
     std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
     
     slotExpr = GET_ATTR(stateExpr, install("fit.total"));
     if (static_cast<size_t>(XLENGTH(slotExpr)) != data.numObservations) error("length of state@fit.total does not match object");
     std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
     
+    slotExpr = GET_ATTR(stateExpr, install("fit.test"));
     if (data.numTestObservations != 0) {
-      slotExpr = GET_ATTR(stateExpr, install("fit.test"));
-      if (static_cast<size_t>(XLENGTH(slotExpr)) != data.numTestObservations) error("length of state@fit.test does not match object");
+      // error("length of state@fit.test does not match object");
+      if (!isNull(slotExpr) && static_cast<size_t>(XLENGTH(slotExpr)) != data.numTestObservations)
+        slotExpr = rc_allocateInSlot(stateExpr, install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
       std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
+    } else {
+      R_do_slot_assign(stateExpr, install("fit.test"), R_NilValue);
     }
     
     slotExpr = GET_ATTR(stateExpr, install("sigma"));
@@ -1340,7 +1386,7 @@ namespace {
     REAL(slotExpr)[0] = state.runningTime;
     
     slotExpr = GET_ATTR(stateExpr, install("trees"));
-    if (static_cast<size_t>(XLENGTH(slotExpr)) != control.numTrees) error("length of state@trees does not match object");
+    // if (static_cast<size_t>(XLENGTH(slotExpr)) != control.numTrees) error("length of state@trees does not match object");
     
     const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
     for (size_t i = 0; i < control.numTrees; ++i) {
@@ -1394,8 +1440,8 @@ namespace {
     delete fit->model.muPrior;
     delete fit->model.sigmaSqPrior;
     
-    delete [] fit->data.variableTypes;
     delete [] fit->data.maxNumCuts;
+    delete [] fit->data.variableTypes;
     
     delete fit;
   }

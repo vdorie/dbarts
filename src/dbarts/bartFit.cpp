@@ -451,6 +451,22 @@ namespace dbarts {
     ext_stackFree(oldCutPoints);
   }
   
+  void BARTFit::printTrees(const size_t* indices, size_t numIndices) const {
+    for (size_t i = 0; i < numIndices; ++i) {
+      size_t treeNum = indices[i];
+      
+      const double* treeFits = state.treeFits + treeNum * data.numObservations;
+      double* nodePosteriorPredictions = state.trees[treeNum].recoverAveragesFromFits(*this, treeFits);
+      
+      NodeVector bottomNodes(const_cast<Tree*>(state.trees + treeNum)->top.getBottomVector());
+      size_t numBottomNodes = bottomNodes.size();
+      for (size_t j = 0; j < numBottomNodes; ++j) bottomNodes[j]->setAverage(nodePosteriorPredictions[j]);
+      delete [] nodePosteriorPredictions;
+      
+      state.trees[treeNum].top.print(*this);
+    }
+  }
+  
   BARTFit::BARTFit(Control control, Model model, Data data) :
     control(control), model(model), data(data), scratch(), state(), threadManager(NULL)
   {

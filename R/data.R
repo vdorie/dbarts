@@ -97,8 +97,9 @@ findTermInFormulaData <- function(formula, data, term)
   NULL
 }
 
+## this used to be a function evaluated in the caller's frame, but
+## that causes warnings in R check so now it is just a block of code
 getTestOffset <- quote({
-#getTestOffset <- function() {
   if (is.numeric(matchedCall$offset.test))
     return(namedList(offset.test, testUsesRegularOffset = FALSE))
   if (is.null(matchedCall$offset.test))

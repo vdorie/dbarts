@@ -26,7 +26,7 @@ namespace {
 #include <dbarts/scratch.hpp>
 #include "dbarts/node.hpp"
 #include "dbarts/tree.hpp"
-#include <cstdint>
+#include <dbarts/cstdint.hpp>
 
 namespace {
   

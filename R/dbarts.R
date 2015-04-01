@@ -222,7 +222,7 @@ dbartsSampler <-
                 setControl = function(newControl) {
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'
                   
-                  if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl.")
+                  if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl")
 
                   newControl@binary <- control@binary
                   newControl@call   <- control@call
@@ -230,6 +230,23 @@ dbartsSampler <-
                   ptr <- getPointer()
                   control <<- newControl
                   .Call("dbarts_setControl", ptr, control)
+                  
+                  invisible(NULL)
+                },
+                setData = function(newData, updateState = NA) {
+                  'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
+                  
+                  if (!inherits(newData, "dbartsData")) stop("'data' must inherit from dbartsData")
+                  
+                  newData@n.cuts <- data@n.cuts
+                  newData@sigma  <- data@sigma
+                  
+                  ptr <- getPointer()
+                  data <<- newData
+                  .Call("dbarts_setData", ptr, data)
+                  
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
                   
                   invisible(NULL)
                 },
@@ -441,6 +458,41 @@ dbartsSampler <-
                     .Call("dbarts_storeState", ptr, state)
                   }
 
+                  invisible(NULL)
+                },
+                printTrees = function(treeNums = seq_len(control@n.trees)) {
+                  'Produces an info dump of the internal state of the trees.'
+                  
+                  ptr <- getPointer()
+                  invisible(.Call("dbarts_printTrees", ptr, as.integer(treeNums)))
+                },
+                plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
+                  'Minimialist visualization of tree branching and contents.'
+                  
+                  cutPoints <- createCutPoints(.self)
+  
+                  tree <- buildTree(strsplit(gsub("\\.", "\\. ", state@trees[treeNum]), " ", fixed = TRUE)[[1]])
+                  tree$remainder <- NULL
+                  
+                  tree$indices <- seq_len(nrow(data@x))
+                  tree <- fillObservationsForNode(tree, .self, cutPoints)
+                  
+                  tree <- fillPlotInfoForNode(tree, .self, state@fit.tree[,treeNum])
+                  
+                  maxDepth <- getMaxDepth(tree)
+                  
+                  tree <- fillPlotCoordinatesForNode(tree, maxDepth, 1L, 1L)
+                  numEndNodes <- tree$index - 1L
+                  tree$index <- NULL
+                  
+                  plotHeight <- treePlotPars$nodeHeight * maxDepth + treePlotPars$nodeGap * (maxDepth - 1)
+                  dotsList <- list(...)
+                  dotsList$mar = c(0, 0, 0, 0)
+                  par(dotsList)
+                  plot(NULL, type = "n", bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "",
+                       xlim = c(0, treePlotPars$nodeWidth * numEndNodes), ylim = c(0, plotHeight))
+                  plotNode(tree, .self, cutPoints, treePlotPars)
+                  
                   invisible(NULL)
                 })
               )
