@@ -942,7 +942,7 @@ namespace {
 //    DEF_FUNC("dbarts_rnorm", simulateNormalInternally, 1),
 //    DEF_FUNC("dbarts_rexp", simulateExponential, 1),
     DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", makeModelMatrixFromDataFrame, 2),
-    DEF_FUNC("dbarts_xbart", xbart, 9),
+    DEF_FUNC("dbarts_xbart", xbart, 10),
     { NULL, NULL, 0 }
   };
 
