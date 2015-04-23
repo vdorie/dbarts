@@ -118,6 +118,7 @@ namespace dbarts {
     size_t getNumObservations() const;
     void addObservationsToChildren(const BARTFit& fit);
     void addObservationsToChildren(const BARTFit& fit, const double* y); // computes averages in bottom nodes as it goes
+    void setObservationIndices(size_t* indices);
     void clearObservations();
     void clear();
     
@@ -173,6 +174,7 @@ namespace dbarts {
 #endif
   inline void Node::setAverage(double newAverage) { leftChild = NULL; m.average = newAverage; }
   inline void Node::setNumEffectiveObservations(double n) { leftChild = NULL; m.numEffectiveObservations = n; }
+  inline void Node::setObservationIndices(size_t* indices) { observationIndices = indices; }
   
   inline bool Rule::categoryGoesRight(uint32_t categoryId) const { return ((1u << categoryId) & categoryDirections) != 0; }
   inline void Rule::setCategoryGoesRight(uint32_t categoryId) { categoryDirections |= (1u << categoryId); }

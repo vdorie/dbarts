@@ -2,6 +2,7 @@
 
 #include <cstddef> // size_t
 #include <cstring> // memcpy
+#include <cmath>   // sqrt
 #include <algorithm> // sort
 
 #include <external/random.h>
@@ -12,6 +13,7 @@
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>
 #include <dbarts/data.hpp>
+#include <dbarts/model.hpp>
 
 #include <Rinternals.h> // R_xlen_t
 
@@ -33,29 +35,38 @@ namespace {
 #include "dbarts/tree.hpp"
 
 namespace {
-  
+  SEXP allocateResult(bool dropUnusedDims, size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps);
   void allocateDataStorage(const Data& origData, Data& repData, size_t inSampleSize, size_t outSampleSize);
+  void allocateModelStorage(const Model& origModel, Model& repModel);
   void divideData(const Data& origData, Data& repData, double* targetY, size_t inSampleSize, size_t outSampleSize, const size_t* permutation);
   void freeDataStorage(Data& repData);
+  void freeModelStorage(Model& repModel);
+  
+  /* struct ResultsCalculator {
+    size_t (*getNumResults)(void);
+    void (*computeResults)(const double* response, size_t numResponse, const double* predictions, size_t numPredictions, double* results);
+    void* storage;
+  }; */
 }
 
 namespace dbarts {
   
-  SEXP xbart(SEXP fitExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP ntreeExpr, SEXP nskipExpr,
+  SEXP xbart(SEXP fitExpr, SEXP ntreeExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP nskipExpr,
              SEXP KExpr, SEXP nrepsExpr, SEXP resultTypeExpr, SEXP dropExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("xbart called on NULL external pointer");
     
-    Control& control(fit->control);
-    Data origData = fit->data;
+    Control origControl = fit->control;
+    Data    origData    = fit->data;
+    Model   origModel   = fit->model;
     
     if (origData.numObservations == 0) error("xbart called on empty data set");
     
+    rc_checkInts(ntreeExpr, "num trees", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GT, 0, RC_NA | RC_NO, RC_END);
     rc_checkDoubles(kExpr, "k", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GT, 0.0, RC_NA | RC_NO, RC_END);
     rc_checkDoubles(powerExpr, "power", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GT, 0.0, RC_NA | RC_NO, RC_END);
     rc_checkDoubles(baseExpr, "power", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_NA | RC_NO, RC_END);
-    rc_checkInts(ntreeExpr, "num trees", RC_LENGTH | RC_GEQ, Z_(1), RC_VALUE | RC_GT, 0, RC_NA | RC_NO, RC_END);
     rc_checkInts(nskipExpr, "num skip",  RC_LENGTH | RC_GEQ, Z_(1), RC_LENGTH | RC_LEQ, Z_(2), RC_VALUE | RC_GEQ, 0, RC_NA | RC_NO, RC_END);
     
     size_t numFolds = static_cast<size_t>(
@@ -69,43 +80,27 @@ namespace dbarts {
     size_t outSampleSize = origData.numObservations / numFolds;
     size_t inSampleSize  = origData.numObservations - outSampleSize;
     
+    size_t numNTrees = rc_getLength(ntreeExpr);
     size_t numKs     = rc_getLength(kExpr);
     size_t numPowers = rc_getLength(powerExpr);
     size_t numBases  = rc_getLength(baseExpr);
-    size_t numNTrees = rc_getLength(ntreeExpr);
     
+    int* ntree = INTEGER(ntreeExpr);    
     double* k     = REAL(kExpr);
     double* power = REAL(powerExpr);
     double* base  = REAL(baseExpr);
-    int* ntree = INTEGER(ntreeExpr);
     
-    SEXP resultExpr = PROTECT(allocVector(REALSXP, numKs * numPowers * numBases * numNTrees * numReps));
-    if (dropUnusedDims) {
-      size_t numDims = 1 + (numKs > 1 ? 1 : 0) + (numPowers > 1 ? 1 : 0) + (numBases > 1 ? 1 : 0) + (numNTrees > 1 ? 1 : 0);
-      if (numDims > 1) {
-        SEXP dimsExpr = allocVector(INTSXP, numDims);
-        int* dims = INTEGER(dimsExpr);
-        numDims = 0;
-        if (numKs > 0)     dims[numDims++] = static_cast<int>(numKs);
-        if (numPowers > 0) dims[numDims++] = static_cast<int>(numPowers);
-        if (numBases > 0)  dims[numDims++] = static_cast<int>(numBases);
-        if (numNTrees > 0) dims[numDims++] = static_cast<int>(numNTrees);
-        dims[numDims] = static_cast<int>(numReps);
-        
-        R_do_slot_assign(resultExpr, R_DimSymbol, dimsExpr);
-      }
-    } else {
-      rc_setDims(resultExpr, static_cast<int>(numKs), static_cast<int>(numPowers), static_cast<int>(numBases),
-                 static_cast<int>(numNTrees), static_cast<int>(numReps), -1);
-    }
-    
+    SEXP resultExpr = allocateResult(dropUnusedDims, numNTrees, numKs, numPowers, numBases, numReps); // increases protect count by 1
     double* result = REAL(resultExpr);
     
     Data repData;
-    allocateDataStorage(origData, repData, inSampleSize, outSampleSize);
-    double* targetY = new double[outSampleSize];
+    Control repControl = fit->control;
+    Model repModel;
     
-    double* probabilities = new double[control.numSamples];
+    allocateDataStorage(origData, repData, inSampleSize, outSampleSize);
+    allocateModelStorage(origModel, repModel);
+    double* targetY = new double[outSampleSize];
+    double* probabilities = new double[origControl.numSamples];
     
     size_t* permutation = new size_t[origData.numObservations];
     for (size_t i = 0; i < origData.numObservations; ++i) permutation[i] = i;
@@ -115,13 +110,23 @@ namespace dbarts {
     
     size_t resultIndex = 0;
     
-    for (size_t kIndex = 0; kIndex < numKs; ++kIndex) {
-      for (size_t pIndex = 0; pIndex < numPowers; ++pIndex) {
-        for (size_t bIndex = 0; bIndex < numBases; ++bIndex) {
-          // for (size_t nIndex = 0; nIndex < numNTrees; ++nIndex) {
+    for (size_t nIndex = 0; nIndex < numNTrees; ++nIndex) {
+      repControl.numTrees = static_cast<size_t>(ntree[nIndex]);
+      fit->setControl(repControl);
+      
+      for (size_t kIndex = 0; kIndex < numKs; ++kIndex) {
+        double endNodeSd = (origControl.responseIsBinary ? 3.0 : 0.5) /  (k[kIndex] * std::sqrt(static_cast<double>(repControl.numTrees)));
+        static_cast<NormalPrior*>(repModel.muPrior)->precision = 1.0 / (endNodeSd * endNodeSd);
+        
+        for (size_t pIndex = 0; pIndex < numPowers; ++pIndex) {
+          static_cast<CGMPrior*>(repModel.treePrior)->power = power[pIndex];
+          
+          for (size_t bIndex = 0; bIndex < numBases; ++bIndex) {
+            static_cast<CGMPrior*>(repModel.treePrior)->base = base[bIndex];
+            fit->setModel(repModel);
             
             for (size_t repIndex = 0; repIndex < numReps; ++repIndex) {
-              permuteIndexArray(control.rng, permutation, origData.numObservations);
+              permuteIndexArray(origControl.rng, permutation, origData.numObservations);
               std::sort(permutation, permutation + outSampleSize);
               std::sort(permutation + outSampleSize, permutation + origData.numObservations);
               
@@ -129,13 +134,13 @@ namespace dbarts {
               
               fit->setData(repData);
               
-              Results* samples = fit->runSampler(resultIndex == 0 ? numInitialBurnIn : numSubsequentBurnIn, control.numSamples);
+              Results* samples = fit->runSampler(resultIndex == 0 ? numInitialBurnIn : numSubsequentBurnIn, origControl.numSamples);
               size_t tp = 0, fp = 0, tn = 0, fn = 0;
               for (size_t i = 0; i < outSampleSize; ++i) {
-                for (size_t j = 0; j < control.numSamples; ++j) {
-                  probabilities[j] = ext_cumulativeProbabilityOfNormal(samples->trainingSamples[j + i * control.numSamples], 0.0, 1.0);
+                for (size_t j = 0; j < origControl.numSamples; ++j) {
+                  probabilities[j] = ext_cumulativeProbabilityOfNormal(samples->trainingSamples[j + i * origControl.numSamples], 0.0, 1.0);
                 }
-                double prediction = ext_computeMean(probabilities, control.numSamples) > 0.5 ? 1.0 : 0.0;
+                double prediction = ext_computeMean(probabilities, origControl.numSamples) > 0.5 ? 1.0 : 0.0;
                 
                 if (prediction == 1.0) {
                   if (targetY[i] == 1.0) ++tp; else ++fp;
@@ -148,15 +153,21 @@ namespace dbarts {
               
               delete samples;
             }
-          // }
+          }
         }
       }
     }
+    
+    fit->setControl(origControl);
+    fit->setModel(origModel);
+    fit->setData(origData);
     
     delete [] permutation;
     
     delete [] probabilities;
     delete [] targetY;
+    
+    freeModelStorage(repModel);
     freeDataStorage(repData);
     
     UNPROTECT(1);
@@ -201,6 +212,31 @@ namespace {
     }
   }
   
+  SEXP allocateResult(bool dropUnusedDims, size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps)
+  {
+    SEXP resultExpr = PROTECT(allocVector(REALSXP, numNTrees * numKs * numPowers * numBases * numReps));
+    if (dropUnusedDims) {
+      size_t numDims = 1 + (numNTrees > 1 ? 1 : 0) + (numKs > 1 ? 1 : 0) + (numPowers > 1 ? 1 : 0) + (numBases > 1 ? 1 : 0);
+      if (numDims > 1) {
+        SEXP dimsExpr = allocVector(INTSXP, numDims);
+        int* dims = INTEGER(dimsExpr);
+        numDims = 0;
+        if (numNTrees > 0) dims[numDims++] = static_cast<int>(numNTrees);
+        if (numKs > 0)     dims[numDims++] = static_cast<int>(numKs);
+        if (numPowers > 0) dims[numDims++] = static_cast<int>(numPowers);
+        if (numBases > 0)  dims[numDims++] = static_cast<int>(numBases);
+        dims[numDims] = static_cast<int>(numReps);
+        
+        R_do_slot_assign(resultExpr, R_DimSymbol, dimsExpr);
+      }
+    } else {
+      rc_setDims(resultExpr, static_cast<int>(numNTrees), static_cast<int>(numKs), static_cast<int>(numPowers),
+                 static_cast<int>(numBases), static_cast<int>(numReps), -1);
+    }
+    return resultExpr;
+  }
+
+  
   void allocateDataStorage(const Data& origData, Data& repData, size_t inSampleSize, size_t outSampleSize)
   {
     repData.y = new double[inSampleSize];
@@ -220,6 +256,36 @@ namespace {
     repData.maxNumCuts    = origData.maxNumCuts;
   }
   
+  void allocateModelStorage(const Model& origModel, Model& repModel)
+  {
+    repModel.birthOrDeathProbability = origModel.birthOrDeathProbability;
+    repModel.swapProbability = origModel.swapProbability;
+    repModel.changeProbability = origModel.changeProbability;
+    repModel.birthProbability = origModel.birthProbability;
+    
+    CGMPrior* repTreePrior = new CGMPrior();
+    const CGMPrior* oldTreePrior = static_cast<CGMPrior*>(origModel.treePrior);
+    repTreePrior->base = oldTreePrior->base;
+    repTreePrior->power = oldTreePrior->power;
+    
+    repModel.treePrior = repTreePrior;
+    
+    
+    NormalPrior* repNodePrior = new NormalPrior();
+    const NormalPrior* oldNodePrior = static_cast<NormalPrior*>(origModel.muPrior);
+    repNodePrior->precision = oldNodePrior->precision;
+    
+    repModel.muPrior = repNodePrior;
+    
+    
+    ChiSquaredPrior* repResidPrior = new ChiSquaredPrior();
+    const ChiSquaredPrior* oldResidPrior = static_cast<ChiSquaredPrior*>(origModel.sigmaSqPrior);
+    repResidPrior->degreesOfFreedom = oldResidPrior->degreesOfFreedom;
+    repResidPrior->scale = oldResidPrior->scale;
+    
+    repModel.sigmaSqPrior = repResidPrior;
+  }
+  
   void freeDataStorage(Data& repData)
   {
     delete [] repData.testOffset; repData.testOffset = NULL;
@@ -230,6 +296,12 @@ namespace {
     delete [] repData.X;      repData.X      = NULL;
     delete [] repData.y;      repData.y      = NULL;
   }
-
+  
+  void freeModelStorage(Model& repModel)
+  {
+    delete repModel.sigmaSqPrior;
+    delete repModel.muPrior;
+    delete repModel.treePrior;
+  }
 }
 

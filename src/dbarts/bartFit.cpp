@@ -46,6 +46,7 @@ namespace {
   void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                              uint32_t& numCutsPerVariable, double*& cutPoints);
   void setInitialFit(BARTFit& fit);
+  void setNewObservationIndices(Node& newNode, size_t* indices, const Node& oldNode);
   
   void printInitialSummary(const BARTFit& fit);
   void printTerminalSummary(const BARTFit& fit);
@@ -449,6 +450,64 @@ namespace dbarts {
     
     for (size_t i = 0; i < data.numPredictors; ++i) delete [] oldCutPoints[i];
     ext_stackFree(oldCutPoints);
+  }
+  
+  void BARTFit::setControl(const Control& newControl)
+  {
+    if (newControl.numTrees != control.numTrees) {
+      Tree* oldTrees = state.trees;
+      size_t* oldTreeIndices = state.treeIndices;
+      double* oldTreeFits = state.treeFits;
+      
+      state.trees       = static_cast<Tree*>(::operator new (newControl.numTrees * sizeof(Tree)));
+      state.treeIndices = new size_t[data.numObservations * newControl.numTrees];
+      state.treeFits    = new double[data.numObservations * newControl.numTrees];
+      
+      size_t assignEnd = std::min(control.numTrees, newControl.numTrees);
+      for (size_t i = 0; i < assignEnd; ++i) {
+        state.trees[i] = oldTrees[i];
+        setNewObservationIndices(state.trees[i].top, state.treeIndices + i * data.numObservations, oldTrees[i].top);
+
+        if (!state.trees[i].top.isBottom()) {
+          state.trees[i].top.getRightChild()->parent = &state.trees[i].top;
+          state.trees[i].top.getLeftChild()->parent  = &state.trees[i].top;
+          // oldTrees[i].~Tree(); // destructor not needed, as assignment means no memory is lost
+        }
+      }
+      std::memcpy(state.treeIndices, oldTreeIndices, assignEnd * data.numObservations * sizeof(size_t));
+      std::memcpy(state.treeFits,    oldTreeFits,    assignEnd * data.numObservations * sizeof(double));
+      
+      for (size_t i = assignEnd; i < newControl.numTrees; ++i) {
+        new (state.trees + i) Tree(state.treeIndices + i * data.numObservations, data.numObservations, data.numPredictors);
+        for (size_t j = 0; j < data.numObservations; ++j) {
+          state.treeFits[i * data.numObservations + j] = 0.0;
+        }
+      }
+      
+      for (size_t i = control.numTrees; i > assignEnd; /* */) oldTrees[--i].~Tree();
+      
+      ::operator delete (oldTrees);
+      delete [] oldTreeIndices;
+      delete [] oldTreeFits;
+      
+      NormalPrior* nodePrior = static_cast<NormalPrior*>(model.muPrior);
+      double precisionUnscaled = nodePrior->precision / static_cast<double>(control.numTrees);
+      nodePrior->precision = precisionUnscaled * static_cast<double>(newControl.numTrees);
+    }
+    
+    control = newControl;
+  }
+  
+  void BARTFit::setModel(const Model& newModel)
+  {
+    // double priorUnscaled = model.sigmaSqPrior->getScale() * scratch.dataScale.range * scratch.dataScale.range;
+    
+    model = newModel;
+    
+    // TODO: currently new model is assumed to be tweaked like model is internally,
+    // which won't work for sigmasq priors with different specified quantiles or DoF
+    
+    // model.sigmaSqPrior->setScale(priorUnscaled / (scratch.dataScale.range * scratch.dataScale.range));
   }
   
   void BARTFit::printTrees(const size_t* indices, size_t numIndices) const {
@@ -1124,6 +1183,15 @@ namespace {
 #else
   double subtractTimes(time_t end, time_t start) { return static_cast<double>(end - start); }
 #endif
+  
+  void setNewObservationIndices(Node& newNode, size_t* indices, const Node& oldNode)
+  {
+    newNode.setObservationIndices(indices);
+    if (!newNode.isBottom()) {
+      setNewObservationIndices(*newNode.getLeftChild(), indices, *oldNode.getLeftChild());
+      setNewObservationIndices(*newNode.getRightChild(), indices + oldNode.getLeftChild()->getNumObservations(), *oldNode.getRightChild());
+    }
+  }
 }
 
 #include <external/binaryIO.h>

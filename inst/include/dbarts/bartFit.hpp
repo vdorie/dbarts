@@ -58,6 +58,8 @@ namespace dbarts {
     // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
     // invalid state
     void setData(const Data& data);
+    void setControl(const Control& control);
+    void setModel(const Model& model);
     
     bool saveToFile(const char* fileName) const;
     static BARTFit* loadFromFile(const char* fileName);

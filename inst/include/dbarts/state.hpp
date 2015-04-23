@@ -9,10 +9,10 @@ namespace dbarts {
   
   struct State {
     Tree* trees;
-    std::size_t* treeIndices; // numObs * numTree
+    std::size_t* treeIndices; // numObs * numTrees
     
     double* treeFits;      // numObs x numTrees;     vals for tree <=> x + i * numObs
-    double* totalFits;
+    double* totalFits;     // numObs
     double* totalTestFits; // numTestObs x 1
 
     double sigma;

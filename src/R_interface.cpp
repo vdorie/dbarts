@@ -612,7 +612,7 @@ namespace {
   SEXP setData(SEXP fitExpr, SEXP dataExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) error("dbarts_setControl called on NULL external pointer");
+    if (fit == NULL) error("dbarts_setData called on NULL external pointer");
     
     SEXP classExpr = GET_CLASS(dataExpr);
     if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_setData not of class 'dbartsData'");
@@ -643,9 +643,21 @@ namespace {
     
     if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     
-    initializeControlFromExpression(fit->control, controlExpr);
+    Control control;
+    initializeControlFromExpression(control, controlExpr);
     
-    return NULL_USER_OBJECT;
+    Control oldControl = fit->control;
+    
+    if (control.responseIsBinary != oldControl.responseIsBinary) {
+      ext_rng_destroy(control.rng);
+      error("new control cannot change binary characteristic of response");
+    }
+    
+    fit->setControl(control);
+    
+    ext_rng_destroy(oldControl.rng);
+    
+    return R_NilValue;
   }
   
   SEXP isValidPointer(SEXP fitExpr)

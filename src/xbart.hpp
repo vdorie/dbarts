@@ -5,8 +5,8 @@
 
 namespace dbarts {
 
-  SEXP xbart(SEXP fitExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP ntreeExpr, SEXP nskipExpr,
-             SEXP KExpr, SEXP resultTypeExpr, SEXP dropExpr);
+  SEXP xbart(SEXP fitExpr, SEXP ntreeExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr, SEXP nskipExpr,
+             SEXP KExpr, SEXP nrepsExpr, SEXP resultTypeExpr, SEXP dropExpr);
 
 }
 
