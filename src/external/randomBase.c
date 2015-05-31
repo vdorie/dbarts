@@ -31,6 +31,12 @@
 
 #define STANDARD_NORMAL_DEFAULT EXT_RNG_STANDARD_NORMAL_INVERSION
 
+#if defined(__GNUC__) && (\
+  (!defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))) || \
+  ( defined(__clang__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 7))))
+#  define SUPPRESS_DIAGNOSTIC 1
+#endif
+
 // should match enum order
 static const char* const rngNames[] = {
   "Wichmann-Hill",
@@ -318,10 +324,10 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
 #define THIRTY_TWO_BIT_INVERSE 2.328306437080797e-10 /* = 1/(2^32 - 1) */
 #define KNUTH_CONSTANT         9.31322574615479e-10
 
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#ifdef SUPPRESS_DIAGNOSTIC
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wuninitialized"
-#  if defined(__GNUC__) && !defined(__clang__)
+#  if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
 #    pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #  endif
 #endif
@@ -430,7 +436,7 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
   return truncateToUnitInterval(result);
 }
 
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+#ifdef SUPPRESS_DIAGNOSTIC
 #  pragma GCC diagnostic pop
 #endif
 
