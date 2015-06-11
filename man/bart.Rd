@@ -264,8 +264,8 @@ Vincent Dorie: \email{vjd4@nyu.edu}.
 ## x consists of 10 variables, only first 5 matter
 
 f <- function(x) {
-    10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
-      10 * x[,4] + 5 * x[,5]
+  10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
+    10 * x[,4] + 5 * x[,5]
 }
 
 set.seed(99)

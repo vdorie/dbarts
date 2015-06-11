@@ -2,6 +2,7 @@
 
 #include <stdarg.h>
 #include <stddef.h> // size_t
+#include <string.h> // strncmp
 
 SEXP rc_setDims(SEXP obj, ...)
 {
@@ -35,5 +36,16 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length)
    
   R_do_slot_assign(obj, slotName, val);
   return val;
+}
+
+bool rc_isS4Null(SEXP obj)
+{
+  if (!isSymbol(obj)) return false;
+  
+  const char* symbolName = CHAR(PRINTNAME(obj));
+  
+  if (strncmp(symbolName, "\1NULL\1", 6) == 0) return true;
+    
+  return false;
 }
 

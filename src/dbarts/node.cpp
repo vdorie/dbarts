@@ -354,7 +354,7 @@ namespace {
     
     IndexOrdering(const BARTFit& fit, const Rule &rule) : fit(fit), rule(rule) { }
     
-    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.Xt + i * fit.data.numPredictors); }
+    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.xt + i * fit.data.numPredictors); }
   };
   
   // returns how many observations are on the "left"

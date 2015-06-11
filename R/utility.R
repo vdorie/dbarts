@@ -78,7 +78,7 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (is.logical(drop) && is.na(drop)) stop('when logical, drop must be TRUE or FALSE')
   if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
   
-  result <- .Call("dbarts_makeModelMatrixFromDataFrame", x, drop)
+  result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
   attr(result, "term.labels") <- names(x)
   result
 }
@@ -87,10 +87,11 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
 ##  dbarts:::functionName
 ## so that we can evaluate non-exported functions in
 ## the user's environment
-quoteInNamespace <- function(name) {
+quoteInNamespace <- function(name, character.only = FALSE) {
   result <- quote(a + b)
   result[[1]] <- as.symbol(":::")
   result[[2]] <- as.symbol("dbarts")
-  result[[3]] <- match.call()[[2]]
+  
+  result[[3]] <- if (character.only) name else match.call()[[2]]
   result
 }

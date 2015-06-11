@@ -1,9 +1,11 @@
-useDynLib(dbarts)
+useDynLib(dbarts, .registration = TRUE, .fixes = "C_")
 
 export(dbarts, bart)
 export(dbartsControl)
 export(dbartsData)
 export(pdbart, pd2bart)
+export(xbart)
+export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame)
 

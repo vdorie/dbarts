@@ -55,7 +55,7 @@ validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, s
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e)
              stop("'n.samples' argument to dbarts must be coerceable to integer type"))
-    if (n.samples < 0L) return("'n.samples' argument to dbarts must be a non-negative integer")
+    if (n.samples < 0L) stop("'n.samples' argument to dbarts must be a non-negative integer")
     envir$control@n.samples <- n.samples
   } else if (controlIsMissing || is.na(control@n.samples)) {
     envir$control@n.samples <- formals(dbarts)[["n.samples"]]
@@ -79,7 +79,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
 
   validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
-  eval(validateCall, parent.frame(1L), asNamespace("dbarts"))
+  eval(validateCall, parent.frame(1L), getNamespace("dbarts"))
 
   if (control@call != call("NA")[[1]]) control@call <- matchedCall
   control@verbose <- verbose
@@ -138,7 +138,7 @@ dbartsSampler <-
                   model   <<- model
                   data    <<- data
                   state   <<- NULL
-                  pointer <<- .Call("dbarts_create", control, model, data)
+                  pointer <<- .Call(C_dbarts_create, control, model, data)
                   
                   callSuper(...)
                 },
@@ -149,7 +149,7 @@ dbartsSampler <-
                   if (missing(numSamples)) numSamples <- NA_integer_
                   
                   ptr <- getPointer()
-                  samples <- .Call("dbarts_run", ptr, as.integer(numBurnIn), as.integer(numSamples))
+                  samples <- .Call(C_dbarts_run, ptr, as.integer(numBurnIn), as.integer(numSamples))
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
@@ -158,8 +158,43 @@ dbartsSampler <-
                   
                   samples
                 },
-                copy = function(shallow = FALSE)
-                {
+                #crossvalidate = function(K = 5L, n.reps = 200L, n.burn = c(control@n.burn, control@n.burn %/% 5L),
+                #                         statistic = if (control@binary) "mcr" else "mse", n.threads = guessNumCores(),
+                #                         n.trees, k, power, base, drop = TRUE) {
+                #  'K-fold crossvalidates across sets of parameters.'
+                #  if (missing(n.trees)) n.trees <- control@n.trees
+                #  if (missing(k)) k <- model@node.prior@k
+                #  if (missing(power)) power <- model@tree.prior@power
+                #  if (missing(base)) base <- model@tree.prior@base
+                #  
+                #  if (is.function(statistic)) statistic <- list(statistic, parent.frame(1L))
+                #  
+                #  n.trees <- as.integer(n.trees)
+                #  k       <- as.double(k)
+                #  power   <- as.double(power)
+                #  base    <- as.double(base)
+                #  drop    <- as.logical(drop)
+                #  
+                #  ptr <- getPointer()
+                #  result <- .Call(C_dbarts_xbart, ptr, as.integer(K), as.integer(n.reps), as.integer(n.burn), statistic, as.integer(n.threads),
+                #                  n.trees, k, power, base, drop)
+                #  
+                #  if (!is.null(result) && !is.null(dim(result))) {
+                #    varNames <- c("n.trees", "k", "power", "base")
+                #    if (identical(drop, TRUE)) varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1) TRUE else FALSE)]
+                #    
+                #    dimNames <- vector("list", length(dim(result)))
+                #    for (i in seq_along(varNames)) {
+                #      x <- get(varNames[i])
+                #      dimNames[[i]] <- as.character(if (is.double(x)) signif(x, 2) else x)
+                #    }
+                #    names(dimNames) <- c(varNames, "rep")
+                #    dimnames(result) <- dimNames
+                #  }
+                #  result
+                #},
+                copy = function(shallow = FALSE) {
+                  'Creates a deep or shallow copy of the sampler.'
                   dupe <-
                     if (shallow) {
                       dbartsSampler$new(control, model, data)
@@ -167,29 +202,29 @@ dbartsSampler <-
                       newData <- data
                       ## only need to dupe things that can be changed internally, as the rest will be
                       ## simply swapped out
-                      newData@x <- .Call("dbarts_deepCopy", data@x)
+                      newData@x <- .Call(C_dbarts_deepCopy, data@x)
                       if (!is.null(data@x.test)) {
-                        newData@x.test <- .Call("dbarts_deepCopy", data@x.test)
+                        newData@x.test <- .Call(C_dbarts_deepCopy, data@x.test)
                       }
                       dupe <- dbartsSampler$new(control, model, newData)
                     }
 
                   if (!is.null(state)) {
                     newState <- state
-                    newState@fit.tree <- .Call("dbarts_deepCopy", state@fit.tree)
-                    newState@fit.total <- .Call("dbarts_deepCopy", state@fit.total)
+                    newState@fit.tree <- .Call(C_dbarts_deepCopy, state@fit.tree)
+                    newState@fit.total <- .Call(C_dbarts_deepCopy, state@fit.total)
                     if (!is.null(data@x.test)) {
-                      newState@fit.test <- .Call("dbarts_deepCopy", state@fit.test)
+                      newState@fit.test <- .Call(C_dbarts_deepCopy, state@fit.test)
                     }
-                    newState@sigma <- .Call("dbarts_deepCopy", state@sigma)
-                    newState@runningTime <- .Call("dbarts_deepCopy", state@runningTime)
-                    newState@trees <- .Call("dbarts_deepCopy", state@trees)
+                    newState@sigma <- .Call(C_dbarts_deepCopy, state@sigma)
+                    newState@runningTime <- .Call(C_dbarts_deepCopy, state@runningTime)
+                    newState@trees <- .Call(C_dbarts_deepCopy, state@trees)
 
                     dupe$setState(newState)
                   }
                   
                   dupe
-                },    
+                },
                 show = function() {
                   'Pretty prints the object.'
                   
@@ -229,7 +264,7 @@ dbartsSampler <-
                   
                   ptr <- getPointer()
                   control <<- newControl
-                  .Call("dbarts_setControl", ptr, control)
+                  .Call(C_dbarts_setControl, ptr, control)
                   
                   invisible(NULL)
                 },
@@ -243,7 +278,7 @@ dbartsSampler <-
                   
                   ptr <- getPointer()
                   data <<- newData
-                  .Call("dbarts_setData", ptr, data)
+                  .Call(C_dbarts_setData, ptr, data)
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
@@ -255,7 +290,7 @@ dbartsSampler <-
                   ptr <- getPointer()
                   
                   data@y <<- as.double(y)
-                  .Call("dbarts_setResponse", ptr, data@y)
+                  .Call(C_dbarts_setResponse, ptr, data@y)
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
@@ -295,10 +330,10 @@ dbartsSampler <-
                   }
 
                   data@offset <<- offset
-                  .Call("dbarts_setOffset", ptr, data@offset)
+                  .Call(C_dbarts_setOffset, ptr, data@offset)
                   if (!identical(offset.test, NA)) {
                     data@offset.test <<- offset.test
-                    .Call("dbarts_setTestOffset", ptr, data@offset.test)
+                    .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
                   }
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -324,15 +359,15 @@ dbartsSampler <-
                   updateSuccessful <-
                     if (columnIsMissing) {
                       data@x <<- x
-                      .Call("dbarts_setPredictor", ptr, x)
+                      .Call(C_dbarts_setPredictor, ptr, x)
                     } else {
-                      .Call("dbarts_updatePredictor", ptr, x, as.integer(column))
+                      .Call(C_dbarts_updatePredictor, ptr, x, as.integer(column))
                     }
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 
-                  return(updateSuccessful)
+                  updateSuccessful
                 },
                 setTestPredictor = function(x.test, column, updateState = NA) {
                   'Changes a single column of the test predictor matrix.'
@@ -349,10 +384,10 @@ dbartsSampler <-
                   ptr <- getPointer()
                   if (columnIsMissing) {
                     data@x.test <<- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
-                    .Call("dbarts_setTestPredictor", ptr, data@x.test)
+                    .Call(C_dbarts_setTestPredictor, ptr, data@x.test)
                   } else {
                     x.test <- if (is.matrix(x.test)) matrix(as.double(x.test), nrow(x.test)) else as.double(x.test)
-                    .Call("dbarts_updateTestPredictor", ptr, x.test, as.integer(column))
+                    .Call(C_dbarts_updateTestPredictor, ptr, x.test, as.integer(column))
                   }
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -384,10 +419,10 @@ dbartsSampler <-
 
                      data@x.test <<- x.test
                      data@offset.test <<- offset.test
-                     .Call("dbarts_setTestPredictorAndOffset", ptr, data@x.test, data@offset.test)
+                     .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test)
                    } else {
                      data@x.test <<- x.test
-                     .Call("dbarts_setTestPredictorAndOffset", ptr, data@x.test, NA_real_)
+                     .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
                    }
 
                    if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -407,7 +442,7 @@ dbartsSampler <-
                       stop("length of test offset must be equal to number of rows in test matrix")
                   }
                   data@offset.test <<- offset.test
-                  .Call("dbarts_setTestOffset", ptr, data@offset.test)
+                  .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
@@ -416,16 +451,16 @@ dbartsSampler <-
                 },
                 getPointer = function() {
                   'Returns the underlying reference pointer, checking for consistency first.'
-                  if (.Call("dbarts_isValidPointer", pointer) == FALSE) {
+                  if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
                     oldVerbose <- control@verbose
                     control@verbose <<- FALSE
-                    pointer <<- .Call("dbarts_create", control, model, data)
+                    pointer <<- .Call(C_dbarts_create, control, model, data)
                     if (!is.null(state)) {
-                      state <<- .Call("dbarts_restoreState", pointer, state)
+                      state <<- .Call(C_dbarts_restoreState, pointer, state)
                     }
                     if (control@verbose != oldVerbose) {
                       control@verbose <<- oldVerbose
-                      .Call("dbarts_setControl", pointer, control)
+                      .Call(C_dbarts_setControl, pointer, control)
                     }
                   }
                   
@@ -435,17 +470,17 @@ dbartsSampler <-
                   'Sets the internal state from a cache.'
                   if (!is(newState, "dbartsState")) stop("'state' must inherit from dbartsState")
                   
-                  if (.Call("dbarts_isValidPointer", pointer) == FALSE) {
+                  if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
                     oldVerbose <- control@verbose
                     control@verbose <<- FALSE
-                    pointer <<- .Call("dbarts_create", control, model, data)
+                    pointer <<- .Call(C_dbarts_create, control, model, data)
                     if (control@verbose != oldVerbose) {
                       control@verbose <<- oldVerbose
-                      .Call("dbarts_setControl", pointer, control)
+                      .Call(C_dbarts_setControl, pointer, control)
                     }
                   }
                   if (!is.null(newState)) {
-                    state <<- .Call("dbarts_restoreState", pointer, newState)
+                    state <<- .Call(C_dbarts_restoreState, pointer, newState)
                   }
 
                   invisible(NULL)
@@ -453,9 +488,9 @@ dbartsSampler <-
                 storeState = function(ptr = getPointer()) {
                   'Updates the cached internal state used for saving/loading.'
                   if (is.null(state)) {
-                    state <<- .Call("dbarts_createState", ptr)
+                    state <<- .Call(C_dbarts_createState, ptr)
                   } else {
-                    .Call("dbarts_storeState", ptr, state)
+                    .Call(C_dbarts_storeState, ptr, state)
                   }
 
                   invisible(NULL)
@@ -464,7 +499,7 @@ dbartsSampler <-
                   'Produces an info dump of the internal state of the trees.'
                   
                   ptr <- getPointer()
-                  invisible(.Call("dbarts_printTrees", ptr, as.integer(treeNums)))
+                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(treeNums)))
                 },
                 plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'

@@ -39,7 +39,7 @@ static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, si
 
 char* concatenateStrings(const char* s1, const char* s2);
 
-SEXP makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
+SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
 {
   int errorCode = 0;
   SEXP result = NULL_USER_OBJECT;

@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.61)
+AC_PREREQ(2.64)
 AC_INIT(dbarts, 0.8.6, vjd4@nyu.edu)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
@@ -9,7 +9,11 @@ AC_CONFIG_HEADER([src/config.hpp])
 AC_CONFIG_HEADER([src/dbarts/config.hpp])
 AC_CONFIG_HEADER([src/external/config.h])
 
-m4_include([tools/m4/m4_ax_pthread.m4])
+m4_include([tools/m4/ax_check_compile_flag.m4])
+m4_include([tools/m4/ax_pthread.m4])
+m4_include([tools/m4/ax_gcc_x86_cpuid.m4])
+m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
+m4_include([tools/m4/ax_ext.m4])
 
 AC_ARG_ENABLE([match-bayes-tree],
               [AS_HELP_STRING([--enable-match-bayes-tree],
@@ -53,6 +57,8 @@ AC_LANG_POP(C++)
 
 AC_C_BIGENDIAN
 
+AX_EXT
+
 # Checks for libraries.
 AX_PTHREAD
 AC_SUBST(PTHREAD_CFLAGS)
@@ -76,10 +82,13 @@ AC_CHECK_HEADERS([malloc.h])
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_INT64_T
 AC_TYPE_UINT64_T
+AC_CHECK_SIZEOF([size_t])
+AC_CHECK_ALIGNOF([void*])
 
 # Checks for library functions.
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([clock_gettime])
+AC_CHECK_FUNCS([ffs])
 AC_FUNC_ALLOCA
 
 AC_LANG_PUSH(C++)

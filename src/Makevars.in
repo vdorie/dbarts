@@ -29,6 +29,7 @@ external/libexternal.a :
 	  CPPFLAGS="@PTHREAD_CFLAGS@ $(CPPFLAGS)" \
 	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
+          SIMD="@SIMD_FLAGS@" \
 	  INST_DIR="$(INST_DIR)")
 
 rc/librc.a :

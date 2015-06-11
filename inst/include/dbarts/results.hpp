@@ -15,10 +15,8 @@ namespace dbarts {
     std::size_t numTestObservations;
     std::size_t numSamples;
   
-    Results(std::size_t numObservations,
-            std::size_t numPredictors,
-            std::size_t numTestObservations,
-            std::size_t numSamples) :
+    Results(std::size_t numObservations, std::size_t numPredictors,
+            std::size_t numTestObservations, std::size_t numSamples) :
       sigmaSamples(NULL), trainingSamples(NULL), testSamples(NULL), variableCountSamples(NULL),
       numObservations(numObservations), numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples)
     {
@@ -27,6 +25,20 @@ namespace dbarts {
       if (this->numTestObservations > 0) testSamples = new double[getNumTestSamples()];
       variableCountSamples = new double[getNumVariableCountSamples()];
     }
+    
+    // note how dangerous this constructor is, as it accepts pointers
+    // but the destructor deletes them; set to NULL before deleting
+    // if you use
+    Results(std::size_t numObservations, std::size_t numPredictors,
+            std::size_t numTestObservations, std::size_t numSamples,
+            double* sigmaSamples, double* trainingSamples,
+            double* testSamples, double* variableCountSamples) :
+      sigmaSamples(sigmaSamples), trainingSamples(trainingSamples), testSamples(testSamples),
+      variableCountSamples(variableCountSamples), numObservations(numObservations),
+      numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples)
+    {
+    }
+    
     ~Results() {
       delete [] sigmaSamples; sigmaSamples = NULL;
       delete [] trainingSamples; trainingSamples = NULL;

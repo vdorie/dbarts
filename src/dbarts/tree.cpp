@@ -19,14 +19,14 @@ namespace {
   
   // multithread me!
   size_t* createObservationToNodeIndexMap(const BARTFit& fit, const Node& top,
-                                          const double* Xt, size_t numObservations)
+                                          const double* xt, size_t numObservations)
   {
     if (numObservations == 0) return NULL;
     
     size_t* map = new size_t[numObservations];
         
     for (size_t i = 0; i < numObservations; ++i) {
-      const Node* bottomNode = top.findBottomNode(fit, Xt + i * fit.data.numPredictors);
+      const Node* bottomNode = top.findBottomNode(fit, xt + i * fit.data.numPredictors);
       
       map[i] = bottomNode->enumerationIndex;
     }
@@ -68,7 +68,7 @@ namespace dbarts {
     }
     
     if (testFits != NULL) {
-      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.Xt_test, fit.data.numTestObservations);
+      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.xt_test, fit.data.numTestObservations);
       for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = nodePosteriorPredictions[observationNodeMap[i]];
       delete [] observationNodeMap;
       
@@ -109,7 +109,7 @@ namespace dbarts {
     }
     
     if (testFits != NULL) {
-      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.Xt_test, fit.data.numTestObservations);
+      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.scratch.xt_test, fit.data.numTestObservations);
       for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = posteriorPredictions[observationNodeMap[i]];
       delete [] observationNodeMap;
     }

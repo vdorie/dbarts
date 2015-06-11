@@ -3,6 +3,8 @@
 
 #include <stdbool.h> // for bool
 
+#define R_NO_REMAP 1
+#include <R.h>
 #include <Rinternals.h> // SEXP
 
 #ifdef __cplusplus
@@ -24,7 +26,9 @@ extern "C" {
 //
 // NA constraint types only accept YES/NO, so that this info is passed as a bound. e.g.
 //
-//   rc_getBool(x, "var name", RC_NA | RC_NO, RC_END);
+//   rc_getBool(x, "var name", RC_NA | RC_YES, RC_END);
+//
+// NA_NO is the default
 
 int rc_getInt(SEXP x, const char* name, ...);
 double rc_getDouble(SEXP x, const char* name, ...);
@@ -33,6 +37,16 @@ bool rc_getBool(SEXP x, const char* name, ...);
 void rc_checkInts(SEXP x, const char* name, ...);
 void rc_checkDoubles(SEXP x, const char* name, ...);
 void rc_checkBools(SEXP x, const char* name, ...);
+
+// Value constraints are matched in-order to dims themselves. A lack of length
+// constraint allows missing dims. RC_NA skips the dim, regardless of the value
+// (equiv to value >= 0). e.g.
+//
+//  rc_checkDims(x, "var name", RC_LENGTH | RC_EQ, (R_xlen_t) 2,
+//               RC_NA,
+//               RC_VALUE | RC_EQ, (int) numCols,
+//               RC_END);
+void rc_checkDims(SEXP x, const char* name, ...);
 
 typedef enum {
   RC_END = 0x0,

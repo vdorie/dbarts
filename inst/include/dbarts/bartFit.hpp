@@ -32,6 +32,7 @@ namespace dbarts {
     
     Results* runSampler();
     Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
+    void runSampler(std::size_t numBurnIn, Results* results);
     
     
     // settors simply replace local pointers to variables. dimensions much match

@@ -4,7 +4,7 @@
   ## that have finalizers pointing to the soon-to-unloaded dll
   gc(FALSE)
   if (is.loaded("dbarts_finalize", PACKAGE = "dbarts")) {
-    .Call("dbarts_finalize")
+    .Call(C_dbarts_finalize)
     library.dynam.unload("dbarts", libpath)
   }
 }
