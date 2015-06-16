@@ -107,7 +107,7 @@ extern "C" {
 
     
     SEXP result = PROTECT(allocateResult(numNTrees, numKs, numPowers, numBases, numReps, dropUnusedDims));
-    
+        
     GetRNGstate();
     
     crossvalidate(control, model, data,
@@ -144,18 +144,18 @@ namespace {
       if (numDims > 1) {
         SEXP dimsExpr = Rf_allocVector(INTSXP, numDims);
         int* dims = INTEGER(dimsExpr);
-        numDims = 0;
+        dims[0] = static_cast<int>(numReps);
+        numDims = 1;
         if (numNTrees > 1) dims[numDims++] = static_cast<int>(numNTrees);
         if (numKs > 1)     dims[numDims++] = static_cast<int>(numKs);
         if (numPowers > 1) dims[numDims++] = static_cast<int>(numPowers);
-        if (numBases > 1)  dims[numDims++] = static_cast<int>(numBases);
-        dims[numDims] = static_cast<int>(numReps);
+        if (numBases > 1)  dims[numDims]   = static_cast<int>(numBases);
         
         R_do_slot_assign(result, R_DimSymbol, dimsExpr);
       }
     } else {
-      rc_setDims(result, static_cast<int>(numNTrees), static_cast<int>(numKs), static_cast<int>(numPowers),
-                 static_cast<int>(numBases), static_cast<int>(numReps), -1);
+      rc_setDims(result, static_cast<int>(numReps), static_cast<int>(numNTrees), static_cast<int>(numKs), static_cast<int>(numPowers),
+                 static_cast<int>(numBases), -1);
     }
     return result;
   }

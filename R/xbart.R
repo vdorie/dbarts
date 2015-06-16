@@ -74,7 +74,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     x <- get(varNames[i])
     dimNames[[i]] <- as.character(if (is.double(x)) signif(x, 2) else x)
   }
-  names(dimNames) <- c(varNames, "rep")
+  names(dimNames) <- c("rep", varNames)
+  browser()
   dimnames(result) <- dimNames
   
   result

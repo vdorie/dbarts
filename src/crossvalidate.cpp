@@ -92,7 +92,8 @@ namespace dbarts { namespace xval {
       ext_printf("  %lu tree par(s), %lu k par(s), %lu power par(s), %lu base par(s)\n",
                  numNTrees, numKs, numPowers, numBases);
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
-      ext_printf("  burn in: %lu first, %lu subsequent\n", numInitialBurnIn, numSubsequentBurnIn);
+      ext_printf("  num samp: %lu, num reps: %lu\n", origControl.numSamples, numReps);
+      ext_printf("  burn in: %lu first, %lu subsequent\n\n", numInitialBurnIn, numSubsequentBurnIn);
       if (numThreads > 1) {
         ext_printf("  verbose output during run incompatibile with multiple threads and will be henceforth suppressed\n");
       }
@@ -242,13 +243,14 @@ extern "C" {
     bool verbose = repControl.verbose;
     repControl.verbose = false;
     
+    BARTFit* fit = new BARTFit(repControl, origModel, origData);
+    
     Data repData;
     Model repModel;
     
-    allocateDataStorage(origData, repData, numTrainingObservations, numTestObservations);
-    allocateModelStorage(origModel, repModel);
+    allocateDataStorage(fit->data, repData, numTrainingObservations, numTestObservations);
+    allocateModelStorage(fit->model, repModel);
     
-    BARTFit* fit = new BARTFit(repControl, origModel, origData);
     bool isFirstRun = true;
     
     double* y_test = (suppliedY_test == NULL ? new double[numTestObservations] : suppliedY_test);
@@ -298,6 +300,27 @@ extern "C" {
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
         divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, repControl.rng, permutation);
+        /* ext_printf("  x:\n");
+        for (size_t row = 0; row < 10; ++row) {
+          ext_printf("    %.4f", repData.x[row]);
+          for (size_t col = 1; col < origData.numPredictors; ++col) ext_printf(" %.4f", repData.x[row + col * repData.numObservations]);
+          ext_printf("\n");
+        }
+        ext_printf("  y:\n    %.4f", repData.y[0]);
+        for (size_t row = 1; row < 10; ++row) ext_printf(" %.4f", repData.y[row]);
+        ext_printf("\n");
+        
+        ext_printf("  x_test:\n");
+        for (size_t row = 0; row < 10; ++row) {
+          ext_printf("    %.4f", repData.x_test[row]);
+          for (size_t col = 1; col < origData.numPredictors; ++col) ext_printf(" %.4f", repData.x_test[row + col * repData.numTestObservations]);
+          ext_printf("\n");
+        }
+        ext_printf("  y_test:\n    %.4f", y_test[0]);
+        for (size_t row = 1; row < 10; ++row) ext_printf(" %.4f", y_test[row]);
+        ext_printf("\n"); */
+
+     
         fit->setData(repData);
         
         if (isFirstRun) {
@@ -384,14 +407,14 @@ namespace {
     
     
     for (i = 0; i < numTestObservations; ++i) {
-      obsIndex = permutation[i];
+      obsIndex = *permutation++;
       y_test[i] = origData.y[obsIndex];
       for (j = 0; j < origData.numPredictors; ++j) {
         x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
     }
     for (i = 0; i < numTrainingObservations; ++i) {
-      obsIndex = permutation[i + numTestObservations];
+      obsIndex = *permutation++;
       y[i] = origData.y[obsIndex];
       for (j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
@@ -399,19 +422,19 @@ namespace {
     }
   }
   
-  void allocateDataStorage(const Data& origData, Data& repData, size_t numTrainingSamples, size_t numTestSamples)
+  void allocateDataStorage(const Data& origData, Data& repData, size_t numTrainingObservations, size_t numTestObservations)
   {
-    repData.y = new double[numTrainingSamples];
-    repData.x = new double[numTrainingSamples * origData.numPredictors];
-    repData.x_test = new double[numTestSamples * origData.numPredictors];
+    repData.y = new double[numTrainingObservations];
+    repData.x = new double[numTrainingObservations * origData.numPredictors];
+    repData.x_test = new double[numTestObservations * origData.numPredictors];
      
-    repData.weights    = origData.weights != NULL ? new double[numTrainingSamples]  : NULL;
-    repData.offset     = origData.offset  != NULL ? new double[numTrainingSamples]  : NULL;
-    repData.testOffset = origData.offset  != NULL ? new double[numTestSamples] : NULL;
+    repData.weights    = origData.weights != NULL ? new double[numTrainingObservations]  : NULL;
+    repData.offset     = origData.offset  != NULL ? new double[numTrainingObservations]  : NULL;
+    repData.testOffset = origData.offset  != NULL ? new double[numTestObservations] : NULL;
     
-    repData.numObservations     = numTrainingSamples;
+    repData.numObservations     = numTrainingObservations;
     repData.numPredictors       = origData.numPredictors;
-    repData.numTestObservations = numTestSamples;
+    repData.numTestObservations = numTestObservations;
     repData.sigmaEstimate       = origData.sigmaEstimate;
     
     repData.variableTypes = origData.variableTypes;

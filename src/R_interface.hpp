@@ -12,12 +12,6 @@
 struct SEXPREC;
 typedef struct SEXPREC* SEXP;
 
-//struct ExternalPointerComparator {
-//  bool operator()(const SEXP& lhs, const SEXP& rhs) const {
-//    return R_ExternalPtrAddr(const_cast<SEXP>(lhs)) < R_ExternalPtrAddr(const_cast<SEXP>(rhs));
-//  }
-//};
-
 typedef bool(*ExternalPointerComparator)(const SEXP&lhs, const SEXP& rhs);
 
 typedef std::set<SEXP, ExternalPointerComparator> PointerSet;

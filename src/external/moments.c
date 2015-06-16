@@ -2525,25 +2525,24 @@ static double mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(ext_mt
 
 
 
-double ext_computeSumOfSquaredResiduals(const double* restrict x, ext_size_t length, const double* restrict x_hat)
+double ext_computeSumOfSquaredResiduals(const double* restrict x, size_t length, const double* restrict x_hat)
 {
   if (length == 0) return 0.0;
   
   double result = 0.0;
   size_t lengthMod5 = length % 5;
   
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
-    if (length < 5) return result;
-  }
+  size_t i = 0;
+  for ( /* */ ; i < lengthMod5; ++i) result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
   
-  for (size_t i = lengthMod5; i < length; i += 5) {
+  for ( /* */ ; i < length; i += 5) {
     result += (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
               (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
               (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
               (x[i + 3] - x_hat[i + 3]) * (x[i + 3] - x_hat[i + 3]) +
               (x[i + 4] - x_hat[i + 4]) * (x[i + 4] - x_hat[i + 4]);
   }
+  
   return result;
 }
 
@@ -2554,18 +2553,17 @@ double ext_computeWeightedSumOfSquaredResiduals(const double* restrict x, size_t
   double result = 0.0;
   size_t lengthMod5 = length % 5;
   
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
-    if (length < 5) return result;
-  }
+  size_t i = 0;
+  for ( /* */ ; i < lengthMod5; ++i) result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]);
   
-  for (size_t i = lengthMod5; i < length; i += 5) {
+  for ( /* */ ; i < length; i += 5) {
     result += w[i] * (x[i] - x_hat[i]) * (x[i] - x_hat[i]) + 
               w[i + 1] * (x[i + 1] - x_hat[i + 1]) * (x[i + 1] - x_hat[i + 1]) + 
               w[i + 2] * (x[i + 2] - x_hat[i + 2]) * (x[i + 2] - x_hat[i + 2]) +
               w[i + 3] * (x[i + 3] - x_hat[i + 3]) * (x[i + 3] - x_hat[i + 3]) +
               w[i + 4] * (x[i + 4] - x_hat[i + 4]) * (x[i + 4] - x_hat[i + 4]);
   }
+  
   return result;
 }
 
