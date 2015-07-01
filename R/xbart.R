@@ -1,5 +1,5 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  K = 5L, n.reps = 200L, n.burn = c(100L, 20L), loss = c("mse", "mcr"), n.threads = guessNumCores(),
+                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("mse", "mcr"), n.threads = guessNumCores(),
                   n.trees = 200L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
@@ -72,10 +72,9 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   dimNames <- vector("list", length(dim(result)))
   for (i in seq_along(varNames)) {
     x <- get(varNames[i])
-    dimNames[[i]] <- as.character(if (is.double(x)) signif(x, 2) else x)
+    dimNames[[i + 1]] <- as.character(if (is.double(x)) signif(x, 2) else x)
   }
   names(dimNames) <- c("rep", varNames)
-  browser()
   dimnames(result) <- dimNames
   
   result

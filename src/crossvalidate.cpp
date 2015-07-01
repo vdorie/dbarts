@@ -51,7 +51,8 @@ namespace {
     const Data& data;
     
     size_t numInitialBurnIn;
-    size_t numSubsequentBurnIn;
+    size_t numContextShiftBurnIn;
+    size_t numRepBurnIn;
     
     size_t numTrainingObservations;
     size_t numTestObservations;
@@ -76,7 +77,8 @@ extern "C" { static void crossvalidationTask(void* data); }
 
 namespace dbarts { namespace xval {
     void crossvalidate(const Control& origControl, const Model& origModel, const Data& origData,
-                       size_t numFolds, size_t numReps, size_t numInitialBurnIn, size_t numSubsequentBurnIn,
+                       size_t numFolds, size_t numReps,
+                       size_t numInitialBurnIn, size_t numContextShiftBurnIn, size_t numRepBurnIn,
                        const LossFunctorDefinition& lossFunctorDef, size_t numThreads,
                        const std::size_t* nTrees, size_t numNTrees, const double* k, size_t numKs,
                        const double* power, size_t numPowers, const double* base, size_t numBases,
@@ -93,7 +95,7 @@ namespace dbarts { namespace xval {
                  numNTrees, numKs, numPowers, numBases);
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
       ext_printf("  num samp: %lu, num reps: %lu\n", origControl.numSamples, numReps);
-      ext_printf("  burn in: %lu first, %lu subsequent\n\n", numInitialBurnIn, numSubsequentBurnIn);
+      ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
       if (numThreads > 1) {
         ext_printf("  verbose output during run incompatibile with multiple threads and will be henceforth suppressed\n");
       }
@@ -129,7 +131,7 @@ namespace dbarts { namespace xval {
     
         
     SharedData sharedData = { threadControl, origModel, origData,
-                              numInitialBurnIn, numSubsequentBurnIn,
+                              numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               numTrainingObservations, numTestObservations,
                               lossFunctorDef, numReps, cellParameters };
     
@@ -238,7 +240,8 @@ extern "C" {
                     new double[origData.numPredictors * numSamples]);
     
     Control repControl = origControl;
-    repControl.rng = ext_rng_createDefault(origControl.numThreads == 1);
+    repControl.rng = ext_rng_createDefault(false); // origControl.numThreads == 1);
+    ext_rng* nativeGenerator = ext_rng_createDefault(true);
     repControl.numThreads = 1;
     bool verbose = repControl.verbose;
     repControl.verbose = false;
@@ -250,8 +253,6 @@ extern "C" {
     
     allocateDataStorage(fit->data, repData, numTrainingObservations, numTestObservations);
     allocateModelStorage(fit->model, repModel);
-    
-    bool isFirstRun = true;
     
     double* y_test = (suppliedY_test == NULL ? new double[numTestObservations] : suppliedY_test);
     
@@ -267,6 +268,7 @@ extern "C" {
     // ext_printf("first cell: %lu, first cell rep: %lu, last cell: %lu, last cell rep: %lu\n", firstCell, firstCellRep, lastCell, lastCellRep);
     
     size_t resultIndex = 0;
+    size_t numBurnIn = sharedData.numInitialBurnIn;
     
     // first and last cells are a bit of a mess, since there can be a lot of off-by-one stuff
     if (firstCellRep != 0) {
@@ -275,22 +277,21 @@ extern "C" {
       
       for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, repControl.rng, permutation);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
         fit->setData(repData);
         
-        if (isFirstRun) {
-          fit->runSampler(sharedData.numInitialBurnIn, samples);
-          isFirstRun = false;
-        } else {
-          fit->runSampler(sharedData.numSubsequentBurnIn, samples);
-        }
-        
+        fit->runSampler(numBurnIn, samples);
+                
         lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
-        resultIndex += lfDef.numResults;           
+        resultIndex += lfDef.numResults;
+        
+        numBurnIn = sharedData.numRepBurnIn;
       }
       
       ++firstCell;
       firstCellRep = 0;
+      
+      numBurnIn = sharedData.numContextShiftBurnIn;
     }
     
     for (size_t cellIndex = firstCell; cellIndex < lastCell; ++cellIndex) {
@@ -299,40 +300,21 @@ extern "C" {
       
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, repControl.rng, permutation);
-        /* ext_printf("  x:\n");
-        for (size_t row = 0; row < 10; ++row) {
-          ext_printf("    %.4f", repData.x[row]);
-          for (size_t col = 1; col < origData.numPredictors; ++col) ext_printf(" %.4f", repData.x[row + col * repData.numObservations]);
-          ext_printf("\n");
-        }
-        ext_printf("  y:\n    %.4f", repData.y[0]);
-        for (size_t row = 1; row < 10; ++row) ext_printf(" %.4f", repData.y[row]);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
+        ext_printf("  perm: %lu", permutation[0]);
+        for (size_t i = 1; i < 20; ++i) ext_printf(" %lu", permutation[i]);
         ext_printf("\n");
-        
-        ext_printf("  x_test:\n");
-        for (size_t row = 0; row < 10; ++row) {
-          ext_printf("    %.4f", repData.x_test[row]);
-          for (size_t col = 1; col < origData.numPredictors; ++col) ext_printf(" %.4f", repData.x_test[row + col * repData.numTestObservations]);
-          ext_printf("\n");
-        }
-        ext_printf("  y_test:\n    %.4f", y_test[0]);
-        for (size_t row = 1; row < 10; ++row) ext_printf(" %.4f", y_test[row]);
-        ext_printf("\n"); */
-
-     
         fit->setData(repData);
         
-        if (isFirstRun) {
-          fit->runSampler(sharedData.numInitialBurnIn, samples);
-          isFirstRun = false;
-        } else {
-          fit->runSampler(sharedData.numSubsequentBurnIn, samples);
-        }
-        
+        fit->runSampler(numBurnIn, samples);
+              
         lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
-        resultIndex += lfDef.numResults;           
+        resultIndex += lfDef.numResults;
+        
+        numBurnIn = sharedData.numRepBurnIn;
       }
+      
+      numBurnIn = sharedData.numContextShiftBurnIn;
     }
     
     if (lastCellRep != 0) {
@@ -341,20 +323,19 @@ extern "C" {
       
       for (size_t repIndex = 0; repIndex < lastCellRep; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, repControl.rng, permutation);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
         fit->setData(repData);
         
-        if (isFirstRun) {
-          fit->runSampler(sharedData.numInitialBurnIn, samples);
-          isFirstRun = false;
-        } else {
-          fit->runSampler(sharedData.numSubsequentBurnIn, samples);
-        }
+        fit->runSampler(numBurnIn, samples);
         
         lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
-        resultIndex += lfDef.numResults;           
+        resultIndex += lfDef.numResults;
+        
+        numBurnIn = sharedData.numRepBurnIn;
       }
     }
+    
+    ext_rng_destroy(nativeGenerator);
 
     
     delete [] permutation;

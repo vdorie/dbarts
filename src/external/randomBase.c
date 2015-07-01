@@ -145,6 +145,8 @@ ext_rng* ext_rng_createDefault(bool useNative)
     ext_rng_setStandardNormalAlgorithm(result, EXT_RNG_STANDARD_NORMAL_USER_NORM, &normalFunction);
     return result;
   }
+  
+  // if not useNative, we at least seed from native and match its type
       
   SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
   if (seedsExpr == R_UnboundValue) GetRNGstate();

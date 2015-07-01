@@ -2,7 +2,7 @@ generateHillData <- function() {
   f0 <- function(x) 90 + exp(0.06 * x)
   f1 <- function(x) 72 + 3 * sqrt(x)
   
-  set.seed(2793);
+  set.seed(2793)
   
   ## generate true values
   n <- 120
