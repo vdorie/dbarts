@@ -191,7 +191,7 @@ Chipman, H., George, E., and McCulloch R. (2006)
    Bayesian Ensemble Learning.
 
 both of the above at:
-\url{http://faculty.chicagogsb.edu/robert.mcculloch/research/rob-mcculloch-cv.html}
+\url{http://www.rob-mcculloch.org/}
 
 Friedman, J.H. (2001)
    Greedy function approximation: A gradient boosting machine.
