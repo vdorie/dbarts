@@ -6,7 +6,7 @@ Authors@R: c(person("Vincent Dorie",    "Developer", role = c("aut", "cre"), ema
              person("Hugh Chipman",     "Developer", role = "aut",           email = "hugh.chipman@gmail.com"),
              person("Robert McCulloch", "Developer", role = "aut",           email = "robert.mcculloch1@gmail.com"))
 Depends: R (>= 3.1-0)
-Imports: methods, stats
+Imports: methods, stats, graphics
 Suggests: testthat (>= 0.9-0)
 Description: Fits Bayesian additive regression trees (BART) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/MH sampler. Also serves as a drop-in replacement for package BayesTree.
 License: GPL (>= 2)

@@ -15,5 +15,10 @@ S3method(plot, bart)
 S3method(plot, pdbart)
 S3method(plot, pd2bart)
 
-importFrom(methods, setRefClass, setClass, callNextMethod, validObject)
-importFrom(stats, lm)
+importFrom(methods, setRefClass, setClass, callNextMethod, validObject, is, new)
+
+importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms)
+importFrom(stats, lm, pnorm, quantile)
+importFrom(stats, as.formula, setNames)
+
+importFrom(graphics, abline, contour, image, lines, par, plot, title)
