@@ -273,6 +273,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     
     y <- y[completeCases]
     x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,]
+    attributes(x) <- attributes(formula)
     if (!is.null(weights)) weights <- weights[completeCases]
     if (!is.null(offset)) offset <- offset[completeCases]
   } else {
