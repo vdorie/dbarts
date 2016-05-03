@@ -218,7 +218,13 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     modelTerms <- terms(modelFrame)
     if (is.empty.model(modelTerms)) stop("predictors must be specified for regression tree analysis")
     
-    x <- makeModelMatrixFromDataFrame(modelFrame[attr(modelTerms, "term.labels")])
+    termLabels <- attr(modelTerms, "term.labels")
+    badLabels <- grepl("`.* .*`", termLabels)
+    if (sum(badLabels) > 0)
+      termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
+    
+    
+    x <- makeModelMatrixFromDataFrame(modelFrame[termLabels])
     
     if (!testIsMissing) {
       testCall <- matchedCall
