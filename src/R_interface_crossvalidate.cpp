@@ -1,3 +1,4 @@
+#include "config.hpp"
 #include "R_interface_crossvalidate.hpp"
 
 #include <cstddef> // size_t

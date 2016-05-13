@@ -1,3 +1,4 @@
+#include "config.hpp"
 #include "R_interface_sampler.hpp"
 
 #include <cstddef>

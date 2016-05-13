@@ -1,3 +1,4 @@
+#include "config.hpp"
 #include "crossvalidate.hpp"
 
 #include <algorithm> // sort
