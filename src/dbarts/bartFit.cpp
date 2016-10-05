@@ -632,9 +632,6 @@ namespace dbarts {
     Results& results(*resultsPointer);
     size_t numSamples = results.numSamples;
     
-    double numEffectiveObservations = static_cast<double>(data.numObservations);
-    
-    
     double* currFits = new double[data.numObservations];
     double* currTestFits = NULL;
     if (data.numTestObservations > 0) currTestFits = new double[data.numTestObservations];
@@ -727,7 +724,7 @@ namespace dbarts {
         } else {
           sumOfSquaredResiduals = ext_mt_computeSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, state.totalFits);
         }
-        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(control.rng, numEffectiveObservations, sumOfSquaredResiduals));
+        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(control.rng, static_cast<double>(data.numObservations), sumOfSquaredResiduals));
       }
       
       if (!isThinningIteration) {

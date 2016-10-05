@@ -65,7 +65,7 @@ bart <- function(
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree),
-                           n.threads = as.integer(nthread), n.thin = keepevery,
+                           n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs))
   control@call <- match.call()
   control@n.burn <- control@n.burn %/% control@n.thin
