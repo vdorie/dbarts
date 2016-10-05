@@ -1,5 +1,5 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("mse", "mcr"), n.threads = guessNumCores(),
+                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"), n.threads = guessNumCores(),
                   n.trees = 200L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
@@ -59,8 +59,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   drop    <- as.logical(drop)
   
   result <- .Call(C_dbarts_xbart, control, model, data,
-                  as.integer(K), as.integer(n.reps), as.integer(n.burn), loss, as.integer(n.threads),
-                  n.trees, k, power, base, drop)
+                  as.integer(K), as.integer(n.reps), as.integer(n.burn), loss,
+                  as.integer(n.threads), n.trees, k, power, base, drop)
   
   if (is.null(result) || is.null(dim(result))) return(result)
   

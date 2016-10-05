@@ -238,6 +238,7 @@ extern "C" {
     DEF_FUNC("dbarts_updateTestPredictor", updateTestPredictor, 3),
     DEF_FUNC("dbarts_setData", setData, 2),
     DEF_FUNC("dbarts_setControl", setControl, 2),
+    DEF_FUNC("dbarts_setModel", setModel, 2),
     DEF_FUNC("dbarts_isValidPointer", isValidPointer, 1),
     DEF_FUNC("dbarts_createState", createState, 1),
     DEF_FUNC("dbarts_storeState", storeState, 2),

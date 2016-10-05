@@ -190,7 +190,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setControl called on NULL external pointer");
     
-    if (std::strcmp(CHAR(STRING_ELT(Rf_getAttrib(controlExpr, R_ClassSymbol), 0)), "dbartsControl") != 0) Rf_error("'control' argument to dbarts_create not of class 'dbartsControl'");
+    if (std::strcmp(CHAR(STRING_ELT(Rf_getAttrib(controlExpr, R_ClassSymbol), 0)), "dbartsControl") != 0) Rf_error("'control' argument to dbarts_setControl not of class 'dbartsControl'");
     
     Control control;
     initializeControlFromExpression(control, controlExpr);
@@ -209,7 +209,24 @@ extern "C" {
     return R_NilValue;
   }
   
-  
+  SEXP setModel(SEXP fitExpr, SEXP modelExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_setControl called on NULL external pointer");
+    
+    if (std::strcmp(CHAR(STRING_ELT(Rf_getAttrib(modelExpr, R_ClassSymbol), 0)), "dbartsModel") != 0) Rf_error("'model' argument to dbarts_setModel not of class 'dbartsModel'");
+    
+    Model model;
+    initializeModelFromExpression(model, modelExpr, fit->control);
+    
+    Model oldModel = fit->model;
+    
+    fit->setModel(model);
+    
+    invalidateModel(oldModel);
+    
+    return R_NilValue;
+  }
   
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {

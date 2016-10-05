@@ -632,8 +632,7 @@ namespace dbarts {
     Results& results(*resultsPointer);
     size_t numSamples = results.numSamples;
     
-    double numEffectiveObservations = 
-      data.weights == NULL ? static_cast<double>(data.numObservations) : ext_sumVectorElements(data.weights, data.numObservations);
+    double numEffectiveObservations = static_cast<double>(data.numObservations);
     
     
     double* currFits = new double[data.numObservations];

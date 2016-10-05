@@ -268,6 +268,16 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
+                setModel = function(newModel) {
+                  'Sets the model object for the sampler to a new one.'
+                  
+                  if (!inherits(newModel, "dbartsModel")) stop("'model' must inherit from dbartsModel")
+                  ptr <- getPointer()
+                  model <<- newModel
+                  .Call(C_dbarts_setModel, ptr, model)
+                  
+                  invisible(NULL)
+                },
                 setData = function(newData, updateState = NA) {
                   'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
                   

@@ -33,7 +33,7 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    	 tends to be superior unless the number of observations is very large (>10k).}
    \item{n.thin}{A positive integer determining how many iterations the MCMC chain should jump on the
    	 decision trees alone before recording a sample. Serves to \dQuote{thin} the samples against
-   	 serial correlation.}
+   	 serial correlation. \code{n.samples} are returned regardless of the value of \code{n.thin}.}
    \item{printEvery}{If \code{verbose} is \code{TRUE}, every \code{printEvery} potential samples
    	 (after thinning) will issue a verbal statement. Must be a positive integer.}
    \item{printCutoffs}{A non-negative integer specifying how many of the decision rules for a variable are

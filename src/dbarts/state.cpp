@@ -4,16 +4,13 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#ifdef HAVE_SNPRINTF
+#ifdef HAVE_STD_SNPRINTF
 #  include <cstdio>
+using std::snprintf;
 #else
 extern "C" {
 #  include <stdio.h>
 }
-#endif
-
-#ifdef HAVE_STD_SNPRINTF
-using std::snprintf;
 #endif
 
 #include <external/io.h>

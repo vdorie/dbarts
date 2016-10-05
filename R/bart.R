@@ -65,18 +65,21 @@ bart <- function(
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree),
-                           n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
+                           n.threads = as.integer(nthread), n.thin = keepevery,
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs))
   control@call <- match.call()
+  control@n.burn <- control@n.burn %/% control@n.thin
+  control@printEvery <- control@printEvery %/% control@n.thin
+  ndpost <- as.integer(ndpost) %/% control@n.thin
 
   tree.prior <- quote(cgm(power, base))
-  tree.prior[[2]] <- power; tree.prior[[3]] <- base
+  tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
 
   node.prior <- quote(normal(k))
-  node.prior[[2]] <- k
+  node.prior[[2L]] <- k
 
   resid.prior <- quote(chisq(sigdf, sigquant))
-  resid.prior[[2]] <- sigdf; resid.prior[[3]] <- sigquant
+  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
   args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = NULL,
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),

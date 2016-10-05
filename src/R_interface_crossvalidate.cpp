@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "R_interface_crossvalidate.hpp"
 
+#include <cmath>   // sqrt
 #include <cstddef> // size_t
 #include <cstring> // strcmp
 
@@ -163,30 +164,30 @@ namespace {
     return result;
   }
   
-  struct MSELossFunctor : LossFunctor {
+  struct RMSELossFunctor : LossFunctor {
     double* scratch;
   };
   
-  LossFunctor* createMSELoss(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createRMSELoss(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples)
   {
     (void) def; (void) numSamples;
     
-    MSELossFunctor* result = new MSELossFunctor;
+    RMSELossFunctor* result = new RMSELossFunctor;
     result->scratch = new double[numTestObservations];
     return result;
   }
   
-  void deleteMSELoss(LossFunctor* instance)
+  void deleteRMSELoss(LossFunctor* instance)
   {
-    delete [] static_cast<MSELossFunctor*>(instance)->scratch;
+    delete [] static_cast<RMSELossFunctor*>(instance)->scratch;
     delete instance;
   }
   
-  void calculateMSELoss(LossFunctor& restrict v_instance,
+  void calculateRMSELoss(LossFunctor& restrict v_instance,
                         const double* restrict y_test, size_t numTestObservations, const double* restrict testSamples, size_t numSamples,
                         double* restrict results)
   {
-    MSELossFunctor& restrict instance(*static_cast<MSELossFunctor* restrict>(&v_instance));
+    RMSELossFunctor& restrict instance(*static_cast<RMSELossFunctor* restrict>(&v_instance));
     
     double* restrict y_test_hat = instance.scratch;
     for (size_t i = 0; i < numTestObservations; ++i) {
@@ -195,7 +196,7 @@ namespace {
       y_test_hat[i] /= static_cast<double>(numSamples);
     }
     
-    results[0] = ext_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations);
+    results[0] = std::sqrt(ext_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
   }
   
   struct MCRLossFunctor : LossFunctor {
@@ -287,8 +288,8 @@ namespace {
   }
 
   
-  const char* const lossTypeNames[] = { "mse", "mcr" };
-  typedef enum { MSE, MCR, CUSTOM } LossFunctorType;
+  const char* const lossTypeNames[] = { "rmse", "mcr" };
+  typedef enum { RMSE, MCR, CUSTOM } LossFunctorType;
   
   LossFunctorDefinition* createLossFunctorDefinition(SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples)
   {
@@ -299,22 +300,22 @@ namespace {
       const char* lossTypeName = CHAR(STRING_ELT(lossTypeExpr, 0));
       
       size_t lossTypeNumber;
-      int errorCode = ext_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - MSE), &lossTypeNumber);
+      int errorCode = ext_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - RMSE), &lossTypeNumber);
       if (errorCode != 0) Rf_error("error matching string: %s", std::strerror(errorCode));
       if (lossTypeNumber == EXT_STR_NO_MATCH) Rf_error("unsupported result type: '%s'", lossTypeName);
       
       LossFunctorType type = static_cast<LossFunctorType>(lossTypeNumber);
       
       switch (type) {
-        case MSE:
+        case RMSE:
         result = new LossFunctorDefinition;
         result->y_testOffset = -1;
         result->testSamplesOffset = -1;
         result->numResults = 1;
         result->displayString = lossTypeNames[0];
-        result->calculateLoss = &calculateMSELoss;
-        result->createFunctor = &createMSELoss;
-        result->deleteFunctor = &deleteMSELoss;
+        result->calculateLoss = &calculateRMSELoss;
+        result->createFunctor = &createRMSELoss;
+        result->deleteFunctor = &deleteRMSELoss;
         break;
         
         case MCR:

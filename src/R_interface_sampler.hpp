@@ -13,6 +13,7 @@ extern "C" {
   
   SEXP setData(SEXP fit, SEXP data);
   SEXP setControl(SEXP fit, SEXP control);
+  SEXP setModel(SEXP fit, SEXP model);
   
   SEXP setResponse(SEXP fit, SEXP y);
   SEXP setOffset(SEXP fit, SEXP offset);
