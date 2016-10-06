@@ -42,11 +42,11 @@ test_that("weighted Friedman example passes regression test", {
 
   simRange <- -4L:0L + n.sims
   
-  expect_equal(samples$sigma[simRange], c(0.621688107046407, 0.674348256299581, 0.665940804724943, 0.698627748276051, 0.654080393197981))
-  expect_equal(samples$train[1:5, n.sims], c(7.39987407368855, 17.1885812130592, 17.3841649114217, 2.37536569277925, 18.4119021613511))
-  expect_equal(apply(samples$train, 1, mean)[1:5], c(6.76007381633183, 17.1506566465913, 16.9040153912435, 3.47593182397211, 19.279445867275))
+  expect_equal(samples$sigma[simRange], c(0.710459609625003, 0.766615204051126, 0.77320226463128, 0.795150560866139, 0.91496203135795))
+  expect_equal(samples$train[1:5, n.sims], c(7.52723993609673, 15.9289672965162, 17.3166342084901, 4.38749632007886, 18.9820324697806))
+  expect_equal(apply(samples$train, 1, mean)[1:5], c(6.94519043557289, 16.9761581257151, 16.5971535791954, 3.55388932832975, 19.4361777198272))
   expect_identical(samples$test, NULL)
-  expect_equal(samples$varcount[, n.sims], c(10, 10, 11, 10, 7, 4, 6, 3, 7, 5))
+  expect_equal(samples$varcount[, n.sims], c(13, 7, 10, 11, 9, 5, 8, 5, 3, 5))
 })
 
 test_that("Friedman example with test data passes regression test", {
