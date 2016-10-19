@@ -22,7 +22,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      ndpost = 1000, nskip = 100,
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
-     verbose = TRUE, nthread = 1)
+     verbose = TRUE, nthread = 1, keepcall = TRUE)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -140,7 +140,12 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
    	  Integer specifying how many threads to use for rudimentary calculations such as means/variances. Depending
    	  on the CPU architecture, using more than one can degrade performance for small/medium data sets. As such
    	  some calculations may be executed single threaded regardless.
-   	}
+   }
+   
+   \item{keepcall}{
+     Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
+          used to instantiate BART.
+   }
 
    \item{x}{
      Object of class \code{bart}, returned by function \code{bart}, which contains the information to be plotted.

@@ -81,7 +81,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
   eval(validateCall, parent.frame(1L), getNamespace("dbarts"))
 
-  if (control@call != call("NA")[[1]]) control@call <- matchedCall
+  if (length(control@call) == 1L && control@call == call("NA")) control@call <- matchedCall
   control@verbose <- verbose
 
   dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")

@@ -51,7 +51,7 @@ setClass("dbartsControl",
               printEvery       = 100L,
               printCutoffs     = 0L,
               updateState      = TRUE,
-              call = quote(call("NA"))),
+              call             = quote(call("NA"))),
 ##              call             = quote(quote(NA()))),
          validity = function(object) {
            if (is.na(object@verbose))          return("'verbose' must be TRUE/FALSE")
