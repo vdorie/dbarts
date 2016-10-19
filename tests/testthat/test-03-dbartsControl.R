@@ -59,3 +59,23 @@ test_that("control argument works", {
   expect_equal(sampler$control@verbose, FALSE)
   expect_equal(sampler$control@n.samples, n.samples)
 })
+
+test_that("call is propagated", {
+  n.samples <- 5L
+  n.burn    <- 1L
+  n.trees   <- 5L
+  
+  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  expect_equal(sampler$control@call[[1L]], quote(dbarts))
+  
+  control@call <- call("NULL")
+  sampler <- dbarts(y ~ x, testData, control = control)
+  expect_equal(sampler$control@call, control@call)
+  
+  bartFit <- bart(y ~ x, testData, verbose = FALSE, ndpost = n.samples, nskip = n.burn, ntree = n.trees)
+  expect_equal(bartFit$call[[1L]], quote(bart))
+  
+  bartFit <- bart(y ~ x, testData, verbose = FALSE, ndpost = n.samples, nskip = n.burn, ntree = n.trees, keepcall = FALSE)
+  expect_equal(bartFit$call, call("NULL"))
+})
