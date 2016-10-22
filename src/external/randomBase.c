@@ -398,7 +398,7 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
       if (!notAllAreZero) ext_rng_setSeedFromClock(generator);
     }
     break;
-    case LECUYER_CMRG:
+    case EXT_RNG_ALGORITHM_LECUYER_CMRG:
     // first set: not all zero, in [0, m1)
     // second set: not all zero, in [0, m2)
     {

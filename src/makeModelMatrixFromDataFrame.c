@@ -1,13 +1,19 @@
-#include "makeModelMatrixFromDataFrame.h"
-
 #include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
+// required to get Rinternals.h to load correctly on solaris, even though
+// we don't use any of its functionality
+#ifdef NO_C_HEADERS
+#  include <stdio.h>
+#endif
+
 #include <R.h>
 #include <Rinternals.h>
+
+#include "makeModelMatrixFromDataFrame.h"
 
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>

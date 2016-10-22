@@ -6,6 +6,13 @@
 #include <cstring> // memcpy
 
 #define R_NO_REMAP 1
+//using std::size_t;
+// required to get Rinternals.h to load correctly on solaris, even though
+// we don't use any of its functionality
+/* #ifdef NO_C_HEADERS
+#  include <cstdio>
+using std::FILE; */
+
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
@@ -21,7 +28,6 @@
 #include "R_interface_common.hpp"
 #include "R_interface_crossvalidate.hpp"
 #include "R_interface_sampler.hpp"
-
 
 using std::size_t;
 using std::uint32_t;

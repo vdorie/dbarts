@@ -3133,6 +3133,64 @@ ac_config_headers="$ac_config_headers src/external/config.h"
 
 
 
+# ===========================================================================
+#   http://www.gnu.org/software/autoconf-archive/ax_cxx_namespace_std.html
+# ===========================================================================
+#
+# SYNOPSIS
+#
+#   AX_CXX_NAMESPACE_STD
+#
+# DESCRIPTION
+#
+#   If the compiler supports namespace std, define HAVE_NAMESPACE_STD.
+#
+# LICENSE
+#
+#   Copyright (c) 2009 Todd Veldhuizen
+#   Copyright (c) 2009 Luc Maisonobe <luc@spaceroots.org>
+#
+#   Copying and distribution of this file, with or without modification, are
+#   permitted in any medium without royalty provided the copyright notice
+#   and this notice are preserved. This file is offered as-is, without any
+#   warranty.
+
+#serial 6
+
+# This is what autoupdate's m4 run will expand.  It fires
+# the warning (with _au_warn_XXX), outputs it into the
+# updated configure.ac (with AC_DIAGNOSE), and then outputs
+# the replacement expansion.
+
+
+# This is an auxiliary macro that is also run when
+# autoupdate runs m4.  It simply calls m4_warning, but
+# we need a wrapper so that each warning is emitted only
+# once.  We break the quoting in m4_warning's argument in
+# order to expand this macro's arguments, not AU_DEFUN's.
+
+
+# Finally, this is the expansion that is picked up by
+# autoconf.  It tells the user to run autoupdate, and
+# then outputs the replacement expansion.  We do not care
+# about autoupdate's warning because that contains
+# information on what to do *after* running autoupdate.
+
+
+# SYNOPSIS
+#
+#   AX_CXX_SNPRINTF_IN_NAMESPACE_STD
+#
+# DESCRIPTION
+#
+#   If the function snprintf is in the cstdio header file and std::
+#   namespace, define HAVE_SNPRINTF_IN_NAMESPACE_STD.
+#
+
+#serial 7
+
+
+
 
 # Check whether --enable-match-bayes-tree was given.
 if test "${enable_match_bayes_tree+set}" = set; then :
@@ -6981,10 +7039,66 @@ fi
 done
 
 
-## check that snprintf is in namespace std
-if test "$ac_cv_func_snprintf" == yes
-then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking if g++ supports namespace std" >&5
+$as_echo_n "checking if g++ supports namespace std... " >&6; }
+if ${ax_cv_cxx_have_std_namespace+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <iostream>
+                  std::istream& is = std::cin;
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  ax_cv_cxx_have_std_namespace=yes
+else
+  ax_cv_cxx_have_std_namespace=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cxx_have_std_namespace" >&5
+$as_echo "$ax_cv_cxx_have_std_namespace" >&6; }
+  if test "$ax_cv_cxx_have_std_namespace" = yes; then
+
+$as_echo "#define HAVE_NAMESPACE_STD /**/" >>confdefs.h
+
+  fi
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether snprintf is in std::" >&5
+$as_echo_n "checking whether snprintf is in std::... " >&6; }
+if ${ax_cv_cxx_snprintf_in_namespace_std+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+    if test "X$ax_cv_cxx_have_std_namespace" = Xyes; then :
+  ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+
+       cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #include <cstdio>
 int
@@ -6997,24 +7111,31 @@ std::snprintf;
 
 _ACEOF
 if ac_fn_cxx_try_compile "$LINENO"; then :
-
-      { $as_echo "$as_me:${as_lineno-$LINENO}: result: checking for std::snprintf... yes" >&5
-$as_echo "checking for std::snprintf... yes" >&6; }
-
-cat >>confdefs.h <<_ACEOF
-#define HAVE_STD_SNPRINTF 1
-_ACEOF
+  ax_cv_cxx_snprintf_in_namespace_std=yes
+else
+  ax_cv_cxx_snprintf_in_namespace_std=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+	ac_ext=cpp
+ac_cpp='$CXXCPP $CPPFLAGS'
+ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
 
 else
-
-      { $as_echo "$as_me:${as_lineno-$LINENO}: result: checking for std::snprintf... no" >&5
-$as_echo "checking for std::snprintf... no" >&6; }
-##      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 0, [Define to 1 if `snprintf' is defined in namespace `std'.])
+  ax_cv_cxx_snprintf_in_namespace_std=no
+fi
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_cxx_snprintf_in_namespace_std" >&5
+$as_echo "$ax_cv_cxx_snprintf_in_namespace_std" >&6; }
+  if test "X$ax_cv_cxx_snprintf_in_namespace_std" = Xyes; then :
+
+$as_echo "#define HAVE_SNPRINTF_IN_NAMESPACE_STD /**/" >>confdefs.h
+
 fi
+
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'

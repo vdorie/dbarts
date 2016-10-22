@@ -102,9 +102,9 @@ namespace {
     
     
     errno = 0;
-    node.p.rule.variableIndex = static_cast<int32_t>(strtol(buffer, NULL, 10));
+    node.p.rule.variableIndex = static_cast<int32_t>(std::strtol(buffer, NULL, 10));
     if (node.p.rule.variableIndex == 0 && errno != 0)
-      ext_throwError("Unable to parse tree string: %s", strerror(errno));
+      ext_throwError("Unable to parse tree string: %s", std::strerror(errno));
     
     size_t bufferPos = 0;
     while (treeString[pos] != ' ' && bufferPos < INT_BUFFER_SIZE) {
@@ -116,9 +116,9 @@ namespace {
     ++pos;
     
     errno = 0;
-    node.p.rule.splitIndex = static_cast<int32_t>(strtol(buffer, NULL, 10));
+    node.p.rule.splitIndex = static_cast<int32_t>(std::strtol(buffer, NULL, 10));
     if (node.p.rule.splitIndex == 0 && errno != 0)
-      ext_throwError("Unable to parse tree string: %s", strerror(errno));
+      ext_throwError("Unable to parse tree string: %s", std::strerror(errno));
     
     node.leftChild  = new Node(node, numPredictors);
     node.p.rightChild = new Node(node, numPredictors);

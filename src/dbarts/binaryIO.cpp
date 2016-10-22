@@ -242,7 +242,7 @@ write_model_cleanup:
     if ((errorCode = ext_bio_readDouble(bio, &model.birthProbability)) != 0) goto read_model_cleanup;
     
     if ((errorCode = ext_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
-    if (strncmp(priorName, "cgm ", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
+    if (std::strncmp(priorName, "cgm ", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.treePrior = new CGMPrior;
     if ((errorCode = ext_bio_readDouble(bio, &static_cast<CGMPrior*>(model.treePrior)->base)) != 0) goto read_model_cleanup;
@@ -250,14 +250,14 @@ write_model_cleanup:
     
     
     if ((errorCode = ext_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
-    if (strncmp(priorName, "nrml", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
+    if (std::strncmp(priorName, "nrml", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.muPrior = new NormalPrior;
     if ((errorCode = ext_bio_readDouble(bio, &static_cast<NormalPrior*>(model.muPrior)->precision)) != 0) goto read_model_cleanup;
     
     
     if ((errorCode = ext_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
-    if (strncmp(priorName, "chsq", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
+    if (std::strncmp(priorName, "chsq", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.sigmaSqPrior = new ChiSquaredPrior;
     if ((errorCode = ext_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
