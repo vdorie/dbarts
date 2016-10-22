@@ -9,7 +9,9 @@ AC_CONFIG_HEADER([src/config.hpp])
 AC_CONFIG_HEADER([src/dbarts/config.hpp])
 AC_CONFIG_HEADER([src/external/config.h])
 
-m4_include([tools/m4/m4_ax_pthread.m4])
+m4_include([tools/m4/ax_pthread.m4])
+m4_include([tools/m4/ax_cxx_namespace_std.m4])
+m4_include([tools/m4/ax_snprintf_in_namespace_std.m4])
 
 AC_ARG_ENABLE([match-bayes-tree],
               [AS_HELP_STRING([--enable-match-bayes-tree],
@@ -84,21 +86,7 @@ AC_FUNC_ALLOCA
 
 AC_LANG_PUSH(C++)
 AC_CHECK_FUNCS([snprintf])
-
-## check that snprintf is in namespace std
-if test "$ac_cv_func_snprintf" == yes
-then
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
-      [[#include <cstdio>]],
-      [[std::snprintf;]])
-  ], [
-      AC_MSG_RESULT([checking for std::snprintf... yes])
-      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 1, [Define to 1 if `snprintf' is defined in namespace `std'.])
-  ], [
-      AC_MSG_RESULT([checking for std::snprintf... no])
-##      AC_DEFINE_UNQUOTED([HAVE_STD_SNPRINTF], 0, [Define to 1 if `snprintf' is defined in namespace `std'.])
-  ])
-fi
+AX_CXX_SNPRINTF_IN_NAMESPACE_STD
 AC_LANG_POP
 
 

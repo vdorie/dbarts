@@ -4,6 +4,14 @@
 #include <dbarts/cstdint.hpp>
 #include <cmath>
 
+using std::size_t;
+// required to get Rinternals.h to load correctly on solaris, even though
+// we don't use any of its functionality
+#ifdef NO_C_HEADERS
+#  include <cstdio>
+using std::FILE;
+#endif
+
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
@@ -28,8 +36,6 @@
 #ifdef THREAD_SAFE_UNLOAD
 #include <pthread.h>
 #endif
-
-using std::size_t;
 
 extern "C" {
   void R_init_dbarts(DllInfo* info);
@@ -610,7 +616,7 @@ namespace {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) error("dbarts_setControl called on NULL external pointer");
     
-    if (strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
+    if (std::strcmp(CHAR(STRING_ELT(GET_CLASS(controlExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     
     initializeControlFromExpression(fit->control, controlExpr);
     
@@ -644,13 +650,13 @@ namespace {
     Data data;
     
     SEXP classExpr = GET_CLASS(controlExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
+    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     
     classExpr = GET_CLASS(modelExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'");
+    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) error("'model' argument to dbarts_create not of class 'dbartsModel'");
     
     classExpr = GET_CLASS(dataExpr);
-    if (strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_create not of class 'dbartsData'");
+    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) error("'data' argument to dbarts_create not of class 'dbartsData'");
     
     
     initializeControlFromExpression(control, controlExpr);
@@ -985,7 +991,7 @@ namespace {
     
     const char* symbolName = CHAR(PRINTNAME(expr));
     
-    if (strncmp(symbolName, "\1NULL\1", 6) == 0) return true;
+    if (std::strncmp(symbolName, "\1NULL\1", 6) == 0) return true;
     
     return false;
   }
@@ -1137,7 +1143,7 @@ namespace {
     
     SEXP priorExpr = GET_ATTR(modelExpr, install("tree.prior"));
     // slotExpr = GET_CLASS(priorExpr);
-    // if (strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
+    // if (std::strcmp(CHAR(STRING_ELT(GET_CLASS(slotExpr), 0)), "dbartsControl") != 0) error("'control' argument to dbarts_create not of class 'dbartsControl'");
     CGMPrior* treePrior = new CGMPrior;
     model.treePrior = treePrior;
     

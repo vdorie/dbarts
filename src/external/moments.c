@@ -2,6 +2,8 @@
 #include <external/stats_mt.h>
 #include <external/thread.h>
 
+#include <math.h>
+
 #if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 #  define UNUSED __attribute__ ((unused))
 #else

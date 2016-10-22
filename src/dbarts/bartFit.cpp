@@ -1076,7 +1076,7 @@ save_failed:
     char versionString[8];
     if (ext_bio_readNChars(&bio, versionString, VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unable to read version string from file"); return NULL; }
     
-    if (strncmp(versionString, "00.08.00", VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unrecognized file formal"); return NULL; }
+    if (std::strncmp(versionString, "00.08.00", VERSION_STRING_LENGTH) != 0) { ext_issueWarning("unrecognized file formal"); return NULL; }
     
     Control control;
     Model model;
