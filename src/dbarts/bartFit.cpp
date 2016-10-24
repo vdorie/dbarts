@@ -768,7 +768,7 @@ namespace {
       offset = 0;
     } else {
       numCuts = maxNumCuts;
-      step = numCuts / numUniqueElements;
+      step = numUniqueElements / numCuts;
       offset = step / 2;
     }
     
