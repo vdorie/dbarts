@@ -1,7 +1,7 @@
 #ifndef MAKE_MODEL_MATRIX_FROM_DATA_FRAME_H
 #define MAKE_MODEL_MATRIX_FROM_DATA_FRAME_H
 
-#include <Rdefines.h> // SEXP
+#include <external/Rinternals.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -7,11 +7,10 @@
 #include <string.h>
 #include <errno.h>
 
-#include <R.h>
-#include <Rdefines.h>
-#include <R_ext/BLAS.h>
-#include <R_ext/Lapack.h>
-#include <R_ext/Applic.h> // for dqrls
+#define R_NO_REMAP
+#define NO_C_HEADERS
+#include <R_ext/Lapack.h> // dlassq, dpotrf, dtrtrs
+#include <R_ext/Applic.h> // dqrls
 
 #include <external/alloca.h>
 

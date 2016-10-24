@@ -3,9 +3,7 @@
 
 #include <stdbool.h> // for bool
 
-#define R_NO_REMAP 1
-#include <R.h>
-#include <Rinternals.h> // SEXP
+#include <external/Rinternals.h> // SEXP
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,3 +72,4 @@ typedef enum {
 #endif
 
 #endif // RC_BOUNDS_H
+

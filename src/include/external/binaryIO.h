@@ -63,3 +63,4 @@ int ext_bio_readNDoubles(ext_binaryIO* bio, double* d, size_t length);
 #endif
 
 #endif // EXTERNAL_BINARY_IO_H
+

@@ -658,9 +658,6 @@ void rc_checkDims(SEXP x, const char* name, ...)
   va_end(argsPointer);
 }
 
-
-
-
 static void checkLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound)
 {
   if (bound < 0) Rf_error("internal error: %s cannot have a negative length", name);

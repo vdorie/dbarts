@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #ifdef HAVE_STD_SNPRINTF
+// snprintf in c++11, before that have to use C version
 #  include <cstdio>
 using std::snprintf;
 #else

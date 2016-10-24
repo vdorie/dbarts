@@ -1,9 +1,10 @@
 #ifndef EXTERNAL_IO_H
 #define EXTERNAL_IO_H
 
-#include <R.h>
+#include <external/R.h>  // R_FlushConsole
+#include <R_ext/Print.h> // Rprintf
 
-// Thank goodness for http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1453.htm
+// defines a crossplatform NORETURN http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1453.htm
 #if _MSC_VER >= 1310 
 #  define NORETURN _declspec(noreturn)
 #elif __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5)
@@ -31,3 +32,4 @@ void ext_issueWarning(const char* format, ...);
 #endif
 
 #endif
+

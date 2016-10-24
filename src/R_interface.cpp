@@ -5,16 +5,16 @@
 #include <dbarts/cstdint.hpp>
 #include <cstring> // memcpy
 
-#define R_NO_REMAP 1
-//using std::size_t;
+/* #define R_NO_REMAP 1
 // required to get Rinternals.h to load correctly on solaris, even though
 // we don't use any of its functionality
-/* #ifdef NO_C_HEADERS
+#ifdef NO_C_HEADERS
 #  include <cstdio>
-using std::FILE; */
+using std::FILE;
+#endif */
 
-#include <R.h>
-#include <Rinternals.h>
+// #include <R.h>
+// #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 
 #include <rc/util.h>

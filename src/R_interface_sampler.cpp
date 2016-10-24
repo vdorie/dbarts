@@ -6,9 +6,7 @@
 
 #include <external/alloca.h>
 
-#define R_NO_REMAP 1
-#include <R.h>
-#include <Rinternals.h>
+#include <R_ext/Random.h> // GetRNGstate, PutRNGState
 
 #include <rc/bounds.h>
 #include <rc/util.h>
@@ -108,21 +106,17 @@ extern "C" {
     // can happen if numSamples == 0
     if (bartResults == NULL) return R_NilValue;
     
-    
-    // create result storage and make it user friendly
-    SEXP namesExpr;
-    
     int protectCount = 0;
     
-    SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
+    SEXP resultExpr = PROTECT(rc_newList(4));
     ++protectCount;
-    SET_VECTOR_ELT(resultExpr, 0, Rf_allocVector(REALSXP, asRXLen(bartResults->getNumSigmaSamples())));
-    SET_VECTOR_ELT(resultExpr, 1, Rf_allocVector(REALSXP, asRXLen(bartResults->getNumTrainingSamples())));
+    SET_VECTOR_ELT(resultExpr, 0, rc_newNumeric(asRXLen(bartResults->getNumSigmaSamples())));
+    SET_VECTOR_ELT(resultExpr, 1, rc_newNumeric(asRXLen(bartResults->getNumTrainingSamples())));
     if (fit->data.numTestObservations > 0)
-      SET_VECTOR_ELT(resultExpr, 2, Rf_allocVector(REALSXP, asRXLen(bartResults->getNumTestSamples())));
+      SET_VECTOR_ELT(resultExpr, 2, rc_newNumeric(asRXLen(bartResults->getNumTestSamples())));
     else
       SET_VECTOR_ELT(resultExpr, 2, R_NilValue);
-    SET_VECTOR_ELT(resultExpr, 3, Rf_allocVector(INTSXP, asRXLen(bartResults->getNumVariableCountSamples())));
+    SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(asRXLen(bartResults->getNumVariableCountSamples())));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
     std::memcpy(REAL(sigmaSamples), const_cast<const double*>(bartResults->sigmaSamples), bartResults->getNumSigmaSamples() * sizeof(double));
@@ -144,7 +138,11 @@ extern "C" {
     // these likely need to be down-sized from 64 to 32 bits
     for (size_t i = 0; i < length; ++i) variableCountStorage[i] = static_cast<int>(bartResults->variableCountSamples[i]);
     
-    Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr = Rf_allocVector(STRSXP, 4));
+        
+    // create result storage and make it user friendly
+    SEXP namesExpr;
+    
+    rc_setNames(resultExpr, namesExpr = rc_newCharacter(4));
     SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
     SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
     SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));

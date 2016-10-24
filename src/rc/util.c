@@ -18,7 +18,7 @@ SEXP rc_setDims(SEXP obj, ...)
   
   if (numDims == 0) return obj;
   
-  SEXP dimsExpr = allocVector(INTSXP, (R_xlen_t) numDims);
+  SEXP dimsExpr = Rf_allocVector(INTSXP, (R_xlen_t) numDims);
   int* dims = INTEGER(dimsExpr);
   va_start(dimsPointer, obj);
   for (size_t i = 0; i < numDims; ++i)
@@ -32,7 +32,7 @@ SEXP rc_setDims(SEXP obj, ...)
 
 SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length)
 {
-  SEXP val = allocVector(type, length);
+  SEXP val = Rf_allocVector(type, length);
    
   R_do_slot_assign(obj, slotName, val);
   return val;
@@ -40,7 +40,7 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length)
 
 bool rc_isS4Null(SEXP obj)
 {
-  if (!isSymbol(obj)) return false;
+  if (!Rf_isSymbol(obj)) return false;
   
   const char* symbolName = CHAR(PRINTNAME(obj));
   

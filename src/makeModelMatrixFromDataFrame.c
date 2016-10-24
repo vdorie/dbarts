@@ -1,22 +1,16 @@
+#include "makeModelMatrixFromDataFrame.h"
+
 #include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-// required to get Rinternals.h to load correctly on solaris, even though
-// we don't use any of its functionality
-#ifdef NO_C_HEADERS
-#  include <stdio.h>
-#endif
-
-#include <R.h>
-#include <Rinternals.h>
-
-#include "makeModelMatrixFromDataFrame.h"
 
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
+
+#include <external/Rinternals.h> // SEXP
 
 #include <rc/util.h>
 
@@ -48,11 +42,11 @@ char* concatenateStrings(const char* s1, const char* s2);
 SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
 {
   int errorCode = 0;
-  SEXP result = NULL_USER_OBJECT;
-  SEXP dropPatternExpr = NULL_USER_OBJECT;
+  SEXP result = R_NilValue;
+  SEXP dropPatternExpr = R_NilValue;
   size_t protectCount = 0;
   
-  size_t numInputColumns = (size_t) LENGTH(x);
+  size_t numInputColumns = (size_t) rc_getLength(x);
   size_t numOutputColumns = 0;
   
   column_type columnTypes[numInputColumns];
@@ -60,15 +54,15 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   getColumnTypes(x, columnTypes);
   
   bool createDropPattern = false;
-  if (IS_LOGICAL(dropColumnsExpr)) {
+  if (Rf_isLogical(dropColumnsExpr)) {
     createDropPattern = LOGICAL(dropColumnsExpr)[0] == TRUE;
     if (createDropPattern) {
-      dropPatternExpr = PROTECT(NEW_LIST(numInputColumns));
+      dropPatternExpr = PROTECT(rc_newList(numInputColumns));
       ++protectCount;
-      if (GET_NAMES(x) != NULL_USER_OBJECT) SET_NAMES(dropPatternExpr, GET_NAMES(x));
+      if (rc_getNames(x) != R_NilValue) rc_setNames(dropPatternExpr, rc_getNames(x));
     }
   }
-  if (!createDropPattern && IS_LIST(dropColumnsExpr) && !IS_LOGICAL(dropColumnsExpr))
+  if (!createDropPattern && Rf_isVector(dropColumnsExpr) && !Rf_isLogical(dropColumnsExpr))
     dropPatternExpr = dropColumnsExpr;
   
   countMatrixColumns(x, columnTypes, dropPatternExpr, createDropPattern, &numOutputColumns);
@@ -80,11 +74,11 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
     goto mkmm_cleanup;
   }
   
-  result = PROTECT(NEW_NUMERIC(numRows * numOutputColumns));
+  result = PROTECT(rc_newNumeric(numRows * numOutputColumns));
   ++protectCount;
   rc_setDims(result, (int) numRows, (int) numOutputColumns, -1);
-  SET_DIMNAMES(result, NEW_LIST(2));
-  SET_VECTOR_ELT(GET_DIMNAMES(result), 1, NEW_STRING(numOutputColumns));
+  rc_setDimNames(result, rc_newList(2));
+  SET_VECTOR_ELT(rc_getDimNames(result), 1, rc_newCharacter(numOutputColumns));
   
   errorCode = createMatrix(x, numRows, result, columnTypes, dropPatternExpr);
   
@@ -92,33 +86,33 @@ mkmm_cleanup:
   if (protectCount > 0) UNPROTECT(protectCount);
   
   if (errorCode != 0) {
-    warning("error in makeModelMatrix: %s", strerror(errorCode));
-    return NULL_USER_OBJECT;
+    Rf_warning("error in makeModelMatrix: %s", strerror(errorCode));
+    return R_NilValue;
   }
   
-  if (dropPatternExpr != NULL) SET_ATTR(result, install("drop"), dropPatternExpr);
+  if (dropPatternExpr != NULL) Rf_setAttrib(result, Rf_install("drop"), dropPatternExpr);
   
   return result;
 }
 
 static void getColumnTypes(SEXP x, column_type* columnTypes)
 {
-  size_t numColumns = LENGTH(x);
+  size_t numColumns = (size_t) rc_getLength(x);
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
     switch (TYPEOF(col)) {
       case REALSXP:
       {
-        SEXP dimsExpr = GET_DIM(col);
-        columnTypes[i] = (dimsExpr == NULL_USER_OBJECT ? REAL_VECTOR : REAL_MATRIX);
+        SEXP dimsExpr = rc_getDims(col);
+        columnTypes[i] = (dimsExpr == R_NilValue ? REAL_VECTOR : REAL_MATRIX);
       }
       break;
       case INTSXP:
       {
-        SEXP dimsExpr = GET_DIM(col);
-        if (dimsExpr == NULL_USER_OBJECT) {
-          SEXP levelsExpr = GET_LEVELS(col);
-          columnTypes[i] = (levelsExpr == NULL_USER_OBJECT ? INTEGER_VECTOR : FACTOR);
+        SEXP dimsExpr = rc_getDims(col);
+        if (dimsExpr == R_NilValue) {
+          SEXP levelsExpr = rc_getLevels(col);
+          columnTypes[i] = (levelsExpr == R_NilValue ? INTEGER_VECTOR : FACTOR);
         } else {
           columnTypes[i] = INTEGER_MATRIX;
         }
@@ -126,8 +120,8 @@ static void getColumnTypes(SEXP x, column_type* columnTypes)
       break;
       case LGLSXP:
       {
-        SEXP dimsExpr = GET_DIM(col);
-        columnTypes[i] = (dimsExpr == NULL_USER_OBJECT ? LOGICAL_VECTOR : LOGICAL_MATRIX);
+        SEXP dimsExpr = rc_getDims(col);
+        columnTypes[i] = (dimsExpr == R_NilValue ? LOGICAL_VECTOR : LOGICAL_MATRIX);
       }
       break;
       default:
@@ -139,23 +133,23 @@ static void getColumnTypes(SEXP x, column_type* columnTypes)
 
 static void tableFactor(SEXP x, int* instanceCounts)
 {
-  SEXP levelsExpr = GET_LEVELS(x);
-  size_t numLevels = (size_t) LENGTH(levelsExpr);
+  SEXP levelsExpr = rc_getLevels(x);
+  size_t numLevels = (size_t) rc_getLength(levelsExpr);
     
   for (size_t i = 0; i < numLevels; ++i) instanceCounts[i] = 0;
     
   int* columnData = INTEGER(x);
-  size_t columnLength = (size_t) LENGTH(x);
+  size_t columnLength = (size_t) rc_getLength(x);
   for (size_t i = 0; i < columnLength; ++i) ++instanceCounts[columnData[i] - 1];
 }
 
 static bool numericVectorIsConstant(SEXP x, column_type t) {
   switch (t) {
     case REAL_VECTOR:
-    return ext_vectorIsConstant(REAL(x), (size_t) LENGTH(x));
+    return ext_vectorIsConstant(REAL(x), (size_t) rc_getLength(x));
     case INTEGER_VECTOR:
     case LOGICAL_VECTOR:
-    return integerVectorIsConstant(INTEGER(x), (size_t) LENGTH(x));
+    return integerVectorIsConstant(INTEGER(x), (size_t) rc_getLength(x));
     default:
     break;
   }
@@ -174,7 +168,7 @@ static bool integerVectorIsConstant(const int* i, size_t n) {
 
 void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result)
 {
-  size_t numColumns = LENGTH(x);
+  size_t numColumns = (size_t) rc_getLength(x);
   bool dropColumn;
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
@@ -184,11 +178,11 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       case INTEGER_VECTOR:
       case LOGICAL_VECTOR:
       {
-        if (dropPatternExpr != NULL_USER_OBJECT) {
+        if (dropPatternExpr != R_NilValue) {
           if (createDropPattern) {
             dropColumn = numericVectorIsConstant(col, columnTypes[i]);
             
-            SET_VECTOR_ELT(dropPatternExpr, i, NEW_LOGICAL(1));
+            SET_VECTOR_ELT(dropPatternExpr, i, rc_newLogical(1));
             LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] = dropColumn ? TRUE : FALSE;
           } else {
             dropColumn = LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0];
@@ -203,12 +197,12 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       case REAL_MATRIX:
       {
         double* colData = REAL(col);
-        int* dims = INTEGER(GET_DIM(col));
+        int* dims = INTEGER(rc_getDims(col));
         size_t numRows = dims[0], numCols = dims[1];
         
-        if (dropPatternExpr != NULL_USER_OBJECT) {
+        if (dropPatternExpr != R_NilValue) {
           if (createDropPattern) {
-            SET_VECTOR_ELT(dropPatternExpr, i, NEW_LOGICAL(numCols));
+            SET_VECTOR_ELT(dropPatternExpr, i, rc_newLogical(numCols));
             int* dropPattern = LOGICAL(VECTOR_ELT(dropPatternExpr, i));
             
             for (size_t j = 0; j < numCols; ++j) {
@@ -231,12 +225,12 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       case LOGICAL_MATRIX:
       {
         int* colData = INTEGER(col);
-        int* dims = INTEGER(GET_DIM(col));
+        int* dims = INTEGER(rc_getDims(col));
         size_t numRows = dims[0], numCols = dims[1];
         
-        if (dropPatternExpr != NULL_USER_OBJECT) {
+        if (dropPatternExpr != R_NilValue) {
           if (createDropPattern) {
-            SET_VECTOR_ELT(dropPatternExpr, i, NEW_LOGICAL(numCols));
+            SET_VECTOR_ELT(dropPatternExpr, i, rc_newLogical(numCols));
             int* dropPattern = LOGICAL(VECTOR_ELT(dropPatternExpr, i));
           
             for (size_t j = 0; j < numCols; ++j) {
@@ -256,13 +250,13 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       break;
       case FACTOR:
       {
-        SEXP levelsExpr = GET_LEVELS(col);
-        size_t numLevels = LENGTH(levelsExpr);
+        SEXP levelsExpr = rc_getLevels(col);
+        size_t numLevels = (size_t) rc_getLength(levelsExpr);
         
-        if (dropPatternExpr != NULL_USER_OBJECT) {
+        if (dropPatternExpr != R_NilValue) {
           int* factorInstanceCounts;
           if (createDropPattern) {
-            SET_VECTOR_ELT(dropPatternExpr, i, NEW_INTEGER(numLevels));
+            SET_VECTOR_ELT(dropPatternExpr, i, rc_newInteger(numLevels));
             factorInstanceCounts = INTEGER(VECTOR_ELT(dropPatternExpr, i));
             tableFactor(col, factorInstanceCounts);
           } else {
@@ -289,30 +283,30 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
 
 static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_type* columnTypes, SEXP dropPatternExpr)
 {
-  SEXP names = GET_NAMES(x);
+  SEXP names = rc_getNames(x);
   double* result = REAL(resultExpr);
-  SEXP resultNames = VECTOR_ELT(GET_DIMNAMES(resultExpr), 1);
+  SEXP resultNames = VECTOR_ELT(rc_getDimNames(resultExpr), 1);
   
-  size_t numColumns = LENGTH(x);
+  size_t numColumns = (size_t) rc_getLength(x);
   size_t resultCol = 0;
   
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
     switch (columnTypes[i]) {
       case REAL_VECTOR:
-      if (dropPatternExpr == NULL_USER_OBJECT || LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] == FALSE) {
+      if (dropPatternExpr == R_NilValue || LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] == FALSE) {
         memcpy(result + numRows * resultCol, (const double*) REAL(col), numRows * sizeof(double));
-        if (names != NULL_USER_OBJECT) SET_STRING_ELT(resultNames, resultCol, STRING_ELT(names, i));
+        if (names != R_NilValue) SET_STRING_ELT(resultNames, resultCol, STRING_ELT(names, i));
         ++resultCol; 
       }
       break;
       
       case INTEGER_VECTOR:
       case LOGICAL_VECTOR:
-      if (dropPatternExpr == NULL_USER_OBJECT || LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] == FALSE) {
+      if (dropPatternExpr == R_NilValue || LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] == FALSE) {
         int* colData = INTEGER(col);
         for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (double) colData[j];
-        if (names != NULL_USER_OBJECT) SET_STRING_ELT(resultNames, resultCol, STRING_ELT(names, i));
+        if (names != R_NilValue) SET_STRING_ELT(resultNames, resultCol, STRING_ELT(names, i));
         ++resultCol;
       }
       break;
@@ -320,25 +314,25 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       
       case REAL_MATRIX:
       {
-        size_t numElementCols = INTEGER(GET_DIM(col))[1];
+        size_t numElementCols = INTEGER(rc_getDims(col))[1];
         double* colData = REAL(col);
-        SEXP colNames = GET_DIMNAMES(col) == NULL_USER_OBJECT ? NULL_USER_OBJECT : VECTOR_ELT(GET_DIMNAMES(col), 1);
-        int* dropPattern = dropPatternExpr == NULL_USER_OBJECT ? NULL : INTEGER(VECTOR_ELT(dropPatternExpr, i));
+        SEXP colNames = rc_getDimNames(col) == R_NilValue ? R_NilValue : VECTOR_ELT(rc_getDimNames(col), 1);
+        int* dropPattern = dropPatternExpr == R_NilValue ? NULL : INTEGER(VECTOR_ELT(dropPatternExpr, i));
         
         for (size_t j = 0; j < numElementCols; ++j) {
           if (dropPattern == NULL || dropPattern[j] == FALSE) {
             memcpy(result + numRows * resultCol, colData + numRows * j, numRows * sizeof(double));
-            if (names != NULL_USER_OBJECT && colNames != NULL_USER_OBJECT) {
+            if (names != R_NilValue && colNames != R_NilValue) {
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), CHAR(STRING_ELT(colNames, j)));
-              SET_STRING_ELT(resultNames, resultCol, CREATE_STRING_VECTOR(colName));
+              SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
-            } else if (names != NULL_USER_OBJECT) {
+            } else if (names != R_NilValue) {
               char buffer[16];
               snprintf(buffer, 16, "%lu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
-              SET_STRING_ELT(resultNames, resultCol, CREATE_STRING_VECTOR(colName));
+              SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
-            } else if (colNames != NULL_USER_OBJECT) {
+            } else if (colNames != R_NilValue) {
               SET_STRING_ELT(resultNames, resultCol, STRING_ELT(colNames, j));
             }
             ++resultCol;
@@ -350,25 +344,25 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       case INTEGER_MATRIX:
       case LOGICAL_MATRIX:
       {
-        size_t numElementCols = INTEGER(GET_DIM(col))[1];
+        size_t numElementCols = INTEGER(rc_getDims(col))[1];
         int* colData = INTEGER(col);
-        SEXP colNames = GET_DIMNAMES(col) == NULL_USER_OBJECT ? NULL_USER_OBJECT : VECTOR_ELT(GET_DIMNAMES(col), 1);
-        int* dropPattern = dropPatternExpr == NULL_USER_OBJECT ? NULL : INTEGER(VECTOR_ELT(dropPatternExpr, i));
+        SEXP colNames = rc_getDimNames(col) == R_NilValue ? R_NilValue : VECTOR_ELT(rc_getDimNames(col), 1);
+        int* dropPattern = dropPatternExpr == R_NilValue ? NULL : INTEGER(VECTOR_ELT(dropPatternExpr, i));
         
         for (size_t j = 0; j < numElementCols; ++j) {
           if (dropPattern == NULL || dropPattern[j] == FALSE) {
             for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = colData[k + numRows * j];
-            if (names != NULL_USER_OBJECT && colNames != NULL_USER_OBJECT) {
+            if (names != R_NilValue && colNames != R_NilValue) {
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), CHAR(STRING_ELT(colNames, j)));
-              SET_STRING_ELT(resultNames, resultCol, CREATE_STRING_VECTOR(colName));
+              SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
-            } else if (names != NULL_USER_OBJECT) {
+            } else if (names != R_NilValue) {
               char buffer[16];
               snprintf(buffer, 16, "%lu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
-              SET_STRING_ELT(resultNames, resultCol, CREATE_STRING_VECTOR(colName));
+              SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
-            } else if (colNames != NULL_USER_OBJECT) {
+            } else if (colNames != R_NilValue) {
               SET_STRING_ELT(resultNames, resultCol, STRING_ELT(colNames, j));
             }
             ++resultCol;
@@ -380,12 +374,12 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       
       case FACTOR:
       {
-        SEXP levels = GET_LEVELS(col);
-        size_t levelsLength = LENGTH(levels);
+        SEXP levels = rc_getLevels(col);
+        size_t levelsLength = (size_t) rc_getLength(levels);
         int* colData = INTEGER(col);
         size_t numLevelsPerFactor;
         
-        if (dropPatternExpr == NULL_USER_OBJECT) {
+        if (dropPatternExpr == R_NilValue) {
           numLevelsPerFactor = levelsLength;
           if (numLevelsPerFactor <= 2) {
             int levelToKeep = numLevelsPerFactor == 2 ? 2 : 1;
@@ -437,11 +431,11 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
 static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, size_t levelIndex,
                                SEXP resultNames, size_t resultIndex)
 {
-  if (dfNames != NULL_USER_OBJECT) {
+  if (dfNames != R_NilValue) {
     char* colName = concatenateStrings(CHAR(STRING_ELT(dfNames, dfIndex)), CHAR(STRING_ELT(levelNames, levelIndex)));
     if (colName == NULL) return ENOMEM;
     
-    SET_STRING_ELT(resultNames, resultIndex, CREATE_STRING_VECTOR(colName));
+    SET_STRING_ELT(resultNames, resultIndex, Rf_mkChar(colName));
     free(colName);
   } else {
     SET_STRING_ELT(resultNames, resultIndex, STRING_ELT(levelNames, levelIndex));
@@ -449,13 +443,12 @@ static int setFactorColumnName(SEXP dfNames, size_t dfIndex, SEXP levelNames, si
   
   return 0;
 }
-      
 
 static size_t getNumRowsForDataFrame(SEXP x)
 {
   SEXP x_0 = VECTOR_ELT(x, 0);
-  SEXP dims = GET_DIM(x_0);
-  if (dims == NULL_USER_OBJECT) return (size_t) LENGTH(x_0);
+  SEXP dims = rc_getDims(x_0);
+  if (dims == R_NilValue) return (size_t) rc_getLength(x_0);
   
   return (size_t) INTEGER(dims)[0];
 }

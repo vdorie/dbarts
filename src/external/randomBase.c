@@ -37,9 +37,11 @@
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
-#define R_NO_REMAP 1
-#include <R.h>
-#include <Rinternals.h>
+// #include <external/R.h>
+#include <external/Rinternals.h> // SEXP
+// #define R_NO_REMAP
+// #include <Rdefines.h>
+// #include <Rinternals.h>
 
 // should match enum order
 static const char* const rngNames[] = {

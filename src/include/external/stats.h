@@ -3,18 +3,18 @@
 
 #include "stddef.h"
 
-#include <Rmath.h>
+#include <Rmath.h> // used to pull in qchisq, et al
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define ext_quantileOfChiSquared(_P_, _NU_) qchisq((_P_), (_NU_), 1, 0)
-#define ext_percentileOfChiSquared(_Q_, _NU_) pchisq((_Q_), (_NU_), 1, 0)
+#define ext_quantileOfChiSquared(_P_, _NU_) Rf_qchisq((_P_), (_NU_), 1, 0)
+#define ext_percentileOfChiSquared(_Q_, _NU_) Rf_pchisq((_Q_), (_NU_), 1, 0)
   
-#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) dnorm((_X_), (_MU_), (_SIGMA_), 0)
-#define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) pnorm((_Q_), (_MU_), (_SIGMA_), 1, 0)
-#define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) qnorm((_P_), (_MU_), (_SIGMA_), 1, 0)
+#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) Rf_dnorm5((_X_), (_MU_), (_SIGMA_), 0)
+#define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) Rf_pnorm5((_Q_), (_MU_), (_SIGMA_), 1, 0)
+#define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) Rf_qnorm5((_P_), (_MU_), (_SIGMA_), 1, 0)
 
 double ext_computeMean(const double* x, ext_size_t length);
 double ext_computeIndexedMean(const double* restrict x, const ext_size_t* restrict indices, ext_size_t length);
@@ -40,3 +40,4 @@ double ext_computeWeightedSumOfSquaredResiduals(const double* restrict x, ext_si
 #endif
 
 #endif // EXTERNAL_STATS_H
+

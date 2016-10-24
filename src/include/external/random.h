@@ -104,3 +104,4 @@ typedef struct {
 #endif
 
 #endif // EXTERNAL_RANDOM_H
+

@@ -10,9 +10,7 @@
 #include <external/stats.h>
 #include <external/string.h>
 
-#define R_NO_REMAP 1
-#include <R.h>
-#include <Rinternals.h>
+#include <R_ext/Random.h> // GetRNGstate, PutRNGState
 
 #include <rc/bounds.h>
 #include <rc/util.h>
@@ -51,13 +49,13 @@ extern "C" {
     Model model;
     Data data;
     
-    SEXP classExpr = Rf_getAttrib(controlExpr, R_ClassSymbol);
+    SEXP classExpr = rc_getClass(controlExpr);
     if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) Rf_error("internal error: 'control' argument to dbarts_xbart not of class 'dbartsControl'");
     
-    classExpr = Rf_getAttrib(modelExpr, R_ClassSymbol);
+    classExpr = rc_getClass(modelExpr);
     if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsModel") != 0) Rf_error("internal error: 'model' argument to dbarts_xbart not of class 'dbartsModel'");
     
-    classExpr = Rf_getAttrib(dataExpr, R_ClassSymbol);
+    classExpr = rc_getClass(dataExpr);
     if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) Rf_error("internal error: 'data' argument to dbarts_xbart not of class 'dbartsData'");
     
     

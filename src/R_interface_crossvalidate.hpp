@@ -1,8 +1,10 @@
 #ifndef R_INTERFACE_CROSSVALIDATE_HPP
 #define R_INTERFACE_CROSSVALIDATE_HPP
 
-struct SEXPREC;
-typedef struct SEXPREC* SEXP;
+// struct SEXPREC;
+// typedef struct SEXPREC* SEXP;
+
+#include <external/Rinternals.h> // SEXP
 
 extern "C" {
   SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,

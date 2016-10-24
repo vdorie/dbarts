@@ -32,3 +32,4 @@ double ext_mt_computeWeightedSumOfSquaredResiduals(ext_mt_manager_t restrict thr
 #endif
 
 #endif // EXTERNAL_STATS_MT_H
+

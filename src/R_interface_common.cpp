@@ -9,9 +9,7 @@
 #include <external/alloca.h>
 #include <external/random.h>
 
-#define R_NO_REMAP 1
-#include <R.h>
-#include <Rinternals.h>
+#include <Rmath.h> // unif_rand, norm_rand
 
 #include <rc/bounds.h>
 #include <rc/util.h>

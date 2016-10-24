@@ -53,7 +53,7 @@ namespace dbarts {
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
     
-    void printTrees(const size_t* indices, size_t numIndices) const;
+    void printTrees(const std::size_t* indices, std::size_t numIndices) const;
     
     // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
     // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an

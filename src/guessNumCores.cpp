@@ -5,10 +5,8 @@
 
 #include <external/io.h>
 
-using std::uint32_t;
 using std::size_t;
-
-
+using std::uint32_t;
 
 // windows adapted from
 //   http://scriptionary.com/2010/09/01/counting-processor-cores-and-threads/

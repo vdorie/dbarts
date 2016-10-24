@@ -21,7 +21,7 @@ namespace dbarts {
     struct LossFunctorDefinition {
       std::ptrdiff_t y_testOffset;         // offset into functor that points to y_test, or negative if not supplied
       std::ptrdiff_t testSamplesOffset;    // offset into functor that points to testSamples, or negative if not supplied
-      size_t numResults;          // how much to increment results pointer after calculation
+      std::size_t numResults;              // how much to increment results pointer after calculation
       const char* displayString;
       
       // member functions

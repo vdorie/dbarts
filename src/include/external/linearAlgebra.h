@@ -77,3 +77,4 @@ extern "C" {
 #endif
   
 #endif // EXTERNAL_LINEAR_ALGEBRA_H
+
