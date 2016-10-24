@@ -159,18 +159,19 @@ createCutPoints <- function(sampler)
         step <- 1L
         offset <- 0L
       } else {
-        numCuts <- numUnique
-        step <- numCuts %/% numUnique
+        numCuts <- sampler$data@n.cuts[j]
+        step <- numUnique %/% numCuts
         offset <- step %/% 2
       }
-      indices <- sapply(seq.int(numCuts) * step + offset, function(x) min(x, numUnique - 1L))
+      indices <- sapply(seq.int(0L, numCuts - 1L) * step + offset, function(x) min(x, numUnique - 2L)) + 1L
       sortedElements <- sort(uniqueElements)
       (sortedElements[indices] + sortedElements[indices + 1L]) / 2
     }
   } else {
     cutter <- function(j) {
       m <- min(sampler$data@x[,j]); M <- max(sampler$data@x[,j])
-      seq(m, M, length.out = sampler$data@n.cuts[j])
+      inc <- (M - m) / (sampler$data@n.cuts[j] + 1)
+      m + inc * seq_len(sampler$data@n.cuts[j])
     }
   }
   return(lapply(seq_len(ncol(sampler$data@x)), cutter))

@@ -987,12 +987,12 @@ namespace {
       
     size_t step, numCuts, offset;
     if (numUniqueElements <= maxNumCuts + 1) {
-      numCuts = numUniqueElements - 1;
       step = 1;
+      numCuts = numUniqueElements - 1;
       offset = 0;
     } else {
       numCuts = maxNumCuts;
-      step = numCuts / numUniqueElements;
+      step = numUniqueElements / numCuts;
       offset = step / 2;
     }
     
