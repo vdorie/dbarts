@@ -749,26 +749,26 @@ static void checkDoubleConstraint(const char* name, _rc_boundType boundType, dou
     case _RC_GT:
     if (bound == R_PosInf) Rf_error("%s cannot be greater than positive infinity", name);
     if (bound == R_NegInf && value == R_NegInf) Rf_error("for %s, cannot compare negative infinities", name);
-    if (bound != R_NegInf && value <= bound) Rf_error("%s must be greater than %d", name, bound);
+    if (bound != R_NegInf && value <= bound) Rf_error("%s must be greater than %f", name, bound);
     break;
     case _RC_GEQ:
     if (bound == R_PosInf && value != R_PosInf) Rf_error("%s must be equal to positive infinity", name);
-    if (bound != R_NegInf && value < bound) Rf_error("%s must be greater than or equal to %d", name, bound);
+    if (bound != R_NegInf && value < bound) Rf_error("%s must be greater than or equal to %f", name, bound);
     break;
     case _RC_LT:
     if (bound == R_NegInf) Rf_error("%s cannot be less than negative infinity", name);
     if (bound == R_PosInf && value == R_PosInf) Rf_error("for %s, cannot compare positive infinites", name);
-    if (bound != R_PosInf && value >= bound) Rf_error("%s must be less than %d", name, bound);
+    if (bound != R_PosInf && value >= bound) Rf_error("%s must be less than %f", name, bound);
     break;
     case _RC_LEQ:
     if (bound == R_NegInf && value != R_NegInf) Rf_error("%s must be equal to negative infinity", name);
-    if (bound == R_PosInf && value > bound) Rf_error("%s must be less than or equal to %d", name, bound);
+    if (bound == R_PosInf && value > bound) Rf_error("%s must be less than or equal to %f", name, bound);
     break;
     case _RC_EQ:
-    if (value != bound) Rf_error("%s must be equal to %d", name, bound);
+    if (value != bound) Rf_error("%s must be equal to %f", name, bound);
     break;
     case _RC_NE:
-    if (value == bound) Rf_error("%s cannot equal %d", name, bound);
+    if (value == bound) Rf_error("%s cannot equal %f", name, bound);
     default:
     break;
   }

@@ -302,9 +302,9 @@ extern "C" {
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
         divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
-        ext_printf("  perm: %lu", permutation[0]);
-        for (size_t i = 1; i < 20; ++i) ext_printf(" %lu", permutation[i]);
-        ext_printf("\n");
+        // ext_printf("  perm: %lu", permutation[0]);
+        // for (size_t i = 1; i < 20; ++i) ext_printf(" %lu", permutation[i]);
+        // ext_printf("\n");
         fit->setData(repData);
         
         fit->runSampler(numBurnIn, samples);

@@ -69,7 +69,7 @@ extern "C" {
     rc_checkInts(numTreesExpr, "num trees", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_END);
     rc_checkDoubles(kExpr, "k", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_END);
     rc_checkDoubles(powerExpr, "power", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    rc_checkDoubles(baseExpr, "power", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+    rc_checkDoubles(baseExpr, "base", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     rc_checkInts(numBurnInExpr, "num burn",  RC_LENGTH | RC_GEQ, asRXLen(1), RC_LENGTH | RC_LEQ, asRXLen(3), RC_VALUE | RC_GEQ, 0, RC_END);
     
     size_t numFolds = static_cast<size_t>(
@@ -108,7 +108,7 @@ extern "C" {
 
     
     SEXP result = PROTECT(allocateResult(numNTrees, numKs, numPowers, numBases, numReps, dropUnusedDims));
-        
+    
     GetRNGstate();
     
     crossvalidate(control, model, data,

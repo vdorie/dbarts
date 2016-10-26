@@ -66,6 +66,35 @@ test_that("dbarts sampler updates predictors correctly", {
   expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
 })
 
+test_that("dbarts sampler setData yields valid model", {
+  n <- 105L
+
+  x <- runif(n, -10, 10)
+  x.test <- seq.int(min(x), max(x), length.out = 101L)
+
+  beta.1 <- -0.75
+  beta.2 <-  0.5
+
+  n.cuts <- 10L
+  cutoffs <- min(x) + seq_len(n.cuts) * (max(x) - min(x)) / (n.cuts + 1)
+
+  y <- ifelse(x <= cutoffs[1L] | x > cutoffs[n.cuts], beta.1, beta.2) + rnorm(n, 0, 0.15)
+  
+  control <- dbartsControl(n.trees = 1L, n.cuts = n.cuts)
+  sampler <- dbarts(y ~ x, control = control)
+
+  samples1 <- sampler$run(500L, 1000L)
+
+  x.new <- x + diff(cutoffs[1L:2L])
+
+  sampler$setData(dbartsData(y ~ x.new))
+  samples2 <- sampler$run(500L, 1000L)
+  
+  expect_equal(sd(apply(samples1$train, 1, mean) - y),
+               sd(apply(samples2$train, 1, mean) - y),
+               tol = 1.0e-2)
+})
+
 test_that("dbarts sampler shallow/deep copies", {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
   test <- data.frame(x = testData$x, z = 1 - testData$z)
