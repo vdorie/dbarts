@@ -1,15 +1,14 @@
 \name{guessNumCores}
 \title{Guess Number of Cores}
 \alias{guessNumCores}
-\alias{makeind}
 \description{
   Attempts to guess the number of CPU \sQuote{cores}, both physical and logical.
 }
 \usage{
-  guessNumCores(logical = false)
+  guessNumCores(logical = FALSE)
 }
 \arguments{
-  \item{logical}{Logical. When \code{FALSE}, estimate of the number of physical cores is returned.}
+  \item{logical}{A logical value. When \code{FALSE}, an estimate of the number of physical cores is returned. When \code{TRUE}, so-called "logical" cores as also included.}
 }
 \details{
   Because of different definitions of cores used by different manufacturers, the

@@ -109,9 +109,9 @@ plotNode <- function(node, sampler, cutPoints, plotPars)
   x <- node$x * plotPars$nodeWidth - plotPars$nodeWidth / 2
   
   cex <- par("cex")
-  verticalOffset <- strheight("\n", cex = cex) / 2
-  text(x, y + verticalOffset, expr1, adj = c(0.5, 0.5), cex = cex)
-  text(x, y - verticalOffset, expr2, adj = c(0.5, 0.5), cex = cex * if (compress) 0.8 else 1)
+  verticalOffset <- graphics::strheight("\n", cex = cex) / 2
+  graphics::text(x, y + verticalOffset, expr1, adj = c(0.5, 0.5), cex = cex)
+  graphics::text(x, y - verticalOffset, expr2, adj = c(0.5, 0.5), cex = cex * if (compress) 0.8 else 1)
   
   if (!is.null(node$leftChild)) {
     plotNode(node$leftChild, sampler, cutPoints, plotPars)

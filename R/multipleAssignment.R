@@ -73,7 +73,8 @@ massign <- structure(NA, class = "lval")
     assign(varName, value[sel][[1L]], envir = callingEnv)
     #eval.parent(substitute(varName <- val, list(varName = varName, val = value[sel][[1L]])))
     ## check to see if the value is named later, if not pop it off
-    if (i == length(argNames) || !any(valueName %in% tail(args, -i))) {
+    if (i == length(argNames) || !any(valueName %in% args[seq.int(i + 1L, length(args))])) {
+      ## tail(args, -i))) {
       value <- value[!sel]
       valueNames <- valueNames[!sel]
     }

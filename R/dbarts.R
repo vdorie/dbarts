@@ -86,13 +86,15 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
 
   dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")
   data <- eval(dataCall, parent.frame(1L))
+  #cat("x address after dbartsData call: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
+  
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
   
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
-
+    
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
   ## bart will passthrough with offset == something no matter what, which we can NULL out
@@ -102,6 +104,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   if (!control@binary && !is.null(data@offset.test) && all(data@offset.test == 0.0)) {
     data@offset.test <- NULL
   }
+  #cat("x address after updating data: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
 
   parsePriorsCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(parsePriors), "tree.prior", "node.prior", "resid.prior")
   parsePriorsCall <- setDefaultsFromFormals(parsePriorsCall, formals(dbarts), "tree.prior", "node.prior", "resid.prior")
@@ -112,7 +115,10 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
 
   model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$resid.prior)
 
-  new("dbartsSampler", control, model, data)
+  result <- new("dbartsSampler", control, model, data)
+  #cat("x address after creating sampler: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
+  #cat("x address in sampler$data: ", .Call("dbarts_getPointerAddress", result$data@x), "\n", sep = "")
+  result
 }
 
 setClassUnion("dbartsStateOrNULL", c("dbartsState", "NULL"))
@@ -133,12 +139,18 @@ dbartsSampler <-
                   if (!inherits(control, "dbartsControl")) stop("'control' must inherit from dbartsControl")
                   if (!inherits(model, "dbartsModel")) stop("'model' must inherit from dbartsModel")
                   if (!inherits(data, "dbartsData")) stop("'data' must inherit from dbartsData")
-
-                  control <<- control
-                  model   <<- model
-                  data    <<- data
-                  state   <<- NULL
-                  pointer <<- .Call(C_dbarts_create, control, model, data)
+                  
+                  control.loc <- control
+                  model.loc   <- model
+                  data.loc    <- data
+                  rm(control, model, data)
+                  
+                  .self$control <- control.loc
+                  .self$model   <- model.loc
+                  .self$data    <- data.loc
+                  
+                  .self$state   <- NULL
+                  .self$pointer <- .Call(C_dbarts_create, control, model, data)
                   
                   callSuper(...)
                 },
@@ -263,7 +275,9 @@ dbartsSampler <-
                   newControl@call   <- control@call
                   
                   ptr <- getPointer()
-                  control <<- newControl
+                  selfEnv <- parent.env(environment())
+                  
+                  selfEnv$control <- newControl
                   .Call(C_dbarts_setControl, ptr, control)
                   
                   invisible(NULL)
@@ -273,7 +287,9 @@ dbartsSampler <-
                   
                   if (!inherits(newModel, "dbartsModel")) stop("'model' must inherit from dbartsModel")
                   ptr <- getPointer()
-                  model <<- newModel
+                  selfEnv <- parent.env(environment())
+                  
+                  selfEnv$model <- newModel
                   .Call(C_dbarts_setModel, ptr, model)
                   
                   invisible(NULL)
@@ -287,7 +303,9 @@ dbartsSampler <-
                   newData@sigma  <- data@sigma
                   
                   ptr <- getPointer()
-                  data <<- newData
+                  selfEnv <- parent.env(environment())
+                  
+                  selfEnv$data <- newData
                   .Call(C_dbarts_setData, ptr, data)
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -298,8 +316,9 @@ dbartsSampler <-
                 setResponse = function(y, updateState = NA) {
                   'Changes the response against which the sampler is fitted.'
                   ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
                   
-                  data@y <<- as.double(y)
+                  selfEnv$data@y <- as.double(y)
                   .Call(C_dbarts_setResponse, ptr, data@y)
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -310,7 +329,8 @@ dbartsSampler <-
                 setOffset = function(offset, updateState = NA) {
                   'Changes the offset slot used to adjust the response.'
                   ptr <- getPointer()
-
+                  selfEnv <- parent.env(environment())
+                  
                   offset.test <- NA
                   if (is.null(offset)) {
                     if (identical(data@testUsesRegularOffset, TRUE)) offset.test <- NULL
@@ -339,10 +359,10 @@ dbartsSampler <-
                     }
                   }
 
-                  data@offset <<- offset
+                  selfEnv$data@offset <- offset
                   .Call(C_dbarts_setOffset, ptr, data@offset)
                   if (!identical(offset.test, NA)) {
-                    data@offset.test <<- offset.test
+                    selfEnv$data@offset.test <- offset.test
                     .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
                   }
 
@@ -366,10 +386,12 @@ dbartsSampler <-
                   x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
                   
                   ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
+                  
                   updateSuccessful <-
                     if (columnIsMissing) {
-                      data@x <<- x
-                      .Call(C_dbarts_setPredictor, ptr, x)
+                      selfEnv$data@x <- x
+                      .Call(C_dbarts_setPredictor, ptr, data@x)
                     } else {
                       .Call(C_dbarts_updatePredictor, ptr, x, as.integer(column))
                     }
@@ -392,8 +414,10 @@ dbartsSampler <-
                   }
                   
                   ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
+                  
                   if (columnIsMissing) {
-                    data@x.test <<- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+                    selfEnv$data@x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
                     .Call(C_dbarts_setTestPredictor, ptr, data@x.test)
                   } else {
                     x.test <- if (is.matrix(x.test)) matrix(as.double(x.test), nrow(x.test)) else as.double(x.test)
@@ -408,6 +432,7 @@ dbartsSampler <-
                 setTestPredictorAndOffset = function(x.test, offset.test, updateState = NA) {
                    'Changes the test predictor matrix, and optionally the test offset.'
                    ptr <- getPointer()
+                   selfEnv <- parent.env(environment())
 
                    x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
 
@@ -425,13 +450,13 @@ dbartsSampler <-
                          }
                        }
                      }
-                     data@testUsesRegularOffset <<- FALSE
+                     selfEnv$data@testUsesRegularOffset <- FALSE
 
-                     data@x.test <<- x.test
-                     data@offset.test <<- offset.test
+                     selfEnv$data@x.test <- x.test
+                     selfEnv$data@offset.test <- offset.test
                      .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test)
                    } else {
-                     data@x.test <<- x.test
+                     selfEnv$data@x.test <- x.test
                      .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
                    }
 
@@ -443,15 +468,16 @@ dbartsSampler <-
                 setTestOffset = function(offset.test, updateState = NA) {
                   'Changes the test offset.'
                   ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
 
-                  data@testUsesRegularOffset <<- FALSE
+                  selfEnv$data@testUsesRegularOffset <- FALSE
                   if (!is.null(offset.test)) {
                     if (is.null(data@x.test)) stop("when test matrix is NULL, test offset must be as well")
                     if (length(offset.test) == 1) offset.test <- rep_len(offset.test, nrow(data@x.test))
                     if (length(offset.test) != nrow(data@x.test))
                       stop("length of test offset must be equal to number of rows in test matrix")
                   }
-                  data@offset.test <<- offset.test
+                  selfEnv$data@offset.test <- offset.test
                   .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -461,15 +487,17 @@ dbartsSampler <-
                 },
                 getPointer = function() {
                   'Returns the underlying reference pointer, checking for consistency first.'
+                  selfEnv <- parent.env(environment())
+                  
                   if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
                     oldVerbose <- control@verbose
-                    control@verbose <<- FALSE
-                    pointer <<- .Call(C_dbarts_create, control, model, data)
+                    selfEnv$control@verbose <- FALSE
+                    selfEnv$pointer <- .Call(C_dbarts_create, control, model, data)
                     if (!is.null(state)) {
-                      state <<- .Call(C_dbarts_restoreState, pointer, state)
+                      selfEnv$state <- .Call(C_dbarts_restoreState, pointer, state)
                     }
                     if (control@verbose != oldVerbose) {
-                      control@verbose <<- oldVerbose
+                      selfEnv$control@verbose <- oldVerbose
                       .Call(C_dbarts_setControl, pointer, control)
                     }
                   }
@@ -480,25 +508,27 @@ dbartsSampler <-
                   'Sets the internal state from a cache.'
                   if (!is(newState, "dbartsState")) stop("'state' must inherit from dbartsState")
                   
+                  selfEnv <- parent.env(environment())
                   if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
                     oldVerbose <- control@verbose
-                    control@verbose <<- FALSE
-                    pointer <<- .Call(C_dbarts_create, control, model, data)
+                    selfEnv$control@verbose <- FALSE
+                    selfEnv$pointer <- .Call(C_dbarts_create, control, model, data)
                     if (control@verbose != oldVerbose) {
-                      control@verbose <<- oldVerbose
+                      selfEnv$control@verbose <- oldVerbose
                       .Call(C_dbarts_setControl, pointer, control)
                     }
                   }
                   if (!is.null(newState)) {
-                    state <<- .Call(C_dbarts_restoreState, pointer, newState)
+                    selfEnv$state <- .Call(C_dbarts_restoreState, pointer, newState)
                   }
 
                   invisible(NULL)
                 },
                 storeState = function(ptr = getPointer()) {
                   'Updates the cached internal state used for saving/loading.'
+                  selfEnv <- parent.env(environment())
                   if (is.null(state)) {
-                    state <<- .Call(C_dbarts_createState, ptr)
+                    selfEnv$state <- .Call(C_dbarts_createState, ptr)
                   } else {
                     .Call(C_dbarts_storeState, ptr, state)
                   }

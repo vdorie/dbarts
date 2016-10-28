@@ -161,6 +161,12 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   
   if (missing(formula)) stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
   
+  if (is(formula, "dbartsData")) {
+    if (!dataIsMissing || !testIsMissing || !offsetIsMissing || !testOffsetIsMissing)
+      warning("if data supplied as dbartsData, remaining arguments are ignored")
+    return(formula)
+  }
+  
   if (is.formula(formula)) {
     if (!dataIsMissing && !is.data.frame(data) && !is.list(data) && !is.environment(data))
       stop("for formula/data specification, data must be a data frame, list, or environment")
@@ -187,7 +193,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     modelFrameCall <- matchedCall
     modelFrameCall <- modelFrameCall[c(1L, match(modelFrameArgs, names(modelFrameCall), nomatch = 0L))]
     modelFrameCall$drop.unused.levels <- FALSE
-    modelFrameCall$na.action <- na.omit
+    modelFrameCall$na.action <- stats::na.omit
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
     if (identical(offsetGivenAsScalar, FALSE)) modelFrameCall$offset <- offset
@@ -275,11 +281,14 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       offset <- offset[subset]
     }
     
-    completeCases <- complete.cases(x, y)
+    completeCases <- stats::complete.cases(x, y)
     
     y <- y[completeCases]
     x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,]
-    attributes(x) <- attributes(formula)
+    if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
+      if (attributeName == "dim") next
+      attr(x, attributeName) <- attr(formula, attributeName)
+    }
     if (!is.null(weights)) weights <- weights[completeCases]
     if (!is.null(offset)) offset <- offset[completeCases]
   } else {

@@ -211,6 +211,45 @@ extern "C" {
   {
     return Rf_duplicate(obj);
   }
+  
+  static SEXP getPointerAddress(SEXP obj)
+  {
+    char buffer[24];
+    const void* p;
+    if (Rf_isInteger(obj)) {
+      p = reinterpret_cast<const void*>(INTEGER(obj));
+    } else if (Rf_isLogical(obj)) {
+      p = reinterpret_cast<const void*>(LOGICAL(obj));
+    } else if (Rf_isReal(obj)) {
+      p = reinterpret_cast<const void*>(REAL(obj));
+    } else if (Rf_isString(obj)) {
+      p = reinterpret_cast<const void*>(CHAR(obj));
+    } else {
+      p = NULL;
+    }
+    snprintf(buffer, 24, "%p", p);
+    
+    SEXP result = PROTECT(Rf_allocVector(STRSXP, 1));
+    SET_STRING_ELT(result, 0, Rf_mkChar(buffer));
+    UNPROTECT(1);
+    
+    return result;
+  }
+  
+  static SEXP getXAddress(SEXP obj)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(obj));
+    if (fit == NULL) Rf_error("dbarts_getXAddress called on NULL external pointer");
+   
+    char buffer[24];
+    snprintf(buffer, 24, "%p", reinterpret_cast<const void*>(fit->data.x));
+    
+    SEXP result = PROTECT(Rf_allocVector(STRSXP, 1));
+    SET_STRING_ELT(result, 0, Rf_mkChar(buffer));
+    UNPROTECT(1);
+    
+    return result;
+  }
     
   // as of R 3.1, auto-unload never gets called so screw that
   
@@ -251,6 +290,8 @@ extern "C" {
     DEF_FUNC("dbarts_restoreState", restoreState, 2),
     DEF_FUNC("dbarts_finalize", finalize, 0),
     DEF_FUNC("dbarts_deepCopy", deepCopy, 1),
+    DEF_FUNC("dbarts_getPointerAddress", getPointerAddress, 1),
+    DEF_FUNC("dbarts_getXAddress", getXAddress, 1),
     DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", dbarts_makeModelMatrixFromDataFrame, 2),
     DEF_FUNC("dbarts_xbart", xbart, 13),
     DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),

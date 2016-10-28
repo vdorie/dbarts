@@ -66,6 +66,22 @@ test_that("dbarts sampler updates predictors correctly", {
   expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
 })
 
+test_that("dbarts sampler with matrix specification doesn't change variables in parent frame", {
+  x.train <- dbarts::makeModelMatrixFromDataFrame(data.frame(x = testData$x, z = testData$z))
+  y.train <- testData$y
+  
+  control <- dbartsControl(updateState = FALSE, verbose = FALSE,
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+  sampler <- dbarts(x.train, y.train, control = control)
+  
+  n <- testData$n
+  z <- testData$z
+  
+  invisible(sampler$setPredictor(numeric(n), 2))
+  expect_equal(as.numeric(sampler$data@x[,2]), numeric(n))
+  expect_equal(as.numeric(x.train[,2]), z)
+})
+
 test_that("dbarts sampler setData yields valid model", {
   n <- 105L
 
