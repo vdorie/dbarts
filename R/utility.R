@@ -1,8 +1,8 @@
 coerceOrError <- function(x, type)
 {
-  func <- switch(type, logical = as.logical, integer = as.integer)
+  func <- switch(type, logical = as.logical, integer = as.integer, numeric = as.numeric)
   result <- tryCatch(func(x), warning = function(e) e)
-  if (is(result, "warning")) stop(paste0("'", match.call()[[2]], "' must be coercible to type: ", type))
+  if (is(result, "warning")) stop(paste0("'", match.call()[[2L]], "' must be coercible to type: ", type))
   
   result
 }
@@ -13,7 +13,7 @@ prepareCallWithArguments <- function(call, name, ...)
   matchIndices <- match(argsToKeep, names(call), nomatch = 0L)
   
   call <- call[c(1L, matchIndices)]
-  call[[1]] <- name
+  call[[1L]] <- name
   call
 }
 
@@ -25,8 +25,8 @@ addCallArgument <- function(call, position, argument)
   } else {
     position <- as.integer(position) + 1L
     if (position <= length(call)) for (i in length(call):position) {
-      call[[i + 1]] <- call[[i]]
-      names(call)[[i + 1]] <- names(call)[[i]]
+      call[[i + 1L]] <- call[[i]]
+      names(call)[[i + 1L]] <- names(call)[[i]]
     }
     name <- ""
   }
@@ -53,18 +53,18 @@ setDefaultsFromFormals <- function(call, formals, ...)
   matchIndices <- match(argsToReplace, names(call), nomatch = 0L)
   missingFormals <- match(argsToReplace[matchIndices == 0L], names(formals))
 
-  if (length(missingFormals) == 0) return(call)
+  if (length(missingFormals) == 0L) return(call)
   
   call[seq.int(length(missingFormals)) + length(call)] <- formals[missingFormals]
   call
 }
 
-is.formula <- function(x) is.language(x) && x[[1]] == '~'
+is.formula <- function(x) is.language(x) && x[[1L]] == '~'
 
 ## from lme4
 namedList <- function(...) {
   result <- list(...)
-  substituteNames <- sapply(substitute(list(...)), deparse)[-1]
+  substituteNames <- sapply(substitute(list(...)), deparse)[-1L]
   if (is.null(resultNames <- names(result))) resultNames <- substituteNames
   if (any(noNames <- resultNames == "")) resultNames[noNames] <- substituteNames[noNames]
   setNames(result, resultNames)
@@ -89,9 +89,9 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
 ## the user's environment
 quoteInNamespace <- function(name, character.only = FALSE) {
   result <- quote(a + b)
-  result[[1]] <- as.symbol(":::")
-  result[[2]] <- as.symbol("dbarts")
+  result[[1L]] <- as.symbol(":::")
+  result[[2L]] <- as.symbol("dbarts")
   
-  result[[3]] <- if (character.only) name else match.call()[[2]]
+  result[[3L]] <- if (character.only) name else match.call()[[2]]
   result
 }

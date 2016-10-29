@@ -140,17 +140,12 @@ dbartsSampler <-
                   if (!inherits(model, "dbartsModel")) stop("'model' must inherit from dbartsModel")
                   if (!inherits(data, "dbartsData")) stop("'data' must inherit from dbartsData")
                   
-                  control.loc <- control
-                  model.loc   <- model
-                  data.loc    <- data
-                  rm(control, model, data)
-                  
-                  .self$control <- control.loc
-                  .self$model   <- model.loc
-                  .self$data    <- data.loc
+                  .self$control <- control
+                  .self$model   <- model
+                  .self$data    <- data
                   
                   .self$state   <- NULL
-                  .self$pointer <- .Call(C_dbarts_create, control, model, data)
+                  .self$pointer <- .Call(C_dbarts_create, .self$control, .self$model, .self$data)
                   
                   callSuper(...)
                 },
@@ -170,41 +165,6 @@ dbartsSampler <-
                   
                   samples
                 },
-                #crossvalidate = function(K = 5L, n.reps = 200L, n.burn = c(control@n.burn, control@n.burn %/% 5L),
-                #                         statistic = if (control@binary) "mcr" else "mse", n.threads = guessNumCores(),
-                #                         n.trees, k, power, base, drop = TRUE) {
-                #  'K-fold crossvalidates across sets of parameters.'
-                #  if (missing(n.trees)) n.trees <- control@n.trees
-                #  if (missing(k)) k <- model@node.prior@k
-                #  if (missing(power)) power <- model@tree.prior@power
-                #  if (missing(base)) base <- model@tree.prior@base
-                #  
-                #  if (is.function(statistic)) statistic <- list(statistic, parent.frame(1L))
-                #  
-                #  n.trees <- as.integer(n.trees)
-                #  k       <- as.double(k)
-                #  power   <- as.double(power)
-                #  base    <- as.double(base)
-                #  drop    <- as.logical(drop)
-                #  
-                #  ptr <- getPointer()
-                #  result <- .Call(C_dbarts_xbart, ptr, as.integer(K), as.integer(n.reps), as.integer(n.burn), statistic, as.integer(n.threads),
-                #                  n.trees, k, power, base, drop)
-                #  
-                #  if (!is.null(result) && !is.null(dim(result))) {
-                #    varNames <- c("n.trees", "k", "power", "base")
-                #    if (identical(drop, TRUE)) varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1) TRUE else FALSE)]
-                #    
-                #    dimNames <- vector("list", length(dim(result)))
-                #    for (i in seq_along(varNames)) {
-                #      x <- get(varNames[i])
-                #      dimNames[[i]] <- as.character(if (is.double(x)) signif(x, 2) else x)
-                #    }
-                #    names(dimNames) <- c(varNames, "rep")
-                #    dimnames(result) <- dimNames
-                #  }
-                #  result
-                #},
                 copy = function(shallow = FALSE) {
                   'Creates a deep or shallow copy of the sampler.'
                   dupe <-
@@ -265,6 +225,7 @@ dbartsSampler <-
                     
                   ##writeLines(xDisplay)
                   
+                  invisible(NULL)
                 },
                 setControl = function(newControl) {
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'
@@ -569,5 +530,55 @@ dbartsSampler <-
                   plotNode(tree, .self, cutPoints, treePlotPars)
                   
                   invisible(NULL)
-                })
-              )
+                }
+                #crossvalidate = function(K = 5L, n.reps = 200L, n.burn = c(control@n.burn, control@n.burn %/% 5L),
+                #                         loss = if (control@binary) "mcr" else "rmse", n.threads = guessNumCores(),
+                #                         n.trees, k, power, base, drop = TRUE) {
+                #  'K-fold crossvalidates across sets of parameters.'
+                #  
+                #  if (missing(n.trees)) n.trees <- control@n.trees
+                #  if (missing(k))       k <- model@node.prior@k
+                #  if (missing(power))   power <- model@tree.prior@power
+                #  if (missing(base))    base <- model@tree.prior@base
+                #  
+                #  if (is.function(loss)) loss <- list(loss, parent.frame(1L))
+                #  
+                #  kOrder <- order(k, decreasing = TRUE)
+                #  kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
+                #  k <- k[kOrder] 
+                #  
+                #  n.trees <- as.integer(n.trees)
+                #  k       <- as.double(k)
+                #  power   <- as.double(power)
+                #  base    <- as.double(base)
+                #  drop    <- as.logical(drop)
+                #  
+                #  ptr <- getPointer()
+                #  result <- .Call(C_dbarts_xbart, ptr, as.integer(K), as.integer(n.reps), as.integer(n.burn), loss, as.integer(n.threads),
+                #                  n.trees, k, power, base, drop)
+                #  
+                #  if (is.null(result) || is.null(dim(result))) return(result)
+                #  
+                #  varNames <- c("n.trees", "k", "power", "base")
+                #  if (identical(drop, TRUE))
+                #    varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1L) TRUE else FALSE)]
+                #  
+                #  if ("k" %in% varNames && any(kOrder != seq_along(k))) {
+                #    indices <- rep(list(bquote()), length(dim(result)))
+                #    indices[[1L + which(varNames == "k")]] <- kOrder.inv
+                #    indexCall <- as.call(c(list(as.name("["), quote(result)), indices))
+                #    result <- eval(indexCall)
+                #    k <- k[kOrder.inv]
+                #  }
+                #  
+                #  dimNames <- vector("list", length(dim(result)))
+                #  for (i in seq_along(varNames)) {
+                #    x <- get(varNames[i])
+                #    dimNames[[i + 1L]] <- as.character(if (is.double(x)) signif(x, 2L) else x)
+                #  }
+                #  names(dimNames) <- c("rep", varNames)
+                #  dimnames(result) <- dimNames
+                #  
+                #  result
+                #}
+              ))

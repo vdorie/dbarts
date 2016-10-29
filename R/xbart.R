@@ -1,5 +1,6 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"), n.threads = guessNumCores(),
+                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
+                  n.threads = guessNumCores(),
                   n.trees = 200L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
@@ -29,8 +30,16 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2L && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
   
-  if (is.null(matchedCall$loss))
+  if (is.null(matchedCall$loss)) {
     loss <- loss[if (!control@binary) 1L else 2L]
+  } else if (is.function(loss)) {
+    if (length(formals(loss)) != 2L) stop("supplied loss function must take exactly two arguments")
+    loss <- list(loss, parent.frame(1L))
+  } else if (is.list(loss)) {
+    if (!is.function(loss[[1L]])) stop("first member of loss-list must be a function")
+    if (length(formals(loss[[1L]])) != 2L) stop("supplied loss function must take exactly two arguments")
+    if (!is.environment(loss[[2L]])) stop("second member of loss-list must be an environment")
+  }
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[1L]] <- quoteInNamespace(cgm)
@@ -54,28 +63,31 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (is.null(matchedCall$n.trees)) {
     n.trees <- control@n.trees
   } else {
-    n.trees <- as.integer(n.trees)
+    n.trees <- coerceOrError(n.trees, "integer")
     control@n.trees <- n.trees[1L]
   }
-  k       <- as.double(k)
-  power   <- as.double(power)
-  base    <- as.double(base)
-  drop    <- as.logical(drop)
+  k       <- coerceOrError(k,     "numeric")
+  power   <- coerceOrError(power, "numeric")
+  base    <- coerceOrError(base,  "numeric")
+  drop    <- coerceOrError(drop,  "logical")
   
-  browser()
+  K         <- coerceOrError(K,         "integer")
+  n.reps    <- coerceOrError(n.reps,    "integer")
+  n.burn    <- coerceOrError(n.burn,    "integer")
+  n.threads <- coerceOrError(n.threads, "integer")
   
   result <- .Call(C_dbarts_xbart, control, model, data,
-                  as.integer(K), as.integer(n.reps), as.integer(n.burn), loss,
-                  as.integer(n.threads), n.trees, k, power, base, drop)
+                  K, n.reps, n.burn, loss,
+                  n.threads, n.trees, k, power, base, drop)
   
   if (is.null(result) || is.null(dim(result))) return(result)
   
   ## add dim names
   varNames <- c("n.trees", "k", "power", "base")
   if (identical(drop, TRUE))
-    varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1) TRUE else FALSE)]
+    varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1L) TRUE else FALSE)]
   
-  if (any(varNames == "k") && any(kOrder != kOrder.inv)) {
+  if ("k" %in% varNames && any(kOrder != seq_along(k))) {
     indices <- rep(list(bquote()), length(dim(result)))
     indices[[1L + which(varNames == "k")]] <- kOrder.inv
     indexCall <- as.call(c(list(as.name("["), quote(result)), indices))
@@ -86,7 +98,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   dimNames <- vector("list", length(dim(result)))
   for (i in seq_along(varNames)) {
     x <- get(varNames[i])
-    dimNames[[i + 1]] <- as.character(if (is.double(x)) signif(x, 2) else x)
+    dimNames[[i + 1L]] <- as.character(if (is.double(x)) signif(x, 2L) else x)
   }
   names(dimNames) <- c("rep", varNames)
   dimnames(result) <- dimNames

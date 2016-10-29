@@ -225,10 +225,10 @@ extern "C" {
     LossFunctor* lf = lfDef.createFunctor(lfDef, numTestObservations, numSamples);
     
     double* suppliedY_test      = lfDef.y_testOffset      >= 0 ?
-                                  reinterpret_cast<double*>(reinterpret_cast<char*>(lf) + lfDef.y_testOffset) :
+                                  *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.y_testOffset) :
                                   NULL;
     double* suppliedTestSamples = sharedData.lossFunctorDef.testSamplesOffset >= 0 ?
-                                  reinterpret_cast<double*>(reinterpret_cast<char*>(lf) + lfDef.testSamplesOffset) :
+                                  *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.testSamplesOffset) :
                                   NULL;
     
     Results* samples =

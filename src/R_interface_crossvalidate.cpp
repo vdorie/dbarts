@@ -65,6 +65,7 @@ extern "C" {
     
     
     if (data.numObservations == 0) Rf_error("xbart called on empty data set");
+    if (control.numSamples == 0) Rf_error("xbart called with 0 posterior samples");
     
     rc_checkInts(numTreesExpr, "num trees", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_END);
     rc_checkDoubles(kExpr, "k", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_END);
@@ -252,13 +253,12 @@ namespace {
   LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, std::size_t numTestObservations, std::size_t numSamples)
   {
     const CustomLossFunctorDefinition& def(*static_cast<const CustomLossFunctorDefinition*>(&v_def));
-
     CustomLossFunctor* result = new CustomLossFunctor;
     
     SEXP y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
     SEXP testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
     rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-    
+        
     result->y_test      = REAL(y_testExpr);
     result->testSamples = REAL(testSamplesExpr);
     
@@ -329,14 +329,14 @@ namespace {
         case CUSTOM:
         Rf_error("internal error: invalid type enumeration");
       }
-    } else if (Rf_isList(lossTypeExpr)) {
+    } else if (Rf_isVectorList(lossTypeExpr)) {
       if (rc_getLength(lossTypeExpr) != 2) Rf_error("length of lossType for functions must be 2");
      
       SEXP function    = VECTOR_ELT(lossTypeExpr, 0);
       SEXP environment = VECTOR_ELT(lossTypeExpr, 1);
       
       if (!Rf_isFunction(function)) Rf_error("first element of list for function lossType must be a closure");
-      if (!Rf_isEnvironment(environment)) Rf_error("second element of list for function lossType must be a closure");
+      if (!Rf_isEnvironment(environment)) Rf_error("second element of list for function lossType must be an environment");
       
       CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition;
       result = c_result;
@@ -351,6 +351,7 @@ namespace {
       
       SEXP tempClosure = PROTECT(Rf_lang3(function, tempY_test, tempTestSamples));
       SEXP tempResult = Rf_eval(tempClosure, environment);
+
       result->numResults = rc_getLength(tempResult);
       
       result->displayString = "custom";

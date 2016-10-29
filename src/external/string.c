@@ -27,7 +27,7 @@ int ext_str_matchInArray(const char* s, const char* const* strings, size_t numSt
   searchResult = ext_art_search(&tree, (const uint8_t*) s, strlen(s));
   if (searchResult == NULL && errno != 0) { errorCode = errno; goto MATCH_CLEANUP; }
   
-  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : 0;
+  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : EXT_STR_NO_MATCH;
   
 MATCH_CLEANUP:
   ext_art_invalidate(&tree);
@@ -61,7 +61,7 @@ int ext_str_matchInVArray(const char* s, ext_size_t* matchPos, ...)
   searchResult = ext_art_search(&tree, (const uint8_t*) s, strlen(s));
   if (searchResult == NULL && errno != 0) { errorCode = errno; goto VA_MATCH_CLEANUP; }
   
-  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : 0;
+  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : EXT_STR_NO_MATCH;
   
   // ext_art_print(&tree);
 

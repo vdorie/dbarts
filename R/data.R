@@ -77,9 +77,9 @@ findTermInFormulaData <- function(formula, data, term)
     if (is.symbol(matchedCall$term)) {
       if (any(names(data) == as.character(matchedCall$term))) return(data[[as.character(matchedCall$term)]])
     } else if (is.language(matchedCall$term)) {
-      attach(data, warn.conflicts = FALSE)
-      tryResult <- tryCatch(eval(matchedCall$term), error = function(e) e)
-      detach(data)
+      #attach(data, warn.conflicts = FALSE, name = ".dbartsData_data")
+      tryResult <- with(data, tryCatch(eval(matchedCall$term), error = function(e) e))
+      #detach(data)
       if (!is(tryResult, "error")) return(tryResult)
     }
   }
@@ -133,9 +133,9 @@ getTestOffset <- quote({
 
     if (is.formula(formula)) {
       if (!dataIsMissing) {
-        attach(data)
-        tryResult <- tryCatch(eval(testOffset), error = function(e) e)
-        detach(data)
+        #attach(data)
+        tryResult <- with(data, tryCatch(eval(testOffset), error = function(e) e))
+        #detach(data)
         if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
       }
       tryResult <- tryCatch(eval(testOffset, environment(formula)), error = function(e) e)

@@ -20,6 +20,6 @@
   An integer, or NA if no clear answer was obtained.
 }
 \author{
-  Vincent Dorie: \email{vjd4@nyu.edu}.
+  Vincent Dorie: \email{vdorie@gmail.com}.
 }
 \keyword{parallel}

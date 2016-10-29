@@ -21,7 +21,7 @@ dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
   	in backwards compatibility mode. If column names are present, a matching algorithm is used.}
   \item{subset}{An optional vector specifying a subset of observations to be used in the fitting process.}
   \item{weights}{An optional vector of weights to be used in the fitting process. When present, BART
-  	fits a model with observations \eqn{y \mid x \sim N(f(x), sigma^2 / w)}{y | x ~ N(f(x), sigma^2 / w)}, 
+  	fits a model with observations \eqn{y \mid x \sim N(f(x), \sigma^2 / w)}{y | x ~ N(f(x), \sigma^2 / w)}, 
   	where \eqn{f(x)} is the unknown function.}
   \item{offset}{An optional vector specifying an offset from 0 for the relationship between the underyling
   	function, \eqn{f(x)}, and the response \eqn{y}. Only is useful for binary responses, in which case the

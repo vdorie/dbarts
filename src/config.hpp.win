@@ -3,7 +3,7 @@
 /* #define HAVE_ALLOCA_H 1 */
 #define STDC_HEADERS 1
 
-#define PACKAGE_BUGREPORT "vjd4@nyu.edu"
+#define PACKAGE_BUGREPORT "vdorie@gmail.com"
 #define PACKAGE_NAME "dbarts"
 #define PACKAGE_STRING "dbarts 0.8.6"
 #define PACKAGE_TARNAME "dbarts"
