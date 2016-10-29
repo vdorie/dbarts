@@ -120,7 +120,7 @@ namespace dbarts {
 #  include <fcntl.h>    // open
 #  include <unistd.h>   // close, lseek
 #  include <sys/mman.h> // mmap
-#  include <cstring>   // srtncmp
+#  include <cstring>   // srtncmp, strerror_r
 #  include <errno.h>
 #  include <sys/stat.h> // stat
 
@@ -130,7 +130,8 @@ namespace dbarts {
 #  include <vector>
 #  include <utility>
 
-#include <stdio.h>
+#  include <cstdio>
+#  include <cstdlib>
 
 namespace {
   typedef std::map<uint32_t, uint32_t> CoreMap;
@@ -197,7 +198,7 @@ namespace {
     }
   }
 
-#  define ERROR_BUFFER_LENGTH 1024
+#  define ERROR_BUFFER_LENGTH static_cast<size_t>(1024)
   bool parseProcCPUInfo(std::vector < Processor* >& result)
   {
     char errorBuffer[ERROR_BUFFER_LENGTH];
@@ -207,8 +208,13 @@ namespace {
     
     int fd = open("/proc/cpuinfo", O_RDONLY);
     if (fd == -1) {
-      strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
+#ifdef _GNU_SOURCE
+      char* errorMessage = strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
+      ext_issueWarning("unable to open /proc/cpuinfo: %s (%d)\n", errorMessage, errno);
+#else
+      int ignored = strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
       ext_issueWarning("unable to open /proc/cpuinfo: %s (%d)\n", errorBuffer, errno);
+#endif
       return false;
     }
     
@@ -226,7 +232,7 @@ namespace {
       
       if (numBytesInBuffer == bufferLength) {
         char* temp = new char[2 * fileLength];
-        std::memcpy(temp, (const char*) cpuInfo, fileLength * sizeof(char));
+        memcpy(temp, (const char*) cpuInfo, fileLength * sizeof(char));
         
         if (!firstReallocation) bufferLength *= 2;
         else firstReallocation = false;
@@ -238,8 +244,13 @@ namespace {
     }
     close(fd);
     if (numBytesRead == -1) {
-      strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
-      ext_issueWarning("error reading /proc/cpuinfo: %s (%d)\n", errorBuffer, errno);
+#ifdef _GNU_SOURCE
+      char* errorMessage = strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
+      ext_issueWarning("unable to open /proc/cpuinfo: %s (%d)\n", errorMessage, errno);
+#else
+      int ignored = strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
+      ext_issueWarning("unable to open /proc/cpuinfo: %s (%d)\n", errorBuffer, errno);
+#endif
       return false;
     }
     
@@ -297,7 +308,7 @@ namespace {
       memcpy(buffer, (const char*) cpuInfo + offset, endOfNumber - offset);
       buffer[endOfNumber - offset] = '\0';
       
-      long parsedInt = strtol(buffer, NULL, 10);
+      long parsedInt = std::strtol(buffer, NULL, 10);
       ext_stackFree(buffer);
       
       offset = endOfNumber;
