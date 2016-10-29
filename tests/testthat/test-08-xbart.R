@@ -63,7 +63,6 @@ test_that("xbart fails with invalid inputs", {
   expect_error(xbart(y ~ x, n.threads = 0L))
   expect_error(xbart(y ~ x, n.threads = "not-a-integer"))
   expect_error(xbart(y ~ x, n.threads = NULL))
-  #expect_error(xbart(y ~ x, n.threads = NA_integer_))
   
   expect_error(xbart(y ~ x, n.trees = 0L))
   expect_error(xbart(y ~ x, n.trees = "not-a-integer"))

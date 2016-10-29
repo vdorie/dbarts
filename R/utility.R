@@ -1,11 +1,17 @@
 coerceOrError <- function(x, type)
 {
+  mc <- match.call()
+  
+  if (is.null(x)) stop("'", mc[[2L]], "' cannot be NULL")
+  
   func <- switch(type, logical = as.logical, integer = as.integer, numeric = as.numeric)
   result <- tryCatch(func(x), warning = function(e) e)
-  if (is(result, "warning")) stop(paste0("'", match.call()[[2L]], "' must be coercible to type: ", type))
+  if (is(result, "warning")) stop("'", mc[[2L]], "' must be coercible to type: ", type)
   
   result
 }
+
+"%not_in%" <- function(x, table) match(x, table, nomatch = 0L) <= 0L
   
 prepareCallWithArguments <- function(call, name, ...)
 {
@@ -24,8 +30,8 @@ addCallArgument <- function(call, position, argument)
     position <- length(call) + 1L
   } else {
     position <- as.integer(position) + 1L
-    if (position <= length(call)) for (i in length(call):position) {
-      call[[i + 1L]] <- call[[i]]
+    if (position <= length(call)) for (i in seq.int(length(call), position)) {
+      call[i + 1L] <- call[i]
       names(call)[[i + 1L]] <- names(call)[[i]]
     }
     name <- ""

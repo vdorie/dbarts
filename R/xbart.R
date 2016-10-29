@@ -5,7 +5,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
   matchedCall <- match.call()
-
+  
   validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
   eval(validateCall, parent.frame(1L), getNamespace("dbarts"))
@@ -18,11 +18,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
-  
-  kOrder <- order(k, decreasing = TRUE)
-  kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
-  k <- k[kOrder]
-  
+    
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
   
@@ -40,6 +36,22 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     if (length(formals(loss[[1L]])) != 2L) stop("supplied loss function must take exactly two arguments")
     if (!is.environment(loss[[2L]])) stop("second member of loss-list must be an environment")
   }
+    
+  if (is.null(matchedCall$n.trees) && "n.trees" %not_in% names(matchedCall)) {
+    n.trees <- control@n.trees
+  } else {
+    n.trees <- coerceOrError(n.trees, "integer")
+    control@n.trees <- n.trees[1L]
+  }
+  
+  k       <- coerceOrError(k,     "numeric")
+  kOrder <- order(k, decreasing = TRUE)
+  kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
+  k <- k[kOrder]
+  
+  power   <- coerceOrError(power, "numeric")
+  base    <- coerceOrError(base,  "numeric")
+  drop    <- coerceOrError(drop,  "logical")
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[1L]] <- quoteInNamespace(cgm)
@@ -52,24 +64,12 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   node.prior <- eval(node.prior)
   
   resid.prior <-
-    if (!is.null(matchedCall$resid.prior)) {
+    if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {
       eval(matchedCall$resid.prior, parent.frame(1L), getNamespace("dbarts"))
     } else {
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }
   model <- new("dbartsModel", tree.prior, node.prior, resid.prior)
-  
-  
-  if (is.null(matchedCall$n.trees)) {
-    n.trees <- control@n.trees
-  } else {
-    n.trees <- coerceOrError(n.trees, "integer")
-    control@n.trees <- n.trees[1L]
-  }
-  k       <- coerceOrError(k,     "numeric")
-  power   <- coerceOrError(power, "numeric")
-  base    <- coerceOrError(base,  "numeric")
-  drop    <- coerceOrError(drop,  "logical")
   
   K         <- coerceOrError(K,         "integer")
   n.reps    <- coerceOrError(n.reps,    "integer")

@@ -54,6 +54,21 @@ setClass("dbartsControl",
               call             = quote(call("NA"))),
 ##              call             = quote(quote(NA()))),
          validity = function(object) {
+           if (length(object@verbose)          != 1L) return("'verbose' must be of length 1")
+           if (length(object@keepTrainingFits) != 1L) return("'keepTrainingFits' must be of length 1")
+           if (length(object@useQuantiles)     != 1L) return("'useQuantiles' must be of length 1")
+           
+           if (length(object@n.burn)    != 1L) return("'n.burn' must be of length 1")
+           if (length(object@n.trees)   != 1L) return("'n.trees' must be of length 1")
+           if (length(object@n.threads) != 1L) return("'n.threads' must be of length 1")
+           if (length(object@n.thin)    != 1L) return("'n.thin' must be of length 1")
+           
+           if (length(object@printEvery)   != 1L) return("'printEvery' must be of length 1")
+           if (length(object@printCutoffs) != 1L) return("'printCutoffs' must be of length 1")
+           if (length(object@updateState)  != 1L) return("'updateState' must be of length 1")
+           if (length(object@n.samples)    != 1L) return("'n.samples' must be of length 1")
+           
+           
            if (is.na(object@verbose))          return("'verbose' must be TRUE/FALSE")
            if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE")
            if (is.na(object@useQuantiles))     return("'useQuantiles' must be TRUE/FALSE")
