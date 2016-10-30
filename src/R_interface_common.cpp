@@ -193,17 +193,17 @@ namespace dbarts {
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
     if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
-    rc_checkDims(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_VALUE | RC_EQ, static_cast<int>(data.numObservations), RC_END);
+    rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_VALUE | RC_EQ, static_cast<int>(data.numObservations), RC_END);
     dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
     
-    // rc_checkInts(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
+    // rc_assertIntConstraints(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
     // dims = INTEGER(dimsExpr);
     // if (static_cast<size_t>(dims[0]) != data.numObservations) Rf_error("number of rows of x and length of y must be equal");
     data.x = REAL(slotExpr);
     data.numPredictors = static_cast<size_t>(dims[1]);
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
-    rc_checkInts(slotExpr, "variable types", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
+    rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_variableTypes = INTEGER(slotExpr);
     VariableType* variableTypes = new VariableType[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
@@ -215,11 +215,11 @@ namespace dbarts {
       data.numTestObservations = 0;
     } else {
       if (!Rf_isReal(slotExpr)) Rf_error ("x.test must be of type real");
-      rc_checkDims(slotExpr, "dimensions of x.test", RC_LENGTH | RC_EQ, rc_asRLength(2),
-                   RC_NA, RC_VALUE | RC_EQ, static_cast<int>(data.numPredictors), RC_END);
+      rc_assertDimConstraints(slotExpr, "dimensions of x.test", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                    RC_NA, RC_VALUE | RC_EQ, static_cast<int>(data.numPredictors), RC_END);
       dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
       
-      // rc_checkInts(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "x.test dimensions", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
+      // rc_assertIntConstraints(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "x.test dimensions", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
       // dims = INTEGER(dimsExpr);
       // if (static_cast<size_t>(dims[1]) != data.numPredictors) Rf_error("number of columns of x.test and x must be equal");
       data.x_test = REAL(slotExpr);
@@ -230,7 +230,7 @@ namespace dbarts {
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.weights = NULL;
     } else {
-      rc_checkDoubles(slotExpr, "weights", RC_LENGTH | RC_EQ, rc_asRLength(data.numObservations), RC_END);
+      rc_assertDoubleConstraints(slotExpr, "weights", RC_LENGTH | RC_EQ, rc_asRLength(data.numObservations), RC_END);
       data.weights = REAL(slotExpr);
     }
     
@@ -238,7 +238,7 @@ namespace dbarts {
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.offset = NULL;
     } else {
-      rc_checkDoubles(slotExpr, "offset", RC_LENGTH | RC_EQ, rc_asRLength(data.numObservations), RC_END);
+      rc_assertDoubleConstraints(slotExpr, "offset", RC_LENGTH | RC_EQ, rc_asRLength(data.numObservations), RC_END);
       data.offset = REAL(slotExpr);
     }
     
@@ -246,7 +246,7 @@ namespace dbarts {
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
       data.testOffset = NULL;
     } else {
-      rc_checkDoubles(slotExpr, "test offset", RC_LENGTH | RC_EQ, rc_asRLength(data.numTestObservations), RC_END);
+      rc_assertDoubleConstraints(slotExpr, "test offset", RC_LENGTH | RC_EQ, rc_asRLength(data.numTestObservations), RC_END);
       data.testOffset = REAL(slotExpr);
     }
     
@@ -254,7 +254,7 @@ namespace dbarts {
     data.sigmaEstimate = rc_getDouble(slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
-    rc_checkInts(slotExpr, "maximum number of cuts", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
+    rc_assertIntConstraints(slotExpr, "maximum number of cuts", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_maxNumCuts = INTEGER(slotExpr);
     uint32_t* maxNumCuts = new uint32_t[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) maxNumCuts[i] = static_cast<uint32_t>(i_maxNumCuts[i]);

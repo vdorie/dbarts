@@ -32,19 +32,22 @@ int rc_getInt(SEXP x, const char* name, ...);
 double rc_getDouble(SEXP x, const char* name, ...);
 bool rc_getBool(SEXP x, const char* name, ...);
 
-void rc_checkInts(SEXP x, const char* name, ...);
-void rc_checkDoubles(SEXP x, const char* name, ...);
-void rc_checkBools(SEXP x, const char* name, ...);
+void rc_assertIntConstraints(SEXP x, const char* name, ...);
+void rc_assertDoubleConstraints(SEXP x, const char* name, ...);
+void rc_assertBoolConstraints(SEXP x, const char* name, ...);
+
+// TODO: write functions that don't throw errors, like ...
+// const char* rc_checkInts(SEXP x, ...);
 
 // Value constraints are matched in-order to dims themselves. A lack of length
 // constraint allows missing dims. RC_NA skips the dim, regardless of the value
 // (equiv to value >= 0). e.g.
 //
-//  rc_checkDims(x, "var name", RC_LENGTH | RC_EQ, (R_xlen_t) 2,
-//               RC_NA,
-//               RC_VALUE | RC_EQ, (int) numCols,
-//               RC_END);
-void rc_checkDims(SEXP x, const char* name, ...);
+//  rc_assertDimConstraints(x, "var name", RC_LENGTH | RC_EQ, (R_xlen_t) 2,
+//                          RC_NA,
+//                          RC_VALUE | RC_EQ, (int) numCols,
+//                          RC_END);
+void rc_assertDimConstraints(SEXP x, const char* name, ...);
 
 typedef enum {
   RC_END = 0x0,

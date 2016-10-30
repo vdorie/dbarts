@@ -36,10 +36,10 @@ typedef enum {
   _RC_NO  = 0x02
 } _rc_naAllowableType;
 
-static void checkLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound);
-static void checkIntConstraint(const char* name, _rc_boundType boundType, int value, int bound);
-static void checkDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound);
-static void checkBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound);
+static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound);
+static void assertIntConstraint(const char* name, _rc_boundType boundType, int value, int bound);
+static void assertDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound);
+static void assertBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound);
 
 int rc_getInt(SEXP x, const char* name, ...)
 {
@@ -61,7 +61,7 @@ int rc_getInt(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -96,13 +96,13 @@ int rc_getInt(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         int valueBound = va_arg(argsPointer, int);
-        checkIntConstraint(name, BOUND(arg), result, valueBound);
+        assertIntConstraint(name, BOUND(arg), result, valueBound);
       }
       break;
       case RC_NA:
@@ -123,7 +123,7 @@ int rc_getInt(SEXP x, const char* name, ...)
   return result;
 }
 
-void rc_checkInts(SEXP x, const char* name, ...)
+void rc_assertIntConstraints(SEXP x, const char* name, ...)
 {
   if (!Rf_isInteger(x)) Rf_error("%s must be of type integer", name);
   
@@ -143,7 +143,7 @@ void rc_checkInts(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -179,14 +179,14 @@ void rc_checkInts(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         _rc_boundType boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
-        for (size_t i = 0; i < (size_t) length; ++i) checkIntConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) assertIntConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
@@ -229,7 +229,7 @@ double rc_getDouble(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -264,13 +264,13 @@ double rc_getDouble(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         double valueBound = va_arg(argsPointer, double);
-        checkDoubleConstraint(name, BOUND(arg), result, valueBound);
+        assertDoubleConstraint(name, BOUND(arg), result, valueBound);
       }
       break;
       case RC_NA:
@@ -291,7 +291,7 @@ double rc_getDouble(SEXP x, const char* name, ...)
   return result;
 }
 
-void rc_checkDoubles(SEXP x, const char* name, ...)
+void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
 {
   if (!Rf_isReal(x)) Rf_error("%s must be of type real", name);
   
@@ -311,7 +311,7 @@ void rc_checkDoubles(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -347,14 +347,14 @@ void rc_checkDoubles(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         _rc_boundType boundType = BOUND(arg);
         double valueBound = va_arg(argsPointer, double);
-        for (size_t i = 0; i < (size_t) length; ++i) checkDoubleConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) assertDoubleConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
@@ -397,7 +397,7 @@ bool rc_getBool(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -432,13 +432,13 @@ bool rc_getBool(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         int valueBound = va_arg(argsPointer, int);
-        checkBoolConstraint(name, BOUND(arg), result, valueBound);
+        assertBoolConstraint(name, BOUND(arg), result, valueBound);
       }
       break;
       case RC_NA:
@@ -459,7 +459,7 @@ bool rc_getBool(SEXP x, const char* name, ...)
   return result;
 }
 
-void rc_checkBools(SEXP x, const char* name, ...)
+void rc_assertBoolConstraints(SEXP x, const char* name, ...)
 {
   if (!Rf_isLogical(x)) Rf_error("%s must be of type logical", name);
   
@@ -480,7 +480,7 @@ void rc_checkBools(SEXP x, const char* name, ...)
         case RC_LENGTH:
         {
           R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-          checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+          assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         }
         break;
         case RC_VALUE:
@@ -516,14 +516,14 @@ void rc_checkBools(SEXP x, const char* name, ...)
       case RC_LENGTH:
       {
         R_xlen_t lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       }
       break;
       case RC_VALUE:
       {
         _rc_boundType boundType = BOUND(arg);
         int valueBound = va_arg(argsPointer, int);
-        for (size_t i = 0; i < (size_t) length; ++i) checkBoolConstraint(name, boundType, results[i], valueBound);
+        for (size_t i = 0; i < (size_t) length; ++i) assertBoolConstraint(name, boundType, results[i], valueBound);
       }
       break;
       case RC_NA:
@@ -546,7 +546,7 @@ void rc_checkBools(SEXP x, const char* name, ...)
   }
 }
 
-void rc_checkDims(SEXP x, const char* name, ...)
+void rc_assertDimConstraints(SEXP x, const char* name, ...)
 {
   SEXP dimsExpr = Rf_getAttrib(x, R_DimSymbol);
   
@@ -568,7 +568,7 @@ void rc_checkDims(SEXP x, const char* name, ...)
       switch (constraintType) {
         case RC_LENGTH:
         lengthBound = va_arg_xlen_t(argsPointer);
-        checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+        assertLengthConstraint(name, BOUND(arg), length, lengthBound);
         break;
         
         case RC_VALUE:
@@ -598,14 +598,14 @@ void rc_checkDims(SEXP x, const char* name, ...)
     switch (constraintType) {
       case RC_LENGTH:
       lengthBound = va_arg_xlen_t(argsPointer);
-      checkLengthConstraint(name, BOUND(arg), length, lengthBound);
+      assertLengthConstraint(name, BOUND(arg), length, lengthBound);
       break;
       
       case RC_VALUE:
       {
         int valueBound = va_arg(argsPointer, int);
         if (pos < length)
-          checkIntConstraint(name, BOUND(arg), dims[pos], valueBound);
+          assertIntConstraint(name, BOUND(arg), dims[pos], valueBound);
         ++pos;
       }
       break;
@@ -658,7 +658,7 @@ void rc_checkDims(SEXP x, const char* name, ...)
   va_end(argsPointer);
 }
 
-static void checkLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound)
+static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_xlen_t length, R_xlen_t bound)
 {
   if (bound < 0) Rf_error("internal error: %s cannot have a negative length", name);
   
@@ -709,7 +709,7 @@ static void checkLengthConstraint(const char* name, _rc_boundType boundType, R_x
   }
 }
 
-static void checkIntConstraint(const char* name, _rc_boundType boundType, int value, int bound)
+static void assertIntConstraint(const char* name, _rc_boundType boundType, int value, int bound)
 {
   if (bound == R_NaInt) Rf_error("bound for %s cannot be NA", name);
   if (value == R_NaInt) return;
@@ -738,7 +738,7 @@ static void checkIntConstraint(const char* name, _rc_boundType boundType, int va
   }
 }
 
-static void checkDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound)
+static void assertDoubleConstraint(const char* name, _rc_boundType boundType, double value, double bound)
 {
   if (isnan(bound)) Rf_error("bound for %s cannot be NaN", name);
   if (bound == R_NaReal) Rf_error("bound for %s cannot be NA", name);
@@ -774,7 +774,7 @@ static void checkDoubleConstraint(const char* name, _rc_boundType boundType, dou
   }
 }
 
-static void checkBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound)
+static void assertBoolConstraint(const char* name, _rc_boundType boundType, bool value, bool bound)
 {
   if (bound == R_NaInt) Rf_error("bound for %s cannot be NA", name);
   if (value == R_NaInt) return;

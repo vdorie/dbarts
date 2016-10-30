@@ -231,7 +231,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setY called on NULL external pointer");
     
-    rc_checkDoubles(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations));
+    rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations));
     
     // for binary responses, updates latents and samples
     if (fit->control.responseIsBinary) GetRNGstate();
@@ -273,10 +273,10 @@ extern "C" {
     
     if (!Rf_isReal(x)) Rf_error("x must be of type real");
     
-    rc_checkDims(x, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
-                 RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
-                 RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
-                 RC_END);
+    rc_assertDimConstraints(x, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                            RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
+                            RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
+                            RC_END);
     
     // SEXP dimsExpr = Rf_getAttrib(x, R_DimSymbol);
     //
@@ -302,10 +302,10 @@ extern "C" {
     
     if (!Rf_isReal(x_test)) Rf_error("x.test must be of type real");
     
-    rc_checkDims(x_test, "dimensions of x_test", RC_LENGTH | RC_EQ, rc_asRLength(2),
-                 RC_NA,
-                 RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
-                 RC_END);
+    rc_assertDimConstraints(x_test, "dimensions of x_test", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                            RC_NA,
+                            RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
+                            RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_test, R_DimSymbol));
     
     // SEXP dimsExpr = Rf_getAttrib(x_test, R_DimSymbol);
@@ -347,10 +347,10 @@ extern "C" {
     
     if (!Rf_isReal(x_test)) Rf_error("x.test must be of type real");
     
-    rc_checkDims(x_test, "dimensions of x_test", RC_LENGTH | RC_EQ, rc_asRLength(2),
-                 RC_NA,
-                 RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
-                 RC_END);
+    rc_assertDimConstraints(x_test, "dimensions of x_test", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                            RC_NA,
+                            RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
+                            RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_test, R_DimSymbol));
     
     // SEXP dimsExpr = Rf_getAttrib(x_test, R_DimSymbol);
@@ -522,7 +522,7 @@ extern "C" {
     
     if (rc_getLength(treeIndicesExpr) == 0) return R_NilValue;
     
-    rc_checkInts(treeIndicesExpr, "tree indices", RC_VALUE | RC_GT, asRXLen(0), RC_VALUE | RC_LEQ, asRXLen(numTrees), RC_END);
+    rc_assertIntConstraints(treeIndicesExpr, "tree indices", RC_VALUE | RC_GT, asRXLen(0), RC_VALUE | RC_LEQ, asRXLen(numTrees), RC_END);
     
     size_t numIndices = rc_getLength(treeIndicesExpr);
     treeIndices = ext_stackAllocate(numIndices, size_t);
