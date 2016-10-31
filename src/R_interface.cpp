@@ -5,16 +5,6 @@
 #include <dbarts/cstdint.hpp>
 #include <cstring> // memcpy
 
-/* #define R_NO_REMAP 1
-// required to get Rinternals.h to load correctly on solaris, even though
-// we don't use any of its functionality
-#ifdef NO_C_HEADERS
-#  include <cstdio>
-using std::FILE;
-#endif */
-
-// #include <R.h>
-// #include <Rinternals.h>
 #include <R_ext/Rdynload.h>
 
 #include <rc/util.h>
@@ -211,8 +201,22 @@ extern "C" {
   {
     return Rf_duplicate(obj);
   }
-  
-  static SEXP getPointerAddress(SEXP obj)
+
+/*
+}
+
+#ifdef HAVE_STD_SNPRINTF
+// snprintf in c++11, before that have to use C version
+#  include <cstdio>
+using std::snprintf;
+#else
+extern "C" {
+#  include <stdio.h>
+}
+#endif
+
+namespace {
+   static SEXP getPointerAddress(SEXP obj)
   {
     char buffer[24];
     const void* p;
@@ -249,7 +253,7 @@ extern "C" {
     UNPROTECT(1);
     
     return result;
-  }
+  } */
     
   // as of R 3.1, auto-unload never gets called so screw that
   
@@ -290,8 +294,8 @@ extern "C" {
     DEF_FUNC("dbarts_restoreState", restoreState, 2),
     DEF_FUNC("dbarts_finalize", finalize, 0),
     DEF_FUNC("dbarts_deepCopy", deepCopy, 1),
-    DEF_FUNC("dbarts_getPointerAddress", getPointerAddress, 1),
-    DEF_FUNC("dbarts_getXAddress", getXAddress, 1),
+    //DEF_FUNC("dbarts_getPointerAddress", getPointerAddress, 1),
+    //DEF_FUNC("dbarts_getXAddress", getXAddress, 1),
     DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", dbarts_makeModelMatrixFromDataFrame, 2),
     DEF_FUNC("dbarts_xbart", xbart, 13),
     DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),

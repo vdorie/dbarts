@@ -4,16 +4,10 @@
 // imports R.h while doing the least to pollute namespaces
 
 #include <Rversion.h>
-#ifdef R_VERSION
-#  define __R_MAJOR (R_VERSION >> 16)
-#  define __R_MINOR ((R_VERSION - (__R_MAJOR << 16)) >> 8)
-#  define __R_PATCH ((R_VERSION - (__R_MAJOR << 16)) - (__R_MINOR << 8))
-#endif
 
-// for older versions of R we attempt to no include unnecessary headers,
+// for older versions of R we attempt to not include unnecessary headers,
 // which assists in checking namespace and inclusion correctness
-#if !defined(__R_MAJOR) || (__R_MAJOR < 3 && (!defined(__R_MINOR) || __R_MAJOR != 3 || __R_MINOR < 4))
-// unfortunately, some headers are necessary to include
+#if R_VERSION < R_Version(3,4,0)
 #  define NO_C_HEADERS
 #  ifdef __cplusplus
 #    include <cstddef>

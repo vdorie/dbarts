@@ -9,8 +9,6 @@
 
 #include <set>
 
-// struct SEXPREC;
-// typedef struct SEXPREC* SEXP;
 #include <external/Rinternals.h> // SEXP
 
 typedef bool(*ExternalPointerComparator)(const SEXP&lhs, const SEXP& rhs);

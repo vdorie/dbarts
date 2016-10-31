@@ -3,8 +3,6 @@
 
 // basic sampler creation, running, and accessing
 
-// struct SEXPREC;
-// typedef struct SEXPREC* SEXP;
 #include <external/Rinternals.h> // SEXP
 
 extern "C" {

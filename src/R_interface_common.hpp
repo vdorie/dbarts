@@ -1,8 +1,6 @@
 #ifndef R_INTERFACE_COMMON_HPP
 #define R_INTERFACE_COMMON_HPP
 
-// struct SEXPREC;
-// typedef struct SEXPREC* SEXP;
 #include <external/Rinternals.h> // SEXP
 
 namespace dbarts {

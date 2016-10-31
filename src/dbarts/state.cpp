@@ -9,9 +9,7 @@
 #  include <cstdio>
 using std::snprintf;
 #else
-extern "C" {
 #  include <stdio.h>
-}
 #endif
 
 #include <external/io.h>
