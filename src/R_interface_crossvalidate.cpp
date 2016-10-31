@@ -289,9 +289,9 @@ namespace {
     
   void deleteCustomLoss(LossFunctor* instance)
   {
-    (void) instance;
-    
     UNPROTECT(3);
+    
+    delete static_cast<CustomLossFunctor*>(instance);
   }
   
   void calculateCustomLoss(LossFunctor& restrict v_instance,
