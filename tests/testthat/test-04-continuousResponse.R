@@ -6,7 +6,7 @@ test_that("basic Friedman example passes regression test", {
   set.seed(99)
   n.burn <- 100L
   n.sims <- 3000L
-  bartFit <- bart(testData$x, testData$y, ndpost = n.sims, ntree = 50L, verbose = FALSE)
+  bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
   
   burnRange <- -4L:0L + n.burn
   simRange <- -4L:0L + n.sims
