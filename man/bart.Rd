@@ -17,7 +17,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      sigest = NA, sigdf = 3, sigquant = 0.90,
      k = 2.0,
      power = 2.0, base = 0.95,
-     binaryOffset = 0.0,
+     binaryOffset = 0.0, weights = NULL,
      ntree = 200,
      ndpost = 1000, nskip = 100,
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
@@ -88,7 +88,11 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
        \eqn{P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})}{P(Y = 1 | x) = \Phi(f(x) + binaryOffset)},
      allowing fits with probabilities shrunk towards values other than \eqn{0.5}.
    }
-
+   \item{weights}{
+      An optional vector of weights to be used in the fitting process. When present, BART
+      fits a model with observations \eqn{y \mid x \sim N(f(x), \sigma^2 / w)}{y | x ~ N(f(x), \sigma^2 / w)}, 
+      where \eqn{f(x)} is the unknown function.
+  }
    \item{ntree}{
      The number of trees in the sum-of-trees formulation.
    }
@@ -258,7 +262,7 @@ Friedman, J.H. (1991)
 \author{
 Hugh Chipman: \email{hugh.chipman@gmail.com},\cr
 Robert McCulloch: \email{robert.mcculloch1@gmail.com},\cr
-Vincent Dorie: \email{vjd4@nyu.edu}.
+Vincent Dorie: \email{vdorie@gmail.com}.
 }
 \seealso{
 \code{\link{pdbart}}

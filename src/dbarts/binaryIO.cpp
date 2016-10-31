@@ -106,9 +106,9 @@ read_control_cleanup:
     if ((errorCode = ext_bio_writeDouble(bio, data.sigmaEstimate)) != 0) goto write_data_cleanup;
     
     if ((errorCode = ext_bio_writeNDoubles(bio, data.y, data.numObservations)) != 0) goto write_data_cleanup;
-    if ((errorCode = ext_bio_writeNDoubles(bio, data.X, data.numObservations * data.numPredictors)) != 0) goto write_data_cleanup;
+    if ((errorCode = ext_bio_writeNDoubles(bio, data.x, data.numObservations * data.numPredictors)) != 0) goto write_data_cleanup;
     if (data.numTestObservations > 0 &&
-      (errorCode = ext_bio_writeNDoubles(bio, data.X_test, data.numTestObservations * data.numPredictors)) != 0) goto write_data_cleanup;
+      (errorCode = ext_bio_writeNDoubles(bio, data.x_test, data.numTestObservations * data.numPredictors)) != 0) goto write_data_cleanup;
     
     if (data.weights != NULL && 
       (errorCode = ext_bio_writeNDoubles(bio, data.weights, data.numObservations)) != 0) goto write_data_cleanup;
@@ -149,13 +149,13 @@ write_data_cleanup:
     data.y = new double[data.numObservations];
     if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.y), data.numObservations)) != 0) goto read_data_cleanup;
     
-    data.X = new double[data.numObservations * data.numPredictors];
-    if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.X), data.numObservations * data.numPredictors)) != 0) goto read_data_cleanup;
+    data.x = new double[data.numObservations * data.numPredictors];
+    if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.x), data.numObservations * data.numPredictors)) != 0) goto read_data_cleanup;
     
     if (data.numTestObservations > 0) {
-      data.X_test = new double[data.numTestObservations * data.numPredictors];
-      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.X_test), data.numTestObservations * data.numPredictors)) != 0) goto read_data_cleanup;
-    } else data.X_test = NULL;
+      data.x_test = new double[data.numTestObservations * data.numPredictors];
+      if ((errorCode = ext_bio_readNDoubles(bio, const_cast<double*>(data.x_test), data.numTestObservations * data.numPredictors)) != 0) goto read_data_cleanup;
+    } else data.x_test = NULL;
     
     if (dataFlags & DATA_HAS_WEIGHTS) {
       data.weights = new double[data.numObservations];
@@ -191,8 +191,8 @@ read_data_cleanup:
       delete [] data.testOffset;
       delete [] data.offset;
       delete [] data.weights;
-      delete [] data.X_test;
-      delete [] data.X;
+      delete [] data.x_test;
+      delete [] data.x;
       delete [] data.y;
     
       ext_issueWarning("error reading data object: %s", std::strerror(errorCode));

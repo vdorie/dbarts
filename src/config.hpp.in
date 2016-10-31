@@ -3,6 +3,9 @@
 /* Define to 1 if you have the <cstdint> header file. */
 #undef HAVE_CSTDINT
 
+/* define if snprintf is in std:: */
+#undef HAVE_SNPRINTF_IN_NAMESPACE_STD
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 

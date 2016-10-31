@@ -55,7 +55,7 @@ bart <- function(
    sigest = NA_real_, sigdf = 3.0, sigquant = 0.90, 
    k = 2.0,
    power = 2.0, base = 0.95,
-   binaryOffset = 0.0,
+   binaryOffset = 0.0, weights = NULL,
    ntree = 200L,
    ndpost = 1000L, nskip = 100L,
    printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
@@ -82,7 +82,7 @@ bart <- function(
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
-  args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = NULL,
+  args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = weights,
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
                tree.prior = tree.prior, node.prior = node.prior,
                resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))

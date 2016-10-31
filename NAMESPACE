@@ -1,8 +1,11 @@
-useDynLib(dbarts)
+useDynLib(dbarts, .registration = TRUE, .fixes = "C_")
 
 export(dbarts, bart)
 export(dbartsControl)
-export(pdbart, pd2bart, plot.bart)
+export(dbartsData)
+export(pdbart, pd2bart)
+export(xbart)
+export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame)
 
@@ -14,8 +17,8 @@ S3method(plot, pd2bart)
 
 importFrom(methods, setRefClass, setClass, callNextMethod, validObject, is, new)
 
-importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms)
+importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, quantile)
 importFrom(stats, as.formula, setNames)
 
-importFrom(graphics, abline, contour, image, lines, par, plot, title)
+importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)

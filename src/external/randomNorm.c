@@ -9,6 +9,8 @@
 #include <float.h> // DBL_MIN
 #include <stdbool.h> // true
 
+#include <Rmath.h> // fmin2, fmax2
+
 #include <external/io.h>
 #include <external/stats.h> // qnorm
 
@@ -190,7 +192,7 @@ deliver:
           u2 = ext_rng_simulateContinuousUniform(generator);
           u3 = ext_rng_simulateContinuousUniform(generator);
           tt = 0.479727404222441 + 1.105473661022070 * fmin(u2, u3);
-          if (fmax2(u2, u3) <= 0.872834976671790)
+          if (Rf_fmax2(u2, u3) <= 0.872834976671790)
             return (u2 < u3) ? tt : -tt;
           if (0.049264496373128 * fabs(u2 - u3) <= g(tt))
             return (u2 < u3) ? tt : -tt;
@@ -246,7 +248,7 @@ deliver:
         do {
           u2 = ext_rng_simulateContinuousUniform(generator);
           u3 = ext_rng_simulateContinuousUniform(generator);
-          tt = 0.479727404222441+1.105473661022070*fmin2(u2,u3);
+          tt = 0.479727404222441+1.105473661022070*Rf_fmin2(u2,u3);
           if (fmax(u2, u3) <= 0.872834976671790)
             return (u2 < u3) ? tt : -tt;
           if (0.049264496373128 * fabs(u2 - u3) <= g(tt))

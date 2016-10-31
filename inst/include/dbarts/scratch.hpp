@@ -9,8 +9,8 @@ namespace dbarts {
   
   struct Scratch {
     const double* yRescaled; // this isn't strictly const, but can only be modified in very select ways
-    const double* Xt;
-    const double* Xt_test;
+    const double* xt; // x transpose
+    const double* xt_test;
     double* treeY;
     
     ScaleFactor dataScale;
@@ -21,3 +21,4 @@ namespace dbarts {
 } // namespace dbarts
 
 #endif // DBARTS_SCRATCH_HPP
+

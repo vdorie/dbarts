@@ -32,6 +32,7 @@ namespace dbarts {
     
     Results* runSampler();
     Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
+    void runSampler(std::size_t numBurnIn, Results* results);
     
     
     // settors simply replace local pointers to variables. dimensions much match
@@ -51,6 +52,15 @@ namespace dbarts {
     
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
+    
+    void printTrees(const std::size_t* indices, std::size_t numIndices) const;
+    
+    // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
+    // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
+    // invalid state
+    void setData(const Data& data);
+    void setControl(const Control& control);
+    void setModel(const Model& model);
     
     bool saveToFile(const char* fileName) const;
     static BARTFit* loadFromFile(const char* fileName);

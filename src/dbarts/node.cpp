@@ -226,6 +226,17 @@ namespace {
     fillBottomVector(*node.leftChild, result);
     fillBottomVector(*node.p.rightChild, result);
   }
+
+  void enumerateBottomNodes(Node& node, size_t& index)
+  {
+    if (node.isBottom()) {
+      node.enumerationIndex = index++;
+      return;
+    }
+    
+    enumerateBottomNodes(*node.getLeftChild(), index);
+    enumerateBottomNodes(*node.getRightChild(), index);
+  }
   
   void fillAndEnumerateBottomVector(Node& node, NodeVector& result, size_t& index)
   {
@@ -287,6 +298,12 @@ namespace dbarts {
     fillBottomVector(*this, result);
     return result;
   }
+
+  void Node::enumerateBottomNodes()
+  {
+    size_t index = 0;
+    ::enumerateBottomNodes(*this, index);
+   }
   
   NodeVector Node::getAndEnumerateBottomVector()
   {
@@ -337,7 +354,7 @@ namespace {
     
     IndexOrdering(const BARTFit& fit, const Rule &rule) : fit(fit), rule(rule) { }
     
-    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.Xt + i * fit.data.numPredictors); }
+    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.xt + i * fit.data.numPredictors); }
   };
   
   // returns how many observations are on the "left"
@@ -526,9 +543,9 @@ namespace dbarts {
     ext_mt_getNumThreadsForJob(fit.threadManager, numObservations, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
                                &numThreads, &numElementsPerThread); */
     
-    size_t numOnLeft = 0;
     
     if (numObservations > 0) {
+      size_t numOnLeft = 0;
       IndexOrdering ordering(fit, p.rule);
     
       //if (numThreads <= 1) {
@@ -564,17 +581,16 @@ namespace dbarts {
         ext_stackFree(threadDataPtrs);
         ext_stackFree(threadData);
       } */
+      
+      leftChild->observationIndices = observationIndices;
+      leftChild->numObservations = numOnLeft;
+      p.rightChild->observationIndices = observationIndices + numOnLeft;
+      p.rightChild->numObservations = numObservations - numOnLeft;
+      
+      
+      leftChild->addObservationsToChildren(fit, y);
+      p.rightChild->addObservationsToChildren(fit, y);
     }
-    
-    
-    leftChild->observationIndices = observationIndices;
-    leftChild->numObservations = numOnLeft;
-    p.rightChild->observationIndices = observationIndices + numOnLeft;
-    p.rightChild->numObservations = numObservations - numOnLeft;
-    
-    
-    leftChild->addObservationsToChildren(fit, y);
-    p.rightChild->addObservationsToChildren(fit, y);
   }
   
   void Node::addObservationsToChildren(const BARTFit& fit) {
@@ -586,24 +602,23 @@ namespace dbarts {
     leftChild->clearObservations();
     p.rightChild->clearObservations();
     
-    size_t numOnLeft = 0;
     if (numObservations > 0) {
       IndexOrdering ordering(fit, p.rule);
     
-      numOnLeft = (isTop() ?
+      size_t numOnLeft = (isTop() ?
                    partitionRange(observationIndices, 0, numObservations, ordering) :
                    partitionIndices(observationIndices, numObservations, ordering));
+      
+      leftChild->observationIndices = observationIndices;
+      leftChild->numObservations = numOnLeft;
+      p.rightChild->observationIndices = observationIndices + numOnLeft;
+      p.rightChild->numObservations = numObservations - numOnLeft;
+    
+      leftChild->addObservationsToChildren(fit);
+      p.rightChild->addObservationsToChildren(fit);
     }
-    
-    leftChild->observationIndices = observationIndices;
-    leftChild->numObservations = numOnLeft;
-    p.rightChild->observationIndices = observationIndices + numOnLeft;
-    p.rightChild->numObservations = numObservations - numOnLeft;
-    
-    leftChild->addObservationsToChildren(fit);
-    p.rightChild->addObservationsToChildren(fit);
   }
-	
+  
   void Node::setAverage(const BARTFit& fit, const double* y)
   {
     leftChild = NULL;
@@ -724,7 +739,7 @@ namespace dbarts {
     m.average = average;
     m.numEffectiveObservations = numEffectiveObservations;
   }
-  
+    
   void Node::countVariableUses(uint32_t* variableCounts) const
   {
     if (isBottom()) return;

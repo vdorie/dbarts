@@ -3,6 +3,7 @@
 
 // create an RNG and then seed it, or create it using a state constructed from somewhere else
 
+#include <stdbool.h>
 #include "stddef.h"
 #include <stdint.h>
 
@@ -38,6 +39,7 @@ typedef enum {
 // state can be null; size is determined by algorithm; see below for a few state structs
 ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* state);
 void ext_rng_destroy(ext_rng* generator);
+ext_rng* ext_rng_createDefault(bool useNative);
 // state can be null; for BOX_MULLER, it should point to a double that is the next number, or 0.0 if that isn't set yet
 // for USER_NORM, it should be a userFunction outlined below
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state);
@@ -102,3 +104,4 @@ typedef struct {
 #endif
 
 #endif // EXTERNAL_RANDOM_H
+

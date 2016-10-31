@@ -6,13 +6,13 @@ INST_DIR=../inst
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
 PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude @PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
-PKG_LIBS=dbarts/libdbarts.a external/libexternal.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
+PKG_LIBS=dbarts/libdbarts.a external/libexternal.a rc/librc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
 
-.PHONY: all dbarts/libdbarts.a external/libexternal.a clean
+.PHONY: all dbarts/libdbarts.a external/libexternal.a rc/librc.a clean
 
 all: $(SHLIB)
 
-$(SHLIB): dbarts/libdbarts.a external/libexternal.a
+$(SHLIB): dbarts/libdbarts.a external/libexternal.a rc/librc.a
 
 dbarts/libdbarts.a:
 	@(cd dbarts && $(MAKE) libdbarts.a \
@@ -29,12 +29,22 @@ external/libexternal.a :
 	  CPPFLAGS="@PTHREAD_CFLAGS@ $(CPPFLAGS)" \
 	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
+          SIMD="@SIMD_FLAGS@" \
+	  INST_DIR="$(INST_DIR)")
+
+rc/librc.a :
+	@(cd rc && $(MAKE) librc.a \
+	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
+	  CPPFLAGS="$(CPPFLAGS)" \
+	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
+	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
 	  INST_DIR="$(INST_DIR)")
 
 
 clean :
 	@(cd dbarts && $(MAKE) clean)
 	@(cd external && $(MAKE) clean)
+	@(cd rc && $(MAKE) clean)
 	rm -f *.so *.dll *.o
 
 momentsTest : external/pthread.c

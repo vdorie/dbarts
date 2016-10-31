@@ -67,8 +67,8 @@ namespace dbarts {
     node->variablesAvailableForSplit[variableIndex] = countTrueValues(catGoesRight, numCategories) >= 2;
         
     if (!node->isBottom()) {
-      bool* leftChildCategories  = new bool [numCategories];
-      bool* rightChildCategories = new bool [numCategories];
+      bool* leftChildCategories  = new bool[numCategories];
+      bool* rightChildCategories = new bool[numCategories];
       
       for (size_t i = 0; i < numCategories; ++i) {
         leftChildCategories[i] = catGoesRight[i];

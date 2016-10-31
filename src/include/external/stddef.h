@@ -2,11 +2,11 @@
 #define EXTERNAL_STDDEF_H
 
 #ifdef __cplusplus
-#include <cstddef>
-#define ext_size_t std::size_t
+#  include <cstddef>
+#  define ext_size_t std::size_t
 #else
-#include <stddef.h>
-#define ext_size_t size_t
+#  include <stddef.h>
+#  define ext_size_t size_t
 #endif
 
 // the top conditions will fail if restrict is available by default
@@ -22,3 +22,4 @@
 #endif
 
 #endif // EXTERNAL_STDDEF_H
+

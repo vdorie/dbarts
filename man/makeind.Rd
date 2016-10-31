@@ -38,7 +38,7 @@
   the matrix.
 }
 \author{
-  Vincent Dorie: \email{vjd4@nyu.edu}.
+  Vincent Dorie: \email{vdorie@gmail.com}.
 }
 \examples{
 iv <- 1:10

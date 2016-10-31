@@ -7,11 +7,10 @@
 #include <string.h>
 #include <errno.h>
 
-#include <R.h>
-#include <Rdefines.h>
-#include <R_ext/BLAS.h>
-#include <R_ext/Lapack.h>
-#include <R_ext/Applic.h> // for dqrls
+#define R_NO_REMAP
+#define NO_C_HEADERS
+#include <R_ext/Lapack.h> // dlassq, dpotrf, dtrtrs
+#include <R_ext/Applic.h> // dqrls
 
 #include <external/alloca.h>
 
@@ -63,6 +62,18 @@ void ext_setVectorToConstant(double* x, size_t length, double alpha)
     x[i + 4] = alpha;
   }
 }
+
+bool ext_vectorIsConstant(const double* x, size_t length)
+{
+  if (length <= 1) return true;
+  
+  for (size_t i = 1; i < length; ++i) {
+    if (x[i] != x[i - 1]) return false;
+  }
+  
+  return true;
+}
+
 
 void ext_setIndexedVectorToConstant(double* restrict x, const size_t* restrict indices, size_t length, double alpha)
 {
@@ -221,6 +232,22 @@ double ext_sumVectorElements(const double* x, size_t length)
   return result;
 }
 
+double ext_sumIndexedVectorElements(const double* x, const size_t* indices, size_t length)
+{
+  if (length == 0) return 0.0;
+  
+  double result = 0.0;
+  size_t lengthMod5 = length % 5;
+  
+  size_t i;
+  for (i = 0; i < lengthMod5; ++i) result += x[indices[i]];
+  for (/* */; i < length; i += 5) {
+    result += x[indices[i]] + x[indices[i + 1]] + x[indices[i + 2]] + x[indices[i + 3]] + x[indices[i + 4]];
+  }
+  
+  return result;
+}
+
 double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
 {
   int length = (int) u_length;
@@ -231,6 +258,17 @@ double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
   F77_NAME(dlassq)(&length, x, &increment, &scale, &sum);
   
   return scale * scale * sum;
+}
+
+void ext_transposeMatrix(const double* x, size_t numRows, size_t numCols, double* xt)
+{
+  size_t colOffset = 0;
+  for (size_t col = 0; col < numCols; ++col) {
+    for (size_t row = 0; row < numRows; ++row) {
+      xt[row * numCols + col] = x[row + colOffset];
+    }
+    colOffset += numRows;
+  }
 }
 
 // LS solution to Xb = y, or b = (X'X)^-1 X'y

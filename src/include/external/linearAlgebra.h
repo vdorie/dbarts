@@ -1,6 +1,7 @@
 #ifndef EXTERNAL_LINEAR_ALGEBRA_H
 #define EXTERNAL_LINEAR_ALGEBRA_H
 
+#include <stdbool.h>
 #include "stddef.h"
 #include <stdint.h>
 
@@ -21,6 +22,7 @@ extern "C" {
   
   // x: = alpha
   void ext_setVectorToConstant(double* x, ext_size_t length, double alpha);
+  bool ext_vectorIsConstant(const double* d, ext_size_t length);
   void ext_setIndexedVectorToConstant(double* restrict x, const ext_size_t* restrict indices, ext_size_t length, double alpha);
   
   // x := alpha * x
@@ -40,7 +42,10 @@ extern "C" {
   void ext_leftMultiplyMatrixAndVector(const double* A, ext_size_t n, ext_size_t p, const double* x, double* b);
   
   double ext_sumVectorElements(const double* x, ext_size_t length);
+  double ext_sumIndexedVectorElements(const double* x, const ext_size_t* indices, ext_size_t length);
   double ext_sumSquaresOfVectorElements(const double* x, ext_size_t length);
+  
+  void ext_transposeMatrix(const double* x, ext_size_t numRows, ext_size_t numCols, double* xt);
   
   // least squares solution to Xb = y
   // suggested tolerance: 1.0e-7
@@ -72,3 +77,4 @@ extern "C" {
 #endif
   
 #endif // EXTERNAL_LINEAR_ALGEBRA_H
+

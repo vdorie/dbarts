@@ -30,6 +30,15 @@
 /* Define to 1 if you have the malloc header file. */
 #undef HAVE_MALLOC_H
 
+/* Define to 1 if you have the function ffs. */
+#undef HAVE_FFS
+
+/* Define 1 to if your processor supports SSE2. */
+#undef HAVE_SSE2
+
+/* Define 1 to if your processor supports Altivec. */
+#undef HAVE_ALTIVEC
+
 /* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
    <pthread.h>, or <semaphore.h> is not used. If the typedef was allowed, the
    #define below would cause a syntax error. */
@@ -45,3 +54,6 @@
 
 /* Define to 1 if words are stored in a big-endian format. */
 #undef WORDS_BIGENDIAN
+
+#undef SIZEOF_SIZE_T
+#undef ALIGNOF_VOIDP

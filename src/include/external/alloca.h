@@ -55,3 +55,4 @@ extern "C" {
 #endif
 
 #endif // EXTERNAL_ALLOCA_H
+
