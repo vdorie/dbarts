@@ -6,7 +6,6 @@
 #define HAVE_SNPRINTF 1
 #define HAVE_MALLOC_H 1
 #define HAVE_SYS_TYPES_H 1
-#define HAVE_FFS 1
 #if (defined(_MSC_VER) && _M_IX86_FP >= 2) || defined(__SSE2__) || defined(__ia64) || defined(__x64_64__) || defined(_M_X64)
 #  define HAVE_SSE2 1
 #endif
@@ -19,8 +18,9 @@
 
 #ifdef _WIN64
 #  define SIZEOF_SIZE_T 8
+#  define ALIGNOF_VOIDP 8
 #else
 #  define SIZEOF_SIZE_T 4
+#  define ALIGNOF_VOIDP 4
 #endif
 
-#define ALIGNOF_VOIDP TYPE_ALIGNMENT(void*)

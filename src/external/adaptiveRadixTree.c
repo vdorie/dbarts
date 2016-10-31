@@ -127,7 +127,7 @@ static void printAtDepth(Node* const n, size_t depth);
 
 static inline size_t getMinLength(size_t a, size_t b) { return (a < b) ? a : b; }
 
-#ifdef __GCC__
+#ifdef __GNUC__
 #  define countTrailingZeros(_X_) __builtin_ctz(_X_)
 #elif defined(_MSC_VER)
 // it would be possible to use __lzcnt when ABM is available, but that is relatively recent
@@ -143,6 +143,8 @@ static unsigned long __inline countTrailingZeros(unsigned long x) {
 #elif defined(HAVE_FFS)
 #  include <strings.h>
 #  define countTrailingZeros(_X_) (ffs(_X_) - 1)
+#elif defined(__MINGW32__)
+#  define countTrailingZeros(_X_) (__builtin_ffs(_X_) - 1)
 #else
 static inline uint32_t countTrailingZeros(uint32_t x) {
   static const uint8_t ctzTable[] = {

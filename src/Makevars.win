@@ -30,7 +30,7 @@ external/libexternal.a :
 	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
 	  INST_DIR="$(INST_DIR)")
 
-external/librc.a :
+rc/librc.a :
 	@(cd rc && $(MAKE) librc.a \
 	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
 	  CPPFLAGS="$(CPPFLAGS)" \
