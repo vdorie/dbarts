@@ -7,7 +7,7 @@
 
 // for older versions of R we attempt to not include unnecessary headers,
 // which assists in checking namespace and inclusion correctness
-#if R_VERSION < R_Version(3,4,0)
+#if R_VERSION <= R_Version(3,3,1)
 #  define NO_C_HEADERS
 #  ifdef __cplusplus
 #    include <cstddef>

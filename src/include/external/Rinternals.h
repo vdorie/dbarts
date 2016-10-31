@@ -5,7 +5,7 @@
 
 #include <Rversion.h>
 
-#if R_VERSION < R_Version(3,4,0)
+#if R_VERSION <= R_Version(3,3,1)
 // Rinternals.h includes R_ext/Memory.h and R_ext/Utils.h which reference size_t
 // Rinternals.h also references FILE from stdio.h
 #  define NO_C_HEADERS
