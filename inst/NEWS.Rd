@@ -1,6 +1,38 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.8-6}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item \eqn{K}-fold crossvalidation (\code{xbart}) has been implemented
+      in C++. Refits model using current set of trees for changes in
+      hyperparameters \code{n.trees}, \code{k}, \code{power}, and \code{base}.
+      Natively parallelized.
+      \item Rudimentary tree plotting added to sampler (\code{sampler$plotTree}).
+      \item Exported \code{dbartsData} as a way of constructing data objects
+      and setting the data seen by the sampler all at once. Sampler now supports
+      \code{sampler$setData()}.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{keepevery} argument to \code{bart} matches \code{BayesTree}.
+      \item \code{bart} now has argument \code{keepcall} to suppress
+      storing the call object.
+      \item \code{bart} now accepts a \code{weights} argument.
+      \item \code{MakeModelMatrixFromDataFrame} now implemented in C, supports
+      an argument for tracking/keeping dropped values from factors.
+    }
+  }
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item Usage of weights was causing incorrect updates to posterior for
+      \eqn{\sigma^2}.
+      \item Should now JIT byte compile correctly.
+      \item Cuts derived from quantiles should now be valid.
+    }
+  }
+}    
 \section{CHANGES IN VERSION 0.8-4}{
   \subsection{NEW FEATURES}{
     \itemize{
