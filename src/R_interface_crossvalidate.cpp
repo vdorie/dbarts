@@ -196,7 +196,7 @@ namespace {
   void deleteRMSELoss(LossFunctor* instance)
   {
     delete [] static_cast<RMSELossFunctor*>(instance)->scratch;
-    delete instance;
+    delete static_cast<RMSELossFunctor*>(instance);
   }
   
   void calculateRMSELoss(LossFunctor& restrict v_instance,
@@ -231,7 +231,7 @@ namespace {
   void deleteMCRLoss(LossFunctor* instance)
   {
     delete [] static_cast<MCRLossFunctor*>(instance)->scratch;
-    delete instance;
+    delete static_cast<MCRLossFunctor*>(instance);
   }
 
   void calculateMCRLoss(LossFunctor& restrict v_instance,
@@ -258,6 +258,8 @@ namespace {
   struct CustomLossFunctorDefinition : LossFunctorDefinition {
     SEXP function;
     SEXP environment;
+    
+    ~CustomLossFunctorDefinition() { }
   };
   
   struct CustomLossFunctor : LossFunctor {

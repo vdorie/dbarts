@@ -28,6 +28,8 @@ namespace dbarts {
       LossFunction calculateLoss;
       LossFunctor* (*createFunctor)(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples);
       void (*deleteFunctor)(LossFunctor* instance);
+      
+      virtual ~LossFunctorDefinition() { }
     };
     
     
