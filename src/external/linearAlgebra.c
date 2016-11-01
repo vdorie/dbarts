@@ -7,10 +7,17 @@
 #include <string.h>
 #include <errno.h>
 
+#include <Rversion.h>
+
+#if R_VERSION <= R_Version(3,3,1)
+#  define NO_C_HEADERS
+#endif
+
 #define R_NO_REMAP
-#define NO_C_HEADERS
 #include <R_ext/Lapack.h> // dlassq, dpotrf, dtrtrs
 #include <R_ext/Applic.h> // dqrls
+
+#undef NO_C_HEADERS
 
 #include <external/alloca.h>
 

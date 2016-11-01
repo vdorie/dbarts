@@ -55,5 +55,8 @@
 /* Define to 1 if words are stored in a big-endian format. */
 #undef WORDS_BIGENDIAN
 
+/* Define to 1 if `posix_memalign' works. */
+#undef HAVE_POSIX_MEMALIGN
+
 #undef SIZEOF_SIZE_T
 #undef ALIGNOF_VOIDP

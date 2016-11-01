@@ -1,14 +1,18 @@
 #include <external/binaryIO.h>
+#include "config.h"
 
 #include <sys/stat.h> // file permissions
 #include <fcntl.h>    // open
 #include <unistd.h>   // close, write, sysconf
+
 #ifdef __STRICT_ANSI__
 #  define __USE_XOPEN2K 1 // gets posix_memalign when strict ANSI
 #endif
 #include <stdlib.h>   // malloc, posix_memalign
-#ifdef HAVE_MALLOC_H
-#  include <malloc.h>   // __mingw_aligned_malloc
+#undef __USE_XOPEN2K
+
+#if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_MALLOC_H)
+#  include <malloc.h>   // memalign, __mingw_aligned_malloc
 #endif
 #include <string.h>   // memcpy
 #include <errno.h>
@@ -113,14 +117,18 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
   size_t alignment = sizeof(uint64_t);
   if (alignment % sizeof(void*) != 0) alignment *= sizeof(void*);
   
-#ifdef __MINGW32__
+#ifdef HAVE_POSIX_MEMALIGN
+  int errorCode = posix_memalign(&bio->buffer, alignment, bio->bufferLength);
+  if (errorCode != 0) {
+    if (bio->buffer != NULL) free(bio->buffer);
+#elif defined(__MINGW32__)
   bio->buffer = __mingw_aligned_malloc(bio->bufferLength, alignment);
   if (bio->buffer == NULL) {
     int errorCode = ENOMEM;
 #else
-  int errorCode = posix_memalign(&bio->buffer, alignment, bio->bufferLength);
-  if (errorCode != 0) {
-    if (bio->buffer != NULL) free(bio->buffer);
+  bio->buffer = memalign(alignment, bio->bufferLength);
+  if (bio->buffer == NULL) {
+    int errorCode = ENOMEM;
 #endif
     close(bio->fileDescriptor);
     bio->fileDescriptor = -1;
@@ -141,10 +149,10 @@ void ext_bio_invalidate(ext_binaryIO* bio)
   }
   
   if (bio->buffer != NULL) {
-#ifdef __MINGW32__
-    __mingw_aligned_free(bio->buffer);
-#else
+#if defined(HAVE_POSIX_MEMALIGN) || !defined(__MINGW32__)
     free(bio->buffer);
+#else
+    __mingw_aligned_free(bio->buffer);
 #endif
     bio->buffer = NULL;
   }

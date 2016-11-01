@@ -3192,6 +3192,33 @@ ac_config_headers="$ac_config_headers src/external/config.h"
 
 
 
+# ===========================================================================
+#  http://www.gnu.org/software/autoconf-archive/ax_func_posix_memalign.html
+# ===========================================================================
+#
+# SYNOPSIS
+#
+#   AX_FUNC_POSIX_MEMALIGN
+#
+# DESCRIPTION
+#
+#   Some versions of posix_memalign (notably glibc 2.2.5) incorrectly apply
+#   their power-of-two check to the size argument, not the alignment
+#   argument. AX_FUNC_POSIX_MEMALIGN defines HAVE_POSIX_MEMALIGN if the
+#   power-of-two check is correctly applied to the alignment argument.
+#
+# LICENSE
+#
+#   Copyright (c) 2008 Scott Pakin <pakin@uiuc.edu>
+#
+#   Copying and distribution of this file, with or without modification, are
+#   permitted in any medium without royalty provided the copyright notice
+#   and this notice are preserved. This file is offered as-is, without any
+#   warranty.
+
+#serial 7
+
+
 
 # Check whether --enable-match-bayes-tree was given.
 if test "${enable_match_bayes_tree+set}" = set; then :
@@ -7018,6 +7045,52 @@ cat >>confdefs.h <<_ACEOF
 #define STACK_DIRECTION $ac_cv_c_stack_direction
 _ACEOF
 
+
+fi
+
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for working posix_memalign" >&5
+$as_echo_n "checking for working posix_memalign... " >&6; }
+if ${ax_cv_func_posix_memalign_works+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  if test "$cross_compiling" = yes; then :
+  ax_cv_func_posix_memalign_works=no
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#ifdef __STRICT_ANSI__
+#  define __USE_XOPEN2K 1
+#endif
+#include <stdlib.h>
+
+int
+main ()
+{
+  void *buffer;
+
+  /* Some versions of glibc incorrectly perform the alignment check on
+   * the size word. */
+  exit (posix_memalign (&buffer, sizeof(void *), 123) != 0);
+}
+
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+  ax_cv_func_posix_memalign_works=yes
+else
+  ax_cv_func_posix_memalign_works=no
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_func_posix_memalign_works" >&5
+$as_echo "$ax_cv_func_posix_memalign_works" >&6; }
+if test "$ax_cv_func_posix_memalign_works" = "yes" ; then
+
+$as_echo "#define HAVE_POSIX_MEMALIGN 1" >>confdefs.h
 
 fi
 
