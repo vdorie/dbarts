@@ -123,7 +123,6 @@ extern "C" {
     double* k     = REAL(kExpr);
     double* power = REAL(powerExpr);
     double* base  = REAL(baseExpr);
-
     
     SEXP result = PROTECT(allocateResult(numNTrees, numKs, numPowers, numBases, numReps, dropUnusedDims));
     

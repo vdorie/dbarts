@@ -16,3 +16,5 @@ typedef pthread_cond_t Condition;
 #define destroyCondition(_X_) pthread_cond_destroy(&(_X_))
 #define waitOnCondition(_COND_, _MUTEX_) pthread_cond_wait(&(_COND_), &(_MUTEX_))
 #define signalCondition(_X_) pthread_cond_signal(&(_X_))
+#define waitOnConditionForTime(_COND_, _MUTEX_, _TIME_) pthread_cond_timedwait(&(_COND_), &(_MUTEX_), &(_TIME_))
+

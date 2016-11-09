@@ -18,6 +18,7 @@
 #include <dbarts/model.hpp>
 #include <dbarts/results.hpp>
 
+#define INVALID_INDEX static_cast<size_t>(-1)
 
 using std::size_t;
 
@@ -41,7 +42,7 @@ namespace {
     double k;
     double power;
     double base;
-    // size_t offset;
+    uint8_t status;
   };
   
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters, bool verbose);
@@ -62,6 +63,8 @@ namespace {
     
     size_t numReps;
     const CellParameters* parameters;
+    
+    size_t* printedCells;
   };
   
   struct ThreadData {
@@ -69,12 +72,14 @@ namespace {
     
     size_t repCellOffset;
     size_t numRepCells;
+    size_t fittingCell;
     
     double* results;
   };
 }
 
 extern "C" { static void crossvalidationTask(void* data); }
+extern "C" { static void printInfo(void** data, size_t numThreads); }
 
 namespace dbarts { namespace xval {
     void crossvalidate(const Control& origControl, const Model& origModel, const Data& origData,
@@ -97,8 +102,9 @@ namespace dbarts { namespace xval {
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
       ext_printf("  num samp: %lu, num reps: %lu\n", origControl.numSamples, numReps);
       ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
+
       if (numThreads > 1) {
-        ext_printf("  verbose output during run incompatibile with multiple threads and will be henceforth suppressed\n");
+        ext_printf("  parameters for [thread num, cell number]; some cells may be split across multiple threads:\n\n");
       }
       ext_fflush_stdout();
     }
@@ -134,10 +140,12 @@ namespace dbarts { namespace xval {
     SharedData sharedData = { threadControl, origModel, origData,
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               numTrainingObservations, numTestObservations,
-                              lossFunctorDef, numReps, cellParameters };
+                              lossFunctorDef, numReps, cellParameters,
+                              new size_t[threadControl.numThreads] };
+    for (size_t i = 0; i < numThreads; ++i) sharedData.printedCells[i] = INVALID_INDEX;
     
     if (numThreads <= 1) {
-      ThreadData threadData = { &sharedData, 0, numRepCells, results };
+      ThreadData threadData = { &sharedData, 0, numRepCells, INVALID_INDEX, results };
       
       crossvalidationTask(&threadData);
     } else {
@@ -157,39 +165,24 @@ namespace dbarts { namespace xval {
         threadData[i].shared = &sharedData;
         threadData[i].repCellOffset = i * numRepCellsPerThread;
         threadData[i].numRepCells   = numRepCellsPerThread;
+        threadData[i].fittingCell   = INVALID_INDEX;
         threadData[i].results = results + i * numRepCellsPerThread * lossFunctorDef.numResults;
         threadDataPtrs[i] = threadData + i;
-      
-        // threadData[i].gridCells         = gridCells + i * numCellsPerThread;
-        // threadData[i].numGridCells      = numCellsPerThread;
-        // threadData[i].totalNumGridCells = numCells;
-        // threadData[i].control = &control;
-        // threadData[i].data    = &data;
-        // threadData[i].scratch = new Scratch(control, data);
-        // threadData[i].estimates = estimates;
-        // threadData[i].standardErrors = standardErrors;
-        // threadDataPtrs[i] = threadData + i;
       }
       
       for (size_t i = offByOneIndex; i < numThreads; ++i) {
         threadData[i].shared = &sharedData;
         threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
         threadData[i].numRepCells   = numRepCellsPerThread - 1;
+        threadData[i].fittingCell   = INVALID_INDEX;
         threadData[i].results = results + threadData[i].repCellOffset * lossFunctorDef.numResults;
         threadDataPtrs[i] = threadData + i;
-        
-        // threadData[i].gridCells         = gridCells + offByOneIndex * numCellsPerThread + (i - offByOneIndex) * (numCellsPerThread - 1);
-        // threadData[i].numGridCells      = numCellsPerThread - 1;
-        // threadData[i].totalNumGridCells = numCells;
-        // threadData[i].control = &control;
-        // threadData[i].data    = &data;
-        // threadData[i].scratch = new Scratch(control, data);
-        // threadData[i].estimates = estimates;
-        // threadData[i].standardErrors = standardErrors;
-        // threadDataPtrs[i] = threadData + i;
       }
       
-      ext_mt_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
+      if (origControl.verbose == true)
+        ext_mt_runTasksWithInfo(threadManager, crossvalidationTask, threadDataPtrs, numThreads, 1, printInfo);
+      else
+        ext_mt_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
          
       ext_stackFree(threadDataPtrs);
       ext_stackFree(threadData);
@@ -197,6 +190,8 @@ namespace dbarts { namespace xval {
       ext_mt_destroy(threadManager);
       
     }
+    
+    delete [] sharedData.printedCells;
     
     delete [] cellParameters;
     
@@ -230,7 +225,6 @@ extern "C" {
     double* suppliedTestSamples = sharedData.lossFunctorDef.testSamplesOffset >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.testSamplesOffset) :
                                   NULL;
-    
     Results* samples =
       suppliedTestSamples == NULL ?
         new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples) :
@@ -275,6 +269,7 @@ extern "C" {
     if (firstCellRep != 0) {
       // ext_printf("updating for cell %lu\n", firstCell);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[firstCell], verbose);
+      threadData.fittingCell = firstCell;
       
       for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
       {
@@ -298,6 +293,7 @@ extern "C" {
     for (size_t cellIndex = firstCell; cellIndex < lastCell; ++cellIndex) {
       // ext_printf("updating for cell %lu\n", cellIndex);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[cellIndex], verbose);
+      threadData.fittingCell = cellIndex;
       
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
@@ -321,6 +317,7 @@ extern "C" {
     if (lastCellRep != 0) {
       // ext_printf("updating for cell %lu\n", lastCell);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[lastCell], verbose);
+      threadData.fittingCell = lastCell;
       
       for (size_t repIndex = 0; repIndex < lastCellRep; ++repIndex)
       {
@@ -335,6 +332,7 @@ extern "C" {
         numBurnIn = sharedData.numRepBurnIn;
       }
     }
+    threadData.fittingCell = lastCell + 1;
     
     ext_rng_destroy(nativeGenerator);
 
@@ -470,7 +468,44 @@ namespace {
     delete repModel.muPrior;
     delete repModel.treePrior;
   }
-  
+}
+
+extern "C" {
+  void printInfo(void** vt_data, size_t numThreads)
+  {
+    SharedData& sharedData(*static_cast<ThreadData*>(vt_data[0])->shared);
+    
+    for (size_t i = 0; i < numThreads; ++i) {
+      const ThreadData& threadData(*static_cast<const ThreadData*>(vt_data[i]));
+      
+      size_t fittingCell = threadData.fittingCell;
+      size_t printedCell = sharedData.printedCells[i];
+      
+      
+      if (fittingCell == INVALID_INDEX || (printedCell != INVALID_INDEX && printedCell >= fittingCell)) continue;
+      
+      size_t firstCell = threadData.repCellOffset / sharedData.numReps;
+      size_t lastCell  = (threadData.repCellOffset + threadData.numRepCells) / sharedData.numReps;
+      size_t lastCellRep  = (threadData.repCellOffset + threadData.numRepCells) % sharedData.numReps;
+      if (lastCellRep == 0) --lastCell;
+      
+      size_t firstPrintCell = printedCell == INVALID_INDEX ? firstCell : printedCell + 1;
+      size_t lastPrintCell = fittingCell < lastCell ? fittingCell : lastCell;
+      
+      if (firstPrintCell <= lastPrintCell) {
+        for (size_t j = firstPrintCell; j <= lastPrintCell; ++j) {
+          ext_printf("    [%lu, %lu] n.tree: %lu, k: %f, power: %f, base: %f\n",
+                     i + 1, j + 1,
+                     sharedData.parameters[j].numTrees, sharedData.parameters[j].k,
+                     sharedData.parameters[j].power, sharedData.parameters[j].base);
+        }
+        sharedData.printedCells[i] = fittingCell;
+      }
+    }
+  }
+}
+
+namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters, bool verbose)
   {
     size_t numTrees = parameters.numTrees;

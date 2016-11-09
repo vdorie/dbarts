@@ -270,7 +270,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (offsetIsMissing) offset <- NULL
     if (!is.null(offset)) {
       if (!is.numeric(offset)) stop("'offset' must be numeric")
-      if (length(offset) == 1) {
+      if (length(offset) == 1L) {
         offset <- rep_len(offset, initialNumObservations)
         offsetGivenAsScalar <- TRUE
       } else {
@@ -306,7 +306,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (testOffsetIsMissing) {
       ## default is offset.test = offset
       if (identical(offsetGivenAsScalar, TRUE)) {
-        offset.test <- rep_len(offset[1], nrow(x.test))
+        offset.test <- rep_len(offset[1L], nrow(x.test))
         testUsesRegularOffset <- TRUE
       } else if (identical(offsetGivenAsScalar, FALSE)) {
         if (nrow(x.test) != length(y)) stop("vectored 'offset' cannot be directly applied to test data of unequal length")
@@ -327,6 +327,6 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (testOffsetIsMissing) offset.test <- NULL
   }
   
-  new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, offset, offset.test, testUsesRegularOffset), NA_integer_, NA_real_)
+  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, offset, offset.test, testUsesRegularOffset), NA_integer_, NA_real_)
 }
 

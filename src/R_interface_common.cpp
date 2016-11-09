@@ -251,7 +251,7 @@ namespace dbarts {
     }
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("sigma"));
-    data.sigmaEstimate = rc_getDouble(slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    data.sigmaEstimate = rc_getDouble(slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
     rc_assertIntConstraints(slotExpr, "maximum number of cuts", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);

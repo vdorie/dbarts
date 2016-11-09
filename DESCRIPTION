@@ -1,5 +1,5 @@
 Package: dbarts
-Version: 0.8-7
+Version: 0.8-8
 Date: 2016-11-01
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Authors@R: c(person("Vincent Dorie",    "Developer", role = c("aut", "cre"), email = "vdorie@gmail.com"),

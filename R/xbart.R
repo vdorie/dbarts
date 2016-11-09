@@ -6,31 +6,34 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
 {
   matchedCall <- match.call()
   
+  currEnv <- sys.frame(sys.nframe())
+  evalEnv <- parent.frame(1L)
+  
   validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
-  validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
-  eval(validateCall, parent.frame(1L), getNamespace("dbarts"))
+  validateCall <- addCallArgument(validateCall, 1L, currEnv)
+  validateCall <- addCallArgument(validateCall, 2L, xbart)
+  eval(validateCall, evalEnv, getNamespace("dbarts"))
   
   if (control@call != call("NA")[[1L]]) control@call <- matchedCall
   control@verbose <- verbose
   
   dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "subset", "weights", "offset")
-  data <- eval(dataCall, parent.frame(1L))
+  data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
-    
-  if (is.na(data@sigma) && !control@binary)
-    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
-  
   
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2L && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
+  
+  if (is.na(data@sigma) && !control@binary)
+    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
   
   if (is.null(matchedCall$loss)) {
     loss <- loss[if (!control@binary) 1L else 2L]
   } else if (is.function(loss)) {
     if (length(formals(loss)) != 2L) stop("supplied loss function must take exactly two arguments")
-    loss <- list(loss, parent.frame(1L))
+    loss <- list(loss, evalEnv)
   } else if (is.list(loss)) {
     if (!is.function(loss[[1L]])) stop("first member of loss-list must be a function")
     if (length(formals(loss[[1L]])) != 2L) stop("supplied loss function must take exactly two arguments")
@@ -44,7 +47,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     control@n.trees <- n.trees[1L]
   }
   
-  k       <- coerceOrError(k,     "numeric")
+  k      <- coerceOrError(k, "numeric")
   kOrder <- order(k, decreasing = TRUE)
   kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
   k <- k[kOrder]
@@ -65,7 +68,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   
   resid.prior <-
     if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {
-      eval(matchedCall$resid.prior, parent.frame(1L), getNamespace("dbarts"))
+      eval(matchedCall$resid.prior, evalEnv, getNamespace("dbarts"))
     } else {
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }

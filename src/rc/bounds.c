@@ -87,7 +87,7 @@ int rc_getInt(SEXP x, const char* name, ...)
   }
   
   int result = INTEGER(x)[0];
-
+  
   va_start(argsPointer, name);
   arg = va_arg(argsPointer, int);
   constraintType = TYPE(arg);
@@ -255,7 +255,7 @@ double rc_getDouble(SEXP x, const char* name, ...)
   }
   
   double result = REAL(x)[0];
-
+  
   va_start(argsPointer, name);
   arg = va_arg(argsPointer, int);
   constraintType = TYPE(arg);
@@ -276,7 +276,7 @@ double rc_getDouble(SEXP x, const char* name, ...)
       case RC_NA:
       {
         naOK = BOUND(arg);
-        if ((isnan(result) || result == R_NaReal) && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
+        if (R_IsNA(result) && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
       }
       default:
       break;
@@ -286,7 +286,7 @@ double rc_getDouble(SEXP x, const char* name, ...)
   }
   va_end(argsPointer);
   
-  if ((isnan(result) || result == R_NaReal) && naOK == _RC_NO) Rf_error("%s cannot be NA", name);
+  if (R_IsNA(result) && naOK == _RC_NO) Rf_error("%s cannot be NA", name);
   
   return result;
 }
@@ -361,7 +361,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
       {
         naOK = BOUND(arg);
         for (size_t i = 0; i < (size_t) length; ++i)
-          if ((isnan(results[i]) || results[i] == R_NaReal) && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
+          if (R_IsNA(results[i]) && naOK == _RC_NO) { va_end(argsPointer); Rf_error("%s cannot be NA", name); }
       }
       default:
       break;
@@ -373,7 +373,7 @@ void rc_assertDoubleConstraints(SEXP x, const char* name, ...)
   
   if (naOK == _RC_NO) {
     for (size_t i = 0; i < (size_t) length; ++i)
-      if (isnan(results[i]) || results[i] == R_NaReal) Rf_error("%s cannot be NA", name);
+      if (R_IsNA(results[i])) Rf_error("%s cannot be NA", name);
   }
 }
 
@@ -423,7 +423,7 @@ bool rc_getBool(SEXP x, const char* name, ...)
   }
   
   int result = LOGICAL(x)[0];
-
+  
   va_start(argsPointer, name);
   arg = va_arg(argsPointer, int);
   constraintType = TYPE(arg);
@@ -742,8 +742,8 @@ static void assertDoubleConstraint(const char* name, _rc_boundType boundType, do
 {
   if (isnan(bound)) Rf_error("bound for %s cannot be NaN", name);
   if (bound == R_NaReal) Rf_error("bound for %s cannot be NA", name);
-  if (isnan(value)) Rf_error("%s is NaN", name);
-  if (value == R_NaReal) return;
+  if (R_IsNaN(value)) Rf_error("%s is NaN", name);
+  if (R_IsNA(value)) return;
   
   switch (boundType) {
     case _RC_GT:

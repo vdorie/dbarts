@@ -1,9 +1,19 @@
 #include <external/thread.h>
 #include "pthread.c"
 
+#include "config.h"
+
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
+
+// clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
+#if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
+#  include <sys/time.h>
+#else
+#  include <time.h>
+#endif
+
 
 #ifdef __GNUC__
 #define UNUSED __attribute__ ((unused))
@@ -176,6 +186,76 @@ int ext_mt_runTasks(ext_mt_manager_t restrict manager, ext_mt_taskFunction_t fun
   
   return result;
 }
+
+static void inline getTime(struct timespec* ts)
+{
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_REALTIME)
+  clock_gettime(CLOCK_REALTIME, ts);
+#elif defined(HAVE_GETTIMEOFDAY)
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  ts->tv_sec = tv.tv_sec;
+  ts->tv_nsec = 1000 * tv.tv_usec;
+#else
+  ts->tv_sec = time(NULL);
+  ts->tv_nsec = 0;
+#endif
+}
+
+int ext_mt_runTasksWithInfo(ext_mt_manager_t restrict manager, ext_mt_taskFunction_t function,
+                    void** restrict data, size_t numTasks, time_t sleepSeconds, ext_mt_infoFunction_t info)
+{
+  if (manager->threads == NULL || manager->threadData == NULL ||
+      manager->numThreadsActive == 0) return EINVAL;
+  
+  int result = 0;
+  
+  ThreadData* threadData = manager->threadData;
+  
+  struct timespec wakeTime;
+  
+  lockMutex(manager->mutex);
+  
+  getTime(&wakeTime);
+    
+  wakeTime.tv_sec += sleepSeconds;
+  for (size_t i = 0; i < numTasks; ++i) {
+    // while (getNumElementsInQueue(&manager->threadQueue) == 0) waitOnCondition(manager->taskDone, manager->mutex);
+    
+    while (getNumElementsInQueue(&manager->threadQueue) == 0) {
+      int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
+      if (waitStatus == ETIMEDOUT) {
+        if (info != NULL) info(data, manager->numThreads);
+        
+        getTime(&wakeTime);
+        wakeTime.tv_sec += sleepSeconds;
+      }
+    }
+    
+    size_t j = pop(&manager->threadQueue);
+    
+    threadData[j].task = function;
+    threadData[j].taskData = (data == NULL ? NULL : data[i]);
+    manager->numThreadsRunning++;
+    
+    signalCondition(threadData[j].taskAvailable);
+  }
+  
+  while (manager->numThreadsRunning > 0) {
+    int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
+    if (waitStatus == ETIMEDOUT) {
+      if (info != NULL) info(data, manager->numThreads);
+      
+      getTime(&wakeTime);
+      wakeTime.tv_sec += sleepSeconds;
+    }
+  }
+  
+  unlockMutex(manager->mutex);
+  
+  return result;
+}
+
 
 static void* threadLoop(void* _data)
 {

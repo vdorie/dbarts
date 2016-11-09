@@ -36,7 +36,7 @@ dbartsControl <-
   result
 }
 
-validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, sigma)
+validateArgumentsInEnvironment <- function(envir, func, control, verbose, n.samples, sigma)
 {
   controlIsMissing <- missing(control)
   
@@ -62,7 +62,7 @@ validateArgumentsInEnvironment <- function(envir, control, verbose, n.samples, s
       stop("'n.samples' argument to dbarts must be a non-negative integer")
     envir$control@n.samples <- n.samples
   } else if (controlIsMissing || is.na(control@n.samples)) {
-    envir$control@n.samples <- formals(dbarts)[["n.samples"]]
+    envir$control@n.samples <- formals(func)[["n.samples"]]
   }
 
   if (!missing(sigma) && !is.na(sigma)) {
@@ -81,27 +81,32 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
                    control = dbartsControl(), sigma = NA_real_)
 {
   matchedCall <- match.call()
+  
+  evalEnv <- parent.frame(1L)
 
   validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
-  eval(validateCall, parent.frame(1L), getNamespace("dbarts"))
+  validateCall <- addCallArgument(validateCall, 2L, dbarts)
+  eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (length(control@call) == 1L && control@call == call("NA")) control@call <- matchedCall
   control@verbose <- verbose
 
   dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")
-  data <- eval(dataCall, parent.frame(1L))
+  data <- eval(dataCall, evalEnv)
   #cat("x address after dbartsData call: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
   
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
   
-  if (is.na(data@sigma) && !control@binary)
-    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
-    
+  
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
+  
+  if (is.na(data@sigma) && !control@binary)
+    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
+  
   ## bart will passthrough with offset == something no matter what, which we can NULL out
   if (!control@binary && !is.null(data@offset) && all(data@offset == 0.0)) {
     data@offset <- NULL
@@ -115,7 +120,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   parsePriorsCall <- setDefaultsFromFormals(parsePriorsCall, formals(dbarts), "tree.prior", "node.prior", "resid.prior")
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
-  parsePriorsCall$parentEnv <- parent.frame(1L)
+  parsePriorsCall$parentEnv <- evalEnv
   priors <- eval(parsePriorsCall)
 
   model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$resid.prior)

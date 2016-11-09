@@ -2,6 +2,7 @@
 #define EXTERNAL_THREAD_H
 
 #include "stddef.h"
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,9 +22,15 @@ void ext_mt_getNumThreadsForJob(const ext_mt_manager_t restrict threadManager, e
 
 
 typedef void (*ext_mt_taskFunction_t)(void*);
-  
+
+typedef void (*ext_mt_infoFunction_t)(void** threadData, ext_size_t numThreads);
+
 int ext_mt_runTasks(ext_mt_manager_t restrict manager, ext_mt_taskFunction_t task,
                     void** restrict data, ext_size_t numTasks);
+
+int ext_mt_runTasksWithInfo(ext_mt_manager_t restrict manager, ext_mt_taskFunction_t task,
+                    void** restrict data, ext_size_t numTasks, time_t sleepSeconds, ext_mt_infoFunction_t info);
+
 
 
 #ifdef __cplusplus

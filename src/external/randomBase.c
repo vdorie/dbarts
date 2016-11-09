@@ -21,9 +21,9 @@
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
-#include <sys/time.h>
+#  include <sys/time.h>
 #else
-#include <time.h>
+#  include <time.h>
 #endif
 
 #include <external/alloca.h>
@@ -37,11 +37,7 @@
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
-// #include <external/R.h>
 #include <external/Rinternals.h> // SEXP
-// #define R_NO_REMAP
-// #include <Rdefines.h>
-// #include <Rinternals.h>
 
 // should match enum order
 static const char* const rngNames[] = {
@@ -151,15 +147,39 @@ ext_rng* ext_rng_createDefault(bool useNative)
   // if not useNative, we at least seed from native and match its type
       
   SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
-  if (seedsExpr == R_UnboundValue) GetRNGstate();
+  if (seedsExpr == R_UnboundValue) {
+    GetRNGstate();
+    PutRNGstate();
+    seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
+  
+  bool seedFound = true;
+  if (seedsExpr == R_UnboundValue) {
+    seedFound = false;
+    ext_issueWarning("seeds still unbound after calling GetRNGstate/PutRNGstate");
+  } else if (!Rf_isInteger(seedsExpr)) {
+    seedFound = false;
+    if (seedsExpr == R_MissingArg)
+      ext_issueWarning("'.Random.seed' is a missing argument with no default");
+    else 
+      ext_issueWarning("'.Random.seed' is not an integer vector but of type '%s', so ignored", Rf_type2char(TYPEOF(seedsExpr)));
+  }
+  
+  if (!seedFound) {
+    // use defaults
+    result = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (result != NULL) ext_rng_setSeedFromClock(result);
+    return result;
+  }
   
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
   
-  ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
+  ext_rng_algorithm_t algorithmType      = (ext_rng_algorithm_t) (seed0 % 100);
   ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
   
   void* state = (void*) (1 + INTEGER(seedsExpr));
+  
 #ifdef SUPPRESS_DIAGNOSTIC
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wswitch-enum"
