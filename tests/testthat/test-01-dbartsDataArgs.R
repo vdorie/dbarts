@@ -56,6 +56,17 @@ test_that("compatibility specification creates valid objects", {
   detach(testData)
 })
 
+test_that("compatibility specification works with dimnames", {
+  x <- testData$x
+  y <- testData$y
+  
+  colnames(x) <- paste0("x.", seq_len(ncol(x)))
+  expect_is(dbartsData(x, y), "dbartsData")
+  
+  x <- x[,1L,drop=FALSE]
+  expect_is(dbartsData(x, y), "dbartsData")
+})
+
 test_that("test argument raises errors", {
   expect_error(dbartsData(y ~ x, testData, testData$x[11:20, 1:9]))
   expect_error(dbartsData(y ~ x, testData, "not-a-matrix"))

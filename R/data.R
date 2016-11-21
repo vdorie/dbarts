@@ -287,6 +287,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,]
     if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
       if (attributeName == "dim") next
+      if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) next
       attr(x, attributeName) <- attr(formula, attributeName)
     }
     if (!is.null(weights)) weights <- weights[completeCases]
