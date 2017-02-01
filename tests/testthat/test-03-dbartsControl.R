@@ -52,12 +52,14 @@ source(system.file("common", "friedmanData.R", package = "dbarts"))
 test_that("control argument works", {
   n.samples <- 500L
   n.trees <- 50L
-  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees)
+  n.cuts <- 50L
+  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees, n.cuts = n.cuts)
   sampler <- dbarts(y ~ x, testData, control = control)
 
   expect_equal(sampler$control@n.trees, n.trees)
   expect_equal(sampler$control@verbose, FALSE)
   expect_equal(sampler$control@n.samples, n.samples)
+  expect_true(all(sampler$data@n.cuts == n.cuts))
 })
 
 test_that("keepevery behaves as it did in BayesTree", {
