@@ -28,9 +28,11 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    \item{n.burn}{A non-negative integer determining how many samples, if any, are thrown away at the beginning
    	 of a run of the sampler.}
    \item{n.trees}{A positive integer giving the number of trees used in the sum-of-trees formulation.}
+   \item{n.chains}{A positive integer detailing the number of independent chains for the sampler to use.}
    \item{n.threads}{A positive integer controlling how many threads will be used for various internal
-   	 calculations. These calculations are highly optimized so that single-threaded performance
-   	 tends to be superior unless the number of observations is very large (>10k).}
+   	 calculations, as well as the number of chains. Internal calculations are highly optimized so that
+         single-threaded performance tends to be superior unless the number of observations is very large
+         (>10k), so that it is often not necessary to have the number of threads exceed the number of chains.}
    \item{n.thin}{A positive integer determining how many iterations the MCMC chain should jump on the
    	 decision trees alone before recording a sample. Serves to \dQuote{thin} the samples against
    	 serial correlation. \code{n.samples} are returned regardless of the value of \code{n.thin}.}
