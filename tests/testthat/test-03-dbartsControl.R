@@ -60,13 +60,18 @@ test_that("control argument works", {
   n.samples <- 500L
   n.trees <- 50L
   n.cuts <- 50L
-  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees, n.cuts = n.cuts)
+  n.chains <- 3L
+  n.threads <- 3L
+  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees, n.cuts = n.cuts,
+                           n.chains = n.chains, n.threads = n.threads)
   sampler <- dbarts(y ~ x, testData, control = control)
 
   expect_equal(sampler$control@n.trees, n.trees)
   expect_equal(sampler$control@verbose, FALSE)
   expect_equal(sampler$control@n.samples, n.samples)
   expect_true(all(sampler$data@n.cuts == n.cuts))
+  expect_equal(sampler$control@n.chains, n.chains)
+  expect_equal(sampler$control@n.threads, n.threads)
 })
 
 test_that("keepevery behaves as it did in BayesTree", {
@@ -84,7 +89,7 @@ test_that("call is propagated", {
   n.burn    <- 1L
   n.trees   <- 5L
   
-  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees)
+  control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x, testData, control = control)
   expect_equal(sampler$control@call[[1L]], quote(dbarts))
   
@@ -103,7 +108,7 @@ test_that("rng cooperates with native generator", {
   n.trees  <- 5L
   
   oldSeed <- if (exists(".Random.seed")) .Random.seed else { runif(1L); .Random.seed }
-  control <- dbartsControl(verbose = FALSE, n.trees = n.trees,
+  control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
                            rngKind = "default",
                            rngNormalKind = "default")
   sampler <- dbarts(y ~ x, testData, control = control)
@@ -111,7 +116,7 @@ test_that("rng cooperates with native generator", {
   expect_true(any(.Random.seed != oldSeed))
   
   oldSeed <- .Random.seed
-  control <- dbartsControl(verbose = FALSE, n.trees = n.trees,
+  control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
                            rngKind = "Mersenne-Twister",
                            rngNormalKind = "Inversion")
   sampler <- dbarts(y ~ x, testData, control = control)
@@ -119,7 +124,7 @@ test_that("rng cooperates with native generator", {
   expect_equal(.Random.seed, oldSeed)
   
   ## run once for 10 iterations
-  control <- dbartsControl(verbose = FALSE, n.trees = n.trees,
+  control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
                            rngKind = "Mersenne-Twister",
                            rngNormalKind = "Inversion", updateState = FALSE)
   sampler <- dbarts(y ~ x, testData, control = control)

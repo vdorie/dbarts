@@ -294,8 +294,6 @@ void ext_art_print(const Tree* t)
   printAtDepth(t->root, 0);
 }
 
-
-
 static int insertKeyValue(Node* restrict n, const uint8_t* restrict key, size_t keyLength, const void* restrict value, size_t depth,
                           Node* restrict* restrict positionInParent, bool* restrict addedNode, void* restrict* restrict oldValue)
 {
@@ -445,6 +443,10 @@ static bool prefixesMatch(const Leaf* restrict l, const uint8_t* restrict prefix
   return memcmp(l->key, prefix, prefixLength) == 0;
 }
 
+/**
+ * Returns the number of prefix characters shared between
+ * the key and node.
+ */
 static size_t getPartialMismatchIndex(const Node* restrict n, const uint8_t* restrict key, size_t keyLength, size_t depth) {
   size_t maxIndex = getMinLength(getMinLength(MAX_PARTIAL_LENGTH, n->prefixLength), keyLength - depth);
   size_t index;
@@ -471,18 +473,16 @@ static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* rest
     if (n->partial[index] != key[depth + index])
       return index;
   }
-
+  
   // If the prefix is short we can avoid finding a leaf
-  if (n->prefixLength <= MAX_PARTIAL_LENGTH) return index;
-  
-  // Prefix is longer than what we've checked, find a leaf
-  Leaf* l = getMinimumLeafUnderNode(n);
-  if (l == NULL) return INVALID_LENGTH;
-  
-  maxIndex = getMinLength(l->keyLength, keyLength) - depth;
-  for (; index < maxIndex; ++index) {
-    if (l->key[index + depth] != key[depth + index])
-      return index;
+  if (n->prefixLength > MAX_PARTIAL_LENGTH) {
+    // Prefix is longer than what we've checked, find a leaf
+    Leaf* l = getMinimumLeafUnderNode(n);
+    maxIndex = getMinLength(l->keyLength, keyLength) - depth;
+    for (; index < maxIndex; ++index) {
+      if (l->key[index + depth] != key[depth + index])
+        return index;
+    }
   }
   
   return index;
@@ -505,20 +505,23 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
     break;
     
     case NODE16:
-    p.p2 = (const Node16*) n;
-    if (((uintptr_t) p.p2->keys % 0x10) != 0) ext_throwError("BAAAALS!!!!\n");
-#ifdef HAVE_SSE2
     {
+      unsigned int bitfield;
+      
+      p.p2 = (const Node16*) n;
+      if (((uintptr_t) p.p2->keys % 0x10) != 0) ext_throwError("adaptive radix tree not aligned");
+#ifdef HAVE_SSE2
       __m128i comparison = _mm_cmpeq_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) p.p2->keys));
       
-      unsigned int bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
+      bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
+#else
+      bitfield = 0;
+      for (uint_least8_t i = 0; i < 16; ++i)
+        if (p.p2->keys[i] == c) bitfield |= (1 << i);
+      bitfield &= (1 << n->numChildren) - 1;
+#endif
       if (bitfield != 0) return (Node**) &p.p2->children[countTrailingZeros(bitfield)];
     }
-#else
-    p.p2 = (const Node16*) n;
-    for (index = 0; index < n->numChildren; ++index)
-      if (p.p2->keys[index] == c) return (Node**) &p.p2->children[index];
-#endif
     break;
     
     case NODE48:
@@ -706,32 +709,38 @@ static int addChild4(Node4* restrict n, uint8_t c, void* restrict child, Node* r
   *positionInParent = (Node*) newNode;
   free(n);
   
-  return addChild16(newNode, c, child, NULL);
+  return addChild16(newNode, c, child, positionInParent);
 }
 
 static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {
   if (n->n.numChildren < 16) {
     size_t index;
+
+    unsigned int bitfield;
 #if defined(HAVE_SSE2)
+    // Compare the key to all 16 stored keys
     __m128i comparison = _mm_cmplt_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) n->keys));
 
     // Use a mask to ignore children that don't exist
-    unsigned int mask = (1 << n->n.numChildren) - 1;
-    unsigned int bitfield = _mm_movemask_epi8(comparison) & mask;
-
-    // Check if less than any
-    index = (bitfield != 0) ? countTrailingZeros(bitfield) : n->n.numChildren;
+    bitfield = ((1 << n->n.numChildren) - 1) & _mm_movemask_epi8(comparison);
 #else
-    for (index = 0; index < n->n.numChildren; ++index)
-      if (c < n->keys[index]) break;
+    bitfield = 0;
+    for (uint_least8_t i = 0; i < 16; ++i) {
+      if (c < n->keys[i])
+        bitfield |= (1 << i);
+    }
+    bitfield &= (1 << n->n.numChildren) - 1;
 #endif
-    
-    if (index < n->n.numChildren) {
+     // Check if less than any and bump up if so
+    if (bitfield != 0) {
+      index = countTrailingZeros(bitfield);
       memmove(n->keys + index + 1,     n->keys + index,     (n->n.numChildren - index) * sizeof(uint8_t));
       memmove(n->children + index + 1, n->children + index, (n->n.numChildren - index) * sizeof(void*));
+    } else {
+      index = n->n.numChildren;
     }
-
+    
     // Set the child
     n->keys[index] = c;
     n->children[index] = child;
@@ -740,9 +749,11 @@ static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node*
     return 0;
   }
   
+  // convert Node16 to Node48
   Node48* newNode = (Node48*) createNode(NODE48);
   if (newNode == NULL) return errno;
 
+  // Copy the child pointers and populate the key map
   memcpy(newNode->children, n->children, n->n.numChildren * sizeof(void*));
   for (uint8_t i = 0; i < n->n.numChildren; ++i) {
     newNode->keys[n->keys[i]] = i + 1;
@@ -750,7 +761,8 @@ static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node*
   copyNodeHeader((Node*) newNode, (const Node*) n);
   *positionInParent = (Node*) newNode;
   free(n);
-  return addChild48(newNode, c, child, NULL);
+  
+  return addChild48(newNode, c, child, positionInParent);
 }
 
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
@@ -768,7 +780,7 @@ static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node*
   Node256* newNode = (Node256*) createNode(NODE256);
   if (newNode == NULL) return errno;
   
-  for (size_t i = 0; i < 256; ++i) {
+  for (uint_least8_t i = 0; i < 256; ++i) {
     if (n->keys[i] != 0) {
       newNode->children[i] = n->children[n->keys[i] - 1];
     }
@@ -786,37 +798,39 @@ static int addChild256(Node256* restrict n, uint8_t c, void* restrict child)
   return 0;
 }
 
-static int removeChild4(Node4* restrict n, Node* restrict* restrict parentRef, Node* restrict* restrict leafRef);
-static int removeChild16(Node16* restrict n, Node* restrict* restrict parentRef, Node* restrict* restrict leafRef);
-static int removeChild48(Node48* restrict n, Node* restrict* restrict parentRef, uint8_t c);
-static int removeChild256(Node256* restrict n, Node* restrict* restrict parentRef, uint8_t c);
+static int removeChild4(Node4* restrict n, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef);
+static int removeChild16(Node16* restrict n, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef);
+static int removeChild48(Node48* restrict n, Node* restrict* restrict positionInParent, uint8_t c);
+static int removeChild256(Node256* restrict n, Node* restrict* restrict positionInParent, uint8_t c);
 
 
-static int removeChild(Node* restrict n, uint8_t c, Node* restrict* restrict parentRef, Node* restrict* restrict leafRef)
+static int removeChild(Node* restrict n, uint8_t c, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef)
 {
   switch (n->type) {
     case NODE4:
-    return removeChild4((Node4*) n, parentRef, leafRef);
+    return removeChild4((Node4*) n, positionInParent, leafRef);
     case NODE16:
-    return removeChild16((Node16*) n, parentRef, leafRef);
+    return removeChild16((Node16*) n, positionInParent, leafRef);
     case NODE48:
-    return removeChild48((Node48*) n, parentRef, c);
+    return removeChild48((Node48*) n, positionInParent, c);
     case NODE256:
-    return removeChild256((Node256*) n, parentRef, c);
+    return removeChild256((Node256*) n, positionInParent, c);
   }
   return EINVAL;
 }
 
-static int removeChild4(Node4* restrict n, Node* restrict* restrict parentRef, Node* restrict* restrict leafRef)
+static int removeChild4(Node4* restrict n, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef)
 {
   size_t shift = leafRef - n->children;
   memmove(n->keys + shift,     n->keys + shift + 1    , (n->n.numChildren - 1 - shift) * sizeof(uint8_t));
   memmove(n->children + shift, n->children + shift + 1, (n->n.numChildren - 1 - shift) * sizeof(void*));
   n->n.numChildren--;
   
+   // Remove nodes with only a single child
   if (n->n.numChildren == 1) {
     Node* child = n->children[0];
     if (!nodeIsLeaf(child)) {
+      // Concatenate the prefixes
       size_t prefixLength = n->n.prefixLength;
       if (prefixLength < MAX_PARTIAL_LENGTH) {
         n->n.partial[prefixLength] = n->keys[0];
@@ -828,16 +842,17 @@ static int removeChild4(Node4* restrict n, Node* restrict* restrict parentRef, N
         prefixLength += subPrefixLength;
       }
       
+      // Store the prefix in the child
       memcpy(child->partial, n->n.partial, getMinLength(prefixLength, MAX_PARTIAL_LENGTH));
       child->prefixLength += n->n.prefixLength + 1;
     }
-    *parentRef = child;
+    *positionInParent = child;
     free(n);
   }
   return 0;
 }
 
-static int removeChild16(Node16* restrict n, Node* restrict* restrict parentRef, Node* restrict* restrict leafRef)
+static int removeChild16(Node16* restrict n, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef)
 {
   size_t shift = leafRef - n->children;
   memmove(n->keys + shift,     n->keys + shift + 1    , (n->n.numChildren - 1 - shift) * sizeof(uint8_t));
@@ -848,7 +863,7 @@ static int removeChild16(Node16* restrict n, Node* restrict* restrict parentRef,
     Node4* newNode = (Node4*) createNode(NODE4);
     if (newNode == NULL) return errno;
     
-    *parentRef = (Node*) newNode;
+    *positionInParent = (Node*) newNode;
     copyNodeHeader((Node*) newNode, (const Node*) n);
     memcpy(newNode->keys,     n->keys,     4 * sizeof(uint8_t));
     memcpy(newNode->children, n->children, 4 * sizeof(void*));
@@ -857,7 +872,7 @@ static int removeChild16(Node16* restrict n, Node* restrict* restrict parentRef,
   return 0;
 }
 
-static int removeChild48(Node48* restrict n, Node* restrict* restrict parentRef, uint8_t c) {
+static int removeChild48(Node48* restrict n, Node* restrict* restrict positionInParent, uint8_t c) {
   uint8_t pos = n->keys[c];
   n->keys[c] = 0;
   n->children[pos - 1] = NULL;
@@ -867,11 +882,11 @@ static int removeChild48(Node48* restrict n, Node* restrict* restrict parentRef,
     Node16* newNode = (Node16*) createNode(NODE16);
     if (newNode == NULL) return errno;
     
-    *parentRef = (Node*) newNode;
+    *positionInParent = (Node*) newNode;
     copyNodeHeader((Node*) newNode, (const Node*) n);
 
     uint8_t childIndex = 0;
-    for (size_t i = 0; i < 256; ++i) {
+    for (uint_least8_t i = 0; i < 256; ++i) {
       pos = n->keys[i];
       if (pos != 0) {
         newNode->keys[childIndex] = (uint8_t) i;
@@ -884,7 +899,7 @@ static int removeChild48(Node48* restrict n, Node* restrict* restrict parentRef,
   return 0;
 }
 
-static int removeChild256(Node256* restrict n, Node* restrict* restrict parentRef, uint8_t c) {
+static int removeChild256(Node256* restrict n, Node* restrict* restrict positionInParent, uint8_t c) {
   n->children[c] = NULL;
   n->n.numChildren--;
 
@@ -892,11 +907,11 @@ static int removeChild256(Node256* restrict n, Node* restrict* restrict parentRe
     Node48* newNode = (Node48*) createNode(NODE48);
     if (newNode == NULL) return errno;
     
-    *parentRef = (Node*) newNode;
+    *positionInParent = (Node*) newNode;
     copyNodeHeader((Node*) newNode, (const Node*) n);
 
     uint8_t pos = 0;
-    for (size_t i = 0; i < 256; ++i) {
+    for (uint_least8_t i = 0; i < 256; ++i) {
       if (n->children[i] != NULL) {
         newNode->children[pos] = n->children[i];
         newNode->keys[i] = pos + 1;
@@ -964,7 +979,9 @@ static int destroyNode(Node* n) {
     
     case NODE256:
     p.p4 = (Node256*) n;
-    for (uint8_t i = 0; i < n->numChildren; ++i) destroyNode(p.p4->children[i]);
+    for (uint8_t i = 0; i < 256; ++i) {
+      if (p.p4->children[i] != NULL) destroyNode(p.p4->children[i]);
+    }
     break;
     
     default:
@@ -980,9 +997,10 @@ static Leaf* createLeaf(const uint8_t* restrict key, size_t keyLength, const voi
   Leaf* l = (Leaf*) malloc(sizeof(Leaf) + keyLength);
   if (l == NULL) return NULL;
   
-  l->value = value;
   l->keyLength = keyLength;
+  l->value = value;
   memcpy((uint8_t*) l->key, key, keyLength * sizeof(uint8_t));
+  
   return l;
 }
 

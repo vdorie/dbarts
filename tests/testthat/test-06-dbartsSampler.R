@@ -7,7 +7,8 @@ test_that("dbarts sampler settors raise errors", {
   test  <- data.frame(x = testData$x, z = 1 - testData$z)
 
   control <- dbartsControl(updateState = FALSE, verbose = FALSE,
-                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x + z, train, test, control = control)
 
   expect_error(sampler$setControl("not-a-control"))
@@ -31,7 +32,8 @@ test_that("dbarts sampler updates predictors correctly", {
   test <- data.frame(x = testData$x, z = 1 - testData$z)
   
   control <- dbartsControl(updateState = FALSE, verbose = FALSE,
-                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x + z, train, test, control = control)
 
   n <- testData$n
@@ -71,7 +73,8 @@ test_that("dbarts sampler with matrix specification doesn't change variables in 
   y.train <- testData$y
   
   control <- dbartsControl(updateState = FALSE, verbose = FALSE,
-                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(x.train, y.train, control = control)
   
   n <- testData$n
@@ -96,7 +99,7 @@ test_that("dbarts sampler setData yields valid model", {
 
   y <- ifelse(x <= cutoffs[1L] | x > cutoffs[n.cuts], beta.1, beta.2) + rnorm(n, 0, 0.15)
   
-  control <- dbartsControl(n.trees = 1L, n.cuts = n.cuts)
+  control <- dbartsControl(n.trees = 1L, n.cuts = n.cuts, n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x, control = control)
 
   samples1 <- sampler$run(500L, 1000L)
@@ -116,7 +119,8 @@ test_that("dbarts sampler shallow/deep copies", {
   test <- data.frame(x = testData$x, z = 1 - testData$z)
   
   control <- dbartsControl(updateState = FALSE, verbose = FALSE,
-                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x + z, train, test, control = control)
 
   shallowCopy <- sampler$copy(TRUE)
@@ -206,7 +210,8 @@ test_that("dbarts sampler runs", {
   test <- data.frame(x = testData$x, z = 1 - testData$z)
   
   control <- dbartsControl(updateState = FALSE, verbose = FALSE,
-                           n.burn = 0L, n.samples = 1L, n.thin = 5L)
+                           n.burn = 0L, n.samples = 1L, n.thin = 5L,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(y ~ x + z, train, test, control = control)
 
   expect_error(sampler$run(0, 0))
@@ -238,16 +243,17 @@ test_that("dbarts sampler runs", {
     p <- rbeta(1, 1 + n0, 1 + n1)
   }
 
-  expect_equal(z[1:20], c(0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0))
-  expect_equal(p, 0.470788237121872)
-  expect_equal(samples$train[1:5], c(89.6662721124284, 89.6662721124284, 94.4644684264674, 92.3429201084874, 91.1812768131237))
-  expect_equal(samples$test[1:5], c(94.6496627941143, 94.6496627941143, 93.0602674319221, 91.9088151870825, 95.6941612719439))
+  expect_equal(z[1:20], c(1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0))
+  expect_equal(p, 0.752524462781995)
+  expect_equal(samples$train[1:5], c(92.9097072071659, 89.5678004457774, 94.3796783179876, 92.3334894203356, 93.8591081993109))
+  expect_equal(samples$test[1:5], c(89.5678004457774, 92.9097072071659, 92.2539393041346, 91.3459458199908, 90.5089891735555))
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"))
 
 test_that("dbarts sampler updates offsets in C++", {
-  control <- dbartsControl(updateState = FALSE, n.burn = 0L, n.samples = 1L, verbose = FALSE)
+  control <- dbartsControl(updateState = FALSE, n.burn = 0L, n.samples = 1L, verbose = FALSE,
+                           n.chains = 1L, n.threads = 1L)
   sampler <- dbarts(Z ~ X, testData, testData$X[1:200,], 1:200,
                     control = control)
   

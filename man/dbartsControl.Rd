@@ -7,7 +7,7 @@
 \usage{
 dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
               n.samples = NA_integer_, n.cuts = 100L,
-              n.burn = 100L, n.trees = 200L, n.threads = 1L,
+              n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = 1L,
               n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
 }
 \arguments{
