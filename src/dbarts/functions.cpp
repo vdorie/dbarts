@@ -104,7 +104,7 @@ namespace dbarts {
     
     
     
-    double u = ext_rng_simulateContinuousUniform(fit.control.rng);
+    double u = ext_rng_simulateContinuousUniform(fit.state.rng);
     // ext_printf("type: %s; ", u < fit.model.birthOrDeathProbability ? "birth/death" : (u < fit.model.birthOrDeathProbability + fit.model.swapProbability ? "swap" : "change"));
     if (u < fit.model.birthOrDeathProbability) {
       alpha = birthOrDeathNode(fit, tree, y, stepTaken, &birthedTree);

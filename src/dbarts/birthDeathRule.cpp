@@ -57,7 +57,7 @@ namespace dbarts {
     
     double transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, nodeToChangePtr != NULL);
     
-    if (ext_rng_simulateBernoulli(fit.control.rng, transitionProbabilityOfBirthStep) == 1) {
+    if (ext_rng_simulateBernoulli(fit.state.rng, transitionProbabilityOfBirthStep) == 1) {
       *stepWasBirth = true;
       
       Node& nodeToChange(*nodeToChangePtr);
@@ -92,7 +92,7 @@ namespace dbarts {
       
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
-      if (ext_rng_simulateContinuousUniform(fit.control.rng) < ratio) {
+      if (ext_rng_simulateContinuousUniform(fit.state.rng) < ratio) {
         oldState.destroy();
         
         *stepWasTaken = true;
@@ -139,7 +139,7 @@ namespace dbarts {
       
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
-      if (ext_rng_simulateContinuousUniform(fit.control.rng) < ratio) {
+      if (ext_rng_simulateContinuousUniform(fit.state.rng) < ratio) {
         oldState.destroy();
         
         *stepWasTaken = true;
@@ -236,7 +236,7 @@ namespace dbarts {
     if (totalProbability > 0.0) {
       ext_scalarMultiplyVectorInPlace(nodeBirthProbabilities, numBottomNodes, 1.0 / totalProbability);
 
-      size_t index = ext_rng_drawFromDiscreteDistribution(fit.control.rng, nodeBirthProbabilities, numBottomNodes);
+      size_t index = ext_rng_drawFromDiscreteDistribution(fit.state.rng, nodeBirthProbabilities, numBottomNodes);
 
       result = bottomNodes[index];
       *nodeSelectionProbability = nodeBirthProbabilities[index];
@@ -259,7 +259,7 @@ namespace dbarts {
       return NULL;
     }
     
-    size_t index = ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numNodesWhoseChildrenAreBottom);
+    size_t index = ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numNodesWhoseChildrenAreBottom);
     *nodeSelectionProbability = 1.0 / static_cast<double>(numNodesWhoseChildrenAreBottom);
     
     return nodesWhoseChildrenAreBottom[index];

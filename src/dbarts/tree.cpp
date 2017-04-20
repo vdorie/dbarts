@@ -61,7 +61,7 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double posteriorPrediction = bottomNode.drawFromPosterior(fit.control.rng, *fit.model.muPrior, fit.state.sigma * fit.state.sigma);
+      double posteriorPrediction = bottomNode.drawFromPosterior(fit.state.rng, *fit.model.muPrior, fit.state.sigma * fit.state.sigma);
       bottomNode.setPredictions(trainingFits, posteriorPrediction);
       
       if (testFits != NULL) nodePosteriorPredictions[i] = posteriorPrediction;
@@ -120,6 +120,7 @@ namespace {
   using namespace dbarts;
   void mapCutPoints(Node& n, const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions, int32_t* minIndices, int32_t* maxIndices, int32_t depth);
   void collapseEmptyNodes(Node& n, const BARTFit& fit, double* posteriorPredictions, int depth);
+  void sampleFromPrior(const BARTFit& fit, Node& n);
 }
 
 namespace dbarts {
@@ -151,7 +152,7 @@ namespace dbarts {
     // ext_printf("\n");
   }
   
-  void Tree::collapseEmptyNodes(const BARTFit&fit, double* posteriorPredictions)
+  void Tree::collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions)
   {
     // size_t origNumBottomNodes = top.getNumBottomNodes();
     
@@ -182,6 +183,11 @@ namespace dbarts {
     }
     
     return true;
+  }
+  
+  void Tree::sampleFromPrior(const BARTFit& fit) {
+    top.clear();
+    ::sampleFromPrior(fit, top);
   }
 }
 
@@ -301,5 +307,17 @@ namespace {
       if (!n.getLeftChild()->isBottom()) collapseEmptyNodes(*n.getLeftChild(), fit, posteriorPredictions, depth + 1);
       if (!n.getRightChild()->isBottom()) collapseEmptyNodes(*n.getRightChild(), fit, posteriorPredictions, depth + 1);
     }
+  }
+  
+  void sampleFromPrior(const BARTFit& fit, Node& n) {
+    double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, n);
+    if (parentPriorGrowthProbability <= 0.0 || ext_rng_simulateBernoulli(fit.state.rng, parentPriorGrowthProbability) == 0) return;
+    
+    bool exhaustedLeftSplits, exhaustedRightSplits;
+    Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, n, &exhaustedLeftSplits, &exhaustedRightSplits);
+    n.split(fit, newRule, exhaustedLeftSplits, exhaustedRightSplits);
+    
+    sampleFromPrior(fit, *n.leftChild);
+    sampleFromPrior(fit, *n.p.rightChild);
   }
 }

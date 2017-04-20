@@ -155,6 +155,19 @@ extern "C" {
     return resultExpr;
   }
   
+  SEXP sampleTreesFromPrior(SEXP fitExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_sampleTreesFromPrior called on NULL external pointer");
+        
+    GetRNGstate();
+    
+    fit->sampleTreesFromPrior();
+    
+    PutRNGstate();
+    
+    return R_NilValue;
+  }
   
   SEXP setData(SEXP fitExpr, SEXP dataExpr)
   {
@@ -196,13 +209,11 @@ extern "C" {
     Control oldControl = fit->control;
     
     if (control.responseIsBinary != oldControl.responseIsBinary) {
-      ext_rng_destroy(control.rng);
+      ext_rng_destroy(fit->state.rng);
       Rf_error("new control cannot change binary characteristic of response");
     }
     
     fit->setControl(control);
-    
-    ext_rng_destroy(oldControl.rng);
     
     return R_NilValue;
   }
@@ -474,11 +485,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_createState called on NULL external pointer");
     
-    SEXP result = createStateExpressionFromFit(*fit);
-    
-    UNPROTECT(1);
-    
-    return result;
+    return createStateExpressionFromFit(*fit);
   }
   
   SEXP restoreState(SEXP fitExpr, SEXP stateExpr)

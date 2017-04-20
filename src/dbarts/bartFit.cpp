@@ -6,7 +6,7 @@
 #include <cstddef>   // size_t
 
 #if !defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
-#undef HAVE_GETTIMEOFDAY
+#  undef HAVE_GETTIMEOFDAY
 #endif
 #ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h> // gettimeofday
@@ -37,15 +37,19 @@ namespace {
   using namespace dbarts;
 
   void allocateMemory(BARTFit& fit);
-  void setPrior(BARTFit& fit);
+  void createRNG(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
+  void setInitialFit(BARTFit& fit);
+  
+  void setPrior(BARTFit& fit);
+  
   void setCutPoints(BARTFit& fit, const size_t* columns, size_t numColumns);
   void setCutPointsFromQuantiles(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                                  uint32_t& numCutsPerVariable, double*& cutPoints,
                                  std::set<double>& uniqueElements, std::vector<double>& sortedElements);
   void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                              uint32_t& numCutsPerVariable, double*& cutPoints);
-  void setInitialFit(BARTFit& fit);
+  
   void setNewObservationIndices(Node& newNode, size_t* indices, const Node& oldNode);
   
   void printInitialSummary(const BARTFit& fit);
@@ -523,7 +527,15 @@ namespace dbarts {
       nodePrior->precision = precisionUnscaled * static_cast<double>(newControl.numTrees);
     }
     
+    ext_rng_algorithm_t old_rng_algorithm = control.rng_algorithm;
+    ext_rng_standardNormal_t old_rng_standardNormal = control.rng_standardNormal;
+    
     control = newControl;
+    
+    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal) {
+      ext_rng_destroy(state.rng);
+      createRNG(*this);
+    }
   }
   
   void BARTFit::setModel(const Model& newModel)
@@ -559,6 +571,8 @@ namespace dbarts {
   {
     allocateMemory(*this);
 
+    createRNG(*this);
+    
     setPrior(*this);
     setInitialCutPoints(*this);
     setInitialFit(*this);
@@ -570,6 +584,8 @@ namespace dbarts {
   
   BARTFit::~BARTFit()
   {
+    ext_rng_destroy(state.rng);
+    
     delete [] scratch.yRescaled; scratch.yRescaled = NULL;
     delete [] scratch.xt; scratch.xt = NULL;
     delete [] scratch.xt_test; scratch.xt_test = NULL;
@@ -622,6 +638,33 @@ namespace dbarts {
     }
     
     return resultsPointer;
+  }
+  
+    
+  void BARTFit::sampleTreesFromPrior() {
+    // double* currFits = new double[data.numObservations];
+    // double* currTestFits = NULL;
+    
+    for (size_t i = 0; i < control.numTrees; ++i) {
+      // double* oldTreeFits = state.treeFits + i * data.numObservations;
+      
+      // std::memcpy(scratch.treeY, scratch.yRescaled, data.numObservations * sizeof(double));
+      // ext_addVectorsInPlace(const_cast<const double*>(state.totalFits), data.numObservations, -1.0, scratch.treeY);
+      // ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, scratch.treeY);
+        
+      // state.trees[i].setNodeAverages(*this, scratch.treeY);
+      
+      state.trees[i].sampleFromPrior(*this);
+      
+      // state.trees[i].sampleAveragesAndSetFits(*this, currFits, isThinningIteration ? NULL : currTestFits);
+        
+      // totalFits += currFits - oldTreeFits
+      // ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, state.totalFits);
+      // ext_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, 1.0, state.totalFits);
+        
+      // std::memcpy(oldTreeFits, const_cast<const double*>(currFits), data.numObservations * sizeof(double));
+
+    }
   }
   
   void BARTFit::runSampler(size_t numBurnIn, Results* resultsPointer)
@@ -724,7 +767,7 @@ namespace dbarts {
         } else {
           sumOfSquaredResiduals = ext_mt_computeSumOfSquaredResiduals(threadManager, scratch.yRescaled, data.numObservations, state.totalFits);
         }
-        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(control.rng, static_cast<double>(data.numObservations), sumOfSquaredResiduals));
+        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(state.rng, static_cast<double>(data.numObservations), sumOfSquaredResiduals));
       }
       
       if (!isThinningIteration) {
@@ -1037,6 +1080,30 @@ namespace {
     for (size_t i = 0; i < numCutsPerVariable; ++i) cutPoints[i] = xMin + (static_cast<double>(i + 1)) * xIncrement;
   }
   
+  void createRNG(BARTFit& fit) {
+    Control& control(fit.control);
+    State& state(fit.state);
+    
+    if (control.rng_algorithm == EXT_RNG_ALGORITHM_INVALID) {
+      // if only one chain, can use environment's rng
+      if ((state.rng = ext_rng_createDefault(control.numChains == 1)) == NULL) ext_throwError("could not allocate rng");
+      
+      if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+          ext_rng_setStandardNormalAlgorithm(state.rng, control.rng_standardNormal, NULL) != 0)
+        ext_throwError("could not set rng standard normal");
+    } else {
+      
+      if ((state.rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) ext_throwError("could not allocate rng");
+      
+      if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+          ext_rng_setStandardNormalAlgorithm(state.rng, control.rng_standardNormal, NULL) != 0)
+        ext_throwError("could not set rng standard normal");
+      
+      if (ext_rng_setSeedFromClock(state.rng) != 0)
+        ext_throwError("could not seed rng");
+    }
+  }
+  
   void setInitialFit(BARTFit& fit) {
     Control& control(fit.control);
     Data& data(fit.data);
@@ -1144,9 +1211,9 @@ namespace {
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(fit.control.rng, mean, -offset);
+        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(fit.state.rng, mean, -offset);
       } else {
-        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(fit.control.rng, mean, -offset);
+        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(fit.state.rng, mean, -offset);
       }
 #else
       double prob;
@@ -1154,7 +1221,7 @@ namespace {
       double mean = fits[i];
       if (fit.data.offset != NULL) mean += fit.data.offset[i];
       
-      double u = ext_rng_simulateContinuousUniform(fit.control.rng);
+      double u = ext_rng_simulateContinuousUniform(fit.state.rng);
       if (fit.data.y[i] > 0.0) {
         prob = u + (1.0 - u) * ext_cumulativeProbabilityOfNormal(0.0, mean, 1.0);
         z[i] = ext_quantileOfNormal(prob, mean, 1.0);

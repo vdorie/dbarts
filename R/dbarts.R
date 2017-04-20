@@ -13,8 +13,9 @@ setMethod("initialize", "dbartsControl",
 dbartsControl <-
   function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
            n.samples = NA_integer_, n.cuts = 100L,
-           n.burn = 100L, n.trees = 200L, n.threads = 1L,
-           n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
+           n.burn = 200L, n.trees = 75L, n.chains = guessNumCores(), n.threads = 1L,
+           n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
+           rngKind = "default", rngNormalKind = "default", updateState = TRUE)
 {
   result <- new("dbartsControl",
                 verbose = as.logical(verbose),
@@ -23,10 +24,13 @@ dbartsControl <-
                 n.samples = coerceOrError(n.samples, "integer"),
                 n.burn = coerceOrError(n.burn, "integer"),
                 n.trees = coerceOrError(n.trees, "integer"),
+                n.chains = coerceOrError(n.chains, "integer"),
                 n.threads = coerceOrError(n.threads, "integer"),
                 n.thin = coerceOrError(n.thin, "integer"),
                 printEvery = coerceOrError(printEvery, "integer"),
                 printCutoffs = coerceOrError(printCutoffs, "integer"),
+                rngKind = rngKind,
+                rngNormalKind = rngNormalKind,
                 updateState = as.logical(updateState))
   
   n.cuts <- coerceOrError(n.cuts, "integer")
@@ -76,7 +80,7 @@ validateArgumentsInEnvironment <- function(envir, func, control, verbose, n.samp
 }
 
 dbarts <- function(formula, data, test, subset, weights, offset, offset.test = offset,
-                   verbose = FALSE, n.samples = 1000L,
+                   verbose = FALSE, n.samples = 800L,
                    tree.prior = cgm, node.prior = normal, resid.prior = chisq,
                    control = dbartsControl(), sigma = NA_real_)
 {
@@ -174,6 +178,18 @@ dbartsSampler <-
                   if (is.null(samples)) return(invisible(NULL))
                   
                   samples
+                },
+                sampleTreesFromPrior = function(updateState = NA) {
+                  'Draws tree structure from prior; does not update tree predictions, so sampler
+                   will be in invalid state'
+                  
+                  ptr <- getPointer()
+                  samples <- .Call(C_dbarts_sampleTreesFromPrior, ptr)
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
                 },
                 copy = function(shallow = FALSE) {
                   'Creates a deep or shallow copy of the sampler.'

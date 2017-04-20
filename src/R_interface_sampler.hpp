@@ -9,6 +9,7 @@ extern "C" {
   
   SEXP create(SEXP control, SEXP model, SEXP data);
   SEXP run(SEXP fit, SEXP numBurnIn, SEXP numSamples);
+  SEXP sampleTreesFromPrior(SEXP fit);
   
   SEXP setData(SEXP fit, SEXP data);
   SEXP setControl(SEXP fit, SEXP control);

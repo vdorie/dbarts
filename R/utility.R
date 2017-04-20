@@ -12,7 +12,15 @@ coerceOrError <- function(x, type)
 }
 
 "%not_in%" <- function(x, table) match(x, table, nomatch = 0L) <= 0L
-  
+
+evalx <- function(x, e) {
+  mc <- match.call()
+  callingEnv <- parent.frame()
+  evalEnv <- new.env(parent = callingEnv)
+  evalEnv$x <- x
+  eval(mc$e, evalEnv)
+}
+
 prepareCallWithArguments <- function(call, name, ...)
 {
   argsToKeep <- unlist(list(...))

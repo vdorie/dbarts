@@ -35,6 +35,10 @@ extern "C" {
     return fit->runSampler(numBurnIn, numSamples);
   }
   
+  void dbarts_sampleTreesFromPrior(BARTFit* fit) {
+    fit->sampleTreesFromPrior();
+  }
+  
   void dbarts_setResponse(BARTFit* fit, const double* newResponse) {
     fit->setResponse(newResponse);
   }

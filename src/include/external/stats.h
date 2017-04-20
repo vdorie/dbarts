@@ -12,7 +12,7 @@ extern "C" {
 #define ext_quantileOfChiSquared(_P_, _NU_) Rf_qchisq((_P_), (_NU_), 1, 0)
 #define ext_percentileOfChiSquared(_Q_, _NU_) Rf_pchisq((_Q_), (_NU_), 1, 0)
   
-#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) Rf_dnorm5((_X_), (_MU_), (_SIGMA_), 0)
+#define ext_densityOfNormal(_X_, _MU_, _SIGMA_) Rf_dnorm4((_X_), (_MU_), (_SIGMA_), 0)
 #define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) Rf_pnorm5((_Q_), (_MU_), (_SIGMA_), 1, 0)
 #define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) Rf_qnorm5((_P_), (_MU_), (_SIGMA_), 1, 0)
 

@@ -25,6 +25,7 @@ extern "C" {
   
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
+  void dbarts_sampleTreesFromPrior(dbarts::BARTFit* fit);
   
   // settors simply replace local pointers to variables. dimensions much match
   // update modifies the local copy (which may belong to someone else)

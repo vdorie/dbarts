@@ -79,7 +79,7 @@ namespace dbarts {
     
     // randomly choose a notBottom node = nodeToChange
     //u=ran1(&idum);
-    size_t nodeIndex = ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numNotBottomNodes);
+    size_t nodeIndex = ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numNotBottomNodes);
     Node& nodeToChange(*notBottomNodes[nodeIndex]);
     
     //given the node, choose a new variable for the new rule
@@ -101,7 +101,7 @@ namespace dbarts {
       if (numGoodRules > 0) {
         // draw the rule from list of good ones
         //u=ran1(&idum);
-        uint32_t goodCategoryNumber = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(fit.control.rng, 0, numGoodRules));
+        uint32_t goodCategoryNumber = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numGoodRules));
         uint32_t categoryCombinationNumber = static_cast<uint32_t>(findIndexOfIthPositiveValue(categoryCombinationsAreGood, numCategoryCombinations, goodCategoryNumber));
         
         
@@ -144,7 +144,7 @@ namespace dbarts {
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.control.rng, alpha) == 1) {
+        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {
           oldState.destroy();
           
           *stepTaken = true;
@@ -172,7 +172,7 @@ namespace dbarts {
       
       // if there are any rules
       if (numSplitVariables > 0) {
-        int32_t newRuleIndex = static_cast<int32_t>(ext_rng_simulateIntegerUniformInRange(fit.control.rng, left, right + 1));
+        int32_t newRuleIndex = static_cast<int32_t>(ext_rng_simulateIntegerUniformInRange(fit.state.rng, left, right + 1));
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
@@ -198,7 +198,7 @@ namespace dbarts {
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.control.rng, alpha) == 1) {	
+        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {	
           oldState.destroy();
           *stepTaken = true;
         } else {

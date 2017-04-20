@@ -77,8 +77,11 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   result = PROTECT(rc_newNumeric(numRows * numOutputColumns));
   ++protectCount;
   rc_setDims(result, (int) numRows, (int) numOutputColumns, -1);
-  rc_setDimNames(result, rc_newList(2));
-  SET_VECTOR_ELT(rc_getDimNames(result), 1, rc_newCharacter(numOutputColumns));
+  
+  SEXP dimNamesExpr = PROTECT(rc_newList(2));
+  ++protectCount;
+  rc_setDimNames(result, dimNamesExpr);
+  SET_VECTOR_ELT(dimNamesExpr, 1, rc_newCharacter(numOutputColumns));
   
   errorCode = createMatrix(x, numRows, result, columnTypes, dropPatternExpr);
   

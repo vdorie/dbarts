@@ -22,7 +22,9 @@ namespace dbarts {
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
     
     void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions);
-    void collapseEmptyNodes(const BARTFit&fit, double* posteriorPredictions);
+    void collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions);
+    
+    void sampleFromPrior(const BARTFit& fit);
     
     Node* getTop() const;
     bool hasSingleNode() const;

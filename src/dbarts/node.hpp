@@ -132,6 +132,7 @@ namespace dbarts {
     size_t getNumVariablesAvailableForSplit(size_t numVariables) const;
     
     void split(const BARTFit& fit, const Rule& rule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits);
+    void split(const BARTFit& fit, const Rule& rule, bool exhaustedLeftSplits, bool exhaustedRightSplits);
     void orphanChildren();
     
     void countVariableUses(uint32_t* variableCounts) const;

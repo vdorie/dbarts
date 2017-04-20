@@ -156,9 +156,12 @@ namespace dbarts {
     for (size_t i = 0; i < fit.control.numTrees; ++i) {
       trees[i].top.clear();
       readNode(trees[i].top, treeStrings[i], fit.data.numPredictors);
-      updateVariablesAvailable(fit, trees[i].top, trees[i].top.p.rule.variableIndex);
       
-      trees[i].top.addObservationsToChildren(fit);
+      if (!trees[i].top.isBottom()) {
+        updateVariablesAvailable(fit, trees[i].top, trees[i].top.p.rule.variableIndex);
+      
+        trees[i].top.addObservationsToChildren(fit);
+      }
     }
   }
 }

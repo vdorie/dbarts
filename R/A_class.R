@@ -33,10 +33,13 @@ methods::setClass("dbartsControl",
        n.samples        = "integer",
        n.burn           = "integer",
        n.trees          = "integer",
+       n.chains         = "integer",
        n.threads        = "integer",
        n.thin           = "integer",
        printEvery       = "integer",
        printCutoffs     = "integer",
+       rngKind          = "character",
+       rngNormalKind    = "character",
        updateState      = "logical",
        call             = "language"),
   prototype =
@@ -45,12 +48,15 @@ methods::setClass("dbartsControl",
        keepTrainingFits = TRUE,
        useQuantiles     = FALSE,
        n.samples        = NA_integer_,
-       n.burn           = 100L,
-       n.trees          = 200L,
+       n.burn           = 200L,
+       n.trees          = 75L,
+       n.chains         = 4L,
        n.threads        = 1L,
        n.thin           = 1L,
        printEvery       = 100L,
        printCutoffs     = 0L,
+       rngKind          = "default",
+       rngNormalKind    = "default",
        updateState      = TRUE,
        call             = quote(call("NA")))
   )
@@ -78,11 +84,43 @@ methods::setValidity("dbartsControl",
     
     if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer")
     if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer")
+    if (object@n.chains  <= 0L) return("'n.chains' must be a positive integer")
     if (object@n.threads <= 0L) return("'n.threads' must be a positive integer")
     if (object@n.thin    <  0L) return("'n.thin' must be a non-negative integer")
     
     if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer")
     if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer")
+    
+    ## try to extract rng kinds from function text
+    rngKind <- parse(text = deparse(RNGkind)[-1L])[[1L]]
+    rngKinds <- character(0L)
+    rngNormalKinds <- character(0L)
+    for (i in seq_along(rngKind)) {
+      rngKind.i <- as.character(rngKind[[i]])
+      if (any(grepl("Mersenne", rngKind.i)))
+        rngKinds <- eval(parse(text = rngKind.i[which(grepl("Mersenne", rngKind.i))]))
+      if (any(grepl("Inversion", rngKind.i)))
+        rngNormalKinds <- eval(parse(text = rngKind.i[which(grepl("Inversion", rngKind.i))]))
+    }
+    
+    if (length(rngKinds) == 0L || length(rngNormalKinds) == 0L) {
+      oldKind <- RNGkind()
+      oldSeed <- .Random.seed
+      
+      tryResult <- tryCatch(RNGkind(object@rngKind, object@rngNormalKind), error = function(e) e)
+      if (is(tryResult, "error")) return(paste0("unrecognized rng kind ('", object@rngKind, "', '", object@rngNormalKind, "')"))
+      
+      ## this will work with partial matches, so we extract the full name
+      object@rngKind       <- RNGkind()[1L]
+      object@rngNormalKind <- RNGkind()[2L]
+      
+      RNGkind(oldKind[1L], oldKind[2L])
+      .Random.seed <- oldSeed
+    } else {
+      if (!(object@rngKind %in% rngKinds)) return(paste0("unrecognized rng kind '", object@rngKind, "'"))
+      if (!(object@rngNormalKind %in% rngNormalKinds)) return(paste0("unrecognized rng normal kind '", object@rngNormalKind, "'"))
+    }
+      
     
     if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE")
     
@@ -181,5 +219,6 @@ methods::setClass("dbartsState",
                fit.test    = "numeric",
                sigma       = "numeric",
                runningTime = "numeric",
-               trees       = "character"))
+               trees       = "character",
+               rng.state   = "integer"))
 

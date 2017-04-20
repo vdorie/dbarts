@@ -16,12 +16,12 @@ namespace dbarts {
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control);
   void initializeDataFromExpression(Data& data, SEXP dataExpr);
   
-  void invalidateControl(Control& control);
+  // void invalidateControl(Control& control);
   void invalidateModel(Model& model);
   void invalidateData(Data& data);
     
   void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr);
-  SEXP createStateExpressionFromFit(const BARTFit& fit); // result has a protect count of 1
+  SEXP createStateExpressionFromFit(const BARTFit& fit); // result is unprotected
   void storeStateExpressionFromFit(const BARTFit& fit, SEXP state);
 }
 

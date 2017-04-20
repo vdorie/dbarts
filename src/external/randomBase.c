@@ -42,23 +42,26 @@
 // should match enum order
 static const char* const rngNames[] = {
   "Wichmann-Hill",
-  "Marsaglia-MultiCarry",
+  "Marsaglia-Multicarry",
   "Super-Duper",
   "Mersenne-Twister",
   "Knuth-TAOCP",
-  "User-supplied",
+  "user-supplied",
   "Knuth-TAOCP-2002",
-  "L'Ecuyer-CMRG"
+  "L'Ecuyer-CMRG",
+  "invalid"
 };
 
-/* static const char* const normalNames[] = {
+/* static const char* const standardNormalNames[] = {
   "Buggy Kinderman-Ramage",
   "Ahrens-Dieter",
   "Box-Muller",
-  "User",
+  "user-supplied",
   "Inversion",
-  "Kinderman-Ramage"
+  "Kinderman-Ramage",
+  "invalid"
 }; */
+
 
 typedef ext_rng_mersenneTwisterState MersenneTwisterState;
 typedef ext_rng_knuthState KnuthState;
@@ -145,7 +148,6 @@ ext_rng* ext_rng_createDefault(bool useNative)
   }
   
   // if not useNative, we at least seed from native and match its type
-      
   SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
   if (seedsExpr == R_UnboundValue) {
     GetRNGstate();
@@ -258,6 +260,61 @@ void ext_rng_destroy(ext_rng* generator)
   free(generator);
 }
 
+int ext_rng_createAndSeed(ext_rng** result, ext_rng_algorithm_t algorithm, ext_rng_standardNormal_t standardNormalAlgorithm)
+{
+  if ((*result = ext_rng_create(algorithm, NULL)) == NULL)
+    return ENOMEM;
+  
+  if (ext_rng_setStandardNormalAlgorithm(*result, standardNormalAlgorithm, NULL) != 0) {
+    ext_rng_destroy(*result);
+    *result = NULL;
+    return EINVAL;
+  }
+  
+  int errorCode = ext_rng_setSeedFromClock(*result);
+  if (errorCode != 0) {
+    ext_rng_destroy(*result);
+    *result = NULL;
+  }
+  return errorCode;
+}
+
+ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType()
+{
+  SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  if (seedsExpr == R_UnboundValue) {
+    GetRNGstate();
+    PutRNGstate();
+    seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  }
+  if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
+  
+  if (seedsExpr == R_UnboundValue || !Rf_isInteger(seedsExpr))
+    return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
+  
+  uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+  
+  return (ext_rng_algorithm_t) (seed0 % 100);
+}
+
+ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType()
+{
+  SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  if (seedsExpr == R_UnboundValue) {
+    GetRNGstate();
+    PutRNGstate();
+    seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  }
+  if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
+  
+  if (seedsExpr == R_UnboundValue || !Rf_isInteger(seedsExpr))
+    return EXT_RNG_STANDARD_NORMAL_INVERSION;
+  
+  uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
+  
+  return (ext_rng_standardNormal_t) (seed0 / 100);
+}
+
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state)
 {
   if (generator == NULL) return EFAULT;
@@ -357,6 +414,89 @@ int ext_rng_setSeedFromClock(ext_rng* generator)
   seed ^= (pid << 16);
   
   return ext_rng_setSeed(generator, seed);
+}
+
+size_t ext_rng_getSerializedStateLength(const ext_rng* generator)
+{
+  if (generator == NULL) return(0);
+  
+  size_t stateLength = 0;
+  
+  // can't serialize a function pointer and a state whose length we don't know
+  if (generator->algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
+    stateLength = stateLengths[generator->algorithm];
+    stateLength += stateLength % sizeof(int);
+  }
+  
+  if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_BOX_MULLER) {
+    stateLength += sizeof(double);
+    stateLength += stateLength % sizeof(int);
+  }
+  
+  stateLength += sizeof(((ext_rng*) 0)->gammaState);
+  stateLength += stateLength % sizeof(int);
+  
+  return(stateLength);
+}
+
+void ext_rng_writeSerializedState(const ext_rng* generator, void* state)
+{
+  if (generator->algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
+    size_t stateLength = stateLengths[generator->algorithm];
+    
+    memcpy(state, generator->state, stateLength);
+    
+    state = (void*) ((char*) state + stateLength);
+    
+    // fill out any 0s if necessary
+    for (size_t i = 0; i < stateLength % sizeof(int); ++i) {
+      *((char*) state) = 0;
+      state = (void*) ((char*) state + 1);
+    }
+  }
+  if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_BOX_MULLER) {
+    memcpy(state, &generator->normalState, sizeof(double));
+    
+    state = (void*) ((char*) state + sizeof(double));
+    
+#ifdef SUPPRESS_DIAGNOSTIC
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wtautological-compare"
+#endif
+    for (size_t i = 0; i < sizeof(double) % sizeof(int); ++i) {
+      *((char*) state) = 0;
+      state = (void*) ((char*) state + 1);
+    }
+  }
+
+  memcpy(state, &generator->gammaState, sizeof(((ext_rng*) 0)->gammaState));
+  state = (void*) ((char*) state + sizeof(((ext_rng*) 0)->gammaState));
+  
+  for (size_t i = 0; i < sizeof(((ext_rng*) 0)->gammaState) % sizeof(int); ++i) {
+     *((char*) state) = 0;
+     state = (void*) ((char*) state + 1);
+  }
+#ifdef SUPPRESS_DIAGNOSTIC
+#  pragma GCC diagnostic pop
+#endif
+}
+
+void ext_rng_readSerializedState(ext_rng* generator, const void* state)
+{
+  if (generator->algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
+    size_t stateLength = stateLengths[generator->algorithm];
+    
+    memcpy(generator->state, state, stateLength);
+    
+    state = (const void*) ((const char*) state + stateLength + stateLength % sizeof(int));
+  }
+  if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_BOX_MULLER) {
+    memcpy(&generator->normalState, state, sizeof(double));
+    
+    state = (void*) ((char*) state + sizeof(double) + sizeof(double) % sizeof(int));
+  }
+
+  memcpy(&generator->gammaState, state, sizeof(((ext_rng*) 0)->gammaState));
 }
 
 static void validateSeed(ext_rng* generator, bool isFirstRun)

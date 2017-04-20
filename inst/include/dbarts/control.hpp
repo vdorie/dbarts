@@ -23,25 +23,30 @@ namespace dbarts {
     std::size_t numSamples;
     std::size_t numBurnIn;
     std::size_t numTrees;
+    std::size_t numChains;
     std::size_t numThreads;
     std::uint32_t treeThinningRate;
     std::uint32_t printEvery;
     std::uint32_t printCutoffs;
     
-    ext_rng* rng;
+    // these should be from external/random.h with the exception that we catch "INVALID" codes
+    // and use them to construct a default RNG (e.g., one that matches the environment's)
+    ext_rng_algorithm_t rng_algorithm;
+    ext_rng_standardNormal_t rng_standardNormal;
     
     CallbackFunction callback;
     void* callbackData;
     
-    // I think these defaults are ridiculous, but they're what BART in R uses
     Control() :
       responseIsBinary(false), verbose(true), keepTrainingFits(true), useQuantiles(false),
-      numSamples(1000), numBurnIn(100), numTrees(200), numThreads(1), treeThinningRate(1), printEvery(100),
-      printCutoffs(0), rng(NULL), callback(NULL), callbackData(NULL)
+      numSamples(800), numBurnIn(200), numTrees(75), numChains(1), numThreads(1), treeThinningRate(1), printEvery(100),
+      printCutoffs(0), rng_algorithm(EXT_RNG_ALGORITHM_MERSENNE_TWISTER), rng_standardNormal(EXT_RNG_STANDARD_NORMAL_INVERSION),
+      callback(NULL), callbackData(NULL)
     { }
     Control(std::size_t numSamples,
             std::size_t numBurnIn,
             std::size_t numTrees,
+            std::size_t numChains,
             std::size_t numThreads,
             std::uint32_t treeThinningRate,
             bool keepTrainingFits,
@@ -50,12 +55,15 @@ namespace dbarts {
             bool responseIsBinary,
             bool useQuantiles,
             uint32_t printCutoffs,
-            ext_rng* rng,
+            ext_rng_algorithm_t rng_algorithm,
+            ext_rng_standardNormal_t rng_standardNormal,
             CallbackFunction callback,
             void* callbackData) :
       responseIsBinary(responseIsBinary), verbose(verbose), keepTrainingFits(keepTrainingFits), useQuantiles(useQuantiles),
-      numSamples(numSamples), numBurnIn(numBurnIn), numTrees(numTrees), numThreads(numThreads), treeThinningRate(treeThinningRate), printEvery(printEvery),
-      printCutoffs(printCutoffs), rng(rng), callback(callback), callbackData(callbackData)
+      numSamples(numSamples), numBurnIn(numBurnIn), numTrees(numTrees), numChains(numChains), numThreads(numThreads),
+      treeThinningRate(treeThinningRate), printEvery(printEvery), printCutoffs(printCutoffs),
+      rng_algorithm(rng_algorithm), rng_standardNormal(rng_standardNormal),
+      callback(callback), callbackData(callbackData)
     { }
   };
 } // namespace dbarts

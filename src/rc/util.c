@@ -18,7 +18,7 @@ SEXP rc_setDims(SEXP obj, ...)
   
   if (numDims == 0) return obj;
   
-  SEXP dimsExpr = Rf_allocVector(INTSXP, (R_xlen_t) numDims);
+  SEXP dimsExpr = PROTECT(Rf_allocVector(INTSXP, (R_xlen_t) numDims));
   int* dims = INTEGER(dimsExpr);
   va_start(dimsPointer, obj);
   for (size_t i = 0; i < numDims; ++i)
@@ -27,14 +27,19 @@ SEXP rc_setDims(SEXP obj, ...)
   
   R_do_slot_assign(obj, R_DimSymbol, dimsExpr);
   
+  UNPROTECT(1);
+  
   return obj;
 }
 
 SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length)
 {
-  SEXP val = Rf_allocVector(type, length);
+  SEXP val = PROTECT(Rf_allocVector(type, length));
    
   R_do_slot_assign(obj, slotName, val);
+  
+  UNPROTECT(1);
+  
   return val;
 }
 

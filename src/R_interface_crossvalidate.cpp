@@ -91,7 +91,6 @@ extern "C" {
     
     initializeControlFromExpression(control, controlExpr);
     if (control.numSamples == 0) {
-      invalidateControl(control);
       delete lossFunctionDef;
       
       Rf_error("xbart called with 0 posterior samples");
@@ -103,7 +102,6 @@ extern "C" {
     if (data.numObservations == 0) {
       invalidateData(data);
       invalidateModel(model);
-      invalidateControl(control);
       delete lossFunctionDef;
       
       Rf_error("xbart called on empty data set");
@@ -143,7 +141,6 @@ extern "C" {
     
     invalidateData(data);
     invalidateModel(model);
-    invalidateControl(control);
 
     UNPROTECT(1);
     
@@ -157,11 +154,11 @@ namespace {
   
   SEXP allocateResult(size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps, bool dropUnusedDims)
   {
-    SEXP result = Rf_allocVector(REALSXP, numNTrees * numKs * numPowers * numBases * numReps);
+    SEXP result = PROTECT(Rf_allocVector(REALSXP, numNTrees * numKs * numPowers * numBases * numReps));
     if (dropUnusedDims) {
       size_t numDims = 1 + (numNTrees > 1 ? 1 : 0) + (numKs > 1 ? 1 : 0) + (numPowers > 1 ? 1 : 0) + (numBases > 1 ? 1 : 0);
       if (numDims > 1) {
-        SEXP dimsExpr = Rf_allocVector(INTSXP, numDims);
+        SEXP dimsExpr = PROTECT(Rf_allocVector(INTSXP, numDims));
         int* dims = INTEGER(dimsExpr);
         dims[0] = static_cast<int>(numReps);
         numDims = 1;
@@ -171,11 +168,13 @@ namespace {
         if (numBases > 1)  dims[numDims]   = static_cast<int>(numBases);
         
         R_do_slot_assign(result, R_DimSymbol, dimsExpr);
+        UNPROTECT(1);
       }
     } else {
       rc_setDims(result, static_cast<int>(numReps), static_cast<int>(numNTrees), static_cast<int>(numKs), static_cast<int>(numPowers),
                  static_cast<int>(numBases), -1);
     }
+    UNPROTECT(1);
     return result;
   }
   
@@ -254,6 +253,12 @@ namespace {
     results[0] = static_cast<double>(fp + fn) / static_cast<double>(numTestObservations);
   }
   
+  /*
+   * Custom loss is created from a function and the environment to evaluate that function in.
+   * In order to call the function, we allocate and store R vectors for y_test, samples 
+   * of y_test, and the closure of the function applied to those values. They are released
+   * to the garbage collector when the loss function is deleted.
+   */
   struct CustomLossFunctorDefinition : LossFunctorDefinition {
     SEXP function;
     SEXP environment;
@@ -285,7 +290,7 @@ namespace {
     
     return result;
   }
-    
+  
   void deleteCustomLoss(LossFunctor* instance)
   {
     UNPROTECT(3);

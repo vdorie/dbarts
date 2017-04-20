@@ -3,6 +3,8 @@
 
 #include <cstddef>
 
+#include <external/random.h>
+
 namespace dbarts {
   struct Tree;
   struct BARTFit;
@@ -18,6 +20,8 @@ namespace dbarts {
     double sigma;
     
     double runningTime;
+    
+    ext_rng* rng;
     
     const char* const* createTreeStrings(const BARTFit& fit) const;
     void recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings);

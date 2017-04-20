@@ -727,6 +727,20 @@ namespace dbarts {
     
     addObservationsToChildren(fit, y);
   }
+  
+  void Node::split(const BARTFit& fit, const Rule& newRule, bool exhaustedLeftSplits, bool exhaustedRightSplits) {
+    if (newRule.variableIndex < 0) ext_throwError("error in split: rule not set\n");
+    
+    p.rule = newRule;
+    
+    leftChild    = new Node(*this, fit.data.numPredictors);
+    p.rightChild = new Node(*this, fit.data.numPredictors);
+    
+    if (exhaustedLeftSplits)     leftChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
+    if (exhaustedRightSplits) p.rightChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
+    
+    addObservationsToChildren(fit);
+  }
 
   void Node::orphanChildren() {
     // do this w/o clobbering children pointers until details are nailed down

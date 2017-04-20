@@ -69,6 +69,7 @@ namespace {
   
   struct ThreadData {
     SharedData* shared;
+    ext_rng* rng;
     
     size_t repCellOffset;
     size_t numRepCells;
@@ -136,7 +137,6 @@ namespace dbarts { namespace xval {
     threadControl.verbose    = origControl.verbose == true && numThreads == 1;
     threadControl.numThreads = numThreads;
     
-        
     SharedData sharedData = { threadControl, origModel, origData,
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               numTrainingObservations, numTestObservations,
@@ -145,10 +145,30 @@ namespace dbarts { namespace xval {
     for (size_t i = 0; i < numThreads; ++i) sharedData.printedCells[i] = INVALID_INDEX;
     
     if (numThreads <= 1) {
-      ThreadData threadData = { &sharedData, 0, numRepCells, INVALID_INDEX, results };
+      ext_rng* rng;
+      
+      // both BART sampler and xval algorithm can use native sampler
+      if (threadControl.rng_algorithm == EXT_RNG_ALGORITHM_INVALID &&
+          threadControl.rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID) {
+        
+        if ((rng = ext_rng_createDefault(true)) == NULL)
+          ext_throwError("could not allocate rng");
+      
+      } else {
+        if (ext_rng_createAndSeed(&rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+          ext_throwError("could not allocate rng");
+      }
+      
+      ThreadData threadData = { &sharedData, rng, 0, numRepCells, INVALID_INDEX, results };
       
       crossvalidationTask(&threadData);
+      
+      ext_rng_destroy(rng);
     } else {
+      if (threadControl.rng_algorithm == EXT_RNG_ALGORITHM_INVALID)
+        threadControl.rng_algorithm = ext_rng_getDefaultAlgorithmType();
+      if (threadControl.rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
+        threadControl.rng_standardNormal = ext_rng_getDefaultStandardNormalType();
       
       ext_mt_manager_t threadManager;
       ext_mt_create(&threadManager, numThreads);
@@ -157,12 +177,14 @@ namespace dbarts { namespace xval {
       size_t offByOneIndex;
       
       ext_mt_getNumThreadsForJob(threadManager, numRepCells, 0, NULL, &numRepCellsPerThread, &offByOneIndex);
-
+      
       
       ThreadData* threadData = ext_stackAllocate(numThreads, ThreadData);
       void** threadDataPtrs  = ext_stackAllocate(numThreads, void*);
       for (size_t i = 0; i < offByOneIndex; ++i) {
         threadData[i].shared = &sharedData;
+        if (ext_rng_createAndSeed(&threadData[i].rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+          ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = i * numRepCellsPerThread;
         threadData[i].numRepCells   = numRepCellsPerThread;
         threadData[i].fittingCell   = INVALID_INDEX;
@@ -172,6 +194,8 @@ namespace dbarts { namespace xval {
       
       for (size_t i = offByOneIndex; i < numThreads; ++i) {
         threadData[i].shared = &sharedData;
+        if (ext_rng_createAndSeed(&threadData[i].rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+          ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
         threadData[i].numRepCells   = numRepCellsPerThread - 1;
         threadData[i].fittingCell   = INVALID_INDEX;
@@ -183,6 +207,9 @@ namespace dbarts { namespace xval {
         ext_mt_runTasksWithInfo(threadManager, crossvalidationTask, threadDataPtrs, numThreads, 1, printInfo);
       else
         ext_mt_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
+      
+      for (size_t i = 0; i < numThreads; ++i)
+        ext_rng_destroy(threadData[i].rng);
          
       ext_stackFree(threadDataPtrs);
       ext_stackFree(threadData);
@@ -235,8 +262,6 @@ extern "C" {
                     new double[origData.numPredictors * numSamples]);
     
     Control repControl = origControl;
-    repControl.rng = ext_rng_createDefault(false); // origControl.numThreads == 1);
-    ext_rng* nativeGenerator = ext_rng_createDefault(true);
     repControl.numThreads = 1;
     bool verbose = repControl.verbose;
     repControl.verbose = false;
@@ -273,7 +298,7 @@ extern "C" {
       
       for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
         fit->setData(repData);
         
         fit->runSampler(numBurnIn, samples);
@@ -297,7 +322,7 @@ extern "C" {
       
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
         // ext_printf("  perm: %lu", permutation[0]);
         // for (size_t i = 1; i < 20; ++i) ext_printf(" %lu", permutation[i]);
         // ext_printf("\n");
@@ -321,7 +346,7 @@ extern "C" {
       
       for (size_t repIndex = 0; repIndex < lastCellRep; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, nativeGenerator /* repControl.rng */, permutation);
+        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
         fit->setData(repData);
         
         fit->runSampler(numBurnIn, samples);
@@ -334,8 +359,6 @@ extern "C" {
     }
     threadData.fittingCell = lastCell + 1;
     
-    ext_rng_destroy(nativeGenerator);
-
     
     delete [] permutation;
     
@@ -345,8 +368,6 @@ extern "C" {
     
     freeModelStorage(repModel);
     freeDataStorage(repData);
-    
-    ext_rng_destroy(repControl.rng);
     
     if (suppliedTestSamples != NULL) samples->testSamples = NULL;
     delete samples;
