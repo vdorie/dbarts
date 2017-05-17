@@ -459,9 +459,9 @@ void ext_rng_writeSerializedState(const ext_rng* generator, void* state)
     
     state = (void*) ((char*) state + sizeof(double));
     
-#ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wtautological-compare"
+#if defined(clang) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 5))
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wtautological-compare"
 #endif
     for (size_t i = 0; i < sizeof(double) % sizeof(int); ++i) {
       *((char*) state) = 0;
@@ -476,8 +476,8 @@ void ext_rng_writeSerializedState(const ext_rng* generator, void* state)
      *((char*) state) = 0;
      state = (void*) ((char*) state + 1);
   }
-#ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic pop
+#if defined(clang) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 5))
+#  pragma clang diagnostic pop
 #endif
 }
 

@@ -9,13 +9,13 @@ export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame)
 
-exportClasses(dbartsSampler)
+exportClasses(dbartsSampler, dbartsData, dbartsControl)
 
 S3method(plot, bart)
 S3method(plot, pdbart)
 S3method(plot, pd2bart)
 
-importFrom(methods, setRefClass, setClass, callNextMethod, validObject, is, new, setValidity)
+importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, is, new, setValidity, setMethod)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, quantile)
