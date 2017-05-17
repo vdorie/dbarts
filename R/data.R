@@ -1,7 +1,7 @@
 ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
 
-setMethod("initialize", "dbartsData",
+methods::setMethod("initialize", "dbartsData",
           function(.Object, modelMatrices, n.cuts = 100L, sigma = NA_real_)
 {
   if (!missing(modelMatrices)) {
