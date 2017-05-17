@@ -7,8 +7,9 @@
 \usage{
 dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
               n.samples = NA_integer_, n.cuts = 100L,
-              n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = 1L,
-              n.thin = 1L, printEvery = 100L, printCutoffs = 0L, updateState = TRUE)
+              n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
+              n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
+              rngKind = "default", rngNormalKind = "default", updateState = TRUE)
 }
 \arguments{
    \item{verbose}{Logical controlling sampler output to console.}
@@ -40,6 +41,13 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    	 (after thinning) will issue a verbal statement. Must be a positive integer.}
    \item{printCutoffs}{A non-negative integer specifying how many of the decision rules for a variable are
    	 printed in verbose mode.}
+   \item{rngKind}{Random number generator kind, as used in \code{\link[=Random]{set.seed}}. For type
+         \code{"default"}, the built-in generator will be used if possible. Otherwise, will attempt to
+         match the built-in generator's type. Success depends on the number of threads.}
+   \item{rngNormalKind}{Random number generator normal kind, as used in \code{\link[=Random]{set.seed}}.
+         For type \code{"default"}, the built-in generator will be used if possible. Otherwise, will
+         attempt to match the built-in generator's type. Success depends on the number of threads and
+         the \code{rngKind}.}
    \item{updateState}{Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods
    	 with regards to the immediate updating of the cached state of the object. A current, cached state
    	 is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.}

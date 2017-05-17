@@ -9,7 +9,7 @@ export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame)
 
-exportClasses(dbartsSampler, dbartsData, dbartsControl)
+exportClasses(dbartsSampler)
 
 S3method(plot, bart)
 S3method(plot, pdbart)

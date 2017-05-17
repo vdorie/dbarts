@@ -7,7 +7,7 @@
 }
 \usage{
 dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
-       verbose = FALSE, n.samples = 1000L,
+       verbose = FALSE, n.samples = 800L,
        tree.prior = cgm, node.prior = normal, resid.prior = chisq,
        control = dbartsControl(), sigma = NA_real_)
 }
