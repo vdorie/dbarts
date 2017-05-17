@@ -328,6 +328,6 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (testOffsetIsMissing) offset.test <- NULL
   }
   
-  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, offset, offset.test, testUsesRegularOffset), NA_integer_, NA_real_)
+  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
 }
 
