@@ -259,7 +259,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     y <- y[subset]
 
     if (is.data.frame(formula)) formula <- makeModelMatrixFromDataFrame(formula)
-    x <- if (!is.matrix(formula)) formula[subset] else formula[subset,]
+    x <- if (!is.matrix(formula)) formula[subset] else formula[subset,,drop=FALSE]
     
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
@@ -284,7 +284,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     completeCases <- stats::complete.cases(x, y)
     
     y <- y[completeCases]
-    x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,]
+    x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,,drop=FALSE]
     if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
       if (attributeName == "dim") next
       if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) next
