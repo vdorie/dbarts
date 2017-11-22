@@ -9,6 +9,7 @@
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
 #include <dbarts/scratch.hpp>
+#include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "birthDeathRule.hpp"
 #include "changeRule.hpp"
@@ -25,7 +26,7 @@ namespace dbarts {
   void updateVariablesAvailable(const BARTFit& fit, Node& node, int32_t variableIndex)
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = new bool[fit.scratch.numCutsPerVariable[variableIndex]];
+      bool* catGoesRight = new bool[fit.sharedScratch.numCutsPerVariable[variableIndex]];
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       // note catGoesRight is deleted in here
@@ -61,7 +62,7 @@ namespace dbarts {
   
   void updateCategoricalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, bool* catGoesRight)
   {
-    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
 
 
     node->variablesAvailableForSplit[variableIndex] = countTrueValues(catGoesRight, numCategories) >= 2;
@@ -96,7 +97,7 @@ namespace dbarts {
     delete [] catGoesRight;
   }
   
-  double metropolisJumpForTree(const BARTFit& fit, Tree& tree, const double* y,
+  double metropolisJumpForTree(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y,
                                bool* stepTaken, StepType* stepType)
   { 
     double alpha;
@@ -104,20 +105,20 @@ namespace dbarts {
     
     
     
-    double u = ext_rng_simulateContinuousUniform(fit.state.rng);
+    double u = ext_rng_simulateContinuousUniform(fit.state[chainNum].rng);
     // ext_printf("type: %s; ", u < fit.model.birthOrDeathProbability ? "birth/death" : (u < fit.model.birthOrDeathProbability + fit.model.swapProbability ? "swap" : "change"));
     if (u < fit.model.birthOrDeathProbability) {
-      alpha = birthOrDeathNode(fit, tree, y, stepTaken, &birthedTree);
+      alpha = birthOrDeathNode(fit, chainNum, tree, y, stepTaken, &birthedTree);
       if (birthedTree == true) {
         *stepType = BIRTH;
       } else {
         *stepType = DEATH;
       }
     } else if (u < fit.model.birthOrDeathProbability + fit.model.swapProbability) { 
-      alpha = swapRule(fit, tree, y, stepTaken);
+      alpha = swapRule(fit, chainNum, tree, y, stepTaken);
       *stepType = SWAP;
     } else {
-      alpha = changeRule(fit, tree, y, stepTaken);
+      alpha = changeRule(fit, chainNum, tree, y, stepTaken);
       *stepType = CHANGE;
     }
     // const char * const jumpNames[] = { "birth", "death", "swap", "change" };
@@ -147,7 +148,7 @@ namespace dbarts {
   {
     if (fit.data.variableTypes[variableIndex] != CATEGORICAL) ext_throwError("error in setCategoryBranching: not a categorical variable\n");
     
-    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
     for (uint32_t i = 0; i < numCategories; ++i) categoriesCanReachNode[i] = true;
     
     const Node* curr = &node;
@@ -202,7 +203,7 @@ namespace dbarts {
     bool rightFound = false;
     
     *leftIndex = 0; // left value if you top out
-    *rightIndex = static_cast<int32_t>(fit.scratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
+    *rightIndex = static_cast<int32_t>(fit.sharedScratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
     
     bool isRightChild;
     

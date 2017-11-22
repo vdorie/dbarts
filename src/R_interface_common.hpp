@@ -20,7 +20,7 @@ namespace dbarts {
   void invalidateModel(Model& model);
   void invalidateData(Data& data);
     
-  void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr);
+  void initializeStateFromExpression(const BARTFit& fit, State* state, SEXP stateExpr);
   SEXP createStateExpressionFromFit(const BARTFit& fit); // result is unprotected
   void storeStateExpressionFromFit(const BARTFit& fit, SEXP state);
 }

@@ -209,7 +209,8 @@ extern "C" {
     Control oldControl = fit->control;
     
     if (control.responseIsBinary != oldControl.responseIsBinary) {
-      ext_rng_destroy(fit->state.rng);
+      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+        ext_rng_destroy(fit->state[chainNum].rng);
       Rf_error("new control cannot change binary characteristic of response");
     }
     
@@ -509,36 +510,40 @@ extern "C" {
   }
   
   
-  SEXP printTrees(SEXP fitExpr, SEXP treeIndicesExpr)
+  SEXP printTrees(SEXP fitExpr, SEXP chainIndicesExpr, SEXP treeIndicesExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_printTrees called on NULL external pointer");
     
+    size_t numChains = fit->control.numChains;
     size_t numTrees = fit->control.numTrees;
-    size_t* treeIndices;
     
-    if (Rf_isNull(treeIndicesExpr)) {
-      treeIndices = ext_stackAllocate(fit->control.numTrees, size_t);
-      for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
-      
-      fit->printTrees(treeIndices, fit->control.numTrees);
-      
-      ext_stackFree(treeIndices);
-      return R_NilValue;
+    size_t numChainIndices = Rf_isNull(chainIndicesExpr) ? numChains : rc_getLength(chainIndicesExpr);
+    size_t numTreeIndices  = Rf_isNull(treeIndicesExpr)  ? numTrees  : rc_getLength(treeIndicesExpr);
+    
+    
+    size_t* chainIndices = ext_stackAllocate(numChainIndices, size_t);
+    size_t* treeIndices  = ext_stackAllocate(numTreeIndices,  size_t);
+    
+    if (Rf_isNull(chainIndicesExpr)) {
+      for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
+    } else {
+      int* i_chainIndices = INTEGER(chainIndicesExpr);
+      for (size_t i = 0; i < numChainIndices; ++i) chainIndices[i] = static_cast<size_t>(i_chainIndices[i] - 1);
     }
     
-    if (rc_getLength(treeIndicesExpr) == 0) return R_NilValue;
     
-    rc_assertIntConstraints(treeIndicesExpr, "tree indices", RC_VALUE | RC_GT, asRXLen(0), RC_VALUE | RC_LEQ, asRXLen(numTrees), RC_END);
-    
-    size_t numIndices = rc_getLength(treeIndicesExpr);
-    treeIndices = ext_stackAllocate(numIndices, size_t);
-    int* i_treeIndices = INTEGER(treeIndicesExpr);
-    for (size_t i = 0; i < numIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
-    
-    fit->printTrees(treeIndices, numIndices);
+    if (Rf_isNull(treeIndicesExpr)) {
+      for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
+    } else {
+      int* i_treeIndices = INTEGER(treeIndicesExpr);
+      for (size_t i = 0; i < numTreeIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
+    }
+   
+    fit->printTrees(chainIndices, numChainIndices, treeIndices, numTreeIndices);
     
     ext_stackFree(treeIndices);
+    ext_stackFree(chainIndices);
     
     return R_NilValue;
   }

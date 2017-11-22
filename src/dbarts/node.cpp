@@ -17,6 +17,7 @@
 #include "functions.hpp"
 
 using std::uint64_t;
+using std::size_t;
 
 namespace dbarts {
   
@@ -25,7 +26,7 @@ namespace dbarts {
     if (variableIndex < 0) return -1000.0;
     if (fit.data.variableTypes[variableIndex] != ORDINAL) return -2000.0;
     
-    return fit.scratch.cutPoints[variableIndex][splitIndex];
+    return fit.sharedScratch.cutPoints[variableIndex][splitIndex];
   }
   
   void Rule::invalidate() {
@@ -42,7 +43,7 @@ namespace dbarts {
       
       return categoryGoesRight(categoryId);
     } else {
-      const double* splitValues = fit.scratch.cutPoints[variableIndex];
+      const double* splitValues = fit.sharedScratch.cutPoints[variableIndex];
       
       return x[variableIndex] > splitValues[splitIndex];
     }
@@ -164,7 +165,7 @@ namespace dbarts {
       
       if (fit.data.variableTypes[p.rule.variableIndex] == CATEGORICAL) {
         ext_printf("CATRule: ");
-        for (size_t i = 0; 0 < fit.scratch.numCutsPerVariable[p.rule.variableIndex]; ++i) ext_printf(" %u", (p.rule.categoryDirections >> i) & 1);
+        for (size_t i = 0; 0 < fit.sharedScratch.numCutsPerVariable[p.rule.variableIndex]; ++i) ext_printf(" %u", (p.rule.categoryDirections >> i) & 1);
       } else {
         ext_printf("ORDRule: (%d)=%f", p.rule.splitIndex, p.rule.getSplitValue(fit));
       }
@@ -354,7 +355,7 @@ namespace {
     
     IndexOrdering(const BARTFit& fit, const Rule &rule) : fit(fit), rule(rule) { }
     
-    bool operator()(size_t i) const { return rule.goesRight(fit, fit.scratch.xt + i * fit.data.numPredictors); }
+    bool operator()(size_t i) const { return rule.goesRight(fit, fit.sharedScratch.xt + i * fit.data.numPredictors); }
   };
   
   // returns how many observations are on the "left"
@@ -515,21 +516,21 @@ namespace {
 // #define MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD 5000
 
 namespace dbarts {
-  void Node::addObservationsToChildren(const BARTFit& fit, const double* y) {
+  void Node::addObservationsToChildren(const BARTFit& fit, size_t chainNum, const double* y) {
     if (isBottom()) {
       if (isTop()) {
         if (fit.data.weights == NULL) {
-          m.average = ext_mt_computeMean(fit.threadManager, y, numObservations);
+          m.average = ext_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
           m.numEffectiveObservations = static_cast<double>(numObservations);
         } else {
-          m.average = ext_mt_computeWeightedMean(fit.threadManager, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
+          m.average = ext_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
         }
       } else {
         if (fit.data.weights == NULL) {
-          m.average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservations);
+          m.average = ext_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
           m.numEffectiveObservations = static_cast<double>(numObservations);
         } else {
-          m.average = ext_mt_computeIndexedWeightedMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
+          m.average = ext_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
         }
       }
       
@@ -588,8 +589,8 @@ namespace dbarts {
       p.rightChild->numObservations = numObservations - numOnLeft;
       
       
-      leftChild->addObservationsToChildren(fit, y);
-      p.rightChild->addObservationsToChildren(fit, y);
+      leftChild->addObservationsToChildren(fit, chainNum, y);
+      p.rightChild->addObservationsToChildren(fit, chainNum, y);
     }
   }
   
@@ -619,49 +620,49 @@ namespace dbarts {
     }
   }
   
-  void Node::setAverage(const BARTFit& fit, const double* y)
+  void Node::setAverage(const BARTFit& fit, size_t chainNum, const double* y)
   {
     leftChild = NULL;
         
     if (isTop()) {
       if (fit.data.weights == NULL) {
-        m.average = ext_mt_computeMean(fit.threadManager, y, numObservations);
+        m.average = ext_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
         m.numEffectiveObservations = static_cast<double>(numObservations);
       }
-      else m.average = ext_mt_computeWeightedMean(fit.threadManager, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
+      else m.average = ext_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
     } else {
       if (fit.data.weights == NULL) {
-        m.average = ext_mt_computeIndexedMean(fit.threadManager, y, observationIndices, numObservations);
+        m.average = ext_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
         m.numEffectiveObservations = static_cast<double>(numObservations);
       }
-      else m.average = ext_mt_computeIndexedWeightedMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
+      else m.average = ext_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
     }
   }
   
-  void Node::setAverages(const BARTFit& fit, const double* y)
+  void Node::setAverages(const BARTFit& fit, size_t chainNum, const double* y)
   {
     if (isBottom()) {
-      setAverage(fit, y);
+      setAverage(fit, chainNum, y);
       return;
     }
     
-    leftChild->setAverages(fit, y);
-    p.rightChild->setAverages(fit, y);
+    leftChild->setAverages(fit, chainNum, y);
+    p.rightChild->setAverages(fit, chainNum, y);
   }
 
-  double Node::computeVariance(const BARTFit& fit, const double* y) const
+  double Node::computeVariance(const BARTFit& fit, size_t chainNum, const double* y) const
   {
     if (isTop()) {
       if (fit.data.weights == NULL) {
-        return ext_mt_computeVarianceForKnownMean(fit.threadManager, y, numObservations, getAverage());
+        return ext_htm_computeVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, getAverage());
       } else {
-        return ext_mt_computeWeightedVarianceForKnownMean(fit.threadManager, y, numObservations, fit.data.weights, getAverage());
+        return ext_htm_computeWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, getAverage());
       }
     } else {
       if (fit.data.weights == NULL) {
-        return ext_mt_computeIndexedVarianceForKnownMean(fit.threadManager, y, observationIndices, numObservations, getAverage());
+        return ext_htm_computeIndexedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, getAverage());
       } else {
-        return ext_mt_computeIndexedWeightedVarianceForKnownMean(fit.threadManager, y, observationIndices, numObservations, fit.data.weights, getAverage());
+        return ext_htm_computeIndexedWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, getAverage());
       }
     }
   }
@@ -714,7 +715,7 @@ namespace dbarts {
     return countTrueValues(variablesAvailableForSplit, numVariables);
   }
 
-  void Node::split(const BARTFit& fit, const Rule& newRule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits) {
+  void Node::split(const BARTFit& fit, size_t chainNum, const Rule& newRule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits) {
     if (newRule.variableIndex < 0) ext_throwError("error in split: rule not set\n");
     
     p.rule = newRule;
@@ -725,7 +726,7 @@ namespace dbarts {
     if (exhaustedLeftSplits)     leftChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
     if (exhaustedRightSplits) p.rightChild->variablesAvailableForSplit[p.rule.variableIndex] = false;
     
-    addObservationsToChildren(fit, y);
+    addObservationsToChildren(fit, chainNum, y);
   }
   
   void Node::split(const BARTFit& fit, const Rule& newRule, bool exhaustedLeftSplits, bool exhaustedRightSplits) {

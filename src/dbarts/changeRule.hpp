@@ -1,11 +1,13 @@
 #ifndef DBARTS_CHANGE_RULE_HPP
 #define DBARTS_CHANGE_RULE_HPP
 
+#include <cstddef>
+
 namespace dbarts {
   struct BARTFit;
   struct Tree;
   
-  double changeRule(const BARTFit& fit, Tree& tree, const double* y, bool* stepTaken);
+  double changeRule(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, bool* stepTaken);
 }  
 
 #endif

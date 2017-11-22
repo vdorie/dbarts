@@ -5,20 +5,22 @@
 
 namespace dbarts {
   struct Results {
-    double* sigmaSamples;         // 1 x numSamples
-    double* trainingSamples;      // numObservations x numSamples
-    double* testSamples;          // numTestObservations x numSamples
-    double* variableCountSamples; // numPredictors x numSamples
+    double* sigmaSamples;         // 1 x numSamples x numChains
+    double* trainingSamples;      // numObservations x numSamples x numChains
+    double* testSamples;          // numTestObservations x numSamples x numChains
+    double* variableCountSamples; // numPredictors x numSamples x numChains
     
     std::size_t numObservations;
     std::size_t numPredictors;
     std::size_t numTestObservations;
     std::size_t numSamples;
+    std::size_t numChains;
   
     Results(std::size_t numObservations, std::size_t numPredictors,
-            std::size_t numTestObservations, std::size_t numSamples) :
+            std::size_t numTestObservations, std::size_t numSamples, std::size_t numChains) :
       sigmaSamples(NULL), trainingSamples(NULL), testSamples(NULL), variableCountSamples(NULL),
-      numObservations(numObservations), numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples)
+      numObservations(numObservations), numPredictors(numPredictors), numTestObservations(numTestObservations),
+      numSamples(numSamples), numChains(numChains)
     {
       sigmaSamples = new double[getNumSigmaSamples()];
       trainingSamples = new double[getNumTrainingSamples()];
@@ -29,13 +31,14 @@ namespace dbarts {
     // note how dangerous this constructor is, as it accepts pointers
     // but the destructor deletes them; set to NULL before deleting
     // if you use
-    Results(std::size_t numObservations, std::size_t numPredictors,
-            std::size_t numTestObservations, std::size_t numSamples,
+    Results(std::size_t numObservations, std::size_t numPredictors, std::size_t numTestObservations,
+            std::size_t numSamples, std::size_t numChains,
             double* sigmaSamples, double* trainingSamples,
             double* testSamples, double* variableCountSamples) :
       sigmaSamples(sigmaSamples), trainingSamples(trainingSamples), testSamples(testSamples),
       variableCountSamples(variableCountSamples), numObservations(numObservations),
-      numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples)
+      numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples),
+      numChains(numChains)
     {
     }
     
@@ -46,10 +49,10 @@ namespace dbarts {
       delete [] variableCountSamples; variableCountSamples = NULL;
     }
     
-    std::size_t getNumSigmaSamples() { return numSamples; }
-    std::size_t getNumTrainingSamples() { return numObservations * numSamples; }
-    std::size_t getNumTestSamples() { return numTestObservations * numSamples; }
-    std::size_t getNumVariableCountSamples() { return numPredictors * numSamples; }
+    std::size_t getNumSigmaSamples() { return numSamples * numChains; }
+    std::size_t getNumTrainingSamples() { return numObservations * numSamples * numChains; }
+    std::size_t getNumTestSamples() { return numTestObservations * numSamples * numChains; }
+    std::size_t getNumVariableCountSamples() { return numPredictors * numSamples * numChains; }
   };
 } // namespace dbarts
 

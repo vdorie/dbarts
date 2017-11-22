@@ -57,7 +57,7 @@ int ext_rng_setSeedFromClock(ext_rng* generator);
 
 // not the same as "state" above, since it also includes the status of the
 // standard normal algorithm and gamma simulation;
-// guarantees that the result is aligned to sizeof(int);
+// guarantees that the result is aligned to sizeof(int), however the length is in characters
 // user is responsible for seralizing user functions in algorithm or standardNormalAlgorithm
 ext_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
 void ext_rng_writeSerializedState(const ext_rng* generator, void* state);

@@ -16,16 +16,20 @@
 
 namespace dbarts {
   struct Results;
+  struct SharedScratch;
   
   struct BARTFit {
     Control control; // top three are passed in from elsewhere
     Model model;
     Data data;
     
-    Scratch scratch;
-    State state;
+    SharedScratch sharedScratch;
+    ChainScratch* chainScratch;
+    State* state;
     
-    ext_mt_manager_t threadManager;
+    double runningTime;
+    
+    ext_htm_manager_t threadManager;
     
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();
@@ -55,12 +59,14 @@ namespace dbarts {
     
     void sampleTreesFromPrior();
     
-    void printTrees(const std::size_t* indices, std::size_t numIndices) const;
+    void printTrees(const std::size_t* chains, std::size_t numChains,
+                    const std::size_t* indices, std::size_t numIndices) const;
     
     // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
     // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
     // invalid state
     void setData(const Data& data);
+    // the new control must have the same number of chains as the previous or else prob seg fault
     void setControl(const Control& control);
     void setModel(const Model& model);
     

@@ -254,8 +254,8 @@ extern "C" {
                                   NULL;
     Results* samples =
       suppliedTestSamples == NULL ?
-        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples) :
-        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples,
+        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1) :
+        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1,
                     new double[origControl.numSamples],
                     new double[numTrainingObservations * numSamples],
                     suppliedTestSamples,

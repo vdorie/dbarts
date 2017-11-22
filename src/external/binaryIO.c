@@ -346,6 +346,17 @@ int ext_bio_writeNDoubles(ext_binaryIO* bio, const double* d, size_t length)
   return 0;
 }
 
+int ext_bio_writeNInts(ext_binaryIO* bio, const int* i, size_t length)
+{
+  int errorCode = 0;
+  uint64_t ui;
+  for (size_t j = 0; j < length; ++j) {
+    ui = (uint64_t) i[j];
+    if ((errorCode = ext_bio_writeUnsigned64BitInteger(bio, ui)) != 0) break;
+  }
+  return errorCode;
+}
+
 // these return NULL if there is an error and set errno appropriately
 int ext_bio_readChar(ext_binaryIO* bio, char *c)
 {
@@ -591,6 +602,18 @@ int ext_bio_readNDoubles(ext_binaryIO* bio, double* d, size_t length)
   
   return 0;
 }
+
+int ext_bio_readNInts(ext_binaryIO* bio, int* i, size_t length)
+{
+  int errorCode = 0;
+  uint64_t ui;
+  for (size_t j = 0; j < length; ++j) {
+    if ((errorCode = ext_bio_readUnsigned64BitInteger(bio, &ui)) != 0) break;
+    i[j] = (int) ui;
+  }
+  return errorCode;
+}
+
 
 // upcast to 64_bit ints
 static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* restrict v, size_t length)

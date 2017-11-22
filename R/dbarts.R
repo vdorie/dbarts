@@ -522,11 +522,11 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                printTrees = function(treeNums = seq_len(control@n.trees)) {
+                printTrees = function(chainNums = seq_len(control@n.chains), treeNums = seq_len(control@n.trees)) {
                   'Produces an info dump of the internal state of the trees.'
                   
                   ptr <- getPointer()
-                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(treeNums)))
+                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), as.integer(treeNums)))
                 },
                 plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'

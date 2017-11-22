@@ -2698,6 +2698,491 @@ double ext_mt_computeWeightedSumOfSquaredResiduals(ext_mt_manager_t restrict thr
   return aggregateWeightedSumOfSquaredResidualsData(threadData, numThreads);
 }
 
+double ext_htm_computeSumOfSquaredResiduals(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
+                                            const double* restrict x_hat)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, SSR_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return ext_computeSumOfSquaredResiduals(x, length, x_hat);
+  
+  SumOfSquaredResidualsData data[numPieces];
+  setupSumOfSquaredResidualsData(data, numPieces, x, x_hat, numValuesPerPiece, offByOneIndex, &ext_computeSumOfSquaredResiduals);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeSumOfSquaredResidualsTask, dataPtrs, numPieces);
+  
+  return aggregateSumOfSquaredResidualsData(data, numPieces);
+}
+
+double ext_htm_computeWeightedSumOfSquaredResiduals(ext_htm_manager_t restrict threadManager, size_t taskId,
+                                                    const double* restrict x, size_t length,
+                                                    const double* restrict w, const double* restrict x_hat)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, WEIGHTED_SSR_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return ext_computeWeightedSumOfSquaredResiduals(x, length, w, x_hat);
+  
+  WeightedSumOfSquaredResidualsData data[numPieces];
+  setupWeightedSumOfSquaredResidualsData(data, numPieces, x, w, x_hat, numValuesPerPiece, offByOneIndex, &ext_computeWeightedSumOfSquaredResiduals);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId,  &computeWeightedSumOfSquaredResidualsTask, dataPtrs, numPieces);
+  
+  return aggregateWeightedSumOfSquaredResidualsData(data, numPieces);
+}
+
+// forward declarations used in computeMean and computeIndexedMean
+static double htm_computeUnrolledMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length);
+static double htm_computeIndexedUnrolledMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length);
+static double htm_computeOnlineUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length);
+static double htm_computeIndexedOnlineUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length);
+
+
+double ext_htm_computeMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledMean(threadManager, taskId, x, length);
+  return htm_computeUnrolledMean(threadManager, taskId, x, length);
+}
+
+double ext_htm_computeIndexedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledMean(threadManager, taskId, x, indices, length);
+  return htm_computeIndexedUnrolledMean(threadManager, taskId, x, indices, length);
+}
+
+static double htm_computeUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeUnrolledMean(x, length);
+  
+  MeanData data[numPieces];
+  setupMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeUnrolledMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeMeanTask, dataPtrs, numPieces);
+  
+  return aggregateMeanResults(data, numPieces);
+}
+
+static double htm_computeIndexedUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedUnrolledMean(x, indices, length);
+  
+  IndexedMeanData data[numPieces];
+  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedMeanResults(data, numPieces);
+}
+
+static double htm_computeOnlineUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeOnlineUnrolledMean(x, length);
+  
+  MeanData data[numPieces];
+  setupMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeMeanTask, dataPtrs, numPieces);
+  
+  return aggregateMeanResults(data, numPieces);
+}
+
+static double htm_computeIndexedOnlineUnrolledMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedOnlineUnrolledMean(x, indices, length);
+  
+  IndexedMeanData data[numPieces];
+  setupIndexedMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedMeanResults(data, numPieces);
+}
+
+// forward declarations used in computeWeightedMean and computeIndexedWeightedMean
+static double htm_computeUnrolledWeightedMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
+static double htm_computeIndexedUnrolledWeightedMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
+static double htm_computeOnlineUnrolledWeightedMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
+static double htm_computeIndexedOnlineUnrolledWeightedMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
+
+double ext_htm_computeWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                   size_t length, const double* restrict w, double* restrict nPtr)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledWeightedMean(threadManager, taskId, x, length, w, nPtr);
+  return htm_computeUnrolledWeightedMean(threadManager, taskId, x, length, w, nPtr);
+}
+
+double ext_htm_computeIndexedWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, 
+                                          const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledWeightedMean(threadManager, taskId, x, indices, length, w, nPtr);
+  return htm_computeIndexedUnrolledWeightedMean(threadManager, taskId, x, indices, length, w, nPtr);
+}
+
+static double htm_computeUnrolledWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                              size_t length, const double* restrict w, double* restrict nPtr)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeUnrolledWeightedMean(x, length, w, nPtr);
+  
+  WeightedMeanData data[numPieces];
+  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeUnrolledWeightedMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeWeightedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateWeightedMeanResults(data, numPieces, nPtr);
+}
+
+static double htm_computeIndexedUnrolledWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                     const size_t* restrict indices, size_t length,
+                                                     const double* restrict w, double* restrict nPtr)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedUnrolledWeightedMean(x, indices, length, w, nPtr);
+  
+  IndexedWeightedMeanData data[numPieces];
+  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledWeightedMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedWeightedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedWeightedMeanResults(data, numPieces, nPtr);
+}
+
+static double htm_computeOnlineUnrolledWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                   size_t length, const double* restrict w, double* restrict nPtr)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeOnlineUnrolledWeightedMean(x, length, w, nPtr);
+  
+  WeightedMeanData data[numPieces];
+  setupWeightedMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledWeightedMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeWeightedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateWeightedMeanResults(data, numPieces, nPtr);
+}
+
+static double htm_computeIndexedOnlineUnrolledWeightedMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                           const size_t* restrict indices, size_t length,
+                                                           const double* restrict w, double* restrict nPtr)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedOnlineUnrolledWeightedMean(x, indices, length, w, nPtr);
+  
+  IndexedWeightedMeanData data[numPieces];
+  setupIndexedWeightedMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledWeightedMean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedWeightedMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedWeightedMeanResults(data, numPieces, nPtr);
+}
+
+// forward declarations for variance/indexed var with known mean
+static double htm_computeUnrolledVarianceForKnownMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length, double mean);
+static double htm_computeIndexedUnrolledVarianceForKnownMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+static double htm_computeOnlineUnrolledVarianceForKnownMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length, double mean);
+static double htm_computeIndexedOnlineUnrolledVarianceForKnownMean(ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+
+double ext_htm_computeVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                           size_t length, double mean)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledVarianceForKnownMean(threadManager, taskId, x, length, mean);
+  return htm_computeUnrolledVarianceForKnownMean(threadManager, taskId, x, length, mean);
+}
+
+double ext_htm_computeIndexedVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                  const size_t* restrict indices, size_t length, double mean)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledVarianceForKnownMean(threadManager, taskId, x, indices, length, mean);
+  return htm_computeIndexedUnrolledVarianceForKnownMean(threadManager, taskId, x, indices, length, mean);
+}
+
+static double htm_computeUnrolledVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                      size_t length, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeUnrolledVarianceForKnownMean(x, length, mean);
+  
+  VarianceForKnownMeanData data[numPieces];
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, &computeUnrolledVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateVarianceForKnownMeanData(data, numPieces);
+}
+
+
+static double htm_computeOnlineUnrolledVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                            size_t length, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
+  
+  VarianceForKnownMeanData data[numPieces];
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, &computeOnlineUnrolledVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateVarianceForKnownMeanData(data, numPieces);
+}
+
+static double htm_computeIndexedUnrolledVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                             const size_t* restrict indices, size_t length, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
+  
+  IndexedVarianceForKnownMeanData data[numPieces];
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, &computeIndexedUnrolledVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedVarianceForKnownMeanData(data, numPieces);
+}
+
+static double htm_computeIndexedOnlineUnrolledVarianceForKnownMean(ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+                                                                   const size_t* restrict indices, size_t length, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
+  
+  IndexedVarianceForKnownMeanData data[numPieces];
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, &computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedVarianceForKnownMeanData(data, numPieces);
+}
+
+// forward decs
+static double htm_computeUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length,
+  const double* restrict w, double mean);
+static double htm_computeOnlineUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x, size_t length,
+  const double* restrict w, double mean);
+static double htm_computeIndexedUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x,
+  const size_t* restrict indices, size_t length,
+  const double* restrict w, double mean);
+static double htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict htm, size_t taskId, const double* restrict x,
+  const size_t* restrict indices, size_t length,
+  const double* restrict w, double mean);
+
+
+double ext_htm_computeWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+  size_t length, const double* restrict w, double mean)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, length, w, mean);
+  return htm_computeUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, length, w, mean);
+}
+
+double ext_htm_computeIndexedWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+  const size_t* restrict indices, size_t length,
+  const double* restrict w, double mean)
+{
+  size_t numThreads = ext_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  size_t onlineCutoff = minimum(INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
+  
+  if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, indices, length, w, mean);
+  return htm_computeIndexedUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, indices, length, w, mean);
+}
+
+static double htm_computeUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
+  const double* restrict w, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
+  
+  WeightedVarianceForKnownMeanData data[numPieces];
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, &computeUnrolledWeightedVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeWeightedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateWeightedVarianceForKnownMeanData(data, numPieces);
+}
+
+static double htm_computeOnlineUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length,
+  const double* restrict w, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
+  
+  WeightedVarianceForKnownMeanData data[numPieces];
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, &computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeWeightedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateWeightedVarianceForKnownMeanData(data, numPieces);
+}
+
+
+static double htm_computeIndexedUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+  const size_t* restrict indices, size_t length,
+  const double* restrict w, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
+  
+  IndexedWeightedVarianceForKnownMeanData data[numPieces];
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, &computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedWeightedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedWeightedVarianceForKnownMeanData(data, numPieces);
+}
+
+static double htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(
+  ext_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x,
+  const size_t* restrict indices, size_t length,
+  const double* restrict w, double mean)
+{
+  size_t numPieces, numValuesPerPiece, offByOneIndex;
+  ext_htm_getNumPiecesForSubTask(threadManager, taskId, length, INDEXED_ONLINE_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD,
+                                 &numPieces, &numValuesPerPiece, &offByOneIndex);
+  
+  if (numPieces <= 1) return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
+  
+  IndexedWeightedVarianceForKnownMeanData data[numPieces];
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  
+  void* dataPtrs[numPieces];
+  for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
+  
+  ext_htm_runSubTask(threadManager, taskId, &computeIndexedWeightedVarianceForKnownMeanTask, dataPtrs, numPieces);
+  
+  return aggregateIndexedWeightedVarianceForKnownMeanData(data, numPieces);
+}
+
 #ifdef MOMENTS_TEST
 
 #include <stdlib.h>

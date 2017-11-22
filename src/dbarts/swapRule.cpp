@@ -13,6 +13,7 @@
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
 #include <dbarts/scratch.hpp>
+#include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
@@ -54,9 +55,11 @@ namespace dbarts {
   bool ordinalRuleIsValid(const Node& node, int32_t variableIndex, int32_t leftIndex, int32_t rightIndex);
   bool ruleIsValid(const BARTFit& fit, const Node& node, int32_t variableIndex);
   
-  double swapRule(const BARTFit& fit, Tree& tree, const double* y, bool* stepTaken)
+  double swapRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepTaken)
   // step which tries swapping rules
   {
+    State& state(fit.state[chainNum]);
+    
     double alpha = 0.0; // note backout = (alpha = -1)
     *stepTaken = false;
     
@@ -67,7 +70,7 @@ namespace dbarts {
     if (numSwappableNodes == 0) return -1.0;
     
     // randomly choose a node with a swappable rule = parent
-    uint32_t nodeIndex = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numSwappableNodes));
+    uint32_t nodeIndex = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(state.rng, 0, numSwappableNodes));
     
     Node& parent(*swappableNodes[nodeIndex]);
     Node& leftChild(*parent.getLeftChild());
@@ -87,7 +90,7 @@ namespace dbarts {
       Node* childPtr;
       
       if (leftHasRule && rightHasRule) {
-        if (ext_rng_simulateBernoulli(fit.state.rng, 0.5) == 1) {
+        if (ext_rng_simulateBernoulli(state.rng, 0.5) == 1) {
           childPtr = &leftChild;
         } else {
           childPtr = &rightChild;
@@ -118,11 +121,11 @@ namespace dbarts {
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double XLogL = computeLogLikelihoodForBranch(fit, parent, y);
+        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
         
         parent.p.rule.swapWith(child.p.rule);
         
-        parent.addObservationsToChildren(fit, y);
+        parent.addObservationsToChildren(fit, chainNum, y);
         
         //  fix VarAvail
         parentVariableIndex = parent.p.rule.variableIndex;
@@ -132,12 +135,12 @@ namespace dbarts {
         
         //get logpri and logL from current tree (X)
         double YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double YLogL = computeLogLikelihoodForBranch(fit, parent, y);
+        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
                 
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {
+        if (ext_rng_simulateBernoulli(state.rng, alpha) == 1) {
           oldState.destroy();
           
           *stepTaken = true;
@@ -173,13 +176,13 @@ namespace dbarts {
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double XLogL = computeLogLikelihoodForBranch(fit, parent, y);
+        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
         
         parent.p.rule.swapWith(leftChild.p.rule);
         rightChild.p.rule = leftChild.p.rule;
         // std::memcpy(&parent.rightChild->rule, &parent.leftChild->rule, sizeof(Rule));
         
-        parent.addObservationsToChildren(fit, y);
+        parent.addObservationsToChildren(fit, chainNum, y);
         
         //  fix VarAvail
         childVariableIndex = leftChild.p.rule.variableIndex;
@@ -188,12 +191,12 @@ namespace dbarts {
         if (parentVariableIndex != childVariableIndex) updateVariablesAvailable(fit, parent, childVariableIndex);
         
         double YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double YLogL = computeLogLikelihoodForBranch(fit, parent, y);
+        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
         
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {
+        if (ext_rng_simulateBernoulli(state.rng, alpha) == 1) {
           oldState.destroy();
           // accept, so make right rule copy deep and trash old
           rightChild.p.rule.copyFrom(leftChild.p.rule);
@@ -225,7 +228,7 @@ namespace dbarts {
   {
     if (node.isBottom()) return true;
     
-    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
     
     bool* leftChildCategories  = ext_stackAllocate(numCategories, bool);
     bool* rightChildCategories = ext_stackAllocate(numCategories, bool);
@@ -302,7 +305,7 @@ namespace dbarts {
   //starting at node n, check rules using VarI to see if they make sense
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = ext_stackAllocate(fit.scratch.numCutsPerVariable[variableIndex], bool);
+      bool* catGoesRight = ext_stackAllocate(fit.sharedScratch.numCutsPerVariable[variableIndex], bool);
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       bool result = categoricalRuleIsValid(fit, node, variableIndex, catGoesRight);

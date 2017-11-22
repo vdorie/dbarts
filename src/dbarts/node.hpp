@@ -10,27 +10,24 @@
 struct ext_rng;
 
 namespace dbarts {
-  using std::size_t;
-  using std::uint32_t;
-  
   struct BARTFit;
   struct EndNodePrior;
   
 #define DBARTS_INVALID_RULE_VARIABLE -1
   struct Rule {
-    int32_t variableIndex;
+    std::int32_t variableIndex;
     
     union {
-      int32_t splitIndex;
-      uint32_t categoryDirections;
+      std::int32_t splitIndex;
+      std::uint32_t categoryDirections;
     };
     
     void invalidate();
     
     bool goesRight(const BARTFit& fit, const double* x) const;
-    bool categoryGoesRight(uint32_t categoryId) const;
-    void setCategoryGoesRight(uint32_t categoryId);
-    void setCategoryGoesLeft(uint32_t categoryId);
+    bool categoryGoesRight(std::uint32_t categoryId) const;
+    void setCategoryGoesRight(std::uint32_t categoryId);
+    void setCategoryGoesLeft(std::uint32_t categoryId);
     double getSplitValue(const BARTFit& fit) const;
     
     bool equals(const Rule& other) const;
@@ -39,9 +36,9 @@ namespace dbarts {
   };
   
   struct VarUsage {
-    uint32_t depth;
-    size_t nodeIndex;
-    uint32_t variableIndex;
+    std::uint32_t depth;
+    std::size_t nodeIndex;
+    std::uint32_t variableIndex;
   };
   
   struct Node;
@@ -67,15 +64,15 @@ namespace dbarts {
       EndNodeMembers m;
     };
     
-#define BART_INVALID_NODE_ENUM static_cast<size_t>(-1)
-    size_t enumerationIndex;
+#define BART_INVALID_NODE_ENUM static_cast<std::size_t>(-1)
+    std::size_t enumerationIndex;
     bool* variablesAvailableForSplit;
     
-    size_t* observationIndices;
-    size_t numObservations;
+    std::size_t* observationIndices;
+    std::size_t numObservations;
     
-    Node(size_t* observationIndices, size_t numObservations, size_t numPredictors); // node is assumed at top
-    Node(const Node& parent, size_t numPredictors); // node attaches to parent; parent should add observations
+    Node(std::size_t* observationIndices, std::size_t numObservations, std::size_t numPredictors); // node is assumed at top
+    Node(const Node& parent, std::size_t numPredictors); // node attaches to parent; parent should add observations
     ~Node();
     
     void copyFrom(const BARTFit& fit, const Node& other);
@@ -89,10 +86,10 @@ namespace dbarts {
     Node* getLeftChild() const;
     Node* getRightChild() const;
     
-    size_t getNumBottomNodes() const;
-    size_t getNumNotBottomNodes() const;
-    size_t getNumNoGrandNodes() const;
-    size_t getNumSwappableNodes() const;
+    std::size_t getNumBottomNodes() const;
+    std::size_t getNumNotBottomNodes() const;
+    std::size_t getNumNoGrandNodes() const;
+    std::size_t getNumSwappableNodes() const;
     
     NodeVector getBottomVector() const;
     NodeVector getNoGrandVector() const;
@@ -107,35 +104,35 @@ namespace dbarts {
     void print(const BARTFit& fit) const;
     
     void setAverage(double average);                       // call these only on bottom nodes
-    void setAverage(const BARTFit& fit, const double* y);  //
-    void setAverages(const BARTFit& fit, const double* y); // call anywhere and it'll recurse
+    void setAverage(const BARTFit& fit, std::size_t chainNum, const double* y);  //
+    void setAverages(const BARTFit& fit, std::size_t chainNum, const double* y); // call anywhere and it'll recurse
     void setNumEffectiveObservations(double n);
     
     double getAverage() const;
     double getNumEffectiveObservations() const;
-    double computeVariance(const BARTFit& fit, const double* y) const;
+    double computeVariance(const BARTFit& fit, std::size_t chainNum, const double* y) const;
     
-    size_t getNumObservations() const;
+    std::size_t getNumObservations() const;
     void addObservationsToChildren(const BARTFit& fit);
-    void addObservationsToChildren(const BARTFit& fit, const double* y); // computes averages in bottom nodes as it goes
-    void setObservationIndices(size_t* indices);
+    void addObservationsToChildren(const BARTFit& fit, std::size_t chainNum, const double* y); // computes averages in bottom nodes as it goes
+    void setObservationIndices(std::size_t* indices);
     void clearObservations();
     void clear();
     
     double drawFromPosterior(ext_rng* rng, const EndNodePrior& endNodePrior, double residualVariance) const;
     void setPredictions(double* y_hat, double prediction) const;
         
-    size_t getDepth() const;
-    size_t getDepthBelow() const;
+    std::size_t getDepth() const;
+    std::size_t getDepthBelow() const;
     
-    size_t getNumNodesBelow() const;
-    size_t getNumVariablesAvailableForSplit(size_t numVariables) const;
+    std::size_t getNumNodesBelow() const;
+    std::size_t getNumVariablesAvailableForSplit(std::size_t numVariables) const;
     
-    void split(const BARTFit& fit, const Rule& rule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits);
     void split(const BARTFit& fit, const Rule& rule, bool exhaustedLeftSplits, bool exhaustedRightSplits);
+    void split(const BARTFit& fit, std::size_t chainNum, const Rule& rule, const double* y, bool exhaustedLeftSplits, bool exhaustedRightSplits);
     void orphanChildren();
     
-    void countVariableUses(uint32_t* variableCounts) const;
+    void countVariableUses(std::uint32_t* variableCounts) const;
   };
   
   
@@ -163,7 +160,7 @@ namespace dbarts {
   inline Node* Node::getLeftChild() const { return const_cast<Node*>(leftChild); }
   inline Node* Node::getRightChild() const { return const_cast<Node*>(p.rightChild); }
 
-  inline size_t Node::getNumObservations() const { return numObservations; }
+  inline std::size_t Node::getNumObservations() const { return numObservations; }
   inline double Node::getAverage() const { return m.average; }
 
 #ifdef MATCH_BAYES_TREE
@@ -175,11 +172,11 @@ namespace dbarts {
 #endif
   inline void Node::setAverage(double newAverage) { leftChild = NULL; m.average = newAverage; }
   inline void Node::setNumEffectiveObservations(double n) { leftChild = NULL; m.numEffectiveObservations = n; }
-  inline void Node::setObservationIndices(size_t* indices) { observationIndices = indices; }
+  inline void Node::setObservationIndices(std::size_t* indices) { observationIndices = indices; }
   
-  inline bool Rule::categoryGoesRight(uint32_t categoryId) const { return ((1u << categoryId) & categoryDirections) != 0; }
-  inline void Rule::setCategoryGoesRight(uint32_t categoryId) { categoryDirections |= (1u << categoryId); }
-  inline void Rule::setCategoryGoesLeft(uint32_t categoryId) { categoryDirections &= ~(1u << categoryId); }
+  inline bool Rule::categoryGoesRight(std::uint32_t categoryId) const { return ((1u << categoryId) & categoryDirections) != 0; }
+  inline void Rule::setCategoryGoesRight(std::uint32_t categoryId) { categoryDirections |= (1u << categoryId); }
+  inline void Rule::setCategoryGoesLeft(std::uint32_t categoryId) { categoryDirections &= ~(1u << categoryId); }
 }
 
 #endif

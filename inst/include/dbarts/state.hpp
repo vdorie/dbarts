@@ -19,8 +19,6 @@ namespace dbarts {
 
     double sigma;
     
-    double runningTime;
-    
     ext_rng* rng;
     
     const char* const* createTreeStrings(const BARTFit& fit) const;

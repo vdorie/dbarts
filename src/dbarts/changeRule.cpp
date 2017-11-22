@@ -15,6 +15,7 @@
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
 #include <dbarts/scratch.hpp>
+#include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "likelihood.hpp"
@@ -62,9 +63,11 @@ namespace dbarts {
   size_t getIndexOfFirstTrueValue(bool* v, size_t length);
   
   
-  double changeRule(const BARTFit& fit, Tree& tree, const double* y, bool* stepTaken)
+  double changeRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepTaken)
   // step which tries changing the rule 
   {
+    dbarts::State& state(fit.state[chainNum]);
+    
     double XLogPi, XLogL, YLogPi, YLogL;
     
     double alpha;
@@ -79,17 +82,17 @@ namespace dbarts {
     
     // randomly choose a notBottom node = nodeToChange
     //u=ran1(&idum);
-    size_t nodeIndex = ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numNotBottomNodes);
+    size_t nodeIndex = ext_rng_simulateUnsignedIntegerUniformInRange(state.rng, 0, numNotBottomNodes);
     Node& nodeToChange(*notBottomNodes[nodeIndex]);
     
     //given the node, choose a new variable for the new rule
-    int32_t newVariableIndex = fit.model.treePrior->drawSplitVariable(fit, nodeToChange);
+    int32_t newVariableIndex = fit.model.treePrior->drawSplitVariable(fit, state.rng, nodeToChange);
     
     if (fit.data.variableTypes[newVariableIndex] == CATEGORICAL) {
       // get the list of good cat rules given var choice
       uint32_t firstGoodCategory;
       
-      uint32_t numCategories = fit.scratch.numCutsPerVariable[newVariableIndex];
+      uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[newVariableIndex];
       size_t numCategoryCombinations = (1 << (numCategories - 1)) - 1;
       // bool* categoryCombinationsAreGood = new bool[numCategoryCombinations];
       bool* categoryCombinationsAreGood = ext_stackAllocate(numCategoryCombinations, bool);
@@ -101,13 +104,13 @@ namespace dbarts {
       if (numGoodRules > 0) {
         // draw the rule from list of good ones
         //u=ran1(&idum);
-        uint32_t goodCategoryNumber = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numGoodRules));
+        uint32_t goodCategoryNumber = static_cast<uint32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(state.rng, 0, numGoodRules));
         uint32_t categoryCombinationNumber = static_cast<uint32_t>(findIndexOfIthPositiveValue(categoryCombinationsAreGood, numCategoryCombinations, goodCategoryNumber));
         
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        XLogL = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+        XLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
         
         // copy old rule
         ::State oldState;
@@ -130,7 +133,7 @@ namespace dbarts {
         }
         
         // fix data at nodes below nodeToChange given new rule
-        nodeToChange.addObservationsToChildren(fit, y);
+        nodeToChange.addObservationsToChildren(fit, chainNum, y);
         
         // fix VarAvail
         updateVariablesAvailable(fit, nodeToChange, newVariableIndex);
@@ -138,13 +141,13 @@ namespace dbarts {
         
         //get logpri and logL from candidate tree (Y)
         YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        YLogL = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+        YLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
         
         //draw go nogo
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {
+        if (ext_rng_simulateBernoulli(state.rng, alpha) == 1) {
           oldState.destroy();
           
           *stepTaken = true;
@@ -172,11 +175,11 @@ namespace dbarts {
       
       // if there are any rules
       if (numSplitVariables > 0) {
-        int32_t newRuleIndex = static_cast<int32_t>(ext_rng_simulateIntegerUniformInRange(fit.state.rng, left, right + 1));
+        int32_t newRuleIndex = static_cast<int32_t>(ext_rng_simulateIntegerUniformInRange(state.rng, left, right + 1));
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        XLogL  = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+        XLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
         
         // copy old rule
         ::State oldState;
@@ -186,19 +189,19 @@ namespace dbarts {
         nodeToChange.p.rule.variableIndex = newVariableIndex;
         nodeToChange.p.rule.splitIndex    = newRuleIndex;
         
-        nodeToChange.addObservationsToChildren(fit, y);
+        nodeToChange.addObservationsToChildren(fit, chainNum, y);
         
         updateVariablesAvailable(fit, nodeToChange, newVariableIndex);
         if (newVariableIndex != oldState.rule.variableIndex) updateVariablesAvailable(fit, nodeToChange, oldState.rule.variableIndex);
         
         //get logpri and logL from candidate tree (Y)
         YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        YLogL  = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+        YLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
         
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
         
-        if (ext_rng_simulateBernoulli(fit.state.rng, alpha) == 1) {	
+        if (ext_rng_simulateBernoulli(state.rng, alpha) == 1) {	
           oldState.destroy();
           *stepTaken = true;
         } else {
@@ -244,7 +247,7 @@ namespace dbarts {
   {
     int32_t leftIndex, rightIndex; 
     leftIndex = 0; // left value if you top out
-    rightIndex = static_cast<int32_t>(fit.scratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
+    rightIndex = static_cast<int32_t>(fit.sharedScratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
     
     int32_t leftMin, leftMax, rightMin, rightMax;
     
@@ -286,7 +289,7 @@ namespace dbarts {
   //	on exit 1 if rule ok 0 otherwise, already allocated
   //firstone: first category still "alive" at node n, depends on tree above n
   {
-    uint32_t numCategories = fit.scratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
     bool* sel = ext_stackAllocate(numCategories, bool);
     
     bool* categoriesGoRight = ext_stackAllocate(numCategories, bool);

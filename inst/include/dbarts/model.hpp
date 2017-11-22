@@ -59,15 +59,15 @@ namespace dbarts {
     virtual double computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const = 0;
     
 
-    virtual Rule drawRuleAndVariable(const BARTFit& fit, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
-    virtual std::int32_t drawSplitVariable(const BARTFit& fit, const Node& node) const = 0;
-    virtual Rule drawRuleForVariable(const BARTFit& fit, const Node& node, std::int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
+    virtual Rule drawRuleAndVariable(const BARTFit& fit, ext_rng* rng, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
+    virtual std::int32_t drawSplitVariable(const BARTFit& fit, ext_rng* rng, const Node& node) const = 0;
+    virtual Rule drawRuleForVariable(const BARTFit& fit, ext_rng* rng, const Node& node, std::int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const = 0;
     
     virtual ~TreePrior() { }
   };
   
   struct EndNodePrior {
-    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const = 0;
+    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const = 0;
     virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const = 0;
     
     virtual ~EndNodePrior() { }
@@ -101,9 +101,9 @@ namespace dbarts {
     virtual double computeSplitVariableLogProbability(const BARTFit& fit, const Node& node) const;
     virtual double computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const;
     
-    virtual Rule drawRuleAndVariable(const BARTFit& fit, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const;
-    virtual std::int32_t drawSplitVariable(const BARTFit& fit, const Node& node) const;
-    virtual Rule drawRuleForVariable(const BARTFit& fit, const Node& node, std::int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const;
+    virtual Rule drawRuleAndVariable(const BARTFit& fit, ext_rng* rng, const Node& node, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const;
+    virtual std::int32_t drawSplitVariable(const BARTFit& fit, ext_rng* rng, const Node& node) const;
+    virtual Rule drawRuleForVariable(const BARTFit& fit, ext_rng* rng, const Node& node, std::int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const;
   };
   
   // nodeMu ~ normal(0, 1 / precision)
@@ -114,7 +114,7 @@ namespace dbarts {
     NormalPrior(const Control& control, double k);
     virtual ~NormalPrior() { }
     
-    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const;
+    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const;
     virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const;
   };
   

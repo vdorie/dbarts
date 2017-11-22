@@ -95,7 +95,15 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.trees"));
     i_temp = rc_getInt(slotExpr, "number of trees", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     control.numTrees = static_cast<size_t>(i_temp);
-        
+    
+    slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.chains"));
+    if (!Rf_isNull(slotExpr)) {
+      i_temp = rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
+      control.numChains = static_cast<size_t>(i_temp);
+    } else {
+      control.numChains = 1;
+    }
+    
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.threads"));
     i_temp = rc_getInt(slotExpr, "number of threads", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     control.numThreads = static_cast<size_t>(i_temp);
@@ -250,7 +258,7 @@ namespace dbarts {
       data.x_test = NULL;
       data.numTestObservations = 0;
     } else {
-      if (!Rf_isReal(slotExpr)) Rf_error ("x.test must be of type real");
+      if (!Rf_isReal(slotExpr)) Rf_error("x.test must be of type real");
       rc_assertDimConstraints(slotExpr, "dimensions of x.test", RC_LENGTH | RC_EQ, rc_asRLength(2),
                     RC_NA, RC_VALUE | RC_EQ, static_cast<int>(data.numPredictors), RC_END);
       dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
@@ -307,44 +315,47 @@ namespace dbarts {
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
-    const State& state(fit.state);
+    const State* state(fit.state);
     
-    SEXP result = PROTECT(R_do_new_object(R_do_MAKE_CLASS("dbartsState")));
+    SEXP result = PROTECT(rc_newList(control.numChains));
     
-    SEXP slotExpr = rc_allocateInSlot(result, Rf_install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
-    rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
-    std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      SEXP result_i = PROTECT(R_do_new_object(R_do_MAKE_CLASS("dbartsState")));
+      SET_VECTOR_ELT(result, chainNum, result_i);
+      
+      SEXP slotExpr = rc_allocateInSlot(result_i, Rf_install("fit.tree"), REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
+      rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
+      std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * sizeof(double));
+      
+      slotExpr = rc_allocateInSlot(result_i, Rf_install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
+      std::memcpy(REAL(slotExpr), state[chainNum].totalFits, data.numObservations * sizeof(double));
+      
+      if (data.numTestObservations == 0) {
+        R_do_slot_assign(result_i, Rf_install("fit.test"), R_NilValue);
+      } else {
+        slotExpr = rc_allocateInSlot(result_i, Rf_install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
+        std::memcpy(REAL(slotExpr), state[chainNum].totalTestFits, data.numTestObservations * sizeof(double));
+      }
+      
+      slotExpr = rc_allocateInSlot(result_i, Rf_install("sigma"), REALSXP, 1);
+      REAL(slotExpr)[0] = state[chainNum].sigma;
+      
+      slotExpr = rc_allocateInSlot(result_i, Rf_install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
     
-    slotExpr = rc_allocateInSlot(result, Rf_install("fit.total"), REALSXP, static_cast<R_xlen_t>(data.numObservations));
-    std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
+      const char** treeStrings = const_cast<const char**>(state[chainNum].createTreeStrings(fit));
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(treeNum), Rf_mkChar(treeStrings[treeNum]));
+        delete [] treeStrings[treeNum];
+      }
+      delete [] treeStrings;
+      
+      size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
+      slotExpr = rc_allocateInSlot(result_i, Rf_install("rng.state"), INTSXP, rc_asRLength(rngStateLength));
+      ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     
-    if (data.numTestObservations == 0) {
-      R_do_slot_assign(result, Rf_install("fit.test"), R_NilValue);
-    } else {
-      slotExpr = rc_allocateInSlot(result, Rf_install("fit.test"), REALSXP, static_cast<R_xlen_t>(data.numTestObservations));
-      std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
     }
     
-    slotExpr = rc_allocateInSlot(result, Rf_install("sigma"), REALSXP, 1);
-    REAL(slotExpr)[0] = state.sigma;
-    
-    slotExpr = rc_allocateInSlot(result, Rf_install("runningTime"), REALSXP, 1);
-    REAL(slotExpr)[0] = state.runningTime;
-    
-    slotExpr = rc_allocateInSlot(result, Rf_install("trees"), STRSXP, static_cast<R_xlen_t>(control.numTrees));
-  
-    const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(i), Rf_mkChar(treeStrings[i]));
-      delete [] treeStrings[i];
-    }
-    delete [] treeStrings;
-    
-    size_t rngStateLength = ext_rng_getSerializedStateLength(state.rng) / sizeof(int);
-    slotExpr = rc_allocateInSlot(result, Rf_install("rng.state"), INTSXP, rc_asRLength(rngStateLength));
-    ext_rng_writeSerializedState(state.rng, INTEGER(slotExpr));
-    
-    UNPROTECT(1);
+    UNPROTECT(1 + control.numChains);
     
     return result;
   }
@@ -353,101 +364,116 @@ namespace dbarts {
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
-    const State& state(fit.state);
-  
+    const State* state(fit.state);
+    
     SEXP fitTreeSym  = Rf_install("fit.tree");
     SEXP fitTotalSym = Rf_install("fit.total");
     SEXP treeSym     = Rf_install("trees");
     SEXP fitTestSym  = Rf_install("fit.test");
     SEXP sigmaSym    = Rf_install("sigma");
-    SEXP runTimeSym  = Rf_install("runningTime");
     SEXP rngStateSym = Rf_install("rng.state");
     
-    SEXP slotExpr = Rf_getAttrib(stateExpr, fitTreeSym);
-    SEXP dimsExpr = rc_getDims(slotExpr);
-    if (rc_getLength(dimsExpr) != 2) Rf_error("dimensions of state@fit.tree indicate that it is not a matrix");
-    int* dims = INTEGER(dimsExpr);
-    if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
-      // Rf_error("dimensions of state@fit.tree do not match object");
-      slotExpr = rc_allocateInSlot(stateExpr, fitTreeSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
-      rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
+    // check to see if it is an old-style saved object with only a single state
+    SEXP classExpr = rc_getClass(stateExpr);
+    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
+      Rf_error("object from earlier version detected - model must be refit");
+    
+    if (rc_getLength(stateExpr) != control.numChains)
+      Rf_error("length of state list not equal to number of chains");
       
-      rc_allocateInSlot(stateExpr, fitTotalSym, REALSXP, rc_asRLength(data.numObservations));
-      rc_allocateInSlot(stateExpr, treeSym, STRSXP, rc_asRLength(control.numTrees));
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+    {
+      SEXP stateExpr_i = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(chainNum));
+      
+      SEXP slotExpr = Rf_getAttrib(stateExpr_i, fitTreeSym);
+      SEXP dimsExpr = rc_getDims(slotExpr);
+      if (rc_getLength(dimsExpr) != 2) Rf_error("dimensions of state@fit.tree indicate that it is not a matrix");
+      int* dims = INTEGER(dimsExpr);
+      if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
+        // Rf_error("dimensions of state@fit.tree do not match object");
+        slotExpr = rc_allocateInSlot(stateExpr_i, fitTreeSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
+        rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
+        
+        rc_allocateInSlot(stateExpr_i, fitTotalSym, REALSXP, rc_asRLength(data.numObservations));
+        rc_allocateInSlot(stateExpr_i, treeSym, STRSXP, rc_asRLength(control.numTrees));
+      }
+      std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * sizeof(double));
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, fitTotalSym);
+      if (rc_getLength(slotExpr) != data.numObservations) Rf_error("length of state@fit.total does not match object");
+      std::memcpy(REAL(slotExpr), state[chainNum].totalFits, data.numObservations * sizeof(double));
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, fitTestSym);
+      if (data.numTestObservations != 0) {
+        // Rf_error("length of state@fit.test does not match object");
+        if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) != data.numTestObservations)
+          slotExpr = rc_allocateInSlot(stateExpr_i, fitTestSym, REALSXP, rc_asRLength(data.numTestObservations));
+        std::memcpy(REAL(slotExpr), state[chainNum].totalTestFits, data.numTestObservations * sizeof(double));
+      } else {
+        R_do_slot_assign(stateExpr_i, fitTestSym, R_NilValue);
+      }
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, sigmaSym);
+      if (rc_getLength(slotExpr) != 1) Rf_error("length of state@sigma does not match object");
+      REAL(slotExpr)[0] = state[chainNum].sigma;
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, treeSym);
+      // if (rc_getLength(slotExpr) != control.numTrees) Rf_error("length of state@trees does not match object");
+      
+      const char** treeStrings = const_cast<const char**>(state[chainNum].createTreeStrings(fit));
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(treeNum), Rf_mkChar(treeStrings[treeNum]));
+        delete [] treeStrings[treeNum];
+      }
+      delete [] treeStrings;
+      
+      size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
+      slotExpr = Rf_getAttrib(stateExpr_i, rngStateSym);
+      if (rc_getLength(slotExpr) != rngStateLength)
+        slotExpr = rc_allocateInSlot(stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
+      ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
-    std::memcpy(REAL(slotExpr), state.treeFits, data.numObservations * control.numTrees * sizeof(double));
-    
-    slotExpr = Rf_getAttrib(stateExpr, fitTotalSym);
-    if (rc_getLength(slotExpr) != data.numObservations) Rf_error("length of state@fit.total does not match object");
-    std::memcpy(REAL(slotExpr), state.totalFits, data.numObservations * sizeof(double));
-    
-    slotExpr = Rf_getAttrib(stateExpr, fitTestSym);
-    if (data.numTestObservations != 0) {
-      // Rf_error("length of state@fit.test does not match object");
-      if (!Rf_isNull(slotExpr) && rc_getLength(slotExpr) != data.numTestObservations)
-        slotExpr = rc_allocateInSlot(stateExpr, fitTestSym, REALSXP, rc_asRLength(data.numTestObservations));
-      std::memcpy(REAL(slotExpr), state.totalTestFits, data.numTestObservations * sizeof(double));
-    } else {
-      R_do_slot_assign(stateExpr, fitTestSym, R_NilValue);
-    }
-    
-    slotExpr = Rf_getAttrib(stateExpr, sigmaSym);
-    if (rc_getLength(slotExpr) != 1) Rf_error("length of state@sigma does not match object");
-    REAL(slotExpr)[0] = state.sigma;
-    
-    slotExpr = Rf_getAttrib(stateExpr, runTimeSym);
-    if (rc_getLength(slotExpr) != 1) Rf_error("length of state@runningTime does not match object");
-    REAL(slotExpr)[0] = state.runningTime;
-    
-    slotExpr = Rf_getAttrib(stateExpr, treeSym);
-    // if (rc_getLength(slotExpr) != control.numTrees) Rf_error("length of state@trees does not match object");
-    
-    const char** treeStrings = const_cast<const char**>(state.createTreeStrings(fit));
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(i), Rf_mkChar(treeStrings[i]));
-      delete [] treeStrings[i];
-    }
-    delete [] treeStrings;
-    
-    size_t rngStateLength = ext_rng_getSerializedStateLength(state.rng) / sizeof(int);
-    slotExpr = Rf_getAttrib(stateExpr, rngStateSym);
-    if (rc_getLength(slotExpr) != rngStateLength)
-      slotExpr = rc_allocateInSlot(stateExpr, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
-    ext_rng_writeSerializedState(state.rng, INTEGER(slotExpr));
   }
   
-  void initializeStateFromExpression(const BARTFit& fit, State& state, SEXP stateExpr)
+  void initializeStateFromExpression(const BARTFit& fit, State* state, SEXP stateExpr)
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
     
-    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("fit.tree"));
-    std::memcpy(state.treeFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * control.numTrees * sizeof(double));
+    // check to see if it is an old-style saved object with only a single state
+    SEXP classExpr = rc_getClass(stateExpr);
+    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
+      Rf_error("object from earlier version detected - model must be refit");
     
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("fit.total"));
-    std::memcpy(state.totalFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * sizeof(double));
-    
-    if (data.numTestObservations != 0) {
-      slotExpr = Rf_getAttrib(stateExpr, Rf_install("fit.test"));
-      std::memcpy(state.totalTestFits, const_cast<const double*>(REAL(slotExpr)), data.numTestObservations * sizeof(double));
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+    {
+      SEXP stateExpr_i = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(chainNum));
+      
+      SEXP slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("fit.tree"));
+      std::memcpy(state[chainNum].treeFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * control.numTrees * sizeof(double));
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("fit.total"));
+      std::memcpy(state[chainNum].totalFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * sizeof(double));
+      
+      if (data.numTestObservations != 0) {
+        slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("fit.test"));
+        std::memcpy(state[chainNum].totalTestFits, const_cast<const double*>(REAL(slotExpr)), data.numTestObservations * sizeof(double));
+      }
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("sigma"));
+      state[chainNum].sigma = REAL(slotExpr)[0];
+      
+      slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("trees"));
+      const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        treeStrings[treeNum] = CHAR(STRING_ELT(slotExpr, rc_asRLength(static_cast<R_xlen_t>(treeNum))));
+      }
+      state[chainNum].recreateTreesFromStrings(fit, treeStrings);
+      
+      ext_stackFree(treeStrings);
+      
+      ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr, Rf_install("rng.state"))));
     }
-    
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("sigma"));
-    state.sigma = REAL(slotExpr)[0];
-    
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
-    state.runningTime = REAL(slotExpr)[0];
-    
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("trees"));
-    const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);
-    for (size_t i = 0; i < control.numTrees; ++i) {
-      treeStrings[i] = CHAR(STRING_ELT(slotExpr, rc_asRLength(i)));
-    }
-    state.recreateTreesFromStrings(fit, treeStrings);
-    
-    ext_stackFree(treeStrings);
-    
-    ext_rng_readSerializedState(state.rng, INTEGER(Rf_getAttrib(stateExpr, Rf_install("rng.state"))));
   }
 }
 

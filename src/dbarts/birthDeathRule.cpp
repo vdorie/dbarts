@@ -11,6 +11,7 @@
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
+#include <dbarts/state.hpp>
 #include "likelihood.hpp"
 #include "node.hpp"
 #include "tree.hpp"
@@ -31,8 +32,8 @@ namespace {
 
 namespace dbarts {
   
-  Node* drawBirthableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability);
-  Node* drawChildrenKillableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability);
+  Node* drawBirthableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
+  Node* drawChildrenKillableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
   
   double computeUnnormalizedNodeBirthProbability(const BARTFit& fit, const Node& node);
   double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree); // same as below but that has a step cached
@@ -41,44 +42,47 @@ namespace dbarts {
   double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree);
     
   // returns probability of jump
-  double birthOrDeathNode(const BARTFit& fit, Tree& tree, const double* y, bool* stepWasTaken, bool* stepWasBirth)
+  double birthOrDeathNode(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepWasTaken, bool* stepWasBirth)
   {
+    dbarts::State& state(fit.state[chainNum]);
+    
     double ratio;
     
     ::State* oldStatePtr = ext_stackAllocate(1, ::State);
     ::State& oldState(*oldStatePtr);
+    
     
     // Rather than flipping a coin to see if birth or death, we have to first check that either is possible.
     // Since that involves pretty much finding a node to give birth, we just do that and then possibly ignore
     // it.
 
     double transitionProbabilityOfSelectingNodeForBirth;
-    Node* nodeToChangePtr = drawBirthableNode(fit, tree, &transitionProbabilityOfSelectingNodeForBirth);
+    Node* nodeToChangePtr = drawBirthableNode(fit, state.rng, tree, &transitionProbabilityOfSelectingNodeForBirth);
     
     double transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, nodeToChangePtr != NULL);
     
-    if (ext_rng_simulateBernoulli(fit.state.rng, transitionProbabilityOfBirthStep) == 1) {
+    if (ext_rng_simulateBernoulli(state.rng, transitionProbabilityOfBirthStep) == 1) {
       *stepWasBirth = true;
       
       Node& nodeToChange(*nodeToChangePtr);
       
       double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, nodeToChange);
       double oldPriorProbability = 1.0 - parentPriorGrowthProbability;
-      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
       
       // now perform birth;
       oldState.store(nodeToChange);
 
       bool exhaustedLeftSplits, exhaustedRightSplits;
-      Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, nodeToChange, &exhaustedLeftSplits, &exhaustedRightSplits);
-      nodeToChange.split(fit, newRule, y, exhaustedLeftSplits, exhaustedRightSplits);
+      Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, state.rng, nodeToChange, &exhaustedLeftSplits, &exhaustedRightSplits);
+      nodeToChange.split(fit, chainNum, newRule, y, exhaustedLeftSplits, exhaustedRightSplits);
       
       // determine how to go backwards
       double leftPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
       double rightPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double newPriorProbability = parentPriorGrowthProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
 
-      double newLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
 
       double transitionProbabilityOfDeathStep = 1.0 - computeProbabilityOfBirthStep(fit, tree);
       double transitionProbabilityOfSelectingNodeForDeath = computeProbabilityOfSelectingNodeForDeath(tree);
@@ -92,7 +96,7 @@ namespace dbarts {
       
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
-      if (ext_rng_simulateContinuousUniform(fit.state.rng) < ratio) {
+      if (ext_rng_simulateContinuousUniform(state.rng) < ratio) {
         oldState.destroy();
         
         *stepWasTaken = true;
@@ -107,21 +111,21 @@ namespace dbarts {
       double transitionProbabilityOfDeathStep = 1.0 - transitionProbabilityOfBirthStep;
       
       double transitionProbabilityOfSelectingNodeForDeath;
-      nodeToChangePtr = drawChildrenKillableNode(fit, tree, &transitionProbabilityOfSelectingNodeForDeath);
+      nodeToChangePtr = drawChildrenKillableNode(fit, state.rng, tree, &transitionProbabilityOfSelectingNodeForDeath);
       
       Node& nodeToChange(*nodeToChangePtr);
       
       double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, nodeToChange);
       double leftPriorGrowthProbability   = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
       double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
-      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
       
       oldState.store(nodeToChange);
       
       // now figure out how the node could have given birth
       nodeToChange.orphanChildren();
       
-      double newLogLikelihood = computeLogLikelihoodForBranch(fit, nodeToChange, y);
+      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
       transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, true);
 #ifdef MATCH_BAYES_TREE
       ext_simulateContinuousUniform();
@@ -139,7 +143,7 @@ namespace dbarts {
       
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
-      if (ext_rng_simulateContinuousUniform(fit.state.rng) < ratio) {
+      if (ext_rng_simulateContinuousUniform(state.rng) < ratio) {
         oldState.destroy();
         
         *stepWasTaken = true;
@@ -211,7 +215,7 @@ namespace dbarts {
     return 1.0 / totalProbability;
   }
   
-  Node* drawBirthableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability)
+  Node* drawBirthableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
   {
     Node* result = NULL;
     
@@ -236,7 +240,7 @@ namespace dbarts {
     if (totalProbability > 0.0) {
       ext_scalarMultiplyVectorInPlace(nodeBirthProbabilities, numBottomNodes, 1.0 / totalProbability);
 
-      size_t index = ext_rng_drawFromDiscreteDistribution(fit.state.rng, nodeBirthProbabilities, numBottomNodes);
+      size_t index = ext_rng_drawFromDiscreteDistribution(rng, nodeBirthProbabilities, numBottomNodes);
 
       result = bottomNodes[index];
       *nodeSelectionProbability = nodeBirthProbabilities[index];
@@ -249,7 +253,7 @@ namespace dbarts {
     return result;
   }
   
-  Node* drawChildrenKillableNode(const BARTFit& fit, const Tree& tree, double* nodeSelectionProbability)
+  Node* drawChildrenKillableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
   {
     NodeVector nodesWhoseChildrenAreBottom(tree.getNodesWhoseChildrenAreAtBottom());
     size_t numNodesWhoseChildrenAreBottom = nodesWhoseChildrenAreBottom.size();
@@ -259,7 +263,7 @@ namespace dbarts {
       return NULL;
     }
     
-    size_t index = ext_rng_simulateUnsignedIntegerUniformInRange(fit.state.rng, 0, numNodesWhoseChildrenAreBottom);
+    size_t index = ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, numNodesWhoseChildrenAreBottom);
     *nodeSelectionProbability = 1.0 / static_cast<double>(numNodesWhoseChildrenAreBottom);
     
     return nodesWhoseChildrenAreBottom[index];

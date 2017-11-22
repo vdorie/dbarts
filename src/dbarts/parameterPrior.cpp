@@ -28,13 +28,13 @@ namespace dbarts {
     return posteriorMean + posteriorSd * ext_rng_simulateStandardNormal(rng);
   }
   
-  double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, const Node& node, const double* y, double residualVariance) const
+  double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, size_t chainNum, const Node& node, const double* y, double residualVariance) const
   {
     size_t numObservationsInNode = node.getNumObservations();
     if (numObservationsInNode == 0) return 0.0;
     
     double y_bar = node.getAverage();
-    double var_y = node.computeVariance(fit, y);
+    double var_y = node.computeVariance(fit, chainNum, y);
       
     double posteriorPrecision = node.getNumEffectiveObservations() / residualVariance;
     
