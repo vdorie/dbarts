@@ -819,14 +819,13 @@ extern "C" {
       
       if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0) {
         if (control.numChains > 1)
-          ext_htm_printf(fit.threadManager, "[%0.3lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
+          ext_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
         else
-          ext_printf("iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
+          ext_printf("iteration: %u (of %u)\n", k + 1, totalNumIterations);
      }
       
       if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
       
-
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         double* oldTreeFits = state.treeFits + treeNum * data.numObservations;
         
@@ -877,7 +876,7 @@ extern "C" {
         storeSamples(fit, chainNum, results, state.totalFits, state.totalTestFits, state.sigma, variableCounts, simNum);
         
         if (control.callback != NULL) {
-          size_t chainStride = chainNum * control.numSamples;
+          size_t chainStride = chainNum * results.numSamples;
           control.callback(control.callbackData, fit, isBurningIn,
                            results.trainingSamples + (simNum + chainStride) * data.numObservations,
                            results.testSamples + (simNum + chainStride) * data.numTestObservations,
@@ -911,7 +910,6 @@ namespace dbarts {
     if (control.numThreads <= 1) {
       // run single threaded, chains in sequence
       ThreadData threadData = { this, 0, numBurnIn, resultsPointer };
-      
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         threadData.chainNum = chainNum;
         samplerThreadFunction(static_cast<size_t>(-1), reinterpret_cast<void*>(&threadData));
@@ -1035,11 +1033,16 @@ namespace {
     
     ext_printf("\nTree sizes, last iteration:\n");
     for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum) {
-      if (fit.control.numChains > 0) ext_printf("[%u] ", chainNum);
+      size_t linePrintCount = 0;
+      if (fit.control.numChains > 0) {
+        ext_printf("[%u] ", chainNum + 1);
+        linePrintCount += 2;
+      }
       for (size_t treeNum = 0; treeNum < fit.control.numTrees; ++treeNum) {
         ext_printf("%u ", fit.state[chainNum].trees[treeNum].getNumBottomNodes());
-        if ((treeNum + 1) % 20 == 0) ext_printf("\n");
+        if ((linePrintCount++ + 1) % 20 == 0) ext_printf("\n");
       }
+      if ((linePrintCount % 20) != 0) ext_printf("\n");
     }
     ext_printf("\n");
     
@@ -1264,6 +1267,9 @@ namespace {
         if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
             ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0)
           ext_throwError("could not set rng standard normal");
+        // if not using envirnoment's rng, we have to seed
+        if (control.numChains > 1 && ext_rng_setSeedFromClock(state[chainNum].rng) != 0)
+          ext_throwError("could not seed rng");
       } else {
         
         if ((state[chainNum].rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) ext_throwError("could not allocate rng");
@@ -1405,8 +1411,7 @@ namespace {
     const Control& control(fit.control);
     const SharedScratch& sharedScratch(fit.sharedScratch);
     
-    size_t chainStride = chainNum * control.numSamples;
-    
+    size_t chainStride = chainNum * results.numSamples;
     if (control.responseIsBinary) {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
@@ -1415,7 +1420,7 @@ namespace {
       }
       
       if (data.numTestObservations > 0) {
-        double* testSamples = results.testSamples + (simNum  + chainStride) * data.numTestObservations;
+        double* testSamples = results.testSamples + (simNum + chainStride) * data.numTestObservations;
         std::memcpy(testSamples, testSample, data.numTestObservations * sizeof(double));
         if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
@@ -1437,11 +1442,11 @@ namespace {
         ext_addVectorsInPlace(testSample, data.numTestObservations, sharedScratch.dataScale.range, testSamples);
         if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
-      
+       
       results.sigmaSamples[simNum + chainStride] = sigma * sharedScratch.dataScale.range;
     }
     
-    double* variableCountSamples = results.variableCountSamples + (simNum + chainNum) * data.numPredictors;
+    double* variableCountSamples = results.variableCountSamples + (simNum + chainStride) * data.numPredictors;
     for (size_t j = 0; j < data.numPredictors; ++j) variableCountSamples[j] = static_cast<double>(variableCounts[j]);
   }
   

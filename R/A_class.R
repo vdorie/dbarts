@@ -218,7 +218,6 @@ methods::setClass("dbartsState",
                fit.total   = "numeric",
                fit.test    = "numeric",
                sigma       = "numeric",
-               runningTime = "numeric",
                trees       = "character",
                rng.state   = "integer"))
 

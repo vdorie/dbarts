@@ -33,6 +33,7 @@ int ext_mt_runTasksWithInfo(ext_mt_manager_t restrict manager, ext_mt_taskFuncti
 
 
 // hierarchical thread manager
+#define EXT_HTM_INVALID_TASK_ID ((ext_size_t) -1)
 struct _ext_htm_manager_t;
 typedef struct _ext_htm_manager_t* ext_htm_manager_t;
 

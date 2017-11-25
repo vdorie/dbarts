@@ -97,12 +97,8 @@ namespace dbarts {
     control.numTrees = static_cast<size_t>(i_temp);
     
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.chains"));
-    if (!Rf_isNull(slotExpr)) {
-      i_temp = rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
-      control.numChains = static_cast<size_t>(i_temp);
-    } else {
-      control.numChains = 1;
-    }
+    i_temp = rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
+    control.numChains = static_cast<size_t>(i_temp);
     
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.threads"));
     i_temp = rc_getInt(slotExpr, "number of threads", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
@@ -355,6 +351,9 @@ namespace dbarts {
     
     }
     
+    SEXP slotExpr = rc_allocateInSlot(result, Rf_install("runningTime"), REALSXP, 1);
+    REAL(slotExpr)[0] = fit.runningTime;
+    
     UNPROTECT(1 + control.numChains);
     
     return result;
@@ -384,6 +383,8 @@ namespace dbarts {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
     {
       SEXP stateExpr_i = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(chainNum));
+      classExpr = rc_getClass(stateExpr_i);
+      if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") != 0) Rf_error("'state' not of class 'dbartsState'");
       
       SEXP slotExpr = Rf_getAttrib(stateExpr_i, fitTreeSym);
       SEXP dimsExpr = rc_getDims(slotExpr);
@@ -433,9 +434,12 @@ namespace dbarts {
         slotExpr = rc_allocateInSlot(stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
+    
+    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
+    REAL(slotExpr)[0] = fit.runningTime;
   }
   
-  void initializeStateFromExpression(const BARTFit& fit, State* state, SEXP stateExpr)
+  void initializeStateFromExpression(BARTFit& fit, State* state, SEXP stateExpr)
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
@@ -448,6 +452,8 @@ namespace dbarts {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
     {
       SEXP stateExpr_i = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(chainNum));
+      classExpr = rc_getClass(stateExpr_i);
+      if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") != 0) Rf_error("'state' not of class 'dbartsState'");
       
       SEXP slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("fit.tree"));
       std::memcpy(state[chainNum].treeFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * control.numTrees * sizeof(double));
@@ -474,6 +480,9 @@ namespace dbarts {
       
       ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr, Rf_install("rng.state"))));
     }
+    
+    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
+    fit.runningTime = REAL(slotExpr)[0];
   }
 }
 

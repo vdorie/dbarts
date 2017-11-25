@@ -22,7 +22,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      ndpost = 1000, nskip = 100,
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
-     verbose = TRUE, nthread = 1, keepcall = TRUE)
+     verbose = TRUE, nchain = 1, nthread = 1, keepcall = TRUE)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -140,9 +140,13 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      Logical; if \code{FALSE} supress printing.
    }
    
+   \item{nchain}{
+   	  Integer specifying how many independent tree sets and fits should be calculated.
+   }
+   
    \item{nthread}{
-   	  Integer specifying how many threads to use for rudimentary calculations such as means/variances. Depending
-   	  on the CPU architecture, using more than one can degrade performance for small/medium data sets. As such
+   	  Integer specifying how many threads to use. Depending on the CPU architecture, using more than the
+          number of chains can degrade performance for small/medium data sets. As such
    	  some calculations may be executed single threaded regardless.
    }
    
@@ -206,17 +210,20 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
   In the numeric \eqn{y} case, the list has components:
 
   \item{\code{yhat.train}}{
-        A matrix of posterior samples. The \eqn{(i, j)} value is \eqn{f^*(x_j)}{f*(x_j)}
-        for the \eqn{i}th kept draw of of the posterior of \eqn{f}
-        and the \eqn{j}th row of \code{x.train}.}
+        A array/matrix of posterior samples. The \eqn{(i, j, k)} value is \eqn{f^*(x_k)}{f*(x_k)}
+        for the \eqn{j}th kept draw of of the posterior of \eqn{f}
+        and the \eqn{j}th row of \code{x.train} corresponding to chain \eqn{i}. When \code{nchain}
+        is one, the result is a collapsed down to a matrix.}
   \item{\code{yhat.test}}{
       Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.}
   \item{\code{yhat.train.mean}}{
-        Mean of \code{yhat.train} columns.}
+        Vector of means of \code{yhat.train} across columns and chains, with length equal to the number of
+        training observations.}
   \item{\code{yhat.test.mean}}{
-        Mean of \code{yhat.test} columns.}
+        Vector of means of \code{yhat.test} across columns and chains.}
   \item{\code{sigma}}{
-        Posterior samples of \code{sigma}, the residual/error standard deviation.}
+        Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions
+        are equal to the number of chains times the numbers of samples unless \code{nchain} is one.}
   \item{\code{first.sigma}}{
         Burn-in draws of \code{sigma}.}
   \item{\code{varcount}}{

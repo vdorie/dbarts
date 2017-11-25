@@ -135,7 +135,8 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   result
 }
 
-setClassUnion("dbartsStateOrNULL", c("dbartsState", "NULL"))
+
+setClassUnion("listOrNULL", c("list", "NULL"))
 
 dbartsSampler <-
   setRefClass("dbartsSampler",
@@ -144,7 +145,7 @@ dbartsSampler <-
                 control = "dbartsControl",
                 model   = "dbartsModel",
                 data    = "dbartsData",
-                state   = "dbartsStateOrNULL"
+                state   = "listOrNULL"
                 ),
               methods = list(
                 initialize =
@@ -204,20 +205,22 @@ dbartsSampler <-
                       if (!is.null(data@x.test)) {
                         newData@x.test <- .Call(C_dbarts_deepCopy, data@x.test)
                       }
-                      dupe <- dbartsSampler$new(control, model, newData)
+                      dbartsSampler$new(control, model, newData)
                     }
-
+                  
                   if (!is.null(state)) {
                     newState <- state
-                    newState@fit.tree <- .Call(C_dbarts_deepCopy, state@fit.tree)
-                    newState@fit.total <- .Call(C_dbarts_deepCopy, state@fit.total)
-                    if (!is.null(data@x.test)) {
-                      newState@fit.test <- .Call(C_dbarts_deepCopy, state@fit.test)
+                    for (chainNum in seq_len(control@n.chains)) {
+                      newState[[i]]@fit.tree <- .Call(C_dbarts_deepCopy, state[[i]]@fit.tree)
+                      newState[[i]]@fit.total <- .Call(C_dbarts_deepCopy, state[[i]]@fit.total)
+                      if (!is.null(data@x.test)) {
+                        newState[[i]]@fit.test <- .Call(C_dbarts_deepCopy, state[[i]]@fit.test)
+                      }
+                      newState[[i]]@sigma <- .Call(C_dbarts_deepCopy, state[[i]]@sigma)
+                      newState[[i]]@trees <- .Call(C_dbarts_deepCopy, state[[i]]@trees)
                     }
-                    newState@sigma <- .Call(C_dbarts_deepCopy, state@sigma)
-                    newState@runningTime <- .Call(C_dbarts_deepCopy, state@runningTime)
-                    newState@trees <- .Call(C_dbarts_deepCopy, state@trees)
-
+                    attr(newState, "runningTime") <- .Call(C_dbarts_deepCopy, attr(state, "runningTime"))
+                    
                     dupe$setState(newState)
                   }
                   
@@ -257,7 +260,7 @@ dbartsSampler <-
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'
                   
                   if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl")
-
+                  
                   newControl@binary <- control@binary
                   newControl@call   <- control@call
                   
@@ -493,7 +496,10 @@ dbartsSampler <-
                 },
                 setState = function(newState) {
                   'Sets the internal state from a cache.'
-                  if (!is(newState, "dbartsState")) stop("'state' must inherit from dbartsState")
+                  if (!is.list(newState)) stop("'state' must be a list of dbartsState objects")
+                  if (length(newState) != control@n.chains) stop("'state' length must equal number of chains")
+                  for (chainNum in seq_along(newState))
+                    if (!is(newState[[i]], "dbartsState")) stop("'state' must inherit from dbartsState")
                   
                   selfEnv <- parent.env(environment())
                   if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {

@@ -119,20 +119,31 @@ extern "C" {
     SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(asRXLen(bartResults->getNumVariableCountSamples())));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
+    if (fit->control.numChains > 1)
+      rc_setDims(sigmaSamples, static_cast<int>(bartResults->numSamples), static_cast<int>(fit->control.numChains), -1);
     std::memcpy(REAL(sigmaSamples), const_cast<const double*>(bartResults->sigmaSamples), bartResults->getNumSigmaSamples() * sizeof(double));
     
     SEXP trainingSamples = VECTOR_ELT(resultExpr, 1);
-    rc_setDims(trainingSamples, static_cast<int>(bartResults->numObservations), static_cast<int>(bartResults->numSamples), -1);
+    if (fit->control.numChains <= 1)
+      rc_setDims(trainingSamples, static_cast<int>(bartResults->numObservations), static_cast<int>(bartResults->numSamples), -1);
+    else
+      rc_setDims(trainingSamples, static_cast<int>(bartResults->numObservations), static_cast<int>(bartResults->numSamples), static_cast<int>(fit->control.numChains), -1);
     std::memcpy(REAL(trainingSamples), const_cast<const double*>(bartResults->trainingSamples), bartResults->getNumTrainingSamples() * sizeof(double));
     
     if (fit->data.numTestObservations > 0) {
       SEXP testSamples = VECTOR_ELT(resultExpr, 2);
-      rc_setDims(testSamples, static_cast<int>(bartResults->numTestObservations), static_cast<int>(bartResults->numSamples), -1);
+      if (fit->control.numChains <= 1)
+        rc_setDims(testSamples, static_cast<int>(bartResults->numTestObservations), static_cast<int>(bartResults->numSamples), -1);
+      else
+        rc_setDims(testSamples, static_cast<int>(bartResults->numTestObservations), static_cast<int>(bartResults->numSamples), static_cast<int>(fit->control.numChains), -1);
       std::memcpy(REAL(testSamples), const_cast<const double*>(bartResults->testSamples), bartResults->getNumTestSamples() * sizeof(double));
     }
     
     SEXP variableCountSamples = VECTOR_ELT(resultExpr, 3);
-    rc_setDims(variableCountSamples, static_cast<int>(bartResults->numPredictors), static_cast<int>(bartResults->numSamples), -1);
+    if (fit->control.numChains <= 1)
+      rc_setDims(variableCountSamples, static_cast<int>(bartResults->numPredictors), static_cast<int>(bartResults->numSamples), -1);
+    else
+      rc_setDims(variableCountSamples, static_cast<int>(bartResults->numPredictors), static_cast<int>(bartResults->numSamples), static_cast<int>(fit->control.numChains), -1);
     int* variableCountStorage = INTEGER(variableCountSamples);
     size_t length = bartResults->getNumVariableCountSamples();
     // these likely need to be down-sized from 64 to 32 bits
@@ -208,11 +219,10 @@ extern "C" {
     
     Control oldControl = fit->control;
     
-    if (control.responseIsBinary != oldControl.responseIsBinary) {
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-        ext_rng_destroy(fit->state[chainNum].rng);
+    if (control.responseIsBinary != oldControl.responseIsBinary)
       Rf_error("new control cannot change binary characteristic of response");
-    }
+    if (control.numChains != oldControl.numChains)
+      Rf_error("new control cannot change number of chains");
     
     fit->setControl(control);
     
@@ -569,6 +579,8 @@ extern "C" {
     delete fit->model.treePrior;
     
     delete fit;
+    
+    /* TODO: turn into an R object */
     
     return R_NilValue;
   }

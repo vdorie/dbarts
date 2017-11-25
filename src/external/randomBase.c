@@ -173,7 +173,7 @@ ext_rng* ext_rng_createDefault(bool useNative)
     result = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     if (result != NULL) ext_rng_setSeedFromClock(result);
     return result;
-  }
+  }  
   
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
   

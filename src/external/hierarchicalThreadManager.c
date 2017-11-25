@@ -12,7 +12,6 @@
 #include <external/io.h>
 
 
-#define INVALID_TASK_ID ((size_t) - 1)
 #define TASK_COMPLETE ((size_t) -1)
 #define TASK_BEFORE_START (((size_t) -1) - 1)
 
@@ -202,7 +201,7 @@ int ext_htm_runSubTask(ext_htm_manager_t restrict manager, size_t taskId, ext_ht
 
 ext_size_t ext_htm_getNumThreadsForTopLevelTask(const ext_htm_manager_t threadManager, size_t taskId)
 {
-  if (threadManager == NULL || taskId == INVALID_TASK_ID || threadManager->topLevelTaskStatus == NULL) return 1;
+  if (threadManager == NULL || taskId == EXT_HTM_INVALID_TASK_ID || threadManager->topLevelTaskStatus == NULL) return 1;
   return threadManager->topLevelTaskStatus[taskId].numThreads;
 }
 
@@ -211,7 +210,7 @@ void ext_htm_getNumPiecesForSubTask(const ext_htm_manager_t restrict threadManag
                                     size_t* restrict numPiecesPtr, size_t* restrict numElementsPerPiecePtr, size_t* restrict offByOneIndexPtr)
 {
   size_t numThreadsManaged = 0;
-  if (numElements < 2 * minNumElementsPerPiece || threadManager == NULL || taskId == INVALID_TASK_ID ||
+  if (numElements < 2 * minNumElementsPerPiece || threadManager == NULL || taskId == EXT_HTM_INVALID_TASK_ID ||
       (numThreadsManaged = threadManager->topLevelTaskStatus[taskId].numThreads) <= 1) {
     if (numPiecesPtr != NULL) *numPiecesPtr = 1;
     *numElementsPerPiecePtr = numElements;
@@ -524,7 +523,7 @@ static int initializeThreadData(ext_htm_manager_t manager, ThreadData* data, siz
   data->threadId = threadId;
   
   data->next = NULL;
-  data->topLevelTaskId = INVALID_TASK_ID;
+  data->topLevelTaskId = EXT_HTM_INVALID_TASK_ID;
   data->isTopLevelTask = false;
   
   data->task.tl = NULL;
@@ -632,7 +631,7 @@ static bool stackIsEmpty(ThreadStack* stack) {
 
 void ext_htm_printf(ext_htm_manager_t manager, const char* format, ...)
 {
-  if (manager->numThreads > 0) lockMutex(manager->ioMutex);
+  if (manager != NULL && manager->numThreads > 0) lockMutex(manager->ioMutex);
   
   char buffer[MAX_BUFFER_LENGTH];
   
@@ -643,7 +642,7 @@ void ext_htm_printf(ext_htm_manager_t manager, const char* format, ...)
   
   ext_printf(buffer);
   
-  if (manager->numThreads > 0) unlockMutex(manager->ioMutex);
+  if (manager != NULL && manager->numThreads > 0) unlockMutex(manager->ioMutex);
 }
 
 // debug functions...

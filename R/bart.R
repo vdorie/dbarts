@@ -1,29 +1,26 @@
 packageBartResults <- function(fit, samples, burnInSigma = NULL)
 {
   responseIsBinary <- fit$control@binary
-
+  
   yhat.train <- NULL
   yhat.train.mean <- NULL
   if (fit$control@keepTrainingFits) {
-    yhat.train <- t(samples$train)
-    if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, 2, mean)
+    yhat.train <- if (fit$control@n.chains <= 1L) t(samples$train) else aperm(samples$train, c(3L, 2L, 1L))
+    if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, length(dim(yhat.train)), mean)
   }
 
   yhat.test <- NULL
   yhat.test.mean <- NULL
   if (NROW(fit$data@x.test) > 0) {
-    yhat.test <- t(samples$test)
+    yhat.test <- if (fit$control@n.chains <= 1L) t(samples$test) else aperm(samples$test, c(3L, 2L, 1L))
     if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, 2, mean)
   }
 
-  if (!responseIsBinary) sigma <- samples$sigma
+  if (!responseIsBinary) sigma <- if (fit$control@n.chains <= 1L) samples$sigma else t(samples$sigma)
     
-  ##if (responseIsBinary && !is.null(fit$data@offset)) {
-  ##  if (fit$control@keepTrainingFits) yhat.train <- yhat.train + fit$data@offset
-  ##  if (NROW(fit$data@x.test) > 0)    yhat.test  <- yhat.test  + fit$data@offset
-  ##}
-
-  varcount <- t(samples$varcount)
+  varcount <- if (fit$control@n.chains <= 1L) t(samples$varcount) else aperm(samples$varcount, c(3L, 2L, 1L))
+  
+  if (!is.null(burnInSigma) && fit$control@n.chains > 1L) burnInSigma <- t(burnInSigma)
   
   if (responseIsBinary) {
     result <- list(
@@ -60,11 +57,11 @@ bart <- function(
    ndpost = 1000L, nskip = 100L,
    printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
    usequants = FALSE, numcut = 100L, printcutoffs = 0L,
-   verbose = TRUE, nthread = 1L, keepcall = TRUE
+   verbose = TRUE, nchain = 1L, nthread = 1L, keepcall = TRUE
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
-                           n.burn = as.integer(nskip), n.trees = as.integer(ntree),
+                           n.burn = as.integer(nskip), n.trees = as.integer(ntree), n.chains = as.integer(nchain),
                            n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
                            n.cuts = numcut)

@@ -13,9 +13,9 @@ plot.bart <- function(
    }
 
   if('sigma' %in% names(x)) {
-     ql <- apply(x$yhat.train,2,quantile,probs=plquants[1])
-     qm <- apply(x$yhat.train,2,quantile,probs=.5)
-     qu <- apply(x$yhat.train,2,quantile,probs=plquants[2])
+     ql <- apply(x$yhat.train, length(dim(x$yhat.train)), quantile,probs=plquants[1])
+     qm <- apply(x$yhat.train, length(dim(x$yhat.train)), quantile,probs=.5)
+     qu <- apply(x$yhat.train, length(dim(x$yhat.train)), quantile,probs=plquants[2])
      plot(x$y,qm,ylim=range(ql,qu),xlab='y',ylab=
       'posterior interval for E(Y|x)',...)
      for (i in 1:length(qm))
@@ -23,9 +23,9 @@ plot.bart <- function(
      abline(0,1,lty=2,col=cols[2])
   } else {
      pdrs = pnorm(x$yhat.train) #draws of p(Y=1 | x)
-     ql <- apply(pdrs,2,quantile,probs=plquants[1])
-     qm <- apply(pdrs,2,quantile,probs=.5)
-     qu <- apply(pdrs,2,quantile,probs=plquants[2])
+     ql <- apply(pdrs, length(dim(pdrs)), quantile,probs=plquants[1])
+     qm <- apply(pdrs, length(dim(pdrs)), quantile,probs=.5)
+     qu <- apply(pdrs, length(dim(pdrs)), quantile,probs=plquants[2])
      plot(qm,qm,ylim=range(ql,qu),xlab='meadian of p',ylab=
       'posterior interval for P(Y=1|x)',...)
      for (i in 1:length(qm))
