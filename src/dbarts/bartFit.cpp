@@ -446,9 +446,9 @@ namespace dbarts {
     }
     
     // update sharedScratch.yRescaled/chainScratch.probitLatents and state.sigma
-    if (control.responseIsBinary)
+    if (control.responseIsBinary) {
       initializeLatents(*this);
-    else {
+    } else {
       double* sigmaUnscaled = ext_stackAllocate(control.numChains, double);
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
@@ -490,6 +490,7 @@ namespace dbarts {
     
     
     if (data.numTestObservations == 0 || data.x_test == NULL) {
+      // no new data in test set
       delete [] sharedScratch.xt_test;
       sharedScratch.xt_test = NULL;
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -1119,6 +1120,7 @@ namespace {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         new (state[chainNum].trees + treeNum) Tree(state[chainNum].treeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
       }
+      state[chainNum].rng = NULL;
     }
     
     if (control.numThreads > 1 && ext_htm_create(&fit.threadManager, control.numThreads) != 0) {
@@ -1259,33 +1261,64 @@ namespace {
     Control& control(fit.control);
     State* state(fit.state);
     
-    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      if (control.rng_algorithm == EXT_RNG_ALGORITHM_INVALID) {
-        // if only one chain, can use environment's rng
-        if ((state[chainNum].rng = ext_rng_createDefault(control.numChains == 1)) == NULL) ext_throwError("could not allocate rng");
+    // if only one chain or one thread, can use environment's rng since randomization calls will all be
+    // serial
+    bool useNativeRNG = control.numChains == 1 || control.numThreads == 1;
+    
+    size_t chainNum;
+    const char* errorMessage = NULL;
+    for (chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      if (control.rng_algorithm == EXT_RNG_ALGORITHM_INVALID) { // use default of some kind
+        if ((state[chainNum].rng = ext_rng_createDefault(useNativeRNG)) == NULL) {
+          errorMessage = "could not allocate rng";
+          goto createRNG_cleanup;
+        }
         
         if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
-            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0)
-          ext_throwError("could not set rng standard normal");
+            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
+          errorMessage = "could not set rng standard normal";
+          goto createRNG_cleanup;
+        }
         // if not using envirnoment's rng, we have to seed
-        if (control.numChains > 1 && ext_rng_setSeedFromClock(state[chainNum].rng) != 0)
-          ext_throwError("could not seed rng");
+        if (!useNativeRNG && ext_rng_setSeedFromClock(state[chainNum].rng) != 0) {
+          errorMessage = "could not seed rng";
+          goto createRNG_cleanup;
+        }
       } else {
-        
-        if ((state[chainNum].rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) ext_throwError("could not allocate rng");
+        if ((state[chainNum].rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) {
+          errorMessage = "could not allocate rng";
+          goto createRNG_cleanup;
+        }
         
         if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
-            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0)
-          ext_throwError("could not set rng standard normal");
+            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
+          errorMessage = "could not set rng standard normal";
+          goto createRNG_cleanup;
+        }
         
-        if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0)
-          ext_throwError("could not seed rng");
+        if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) {
+          errorMessage = "could not seed rng";
+          goto createRNG_cleanup;
+        }
       }
     }
+    
+    return;
+    
+createRNG_cleanup:
+    for ( /* */ ; chainNum > 0; --chainNum) {
+      ext_rng_destroy(state[chainNum - 1].rng);
+      state[chainNum - 1].rng = NULL;
+    }
+      
+    ext_throwError(errorMessage);
   }
+  
   void destroyRNG(BARTFit& fit) {
-    for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum)
+    for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum) {
       ext_rng_destroy(fit.state[chainNum].rng);
+      fit.state[chainNum].rng = NULL;
+    }
   }
   
   void setInitialFit(BARTFit& fit) {
@@ -1296,14 +1329,16 @@ namespace {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       size_t length = data.numObservations * control.numTrees;
       state[chainNum].treeFits = new double[length];
-      for (size_t offset = 0; offset < length; ++offset) state[chainNum].treeFits[offset] = 0.0;
+      ext_setVectorToConstant(state[chainNum].treeFits, length, 0.0);
       
       state[chainNum].totalFits = new double[data.numObservations];
-      for(size_t i = 0; i < data.numObservations; ++i) state[chainNum].totalFits[i] = 0.0;
+      ext_setVectorToConstant(state[chainNum].totalFits, data.numObservations, 0.0);
       
       if (data.numTestObservations > 0) {
         state[chainNum].totalTestFits = new double[data.numTestObservations];
-        for (size_t i = 0; i < data.numTestObservations; ++i) state[chainNum].totalTestFits[i] = 0.0;
+        ext_setVectorToConstant(state[chainNum].totalTestFits, data.numTestObservations, 0.0);
+      } else {
+        state[chainNum].totalTestFits = NULL;
       }
     }
   }

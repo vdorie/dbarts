@@ -211,13 +211,13 @@ dbartsSampler <-
                   if (!is.null(state)) {
                     newState <- state
                     for (chainNum in seq_len(control@n.chains)) {
-                      newState[[i]]@fit.tree <- .Call(C_dbarts_deepCopy, state[[i]]@fit.tree)
-                      newState[[i]]@fit.total <- .Call(C_dbarts_deepCopy, state[[i]]@fit.total)
+                      newState[[chainNum]]@fit.tree <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.tree)
+                      newState[[chainNum]]@fit.total <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.total)
                       if (!is.null(data@x.test)) {
-                        newState[[i]]@fit.test <- .Call(C_dbarts_deepCopy, state[[i]]@fit.test)
+                        newState[[chainNum]]@fit.test <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.test)
                       }
-                      newState[[i]]@sigma <- .Call(C_dbarts_deepCopy, state[[i]]@sigma)
-                      newState[[i]]@trees <- .Call(C_dbarts_deepCopy, state[[i]]@trees)
+                      newState[[chainNum]]@sigma <- .Call(C_dbarts_deepCopy, state[[chainNum]]@sigma)
+                      newState[[chainNum]]@trees <- .Call(C_dbarts_deepCopy, state[[chainNum]]@trees)
                     }
                     attr(newState, "runningTime") <- .Call(C_dbarts_deepCopy, attr(state, "runningTime"))
                     
@@ -499,7 +499,7 @@ dbartsSampler <-
                   if (!is.list(newState)) stop("'state' must be a list of dbartsState objects")
                   if (length(newState) != control@n.chains) stop("'state' length must equal number of chains")
                   for (chainNum in seq_along(newState))
-                    if (!is(newState[[i]], "dbartsState")) stop("'state' must inherit from dbartsState")
+                    if (!is(newState[[chainNum]], "dbartsState")) stop("'state' must inherit from dbartsState")
                   
                   selfEnv <- parent.env(environment())
                   if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {

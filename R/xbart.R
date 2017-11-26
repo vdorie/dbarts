@@ -16,6 +16,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   
   if (control@call != call("NA")[[1L]]) control@call <- matchedCall
   control@verbose <- verbose
+  control@n.chains <- 1L
   
   dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "subset", "weights", "offset")
   data <- eval(dataCall, evalEnv)

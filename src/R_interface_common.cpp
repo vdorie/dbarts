@@ -374,7 +374,7 @@ namespace dbarts {
     
     // check to see if it is an old-style saved object with only a single state
     SEXP classExpr = rc_getClass(stateExpr);
-    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
+    if (!Rf_isNull(classExpr) && std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
       Rf_error("object from earlier version detected - model must be refit");
     
     if (rc_getLength(stateExpr) != control.numChains)
@@ -446,7 +446,7 @@ namespace dbarts {
     
     // check to see if it is an old-style saved object with only a single state
     SEXP classExpr = rc_getClass(stateExpr);
-    if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
+    if (!Rf_isNull(classExpr) && std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
       Rf_error("object from earlier version detected - model must be refit");
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
@@ -478,7 +478,7 @@ namespace dbarts {
       
       ext_stackFree(treeStrings);
       
-      ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr, Rf_install("rng.state"))));
+      ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr_i, Rf_install("rng.state"))));
     }
     
     SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));

@@ -19,8 +19,8 @@ Steps to install from source:
 
   2. Install the devtools package from within R:
 
-    `install.packages("devtools")`
+    install.packages("devtools")
 
   3. Run:
 
-    `install_github("vdorie/dbarts")`
+    install_github("vdorie/dbarts")
