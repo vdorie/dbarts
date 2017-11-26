@@ -11,9 +11,23 @@
 
 #include <external/io.h>
 
+// clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
+#if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
+#  include <sys/time.h>
+#else
+#  include <time.h>
+#endif
+
+#ifdef __GNUC__
+#define UNUSED __attribute__ ((unused))
+#else
+#define UNUSED
+#endif
 
 #define TASK_COMPLETE ((size_t) -1)
 #define TASK_BEFORE_START (((size_t) -1) - 1)
+
+#define BUFFER_LENGTH 8192
 
 struct ThreadData;
 
@@ -69,14 +83,13 @@ typedef struct _ext_htm_manager_t {
   Mutex mutex;
   Condition taskDone;
   
-  Mutex ioMutex;
- 
+  char* buffer;
+  size_t bufferPos;
+  
   bool threadsShouldExit;
   
   Condition threadIsActive; // used to synchronize at start
 } _ext_htm_manager_t;
-
-static void printManagerStatus(const ext_htm_manager_t manager);
 
 static int initializeThreadData(ext_htm_manager_t manager, ThreadData* data, size_t threadId);
 static int invalidateThreadData(ThreadData* thread);
@@ -92,8 +105,7 @@ static void push(ThreadStack* stack, ThreadData* thread);
 static size_t pushN(ThreadStack* stack, ThreadData* thread);
 static bool stackIsEmpty(ThreadStack* stack);
 
-
-static void printManagerStatus(const ext_htm_manager_t manager);
+UNUSED static void printManagerStatus(const ext_htm_manager_t manager);
 static void printTaskProgress(TopLevelTaskStatus* status);
 
 
@@ -108,15 +120,15 @@ int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLeve
   if (manager->topLevelTaskStatus == NULL) { unlockMutex(manager->mutex); return ENOMEM; }
   manager->numTopLevelTasks = numTasks;
   
-  size_t i = 0;
+  size_t taskId = 0;
   int result = 0;
   
-  for (i = 0; i < numTasks; ++i)
-    if ((result = initializeTopLevelTaskStatus(&manager->topLevelTaskStatus[i])) != 0) break;
+  for (taskId = 0; taskId < numTasks; ++taskId)
+    if ((result = initializeTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId])) != 0) break;
   
   if (result != 0) {
-    for ( /* */ ; i > 0; --i)
-      invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[i - 1]);
+    for ( /* */ ; taskId > 0; --taskId)
+      invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
     free(manager->topLevelTaskStatus);
     unlockMutex(manager->mutex);
     
@@ -125,18 +137,18 @@ int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLeve
   
   // ext_printf("running top %lu level tasks\n", numTasks);
   
-  for (i = 0; i < numTasks; ++i) {
+  for (taskId = 0; taskId < numTasks; ++taskId) {
     while (stackIsEmpty(&manager->availableThreadStack)) waitOnCondition(manager->taskDone, manager->mutex);
     
     ThreadData* thread = pop(&manager->availableThreadStack);
     manager->numThreadsAvailable--;
     
-    manager->topLevelTaskStatus[i].thread = thread;
-    manager->topLevelTaskStatus[i].numThreads = 1;
+    manager->topLevelTaskStatus[taskId].thread = thread;
+    manager->topLevelTaskStatus[taskId].numThreads = 1;
     
     thread->task.tl = function;
-    thread->taskData = (data == NULL ? NULL : data[i]);
-    thread->topLevelTaskId = i;
+    thread->taskData = (data == NULL ? NULL : data[taskId]);
+    thread->topLevelTaskId = taskId;
     thread->isTopLevelTask = true;
     
     manager->numTopLevelTasksInProgress++;
@@ -151,8 +163,8 @@ int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLeve
   
   // ext_printf("cleaning up top level tasks\n");
   
-  for (i = 0; i < numTasks; ++i)
-    result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[i]);
+  for ( /* */ ; taskId > 0; --taskId)
+    result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
   free(manager->topLevelTaskStatus);
   manager->topLevelTaskStatus = NULL;
   manager->numTopLevelTasks = 0;
@@ -161,6 +173,126 @@ int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLeve
   
   return result;
 }
+
+static void inline getTime(struct timespec* ts)
+{
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_REALTIME)
+  clock_gettime(CLOCK_REALTIME, ts);
+#elif defined(HAVE_GETTIMEOFDAY)
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  ts->tv_sec = tv.tv_sec;
+  ts->tv_nsec = 1000 * tv.tv_usec;
+#else
+  ts->tv_sec = time(NULL);
+  ts->tv_nsec = 0;
+#endif
+}
+
+int ext_htm_runTopLevelTasksWithOutput(ext_htm_manager_t restrict manager, ext_htm_topLevelTaskFunction_t function,
+                                       void** restrict data, size_t numTasks, const struct timespec* restrict outputDelay)
+{
+  if (manager->threads == NULL || manager->threadData == NULL) return EINVAL;
+  
+  struct timespec wakeTime;
+  
+  lockMutex(manager->mutex);
+  
+  manager->topLevelTaskStatus = (TopLevelTaskStatus*) malloc(numTasks * sizeof(TopLevelTaskStatus));
+  if (manager->topLevelTaskStatus == NULL) { unlockMutex(manager->mutex); return ENOMEM; }
+  manager->numTopLevelTasks = numTasks;
+  
+  size_t taskId = 0;
+  int result = 0;
+  
+  for (taskId = 0; taskId < numTasks; ++taskId)
+    if ((result = initializeTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId])) != 0) break;
+  
+  if (result != 0) {
+    for ( /* */ ; taskId > 0; --taskId)
+      invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
+    free(manager->topLevelTaskStatus);
+    unlockMutex(manager->mutex);
+    
+    return result;
+  }
+  
+  getTime(&wakeTime);
+  wakeTime.tv_sec += outputDelay->tv_sec;
+  wakeTime.tv_nsec += outputDelay->tv_nsec;
+  
+  // ext_printf("running top %lu level tasks\n", numTasks);
+  
+  for (taskId = 0; taskId < numTasks; ++taskId) {
+    // while (stackIsEmpty(&manager->availableThreadStack)) waitOnCondition(manager->taskDone, manager->mutex);
+    while (stackIsEmpty(&manager->availableThreadStack)) {
+      int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
+      if (waitStatus == ETIMEDOUT) {
+        if (manager->bufferPos != 0) {
+          ext_printf(manager->buffer);
+          ext_fflush_stdout();
+          manager->bufferPos = 0;
+        }
+        
+        getTime(&wakeTime);
+        wakeTime.tv_sec += outputDelay->tv_sec;
+        wakeTime.tv_nsec += outputDelay->tv_nsec;
+      }
+    }
+    
+    ThreadData* thread = pop(&manager->availableThreadStack);
+    manager->numThreadsAvailable--;
+    
+    manager->topLevelTaskStatus[taskId].thread = thread;
+    manager->topLevelTaskStatus[taskId].numThreads = 1;
+    
+    thread->task.tl = function;
+    thread->taskData = (data == NULL ? NULL : data[taskId]);
+    thread->topLevelTaskId = taskId;
+    thread->isTopLevelTask = true;
+    
+    manager->numTopLevelTasksInProgress++;
+    
+    signalCondition(thread->taskAvailable);
+  }
+  
+  // ext_printf("waiting for top level tasks to finish\n");
+  // printManagerStatus(manager);
+  
+  while (manager->numTopLevelTasksInProgress > 0) {
+    int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
+    if (waitStatus == ETIMEDOUT) {
+      if (manager->bufferPos != 0) {
+        ext_printf(manager->buffer);
+        ext_fflush_stdout();
+        manager->bufferPos = 0;
+      }
+      
+      getTime(&wakeTime);
+      wakeTime.tv_sec += outputDelay->tv_sec;
+      wakeTime.tv_nsec += outputDelay->tv_nsec;
+    }
+  }
+  
+  // ext_printf("cleaning up top level tasks\n");
+  
+  for ( /* */ ; taskId > 0; --taskId)
+    result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
+  free(manager->topLevelTaskStatus);
+  manager->topLevelTaskStatus = NULL;
+  manager->numTopLevelTasks = 0;
+  
+  if (manager->bufferPos != 0) {
+    ext_printf(manager->buffer);
+    ext_fflush_stdout();
+    manager->bufferPos = 0;
+  }
+  
+  unlockMutex(manager->mutex);
+  
+  return result;
+}
+
 
 int ext_htm_runSubTask(ext_htm_manager_t restrict manager, size_t taskId, ext_htm_subTaskFunction_t subTask,
                        void** restrict data, size_t numPieces)
@@ -366,7 +498,6 @@ static int initializeManager(ext_htm_manager_t manager, size_t numThreads)
   manager->threadsShouldExit = false;
   
   bool mutexInitialized = false;
-  bool ioMutexInitialized = false;
   bool threadIsActiveInitialized = false;
   bool taskDoneInitialized = false;
   
@@ -375,16 +506,14 @@ static int initializeManager(ext_htm_manager_t manager, size_t numThreads)
   
   manager->threadData = (ThreadData*) malloc(numThreads * sizeof(ThreadData));
   if (manager->threadData == NULL) { result = ENOMEM; goto ext_htm_initialization_failed; }
+  
+  manager->buffer = (char*) malloc(BUFFER_LENGTH * sizeof(char));
+  if (manager->buffer == NULL) { result = ENOMEM; goto ext_htm_initialization_failed; }
+  manager->bufferPos = 0;
       
   result = initializeMutex(manager->mutex);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) mutexInitialized = true;
-    goto ext_htm_initialization_failed;
-  }
-  
-  result = initializeMutex(manager->ioMutex);
-  if (result != 0) {
-    if (result != EBUSY && result != EINVAL) ioMutexInitialized = true;
     goto ext_htm_initialization_failed;
   }
   
@@ -403,13 +532,13 @@ static int initializeManager(ext_htm_manager_t manager, size_t numThreads)
   return result;
   
 ext_htm_initialization_failed:
-  if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
+  if (manager->buffer != NULL) { free(manager->buffer); manager->buffer = NULL; }
   if (manager->threadData != NULL) { free(manager->threadData); manager->threadData = NULL; }
+  if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
   
   // invalidateThreadStack(&manager->availableThreadStack); // not needed at the moment
   
   if (mutexInitialized) destroyMutex(manager->mutex);
-  if (ioMutexInitialized) destroyMutex(manager->ioMutex);
   if (threadIsActiveInitialized) destroyCondition(manager->threadIsActive);
   if (taskDoneInitialized) destroyCondition(manager->taskDone);
   
@@ -470,12 +599,12 @@ int ext_htm_destroy(ext_htm_manager_t manager)
     lockMutex(manager->mutex);
     while (manager->numTopLevelTasksInProgress > 0) waitOnCondition(manager->taskDone, manager->mutex);
   
-    for (size_t i = 0; i < manager->numTopLevelTasks; ++i) {
-      result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[i]);
-      free(manager->topLevelTaskStatus);
-      manager->topLevelTaskStatus = NULL;
-      manager->numTopLevelTasks = 0;
-    }
+    for ( size_t taskId = manager->numTopLevelTasks; taskId > 0; --taskId)
+      result |= invalidateTopLevelTaskStatus(&manager->topLevelTaskStatus[taskId - 1]);
+    free(manager->topLevelTaskStatus);
+    manager->topLevelTaskStatus = NULL;
+    manager->numTopLevelTasks = 0;
+    
     unlockMutex(manager->mutex);
   }
   
@@ -496,9 +625,15 @@ int ext_htm_destroy(ext_htm_manager_t manager)
       result |= joinThread(manager->threads[i]);
   }
   
-  invalidateThreadStack(&manager->availableThreadStack);
+  result |= destroyCondition(manager->taskDone);
+  result |= destroyCondition(manager->threadIsActive);
+  result |= destroyMutex(manager->mutex);
   
-  if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
+  if (manager->buffer != NULL) {
+    free(manager->buffer);
+    manager->buffer = NULL;
+  }
+  
   
   if (manager->threadData != NULL) {
     for (size_t i = 0; i < manager->numThreads; ++i) result |= invalidateThreadData(&manager->threadData[i]);
@@ -507,10 +642,9 @@ int ext_htm_destroy(ext_htm_manager_t manager)
     manager->threadData = NULL;
   }
   
-  result |= destroyMutex(manager->mutex);
-  result |= destroyMutex(manager->ioMutex);
-  result |= destroyCondition(manager->threadIsActive);
-  result |= destroyCondition(manager->taskDone);
+  if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
+  
+  invalidateThreadStack(&manager->availableThreadStack);
   
   free(manager);
   
@@ -627,22 +761,29 @@ static bool stackIsEmpty(ThreadStack* stack) {
   return stack->first == NULL;
 }
 
-#define MAX_BUFFER_LENGTH 8192
-
 void ext_htm_printf(ext_htm_manager_t manager, const char* format, ...)
 {
-  if (manager != NULL && manager->numThreads > 0) lockMutex(manager->ioMutex);
+  if (manager == NULL || manager->numThreads == 0) {
+    char buffer[BUFFER_LENGTH];
+    
+    va_list argsPointer;
+    va_start(argsPointer, format);
+    vsnprintf(buffer, BUFFER_LENGTH, format, argsPointer);
+    va_end(argsPointer);
+    
+    ext_printf(buffer);
+    
+    return;
+  }
   
-  char buffer[MAX_BUFFER_LENGTH];
+  lockMutex(manager->mutex);
   
   va_list argsPointer;
   va_start(argsPointer, format);
-  vsnprintf(buffer, MAX_BUFFER_LENGTH, format, argsPointer);
+  manager->bufferPos += vsnprintf(manager->buffer + manager->bufferPos, BUFFER_LENGTH - manager->bufferPos, format, argsPointer);
   va_end(argsPointer);
   
-  ext_printf(buffer);
-  
-  if (manager != NULL && manager->numThreads > 0) unlockMutex(manager->ioMutex);
+  unlockMutex(manager->mutex);
 }
 
 // debug functions...

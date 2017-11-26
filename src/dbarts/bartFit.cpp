@@ -61,8 +61,6 @@ namespace {
   void rescaleResponse(BARTFit& fit);
   // void resampleTreeFits(BARTFit& fit);
   
-  void runSampler(BARTFit& fit, size_t chainNum, size_t numBurnIn, Results* resultsPointer);
-  
   void sampleProbitLatentVariables(const BARTFit& fit, State& state, const double* fits, double* yRescaled);
   void storeSamples(const BARTFit& fit, size_t chainNum, Results& results,
                     const double* trainingSample, const double* testSample,
@@ -819,10 +817,11 @@ extern "C" {
       majorIterationNum = k / control.treeThinningRate;
       
       if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0) {
-        if (control.numChains > 1)
+        if (control.numChains > 1) {
           ext_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
-        else
+        } else {
           ext_printf("iteration: %u (of %u)\n", k + 1, totalNumIterations);
+        }
      }
       
       if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(state.totalTestFits, data.numTestObservations, 0.0);
@@ -927,7 +926,14 @@ namespace dbarts {
         threadDataPtr[chainNum] = reinterpret_cast<void*>(&threadData[chainNum]);
       }
       
-      ext_htm_runTopLevelTasks(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains);
+      if (control.verbose) {
+        struct timespec outputDelay;
+        outputDelay.tv_sec = 0;
+        outputDelay.tv_nsec = 100000000; // every 0.1 seconds
+        ext_htm_runTopLevelTasksWithOutput(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains, &outputDelay);
+      } else {
+        ext_htm_runTopLevelTasks(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains);
+      }
       
       delete [] threadDataPtr;
       delete [] threadData;

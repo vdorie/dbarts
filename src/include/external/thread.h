@@ -2,6 +2,7 @@
 #define EXTERNAL_THREAD_H
 
 #include "stddef.h"
+#include <time.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
@@ -46,6 +47,8 @@ int ext_htm_destroy(ext_htm_manager_t manager);
 
 int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLevelTaskFunction_t task,
                              void** restrict data, ext_size_t numTasks);
+int ext_htm_runTopLevelTasksWithOutput(ext_htm_manager_t restrict manager, ext_htm_topLevelTaskFunction_t task,
+                                       void** restrict data, ext_size_t numTasks, const struct timespec* restrict outputDelay);
 
 ext_size_t ext_htm_reserveThreadsForSubTask(const ext_htm_manager_t manager, ext_size_t taskId, ext_size_t percentComplete);
 int ext_htm_runSubTask(ext_htm_manager_t restrict manager, ext_size_t taskId, ext_htm_subTaskFunction_t subTask,
