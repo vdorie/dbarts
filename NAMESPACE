@@ -1,6 +1,6 @@
 useDynLib(dbarts, .registration = TRUE, .fixes = "C_")
 
-export(dbarts, bart)
+export(dbarts, bart, bart2)
 export(dbartsControl)
 export(dbartsData)
 export(pdbart, pd2bart)

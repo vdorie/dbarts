@@ -1,5 +1,6 @@
 \name{bart}
 \alias{bart}
+\alias{bart2}
 \alias{plot.bart}
 \title{Bayesian Additive Regression Trees}
 \description{
@@ -23,6 +24,18 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
      verbose = TRUE, nchain = 1, nthread = 1, keepcall = TRUE)
+
+bart2(formula, data, test, subset, weights, offset, offset.test = offset,
+      sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
+      k = 2.0,
+      power = 2.0, base = 0.95,
+      n.trees = 75L,
+      n.samples = 500L, n.burn = 500L,
+      n.chains = 4L, n.threads = min(guessNumCores(), n.chains),
+      n.cuts = 100L, useQuantiles = FALSE,
+      n.thin = 1L, keepTrainingFits = TRUE,
+      printEvery = 100L, printCutoffs = 0L,
+      verbose = TRUE, keepCall = TRUE, ...)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -154,6 +167,41 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
           used to instantiate BART.
    }
+   
+   \item{formula}{
+     The same as \code{x.train}, the name reflecting that a formula object can be used instead.
+   }
+   
+   \item{data}{
+     The same as \code{y.train}, the name reflecting that a data frame can be specified when a formula is given instead.
+   }
+   
+   \item{test}{
+     The same as \code{x.train}. Can be missing.
+   }
+   \item{subset}{
+     A vector of logicals or indicies used to subset of the data. Can be missing.
+   }
+   \item{offset}{
+     The same as \code{binaryOffset}. Can be missing.
+   }
+   \item{offset.test}{
+     A vector of offsets to be used with test data, in case it is different than the training offset.
+     If \code{offest} is missing, defaults to \code{NULL}.
+   }
+   
+   \item{n.trees}{Same as \code{ntree}.}
+   \item{n.samples}{Same as \code{ndpost}.}
+   \item{n.burn}{Same as \code{nskip}.}
+   \item{n.chains}{Same as \code{nchain}.}
+   \item{n.threads}{Same as \code{nthread}.}
+   \item{n.cuts}{Same as \code{numcut}.}
+   \item{n.thin}{Same as \code{keepevery}.}
+   \item{keepTrainingFits}{Same as \code{keeptrainfits}.}
+   \item{useQuantiles}{Same as \code{usequants}.}
+   \item{printEvery}{Same as \code{printevery}.}
+   \item{printCutoffs}{Same as \code{printcutoffs}.}
+   \item{keepCall}{Same as \code{keepcall}.}
 
    \item{x}{
      Object of class \code{bart}, returned by function \code{bart}, which contains the information to be plotted.
@@ -171,7 +219,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
    }
 
    \item{\dots}{
-     Additional arguments passed on to plot.
+     Additional arguments passed on to plot or \code{dbartsControl}, respectively.
    }
 }
 \details{

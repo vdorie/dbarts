@@ -46,18 +46,110 @@ packageBartResults <- function(fit, samples, burnInSigma = NULL)
   invisible(result)
 }
 
+bart2 <- function(
+  formula, data, test, subset, weights, offset, offset.test = offset,
+  sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
+  k = 2.0,
+  power = 2.0, base = 0.95,
+  n.trees = 75L,
+  n.samples = 500L, n.burn = 500L,
+  n.chains = 4L, n.threads = min(guessNumCores(), n.chains),
+  n.cuts = 100L, useQuantiles = FALSE,
+  n.thin = 1L, keepTrainingFits = TRUE,
+  printEvery = 100L, printCutoffs = 0L,
+  verbose = TRUE, keepCall = TRUE, ...
+)
+{
+  matchedCall <- match.call()
+  argNames <- names(matchedCall)[-1L]
+  
+  controlArgs <- list()
+  for (name in names(formals(dbartsControl)))
+    if (name %in% names(formals(bart2)))
+      controlArgs[[name]] <- get(name)
+  
+  dotsList <- list(...)
+  controlDotsArgs <- argNames %in% names(formals(dbartsControl)) & argNames %not_in% names(formals(bart2))
+  if (any(controlDotsArgs))
+    for (name in argNames[controlDotsArgs])
+      controlArgs[[name]] <- dotsList[[name]]
+  
+  invalidArgs <- argNames %not_in% names(formals(dbartsControl)) & argNames %not_in% names(formals(bart2))
+  if (any(invalidArgs))
+    stop("unused arguments: '", paste0(argNames[invalidArgs], collapse = "', '"), "'")
+  
+  callingEnv <- parent.frame()
+  
+  control <- do.call("dbartsControl", controlArgs, envir = callingEnv)
+    
+  control@call <- if (keepCall) matchedCall else call("NULL")
+  control@n.burn     <- control@n.burn     %/% control@n.thin
+  control@n.samples  <- control@n.samples  %/% control@n.thin
+  control@printEvery <- control@printEvery %/% control@n.thin
+  
+  tree.prior <- quote(cgm(power, base))
+  tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+
+  node.prior <- quote(normal(k))
+  node.prior[[2L]] <- k
+
+  resid.prior <- quote(chisq(sigdf, sigquant))
+  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
+  
+  args <- list(formula = formula, data = data,
+               tree.prior = tree.prior, node.prior = node.prior, resid.prior = resid.prior,
+               control = control, sigma = as.numeric(sigest))
+  for (name in c("test", "subset", "weights", "offset", "offset.test"))
+    if (name %in% names(matchedCall)) args[[name]] <- get(name)
+  
+  sampler <- do.call("dbarts", args, envir = callingEnv)
+  
+  control <- sampler$control
+  
+  sampler$sampleTreesFromPrior()
+  
+  burnInSigma <- NULL
+  if (n.burn > 0L) {
+    oldX.test <- sampler$data@x.test
+    oldOffset.test <- sampler$data@offset.test
+    
+    oldKeepTrainingFits <- control@keepTrainingFits
+    oldVerbose <- control@verbose
+
+    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL, updateState = FALSE)
+    control@keepTrainingFits <- FALSE
+    control@verbose <- FALSE
+    sampler$setControl(control)
+
+    burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
+    
+    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
+    control@keepTrainingFits <- oldKeepTrainingFits
+    control@verbose <- oldVerbose
+    sampler$setControl(control)
+
+    samples <- sampler$run(0L, control@n.samples)
+  } else {
+    samples <- sampler$run()
+  }
+
+  result <- packageBartResults(sampler, samples, burnInSigma)
+  rm(sampler, samples)
+  
+  result
+}
 
 bart <- function(
-   x.train, y.train, x.test = matrix(0.0, 0L, 0L),
-   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90, 
-   k = 2.0,
-   power = 2.0, base = 0.95,
-   binaryOffset = 0.0, weights = NULL,
-   ntree = 200L,
-   ndpost = 1000L, nskip = 100L,
-   printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
-   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
-   verbose = TRUE, nchain = 1L, nthread = 1L, keepcall = TRUE
+  x.train, y.train, x.test = matrix(0.0, 0L, 0L),
+  sigest = NA_real_, sigdf = 3.0, sigquant = 0.90, 
+  k = 2.0,
+  power = 2.0, base = 0.95,
+  binaryOffset = 0.0, weights = NULL,
+  ntree = 200L,
+  ndpost = 1000L, nskip = 100L,
+  printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
+  usequants = FALSE, numcut = 100L, printcutoffs = 0L,
+  verbose = TRUE, nchain = 1L, nthread = 1L, keepcall = TRUE
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
@@ -116,7 +208,7 @@ bart <- function(
   result <- packageBartResults(sampler, samples, burnInSigma)
   rm(sampler, samples)
   
-  return(result)
+  result
 }
 
 makeind <- function(x, all = TRUE)
