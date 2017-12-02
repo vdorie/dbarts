@@ -1,7 +1,7 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
                   K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
                   n.threads = guessNumCores(),
-                  n.trees = 200L, k = 2, power = 2, base = 0.95, drop = TRUE,
+                  n.trees = 75L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
   matchedCall <- match.call()

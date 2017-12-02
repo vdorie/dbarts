@@ -21,13 +21,14 @@ evalx <- function(x, e) {
   eval(mc$e, evalEnv)
 }
 
-prepareCallWithArguments <- function(call, name, ...)
+prepareCallWithArguments <- function(call, fn, ...)
 {
-  argsToKeep <- unlist(list(...))
+  matchedCall <- match.call()
+  argsToKeep <- as.character(matchedCall[-c(1L, 2L, 3L)])
   matchIndices <- match(argsToKeep, names(call), nomatch = 0L)
   
   call <- call[c(1L, matchIndices)]
-  call[[1L]] <- name
+  call[[1L]] <- if (is.function(fn)) matchedCall[[3L]] else fn
   call
 }
 

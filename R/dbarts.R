@@ -88,7 +88,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   
   evalEnv <- parent.frame(1L)
 
-  validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
+  validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), control, verbose, n.samples, sigma)
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
   validateCall <- addCallArgument(validateCall, 2L, dbarts)
   eval(validateCall, evalEnv, getNamespace("dbarts"))
@@ -96,7 +96,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   if (length(control@call) == 1L && control@call == call("NA")) control@call <- matchedCall
   control@verbose <- verbose
 
-  dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "test", "subset", "weights", "offset", "offset.test")
+  dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), formula, data, test, subset, weights, offset, offset.test)
   data <- eval(dataCall, evalEnv)
   #cat("x address after dbartsData call: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
   
@@ -120,7 +120,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   }
   #cat("x address after updating data: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
 
-  parsePriorsCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(parsePriors), "tree.prior", "node.prior", "resid.prior")
+  parsePriorsCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(parsePriors), tree.prior, node.prior, resid.prior)
   parsePriorsCall <- setDefaultsFromFormals(parsePriorsCall, formals(dbarts), "tree.prior", "node.prior", "resid.prior")
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data

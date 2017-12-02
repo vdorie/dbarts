@@ -7,7 +7,7 @@ Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \co
 \usage{
 xbart(formula, data, subset, weights, offset, verbose = FALSE,
       n.samples = 200L, K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L),
-      loss = c("rmse", "mcr"), n.threads = guessNumCores(), n.trees = 200L,
+      loss = c("rmse", "mcr"), n.threads = guessNumCores(), n.trees = 75L,
       k = 2, power = 2, base = 0.95, drop = TRUE,
       resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)}
 \arguments{

@@ -80,7 +80,7 @@ bart2 <- function(
   
   callingEnv <- parent.frame()
   
-  control <- do.call("dbartsControl", controlArgs, envir = callingEnv)
+  control <- do.call(dbarts::dbartsControl, controlArgs, envir = callingEnv)
     
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn     <- control@n.burn     %/% control@n.thin
@@ -102,7 +102,7 @@ bart2 <- function(
   for (name in c("test", "subset", "weights", "offset", "offset.test"))
     if (name %in% names(matchedCall)) args[[name]] <- get(name)
   
-  sampler <- do.call("dbarts", args, envir = callingEnv)
+  sampler <- do.call(dbarts::dbarts, args, envir = callingEnv)
   
   control <- sampler$control
   
@@ -176,7 +176,7 @@ bart <- function(
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
                tree.prior = tree.prior, node.prior = node.prior,
                resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
-  sampler <- do.call("dbarts", args, envir = parent.frame(1L))
+  sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
 
   control <- sampler$control
   
