@@ -21,14 +21,21 @@ evalx <- function(x, e) {
   eval(mc$e, evalEnv)
 }
 
-prepareCallWithArguments <- function(call, fn, ...)
+redirectCall <- function(call, fn, ...)
 {
   matchedCall <- match.call()
-  argsToKeep <- as.character(matchedCall[-c(1L, 2L, 3L)])
-  matchIndices <- match(argsToKeep, names(call), nomatch = 0L)
+  extraArgs <- if (length(matchedCall) > 3L) as.character(matchedCall[-c(1L, 2L, 3L)]) else character()
   
-  call <- call[c(1L, matchIndices)]
   call[[1L]] <- if (is.function(fn)) matchedCall[[3L]] else fn
+  if (length(extraArgs) == 0L) {
+    fn <- if (is.function(fn)) fn else eval(fn)
+    call <- call[c(TRUE, names(call)[-1L] %in% names(formals(fn)))]
+  } else {
+    matchIndices <- match(extraArgs, names(call), nomatch = 0L)
+    
+    call <- call[c(1L, matchIndices)]
+  }
+  
   call
 }
 

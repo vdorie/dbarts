@@ -9,7 +9,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
   
-  validateCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), "control", "verbose", "n.samples", "sigma")
+  validateCall <- redirectCall(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), control, verbose, n.samples, sigma)
   validateCall <- addCallArgument(validateCall, 1L, currEnv)
   validateCall <- addCallArgument(validateCall, 2L, xbart)
   eval(validateCall, evalEnv, getNamespace("dbarts"))
@@ -18,7 +18,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@verbose <- verbose
   control@n.chains <- 1L
   
-  dataCall <- prepareCallWithArguments(matchedCall, quoteInNamespace(dbartsData), "formula", "data", "subset", "weights", "offset")
+  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset)
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma

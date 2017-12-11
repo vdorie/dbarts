@@ -61,27 +61,16 @@ bart2 <- function(
 )
 {
   matchedCall <- match.call()
-  argNames <- names(matchedCall)[-1L]
-  
-  controlArgs <- list()
-  for (name in names(formals(dbartsControl)))
-    if (name %in% names(formals(bart2)))
-      controlArgs[[name]] <- get(name)
-  
-  dotsList <- list(...)
-  controlDotsArgs <- argNames %in% names(formals(dbartsControl)) & argNames %not_in% names(formals(bart2))
-  if (any(controlDotsArgs))
-    for (name in argNames[controlDotsArgs])
-      controlArgs[[name]] <- dotsList[[name]]
-  
-  invalidArgs <- argNames %not_in% names(formals(dbartsControl)) & argNames %not_in% names(formals(bart2))
-  if (any(invalidArgs))
-    stop("unused arguments: '", paste0(argNames[invalidArgs], collapse = "', '"), "'")
-  
   callingEnv <- parent.frame()
   
-  control <- do.call(dbarts::dbartsControl, controlArgs, envir = callingEnv)
-    
+  argNames <- names(matchedCall)[-1L]
+  unknownArgs <- argNames %not_in% names(formals(dbarts::bart2)) & argNames %not_in% names(formals(dbarts::dbartsControl))
+  if (any(unknownArgs))
+    stop("unknown arguments: '", paste0(argNames[unknownArgs], collapse = "', '"), "'")
+  
+  controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
+  control <- eval(controlCall, envir = callingEnv)
+  
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
@@ -96,13 +85,10 @@ bart2 <- function(
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
-  args <- list(formula = formula, data = data,
-               tree.prior = tree.prior, node.prior = node.prior, resid.prior = resid.prior,
-               control = control, sigma = as.numeric(sigest))
-  for (name in c("test", "subset", "weights", "offset", "offset.test"))
-    if (name %in% names(matchedCall)) args[[name]] <- get(name)
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$sigma <- as.numeric(sigest)
   
-  sampler <- do.call(dbarts::dbarts, args, envir = callingEnv)
+  sampler <- eval(samplerCall, envir = callingEnv)
   
   control <- sampler$control
   
