@@ -26,7 +26,7 @@ methods::setMethod("initialize", "dbartsData",
 validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)
-  if (is.numeric(x.test) && NCOL(x.test) == 0) return(NULL)
+  if (is.numeric(x.test) && length(x.test) == 0L) return(NULL)
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels))
       x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test)
@@ -46,7 +46,7 @@ validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, dro
     testIsNamed <- !is.null(colnames(x.test))
     
     columnIndices <- seq.int(numPredictors)
-    if ((xIsNamed && !testIsNamed) || (!xIsNamed && testIsNamed)) {
+    if ((xIsNamed && !testIsNamed) || (!xIsNamed && testIsNamed) || length(unique(predictorNames)) != length(predictorNames)) {
       ## warning("'x' and 'test' are not both named; columns of test matrix will be selected by position")
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
@@ -58,7 +58,7 @@ validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, dro
       }
     }
     
-    x.test <- x.test[, columnIndices]
+    x.test <- x.test[,columnIndices]
     if (xIsNamed) colnames(x.test) <- predictorNames
   }
   

@@ -86,6 +86,7 @@ bart2 <- function(
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
   samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
   samplerCall$sigma <- as.numeric(sigest)
   
   sampler <- eval(samplerCall, envir = callingEnv)
