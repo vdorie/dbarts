@@ -26,7 +26,7 @@ methods::setMethod("initialize", "dbartsData",
 validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)
-  if (is.numeric(x.test) && length(x.test) == 0L) return(NULL)
+  if (is.numeric(x.test) && NCOL(x.test) == 0L) return(NULL)
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels))
       x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test)
@@ -39,7 +39,7 @@ validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, dro
 
   if (is.integer(x.test)) x.test <- matrix(as.double(x.test), nrow(x.test))
   
-  if (!identical(ncol(x.test), numPredictors))
+  if (!identical(NCOL(x.test), numPredictors))
     stop("number of columns in 'test' must be equal to that of 'x'")
   if (numPredictors > 1) {
     xIsNamed    <- !is.null(predictorNames)
