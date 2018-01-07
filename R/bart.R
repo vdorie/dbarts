@@ -1,26 +1,39 @@
-packageBartResults <- function(fit, samples, burnInSigma = NULL)
+packageBartResults <- function(fit, samples, burnInSigma, combineChains)
 {
   responseIsBinary <- fit$control@binary
+  
+  prepSamples <- function(samples) {
+    x <- NULL
+    if (fit$control@n.chains <= 1L) {
+      if (is.matrix(samples)) t(samples) else samples
+    } else {
+      if (length(dim(samples)) > 2L) {
+        if (!combineChains) aperm(samples, c(3L, 2L, 1L)) else evalx(dim(samples), t(matrix(samples, x[1L], x[2L] * x[3L])))
+      } else {
+        if (!combineChains) t(samples) else as.vector(samples)
+      }
+    }
+  }
   
   yhat.train <- NULL
   yhat.train.mean <- NULL
   if (fit$control@keepTrainingFits) {
-    yhat.train <- if (fit$control@n.chains <= 1L) t(samples$train) else aperm(samples$train, c(3L, 2L, 1L))
+    yhat.train <- prepSamples(samples$train)
     if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, length(dim(yhat.train)), mean)
   }
 
   yhat.test <- NULL
   yhat.test.mean <- NULL
   if (NROW(fit$data@x.test) > 0) {
-    yhat.test <- if (fit$control@n.chains <= 1L) t(samples$test) else aperm(samples$test, c(3L, 2L, 1L))
-    if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, 2, mean)
+    yhat.test <- prepSamples(samples$test)
+    if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, length(dim(yhat.test)), mean)
   }
 
-  if (!responseIsBinary) sigma <- if (fit$control@n.chains <= 1L) samples$sigma else t(samples$sigma)
+  if (!responseIsBinary) sigma <- prepSamples(samples$sigma)
     
-  varcount <- if (fit$control@n.chains <= 1L) t(samples$varcount) else aperm(samples$varcount, c(3L, 2L, 1L))
+  varcount <- prepSamples(samples$varcount)
   
-  if (!is.null(burnInSigma) && fit$control@n.chains > 1L) burnInSigma <- t(burnInSigma)
+  if (!is.null(burnInSigma)) burnInSigma <- prepSamples(burnInSigma)
   
   if (responseIsBinary) {
     result <- list(
@@ -53,7 +66,7 @@ bart2 <- function(
   power = 2.0, base = 0.95,
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
-  n.chains = 4L, n.threads = min(guessNumCores(), n.chains),
+  n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
   n.cuts = 100L, useQuantiles = FALSE,
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
@@ -120,7 +133,7 @@ bart2 <- function(
     samples <- sampler$run()
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma)
+  result <- packageBartResults(sampler, samples, burnInSigma, combineChains)
   rm(sampler, samples)
   
   result
@@ -136,7 +149,7 @@ bart <- function(
   ndpost = 1000L, nskip = 100L,
   printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
-  verbose = TRUE, nchain = 1L, nthread = 1L, keepcall = TRUE
+  verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE, keepcall = TRUE
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
@@ -192,7 +205,7 @@ bart <- function(
     samples <- sampler$run()
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma)
+  result <- packageBartResults(sampler, samples, burnInSigma, combinechains)
   rm(sampler, samples)
   
   result

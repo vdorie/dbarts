@@ -5,14 +5,14 @@ source(system.file("common", "friedmanData.R", package = "dbarts"))
 test_that("multiple chains single threads runs correctly", {
   set.seed(99)
   oldSeed <- .Random.seed
-  fit <- bart(testData$x, testData$y, ndpost = 120L, nskip = 100L, ntree = 50L, nthread = 1L, nchain = 2L, verbose = FALSE)
+  fit <- bart(testData$x, testData$y, ndpost = 120L, nskip = 100L, ntree = 50L, nthread = 1L, nchain = 2L, combinechains = FALSE, verbose = FALSE)
   expect_true(any(oldSeed != .Random.seed))
 })
 
 test_that("multiple chains multiple threads runs correctly", {
   set.seed(99)
   oldSeed <- .Random.seed
-  fit <- bart(testData$x, testData$y, ndpost = 120L, nskip = 100L, ntree = 50L, nthread = 2L, nchain = 2L, verbose = FALSE)
+  fit <- bart(testData$x, testData$y, ndpost = 120L, nskip = 100L, ntree = 50L, nthread = 2L, nchain = 2L, combinechains = FALSE, verbose = FALSE)
   
   expect_identical(dim(fit$yhat.train), c(2L, 120L, nrow(testData$x)))
   ## check that the random seeds didn't end up the same/the chains got different results

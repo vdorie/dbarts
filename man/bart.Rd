@@ -23,7 +23,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      ndpost = 1000, nskip = 100,
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
-     verbose = TRUE, nchain = 1, nthread = 1, keepcall = TRUE)
+     verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE, keepcall = TRUE)
 
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
@@ -31,7 +31,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       power = 2.0, base = 0.95,
       n.trees = 75L,
       n.samples = 500L, n.burn = 500L,
-      n.chains = 4L, n.threads = min(guessNumCores(), n.chains),
+      n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
       n.cuts = 100L, useQuantiles = FALSE,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
@@ -163,6 +163,11 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    	  some calculations may be executed single threaded regardless.
    }
    
+   \item{combinechains}{
+     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times}
+     \code{ndpost} \eqn{\times} number of observations.
+   }
+   
    \item{keepcall}{
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
           used to instantiate BART.
@@ -195,6 +200,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    \item{n.burn}{Same as \code{nskip}.}
    \item{n.chains}{Same as \code{nchain}.}
    \item{n.threads}{Same as \code{nthread}.}
+   \item{combineChains}{Same as \code{combinechains}.}
    \item{n.cuts}{Same as \code{numcut}.}
    \item{n.thin}{Same as \code{keepevery}.}
    \item{keepTrainingFits}{Same as \code{keeptrainfits}.}
