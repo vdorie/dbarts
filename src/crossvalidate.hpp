@@ -34,7 +34,7 @@ namespace dbarts {
     
     
     void crossvalidate(const Control& control, const Model& model, const Data& data,
-                       std::size_t numFolds, std::size_t numReps,
+                       double testSampleProp, std::size_t numReps,
                        std::size_t numInitialBurnIn, std::size_t numContextShiftBurnIn, std::size_t numRepBurnIn,
                        const LossFunctorDefinition& lossFunctorDef, std::size_t numThreads,
                        const std::size_t* nTrees, std::size_t numNTrees, const double* k, std::size_t numKs,

@@ -76,10 +76,10 @@ extern "C" {
     size_t numBurnIn, numSamples;
     
     i_temp = rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);
-    numBurnIn = i_temp == NA_INTEGER ? fit->control.numBurnIn : static_cast<size_t>(i_temp);
+    numBurnIn = i_temp == NA_INTEGER ? fit->control.defaultNumBurnIn : static_cast<size_t>(i_temp);
     
     i_temp = rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);    
-    numSamples = i_temp == NA_INTEGER ? fit->control.numSamples : static_cast<size_t>(i_temp);
+    numSamples = i_temp == NA_INTEGER ? fit->control.defaultNumSamples : static_cast<size_t>(i_temp);
     
     if (numBurnIn == 0 && numSamples == 0) Rf_error("either number of burn-in or samples must be positive");
     
@@ -520,20 +520,23 @@ extern "C" {
   }
   
   
-  SEXP printTrees(SEXP fitExpr, SEXP chainIndicesExpr, SEXP treeIndicesExpr)
+  SEXP printTrees(SEXP fitExpr, SEXP chainIndicesExpr, SEXP sampleIndicesExpr, SEXP treeIndicesExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_printTrees called on NULL external pointer");
     
-    size_t numChains = fit->control.numChains;
-    size_t numTrees = fit->control.numTrees;
+    size_t numChains  = fit->control.numChains;
+    size_t numSamples = fit->control.runMode == FIXED_SAMPLES ? fit->currentNumSamples : 1;
+    size_t numTrees  = fit->control.numTrees;
     
-    size_t numChainIndices = Rf_isNull(chainIndicesExpr) ? numChains : rc_getLength(chainIndicesExpr);
-    size_t numTreeIndices  = Rf_isNull(treeIndicesExpr)  ? numTrees  : rc_getLength(treeIndicesExpr);
+    size_t numChainIndices  = Rf_isNull(chainIndicesExpr)  ? numChains  : rc_getLength(chainIndicesExpr);
+    size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
+    size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
     
-    size_t* chainIndices = ext_stackAllocate(numChainIndices, size_t);
-    size_t* treeIndices  = ext_stackAllocate(numTreeIndices,  size_t);
+    size_t* chainIndices  = new size_t[numChainIndices];
+    size_t* sampleIndices = new size_t[numSamples];
+    size_t* treeIndices   = ext_stackAllocate(numTreeIndices,  size_t);
     
     if (Rf_isNull(chainIndicesExpr)) {
       for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
@@ -542,6 +545,12 @@ extern "C" {
       for (size_t i = 0; i < numChainIndices; ++i) chainIndices[i] = static_cast<size_t>(i_chainIndices[i] - 1);
     }
     
+    if (Rf_isNull(sampleIndicesExpr)) {
+      for (size_t i = 0; i < numSamples; ++i) sampleIndices[i] = i;
+    } else {
+      int* i_sampleIndices = INTEGER(sampleIndicesExpr);
+      for (size_t i = 0; i < numSampleIndices; ++i) sampleIndices[i] = static_cast<size_t>(i_sampleIndices[i] - 1);
+    }
     
     if (Rf_isNull(treeIndicesExpr)) {
       for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
@@ -550,9 +559,10 @@ extern "C" {
       for (size_t i = 0; i < numTreeIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
     }
    
-    fit->printTrees(chainIndices, numChainIndices, treeIndices, numTreeIndices);
+    fit->printTrees(chainIndices, numChainIndices, sampleIndices, numSampleIndices, treeIndices, numTreeIndices);
     
-    ext_stackFree(treeIndices);
+    delete [] treeIndices;
+    delete [] sampleIndices;
     ext_stackFree(chainIndices);
     
     return R_NilValue;

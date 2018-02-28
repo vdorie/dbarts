@@ -12,6 +12,7 @@ setMethod("initialize", "dbartsControl",
 ## isn't part of class
 dbartsControl <-
   function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
+           runMode = c("sequentialUpdates", "fixedSamples"),
            n.samples = NA_integer_, n.cuts = 100L,
            n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
            n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
@@ -21,6 +22,7 @@ dbartsControl <-
                 verbose = as.logical(verbose),
                 keepTrainingFits = as.logical(keepTrainingFits),
                 useQuantiles = as.logical(useQuantiles),
+                runMode = as.character(runMode[1L]),
                 n.samples = coerceOrError(n.samples, "integer"),
                 n.burn = coerceOrError(n.burn, "integer"),
                 n.trees = coerceOrError(n.trees, "integer"),
@@ -31,7 +33,7 @@ dbartsControl <-
                 printCutoffs = coerceOrError(printCutoffs, "integer"),
                 rngKind = rngKind,
                 rngNormalKind = rngNormalKind,
-                updateState = as.logical(updateState))
+                updateState = as.logical(updateState),)
   
   n.cuts <- coerceOrError(n.cuts, "integer")
   if (n.cuts <= 0L) stop("'n.cuts' must be a positive integer")

@@ -55,6 +55,10 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
       varcount = varcount,
       y = fit$data@y)
   }
+  
+  if (fit$control@keepTreeSplits == TRUE)
+    result$fit <- fit
+  
   class(result) <- 'bart'
   invisible(result)
 }
@@ -82,6 +86,7 @@ bart2 <- function(
     stop("unknown arguments: '", paste0(argNames[unknownArgs], collapse = "', '"), "'")
   
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
+  controlCall$runMode <- "fixedSamples"
   control <- eval(controlCall, envir = callingEnv)
   
   control@call <- if (keepCall) matchedCall else call("NULL")
@@ -149,10 +154,12 @@ bart <- function(
   ndpost = 1000L, nskip = 100L,
   printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
-  verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE, keepcall = TRUE
+  verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE,
+  keepcall = TRUE
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
+                           runMode = "fixedSamples",
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree), n.chains = as.integer(nchain),
                            n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),

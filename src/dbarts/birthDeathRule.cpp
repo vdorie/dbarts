@@ -42,7 +42,7 @@ namespace dbarts {
   double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree);
     
   // returns probability of jump
-  double birthOrDeathNode(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepWasTaken, bool* stepWasBirth)
+  double birthOrDeathNode(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepWasTaken, bool* stepWasBirth)
   {
     dbarts::State& state(fit.state[chainNum]);
     
@@ -68,7 +68,7 @@ namespace dbarts {
       
       double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, nodeToChange);
       double oldPriorProbability = 1.0 - parentPriorGrowthProbability;
-      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
       
       // now perform birth;
       oldState.store(nodeToChange);
@@ -82,7 +82,7 @@ namespace dbarts {
       double rightPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double newPriorProbability = parentPriorGrowthProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
 
-      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
 
       double transitionProbabilityOfDeathStep = 1.0 - computeProbabilityOfBirthStep(fit, tree);
       double transitionProbabilityOfSelectingNodeForDeath = computeProbabilityOfSelectingNodeForDeath(tree);
@@ -118,14 +118,14 @@ namespace dbarts {
       double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, nodeToChange);
       double leftPriorGrowthProbability   = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
       double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
-      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+      double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
       
       oldState.store(nodeToChange);
       
       // now figure out how the node could have given birth
       nodeToChange.orphanChildren();
       
-      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+      double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
       transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, true);
 #ifdef MATCH_BAYES_TREE
       ext_simulateContinuousUniform();

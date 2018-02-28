@@ -41,7 +41,7 @@ extern "C" {
 
 
   SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-             SEXP KExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
+             SEXP testSamplePropExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
              SEXP numTreesExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr,
              SEXP dropExpr)
   {
@@ -68,10 +68,7 @@ extern "C" {
     size_t numObservations = rc_getLength(Rf_getAttrib(dataExpr, Rf_install("y")));
     size_t numSamples      = static_cast<size_t>(INTEGER(Rf_getAttrib(controlExpr, Rf_install("n.samples")))[0]);
     
-    size_t numFolds = static_cast<size_t>(
-      rc_getInt(KExpr, "num folds", RC_LENGTH | RC_EQ, asRXLen(1),
-                                    RC_VALUE | RC_GT, 0,
-                                    RC_VALUE | RC_LEQ, static_cast<int>(numObservations) - 1, RC_END));
+    double testSampleProp =  rc_getDouble(testSamplePropExpr, "p.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_VALUE | RC_LT, 1, RC_END);
     size_t numReps = static_cast<size_t>(
       rc_getInt(numRepsExpr, "num reps", RC_LENGTH | RC_GEQ, asRXLen(1),
                                          RC_VALUE | RC_GT, 0, RC_END));
@@ -85,12 +82,12 @@ extern "C" {
     
     bool dropUnusedDims = rc_getBool(dropExpr, "drop", RC_LENGTH | RC_EQ, asRXLen(1), RC_END);
     
-    size_t numTestObservations = numObservations / numFolds;
+    size_t numTestObservations = static_cast<size_t>(std::floor(static_cast<double>(numObservations) * testSampleProp + 0.5));
     
     LossFunctorDefinition* lossFunctionDef = createLossFunctorDefinition(lossTypeExpr, numTestObservations, numSamples);
     
     initializeControlFromExpression(control, controlExpr);
-    if (control.numSamples == 0) {
+    if (control.defaultNumSamples == 0) {
       delete lossFunctionDef;
       
       Rf_error("xbart called with 0 posterior samples");
@@ -127,7 +124,7 @@ extern "C" {
     GetRNGstate();
     
     crossvalidate(control, model, data,
-                  numFolds, numReps,
+                  testSampleProp, numReps,
                   numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                   *lossFunctionDef, numThreads,
                   nTrees, numNTrees, k, numKs, power, numPowers, base, numBases,

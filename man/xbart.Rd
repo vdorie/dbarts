@@ -2,11 +2,11 @@
 \alias{xbart}
 \title{Crossvalidation For Bayesian Additive Regression Trees}
 \description{
-Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{ntree} parameters using \eqn{K}-fold crossvalidation, sharing burn-in between parameter settings. Results are given an array of evalulations of a loss functions on the held-out sets.
+Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{ntree} parameters using repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are given an array of evalulations of a loss functions on the held-out sets.
 }
 \usage{
 xbart(formula, data, subset, weights, offset, verbose = FALSE,
-      n.samples = 200L, K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L),
+      n.samples = 200L, p.test = 0.2, n.reps = 200L, n.burn = c(200L, 150L, 50L),
       loss = c("rmse", "mcr"), n.threads = guessNumCores(), n.trees = 75L,
       k = 2, power = 2, base = 0.95, drop = TRUE,
       resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)}
@@ -42,24 +42,25 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
     A positive integer, setting the number of posterior samples drawn for each replication and used by
     the loss function.
   }
-  \item{K}{
-    Number of \eqn{K}-folds for use in crossvalidation. In each replication, \eqn{1/K} of the data will be
-    held out and used for evaluation, while \eqn{1 - 1/K} are used for training.
+  \item{p.test}{
+    For each replication, the test sample proportion or size. Can be a real number in \eqn{(0, 1)} or a
+    positive integer between 1 and the number of observations. When a proportion, the test sample size is
+    rounded up.
   }
   \item{n.reps}{
-    A positive integer setting the number of \eqn{K}-fold crossvalidation evaluations of the loss function
-    will be evaluated.
+    A positive integer setting the number of random subsample evaluations of the loss function
+    that will be taken.
   }
   \item{n.burn}{
     Between one and three positive integers, specifying the 1) initial burn-in, 2) burn-in when moving from
-    one parameter setting to another, and 3) the burn-in between each \eqn{K}-fold replication.
+    one parameter setting to another, and 3) the burn-in between each random subsample replication.
   }
   \item{loss}{
     Either a one of the present loss functions as character-strings (\code{mcr} - missclassification rate for
     binary responses, \code{rmse} - root-mean-squared-error for continuous response), a function, or a function-
     evaluation environment list-pair. Functions should have prototypes of the form
-    \code{function(y.test, y.test.hat)}, where \code{y.test} is the held out \eqn{K}-fold and \code{y.test.hat}
-    is a matrix of dimension \code{length(y.test) x n.samples}. See examples.
+    \code{function(y.test, y.test.hat)}, where \code{y.test} is the held out test subsample and \code{y.test.hat}
+    is a matrix of dimension \code{length(y.test) * n.samples}. See examples.
   }
   \item{n.threads}{
     Across different sets of parameters (\code{k} \eqn{\times}{*} \code{power} \eqn{\times}{*} \code{base}
@@ -100,11 +101,11 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
    }
 }
 \details{
-  Fits \eqn{K}-fold cross validation for \code{n.reps} replications against the crossproduct of given
-  hyperparameter vectors \code{n.trees} \eqn{\times}{*} \code{k} \eqn{\times}{*} \code{power}
-  \eqn{\times}{*} \code{base}. \eqn{1/K} of the observations are withheld from each replication while
-  \eqn{1 - 1/K} are used to train the BART model, and for each the withheld observations are used
-  together with BART estimates to calculate the \code{loss} function.
+  Fits repeated random subsample crossvalidation of \code{n.reps} replications against the crossproduct
+  of given hyperparameter vectors \code{n.trees} \eqn{\times}{*} \code{k} \eqn{\times}{*} \code{power}
+  \eqn{\times}{*} \code{base}. For each replication, \code{n * p.test} observations are withheld as test
+  data and used to calculate the \code{loss} function while \code{n * (1 - p.test)} observations are used to
+  train the BART model.
   
   \code{loss} functions are either the default of missclassification rates for binary outcomes
   or a \code{function} with arguments \code{y.test}, \code{y.test.hat} that returns a scalar value.

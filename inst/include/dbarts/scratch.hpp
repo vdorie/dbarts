@@ -22,9 +22,11 @@ namespace dbarts {
     double* treeY;
     double* probitLatents;
     
+    double* totalFits;     // numObs
+    double* totalTestFits; // numTestObs
+    
     std::size_t taskId;
   };
-    
 } // namespace dbarts
 
 #endif // DBARTS_SCRATCH_HPP

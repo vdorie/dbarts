@@ -49,7 +49,7 @@ namespace dbarts {
     }
   }
   
-  void Tree::sampleAveragesAndSetFits(const BARTFit& fit, size_t chainNum, double* trainingFits, double* testFits)
+  void Tree::sampleAveragesAndSetFits(const BARTFit& fit, size_t chainNum, double sigma, double* trainingFits, double* testFits)
   {
     State& state(fit.state[chainNum]);
     
@@ -63,7 +63,7 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double posteriorPrediction = bottomNode.drawFromPosterior(state.rng, *fit.model.muPrior, state.sigma * state.sigma);
+      double posteriorPrediction = bottomNode.drawFromPosterior(state.rng, *fit.model.muPrior, sigma * sigma);
       bottomNode.setPredictions(trainingFits, posteriorPrediction);
       
       if (testFits != NULL) nodePosteriorPredictions[i] = posteriorPrediction;

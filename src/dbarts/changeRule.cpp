@@ -63,7 +63,7 @@ namespace dbarts {
   size_t getIndexOfFirstTrueValue(bool* v, size_t length);
   
   
-  double changeRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepTaken)
+  double changeRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepTaken)
   // step which tries changing the rule 
   {
     dbarts::State& state(fit.state[chainNum]);
@@ -110,7 +110,7 @@ namespace dbarts {
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        XLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+        XLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
         
         // copy old rule
         ::State oldState;
@@ -141,7 +141,7 @@ namespace dbarts {
         
         //get logpri and logL from candidate tree (Y)
         YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        YLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+        YLogL = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
         
         //draw go nogo
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
@@ -179,7 +179,7 @@ namespace dbarts {
         
         //get logpri and logL from current tree (X)
         XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        XLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+        XLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
         
         // copy old rule
         ::State oldState;
@@ -196,7 +196,7 @@ namespace dbarts {
         
         //get logpri and logL from candidate tree (Y)
         YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        YLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, state.sigma);
+        YLogL  = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
         
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);

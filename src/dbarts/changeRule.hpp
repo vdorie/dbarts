@@ -7,7 +7,7 @@ namespace dbarts {
   struct BARTFit;
   struct Tree;
   
-  double changeRule(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, bool* stepTaken);
+  double changeRule(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepTaken);
 }  
 
 #endif

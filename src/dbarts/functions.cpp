@@ -97,7 +97,7 @@ namespace dbarts {
     delete [] catGoesRight;
   }
   
-  double metropolisJumpForTree(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y,
+  double metropolisJumpForTree(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma,
                                bool* stepTaken, StepType* stepType)
   { 
     double alpha;
@@ -108,17 +108,17 @@ namespace dbarts {
     double u = ext_rng_simulateContinuousUniform(fit.state[chainNum].rng);
     // ext_printf("type: %s; ", u < fit.model.birthOrDeathProbability ? "birth/death" : (u < fit.model.birthOrDeathProbability + fit.model.swapProbability ? "swap" : "change"));
     if (u < fit.model.birthOrDeathProbability) {
-      alpha = birthOrDeathNode(fit, chainNum, tree, y, stepTaken, &birthedTree);
+      alpha = birthOrDeathNode(fit, chainNum, tree, y, sigma, stepTaken, &birthedTree);
       if (birthedTree == true) {
         *stepType = BIRTH;
       } else {
         *stepType = DEATH;
       }
     } else if (u < fit.model.birthOrDeathProbability + fit.model.swapProbability) { 
-      alpha = swapRule(fit, chainNum, tree, y, stepTaken);
+      alpha = swapRule(fit, chainNum, tree, y, sigma, stepTaken);
       *stepType = SWAP;
     } else {
-      alpha = changeRule(fit, chainNum, tree, y, stepTaken);
+      alpha = changeRule(fit, chainNum, tree, y, sigma, stepTaken);
       *stepType = CHANGE;
     }
     // const char * const jumpNames[] = { "birth", "death", "swap", "change" };

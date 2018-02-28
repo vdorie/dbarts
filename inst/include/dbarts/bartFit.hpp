@@ -14,6 +14,11 @@
 #include "scratch.hpp"
 #include "state.hpp"
 
+extern "C" {
+  struct _ext_htm_manager_t;
+  typedef struct _ext_htm_manager_t* ext_htm_manager_t;
+}
+
 namespace dbarts {
   struct Results;
   struct SharedScratch;
@@ -28,6 +33,7 @@ namespace dbarts {
     State* state;
     
     double runningTime;
+    std::size_t currentNumSamples;
     
     ext_htm_manager_t threadManager;
     
@@ -59,7 +65,10 @@ namespace dbarts {
     
     void sampleTreesFromPrior();
     
+    void rebuildScratchFromState();
+    
     void printTrees(const std::size_t* chains, std::size_t numChains,
+                    const std::size_t* samples, std::size_t numSamples,
                     const std::size_t* indices, std::size_t numIndices) const;
     
     // this assumes that the new data has as many predictors as the old, and that they correspond to each other;

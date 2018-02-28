@@ -5,7 +5,7 @@
 
 extern "C" {
   SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-             SEXP KExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
+             SEXP testSamplePropExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
              SEXP numTreesExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr,
              SEXP dropExpr);
 }

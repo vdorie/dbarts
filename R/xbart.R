@@ -1,5 +1,5 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  K = 5L, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
+                  p.test = 0.2, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
                   n.threads = guessNumCores(),
                   n.trees = 75L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
@@ -17,6 +17,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (control@call != call("NA")[[1L]]) control@call <- matchedCall
   control@verbose <- verbose
   control@n.chains <- 1L
+  control@runMode <- "sequentialUpdates"
   
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset)
   data <- eval(dataCall, evalEnv)
@@ -75,13 +76,16 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     }
   model <- new("dbartsModel", tree.prior, node.prior, resid.prior)
   
-  K         <- coerceOrError(K,         "integer")
+  p.test    <- coerceOrError(p.test,    "numeric")
   n.reps    <- coerceOrError(n.reps,    "integer")
   n.burn    <- coerceOrError(n.burn,    "integer")
   n.threads <- coerceOrError(n.threads, "integer")
   
+  if (p.test > 1) p.test <- p.test / length(data@y)
+  if (p.test <= 0 || p.test >= 1) stop("p.test must be in (0, 1)")
+  
   result <- .Call(C_dbarts_xbart, control, model, data,
-                  K, n.reps, n.burn, loss,
+                  p.test, n.reps, n.burn, loss,
                   n.threads, n.trees, k, power, base, drop)
   
   if (is.null(result) || is.null(dim(result))) return(result)

@@ -7,7 +7,7 @@ namespace dbarts {
   struct BARTFit;
   struct Tree;
   
-  double birthOrDeathNode(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, bool* stepWasTaken, bool* birthedNode);
+  double birthOrDeathNode(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepWasTaken, bool* birthedNode);
 }
   
 

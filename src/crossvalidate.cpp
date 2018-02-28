@@ -3,7 +3,7 @@
 
 #include <algorithm> // sort
 #include <cstddef> // size_t
-#include <cmath>   // sqrt
+#include <cmath>   // sqrt, floor
 
 #include <external/alloca.h>
 #include <external/io.h>
@@ -84,7 +84,7 @@ extern "C" { static void printInfo(void** data, size_t numThreads); }
 
 namespace dbarts { namespace xval {
     void crossvalidate(const Control& origControl, const Model& origModel, const Data& origData,
-                       size_t numFolds, size_t numReps,
+                       double testSampleProp, size_t numReps,
                        size_t numInitialBurnIn, size_t numContextShiftBurnIn, size_t numRepBurnIn,
                        const LossFunctorDefinition& lossFunctorDef, size_t numThreads,
                        const std::size_t* nTrees, size_t numNTrees, const double* k, size_t numKs,
@@ -92,16 +92,17 @@ namespace dbarts { namespace xval {
                        double* results)
 
   {
-    size_t numTestObservations     = origData.numObservations / numFolds;
+    size_t numTestObservations     = origData.numObservations -
+                                     static_cast<size_t>(std::floor(static_cast<double>(origData.numObservations) * testSampleProp + 0.5));
     size_t numTrainingObservations = origData.numObservations - numTestObservations;
     
     if (origControl.verbose) {
-      ext_printf("starting %lu-fold crossvalidation with %lu replications, %lu/%lu test/training obs\n",
-                 numFolds, numReps, numTestObservations, numTrainingObservations);
+      ext_printf("starting crossvalidation with %.2f%% test obs, %lu replications, %lu/%lu test/training obs\n",
+                 100.0 * testSampleProp, numReps, numTestObservations, numTrainingObservations);
       ext_printf("  %lu tree par(s), %lu k par(s), %lu power par(s), %lu base par(s)\n",
                  numNTrees, numKs, numPowers, numBases);
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
-      ext_printf("  num samp: %lu, num reps: %lu\n", origControl.numSamples, numReps);
+      ext_printf("  num samp: %lu, num reps: %lu\n", origControl.defaultNumSamples, numReps);
       ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
 
       if (numThreads > 1) {
@@ -240,7 +241,7 @@ extern "C" {
     
     size_t numTrainingObservations = sharedData.numTrainingObservations;
     size_t numTestObservations     = sharedData.numTestObservations;
-    size_t numSamples              = origControl.numSamples;
+    size_t numSamples              = origControl.defaultNumSamples;
     
     const LossFunctorDefinition& lfDef(sharedData.lossFunctorDef);
     
@@ -256,7 +257,7 @@ extern "C" {
       suppliedTestSamples == NULL ?
         new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1) :
         new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1,
-                    new double[origControl.numSamples],
+                    new double[origControl.defaultNumSamples],
                     new double[numTrainingObservations * numSamples],
                     suppliedTestSamples,
                     new double[origData.numPredictors * numSamples]);

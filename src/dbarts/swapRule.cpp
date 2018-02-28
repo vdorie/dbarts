@@ -55,7 +55,7 @@ namespace dbarts {
   bool ordinalRuleIsValid(const Node& node, int32_t variableIndex, int32_t leftIndex, int32_t rightIndex);
   bool ruleIsValid(const BARTFit& fit, const Node& node, int32_t variableIndex);
   
-  double swapRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, bool* stepTaken)
+  double swapRule(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepTaken)
   // step which tries swapping rules
   {
     State& state(fit.state[chainNum]);
@@ -121,7 +121,7 @@ namespace dbarts {
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
+        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, sigma);
         
         parent.p.rule.swapWith(child.p.rule);
         
@@ -135,7 +135,7 @@ namespace dbarts {
         
         //get logpri and logL from current tree (X)
         double YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
+        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, sigma);
                 
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);
@@ -176,7 +176,7 @@ namespace dbarts {
         oldState.store(fit, parent);
         
         double XLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
+        double XLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, sigma);
         
         parent.p.rule.swapWith(leftChild.p.rule);
         rightChild.p.rule = leftChild.p.rule;
@@ -191,7 +191,7 @@ namespace dbarts {
         if (parentVariableIndex != childVariableIndex) updateVariablesAvailable(fit, parent, childVariableIndex);
         
         double YLogPi = fit.model.treePrior->computeTreeLogProbability(fit, tree);
-        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, state.sigma);
+        double YLogL = computeLogLikelihoodForBranch(fit, chainNum, parent, y, sigma);
         
         alpha = std::exp(YLogPi + YLogL - XLogPi - XLogL);
         alpha = (alpha > 1.0 ? 1.0 : alpha);

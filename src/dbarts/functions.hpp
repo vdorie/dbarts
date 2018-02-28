@@ -13,7 +13,7 @@ namespace dbarts {
   struct Tree;
   
   void updateVariablesAvailable(const BARTFit& fit, Node& node, std::int32_t variableIndex);
-  double metropolisJumpForTree(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y,
+  double metropolisJumpForTree(const BARTFit& fit, std::size_t chainNum, Tree& tree, const double* y, double sigma,
                                bool* stepTaken, StepType* stepType);
   
   // for int "ind", flips the bits in d such that d is the powers of 2 to get back to ind
