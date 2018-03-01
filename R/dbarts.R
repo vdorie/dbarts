@@ -236,38 +236,51 @@ dbartsSampler <-
                   writeLines(deparse(control@call))
                   cat("\n")
                   
-                  ##xDisplay <- NULL
-                  ##stringConnection <- textConnection("xDisplay", "w", local = TRUE)
-                  ##sink(stringConnection)
-                    
-                  ##cat("  x:")
-                  ##if (!is.null(colnames(data@x))) {
-                  ##  for (i in 1:min(ncol(data@x), 10)) cat(sprintf(" %8.8s", colnames(data@x)[i]))
-                  ##  if (ncol(data@x) > 10) cat(" ...")
-                  ##  cat("\n")
-                  ##  for (i in 1:min(nrow(data@x), 3)) {
-                  ##    cat("    ")
-                  ##    for (j in 1:min(ncol(data@x), 10)) cat(sprintf("     %4.4s", data@x[i,j]))
-                  ##    cat("\n")
-                  ##  }
-                  ##}
-                  ##sink()
-                  ##close(stringConnection)
-                    
-                  ##writeLines(xDisplay)
-                  
                   invisible(NULL)
+                },
+                predict = function(x.test, offset.test) {
+                  'Using existing sampler to predict for new data without re-running.'
+                  
+                  selfEnv <- parent.env(environment())
+                  
+                  if (control@runMode == "sequentialUpdates" && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
+                    warning("predict with sequential update run mode yields single result")
+                    selfEnv$runModeWarnOnce <- TRUE
+                  }
+                   
+                  ptr <- getPointer()
+                  
+                  x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+                  if (is.null(x.test)) stop("x.test cannot be NULL")
+                  
+                  if (missing(offset.test) || is.null(offset.test)) {
+                    offset.test <- NA_real_
+                  } else {
+                    offset.test <- as.double(offset.test)
+                    if (length(offset.test) == 1)
+                      offset.test <- rep_len(offset, nrow(x.test))
+                    if (!identical(length(offset.test), nrow(x.test)))
+                      stop("length of test offset must be equal to number of rows in test matrix")
+                  }
+                  
+                  .Call(C_dbarts_predict, ptr, x.test, offset.test)
                 },
                 setControl = function(newControl) {
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'
                   
                   if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl")
                   
+                  selfEnv <- parent.env(environment())
+                  
+                  if (control@runMode != newControl@runMode && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
+                    warning("changing the run mode can yield a sampler with an inconsistent state")
+                    selfEnv$runModeWarnOnce <- TRUE
+                  }
+                  
                   newControl@binary <- control@binary
                   newControl@call   <- control@call
                   
                   ptr <- getPointer()
-                  selfEnv <- parent.env(environment())
                   
                   selfEnv$control <- newControl
                   .Call(C_dbarts_setControl, ptr, control)
@@ -365,6 +378,13 @@ dbartsSampler <-
                 },
                 setPredictor = function(x, column, updateState = NA) {
                   'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. TRUE/FALSE returned as to whether or not the operation was successful.'
+                  
+                  selfEnv <- parent.env(environment())
+                  
+                  if (control@runMode == "fixedSamples" && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
+                    warning("changing predictor with fixed samples can render old predictions invalid")
+                    selfEnv$runModeWarnOnce <- TRUE
+                  }
 
                   columnIsMissing <- missing(column)
 
@@ -378,7 +398,6 @@ dbartsSampler <-
                   x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
                   
                   ptr <- getPointer()
-                  selfEnv <- parent.env(environment())
                   
                   updateSuccessful <-
                     if (columnIsMissing) {
@@ -422,40 +441,37 @@ dbartsSampler <-
                   invisible(NULL)
                 },
                 setTestPredictorAndOffset = function(x.test, offset.test, updateState = NA) {
-                   'Changes the test predictor matrix, and optionally the test offset.'
-                   ptr <- getPointer()
-                   selfEnv <- parent.env(environment())
-
-                   x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
-
-                   if (!missing(offset.test)) {
-                     if (is.null(x.test)) {
-                       if (!is.null(offset.test)) stop("when test matrix is NULL, test offset must be as well")
-                     } else {
-                       if (!is.null(offset.test)) {
-                         offset.test <- as.double(offset.test)
-                         if (length(offset.test) == 1) {
-                           offset.test <- rep_len(offset, nrow(x.test))
-                         }
-                         if (!identical(length(offset.test), nrow(x.test))) {
-                           stop("length of test offset must be equal to number of rows in test matrix")
-                         }
-                       }
-                     }
-                     selfEnv$data@testUsesRegularOffset <- FALSE
-
-                     selfEnv$data@x.test <- x.test
-                     selfEnv$data@offset.test <- offset.test
-                     .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test)
-                   } else {
-                     selfEnv$data@x.test <- x.test
-                     .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
-                   }
-
-                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
-                     storeState(ptr)
-
-                   invisible(NULL)
+                  'Changes the test predictor matrix, and optionally the test offset.'
+                  ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
+                  
+                  x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+                  
+                  if (!missing(offset.test)) {
+                    if (is.null(x.test)) {
+                      if (!is.null(offset.test)) stop("when test matrix is NULL, test offset must be as well")
+                    } else {
+                      if (!is.null(offset.test)) {
+                        offset.test <- as.double(offset.test)
+                        if (length(offset.test) == 1) {
+                          offset.test <- rep_len(offset, nrow(x.test))
+                        }
+                        if (!identical(length(offset.test), nrow(x.test))) {
+                          stop("length of test offset must be equal to number of rows in test matrix")
+                        }
+                      }
+                    }
+                    selfEnv$data@testUsesRegularOffset <- FALSE
+                    selfEnv$data@x.test <- x.test
+                    selfEnv$data@offset.test <- offset.test
+                    .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test)
+                  } else {
+                    selfEnv$data@x.test <- x.test
+                    .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
+                  }
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+                  invisible(NULL)
                 },
                 setTestOffset = function(offset.test, updateState = NA) {
                   'Changes the test offset.'
@@ -498,6 +514,7 @@ dbartsSampler <-
                 },
                 setState = function(newState) {
                   'Sets the internal state from a cache.'
+                  
                   if (!is.list(newState)) stop("'state' must be a list of dbartsState objects")
                   if (length(newState) != control@n.chains) stop("'state' length must equal number of chains")
                   for (chainNum in seq_along(newState))

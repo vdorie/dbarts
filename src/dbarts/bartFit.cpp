@@ -272,6 +272,42 @@ updateTreesWithNewPredictor_cleanup:
 }
 
 namespace dbarts {
+  
+  void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
+  {
+    double* xt_test = new double[numTestObservations * data.numPredictors];
+    double* currTestFits = new double[numTestObservations];
+    
+    ext_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
+    
+    size_t numSamples = control.runMode == FIXED_SAMPLES ? currentNumSamples - 1 : 0;
+    
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
+        double* totalTestFits = result + (sampleNum + chainNum * numSamples) * numTestObservations;
+        
+        ext_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
+        
+        for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+          size_t treeOffset = treeNum + sampleNum * control.numTrees;
+          const double* treeFits = state[chainNum].treeFits + treeOffset * data.numObservations;
+          
+          const double* nodePosteriorPredictions = state[chainNum].trees[treeOffset].recoverAveragesFromFits(*this, treeFits);
+          
+          state[chainNum].trees[treeOffset].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, xt_test, numTestObservations, currTestFits);
+      
+          ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          
+          delete [] nodePosteriorPredictions;
+        }
+        
+        if (testOffset != NULL) ext_addVectorsInPlace(testOffset, numTestObservations, 1.0, totalTestFits);
+      }
+    }
+    
+    delete [] currTestFits;
+    delete [] xt_test;
+  }
 
   // this can leave the tree structures in an invalid state and doesn't roll-back
   bool BARTFit::setPredictor(const double* newPredictor)

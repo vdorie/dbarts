@@ -19,6 +19,7 @@ namespace dbarts {
     void sampleAveragesAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
     double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
+    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const double* xt, std::size_t numObservations, double* fits);
     
     void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions);
     void collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions);

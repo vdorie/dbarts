@@ -248,6 +248,46 @@ extern "C" {
     return R_NilValue;
   }
   
+  SEXP predict(SEXP fitExpr, SEXP x_testExpr, SEXP offset_testExpr)
+  {
+    const BARTFit* fit = static_cast<const BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_predict called on NULL external pointer");
+    
+    const Control& control(fit->control);
+    
+    if (Rf_isNull(x_testExpr) || rc_isS4Null(x_testExpr)) return R_NilValue;
+    
+    if (!Rf_isReal(x_testExpr)) Rf_error("x.test must be of type real");
+    
+    rc_assertDimConstraints(x_testExpr, "dimensions of x_test", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                            RC_NA,
+                            RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
+                            RC_END);
+    int* dims = INTEGER(Rf_getAttrib(x_testExpr, R_DimSymbol));
+    
+    size_t numSamples = control.runMode == FIXED_SAMPLES ? fit->currentNumSamples : 1;
+    size_t numTestObservations = static_cast<size_t>(dims[0]);
+    
+    
+    double* testOffset = NULL;
+    if (!Rf_isNull(offset_testExpr)) {
+      if (!Rf_isReal(offset_testExpr)) Rf_error("offset.test must be of type real");
+      if (rc_getLength(offset_testExpr) != 1 || !ISNA(REAL(offset_testExpr)[0])) {
+        if (rc_getLength(offset_testExpr) != numTestObservations) Rf_error("length of offset.test must equal number of rows in x.test");
+        testOffset = REAL(offset_testExpr);
+      }
+    }
+    
+    SEXP result = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples * control.numChains));
+    rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), static_cast<int>(control.numChains), -1);
+    
+    fit->predict(REAL(x_testExpr), numTestObservations, testOffset, REAL(result));
+    
+    UNPROTECT(1);
+    
+    return result;
+  }
+  
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

@@ -116,6 +116,13 @@ namespace dbarts {
       delete [] observationNodeMap;
     }
   }
+  
+  void Tree::setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const double* xt, size_t numObservations, double* fits)
+  {
+    size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, xt, numObservations);
+    for (size_t i = 0; i < numObservations; ++i) fits[i] = posteriorPredictions[observationNodeMap[i]];
+    delete [] observationNodeMap;
+  }
 }
 
 namespace {

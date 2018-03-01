@@ -45,6 +45,7 @@ namespace dbarts {
     void runSampler(std::size_t numBurnIn, Results* results);
     
     
+    void predict(const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) const;
     // settors simply replace local pointers to variables. dimensions much match
     // update modifies the local copy (which may belong to someone else)
     void setResponse(const double* newResponse); 

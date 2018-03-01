@@ -15,6 +15,7 @@ extern "C" {
   SEXP setControl(SEXP fit, SEXP control);
   SEXP setModel(SEXP fit, SEXP model);
   
+  SEXP predict(SEXP fit, SEXP x_test, SEXP offset_test);
   SEXP setResponse(SEXP fit, SEXP y);
   SEXP setOffset(SEXP fit, SEXP offset);
   SEXP setPredictor(SEXP fit, SEXP x);
