@@ -40,10 +40,11 @@ test_that("xbart fails with invalid inputs", {
   expect_error(xbart(y ~ x, n.samples = NULL))
   expect_error(xbart(y ~ x, n.samples = NA_integer_))
   
-  expect_error(xbart(y ~ x, K = 0L))
-  expect_error(xbart(y ~ x, K = "not-a-character"))
-  expect_error(xbart(y ~ x, K = NULL))
-  expect_error(xbart(y ~ x, K = NA_integer_))
+  expect_error(xbart(y ~ x, p.test = 0))
+  expect_error(xbart(y ~ x, p.test = length(testData$y) + 1))
+  expect_error(xbart(y ~ x, p.test = "not-a-numeric"))
+  expect_error(xbart(y ~ x, p.test = NULL))
+  expect_error(xbart(y ~ x, p.test = NA_real_))
   
   expect_error(xbart(y ~ x, n.reps = 0L))
   expect_error(xbart(y ~ x, n.reps = "not-a-integer"))

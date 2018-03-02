@@ -22,9 +22,9 @@ namespace dbarts {
     ext_rng* rng;
     
     State(const Control& control, const Data& data);
-    void invalidate(const Control& contol, std::size_t numSamples);
-    ~State();
+    void invalidate(std::size_t totalNumTrees);
     
+    // returns true if resize was necessary
     bool resize(const BARTFit& fit, const Control& newControl);
     bool resize(const BARTFit& fit, std::size_t numSamples);
     

@@ -6,19 +6,26 @@
 }
 \usage{
 dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-              n.samples = NA_integer_, n.cuts = 100L,
-              n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
-              n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
-              rngKind = "default", rngNormalKind = "default", updateState = TRUE)
+              runMode = c("sequentialUpdates", "fixedSamples"), n.samples = NA_integer_,
+              n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
+              n.threads = guessNumCores(), n.thin = 1L, printEvery = 100L,
+              printCutoffs = 0L, rngKind = "default", rngNormalKind = "default",
+              updateState = TRUE)
 }
 \arguments{
    \item{verbose}{Logical controlling sampler output to console.}
    \item{keepTrainingFits}{Logical controlling whether or not training fits are returned when
-     the sampler runs. These are always computed as part of the fitting procedure, so disabling
-     will not substantially impact running time.}
+         the sampler runs. These are always computed as part of the fitting procedure, so disabling
+         will not substantially impact running time.}
    \item{useQuantiles}{Logical to determine if the empirical quantiles of a columns of predictors
    	 should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced
    	 uniformly throughout the range of covariate values.}
+   \item{runMode}{A character that controls how the sampler stores tree splits. When
+         \code{"sequentialUpdates"}, a single instance of trees is stored and constantly overwritten.
+         When \code{"fixedSamples"}, the number of tree instance stored is equal to the number of samples
+         for the latest run. \code{"sequentialUpdates"} is appropriate for embedding the sampler in
+         a larger model, while \code{"fixedSamples"} allows the current run to be re-used for making new
+         predictions.}
    \item{n.samples}{A non-negative integer giving the default number of samples to return each time the
    	 sampler is run. Generally specified by \code{\link{dbarts}} instead, and can be overridden
    	 on a per-use basis whenever the sampler is \code{\link[=dbartsSampler-class]{run}}.}

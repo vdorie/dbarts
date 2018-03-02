@@ -7,6 +7,7 @@
 \alias{\S4method{sampleTreesFromPrior}{dbartsSampler}}
 \alias{\S4method{copy}{dbartsSampler}}
 \alias{\S4method{show}{dbartsSampler}}
+\alias{\S4method{predict}{dbartsSampler}}
 \alias{\S4method{setControl}{dbartsSampler}}
 \alias{\S4method{setModel}{dbartsSampler}}
 \alias{\S4method{setData}{dbartsSampler}}
@@ -27,6 +28,7 @@
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
+\S4method{predict}{dbartsSampler}(x.test, offset.test)
 \S4method{setControl}{dbartsSampler}(control)
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
@@ -81,4 +83,8 @@
   For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful.
   The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns
   were replaced, on the update is rolled-back so that the sampler remains in a valid state.
+  
+  \code{predict} keeps the current test matrix in place and uses the current set of tree splits.
+  It is intended that this function only be used when the \code{runMode} of \code{\link{dbartsControl}} is
+  \code{"fixedSamples"}, since otherwise only a single set of trees are stored.
 }

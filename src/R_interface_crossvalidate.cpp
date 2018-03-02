@@ -68,7 +68,7 @@ extern "C" {
     size_t numObservations = rc_getLength(Rf_getAttrib(dataExpr, Rf_install("y")));
     size_t numSamples      = static_cast<size_t>(INTEGER(Rf_getAttrib(controlExpr, Rf_install("n.samples")))[0]);
     
-    double testSampleProp =  rc_getDouble(testSamplePropExpr, "p.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_VALUE | RC_LT, 1, RC_END);
+    double testSampleProp =  rc_getDouble(testSamplePropExpr, "p.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     size_t numReps = static_cast<size_t>(
       rc_getInt(numRepsExpr, "num reps", RC_LENGTH | RC_GEQ, asRXLen(1),
                                          RC_VALUE | RC_GT, 0, RC_END));

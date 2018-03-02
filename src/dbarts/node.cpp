@@ -110,6 +110,44 @@ namespace dbarts {
     for (size_t i = 0; i < numPredictors; ++i) variablesAvailableForSplit[i] = true;
   }
   
+  Node::Node(const Node& parent, size_t numPredictors, const Node& other) :
+    parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(other.enumerationIndex), variablesAvailableForSplit(NULL),
+    observationIndices(NULL), numObservations(other.numObservations)
+  {
+    variablesAvailableForSplit = new bool[numPredictors];
+    
+    observationIndices = const_cast<size_t*>(parent.observationIndices) + (other.observationIndices - other.parent->observationIndices);
+    
+    if (other.leftChild != NULL) {
+      leftChild = new Node(*this, numPredictors, *other.leftChild);
+      p.rightChild = new Node(*this, numPredictors, *other.p.rightChild);
+      p.rule.copyFrom(other.p.rule);
+    } else {
+      m.average = other.m.average;
+      m.numEffectiveObservations = other.m.numEffectiveObservations;
+    }
+    
+    std::memcpy(variablesAvailableForSplit, other.variablesAvailableForSplit, sizeof(bool) * numPredictors);
+  }
+  
+  void Node::checkIndices(const BARTFit& fit, const Node& top) {
+    if (&top != this) {
+      ptrdiff_t offset = observationIndices - top.observationIndices;
+      if (offset < 0 || offset > static_cast<ptrdiff_t>(fit.data.numObservations))
+        ext_throwError("obsrevationIndices out of range");
+      if (numObservations > fit.data.numObservations)
+        ext_throwError("num observations greater than data");
+      for (size_t i = 0; i < numObservations; ++i)
+        if (observationIndices[i] > fit.data.numObservations)
+          ext_throwError("observation index at %lu out of range (%lu)", i, observationIndices[i]);
+    }
+    if (leftChild != NULL) {
+      leftChild->checkIndices(fit, top);
+      p.rightChild->checkIndices(fit, top);
+    }
+  }
+
+  
   Node::Node(const Node& parent, size_t numPredictors) :
     parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM),
     variablesAvailableForSplit(NULL), observationIndices(NULL), numObservations(0)
@@ -126,7 +164,7 @@ namespace dbarts {
     }
     delete [] variablesAvailableForSplit; variablesAvailableForSplit = NULL;
   }
-  
+    
   void Node::copyFrom(const BARTFit& fit, const Node& other)
   {
     parent = other.parent;

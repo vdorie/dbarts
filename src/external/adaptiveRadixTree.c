@@ -780,11 +780,13 @@ static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node*
   Node256* newNode = (Node256*) createNode(NODE256);
   if (newNode == NULL) return errno;
   
-  for (uint_least8_t i = 0; i < 256; ++i) {
-    if (n->keys[i] != 0) {
+  for (uint_least8_t i = 0; i < 255; ++i) {
+    if (n->keys[i] != 0)
       newNode->children[i] = n->children[n->keys[i] - 1];
-    }
   }
+  if (n->keys[255] != 0)
+      newNode->children[255] = n->children[n->keys[255] - 1];
+  
   copyNodeHeader((Node*) newNode, (const Node*) n);
   *positionInParent = (Node*) newNode;
   free(n);
@@ -886,13 +888,19 @@ static int removeChild48(Node48* restrict n, Node* restrict* restrict positionIn
     copyNodeHeader((Node*) newNode, (const Node*) n);
 
     uint8_t childIndex = 0;
-    for (uint_least8_t i = 0; i < 256; ++i) {
+    for (uint_least8_t i = 0; i < 255; ++i) {
       pos = n->keys[i];
       if (pos != 0) {
         newNode->keys[childIndex] = (uint8_t) i;
         newNode->children[childIndex] = n->children[pos - 1];
         ++childIndex;
       }
+    }
+    pos = n->keys[255];
+    if (pos != 0) {
+      newNode->keys[childIndex] = (uint8_t) 255;
+      newNode->children[childIndex] = n->children[pos - 1];
+      ++childIndex;
     }
     free(n);
   }
@@ -911,12 +919,17 @@ static int removeChild256(Node256* restrict n, Node* restrict* restrict position
     copyNodeHeader((Node*) newNode, (const Node*) n);
 
     uint8_t pos = 0;
-    for (uint_least8_t i = 0; i < 256; ++i) {
+    for (uint_least8_t i = 0; i < 255; ++i) {
       if (n->children[i] != NULL) {
         newNode->children[pos] = n->children[i];
         newNode->keys[i] = pos + 1;
         ++pos;
       }
+    }
+    if (n->children[255] != NULL) {
+      newNode->children[pos] = n->children[255];
+      newNode->keys[255] = pos + 1;
+      ++pos;
     }
     free(n);
   }
@@ -979,9 +992,14 @@ static int destroyNode(Node* n) {
     
     case NODE256:
     p.p4 = (Node256*) n;
-    for (uint8_t i = 0; i < 256; ++i) {
+#if defined(SUPPRESS_DIAGNOSTIC) && defined(__clang__)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wtautological-constant-out-of-range-compare"
+#endif
+    for (uint8_t i = 0; i < 255; ++i) {
       if (p.p4->children[i] != NULL) destroyNode(p.p4->children[i]);
     }
+    if (p.p4->children[255] != NULL) destroyNode(p.p4->children[255]);
     break;
     
     default:

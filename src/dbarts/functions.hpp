@@ -19,7 +19,7 @@ namespace dbarts {
   // for int "ind", flips the bits in d such that d is the powers of 2 to get back to ind
   void setBinaryRepresentation(std::uint32_t length, std::uint32_t ind, bool* d);
   
-  size_t countTrueValues(bool* v, size_t length);
+  std::size_t countTrueValues(bool* v, std::size_t length);
   
   int32_t findIndexOfIthPositiveValue(bool* values, std::size_t numValues, std::size_t i);
   void setCategoryReachability(const BARTFit& fit, const Node& node, std::int32_t variableIndex, bool* categoriesCanReachNode);

@@ -73,6 +73,7 @@ namespace dbarts {
     
     Node(std::size_t* observationIndices, std::size_t numObservations, std::size_t numPredictors); // node is assumed at top
     Node(const Node& parent, std::size_t numPredictors); // node attaches to parent; parent should add observations
+    Node(const Node& parent, std::size_t numPredictors, const Node& other); // copies tree structure from other
     ~Node();
     
     void copyFrom(const BARTFit& fit, const Node& other);
@@ -133,6 +134,8 @@ namespace dbarts {
     void orphanChildren();
     
     void countVariableUses(std::uint32_t* variableCounts) const;
+    
+    void checkIndices(const BARTFit& fit, const Node& top);
   };
   
   

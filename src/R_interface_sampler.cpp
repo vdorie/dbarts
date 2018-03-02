@@ -279,7 +279,10 @@ extern "C" {
     }
     
     SEXP result = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples * control.numChains));
-    rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), static_cast<int>(control.numChains), -1);
+    if (fit->control.numChains <= 1)
+      rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
+    else
+      rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), static_cast<int>(control.numChains), -1);
     
     fit->predict(REAL(x_testExpr), numTestObservations, testOffset, REAL(result));
     
@@ -574,9 +577,9 @@ extern "C" {
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
     
-    size_t* chainIndices  = new size_t[numChainIndices];
+    size_t* chainIndices  = ext_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = new size_t[numSamples];
-    size_t* treeIndices   = ext_stackAllocate(numTreeIndices,  size_t);
+    size_t* treeIndices   = new size_t[numTreeIndices];
     
     if (Rf_isNull(chainIndicesExpr)) {
       for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;

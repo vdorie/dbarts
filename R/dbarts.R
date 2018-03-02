@@ -33,7 +33,7 @@ dbartsControl <-
                 printCutoffs = coerceOrError(printCutoffs, "integer"),
                 rngKind = rngKind,
                 rngNormalKind = rngNormalKind,
-                updateState = as.logical(updateState),)
+                updateState = as.logical(updateState))
   
   n.cuts <- coerceOrError(n.cuts, "integer")
   if (n.cuts <= 0L) stop("'n.cuts' must be a positive integer")
@@ -272,7 +272,7 @@ dbartsSampler <-
                   
                   selfEnv <- parent.env(environment())
                   
-                  if (control@runMode != newControl@runMode && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
+                  if (control@runMode != newControl@runMode && (is.null(selfEnv$runModeWarnOnce) || selfEnv$runModeWarnOnce == FALSE)) {
                     warning("changing the run mode can yield a sampler with an inconsistent state")
                     selfEnv$runModeWarnOnce <- TRUE
                   }
@@ -547,11 +547,11 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                printTrees = function(chainNums = seq_len(control@n.chains), treeNums = seq_len(control@n.trees)) {
+                printTrees = function(chainNums = seq_len(control@n.chains), sampleNums = seq_len(control@n.samples), treeNums = seq_len(control@n.trees)) {
                   'Produces an info dump of the internal state of the trees.'
                   
                   ptr <- getPointer()
-                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), as.integer(treeNums)))
+                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), as.integer(sampleNums), as.integer(treeNums)))
                 },
                 plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'

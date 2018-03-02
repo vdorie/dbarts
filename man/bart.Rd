@@ -2,6 +2,7 @@
 \alias{bart}
 \alias{bart2}
 \alias{plot.bart}
+\alias{predict.bart}
 \title{Bayesian Additive Regression Trees}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
@@ -23,7 +24,8 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      ndpost = 1000, nskip = 100,
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
-     verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE, keepcall = TRUE)
+     verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE,
+     keeptrees = FALSE, keepcall = TRUE)
 
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
@@ -35,11 +37,14 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       n.cuts = 100L, useQuantiles = FALSE,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
-      verbose = TRUE, keepCall = TRUE, ...)
+      verbose = TRUE,
+      keepTrees = FALSE, keepCall = TRUE, \dots)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
      \dots)
+
+\method{predict}{bart}(object, test, offset.test, combineChains, \dots)
 }
 \arguments{
    \item{x.train}{
@@ -168,6 +173,9 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      \code{ndpost} \eqn{\times} number of observations.
    }
    
+   \item{keeptrees}{
+     Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit.
+   }
    \item{keepcall}{
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
           used to instantiate BART.
@@ -195,6 +203,10 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      If \code{offest} is missing, defaults to \code{NULL}.
    }
    
+   \item{object}{
+     An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
+   }
+   
    \item{n.trees}{Same as \code{ntree}.}
    \item{n.samples}{Same as \code{ndpost}.}
    \item{n.burn}{Same as \code{nskip}.}
@@ -207,6 +219,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    \item{useQuantiles}{Same as \code{usequants}.}
    \item{printEvery}{Same as \code{printevery}.}
    \item{printCutoffs}{Same as \code{printcutoffs}.}
+   \item{keepTrees}{Same as \code{keeptrees}.}
    \item{keepCall}{Same as \code{keepcall}.}
 
    \item{x}{
@@ -225,7 +238,8 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    }
 
    \item{\dots}{
-     Additional arguments passed on to plot or \code{dbartsControl}, respectively.
+     Additional arguments passed on to \code{plot} or \code{dbartsControl}, respectively. Not used in
+     \code{predict}.
    }
 }
 \details{
@@ -256,6 +270,14 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
     column of \code{x.train}. If \code{usequants} is \code{TRUE}, then for a variable
     the minimum of \code{numcut} and one less than the number
     of unique elements for that variable are used.
+  }
+  
+  \subsection{Predict}{
+    Using \code{predict} with a \code{bart} object requires that it be fitted with the
+    option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. As keeping the trees for
+    a fit requires a sizeable amount of memory, the default behavior is to keep only
+    the predictions made while the sampler is running, storing only a single set of
+    trees.
   }
 }
 \value{
@@ -289,6 +311,9 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   \item{\code{y}}{
         The input dependent vector of values for the dependent variable.
         This is used in \code{plot.bart}.}
+  \item{\code{fit}}{
+        Optional sampler object which stores the values of the tree splits. Required for using
+        \code{predict}.}
     
   In the binary \eqn{y} case, the returned list has the components
   \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list 

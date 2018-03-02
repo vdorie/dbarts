@@ -51,8 +51,6 @@ namespace {
   void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                              uint32_t& numCutsPerVariable, double*& cutPoints);
   
-  void setNewObservationIndices(Node& newNode, size_t* indices, const Node& oldNode);
-  
   void printInitialSummary(const BARTFit& fit);
   void printTerminalSummary(const BARTFit& fit);
   
@@ -66,7 +64,7 @@ namespace {
   void storeSamples(const BARTFit& fit, size_t chainNum, Results& results,
                     const double* trainingSample, const double* testSample,
                     double sigma, const uint32_t* variableCounts, size_t simNum);
-  void countVariableUses(const BARTFit& fit, const State& state, uint32_t* variableCounts);
+  void countVariableUses(const BARTFit& fit, const State& state, size_t sampleNum, uint32_t* variableCounts);
   
 #ifdef HAVE_SYS_TIME_H
   double subtractTimes(struct timeval end, struct timeval start);
@@ -277,14 +275,14 @@ namespace dbarts {
   {
     double* xt_test = new double[numTestObservations * data.numPredictors];
     double* currTestFits = new double[numTestObservations];
+    double* totalTestFits = new double[numTestObservations];
     
     ext_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
     
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? currentNumSamples - 1 : 0;
+    size_t numSamples = control.runMode == FIXED_SAMPLES ? currentNumSamples : 1;
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
-        double* totalTestFits = result + (sampleNum + chainNum * numSamples) * numTestObservations;
         
         ext_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
         
@@ -296,15 +294,19 @@ namespace dbarts {
           
           state[chainNum].trees[treeOffset].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, xt_test, numTestObservations, currTestFits);
       
-          ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          ext_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
           
           delete [] nodePosteriorPredictions;
         }
         
-        if (testOffset != NULL) ext_addVectorsInPlace(testOffset, numTestObservations, 1.0, totalTestFits);
+        double* result_i = result + (sampleNum + chainNum * numSamples) * numTestObservations;
+        ext_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+        ext_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+        if (testOffset != NULL) ext_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
       }
     }
     
+    delete [] totalTestFits;
     delete [] currTestFits;
     delete [] xt_test;
   }
@@ -678,9 +680,6 @@ namespace dbarts {
     ext_stackFree(currTestFits);
     ext_stackFree(oldTreeFits);
     ext_stackFree(oldTreeIndices);
-    
-    // ext_printf("after setting data\n");
-    // printInitialSummary(*this);
   }
   
   void BARTFit::setControl(const Control& newControl)
@@ -706,16 +705,13 @@ namespace dbarts {
         stateResized = true;
       }
       
-      size_t numSamples = control.runMode == FIXED_SAMPLES ? currentNumSamples : 1;
+      size_t totalNumTrees = control.numTrees * (control.runMode == FIXED_SAMPLES ? currentNumSamples : 1);
       for (size_t chainNum = control.numChains; chainNum > resizeEnd; --chainNum) {
-        oldState[chainNum - 1].invalidate(control, numSamples);
-        oldState[chainNum - 1].~State();
+        oldState[chainNum - 1].invalidate(totalNumTrees);
       }
       
       delete [] oldState;
     }
-    
-    if (stateResized) rebuildScratchFromState();
     
     if (control.numTrees != newControl.numTrees) {
       NormalPrior* nodePrior = static_cast<NormalPrior*>(model.muPrior);
@@ -732,6 +728,8 @@ namespace dbarts {
       destroyRNG(*this);
       createRNG(*this);
     }
+    
+    if (stateResized) rebuildScratchFromState();
   }
   
   void BARTFit::setModel(const Model& newModel)
@@ -774,9 +772,12 @@ namespace dbarts {
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
     control(control), model(model), data(data), sharedScratch(), chainScratch(NULL), state(NULL),
-    runningTime(0.0), threadManager(NULL)
+    runningTime(0.0), currentNumSamples(control.defaultNumSamples), threadManager(NULL)
   {
     allocateMemory(*this);
+    
+    if (control.responseIsBinary) initializeLatents(*this);
+    else rescaleResponse(*this);
 
     createRNG(*this);
     
@@ -809,13 +810,11 @@ namespace dbarts {
     }
     delete [] sharedScratch.cutPoints; sharedScratch.cutPoints = NULL;
     
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? currentNumSamples : 1;    
-    for (size_t chainNum = control.numChains; chainNum > 0; --chainNum) {
-      state[chainNum - 1].invalidate(control, numSamples);
-      state[chainNum - 1].~State();
-    }
+    size_t totalNumTrees = control.numTrees * (control.runMode == FIXED_SAMPLES ? currentNumSamples : 1);
+    for (size_t chainNum = control.numChains; chainNum > 0; --chainNum)
+      state[chainNum - 1].invalidate(totalNumTrees);
     
-    delete [] state;
+    ::operator delete (state);
     
     ext_htm_destroy(threadManager);
   }
@@ -910,13 +909,6 @@ extern "C" {
     
     size_t totalNumIterations = (numBurnIn + numSamples) * control.treeThinningRate;
     
-    // copy previous end fits into the start
-    if (numTreeSamples > 1) {
-      std::memcpy(state.treeFits, const_cast<const double*>(state.treeFits + (numTreeSamples - 1) * data.numObservations * control.numTrees),
-                  data.numObservations * control.numTrees * sizeof(double));
-      state.sigma[0] = state.sigma[numTreeSamples - 1];
-    }
-    
     // reserve once at the start if possible
     if (control.numThreads > 1 && control.numChains == 1)
       ext_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
@@ -932,9 +924,8 @@ extern "C" {
       size_t majorIterationNum = k / control.treeThinningRate;
      
       bool isBurningIn = majorIterationNum < numBurnIn;
-      size_t sampleNum = (!isBurningIn ? majorIterationNum - numBurnIn : 0);
+      size_t resultSampleNum = !isBurningIn ? majorIterationNum - numBurnIn : 0;
             
-      
       if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0) {
         if (control.numChains > 1)
           ext_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
@@ -949,12 +940,21 @@ extern "C" {
       // of any thinning and then all subsequent in place
       size_t oldSampleNum = 0;
       size_t newSampleNum = 0;
-      if (!isBurningIn && sampleNum > 0) {
-        oldSampleNum = k % control.treeThinningRate == 0 ? (sampleNum - 1) : sampleNum;
-        newSampleNum = sampleNum;
+      if (control.runMode == FIXED_SAMPLES) {
+        if (k == 0)
+          oldSampleNum = numTreeSamples - 1;
+        else if (!isBurningIn && resultSampleNum > 0)
+          oldSampleNum = k % control.treeThinningRate == 0 ? (resultSampleNum - 1) : resultSampleNum; 
+        
+        newSampleNum = resultSampleNum;
       }
       
+      if (oldSampleNum != newSampleNum)
+        for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
+          state.trees[treeNum + newSampleNum * control.numTrees].copyFrom(fit, state.trees[treeNum + oldSampleNum * control.numTrees]);
+      
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        size_t treeOffset = treeNum + newSampleNum * control.numTrees;
         double* oldTreeFits = state.treeFits + treeNum * data.numObservations + oldSampleNum * sampleOffset;
         double* newTreeFits = state.treeFits + treeNum * data.numObservations + newSampleNum * sampleOffset;
         
@@ -964,11 +964,13 @@ extern "C" {
         ext_addVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
         ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
         
-        state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
+        // ext_printf("  old sample %lu, new sample %lu, tree %lu\n", oldSampleNum, newSampleNum, treeNum);
+        // state.trees[treeOffset].top.print(fit);
+        state.trees[treeOffset].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
-        metropolisJumpForTree(fit, chainNum, state.trees[treeNum], chainScratch.treeY, state.sigma[oldSampleNum], &stepTaken, &ignored);
+        metropolisJumpForTree(fit, chainNum, state.trees[treeOffset], chainScratch.treeY, state.sigma[oldSampleNum], &stepTaken, &ignored);
                 
-        state.trees[treeNum].sampleAveragesAndSetFits(fit, chainNum, state.sigma[oldSampleNum], currFits, isThinningIteration ? NULL : currTestFits);
+        state.trees[treeOffset].sampleAveragesAndSetFits(fit, chainNum, state.sigma[oldSampleNum], currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - oldTreeFits
         ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
@@ -996,16 +998,16 @@ extern "C" {
         // if not out of burn-in, store result in first result; start
         // overwriting after that
         for (size_t j = 0; j < fit.data.numPredictors; ++j) variableCounts[j] = 0;
-        countVariableUses(fit, state, variableCounts);
+        countVariableUses(fit, state, newSampleNum, variableCounts);
         
-        storeSamples(fit, chainNum, results, chainScratch.totalFits, chainScratch.totalTestFits, state.sigma[newSampleNum], variableCounts, sampleNum);
+        storeSamples(fit, chainNum, results, chainScratch.totalFits, chainScratch.totalTestFits, state.sigma[newSampleNum], variableCounts, resultSampleNum);
         
         if (control.callback != NULL) {
           size_t chainStride = chainNum * numSamples;
           control.callback(control.callbackData, fit, isBurningIn,
-                           results.trainingSamples + (sampleNum + chainStride) * data.numObservations,
-                           results.testSamples + (sampleNum + chainStride) * data.numTestObservations,
-                           results.sigmaSamples[sampleNum + chainStride]);
+                           results.trainingSamples + (resultSampleNum + chainStride) * data.numObservations,
+                           results.testSamples + (resultSampleNum + chainStride) * data.numTestObservations,
+                           results.sigmaSamples[resultSampleNum + chainStride]);
         }
       }
     }
@@ -1189,7 +1191,7 @@ namespace {
     ext_printf("Variable Usage, last iteration (var:count):\n");
     for (size_t j = 0; j < fit.data.numPredictors; ++j) variableCounts[j] = 0;
     for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum)
-      countVariableUses(fit, fit.state[chainNum], variableCounts);
+      countVariableUses(fit, fit.state[chainNum], fit.control.runMode == FIXED_SAMPLES ? fit.currentNumSamples - 1 : 0, variableCounts);
     for (size_t j = 0; j < fit.data.numPredictors; ++j) {
       ext_printf("(%lu: %u) ", static_cast<unsigned long int>(j + 1), variableCounts[j]);
       if ((j + 1) % 5 == 0) ext_printf("\n");
@@ -1208,9 +1210,6 @@ namespace {
     fit.chainScratch = new ChainScratch[control.numChains];
     ChainScratch* chainScratch = fit.chainScratch;
     
-    // fit.state = new State[control.numChains];
-    fit.state = static_cast<State*>(::operator new (control.numChains * sizeof(State)));
-    
     if (!control.responseIsBinary) {
       sharedScratch.yRescaled = new double[data.numObservations];
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
@@ -1221,9 +1220,6 @@ namespace {
         chainScratch[chainNum].probitLatents = new double[data.numObservations];
     }
     
-    if (control.responseIsBinary) initializeLatents(fit);
-    else rescaleResponse(fit);
-    
     sharedScratch.xt = new double[data.numObservations * data.numPredictors];
     ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
     
@@ -1232,8 +1228,6 @@ namespace {
       ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
     }
     
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? control.defaultNumSamples : 1;
-
     // chain scratches
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       chainScratch[chainNum].treeY = new double[data.numObservations];
@@ -1242,7 +1236,7 @@ namespace {
       for (size_t i = 0; i < data.numObservations; ++i) chainScratch[chainNum].treeY[i] = y[i];
       
       chainScratch[chainNum].totalFits = new double[data.numObservations];
-      chainScratch[chainNum].totalTestFits = data.numTestObservations > 0 ? new double[data.numTestObservations * numSamples] : NULL;
+      chainScratch[chainNum].totalTestFits = data.numTestObservations > 0 ? new double[data.numTestObservations] : NULL;
       
       chainScratch[chainNum].taskId = static_cast<size_t>(-1);
     }
@@ -1255,6 +1249,7 @@ namespace {
     for (size_t j = 0; j < data.numPredictors; ++j) cutPoints[j] = NULL;
     
     // states
+    fit.state = static_cast<State*>(::operator new (control.numChains * sizeof(State)));
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       new (fit.state + chainNum) State(control, data);
     
@@ -1623,10 +1618,10 @@ createRNG_cleanup:
   }
   
   
-  void countVariableUses(const BARTFit& fit, const State& state, uint32_t* variableCounts)
+  void countVariableUses(const BARTFit& fit, const State& state, size_t sampleNum, uint32_t* variableCounts)
   {
     for (size_t treeNum = 0; treeNum < fit.control.numTrees; ++treeNum)
-      state.trees[treeNum].countVariableUses(variableCounts);
+      state.trees[treeNum + sampleNum * fit.control.numTrees].countVariableUses(variableCounts);
   }
 
 #ifdef HAVE_GETTIMEOFDAY

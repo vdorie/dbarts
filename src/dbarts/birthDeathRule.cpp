@@ -33,7 +33,7 @@ namespace {
 namespace dbarts {
   
   Node* drawBirthableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
-  Node* drawChildrenKillableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
+  Node* drawChildrenKillableNode(ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
   
   double computeUnnormalizedNodeBirthProbability(const BARTFit& fit, const Node& node);
   double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree); // same as below but that has a step cached
@@ -111,7 +111,7 @@ namespace dbarts {
       double transitionProbabilityOfDeathStep = 1.0 - transitionProbabilityOfBirthStep;
       
       double transitionProbabilityOfSelectingNodeForDeath;
-      nodeToChangePtr = drawChildrenKillableNode(fit, state.rng, tree, &transitionProbabilityOfSelectingNodeForDeath);
+      nodeToChangePtr = drawChildrenKillableNode(state.rng, tree, &transitionProbabilityOfSelectingNodeForDeath);
       
       Node& nodeToChange(*nodeToChangePtr);
       
@@ -253,7 +253,7 @@ namespace dbarts {
     return result;
   }
   
-  Node* drawChildrenKillableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
+  Node* drawChildrenKillableNode(ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
   {
     NodeVector nodesWhoseChildrenAreBottom(tree.getNodesWhoseChildrenAreAtBottom());
     size_t numNodesWhoseChildrenAreBottom = nodesWhoseChildrenAreBottom.size();
