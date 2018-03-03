@@ -75,7 +75,7 @@ bart2 <- function(
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = FALSE, keepCall = TRUE, ...
+  keepTrees = TRUE, keepCall = TRUE, ...
 )
 {
   matchedCall <- match.call()

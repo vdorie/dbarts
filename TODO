@@ -1,4 +1,4 @@
-v0.9 : stuff to add
+v1.0 : stuff to add
   abstract out end-node and response models
     implement at least one other model type
   categorical variable detection/use
@@ -11,13 +11,11 @@ v0.9 : stuff to add
   "functions" getting a better organizing principle
   general encapsulation of node implementation
   look into speed change in tracking variables avail for split
-  cleanup pthreads
   causal
-  predict
   move n.eff cached calculation into scratch
   handle updating y for binary better w/r/t latents
 
-v1.0 : cleanup, bug fixes
+v1.1 : cleanup, bug fixes
   thread cancellation
   check bounds on parameters for CGM prior
   verify that all of state is necessary to store

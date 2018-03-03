@@ -38,7 +38,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
       verbose = TRUE,
-      keepTrees = FALSE, keepCall = TRUE, \dots)
+      keepTrees = TRUE, keepCall = TRUE, \dots)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -274,10 +274,8 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   
   \subsection{Predict}{
     Using \code{predict} with a \code{bart} object requires that it be fitted with the
-    option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. As keeping the trees for
-    a fit requires a sizeable amount of memory, the default behavior is to keep only
-    the predictions made while the sampler is running, storing only a single set of
-    trees.
+    option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. Keeping the trees for
+    a fit can require a sizeable amount of memory.
   }
 }
 \value{

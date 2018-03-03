@@ -1,10 +1,35 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-0}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Now natively supports multiple chains running in parallel.
+      \item Objects fit by \code{bart} can be used with the predict generic
+      when instructed to save the trees.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{dbartsControl} has had two parameters renamed: \code{numSamples}
+      is now \code{defaultNumSamples} and \code{numBurnIn} is now
+      \code{defaultNumBurnIn}.
+      \item \code{dbartsControl} supports parameters \code{runMode},
+      \code{n.chains}, \code{rngKind} and \code{rngNormalKind}.
+      \item In the C interface, a new function (\code{setRNGState}) has been
+      added to specify the states of the random number generators, of which there
+      is now one for every chain.
+      \item State objects saved by the handles no longer contain the total
+      fits, since they can be rebuild from the tree fits. States are also lists
+      of objects now, with one corresponding to each chain. Tree fits and strings
+      are matrices corresponding to the number of trees and saved samples.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.8-6}{
   \subsection{NEW FEATURES}{
     \itemize{
-      \item \eqn{K}-fold crossvalidation (\code{xbart}) has been implemented
+      \item random subsampling crossvalidation (\code{xbart}) has been implemented
       in C++. Refits model using current set of trees for changes in
       hyperparameters \code{n.trees}, \code{k}, \code{power}, and \code{base}.
       Natively parallelized.
