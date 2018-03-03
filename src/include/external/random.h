@@ -39,6 +39,8 @@ typedef enum {
 ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* state);
 void ext_rng_destroy(ext_rng* generator);
 
+void ext_rng_setState(ext_rng* generator, const void* state);
+
 // createDefault seeds the result so it is ready to use
 // useNative attempts to use the rng in the embedded environment; generally not thread safe
 ext_rng* ext_rng_createDefault(bool useNative);

@@ -14,9 +14,9 @@
 #include <string.h>
 
 #ifdef HAVE_UNISTD_H
-#include <unistd.h> // getpid
+#  include <unistd.h> // getpid
 #elif defined(_WIN32)
-#include <process.h>
+#  include <process.h>
 #endif
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
@@ -127,6 +127,14 @@ ext_rng* ext_rng_create(ext_rng_algorithm_t algorithm, const void* v_state)
   for (size_t i = 0; i < 9; ++i) result->gammaState[i] = 0.0;
   
   return result;
+}
+
+void ext_rng_setState(ext_rng* generator, const void* v_state)
+{
+  size_t stateLength = stateLengths[generator->algorithm];
+  
+  if (v_state != NULL)
+    memcpy(generator->state, v_state, stateLength);
 }
 
 ext_rng* ext_rng_createDefault(bool useNative)
@@ -394,6 +402,23 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
   return 0;
 }
 
+#if defined(_WIN32) && !defined(HAVE_USLEEP)
+#  define WIN32_LEAN_AND_MEAN 1
+#  include <windows.h>
+static void usleep(__int64 usec) 
+{ 
+    HANDLE timer; 
+    LARGE_INTEGER ft; 
+
+    ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+
+    timer = CreateWaitableTimer(NULL, TRUE, NULL); 
+    SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0); 
+    WaitForSingleObject(timer, INFINITE); 
+    CloseHandle(timer); 
+}
+#endif
+
 int ext_rng_setSeedFromClock(ext_rng* generator)
 {
   uint_least32_t seed;
@@ -407,9 +432,11 @@ int ext_rng_setSeedFromClock(ext_rng* generator)
   struct timeval tv;
   gettimeofday(&tv, NULL);
   seed = (uint_least32_t) (((uint_least64_t) tv.tv_usec << 16) ^ tv.tv_sec);
+  usleep(1);
 #else
   // C89, so must work
   seed = (uint_least32_t) time(NULL);
+  usleep(1000);
 #endif
   seed ^= (pid << 16);
   

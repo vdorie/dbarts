@@ -26,6 +26,9 @@ extern "C" {
     fit->~BARTFit();
   }
   
+  void dbarts_setRNGState(BARTFit* fit, const void* const* uniformState, const void* const* normalState) {
+    fit->setRNGState(uniformState, normalState);
+  }
   
   Results* dbarts_runSampler(BARTFit* fit) {
     return fit->runSampler();

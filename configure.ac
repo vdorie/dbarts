@@ -92,6 +92,7 @@ AC_CHECK_ALIGNOF([void*])
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([clock_gettime])
 AC_CHECK_FUNCS([ffs])
+AC_CHECK_FUNCS([usleep])
 AC_FUNC_ALLOCA
 
 AX_FUNC_POSIX_MEMALIGN

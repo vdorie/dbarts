@@ -342,6 +342,8 @@ namespace {
     DEF_FUNC("destroyFit", dbarts_destroyFit),
     DEF_FUNC("invalidateFit", dbarts_invalidateFit),
     
+    DEF_FUNC("setRNGState", dbarts_setRNGState),
+    
     DEF_FUNC("runSampler", dbarts_runSampler),
     DEF_FUNC("runSamplerForIterations", dbarts_runSamplerForIterations),
     DEF_FUNC("sampleTreesFromPrior", dbarts_sampleTreesFromPrior),

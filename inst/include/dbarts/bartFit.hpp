@@ -40,6 +40,8 @@ namespace dbarts {
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();
     
+    void setRNGState(const void* const* uniformState, const void* const* normalState);
+    
     Results* runSampler();
     Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
     void runSampler(std::size_t numBurnIn, Results* results);

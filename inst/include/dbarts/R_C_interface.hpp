@@ -23,6 +23,8 @@ extern "C" {
   void dbarts_destroyFit(dbarts::BARTFit* fit);
   void dbarts_invalidateFit(dbarts::BARTFit* fit);
   
+  void dbarts_setRNGState(dbarts::BARTFit* fit, const void* const* uniformState, const void* const* normalState);
+  
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
   void dbarts_sampleTreesFromPrior(dbarts::BARTFit* fit);

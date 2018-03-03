@@ -1435,7 +1435,9 @@ namespace {
           goto createRNG_cleanup;
         }
         
-        if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) {
+        if (control.rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM &&
+            ext_rng_setSeedFromClock(state[chainNum].rng) != 0)
+        {
           errorMessage = "could not seed rng";
           goto createRNG_cleanup;
         }
@@ -1452,6 +1454,21 @@ createRNG_cleanup:
       
     ext_throwError(errorMessage);
   }
+}
+
+namespace dbarts {
+  
+  void BARTFit::setRNGState(const void* const* uniformState, const void* const* normalState)
+  {
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      if (uniformState != NULL && uniformState[chainNum] != NULL) ext_rng_setState(state[chainNum].rng, uniformState[chainNum]);
+      if (normalState  != NULL && normalState[chainNum]  != NULL) ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, normalState[chainNum]);
+    }
+  }
+  
+}
+
+namespace {
   
   void destroyRNG(BARTFit& fit) {
     for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum) {

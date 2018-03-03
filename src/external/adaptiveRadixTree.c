@@ -30,6 +30,16 @@
 #  define MAX_PARTIAL_LENGTH ((size_t) 10)
 #endif
 
+#if defined(_WIN32) && !defined(_WIN64) && !defined(ALIGN16)
+#  ifdef _MSC_VER
+#    define ALIGN16 __declspec(align(16))
+#  endif
+#    define ALIGN16 __attribute__ ((aligned (16)))
+#else
+#  define ALIGN16
+#endif
+
+
 // we define partial as part of the prefix, prefix being
 // the whole shared initial string; so partial is the prefix
 // if the prefix has length <= MAX_PARTIAL_LENGTH
@@ -58,7 +68,7 @@ typedef struct {
 
 typedef struct {
   Node n;
-  uint8_t keys[16];
+  ALIGN16 uint8_t keys[16];
   Node* children[16];
 } Node16;
 
@@ -507,7 +517,6 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
     case NODE16:
     {
       unsigned int bitfield;
-      
       p.p2 = (const Node16*) n;
       if (((uintptr_t) p.p2->keys % 0x10) != 0) ext_throwError("adaptive radix tree not aligned");
 #ifdef HAVE_SSE2
