@@ -984,6 +984,7 @@ extern "C" {
       
       if (control.responseIsBinary) {
         sampleProbitLatentVariables(fit, state, chainScratch.totalFits, y);
+        state.sigma[newSampleNum] = 1.0;
       } else {
         double sumOfSquaredResiduals;
         if (data.weights != NULL) {

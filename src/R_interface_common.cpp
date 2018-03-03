@@ -412,6 +412,8 @@ namespace dbarts {
         // rc_allocateInSlot(stateExpr_i, fitTotalSym, REALSXP, rc_asRLength(data.numObservations));
         SEXP treeSlot = rc_allocateInSlot(stateExpr_i, treeSym, STRSXP, rc_asRLength(control.numTrees * numSamples));
         rc_setDims(treeSlot, static_cast<int>(control.numTrees), static_cast<int>(numSamples), -1);
+        
+        rc_allocateInSlot(stateExpr_i, sigmaSym, REALSXP, rc_asRLength(numSamples));
       }
       std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * numSamples * sizeof(double));
             
