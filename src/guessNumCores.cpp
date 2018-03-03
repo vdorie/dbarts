@@ -232,7 +232,7 @@ namespace {
       
       if (numBytesInBuffer == bufferLength) {
         char* temp = new char[2 * fileLength];
-        memcpy(temp, (const char*) cpuInfo, fileLength * sizeof(char));
+        std::memcpy(temp, (const char*) cpuInfo, fileLength * sizeof(char));
         
         if (!firstReallocation) bufferLength *= 2;
         else firstReallocation = false;
@@ -305,7 +305,7 @@ namespace {
       while (endOfNumber < (off_t) fileLength && cpuInfo[endOfNumber] >= '0' && cpuInfo[endOfNumber] <= '9') ++endOfNumber;
       
       char* buffer = ext_stackAllocate(endOfNumber - offset + 1, char);
-      memcpy(buffer, (const char*) cpuInfo + offset, endOfNumber - offset);
+      std::memcpy(buffer, (const char*) cpuInfo + offset, endOfNumber - offset);
       buffer[endOfNumber - offset] = '\0';
       
       long parsedInt = std::strtol(buffer, NULL, 10);

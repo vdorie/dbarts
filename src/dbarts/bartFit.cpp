@@ -1414,6 +1414,7 @@ namespace {
         }
         
         if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+            control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
             ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
           errorMessage = "could not set rng standard normal";
           goto createRNG_cleanup;
@@ -1430,6 +1431,7 @@ namespace {
         }
         
         if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+            control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
             ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
           errorMessage = "could not set rng standard normal";
           goto createRNG_cleanup;
@@ -1461,8 +1463,10 @@ namespace dbarts {
   void BARTFit::setRNGState(const void* const* uniformState, const void* const* normalState)
   {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      if (uniformState != NULL && uniformState[chainNum] != NULL) ext_rng_setState(state[chainNum].rng, uniformState[chainNum]);
-      if (normalState  != NULL && normalState[chainNum]  != NULL) ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, normalState[chainNum]);
+      if (uniformState != NULL && uniformState[chainNum] != NULL)
+        ext_rng_setState(state[chainNum].rng, uniformState[chainNum]);
+      if (normalState  != NULL && normalState[chainNum]  != NULL)
+        ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, normalState[chainNum]);
     }
   }
   
