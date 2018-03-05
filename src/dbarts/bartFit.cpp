@@ -1396,7 +1396,7 @@ namespace {
       
     for (size_t k = 0; k < numCutsPerVariable; ++k) cutPoints[k] = xMin + (static_cast<double>(k + 1)) * xIncrement;
   }
-  
+    
   void createRNG(BARTFit& fit) {
     Control& control(fit.control);
     State* state(fit.state);
@@ -1405,6 +1405,7 @@ namespace {
     // serial
     bool useNativeRNG = control.numChains == 1 || control.numThreads == 1;
     
+    size_t numSeedResets;
     size_t chainNum;
     const char* errorMessage = NULL;
     for (chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -1421,9 +1422,23 @@ namespace {
           goto createRNG_cleanup;
         }
         // if not using envirnoment's rng, we have to seed
-        if (!useNativeRNG && ext_rng_setSeedFromClock(state[chainNum].rng) != 0) {
-          errorMessage = "could not seed rng";
-          goto createRNG_cleanup;
+        if (!useNativeRNG) {
+          if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+          
+          if (chainNum > 0) {
+            // check that seed is unique
+            for (numSeedResets = 0; numSeedResets < static_cast<size_t>(-1); ++numSeedResets) {
+              if (!ext_rng_seedsAreEqual(state[chainNum].rng, state[chainNum - 1].rng)) break;
+              
+              if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+            }
+            if (numSeedResets == static_cast<size_t>(-1)) for (numSeedResets = 0; numSeedResets < static_cast<size_t>(-1); ++numSeedResets) {
+              if (!ext_rng_seedsAreEqual(state[chainNum].rng, state[chainNum - 1].rng)) break;
+              
+              if (ext_rng_setSeed(state[chainNum].rng, ext_rng_simulateUnsignedIntegerUniformInRange(state[chainNum - 1].rng, 0, static_cast<uint_least32_t>(-1))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+            }
+            if (numSeedResets == static_cast<size_t>(-1)) { errorMessage = "could not obtain unique seed"; goto createRNG_cleanup; }
+          }
         }
       } else {
         if ((state[chainNum].rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) {
@@ -1438,11 +1453,23 @@ namespace {
           goto createRNG_cleanup;
         }
         
-        if (control.rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM &&
-            ext_rng_setSeedFromClock(state[chainNum].rng) != 0)
-        {
-          errorMessage = "could not seed rng";
-          goto createRNG_cleanup;
+        if (control.rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
+          if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+          
+          numSeedResets = 0;
+          if (chainNum > 0) {
+            for (numSeedResets = 0; numSeedResets < static_cast<size_t>(-1); ++numSeedResets) {
+              if (!ext_rng_seedsAreEqual(state[chainNum].rng, state[chainNum - 1].rng)) break;
+              
+              if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+            }
+            if (numSeedResets == static_cast<size_t>(-1)) for (numSeedResets = 0; numSeedResets < static_cast<size_t>(-1); ++numSeedResets) {
+              if (!ext_rng_seedsAreEqual(state[chainNum].rng, state[chainNum - 1].rng)) break;
+              
+              if (ext_rng_setSeed(state[chainNum].rng, ext_rng_simulateUnsignedIntegerUniformInRange(state[chainNum - 1].rng, 0, static_cast<uint_least32_t>(-1))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+            }
+            if (numSeedResets == static_cast<size_t>(-1)) { errorMessage = "could not obtain unique seed"; goto createRNG_cleanup; }
+          }
         }
       }
     }

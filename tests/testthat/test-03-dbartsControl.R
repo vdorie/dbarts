@@ -60,8 +60,8 @@ test_that("control argument works", {
   n.samples <- 500L
   n.trees <- 50L
   n.cuts <- 50L
-  n.chains <- 3L
-  n.threads <- 3L
+  n.chains <- 2L
+  n.threads <- 2L
   control <- dbartsControl(n.samples = n.samples, verbose = FALSE, n.trees = n.trees, n.cuts = n.cuts,
                            n.chains = n.chains, n.threads = n.threads)
   sampler <- dbarts(y ~ x, testData, control = control)

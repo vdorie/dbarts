@@ -146,8 +146,9 @@ source(system.file("common", "probitData.R", package = "dbarts"))
 
 test_that("dbarts sampler correctly updates R test offsets only when applicable", {
   n <- nrow(testData$X)
-    
-  sampler <- dbarts(Z ~ X, testData, testData$X)
+  control <- dbartsControl(n.chains = 1L, n.threads = 2L)
+  
+  sampler <- dbarts(Z ~ X, testData, testData$X, control = control)
   
   sampler$setOffset(0.2)
   expect_equal(sampler$data@offset, rep_len(0.2, n))
@@ -161,7 +162,7 @@ test_that("dbarts sampler correctly updates R test offsets only when applicable"
   expect_null(sampler$data@offset.test)
   
   
-  sampler <- dbarts(Z ~ X, testData, offset = 0.2)
+  sampler <- dbarts(Z ~ X, testData, offset = 0.2, control = control)
 
   expect_null(sampler$data@offset.test)
 
@@ -170,7 +171,7 @@ test_that("dbarts sampler correctly updates R test offsets only when applicable"
   expect_null(sampler$data@offset.test)
   
 
-  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2)
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, control = control)
 
   sampler$setOffset(0.1)
   expect_equal(sampler$data@offset, rep_len(0.1, n))
@@ -196,7 +197,7 @@ test_that("dbarts sampler correctly updates R test offsets only when applicable"
   expect_equal(sampler$data@offset, rep_len(-0.1, n))
   expect_null(sampler$data@offset.test)
 
-  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = -0.1)
+  sampler <- dbarts(Z ~ X, testData, testData$X, offset = 0.2, offset.test = -0.1, control = control)
   sampler$setOffset(0.3)
 
   expect_equal(sampler$data@offset, rep_len(0.3, n))

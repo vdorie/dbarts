@@ -39,6 +39,16 @@
 #  define ALIGN16
 #endif
 
+#ifdef __SUNPRO_C
+#  ifdef __STRICT_ANSI__
+#    define __USE_XOPEN2K 1 // gets posix_memalign when strict ANSI
+#  endif
+#  include <stdlib.h>   // malloc, posix_memalign
+#  undef __USE_XOPEN2K
+#  if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_MALLOC_H)
+#    include <malloc.h>   // memalign, __mingw_aligned_malloc
+#  endif
+#endif
 
 // we define partial as part of the prefix, prefix being
 // the whole shared initial string; so partial is the prefix
@@ -47,6 +57,9 @@ struct ext_art_node {
   uint8_t type;
   uint8_t numChildren;
   uint8_t partial[MAX_PARTIAL_LENGTH];
+#ifdef __SUNPRO_C
+  uint8_t padding;
+#endif
   size_t prefixLength;
 };
 
@@ -948,12 +961,27 @@ static int removeChild256(Node256* restrict n, Node* restrict* restrict position
 
 static Node* createNode(NodeType type) {
   Node* n;
+#ifdef __SUNPRO_C
+  size_t alignment = sizeof(void*);
+  while (alignment < 4) alignment <<= 1;
+#endif
   switch (type) {
     case NODE4:
       n = (Node*) calloc(1, sizeof(Node4));
       break;
     case NODE16:
+#ifdef __SUNPRO_C
+#  ifdef HAVE_POSIX_MEMALIGN
+      if (posix_memalign((void**) &n, alignment, sizeof(Node16)) != 0) n = NULL;
+      else
+#  else
+      n = memalign(alignment, sizeof(Node16));
+      if (n != NULL)
+#  endif
+        memset(n, 0, sizeof(Node16));
+#else
       n = (Node*) calloc(1, sizeof(Node16));
+#endif
       break;
     case NODE48:
       n = (Node*) calloc(1, sizeof(Node48));
@@ -1001,10 +1029,6 @@ static int destroyNode(Node* n) {
     
     case NODE256:
     p.p4 = (Node256*) n;
-#if defined(SUPPRESS_DIAGNOSTIC) && defined(__clang__)
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wtautological-constant-out-of-range-compare"
-#endif
     for (uint8_t i = 0; i < 255; ++i) {
       if (p.p4->children[i] != NULL) destroyNode(p.p4->children[i]);
     }

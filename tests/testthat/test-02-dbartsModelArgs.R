@@ -31,5 +31,7 @@ test_that("prior model arguments raise errors", {
 test_that("prior model arguments create valid objects", {
   expect_is(dbarts(y ~ x, testData, verbose = FALSE, n.samples = 500,
                    tree.prior = cgm(0.75, 0.5), node.prior = normal(3.5),
-                   resid.prior = chisq(5, 0.9), sigma = 1.0), "dbartsSampler")
+                   resid.prior = chisq(5, 0.9), sigma = 1.0,
+                   control = dbartsControl(n.threads = 1L, n.chains = 1L)),
+            "dbartsSampler")
 })

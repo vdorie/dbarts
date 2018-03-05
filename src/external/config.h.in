@@ -24,9 +24,6 @@
 /* Define to 1 if you have the `clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
-/* Define to 1 if you have the `usleep' function. */
-#undef HAVE_USLEEP
-
 /* Define to 1 if you have the alloca header file. */
 #undef HAVE_ALLOCA_H
 

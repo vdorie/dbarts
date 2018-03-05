@@ -51,6 +51,8 @@ int ext_rng_createAndSeed(ext_rng** result, ext_rng_algorithm_t algorithm, ext_r
 ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType();
 ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType();
 
+bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2);
+
 // state can be null; for BOX_MULLER, it should point to a double that is the next number, or 0.0 if that isn't set yet
 // for USER_NORM, it should be a userFunction outlined below
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state);

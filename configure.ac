@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.64)
-AC_INIT(dbarts, 0.9.0, vdorie@gmail.com)
+AC_INIT(dbarts, 0.9.1, vdorie@gmail.com)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])
@@ -92,7 +92,6 @@ AC_CHECK_ALIGNOF([void*])
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([clock_gettime])
 AC_CHECK_FUNCS([ffs])
-AC_CHECK_FUNCS([usleep])
 AC_FUNC_ALLOCA
 
 AX_FUNC_POSIX_MEMALIGN

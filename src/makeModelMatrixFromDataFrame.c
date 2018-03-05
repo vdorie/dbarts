@@ -287,6 +287,11 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
 static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_type* columnTypes, SEXP dropPatternExpr)
 {
   SEXP names = rc_getNames(x);
+  size_t protectCount = 0;
+  if (names != R_NilValue) {
+    names = PROTECT(names);
+    ++protectCount;
+  }
   double* result = REAL(resultExpr);
   SEXP resultNames = VECTOR_ELT(rc_getDimNames(resultExpr), 1);
   
@@ -387,12 +392,12 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           if (numLevelsPerFactor <= 2) {
             int levelToKeep = numLevelsPerFactor == 2 ? 2 : 1;
             for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == levelToKeep ? 1 : 0);
-            if (setFactorColumnName(names, i, levels, levelToKeep - 1, resultNames, resultCol) != 0) return ENOMEM;
+            if (setFactorColumnName(names, i, levels, levelToKeep - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else {
             for (int j = 0; j < (int) levelsLength; ++j) {
               for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1 : 0);
-              if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) return ENOMEM;
+              if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
               ++resultCol;
             }
           }
@@ -408,13 +413,13 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
             // R has factors coded with 1 based indexing
             ++lastIndex;
             for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == lastIndex ? 1 : 0);
-            if (setFactorColumnName(names, i, levels, lastIndex - 1, resultNames, resultCol) != 0) return ENOMEM;
+            if (setFactorColumnName(names, i, levels, lastIndex - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else if (numLevelsPerFactor > 2) {
             for (int j = 0; j < (int) levelsLength; ++j) {
               if (factorInstanceCounts[j] > 0) {
                 for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1 : 0);
-                if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) return ENOMEM;
+                if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
                 ++resultCol;
               }
             }
@@ -427,6 +432,8 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       break;
     }
   } // close for loop over columns
+  
+  UNPROTECT(protectCount);
   
   return 0;
 }
