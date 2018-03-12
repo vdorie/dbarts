@@ -7,6 +7,8 @@
       \item Now natively supports multiple chains running in parallel.
       \item Objects fit by \code{bart} can be used with the predict generic
       when instructed to save the trees.
+      \item New function \code{bart2} introduced, similar to \code{bart} but with
+      more efficient default parameters.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

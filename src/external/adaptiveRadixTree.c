@@ -57,9 +57,6 @@ struct ext_art_node {
   uint8_t type;
   uint8_t numChildren;
   uint8_t partial[MAX_PARTIAL_LENGTH];
-#ifdef __SUNPRO_C
-  uint8_t padding;
-#endif
   size_t prefixLength;
 };
 
@@ -80,8 +77,8 @@ typedef struct {
 } Node4;
 
 typedef struct {
-  Node n;
-  ALIGN16 uint8_t keys[16];
+  ALIGN16 Node n;
+  uint8_t keys[16];
   Node* children[16];
 } Node16;
 
@@ -531,8 +528,10 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
     {
       unsigned int bitfield;
       p.p2 = (const Node16*) n;
-      if (((uintptr_t) p.p2->keys % 0x10) != 0) ext_throwError("adaptive radix tree not aligned");
 #ifdef HAVE_SSE2
+      if (((uintptr_t) p.p2->keys % 0x10) != 0)
+        ext_throwError("adaptive radix tree keys not aligned for SSE2 operations; contact author for support");
+      
       __m128i comparison = _mm_cmpeq_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) p.p2->keys));
       
       bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
@@ -963,7 +962,7 @@ static Node* createNode(NodeType type) {
   Node* n;
 #ifdef __SUNPRO_C
   size_t alignment = sizeof(void*);
-  while (alignment < 4) alignment <<= 1;
+  while (alignment < 0x10) alignment <<= 1;
 #endif
   switch (type) {
     case NODE4:
