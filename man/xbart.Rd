@@ -2,11 +2,12 @@
 \alias{xbart}
 \title{Crossvalidation For Bayesian Additive Regression Trees}
 \description{
-Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{ntree} parameters using repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are given an array of evalulations of a loss functions on the held-out sets.
+Fits the BART model against varying \code{k}, \code{power}, \code{base}, and \code{ntree} parameters using \eqn{K}-fold or repeated random subsampling crossvalidation, sharing burn-in between parameter settings. Results are given an array of evalulations of a loss functions on the held-out sets.
 }
 \usage{
-xbart(formula, data, subset, weights, offset, verbose = FALSE,
-      n.samples = 200L, p.test = 0.2, n.reps = 200L, n.burn = c(200L, 150L, 50L),
+xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
+      method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
+      n.reps = 40L, n.burn = c(200L, 150L, 50L),
       loss = c("rmse", "mcr"), n.threads = guessNumCores(), n.trees = 75L,
       k = 2, power = 2, base = 0.95, drop = TRUE,
       resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)}
@@ -39,21 +40,27 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
     A logical determining if additional output is printed to the console.
   }
   \item{n.samples}{
-    A positive integer, setting the number of posterior samples drawn for each replication and used by
-    the loss function.
+    A positive integer, setting the number of posterior samples drawn for each fit of training data and
+    used by the loss function.
   }
-  \item{p.test}{
-    For each replication, the test sample proportion or size. Can be a real number in \eqn{(0, 1)} or a
-    positive integer between 1 and the number of observations. When a proportion, the test sample size is
-    rounded up.
+  \item{method}{
+     Character string, either \code{"k-fold"} or \code{"random subsample"}.
+   }
+  \item{n.test}{
+    For each fit, the test sample size or proportion. For method \code{"k-fold"}, is expected to be the number
+    of folds, and in \eqn{[2, n]}. For method \code{"random subsample"}, can be a real number in \eqn{(0, 1)}
+    or a positive integer in \eqn{(1, n)}. When a given as proportion, the number of test observations used is
+    the proportion times the sample size rounded to the nearest integer.
   }
   \item{n.reps}{
-    A positive integer setting the number of random subsample evaluations of the loss function
-    that will be taken.
+    A positive integer setting the number of cross validation steps that will be taken. For \code{"k-fold"},
+    each replication corresponds to fitting each of the \eqn{K} folds in turn, while for
+    \code{"random subsample"} a replication is a single fit.
   }
   \item{n.burn}{
     Between one and three positive integers, specifying the 1) initial burn-in, 2) burn-in when moving from
-    one parameter setting to another, and 3) the burn-in between each random subsample replication.
+    one parameter setting to another, and 3) the burn-in between each random subsample replication. The third
+    parameter is also the burn in when moving between folds in \code{"k-fold"} crossvalidation.
   }
   \item{loss}{
     Either a one of the present loss functions as character-strings (\code{mcr} - missclassification rate for
@@ -67,7 +74,7 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
     \eqn{\times}{*} \code{n.trees}) and \code{n.reps}, results are independent. For \code{n.threads > 1},
     evaluations of the above are divided into approximately equal size evaluations chunks and executed in parallel.
     The default uses \code{link{guessNumCores}}, which should work across the most common operating
-    system/hardware pairs. A value of \code{NA} is interpetted as 1.
+    system/hardware pairs. A value of \code{NA} is interpretted as 1.
    }
    \item{n.trees}{
      A vector of positive integers setting the BART hyperparameter for the number of trees in the
@@ -101,16 +108,19 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
    }
 }
 \details{
-  Fits repeated random subsample crossvalidation of \code{n.reps} replications against the crossproduct
-  of given hyperparameter vectors \code{n.trees} \eqn{\times}{*} \code{k} \eqn{\times}{*} \code{power}
-  \eqn{\times}{*} \code{base}. For each replication, \code{n * p.test} observations are withheld as test
-  data and used to calculate the \code{loss} function while \code{n * (1 - p.test)} observations are used to
-  train the BART model.
+  Crossvalidates \code{n.reps} replications against the crossproduct of given hyperparameter vectors
+  \code{n.trees} \eqn{\times}{*} \code{k} \eqn{\times}{*} \code{power} \eqn{\times}{*} \code{base}.
+  For each fit, either one fold is withheld as test data and \code{n.test - 1} folds are used as
+  training data or \code{n * n.test} observations are withheld as test data and \code{n * (1 - n.test)}
+  used as training. A replication corresponds to fitting all \eqn{K} folds in \code{"k-fold"} crossvalidation
+  or a single fit with \code{"random subsample"}. The training data is used to fit a model and make
+  predictions on the test data which are used together with the test data itself to evaluate the \code{loss}
+  function.
   
   \code{loss} functions are either the default of missclassification rates for binary outcomes
-  or a \code{function} with arguments \code{y.test}, \code{y.test.hat} that returns a scalar value.
-  \code{y.test.hat} is of dimensions equal to \code{length(y.test)} \eqn{\times}{*} \code{n.samples}.
-  A third option is to pass a list of \code{list(function, evaluationEnvironment)}, so as to
+  and mean-squared error for continuous outcomes, or a \code{function} with arguments \code{y.test}
+  and \code{y.test.hat}. \code{y.test.hat} is of dimensions equal to \code{length(y.test)} \eqn{\times}{*}
+  \code{n.samples}. A third option is to pass a list of \code{list(function, evaluationEnvironment)}, so as to
   provide default bindings.
 }
 \value{
@@ -119,6 +129,9 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE,
   If \code{drop} is \code{TRUE}, dimensions of length 1 are omitted. If all hyperparameters
   are of length 1, then the result will be a vector of length \code{n.reps}. When the result is an
   array, the \code{dimnames} of the result shall be set to the corresponding hyperparameters.
+  
+  For method \code{"k-fold"}, each element is an average across the \eqn{K} fits. For
+  \code{"random subsample"}, each element represents a single fit.
 }
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}
@@ -146,7 +159,7 @@ mad <- function(y.train, y.train.hat)
 
 
 ## low iteration numbers to to run quickly
-xval <- xbart(x, y, n.samples = 15L, n.reps = 8L, n.burn = c(10L, 3L, 1L),
+xval <- xbart(x, y, n.samples = 15L, n.reps = 4L, n.burn = c(10L, 3L, 1L),
               n.trees = c(5L, 7L),
               k = c(1, 2, 4),
               power = c(1.5, 2),
@@ -157,3 +170,4 @@ xval <- xbart(x, y, n.samples = 15L, n.reps = 8L, n.burn = c(10L, 3L, 1L),
 \keyword{tree}
 \keyword{regression}
 \keyword{crossvalidation}
+

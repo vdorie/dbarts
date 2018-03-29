@@ -40,8 +40,8 @@ extern "C" {
   using namespace dbarts::xval;
 
 
-  SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-             SEXP testSamplePropExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
+  SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr, SEXP methodExpr,
+             SEXP testSampleSizeExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
              SEXP numTreesExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr,
              SEXP dropExpr)
   {
@@ -64,11 +64,25 @@ extern "C" {
     classExpr = rc_getClass(dataExpr);
     if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsData") != 0) Rf_error("internal error: 'data' argument to dbarts_xbart not of class 'dbartsData'");
     
+    Method method;
+    if (std::strcmp(CHAR(STRING_ELT(methodExpr, 0)), "k-fold") == 0) {
+      method = K_FOLD;
+    } else if (std::strcmp(CHAR(STRING_ELT(methodExpr, 0)), "random subsample") == 0) {
+      method = RANDOM_SUBSAMPLE;
+    } else {
+      Rf_error("internal error: recognized method '%s'\n", CHAR(STRING_ELT(methodExpr, 0)));
+    }
+    
     // pull early so we don't allocate memory
     size_t numObservations = rc_getLength(Rf_getAttrib(dataExpr, Rf_install("y")));
     size_t numSamples      = static_cast<size_t>(INTEGER(Rf_getAttrib(controlExpr, Rf_install("n.samples")))[0]);
     
-    double testSampleProp =  rc_getDouble(testSamplePropExpr, "p.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+    sizetOrDouble testSampleSize;
+    if (method == K_FOLD) 
+      testSampleSize.n = rc_getInt(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 2, RC_VALUE | RC_LEQ, static_cast<int>(numObservations), RC_END);
+    else
+      testSampleSize.p = rc_getDouble(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+    
     size_t numReps = static_cast<size_t>(
       rc_getInt(numRepsExpr, "num reps", RC_LENGTH | RC_GEQ, asRXLen(1),
                                          RC_VALUE | RC_GT, 0, RC_END));
@@ -82,9 +96,16 @@ extern "C" {
     
     bool dropUnusedDims = rc_getBool(dropExpr, "drop", RC_LENGTH | RC_EQ, asRXLen(1), RC_END);
     
-    size_t numTestObservations = static_cast<size_t>(std::floor(static_cast<double>(numObservations) * testSampleProp + 0.5));
+    size_t maxNumTestObservations;
+    if (method == K_FOLD) {
+      maxNumTestObservations = numObservations / testSampleSize.n;
+      if (numObservations % maxNumTestObservations != 0) ++maxNumTestObservations;
+    } else {
+      maxNumTestObservations = numObservations -
+        static_cast<size_t>(std::floor(static_cast<double>(numObservations) * testSampleSize.p + 0.5));
+    }
     
-    LossFunctorDefinition* lossFunctionDef = createLossFunctorDefinition(lossTypeExpr, numTestObservations, numSamples);
+    LossFunctorDefinition* lossFunctionDef = createLossFunctorDefinition(lossTypeExpr, maxNumTestObservations, numSamples);
     
     initializeControlFromExpression(control, controlExpr);
     if (control.defaultNumSamples == 0) {
@@ -104,8 +125,6 @@ extern "C" {
       Rf_error("xbart called on empty data set");
     }
     
-    // size_t numTrainingObservations = data.numObservations - numTestObservations;
-    
     size_t numNTrees = rc_getLength(numTreesExpr);
     size_t numKs     = rc_getLength(kExpr);
     size_t numPowers = rc_getLength(powerExpr);
@@ -123,8 +142,8 @@ extern "C" {
     
     GetRNGstate();
     
-    crossvalidate(control, model, data,
-                  testSampleProp, numReps,
+    crossvalidate(control, model, data, method,
+                  testSampleSize, numReps,
                   numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                   *lossFunctionDef, numThreads,
                   nTrees, numNTrees, k, numKs, power, numPowers, base, numBases,
@@ -179,7 +198,7 @@ namespace {
     double* scratch;
   };
   
-  LossFunctor* createRMSELoss(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createRMSELoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
   {
     (void) def; (void) numSamples;
     
@@ -214,7 +233,7 @@ namespace {
     double* scratch;
   };
   
-  LossFunctor* createMCRLoss(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createMCRLoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
   {
     (void) def; (void) numTestObservations;
     
@@ -255,6 +274,9 @@ namespace {
    * In order to call the function, we allocate and store R vectors for y_test, samples 
    * of y_test, and the closure of the function applied to those values. They are released
    * to the garbage collector when the loss function is deleted.
+   *
+   * Since K-Fold crossvalidation can have blocks with unequal test sample sizes, we
+   * create extra storage and a closure to handle.
    */
   struct CustomLossFunctorDefinition : LossFunctorDefinition {
     SEXP function;
@@ -266,11 +288,18 @@ namespace {
   struct CustomLossFunctor : LossFunctor {
     double* y_test;
     double* testSamples;
+    size_t maxNumTestObservations;
+    
+    double* y_testNM1;
+    double* testSamplesNM1;
+    
+    size_t protectCount;
     SEXP closure;
+    SEXP closureNM1;
     SEXP environment;
   };
   
-  LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, Method method, std::size_t numTestObservations, std::size_t numSamples)
   {
     const CustomLossFunctorDefinition& def(*static_cast<const CustomLossFunctorDefinition*>(&v_def));
     CustomLossFunctor* result = new CustomLossFunctor;
@@ -278,30 +307,55 @@ namespace {
     SEXP y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
     SEXP testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
     rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-        
+            
     result->y_test      = REAL(y_testExpr);
     result->testSamples = REAL(testSamplesExpr);
+    result->maxNumTestObservations = numTestObservations;
     
     result->closure     = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
     result->environment = def.environment;
     
+    result->protectCount = 3;
+     
+    if (method == K_FOLD) {
+      y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
+      testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, (numTestObservations - 1) * numSamples));
+      rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations - 1), static_cast<int>(numSamples), -1);
+      
+      result->y_testNM1      = REAL(y_testExpr);
+      result->testSamplesNM1 = REAL(testSamplesExpr);
+            
+      result->closureNM1 = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
+      
+      result->protectCount += 3;
+    }
+    
     return result;
   }
   
-  void deleteCustomLoss(LossFunctor* instance)
+  void deleteCustomLoss(LossFunctor* v_instance)
   {
-    UNPROTECT(3);
+    CustomLossFunctor* instance = static_cast<CustomLossFunctor*>(v_instance);
+    UNPROTECT(instance->protectCount);
     
-    delete static_cast<CustomLossFunctor*>(instance);
+    delete instance;
   }
   
   void calculateCustomLoss(LossFunctor& restrict v_instance,
-                           const double* restrict, size_t, const double* restrict, size_t,
+                           const double* restrict, size_t numTestObservations, const double* restrict, size_t numSamples,
                            double* restrict results)
   {
     CustomLossFunctor& restrict instance(*static_cast<CustomLossFunctor* restrict>(&v_instance));
     
-    SEXP customResult = Rf_eval(instance.closure, instance.environment);
+    SEXP customResult;
+    if (numTestObservations == instance.maxNumTestObservations) {
+      customResult = Rf_eval(instance.closure, instance.environment);
+    } else {
+      std::memcpy(instance.y_testNM1, const_cast<const double*>(instance.y_test), numTestObservations * sizeof(double));
+      std::memcpy(instance.testSamplesNM1, const_cast<const double*>(instance.testSamples), numTestObservations * numSamples * sizeof(double));
+      customResult = Rf_eval(instance.closureNM1, instance.environment);
+    }
+    
     std::memcpy(results, const_cast<const double*>(REAL(customResult)), rc_getLength(customResult) * sizeof(double));
   }
 

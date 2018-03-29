@@ -1,5 +1,6 @@
 xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  p.test = 0.2, n.reps = 200L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
+                  method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
+                  n.reps = 40L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "mcr"),
                   n.threads = guessNumCores(),
                   n.trees = 75L, k = 2, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
@@ -30,6 +31,13 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
+  
+  if (!is.character(method) || method[1L] %not_in% eval(formals(xbart)$method))
+    stop("method must be in '", paste0(eval(formals(xbart)$method), collapse = "', '"), "'")
+  method <- method[1L]
+  if (!is.null(matchedCall$method) && is.null(matchedCall$n.test))
+    n.test <- eval(formals(xbart)$n.test)[match(method, eval(formals(xbart)$method))]
+  n.test <- n.test[1L]
   
   if (is.null(matchedCall$loss)) {
     loss <- loss[if (!control@binary) 1L else 2L]
@@ -76,16 +84,22 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     }
   model <- new("dbartsModel", tree.prior, node.prior, resid.prior)
   
-  p.test    <- coerceOrError(p.test,    "numeric")
+  if (method == "k-fold") {
+    n.test <- coerceOrError(n.test, "integer")
+    if (n.test < 2L || n.test > length(data@y))
+      stop("for k-fold crossvalidation, n.test must be an integer in [2, N]")
+  } else {
+    n.test <- coerceOrError(n.test, "numeric")
+    if (n.test > 1) n.test <- n.test / length(data@y)
+    if (n.test <= 0 || n.test >= 1) stop("for random subsample crossvalidation, n.test must be in (0, 1)")
+  }
+  
   n.reps    <- coerceOrError(n.reps,    "integer")
   n.burn    <- coerceOrError(n.burn,    "integer")
   n.threads <- coerceOrError(n.threads, "integer")
-  
-  if (p.test > 1) p.test <- p.test / length(data@y)
-  if (p.test <= 0 || p.test >= 1) stop("p.test must be in (0, 1)")
-  
-  result <- .Call(C_dbarts_xbart, control, model, data,
-                  p.test, n.reps, n.burn, loss,
+    
+  result <- .Call(C_dbarts_xbart, control, model, data, method,
+                  n.test, n.reps, n.burn, loss,
                   n.threads, n.trees, k, power, base, drop)
   
   if (is.null(result) || is.null(dim(result))) return(result)
@@ -98,7 +112,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if ("k" %in% varNames && any(kOrder != seq_along(k))) {
     indices <- rep(list(bquote()), length(dim(result)))
     indices[[1L + which(varNames == "k")]] <- kOrder.inv
-    indexCall <- as.call(c(list(as.name("["), quote(result)), indices))
+    indexCall <- as.call(c(list(as.name("["), quote(result)), indices, drop = FALSE))
     result <- eval(indexCall)
     k <- k[kOrder.inv]
   }

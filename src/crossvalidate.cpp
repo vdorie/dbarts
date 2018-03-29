@@ -30,10 +30,7 @@ namespace {
   
   void allocateDataStorage(const Data& origData, Data& repData, size_t numTrainingSamples, size_t numTestSamples);
   void allocateModelStorage(const Model& origModel, Model& repModel);
-  void divideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
-                  size_t numTrainingObservations, size_t numTestObservations,
-                  ext_rng* restrict generator, size_t* restrict permutation);
-
+  
   void freeDataStorage(Data& repData);
   void freeModelStorage(Model& repModel);
 
@@ -48,6 +45,8 @@ namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters, bool verbose);
   
   struct SharedData {
+    Method method;
+    
     const Control& control;
     const Model& model;
     const Data& data;
@@ -56,8 +55,7 @@ namespace {
     size_t numContextShiftBurnIn;
     size_t numRepBurnIn;
     
-    size_t numTrainingObservations;
-    size_t numTestObservations;
+    sizetOrDouble testSampleSize;
     
     const LossFunctorDefinition& lossFunctorDef;
     
@@ -84,7 +82,7 @@ extern "C" { static void printInfo(void** data, size_t numThreads); }
 
 namespace dbarts { namespace xval {
     void crossvalidate(const Control& origControl, const Model& origModel, const Data& origData,
-                       double testSampleProp, size_t numReps,
+                       Method method, sizetOrDouble testSampleSize, size_t numReps,
                        size_t numInitialBurnIn, size_t numContextShiftBurnIn, size_t numRepBurnIn,
                        const LossFunctorDefinition& lossFunctorDef, size_t numThreads,
                        const std::size_t* nTrees, size_t numNTrees, const double* k, size_t numKs,
@@ -92,13 +90,13 @@ namespace dbarts { namespace xval {
                        double* results)
 
   {
-    size_t numTestObservations     = origData.numObservations -
-                                     static_cast<size_t>(std::floor(static_cast<double>(origData.numObservations) * testSampleProp + 0.5));
-    size_t numTrainingObservations = origData.numObservations - numTestObservations;
-    
     if (origControl.verbose) {
-      ext_printf("starting crossvalidation with %.2f%% test obs, %lu replications, %lu/%lu test/training obs\n",
-                 100.0 * testSampleProp, numReps, numTestObservations, numTrainingObservations);
+      ext_printf("starting %s crossvalidation with ", method == RANDOM_SUBSAMPLE ? "random subsample" : "k-fold");
+      if (method == RANDOM_SUBSAMPLE)
+        ext_printf("%.2f%% test obs", 100.0 * testSampleSize.p);
+      else
+        ext_printf("%lu folds", testSampleSize.n);
+      ext_printf(", %lu replications\n", numReps);
       ext_printf("  %lu tree par(s), %lu k par(s), %lu power par(s), %lu base par(s)\n",
                  numNTrees, numKs, numPowers, numBases);
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
@@ -127,7 +125,6 @@ namespace dbarts { namespace xval {
             cellParameters[cellNumber].k        = k[kIndex];
             cellParameters[cellNumber].power    = power[pIndex];
             cellParameters[cellNumber].base     = base[bIndex];
-            // cellParameters[cellNumber].offset   = nIndex + numNTrees * (kIndex + numKs * (pIndex + bIndex * numPowers));
             cellNumber++;
           }
         }
@@ -138,9 +135,9 @@ namespace dbarts { namespace xval {
     threadControl.verbose    = origControl.verbose == true && numThreads == 1;
     threadControl.numThreads = numThreads;
     
-    SharedData sharedData = { threadControl, origModel, origData,
+    SharedData sharedData = { method, threadControl, origModel, origData,
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
-                              numTrainingObservations, numTestObservations,
+                              testSampleSize,
                               lossFunctorDef, numReps, cellParameters,
                               new size_t[threadControl.numThreads] };
     for (size_t i = 0; i < numThreads; ++i) sharedData.printedCells[i] = INVALID_INDEX;
@@ -226,6 +223,40 @@ namespace dbarts { namespace xval {
   }
 } }
 
+namespace {
+  struct ThreadScratch {
+    size_t maxNumTrainingObservations;
+    size_t maxNumTestObservations;
+    double* y_test;
+    Results* samples;
+    LossFunctor* lf;
+    ext_rng* generator;
+    size_t* permutation;
+  };
+  struct RandomSubsampleThreadScratch : ThreadScratch {
+    
+  };
+  struct KFoldThreadScratch : ThreadScratch {
+    size_t numFolds;
+    size_t numFullSizedFolds;
+    size_t numResults;
+    size_t numRepBurnIn;
+  };
+  
+  void randomSubsampleCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                                    Results* restrict samples, size_t numSamples, double* restrict results,
+                                    LossFunction calculateLoss, ThreadScratch* v_scratch);
+  void kFoldCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                          Results* restrict samples, size_t numSamples, double* restrict results,
+                          LossFunction calculateLoss, ThreadScratch* v_scratch);
+  
+  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+                                 ext_rng* restrict generator, size_t* restrict permutation);
+  void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+                       size_t k, size_t maxNumFoldObservations, size_t numFullSizedFolds,
+                       const size_t* restrict permutation);
+}
+
 extern "C" {
   using namespace dbarts;
   using namespace dbarts::xval;
@@ -239,13 +270,24 @@ extern "C" {
     const Model& origModel(sharedData.model);
     const Data& origData(sharedData.data);
     
-    size_t numTrainingObservations = sharedData.numTrainingObservations;
-    size_t numTestObservations     = sharedData.numTestObservations;
-    size_t numSamples              = origControl.defaultNumSamples;
+    size_t maxNumTestObservations, maxNumTrainingObservations;
+    if (sharedData.method == K_FOLD) {
+      maxNumTestObservations = origData.numObservations / sharedData.testSampleSize.n;
+      if (origData.numObservations % maxNumTestObservations == 0)
+        maxNumTrainingObservations = origData.numObservations - maxNumTestObservations;
+      else
+        maxNumTrainingObservations = origData.numObservations - maxNumTestObservations++;
+    } else {
+      maxNumTestObservations = origData.numObservations -
+        static_cast<size_t>(std::floor(static_cast<double>(origData.numObservations) * sharedData.testSampleSize.p + 0.5));
+      maxNumTrainingObservations = origData.numObservations - maxNumTestObservations;
+    }
     
+    size_t numSamples              = origControl.defaultNumSamples;
+        
     const LossFunctorDefinition& lfDef(sharedData.lossFunctorDef);
     
-    LossFunctor* lf = lfDef.createFunctor(lfDef, numTestObservations, numSamples);
+    LossFunctor* lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples);
     
     double* suppliedY_test      = lfDef.y_testOffset      >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.y_testOffset) :
@@ -253,12 +295,14 @@ extern "C" {
     double* suppliedTestSamples = sharedData.lossFunctorDef.testSamplesOffset >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.testSamplesOffset) :
                                   NULL;
+    double* y_test = (suppliedY_test == NULL ? new double[maxNumTestObservations] : suppliedY_test);
+    
     Results* samples =
       suppliedTestSamples == NULL ?
-        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1) :
-        new Results(numTrainingObservations, origData.numPredictors, numTestObservations, numSamples, 1,
-                    new double[origControl.defaultNumSamples],
-                    new double[numTrainingObservations * numSamples],
+        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1) :
+        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1,
+                    new double[numSamples],
+                    new double[maxNumTrainingObservations * numSamples],
                     suppliedTestSamples,
                     new double[origData.numPredictors * numSamples]);
     
@@ -272,39 +316,63 @@ extern "C" {
     Data repData;
     Model repModel;
     
-    allocateDataStorage(fit->data, repData, numTrainingObservations, numTestObservations);
+    allocateDataStorage(fit->data, repData, maxNumTrainingObservations, maxNumTestObservations);
     allocateModelStorage(fit->model, repModel);
     
-    double* y_test = (suppliedY_test == NULL ? new double[numTestObservations] : suppliedY_test);
+    void (*crossvalidate)(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                          Results* restrict samples, size_t numSamples, double* restrict results,
+                          LossFunction calculateLoss,
+                          ThreadScratch* v_scratch);
+
     
-    size_t* permutation = new size_t[origData.numObservations];
-    for (size_t i = 0; i < origData.numObservations; ++i) permutation[i] = i;
+    ThreadScratch* v_threadScratch;
+    if (sharedData.method == K_FOLD) {
+      const size_t& numFolds(sharedData.testSampleSize.n);
+      size_t numFullSizedFolds = maxNumTestObservations * numFolds == origData.numObservations ? numFolds : origData.numObservations % numFolds;
+      
+      KFoldThreadScratch* threadScratch = new KFoldThreadScratch;
+      threadScratch->numFolds = numFolds;
+      threadScratch->numFullSizedFolds = numFullSizedFolds;
+      threadScratch->numResults = lfDef.numResults;
+      threadScratch->numRepBurnIn = sharedData.numRepBurnIn;
+      
+      v_threadScratch = threadScratch;
+      
+      crossvalidate = &kFoldCrossvalidate;
+    } else {
+      RandomSubsampleThreadScratch* threadScratch = new RandomSubsampleThreadScratch;
+      v_threadScratch = threadScratch;
+      
+      crossvalidate = &randomSubsampleCrossvalidate;
+    }
+    v_threadScratch->maxNumTrainingObservations = maxNumTrainingObservations;
+    v_threadScratch->maxNumTestObservations = maxNumTestObservations;
+    v_threadScratch->y_test = y_test;
+    v_threadScratch->samples = samples;
+    v_threadScratch->lf = lf;
+    v_threadScratch->generator = threadData.rng;
+    v_threadScratch->permutation = new size_t[origData.numObservations];
+    for (size_t i = 0; i < origData.numObservations; ++i) v_threadScratch->permutation[i] = i;
     
+        
     size_t firstCell    = threadData.repCellOffset / sharedData.numReps;
     size_t firstCellRep = threadData.repCellOffset % sharedData.numReps;
     size_t lastCell     = (threadData.repCellOffset + threadData.numRepCells) / sharedData.numReps;
     size_t lastCellRep  = (threadData.repCellOffset + threadData.numRepCells) % sharedData.numReps;
-    
-    // ext_printf("running task with rep offset: %lu, num reps: %lu, num rep cells: %lu\n", threadData.repCellOffset, sharedData.numReps, threadData.numRepCells);
-    // ext_printf("first cell: %lu, first cell rep: %lu, last cell: %lu, last cell rep: %lu\n", firstCell, firstCellRep, lastCell, lastCellRep);
     
     size_t resultIndex = 0;
     size_t numBurnIn = sharedData.numInitialBurnIn;
     
     // first and last cells are a bit of a mess, since there can be a lot of off-by-one stuff
     if (firstCellRep != 0) {
-      // ext_printf("updating for cell %lu\n", firstCell);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[firstCell], verbose);
       threadData.fittingCell = firstCell;
       
       for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
-        fit->setData(repData);
-        
-        fit->runSampler(numBurnIn, samples);
-                
-        lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
+        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, v_threadScratch);
+
         resultIndex += lfDef.numResults;
         
         numBurnIn = sharedData.numRepBurnIn;
@@ -317,21 +385,13 @@ extern "C" {
     }
     
     for (size_t cellIndex = firstCell; cellIndex < lastCell; ++cellIndex) {
-      // ext_printf("updating for cell %lu\n", cellIndex);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[cellIndex], verbose);
       threadData.fittingCell = cellIndex;
       
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
-        // ext_printf("  perm: %lu", permutation[0]);
-        // for (size_t i = 1; i < 20; ++i) ext_printf(" %lu", permutation[i]);
-        // ext_printf("\n");
-        fit->setData(repData);
-        
-        fit->runSampler(numBurnIn, samples);
-              
-        lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
+        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, v_threadScratch);
         resultIndex += lfDef.numResults;
         
         numBurnIn = sharedData.numRepBurnIn;
@@ -341,18 +401,14 @@ extern "C" {
     }
     
     if (lastCellRep != 0) {
-      // ext_printf("updating for cell %lu\n", lastCell);
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[lastCell], verbose);
       threadData.fittingCell = lastCell;
       
       for (size_t repIndex = 0; repIndex < lastCellRep; ++repIndex)
       {
-        divideData(origData, repData, y_test, numTrainingObservations, numTestObservations, threadData.rng, permutation);
-        fit->setData(repData);
+        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, v_threadScratch);
         
-        fit->runSampler(numBurnIn, samples);
-        
-        lfDef.calculateLoss(*lf, y_test, numTestObservations, samples->testSamples, numSamples, threadData.results + resultIndex);
         resultIndex += lfDef.numResults;
         
         numBurnIn = sharedData.numRepBurnIn;
@@ -361,7 +417,12 @@ extern "C" {
     threadData.fittingCell = lastCell + 1;
     
     
-    delete [] permutation;
+    delete [] v_threadScratch->permutation;
+    if (sharedData.method == K_FOLD) {
+      delete reinterpret_cast<KFoldThreadScratch*>(v_threadScratch);
+    } else {
+      delete reinterpret_cast<RandomSubsampleThreadScratch*>(v_threadScratch);
+    }
     
     if (suppliedY_test == NULL) delete [] y_test;
     
@@ -381,6 +442,73 @@ extern "C" {
 namespace {
   using namespace dbarts;
   
+  void randomSubsampleCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                                    Results* restrict samples, size_t numSamples, double* restrict results,
+                                    LossFunction calculateLoss,
+                                    ThreadScratch* v_scratch)
+  {
+    RandomSubsampleThreadScratch& threadScratch(*reinterpret_cast<RandomSubsampleThreadScratch *>(v_scratch));
+    
+    randomSubsampleDivideData(origData, repData, threadScratch.y_test,
+                              threadScratch.generator, threadScratch.permutation);
+    fit.setData(repData);
+    
+    fit.runSampler(numBurnIn, samples);
+    
+    calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results);
+  }
+  
+  void kFoldCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                          Results* restrict samples, size_t numSamples, double* restrict results,
+                          LossFunction calculateLoss,
+                          ThreadScratch* v_scratch)
+  {
+    KFoldThreadScratch& threadScratch(*reinterpret_cast<KFoldThreadScratch *>(v_scratch));
+    
+    permuteIndexArray(threadScratch.generator, threadScratch.permutation, origData.numObservations);
+    
+    for (size_t k = 0; k < threadScratch.numFolds; ++k) {
+      size_t numTestObservations, foldStartIndex;
+      if (k < threadScratch.numFullSizedFolds) {
+         numTestObservations = threadScratch.maxNumTestObservations;
+         foldStartIndex = k * threadScratch.maxNumTestObservations;
+      } else {
+         numTestObservations = threadScratch.maxNumTestObservations - 1;
+         foldStartIndex = threadScratch.numFullSizedFolds * threadScratch.maxNumTestObservations + (k - threadScratch.numFullSizedFolds) * (threadScratch.maxNumTestObservations - 1);
+      }
+      
+      std::sort(threadScratch.permutation + foldStartIndex, threadScratch.permutation + foldStartIndex + numTestObservations);
+    }
+    
+    double* foldResults = ext_stackAllocate(threadScratch.numResults, double);
+    
+    for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] = 0.0;
+    
+    for (size_t k = 0; k < threadScratch.numFolds; ++k) {
+      size_t numTestObservations = k < threadScratch.numFullSizedFolds ? threadScratch.maxNumTestObservations : threadScratch.maxNumTestObservations - 1;
+      size_t numTrainingObservations = origData.numObservations - numTestObservations;
+      
+      repData.numObservations = numTrainingObservations;
+      repData.numTestObservations = numTestObservations;
+      
+      kFoldDivideData(origData, repData, threadScratch.y_test,
+                      k, threadScratch.maxNumTestObservations, threadScratch.numFullSizedFolds, threadScratch.permutation);
+      fit.setData(repData);
+      
+      fit.runSampler(numBurnIn, samples);
+    
+      calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults);
+      
+      for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] += foldResults[i];
+      
+      if (k > 0) numBurnIn = threadScratch.numRepBurnIn;
+    }
+    
+    for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] /= static_cast<double>(threadScratch.numFolds);
+    
+    ext_stackFree(foldResults);
+  }
+  
   void permuteIndexArray(ext_rng* restrict generator, size_t* restrict indices, size_t length)
   {
     size_t temp, swapPos;
@@ -393,20 +521,20 @@ namespace {
     }
   }
   
-  void divideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
-                  size_t numTrainingObservations, size_t numTestObservations,
-                  ext_rng* restrict generator, size_t* restrict permutation)
+  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+                                 ext_rng* restrict generator, size_t* restrict permutation)
   {
     size_t i, j, obsIndex;
     double* restrict y = const_cast<double* restrict>(repData.y);
     double* restrict x = const_cast<double* restrict>(repData.x);
     double* restrict x_test = const_cast<double* restrict>(repData.x_test);
     
+    size_t numTrainingObservations = repData.numObservations;
+    size_t numTestObservations     = repData.numTestObservations;
     
     permuteIndexArray(generator, permutation, origData.numObservations);
     std::sort(permutation, permutation + numTestObservations);
     std::sort(permutation + numTestObservations, permutation + origData.numObservations);
-    
     
     for (i = 0; i < numTestObservations; ++i) {
       obsIndex = *permutation++;
@@ -417,6 +545,46 @@ namespace {
     }
     for (i = 0; i < numTrainingObservations; ++i) {
       obsIndex = *permutation++;
+      y[i] = origData.y[obsIndex];
+      for (j = 0; j < origData.numPredictors; ++j) {
+        x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
+      }
+    }
+  }
+  
+  void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+                       size_t k, size_t maxNumFoldObservations, size_t numFullSizedFolds,
+                       const size_t* restrict permutation)
+  {
+    size_t i, j, obsIndex, foldStartIndex;
+    double* restrict y = const_cast<double* restrict>(repData.y);
+    double* restrict x = const_cast<double* restrict>(repData.x);
+    double* restrict x_test = const_cast<double* restrict>(repData.x_test);
+    
+    size_t numTrainingObservations = repData.numObservations;
+    size_t numTestObservations     = repData.numTestObservations;
+    
+    if (k < numFullSizedFolds) {
+      foldStartIndex = k * maxNumFoldObservations;
+    } else {
+      foldStartIndex = numFullSizedFolds * maxNumFoldObservations + (k - numFullSizedFolds) * (maxNumFoldObservations - 1);
+    }
+    
+    // i is always the target observation number, so adjust the source index
+    for (i = 0; i < numTestObservations; ++i) {
+      obsIndex = permutation[i + foldStartIndex];
+      y_test[i] = origData.y[obsIndex];
+      for (j = 0; j < origData.numPredictors; ++j)
+        x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
+    }
+    for (i = 0; i < foldStartIndex; ++i) {
+      y[i] = origData.y[obsIndex];
+      for (j = 0; j < origData.numPredictors; ++j) {
+        x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
+      }
+    }
+    for ( /* */; i < numTrainingObservations; ++i) {
+      obsIndex = permutation[i + numTestObservations];
       y[i] = origData.y[obsIndex];
       for (j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];

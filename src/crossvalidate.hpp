@@ -9,8 +9,17 @@
 
 namespace dbarts {
   namespace xval {
+    enum Method {
+      RANDOM_SUBSAMPLE, K_FOLD
+    };
+    
     // overload any structs to provide needed members
     struct LossFunctor {
+    };
+    
+    union sizetOrDouble {
+      size_t n;
+      double p;
     };
     
     typedef void(*LossFunction)(LossFunctor& restrict instance,
@@ -26,15 +35,15 @@ namespace dbarts {
       
       // member functions
       LossFunction calculateLoss;
-      LossFunctor* (*createFunctor)(const LossFunctorDefinition& def, std::size_t numTestObservations, std::size_t numSamples);
+      LossFunctor* (*createFunctor)(const LossFunctorDefinition& def, Method method, std::size_t numTestObservations, std::size_t numSamples);
       void (*deleteFunctor)(LossFunctor* instance);
       
       virtual ~LossFunctorDefinition() { }
     };
     
     
-    void crossvalidate(const Control& control, const Model& model, const Data& data,
-                       double testSampleProp, std::size_t numReps,
+    void crossvalidate(const Control& control, const Model& model, const Data& data, Method method,
+                       sizetOrDouble testSampleSize, std::size_t numReps,
                        std::size_t numInitialBurnIn, std::size_t numContextShiftBurnIn, std::size_t numRepBurnIn,
                        const LossFunctorDefinition& lossFunctorDef, std::size_t numThreads,
                        const std::size_t* nTrees, std::size_t numNTrees, const double* k, std::size_t numKs,

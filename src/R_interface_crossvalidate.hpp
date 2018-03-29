@@ -4,8 +4,8 @@
 #include <external/Rinternals.h> // SEXP
 
 extern "C" {
-  SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-             SEXP testSamplePropExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
+  SEXP xbart(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr, SEXP methodExpr,
+             SEXP testSampleSizeExpr, SEXP numRepsExpr, SEXP numBurnInExpr, SEXP lossTypeExpr, SEXP numThreadsExpr,
              SEXP numTreesExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr,
              SEXP dropExpr);
 }

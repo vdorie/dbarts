@@ -299,7 +299,7 @@ namespace {
     //DEF_FUNC("dbarts_getPointerAddress", getPointerAddress, 1),
     //DEF_FUNC("dbarts_getXAddress", getXAddress, 1),
     DEF_FUNC("dbarts_makeModelMatrixFromDataFrame", dbarts_makeModelMatrixFromDataFrame, 2),
-    DEF_FUNC("dbarts_xbart", xbart, 13),
+    DEF_FUNC("dbarts_xbart", xbart, 14),
     DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),
     // experimental
     DEF_FUNC("dbarts_saveToFile", saveToFile, 2),
