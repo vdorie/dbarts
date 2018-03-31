@@ -578,6 +578,7 @@ namespace {
         x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
     }
     for (i = 0; i < foldStartIndex; ++i) {
+      obsIndex = permutation[i];
       y[i] = origData.y[obsIndex];
       for (j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];

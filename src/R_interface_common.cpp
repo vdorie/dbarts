@@ -330,6 +330,9 @@ namespace dbarts {
     SEXP slotExpr = rc_allocateInSlot(result, Rf_install("currentNumSamples"), INTSXP, 1);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentNumSamples);
     
+    slotExpr = rc_allocateInSlot(result, Rf_install("currentSampleNum"), INTSXP, 1);
+    INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
+    
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       SEXP result_i = PROTECT(R_do_new_object(R_do_MAKE_CLASS("dbartsState")));
       SET_VECTOR_ELT(result, chainNum, result_i);
@@ -390,6 +393,9 @@ namespace dbarts {
     
     SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentNumSamples"));
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentNumSamples);
+    
+    slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentSampleNum"));
+    INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
     {
@@ -454,10 +460,14 @@ namespace dbarts {
     if (!Rf_isNull(classExpr) && std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
       Rf_error("object from earlier version detected - model must be refit");
     
+    fit.currentSampleNum = static_cast<size_t>(INTEGER(Rf_getAttrib(stateExpr, Rf_install("currentSampleNum")))[0]);
+    
     size_t currentNumSamples = static_cast<size_t>(INTEGER(Rf_getAttrib(stateExpr, Rf_install("currentNumSamples")))[0]);
-    if (fit.currentNumSamples != currentNumSamples && control.runMode == FIXED_SAMPLES)
+    if (fit.currentNumSamples != currentNumSamples && control.runMode == FIXED_SAMPLES) {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         state[chainNum].resize(fit, currentNumSamples);
+      fit.currentSampleNum = 0;
+    }
     fit.currentNumSamples = currentNumSamples;
     
     size_t numSamples = control.runMode == FIXED_SAMPLES ? fit.currentNumSamples : 1;

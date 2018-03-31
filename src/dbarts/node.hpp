@@ -102,7 +102,7 @@ namespace dbarts {
     
     Node* findBottomNode(const BARTFit& fit, const double* x) const;
         
-    void print(const BARTFit& fit) const;
+    void print(const BARTFit& fit, std::size_t indentation) const;
     
     void setAverage(double average);                       // call these only on bottom nodes
     void setAverage(const BARTFit& fit, std::size_t chainNum, const double* y);  //

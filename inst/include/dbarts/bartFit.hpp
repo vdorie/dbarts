@@ -34,6 +34,7 @@ namespace dbarts {
     
     double runningTime;
     std::size_t currentNumSamples;
+    std::size_t currentSampleNum;
     
     ext_htm_manager_t threadManager;
     

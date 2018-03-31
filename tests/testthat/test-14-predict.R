@@ -19,3 +19,18 @@ test_that("predict gives same result as x_train", {
   expect_equal(predictions, bartFit$yhat.train)
 })
 
+test_that("fixed sample mode when run sequentially gives same predictions as sequential updates mode", {
+  set.seed(0)
+  pred.bart <- bart2(testData$x, testData$y, testData$x, n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, verbose = FALSE)$yhat.test
+  
+  set.seed(0)
+  sampler <- dbarts(testData$x, testData$y,
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, runMode = "fixedSamples"))
+  sampler$sampleTreesFromPrior()
+  for (i in seq_len(5L))
+    invisible(sampler$run(0L, 1L))
+  pred.dbarts <- sampler$predict(testData$x)
+  
+  expect_equal(pred.bart, t(pred.dbarts))
+})
+

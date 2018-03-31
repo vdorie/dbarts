@@ -185,16 +185,12 @@ namespace dbarts {
     numObservations = other.numObservations;
   }
   
-  void Node::print(const BARTFit& fit) const
+  void Node::print(const BARTFit& fit, size_t indentation) const
   {
-    size_t depth = getDepth();
-        
-    for (size_t i = 0; i < depth; ++i) ext_printf("  ");
-    
-    ext_printf("node:");
-    ext_printf(" n: %lu", getNumObservations());
-    ext_printf(" TBN: %u%u%u", isTop(), isBottom(), childrenAreBottom());
-    ext_printf(" Avail: ");
+    ext_printf("%*s", indentation + getDepth(), "");
+    ext_printf("n: %lu ", getNumObservations());
+    ext_printf("TBN: %u%u%u ", isTop(), isBottom(), childrenAreBottom());
+    ext_printf("Avail: ");
     
     for (size_t i = 0; i < fit.data.numPredictors; ++i) ext_printf("%u", variablesAvailableForSplit[i]);
     
@@ -213,8 +209,8 @@ namespace dbarts {
     ext_printf("\n");
     
     if (!isBottom()) {
-      leftChild->print(fit);
-      p.rightChild->print(fit);
+      leftChild->print(fit, indentation);
+      p.rightChild->print(fit, indentation);
     }
   }
   

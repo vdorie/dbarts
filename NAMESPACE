@@ -5,6 +5,7 @@ export(dbartsControl)
 export(dbartsData)
 export(pdbart, pd2bart)
 export(xbart)
+export(rbart_vi)
 export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame)
@@ -21,5 +22,8 @@ importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validO
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, quantile)
 importFrom(stats, as.formula, setNames)
+
+importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterCall, stopCluster)
+importFrom(stats, sd, rnorm, rexp, runif, optim, dnorm)
 
 importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)

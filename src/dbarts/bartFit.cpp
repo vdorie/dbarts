@@ -729,7 +729,10 @@ namespace dbarts {
       createRNG(*this);
     }
     
-    if (stateResized) rebuildScratchFromState();
+    if (stateResized) {
+      rebuildScratchFromState();
+      currentSampleNum = 0;
+    }
   }
   
   void BARTFit::setModel(const Model& newModel)
@@ -746,11 +749,22 @@ namespace dbarts {
   
   void BARTFit::printTrees(const size_t* chainIndices, size_t numChainIndices,
                            const size_t* sampleIndices, size_t numSampleIndices,
-                           const size_t* treeIndices, size_t numTreeIndices) const {
+                           const size_t* treeIndices, size_t numTreeIndices) const
+  {
+    size_t indent = 0;
+    
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
+      if (numChainIndices > 1) {
+        ext_printf("chain %lu\n", chainNum + 1);
+        indent += 2;
+      }
       for (size_t j = 0; j < numSampleIndices; ++j) {
         size_t sampleNum = sampleIndices[j];
+        if (numSampleIndices > 1) {
+          ext_printf("%*ssample %lu\n", indent, "", sampleNum + 1);
+          indent += 2;
+        }
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
           
@@ -764,15 +778,17 @@ namespace dbarts {
           for (size_t k = 0; k < numBottomNodes; ++k) bottomNodes[k]->setAverage(nodePosteriorPredictions[k]);
           delete [] nodePosteriorPredictions;
           
-          state[chainNum].trees[treeOffset].top.print(*this);
+          state[chainNum].trees[treeOffset].top.print(*this, indent);
         }
+        if (numSampleIndices > 1) indent -= 2;
       }
+      if (numChainIndices > 1) indent -= 2;
     }
   }
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
     control(control), model(model), data(data), sharedScratch(), chainScratch(NULL), state(NULL),
-    runningTime(0.0), currentNumSamples(control.defaultNumSamples), threadManager(NULL)
+    runningTime(0.0), currentNumSamples(control.defaultNumSamples), currentSampleNum(0), threadManager(NULL)
   {
     allocateMemory(*this);
     
@@ -840,7 +856,8 @@ namespace dbarts {
   Results* BARTFit::runSampler(size_t numBurnIn, size_t numSamples)
   {
     Results* resultsPointer = new Results(data.numObservations, data.numPredictors,
-                                          data.numTestObservations, numSamples == 0 ? 1 : numSamples,
+                                          data.numTestObservations,
+                                          numSamples == 0 ? 1 : numSamples,
                                           control.numChains);
     
     runSampler(numBurnIn, resultsPointer);
@@ -855,8 +872,9 @@ namespace dbarts {
   
     
   void BARTFit::sampleTreesFromPrior() {
-    
-    size_t sampleNum = control.runMode == FIXED_SAMPLES ? currentNumSamples - 1 : 0;
+    size_t sampleNum = currentSampleNum;
+    if (control.runMode == FIXED_SAMPLES)
+      sampleNum = (currentSampleNum == 0 ? currentNumSamples - 1 : currentSampleNum - 1);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
@@ -899,7 +917,6 @@ extern "C" {
     StepType ignored;
     
     size_t numSamples = results.numSamples;
-    size_t numTreeSamples = control.runMode == FIXED_SAMPLES ? numSamples : 1;
     size_t sampleOffset   = control.runMode == FIXED_SAMPLES ? data.numObservations * control.numTrees : 0;
     
     double* currFits = new double[data.numObservations];
@@ -938,15 +955,15 @@ extern "C" {
       // use first set of tree fits as long as we're burning in
       // once we're out of burn-in and not at sample 0, use previous trees for the first
       // of any thinning and then all subsequent in place
-      size_t oldSampleNum = 0;
-      size_t newSampleNum = 0;
+      size_t oldSampleNum = fit.currentSampleNum;
+      size_t newSampleNum = fit.currentSampleNum;
       if (control.runMode == FIXED_SAMPLES) {
-        if (k == 0)
-          oldSampleNum = numTreeSamples - 1;
-        else if (!isBurningIn && resultSampleNum > 0)
-          oldSampleNum = k % control.treeThinningRate == 0 ? (resultSampleNum - 1) : resultSampleNum; 
-        
-        newSampleNum = resultSampleNum;
+        if (k == 0) {
+          oldSampleNum = fit.currentSampleNum == 0 ? fit.currentNumSamples - 1 : fit.currentSampleNum - 1;
+        } else if (!isBurningIn && resultSampleNum > 0) {
+          oldSampleNum += k % control.treeThinningRate == 0 ? (resultSampleNum - 1) : resultSampleNum;
+        }
+        newSampleNum += resultSampleNum;
       }
       
       if (oldSampleNum != newSampleNum)
@@ -964,7 +981,7 @@ extern "C" {
         ext_addVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
         ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
         
-        // ext_printf("  old sample %lu, new sample %lu, tree %lu\n", oldSampleNum, newSampleNum, treeNum);
+        // ext_printf("  old sample %lu, new sample %lu, tree %lu\n", oldSampleNum + 1, newSampleNum + 1, treeNum +1);
         // state.trees[treeOffset].top.print(fit);
         state.trees[treeOffset].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
@@ -1025,7 +1042,7 @@ namespace dbarts {
   {
     if (control.verbose) ext_printf("Running mcmc loop:\n");
     
-    #ifdef HAVE_SYS_TIME_H
+#ifdef HAVE_SYS_TIME_H
     struct timeval startTime;
     struct timeval endTime;
     gettimeofday(&startTime, NULL);
@@ -1035,10 +1052,15 @@ namespace dbarts {
     startTime = time(NULL);
 #endif
     
-    if (control.runMode == FIXED_SAMPLES && resultsPointer->numSamples != currentNumSamples) {
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-        state[chainNum].resize(*this, resultsPointer->numSamples);
-      currentNumSamples = resultsPointer->numSamples;
+    if (control.runMode == FIXED_SAMPLES) {
+      if (currentSampleNum == currentNumSamples) currentSampleNum = 0;
+      
+      if (currentSampleNum + resultsPointer->numSamples > currentNumSamples) {
+        for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+          state[chainNum].resize(*this, resultsPointer->numSamples);
+        currentNumSamples = resultsPointer->numSamples;
+        currentSampleNum = 0;
+      }
     }
     
     if (control.numThreads <= 1) {
@@ -1072,7 +1094,10 @@ namespace dbarts {
       delete [] threadDataPtr;
       delete [] threadData;
     }
-        
+    
+    if (control.runMode == FIXED_SAMPLES)
+      currentSampleNum += resultsPointer->numSamples;
+    
 #ifdef HAVE_SYS_TIME_H
     gettimeofday(&endTime, NULL);
 #else
@@ -1514,13 +1539,11 @@ namespace {
     Data& data(fit.data);
     ChainScratch* chainScratch(fit.chainScratch);
     
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? control.defaultNumSamples : 1;
-    
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       ext_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       if (data.numTestObservations > 0)
-        ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations * numSamples, 0.0);
+        ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
     }
   }
   
@@ -1765,7 +1788,7 @@ save_failed:
       return NULL;
     }
     size_t currentNumSamples;
-    
+    size_t currentSampleNum;
         
     Control control;
     Model model;
@@ -1773,6 +1796,7 @@ save_failed:
     BARTFit* result = NULL;
     
     if ((errorCode = ext_bio_readSizeType(&bio, &currentNumSamples)) != 0) goto load_failed;
+    if ((errorCode = ext_bio_readSizeType(&bio, &currentSampleNum)) != 0) goto load_failed;
     
     if (readControl(&bio, control, version) == false) goto load_failed;
     ext_printf("read control\n");
@@ -1790,6 +1814,7 @@ save_failed:
     // old objects and new ones
     if ((errorCode = ext_bio_readDouble(&bio, &result->runningTime)) != 0) goto load_failed;
     result->currentNumSamples = currentNumSamples;
+    result->currentSampleNum = currentSampleNum;
     
     ext_bio_invalidate(&bio);
     
