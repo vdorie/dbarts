@@ -108,7 +108,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     
     if (!is(optimResult, "error")) {
       if (useLog == TRUE) {
-        target <- NULL; normalizingConstant <- NULL ## for R CMD check
+        normalizingConstant <- NULL ## for R CMD check
         evalEnv <- list2env(list(target = target, normalizingConstant = optimResult$value))
         f <- function(x) exp(target(x) - normalizingConstant)
         environment(f) <- evalEnv
