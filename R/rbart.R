@@ -32,7 +32,7 @@ rbart_vi <- function(
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
-  if (control@n.burn == 0L && keepTrees == TRUE) control@runMode <- "fixedSamples"
+  if (keepTrees == TRUE) control@runMode <- "fixedSamples"
   control@n.chains <- 1L
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
   if (n.chains > 1L && n.threads > 1L) control@verbose <- FALSE
@@ -78,37 +78,8 @@ rbart_vi <- function(
     stopCluster(cluster)
   }
   
-  result <- list(call = control@call, varcount = NULL, y = data@y, sigest = chainResults[[1L]]$sampler$data@sigma)
-  if (n.chains > 1L) {
-    result$ranef       <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$ranef), c(dim(chainResults[[1L]]$ranef), n.chains)))
-    result$first.tau   <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstTau))
-    result$first.sigma <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstSigma))
-    result$sigma       <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$sigma))
-    result$tau         <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$tau))
-    result$yhat.train  <- packageSamples(n.chains, combineChains,
-                                         array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)))
-    result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
-                            packageSamples(n.chains, combineChains,
-                                           array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)))
-  } else {
-    result$ranef       <- t(chainResults[[1L]]$ranef)
-    result$first.tau   <- chainResults[[1L]]$firstTau
-    result$first.sigma <- chainResults[[1L]]$firstSigma
-    result$sigma       <- chainResults[[1L]]$sigma
-    result$tau         <- chainResults[[1L]]$tau
-    result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
-    result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
-  }
-  
-  result$yhat.train.mean <- apply(result$yhat.train, length(dim(result$yhat.train)), mean)
-  if (!is.null(result$yhat.test)) result$yhat.test.mean <- apply(result$yhat.test, length(dim(result$yhat.test)), mean)
-  
-  class(result) <- "rbart"
-  if (keepTrees == TRUE)
-    result$sampler <- lapply(chainResults, function(x) x$sampler)
-  result
+  packageRbartResults(control, data, group.by, chainResults, combineChains)
 }
-
 
 rbart_vi_fit <- function(samplerArgs, group.by, prior) 
 {
@@ -193,6 +164,65 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   rownames(ranef) <- names(group.by)[table(group.by) > 0L]
   
   namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test)
+}
+
+packageRbartResults <- function(control, data, group.by, chainResults, combineChains)
+{
+  n.chains <- length(chainResults)
+  
+  result <- list(call = control@call, y = data@y, group.by = levels(droplevels(as.factor(group.by))),
+                 varcount = NULL, sigest = chainResults[[1L]]$sampler$data@sigma)
+  if (n.chains > 1L) {
+    result$ranef       <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$ranef), c(dim(chainResults[[1L]]$ranef), n.chains)))
+    result$first.tau   <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstTau))
+    result$first.sigma <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstSigma))
+    result$sigma       <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$sigma))
+    result$tau         <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$tau))
+    result$yhat.train  <- packageSamples(n.chains, combineChains,
+                                         array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)))
+    result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
+                            packageSamples(n.chains, combineChains,
+                                           array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)))
+  } else {
+    result$ranef       <- t(chainResults[[1L]]$ranef)
+    result$first.tau   <- chainResults[[1L]]$firstTau
+    result$first.sigma <- chainResults[[1L]]$firstSigma
+    result$sigma       <- chainResults[[1L]]$sigma
+    result$tau         <- chainResults[[1L]]$tau
+    result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
+    result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
+  }
+  
+  result$yhat.train.mean <- apply(result$yhat.train, length(dim(result$yhat.train)), mean)
+  if (!is.null(result$yhat.test)) result$yhat.test.mean <- apply(result$yhat.test, length(dim(result$yhat.test)), mean)
+  
+  if (control@runMode == "fixedSamples")
+    result$fit <- lapply(chainResults, function(x) x$sampler)
+  
+  class(result) <- "rbart"
+  result
+}
+
+predict.rbart <- function(object, test, group.by, offset.test, combineChains, ...)
+{
+  if (is.null(object$fit))
+      stop("predict requires rbart to be called with 'keepTrees' == TRUE")
+  
+  n.chains <- length(object$fit)
+  if (missing(combineChains))
+    combineChains <- n.chains <= 1L || length(dim(object$ranef)) <= 2L
+  if (missing(offset.test)) offset.test <- NULL
+  
+  if (length(dim(object$ranef)) > 2L)
+    ranef <- aperm(object$ranef[,,match(group.by, object$group.by)], c(3L, 2L, 1L))
+  else
+    ranef <- t(object$ranef[,match(group.by, object$group.by)])
+  if (anyNA(ranef)) ranef[is.na(ranef)] <- 0
+  
+  pred <- lapply(seq_len(n.chains), function(i) object$fit[[i]]$predict(test, offset.test))
+  result <- array(sapply(pred, function(x) x), c(dim(pred[[1L]]), n.chains)) + ranef
+  
+  packageSamples(n.chains, combineChains, result)
 }
 
 ## create the contents to be used in partial dependence plots
