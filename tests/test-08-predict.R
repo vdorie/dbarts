@@ -10,12 +10,10 @@ test_that("predict fails if sampler not saved", {
 test_that("predict gives same result as x_train", {
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE, keeptrees = TRUE)
   predictions <- predict(bartFit, testData$x)
-  
   expect_equal(predictions, bartFit$yhat.train)
   
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
   predictions <- predict(bartFit, testData$x)
-  
   expect_equal(predictions, bartFit$yhat.train)
 })
 
@@ -25,7 +23,7 @@ test_that("fixed sample mode when run sequentially gives same predictions as seq
   
   set.seed(0)
   sampler <- dbarts(testData$x, testData$y,
-                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, runMode = "fixedSamples"))
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE))
   sampler$sampleTreesFromPrior()
   for (i in seq_len(5L))
     invisible(sampler$run(0L, 1L))
@@ -34,3 +32,12 @@ test_that("fixed sample mode when run sequentially gives same predictions as seq
   expect_equal(pred.bart, t(pred.dbarts))
 })
 
+test_that("sequentially running samples don't overflow with fixed trees", {
+  sampler <- dbarts(testData$x, testData$y,
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE))
+  sampler$sampleTreesFromPrior()
+  for (i in seq_len(6L))
+    invisible(sampler$run(0L, 1L))
+  
+  expect_is(sampler, "dbartsSampler")
+})

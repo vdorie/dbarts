@@ -30,7 +30,7 @@ methods::setClass("dbartsControl",
        verbose          = "logical",
        keepTrainingFits = "logical",
        useQuantiles     = "logical",
-       runMode          = "character",
+       keepTrees        = "logical",
        n.samples        = "integer",
        n.burn           = "integer",
        n.trees          = "integer",
@@ -48,7 +48,7 @@ methods::setClass("dbartsControl",
        verbose          = FALSE,
        keepTrainingFits = TRUE,
        useQuantiles     = FALSE,
-       runMode          = "sequentialUpdates",
+       keepTrees        = FALSE,
        n.samples        = NA_integer_,
        n.burn           = 200L,
        n.trees          = 75L,
@@ -68,9 +68,7 @@ methods::setValidity("dbartsControl",
     if (length(object@verbose)          != 1L) return("'verbose' must be of length 1")
     if (length(object@keepTrainingFits) != 1L) return("'keepTrainingFits' must be of length 1")
     if (length(object@useQuantiles)     != 1L) return("'useQuantiles' must be of length 1")
-    if (length(object@runMode)          != 1L) return("'runMode' must be of length 1")
-    if (!(object@runMode %in% c("sequentialUpdates", "fixedSamples")))
-      stop("'runMode' must be one of 'sequentialUpdates' or 'fixedSamples'")
+    if (is.na(object@keepTrees))               return("'keepTrees' must be TRUE/FALSE")
     
     if (length(object@n.burn)    != 1L) return("'n.burn' must be of length 1")
     if (length(object@n.trees)   != 1L) return("'n.trees' must be of length 1")
@@ -219,10 +217,10 @@ methods::setValidity("dbartsData",
 
 ## this shouldn't ever get created, used, modified, whathaveyou
 methods::setClass("dbartsState",
-  slots = list(fit.tree    = "numeric",
-               fit.total   = "numeric",
-               fit.test    = "numeric",
-               sigma       = "numeric",
-               trees       = "character",
-               rng.state   = "integer"))
+  slots = list(trees         = "character",
+               treeFits      = "numeric",
+               savedTrees    = "character",
+               savedTreeFits = "numeric",
+               sigma         = "numeric",
+               rng.state     = "integer"))
 

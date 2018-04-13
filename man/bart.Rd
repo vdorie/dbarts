@@ -207,21 +207,11 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
    }
    
-   \item{n.trees}{Same as \code{ntree}.}
-   \item{n.samples}{Same as \code{ndpost}.}
-   \item{n.burn}{Same as \code{nskip}.}
-   \item{n.chains}{Same as \code{nchain}.}
-   \item{n.threads}{Same as \code{nthread}.}
-   \item{combineChains}{Same as \code{combinechains}.}
-   \item{n.cuts}{Same as \code{numcut}.}
-   \item{n.thin}{Same as \code{keepevery}.}
-   \item{keepTrainingFits}{Same as \code{keeptrainfits}.}
-   \item{useQuantiles}{Same as \code{usequants}.}
-   \item{printEvery}{Same as \code{printevery}.}
-   \item{printCutoffs}{Same as \code{printcutoffs}.}
-   \item{keepTrees}{Same as \code{keeptrees}.}
-   \item{keepCall}{Same as \code{keepcall}.}
-
+   \item{n.trees,n.samples,n.burn,n.chains,n.threads,combineChains,n.cuts,
+         n.thin,keepTrainingFits,useQuantiles,printEvery,printCutoffs,
+         keepTrees,keepCall}{
+     Same as their counterparts for \code{bart}.
+   }
    \item{x}{
      Object of class \code{bart}, returned by function \code{bart}, which contains the information to be plotted.
    }
@@ -284,12 +274,12 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   In the numeric \eqn{y} case, the list has components:
 
   \item{\code{yhat.train}}{
-        A array/matrix of posterior samples. The \eqn{(i, j, k)} value is \eqn{f^*(x_k)}{f*(x_k)}
-        for the \eqn{j}th kept draw of of the posterior of \eqn{f}
-        and the \eqn{j}th row of \code{x.train} corresponding to chain \eqn{i}. When \code{nchain}
-        is one, the result is a collapsed down to a matrix.}
+        A array/matrix of posterior samples. The \eqn{(i, j, k)} value is the \eqn{j}th draw of
+        the posterior of \eqn{f} evaluated at the \eqn{k}th row of \code{x.train} (i.e.
+        \eqn{f^*(x_k)}{f(x_k)}) corresponding to chain \eqn{i}. When \code{nchain}
+        is one or \code{combinechains} is \code{TRUE}, the result is a collapsed down to a matrix.}
   \item{\code{yhat.test}}{
-      Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.}
+        Same as \code{yhat.train} but now the \eqn{x}s are the rows of the test data.}
   \item{\code{yhat.train.mean}}{
         Vector of means of \code{yhat.train} across columns and chains, with length equal to the number of
         training observations.}
@@ -297,7 +287,8 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
         Vector of means of \code{yhat.test} across columns and chains.}
   \item{\code{sigma}}{
         Matrix of posterior samples of \code{sigma}, the residual/error standard deviation. Dimensions
-        are equal to the number of chains times the numbers of samples unless \code{nchain} is one.}
+        are equal to the number of chains times the numbers of samples unless \code{nchain} is one or
+        \code{combinechains} is \code{TRUE}.}
   \item{\code{first.sigma}}{
         Burn-in draws of \code{sigma}.}
   \item{\code{varcount}}{

@@ -57,7 +57,7 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
       y = fit$data@y)
   }
   
-  if (fit$control@runMode == "fixedSamples")
+  if (fit$control@keepTrees)
     result$fit <- fit
   
   class(result) <- 'bart'
@@ -94,7 +94,8 @@ bart2 <- function(
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
-  if (control@n.burn == 0L && keepTrees == TRUE) control@runMode <- "fixedSamples"
+  if (control@n.burn == 0L && keepTrees == TRUE) control@keepTrees <- TRUE
+  if (control@n.burn > 0L) control@keepTrees <- FALSE
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
@@ -137,8 +138,8 @@ bart2 <- function(
     if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
-    if (keepTrees == TRUE) control@runMode <- "fixedSamples"
-    suppressWarnings(sampler$setControl(control))
+    if (keepTrees == TRUE) control@keepTrees <- TRUE
+    sampler$setControl(control)
 
     samples <- sampler$run(0L, control@n.samples)
   } else {
@@ -166,7 +167,7 @@ bart <- function(
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
-                           runMode = "sequentialUpdates",
+                           keepTrees = FALSE,
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree), n.chains = as.integer(nchain),
                            n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
@@ -175,7 +176,8 @@ bart <- function(
   control@call <- matchedCall
   control@n.burn <- control@n.burn %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
-  if (control@n.burn == 0L && keeptrees == TRUE) control@runMode <- "fixedSamples"
+  if (control@n.burn == 0L && keeptrees == TRUE) control@keepTrees <- TRUE
+  if (control@n.burn > 0L) control@keepTrees <- FALSE
   ndpost <- as.integer(ndpost) %/% control@n.thin
 
   tree.prior <- quote(cgm(power, base))
@@ -212,8 +214,8 @@ bart <- function(
     if (length(x.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
-    if (keeptrees == TRUE) control@runMode <- "fixedSamples"
-    suppressWarnings(sampler$setControl(control))
+    if (keeptrees == TRUE) control@keepTrees <- TRUE
+    sampler$setControl(control)
 
     samples <- sampler$run(0L, control@n.samples)
   } else {

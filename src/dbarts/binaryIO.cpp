@@ -324,23 +324,28 @@ namespace dbarts {
     int* rngState = NULL;
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      if ((errorCode = ext_bio_writeNSizeTypes(bio, state[chainNum].treeIndices, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
+      if ((errorCode = ext_bio_writeNSizeTypes(bio, state[chainNum].treeIndices, data.numObservations * control.numTrees)) != 0) goto write_state_cleanup;
+      for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        if ((errorCode = writeTree(bio, state[chainNum].trees[treeNum], data, state[chainNum].treeIndices + treeNum * data.numObservations)) != 0) goto write_state_cleanup;
+      }
+      if ((errorCode = ext_bio_writeNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees)) != 0) goto write_state_cleanup;
       
-      for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
-        for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          size_t treeOffset = treeNum + sampleNum * control.numTrees;
-          if ((errorCode = writeTree(bio, state[chainNum].trees[treeOffset], data, state[chainNum].treeIndices + treeOffset * data.numObservations)) != 0) goto write_state_cleanup;
+      // saved trees
+      if (control.keepTrees) {
+        if ((errorCode = ext_bio_writeNSizeTypes(bio, state[chainNum].savedTreeIndices, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
+
+        for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
+          for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+            size_t treeOffset = treeNum + sampleNum * control.numTrees;
+            if ((errorCode = writeTree(bio, state[chainNum].savedTrees[treeOffset], data, state[chainNum].savedTreeIndices + treeOffset * data.numObservations)) != 0) goto write_state_cleanup;
+          }
         }
+        if ((errorCode = ext_bio_writeNDoubles(bio, state[chainNum].savedTreeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
       }
       
-      if ((errorCode = ext_bio_writeNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
-      //if ((errorCode = ext_bio_writeNDoubles(bio, state[chainNum].totalFits, data.numObservations)) != 0) goto write_state_cleanup;
-      //if (data.numTestObservations > 0 &&
-      //  (errorCode = ext_bio_writeNDoubles(bio, state[chainNum].totalTestFits, data.numTestObservations)) != 0) goto write_state_cleanup;
       
-      if ((errorCode = ext_bio_writeNDoubles(bio, state[chainNum].sigma, numSamples)) != 0) goto write_state_cleanup;
+      if ((errorCode = ext_bio_writeDouble(bio, state[chainNum].sigma)) != 0) goto write_state_cleanup;
       
-      // new as of version 00.09.00
       rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
       if ((errorCode = ext_bio_writeSizeType(bio, rngStateLength)) != 0) goto write_state_cleanup;
       
@@ -376,21 +381,24 @@ write_state_cleanup:
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       if ((errorCode = ext_bio_readNSizeTypes(bio, state[chainNum].treeIndices, data.numObservations * control.numTrees)) != 0) goto read_state_cleanup;
       
-      for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
-        for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          size_t treeOffset = treeNum + sampleNum * control.numTrees;
-          if ((errorCode = readTree(bio, state[chainNum].trees[treeOffset], data, state[chainNum].treeIndices + treeOffset * data.numObservations)) != 0) goto read_state_cleanup;
+      for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        if ((errorCode = readTree(bio, state[chainNum].trees[treeNum], data, state[chainNum].treeIndices + treeNum * data.numObservations)) != 0) goto read_state_cleanup;
+      }
+      if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees)) != 0) goto read_state_cleanup;
+      
+      if (control.keepTrees) {
+        if ((errorCode = ext_bio_readNSizeTypes(bio, state[chainNum].savedTreeIndices, data.numObservations * control.numTrees * numSamples)) != 0) goto read_state_cleanup;
+        
+        for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
+          for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+            size_t treeOffset = treeNum + sampleNum * control.numTrees;
+            if ((errorCode = readTree(bio, state[chainNum].savedTrees[treeOffset], data, state[chainNum].savedTreeIndices + treeOffset * data.numObservations)) != 0) goto read_state_cleanup;
+          }
         }
+        if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].savedTreeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto read_state_cleanup;
       }
       
-      if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto read_state_cleanup;
-      // if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].totalFits, data.numObservations)) != 0) goto read_state_cleanup;
-      
-      //if (data.numTestObservations > 0)
-      //  if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].totalTestFits, data.numTestObservations)) != 0) goto read_state_cleanup;
-      
-    
-      if ((errorCode = ext_bio_readNDoubles(bio, state[chainNum].sigma, numSamples)) != 0) goto read_state_cleanup;
+      if ((errorCode = ext_bio_readDouble(bio, &state[chainNum].sigma)) != 0) goto read_state_cleanup;
       
       if (version.major > 0 || version.minor > 8) {
         if ((errorCode = ext_bio_readSizeType(bio, &rngStateLength)) != 0) goto read_state_cleanup;

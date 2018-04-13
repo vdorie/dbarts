@@ -12,8 +12,7 @@ setMethod("initialize", "dbartsControl",
 ## isn't part of class
 dbartsControl <-
   function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-           runMode = c("sequentialUpdates", "fixedSamples"),
-           n.samples = NA_integer_, n.cuts = 100L,
+           keepTrees = FALSE, n.samples = NA_integer_, n.cuts = 100L,
            n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
            n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
            rngKind = "default", rngNormalKind = "default", updateState = TRUE)
@@ -22,7 +21,7 @@ dbartsControl <-
                 verbose = as.logical(verbose),
                 keepTrainingFits = as.logical(keepTrainingFits),
                 useQuantiles = as.logical(useQuantiles),
-                runMode = as.character(runMode[1L]),
+                keepTrees = as.logical(keepTrees),
                 n.samples = coerceOrError(n.samples, "integer"),
                 n.burn = coerceOrError(n.burn, "integer"),
                 n.trees = coerceOrError(n.trees, "integer"),
@@ -243,10 +242,7 @@ dbartsSampler <-
                   
                   selfEnv <- parent.env(environment())
                   
-                  if (control@runMode == "sequentialUpdates" && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
-                    warning("predict with sequential update run mode yields single result")
-                    selfEnv$runModeWarnOnce <- TRUE
-                  }
+                  if (!control@keepTrees) stop("predict requires that keepTrees is TRUE")
                    
                   ptr <- getPointer()
                   
@@ -271,11 +267,6 @@ dbartsSampler <-
                   if (!inherits(newControl, "dbartsControl")) stop("'control' must inherit from dbartsControl")
                   
                   selfEnv <- parent.env(environment())
-                  
-                  if (control@runMode != newControl@runMode && (is.null(selfEnv$runModeWarnOnce) || selfEnv$runModeWarnOnce == FALSE)) {
-                    warning("changing the run mode can yield a sampler with an inconsistent state")
-                    selfEnv$runModeWarnOnce <- TRUE
-                  }
                   
                   newControl@binary <- control@binary
                   newControl@call   <- control@call
@@ -381,9 +372,9 @@ dbartsSampler <-
                   
                   selfEnv <- parent.env(environment())
                   
-                  if (control@runMode == "fixedSamples" && (is.null(selfEnv$runModeWarnOnce) || self$runModeWarnOnce == FALSE)) {
-                    warning("changing predictor with fixed samples can render old predictions invalid")
-                    selfEnv$runModeWarnOnce <- TRUE
+                  if (control@keepTrees && (is.null(selfEnv$keepTreesWarnOnce) || self$keepTreesWarnOnce == FALSE)) {
+                    warning("changing predictor with keepTrees == TRUE can render old predictions invalid")
+                    selfEnv$keepTreesWarnOnce <- TRUE
                   }
 
                   columnIsMissing <- missing(column)
@@ -547,11 +538,24 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                printTrees = function(chainNums = seq_len(control@n.chains), sampleNums = seq_len(control@n.samples), treeNums = seq_len(control@n.trees)) {
+                printTrees = function(chainNums, sampleNums, treeNums) {
                   'Produces an info dump of the internal state of the trees.'
+                  matchedCall <- match.call()
+                  if (is.null(matchedCall$chainNums)) chainNums <- seq_len(control@n.chains)
+                  if (is.null(matchedCall$sampleNums)) {
+                    sampleNums <- if (control@keepTrees) seq_len(control@n.samples) else NULL
+                  } else {
+                    if (!control@keepTrees) {
+                      warning("sampleNums ignored if keepTrees is FALSE")
+                      sampleNums <- NULL
+                    } else {
+                      sampleNums <- as.integer(sampleNums)
+                    }
+                  }
+                  if (is.null(matchedCall$treeNums)) treeNums <- seq_len(control@n.trees)
                   
                   ptr <- getPointer()
-                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), as.integer(sampleNums), as.integer(treeNums)))
+                  invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums)))
                 },
                 plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'

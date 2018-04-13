@@ -42,10 +42,30 @@ rbart_vi(
   }
 }
 \details{
-  rbart best bart.
+  Fits a BART model with additive random intercepts, one for each factor level of \code{group.by}. That is
+
+\itemize{
+  \item \eqn{y_i = b_{g[i]} + f(x_i) + \epsilon}{y_i = b_g[i] + f(x_i) + \epsilon},
+  \item \eqn{b_j ~ \sim N(0, \tau^2)}{b_j ~ N(0, \tau^2)}.
+}
+
+  where \eqn{i} indices observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
+  \eqn{\epsilon} come from a BART model, and  \eqn{b_j} are the independent and identically distributed
+  random intercepts.
 }
 \value{
-  Results.
+  An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}},
+  as well as the elements
+
+  \item{ranef}{Samples from the posterior of the random effects. A array/matrix of posterior samples.
+        The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of the random effect for group
+        \eqn{k} (i.e. \eqn{b^*_k}{b*__k}) corresponding to chain \eqn{i}. When \code{nchain}
+        is one or \code{combineChains} is \code{TRUE}, the result is a collapsed down to a matrix.}
+  \item{tau}{Matrix of posterior samples of \code{tau}, the standard deviation of the random effects.
+        Dimensions are equal to the number of chains times the numbers of samples unless \code{nchain} is
+        one or \code{combineChains} is \code{TRUE}.}
+  \item{\code{first.tau}}{
+        Burn-in draws of \code{tau}.}
 }
 \author{
   Vincent Dorie: \email{vdorie@gmail.com}

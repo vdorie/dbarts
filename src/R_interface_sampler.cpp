@@ -255,6 +255,8 @@ extern "C" {
     
     const Control& control(fit->control);
     
+    if (control.keepTrees == FALSE) Rf_error("predict requires keepTrees to be TRUE");
+    
     if (Rf_isNull(x_testExpr) || rc_isS4Null(x_testExpr)) return R_NilValue;
     
     if (!Rf_isReal(x_testExpr)) Rf_error("x.test must be of type real");
@@ -265,7 +267,7 @@ extern "C" {
                             RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_testExpr, R_DimSymbol));
     
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? fit->currentNumSamples : 1;
+    size_t numSamples = fit->currentNumSamples;
     size_t numTestObservations = static_cast<size_t>(dims[0]);
     
     
@@ -569,8 +571,8 @@ extern "C" {
     if (fit == NULL) Rf_error("dbarts_printTrees called on NULL external pointer");
     
     size_t numChains  = fit->control.numChains;
-    size_t numSamples = fit->control.runMode == FIXED_SAMPLES ? fit->currentNumSamples : 1;
-    size_t numTrees  = fit->control.numTrees;
+    size_t numSamples = fit->control.keepTrees ? fit->currentNumSamples : 0;
+    size_t numTrees   = fit->control.numTrees;
     
     size_t numChainIndices  = Rf_isNull(chainIndicesExpr)  ? numChains  : rc_getLength(chainIndicesExpr);
     size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
@@ -578,7 +580,7 @@ extern "C" {
     
     
     size_t* chainIndices  = ext_stackAllocate(numChainIndices, size_t);
-    size_t* sampleIndices = new size_t[numSamples];
+    size_t* sampleIndices = fit->control.keepTrees ? new size_t[numSamples] : NULL;
     size_t* treeIndices   = new size_t[numTreeIndices];
     
     if (Rf_isNull(chainIndicesExpr)) {

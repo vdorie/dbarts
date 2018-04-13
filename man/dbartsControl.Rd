@@ -6,7 +6,7 @@
 }
 \usage{
 dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-              runMode = c("sequentialUpdates", "fixedSamples"), n.samples = NA_integer_,
+              keepTrees = FALSE, n.samples = NA_integer_,
               n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
               n.threads = guessNumCores(), n.thin = 1L, printEvery = 100L,
               printCutoffs = 0L, rngKind = "default", rngNormalKind = "default",
@@ -20,12 +20,11 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
    \item{useQuantiles}{Logical to determine if the empirical quantiles of a columns of predictors
    	 should be used to determine the tree decision rules. If \code{FALSE}, the rules are spaced
    	 uniformly throughout the range of covariate values.}
-   \item{runMode}{A character that controls how the sampler stores tree splits. When
-         \code{"sequentialUpdates"}, a single instance of trees is stored and constantly overwritten.
-         When \code{"fixedSamples"}, the number of tree instance stored is equal to the number of samples
-         for the latest run. \code{"sequentialUpdates"} is appropriate for embedding the sampler in
-         a larger model, while \code{"fixedSamples"} allows the current run to be re-used for making new
-         predictions.}
+   \item{keepTrees}{A logical that determines whether or not trees are cached as they are sampled. In all
+         cases, the current state of the sampler is stored as a single set of \code{n.trees}. When
+         \code{keepTrees} is \code{TRUE}, a set of \code{n.trees * n.samples} trees are set aside and
+         populated as the sampler runs. If the sampler is stopped and restarted, samples proceed from
+         the previously stored tree, looping over if necessary.}
    \item{n.samples}{A non-negative integer giving the default number of samples to return each time the
    	 sampler is run. Generally specified by \code{\link{dbarts}} instead, and can be overridden
    	 on a per-use basis whenever the sampler is \code{\link[=dbartsSampler-class]{run}}.}

@@ -32,7 +32,6 @@ rbart_vi <- function(
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
-  if (keepTrees == TRUE) control@runMode <- "fixedSamples"
   control@n.chains <- 1L
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
   if (n.chains > 1L && n.threads > 1L) control@verbose <- FALSE
@@ -93,9 +92,6 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   control@verbose <- FALSE
   sampler$setControl(control)
   
-  numBurnIn <- sampler$control@n.burn
-  numSamples <- sampler$control@n.samples
-  
   y <- sampler$data@y
   rel.scale <- sd(y)
   
@@ -113,13 +109,13 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   numObservations <- length(sampler$data@y)
   numTestObservations <- NROW(sampler$data@x.test)
   
-  firstTau   <- rep(NA_real_, numBurnIn)
-  firstSigma <- rep(NA_real_, numBurnIn)
-  tau   <- rep(NA_real_, numSamples)
-  sigma <- rep(NA_real_, numSamples)
-  ranef <- matrix(NA_real_, numRanef, numSamples)
-  yhat.train <- matrix(NA_real_, numObservations, numSamples)
-  yhat.test  <- matrix(NA_real_, numTestObservations, numSamples)
+  firstTau   <- rep(NA_real_, control@n.burn)
+  firstSigma <- rep(NA_real_, control@n.burn)
+  tau   <- rep(NA_real_, control@n.samples)
+  sigma <- rep(NA_real_, control@n.samples)
+  ranef <- matrix(NA_real_, numRanef, control@n.samples)
+  yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
+  yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
   
   sampler$sampleTreesFromPrior()
   
@@ -128,8 +124,36 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   sampler$setResponse(y - ranef.i[g])
   
-  numTotalSamples <- numBurnIn + numSamples
-  for (i in seq_len(numTotalSamples)) {
+  if (control@n.burn > 0L) {
+    oldKeepTrees <- control@keepTrees
+    control@keepTrees <- FALSE
+    sampler$setControl(control)
+    
+    for (i in seq_len(control@n.burn)) {
+      samples <- sampler$run(0L, 1L)
+      
+      evalEnv$b.sq <- sum(ranef.i^2)
+      tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0, Inf))[control@n.thin]
+      
+      resid <- y - as.numeric(samples$train)
+      post.var <- 1 / (n.g / samples$sigma[1L]^2 + 1 / tau.i^2)
+      post.mean <- (n.g / samples$sigma[1L]^2) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
+      
+      ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
+      
+      sampler$setResponse(y - ranef.i[g])
+      
+      .Call(C_dbarts_assignInPlace, firstTau, i, tau.i)
+      .Call(C_dbarts_assignInPlace, firstSigma, i, samples$sigma[1L])
+    }
+    
+    if (control@keepTrees != oldKeepTrees) {
+      control@keepTrees <- TRUE
+      sampler$setControl(control)
+    }
+  }
+  
+  for (i in seq_len(control@n.samples)) {
     samples <- sampler$run(0L, 1L)
     
     evalEnv$b.sq <- sum(ranef.i^2)
@@ -143,16 +167,11 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     
     sampler$setResponse(y - ranef.i[g])
     
-    if (i > numBurnIn) {
-      .Call(C_dbarts_assignInPlace, tau, i - numBurnIn, tau.i)
-      .Call(C_dbarts_assignInPlace, sigma, i - numBurnIn, samples$sigma[1L])
-      .Call(C_dbarts_assignInPlace, ranef, i - numBurnIn, ranef.i)
-      .Call(C_dbarts_assignInPlace, yhat.train, i - numBurnIn, samples$train)
-      if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i - numBurnIn, samples$test)
-    } else {
-      .Call(C_dbarts_assignInPlace, firstTau, i, tau.i)
-      .Call(C_dbarts_assignInPlace, firstSigma, i, samples$sigma[1L])
-    }
+    .Call(C_dbarts_assignInPlace, tau, i, tau.i)
+    .Call(C_dbarts_assignInPlace, sigma, i, samples$sigma[1L])
+    .Call(C_dbarts_assignInPlace, ranef, i, ranef.i)
+    .Call(C_dbarts_assignInPlace, yhat.train, i, samples$train)
+    if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i, samples$test)
     
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
@@ -196,7 +215,7 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
   result$yhat.train.mean <- apply(result$yhat.train, length(dim(result$yhat.train)), mean)
   if (!is.null(result$yhat.test)) result$yhat.test.mean <- apply(result$yhat.test, length(dim(result$yhat.test)), mean)
   
-  if (control@runMode == "fixedSamples")
+  if (control@keepTrees == TRUE)
     result$fit <- lapply(chainResults, function(x) x$sampler)
   
   class(result) <- "rbart"

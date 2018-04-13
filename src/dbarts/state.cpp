@@ -42,58 +42,81 @@ namespace {
 }
 
 namespace dbarts {
-  State::State(const Control& control, const Data& data) {
-    size_t numSamples = control.runMode == FIXED_SAMPLES ? control.defaultNumSamples : 1;
-    
-    size_t totalNumTrees = control.numTrees * numSamples;
+  State::State(const Control& control, const Data& data)
+  {
+    size_t totalNumTrees = control.numTrees;
     
     treeIndices = new size_t[data.numObservations * totalNumTrees];
     
     trees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
-    
     for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
       new (trees + treeNum) Tree(treeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
     
-    
-    treeFits  = new double[data.numObservations * totalNumTrees];
+    treeFits = new double[data.numObservations * totalNumTrees];
     ext_setVectorToConstant(treeFits, data.numObservations * totalNumTrees, 0.0);
     
-    sigma = new double[numSamples];
-    
+    if (control.keepTrees) {
+      totalNumTrees *= control.defaultNumSamples;
+      
+      savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
+      
+      savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
+      for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
+        new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
+      
+      savedTreeFits = new double[data.numObservations * totalNumTrees];
+      ext_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
+    } else {
+      savedTreeIndices = NULL;
+      savedTrees = NULL;
+      savedTreeFits = NULL;
+    }
+        
     rng = NULL;
   }
   
-  void State::invalidate(size_t totalNumTrees) {
-    delete [] sigma;
+  void State::invalidate(size_t numTrees, size_t numSamples) {
+    delete [] savedTreeFits;
+    if (savedTrees != NULL) {
+      for (size_t treeNum = numTrees * numSamples; treeNum > 0; --treeNum)
+        savedTrees[treeNum - 1].~Tree();
+      ::operator delete (savedTrees);
+    }
+    delete [] savedTreeIndices;
+
+    
     delete [] treeFits;
-    
-    for (size_t treeNum = totalNumTrees; treeNum > 0; --treeNum)
+    for (size_t treeNum = numTrees; treeNum > 0; --treeNum)
       trees[treeNum - 1].~Tree();
-    
-    delete [] treeIndices;
-    
     ::operator delete (trees);
+    delete [] treeIndices;
   }
 }
 
 namespace {
+  struct TreeData {
+    std::size_t* treeIndices; // numObs x numTrees
+    Tree* trees;              // numTrees
+    double* treeFits;
+  };
   struct ResizeData {
     const Data& data;
     
     const Control& oldControl;
-    const State& oldState;
-    
     const Control& newControl;
-    State& newState;
+    
+    const TreeData& oldTreeData;
+    TreeData& newTreeData;
   };
     
   void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum) {
     const Data& data(resizeData.data);
     
     const Control& oldControl(resizeData.oldControl);
-    const State& oldState(resizeData.oldState);
     const Control& newControl(resizeData.newControl);
-    State& newState(resizeData.newState);
+    
+    const TreeData& oldTreeData(resizeData.oldTreeData);
+    TreeData& newTreeData(resizeData.newTreeData);
     
     size_t assignEnd = std::min(oldControl.numTrees, newControl.numTrees);
     
@@ -103,39 +126,39 @@ namespace {
       size_t newTreeOffset = treeNum + newSampleNum * newControl.numTrees;
       
       // copy over children pointers, if any
-      newState.trees[newTreeOffset] = oldState.trees[oldTreeOffset];
-      setNewObservationIndices(newState.trees[newTreeOffset].top,
-                               newState.treeIndices + newTreeOffset * data.numObservations,
-                               oldState.trees[oldTreeOffset].top);
+      newTreeData.trees[newTreeOffset] = oldTreeData.trees[oldTreeOffset];
+      setNewObservationIndices(newTreeData.trees[newTreeOffset].top,
+                               newTreeData.treeIndices + newTreeOffset * data.numObservations,
+                               oldTreeData.trees[oldTreeOffset].top);
       
-      if (!newState.trees[newTreeOffset].top.isBottom()) {
-        newState.trees[newTreeOffset].top.getRightChild()->parent = &newState.trees[newTreeOffset].top;
-        newState.trees[newTreeOffset].top.getLeftChild()->parent  = &newState.trees[newTreeOffset].top;
+      if (!newTreeData.trees[newTreeOffset].top.isBottom()) {
+        newTreeData.trees[newTreeOffset].top.getRightChild()->parent = &newTreeData.trees[newTreeOffset].top;
+        newTreeData.trees[newTreeOffset].top.getLeftChild()->parent  = &newTreeData.trees[newTreeOffset].top;
         
         // prevent destructor from freeing children since we just assigned them over
-        oldState.trees[oldTreeOffset].top.leftChild = NULL;
+        oldTreeData.trees[oldTreeOffset].top.leftChild = NULL;
       }
     }
     
     size_t oldSampleOffset = oldSampleNum * data.numObservations * oldControl.numTrees;
     size_t newSampleOffset = newSampleNum * data.numObservations * newControl.numTrees;
     
-    std::memcpy(newState.treeIndices + newSampleOffset, oldState.treeIndices + oldSampleOffset, assignEnd * data.numObservations * sizeof(size_t));
-    std::memcpy(newState.treeFits    + newSampleOffset, oldState.treeFits    + oldSampleOffset, assignEnd * data.numObservations * sizeof(double));
+    std::memcpy(newTreeData.treeIndices + newSampleOffset, oldTreeData.treeIndices + oldSampleOffset, assignEnd * data.numObservations * sizeof(size_t));
+    std::memcpy(newTreeData.treeFits    + newSampleOffset, oldTreeData.treeFits    + oldSampleOffset, assignEnd * data.numObservations * sizeof(double));
     
     // if any new trees are required, create and initialize those
     for (size_t treeNum = assignEnd; treeNum < newControl.numTrees; ++treeNum) {
       size_t treeOffset = treeNum + newSampleNum * newControl.numTrees;
-      new (newState.trees + treeOffset)
-        Tree(newState.treeIndices + treeOffset * data.numObservations, data.numObservations, data.numPredictors);
-      ext_setVectorToConstant(newState.treeFits + treeOffset * data.numObservations, data.numObservations, 0.0);
+      new (newTreeData.trees + treeOffset)
+        Tree(newTreeData.treeIndices + treeOffset * data.numObservations, data.numObservations, data.numPredictors);
+      ext_setVectorToConstant(newTreeData.treeFits + treeOffset * data.numObservations, data.numObservations, 0.0);
     }
     
     // if any extra trees exist, delete them
     oldSampleOffset = oldSampleNum * oldControl.numTrees;
     
     for (size_t treeNum = oldControl.numTrees; treeNum > assignEnd; --treeNum)
-      oldState.trees[treeNum - 1 + oldSampleOffset].~Tree();
+      oldTreeData.trees[treeNum - 1 + oldSampleOffset].~Tree();
   }
 }
 
@@ -144,67 +167,61 @@ namespace dbarts {
     const Control& oldControl(fit.control);
     const Data& data(fit.data);
    
-    if (oldControl.runMode == newControl.runMode && oldControl.numTrees == newControl.numTrees) return false;
-        
-    size_t oldNumSamples = oldControl.runMode == FIXED_SAMPLES ? fit.currentNumSamples : 1;
-    size_t newNumSamples = newControl.runMode == FIXED_SAMPLES ? fit.currentNumSamples : 1;
+    if (oldControl.keepTrees == newControl.keepTrees && oldControl.numTrees == newControl.numTrees) return false;
     
     State oldState = *this;
     
-    // trees first
-    trees       = static_cast<Tree*>(::operator new (newControl.numTrees * newNumSamples * sizeof(Tree)));
-    treeIndices = new size_t[data.numObservations * newControl.numTrees * newNumSamples];
-    treeFits    = new double[data.numObservations * newControl.numTrees * newNumSamples];
-    
-    ResizeData resizeData = { fit.data, oldControl, oldState, newControl, *this };
-    
-    size_t numSamplesToCopy, oldSampleStart, newSampleStart;
-    if (oldNumSamples > newNumSamples) {
-      numSamplesToCopy = 1;
-      oldSampleStart = oldNumSamples - 1;
-      newSampleStart = 0;
+    if (oldControl.numTrees != newControl.numTrees) {
+      treeIndices = new size_t[data.numObservations * newControl.numTrees];
+      trees       = static_cast<Tree*>(::operator new (newControl.numTrees * sizeof(Tree)));
+      treeFits    = new double[data.numObservations * newControl.numTrees];
       
-      for (size_t sampleNum = oldNumSamples - 1; sampleNum > 0; --sampleNum) {
-        for (size_t treeNum = oldControl.numTrees; treeNum > 0; --treeNum) {
-          size_t treeOffset = (treeNum - 1) + (sampleNum - 1) * oldControl.numTrees;
-          oldState.trees[treeOffset].~Tree();
-        }
-      }
-    } else if (oldNumSamples < newNumSamples) {
-      numSamplesToCopy = 1;
-      oldSampleStart = 0;
-      newSampleStart = newNumSamples - 1;
+      TreeData oldTrees = { oldState.treeIndices, oldState.trees, oldState.treeFits };
+      TreeData newTrees = { treeIndices, trees, treeFits };
+      ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees };
       
-      for (size_t sampleNum = 0; sampleNum < newNumSamples - 1; ++sampleNum) {
-        size_t sampleOffset = sampleNum * newControl.numTrees;
-        for (size_t treeNum = 0; treeNum < newControl.numTrees; ++treeNum) {
-          new (trees + treeNum + sampleOffset)
-            Tree(treeIndices + data.numObservations * (treeNum + sampleOffset), data.numObservations, data.numPredictors);
-        }
+      copyTreesForSample(resizeData, 0, 0);
+      
+      delete [] oldState.treeFits;
+      ::operator delete (oldState.trees);
+      delete [] oldState.treeIndices;
+    }
+    
+    if (newControl.keepTrees) {
+      size_t totalNumTrees = newControl.numTrees * fit.currentNumSamples;
+      
+      savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
+      savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
+      savedTreeFits = new double[data.numObservations * totalNumTrees];
+      
+      if (oldControl.keepTrees) {
+        TreeData oldTrees = { oldState.savedTreeIndices, oldState.savedTrees, oldState.savedTreeFits };
+        TreeData newTrees = { savedTreeIndices, savedTrees, savedTreeFits };
+        ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees };
+        
+        for (size_t sampleNum = 0; sampleNum < fit.currentNumSamples; ++sampleNum)
+          copyTreesForSample(resizeData, sampleNum, sampleNum);
+        
+        delete [] oldState.savedTreeFits;
+        ::operator delete (oldState.savedTrees);
+        delete [] oldState.savedTreeIndices;
+      } else {
+        for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
+          new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
+        ext_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
       }
     } else {
-      numSamplesToCopy = newNumSamples;
-      oldSampleStart = 0;
-      newSampleStart = 0;
-    }
-    
-    //ext_printf("copying trees for resize\n");
-    for (size_t sampleNum = 0; sampleNum < numSamplesToCopy; ++sampleNum) {
-      copyTreesForSample(resizeData, oldSampleStart + sampleNum, newSampleStart + sampleNum);
-      //for (size_t treeNum = 0; treeNum < newControl.numTrees; ++treeNum)
-      //  trees[treeNum + (sampleNum + newSampleStart) * newControl.numTrees].top.checkIndices(fit, trees[treeNum + (sampleNum + newSampleStart) * newControl.numTrees].top);
-    }
-    //ext_printf("tree copy done\n");
-    
-    
-    ::operator delete (oldState.trees);
-    delete [] oldState.treeIndices;
-    delete [] oldState.treeFits;
-    
-    if (oldNumSamples != newNumSamples) {
-      sigma = new double[newNumSamples];
-      std::memcpy(sigma + newSampleStart, oldState.sigma + oldSampleStart, numSamplesToCopy * sizeof(double));
-      delete [] oldState.sigma;
+      savedTreeIndices = NULL;
+      savedTrees = NULL;
+      savedTreeFits = NULL;
+      
+      if (oldControl.keepTrees) {
+        delete [] oldState.savedTreeFits;
+        for (size_t treeNum = oldControl.numTrees * fit.currentNumSamples; treeNum > 0; --treeNum)
+          oldState.savedTrees[treeNum - 1].~Tree();
+        ::operator delete (oldState.savedTrees);
+        delete [] oldState.savedTreeIndices;
+      }
     }
     
     return true;
@@ -216,17 +233,20 @@ namespace dbarts {
     
     size_t oldNumSamples = fit.currentNumSamples;
     
-    if (newNumSamples == oldNumSamples || control.runMode == SEQUENTIAL_UPDATES) return false;
+    if (newNumSamples == oldNumSamples || !control.keepTrees) return false;
     
     State oldState = *this;
     
-    // trees first
-    trees       = static_cast<Tree*>(::operator new (control.numTrees * newNumSamples * sizeof(Tree)));
-    treeIndices = new size_t[data.numObservations * control.numTrees * newNumSamples];
-    treeFits    = new double[data.numObservations * control.numTrees * newNumSamples];
+    size_t totalNumTrees = control.numTrees * newNumSamples;
     
-    ResizeData resizeData = { data, control, oldState, control, *this };
+    savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
+    savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
+    savedTreeFits = new double[data.numObservations * totalNumTrees];
     
+    TreeData oldTrees = { oldState.savedTreeIndices, oldState.savedTrees, oldState.savedTreeFits };
+    TreeData newTrees = { savedTreeIndices, savedTrees, savedTreeFits };
+    ResizeData resizeData = { fit.data, control, control, oldTrees, newTrees };
+        
     size_t numSamplesToCopy, oldSampleStart, newSampleStart;
     if (oldNumSamples > newNumSamples) {
       numSamplesToCopy = newNumSamples;
@@ -256,13 +276,9 @@ namespace dbarts {
     for (size_t sampleNum = 0; sampleNum < numSamplesToCopy; ++sampleNum)
       copyTreesForSample(resizeData, oldSampleStart + sampleNum, newSampleStart + sampleNum);
     
+    delete [] oldState.treeFits;
      ::operator delete (oldState.trees);
     delete [] oldState.treeIndices;
-    delete [] oldState.treeFits;
-    
-    sigma = new double[newNumSamples];
-    std::memcpy(sigma + newSampleStart, oldState.sigma + oldSampleStart, numSamplesToCopy * sizeof(double));
-    delete [] oldState.sigma;
     
     return true;
   }
@@ -375,11 +391,19 @@ namespace {
 
 
 namespace dbarts {
-  const char* const* State::createTreeStrings(const BARTFit& fit) const
+  const char* const* State::createTreeStrings(const BARTFit& fit, bool useSavedTrees) const
   {
     StringWriter writer;
     
-    size_t numTrees = fit.control.numTrees * (fit.control.runMode == FIXED_SAMPLES ? fit.currentNumSamples : 1);
+    size_t numTrees;
+    const Tree* trees;
+    if (!useSavedTrees || !fit.control.keepTrees) {
+      numTrees = fit.control.numTrees;
+      trees = this->trees;
+    } else {
+      numTrees = fit.control.numTrees * fit.currentNumSamples;
+      trees = this->savedTrees;
+    }
     
     char** result = new char*[numTrees];
     for (size_t i = 0; i < numTrees; ++i) {
@@ -397,9 +421,17 @@ namespace dbarts {
     return(result);
   }
   
-  void State::recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings)
+  void State::recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings, bool useSavedTrees)
   {
-    size_t numTrees = fit.control.numTrees * (fit.control.runMode == FIXED_SAMPLES ? fit.currentNumSamples : 1);
+    size_t numTrees;
+    Tree* trees;
+    if (!useSavedTrees || !fit.control.keepTrees) {
+      numTrees = fit.control.numTrees;
+      trees = this->trees;
+    } else {
+      numTrees = fit.control.numTrees * fit.currentNumSamples;
+      trees = this->savedTrees;
+    }
     
     for (size_t i = 0; i < numTrees; ++i) {
       trees[i].top.clear();
