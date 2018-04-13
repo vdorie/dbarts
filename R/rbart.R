@@ -95,8 +95,9 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   y <- sampler$data@y
   rel.scale <- sd(y)
   
-  g <- as.integer(droplevels(as.factor(group.by)))
-  numRanef <- length(unique(g))
+  g.fac <- droplevels(as.factor(group.by))
+  g <- as.integer(g.fac)
+  numRanef <- nlevels(g.fac)
   g.sel <- lapply(seq_len(numRanef), function(j) g == j)
   n.g <- sapply(g.sel, sum)
   
@@ -180,7 +181,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   sampler$setControl(control)
   if (oldUpdateState == TRUE) sampler$storeState()
   
-  rownames(ranef) <- names(group.by)[table(group.by) > 0L]
+  rownames(ranef) <- levels(g.fac)
   
   namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test)
 }
@@ -211,7 +212,9 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
     result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
   }
+  dimnames(result$ranef) <- if (length(dim(result$ranef)) > 2L) list(NULL, NULL, rownames(chainResults[[1L]]$ranef)) else list(NULL, rownames(chainResults[[1L]]$ranef))
   
+  result$ranef.mean <- apply(result$ranef, length(dim(result$ranef)), mean)
   result$yhat.train.mean <- apply(result$yhat.train, length(dim(result$yhat.train)), mean)
   if (!is.null(result$yhat.test)) result$yhat.test.mean <- apply(result$yhat.test, length(dim(result$yhat.test)), mean)
   

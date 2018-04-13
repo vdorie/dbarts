@@ -46,7 +46,7 @@ rbart_vi(
 
 \itemize{
   \item \eqn{y_i = b_{g[i]} + f(x_i) + \epsilon}{y_i = b_g[i] + f(x_i) + \epsilon},
-  \item \eqn{b_j ~ \sim N(0, \tau^2)}{b_j ~ N(0, \tau^2)}.
+  \item \eqn{b_j \sim N(0, \tau^2)}{b_j ~ N(0, \tau^2)}.
 }
 
   where \eqn{i} indices observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
@@ -61,6 +61,8 @@ rbart_vi(
         The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of the random effect for group
         \eqn{k} (i.e. \eqn{b^*_k}{b*__k}) corresponding to chain \eqn{i}. When \code{nchain}
         is one or \code{combineChains} is \code{TRUE}, the result is a collapsed down to a matrix.}
+  \item{ranef.mean}{Posterior mean of random effects, derived by taking mean across group index of
+        samples.}
   \item{tau}{Matrix of posterior samples of \code{tau}, the standard deviation of the random effects.
         Dimensions are equal to the number of chains times the numbers of samples unless \code{nchain} is
         one or \code{combineChains} is \code{TRUE}.}
