@@ -1,6 +1,13 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-2}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item \code{rbart_vi} fits a simple varying intercept, random effects model.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-0}{
   \subsection{NEW FEATURES}{
     \itemize{
