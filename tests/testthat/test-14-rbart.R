@@ -12,6 +12,40 @@ testData$g <- g
 testData$b <- b
 rm(g, b)
 
+test_that("rbart fails with invalid group.by", {
+  expect_error(rbart_vi(y ~ x, testData, group.by = NA))
+  expect_error(rbart_vi(y ~ x, testData, group.by = not_a_symbol))
+  expect_error(rbart_vi(y ~ x, testData, group.by = testData$g[-1L]))
+  expect_error(rbart_vi(y ~ x, testData, group.by = "not a factor"))
+})
+
+test_that("rbart finds group.by", {
+  df <- as.data.frame(testData$x)
+  colnames(df) <- paste0("x_", seq_len(ncol(testData$x)))
+  df$y <- testData$y
+  df$g <- testData$g
+  expect_is(rbart_vi(y ~ . - g, df, group.by = g,
+                     n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                     n.trees = 25L, n.threads = 1L),
+            "rbart")
+  
+  g <- df$g
+  df$g <- NULL
+  expect_is(rbart_vi(y ~ . - g, df, group.by = g,
+                     n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                     n.trees = 25L, n.threads = 1L),
+            "rbart")
+  
+  y <- testData$y
+  x <- testData$x
+  expect_is(rbart_vi(y ~ x, group.by = g,
+                     n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                     n.trees = 25L, n.threads = 1L),
+            "rbart")
+  
+  rm(y, x, g, df)
+})
+
 test_that("rbart runs example", {
   rbartFit <- rbart_vi(y ~ x, testData, group.by = g,
                        n.samples = 40L, n.burn = 10L, n.thin = 2L, n.chains = 2L,
@@ -23,6 +57,23 @@ test_that("rbart runs example", {
   expect_equal(dim(rbartFit$first.sigma), c(2L, 10L %/% 2L))
   expect_equal(dim(rbartFit$tau), c(2L, 40L %/% 2L))
   expect_equal(dim(rbartFit$sigma), c(2L, 40L %/% 2L))
+  
+  expect_true(length(unique(rbartFit$ranef)) > 1L)
+})
+
+test_that("rbart runs example", {
+  rbartFit <- rbart_vi(y ~ x, testData, group.by = g,
+                       n.samples = 80L, n.burn = 20L, n.thin = 2L, n.chains = 1L,
+                       n.trees = 25L, n.threads = 1L)
+  expect_equal(dim(rbartFit$yhat.train), c(80L %/% 2L, length(testData$y)))
+  expect_equal(length(rbartFit$yhat.train.mean), length(testData$y))
+  expect_equal(dim(rbartFit$ranef), c(80L %/% 2L, length(unique(testData$g))))
+  expect_equal(length(rbartFit$first.tau), 20L %/% 2L)
+  expect_equal(length(rbartFit$first.sigma), 20L %/% 2L)
+  expect_equal(length(rbartFit$tau), 80L %/% 2L)
+  expect_equal(length(rbartFit$sigma), 80L %/% 2L)
+  
+  expect_true(length(unique(rbartFit$ranef)) > 1L)
 })
 
 test_that("rbart compares favorably to lmer for nonlinear models", {

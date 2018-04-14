@@ -9,6 +9,8 @@ test_that("bart2 yields similar results to bart", {
   
   bart2Fit <- bart2(testData$x, testData$y, n.samples = n.sims, n.burn = n.burn, n.trees = 50L, n.chains = 4L, n.threads = 1L, keepTrees = FALSE, verbose = FALSE)
   
+  expect_is(bartFit, "bart")
+  expect_is(bart2Fit, "bart")
   expect_true(sqrt(mean((bartFit$yhat.train.mean - bart2Fit$yhat.train.mean)^2)) / sd(testData$y) < 0.1)
 })
 

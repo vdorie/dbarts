@@ -319,7 +319,6 @@ namespace dbarts {
     SEXP sigmaSym         = Rf_install("sigma");
     SEXP rngStateSym      = Rf_install("rng.state");
     
-    
     SEXP result = PROTECT(rc_newList(control.numChains));
     
     SEXP slotExpr = rc_allocateInSlot(result, Rf_install("currentNumSamples"), INTSXP, 1);
@@ -419,34 +418,34 @@ namespace dbarts {
       if (rc_getLength(dimsExpr) != 2) Rf_error("dimensions of state@treeFits indicate that it is not a matrix");
       int* dims = INTEGER(dimsExpr);
        
-      bool resizeTrees = static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees;
-      
-      if (!resizeTrees && control.keepTrees) {
-        slotExpr = Rf_getAttrib(stateExpr_i, savedTreeFitsSym);
-        dimsExpr = rc_getDims(slotExpr);
-        if (rc_getLength(dimsExpr) != 3) Rf_error("dimensions of state@savedTreeFits indicate that it is not an array");
-        dims = INTEGER(dimsExpr);
-        resizeTrees = static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees ||
-                 static_cast<size_t>(dims[2]) != fit.currentNumSamples;
-      }
-      
-      if (resizeTrees) {
+      if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
         rc_allocateInSlot(stateExpr_i, treesSym, STRSXP, rc_asRLength(control.numTrees));
         
         slotExpr = rc_allocateInSlot(stateExpr_i, treeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
         rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
+      }
+      
+      if (control.keepTrees) {
+        slotExpr = Rf_getAttrib(stateExpr_i, savedTreeFitsSym);
         
-        
-        if (control.keepTrees) {
+        bool resizeTrees = Rf_isNull(slotExpr);
+        if (!resizeTrees) {
+          dimsExpr = rc_getDims(slotExpr);
+          if (rc_getLength(dimsExpr) != 3) Rf_error("dimensions of state@savedTreeFits indicate that it is not an array");
+          dims = INTEGER(dimsExpr);
+          resizeTrees = static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees ||
+                        static_cast<size_t>(dims[2]) != fit.currentNumSamples;
+        }
+        if (resizeTrees) {
           slotExpr = rc_allocateInSlot(stateExpr_i, savedTreesSym, STRSXP, rc_asRLength(control.numTrees * fit.currentNumSamples));
           rc_setDims(slotExpr, static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
           
           slotExpr = rc_allocateInSlot(stateExpr_i, savedTreeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees * fit.currentNumSamples));
           rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
-        } else {
-          Rf_setAttrib(stateExpr_i, savedTreesSym, R_NilValue);
-          Rf_setAttrib(stateExpr_i, savedTreeFitsSym, R_NilValue);
         }
+      } else {
+        Rf_setAttrib(stateExpr_i, savedTreesSym, R_NilValue);
+        Rf_setAttrib(stateExpr_i, savedTreeFitsSym, R_NilValue);
       }
       
       slotExpr = Rf_getAttrib(stateExpr_i, treesSym);

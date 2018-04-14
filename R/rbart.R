@@ -54,13 +54,19 @@ rbart_vi <- function(
     }
   }
   if (is(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by))) stop("'group.by' not found")
-  
+    
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
   
   if (is.symbol(matchedCall$prior) || is.character(matchedCall$prior) && any(names(rbart.priors) == matchedCall$prior))
     prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
   
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
+  
+  if (length(unique(data@y)) == 2L)
+    stop("rbart requires continuous response")
+  if (length(group.by) != length(data@y))
+    stop("'group.by' not of length equal to that of data")
+  
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior, sigma = as.numeric(sigest))
 
   chainResults <- vector("list", n.chains)

@@ -18,7 +18,7 @@ namespace dbarts {
     };
     
     union sizetOrDouble {
-      size_t n;
+      std::size_t n;
       double p;
     };
     

@@ -396,13 +396,13 @@ namespace dbarts {
     StringWriter writer;
     
     size_t numTrees;
-    const Tree* trees;
+    const Tree* targetTrees;
     if (!useSavedTrees || !fit.control.keepTrees) {
       numTrees = fit.control.numTrees;
-      trees = this->trees;
+      targetTrees = trees;
     } else {
       numTrees = fit.control.numTrees * fit.currentNumSamples;
-      trees = this->savedTrees;
+      targetTrees = savedTrees;
     }
     
     char** result = new char*[numTrees];
@@ -411,7 +411,7 @@ namespace dbarts {
       writer.length = BASE_BUFFER_SIZE;
       writer.pos = 0;
       
-      writer.writeNode(trees[i].top);
+      writer.writeNode(targetTrees[i].top);
      
       writer.writeChar('\0');
       
@@ -424,23 +424,23 @@ namespace dbarts {
   void State::recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings, bool useSavedTrees)
   {
     size_t numTrees;
-    Tree* trees;
+    Tree* targetTrees;
     if (!useSavedTrees || !fit.control.keepTrees) {
       numTrees = fit.control.numTrees;
-      trees = this->trees;
+      targetTrees = trees;
     } else {
       numTrees = fit.control.numTrees * fit.currentNumSamples;
-      trees = this->savedTrees;
+      targetTrees = savedTrees;
     }
     
     for (size_t i = 0; i < numTrees; ++i) {
-      trees[i].top.clear();
-      readNode(trees[i].top, treeStrings[i], fit.data.numPredictors);
+      targetTrees[i].top.clear();
+      readNode(targetTrees[i].top, treeStrings[i], fit.data.numPredictors);
       
-      if (!trees[i].top.isBottom()) {
-        updateVariablesAvailable(fit, trees[i].top, trees[i].top.p.rule.variableIndex);
+      if (!targetTrees[i].top.isBottom()) {
+        updateVariablesAvailable(fit, targetTrees[i].top, targetTrees[i].top.p.rule.variableIndex);
       
-        trees[i].top.addObservationsToChildren(fit);
+        targetTrees[i].top.addObservationsToChildren(fit);
       }
     }
   }
