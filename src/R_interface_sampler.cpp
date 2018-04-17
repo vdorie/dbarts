@@ -298,7 +298,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setY called on NULL external pointer");
     
-    rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations));
+    rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations), RC_END);
     
     // for binary responses, updates latents and samples
     if (fit->control.responseIsBinary) GetRNGstate();
