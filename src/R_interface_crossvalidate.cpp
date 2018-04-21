@@ -5,6 +5,8 @@
 #include <cstddef> // size_t
 #include <cstring> // strcmp
 
+#include <pthread.h>
+
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 #include <external/stats.h>
@@ -31,8 +33,12 @@ namespace {
   using namespace dbarts;
   using namespace dbarts::xval;
   
+  const char* const lossTypeNames[] = { "rmse", "mcr", };
+  typedef enum { RMSE, MCR, CUSTOM, INVALID } LossFunctorType;
+  
   SEXP allocateResult(size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps, bool dropUnusedDims);
-  LossFunctorDefinition* createLossFunctorDefinition(SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples);
+  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType lossType, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
+                                                     size_t numThreads, SEXP scratch);
 }
 
 extern "C" {
@@ -105,12 +111,47 @@ extern "C" {
         static_cast<size_t>(std::floor(static_cast<double>(numObservations) * testSampleSize.p + 0.5));
     }
     
-    LossFunctorDefinition* lossFunctionDef = createLossFunctorDefinition(lossTypeExpr, maxNumTestObservations, numSamples);
+    LossFunctorType lossType = INVALID;
+    if (Rf_isString(lossTypeExpr)) {
+      if (rc_getLength(lossTypeExpr) != 1) Rf_error("length of lossType for strings must be 1");
+      const char* lossTypeName = CHAR(STRING_ELT(lossTypeExpr, 0));
+      
+      size_t lossTypeNumber;
+      int errorCode = ext_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - RMSE), &lossTypeNumber);
+      if (errorCode != 0) Rf_error("error matching string: %s", std::strerror(errorCode));
+      if (lossTypeNumber == EXT_STR_NO_MATCH) Rf_error("unsupported result type: '%s'", lossTypeName);
+      
+      lossType = static_cast<LossFunctorType>(lossTypeNumber);
+    } else if (Rf_isVectorList(lossTypeExpr)) {
+      if (rc_getLength(lossTypeExpr) != 2) Rf_error("length of lossType for functions must be 2");
+      
+      if (!Rf_isFunction(VECTOR_ELT(lossTypeExpr, 0))) Rf_error("first element of list for function lossType must be a closure");
+      if (!Rf_isEnvironment(VECTOR_ELT(lossTypeExpr, 1))) Rf_error("second element of list for function lossType must be an environment");
+      
+      lossType = CUSTOM;
+    } else {
+      Rf_error("lossType must be a character string or list(closure, env)");
+    }
+    
+    size_t protectCount = 0;
+    
+    SEXP scratch = R_NilValue;
+    if (lossType == CUSTOM) {
+      R_xlen_t scratchLength = rc_asRLength(numThreads * 3 * (method == K_FOLD ? 2 : 1));
+      scratch = PROTECT(rc_newList(scratchLength));
+      ++protectCount;
+      for (R_xlen_t i = 0; i < scratchLength; ++i)
+        SET_VECTOR_ELT(scratch, i, R_NilValue);
+    }
+    
+    LossFunctorDefinition* lossFunctionDef =
+      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, numThreads, scratch);
     
     initializeControlFromExpression(control, controlExpr);
     if (control.defaultNumSamples == 0) {
       delete lossFunctionDef;
       
+      if (protectCount > 0) UNPROTECT(protectCount);
       Rf_error("xbart called with 0 posterior samples");
     }
     
@@ -122,6 +163,7 @@ extern "C" {
       invalidateModel(model);
       delete lossFunctionDef;
       
+      if (protectCount > 0) UNPROTECT(protectCount);
       Rf_error("xbart called on empty data set");
     }
     
@@ -139,6 +181,7 @@ extern "C" {
     double* base  = REAL(baseExpr);
     
     SEXP result = PROTECT(allocateResult(numNTrees, numKs, numPowers, numBases, numReps, dropUnusedDims));
+    ++protectCount;
     
     GetRNGstate();
     
@@ -158,7 +201,7 @@ extern "C" {
     invalidateData(data);
     invalidateModel(model);
 
-    UNPROTECT(1);
+    UNPROTECT(protectCount);
     
     return result;
   }
@@ -281,8 +324,19 @@ namespace {
   struct CustomLossFunctorDefinition : LossFunctorDefinition {
     SEXP function;
     SEXP environment;
+    SEXP scratch;
+    pthread_mutex_t mutex;
+    bool multithreaded;
     
-    ~CustomLossFunctorDefinition() { }
+    CustomLossFunctorDefinition(bool multithreaded) : multithreaded(multithreaded) {
+      if (multithreaded)
+        if (pthread_mutex_init(&mutex, NULL) != 0) Rf_error("unable to initialize mutex");
+    }
+    
+    ~CustomLossFunctorDefinition() {
+      if (multithreaded)
+        pthread_mutex_destroy(&mutex);
+    }
   };
   
   struct CustomLossFunctor : LossFunctor {
@@ -290,10 +344,11 @@ namespace {
     double* testSamples;
     size_t maxNumTestObservations;
     
+    CustomLossFunctorDefinition* lossFunctorDefinition;
+    
     double* y_testNM1;
     double* testSamplesNM1;
     
-    size_t protectCount;
     SEXP closure;
     SEXP closureNM1;
     SEXP environment;
@@ -301,8 +356,17 @@ namespace {
   
   LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, Method method, std::size_t numTestObservations, std::size_t numSamples)
   {
-    const CustomLossFunctorDefinition& def(*static_cast<const CustomLossFunctorDefinition*>(&v_def));
+    CustomLossFunctorDefinition& def(*const_cast<CustomLossFunctorDefinition*>(static_cast<const CustomLossFunctorDefinition*>(&v_def)));
     CustomLossFunctor* result = new CustomLossFunctor;
+    
+    result->lossFunctorDefinition = &def;
+    
+    if (def.multithreaded)
+      pthread_mutex_lock(&def.mutex);
+    
+    size_t assignmentIndex;
+    size_t scratchLength = rc_getLength(def.scratch);
+    for (assignmentIndex = 0; assignmentIndex < scratchLength && VECTOR_ELT(def.scratch, assignmentIndex) != R_NilValue; ++assignmentIndex) { /* */ }
     
     SEXP y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
     SEXP testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
@@ -315,7 +379,11 @@ namespace {
     result->closure     = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
     result->environment = def.environment;
     
-    result->protectCount = 3;
+    SET_VECTOR_ELT(def.scratch, assignmentIndex++, y_testExpr);
+    SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
+    SET_VECTOR_ELT(def.scratch, assignmentIndex++, result->closure);
+    
+    size_t protectCount = 3;
      
     if (method == K_FOLD) {
       y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
@@ -327,18 +395,24 @@ namespace {
             
       result->closureNM1 = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
       
-      result->protectCount += 3;
+      SET_VECTOR_ELT(def.scratch, assignmentIndex++, y_testExpr);
+      SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
+      SET_VECTOR_ELT(def.scratch, assignmentIndex, result->closureNM1);
+      
+      protectCount += 3;
     }
+    
+    UNPROTECT(protectCount);
+    
+    if (def.multithreaded)
+      pthread_mutex_unlock(&def.mutex);
     
     return result;
   }
   
   void deleteCustomLoss(LossFunctor* v_instance)
   {
-    CustomLossFunctor* instance = static_cast<CustomLossFunctor*>(v_instance);
-    UNPROTECT(instance->protectCount);
-    
-    delete instance;
+    delete static_cast<CustomLossFunctor*>(v_instance);
   }
   
   void calculateCustomLoss(LossFunctor& restrict v_instance,
@@ -346,6 +420,9 @@ namespace {
                            double* restrict results)
   {
     CustomLossFunctor& restrict instance(*static_cast<CustomLossFunctor* restrict>(&v_instance));
+    CustomLossFunctorDefinition& restrict def(*static_cast<CustomLossFunctorDefinition*>(instance.lossFunctorDefinition));
+    
+    if (def.multithreaded) pthread_mutex_lock(&def.mutex);
     
     SEXP customResult;
     if (numTestObservations == instance.maxNumTestObservations) {
@@ -357,88 +434,74 @@ namespace {
     }
     
     std::memcpy(results, const_cast<const double*>(REAL(customResult)), rc_getLength(customResult) * sizeof(double));
+    
+    if (def.multithreaded) pthread_mutex_unlock(&def.mutex);
   }
-
   
-  const char* const lossTypeNames[] = { "rmse", "mcr" };
-  typedef enum { RMSE, MCR, CUSTOM } LossFunctorType;
-  
-  LossFunctorDefinition* createLossFunctorDefinition(SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples)
+  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType type, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
+                                                     size_t numThreads, SEXP scratch)
   {
     LossFunctorDefinition* result = NULL;
     
-    if (Rf_isString(lossTypeExpr)) {
-      if (rc_getLength(lossTypeExpr) != 1) Rf_error("length of lossType for strings must be 1");
-      const char* lossTypeName = CHAR(STRING_ELT(lossTypeExpr, 0));
-      
-      size_t lossTypeNumber;
-      int errorCode = ext_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - RMSE), &lossTypeNumber);
-      if (errorCode != 0) Rf_error("error matching string: %s", std::strerror(errorCode));
-      if (lossTypeNumber == EXT_STR_NO_MATCH) Rf_error("unsupported result type: '%s'", lossTypeName);
-      
-      LossFunctorType type = static_cast<LossFunctorType>(lossTypeNumber);
-      
-      switch (type) {
-        case RMSE:
-        result = new LossFunctorDefinition;
-        result->y_testOffset = -1;
-        result->testSamplesOffset = -1;
-        result->numResults = 1;
-        result->displayString = lossTypeNames[0];
-        result->calculateLoss = &calculateRMSELoss;
-        result->createFunctor = &createRMSELoss;
-        result->deleteFunctor = &deleteRMSELoss;
-        break;
+    switch(type) {
+      case RMSE:
+      result = new LossFunctorDefinition;
+      result->y_testOffset = -1;
+      result->testSamplesOffset = -1;
+      result->numResults = 1;
+      result->displayString = lossTypeNames[0];
+      result->calculateLoss = &calculateRMSELoss;
+      result->createFunctor = &createRMSELoss;
+      result->deleteFunctor = &deleteRMSELoss;
+      break;
+      case MCR:
+      result = new LossFunctorDefinition;
+      result->y_testOffset = -1;
+      result->testSamplesOffset = -1;
+      result->numResults = 1;
+      result->displayString = lossTypeNames[1];
+      result->calculateLoss = &calculateMCRLoss;
+      result->createFunctor = &createMCRLoss;
+      result->deleteFunctor = &deleteMCRLoss;
+      break;
+      case CUSTOM:
+      {
+        SEXP function    = VECTOR_ELT(lossTypeExpr, 0);
+        SEXP environment = VECTOR_ELT(lossTypeExpr, 1);
         
-        case MCR:
-        result = new LossFunctorDefinition;
-        result->y_testOffset = -1;
-        result->testSamplesOffset = -1;
-        result->numResults = 1;
-        result->displayString = lossTypeNames[1];
-        result->calculateLoss = &calculateMCRLoss;
-        result->createFunctor = &createMCRLoss;
-        result->deleteFunctor = &deleteMCRLoss;
-        break;
-        case CUSTOM:
-        Rf_error("internal error: invalid type enumeration");
+        CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition(numThreads > 1);
+        result = c_result;
+        result->y_testOffset = 0;
+        result->testSamplesOffset = sizeof(double*);
+        
+        SEXP tempY_test      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
+        SEXP tempTestSamples = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
+        rc_setDims(tempTestSamples, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
+        // set some values to not all be the same so that they have an SD != 0
+        REAL(tempY_test)[0] = 1.0;
+        ext_setVectorToConstant(REAL(tempY_test) + 1, numTestObservations - 1, 0.0);
+        REAL(tempTestSamples)[0] = 0.0;
+        ext_setVectorToConstant(REAL(tempTestSamples) + 1, numTestObservations - 1, 1.0);
+        ext_setVectorToConstant(REAL(tempTestSamples) + numTestObservations, numTestObservations * (numSamples - 1), 0.0);
+        
+        SEXP tempClosure = PROTECT(Rf_lang3(function, tempY_test, tempTestSamples));
+        
+        result->numResults = rc_getLength(Rf_eval(tempClosure, environment));
+        UNPROTECT(3);
+        
+        result->displayString = "custom";
+        result->calculateLoss = &calculateCustomLoss;
+        result->createFunctor = &createCustomLoss;
+        result->deleteFunctor = &deleteCustomLoss;
+        
+        c_result->function = function;
+        c_result->environment = environment;
+        c_result->scratch = scratch;
       }
-    } else if (Rf_isVectorList(lossTypeExpr)) {
-      if (rc_getLength(lossTypeExpr) != 2) Rf_error("length of lossType for functions must be 2");
-     
-      SEXP function    = VECTOR_ELT(lossTypeExpr, 0);
-      SEXP environment = VECTOR_ELT(lossTypeExpr, 1);
-      
-      if (!Rf_isFunction(function)) Rf_error("first element of list for function lossType must be a closure");
-      if (!Rf_isEnvironment(environment)) Rf_error("second element of list for function lossType must be an environment");
-      
-      CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition;
-      result = c_result;
-      result->y_testOffset = 0;
-      result->testSamplesOffset = sizeof(double*);
-      
-      SEXP tempY_test      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
-      SEXP tempTestSamples = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
-      rc_setDims(tempTestSamples, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-      ext_setVectorToConstant(REAL(tempY_test), numTestObservations, 0.0);
-      ext_setVectorToConstant(REAL(tempTestSamples), numTestObservations * numSamples, 0.0);
-      
-      SEXP tempClosure = PROTECT(Rf_lang3(function, tempY_test, tempTestSamples));
-      SEXP tempResult = Rf_eval(tempClosure, environment);
-
-      result->numResults = rc_getLength(tempResult);
-      
-      result->displayString = "custom";
-      result->calculateLoss = &calculateCustomLoss;
-      result->createFunctor = &createCustomLoss;
-      result->deleteFunctor = &deleteCustomLoss;
-      
-      c_result->function = function;
-      c_result->environment = environment;
-      
-      UNPROTECT(3);
-    } else {
-      Rf_error("lossType must be a character string or list(closure, env)");
+      break;
+      case INVALID:
+      Rf_error("internal error: invalid type enumeration");
+      break;
     }
     
     return result;
