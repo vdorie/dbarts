@@ -2,6 +2,7 @@
 #define EXTERNAL_THREAD_H
 
 #include "stddef.h"
+#include <stdbool.h>
 #include <time.h>
 #include <sys/types.h>
 
@@ -60,6 +61,25 @@ void ext_htm_getNumPiecesForSubTask(const ext_htm_manager_t restrict threadManag
                                     ext_size_t* restrict numPiecesPtr, ext_size_t* restrict numElementsPerPiecePtr, ext_size_t* restrict offByOneIndexPtr);
 
 void ext_htm_printf(ext_htm_manager_t manager, const char* format, ...);
+
+// blocking thread manager
+#define EXT_BTM_INVALID_THREAD_ID ((ext_size_t) -1)
+struct _ext_btm_manager_t;
+typedef struct _ext_btm_manager_t* ext_btm_manager_t;
+typedef void (*ext_btm_taskFunction_t)(void*);
+
+int ext_btm_create(ext_btm_manager_t* manager, ext_size_t numThreads);
+int ext_btm_destroy(ext_btm_manager_t manager);
+
+int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t task,
+                     void** restrict data, ext_size_t numTasks);
+ext_size_t ext_btm_getNumThreads(const ext_btm_manager_t manager);
+void ext_btm_getNumThreadsForJob(const ext_btm_manager_t restrict threadManager, ext_size_t numElements, ext_size_t minNumElementsPerThread,
+                                 ext_size_t* restrict numThreadsPtr, ext_size_t* restrict numElementsPerThreadPtr, ext_size_t* restrict offByOneIndexPtr);
+
+bool ext_btm_isNull(ext_btm_manager_t manager);
+
+int ext_btm_runTaskInParentThread(ext_btm_manager_t restrict manager, ext_size_t threadId, ext_btm_taskFunction_t task, void* restrict data);
 
 
 #ifdef __cplusplus

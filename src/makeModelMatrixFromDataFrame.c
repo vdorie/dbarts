@@ -61,9 +61,9 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
       ++protectCount;
       if (rc_getNames(x) != R_NilValue) rc_setNames(dropPatternExpr, rc_getNames(x));
     }
-  }
-  if (!createDropPattern && Rf_isVector(dropColumnsExpr) && !Rf_isLogical(dropColumnsExpr))
+  } else if (!createDropPattern && Rf_isVector(dropColumnsExpr)) {
     dropPatternExpr = dropColumnsExpr;
+  }
   
   countMatrixColumns(x, columnTypes, dropPatternExpr, createDropPattern, &numOutputColumns);
   
@@ -79,21 +79,23 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   rc_setDims(result, (int) numRows, (int) numOutputColumns, -1);
   
   SEXP dimNamesExpr = PROTECT(rc_newList(2));
-  ++protectCount;
   rc_setDimNames(result, dimNamesExpr);
+  UNPROTECT(1);
   SET_VECTOR_ELT(dimNamesExpr, 1, rc_newCharacter(numOutputColumns));
   
   errorCode = createMatrix(x, numRows, result, columnTypes, dropPatternExpr);
   
 mkmm_cleanup:
-  if (protectCount > 0) UNPROTECT(protectCount);
-  
   if (errorCode != 0) {
+    if (protectCount > 0) UNPROTECT(protectCount);
+    
     Rf_warning("error in makeModelMatrix: %s", strerror(errorCode));
     return R_NilValue;
   }
   
   if (dropPatternExpr != NULL) Rf_setAttrib(result, Rf_install("drop"), dropPatternExpr);
+  
+  if (protectCount > 0) UNPROTECT(protectCount);
   
   return result;
 }

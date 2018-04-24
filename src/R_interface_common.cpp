@@ -196,7 +196,6 @@ namespace dbarts {
     model.muPrior = new NormalPrior(control, k);
     
     
-    
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
       
     slotExpr = Rf_getAttrib(priorExpr, Rf_install("df"));
@@ -330,6 +329,7 @@ namespace dbarts {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       SEXP result_i = PROTECT(R_do_new_object(R_do_MAKE_CLASS("dbartsState")));
       SET_VECTOR_ELT(result, chainNum, result_i);
+      UNPROTECT(1);
       
       slotExpr = rc_allocateInSlot(result_i, treesSym, STRSXP, static_cast<R_xlen_t>(control.numTrees));
     
@@ -374,7 +374,7 @@ namespace dbarts {
     slotExpr = rc_allocateInSlot(result, Rf_install("runningTime"), REALSXP, 1);
     REAL(slotExpr)[0] = fit.runningTime;
     
-    UNPROTECT(1 + control.numChains);
+    UNPROTECT(1);
     
     return result;
   }

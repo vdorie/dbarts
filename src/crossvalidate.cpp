@@ -42,9 +42,11 @@ namespace {
     uint8_t status;
   };
   
-  void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters, bool verbose);
+  void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
+                        size_t threadId, size_t cellIndex, ext_btm_manager_t manager, bool verbose);
   
   struct SharedData {
+    ext_btm_manager_t threadManager;
     Method method;
     
     const Control& control;
@@ -61,8 +63,6 @@ namespace {
     
     size_t numReps;
     const CellParameters* parameters;
-    
-    size_t* printedCells;
   };
   
   struct ThreadData {
@@ -71,14 +71,14 @@ namespace {
     
     size_t repCellOffset;
     size_t numRepCells;
-    size_t fittingCell;
+    size_t threadId;
     
     double* results;
   };
 }
 
 extern "C" { static void crossvalidationTask(void* data); }
-extern "C" { static void printInfo(void** data, size_t numThreads); }
+// extern "C" { static void printInfo(void** data, size_t numThreads); }
 
 namespace dbarts { namespace xval {
     void crossvalidate(const Control& origControl, const Model& origModel, const Data& origData,
@@ -103,9 +103,8 @@ namespace dbarts { namespace xval {
       ext_printf("  num samp: %lu, num reps: %lu\n", origControl.defaultNumSamples, numReps);
       ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
 
-      if (numThreads > 1) {
+      if (numThreads > 1)
         ext_printf("  parameters for [thread num, cell number]; some cells may be split across multiple threads:\n\n");
-      }
       ext_fflush_stdout();
     }
     
@@ -132,15 +131,11 @@ namespace dbarts { namespace xval {
     }
     
     Control threadControl = origControl;
-    threadControl.verbose    = origControl.verbose == true && numThreads == 1;
-    threadControl.numThreads = numThreads;
     
-    SharedData sharedData = { method, threadControl, origModel, origData,
+    SharedData sharedData = { 0, method, threadControl, origModel, origData,
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               testSampleSize,
-                              lossFunctorDef, numReps, cellParameters,
-                              new size_t[threadControl.numThreads] };
-    for (size_t i = 0; i < numThreads; ++i) sharedData.printedCells[i] = INVALID_INDEX;
+                              lossFunctorDef, numReps, cellParameters };
     
     if (numThreads <= 1) {
       ext_rng* rng;
@@ -157,7 +152,7 @@ namespace dbarts { namespace xval {
           ext_throwError("could not allocate rng");
       }
       
-      ThreadData threadData = { &sharedData, rng, 0, numRepCells, INVALID_INDEX, results };
+      ThreadData threadData = { &sharedData, rng, 0, numRepCells, 0, results };
       
       crossvalidationTask(&threadData);
       
@@ -168,13 +163,14 @@ namespace dbarts { namespace xval {
       if (threadControl.rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
         threadControl.rng_standardNormal = ext_rng_getDefaultStandardNormalType();
       
-      ext_mt_manager_t threadManager;
-      ext_mt_create(&threadManager, numThreads);
+      ext_btm_manager_t threadManager;
+      ext_btm_create(&threadManager, numThreads);
+      sharedData.threadManager = threadManager;
       
       size_t numRepCellsPerThread;
       size_t offByOneIndex;
       
-      ext_mt_getNumThreadsForJob(threadManager, numRepCells, 0, NULL, &numRepCellsPerThread, &offByOneIndex);
+      ext_btm_getNumThreadsForJob(threadManager, numRepCells, 0, NULL, &numRepCellsPerThread, &offByOneIndex);
       
       
       ThreadData* threadData = ext_stackAllocate(numThreads, ThreadData);
@@ -185,7 +181,7 @@ namespace dbarts { namespace xval {
           ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = i * numRepCellsPerThread;
         threadData[i].numRepCells   = numRepCellsPerThread;
-        threadData[i].fittingCell   = INVALID_INDEX;
+        threadData[i].threadId = i;
         threadData[i].results = results + i * numRepCellsPerThread * lossFunctorDef.numResults;
         threadDataPtrs[i] = threadData + i;
       }
@@ -196,15 +192,12 @@ namespace dbarts { namespace xval {
           ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
         threadData[i].numRepCells   = numRepCellsPerThread - 1;
-        threadData[i].fittingCell   = INVALID_INDEX;
+        threadData[i].threadId = i;
         threadData[i].results = results + threadData[i].repCellOffset * lossFunctorDef.numResults;
         threadDataPtrs[i] = threadData + i;
       }
       
-      if (origControl.verbose == true)
-        ext_mt_runTasksWithInfo(threadManager, crossvalidationTask, threadDataPtrs, numThreads, 1, printInfo);
-      else
-        ext_mt_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
+      ext_btm_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
       
       for (size_t i = 0; i < numThreads; ++i)
         ext_rng_destroy(threadData[i].rng);
@@ -212,11 +205,9 @@ namespace dbarts { namespace xval {
       ext_stackFree(threadDataPtrs);
       ext_stackFree(threadData);
         
-      ext_mt_destroy(threadManager);
+      ext_btm_destroy(threadManager);
       
     }
-    
-    delete [] sharedData.printedCells;
     
     delete [] cellParameters;
     
@@ -224,6 +215,12 @@ namespace dbarts { namespace xval {
 } }
 
 namespace {
+  struct CrossvalidationData {
+    BARTFit& fit;
+    const Data& origData;
+    Data& repData;
+    size_t numBurnIn;
+  };
   struct ThreadScratch {
     size_t maxNumTrainingObservations;
     size_t maxNumTestObservations;
@@ -243,18 +240,45 @@ namespace {
     size_t numRepBurnIn;
   };
   
-  void randomSubsampleCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+  void randomSubsampleCrossvalidate(CrossvalidationData& xvalData,
                                     Results* restrict samples, size_t numSamples, double* restrict results,
-                                    LossFunction calculateLoss, ThreadScratch* v_scratch);
-  void kFoldCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+                                    LossFunction calculateLoss,
+                                    ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                                    ThreadScratch* v_scratch);
+  void kFoldCrossvalidate(CrossvalidationData& data,
                           Results* restrict samples, size_t numSamples, double* restrict results,
-                          LossFunction calculateLoss, ThreadScratch* v_scratch);
+                          LossFunction calculateLoss,
+                          ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                          ThreadScratch* v_scratch);
   
   void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
                                  ext_rng* restrict generator, size_t* restrict permutation);
   void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
                        size_t k, size_t maxNumFoldObservations, size_t numFullSizedFolds,
                        const size_t* restrict permutation);
+}
+
+namespace {
+  struct LossFunctorCreatorData {
+    const LossFunctorDefinition& lfDef;
+    Method method;
+    size_t maxNumTestObservations;
+    size_t numSamples;
+    LossFunctor** result;
+  };
+  struct LossFunctorDestructorData {
+    const LossFunctorDefinition& lfDef;
+    LossFunctor* lf;
+  };
+}
+
+extern "C" void lossFunctorCreatorTask(void* data) {
+  LossFunctorCreatorData& lfcd(*static_cast<LossFunctorCreatorData*>(data));
+  *lfcd.result = lfcd.lfDef.createFunctor(lfcd.lfDef, lfcd.method, lfcd.maxNumTestObservations, lfcd.numSamples);
+}
+extern "C" void lossFunctorDestructorTask(void* data) {
+  LossFunctorDestructorData& lfdd(*static_cast<LossFunctorDestructorData*>(data));
+  lfdd.lfDef.deleteFunctor(lfdd.lf);
 }
 
 extern "C" {
@@ -286,8 +310,15 @@ extern "C" {
     size_t numSamples              = origControl.defaultNumSamples;
         
     const LossFunctorDefinition& lfDef(sharedData.lossFunctorDef);
+    bool lossRequiresMutex = lfDef.requiresMutex && !ext_btm_isNull(sharedData.threadManager);
     
-    LossFunctor* lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples);
+    LossFunctor* lf = NULL;
+    if (lossRequiresMutex) {
+      LossFunctorCreatorData lfcd = { lfDef, sharedData.method, maxNumTestObservations, numSamples, &lf };
+      ext_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorCreatorTask, &lfcd);
+    } else {
+      lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples);
+    }
     
     double* suppliedY_test      = lfDef.y_testOffset      >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.y_testOffset) :
@@ -308,8 +339,8 @@ extern "C" {
     
     Control repControl = origControl;
     repControl.numThreads = 1;
-    bool verbose = repControl.verbose;
     repControl.verbose = false;
+    bool verbose = origControl.verbose;
     
     BARTFit* fit = new BARTFit(repControl, origModel, origData);
     
@@ -319,9 +350,11 @@ extern "C" {
     allocateDataStorage(fit->data, repData, maxNumTrainingObservations, maxNumTestObservations);
     allocateModelStorage(fit->model, repModel);
     
-    void (*crossvalidate)(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+    CrossvalidationData xvalData = { *fit, origData, repData, 0 };
+    
+    void (*crossvalidate)(CrossvalidationData& data,
                           Results* restrict samples, size_t numSamples, double* restrict results,
-                          LossFunction calculateLoss,
+                          LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch);
 
     
@@ -361,60 +394,59 @@ extern "C" {
     size_t lastCellRep  = (threadData.repCellOffset + threadData.numRepCells) % sharedData.numReps;
     
     size_t resultIndex = 0;
-    size_t numBurnIn = sharedData.numInitialBurnIn;
+    xvalData.numBurnIn = sharedData.numInitialBurnIn;
     
     // first and last cells are a bit of a mess, since there can be a lot of off-by-one stuff
     if (firstCellRep != 0) {
-      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[firstCell], verbose);
-      threadData.fittingCell = firstCell;
+      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[firstCell],
+                       threadData.threadId, firstCell, sharedData.threadManager, verbose);
       
       for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
       {
-        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
-                      lfDef.calculateLoss, v_threadScratch);
+        crossvalidate(xvalData, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, sharedData.threadManager, threadData.threadId, lossRequiresMutex, v_threadScratch);
 
         resultIndex += lfDef.numResults;
         
-        numBurnIn = sharedData.numRepBurnIn;
+        xvalData.numBurnIn = sharedData.numRepBurnIn;
       }
       
       ++firstCell;
       firstCellRep = 0;
       
-      numBurnIn = sharedData.numContextShiftBurnIn;
+      xvalData.numBurnIn = sharedData.numContextShiftBurnIn;
     }
     
     for (size_t cellIndex = firstCell; cellIndex < lastCell; ++cellIndex) {
-      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[cellIndex], verbose);
-      threadData.fittingCell = cellIndex;
+      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[cellIndex],
+                       threadData.threadId, cellIndex, sharedData.threadManager, verbose);
       
       for (size_t repIndex = 0; repIndex < sharedData.numReps; ++repIndex)
       {
-        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
-                      lfDef.calculateLoss, v_threadScratch);
+        crossvalidate(xvalData, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, sharedData.threadManager, threadData.threadId, lossRequiresMutex, v_threadScratch);
         resultIndex += lfDef.numResults;
         
-        numBurnIn = sharedData.numRepBurnIn;
+        xvalData.numBurnIn = sharedData.numRepBurnIn;
       }
       
-      numBurnIn = sharedData.numContextShiftBurnIn;
+      xvalData.numBurnIn = sharedData.numContextShiftBurnIn;
     }
     
     if (lastCellRep != 0) {
-      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[lastCell], verbose);
-      threadData.fittingCell = lastCell;
+      updateFitForCell(*fit, repControl, repModel, sharedData.parameters[lastCell],
+                       threadData.threadId, lastCell, sharedData.threadManager, verbose);
       
       for (size_t repIndex = 0; repIndex < lastCellRep; ++repIndex)
       {
-        crossvalidate(*fit, origData, repData, numBurnIn, samples, numSamples, threadData.results + resultIndex,
-                      lfDef.calculateLoss, v_threadScratch);
+        crossvalidate(xvalData, samples, numSamples, threadData.results + resultIndex,
+                      lfDef.calculateLoss, sharedData.threadManager, threadData.threadId, lossRequiresMutex, v_threadScratch);
         
         resultIndex += lfDef.numResults;
         
-        numBurnIn = sharedData.numRepBurnIn;
+        xvalData.numBurnIn = sharedData.numRepBurnIn;
       }
     }
-    threadData.fittingCell = lastCell + 1;
     
     
     delete [] v_threadScratch->permutation;
@@ -434,38 +466,63 @@ extern "C" {
     if (suppliedTestSamples != NULL) samples->testSamples = NULL;
     delete samples;
     
-    sharedData.lossFunctorDef.deleteFunctor(lf);
+    if (lossRequiresMutex) {
+      LossFunctorDestructorData lfdd = { lfDef, lf };
+      ext_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorDestructorTask, &lfdd);
+    } else {
+      lfDef.deleteFunctor(lf);
+    }
   }
 }
 
 
 namespace {
-  using namespace dbarts;
-  
-  void randomSubsampleCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+  struct LossFunctorData {
+    LossFunction calculateLoss;
+    LossFunctor& lf;
+    const double* y_test;
+    size_t numTestObservations;
+    const double* testSamples;
+    size_t numSamples;
+    double* results;
+  };
+}
+
+extern "C" void lossFunctorTask(void* data) {
+  LossFunctorData& lfd(*static_cast<LossFunctorData*>(data));
+  lfd.calculateLoss(lfd.lf, lfd.y_test, lfd.numTestObservations, lfd.testSamples, lfd.numSamples, lfd.results);
+}
+
+namespace {
+  void randomSubsampleCrossvalidate(CrossvalidationData& xvalData,
                                     Results* restrict samples, size_t numSamples, double* restrict results,
-                                    LossFunction calculateLoss,
+                                    LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                                     ThreadScratch* v_scratch)
   {
     RandomSubsampleThreadScratch& threadScratch(*reinterpret_cast<RandomSubsampleThreadScratch *>(v_scratch));
     
-    randomSubsampleDivideData(origData, repData, threadScratch.y_test,
+    randomSubsampleDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test,
                               threadScratch.generator, threadScratch.permutation);
-    fit.setData(repData);
+    xvalData.fit.setData(xvalData.repData);
     
-    fit.runSampler(numBurnIn, samples);
+    xvalData.fit.runSampler(xvalData.numBurnIn, samples);
     
-    calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results);
+    if (lossRequiresMutex) {
+      LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results };
+      ext_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
+    } else {
+      calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results);
+    }
   }
   
-  void kFoldCrossvalidate(BARTFit& restrict fit, const Data& restrict origData, Data& restrict repData, size_t numBurnIn,
+  void kFoldCrossvalidate(CrossvalidationData& xvalData,
                           Results* restrict samples, size_t numSamples, double* restrict results,
-                          LossFunction calculateLoss,
+                          LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch)
   {
     KFoldThreadScratch& threadScratch(*reinterpret_cast<KFoldThreadScratch *>(v_scratch));
     
-    permuteIndexArray(threadScratch.generator, threadScratch.permutation, origData.numObservations);
+    permuteIndexArray(threadScratch.generator, threadScratch.permutation, xvalData.origData.numObservations);
     
     for (size_t k = 0; k < threadScratch.numFolds; ++k) {
       size_t numTestObservations, foldStartIndex;
@@ -486,22 +543,27 @@ namespace {
     
     for (size_t k = 0; k < threadScratch.numFolds; ++k) {
       size_t numTestObservations = k < threadScratch.numFullSizedFolds ? threadScratch.maxNumTestObservations : threadScratch.maxNumTestObservations - 1;
-      size_t numTrainingObservations = origData.numObservations - numTestObservations;
+      size_t numTrainingObservations = xvalData.origData.numObservations - numTestObservations;
       
-      repData.numObservations = numTrainingObservations;
-      repData.numTestObservations = numTestObservations;
+      xvalData.repData.numObservations = numTrainingObservations;
+      xvalData.repData.numTestObservations = numTestObservations;
       
-      kFoldDivideData(origData, repData, threadScratch.y_test,
+      kFoldDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test,
                       k, threadScratch.maxNumTestObservations, threadScratch.numFullSizedFolds, threadScratch.permutation);
-      fit.setData(repData);
+      xvalData.fit.setData(xvalData.repData);
       
-      fit.runSampler(numBurnIn, samples);
+      xvalData.fit.runSampler(xvalData.numBurnIn, samples);
     
-      calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults);
+      if (lossRequiresMutex) {
+        LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults };
+        ext_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
+      } else {
+        calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults);
+      }
       
       for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] += foldResults[i];
       
-      if (k > 0) numBurnIn = threadScratch.numRepBurnIn;
+      if (k > 0) xvalData.numBurnIn = threadScratch.numRepBurnIn;
     }
     
     for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] /= static_cast<double>(threadScratch.numFolds);
@@ -661,7 +723,7 @@ namespace {
   }
 }
 
-extern "C" {
+/* extern "C" {
   void printInfo(void** vt_data, size_t numThreads)
   {
     SharedData& sharedData(*static_cast<ThreadData*>(vt_data[0])->shared);
@@ -694,17 +756,41 @@ extern "C" {
       }
     }
   }
-}
+} */
 
 namespace {
-  void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters, bool verbose)
+  struct PrintData {
+    size_t threadId;
+    size_t cellIndex;
+    size_t numTrees;
+    double k;
+    double power;
+    double base;
+  };
+}
+extern "C" void printTask(void* v_data) {
+  PrintData& data(*static_cast<PrintData*>(v_data));
+  ext_printf("    [%lu, %lu] n.tree: %lu, k: %.2f, power: %.2f, base: %.2f\n",
+             data.threadId + 1, data.cellIndex + 1,
+             data.numTrees, data.k, data.power, data.base);
+}
+namespace {
+  void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
+                        size_t threadId, size_t cellIndex, ext_btm_manager_t manager, bool verbose)
   {
     size_t numTrees = parameters.numTrees;
     double k        = parameters.k;
     double power    = parameters.power;
     double base     = parameters.base;
       
-    if (verbose) ext_printf("    n.tree: %lu, k: %f, power: %f, base: %f\n", numTrees, k, power, base);
+    if (verbose) {
+      if (ext_btm_isNull(manager)) {
+        ext_printf("    n.tree: %lu, k: %.2f, power: %.2f, base: %.2f\n", numTrees, k, power, base);
+      } else {
+        PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
+        ext_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
+      }
+    }
     
     repControl.numTrees = numTrees;
     

@@ -32,6 +32,7 @@ namespace dbarts {
       std::ptrdiff_t testSamplesOffset;    // offset into functor that points to testSamples, or negative if not supplied
       std::size_t numResults;              // how much to increment results pointer after calculation
       const char* displayString;
+      bool requiresMutex;
       
       // member functions
       LossFunction calculateLoss;

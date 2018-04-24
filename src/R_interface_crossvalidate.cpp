@@ -5,8 +5,6 @@
 #include <cstddef> // size_t
 #include <cstring> // strcmp
 
-#include <pthread.h>
-
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 #include <external/stats.h>
@@ -325,26 +323,14 @@ namespace {
     SEXP function;
     SEXP environment;
     SEXP scratch;
-    pthread_mutex_t mutex;
-    bool multithreaded;
-    
-    CustomLossFunctorDefinition(bool multithreaded) : multithreaded(multithreaded) {
-      if (multithreaded)
-        if (pthread_mutex_init(&mutex, NULL) != 0) Rf_error("unable to initialize mutex");
-    }
-    
-    ~CustomLossFunctorDefinition() {
-      if (multithreaded)
-        pthread_mutex_destroy(&mutex);
-    }
+        
+    ~CustomLossFunctorDefinition() { }
   };
   
   struct CustomLossFunctor : LossFunctor {
     double* y_test;
     double* testSamples;
     size_t maxNumTestObservations;
-    
-    CustomLossFunctorDefinition* lossFunctorDefinition;
     
     double* y_testNM1;
     double* testSamplesNM1;
@@ -358,11 +344,6 @@ namespace {
   {
     CustomLossFunctorDefinition& def(*const_cast<CustomLossFunctorDefinition*>(static_cast<const CustomLossFunctorDefinition*>(&v_def)));
     CustomLossFunctor* result = new CustomLossFunctor;
-    
-    result->lossFunctorDefinition = &def;
-    
-    if (def.multithreaded)
-      pthread_mutex_lock(&def.mutex);
     
     size_t assignmentIndex;
     size_t scratchLength = rc_getLength(def.scratch);
@@ -383,8 +364,8 @@ namespace {
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, result->closure);
     
-    size_t protectCount = 3;
-     
+    UNPROTECT(3);
+    
     if (method == K_FOLD) {
       y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
       testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, (numTestObservations - 1) * numSamples));
@@ -399,13 +380,8 @@ namespace {
       SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
       SET_VECTOR_ELT(def.scratch, assignmentIndex, result->closureNM1);
       
-      protectCount += 3;
+      UNPROTECT(3);
     }
-    
-    UNPROTECT(protectCount);
-    
-    if (def.multithreaded)
-      pthread_mutex_unlock(&def.mutex);
     
     return result;
   }
@@ -420,9 +396,6 @@ namespace {
                            double* restrict results)
   {
     CustomLossFunctor& restrict instance(*static_cast<CustomLossFunctor* restrict>(&v_instance));
-    CustomLossFunctorDefinition& restrict def(*static_cast<CustomLossFunctorDefinition*>(instance.lossFunctorDefinition));
-    
-    if (def.multithreaded) pthread_mutex_lock(&def.mutex);
     
     SEXP customResult;
     if (numTestObservations == instance.maxNumTestObservations) {
@@ -434,8 +407,6 @@ namespace {
     }
     
     std::memcpy(results, const_cast<const double*>(REAL(customResult)), rc_getLength(customResult) * sizeof(double));
-    
-    if (def.multithreaded) pthread_mutex_unlock(&def.mutex);
   }
   
   LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType type, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
@@ -450,6 +421,7 @@ namespace {
       result->testSamplesOffset = -1;
       result->numResults = 1;
       result->displayString = lossTypeNames[0];
+      result->requiresMutex = false;
       result->calculateLoss = &calculateRMSELoss;
       result->createFunctor = &createRMSELoss;
       result->deleteFunctor = &deleteRMSELoss;
@@ -460,6 +432,7 @@ namespace {
       result->testSamplesOffset = -1;
       result->numResults = 1;
       result->displayString = lossTypeNames[1];
+      result->requiresMutex = false;
       result->calculateLoss = &calculateMCRLoss;
       result->createFunctor = &createMCRLoss;
       result->deleteFunctor = &deleteMCRLoss;
@@ -469,7 +442,7 @@ namespace {
         SEXP function    = VECTOR_ELT(lossTypeExpr, 0);
         SEXP environment = VECTOR_ELT(lossTypeExpr, 1);
         
-        CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition(numThreads > 1);
+        CustomLossFunctorDefinition* c_result = new CustomLossFunctorDefinition;
         result = c_result;
         result->y_testOffset = 0;
         result->testSamplesOffset = sizeof(double*);
@@ -490,6 +463,7 @@ namespace {
         UNPROTECT(3);
         
         result->displayString = "custom";
+        result->requiresMutex = true;
         result->calculateLoss = &calculateCustomLoss;
         result->createFunctor = &createCustomLoss;
         result->deleteFunctor = &deleteCustomLoss;
