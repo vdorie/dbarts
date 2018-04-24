@@ -22,7 +22,7 @@ test_that("random subsample runs correctly with valid inputs", {
   
   expect_is(xval, "array")
   expect_equal(dim(xval), c(n.reps, length(n.trees), length(k), length(power), length(base)))
-  expect_true(all(!is.na(xval)))
+  expect_true(!anyNA(xval))
   expect_equal(dimnames(xval), list(
     rep     = NULL,
     n.trees = as.character(n.trees),
@@ -51,7 +51,7 @@ test_that("k-fold runs correctly with valid inputs", {
   
   expect_is(xval, "array")
   expect_equal(dim(xval), c(n.reps, length(n.trees), length(k), length(power), length(base)))
-  expect_true(all(!is.na(xval)))
+  expect_true(!anyNA(xval))
   expect_equal(dimnames(xval), list(
     rep     = NULL,
     n.trees = as.character(n.trees),
@@ -78,6 +78,57 @@ test_that("k-fold and random subsample are roughly similar", {
                    n.threads = 1L)
   
   expect_true(sign(diff(apply(xval.rs, 2, mean))) == sign(diff(apply(xval.kf, 2, mean))))
+})
+
+test_that("works with custom loss", {
+  x <- testData$x
+  y <- testData$y
+  
+  n.reps  <- 8L
+  n.trees <- c(5L, 7L)
+  k       <- c(1, 2, 4)
+  power   <- c(1.5, 2)
+  base    <- c(0.75, 0.8, 0.95)
+  
+  mad <- function(y.train, y.train.hat) 
+    mean(abs(y.train - apply(y.train.hat, 1L, mean)))
+
+  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "k-fold", n.test = 6,
+                n.reps = n.reps,
+                n.trees = n.trees,
+                k = k,
+                power = power,
+                base = base, loss = mad,
+                n.threads = 1L)
+  
+  expect_is(xval, "array")
+  expect_equal(dim(xval), c(n.reps, length(n.trees), length(k), length(power), length(base)))
+  expect_true(!anyNA(xval))
+  expect_equal(dimnames(xval), list(
+    rep     = NULL,
+    n.trees = as.character(n.trees),
+    k       = as.character(k),
+    power   = as.character(power),
+    base    = as.character(base)))
+  
+  
+  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "k-fold", n.test = 6,
+                n.reps = n.reps,
+                n.trees = n.trees,
+                k = k,
+                power = power,
+                base = base, loss = mad,
+                n.threads = 2L)
+  
+  expect_is(xval, "array")
+  expect_equal(dim(xval), c(n.reps, length(n.trees), length(k), length(power), length(base)))
+  expect_true(!anyNA(xval))
+  expect_equal(dimnames(xval), list(
+    rep     = NULL,
+    n.trees = as.character(n.trees),
+    k       = as.character(k),
+    power   = as.character(power),
+    base    = as.character(base)))
 })
 
 test_that("fails with invalid inputs", {

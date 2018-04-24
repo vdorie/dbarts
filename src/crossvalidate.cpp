@@ -770,7 +770,7 @@ namespace {
 }
 extern "C" void printTask(void* v_data) {
   PrintData& data(*static_cast<PrintData*>(v_data));
-  ext_printf("    [%lu, %lu] n.tree: %lu, k: %.2f, power: %.2f, base: %.2f\n",
+  ext_printf("    [%lu, %lu] n.trees: %lu, k: %.2f, power: %.2f, base: %.2f\n",
              data.threadId + 1, data.cellIndex + 1,
              data.numTrees, data.k, data.power, data.base);
 }
@@ -785,7 +785,7 @@ namespace {
       
     if (verbose) {
       if (ext_btm_isNull(manager)) {
-        ext_printf("    n.tree: %lu, k: %.2f, power: %.2f, base: %.2f\n", numTrees, k, power, base);
+        ext_printf("    [%lu] n.trees: %lu, k: %.2f, power: %.2f, base: %.2f\n", cellIndex, numTrees, k, power, base);
       } else {
         PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
         ext_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);

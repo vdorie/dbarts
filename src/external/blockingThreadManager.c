@@ -14,9 +14,6 @@
 #  include <time.h>
 #endif
 
-#include <external/io.h>
-
-
 #ifdef __GNUC__
 #define UNUSED __attribute__ ((unused))
 #else
@@ -191,7 +188,6 @@ int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t 
     while (getNumElementsInQueue(&manager->parentTaskQueue) != 0) {
       size_t j = pop(&manager->parentTaskQueue);
       
-      // ext_printf("running task for thread %lu\n", j + 1);
       threadData[j].parentTask(threadData[j].parentTaskData);
       threadData[j].parentIsFinished = true;
       
@@ -199,7 +195,6 @@ int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t 
     } 
     if (getNumElementsInQueue(&manager->threadQueue) != 0) {
       size_t j = pop(&manager->threadQueue);
-      // ext_printf("assigning job to thread %lu\n", j + 1);
       
       threadData[j].task = function;
       threadData[j].taskData = (data == NULL ? NULL : data[i]);
@@ -217,7 +212,6 @@ int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t 
     while (getNumElementsInQueue(&manager->parentTaskQueue) != 0) {
       size_t j = pop(&manager->parentTaskQueue);
       
-      // ext_printf("running task for thread %lu\n", j + 1);
       threadData[j].parentTask(threadData[j].parentTaskData);
       threadData[j].parentIsFinished = true;
       
