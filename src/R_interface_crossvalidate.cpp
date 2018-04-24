@@ -23,8 +23,6 @@
 
 #include "R_interface_common.hpp"
 
-#define asRXLen(_X_) static_cast<R_xlen_t>(_X_)
-
 using std::size_t;
 
 namespace {
@@ -49,11 +47,11 @@ extern "C" {
              SEXP numTreesExpr, SEXP kExpr, SEXP powerExpr, SEXP baseExpr,
              SEXP dropExpr)
   {
-    rc_assertIntConstraints(numTreesExpr, "num trees", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_END);
-    rc_assertDoubleConstraints(kExpr, "k", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    rc_assertDoubleConstraints(powerExpr, "power", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    rc_assertDoubleConstraints(baseExpr, "base", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-    rc_assertIntConstraints(numBurnInExpr, "num burn",  RC_LENGTH | RC_GEQ, asRXLen(1), RC_LENGTH | RC_LEQ, asRXLen(3), RC_VALUE | RC_GEQ, 0, RC_END);
+    rc_assertIntConstraints(numTreesExpr, "num trees", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0, RC_END);
+    rc_assertDoubleConstraints(kExpr, "k", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    rc_assertDoubleConstraints(powerExpr, "power", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    rc_assertDoubleConstraints(baseExpr, "base", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+    rc_assertIntConstraints(numBurnInExpr, "num burn",  RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_LENGTH | RC_LEQ, rc_asRLength(3), RC_VALUE | RC_GEQ, 0, RC_END);
     
     Control control;
     Model model;
@@ -83,22 +81,22 @@ extern "C" {
     
     sizetOrDouble testSampleSize;
     if (method == K_FOLD) 
-      testSampleSize.n = rc_getInt(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 2, RC_VALUE | RC_LEQ, static_cast<int>(numObservations), RC_END);
+      testSampleSize.n = rc_getInt(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 2, RC_VALUE | RC_LEQ, static_cast<int>(numObservations), RC_END);
     else
-      testSampleSize.p = rc_getDouble(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+      testSampleSize.p = rc_getDouble(testSampleSizeExpr, "n.test", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
     size_t numReps = static_cast<size_t>(
-      rc_getInt(numRepsExpr, "num reps", RC_LENGTH | RC_GEQ, asRXLen(1),
+      rc_getInt(numRepsExpr, "num reps", RC_LENGTH | RC_GEQ, rc_asRLength(1),
                                          RC_VALUE | RC_GT, 0, RC_END));
     
-    int numThreadsInt = rc_getInt(numThreadsExpr, "num threads", RC_LENGTH | RC_EQ, asRXLen(1), RC_VALUE | RC_GT, 0, RC_NA | RC_YES, RC_END);
+    int numThreadsInt = rc_getInt(numThreadsExpr, "num threads", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0, RC_NA | RC_YES, RC_END);
     size_t numThreads = numThreadsInt != NA_INTEGER ? static_cast<size_t>(numThreadsInt) : 1;
 
     size_t numInitialBurnIn      = static_cast<size_t>(INTEGER(numBurnInExpr)[0]);
     size_t numContextShiftBurnIn = rc_getLength(numBurnInExpr) >= 2 ? static_cast<size_t>(INTEGER(numBurnInExpr)[1]) : ((3 * numInitialBurnIn) / 4);
     size_t numRepBurnIn          = rc_getLength(numBurnInExpr) == 3 ? static_cast<size_t>(INTEGER(numBurnInExpr)[2]) : numInitialBurnIn / 4;
     
-    bool dropUnusedDims = rc_getBool(dropExpr, "drop", RC_LENGTH | RC_EQ, asRXLen(1), RC_END);
+    bool dropUnusedDims = rc_getBool(dropExpr, "drop", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_END);
     
     size_t maxNumTestObservations;
     if (method == K_FOLD) {
