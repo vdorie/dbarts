@@ -16,6 +16,7 @@ m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
 m4_include([tools/m4/ax_ext.m4])
 m4_include([tools/m4/ax_cxx_namespace_std.m4])
 m4_include([tools/m4/ax_snprintf_in_namespace_std.m4])
+m4_include([tools/m4/ax_strtol_in_namespace_std.m4])
 m4_include([tools/m4/ax_func_posix_memalign.m4])
 
 AC_ARG_ENABLE([match-bayes-tree],
@@ -99,6 +100,8 @@ AX_FUNC_POSIX_MEMALIGN
 AC_LANG_PUSH(C++)
 AC_CHECK_FUNCS([snprintf])
 AX_CXX_SNPRINTF_IN_NAMESPACE_STD
+AC_CHECK_FUNCS([strotol])
+AX_CXX_STRTOL_IN_NAMESPACE_STD
 AC_LANG_POP
 
 
