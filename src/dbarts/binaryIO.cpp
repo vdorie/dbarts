@@ -1,6 +1,7 @@
 #include "binaryIO.hpp"
 
 #include <cstddef>
+#include <cstdlib>
 #include <dbarts/cstdint.hpp>
 #include <cstring>
 #include <cerrno>
@@ -24,7 +25,7 @@ using std::size_t;
 #ifdef HAVE_STRTOL_IN_NAMESPACE_STD
 using std::strtol;
 #elif !defined(HAVE_STRTOL)
-#include <stddef.h>
+#include <stdlib.h>
 #endif
 
 namespace dbarts {
@@ -157,7 +158,7 @@ read_control_cleanup:
       (errorCode = ext_bio_writeNDoubles(bio, data.testOffset, data.numTestObservations)) != 0) goto write_data_cleanup;
     
     variableTypes = ext_stackAllocate(data.numPredictors, uint32_t);
-    for (std::size_t j = 0; j < data.numPredictors; ++j) variableTypes[j] = static_cast<uint32_t>(data.variableTypes[j]);
+    for (size_t j = 0; j < data.numPredictors; ++j) variableTypes[j] = static_cast<uint32_t>(data.variableTypes[j]);
     
     if ((errorCode = ext_bio_writeNUnsigned32BitIntegers(bio, variableTypes, data.numPredictors)) != 0) goto write_data_cleanup;
     
@@ -214,7 +215,7 @@ write_data_cleanup:
     variableTypes = ext_stackAllocate(data.numPredictors, uint32_t);
     if ((errorCode = ext_bio_readNUnsigned32BitIntegers(bio, variableTypes, data.numPredictors)) != 0) goto read_data_cleanup;
     data.variableTypes = new VariableType[data.numPredictors];
-    for (std::size_t j = 0; j < data.numPredictors; ++j) const_cast<VariableType*>(data.variableTypes)[j] = static_cast<VariableType>(variableTypes[j]);
+    for (size_t j = 0; j < data.numPredictors; ++j) const_cast<VariableType*>(data.variableTypes)[j] = static_cast<VariableType>(variableTypes[j]);
     
     if (dataFlags & DATA_HAS_MAX_NUM_CUTS) {
       data.maxNumCuts = new uint32_t[data.numPredictors];
@@ -317,8 +318,8 @@ read_model_cleanup:
 }
 
 namespace {
-  int writeTree(ext_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const std::size_t* treeIndices);
-  int readTree(ext_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const std::size_t* treeIndices);
+  int writeTree(ext_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices);
+  int readTree(ext_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices);
 }
 
 namespace dbarts {
@@ -442,7 +443,7 @@ read_state_cleanup:
     versionString[VERSION_STRING_LENGTH] = '\0';
     
     char* originalVersionString = new char[VERSION_STRING_LENGTH + 1];
-    for (std::size_t i = 0; i < VERSION_STRING_LENGTH + 1; ++i)
+    for (size_t i = 0; i < VERSION_STRING_LENGTH + 1; ++i)
      originalVersionString[i] = '\0'; 
     
     int errorCode;
@@ -461,19 +462,19 @@ read_state_cleanup:
     versionString[5] = '\0';
     
     errno = 0;
-    version.major = static_cast<std::size_t>(strtol(versionString, NULL, 10));
+    version.major = static_cast<size_t>(strtol(versionString, NULL, 10));
     if (version.major == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;
     }
     
-    version.minor = static_cast<std::size_t>(strtol(versionString + 3, NULL, 10));
+    version.minor = static_cast<size_t>(strtol(versionString + 3, NULL, 10));
     if (version.minor == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;
     }
     
-    version.revision = static_cast<std::size_t>(strtol(versionString + 6, NULL, 10));
+    version.revision = static_cast<size_t>(strtol(versionString + 6, NULL, 10));
     if (version.revision == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;
@@ -501,7 +502,7 @@ ext_bio_readVersion_error:
 
 #define NODE_HAS_CHILDREN 1
 namespace {
-  int writeNode(ext_binaryIO* bio, const dbarts::Node& node, const dbarts::Data& data, const std::size_t* treeIndices)
+  int writeNode(ext_binaryIO* bio, const dbarts::Node& node, const dbarts::Data& data, const size_t* treeIndices)
   {
     int errorCode = 0;
     
@@ -512,12 +513,12 @@ namespace {
     observationOffset = node.observationIndices - treeIndices;
     if (observationOffset < 0) {
       errorCode = EINVAL; goto write_node_cleanup;
-    } else if ((errorCode = ext_bio_writeSizeType(bio, static_cast<std::size_t>(observationOffset))) != 0) goto write_node_cleanup;
+    } else if ((errorCode = ext_bio_writeSizeType(bio, static_cast<size_t>(observationOffset))) != 0) goto write_node_cleanup;
     
     if ((errorCode = ext_bio_writeSizeType(bio, node.enumerationIndex)) != 0) goto write_node_cleanup;
     if ((errorCode = ext_bio_writeSizeType(bio, node.numObservations)) != 0) goto write_node_cleanup;
     
-    for (std::size_t j = 0; j < data.numPredictors; ++j) {
+    for (size_t j = 0; j < data.numPredictors; ++j) {
       if (node.variablesAvailableForSplit[j] == true) variablesAvailableForSplit |= 1 << j;
     }
     if ((errorCode = ext_bio_writeUnsigned64BitInteger(bio, variablesAvailableForSplit)) != 0) goto write_node_cleanup;
@@ -544,16 +545,16 @@ write_node_cleanup:
     return errorCode;
   }
   
-  int writeTree(ext_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const std::size_t* treeIndices)
+  int writeTree(ext_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices)
   {
     return writeNode(bio, tree.top, data, treeIndices);
   }
   
-  int readNode(ext_binaryIO* bio, dbarts::Node& node, const dbarts::Data& data, const std::size_t* treeIndices)
+  int readNode(ext_binaryIO* bio, dbarts::Node& node, const dbarts::Data& data, const size_t* treeIndices)
   {
     int errorCode = 0;
     
-    std::size_t observationOffset = 0;
+    size_t observationOffset = 0;
     unsigned char nodeFlags = 0;
     uint64_t variablesAvailableForSplit = 0;
     dbarts::Node* leftChild = NULL;
@@ -561,13 +562,13 @@ write_node_cleanup:
     
     if ((errorCode = ext_bio_readSizeType(bio, &observationOffset)) != 0) goto read_node_cleanup;
     if (observationOffset >= data.numObservations) { errorCode = EINVAL; goto read_node_cleanup; }
-    node.observationIndices = const_cast<std::size_t*>(treeIndices) + observationOffset;
+    node.observationIndices = const_cast<size_t*>(treeIndices) + observationOffset;
     
     if ((errorCode = ext_bio_readSizeType(bio, &node.enumerationIndex)) != 0) goto read_node_cleanup;
     if ((errorCode = ext_bio_readSizeType(bio, &node.numObservations)) != 0) goto read_node_cleanup;
     
     if ((errorCode = ext_bio_readUnsigned64BitInteger(bio, &variablesAvailableForSplit)) != 0) goto read_node_cleanup;
-    for (std::size_t j = 0; j < data.numPredictors; ++j) {
+    for (size_t j = 0; j < data.numPredictors; ++j) {
       node.variablesAvailableForSplit[j] = (variablesAvailableForSplit & (1 << j)) != 0;
     }
     
@@ -604,7 +605,7 @@ read_node_cleanup:
     return errorCode;
   }
   
-  int readTree(ext_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const std::size_t* treeIndices)
+  int readTree(ext_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices)
   {
     return readNode(bio, tree.top, data, treeIndices);
   }
