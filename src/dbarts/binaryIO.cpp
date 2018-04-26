@@ -1,8 +1,8 @@
 #include "binaryIO.hpp"
 
 #include <cstddef>
-#include <cstdlib>
 #include <dbarts/cstdint.hpp>
+#include <cstdlib>
 #include <cstring>
 #include <cerrno>
 
@@ -21,12 +21,6 @@
 #define VERSION_STRING_LENGTH 8
 
 using std::size_t;
-
-#ifdef HAVE_STRTOL_IN_NAMESPACE_STD
-using std::strtol;
-#elif !defined(HAVE_STRTOL)
-#include <stdlib.h>
-#endif
 
 namespace dbarts {
 #define CONTROL_BINARY_RESPONSE 1
@@ -462,19 +456,19 @@ read_state_cleanup:
     versionString[5] = '\0';
     
     errno = 0;
-    version.major = static_cast<size_t>(strtol(versionString, NULL, 10));
+    version.major = static_cast<size_t>(std::strtol(versionString, NULL, 10));
     if (version.major == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;
     }
     
-    version.minor = static_cast<size_t>(strtol(versionString + 3, NULL, 10));
+    version.minor = static_cast<size_t>(std::strtol(versionString + 3, NULL, 10));
     if (version.minor == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;
     }
     
-    version.revision = static_cast<size_t>(strtol(versionString + 6, NULL, 10));
+    version.revision = static_cast<size_t>(std::strtol(versionString + 6, NULL, 10));
     if (version.revision == 0 && errno != 0) {
       errorCode = errno;
       goto ext_bio_readVersion_error;

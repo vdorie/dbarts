@@ -29,8 +29,8 @@ namespace {
   using namespace dbarts;
   using namespace dbarts::xval;
   
-  const char* const lossTypeNames[] = { "rmse", "mcr", };
-  typedef enum { RMSE, MCR, CUSTOM, INVALID } LossFunctorType;
+  const char* const lossTypeNames[] = { "rmse", "log", "mcr", "custom" };
+  typedef enum { RMSE, LOG, MCR, CUSTOM, INVALID } LossFunctorType;
   
   SEXP allocateResult(size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps, bool dropUnusedDims);
   LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType lossType, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
@@ -140,16 +140,16 @@ extern "C" {
         SET_VECTOR_ELT(scratch, i, R_NilValue);
     }
     
-    LossFunctorDefinition* lossFunctionDef =
-      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, numThreads, scratch);
-    
     initializeControlFromExpression(control, controlExpr);
     if (control.defaultNumSamples == 0) {
-      delete lossFunctionDef;
-      
       if (protectCount > 0) UNPROTECT(protectCount);
       Rf_error("xbart called with 0 posterior samples");
     }
+    
+    if (lossType == LOG && control.responseIsBinary == false) lossType = RMSE;
+    
+    LossFunctorDefinition* lossFunctionDef =
+      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, numThreads, scratch);
     
     initializeModelFromExpression(model, modelExpr, control);
     initializeDataFromExpression(data, dataExpr);
@@ -233,6 +233,44 @@ namespace {
     return result;
   }
   
+  struct LogLossFunctor : LossFunctor {
+    double* scratch;
+  };
+  
+  LossFunctor* createLogLoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
+  {
+    (void) def; (void) numSamples;
+    
+    LogLossFunctor* result = new LogLossFunctor;
+    result->scratch = new double[numTestObservations];
+    return result;
+  }
+  
+  void deleteLogLoss(LossFunctor* instance)
+  {
+    delete [] static_cast<LogLossFunctor*>(instance)->scratch;
+    delete static_cast<LogLossFunctor*>(instance);
+  }
+  
+  void calculateLogLoss(LossFunctor& restrict v_instance,
+                        const double* restrict y_test, size_t numTestObservations, const double* restrict testSamples, size_t numSamples,
+                        double* restrict results)
+  {
+    LogLossFunctor& restrict instance(*static_cast<LogLossFunctor* restrict>(&v_instance));
+    
+    double* restrict probabilities = instance.scratch;
+    results[0] = 0.0;
+    for (size_t i = 0; i < numTestObservations; ++i) {
+      for (size_t j = 0; j < numSamples; ++j) {
+        probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+      }
+      double y_test_hat = ext_computeMean(probabilities, numSamples);
+      
+      results[0] +=  -y_test[i] * y_test_hat - (1.0 - y_test[i]) * (1.0 - y_test_hat);
+    }
+    results[0] /= static_cast<double>(numTestObservations);
+  }
+  
   struct RMSELossFunctor : LossFunctor {
     double* scratch;
   };
@@ -267,6 +305,7 @@ namespace {
     
     results[0] = std::sqrt(ext_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
   }
+
   
   struct MCRLossFunctor : LossFunctor {
     double* scratch;
@@ -418,18 +457,29 @@ namespace {
       result->y_testOffset = -1;
       result->testSamplesOffset = -1;
       result->numResults = 1;
-      result->displayString = lossTypeNames[0];
+      result->displayString = lossTypeNames[RMSE];
       result->requiresMutex = false;
       result->calculateLoss = &calculateRMSELoss;
       result->createFunctor = &createRMSELoss;
       result->deleteFunctor = &deleteRMSELoss;
+      break;
+      case LOG:
+      result = new LossFunctorDefinition;
+      result->y_testOffset = -1;
+      result->testSamplesOffset = -1;
+      result->numResults = 1;
+      result->displayString = lossTypeNames[LOG];
+      result->requiresMutex = false;
+      result->calculateLoss = &calculateLogLoss;
+      result->createFunctor = &createLogLoss;
+      result->deleteFunctor = &deleteLogLoss;
       break;
       case MCR:
       result = new LossFunctorDefinition;
       result->y_testOffset = -1;
       result->testSamplesOffset = -1;
       result->numResults = 1;
-      result->displayString = lossTypeNames[1];
+      result->displayString = lossTypeNames[MCR];
       result->requiresMutex = false;
       result->calculateLoss = &calculateMCRLoss;
       result->createFunctor = &createMCRLoss;
@@ -460,7 +510,7 @@ namespace {
         result->numResults = rc_getLength(Rf_eval(tempClosure, environment));
         UNPROTECT(3);
         
-        result->displayString = "custom";
+        result->displayString = lossTypeNames[CUSTOM];
         result->requiresMutex = true;
         result->calculateLoss = &calculateCustomLoss;
         result->createFunctor = &createCustomLoss;
