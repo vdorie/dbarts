@@ -97,7 +97,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   n.reps    <- coerceOrError(n.reps,    "integer")
   n.burn    <- coerceOrError(n.burn,    "integer")
   n.threads <- coerceOrError(n.threads, "integer")
-    
+  
   result <- .Call(C_dbarts_xbart, control, model, data, method,
                   n.test, n.reps, n.burn, loss,
                   n.threads, n.trees, k, power, base, drop)

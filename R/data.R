@@ -141,11 +141,11 @@ getTestOffset <- quote({
       tryResult <- tryCatch(eval(testOffset, environment(formula)), error = function(e) e)
       if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
     }
-    tryResult <- tryCatch(eval(testOffset), error = function(e) e)
+    tryResult <- tryCatch(eval(testOffset, parent.frame(3L)), error = function(e) e)
     if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
-  } else {
-    stop("cannot construct test offset")
   }
+  
+  stop("cannot construct test offset")
 })
 
 dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset)

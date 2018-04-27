@@ -207,9 +207,9 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
    }
    
-   \item{n.trees,n.samples,n.burn,n.chains,n.threads,combineChains,n.cuts,
-         n.thin,keepTrainingFits,useQuantiles,printEvery,printCutoffs,
-         keepTrees,keepCall}{
+   \item{n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts,
+         n.thin, keepTrainingFits, useQuantiles, printEvery, printCutoffs,
+         keepTrees, keepCall}{
      Same as their counterparts for \code{bart}.
    }
    \item{x}{
