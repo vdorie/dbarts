@@ -3,6 +3,7 @@
 
 #include "stddef.h"
 #include <stdbool.h>
+#define __USE_POSIX199309 1
 #include <time.h>
 #include <sys/types.h>
 
