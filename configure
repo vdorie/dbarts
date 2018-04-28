@@ -7479,18 +7479,6 @@ $as_echo "#define HAVE_SNPRINTF_IN_NAMESPACE_STD /**/" >>confdefs.h
 
 fi
 
-for ac_func in strotol
-do :
-  ac_fn_cxx_check_func "$LINENO" "strotol" "ac_cv_func_strotol"
-if test "x$ac_cv_func_strotol" = xyes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_STROTOL 1
-_ACEOF
-
-fi
-done
-
-AX_CXX_STRTOL_IN_NAMESPACE_STD
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
