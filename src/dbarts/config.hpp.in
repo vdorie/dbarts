@@ -3,6 +3,8 @@
 /* Define to 1 if you have the <cstdint> header file. */
 #undef HAVE_CSTDINT
 
+#define __need_timespec
+
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
 

@@ -11,7 +11,6 @@
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #  include <sys/time.h>
 #endif
-#define __USE_POSIX199309 1
 #include <time.h>
 
 #ifdef __GNUC__
