@@ -10,9 +10,8 @@
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #  include <sys/time.h>
-#else
-#  include <time.h>
 #endif
+#include <time.h>
 
 #ifdef __GNUC__
 #define UNUSED __attribute__ ((unused))
