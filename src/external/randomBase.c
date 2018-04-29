@@ -3,6 +3,10 @@
  * the GNU General Public License (http://www.r-project.org/Licenses/).
  */
 
+#ifdef __INTEL_COMPILER
+#  define __need_timespec 1
+#endif
+
 #include <external/random.h>
 #include "config.h"
 
@@ -20,10 +24,9 @@
 #endif
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
+#include <time.h> // need for at least struct timespec
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #  include <sys/time.h>
-#else
-#  include <time.h>
 #endif
 
 #include <external/alloca.h>
