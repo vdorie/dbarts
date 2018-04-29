@@ -1,9 +1,12 @@
 #ifndef EXTERNAL_THREAD_H
 #define EXTERNAL_THREAD_H
 
+#ifdef __INTEL_COMPILER
+#  define __need_timespec 1
+#endif
+
 #include "stddef.h"
 #include <stdbool.h>
-#define __need_timespec 1
 #include <time.h>
 #include <sys/types.h>
 

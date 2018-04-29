@@ -3,8 +3,6 @@
 /* Define to 1 if you have the <cstdint> header file. */
 #undef HAVE_CSTDINT
 
-#define __need_timespec 1
-
 /* define if snprintf is in std:: */
 #undef HAVE_SNPRINTF_IN_NAMESPACE_STD
 
