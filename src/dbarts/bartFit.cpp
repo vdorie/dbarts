@@ -5,13 +5,16 @@
 #include <cstring>   // memcpy
 #include <cstddef>   // size_t
 
+#ifdef __INTEL_COMPILER
+#  define __need_timespec 1
+#endif
+#include <time.h>
+
 #if !defined(HAVE_SYS_TIME_H) && defined(HAVE_GETTIMEOFDAY)
 #  undef HAVE_GETTIMEOFDAY
 #endif
 #ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h> // gettimeofday
-#else
-#  include <time.h>
 #endif
 
 
