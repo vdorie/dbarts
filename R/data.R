@@ -58,7 +58,7 @@ validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, dro
       }
     }
     
-    x.test <- x.test[,columnIndices]
+    x.test <- x.test[,columnIndices,drop = FALSE]
     if (xIsNamed) colnames(x.test) <- predictorNames
   }
   

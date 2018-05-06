@@ -281,7 +281,7 @@ namespace {
   using namespace dbarts;
   
   void ::State::store(const Node& other) {
-    std::memcpy(&node, &other, sizeof(Node));
+    std::memcpy(static_cast<void*>(&node), static_cast<const void*>(&other), sizeof(Node));
   }
   
   void ::State::destroy() {
@@ -301,6 +301,6 @@ namespace {
         delete other.p.rightChild; other.p.rightChild = NULL;
       }
     }
-    std::memcpy(&other, &node, sizeof(Node));
+    std::memcpy(static_cast<void*>(&other), static_cast<const void*>(&node), sizeof(Node));
   }
 }
