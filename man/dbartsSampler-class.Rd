@@ -76,6 +76,17 @@
   fitting a Bayesian additive regression tree model. The sampler is first created and then,
   in a separate instruction, run or modified. In this way, MCMC samplers can be constructed
   with BART components filling arbitrary roles.
+  
+  \subsection{Saving}{
+    \code{\link{save}}ing and \code{\link{load}}ing a \code{dbarts} sampler for future use
+    requires that R's serialization mechanism be able to access the state of the sampler
+    which, for memory purposes, is only made available to R on request. To do this, one must
+    \dQuote{touch} the sampler's state object before saving, e.g. for the object \code{sampler},
+    execute \code{invisible(sampler$state)}. This is in addition to guaranteeing that the
+    \code{state} object is not \code{NULL}, which can be done by setting the sampler's control
+    to an object with \code{updateState} as \code{TRUE} or passing \code{TRUE} as the
+    \code{updateState} argument to any of the sampler's applicable methods.
+  }
 }
 \value{
   For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}.

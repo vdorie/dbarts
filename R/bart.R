@@ -118,7 +118,7 @@ bart2 <- function(
   
   control <- sampler$control
   
-  sampler$sampleTreesFromPrior()
+  sampler$sampleTreesFromPrior(updateState = FALSE)
   
   burnInSigma <- NULL
   if (n.burn > 0L) {
@@ -141,9 +141,9 @@ bart2 <- function(
     if (keepTrees == TRUE) control@keepTrees <- TRUE
     sampler$setControl(control)
 
-    samples <- sampler$run(0L, control@n.samples)
+    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
-    samples <- sampler$run()
+    samples <- sampler$run(updateState = FALSE)
   }
 
   result <- packageBartResults(sampler, samples, burnInSigma, combineChains)
@@ -217,9 +217,9 @@ bart <- function(
     if (keeptrees == TRUE) control@keepTrees <- TRUE
     sampler$setControl(control)
 
-    samples <- sampler$run(0L, control@n.samples)
+    samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
-    samples <- sampler$run()
+    samples <- sampler$run(updateState = FALSE)
   }
 
   result <- packageBartResults(sampler, samples, burnInSigma, combinechains)

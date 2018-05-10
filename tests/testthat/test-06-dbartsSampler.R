@@ -99,7 +99,7 @@ test_that("dbarts sampler setData yields valid model", {
 
   y <- ifelse(x <= cutoffs[1L] | x > cutoffs[n.cuts], beta.1, beta.2) + rnorm(n, 0, 0.15)
   
-  control <- dbartsControl(n.trees = 1L, n.cuts = n.cuts, n.chains = 1L, n.threads = 1L)
+  control <- dbartsControl(n.trees = 1L, n.cuts = n.cuts, n.chains = 1L, n.threads = 1L, updateState = FALSE)
   sampler <- dbarts(y ~ x, control = control)
 
   samples1 <- sampler$run(500L, 1000L)
@@ -146,7 +146,7 @@ source(system.file("common", "probitData.R", package = "dbarts"))
 
 test_that("dbarts sampler correctly updates R test offsets only when applicable", {
   n <- nrow(testData$X)
-  control <- dbartsControl(n.chains = 1L, n.threads = 2L)
+  control <- dbartsControl(n.chains = 1L, n.threads = 2L, updateState = FALSE)
   
   sampler <- dbarts(Z ~ X, testData, testData$X, control = control)
   
@@ -185,7 +185,7 @@ test_that("dbarts sampler correctly updates R test offsets only when applicable"
   expect_equal(sampler$data@offset.test, rep_len(0.2, n))
 
   
-  sampler <- dbarts(Z ~ X, testData, testData$X[-1,], offset = 0.2)
+  sampler <- dbarts(Z ~ X, testData, testData$X[-1,], offset = 0.2, control = control)
 
   expect_equal(sampler$data@offset.test, rep_len(0.2, n - 1))
   

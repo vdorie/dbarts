@@ -38,7 +38,7 @@ test_that("weighted Friedman example passes regression test", {
   weights <- c(rep(1, 90), rep(2, 10))
   set.seed(99)
   sampler <- dbarts(y ~ x, testData, weights = weights, n.samples = n.sims,
-                    control = dbartsControl(n.tree = 50L, n.chains = 1L, n.threads = 1L))
+                    control = dbartsControl(n.tree = 50L, n.chains = 1L, n.threads = 1L, updateState = FALSE))
   samples <- sampler$run(n.burn)
 
   simRange <- -4L:0L + n.sims

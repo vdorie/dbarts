@@ -23,7 +23,7 @@ test_that("fixed sample mode when run sequentially gives same predictions as seq
   
   set.seed(0)
   sampler <- dbarts(testData$x, testData$y,
-                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE))
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE, updateState = FALSE))
   sampler$sampleTreesFromPrior()
   for (i in seq_len(5L))
     invisible(sampler$run(0L, 1L))
@@ -34,7 +34,7 @@ test_that("fixed sample mode when run sequentially gives same predictions as seq
 
 test_that("sequentially running samples don't overflow with fixed trees", {
   sampler <- dbarts(testData$x, testData$y,
-                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE))
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE, updateState = FALSE))
   sampler$sampleTreesFromPrior()
   for (i in seq_len(6L))
     invisible(sampler$run(0L, 1L))

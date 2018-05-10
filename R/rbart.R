@@ -185,7 +185,6 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   control@updateState <- oldUpdateState
   sampler$setControl(control)
-  if (oldUpdateState == TRUE) sampler$storeState()
   
   rownames(ranef) <- levels(g.fac)
   

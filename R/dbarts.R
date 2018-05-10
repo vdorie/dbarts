@@ -137,8 +137,6 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
 }
 
 
-setClassUnion("listOrNULL", c("list", "NULL"))
-
 dbartsSampler <-
   setRefClass("dbartsSampler",
               fields = list(
@@ -146,7 +144,7 @@ dbartsSampler <-
                 control = "dbartsControl",
                 model   = "dbartsModel",
                 data    = "dbartsData",
-                state   = "listOrNULL"
+                state   = "ANY"         ## is either a list of states, or a promise to evaluate
                 ),
               methods = list(
                 initialize =
@@ -160,8 +158,8 @@ dbartsSampler <-
                   .self$model   <- model
                   .self$data    <- data
                   
-                  .self$state   <- NULL
                   .self$pointer <- .Call(C_dbarts_create, .self$control, .self$model, .self$data)
+                  delayedAssign("state", { if (control@updateState) .Call(C_dbarts_createState, pointer) else NULL }, eval.env = as.environment(.self), assign.env = as.environment(.self))
                   
                   callSuper(...)
                 },
@@ -211,6 +209,8 @@ dbartsSampler <-
                   
                   if (!is.null(state)) {
                     newState <- state
+                    attr(newState, "currentNumSamples") <- .Call(C_dbarts_deepCopy, attr(state, "currentNumSamples"))
+                    attr(newState, "currentSampleNum") <- .Call(C_dbarts_deepCopy, attr(state, "currentSampleNum"))
                     for (chainNum in seq_len(control@n.chains)) {
                       newState[[chainNum]]@fit.tree <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.tree)
                       newState[[chainNum]]@fit.total <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.total)

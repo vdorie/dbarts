@@ -109,24 +109,24 @@ test_that("rng cooperates with native generator", {
   
   oldSeed <- if (exists(".Random.seed")) .Random.seed else { runif(1L); .Random.seed }
   control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
-                           rngKind = "default",
-                           rngNormalKind = "default")
+                           updateState = FALSE,
+                           rngKind = "default", rngNormalKind = "default")
   sampler <- dbarts(y ~ x, testData, control = control)
   invisible(sampler$run(0L, 5L))
   expect_true(any(.Random.seed != oldSeed))
   
   oldSeed <- .Random.seed
   control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
-                           rngKind = "Mersenne-Twister",
-                           rngNormalKind = "Inversion")
+                           updateState = FALSE,
+                           rngKind = "Mersenne-Twister", rngNormalKind = "Inversion")
   sampler <- dbarts(y ~ x, testData, control = control)
   invisible(sampler$run(0L, 5L))
   expect_equal(.Random.seed, oldSeed)
   
   ## run once for 10 iterations
   control <- dbartsControl(verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
-                           rngKind = "Mersenne-Twister",
-                           rngNormalKind = "Inversion", updateState = FALSE)
+                           updateState = FALSE,
+                           rngKind = "Mersenne-Twister", rngNormalKind = "Inversion", )
   sampler <- dbarts(y ~ x, testData, control = control)
   sampler$storeState()
   origSeed <- .Call(dbarts:::C_dbarts_deepCopy, sampler$state[[1L]]@rng.state)
