@@ -78,6 +78,7 @@ test_that("rbart runs example", {
 
 test_that("rbart compares favorably to lmer for nonlinear models", {
   skip_if_not_installed("lme4")
+  lme4 <- asNamespace("lme4")
   
   f <- function(x) {
       10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
@@ -110,8 +111,8 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
                        n.trees = 50L, n.threads = 1L)
   ranef.rbart <- rbartFit$ranef.mean
   
-  lmerFit <- lme4::lmer(y ~ . - g + (1 | g), df)
-  ranef.lmer <- lme4::ranef(lmerFit)[[1L]][[1L]]
+  lmerFit <- lme4$lmer(y ~ . - g + (1 | g), df)
+  ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
   
   expect_true(mean((b - ranef.rbart)^2) < mean((b - ranef.lmer)^2))
 })

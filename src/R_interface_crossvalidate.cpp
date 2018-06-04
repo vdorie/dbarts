@@ -242,7 +242,7 @@ namespace {
     (void) def; (void) numSamples;
     
     LogLossFunctor* result = new LogLossFunctor;
-    result->scratch = new double[numTestObservations];
+    result->scratch = new double[numSamples];
     return result;
   }
   
