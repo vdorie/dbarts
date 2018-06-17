@@ -207,6 +207,7 @@ bart <- function(
 
     if (length(x.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL, updateState = FALSE)
     control@keepTrainingFits <- FALSE
+    control@verbose <- FALSE
     sampler$setControl(control)
 
     burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
