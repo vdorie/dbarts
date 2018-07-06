@@ -326,8 +326,9 @@ namespace dbarts {
     slotExpr = rc_allocateInSlot(result, Rf_install("currentSampleNum"), INTSXP, 1);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
     
+    SEXP classDef = PROTECT(R_getClassDef("dbartsState"));
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      SEXP result_i = PROTECT(R_do_new_object(R_do_MAKE_CLASS("dbartsState")));
+      SEXP result_i = PROTECT(R_do_new_object(classDef));
       SET_VECTOR_ELT(result, chainNum, result_i);
       UNPROTECT(1);
       
@@ -376,7 +377,7 @@ namespace dbarts {
     slotExpr = rc_allocateInSlot(result, Rf_install("runningTime"), REALSXP, 1);
     REAL(slotExpr)[0] = fit.runningTime;
     
-    UNPROTECT(1);
+    UNPROTECT(2);
     
     return result;
   }
