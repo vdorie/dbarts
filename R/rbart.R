@@ -3,7 +3,7 @@ rbart.priors <- list(cauchy = function(x, rel.scale) dcauchy(x, 0, rel.scale * 2
 cauchy <- NULL ## for R CMD check
 
 rbart_vi <- function(
-  formula, data, test, subset, weight, offset, offset.test = offset,
+  formula, data, test, subset, weights, offset, offset.test = offset,
   group.by, prior = cauchy, ## can be a symbol in rbart.priors or a function; on log scale
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
   k = 2.0,
@@ -66,6 +66,7 @@ rbart_vi <- function(
     stop("rbart requires continuous response")
   if (length(group.by) != length(data@y))
     stop("'group.by' not of length equal to that of data")
+  group.by <- droplevels(as.factor(group.by))
   
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior, sigma = as.numeric(sigest))
 
@@ -101,9 +102,8 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   y <- sampler$data@y
   rel.scale <- sd(y)
   
-  g.fac <- droplevels(as.factor(group.by))
-  g <- as.integer(g.fac)
-  numRanef <- nlevels(g.fac)
+  g <- as.integer(group.by)
+  numRanef <- nlevels(group.by)
   g.sel <- lapply(seq_len(numRanef), function(j) g == j)
   n.g <- sapply(g.sel, sum)
   
@@ -186,7 +186,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   control@updateState <- oldUpdateState
   sampler$setControl(control)
   
-  rownames(ranef) <- levels(g.fac)
+  rownames(ranef) <- levels(group.by)
   
   namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test)
 }
@@ -195,7 +195,7 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
 {
   n.chains <- length(chainResults)
   
-  result <- list(call = control@call, y = data@y, group.by = levels(droplevels(as.factor(group.by))),
+  result <- list(call = control@call, y = data@y, group.by = group.by,
                  varcount = NULL, sigest = chainResults[[1L]]$sampler$data@sigma)
   if (n.chains > 1L) {
     result$ranef       <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$ranef), c(dim(chainResults[[1L]]$ranef), n.chains)))
@@ -241,9 +241,9 @@ predict.rbart <- function(object, test, group.by, offset.test, combineChains, ..
   if (missing(offset.test)) offset.test <- NULL
   
   if (length(dim(object$ranef)) > 2L)
-    ranef <- aperm(object$ranef[,,match(group.by, object$group.by)], c(3L, 2L, 1L))
+    ranef <- aperm(object$ranef[,,match(group.by, levels(object$group.by))], c(3L, 2L, 1L))
   else
-    ranef <- t(object$ranef[,match(group.by, object$group.by)])
+    ranef <- t(object$ranef[,match(group.by, levels(object$group.by))])
   if (anyNA(ranef)) ranef[is.na(ranef)] <- 0
   
   pred <- lapply(seq_len(n.chains), function(i) object$fit[[i]]$predict(test, offset.test))
@@ -253,7 +253,7 @@ predict.rbart <- function(object, test, group.by, offset.test, combineChains, ..
 }
 
 ## create the contents to be used in partial dependence plots
-pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x.train)),
+if (FALSE) pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x.train)),
                     levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
                     pl = TRUE, plquants = c(0.05, 0.95),
                     ...)
@@ -285,6 +285,7 @@ pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x.train)),
     fdrtemp = NULL
     for (i in 1:nlevels[j]) {
       cind = cnt + ((i-1)*n+1):(i*n)
+      browser()
       fdrtemp = cbind(fdrtemp,(apply(pdbrt$yhat.test[,cind],1,mean)))
     }
     fdr[[j]] = fdrtemp
@@ -302,12 +303,12 @@ pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x.train)),
     bartcall=pdbrt$call,yhat.train=pdbrt$yhat.train,
     y=pdbrt$y)
   }
-  class(retval) = 'pdbart'
+  class(retval) = 'pdrbart'
   if (pl) plot(retval, plquants = plquants)
   return (retval)
 }
 
-pd2rbart <- function (
+if (FALSE) pd2rbart <- function (
    x.train, y.train, group.by,
    xind = c(1, 2),
    levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
@@ -362,7 +363,7 @@ pd2rbart <- function (
                   bartcall=pdbrt$call,yhat.train=pdbrt$yhat.train,
                   y=pdbrt$y)
   }
-  class(retval) = 'pd2bart'
+  class(retval) = 'pd2rbart'
   if (pl) plot(retval,plquants=plquants)
   return (retval)
 }

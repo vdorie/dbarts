@@ -1,12 +1,14 @@
 \name{rbart}
 \alias{rbart_vi}
+\alias{plot.rbart}
+\alias{predict.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
 Fits a varying intercept/random effect BART model.
 }
 \usage{
 rbart_vi(
-  formula, data, test, subset, weight, offset, offset.test = offset,
+  formula, data, test, subset, weights, offset, offset.test = offset,
   group.by, prior = cauchy,
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
   k = 2.0,
@@ -18,7 +20,11 @@ rbart_vi(
   n.thin = 5L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = TRUE, keepCall = TRUE, ...)}
+  keepTrees = TRUE, keepCall = TRUE, ...)
+
+\method{plot}{rbart}(x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
+\method{predict}{rbart}(object, test, group.by, offset.test, combineChains, \dots)
+}
 \arguments{
   \item{group.by}{
     Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}.
@@ -34,12 +40,13 @@ rbart_vi(
     The number of tree jumps taken for every stored sample, but also the number of samples from the
     posterior of the standard deviation of the random effects before one is kept.
   }
-  \item{formula, data, test, subset, weight, offset, offset.test, sigest, sigdf, sigquant,
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant,
         k, power, base, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains,
         n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose,
         keepTrees, keepCall, \dots}{
-    Same as in \code{\link{bart2}.}
-  }
+    Same as in \code{\link{bart2}}.}
+  \item{object}{Same as in \code{\link{predict.bart}}.}
+  \item{x, plquants, cols}{Same as in \code{\link{plot.bart}}.}
 }
 \details{
   Fits a BART model with additive random intercepts, one for each factor level of \code{group.by}. That is

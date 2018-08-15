@@ -4,13 +4,23 @@ plot.bart <- function(
    ...
 )
 {
-   if('sigma' %in% names(x)) {
-   par(mfrow=c(1,2))
-   plot(c(x$first.sigma,x$sigma),col=rep(c('red','black'),
-     c(length(x$first.sigma),length(x$sigma))),ylab='sigma',...)
-   } else {
-     par(mfrow=c(1,1))
-   }
+  if ("sigma" %in% names(x)) {
+    par(mfrow = c(1L, 2L))
+    if (!is.null(dim(x$sigma))) {
+      plot(NULL, type = "n", ylab = "sigma",
+           xlim = c(1, ncol(x$first.sigma) + ncol(x$sigma)), ylim = range(x$first.sigma, x$sigma))
+      for (i in seq_len(nrow(x$sigma))) {
+        lines(c(seq_len(ncol(x$first.sigma)), ncol(x$first.sigma) + 0.5),
+              c(x$first.sigma[i,], 0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i,1L])), col = "red", lty = i)
+        lines(c(ncol(x$first.sigma) + 0.5, seq.int(ncol(x$first.sigma) + 1, length.out = ncol(x$sigma))),
+              c(0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i,1L]), x$sigma[i,]), lty = i)
+      }
+    } else {
+      plot(c(x$first.sigma, x$sigma),
+           col = rep(c("red", "black"), c(length(x$first.sigma), length(x$sigma))),
+           ylab = "sigma", ...)
+    }
+  }
 
   if('sigma' %in% names(x)) {
      ql <- apply(x$yhat.train, length(dim(x$yhat.train)), quantile,probs=plquants[1])
@@ -33,6 +43,54 @@ plot.bart <- function(
      abline(0,1,lty=2,col=cols[2])
   }
 }
+
+plot.rbart <- function(x, plquants = c(0.05, 0.95), cols = c('blue','black'), ...)
+{
+  if ("sigma" %in% names(x)) {
+    par(mfrow = c(1L, 2L))
+    if (!is.null(dim(x$sigma))) {
+      plot(NULL, type = "n", ylab = "sigma",
+           xlim = c(1, ncol(x$first.sigma) + ncol(x$sigma)), ylim = range(x$first.sigma, x$sigma))
+      for (i in seq_len(nrow(x$sigma))) {
+        lines(c(seq_len(ncol(x$first.sigma)), ncol(x$first.sigma) + 0.5),
+              c(x$first.sigma[i,], 0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i,1L])), col = "red", lty = i)
+        lines(c(ncol(x$first.sigma) + 0.5, seq.int(ncol(x$first.sigma) + 1, length.out = ncol(x$sigma))),
+              c(0.5 * (x$first.sigma[i, ncol(x$first.sigma)] + x$sigma[i,1L]), x$sigma[i,]), lty = i)
+      }
+    } else {
+      plot(c(x$first.sigma, x$sigma),
+           col = rep(c("red", "black"), c(length(x$first.sigma), length(x$sigma))),
+           ylab = "sigma", ...)
+    }
+  }
+  
+  if (length(dim(x$ranef)) > 2L) 
+    ranef <- x$ranef[,,as.integer(x$group.by)]
+  else
+    ranef <- x$ranef[,as.integer(x$group.by)]
+  yhat.train <- x$yhat.train + ranef
+  
+  if ("sigma" %in% names(x)) {
+    ql <- apply(yhat.train, length(dim(yhat.train)), quantile, probs = plquants[1L])
+    qm <- apply(yhat.train, length(dim(yhat.train)), quantile, probs = .5)
+    qu <- apply(yhat.train, length(dim(yhat.train)), quantile, probs = plquants[2L])
+    plot(x$y, qm, ylim = range(ql, qu), xlab = "y", ylab= "posterior interval for E(Y | x)", ...)
+    
+    for (i in seq_along(qm)) lines(rep(x$y[i], 2L), c(ql[i], qu[i]), col = cols[1L])
+    abline(0, 1, lty = 2L, col = cols[2L])
+  } else {
+    ## shouldn't happen for now
+    pdrs <- pnorm(yhat.train) #draws of p(Y=1 | x)
+    ql <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[1L])
+    qm <- apply(pdrs, length(dim(pdrs)), quantile, probs = .5)
+    qu <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[2L])
+    plot(qm, qm, ylim = range(ql, qu), xlab = "median of p",
+         ylab= "posterior interval for P(Y = 1|  x)", ...)
+    for (i in seq_along(qm)) lines(rep(qm[i], 2L), c(ql[i], qu[i]), col = cols[1L])
+    abline(0, 1, lty = 2L, col = cols[2L])
+  }
+}
+
 
 plot.pdbart <- function(
    x,
@@ -78,3 +136,4 @@ plot.pd2bart <- function(
      title(main=c('Lower quantile','Median','Upper quantile')[i])
    }
 }
+
