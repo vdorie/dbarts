@@ -34,7 +34,10 @@ rbart_vi <- function(
   control@printEvery <- control@printEvery %/% control@n.thin
   control@n.chains <- 1L
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
-  if (n.chains > 1L && n.threads > 1L) control@verbose <- FALSE
+  if (n.chains > 1L && n.threads > 1L) {
+    if (control@verbose) warning("verbose output disabled for multiple threads")
+    control@verbose <- FALSE
+  }
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
@@ -46,14 +49,17 @@ rbart_vi <- function(
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
     
   group.by <- tryCatch(group.by, error = function(e) e)
-  if ((is(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by))) && is.language(formula) && formula[[1L]] == '~') {
+  if ((is(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by) || is.character(group.by))) && is.language(formula) && formula[[1L]] == '~') {
     if (is.symbol(matchedCall$group.by) && any(names(data) == matchedCall$group.by)) {
       group.by <- data[[which(names(data) == matchedCall$group.by)[1L]]]
     } else {
       group.by <- eval(matchedCall$group.by, environment(formula))
     }
   }
-  if (is(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by))) stop("'group.by' not found")
+  if (is(group.by, "error"))
+    stop("'group.by' not found")
+  if (!is.numeric(group.by) && !is.factor(group.by) && !is.character(group.by))
+    stop("'group.by' must be coercible to factor type")
     
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
   
