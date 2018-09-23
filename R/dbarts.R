@@ -557,18 +557,33 @@ dbartsSampler <-
                   ptr <- getPointer()
                   invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums)))
                 },
-                plotTree = function(treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
+                plotTree = function(chainNum, sampleNum, treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'
                   
+                  matchedCall <- match.call()
+                  if (is.null(matchedCall$chainNum)) {
+                    if (control@n.chains == 1L) chainNum <- 1L
+                    else stop("chainNum required if more than one chain in sampler")
+                  }
+                  if (is.null(matchedCall$sampleNum)) {
+                    sampleNum <- if (control@keepTrees) control@n.samples else 1L
+                  }
                   cutPoints <- createCutPoints(.self)
-  
-                  tree <- buildTree(strsplit(gsub("\\.", "\\. ", state@trees[treeNum]), " ", fixed = TRUE)[[1]])
+                  
+                  treeString <-
+                    if (control@keepTrees) state[[chainNum]]@savedTrees[treeNum, sampleNum]
+                    else                   state[[chainNum]]@trees[treeNum]
+                  treeFits <-
+                    if (control@keepTrees) state[[chainNum]]@savedTreeFits[,treeNum, sampleNum]
+                    else                   state[[chainNum]]@treeFits[,treeNum]
+                  
+                  tree <- buildTree(strsplit(gsub("\\.", "\\. ", treeString), " ", fixed = TRUE)[[1]])
                   tree$remainder <- NULL
                   
                   tree$indices <- seq_len(nrow(data@x))
                   tree <- fillObservationsForNode(tree, .self, cutPoints)
                   
-                  tree <- fillPlotInfoForNode(tree, .self, state@fit.tree[,treeNum])
+                  tree <- fillPlotInfoForNode(tree, .self, treeFits)
                   
                   maxDepth <- getMaxDepth(tree)
                   
