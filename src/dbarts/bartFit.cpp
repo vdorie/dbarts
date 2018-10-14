@@ -265,8 +265,13 @@ namespace dbarts {
         }
         
         double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
-        ext_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-        ext_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+        if (control.responseIsBinary) {
+          std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
+        } else {
+          ext_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+          ext_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+        }
+        
         if (testOffset != NULL) ext_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
       }
     }

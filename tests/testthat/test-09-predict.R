@@ -7,7 +7,7 @@ test_that("predict fails if sampler not saved", {
   expect_error(predict(bartFit, testData$x))
 })
 
-test_that("predict gives same result as x_train", {
+test_that("predict gives same result as x_train with linear data", {
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE, keeptrees = TRUE)
   predictions <- predict(bartFit, testData$x)
   expect_equal(predictions, bartFit$yhat.train)
@@ -40,4 +40,16 @@ test_that("sequentially running samples don't overflow with fixed trees", {
     invisible(sampler$run(0L, 1L))
   
   expect_is(sampler, "dbartsSampler")
+})
+
+source(system.file("common", "probitData.R", package = "dbarts"))
+
+test_that("predict gives same result as x_train with binary data", {
+  bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, verbose = FALSE, keeptrees = TRUE)
+  predictions <- predict(bartFit, testData$X)
+  expect_equal(predictions, bartFit$yhat.train)
+  
+  bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
+  predictions <- predict(bartFit, testData$X)
+  expect_equal(predictions, bartFit$yhat.train)
 })
