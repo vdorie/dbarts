@@ -5,6 +5,9 @@
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
 Fits a varying intercept/random effect BART model.
+
+For numeric response \eqn{y_i = f(x_i) + \alpha_{j[i]} + \epsilon_i}{y_i = f(x_i) + \alpha_{j[i]} + \epsilon_i},
+where \eqn{\epsilon_i \sim N(0, \sigma_y^2)}{\epsilon_i ~ N(0, \sigma_y^2)} and \eqn{\alpha_j \sim N(0, \sigma_\alpha^2)}{\alpha_j ~ N(0, \sigma_\alpha^2)}.
 }
 \usage{
 rbart_vi(
