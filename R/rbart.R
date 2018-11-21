@@ -129,6 +129,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   ranef <- matrix(NA_real_, numRanef, control@n.samples)
   yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
   yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
+  varcount <- matrix(NA_integer_, ncol(sampler$data@x), control@n.samples)
   
   sampler$sampleTreesFromPrior()
   
@@ -184,6 +185,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     .Call(C_dbarts_assignInPlace, sigma, i, samples$sigma[1L])
     .Call(C_dbarts_assignInPlace, ranef, i, ranef.i)
     .Call(C_dbarts_assignInPlace, yhat.train, i, samples$train)
+    .Call(C_dbarts_assignInPlace, varcount, i, samples$varcount)
     if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i, samples$test)
     
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
@@ -194,7 +196,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   rownames(ranef) <- levels(group.by)
   
-  namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test)
+  namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, varcount)
 }
 
 packageRbartResults <- function(control, data, group.by, chainResults, combineChains)
@@ -202,7 +204,7 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
   n.chains <- length(chainResults)
   
   result <- list(call = control@call, y = data@y, group.by = group.by,
-                 varcount = NULL, sigest = chainResults[[1L]]$sampler$data@sigma)
+                 sigest = chainResults[[1L]]$sampler$data@sigma)
   if (n.chains > 1L) {
     result$ranef       <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$ranef), c(dim(chainResults[[1L]]$ranef), n.chains)))
     result$first.tau   <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstTau))
@@ -214,6 +216,7 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
                             packageSamples(n.chains, combineChains,
                                            array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)))
+    result$varcount    <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)))
   } else {
     result$ranef       <- t(chainResults[[1L]]$ranef)
     result$first.tau   <- chainResults[[1L]]$firstTau
@@ -222,6 +225,7 @@ packageRbartResults <- function(control, data, group.by, chainResults, combineCh
     result$tau         <- chainResults[[1L]]$tau
     result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
+    result$varcount    <- chainResults[[1L]]$varcount
   }
   dimnames(result$ranef) <- if (length(dim(result$ranef)) > 2L) list(NULL, NULL, rownames(chainResults[[1L]]$ranef)) else list(NULL, rownames(chainResults[[1L]]$ranef))
   
