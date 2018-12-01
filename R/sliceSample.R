@@ -101,7 +101,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     if (x.p > x) int[2L] <- x.p else int[1L] <- x.p
     return(int)
   }
-
+  
   f <- target
   if (is.na(width)) {
     optimResult <- findMode(target, start, boundary)
@@ -113,7 +113,8 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
         f <- function(x) exp(target(x) - normalizingConstant)
         environment(f) <- evalEnv
         optimResult$value <- 1
-        ## optimResult$hessian[1] <- this is theoretically unchanged by the transformation, since f'(x_0) = 0 && (h(x_0) - normConst) = 0
+        ## optimResult$hessian[1] <- this is theoretically unchanged by the transformation, since f'(x_0) = 0 && (h(x_0) - normConst) = 0, however it can fail due to numerical stuff
+        if (abs(optimResult$hessian) > .Machine$double.eps) optimResult$hessian <- optimHess(optimResult$par, f, control = list(fnscale = -1))
       }
       width <- 2 * abs(sqrt(2 * pi) * optimResult$value / optimResult$hessian[1L])^(1/3)
       if (is.nan(width) || is.infinite(width)) width <- 1000
