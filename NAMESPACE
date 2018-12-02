@@ -26,6 +26,6 @@ importFrom(stats, lm, pnorm, quantile)
 importFrom(stats, as.formula, setNames)
 
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterCall, stopCluster)
-importFrom(stats, sd, rnorm, rexp, runif, optim, dnorm)
+importFrom(stats, sd, rnorm, rexp, runif, optim, optimHess, dnorm)
 
 importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)

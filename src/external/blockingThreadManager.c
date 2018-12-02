@@ -70,8 +70,6 @@ typedef struct _ext_btm_manager_t {
   
 } _ext_btm_manager_t;
 
-#include <stdio.h>
-
 int ext_btm_create(ext_btm_manager_t* managerPtr, size_t numThreads)
 {
   *managerPtr = (ext_btm_manager_t) malloc(sizeof(_ext_btm_manager_t));
