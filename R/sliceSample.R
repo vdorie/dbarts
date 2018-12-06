@@ -1,4 +1,4 @@
-rejectionSample <- function(target, dgenerator, rgenerator, constant, boundary, log = TRUE)
+rejectionSample <- function(target, dgenerator, rgenerator, constant, boundary, log = TRUE, maxIter = 100L)
 {
   useLog <- log; rm(log)
   numIters <- 0
@@ -9,7 +9,7 @@ rejectionSample <- function(target, dgenerator, rgenerator, constant, boundary, 
       numIters <- numIters + 1
       if (x <= boundary[1] || x >= boundary[2]) next
       if (u < target(x) - constant - dgenerator(x)) return(x)
-      if (numIters == 100) browser()
+      if (numIters == maxIter) stop("unable to obtain rejection sample after ", maxIter)
     }
   } else {
     while (TRUE) {
@@ -18,7 +18,7 @@ rejectionSample <- function(target, dgenerator, rgenerator, constant, boundary, 
       numIters <- numIters + 1
       if (x <= boundary[1] || x >= boundary[2]) next
       if (u < (target(x) / (constant * dgenerator(x)))) return(x)
-      if (numIters == 100) browser()
+      if (numIters == maxIter) stop("unable to obtain rejection sample after ", maxIter)
     }
   }
 }
@@ -71,7 +71,8 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
         }
       }
             
-      optimResult <- tryCatch(optim(mh, target, method ="L-BFGS-B", lower = boundary[1L], upper = boundary[2L], hessian = TRUE, control = list(fnscale = -1)),
+      optimResult <- tryCatch(optim(mh, target, method ="L-BFGS-B", lower = boundary[1L], upper = boundary[2L],
+                                    hessian = TRUE, control = list(fnscale = -1)),
                               error = function(e) e)
     }
     optimResult
@@ -113,10 +114,13 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
         f <- function(x) exp(target(x) - normalizingConstant)
         environment(f) <- evalEnv
         optimResult$value <- 1
-        ## optimResult$hessian[1] <- this is theoretically unchanged by the transformation, since f'(x_0) = 0 && (h(x_0) - normConst) = 0, however it can fail due to numerical stuff
-        if (.Machine$double.eps * abs(optimResult$hessian) > 1) optimResult$hessian <- optimHess(optimResult$par, f, control = list(fnscale = -1))
+        ## optimResult$hessian is this is theoretically unchanged by the transformation, since f'(x_0) = 0 && (h(x_0) - normConst) = 0, however it can be inaccurate numerically
+        optimResult$hessian <- optimHess(optimResult$par, f, control = list(fnscale = -1))
       }
-      width <- 2 * abs(sqrt(2 * pi) * optimResult$value / optimResult$hessian[1L])^(1/3)
+      # width is derived from a normal approximation at the mode based on the equality of second derivatives
+      # going out two standard deviations
+      #width <- 2 * abs(sqrt(2 * pi) * optimResult$value / optimResult$hessian[1L])^(1/3)
+      width <- 2 * abs(optimResult$hessian[1L] * sqrt(2 * pi))^(-1/3)
       if (is.nan(width) || is.infinite(width)) width <- 1000
     } else {
       width <- 1000
@@ -130,6 +134,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     ## if the starting point has a really low density, we grab a different one using
     ## rejection sampling
     mu <- NULL; sigma <- NULL ## for R CMD check
+    # us normal approximation with a slightly inflated standard deviation
     evalEnv <- list2env(list(mu = start, sigma = 1.15 * width / 2))
     r <- function() rnorm(1, mu, sigma)
     d <- function(x) dnorm(x, mu, sigma, log = TRUE)
@@ -137,13 +142,23 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     if (exists("optimResult") && useLog == TRUE) {
       if (is(optimResult, "error")) browser()
       evalEnv$mu <- optimResult$par
+      # special case for variance components
+      if (is.finite(boundary[1L]) && optimResult$par - boundary[1L] < evalEnv$sigma)
+        evalEnv$sigma <- optimResult$par - boundary[1L]
+      if (is.finite(boundary[2L]) && boundary[2L] - optimResult$par < evalEnv$sigma)
+        evalEnv$sigma <- boundary[2L] - optimResult$par
       c <- target(optimResult$par) - d(optimResult$par)
     } else {
       stop("rejection start for case without optimization and/or not on log scale not yet implemented")
     }
       
-    x <- rejectionSample(target, d, r, c, boundary)
-    f.x <- f(x)
+    tryResult <- tryCatch(x <- rejectionSample(target, d, r, c, boundary, maxIter = maxIter), error = function(e) e)
+    if (is(tryResult, "error")) {
+      warning("rejection sample failed after ", maxIter, " iterations; dominating function may require hand-tuning")
+      x <- start
+    } else {
+      f.x <- f(x)
+    }
   }
   for (i in seq_len(numSamples)) {
     u.p <- runif(1L, 0, f.x)

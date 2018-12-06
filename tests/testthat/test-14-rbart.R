@@ -59,9 +59,8 @@ test_that("rbart runs example", {
   expect_equal(dim(rbartFit$sigma), c(2L, 40L %/% 2L))
   
   expect_true(length(unique(rbartFit$ranef)) > 1L)
-})
 
-test_that("rbart runs example", {
+  # check for one chain
   rbartFit <- rbart_vi(y ~ x, testData, group.by = g,
                        n.samples = 80L, n.burn = 20L, n.thin = 2L, n.chains = 1L,
                        n.trees = 25L, n.threads = 1L)

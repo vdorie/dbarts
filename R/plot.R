@@ -109,6 +109,9 @@ plot.pdbart <- function(
    }
 }
 
+if (FALSE) plot.pdrbart <- plot.pdbart
+if (FALSE) plot.pd2rbart <- plot.pd2bart
+
 plot.pd2bart <- function(
    x,
    plquants = c(0.05, 0.95), contour.color='white',

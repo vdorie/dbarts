@@ -295,8 +295,11 @@ if (FALSE) pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x
     fdrtemp = NULL
     for (i in 1:nlevels[j]) {
       cind = cnt + ((i-1)*n+1):(i*n)
-      browser()
-      fdrtemp = cbind(fdrtemp,(apply(pdbrt$yhat.test[,cind],1,mean)))
+      yhat.test <- 
+      fdrtemp <- if (length(dim(pdbrt$yhat.test)) > 2L)
+        cbind(fdrtemp, as.vector(t(apply(pdbrt$yhat.test[,,cind], c(1, 2), mean))))
+      else
+        cbind(fdrtemp, apply(pdbrt$yhat.test[,cind], 1, mean))
     }
     fdr[[j]] = fdrtemp
     cnt = cnt + n*nlevels[j]
@@ -358,7 +361,10 @@ if (FALSE) pd2rbart <- function (
     fdr = NULL 
     for (i in 1:nxvals) {
       cind =  ((i-1)*n+1):(i*n)
-      fdr = cbind(fdr,(apply(pdbrt$yhat.test[,cind],1,mean)))
+      fdr <- if (length(dim(pdbrt$yhat.test)) > 2L)
+        cbind(fdr, as.vector(t(apply(pdbrt$yhat.test[,,cind], c(1, 2), mean))))
+      else
+        cbind(fdr, apply(pdbrt$yhat.test[,cind], 1, mean))
     }
   }
   if (is.null(colnames(x.train))) xlbs = paste('x',xind,sep='')
