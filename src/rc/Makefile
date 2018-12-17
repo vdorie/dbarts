@@ -1,15 +1,14 @@
 INCLUDE_DIR=../include
 
 PKG_CPPFLAGS=-I$(INCLUDE_DIR)
-ALL_CPPFLAGS=$(R_XTRA_CPPFLAGS) $(PKG_CPPFLAGS) $(CPPFLAGS)
 
 LOCAL_SOURCES=bounds.c util.c
 LOCAL_OBJECTS=bounds.o util.o
 
-all : librc.a
+all : library
 
-librc.a : $(LOCAL_OBJECTS)
-	$(AR) $(ARFLAGS) librc.a $(LOCAL_OBJECTS)
+library : $(LOCAL_OBJECTS)
+	$(AR) $(ARFLAGS) ../rc.a $(LOCAL_OBJECTS)
 
 clean :
 	-rm -f *.o

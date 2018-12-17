@@ -1,6 +1,28 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-6}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item \code{plot} now works for fits from \code{rbart_vi}.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{rbart_vi} new reports \code{varcount}.
+      \item \code{bart2} now defaults to not storing trees due to the memory cost.
+      \item \code{bart2} now defaults to using quantile rules to decide splits.
+    }
+  }
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item \code{predict} for binary outcomes now correct.
+      \item Fix for verbose multithreading on Linux, reported by @ignacio82 on github.
+      \item General improvements to slice sampler in \code{rbart_vi} thanks to reports from Yutao Liu.
+      \item \code{sampler$plotTree} now handles multiple chains correctly.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-2}{
   \subsection{NEW FEATURES}{
     \itemize{

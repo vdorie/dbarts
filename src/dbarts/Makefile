@@ -1,20 +1,18 @@
 BART_INC=../$(INST_DIR)/include/dbarts
-HEADERS=-I../$(INST_DIR)/include -I../include
 
-PKG_CPPFLAGS=$(HEADERS)
-ALL_CPPFLAGS=$(R_XTRA_CPPFLAGS) $(PKG_CPPFLAGS) $(CPPFLAGS)
+PKG_CPPFLAGS=-I../$(INST_DIR)/include -I../include $(PTHREAD_FLAGS) $(DBARTS_FLAGS)
 
-LOCAL_SOURCES=bartFit.cpp binaryIO.cpp birthDeathRule.cpp changeRule.cpp functions.cpp \
-          likelihood.cpp node.cpp parameterPrior.cpp state.cpp \
-          swapRule.cpp tree.cpp treePrior.cpp
-LOCAL_OBJECTS=bartFit.o binaryIO.o birthDeathRule.o changeRule.o functions.o \
-          likelihood.o node.o parameterPrior.o state.o \
-          swapRule.o tree.o treePrior.o
+LOCAL_SOURCES = bartFit.cpp binaryIO.cpp birthDeathRule.cpp changeRule.cpp functions.cpp \
+  likelihood.cpp node.cpp parameterPrior.cpp state.cpp \
+  swapRule.cpp tree.cpp treePrior.cpp
+LOCAL_OBJECTS = bartFit.o binaryIO.o birthDeathRule.o changeRule.o functions.o \
+  likelihood.o node.o parameterPrior.o state.o \
+  swapRule.o tree.o treePrior.o
 
-all : libdbarts.a
+all : library
 
-libdbarts.a : $(LOCAL_OBJECTS)
-	$(AR) $(ARFLAGS) libdbarts.a $(LOCAL_OBJECTS)
+library : $(LOCAL_OBJECTS)
+	$(AR) $(ARFLAGS) ../dbarts.a $(LOCAL_OBJECTS)
 
 clean :
 	-rm -f *.o
@@ -75,3 +73,4 @@ tree.o : tree.cpp tree.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/data.hpp $(BART_I
 
 treePrior.o : treePrior.cpp $(BART_INC)/model.hpp $(BART_INC)/data.hpp $(BART_INC)/scratch.hpp $(BART_INC)/types.hpp functions.hpp node.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c treePrior.cpp -o treePrior.o
+

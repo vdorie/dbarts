@@ -1,46 +1,40 @@
 ## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
 MATCH_BAYES_TREE=
+THREAD_SAFE_UNLOAD=
 
 INST_DIR=../inst
 
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
-PKG_CPPXXFLAGS=-I$(INST_DIR)/include -Iinclude -pthread
-PKG_LIBS= dbarts/libdbarts.a external/libexternal.a rc/librc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
+PTHREAD_FLAGS=-pthread
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude
+PKG_LIBS= dbarts.a external.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
 
-.PHONY: all dbarts/libdbarts.a external/libexternal.a rc/librc.a clean
+MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
+
+SUBDIRS = dbarts externa
+SUBLIBS = $(SUBDIRS:=.a)
 
 all: $(SHLIB)
 
-$(SHLIB): dbarts/libdbarts.a external/libexternal.a rc/librc.a
+$(SHLIB): sublibs
 
-dbarts/libdbarts.a:
-	@(cd dbarts && $(MAKE) libdbarts.a \
-	  CXX="$(CXX)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="-pthread $(CPPFLAGS) $(MATCH_BAYES_TREE)" \
-	  CXXFLAGS="$(R_XTRA_CXXFLAGS) $(CXXPICFLAGS) $(CXXFLAGS)" \
-	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
-	  INST_DIR="$(INST_DIR)")
+sublibs: sublibraries
 
+sublibraries:
+	@for d in $(SUBDIRS); do \
+	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
+	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" MATCH_BAYES_TREE="$(MATCH_BAYES_TREE)" \
+           CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
+           CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
+           || exit 1; \
+	done
 
-external/libexternal.a :
-	@(cd external && $(MAKE) libexternal.a \
-	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="-pthread $(CPPFLAGS)" \
-	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
-	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
-	  INST_DIR="$(INST_DIR)")
+clean: subclean
+	@-rm -rf .libs _libs
+	@-rm -f *.o $(SHLIB)
 
-rc/librc.a :
-	@(cd rc && $(MAKE) librc.a \
-	  CC="$(CC)" R_XTRA_CPPFLAGS="$(R_XTRA_CPPFLAGS)" \
-	  CPPFLAGS="$(CPPFLAGS)" \
-	  CFLAGS="$(R_XTRA_CFLAGS) $(CPICFLAGS) $(CFLAGS)" \
-	  AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)" \
-	  INST_DIR="$(INST_DIR)")
+subclean:
+	@-rm -f *.a
+	@for d in $(SUBDIRS); do \
+	  (cd $${d} && MkInclude="$(MkInclude)" $(MAKE) clean) || exit 1; \
+	done
 
-
-clean :
-	@(cd dbarts && $(MAKE) clean)
-	@(cd external && $(MAKE) clean)
-	@(cd rc && $(MAKE) clean)
-	rm -f *.so *.dll *.o

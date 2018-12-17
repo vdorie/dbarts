@@ -11,7 +11,6 @@ v1.0 : stuff to add
   "functions" getting a better organizing principle
   general encapsulation of node implementation
   look into speed change in tracking variables avail for split
-  causal
   move n.eff cached calculation into scratch
   handle updating y for binary better w/r/t latents
 

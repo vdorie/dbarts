@@ -72,11 +72,11 @@ bart2 <- function(
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
   n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
-  n.cuts = 100L, useQuantiles = FALSE,
+  n.cuts = 100L, useQuantiles = TRUE,
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = TRUE, keepCall = TRUE, ...
+  keepTrees = FALSE, keepCall = TRUE, ...
 )
 {
   matchedCall <- match.call()

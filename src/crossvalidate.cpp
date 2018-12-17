@@ -13,9 +13,6 @@
 #include <external/thread.h>
 
 #include <dbarts/bartFit.hpp>
-#include <dbarts/control.hpp>
-#include <dbarts/data.hpp>
-#include <dbarts/model.hpp>
 #include <dbarts/results.hpp>
 
 #define INVALID_INDEX static_cast<size_t>(-1)

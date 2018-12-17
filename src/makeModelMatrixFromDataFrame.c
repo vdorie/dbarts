@@ -10,8 +10,6 @@
 #include <external/alloca.h>
 #include <external/linearAlgebra.h>
 
-#include <external/Rinternals.h> // SEXP
-
 #include <rc/util.h>
 
 typedef enum {

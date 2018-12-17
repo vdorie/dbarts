@@ -34,11 +34,11 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       n.trees = 75L,
       n.samples = 500L, n.burn = 500L,
       n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
-      n.cuts = 100L, useQuantiles = FALSE,
+      n.cuts = 100L, useQuantiles = TRUE,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
       verbose = TRUE,
-      keepTrees = TRUE, keepCall = TRUE, \dots)
+      keepTrees = FALSE, keepCall = TRUE, \dots)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -174,7 +174,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    }
    
    \item{keeptrees}{
-     Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit.
+     Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
    }
    \item{keepcall}{
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
@@ -254,7 +254,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
     range of values taken on by the corresponding
     column of \code{x.train}.
      
-  	The number of possible values of \eqn{c} is determined by \code{numcut}.
+    The number of possible values of \eqn{c} is determined by \code{numcut}.
     If \code{usequants} is \code{FALSE}, \code{numcut} equally spaced cutoffs
     are used covering the range of values in the corresponding
     column of \code{x.train}. If \code{usequants} is \code{TRUE}, then for a variable
@@ -265,7 +265,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   \subsection{Predict}{
     Using \code{predict} with a \code{bart} object requires that it be fitted with the
     option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. Keeping the trees for
-    a fit can require a sizeable amount of memory.
+    a fit can require a sizeable amount of memory and is off by default.
   }
   
   \subsection{Saving}{
@@ -312,7 +312,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
         This is used in \code{plot.bart}.}
   \item{\code{fit}}{
         Optional sampler object which stores the values of the tree splits. Required for using
-        \code{predict}.}
+        \code{predict} and only stored if \code{keeptrees} is \code{TRUE}.}
     
   In the binary \eqn{y} case, the returned list has the components
   \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list 
