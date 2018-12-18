@@ -6,6 +6,12 @@
 /* define if snprintf is in std:: */
 #undef HAVE_SNPRINTF_IN_NAMESPACE_STD
 
+/* define if have log1p */
+#undef HAVE_LOG1P
+
+/* define if log1p is in std:: */
+#undef HAVE_LOG1P_IN_NAMESPACE_STD
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 

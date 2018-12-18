@@ -64,9 +64,9 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
   }
   \item{loss}{
     Either a one of the present loss functions as character-strings (\code{mcr} - missclassification rate for
-    binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - log-loss for
-    binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-
-    evaluation environment list-pair. Functions should have prototypes of the form
+    binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative 
+    log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or
+    a function- evaluation environment list-pair. Functions should have prototypes of the form
     \code{function(y.test, y.test.hat)}, where \code{y.test} is the held out test subsample and \code{y.test.hat}
     is a matrix of dimension \code{length(y.test) * n.samples}. See examples.
   }
@@ -118,7 +118,7 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
   predictions on the test data which are used together with the test data itself to evaluate the \code{loss}
   function.
   
-  \code{loss} functions are either the default of average log-loss for binary outcomes and
+  \code{loss} functions are either the default of average negative log-loss for binary outcomes and
   root-mean-squared error for continuous outcomes, missclassification rates for binary outcomes, or a
   \code{function} with arguments \code{y.test} and \code{y.test.hat}. \code{y.test.hat} is of dimensions
   equal to \code{length(y.test)} \eqn{\times}{*} \code{n.samples}. A third option is to pass a list of

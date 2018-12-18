@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include "R_interface_crossvalidate.hpp"
 
-#include <cmath>   // sqrt
+#include <cmath>   // sqrt, log
 #include <cstddef> // size_t
 #include <cstring> // strcmp
 
@@ -23,6 +23,16 @@
 
 #include "R_interface_common.hpp"
 
+#ifdef HAVE_LOG1P_IN_NAMESPACE_STD
+using std::log1p;
+#elif HAVE_LOG1P
+#  include <math.h>
+#else
+double log1p(double x) {
+  return std::log(1.0 + x);
+}
+#endif
+
 using std::size_t;
 
 namespace {
@@ -33,8 +43,8 @@ namespace {
   typedef enum { RMSE, LOG, MCR, CUSTOM, INVALID } LossFunctorType;
   
   SEXP allocateResult(size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps, bool dropUnusedDims);
-  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType lossType, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
-                                                     size_t numThreads, SEXP scratch);
+  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType lossType, SEXP lossTypeExpr, size_t numTestObservations,
+                                                     size_t numSamples, SEXP scratch);
 }
 
 extern "C" {
@@ -149,7 +159,7 @@ extern "C" {
     if (lossType == LOG && control.responseIsBinary == false) lossType = RMSE;
     
     LossFunctorDefinition* lossFunctionDef =
-      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, numThreads, scratch);
+      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, scratch);
     
     initializeModelFromExpression(model, modelExpr, control);
     initializeDataFromExpression(data, dataExpr);
@@ -239,7 +249,7 @@ namespace {
   
   LossFunctor* createLogLoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
   {
-    (void) def; (void) numSamples;
+    (void) def; (void) numSamples; (void) numTestObservations;
     
     LogLossFunctor* result = new LogLossFunctor;
     result->scratch = new double[numSamples];
@@ -266,7 +276,7 @@ namespace {
       }
       double y_test_hat = ext_computeMean(probabilities, numSamples);
       
-      results[0] +=  -y_test[i] * y_test_hat - (1.0 - y_test[i]) * (1.0 - y_test_hat);
+      results[0] +=  -y_test[i] * std::log(y_test_hat) - (1.0 - y_test[i]) * log1p(-y_test_hat);
     }
     results[0] /= static_cast<double>(numTestObservations);
   }
@@ -447,7 +457,7 @@ namespace {
   }
   
   LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType type, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
-                                                     size_t numThreads, SEXP scratch)
+                                                     SEXP scratch)
   {
     LossFunctorDefinition* result = NULL;
     

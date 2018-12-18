@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.64)
-AC_INIT(dbarts, 0.9.6, vdorie@gmail.com)
+AC_INIT(dbarts, 0.9.8, vdorie@gmail.com)
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])
@@ -16,6 +16,7 @@ m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
 m4_include([tools/m4/ax_ext.m4])
 m4_include([tools/m4/ax_cxx_namespace_std.m4])
 m4_include([tools/m4/ax_snprintf_in_namespace_std.m4])
+m4_include([tools/m4/ax_log1p_in_namespace_std.m4])
 m4_include([tools/m4/ax_func_posix_memalign.m4])
 
 AC_ARG_ENABLE([match-bayes-tree],
@@ -99,6 +100,8 @@ AX_FUNC_POSIX_MEMALIGN
 AC_LANG_PUSH(C++)
 AC_CHECK_FUNCS([snprintf])
 AX_CXX_SNPRINTF_IN_NAMESPACE_STD
+AC_CHECK_FUNCS([log1p])
+AX_CXX_LOG1P_IN_NAMESPACE_STD
 AC_LANG_POP
 
 
