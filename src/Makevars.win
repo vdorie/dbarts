@@ -10,7 +10,7 @@ PKG_LIBS= dbarts.a external.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthrea
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
-SUBDIRS = dbarts externa
+SUBDIRS = dbarts external rc
 SUBLIBS = $(SUBDIRS:=.a)
 
 all: $(SHLIB)
