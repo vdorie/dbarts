@@ -332,21 +332,22 @@ namespace dbarts {
       SET_VECTOR_ELT(result, chainNum, result_i);
       UNPROTECT(1);
       
-      slotExpr = rc_allocateInSlot(result_i, treesSym, STRSXP, static_cast<R_xlen_t>(control.numTrees));
+      rc_allocateInSlot2(slotExpr, result_i, treesSym, STRSXP, static_cast<R_xlen_t>(control.numTrees));
     
       const char** treeStrings = const_cast<const char**>(state[chainNum].createTreeStrings(fit, false));
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(treeNum), Rf_mkChar(treeStrings[treeNum]));
+        SET_STRING_ELT(slotExpr, static_cast<R_xlen_t>(treeNum), PROTECT(Rf_mkChar(treeStrings[treeNum])));
+        UNPROTECT(1);
         delete [] treeStrings[treeNum];
       }
       delete [] treeStrings;
       
-      slotExpr = rc_allocateInSlot(result_i, treeFitsSym, REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
+      rc_allocateInSlot2(slotExpr, result_i, treeFitsSym, REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees));
       rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
       std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * sizeof(double));
       
       if (control.keepTrees) {
-        slotExpr = rc_allocateInSlot(result_i, savedTreesSym, STRSXP, static_cast<R_xlen_t>(control.numTrees * fit.currentNumSamples));
+        rc_allocateInSlot2(slotExpr, result_i, savedTreesSym, STRSXP, static_cast<R_xlen_t>(control.numTrees * fit.currentNumSamples));
         rc_setDims(slotExpr, static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
     
         const char** treeStrings = const_cast<const char**>(state[chainNum].createTreeStrings(fit, true));
@@ -356,7 +357,7 @@ namespace dbarts {
         }
         delete [] treeStrings;
         
-        slotExpr = rc_allocateInSlot(result_i, savedTreeFitsSym, REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees * fit.currentNumSamples));
+        rc_allocateInSlot2(slotExpr, result_i, savedTreeFitsSym, REALSXP, static_cast<R_xlen_t>(data.numObservations * control.numTrees * fit.currentNumSamples));
         rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
         std::memcpy(REAL(slotExpr), state[chainNum].savedTreeFits, data.numObservations * control.numTrees * fit.currentNumSamples * sizeof(double));
       } else {
@@ -366,15 +367,15 @@ namespace dbarts {
         // Rf_setAttrib(result_i, savedTreeFitsSym, R_NilValue);
       }
       
-      slotExpr = rc_allocateInSlot(result_i, sigmaSym, REALSXP, 1);
+      rc_allocateInSlot2(slotExpr, result_i, sigmaSym, REALSXP, 1);
       REAL(slotExpr)[0] = state[chainNum].sigma;
       
       size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
-      slotExpr = rc_allocateInSlot(result_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
+      rc_allocateInSlot2(slotExpr, result_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
     
-    slotExpr = rc_allocateInSlot(result, Rf_install("runningTime"), REALSXP, 1);
+    rc_allocateInSlot2(slotExpr, result, Rf_install("runningTime"), REALSXP, 1);
     REAL(slotExpr)[0] = fit.runningTime;
     
     UNPROTECT(2);
@@ -424,7 +425,7 @@ namespace dbarts {
       if (static_cast<size_t>(dims[0]) != data.numObservations || static_cast<size_t>(dims[1]) != control.numTrees) {
         rc_allocateInSlot(stateExpr_i, treesSym, STRSXP, rc_asRLength(control.numTrees));
         
-        slotExpr = rc_allocateInSlot(stateExpr_i, treeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
+        rc_allocateInSlot2(slotExpr, stateExpr_i, treeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
         rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
       }
       
@@ -440,10 +441,10 @@ namespace dbarts {
                         static_cast<size_t>(dims[2]) != fit.currentNumSamples;
         }
         if (resizeTrees) {
-          slotExpr = rc_allocateInSlot(stateExpr_i, savedTreesSym, STRSXP, rc_asRLength(control.numTrees * fit.currentNumSamples));
+          rc_allocateInSlot2(slotExpr, stateExpr_i, savedTreesSym, STRSXP, rc_asRLength(control.numTrees * fit.currentNumSamples));
           rc_setDims(slotExpr, static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
           
-          slotExpr = rc_allocateInSlot(stateExpr_i, savedTreeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees * fit.currentNumSamples));
+          rc_allocateInSlot2(slotExpr, stateExpr_i, savedTreeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees * fit.currentNumSamples));
           rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), static_cast<int>(fit.currentNumSamples), -1);
         }
       } else {
@@ -481,7 +482,7 @@ namespace dbarts {
       size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
       slotExpr = Rf_getAttrib(stateExpr_i, rngStateSym);
       if (rc_getLength(slotExpr) != rngStateLength)
-        slotExpr = rc_allocateInSlot(stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
+        rc_allocateInSlot2(slotExpr, stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
     

@@ -12,7 +12,18 @@ extern "C" {
 
 SEXP rc_setDims(SEXP obj, ...);
 #define rc_getDims(_X_) Rf_getAttrib(_X_, R_DimSymbol)
+
 SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length);
+
+#define rc_allocateInSlot2(_R_, _O_, _S_, _T_, _L_) \
+{                                               \
+  SEXP _V_;                                     \
+  PROTECT(_V_ = Rf_allocVector(_T_, _L_));      \
+  R_do_slot_assign(_O_, _S_, _V_);              \
+  UNPROTECT(1);                                 \
+  _R_ = _V_;                                    \
+}
+
 
 #ifndef __cplusplus
 #  define rc_getLength(_X_) ((ext_size_t) XLENGTH(_X_))

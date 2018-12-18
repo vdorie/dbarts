@@ -129,7 +129,7 @@ extern "C" {
       Rf_error("lossType must be a character string or list(closure, env)");
     }
     
-    size_t protectCount = 0;
+    int protectCount = 0;
     
     SEXP scratch = R_NilValue;
     if (lossType == CUSTOM) {
