@@ -200,7 +200,7 @@ methods::setValidity("dbartsData",
     if (nrow(object@x) != numObservations) return("number of rows of 'x' must equal length of 'y'")
     
     if (length(object@varTypes) > 0 &&
-        any(object@varTypes != ORDINAL_VARIABLE && object@varTypes != CATEGORICAL_VARIABLE))
+        any(object@varTypes != ORDINAL_VARIABLE & object@varTypes != CATEGORICAL_VARIABLE))
       return("variable types must all be ordinal or categorical")
     
     if (!is.null(object@x.test) && ncol(object@x.test) != ncol(object@x)) return("'x.test' must be null or have number of columns equal to 'x'")
