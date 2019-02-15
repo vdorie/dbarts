@@ -88,6 +88,12 @@ bart2 <- function(
     stop("unknown arguments: '", paste0(argNames[unknownArgs], collapse = "', '"), "'")
   
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
+  missingDefaultArgs <- names(formals(bart2))[names(formals(bart2)) %in% names(formals(dbarts::dbartsControl)) &
+                                              names(formals(bart2)) %not_in% names(matchedCall)]
+  if (length(missingDefaultArgs) > 0L) {
+    currentEnv <- sys.frame(sys.nframe())
+    controlCall[missingDefaultArgs] <- lapply(formals(bart2)[missingDefaultArgs], eval, envir = currentEnv)
+  }
   control <- eval(controlCall, envir = callingEnv)
   
   control@call <- if (keepCall) matchedCall else call("NULL")

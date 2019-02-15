@@ -17,15 +17,13 @@ all: $(SHLIB)
 
 $(SHLIB): sublibs
 
-sublibs: sublibraries
-
-sublibraries:
+sublibs:
 	@for d in $(SUBDIRS); do \
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
 	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" \
            DBARTS_FLAGS="$(MATCH_BAYES_TREE) $(THREAD_SAFE_UNLOAD)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
-           CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
+           CLINK_CPPFLAGS="$(CLINK_CPPFLAGS)" CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
            || exit 1; \
 	done
 

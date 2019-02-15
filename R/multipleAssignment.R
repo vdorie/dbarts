@@ -107,11 +107,15 @@ unpack <- structure(NA, class = "named_lval")
   mc[[1L]] <- as.symbol("[<-.lval")
   sel <- seq.int(3L, length(mc) - 1L)
   varNames <- as.character(mc[sel])
-  names(mc)[sel] <- as.character(mc[sel])
+  names(mc)[sel] <- varNames
   
   if (!all(varNames %in% names(value)))
     mc <- mc[-sel[!(varNames %in% names(value))]]
   
+  mc[[2L]] <- x
+  
   #cat("calling ", as.character(mc), "\n")
-  eval(mc, parent.frame(1L))
+  callingEnv <- parent.frame(1L)
+  eval(mc, callingEnv)
 }
+
