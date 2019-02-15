@@ -24,7 +24,7 @@ namespace dbarts {
     
     void invalidate();
     
-    bool goesRight(const BARTFit& fit, const double* x) const;
+    bool goesRight(const BARTFit& fit, const xint_t* x) const;
     bool categoryGoesRight(std::uint32_t categoryId) const;
     void setCategoryGoesRight(std::uint32_t categoryId);
     void setCategoryGoesLeft(std::uint32_t categoryId);
@@ -100,7 +100,7 @@ namespace dbarts {
     void enumerateBottomNodes();
     NodeVector getAndEnumerateBottomVector(); // the nodes will have their enumeration indices set to their array index
     
-    Node* findBottomNode(const BARTFit& fit, const double* x) const;
+    Node* findBottomNode(const BARTFit& fit, const xint_t* x) const;
         
     void print(const BARTFit& fit, std::size_t indentation) const;
     

@@ -8,6 +8,7 @@ AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADER([src/config.hpp])
 AC_CONFIG_HEADER([src/dbarts/config.hpp])
 AC_CONFIG_HEADER([src/external/config.h])
+AC_CONFIG_HEADER([inst/include/dbarts/config.hpp])
 
 m4_include([tools/m4/ax_check_compile_flag.m4])
 m4_include([tools/m4/ax_pthread.m4])
@@ -32,6 +33,29 @@ AC_ARG_ENABLE([thread-safe-unload],
               [thread_safe_unload=-DTHREAD_SAFE_UNLOAD],
               [unset thread_safe_unload])
 AC_SUBST(thread_safe_unload)
+
+AC_ARG_WITH([xint-size],
+            [AS_HELP_STRING([--with-xint-size=16],
+                            [constrains the number of cutpoints to 2^x-size - 1])],
+             ,
+             [with_xint_size=no])
+
+case "x$with_xint_size" in
+  x8)
+    xint_size=uint8_t
+  ;;
+  x32)
+    xint_size=uint32_t
+  ;;
+  x64)
+    xint_size=uint64_t
+  ;;
+  xyes|xno|x16)
+    xint_size=uint16_t
+  ;;
+esac
+
+AC_DEFINE_UNQUOTED(XINT_TYPE, $xint_size, [Define to the integer type used to represent feature map.])
 
 # Checks for programs.
 : ${R_HOME=`R RHOME`}

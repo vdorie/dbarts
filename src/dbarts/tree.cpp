@@ -19,7 +19,7 @@ namespace {
   
   // multithread me!
   size_t* createObservationToNodeIndexMap(const BARTFit& fit, const Node& top,
-                                          const double* xt, size_t numObservations)
+                                          const xint_t* xt, size_t numObservations)
   {
     if (numObservations == 0) return NULL;
     
@@ -137,7 +137,7 @@ namespace dbarts {
     }
   }
   
-  void Tree::setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const double* xt, size_t numObservations, double* fits)
+  void Tree::setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const xint_t* xt, size_t numObservations, double* fits)
   {
     top.enumerateBottomNodes();
     

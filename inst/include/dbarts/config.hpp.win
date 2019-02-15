@@ -1,0 +1,1 @@
+#define XINT_TYPE uint_least16_t

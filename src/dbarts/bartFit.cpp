@@ -43,6 +43,8 @@ namespace {
   void createRNG(BARTFit& fit);
   void destroyRNG(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
+  void setXIntegerCutMap(BARTFit& fit);
+  void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test);
   void setInitialFit(BARTFit& fit);
   
   void setPrior(BARTFit& fit);
@@ -238,13 +240,15 @@ namespace dbarts {
   
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
   {
-    double* xt_test = new double[numTestObservations * data.numPredictors];
+    xint_t* xt_test = new xint_t[numTestObservations * data.numPredictors];
     double* currTestFits = new double[numTestObservations];
     double* totalTestFits = new double[numTestObservations];
     
     if (!control.keepTrees) ext_throwError("predict requires 'keepTrees' to be true");
     
-    ext_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
+    setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
+    
+    // ext_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
@@ -293,7 +297,8 @@ namespace dbarts {
     
     data.x = newPredictor;
     
-    ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
+    setXIntegerCutMap(*this);
+    // ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
     
     return updateTreesWithNewPredictor(*this, state, chainScratch, true);
   }
@@ -320,11 +325,15 @@ namespace dbarts {
     setCutPoints(*this, columns, numColumns);
     
     double* x  = const_cast<double*>(data.x);
-    double* xt = const_cast<double*>(sharedScratch.xt);
+    xint_t* xt = const_cast<xint_t*>(sharedScratch.xt);
     for (size_t j = 0; j < numColumns; ++j) {
-      std::memcpy(x + columns[j] * data.numObservations, newPredictor + j * data.numObservations, data.numObservations * sizeof(double));
+      size_t col = columns[j];
+      std::memcpy(x + col * data.numObservations, newPredictor + j * data.numObservations, data.numObservations * sizeof(double));
       for (size_t i = 0; i < data.numObservations; ++i) {
-        xt[i * data.numPredictors + columns[j]] = newPredictor[i + j * data.numObservations];
+        xint_t k = 0;
+        while (k < sharedScratch.numCutsPerVariable[col] &&
+               data.x[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
+        xt[i * data.numPredictors + col] = k;
       }
     }
     
@@ -333,12 +342,19 @@ namespace dbarts {
     if (!treesAreValid) {
       // rollback
       for (size_t j = 0; j < numColumns; ++j) {
-        std::memcpy(x + columns[j] * data.numObservations, oldPredictor + j * data.numObservations, data.numObservations * sizeof(double));
+        size_t col = columns[j];
         
-        std::memcpy(const_cast<double**>(sharedScratch.cutPoints)[columns[j]], oldCutPoints[j], sharedScratch.numCutsPerVariable[columns[j]] * sizeof(double));
+        std::memcpy(x + col * data.numObservations, oldPredictor + j * data.numObservations, data.numObservations * sizeof(double));
+        
+        std::memcpy(const_cast<double**>(sharedScratch.cutPoints)[col], oldCutPoints[j], sharedScratch.numCutsPerVariable[col] * sizeof(double));
           
-        for (size_t i = 0; i < data.numObservations; ++i)
-          xt[i * data.numPredictors + columns[j]] = oldPredictor[i + j * data.numObservations];
+        for (size_t i = 0; i < data.numObservations; ++i) {
+          xint_t k = 0;
+          while (k < sharedScratch.numCutsPerVariable[col] &&
+                 data.x[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
+          xt[i * data.numPredictors + col] = k;
+          // xt[i * data.numPredictors + columns[j]] = oldPredictor[i + j * data.numObservations];
+        }
       }
       
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -414,12 +430,13 @@ namespace dbarts {
           if (chainScratch[chainNum].totalTestFits != NULL) { delete [] chainScratch[chainNum].totalTestFits; chainScratch[chainNum].totalTestFits = NULL; }
         data.numTestObservations = numTestObservations;
         
-        sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
+        sharedScratch.xt_test = new xint_t[data.numTestObservations * data.numPredictors];
         for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
           chainScratch[chainNum].totalTestFits = new double[data.numTestObservations];
       }
       
-      ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+      setXTestIntegerCutMap(*this, x_test, numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
+      // ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
       
       if (testOffset != INVALID_ADDRESS) data.testOffset = testOffset;
       
@@ -434,14 +451,19 @@ namespace dbarts {
   
   void BARTFit::updateTestPredictors(const double* newTestPredictor, const size_t* columns, size_t numColumns) {
     double* x_test = const_cast<double*>(data.x_test);
-    double* xt_test = const_cast<double*>(sharedScratch.xt_test);
+    xint_t* xt_test = const_cast<xint_t*>(sharedScratch.xt_test);
     
-    for (size_t j_ind = 0; j_ind < numColumns; ++j_ind) {
-      size_t j = columns[j_ind];
-      std::memcpy(x_test + j * data.numTestObservations, newTestPredictor + j_ind * data.numTestObservations, data.numTestObservations * sizeof(double));
+    for (size_t j = 0; j < numColumns; ++j) {
+      size_t col = columns[j];
+      std::memcpy(x_test + col * data.numTestObservations, newTestPredictor + j * data.numTestObservations, data.numTestObservations * sizeof(double));
       
       for (size_t i = 0; i < data.numTestObservations; ++i) {
-        xt_test[i * data.numPredictors + j] = newTestPredictor[i + j_ind * data.numTestObservations];
+        xint_t k = 0;
+        while (k < sharedScratch.numCutsPerVariable[col] &&
+               x_test[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
+        xt_test[i * data.numPredictors + col] = k;
+
+        // xt_test[i * data.numPredictors + col] = newTestPredictor[i + j * data.numTestObservations];
       }
     }
     
@@ -477,7 +499,7 @@ namespace dbarts {
       // handle resizing arrays
       delete [] sharedScratch.xt;
       
-      sharedScratch.xt = new double[data.numObservations * data.numPredictors];
+      sharedScratch.xt = new xint_t[data.numObservations * data.numPredictors];
       
       if (!control.responseIsBinary) {
         delete [] sharedScratch.yRescaled;
@@ -557,7 +579,8 @@ namespace dbarts {
     ext_stackFree(columns);
     
     // now initialize remaining arrays that use numObs
-    ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt)); 
+    setXIntegerCutMap(*this);
+    // ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt)); 
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       ext_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
     
@@ -574,15 +597,15 @@ namespace dbarts {
       // handle resizing test arrays and initializing them
       if (oldNumTestObservations != data.numTestObservations) {
         delete [] sharedScratch.xt_test;
-        sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
+        sharedScratch.xt_test = new xint_t[data.numTestObservations * data.numPredictors];
         
         for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
           delete [] chainScratch[chainNum].totalTestFits;
           chainScratch[chainNum].totalTestFits = new double[data.numTestObservations];
         }
       }
-      
-      ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+      setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
+      // ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
 
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         currTestFits[chainNum] = new double[data.numTestObservations];
@@ -805,6 +828,9 @@ namespace dbarts {
     
     setPrior(*this);
     setInitialCutPoints(*this);
+    setXIntegerCutMap(*this);
+    if (data.numTestObservations > 0)
+      setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
     setInitialFit(*this);
 
     if (this->control.verbose) printInitialSummary(*this);
@@ -1225,14 +1251,6 @@ namespace {
         chainScratch[chainNum].probitLatents = new double[data.numObservations];
     }
     
-    sharedScratch.xt = new double[data.numObservations * data.numPredictors];
-    ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
-    
-    if (data.numTestObservations > 0) {
-      sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
-      ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
-    }
-    
     // chain scratches
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       chainScratch[chainNum].treeY = new double[data.numObservations];
@@ -1247,6 +1265,17 @@ namespace {
     }
     
     // shared scratch
+    /* sharedScratch.xt = new double[data.numObservations * data.numPredictors];
+    ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
+    
+    if (data.numTestObservations > 0) {
+      sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
+      ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+    } */
+    sharedScratch.xt = new xint_t[data.numObservations * data.numPredictors];
+    if (data.numTestObservations > 0)
+      sharedScratch.xt_test = new xint_t[data.numTestObservations * data.numPredictors];
+    
     sharedScratch.numCutsPerVariable = new uint32_t[data.numPredictors];
 
     sharedScratch.cutPoints = new double*[data.numPredictors];
@@ -1298,6 +1327,45 @@ namespace {
     setCutPoints(fit, columns, data.numPredictors);
     
     ext_stackFree(columns);
+  }
+  
+  void setXIntegerCutMap(BARTFit& fit)
+  {
+    const Data& data(fit.data);
+    SharedScratch& sharedScratch(fit.sharedScratch);
+    
+    xint_t* xt = const_cast<xint_t*>(sharedScratch.xt);
+    
+    for (size_t i = 0; i < data.numObservations; ++i) {
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        
+        xint_t k = 0;
+        
+        // min cut such that x_ij <= c_jk; can possibly be out of range if variable is on the far right
+        while (k < sharedScratch.numCutsPerVariable[j] &&
+               data.x[i + j * data.numObservations] > sharedScratch.cutPoints[j][k]) ++k;
+        
+        xt[i * data.numPredictors + j] = k;
+      }
+    }
+  }
+  
+  void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test)
+  {
+    const Data& data(fit.data);
+    const SharedScratch& sharedScratch(fit.sharedScratch);
+    
+    for (size_t i = 0; i < numTestObservations; ++i) {
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        
+        xint_t k = 0;
+        
+        while (k < sharedScratch.numCutsPerVariable[j] &&
+               x_test[i + j * data.numObservations] > sharedScratch.cutPoints[j][k]) ++k;
+      
+        xt_test[i * data.numPredictors + j] = k;
+      }
+    }
   }
   
   void setCutPoints(BARTFit& fit, const size_t* columns, size_t numColumns)

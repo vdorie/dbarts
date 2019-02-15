@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <dbarts/cstdint.hpp>
+#include <dbarts/types.hpp>
 
 #include "node.hpp"
 
@@ -20,7 +21,7 @@ namespace dbarts {
     void sampleAveragesAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
     double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
-    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const double* xt, std::size_t numObservations, double* fits);
+    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const xint_t* xt, std::size_t numObservations, double* fits);
     
     void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions);
     void collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions);
@@ -40,7 +41,7 @@ namespace dbarts {
     NodeVector getNodesWhoseChildrenAreAtBottom() const;
     NodeVector getSwappableNodes() const;
     
-    void setNodeAverages(const BARTFit& fit, std::size_t chainNUm, const double* y);
+    void setNodeAverages(const BARTFit& fit, std::size_t chainNum, const double* y);
     
     void countVariableUses(std::uint32_t* variableCounts) const;
     

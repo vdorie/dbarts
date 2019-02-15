@@ -699,6 +699,7 @@ ac_user_opts='
 enable_option_checking
 enable_match_bayes_tree
 enable_thread_safe_unload
+with_xint_size
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1331,6 +1332,11 @@ Optional Features:
   --enable-thread-safe-unload
                           block when adding/deleting fits for the purposes of
                           package reloading
+
+Optional Packages:
+  --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
+  --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
+  --with-xint-size=16     constrains the number of cutpoints to 2^x-size - 1
 
 Some influential environment variables:
   CC          C compiler command
@@ -2810,6 +2816,8 @@ ac_config_headers="$ac_config_headers src/dbarts/config.hpp"
 
 ac_config_headers="$ac_config_headers src/external/config.h"
 
+ac_config_headers="$ac_config_headers inst/include/dbarts/config.hpp"
+
 
 # ===========================================================================
 #   http://www.gnu.org/software/autoconf-archive/ax_check_compile_flag.html
@@ -3251,6 +3259,36 @@ else
   unset thread_safe_unload
 fi
 
+
+
+
+# Check whether --with-xint-size was given.
+if test "${with_xint_size+set}" = set; then :
+  withval=$with_xint_size;
+else
+  with_xint_size=no
+fi
+
+
+case "x$with_xint_size" in
+  x8)
+    xint_size=uint8_t
+  ;;
+  x32)
+    xint_size=uint32_t
+  ;;
+  x64)
+    xint_size=uint64_t
+  ;;
+  xyes|xno|x16)
+    xint_size=uint16_t
+  ;;
+esac
+
+
+cat >>confdefs.h <<_ACEOF
+#define XINT_TYPE $xint_size
+_ACEOF
 
 
 # Checks for programs.
@@ -8258,6 +8296,7 @@ do
     "src/config.hpp") CONFIG_HEADERS="$CONFIG_HEADERS src/config.hpp" ;;
     "src/dbarts/config.hpp") CONFIG_HEADERS="$CONFIG_HEADERS src/dbarts/config.hpp" ;;
     "src/external/config.h") CONFIG_HEADERS="$CONFIG_HEADERS src/external/config.h" ;;
+    "inst/include/dbarts/config.hpp") CONFIG_HEADERS="$CONFIG_HEADERS inst/include/dbarts/config.hpp" ;;
     "src/Makevars") CONFIG_FILES="$CONFIG_FILES src/Makevars" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;

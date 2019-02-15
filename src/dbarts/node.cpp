@@ -34,18 +34,20 @@ namespace dbarts {
     splitIndex = DBARTS_INVALID_RULE_VARIABLE;
   }
   
-  bool Rule::goesRight(const BARTFit& fit, const double* x) const
+  bool Rule::goesRight(const BARTFit& fit, const xint_t* x) const
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       // x is a double, but that is 64 bits wide, and as such we can treat it as
       // a 64 bit integer
-      uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const uint64_t*>(x + variableIndex)));
+      //uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const uint64_t*>(x + variableIndex)));
+      uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const xint_t*>(x + variableIndex)));
       
       return categoryGoesRight(categoryId);
     } else {
-      const double* splitValues = fit.sharedScratch.cutPoints[variableIndex];
+      // const double* splitValues = fit.sharedScratch.cutPoints[variableIndex];
       
-      return x[variableIndex] > splitValues[splitIndex];
+      // return x[variableIndex] > splitValues[splitIndex];
+      return x[variableIndex] > splitIndex; 
     }
   }
   
@@ -369,7 +371,7 @@ namespace dbarts {
     return result;
   }
   
-  Node* Node::findBottomNode(const BARTFit& fit, const double *x) const
+  Node* Node::findBottomNode(const BARTFit& fit, const xint_t* x) const
   {
     if (isBottom()) return const_cast<Node*>(this);
     

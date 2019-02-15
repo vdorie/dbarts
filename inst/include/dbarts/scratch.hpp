@@ -4,14 +4,17 @@
 
 #include <cstddef>
 #include "cstdint.hpp" // int types
+#include "types.hpp"
 
 namespace dbarts {
   struct ScaleFactor { double min, max, range; };
   
   struct SharedScratch {
     const double* yRescaled;
-    const double* xt; // x transpose
-    const double* xt_test;
+    const xint_t* xt; // x transpose
+    const xint_t* xt_test;
+    // const double* xt; // x transpose
+    //const double* xt_test;
     
     ScaleFactor dataScale;
     

@@ -1,5 +1,6 @@
 #!/bin/sh
 
 cp -f src/config.hpp.win src/config.hpp
-cp -f src/dbarts/config.hpp.win src/dbarts/config.hpp
 cp -f src/external/config.h.win src/external/config.h
+cp -f src/dbarts/config.hpp.win src/dbarts/config.hpp
+cp -f inst/include/dbarts/config.hpp.win inst/include/dbarts/config.hpp
