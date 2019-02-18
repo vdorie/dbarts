@@ -23,7 +23,7 @@ test_that("fixed sample mode when run sequentially gives same predictions as seq
   
   set.seed(0)
   sampler <- dbarts(testData$x, testData$y,
-                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE, updateState = FALSE))
+                    control = dbartsControl(n.samples = 5, n.burn = 0L, n.trees = 4L, n.chains = 1L, n.threads = 1L, keepTrees = TRUE, updateState = FALSE, useQuantiles = TRUE))
   sampler$sampleTreesFromPrior()
   for (i in seq_len(5L))
     invisible(sampler$run(0L, 1L))

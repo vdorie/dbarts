@@ -460,7 +460,7 @@ namespace dbarts {
       for (size_t i = 0; i < data.numTestObservations; ++i) {
         xint_t k = 0;
         while (k < sharedScratch.numCutsPerVariable[col] &&
-               x_test[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
+               x_test[i + col * data.numTestObservations] > sharedScratch.cutPoints[col][k]) ++k;
         xt_test[i * data.numPredictors + col] = k;
 
         // xt_test[i * data.numPredictors + col] = newTestPredictor[i + j * data.numTestObservations];
@@ -873,8 +873,9 @@ namespace dbarts {
                                           data.numTestObservations,
                                           control.defaultNumSamples == 0 ? 1 : control.defaultNumSamples,
                                           control.numChains);
+    size_t numBurnIn = control.defaultNumBurnIn - (control.defaultNumSamples == 0 && control.defaultNumBurnIn > 0 ? 1 : 0);
     
-    runSampler(control.defaultNumBurnIn, resultsPointer);
+    runSampler(numBurnIn, resultsPointer);
     
     if (control.defaultNumSamples == 0) {
       delete resultsPointer;
@@ -890,6 +891,7 @@ namespace dbarts {
                                           data.numTestObservations,
                                           numSamples == 0 ? 1 : numSamples,
                                           control.numChains);
+    numBurnIn -= numSamples == 0 && numBurnIn > 0 ? 1 : 0;
     
     runSampler(numBurnIn, resultsPointer);
     
@@ -1361,7 +1363,7 @@ namespace {
         xint_t k = 0;
         
         while (k < sharedScratch.numCutsPerVariable[j] &&
-               x_test[i + j * data.numObservations] > sharedScratch.cutPoints[j][k]) ++k;
+               x_test[i + j * numTestObservations] > sharedScratch.cutPoints[j][k]) ++k;
       
         xt_test[i * data.numPredictors + j] = k;
       }
