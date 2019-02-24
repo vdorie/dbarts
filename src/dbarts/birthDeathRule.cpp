@@ -5,8 +5,9 @@
 #include <cmath>   // exp
 #include <cstring> // memcpy
 
-#include <external/alloca.h>
-#include <external/linearAlgebra.h>
+#include <misc/alloca.h>
+#include <misc/linearAlgebra.h>
+
 #include <external/random.h>
 
 #include <dbarts/bartFit.hpp>
@@ -48,7 +49,7 @@ namespace dbarts {
     
     double ratio;
     
-    ::State* oldStatePtr = ext_stackAllocate(1, ::State);
+    ::State* oldStatePtr = misc_stackAllocate(1, ::State);
     ::State& oldState(*oldStatePtr);
     
     
@@ -154,7 +155,7 @@ namespace dbarts {
       }
     }
     
-    ext_stackFree(oldStatePtr);
+    misc_stackFree(oldStatePtr);
     
     return ratio < 1.0 ? ratio : 1.0;
   }
@@ -229,7 +230,7 @@ namespace dbarts {
     NodeVector bottomNodes(tree.getBottomNodes());
     size_t numBottomNodes = bottomNodes.size();
     
-    double* nodeBirthProbabilities = ext_stackAllocate(numBottomNodes, double);
+    double* nodeBirthProbabilities = misc_stackAllocate(numBottomNodes, double);
     double totalProbability = 0.0;
         
     for (size_t i = 0; i < numBottomNodes; ++i) {
@@ -238,7 +239,7 @@ namespace dbarts {
     }
     
     if (totalProbability > 0.0) {
-      ext_scalarMultiplyVectorInPlace(nodeBirthProbabilities, numBottomNodes, 1.0 / totalProbability);
+      misc_scalarMultiplyVectorInPlace(nodeBirthProbabilities, numBottomNodes, 1.0 / totalProbability);
 
       size_t index = ext_rng_drawFromDiscreteDistribution(rng, nodeBirthProbabilities, numBottomNodes);
 
@@ -248,7 +249,7 @@ namespace dbarts {
       *nodeSelectionProbability = 0.0;
     }
     
-    ext_stackFree(nodeBirthProbabilities);
+    misc_stackFree(nodeBirthProbabilities);
     
     return result;
   }

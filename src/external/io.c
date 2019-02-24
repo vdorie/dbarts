@@ -1,8 +1,10 @@
 #include <external/io.h>
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <stdarg.h>      // varargs stuff
+#include <misc/stddef.h> // size_t
+#include <stdio.h>       // vsnprintf
+
+// Rf_error, Rprintf imported from header
 
 #define MAX_BUFFER_LENGTH 8192
 NORETURN void ext_throwError(const char* format, ...)
@@ -59,3 +61,4 @@ void ext_issueWarning(const char* format, ...)
   
   Rf_warning(buffer);
 }
+

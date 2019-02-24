@@ -4,7 +4,7 @@
 #include <cmath>
 #include <dbarts/cstdint.hpp>
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 #include <external/io.h>
 #include <external/stats.h>
 
@@ -61,7 +61,7 @@ namespace dbarts {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
       
-      bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
+      bool* categoriesCanReachNode = misc_stackAllocate(numCategories, bool);
       
       setCategoryReachability(fit, node, variableIndex, categoriesCanReachNode);
       
@@ -71,7 +71,7 @@ namespace dbarts {
       result  = std::log(std::pow(2.0, static_cast<double>(numCategoriesCanReachNode) - 1.0) - 1.0);
       result -= std::log(std::pow(2.0, static_cast<double>(numCategories - numCategoriesCanReachNode)));
       
-      ext_stackFree(categoriesCanReachNode);
+      misc_stackFree(categoriesCanReachNode);
     } else {
       int32_t leftCutIndex, rightCutIndex;
       setSplitInterval(fit, node, variableIndex, &leftCutIndex, &rightCutIndex);
@@ -108,7 +108,7 @@ namespace dbarts {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
       
-      bool* categoriesCanReachNode = ext_stackAllocate(numCategories, bool);
+      bool* categoriesCanReachNode = misc_stackAllocate(numCategories, bool);
       // result.categoryDirections = new CategoryBranchingType[numCategories];
       result.categoryDirections = 0l;
       
@@ -117,11 +117,11 @@ namespace dbarts {
       uint32_t numCategoriesCanReachNode = 0;
       for (uint32_t i = 0; i < numCategories; ++i) if (categoriesCanReachNode[i]) ++numCategoriesCanReachNode;
       if (numCategoriesCanReachNode < 2) {
-        ext_stackFree(categoriesCanReachNode);
+        misc_stackFree(categoriesCanReachNode);
         ext_throwError("error in TreePrior::drawRule: less than 2 values left for cat var\n");
       }
       
-      bool* sendCategoriesRight = ext_stackAllocate(numCategoriesCanReachNode, bool);
+      bool* sendCategoriesRight = misc_stackAllocate(numCategoriesCanReachNode, bool);
       sendCategoriesRight[0] = true; // the first value always goes right so that at least one does
       
       uint64_t categoryIndex = ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, static_cast<uint64_t>(std::pow(2.0, static_cast<double>(numCategoriesCanReachNode) - 1.0) - 1.0));
@@ -148,8 +148,8 @@ namespace dbarts {
       if (numCategoriesCanReachNode - numSentCategories == 1) *exhaustedLeftSplits = true;
       if (numSentCategories == 1) *exhaustedRightSplits = true;
       
-      ext_stackFree(sendCategoriesRight);
-      ext_stackFree(categoriesCanReachNode);
+      misc_stackFree(sendCategoriesRight);
+      misc_stackFree(categoriesCanReachNode);
     } else {
       int32_t leftIndex, rightIndex;
       setSplitInterval(fit, node, variableIndex, &leftIndex, &rightIndex);

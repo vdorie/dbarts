@@ -1,26 +1,24 @@
-#include <external/thread.h>
-#include "pthread.c"
-
 #include "config.h"
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdlib.h>
+#include <misc/thread.h>
+#include "pthread.h"
+
 #include <errno.h>
-#include <stdbool.h>
+#include <stdarg.h> // varargs for buffered printf
+#include <stdlib.h> // malloc
 
 #include <external/io.h>
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
-// time.h imported from <external/thread.h>
+// time.h imported from <misc/thread.h>
 #if (!defined(HAVE_CLOCK_GETTIME) || !defined(CLOCK_REALTIME)) && defined(HAVE_GETTIMEOFDAY)
 #  include <sys/time.h>
 #endif
 
 #ifdef __GNUC__
-#define UNUSED __attribute__ ((unused))
+#  define UNUSED __attribute__ ((unused))
 #else
-#define UNUSED
+#  define UNUSED
 #endif
 
 #define TASK_COMPLETE ((size_t) -1)
@@ -31,7 +29,7 @@
 struct ThreadData;
 
 typedef struct ThreadData {
-  ext_htm_manager_t manager;
+  misc_htm_manager_t manager;
   size_t threadId;
   
   struct ThreadData* next;
@@ -40,8 +38,8 @@ typedef struct ThreadData {
   bool isTopLevelTask;
   
   union taskFunction_t {
-    ext_htm_topLevelTaskFunction_t tl;
-    ext_htm_subTaskFunction_t      st;
+    misc_htm_topLevelTaskFunction_t tl;
+    misc_htm_subTaskFunction_t      st;
   } task;
   void* taskData;
     
@@ -65,7 +63,7 @@ typedef struct TopLevelTaskStatus {
 } TopLevelTaskStatus;
 
 
-typedef struct _ext_htm_manager_t {
+typedef struct _misc_htm_manager_t {
   Thread* threads;
   size_t numThreads;
   
@@ -88,9 +86,9 @@ typedef struct _ext_htm_manager_t {
   bool threadsShouldExit;
   
   Condition threadIsActive; // used to synchronize at start
-} _ext_htm_manager_t;
+} _misc_htm_manager_t;
 
-static int initializeThreadData(ext_htm_manager_t manager, ThreadData* data, size_t threadId);
+static int initializeThreadData(misc_htm_manager_t manager, ThreadData* data, size_t threadId);
 static int invalidateThreadData(ThreadData* thread);
 
 static int initializeTopLevelTaskStatus(TopLevelTaskStatus* status);
@@ -104,11 +102,11 @@ static void push(ThreadStack* stack, ThreadData* thread);
 static size_t pushN(ThreadStack* stack, ThreadData* thread);
 static bool stackIsEmpty(ThreadStack* stack);
 
-UNUSED static void printManagerStatus(const ext_htm_manager_t manager);
+UNUSED static void printManagerStatus(const misc_htm_manager_t manager);
 static void printTaskProgress(TopLevelTaskStatus* status);
 
 
-int ext_htm_runTopLevelTasks(ext_htm_manager_t restrict manager, ext_htm_topLevelTaskFunction_t function,
+int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topLevelTaskFunction_t function,
                              void** restrict data, size_t numTasks)
 {
   if (manager->threads == NULL || manager->threadData == NULL) return EINVAL;
@@ -188,7 +186,7 @@ static void inline getTime(struct timespec* ts)
 #endif
 }
 
-int ext_htm_runTopLevelTasksWithOutput(ext_htm_manager_t restrict manager, ext_htm_topLevelTaskFunction_t function,
+int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, misc_htm_topLevelTaskFunction_t function,
                                        void** restrict data, size_t numTasks, const struct timespec* restrict outputDelay)
 {
   if (manager->threads == NULL || manager->threadData == NULL) return EINVAL;
@@ -297,7 +295,7 @@ int ext_htm_runTopLevelTasksWithOutput(ext_htm_manager_t restrict manager, ext_h
 }
 
 
-int ext_htm_runSubTask(ext_htm_manager_t restrict manager, size_t taskId, ext_htm_subTaskFunction_t subTask,
+int misc_htm_runSubTask(misc_htm_manager_t restrict manager, size_t taskId, misc_htm_subTaskFunction_t subTask,
                        void** restrict data, size_t numPieces)
 {
   if (manager->threads == NULL || manager->threadData == NULL || manager->topLevelTaskStatus == NULL) return EINVAL;
@@ -334,13 +332,13 @@ int ext_htm_runSubTask(ext_htm_manager_t restrict manager, size_t taskId, ext_ht
   return 0;
 }
 
-ext_size_t ext_htm_getNumThreadsForTopLevelTask(const ext_htm_manager_t threadManager, size_t taskId)
+misc_size_t misc_htm_getNumThreadsForTopLevelTask(const misc_htm_manager_t threadManager, size_t taskId)
 {
   if (threadManager == NULL || taskId == EXT_HTM_INVALID_TASK_ID || threadManager->topLevelTaskStatus == NULL) return 1;
   return threadManager->topLevelTaskStatus[taskId].numThreads;
 }
 
-void ext_htm_getNumPiecesForSubTask(const ext_htm_manager_t restrict threadManager, size_t taskId,
+void misc_htm_getNumPiecesForSubTask(const misc_htm_manager_t restrict threadManager, size_t taskId,
                                     size_t numElements, size_t minNumElementsPerPiece,
                                     size_t* restrict numPiecesPtr, size_t* restrict numElementsPerPiecePtr, size_t* restrict offByOneIndexPtr)
 {
@@ -369,7 +367,7 @@ void ext_htm_getNumPiecesForSubTask(const ext_htm_manager_t restrict threadManag
 static void* threadLoop(void* _thread)
 {
   ThreadData* thread = (ThreadData*) _thread;
-  ext_htm_manager_t manager = thread->manager;
+  misc_htm_manager_t manager = thread->manager;
   
   lockMutex(manager->mutex);
   
@@ -423,7 +421,7 @@ static void* threadLoop(void* _thread)
   return NULL;
 }
 
-ext_size_t ext_htm_reserveThreadsForSubTask(ext_htm_manager_t manager, size_t taskId, size_t progress)
+misc_size_t misc_htm_reserveThreadsForSubTask(misc_htm_manager_t manager, size_t taskId, size_t progress)
 {
   size_t numTasksMoreComplete = 0;
   
@@ -482,7 +480,7 @@ ext_size_t ext_htm_reserveThreadsForSubTask(ext_htm_manager_t manager, size_t ta
   return newNumThreads;
 }
 
-static int initializeManager(ext_htm_manager_t manager, size_t numThreads)
+static int initializeManager(misc_htm_manager_t manager, size_t numThreads)
 {
   int result;
   
@@ -505,36 +503,36 @@ static int initializeManager(ext_htm_manager_t manager, size_t numThreads)
   bool taskDoneInitialized = false;
   
   manager->threads = (Thread*) malloc(numThreads * sizeof(Thread));
-  if (manager->threads == NULL) { result = ENOMEM; goto ext_htm_initialization_failed; }
+  if (manager->threads == NULL) { result = ENOMEM; goto misc_htm_initialization_failed; }
   
   manager->threadData = (ThreadData*) malloc(numThreads * sizeof(ThreadData));
-  if (manager->threadData == NULL) { result = ENOMEM; goto ext_htm_initialization_failed; }
+  if (manager->threadData == NULL) { result = ENOMEM; goto misc_htm_initialization_failed; }
   
   manager->buffer = (char*) malloc(BUFFER_LENGTH * sizeof(char));
-  if (manager->buffer == NULL) { result = ENOMEM; goto ext_htm_initialization_failed; }
+  if (manager->buffer == NULL) { result = ENOMEM; goto misc_htm_initialization_failed; }
   manager->bufferPos = 0;
       
   result = initializeMutex(manager->mutex);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) mutexInitialized = true;
-    goto ext_htm_initialization_failed;
+    goto misc_htm_initialization_failed;
   }
   
   result = initializeCondition(manager->threadIsActive);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) threadIsActiveInitialized = true;
-    goto ext_htm_initialization_failed;
+    goto misc_htm_initialization_failed;
   }
   
   result = initializeCondition(manager->taskDone);
   if (result != 0) {
     taskDoneInitialized = true;
-    goto ext_htm_initialization_failed;
+    goto misc_htm_initialization_failed;
   }
   
   return result;
   
-ext_htm_initialization_failed:
+misc_htm_initialization_failed:
   if (manager->buffer != NULL) { free(manager->buffer); manager->buffer = NULL; }
   if (manager->threadData != NULL) { free(manager->threadData); manager->threadData = NULL; }
   if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
@@ -550,12 +548,12 @@ ext_htm_initialization_failed:
   return result;
 }
 
-int ext_htm_create(ext_htm_manager_t* managerPtr, size_t numThreads)
+int misc_htm_create(misc_htm_manager_t* managerPtr, size_t numThreads)
 {
-  *managerPtr = (ext_htm_manager_t) malloc(sizeof(_ext_htm_manager_t));
+  *managerPtr = (misc_htm_manager_t) malloc(sizeof(_misc_htm_manager_t));
   if (*managerPtr == NULL) return ENOMEM;
   
-  ext_htm_manager_t manager = *managerPtr;
+  misc_htm_manager_t manager = *managerPtr;
   
   int result = initializeManager(manager, numThreads);
   if (result != 0) {
@@ -584,14 +582,14 @@ int ext_htm_create(ext_htm_manager_t* managerPtr, size_t numThreads)
   unlockMutex(manager->mutex);
   
   if (result != 0) {
-    ext_htm_destroy(manager);
+    misc_htm_destroy(manager);
     *managerPtr = NULL;
   }
   
   return result;
 }
 
-int ext_htm_destroy(ext_htm_manager_t manager)
+int misc_htm_destroy(misc_htm_manager_t manager)
 {
   if (manager == NULL) return 0;
     
@@ -654,7 +652,7 @@ int ext_htm_destroy(ext_htm_manager_t manager)
   return result;
 }
 
-static int initializeThreadData(ext_htm_manager_t manager, ThreadData* data, size_t threadId)
+static int initializeThreadData(misc_htm_manager_t manager, ThreadData* data, size_t threadId)
 {
   data->manager = manager;
   data->threadId = threadId;
@@ -765,7 +763,7 @@ static bool stackIsEmpty(ThreadStack* stack) {
   return stack->first == NULL;
 }
 
-void ext_htm_printf(ext_htm_manager_t manager, const char* format, ...)
+void misc_htm_printf(misc_htm_manager_t manager, const char* format, ...)
 {
   if (manager == NULL || manager->numThreads == 0) {
     char buffer[BUFFER_LENGTH];
@@ -806,7 +804,7 @@ static void printThreadStack(ThreadStack* stack) {
   }
 }
 
-static void printManagerStatus(const ext_htm_manager_t manager)
+static void printManagerStatus(const misc_htm_manager_t manager)
 {
   if (manager->numTopLevelTasks == 0) {
     ext_printf("status: inactive\n");

@@ -4,9 +4,9 @@
 #include <cstring>
 #include <cstdio>
 
-#include <external/alloca.h>
-#include <external/stats.h>
-#include <external/linearAlgebra.h>
+#include <misc/alloca.h>
+#include <misc/linearAlgebra.h>
+#include <misc/stats.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/data.hpp>
@@ -78,7 +78,7 @@ namespace dbarts {
     
     double* nodePosteriorPredictions = NULL;
     
-    if (testFits != NULL) nodePosteriorPredictions = ext_stackAllocate(numBottomNodes, double);
+    if (testFits != NULL) nodePosteriorPredictions = misc_stackAllocate(numBottomNodes, double);
     
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
@@ -94,7 +94,7 @@ namespace dbarts {
       for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = nodePosteriorPredictions[observationNodeMap[i]];
       delete [] observationNodeMap;
       
-      ext_stackFree(nodePosteriorPredictions);
+      misc_stackFree(nodePosteriorPredictions);
     }
   }
   
@@ -286,12 +286,12 @@ namespace {
     if (n.getLeftChild()->getNumObservations() == 0 || n.getRightChild()->getNumObservations() == 0) {
       const NodeVector bottomNodes(n.getBottomVector());
       size_t numBottomNodes = bottomNodes.size();
-      double* weights = ext_stackAllocate(numBottomNodes, double);
-      double* params  = ext_stackAllocate(numBottomNodes, double);
+      double* weights = misc_stackAllocate(numBottomNodes, double);
+      double* params  = misc_stackAllocate(numBottomNodes, double);
       
       for (size_t i = 0; i < numBottomNodes; ++i) {
         Node& bottomNode(*bottomNodes[i]);
-        weights[i] = fit.data.weights == NULL ? static_cast<double>(bottomNode.getNumObservations()) : ext_sumIndexedVectorElements(fit.data.weights, bottomNode.observationIndices, bottomNode.getNumObservations());
+        weights[i] = fit.data.weights == NULL ? static_cast<double>(bottomNode.getNumObservations()) : misc_sumIndexedVectorElements(fit.data.weights, bottomNode.observationIndices, bottomNode.getNumObservations());
         params[i] = posteriorPredictions[bottomNodes[i]->enumerationIndex];
       }
       size_t leftMostEnumerationIndex = bottomNodes[0]->enumerationIndex;
@@ -299,15 +299,15 @@ namespace {
       delete n.getRightChild();
       n.leftChild = NULL;
       
-      if (weights[0] == 0.0 && ext_vectorIsConstant(weights, numBottomNodes)) {
-        posteriorPredictions[leftMostEnumerationIndex] = ext_computeMean(params, numBottomNodes);
+      if (weights[0] == 0.0 && misc_vectorIsConstant(weights, numBottomNodes)) {
+        posteriorPredictions[leftMostEnumerationIndex] = misc_computeMean(params, numBottomNodes);
       } else {
-        posteriorPredictions[leftMostEnumerationIndex] = ext_computeWeightedMean(params, numBottomNodes, weights, NULL);
+        posteriorPredictions[leftMostEnumerationIndex] = misc_computeWeightedMean(params, numBottomNodes, weights, NULL);
       }
       n.enumerationIndex = leftMostEnumerationIndex;
       
-      ext_stackFree(params);
-      ext_stackFree(weights);
+      misc_stackFree(params);
+      misc_stackFree(weights);
     } else {
       if (!n.getLeftChild()->isBottom()) collapseEmptyNodes(*n.getLeftChild(), fit, posteriorPredictions, depth + 1);
       if (!n.getRightChild()->isBottom()) collapseEmptyNodes(*n.getRightChild(), fit, posteriorPredictions, depth + 1);

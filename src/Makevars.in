@@ -1,16 +1,17 @@
 ## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
 MATCH_BAYES_TREE=@match_bayes_tree@
 THREAD_SAFE_UNLOAD=@thread_safe_unload@
+SIMD_FLAGS=@SIMD_FLAGS@
 
 INST_DIR=../inst
 
 PTHREAD_FLAGS=@PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude 
-PKG_LIBS=dbarts.a external.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
+PKG_LIBS=dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
-SUBDIRS = dbarts external rc
+SUBDIRS = dbarts external misc rc
 SUBLIBS = $(SUBDIRS:=.a)
 
 all: $(SHLIB)
@@ -22,12 +23,14 @@ sublibs:
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
 	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" \
            DBARTS_FLAGS="$(MATCH_BAYES_TREE) $(THREAD_SAFE_UNLOAD)" \
+           SIMD_FLAGS="$(SIMD_FLAGS)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CLINK_CPPFLAGS="$(CLINK_CPPFLAGS)" CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
            || exit 1; \
 	done
 
 clean: subclean
+	-rm -f ../inst/include/dbarts/types.hpp src/include/misc/types.h
 	@-rm -rf .libs _libs
 	@-rm -f *.o $(SHLIB)
 

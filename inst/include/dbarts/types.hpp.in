@@ -1,7 +1,11 @@
 #ifndef DBARTS_TYPES_HPP
 #define DBARTS_TYPES_HPP
 
-#include "config.hpp"
+#ifndef XINT_TYPE
+/* Define to the integer type to be used to map the floating point x to
+   integer types. Essentially limits the number of cut points allowable. */
+#undef XINT_TYPE
+#endif
 
 namespace dbarts {
   enum VariableType {

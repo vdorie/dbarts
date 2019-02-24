@@ -1,16 +1,16 @@
-#include <external/thread.h>
-#include "pthread.c"
-
 #include "config.h"
 
-#include <stdlib.h>
+#include <misc/thread.h>
+#include "pthread.h"
+
 #include <errno.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 struct ThreadData;
 
-static int initializeManager(ext_btm_manager_t manager, size_t numThreads);
-static int initializeThreadData(ext_btm_manager_t manager, struct ThreadData* data, size_t index);
+static int initializeManager(misc_btm_manager_t manager, size_t numThreads);
+static int initializeThreadData(misc_btm_manager_t manager, struct ThreadData* data, size_t index);
 static int destroyThreadData(struct ThreadData* data);
 
 static void* threadLoop(void* _data);
@@ -39,20 +39,20 @@ static size_t pop(IndexArrayQueue* queue); // returns IAQ_INVALID if buffer is e
 static size_t getNumElementsInQueue(const IndexArrayQueue* queue);
 
 typedef struct ThreadData {
-  ext_btm_manager_t manager;
+  misc_btm_manager_t manager;
   Condition taskAvailable;
   Condition parentTaskComplete;
   size_t id;
   
-  ext_btm_taskFunction_t task;
+  misc_btm_taskFunction_t task;
   void* taskData;
   
-  ext_btm_taskFunction_t parentTask;
+  misc_btm_taskFunction_t parentTask;
   void* parentTaskData;
   bool parentIsFinished;
 } ThreadData;
 
-typedef struct _ext_btm_manager_t {
+typedef struct _misc_btm_manager_t {
   Thread* threads;
   ThreadData* threadData;
   
@@ -68,14 +68,14 @@ typedef struct _ext_btm_manager_t {
   Condition threadIsActive;
   Condition threadIsWaiting;
   
-} _ext_btm_manager_t;
+} _misc_btm_manager_t;
 
-int ext_btm_create(ext_btm_manager_t* managerPtr, size_t numThreads)
+int misc_btm_create(misc_btm_manager_t* managerPtr, size_t numThreads)
 {
-  *managerPtr = (ext_btm_manager_t) malloc(sizeof(_ext_btm_manager_t));
+  *managerPtr = (misc_btm_manager_t) malloc(sizeof(_misc_btm_manager_t));
   if (*managerPtr == NULL) return ENOMEM;
   
-  ext_btm_manager_t manager = *managerPtr;
+  misc_btm_manager_t manager = *managerPtr;
   
   int result = initializeManager(manager, numThreads);
   if (result != 0) {
@@ -106,14 +106,14 @@ int ext_btm_create(ext_btm_manager_t* managerPtr, size_t numThreads)
   unlockMutex(manager->mutex);
   
   if (result != 0) {
-    ext_btm_destroy(manager);
+    misc_btm_destroy(manager);
     *managerPtr = NULL;
   }
   
   return result;
 }
 
-size_t ext_btm_getThreadId(const ext_btm_manager_t manager)
+size_t misc_btm_getThreadId(const misc_btm_manager_t manager)
 {
   Thread nativeThreadId = pthread_self();
   size_t i;
@@ -122,19 +122,19 @@ size_t ext_btm_getThreadId(const ext_btm_manager_t manager)
   return i;
 }
 
-size_t ext_btm_getNumThreads(const ext_btm_manager_t manager)
+size_t misc_btm_getNumThreads(const misc_btm_manager_t manager)
 {
   if (manager == NULL) return 1;
   return manager->numThreads;
 }
 
 
-void ext_btm_getNumThreadsForJob(const ext_btm_manager_t restrict threadManager, size_t numElements, size_t minNumElementsPerThread,
+void misc_btm_getNumThreadsForJob(const misc_btm_manager_t restrict threadManager, size_t numElements, size_t minNumElementsPerThread,
                                 size_t* restrict numThreadsPtr, size_t* restrict numElementsPerThreadPtr, size_t* restrict offByOneIndexPtr)
 {
   size_t numThreadsManaged = 0;
   if (numElements < 2 * minNumElementsPerThread || threadManager == NULL ||
-      (numThreadsManaged = ext_btm_getNumThreads(threadManager)) <= 1) {
+      (numThreadsManaged = misc_btm_getNumThreads(threadManager)) <= 1) {
     if (numThreadsPtr != NULL) *numThreadsPtr = 1;
     *numElementsPerThreadPtr = numElements;
     *offByOneIndexPtr = 1;
@@ -154,7 +154,7 @@ void ext_btm_getNumThreadsForJob(const ext_btm_manager_t restrict threadManager,
   *offByOneIndexPtr = offByOneIndex;
 }
 
-int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t function,
+int misc_btm_runTasks(misc_btm_manager_t restrict manager, misc_btm_taskFunction_t function,
                      void** restrict data, size_t numTasks)
 {
   if (manager->threads == NULL || manager->threadData == NULL ||
@@ -209,7 +209,7 @@ int ext_btm_runTasks(ext_btm_manager_t restrict manager, ext_btm_taskFunction_t 
   return result;
 }
 
-int ext_btm_runTaskInParentThread(ext_btm_manager_t restrict manager, size_t threadId, ext_btm_taskFunction_t task, void* restrict data)
+int misc_btm_runTaskInParentThread(misc_btm_manager_t restrict manager, size_t threadId, misc_btm_taskFunction_t task, void* restrict data)
 {
   if (manager->threads == NULL || manager->threadData == NULL ||
       manager->numThreadsActive == 0) return EINVAL;
@@ -236,7 +236,7 @@ int ext_btm_runTaskInParentThread(ext_btm_manager_t restrict manager, size_t thr
 static void* threadLoop(void* v_data)
 {
   ThreadData* data = (ThreadData*) v_data;
-  ext_btm_manager_t manager = data->manager;
+  misc_btm_manager_t manager = data->manager;
   
   lockMutex(manager->mutex);
   manager->numThreadsActive++;
@@ -266,7 +266,7 @@ static void* threadLoop(void* v_data)
   return NULL;
 }
 
-int ext_btm_destroy(ext_btm_manager_t manager)
+int misc_btm_destroy(misc_btm_manager_t manager)
 {
   if (manager == NULL) return 0;
     
@@ -309,11 +309,11 @@ int ext_btm_destroy(ext_btm_manager_t manager)
   return result;
 }
 
-bool ext_btm_isNull(ext_btm_manager_t manager) {
+bool misc_btm_isNull(misc_btm_manager_t manager) {
   return manager == NULL;
 }
 
-static int initializeManager(ext_btm_manager_t manager, size_t numThreads)
+static int initializeManager(misc_btm_manager_t manager, size_t numThreads)
 {
   int result;
   
@@ -330,38 +330,38 @@ static int initializeManager(ext_btm_manager_t manager, size_t numThreads)
   bool threadIsWaitingInitialized = false;
   
   manager->threads = (Thread*) malloc(numThreads * sizeof(Thread));
-  if (manager->threads == NULL) { result = ENOMEM; goto ext_btm_manager_initialization_failed; }
+  if (manager->threads == NULL) { result = ENOMEM; goto misc_btm_manager_initialization_failed; }
   
   manager->threadData = (ThreadData*) malloc(numThreads * sizeof(ThreadData));
-  if (manager->threadData == NULL) { result = ENOMEM; goto ext_btm_manager_initialization_failed; }
+  if (manager->threadData == NULL) { result = ENOMEM; goto misc_btm_manager_initialization_failed; }
     
   result = initializeIndexArrayQueue(&manager->threadQueue, numThreads);
-  if (result != 0) goto ext_btm_manager_initialization_failed;
+  if (result != 0) goto misc_btm_manager_initialization_failed;
   
   result = initializeIndexArrayQueue(&manager->parentTaskQueue, numThreads);
-  if (result != 0) goto ext_btm_manager_initialization_failed;
+  if (result != 0) goto misc_btm_manager_initialization_failed;
   
   result = initializeMutex(manager->mutex);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) mutexInitialized = true;
-    goto ext_btm_manager_initialization_failed;
+    goto misc_btm_manager_initialization_failed;
   }
   
   result = initializeCondition(manager->threadIsActive);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) threadIsActiveInitialized = true;
-    goto ext_btm_manager_initialization_failed;
+    goto misc_btm_manager_initialization_failed;
   }
   
   result = initializeCondition(manager->threadIsWaiting);
   if (result != 0) {
     threadIsWaitingInitialized = true;
-    goto ext_btm_manager_initialization_failed;
+    goto misc_btm_manager_initialization_failed;
   }
   
   return result;
   
-ext_btm_manager_initialization_failed:
+misc_btm_manager_initialization_failed:
   if (threadIsWaitingInitialized) destroyCondition(manager->threadIsWaiting);
   if (threadIsActiveInitialized) destroyCondition(manager->threadIsActive);
   if (mutexInitialized) destroyMutex(manager->mutex);
@@ -377,7 +377,7 @@ ext_btm_manager_initialization_failed:
   return result;
 }
 
-static int initializeThreadData(ext_btm_manager_t manager, ThreadData* data, size_t id)
+static int initializeThreadData(misc_btm_manager_t manager, ThreadData* data, size_t id)
 {
   data->manager = manager;
   data->id = id;
@@ -395,18 +395,18 @@ static int initializeThreadData(ext_btm_manager_t manager, ThreadData* data, siz
   int result = initializeCondition(data->taskAvailable);
   if (result != 0) {
     if (result != EBUSY && result != EINVAL) taskAvailableInitialized = true;
-    goto ext_btm_thread_initialization_failed;
+    goto misc_btm_thread_initialization_failed;
   }
   
   result = initializeCondition(data->parentTaskComplete);
   if (result != 0) {
     parentTaskCompleteInitialized = true;
-    goto ext_btm_thread_initialization_failed;
+    goto misc_btm_thread_initialization_failed;
   }
   
   return result;
   
-ext_btm_thread_initialization_failed:
+misc_btm_thread_initialization_failed:
   if (parentTaskCompleteInitialized) destroyCondition(data->parentTaskComplete);
   if (taskAvailableInitialized) destroyCondition(data->taskAvailable);
   

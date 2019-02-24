@@ -4,11 +4,11 @@
 #include <cstring>    // memcpy
 #include <algorithm>  // int max
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 #include <external/io.h>
-#include <external/linearAlgebra.h>
-#include <external/stats.h>
-#include <external/stats_mt.h>
+#include <misc/linearAlgebra.h>
+#include <misc/stats.h>
+#include <misc/partition.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/data.hpp>
@@ -34,20 +34,17 @@ namespace dbarts {
     splitIndex = DBARTS_INVALID_RULE_VARIABLE;
   }
   
-  bool Rule::goesRight(const BARTFit& fit, const xint_t* x) const
+  bool Rule::goesRight(const BARTFit& fit, const xint_t* xt) const
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
       // x is a double, but that is 64 bits wide, and as such we can treat it as
       // a 64 bit integer
       //uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const uint64_t*>(x + variableIndex)));
-      uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const xint_t*>(x + variableIndex)));
+      uint32_t categoryId = static_cast<uint32_t>(*(reinterpret_cast<const xint_t*>(xt + variableIndex)));
       
       return categoryGoesRight(categoryId);
     } else {
-      // const double* splitValues = fit.sharedScratch.cutPoints[variableIndex];
-      
-      // return x[variableIndex] > splitValues[splitIndex];
-      return x[variableIndex] > splitIndex; 
+      return xt[variableIndex] > splitIndex; 
     }
   }
   
@@ -136,7 +133,7 @@ namespace dbarts {
     if (&top != this) {
       ptrdiff_t offset = observationIndices - top.observationIndices;
       if (offset < 0 || offset > static_cast<ptrdiff_t>(fit.data.numObservations))
-        ext_throwError("obsrevationIndices out of range");
+        ext_throwError("observationIndices out of range");
       if (numObservations > fit.data.numObservations)
         ext_throwError("num observations greater than data");
       for (size_t i = 0; i < numObservations; ++i)
@@ -371,202 +368,265 @@ namespace dbarts {
     return result;
   }
   
-  Node* Node::findBottomNode(const BARTFit& fit, const xint_t* x) const
+  Node* Node::findBottomNode(const BARTFit& fit, const xint_t* xt) const
   {
     if (isBottom()) return const_cast<Node*>(this);
     
-    if (p.rule.goesRight(fit, x)) return p.rightChild->findBottomNode(fit, x);
+    if (xt[p.rule.variableIndex] > p.rule.splitIndex) return p.rightChild->findBottomNode(fit, xt);
     
-    return leftChild->findBottomNode(fit, x);
+    return leftChild->findBottomNode(fit, xt);
   }
 }
 
+#include <emmintrin.h>
+#include <smmintrin.h>
+
+#define _mm_cmpge_epu16(a, b) \
+        _mm_cmpeq_epi16(_mm_max_epu16(a, b), a)
+
+#define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
+
+#define _mm_cmpgt_epu16(a, b) \
+        _mm_xor_si128(_mm_cmple_epu16(a, b), _mm_set1_epi16(-1))
+
+#define _mm_cmplt_epu16(a, b) _mm_cmpgt_epu16(b, a)
+
+#  define countTrailingZeros(_X_) __builtin_ctz(_X_)
 
 namespace {
   using namespace dbarts;
-  
-  struct IndexOrdering {
-    const BARTFit& fit;
-    const Rule &rule;
-    
-    IndexOrdering(const BARTFit& fit, const Rule &rule) : fit(fit), rule(rule) { }
-    
-    bool operator()(size_t i) const { return rule.goesRight(fit, fit.sharedScratch.xt + i * fit.data.numPredictors); }
-  };
+
+ #define getDataAt(_I_) x[_I_]
+
+#define loadLHComp(_X_) \
+  (values = _mm_set_epi16(getDataAt(_X_ + 7), \
+                          getDataAt(_X_ + 6), \
+                          getDataAt(_X_ + 5), \
+                          getDataAt(_X_ + 4), \
+                          getDataAt(_X_ + 3), \
+                          getDataAt(_X_ + 2), \
+                          getDataAt(_X_ + 1), \
+                          getDataAt(_X_    )), \
+    _mm_cmpgt_epu16(values, _mm_set1_epi16(static_cast<xint_t>(rule.splitIndex))))
+
+#define loadRHComp(_X_) \
+  (values = _mm_set_epi16(getDataAt(_X_ - 7), \
+                          getDataAt(_X_ - 6), \
+                          getDataAt(_X_ - 5), \
+                          getDataAt(_X_ - 4), \
+                          getDataAt(_X_ - 3), \
+                          getDataAt(_X_ - 2), \
+                          getDataAt(_X_ - 1), \
+                          getDataAt(_X_    )), \
+    _mm_cmple_epu16(values, _mm_set1_epi16(static_cast<xint_t>(rule.splitIndex))))
   
   // returns how many observations are on the "left"
-  size_t partitionRange(size_t* restrict indices, size_t startIndex, size_t length, IndexOrdering& restrict indexGoesRight) {
-    size_t lengthOfLeft;
+  size_t partitionRange(const BARTFit& fit, const Rule& rule, size_t* restrict indices, size_t length) {
+    return misc_partitionRange(fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations,
+                               rule.splitIndex, indices, length);
+    /* size_t lengthOfLeft;
     
     size_t lh = 0, rh = length - 1;
-    size_t i = startIndex;
-    while (lh <= rh && rh > 0) {
-      if (indexGoesRight(i)) {
-        indices[rh] = i;
-        i = startIndex + rh--;
-      } else {
-        indices[lh] = i;
-        i = startIndex + ++lh;
-      }
-    }
-    if (lh == 0 && rh == 0) { // ugliness w/wrapping around at 0 makes an off-by-one when all obs go right
-      indices[startIndex] = i;
-      if (indexGoesRight(i)) {
-        lengthOfLeft = 0;
-      } else {
-        lengthOfLeft = 1;
-      }
-    } else {
-      lengthOfLeft = lh;
-    }
-    return lengthOfLeft;
-  }
-  
-  size_t partitionIndices(size_t* restrict indices, size_t length, IndexOrdering& restrict indexGoesRight) {
-    if (length == 0) return 0;
     
-    size_t lengthOfLeft;
+    for (size_t i = 0; i < length; ++i) indices[i] = i;
     
-    size_t lh = 0, rh = length - 1;
-    while (lh <= rh && rh > 0) {
-      if (indexGoesRight(indices[lh])) {
-        size_t temp = indices[rh];
-        indices[rh] = indices[lh];
-        indices[lh] = temp;
-        --rh;
-      } else {
-        ++lh;
-      }
-    }
-    if (lh == 0 && rh == 0) {
-      if (indexGoesRight(indices[0])) {
-        lengthOfLeft = 0;
-      } else {
-        lengthOfLeft = 1;
-      }
-    } else {
-      lengthOfLeft = lh;
-    }
+    const xint_t* x = fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations; */
     
-    return lengthOfLeft;
-  }
-  
-  /*
-   // http://en.wikipedia.org/wiki/XOR_swap_algorithm
-   void ext_swapVectors(size_t* restrict x, size_t* restrict y, size_t length)
-   {
-   if (length == 0) return;
-   
-   size_t lengthMod5 = length % 5;
-   
-   if (lengthMod5 != 0) {
-   for (size_t i = 0; i < lengthMod5; ++i) {
-   x[i] ^= y[i];
-   y[i] ^= x[i];
-   x[i] ^= y[i];
-   }
-   if (length < 5) return;
-   }
-   
-   for (size_t i = lengthMod5; i < length; i += 5) {
-   x[i    ] ^= y[i    ]; y[i    ] ^= x[i    ]; x[i    ] ^= y[i    ];
-   x[i + 1] ^= y[i + 1]; y[i + 1] ^= x[i + 1]; x[i + 1] ^= y[i + 1];
-   x[i + 2] ^= y[i + 2]; y[i + 2] ^= x[i + 2]; x[i + 2] ^= y[i + 2];
-   x[i + 3] ^= y[i + 3]; y[i + 3] ^= x[i + 3]; x[i + 3] ^= y[i + 3];
-   x[i + 4] ^= y[i + 4]; y[i + 4] ^= x[i + 4]; x[i + 4] ^= y[i + 4];
-   }
-   }
-   
-   // merges adjacent partitions of the form:
-   // [ l1 r1 l2 r2 ]
-   size_t mergeAdjacentPartitions(size_t* array, size_t firstTotalLength, size_t firstLeftLength,
-   size_t secondLeftLength)
-   {
-   // size_t* l1 = array;
-   size_t* r1 = array + firstLeftLength;
-   size_t* l2 = array + firstTotalLength;
-   // size_t* r2 = array + firstTotalLength + secondLeftLength;
-   
-   size_t firstRightLength = firstTotalLength - firstLeftLength;
-   
-   if (secondLeftLength <= firstRightLength) {
-   ext_swapVectors(r1, l2, secondLeftLength);
-   // end up w/[ l1 l2 r1_2 r1_1 r2 ]
-   } else {
-   ext_swapVectors(r1, l2 + (secondLeftLength - firstRightLength), firstRightLength);
-   // end up w/[ l1 l2_2 l2_1 r1 r2 ]
-   }
-   
-   return firstLeftLength + secondLeftLength;
-   }
-  
-  struct PartitionThreadData {
-    size_t* indices;
-    size_t startIndex;
-    size_t length;
-    IndexOrdering* ordering;
-    size_t numOnLeft;
-  };
-  
-  size_t mergePartitions(PartitionThreadData* data, size_t numThreads)
-  {
-    while (numThreads > 1) {
-      if (numThreads % 2 == 1) {
-        // if odd number, merge last two
-        PartitionThreadData* left = &data[numThreads - 2];
-        PartitionThreadData* right = &data[numThreads - 1];
-        
-        left->numOnLeft = mergeAdjacentPartitions(left->indices, left->length, left->numOnLeft, right->numOnLeft);
-        left->length += right->length;
-        
-        --numThreads;
-      }
-        
-      for (size_t i = 0; i < numThreads / 2; ++i) {
-        PartitionThreadData* left = &data[2 * i];
-        PartitionThreadData* right = &data[2 * i + 1];
-        
-        left->numOnLeft = mergeAdjacentPartitions(left->indices, left->length, left->numOnLeft, right->numOnLeft);
-        left->length += right->length;
-        
-        // now shift down in array so that valid stuffs always occupy the beginning
-        if (i > 0) {
-          right = &data[i];
-          std::memcpy(right, (const PartitionThreadData*) left, sizeof(PartitionThreadData));
+    /* if (lh + 16 < rh) {
+      
+      __m128i lh_comp, rh_comp, values;
+      uint8_t lh_sub = 0, rh_sub = 0;
+      uint16_t lh_mask = 0, rh_mask = 0;
+      
+      lh_comp = loadLHComp(lh);
+      lh_mask = _mm_movemask_epi8(lh_comp);
+      rh_comp = loadRHComp(rh);
+      rh_mask = _mm_movemask_epi8(rh_comp);
+      
+      while (true) {
+        while (lh_mask == 0 && lh + 16 < rh) {
+          lh += 8;
+          lh_comp = loadLHComp(lh);
+          lh_mask = _mm_movemask_epi8(lh_comp);
+          lh_sub = 0;
         }
+        while (rh_mask == 0 && lh + 16 < rh) {
+          rh -= 8;
+          rh_comp = loadRHComp(rh);
+          rh_mask = _mm_movemask_epi8(rh_comp);
+          rh_sub = 0;
+        }
+        if (lh + 16 >= rh) {
+          lh += lh_sub;
+          rh -= rh_sub;
+          break;
+        }
+        
+        do {
+          int zeros = countTrailingZeros(lh_mask);
+          lh_mask >>= zeros;
+          lh_sub += zeros / 2;
+          
+          zeros = countTrailingZeros(rh_mask);
+          rh_mask >>= zeros;
+          rh_sub += zeros / 2;
+          
+          indices[rh - rh_sub] = lh + lh_sub;
+          indices[lh + lh_sub] = rh - rh_sub;
+                    
+          lh_mask >>= 2;
+          rh_mask >>= 2;
+          ++lh_sub;
+          ++rh_sub;
+          
+        } while (lh_mask != 0 && rh_mask != 0);
       }
-      numThreads /= 2;
+    } */
+    /* while (true) {
+      while (x[lh] <= rule.splitIndex && lh < rh) ++lh;
+      while (x[rh]  > rule.splitIndex && lh < rh) --rh;
+      
+      if (lh >= rh) break;
+      
+      indices[rh] = lh;
+      indices[lh] = rh;
+      
+      ++lh;
+      --rh;
     }
-    return data[0].numOnLeft;
+    
+    lengthOfLeft = x[indices[lh]] <= rule.splitIndex ? lh + 1 : lh; */
+    
+    /* for (size_t i = 0; i < length; ++i) {
+      if (indices[i] >= fit.data.numObservations)
+        ext_throwError("partition range: index %lu out of range (%lu); lh: %lu, rh: %lu, lol: %lu", i, indices[i], lh, rh, lengthOfLeft);
+      if (i < lengthOfLeft && x[indices[i]] > rule.splitIndex)
+        ext_throwError("partition range: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
+      if (i >= lengthOfLeft && x[indices[i]] <= rule.splitIndex)
+        ext_throwError("partition range: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
+    } */
+    
+    // return lengthOfLeft;
   }
-  
-  void partitionTask(void* v_data) {
-    PartitionThreadData& data(*static_cast<PartitionThreadData*>(v_data));
 
-    data.numOnLeft = (data.startIndex != ((size_t) -1) ? 
-                      partitionRange(data.indices, data.startIndex, data.length, *data.ordering) :
-                      partitionIndices(data.indices, data.length, *data.ordering));
-  } */
+#undef getDataAt
+
+// #define getDataAt(_I_) fit.sharedScratch.xt[indices[_I_] * fit.data.numPredictors + rule.variableIndex]
+#define getDataAt(_I_) x[indices[_I_]]
+
+  size_t partitionIndices(const BARTFit& fit, const Rule& rule, size_t* restrict indices, size_t length) {
+    return misc_partitionIndices(fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations,
+                                 rule.splitIndex, indices, length);
+    /* if (length == 0) return 0;
+    
+    const xint_t* x = fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations;
+    
+    size_t lengthOfLeft;
+    
+    size_t lh = 0, rh = length - 1; */
+    
+    /* if (lh + 16 < rh) {
+      
+      __m128i lh_comp, rh_comp, values;
+      uint8_t lh_sub = 0, rh_sub = 0;
+      uint16_t lh_mask = 0, rh_mask = 0;
+      
+      lh_comp = loadLHComp(lh);
+      lh_mask = _mm_movemask_epi8(lh_comp);
+      rh_comp = loadRHComp(rh);
+      rh_mask = _mm_movemask_epi8(rh_comp);
+      
+      while (true) {
+        while (lh_mask == 0 && lh + 16 < rh) {
+          lh += 8;
+          lh_comp = loadLHComp(lh);
+          lh_mask = _mm_movemask_epi8(lh_comp);
+          lh_sub = 0;
+        }
+        while (rh_mask == 0 && lh + 16 < rh) {
+          rh -= 8;
+          rh_comp = loadRHComp(rh);
+          rh_mask = _mm_movemask_epi8(rh_comp);
+          rh_sub = 0;
+        }
+        if (lh + 16 >= rh) {
+          lh += lh_sub;
+          rh -= rh_sub;
+          break;
+        }
+        
+        do {
+          int zeros = countTrailingZeros(lh_mask);
+          lh_mask >>= zeros;
+          lh_sub += zeros / 2;
+          
+          zeros = countTrailingZeros(rh_mask);
+          rh_mask >>= zeros;
+          rh_sub += zeros / 2;
+          
+          size_t temp = indices[rh - rh_sub];
+          indices[rh - rh_sub] = indices[lh + lh_sub];
+          indices[lh + lh_sub] = temp;
+          
+          lh_mask >>= 2;
+          rh_mask >>= 2;
+          ++lh_sub;
+          ++rh_sub;
+        } while (lh_mask != 0 && rh_mask != 0);
+      }
+    } */
+   /*  while (true) {
+      while (x[indices[lh]] <= rule.splitIndex && lh < rh) ++lh;
+      while (x[indices[rh]]  > rule.splitIndex && lh < rh) --rh;
+      
+      
+      if (lh >= rh) break;
+      
+      size_t temp = indices[rh];
+      indices[rh] = indices[lh];
+      indices[lh] = temp;
+      
+      ++lh;
+      --rh;
+    }
+    lengthOfLeft = x[indices[lh]] <= rule.splitIndex ? lh + 1 : lh; */
+    
+    /* for (size_t i = 0; i < length; ++i) {
+      if (indices[i] >= fit.data.numObservations)
+        ext_throwError("partition indices: index %lu out of range (%lu); lh: %lu, rh: %lu, lol: %lu", i, indices[i], lh, rh, lengthOfLeft);
+      if (i < lengthOfLeft && x[indices[i]] > rule.splitIndex)
+        ext_throwError("partition indices: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
+      if (i >= lengthOfLeft && x[indices[i]] <= rule.splitIndex)
+        ext_throwError("partition indices: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
+    } */
+    
+    // return lengthOfLeft;
+  }
+
+#undef getDataAt
+
+#undef loadLHComp
+#undef loadRHComp
+  
 } // anon namespace
-// MT not worth it for this, apparently
-// #define MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD 5000
+
 
 namespace dbarts {
   void Node::addObservationsToChildren(const BARTFit& fit, size_t chainNum, const double* y) {
     if (isBottom()) {
       if (isTop()) {
         if (fit.data.weights == NULL) {
-          m.average = ext_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
+          m.average = misc_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
           m.numEffectiveObservations = static_cast<double>(numObservations);
         } else {
-          m.average = ext_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
+          m.average = misc_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
         }
       } else {
         if (fit.data.weights == NULL) {
-          m.average = ext_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
+          m.average = misc_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
           m.numEffectiveObservations = static_cast<double>(numObservations);
         } else {
-          m.average = ext_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
+          m.average = misc_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
         }
       }
       
@@ -576,48 +636,13 @@ namespace dbarts {
     leftChild->clearObservations();
     p.rightChild->clearObservations();
     
-    /*size_t numThreads, numElementsPerThread;
-    ext_mt_getNumThreadsForJob(fit.threadManager, numObservations, MIN_NUM_OBSERVATIONS_IN_NODE_PER_THREAD,
-                               &numThreads, &numElementsPerThread); */
-    
     
     if (numObservations > 0) {
       size_t numOnLeft = 0;
-      IndexOrdering ordering(fit, p.rule);
     
-      //if (numThreads <= 1) {
-        numOnLeft = (isTop() ?
-                     partitionRange(observationIndices, 0, numObservations, ordering) :
-                     partitionIndices(observationIndices, numObservations, ordering));
-      /*} else {
-        PartitionThreadData* threadData = ext_stackAllocate(numThreads, PartitionThreadData);
-        void** threadDataPtrs = ext_stackAllocate(numThreads, void*);
-      
-        size_t i;
-        for (i = 0; i < numThreads - 1; ++i) {
-          threadData[i].indices = observationIndices + i * numElementsPerThread;
-          threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
-          threadData[i].length = numElementsPerThread;
-          threadData[i].ordering = &ordering;
-          threadDataPtrs[i] = &threadData[i];
-        }
-        threadData[i].indices = observationIndices + i * numElementsPerThread;
-        threadData[i].startIndex = isTop() ? i * numElementsPerThread : ((size_t) -1);
-        threadData[i].length = numObservations - i * numElementsPerThread;
-        threadData[i].ordering = &ordering;
-        threadDataPtrs[i] = &threadData[i];
-     
-      
-      
-        ext_mt_runTasks(fit.threadManager, &partitionTask, threadDataPtrs, numThreads);
-      
-      
-      
-        numOnLeft = mergePartitions(threadData, numThreads);
-      
-        ext_stackFree(threadDataPtrs);
-        ext_stackFree(threadData);
-      } */
+      numOnLeft = (isTop() ?
+                   partitionRange(fit, p.rule, observationIndices, numObservations) :
+                   partitionIndices(fit, p.rule, observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;
@@ -640,11 +665,9 @@ namespace dbarts {
     p.rightChild->clearObservations();
     
     if (numObservations > 0) {
-      IndexOrdering ordering(fit, p.rule);
-    
       size_t numOnLeft = (isTop() ?
-                   partitionRange(observationIndices, 0, numObservations, ordering) :
-                   partitionIndices(observationIndices, numObservations, ordering));
+                          partitionRange(fit, p.rule, observationIndices, numObservations) :
+                          partitionIndices(fit, p.rule, observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;
@@ -662,16 +685,16 @@ namespace dbarts {
         
     if (isTop()) {
       if (fit.data.weights == NULL) {
-        m.average = ext_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
+        m.average = misc_htm_computeMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations);
         m.numEffectiveObservations = static_cast<double>(numObservations);
       }
-      else m.average = ext_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
+      else m.average = misc_htm_computeWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, &m.numEffectiveObservations);
     } else {
       if (fit.data.weights == NULL) {
-        m.average = ext_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
+        m.average = misc_htm_computeIndexedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations);
         m.numEffectiveObservations = static_cast<double>(numObservations);
       }
-      else m.average = ext_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
+      else m.average = misc_htm_computeIndexedWeightedMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, &m.numEffectiveObservations);
     }
   }
   
@@ -690,15 +713,15 @@ namespace dbarts {
   {
     if (isTop()) {
       if (fit.data.weights == NULL) {
-        return ext_htm_computeVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, getAverage());
+        return misc_htm_computeVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, getAverage());
       } else {
-        return ext_htm_computeWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, getAverage());
+        return misc_htm_computeWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, numObservations, fit.data.weights, getAverage());
       }
     } else {
       if (fit.data.weights == NULL) {
-        return ext_htm_computeIndexedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, getAverage());
+        return misc_htm_computeIndexedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, getAverage());
       } else {
-        return ext_htm_computeIndexedWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, getAverage());
+        return misc_htm_computeIndexedWeightedVarianceForKnownMean(fit.threadManager, fit.chainScratch[chainNum].taskId, y, observationIndices, numObservations, fit.data.weights, getAverage());
       }
     }
   }
@@ -714,11 +737,11 @@ namespace dbarts {
   void Node::setPredictions(double* y_hat, double prediction) const
   {
     if (isTop()) {
-      ext_setVectorToConstant(y_hat, getNumObservations(), prediction);
+      misc_setVectorToConstant(y_hat, getNumObservations(), prediction);
       return;
     }
     
-    ext_setIndexedVectorToConstant(y_hat, observationIndices, getNumObservations(), prediction);
+    misc_setIndexedVectorToConstant(y_hat, observationIndices, getNumObservations(), prediction);
   }
   
   size_t Node::getDepth() const

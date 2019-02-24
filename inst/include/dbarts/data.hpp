@@ -2,9 +2,9 @@
 #define DBARTS_DATA_HPP
 
 #include <cstddef> // size_t
-#include "cstdint.hpp"
+#include <dbarts/cstdint.hpp>
 
-#include "types.hpp"
+#include <dbarts/types.hpp>
 
 namespace dbarts {
   struct Data {

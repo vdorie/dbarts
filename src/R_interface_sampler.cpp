@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstring> // strcmp, memcpy
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 
 #include <R_ext/Random.h> // GetRNGstate, PutRNGState
 
@@ -471,18 +471,18 @@ extern "C" {
     
     int* colsInt = INTEGER(colsExpr);
     size_t numCols = rc_getLength(colsExpr);
-    size_t* cols = ext_stackAllocate(numCols, size_t);
+    size_t* cols = misc_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
       if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) {
-        ext_stackFree(cols);
+        misc_stackFree(cols);
         Rf_error("column '%d' is out of range", colsInt[i]);
       }
     }
     
     bool result = fit->updatePredictors(REAL(x), cols, numCols);
     
-    ext_stackFree(cols);
+    misc_stackFree(cols);
     
     return Rf_ScalarLogical(result);
   }
@@ -519,18 +519,18 @@ extern "C" {
     
     int* colsInt = INTEGER(colsExpr);
     size_t numCols = rc_getLength(colsExpr);
-    size_t* cols = ext_stackAllocate(numCols, size_t);
+    size_t* cols = misc_stackAllocate(numCols, size_t);
     for (size_t i = 0 ; i < numCols; ++i) {
       cols[i] = static_cast<size_t>(colsInt[i] - 1);
       if (cols[i] >= fit->data.numPredictors) {
-        ext_stackFree(cols);
+        misc_stackFree(cols);
         Rf_error("column '%d' is out of range", colsInt[i]);
       }
     }
     
     fit->updateTestPredictors(REAL(x_test), cols, numCols);
     
-    ext_stackFree(cols);
+    misc_stackFree(cols);
     
     return R_NilValue;
   }
@@ -579,7 +579,7 @@ extern "C" {
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
     
-    size_t* chainIndices  = ext_stackAllocate(numChainIndices, size_t);
+    size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = fit->control.keepTrees ? new size_t[numSamples] : NULL;
     size_t* treeIndices   = new size_t[numTreeIndices];
     
@@ -608,7 +608,7 @@ extern "C" {
     
     delete [] treeIndices;
     delete [] sampleIndices;
-    ext_stackFree(chainIndices);
+    misc_stackFree(chainIndices);
     
     return R_NilValue;
   }

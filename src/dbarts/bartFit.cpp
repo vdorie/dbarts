@@ -22,12 +22,14 @@
 #include <vector>    //   split points
 #include <algorithm> // integer min
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
+#include <misc/linearAlgebra.h>
+#include <misc/stats.h>
+
 #include <external/io.h>
+#include <external/linearAlgebra.h>
 #include <external/random.h>
 #include <external/stats.h>
-#include <external/stats_mt.h>
-#include <external/linearAlgebra.h>
 
 #include <dbarts/results.hpp>
 #include "functions.hpp"
@@ -84,18 +86,18 @@ namespace dbarts {
   {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       
-      ext_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
+      misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        ext_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * data.numObservations),
-                              data.numObservations, 1.0,
-                              chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * data.numObservations),
+                               data.numObservations, 1.0,
+                               chainScratch[chainNum].totalFits);
       
       
       if (data.numTestObservations > 0) {
         double* testFits = new double[data.numTestObservations];
         
-        ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
+        misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
           double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
@@ -105,7 +107,7 @@ namespace dbarts {
           
           state[chainNum].trees[treeNum].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, treeFits, testFits);
           
-          ext_addVectorsInPlace(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          misc_addVectorsInPlace(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
           
           delete [] nodePosteriorPredictions;
         }
@@ -118,7 +120,7 @@ namespace dbarts {
   void BARTFit::setResponse(const double* newY) {
     
     if (!control.responseIsBinary) {
-      double* sigmaUnscaled = ext_stackAllocate(control.numChains, double);
+      double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
       
@@ -133,7 +135,7 @@ namespace dbarts {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
       
-      ext_stackFree(sigmaUnscaled);
+      misc_stackFree(sigmaUnscaled);
      
     } else {
       data.y = newY;
@@ -147,7 +149,7 @@ namespace dbarts {
   
   void BARTFit::setOffset(const double* newOffset) {
     if (!control.responseIsBinary) {
-      double* sigmaUnscaled = ext_stackAllocate(control.numChains, double);
+      double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
       
@@ -162,7 +164,7 @@ namespace dbarts {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
       
-      ext_stackFree(sigmaUnscaled);
+      misc_stackFree(sigmaUnscaled);
       
     } else {
       data.offset = newOffset;
@@ -184,7 +186,7 @@ namespace {
       nodePosteriorPredictions[treeNum] = NULL;
     
     bool allTreesAreValid = true;
-    bool* allTreesInChainAreValid = ext_stackAllocate(control.numChains, bool);
+    bool* allTreesInChainAreValid = misc_stackAllocate(control.numChains, bool);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       allTreesInChainAreValid[chainNum] = true;
@@ -214,13 +216,13 @@ namespace {
         double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
         double* posteriorPredictions = nodePosteriorPredictions[treeNum + chainNum * control.numTrees];
         
-        ext_addVectorsInPlace(treeFits, data.numObservations, -1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlace(treeFits, data.numObservations, -1.0, chainScratch[chainNum].totalFits);
         
         state[chainNum].trees[treeNum].setCurrentFitsFromAverages(fit, posteriorPredictions, treeFits, NULL);
         for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j)
           updateVariablesAvailable(fit, state[chainNum].trees[treeNum].top, j);
         
-        ext_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
       }
     }
         
@@ -228,7 +230,7 @@ updateTreesWithNewPredictor_cleanup:
     for (size_t treeNum = totalNumTrees; treeNum > 0; --treeNum)
       delete [] nodePosteriorPredictions[treeNum - 1];
     
-    ext_stackFree(allTreesInChainAreValid);
+    misc_stackFree(allTreesInChainAreValid);
     
     delete [] nodePosteriorPredictions;
     
@@ -248,12 +250,12 @@ namespace dbarts {
     
     setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
     
-    // ext_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
+    // misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
         
-        ext_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
+        misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
           size_t treeOffset = treeNum + sampleNum * control.numTrees;
@@ -263,7 +265,7 @@ namespace dbarts {
           
           state[chainNum].savedTrees[treeOffset].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, xt_test, numTestObservations, currTestFits);
       
-          ext_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
+          misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
           
           delete [] nodePosteriorPredictions;
         }
@@ -272,11 +274,11 @@ namespace dbarts {
         if (control.responseIsBinary) {
           std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
         } else {
-          ext_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-          ext_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+          misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+          misc_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
         }
         
-        if (testOffset != NULL) ext_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
+        if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
       }
     }
     
@@ -288,17 +290,17 @@ namespace dbarts {
   // this can leave the tree structures in an invalid state and doesn't roll-back
   bool BARTFit::setPredictor(const double* newPredictor)
   {
-    size_t* columns = ext_stackAllocate(data.numPredictors, size_t);
+    size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
     for (size_t i = 0; i < data.numPredictors; ++i) columns[i] = i;
     
     setCutPoints(*this, columns, data.numPredictors);
     
-    ext_stackFree(columns);
+    misc_stackFree(columns);
     
     data.x = newPredictor;
     
     setXIntegerCutMap(*this);
-    // ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
+    // misc_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
     
     return updateTreesWithNewPredictor(*this, state, chainScratch, true);
   }
@@ -325,7 +327,7 @@ namespace dbarts {
     setCutPoints(*this, columns, numColumns);
     
     double* x  = const_cast<double*>(data.x);
-    xint_t* xt = const_cast<xint_t*>(sharedScratch.xt);
+    xint_t* xint = const_cast<xint_t*>(sharedScratch.x);
     for (size_t j = 0; j < numColumns; ++j) {
       size_t col = columns[j];
       std::memcpy(x + col * data.numObservations, newPredictor + j * data.numObservations, data.numObservations * sizeof(double));
@@ -333,7 +335,8 @@ namespace dbarts {
         xint_t k = 0;
         while (k < sharedScratch.numCutsPerVariable[col] &&
                data.x[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
-        xt[i * data.numPredictors + col] = k;
+        // xt[i * data.numPredictors + col] = k;
+        xint[i + col * data.numObservations] = k;
       }
     }
     
@@ -352,8 +355,9 @@ namespace dbarts {
           xint_t k = 0;
           while (k < sharedScratch.numCutsPerVariable[col] &&
                  data.x[i + col * data.numObservations] > sharedScratch.cutPoints[col][k]) ++k;
-          xt[i * data.numPredictors + col] = k;
+          // xt[i * data.numPredictors + col] = k;
           // xt[i * data.numPredictors + columns[j]] = oldPredictor[i + j * data.numObservations];
+          xint[i + col * data.numObservations] = k;
         }
       }
       
@@ -390,7 +394,7 @@ namespace {
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       
-      ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
+      misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
@@ -399,7 +403,7 @@ namespace {
       
         state[chainNum].trees[treeNum].setCurrentFitsFromAverages(fit, nodePosteriorPredictions, NULL, currTestFits);
       
-        ext_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+        misc_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
       
         delete [] nodePosteriorPredictions;
       }
@@ -436,7 +440,7 @@ namespace dbarts {
       }
       
       setXTestIntegerCutMap(*this, x_test, numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
-      // ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+      // misc_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
       
       if (testOffset != INVALID_ADDRESS) data.testOffset = testOffset;
       
@@ -462,6 +466,7 @@ namespace dbarts {
         while (k < sharedScratch.numCutsPerVariable[col] &&
                x_test[i + col * data.numTestObservations] > sharedScratch.cutPoints[col][k]) ++k;
         xt_test[i * data.numPredictors + col] = k;
+        // xt_test[i  + col * data.numTestObservations] = k;
 
         // xt_test[i * data.numPredictors + col] = newTestPredictor[i + j * data.numTestObservations];
       }
@@ -497,9 +502,9 @@ namespace dbarts {
     
     if (oldNumObservations != data.numObservations) {
       // handle resizing arrays
-      delete [] sharedScratch.xt;
+      delete [] sharedScratch.x;
       
-      sharedScratch.xt = new xint_t[data.numObservations * data.numPredictors];
+      sharedScratch.x = new xint_t[data.numObservations * data.numPredictors];
       
       if (!control.responseIsBinary) {
         delete [] sharedScratch.yRescaled;
@@ -507,12 +512,12 @@ namespace dbarts {
       }
     }
     
-    size_t** oldTreeIndices      = ext_stackAllocate(control.numChains, size_t*);
-    double** oldTreeFits         = ext_stackAllocate(control.numChains, double*);
-    size_t** oldSavedTreeIndices = ext_stackAllocate(control.numChains, size_t*);
-    double** oldSavedTreeFits    = ext_stackAllocate(control.numChains, double*);
+    size_t** oldTreeIndices      = misc_stackAllocate(control.numChains, size_t*);
+    double** oldTreeFits         = misc_stackAllocate(control.numChains, double*);
+    size_t** oldSavedTreeIndices = misc_stackAllocate(control.numChains, size_t*);
+    double** oldSavedTreeFits    = misc_stackAllocate(control.numChains, double*);
     
-    double** currTestFits = ext_stackAllocate(control.numChains, double*);
+    double** currTestFits = misc_stackAllocate(control.numChains, double*);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       // extract from old data what we'll need to update
@@ -548,7 +553,7 @@ namespace dbarts {
     if (control.responseIsBinary) {
       initializeLatents(*this);
     } else {
-      double* sigmaUnscaled = ext_stackAllocate(control.numChains, double);
+      double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
       
@@ -561,11 +566,11 @@ namespace dbarts {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
       
-      ext_stackFree(sigmaUnscaled);
+      misc_stackFree(sigmaUnscaled);
     }
            
     // cache old cut points, for use in updating trees
-    const double** oldCutPoints = ext_stackAllocate(data.numPredictors, const double*);
+    const double** oldCutPoints = misc_stackAllocate(data.numPredictors, const double*);
     for (size_t j = 0; j < data.numPredictors; ++j) {
       oldCutPoints[j] = sharedScratch.cutPoints[j];
       // next assignments 'reset' the variables, so setCutPoints() ignores old values
@@ -573,16 +578,16 @@ namespace dbarts {
       const_cast<double**>(sharedScratch.cutPoints)[j] = NULL;
     }
     // set new cut points
-    size_t* columns = ext_stackAllocate(data.numPredictors, size_t);
+    size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
     for (size_t j = 0; j < data.numPredictors; ++j) columns[j] = j;
     setCutPoints(*this, columns, data.numPredictors);
-    ext_stackFree(columns);
+    misc_stackFree(columns);
     
     // now initialize remaining arrays that use numObs
     setXIntegerCutMap(*this);
-    // ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt)); 
+    // misc_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt)); 
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      ext_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
+      misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
     
     
     if (data.numTestObservations == 0 || data.x_test == NULL) {
@@ -605,11 +610,11 @@ namespace dbarts {
         }
       }
       setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
-      // ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+      // misc_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
 
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         currTestFits[chainNum] = new double[data.numTestObservations];
-        ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
+        misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
       }
     }
     
@@ -641,10 +646,10 @@ namespace dbarts {
         
         double* currTreeFits = state[chainNum].treeFits + treeNum * data.numObservations;
         state[chainNum].trees[treeNum].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, currTreeFits, currTestFits[chainNum]);
-        ext_addVectorsInPlace(currTreeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlace(currTreeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
         
         if (data.numTestObservations > 0)
-          ext_addVectorsInPlace(currTestFits[chainNum], data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          misc_addVectorsInPlace(currTestFits[chainNum], data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
         
         delete [] nodePosteriorPredictions;
       }
@@ -680,7 +685,7 @@ namespace dbarts {
       delete [] currTestFits[chainNum]; // can be NULL, no big deal
     
     for (size_t i = 0; i < data.numPredictors; ++i) delete [] oldCutPoints[i];
-    ext_stackFree(oldCutPoints);
+    misc_stackFree(oldCutPoints);
     
     if (oldNumObservations != data.numObservations) {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -691,12 +696,12 @@ namespace dbarts {
       }
     }
     
-    ext_stackFree(currTestFits);
+    misc_stackFree(currTestFits);
     
-    ext_stackFree(oldSavedTreeFits);
-    ext_stackFree(oldSavedTreeIndices);
-    ext_stackFree(oldTreeFits);
-    ext_stackFree(oldTreeIndices);
+    misc_stackFree(oldSavedTreeFits);
+    misc_stackFree(oldSavedTreeIndices);
+    misc_stackFree(oldTreeFits);
+    misc_stackFree(oldTreeIndices);
   }
   
   void BARTFit::setControl(const Control& newControl)
@@ -734,8 +739,8 @@ namespace dbarts {
       nodePrior->precision = precisionUnscaled * static_cast<double>(newControl.numTrees);
     }
     
-    ext_rng_algorithm_t old_rng_algorithm = control.rng_algorithm;
-    ext_rng_standardNormal_t old_rng_standardNormal = control.rng_standardNormal;
+    rng_algorithm_t old_rng_algorithm = control.rng_algorithm;
+    rng_standardNormal_t old_rng_standardNormal = control.rng_standardNormal;
     
     control = newControl;
     
@@ -841,7 +846,7 @@ namespace dbarts {
     destroyRNG(*this);
     
     delete [] sharedScratch.yRescaled; sharedScratch.yRescaled = NULL;
-    delete [] sharedScratch.xt; sharedScratch.xt = NULL;
+    delete [] sharedScratch.x; sharedScratch.x = NULL;
     delete [] sharedScratch.xt_test; sharedScratch.xt_test = NULL;
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       delete [] chainScratch[chainNum].totalTestFits; chainScratch[chainNum].totalTestFits = NULL;
@@ -863,7 +868,7 @@ namespace dbarts {
     
     ::operator delete (state);
     
-    ext_htm_destroy(threadManager);
+    misc_htm_destroy(threadManager);
   }
   
   Results* BARTFit::runSampler()
@@ -948,20 +953,20 @@ extern "C" {
     double* currFits = new double[data.numObservations];
     double* currTestFits = data.numTestObservations > 0 ? new double[data.numTestObservations] : NULL;
     
-    uint32_t* variableCounts = ext_stackAllocate(data.numPredictors, uint32_t);
+    uint32_t* variableCounts = misc_stackAllocate(data.numPredictors, uint32_t);
     
     size_t totalNumIterations = (numBurnIn + numSamples) * control.treeThinningRate;
     
     // reserve once at the start if possible
     if (control.numThreads > 1 && control.numChains == 1)
-      ext_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
+      misc_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
     
     // const cast b/c yRescaled doesn't change, but probit latents do
     double* y = control.responseIsBinary ? chainScratch.probitLatents : const_cast<double*>(sharedScratch.yRescaled);
     
     for (size_t k = 0; k < totalNumIterations; ++k) {
       if (control.numThreads > 1 && control.numChains > 1)
-        ext_htm_reserveThreadsForSubTask(fit.threadManager, taskId, k);
+        misc_htm_reserveThreadsForSubTask(fit.threadManager, taskId, k);
       
       bool isThinningIteration = ((k + 1) % control.treeThinningRate != 0);
       size_t majorIterationNum = k / control.treeThinningRate;
@@ -971,12 +976,12 @@ extern "C" {
             
       if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0) {
         if (control.numChains > 1)
-          ext_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
+          misc_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
         else
           ext_printf("iteration: %u (of %u)\n", k + 1, totalNumIterations);
       }
       
-      if (!isThinningIteration && data.numTestObservations > 0) ext_setVectorToConstant(chainScratch.totalTestFits, data.numTestObservations, 0.0);
+      if (!isThinningIteration && data.numTestObservations > 0) misc_setVectorToConstant(chainScratch.totalTestFits, data.numTestObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         double* oldTreeFits = state.treeFits + treeNum * data.numObservations;
@@ -984,8 +989,8 @@ extern "C" {
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
         std::memcpy(chainScratch.treeY, y, data.numObservations * sizeof(double));
-        ext_addVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
-        ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
+        misc_addVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
+        misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
         
         state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
@@ -994,11 +999,11 @@ extern "C" {
         state.trees[treeNum].sampleAveragesAndSetFits(fit, chainNum, state.sigma, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
-        ext_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
-        ext_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, 1.0, chainScratch.totalFits);
+        misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
+        misc_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, 1.0, chainScratch.totalFits);
         
         if (!isThinningIteration && data.numTestObservations > 0)
-          ext_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, 1.0, chainScratch.totalTestFits);
+          misc_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, 1.0, chainScratch.totalTestFits);
         
         std::memcpy(oldTreeFits, const_cast<const double*>(currFits), data.numObservations * sizeof(double));
       }
@@ -1016,9 +1021,9 @@ extern "C" {
       } else {
         double sumOfSquaredResiduals;
         if (data.weights != NULL) {
-          sumOfSquaredResiduals = ext_htm_computeWeightedSumOfSquaredResiduals(fit.threadManager, taskId, y, data.numObservations, data.weights, chainScratch.totalFits);
+          sumOfSquaredResiduals = misc_htm_computeWeightedSumOfSquaredResiduals(fit.threadManager, taskId, y, data.numObservations, data.weights, chainScratch.totalFits);
         } else {
-          sumOfSquaredResiduals = ext_htm_computeSumOfSquaredResiduals(fit.threadManager, taskId, y, data.numObservations, chainScratch.totalFits);
+          sumOfSquaredResiduals = misc_htm_computeSumOfSquaredResiduals(fit.threadManager, taskId, y, data.numObservations, chainScratch.totalFits);
         }
         state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(state.rng, static_cast<double>(data.numObservations), sumOfSquaredResiduals));
       }
@@ -1043,7 +1048,7 @@ extern "C" {
     
     delete [] currFits;
     if (data.numTestObservations > 0) delete [] currTestFits;
-    ext_stackFree(variableCounts);
+    misc_stackFree(variableCounts);
   }
 }
 
@@ -1093,9 +1098,9 @@ namespace dbarts {
         struct timespec outputDelay;
         outputDelay.tv_sec = 0;
         outputDelay.tv_nsec = 100000000; // every 0.1 seconds
-        ext_htm_runTopLevelTasksWithOutput(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains, &outputDelay);
+        misc_htm_runTopLevelTasksWithOutput(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains, &outputDelay);
       } else {
-        ext_htm_runTopLevelTasks(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains);
+        misc_htm_runTopLevelTasks(threadManager, &samplerThreadFunction, threadDataPtr, control.numChains);
       }
       
       delete [] threadDataPtr;
@@ -1219,7 +1224,7 @@ namespace {
     }
     ext_printf("\n");
     
-    uint32_t* variableCounts = ext_stackAllocate(fit.data.numPredictors, uint32_t);
+    uint32_t* variableCounts = misc_stackAllocate(fit.data.numPredictors, uint32_t);
     
     ext_printf("Variable Usage, last iteration (var:count):\n");
     for (size_t j = 0; j < fit.data.numPredictors; ++j) variableCounts[j] = 0;
@@ -1230,7 +1235,7 @@ namespace {
       if ((j + 1) % 5 == 0) ext_printf("\n");
     }
     
-    ext_stackFree(variableCounts);
+    misc_stackFree(variableCounts);
     
     ext_printf("\nDONE BART\n\n");
   }
@@ -1268,13 +1273,13 @@ namespace {
     
     // shared scratch
     /* sharedScratch.xt = new double[data.numObservations * data.numPredictors];
-    ext_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
+    misc_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
     
     if (data.numTestObservations > 0) {
       sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
-      ext_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
+      misc_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
     } */
-    sharedScratch.xt = new xint_t[data.numObservations * data.numPredictors];
+    sharedScratch.x = new xint_t[data.numObservations * data.numPredictors];
     if (data.numTestObservations > 0)
       sharedScratch.xt_test = new xint_t[data.numTestObservations * data.numPredictors];
     
@@ -1289,7 +1294,7 @@ namespace {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       new (fit.state + chainNum) State(control, data);
     
-    if (control.numThreads > 1 && ext_htm_create(&fit.threadManager, control.numThreads) != 0) {
+    if (control.numThreads > 1 && misc_htm_create(&fit.threadManager, control.numThreads) != 0) {
       ext_printMessage("Unable to multi-thread, defaulting to single.");
       control.numThreads = 1;
     }
@@ -1323,12 +1328,12 @@ namespace {
       cutPoints[i] = NULL;
     }
     
-    size_t* columns = ext_stackAllocate(data.numPredictors, size_t);
+    size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
     for (size_t j = 0; j < data.numPredictors; ++j) columns[j] = j;
     
     setCutPoints(fit, columns, data.numPredictors);
     
-    ext_stackFree(columns);
+    misc_stackFree(columns);
   }
   
   void setXIntegerCutMap(BARTFit& fit)
@@ -1336,7 +1341,7 @@ namespace {
     const Data& data(fit.data);
     SharedScratch& sharedScratch(fit.sharedScratch);
     
-    xint_t* xt = const_cast<xint_t*>(sharedScratch.xt);
+    xint_t* x = const_cast<xint_t*>(sharedScratch.x);
     
     for (size_t i = 0; i < data.numObservations; ++i) {
       for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -1347,7 +1352,8 @@ namespace {
         while (k < sharedScratch.numCutsPerVariable[j] &&
                data.x[i + j * data.numObservations] > sharedScratch.cutPoints[j][k]) ++k;
         
-        xt[i * data.numPredictors + j] = k;
+        // xt[i * data.numPredictors + j] = k;
+        x[i + j * data.numObservations] = k;
       }
     }
   }
@@ -1366,6 +1372,7 @@ namespace {
                x_test[i + j * numTestObservations] > sharedScratch.cutPoints[j][k]) ++k;
       
         xt_test[i * data.numPredictors + j] = k;
+        // xt_test[i  + j * numTestObservations] = k;
       }
     }
   }
@@ -1478,16 +1485,20 @@ namespace {
     size_t numSeedResets;
     size_t chainNum;
     const char* errorMessage = NULL;
+    
+    ext_rng_algorithm_t rng_algorithm = static_cast<ext_rng_algorithm_t>(control.rng_algorithm);
+    ext_rng_standardNormal_t rng_standardNormal = static_cast<ext_rng_standardNormal_t>(control.rng_standardNormal);
+    
     for (chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      if (control.rng_algorithm == EXT_RNG_ALGORITHM_INVALID) { // use default of some kind
+      if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID) { // use default of some kind
         if ((state[chainNum].rng = ext_rng_createDefault(useNativeRNG)) == NULL) {
           errorMessage = "could not allocate rng";
           goto createRNG_cleanup;
         }
         
-        if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
-            control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
-            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
+        if (rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+            rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
+            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, rng_standardNormal, NULL) != 0) {
           errorMessage = "could not set rng standard normal";
           goto createRNG_cleanup;
         }
@@ -1511,19 +1522,19 @@ namespace {
           }
         }
       } else {
-        if ((state[chainNum].rng = ext_rng_create(control.rng_algorithm, NULL)) == NULL) {
+        if ((state[chainNum].rng = ext_rng_create(rng_algorithm, NULL)) == NULL) {
           errorMessage = "could not allocate rng";
           goto createRNG_cleanup;
         }
         
-        if (control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
-            control.rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
-            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, NULL) != 0) {
+        if (rng_standardNormal != EXT_RNG_STANDARD_NORMAL_INVALID &&
+            rng_standardNormal != EXT_RNG_STANDARD_NORMAL_USER_NORM &&
+            ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, rng_standardNormal, NULL) != 0) {
           errorMessage = "could not set rng standard normal";
           goto createRNG_cleanup;
         }
         
-        if (control.rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
+        if (rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM) {
           if (ext_rng_setSeedFromClock(state[chainNum].rng) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
           
           numSeedResets = 0;
@@ -1564,7 +1575,7 @@ namespace dbarts {
       if (uniformState != NULL && uniformState[chainNum] != NULL)
         ext_rng_setState(state[chainNum].rng, uniformState[chainNum]);
       if (normalState  != NULL && normalState[chainNum]  != NULL)
-        ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, control.rng_standardNormal, normalState[chainNum]);
+        ext_rng_setStandardNormalAlgorithm(state[chainNum].rng, static_cast<ext_rng_standardNormal_t>(control.rng_standardNormal), normalState[chainNum]);
     }
   }
   
@@ -1585,10 +1596,10 @@ namespace {
     ChainScratch* chainScratch(fit.chainScratch);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      ext_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
+      misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       if (data.numTestObservations > 0)
-        ext_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
+        misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
     }
   }
   
@@ -1616,14 +1627,14 @@ namespace {
     
     // z = 2.0 * y - 1.0 - offset; so -1 if y == 0 and 1 if y == 1 when offset == 0
 #ifndef MATCH_BAYES_TREE
-    ext_setVectorToConstant(z, data.numObservations, -1.0);
-    if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
-    ext_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    misc_setVectorToConstant(z, data.numObservations, -1.0);
+    if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
+    misc_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
 #else
     // BayesTree initialized the latents to be -2 and 0; was probably a bug
-    ext_setVectorToConstant(z, data.numObservations, -2.0);
-    if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
-    ext_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    misc_setVectorToConstant(z, data.numObservations, -2.0);
+    if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
+    misc_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
 #endif
   }
   
@@ -1634,7 +1645,7 @@ namespace {
     double* yRescaled = const_cast<double*>(fit.sharedScratch.yRescaled);
     
     if (data.offset != NULL) {
-      ext_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
+      misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
     } else {
       std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
     }
@@ -1649,9 +1660,9 @@ namespace {
     if (sharedScratch.dataScale.max == sharedScratch.dataScale.min) sharedScratch.dataScale.range = 1.0;
     
     // yRescaled = (y - offset - min) / (max - min) - 0.5
-    ext_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
-    ext_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
-    ext_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5);
+    misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
+    misc_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
+    misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5);
   }
   
   // multithread-this!
@@ -1700,13 +1711,13 @@ namespace {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
-        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
+        if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       if (data.numTestObservations > 0) {
         double* testSamples = results.testSamples + (simNum + chainStride) * data.numTestObservations;
         std::memcpy(testSamples, testSample, data.numTestObservations * sizeof(double));
-        if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
+        if (data.testOffset != NULL) misc_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
       
       results.sigmaSamples[simNum + chainStride] = 1.0;
@@ -1715,16 +1726,16 @@ namespace {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
         // set training to dataScale.range * (totalFits + 0.5) + dataScale.min + offset
-        ext_setVectorToConstant(trainingSamples, data.numObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-        ext_addVectorsInPlace(trainingSample, data.numObservations, sharedScratch.dataScale.range, trainingSamples);
-        if (data.offset != NULL) ext_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
+        misc_setVectorToConstant(trainingSamples, data.numObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+        misc_addVectorsInPlace(trainingSample, data.numObservations, sharedScratch.dataScale.range, trainingSamples);
+        if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       if (data.numTestObservations > 0) {
         double* testSamples = results.testSamples + (simNum + chainStride) * data.numTestObservations;
-        ext_setVectorToConstant(testSamples, data.numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-        ext_addVectorsInPlace(testSample, data.numTestObservations, sharedScratch.dataScale.range, testSamples);
-        if (data.testOffset != NULL) ext_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
+        misc_setVectorToConstant(testSamples, data.numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+        misc_addVectorsInPlace(testSample, data.numTestObservations, sharedScratch.dataScale.range, testSamples);
+        if (data.testOffset != NULL) misc_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
        
       results.sigmaSamples[simNum + chainStride] = sigma * sharedScratch.dataScale.range;
@@ -1750,7 +1761,7 @@ namespace {
 #endif
 }
 
-#include <external/binaryIO.h>
+#include <misc/binaryIO.h>
 #include <sys/stat.h> // permissions
 #include <fcntl.h>    // open flags
 #include <unistd.h>   // unlink
@@ -1770,8 +1781,8 @@ namespace dbarts {
   
   bool BARTFit::saveToFile(const char* fileName) const
   {
-    ext_binaryIO bio;
-    int errorCode = ext_bio_initialize(&bio, fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    misc_binaryIO bio;
+    int errorCode = misc_bio_initialize(&bio, fileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     
     
     if (errorCode != 0) {
@@ -1785,9 +1796,9 @@ namespace dbarts {
     double originalScale = model.sigmaSqPrior->getScale();
     model.sigmaSqPrior->setScale(originalScale / (scaleFactor * scaleFactor));
     
-    if (ext_bio_writeNChars(&bio, FILE_VERSION_STRING, FILE_VERSION_STRING_LENGTH) != 0) goto save_failed;
+    if (misc_bio_writeNChars(&bio, FILE_VERSION_STRING, FILE_VERSION_STRING_LENGTH) != 0) goto save_failed;
     
-    if (ext_bio_writeSizeType(&bio, currentNumSamples) != 0) goto save_failed;
+    if (misc_bio_writeSizeType(&bio, currentNumSamples) != 0) goto save_failed;
     
     if (writeControl(&bio, control) == false) goto save_failed;
     ext_printf("wrote control\n");
@@ -1799,9 +1810,9 @@ namespace dbarts {
     if (writeState(&bio, state, control, data, currentNumSamples) == false) goto save_failed;
     ext_printf("wrote state\n");
     
-    if (ext_bio_writeDouble(&bio, runningTime) != 0) goto save_failed;
+    if (misc_bio_writeDouble(&bio, runningTime) != 0) goto save_failed;
     
-    ext_bio_invalidate(&bio);
+    misc_bio_invalidate(&bio);
     
     model.sigmaSqPrior->setScale(originalScale);
     
@@ -1810,7 +1821,7 @@ namespace dbarts {
     return true;
     
 save_failed:
-    ext_bio_invalidate(&bio);
+    misc_bio_invalidate(&bio);
     model.sigmaSqPrior->setScale(originalScale);
     unlink(fileName);
     return false; 
@@ -1818,8 +1829,8 @@ save_failed:
   
   
   BARTFit* BARTFit::loadFromFile(const char* fileName) {
-    ext_binaryIO bio;
-    int errorCode = ext_bio_initialize(&bio, fileName, O_RDONLY, 0);
+    misc_binaryIO bio;
+    int errorCode = misc_bio_initialize(&bio, fileName, O_RDONLY, 0);
     if (errorCode != 0) {
       ext_issueWarning("unable to open file: %s", std::strerror(errorCode));
       return NULL;
@@ -1840,8 +1851,8 @@ save_failed:
     Data data;
     BARTFit* result = NULL;
     
-    if ((errorCode = ext_bio_readSizeType(&bio, &currentNumSamples)) != 0) goto load_failed;
-    if ((errorCode = ext_bio_readSizeType(&bio, &currentSampleNum)) != 0) goto load_failed;
+    if ((errorCode = misc_bio_readSizeType(&bio, &currentNumSamples)) != 0) goto load_failed;
+    if ((errorCode = misc_bio_readSizeType(&bio, &currentSampleNum)) != 0) goto load_failed;
     
     if (readControl(&bio, control, version) == false) goto load_failed;
     ext_printf("read control\n");
@@ -1857,18 +1868,18 @@ save_failed:
     
     // version 00.08.00 stored running time in state, but it was at the very end so this will work on
     // old objects and new ones
-    if ((errorCode = ext_bio_readDouble(&bio, &result->runningTime)) != 0) goto load_failed;
+    if ((errorCode = misc_bio_readDouble(&bio, &result->runningTime)) != 0) goto load_failed;
     result->currentNumSamples = currentNumSamples;
     result->currentSampleNum = currentSampleNum;
     
-    ext_bio_invalidate(&bio);
+    misc_bio_invalidate(&bio);
     
     printTerminalSummary(*result);
     
     return result;
     
 load_failed:
-    ext_bio_invalidate(&bio);
+    misc_bio_invalidate(&bio);
     
     delete result;
     

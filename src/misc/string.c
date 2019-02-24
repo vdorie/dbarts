@@ -1,17 +1,17 @@
-#include <external/string.h>
 #include "config.h"
+#include <misc/string.h>
 
 #include <errno.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <external/adaptiveRadixTree.h>
+#include <misc/adaptiveRadixTree.h>
 
-int ext_str_matchInArray(const char* s, const char* const* strings, size_t numStrings, size_t* matchPos)
+int misc_str_matchInArray(const char* s, const char* const* strings, size_t numStrings, size_t* matchPos)
 {
-  ext_art_tree tree;
-  ext_art_initialize(&tree);
+  misc_art_tree tree;
+  misc_art_initialize(&tree);
   
   int errorCode = 0;
   void* searchResult;
@@ -19,25 +19,25 @@ int ext_str_matchInArray(const char* s, const char* const* strings, size_t numSt
   
   for (size_t i = 0; i < numStrings; ++i) {
     errno = 0;
-    ext_art_insert(&tree, (const uint8_t*) strings[i], strlen(strings[i]) + 1, (void*) pos++);
+    misc_art_insert(&tree, (const uint8_t*) strings[i], strlen(strings[i]) + 1, (void*) pos++);
     if (errno != 0) { errorCode = errno; goto MATCH_CLEANUP; }
   }
   
   errno = 0;
-  searchResult = ext_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
+  searchResult = misc_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
   if (searchResult == NULL && errno != 0) { errorCode = errno; goto MATCH_CLEANUP; }
   
-  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : EXT_STR_NO_MATCH;
+  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : MISC_STR_NO_MATCH;
   
 MATCH_CLEANUP:
-  ext_art_invalidate(&tree);
+  misc_art_invalidate(&tree);
   return errorCode;
 }
 
-int ext_str_matchInVArray(const char* s, ext_size_t* matchPos, ...)
+int misc_str_matchInVArray(const char* s, misc_size_t* matchPos, ...)
 {
-  ext_art_tree tree;
-  ext_art_initialize(&tree);
+  misc_art_tree tree;
+  misc_art_initialize(&tree);
   
   int errorCode = 0;
   void* searchResult;
@@ -49,7 +49,7 @@ int ext_str_matchInVArray(const char* s, ext_size_t* matchPos, ...)
   const char* string = va_arg(stringsPointer, const char*);
   while (string != NULL) {
     errno = 0;
-    ext_art_insert(&tree, (const uint8_t*) string, strlen(string) + 1, (void*) pos++);
+    misc_art_insert(&tree, (const uint8_t*) string, strlen(string) + 1, (void*) pos++);
     if (errno != 0) { errorCode = errno; break; }
     string = va_arg(stringsPointer, const char*);
   }
@@ -58,15 +58,15 @@ int ext_str_matchInVArray(const char* s, ext_size_t* matchPos, ...)
   if (errorCode != 0) goto VA_MATCH_CLEANUP;
   
   errno = 0;
-  searchResult = ext_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
+  searchResult = misc_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
   if (searchResult == NULL && errno != 0) { errorCode = errno; goto VA_MATCH_CLEANUP; }
   
-  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : EXT_STR_NO_MATCH;
+  *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : MISC_STR_NO_MATCH;
   
-  // ext_art_print(&tree);
+  // misc_art_print(&tree);
 
 VA_MATCH_CLEANUP:
-  ext_art_invalidate(&tree);
+  misc_art_invalidate(&tree);
   return errorCode;
 }
 

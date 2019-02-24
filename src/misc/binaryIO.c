@@ -1,5 +1,5 @@
-#include <external/binaryIO.h>
 #include "config.h"
+#include <misc/binaryIO.h>
 
 #include <sys/stat.h> // file permissions
 #include <fcntl.h>    // open
@@ -54,19 +54,19 @@ static void swapEndiannessFor4ByteWords(char* c, size_t length);
 static void swapEndiannessFor8ByteWords(char* c, size_t length);
 #endif // WORDS_BIGENDIAN
 
-static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* restrict v, size_t length);
-static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restrict v, size_t length);
-static size_t fillBufferFromDoubles(ext_binaryIO* restrict bio, const double* restrict v, size_t length);
-static size_t fillDoublesFromBuffer(ext_binaryIO* restrict bio, double* restrict v, size_t length);  
-static size_t fillBufferFromUnsigned32BitIntegers(ext_binaryIO* restrict bio, const uint32_t* restrict v, size_t length);
-static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, uint32_t* restrict v, size_t length);
+static size_t fillBufferFromSizeTypes(misc_binaryIO* restrict bio, const size_t* restrict v, size_t length);
+static size_t fillSizeTypesFromBuffer(misc_binaryIO* restrict bio, size_t* restrict v, size_t length);
+static size_t fillBufferFromDoubles(misc_binaryIO* restrict bio, const double* restrict v, size_t length);
+static size_t fillDoublesFromBuffer(misc_binaryIO* restrict bio, double* restrict v, size_t length);  
+static size_t fillBufferFromUnsigned32BitIntegers(misc_binaryIO* restrict bio, const uint32_t* restrict v, size_t length);
+static size_t fillUnsigned32BitIntegersFromBuffer(misc_binaryIO* restrict bio, uint32_t* restrict v, size_t length);
 
-ext_binaryIO* ext_bio_create(const char* fileName, int openFlag, int permissionsFlag)
+misc_binaryIO* misc_bio_create(const char* fileName, int openFlag, int permissionsFlag)
 {
-  ext_binaryIO* result = (ext_binaryIO*) malloc(sizeof(ext_binaryIO)); // sets ernno = ENOMEM
+  misc_binaryIO* result = (misc_binaryIO*) malloc(sizeof(misc_binaryIO)); // sets ernno = ENOMEM
   if (result == NULL) return NULL;
   
-  int errorCode = ext_bio_initialize(result, fileName, openFlag, permissionsFlag);
+  int errorCode = misc_bio_initialize(result, fileName, openFlag, permissionsFlag);
   if (errorCode != 0) {
     free(result);
     errno = errorCode;
@@ -76,15 +76,15 @@ ext_binaryIO* ext_bio_create(const char* fileName, int openFlag, int permissions
   return result;
 }
 
-void ext_bio_destroy(ext_binaryIO* bio)
+void misc_bio_destroy(misc_binaryIO* bio)
 {
   if (bio == NULL) return;
   
-  ext_bio_invalidate(bio);
+  misc_bio_invalidate(bio);
   free(bio);
 }
 
-int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, int permissionsFlag)
+int misc_bio_initialize(misc_binaryIO* bio, const char* fileName, int openFlag, int permissionsFlag)
 {
   if (bio == NULL) return EFAULT;
   
@@ -139,7 +139,7 @@ int ext_bio_initialize(ext_binaryIO* bio, const char* fileName, int openFlag, in
   return 0;
 }
 
-void ext_bio_invalidate(ext_binaryIO* bio)
+void misc_bio_invalidate(misc_binaryIO* bio)
 {
   if (bio == NULL) return;
   
@@ -160,7 +160,7 @@ void ext_bio_invalidate(ext_binaryIO* bio)
   bio->bufferLength = 0;
 }
 
-int ext_bio_writeChar(ext_binaryIO* bio, char c)
+int misc_bio_writeChar(misc_binaryIO* bio, char c)
 {
   if (bio == NULL) return EFAULT;
   
@@ -172,17 +172,17 @@ int ext_bio_writeChar(ext_binaryIO* bio, char c)
   return 0;
 }
 
-int ext_bio_writeChars(ext_binaryIO* bio, const char* c, size_t length)
+int misc_bio_writeChars(misc_binaryIO* bio, const char* c, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
-  int errorCode = ext_bio_writeSizeType(bio, length);
+  int errorCode = misc_bio_writeSizeType(bio, length);
   if (errorCode != 0) return errorCode;
   
-  return ext_bio_writeNChars(bio, c, length);
+  return misc_bio_writeNChars(bio, c, length);
 }
 
-int ext_bio_writeNChars(ext_binaryIO* bio, const char* c, size_t length)
+int misc_bio_writeNChars(misc_binaryIO* bio, const char* c, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
@@ -197,7 +197,7 @@ int ext_bio_writeNChars(ext_binaryIO* bio, const char* c, size_t length)
   return 0;
 }
 
-int ext_bio_writeSizeType(ext_binaryIO* bio, size_t s)
+int misc_bio_writeSizeType(misc_binaryIO* bio, size_t s)
 {
   uint64_t u = (uint64_t) s;
 #ifndef WORDS_BIGENDIAN
@@ -211,17 +211,17 @@ int ext_bio_writeSizeType(ext_binaryIO* bio, size_t s)
   return 0;
 }
 
-int ext_bio_writeSizeTypes(ext_binaryIO* bio, const size_t* v, size_t length)
+int misc_bio_writeSizeTypes(misc_binaryIO* bio, const size_t* v, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
-  int errorCode = ext_bio_writeSizeType(bio, length);
+  int errorCode = misc_bio_writeSizeType(bio, length);
   if (errorCode != 0) return errorCode;
   
-  return ext_bio_writeNSizeTypes(bio, v, length);
+  return misc_bio_writeNSizeTypes(bio, v, length);
 }
 
-int ext_bio_writeNSizeTypes(ext_binaryIO* bio, const size_t* v, size_t length)
+int misc_bio_writeNSizeTypes(misc_binaryIO* bio, const size_t* v, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
@@ -245,7 +245,7 @@ int ext_bio_writeNSizeTypes(ext_binaryIO* bio, const size_t* v, size_t length)
   return 0;
 }
 
-int ext_bio_writeUnsigned32BitInteger(ext_binaryIO* bio, uint32_t u)
+int misc_bio_writeUnsigned32BitInteger(misc_binaryIO* bio, uint32_t u)
 {
 #ifndef WORDS_BIGENDIAN
   swapEndiannessFor4ByteWord((char*) &u);
@@ -258,17 +258,17 @@ int ext_bio_writeUnsigned32BitInteger(ext_binaryIO* bio, uint32_t u)
   return 0;
 }
 
-int ext_bio_writeUnsigned32BitIntegers(ext_binaryIO* bio, const uint32_t* u, size_t length)
+int misc_bio_writeUnsigned32BitIntegers(misc_binaryIO* bio, const uint32_t* u, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
-  int errorCode = ext_bio_writeSizeType(bio, length);
+  int errorCode = misc_bio_writeSizeType(bio, length);
   if (errorCode != 0) return errorCode;
   
-  return ext_bio_writeNUnsigned32BitIntegers(bio, u, length);
+  return misc_bio_writeNUnsigned32BitIntegers(bio, u, length);
 }
 
-int ext_bio_writeNUnsigned32BitIntegers(ext_binaryIO* bio, const uint32_t* u, size_t length)
+int misc_bio_writeNUnsigned32BitIntegers(misc_binaryIO* bio, const uint32_t* u, size_t length)
 {
   size_t totalItemsWritten = 0;
   while (totalItemsWritten < length) {
@@ -290,7 +290,7 @@ int ext_bio_writeNUnsigned32BitIntegers(ext_binaryIO* bio, const uint32_t* u, si
   return 0;
 }
 
-int ext_bio_writeUnsigned64BitInteger(ext_binaryIO* bio, uint64_t u)
+int misc_bio_writeUnsigned64BitInteger(misc_binaryIO* bio, uint64_t u)
 {
 #ifndef WORDS_BIGENDIAN
   swapEndiannessFor8ByteWord((char*) &u);
@@ -303,7 +303,7 @@ int ext_bio_writeUnsigned64BitInteger(ext_binaryIO* bio, uint64_t u)
   return 0;
 }
 
-int ext_bio_writeDouble(ext_binaryIO* bio, double d)
+int misc_bio_writeDouble(misc_binaryIO* bio, double d)
 {
   if (bio == NULL) return EFAULT;
   
@@ -314,17 +314,17 @@ int ext_bio_writeDouble(ext_binaryIO* bio, double d)
   return 0;
 } 
 
-int ext_bio_writeDoubles(ext_binaryIO* bio, const double* d, size_t length)
+int misc_bio_writeDoubles(misc_binaryIO* bio, const double* d, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
-  int errorCode = ext_bio_writeSizeType(bio, length);
+  int errorCode = misc_bio_writeSizeType(bio, length);
   if (errorCode != 0) return errorCode;
   
-  return ext_bio_writeNDoubles(bio, d, length);
+  return misc_bio_writeNDoubles(bio, d, length);
 }
 
-int ext_bio_writeNDoubles(ext_binaryIO* bio, const double* d, size_t length)
+int misc_bio_writeNDoubles(misc_binaryIO* bio, const double* d, size_t length)
 {
   size_t totalItemsWritten = 0;
   while (totalItemsWritten < length) {
@@ -346,19 +346,19 @@ int ext_bio_writeNDoubles(ext_binaryIO* bio, const double* d, size_t length)
   return 0;
 }
 
-int ext_bio_writeNInts(ext_binaryIO* bio, const int* i, size_t length)
+int misc_bio_writeNInts(misc_binaryIO* bio, const int* i, size_t length)
 {
   int errorCode = 0;
   uint64_t ui;
   for (size_t j = 0; j < length; ++j) {
     ui = (uint64_t) i[j];
-    if ((errorCode = ext_bio_writeUnsigned64BitInteger(bio, ui)) != 0) break;
+    if ((errorCode = misc_bio_writeUnsigned64BitInteger(bio, ui)) != 0) break;
   }
   return errorCode;
 }
 
 // these return NULL if there is an error and set errno appropriately
-int ext_bio_readChar(ext_binaryIO* bio, char *c)
+int misc_bio_readChar(misc_binaryIO* bio, char *c)
 {
   if (bio == NULL) return EFAULT;
   
@@ -370,17 +370,17 @@ int ext_bio_readChar(ext_binaryIO* bio, char *c)
   return 0;
 }
 
-char* ext_bio_readChars(ext_binaryIO* bio, size_t* length)
+char* misc_bio_readChars(misc_binaryIO* bio, size_t* length)
 {
   if (bio == NULL) { errno = EFAULT; return NULL; }
   
-  int errorCode = ext_bio_readSizeType(bio, length);
+  int errorCode = misc_bio_readSizeType(bio, length);
   if (errorCode != 0) { errno = errorCode; return NULL; }
   
   char* c = (char*) malloc(*length * sizeof(char));
   if (c == NULL) { errno = ENOMEM; return NULL; }
   
-  errorCode = ext_bio_readNChars(bio, c, *length);
+  errorCode = misc_bio_readNChars(bio, c, *length);
   if (errorCode != 0) {
     free(c);
     errno = errorCode;
@@ -390,7 +390,7 @@ char* ext_bio_readChars(ext_binaryIO* bio, size_t* length)
   return c;
 }
 
-int ext_bio_readNChars(ext_binaryIO* bio, char* c, size_t length)
+int misc_bio_readNChars(misc_binaryIO* bio, char* c, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
@@ -406,7 +406,7 @@ int ext_bio_readNChars(ext_binaryIO* bio, char* c, size_t length)
 }
 
 
-int ext_bio_readSizeType(ext_binaryIO* bio, size_t* s)
+int misc_bio_readSizeType(misc_binaryIO* bio, size_t* s)
 {
   if (bio == NULL) return EFAULT;
   
@@ -427,17 +427,17 @@ int ext_bio_readSizeType(ext_binaryIO* bio, size_t* s)
   return 0;
 }
 
-size_t* ext_bio_readSizeTypes(ext_binaryIO* bio, size_t* length)
+size_t* misc_bio_readSizeTypes(misc_binaryIO* bio, size_t* length)
 {
   if (bio == NULL) { errno = EFAULT; return NULL; }
   
-  int errorCode = ext_bio_readSizeType(bio, length);
+  int errorCode = misc_bio_readSizeType(bio, length);
   if (errorCode != 0) { errno = errorCode; return NULL; }
   
   size_t* s = (size_t*) malloc(*length * sizeof(size_t));
   if (s == NULL) { errno = ENOMEM; return NULL; }
   
-  errorCode = ext_bio_readNSizeTypes(bio, s, *length);
+  errorCode = misc_bio_readNSizeTypes(bio, s, *length);
   if (errorCode != 0) {
     free(s);
     errno = errorCode;
@@ -447,7 +447,7 @@ size_t* ext_bio_readSizeTypes(ext_binaryIO* bio, size_t* length)
   return s;
 }
 
-int ext_bio_readNSizeTypes(ext_binaryIO* bio, size_t* s, size_t length)
+int misc_bio_readNSizeTypes(misc_binaryIO* bio, size_t* s, size_t length)
 {
   if (bio == NULL) return errno = EFAULT;
   
@@ -474,7 +474,7 @@ int ext_bio_readNSizeTypes(ext_binaryIO* bio, size_t* s, size_t length)
   return 0;
 }
 
-int ext_bio_readUnsigned32BitInteger(ext_binaryIO* bio, uint32_t* u)
+int misc_bio_readUnsigned32BitInteger(misc_binaryIO* bio, uint32_t* u)
 {
   if (bio == NULL) return EFAULT;
   
@@ -489,17 +489,17 @@ int ext_bio_readUnsigned32BitInteger(ext_binaryIO* bio, uint32_t* u)
   return 0;
 }
 
-uint32_t* ext_bio_readUnsigned32BitIntegers(ext_binaryIO* bio, size_t* length)
+uint32_t* misc_bio_readUnsigned32BitIntegers(misc_binaryIO* bio, size_t* length)
 {
   if (bio == NULL) { errno = EFAULT; return NULL; }
   
-  int errorCode = ext_bio_readSizeType(bio, length);
+  int errorCode = misc_bio_readSizeType(bio, length);
   if (errorCode != 0) { errno = errorCode; return NULL; }
   
   uint32_t* u = (uint32_t*) malloc(*length * sizeof(uint32_t));
   if (u == NULL) { errno = ENOMEM; return NULL; }
   
-  errorCode = ext_bio_readNUnsigned32BitIntegers(bio, u, *length);
+  errorCode = misc_bio_readNUnsigned32BitIntegers(bio, u, *length);
   if (errorCode != 0) {
     free(u);
     errno = errorCode;
@@ -509,7 +509,7 @@ uint32_t* ext_bio_readUnsigned32BitIntegers(ext_binaryIO* bio, size_t* length)
   return 0;
 }
 
-int ext_bio_readNUnsigned32BitIntegers(ext_binaryIO* bio, uint32_t* u, size_t length)
+int misc_bio_readNUnsigned32BitIntegers(misc_binaryIO* bio, uint32_t* u, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
@@ -533,7 +533,7 @@ int ext_bio_readNUnsigned32BitIntegers(ext_binaryIO* bio, uint32_t* u, size_t le
   return 0;
 }
 
-int ext_bio_readUnsigned64BitInteger(ext_binaryIO* bio, uint64_t* u)
+int misc_bio_readUnsigned64BitInteger(misc_binaryIO* bio, uint64_t* u)
 {
   if (bio == NULL) return EFAULT;
   
@@ -548,7 +548,7 @@ int ext_bio_readUnsigned64BitInteger(ext_binaryIO* bio, uint64_t* u)
   return 0;
 }
 
-int ext_bio_readDouble(ext_binaryIO* bio, double* d)
+int misc_bio_readDouble(misc_binaryIO* bio, double* d)
 {
   if (bio == NULL) return EFAULT;
   
@@ -559,17 +559,17 @@ int ext_bio_readDouble(ext_binaryIO* bio, double* d)
   return 0;
 }
 
-double* ext_bio_readDoubles(ext_binaryIO* bio, size_t* length)
+double* misc_bio_readDoubles(misc_binaryIO* bio, size_t* length)
 {
   if (bio == NULL) { errno = EFAULT; return NULL; }
   
-  int errorCode = ext_bio_readSizeType(bio, length);
+  int errorCode = misc_bio_readSizeType(bio, length);
   if (errorCode != 0) { errno = errorCode; return NULL; }
   
   double* d = (double*) malloc(*length * sizeof(double));
   if (d == NULL) { errno = ENOMEM; return NULL; }
   
-  errorCode = ext_bio_readNDoubles(bio, d, *length);
+  errorCode = misc_bio_readNDoubles(bio, d, *length);
   if (errorCode != 0) {
     free(d);
     errno = errorCode;
@@ -579,7 +579,7 @@ double* ext_bio_readDoubles(ext_binaryIO* bio, size_t* length)
   return 0;
 }
 
-int ext_bio_readNDoubles(ext_binaryIO* bio, double* d, size_t length)
+int misc_bio_readNDoubles(misc_binaryIO* bio, double* d, size_t length)
 {
   if (bio == NULL) return EFAULT;
   
@@ -603,12 +603,12 @@ int ext_bio_readNDoubles(ext_binaryIO* bio, double* d, size_t length)
   return 0;
 }
 
-int ext_bio_readNInts(ext_binaryIO* bio, int* i, size_t length)
+int misc_bio_readNInts(misc_binaryIO* bio, int* i, size_t length)
 {
   int errorCode = 0;
   uint64_t ui;
   for (size_t j = 0; j < length; ++j) {
-    if ((errorCode = ext_bio_readUnsigned64BitInteger(bio, &ui)) != 0) break;
+    if ((errorCode = misc_bio_readUnsigned64BitInteger(bio, &ui)) != 0) break;
     i[j] = (int) ui;
   }
   return errorCode;
@@ -616,7 +616,7 @@ int ext_bio_readNInts(ext_binaryIO* bio, int* i, size_t length)
 
 
 // upcast to 64_bit ints
-static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* restrict v, size_t length)
+static size_t fillBufferFromSizeTypes(misc_binaryIO* restrict bio, const size_t* restrict v, size_t length)
 {
   if (length == 0) return 0;
   
@@ -660,7 +660,7 @@ static size_t fillBufferFromSizeTypes(ext_binaryIO* restrict bio, const size_t* 
 }
 
 // upcast to 64_bit ints
-static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restrict v, size_t length)
+static size_t fillSizeTypesFromBuffer(misc_binaryIO* restrict bio, size_t* restrict v, size_t length)
 {
   if (length == 0) return 0;
   
@@ -706,7 +706,7 @@ static size_t fillSizeTypesFromBuffer(ext_binaryIO* restrict bio, size_t* restri
   return fillLength;
 }
 
-static size_t fillBufferFromDoubles(ext_binaryIO* restrict bio, const double* restrict d, size_t length)
+static size_t fillBufferFromDoubles(misc_binaryIO* restrict bio, const double* restrict d, size_t length)
 {
   if (length == 0) return 0;
   
@@ -730,7 +730,7 @@ static size_t fillBufferFromDoubles(ext_binaryIO* restrict bio, const double* re
   return fillLength;
 }
 
-static size_t fillDoublesFromBuffer(ext_binaryIO* restrict bio, double* restrict d, size_t length)
+static size_t fillDoublesFromBuffer(misc_binaryIO* restrict bio, double* restrict d, size_t length)
 {
   if (length == 0) return 0;
   
@@ -754,7 +754,7 @@ static size_t fillDoublesFromBuffer(ext_binaryIO* restrict bio, double* restrict
   return fillLength;
 }
 
-static size_t fillBufferFromUnsigned32BitIntegers(ext_binaryIO* restrict bio, const uint32_t* restrict v, size_t length)
+static size_t fillBufferFromUnsigned32BitIntegers(misc_binaryIO* restrict bio, const uint32_t* restrict v, size_t length)
 {
   if (length == 0) return 0;
   
@@ -778,7 +778,7 @@ static size_t fillBufferFromUnsigned32BitIntegers(ext_binaryIO* restrict bio, co
   return fillLength;
 }
 
-static size_t fillUnsigned32BitIntegersFromBuffer(ext_binaryIO* restrict bio, uint32_t* restrict v, size_t length)
+static size_t fillUnsigned32BitIntegersFromBuffer(misc_binaryIO* restrict bio, uint32_t* restrict v, size_t length)
 {
   if (length == 0) return 0;
   

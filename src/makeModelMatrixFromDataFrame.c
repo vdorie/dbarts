@@ -6,9 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-#include <external/alloca.h>
-#include <external/linearAlgebra.h>
+#include <misc/alloca.h>
+#include <misc/linearAlgebra.h>
 
 #include <rc/util.h>
 
@@ -149,7 +148,7 @@ static void tableFactor(SEXP x, int* instanceCounts)
 static bool numericVectorIsConstant(SEXP x, column_type t) {
   switch (t) {
     case REAL_VECTOR:
-    return ext_vectorIsConstant(REAL(x), (size_t) rc_getLength(x));
+    return misc_vectorIsConstant(REAL(x), (size_t) rc_getLength(x));
     case INTEGER_VECTOR:
     case LOGICAL_VECTOR:
     return integerVectorIsConstant(INTEGER(x), (size_t) rc_getLength(x));
@@ -209,7 +208,7 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
             int* dropPattern = LOGICAL(VECTOR_ELT(dropPatternExpr, i));
             
             for (size_t j = 0; j < numCols; ++j) {
-              dropColumn = ext_vectorIsConstant(colData + j * numRows, numRows);
+              dropColumn = misc_vectorIsConstant(colData + j * numRows, numRows);
               dropPattern[j] = dropColumn;
               if (!dropColumn) *result += 1;
             }

@@ -5,10 +5,12 @@
 #include <cstddef> // size_t
 #include <cstring> // strcmp
 
-#include <external/alloca.h>
-#include <external/linearAlgebra.h>
+#include <misc/alloca.h>
+#include <misc/linearAlgebra.h>
+#include <misc/stats.h>
+#include <misc/string.h>
+
 #include <external/stats.h>
-#include <external/string.h>
 
 #include <R_ext/Random.h> // GetRNGstate, PutRNGState
 
@@ -123,9 +125,9 @@ extern "C" {
       const char* lossTypeName = CHAR(STRING_ELT(lossTypeExpr, 0));
       
       size_t lossTypeNumber;
-      int errorCode = ext_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - RMSE), &lossTypeNumber);
+      int errorCode = misc_str_matchInArray(lossTypeName, lossTypeNames, static_cast<size_t>(CUSTOM - RMSE), &lossTypeNumber);
       if (errorCode != 0) Rf_error("error matching string: %s", std::strerror(errorCode));
-      if (lossTypeNumber == EXT_STR_NO_MATCH) Rf_error("unsupported result type: '%s'", lossTypeName);
+      if (lossTypeNumber == MISC_STR_NO_MATCH) Rf_error("unsupported result type: '%s'", lossTypeName);
       
       lossType = static_cast<LossFunctorType>(lossTypeNumber);
     } else if (Rf_isVectorList(lossTypeExpr)) {
@@ -179,7 +181,7 @@ extern "C" {
     size_t numBases  = rc_getLength(baseExpr);
     
     int* nTreesInt  = INTEGER(numTreesExpr);
-    size_t* nTrees = ext_stackAllocate(numNTrees, size_t);
+    size_t* nTrees = misc_stackAllocate(numNTrees, size_t);
     for (size_t i = 0; i < numNTrees; ++i) nTrees[i] = static_cast<size_t>(nTreesInt[i]);
     
     double* k     = REAL(kExpr);
@@ -202,7 +204,7 @@ extern "C" {
     
     delete lossFunctionDef;
     
-    ext_stackFree(nTrees);
+    misc_stackFree(nTrees);
     
     invalidateData(data);
     invalidateModel(model);
@@ -274,7 +276,7 @@ namespace {
       for (size_t j = 0; j < numSamples; ++j) {
         probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
       }
-      double y_test_hat = ext_computeMean(probabilities, numSamples);
+      double y_test_hat = misc_computeMean(probabilities, numSamples);
       
       results[0] +=  -y_test[i] * std::log(y_test_hat) - (1.0 - y_test[i]) * log1p(-y_test_hat);
     }
@@ -313,7 +315,7 @@ namespace {
       y_test_hat[i] /= static_cast<double>(numSamples);
     }
     
-    results[0] = std::sqrt(ext_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
+    results[0] = std::sqrt(misc_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
   }
 
   
@@ -348,7 +350,7 @@ namespace {
       for (size_t j = 0; j < numSamples; ++j) {
         probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
       }
-      double y_test_hat = ext_computeMean(probabilities, numSamples) > 0.5 ? 1.0 : 0.0;
+      double y_test_hat = misc_computeMean(probabilities, numSamples) > 0.5 ? 1.0 : 0.0;
       
       if (y_test[i] != y_test_hat) {
         if (y_test[i] == 1.0) ++fn; else ++fp;
@@ -510,10 +512,10 @@ namespace {
         rc_setDims(tempTestSamples, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
         // set some values to not all be the same so that they have an SD != 0
         REAL(tempY_test)[0] = 1.0;
-        ext_setVectorToConstant(REAL(tempY_test) + 1, numTestObservations - 1, 0.0);
+        misc_setVectorToConstant(REAL(tempY_test) + 1, numTestObservations - 1, 0.0);
         REAL(tempTestSamples)[0] = 0.0;
-        ext_setVectorToConstant(REAL(tempTestSamples) + 1, numTestObservations - 1, 1.0);
-        ext_setVectorToConstant(REAL(tempTestSamples) + numTestObservations, numTestObservations * (numSamples - 1), 0.0);
+        misc_setVectorToConstant(REAL(tempTestSamples) + 1, numTestObservations - 1, 1.0);
+        misc_setVectorToConstant(REAL(tempTestSamples) + numTestObservations, numTestObservations * (numSamples - 1), 0.0);
         
         SEXP tempClosure = PROTECT(Rf_lang3(function, tempY_test, tempTestSamples));
         

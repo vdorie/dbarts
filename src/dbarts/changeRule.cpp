@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 #include <external/io.h>
 #include <external/random.h>
 
@@ -95,7 +95,7 @@ namespace dbarts {
       uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[newVariableIndex];
       size_t numCategoryCombinations = (1 << (numCategories - 1)) - 1;
       // bool* categoryCombinationsAreGood = new bool[numCategoryCombinations];
-      bool* categoryCombinationsAreGood = ext_stackAllocate(numCategoryCombinations, bool);
+      bool* categoryCombinationsAreGood = misc_stackAllocate(numCategoryCombinations, bool);
       
       findGoodCategoricalRules(fit, nodeToChange, newVariableIndex, categoryCombinationsAreGood, &firstGoodCategory);
       uint64_t numGoodRules = countTrueValues(categoryCombinationsAreGood, numCategoryCombinations);
@@ -117,7 +117,7 @@ namespace dbarts {
         oldState.store(fit, nodeToChange);
         
         // change rule at nodeToChange to the new one
-        bool* sel = ext_stackAllocate(numCategories - 1, bool);
+        bool* sel = misc_stackAllocate(numCategories - 1, bool);
         setBinaryRepresentation(numCategories - 1, categoryCombinationNumber, sel);
         
         nodeToChange.p.rule.variableIndex = newVariableIndex;
@@ -157,13 +157,13 @@ namespace dbarts {
           *stepTaken = false;
         }
         
-        ext_stackFree(sel);
+        misc_stackFree(sel);
       } else {
         // if no rules for that var abort step
         alpha = -1.0;
       }
       
-      ext_stackFree(categoryCombinationsAreGood);
+      misc_stackFree(categoryCombinationsAreGood);
     } else {
       
       //ORD variable
@@ -290,26 +290,26 @@ namespace dbarts {
   //firstone: first category still "alive" at node n, depends on tree above n
   {
     uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
-    bool* sel = ext_stackAllocate(numCategories, bool);
+    bool* sel = misc_stackAllocate(numCategories, bool);
     
-    bool* categoriesGoRight = ext_stackAllocate(numCategories, bool);
+    bool* categoriesGoRight = misc_stackAllocate(numCategories, bool);
     setCategoryReachability(fit, node, variableIndex, categoriesGoRight);
     
     *firstGoodCategory = static_cast<uint32_t>(getIndexOfFirstTrueValue(categoriesGoRight, numCategories));
     
-    if (*firstGoodCategory == numCategories) ext_printf("error in findGoodCategoricalRule: no available categories\n");
+    if (*firstGoodCategory == numCategories) ext_issueWarning("error in findGoodCategoricalRule: no available categories\n");
     
     sel[*firstGoodCategory] = true;
     
-    bool* sel1 = ext_stackAllocate(numCategories - 1, bool);
+    bool* sel1 = misc_stackAllocate(numCategories - 1, bool);
     
     NodeVector leftBottomVector(node.getLeftChild()->getBottomVector());
     size_t numLeftBottomNodes = leftBottomVector.size();
-    bool* leftNodesAreReachable = ext_stackAllocate(numLeftBottomNodes, bool);
+    bool* leftNodesAreReachable = misc_stackAllocate(numLeftBottomNodes, bool);
     
     NodeVector rightBottomVector(node.getRightChild()->getBottomVector());
     size_t numRightBottomNodes = rightBottomVector.size();
-    bool* rightNodesAreReachable = ext_stackAllocate(numRightBottomNodes, bool);
+    bool* rightNodesAreReachable = misc_stackAllocate(numRightBottomNodes, bool);
     
     
     // 2^(numCategories - 1) - 1
@@ -343,11 +343,11 @@ namespace dbarts {
       }
     }
     
-    ext_stackFree(sel);
-    ext_stackFree(sel1);
-    ext_stackFree(categoriesGoRight);
-    ext_stackFree(leftNodesAreReachable);
-    ext_stackFree(rightNodesAreReachable);
+    misc_stackFree(sel);
+    misc_stackFree(sel1);
+    misc_stackFree(categoriesGoRight);
+    misc_stackFree(leftNodesAreReachable);
+    misc_stackFree(rightNodesAreReachable);
   }
   
   bool allTrue(bool* v, size_t length) {

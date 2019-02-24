@@ -17,7 +17,7 @@ using std::size_t;
 using std::FILE;
 #  else
 #    include <limits.h>
-#    include <stddef.h>
+#    include <misc/stddef.h>
 #    include <stdio.h>
 #  endif
 #endif

@@ -6,7 +6,7 @@
 #include <dbarts/cstdint.hpp>
 #include <cstring>
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 #include <external/io.h>
 #include <external/random.h>
 
@@ -230,8 +230,8 @@ namespace dbarts {
     
     uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
     
-    bool* leftChildCategories  = ext_stackAllocate(numCategories, bool);
-    bool* rightChildCategories = ext_stackAllocate(numCategories, bool);
+    bool* leftChildCategories  = misc_stackAllocate(numCategories, bool);
+    bool* rightChildCategories = misc_stackAllocate(numCategories, bool);
     
     for(uint32_t i = 0; i < numCategories; ++i) {
       leftChildCategories[i]  = catGoesRight[i];
@@ -253,8 +253,8 @@ namespace dbarts {
     if (countTrueValues( leftChildCategories, numCategories) == 0 ||
         countTrueValues(rightChildCategories, numCategories) == 0)
     {
-      ext_stackFree(leftChildCategories);
-      ext_stackFree(rightChildCategories);
+      misc_stackFree(leftChildCategories);
+      misc_stackFree(rightChildCategories);
       
       return false;
     }
@@ -262,8 +262,8 @@ namespace dbarts {
     if (!categoricalRuleIsValid(fit, *node.getLeftChild(), variableIndex,  leftChildCategories) ||
         !categoricalRuleIsValid(fit, *node.getRightChild(), variableIndex, rightChildCategories))
     {
-      ext_stackFree(leftChildCategories);
-      ext_stackFree(rightChildCategories);
+      misc_stackFree(leftChildCategories);
+      misc_stackFree(rightChildCategories);
       
       return false;
     }
@@ -305,11 +305,11 @@ namespace dbarts {
   //starting at node n, check rules using VarI to see if they make sense
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = ext_stackAllocate(fit.sharedScratch.numCutsPerVariable[variableIndex], bool);
+      bool* catGoesRight = misc_stackAllocate(fit.sharedScratch.numCutsPerVariable[variableIndex], bool);
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       bool result = categoricalRuleIsValid(fit, node, variableIndex, catGoesRight);
-      ext_stackFree(catGoesRight);
+      misc_stackFree(catGoesRight);
       return result;
     }
     

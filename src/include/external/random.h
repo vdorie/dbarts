@@ -3,8 +3,10 @@
 
 // create an RNG and then seed it, or create it using a state constructed from somewhere else
 
+// this is largely a thread-safe duplication of R's random number generator code
+
 #include <stdbool.h>
-#include "stddef.h"
+#include <misc/stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -63,7 +65,7 @@ int ext_rng_setSeedFromClock(ext_rng* generator);
 // standard normal algorithm and gamma simulation;
 // guarantees that the result is aligned to sizeof(int), however the length is in characters
 // user is responsible for seralizing user functions in algorithm or standardNormalAlgorithm
-ext_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
+misc_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
 void ext_rng_writeSerializedState(const ext_rng* generator, void* state);
 void ext_rng_readSerializedState(ext_rng* generator, const void* state);
 
@@ -85,8 +87,8 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale);
 #define ext_rng_simulateNormal(_GENERATOR_, _MU_, _SIGMA_) (ext_rng_simulateStandardNormal(_GENERATOR_) * (_SIGMA_) + (_MU_))
 
 
-#define EXT_DISCRETE_DRAW_FAILURE ((ext_size_t) -1)
-ext_size_t ext_rng_drawFromDiscreteDistribution(ext_rng* generator, const double* probabilities, ext_size_t length);
+#define EXT_DISCRETE_DRAW_FAILURE ((misc_size_t) -1)
+misc_size_t ext_rng_drawFromDiscreteDistribution(ext_rng* generator, const double* probabilities, misc_size_t length);
   
 // random in [min, min + 1, ..., max - 1, max)
 int64_t ext_rng_simulateIntegerUniformInRange(ext_rng* generator, int64_t min_inclusive, int64_t max_exclusive);

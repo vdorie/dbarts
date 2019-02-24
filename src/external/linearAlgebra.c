@@ -1,11 +1,13 @@
 #include "config.h"
 #include <external/linearAlgebra.h>
 
-#include <stdbool.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
 #include <errno.h>
+#include <math.h> // isinf, isnan
+#include <stdbool.h>
+#include <stdlib.h> // malloc
+#include <string.h> // memcpy
+
+#include <misc/alloca.h>
 
 #include <Rversion.h>
 
@@ -19,8 +21,6 @@
 
 #undef NO_C_HEADERS
 
-#include <external/alloca.h>
-
 static const int increment = 1;
 
 void ext_addVectorsInPlace(const double* restrict x, size_t u_length, double alpha, double* restrict y)
@@ -28,177 +28,6 @@ void ext_addVectorsInPlace(const double* restrict x, size_t u_length, double alp
   int length = (int) u_length;
   
   F77_NAME(daxpy)(&length, &alpha, x, &increment, y, &increment);
-}
-
-void ext_addVectors(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) z[i] = y[i] + alpha * x[i];
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    z[i] = y[i] + alpha * x[i];
-    z[i + 1] = y[i + 1] + alpha * x[i + 1];
-    z[i + 2] = y[i + 2] + alpha * x[i + 2];
-    z[i + 3] = y[i + 3] + alpha * x[i + 3];
-    z[i + 4] = y[i + 4] + alpha * x[i + 4];
-  }
-}
-
-void ext_setVectorToConstant(double* x, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[i] = alpha;
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    x[i]     = alpha;
-    x[i + 1] = alpha;
-    x[i + 2] = alpha;
-    x[i + 3] = alpha;
-    x[i + 4] = alpha;
-  }
-}
-
-bool ext_vectorIsConstant(const double* x, size_t length)
-{
-  if (length <= 1) return true;
-  
-  for (size_t i = 1; i < length; ++i) {
-    if (x[i] != x[i - 1]) return false;
-  }
-  
-  return true;
-}
-
-
-void ext_setIndexedVectorToConstant(double* restrict x, const size_t* restrict indices, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[indices[i]] = alpha;
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    x[indices[i]]     = alpha;
-    x[indices[i + 1]] = alpha;
-    x[indices[i + 2]] = alpha;
-    x[indices[i + 3]] = alpha;
-    x[indices[i + 4]] = alpha;
-  }
-}
-
-void ext_scalarMultiplyVectorInPlace(double* x, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-    
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= alpha;
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    x[i] *= alpha;
-    x[i + 1] *= alpha;
-    x[i + 2] *= alpha;
-    x[i + 3] *= alpha;
-    x[i + 4] *= alpha;
-  }
-}
-
-void ext_addScalarToVectorInPlace(double* x, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  size_t i = 0;
-  for ( /* */ ; i < lengthMod5; ++i) x[i] += alpha;
-  
-  for ( /* */ ; i < length; i += 5) {
-    x[i]     += alpha;
-    x[i + 1] += alpha;
-    x[i + 2] += alpha;
-    x[i + 3] += alpha;
-    x[i + 4] += alpha;
-  }
-}
-
-
-void ext_scalarMultiplyVector(const double* restrict x, size_t length, double alpha, double* restrict y)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) y[i] = alpha * x[i];
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    y[i]     = alpha * x[i];
-    y[i + 1] = alpha * x[i + 1];
-    y[i + 2] = alpha * x[i + 2];
-    y[i + 3] = alpha * x[i + 3];
-    y[i + 4] = alpha * x[i + 4];
-  }
-}
-
-void ext_hadamardMultiplyVectors(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) z[i] = y[i] * x[i];
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    z[i] = y[i] * x[i];
-    z[i + 1] = y[i + 1] * x[i + 1];
-    z[i + 2] = y[i + 2] * x[i + 2];
-    z[i + 3] = y[i + 3] * x[i + 3];
-    z[i + 4] = y[i + 4] * x[i + 4];
-  }
-}
-
-void ext_hadamardMultiplyVectorsInPlace(double* restrict x, size_t length, const double* restrict y)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) x[i] *= y[i];
-    if (length < 5) return;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    x[i] *= y[i];
-    x[i + 1] *= y[i + 1];
-    x[i + 2] *= y[i + 2];
-    x[i + 3] *= y[i + 3];
-    x[i + 4] *= y[i + 4];
-  }
 }
 
 // b = Ax
@@ -220,41 +49,6 @@ void ext_leftMultiplyMatrixAndVector(const double* A, size_t n, size_t p, const 
                   &increment);
 }
 
-double ext_sumVectorElements(const double* x, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = 0.0;
-  size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for (size_t i = 0; i < lengthMod5; ++i) result += x[i];
-    if (length < 5) return result;
-  }
-  
-  for (size_t i = lengthMod5; i < length; i += 5) {
-    result += x[i] + x[i + 1] + x[i + 2] + x[i + 3] + x[i + 4];
-  }
-  
-  return result;
-}
-
-double ext_sumIndexedVectorElements(const double* x, const size_t* indices, size_t length)
-{
-  if (length == 0) return 0.0;
-  
-  double result = 0.0;
-  size_t lengthMod5 = length % 5;
-  
-  size_t i;
-  for (i = 0; i < lengthMod5; ++i) result += x[indices[i]];
-  for (/* */; i < length; i += 5) {
-    result += x[indices[i]] + x[indices[i + 1]] + x[indices[i + 2]] + x[indices[i + 3]] + x[indices[i + 4]];
-  }
-  
-  return result;
-}
-
 double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
 {
   int length = (int) u_length;
@@ -265,17 +59,6 @@ double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
   F77_NAME(dlassq)(&length, x, &increment, &scale, &sum);
   
   return scale * scale * sum;
-}
-
-void ext_transposeMatrix(const double* x, size_t numRows, size_t numCols, double* xt)
-{
-  size_t colOffset = 0;
-  for (size_t col = 0; col < numCols; ++col) {
-    for (size_t row = 0; row < numRows; ++row) {
-      xt[row * numCols + col] = x[row + colOffset];
-    }
-    colOffset += numRows;
-  }
 }
 
 // LS solution to Xb = y, or b = (X'X)^-1 X'y
@@ -298,8 +81,7 @@ int ext_findLeastSquaresFit(const double* y, size_t n, const double* x, size_t p
   free(_x);
   
   return result;
-}  
-
+}
 
 int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, double* b, double tolerance, double* _residuals, char** message) { 
   int i_n = (int) n; int i_p = (int) p;
@@ -307,7 +89,7 @@ int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, dou
   for (size_t i = 0; i < p; ++i) pivot[i] = (int) i;
   
   double* residuals = _residuals;
-  if (residuals == NULL) residuals = ext_stackAllocate(n, double);
+  if (residuals == NULL) residuals = misc_stackAllocate(n, double);
   if (residuals == NULL) {
     if (message != NULL) message[0] = "unable to allocate memory for least-squares fit";
     return - 1;
@@ -327,7 +109,7 @@ int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, dou
     }
   }
   
-  if (_residuals == NULL) { ext_stackFree(residuals); }
+  if (_residuals == NULL) { misc_stackFree(residuals); }
   
   if (!allKosher) {
     message[0] = "non-finite solution to least squares fit";
@@ -382,7 +164,6 @@ int ext_getSymmetricPositiveDefiniteTriangularFactorizationInPlace(double* x, si
   return 0;
 }
 
-
 void ext_getSingleMatrixCrossproduct(const double* restrict x, size_t numRows, size_t numCols,
                                      double* restrict result, int useTranspose, ext_triangleType triangleType)
 {
@@ -436,31 +217,3 @@ int ext_solveTriangularSystemInPlace(const double* restrict lhs, size_t lhsDim, 
   return 0;
 }
 
-void ext_multiplyMatrixIntoVector(const double* restrict matrix, size_t numRows, size_t numCols, int useTranspose,
-                                  const double* restrict vector, double* restrict result)
-{
-  if (!useTranspose) {
-    for (size_t row = 0; row < numRows; ++row) {
-      *result = 0.0;
-      for (size_t col = 0; col < numCols; ++col) {
-        *result += *matrix * *vector;
-        matrix += numRows;
-        ++vector;
-      }
-      ++result;
-      matrix -= numRows * numCols - 1;
-      vector -= numCols;
-    }
-  } else {
-    for (size_t col = 0; col < numCols; ++col) {
-      *result = 0.0;
-      for (size_t row = 0; row < numRows; ++row) {
-        *result += *matrix * *vector;
-        ++matrix;
-        ++vector;
-      }
-      ++result;
-      vector -= numRows;
-    }
-  }
-}

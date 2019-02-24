@@ -5,12 +5,11 @@
 #include <cstddef> // size_t
 #include <cmath>   // sqrt, floor
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
+#include <misc/thread.h>
+
 #include <external/io.h>
-#include <external/linearAlgebra.h>
 #include <external/random.h>
-#include <external/stats.h>
-#include <external/thread.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/results.hpp>
@@ -40,10 +39,10 @@ namespace {
   };
   
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
-                        size_t threadId, size_t cellIndex, ext_btm_manager_t manager, bool verbose);
+                        size_t threadId, size_t cellIndex, misc_btm_manager_t manager, bool verbose);
   
   struct SharedData {
-    ext_btm_manager_t threadManager;
+    misc_btm_manager_t threadManager;
     Method method;
     
     const Control& control;
@@ -133,19 +132,21 @@ namespace dbarts { namespace xval {
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               testSampleSize,
                               lossFunctorDef, numReps, cellParameters };
+    ext_rng_algorithm_t rng_algorithm = static_cast<ext_rng_algorithm_t>(threadControl.rng_algorithm);
+    ext_rng_standardNormal_t rng_standardNormal = static_cast<ext_rng_standardNormal_t>(threadControl.rng_standardNormal);
     
     if (numThreads <= 1) {
       ext_rng* rng;
       
       // both BART sampler and xval algorithm can use native sampler
-      if (threadControl.rng_algorithm == EXT_RNG_ALGORITHM_INVALID &&
-          threadControl.rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID) {
+      if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID &&
+          rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID) {
         
         if ((rng = ext_rng_createDefault(true)) == NULL)
           ext_throwError("could not allocate rng");
       
       } else {
-        if (ext_rng_createAndSeed(&rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+        if (ext_rng_createAndSeed(&rng, rng_algorithm, rng_standardNormal) != 0)
           ext_throwError("could not allocate rng");
       }
       
@@ -155,26 +156,26 @@ namespace dbarts { namespace xval {
       
       ext_rng_destroy(rng);
     } else {
-      if (threadControl.rng_algorithm == EXT_RNG_ALGORITHM_INVALID)
-        threadControl.rng_algorithm = ext_rng_getDefaultAlgorithmType();
-      if (threadControl.rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
-        threadControl.rng_standardNormal = ext_rng_getDefaultStandardNormalType();
+      if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID)
+        rng_algorithm = ext_rng_getDefaultAlgorithmType();
+      if (rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
+        rng_standardNormal = ext_rng_getDefaultStandardNormalType();
       
-      ext_btm_manager_t threadManager;
-      ext_btm_create(&threadManager, numThreads);
+      misc_btm_manager_t threadManager;
+      misc_btm_create(&threadManager, numThreads);
       sharedData.threadManager = threadManager;
       
       size_t numRepCellsPerThread;
       size_t offByOneIndex;
       
-      ext_btm_getNumThreadsForJob(threadManager, numRepCells, 0, NULL, &numRepCellsPerThread, &offByOneIndex);
+      misc_btm_getNumThreadsForJob(threadManager, numRepCells, 0, NULL, &numRepCellsPerThread, &offByOneIndex);
       
       
-      ThreadData* threadData = ext_stackAllocate(numThreads, ThreadData);
-      void** threadDataPtrs  = ext_stackAllocate(numThreads, void*);
+      ThreadData* threadData = misc_stackAllocate(numThreads, ThreadData);
+      void** threadDataPtrs  = misc_stackAllocate(numThreads, void*);
       for (size_t i = 0; i < offByOneIndex; ++i) {
         threadData[i].shared = &sharedData;
-        if (ext_rng_createAndSeed(&threadData[i].rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+        if (ext_rng_createAndSeed(&threadData[i].rng, rng_algorithm, rng_standardNormal) != 0)
           ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = i * numRepCellsPerThread;
         threadData[i].numRepCells   = numRepCellsPerThread;
@@ -185,7 +186,7 @@ namespace dbarts { namespace xval {
       
       for (size_t i = offByOneIndex; i < numThreads; ++i) {
         threadData[i].shared = &sharedData;
-        if (ext_rng_createAndSeed(&threadData[i].rng, threadControl.rng_algorithm, threadControl.rng_standardNormal) != 0)
+        if (ext_rng_createAndSeed(&threadData[i].rng, rng_algorithm, rng_standardNormal) != 0)
           ext_throwError("could not allocate rng");
         threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
         threadData[i].numRepCells   = numRepCellsPerThread - 1;
@@ -194,15 +195,15 @@ namespace dbarts { namespace xval {
         threadDataPtrs[i] = threadData + i;
       }
       
-      ext_btm_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
+      misc_btm_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
       
       for (size_t i = 0; i < numThreads; ++i)
         ext_rng_destroy(threadData[i].rng);
          
-      ext_stackFree(threadDataPtrs);
-      ext_stackFree(threadData);
+      misc_stackFree(threadDataPtrs);
+      misc_stackFree(threadData);
         
-      ext_btm_destroy(threadManager);
+      misc_btm_destroy(threadManager);
       
     }
     
@@ -240,12 +241,12 @@ namespace {
   void randomSubsampleCrossvalidate(CrossvalidationData& xvalData,
                                     Results* restrict samples, size_t numSamples, double* restrict results,
                                     LossFunction calculateLoss,
-                                    ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                                    misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                                     ThreadScratch* v_scratch);
   void kFoldCrossvalidate(CrossvalidationData& data,
                           Results* restrict samples, size_t numSamples, double* restrict results,
                           LossFunction calculateLoss,
-                          ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                          misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch);
   
   void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
@@ -307,12 +308,12 @@ extern "C" {
     size_t numSamples              = origControl.defaultNumSamples;
         
     const LossFunctorDefinition& lfDef(sharedData.lossFunctorDef);
-    bool lossRequiresMutex = lfDef.requiresMutex && !ext_btm_isNull(sharedData.threadManager);
+    bool lossRequiresMutex = lfDef.requiresMutex && !misc_btm_isNull(sharedData.threadManager);
     
     LossFunctor* lf = NULL;
     if (lossRequiresMutex) {
       LossFunctorCreatorData lfcd = { lfDef, sharedData.method, maxNumTestObservations, numSamples, &lf };
-      ext_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorCreatorTask, &lfcd);
+      misc_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorCreatorTask, &lfcd);
     } else {
       lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples);
     }
@@ -351,7 +352,7 @@ extern "C" {
     
     void (*crossvalidate)(CrossvalidationData& data,
                           Results* restrict samples, size_t numSamples, double* restrict results,
-                          LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                          LossFunction calculateLoss, misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch);
 
     
@@ -465,7 +466,7 @@ extern "C" {
     
     if (lossRequiresMutex) {
       LossFunctorDestructorData lfdd = { lfDef, lf };
-      ext_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorDestructorTask, &lfdd);
+      misc_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorDestructorTask, &lfdd);
     } else {
       lfDef.deleteFunctor(lf);
     }
@@ -493,7 +494,7 @@ extern "C" void lossFunctorTask(void* data) {
 namespace {
   void randomSubsampleCrossvalidate(CrossvalidationData& xvalData,
                                     Results* restrict samples, size_t numSamples, double* restrict results,
-                                    LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                                    LossFunction calculateLoss, misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                                     ThreadScratch* v_scratch)
   {
     RandomSubsampleThreadScratch& threadScratch(*reinterpret_cast<RandomSubsampleThreadScratch *>(v_scratch));
@@ -506,7 +507,7 @@ namespace {
     
     if (lossRequiresMutex) {
       LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results };
-      ext_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
+      misc_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
     } else {
       calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results);
     }
@@ -514,7 +515,7 @@ namespace {
   
   void kFoldCrossvalidate(CrossvalidationData& xvalData,
                           Results* restrict samples, size_t numSamples, double* restrict results,
-                          LossFunction calculateLoss, ext_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
+                          LossFunction calculateLoss, misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch)
   {
     KFoldThreadScratch& threadScratch(*reinterpret_cast<KFoldThreadScratch *>(v_scratch));
@@ -534,7 +535,7 @@ namespace {
       std::sort(threadScratch.permutation + foldStartIndex, threadScratch.permutation + foldStartIndex + numTestObservations);
     }
     
-    double* foldResults = ext_stackAllocate(threadScratch.numResults, double);
+    double* foldResults = misc_stackAllocate(threadScratch.numResults, double);
     
     for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] = 0.0;
     
@@ -553,7 +554,7 @@ namespace {
     
       if (lossRequiresMutex) {
         LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults };
-        ext_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
+        misc_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
       } else {
         calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults);
       }
@@ -565,7 +566,7 @@ namespace {
     
     for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] /= static_cast<double>(threadScratch.numFolds);
     
-    ext_stackFree(foldResults);
+    misc_stackFree(foldResults);
   }
   
   void permuteIndexArray(ext_rng* restrict generator, size_t* restrict indices, size_t length)
@@ -773,7 +774,7 @@ extern "C" void printTask(void* v_data) {
 }
 namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
-                        size_t threadId, size_t cellIndex, ext_btm_manager_t manager, bool verbose)
+                        size_t threadId, size_t cellIndex, misc_btm_manager_t manager, bool verbose)
   {
     size_t numTrees = parameters.numTrees;
     double k        = parameters.k;
@@ -781,11 +782,11 @@ namespace {
     double base     = parameters.base;
       
     if (verbose) {
-      if (ext_btm_isNull(manager)) {
+      if (misc_btm_isNull(manager)) {
         ext_printf("    [%lu] n.trees: %lu, k: %.2f, power: %.2f, base: %.2f\n", cellIndex, numTrees, k, power, base);
       } else {
         PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
-        ext_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
+        misc_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
       }
     }
     

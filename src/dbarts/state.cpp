@@ -14,7 +14,7 @@ using std::snprintf;
 #endif
 
 #include <external/io.h>
-#include <external/linearAlgebra.h>
+#include <misc/linearAlgebra.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>
@@ -53,7 +53,7 @@ namespace dbarts {
       new (trees + treeNum) Tree(treeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
     
     treeFits = new double[data.numObservations * totalNumTrees];
-    ext_setVectorToConstant(treeFits, data.numObservations * totalNumTrees, 0.0);
+    misc_setVectorToConstant(treeFits, data.numObservations * totalNumTrees, 0.0);
     
     if (control.keepTrees) {
       totalNumTrees *= control.defaultNumSamples;
@@ -65,7 +65,7 @@ namespace dbarts {
         new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
       
       savedTreeFits = new double[data.numObservations * totalNumTrees];
-      ext_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
+      misc_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
     } else {
       savedTreeIndices = NULL;
       savedTrees = NULL;
@@ -151,7 +151,7 @@ namespace {
       size_t treeOffset = treeNum + newSampleNum * newControl.numTrees;
       new (newTreeData.trees + treeOffset)
         Tree(newTreeData.treeIndices + treeOffset * data.numObservations, data.numObservations, data.numPredictors);
-      ext_setVectorToConstant(newTreeData.treeFits + treeOffset * data.numObservations, data.numObservations, 0.0);
+      misc_setVectorToConstant(newTreeData.treeFits + treeOffset * data.numObservations, data.numObservations, 0.0);
     }
     
     // if any extra trees exist, delete them
@@ -208,7 +208,7 @@ namespace dbarts {
       } else {
         for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
           new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
-        ext_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
+        misc_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
       }
     } else {
       savedTreeIndices = NULL;

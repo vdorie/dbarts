@@ -9,6 +9,8 @@
 
 #include <rc/util.h>
 
+#include <misc/simd.h>
+
 #include <dbarts/bartFit.hpp>
 #include <dbarts/R_C_interface.hpp>
 
@@ -201,6 +203,19 @@ extern "C" {
   {
     return Rf_duplicate(obj);
   }
+  
+  static SEXP setSIMDInstructionSet(SEXP i)
+  {
+    misc_simd_setSIMDInstructionSet(static_cast<misc_simd_instructionLevel>(INTEGER(i)[0]));
+    return R_NilValue;
+  }
+  
+  static SEXP getMaxSIMDInstructionSet()
+  {
+    misc_simd_instructionLevel result = misc_simd_getMaxSIMDInstructionSet();
+    
+    return Rf_ScalarInteger(static_cast<int>(result));
+  }
 
 /*
 }
@@ -306,6 +321,8 @@ namespace {
     DEF_FUNC("dbarts_loadFromFile", loadFromFile, 1),
     DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
     // below: testing
+    DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
+    DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
     { NULL, NULL, 0 }
   };
 
@@ -382,6 +399,8 @@ extern "C" {
 #endif
     
     activeFits = new PointerSet(&compareExternalPointers);
+    
+    misc_simd_init();
   }
 }
 

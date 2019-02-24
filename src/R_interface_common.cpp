@@ -6,9 +6,10 @@
 #include <cmath> // fabs
 #include <cstring> // memcpy
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
+#include <misc/string.h>
+
 #include <external/random.h>
-#include <external/string.h>
 
 #include <Rmath.h> // unif_rand, norm_rand
 
@@ -128,11 +129,11 @@ namespace dbarts {
     const char* rngKindName = CHAR(STRING_ELT(slotExpr, 0));
     
     size_t rngKindNumber;
-    int errorCode = ext_str_matchInArray(rngKindName, rngNames, static_cast<size_t>(EXT_RNG_ALGORITHM_INVALID - EXT_RNG_ALGORITHM_WICHMANN_HILL + 1), &rngKindNumber);
+    int errorCode = misc_str_matchInArray(rngKindName, rngNames, static_cast<size_t>(EXT_RNG_ALGORITHM_INVALID - EXT_RNG_ALGORITHM_WICHMANN_HILL + 1), &rngKindNumber);
     if (errorCode != 0) Rf_error("error matching rng kind string: %s", std::strerror(errorCode));
-    if (rngKindNumber == EXT_STR_NO_MATCH) Rf_error("unsupported rng kind '%s'", rngKindName);
+    if (rngKindNumber == MISC_STR_NO_MATCH) Rf_error("unsupported rng kind '%s'", rngKindName);
     
-    control.rng_algorithm = static_cast<ext_rng_algorithm_t>(rngKindNumber);
+    control.rng_algorithm = static_cast<rng_algorithm_t>(rngKindNumber);
     
     
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngNormalKind"));
@@ -141,11 +142,11 @@ namespace dbarts {
     const char* rngNormalKindName = CHAR(STRING_ELT(slotExpr, 0));
     
     size_t rngNormalKindNumber;
-    errorCode = ext_str_matchInArray(rngNormalKindName, rngNormalNames, static_cast<size_t>(EXT_RNG_STANDARD_NORMAL_INVALID - EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE + 1), &rngNormalKindNumber);
+    errorCode = misc_str_matchInArray(rngNormalKindName, rngNormalNames, static_cast<size_t>(EXT_RNG_STANDARD_NORMAL_INVALID - EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE + 1), &rngNormalKindNumber);
     if (errorCode != 0) Rf_error("error matching rng normal kind string: %s", std::strerror(errorCode));
-    if (rngNormalKindNumber == EXT_STR_NO_MATCH) Rf_error("unsupported rng normal kind '%s'", rngNormalKindName);
+    if (rngNormalKindNumber == MISC_STR_NO_MATCH) Rf_error("unsupported rng normal kind '%s'", rngNormalKindName);
     
-    control.rng_standardNormal = static_cast<ext_rng_standardNormal_t>(rngNormalKindNumber);
+    control.rng_standardNormal = static_cast<rng_standardNormal_t>(rngNormalKindNumber);
   }
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
@@ -518,12 +519,12 @@ namespace dbarts {
       
       
       SEXP slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("trees"));
-      const char** treeStrings = ext_stackAllocate(control.numTrees, const char*);
+      const char** treeStrings = misc_stackAllocate(control.numTrees, const char*);
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         treeStrings[treeNum] = CHAR(STRING_ELT(slotExpr, rc_asRLength(static_cast<R_xlen_t>(treeNum))));
       }
       state[chainNum].recreateTreesFromStrings(fit, treeStrings, false);
-      ext_stackFree(treeStrings);
+      misc_stackFree(treeStrings);
       
       slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("treeFits"));
       std::memcpy(state[chainNum].treeFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * control.numTrees * sizeof(double));

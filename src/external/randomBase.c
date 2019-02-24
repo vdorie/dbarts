@@ -29,7 +29,7 @@
 #  include <sys/time.h>
 #endif
 
-#include <external/alloca.h>
+#include <misc/alloca.h>
 #include <external/io.h>
 
 #define STANDARD_NORMAL_DEFAULT EXT_RNG_STANDARD_NORMAL_INVERSION
@@ -927,7 +927,7 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed)
 {
   seed %= 1073741821;
   
-  uint_least32_t* temp = ext_stackAllocate(longLag + longLag - 1, uint_least32_t);
+  uint_least32_t* temp = misc_stackAllocate(longLag + longLag - 1, uint_least32_t);
   
   uint_least32_t ss = (seed + 2) & (modulus - 2);
   
@@ -962,7 +962,7 @@ static void knuth2_setSeed(KnuthState* kt, uint_least32_t seed)
   
   for (size_t j = 0; j < 10; ++j) knuth_randomizeArray(kt, temp, KKK);
   
-  ext_stackFree(temp);
+  misc_stackFree(temp);
   
   kt->info = EXT_RNG_KNUTH_NUM_RANDOM;
 }

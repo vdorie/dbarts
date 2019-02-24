@@ -1,0 +1,22 @@
+#ifndef DBARTS_TYPES_HPP
+#define DBARTS_TYPES_HPP
+
+#ifndef XINT_TYPE
+/* Define to the integer type to be used to map the floating point x to
+   integer types. Essentially limits the number of cut points allowable. */
+#define XINT_TYPE uint16_t
+#endif
+
+namespace dbarts {
+  enum VariableType {
+    ORDINAL, CATEGORICAL
+  };
+  
+  enum StepType {
+    BIRTH, DEATH, SWAP, CHANGE
+  };
+  
+  typedef std::XINT_TYPE xint_t;
+} // namespace dbarts
+
+#endif // DBARTS_TYPES_HPP

@@ -2,21 +2,18 @@
 #define DBARTS_BART_FIT_HPP
 
 #include <cstddef> // size_t
-#include "cstdint.hpp" // uint32_t
+#include <dbarts/cstdint.hpp> // uint32_t
 
-#include <external/thread.h>
-
-#include "types.hpp"
-
-#include "control.hpp"
-#include "data.hpp"
-#include "model.hpp"
-#include "scratch.hpp"
-#include "state.hpp"
+#include <dbarts/control.hpp>
+#include <dbarts/data.hpp>
+#include <dbarts/model.hpp>
+#include <dbarts/scratch.hpp>
+#include <dbarts/state.hpp>
+#include <dbarts/types.hpp>
 
 extern "C" {
-  struct _ext_htm_manager_t;
-  typedef struct _ext_htm_manager_t* ext_htm_manager_t;
+  struct _misc_htm_manager_t;
+  typedef struct _misc_htm_manager_t* misc_htm_manager_t;
 }
 
 namespace dbarts {
@@ -36,7 +33,7 @@ namespace dbarts {
     std::size_t currentNumSamples;
     std::size_t currentSampleNum;
     
-    ext_htm_manager_t threadManager;
+    misc_htm_manager_t threadManager;
     
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();

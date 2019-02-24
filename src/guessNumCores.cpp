@@ -124,7 +124,7 @@ namespace dbarts {
 #  include <errno.h>
 #  include <sys/stat.h> // stat
 
-#  include <external/alloca.h>
+#  include <misc/alloca.h>
 
 #  include <map>
 #  include <vector>
@@ -304,12 +304,12 @@ namespace {
       off_t endOfNumber = offset + 1;
       while (endOfNumber < (off_t) fileLength && cpuInfo[endOfNumber] >= '0' && cpuInfo[endOfNumber] <= '9') ++endOfNumber;
       
-      char* buffer = ext_stackAllocate(endOfNumber - offset + 1, char);
+      char* buffer = misc_stackAllocate(endOfNumber - offset + 1, char);
       std::memcpy(buffer, (const char*) cpuInfo + offset, endOfNumber - offset);
       buffer[endOfNumber - offset] = '\0';
       
       long parsedInt = std::strtol(buffer, NULL, 10);
-      ext_stackFree(buffer);
+      misc_stackFree(buffer);
       
       offset = endOfNumber;
       

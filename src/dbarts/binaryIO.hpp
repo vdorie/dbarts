@@ -1,7 +1,7 @@
 #ifndef DBARTS_BINARY_IO_HPP
 #define DBARTS_BINARY_IO_HPP
 
-struct ext_binaryIO;
+struct misc_binaryIO;
 
 #include <cstddef>
 
@@ -17,19 +17,19 @@ namespace dbarts {
     std::size_t revision;
   };
   
-  bool writeControl(ext_binaryIO* bio, const Control& control);
-  bool readControl(ext_binaryIO* bio, Control& control, const Version& version);
+  bool writeControl(misc_binaryIO* bio, const Control& control);
+  bool readControl(misc_binaryIO* bio, Control& control, const Version& version);
 
-  bool writeData(ext_binaryIO* bio, const Data& data);
-  bool readData(ext_binaryIO* bio, Data& data);
+  bool writeData(misc_binaryIO* bio, const Data& data);
+  bool readData(misc_binaryIO* bio, Data& data);
   
-  bool writeModel(ext_binaryIO* bio, const Model& model);
-  bool readModel(ext_binaryIO* bio, Model& model);
+  bool writeModel(misc_binaryIO* bio, const Model& model);
+  bool readModel(misc_binaryIO* bio, Model& model);
   
-  bool writeState(ext_binaryIO* bio, const State* state, const Control& control, const Data& data, std::size_t numSamples);
-  bool readState(ext_binaryIO* bio, State* state, const Control& control, const Data& data, std::size_t numSamples, const Version& version);
+  bool writeState(misc_binaryIO* bio, const State* state, const Control& control, const Data& data, std::size_t numSamples);
+  bool readState(misc_binaryIO* bio, State* state, const Control& control, const Data& data, std::size_t numSamples, const Version& version);
   
-  int readVersion(ext_binaryIO* bio, Version& version, char** versionStringPtr);
+  int readVersion(misc_binaryIO* bio, Version& version, char** versionStringPtr);
 }
 
 #endif // DBARTS_BINARY_IO_HPP

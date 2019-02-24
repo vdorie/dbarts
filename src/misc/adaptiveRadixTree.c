@@ -1,18 +1,14 @@
-#include <external/adaptiveRadixTree.h>
 #include "config.h"
+#include <misc/adaptiveRadixTree.h>
 
 #include <errno.h>
 #include <stdbool.h>
-#include <external/stddef.h>
+#include <misc/stddef.h>
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy, memcmp
-#ifdef HAVE_SSE2
-#  ifdef _MSC_VER
-#    include <intrin.h>
-#  else
-#    include <emmintrin.h> // SSE2 intrinsics
-#  endif
-#endif
+
+#include <misc/intrinsic.h>
+#include <misc/memalign.h>
 
 #include <external/io.h>
 
@@ -39,29 +35,19 @@
 #  define ALIGN16
 #endif
 
-#ifdef __SUNPRO_C
-#  ifdef __STRICT_ANSI__
-#    define __USE_XOPEN2K 1 // gets posix_memalign when strict ANSI
-#  endif
-#  include <stdlib.h>   // malloc, posix_memalign
-#  undef __USE_XOPEN2K
-#  if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_MALLOC_H)
-#    include <malloc.h>   // memalign, __mingw_aligned_malloc
-#  endif
-#endif
 
 // we define partial as part of the prefix, prefix being
 // the whole shared initial string; so partial is the prefix
 // if the prefix has length <= MAX_PARTIAL_LENGTH
-struct ext_art_node {
+struct misc_art_node {
   uint8_t type;
   uint8_t numChildren;
   uint8_t partial[MAX_PARTIAL_LENGTH];
   size_t prefixLength;
 };
 
-typedef ext_art_tree Tree;
-typedef ext_art_node Node;
+typedef misc_art_tree Tree;
+typedef misc_art_node Node;
 
 typedef enum {
   NODE4 = 0,
@@ -128,11 +114,11 @@ static size_t getLongestCommonPrefixLength(const Leaf* restrict l1, const Leaf* 
 static size_t getPartialMismatchIndex(const Node* restrict n, const uint8_t* restrict key, size_t keyLength, size_t depth);
 static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* restrict key, size_t keyLength, size_t depth);
 
-static Node** findChildMatchingKey(const Node* n, uint8_t c);
+static Node** (*findChildMatchingKey)(const Node* n, uint8_t c) = 0;
 static Leaf* getMinimumLeafUnderNode(const Node* n);
 // static Leaf* getMaximumLeafUnderNode(const Node* n);
 
-static int map(const Node* restrict n, ext_art_callback cb, void* restrict data);
+static int map(const Node* restrict n, misc_art_callback cb, void* restrict data);
 
 static int addChild(Node* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent);
 static int removeChild(Node* restrict n, uint8_t c, Node* restrict* restrict positionInParent, Node* restrict* restrict leafRef);
@@ -147,70 +133,33 @@ static void printAtDepth(Node* const n, size_t depth);
 
 static inline size_t getMinLength(size_t a, size_t b) { return (a < b) ? a : b; }
 
-#ifdef __GNUC__
-#  define countTrailingZeros(_X_) __builtin_ctz(_X_)
-#elif defined(_MSC_VER)
-// it would be possible to use __lzcnt when ABM is available, but that is relatively recent
-#  include <intrin.h>
-static unsigned long __inline countTrailingZeros(unsigned long x) {
-  unsigned long result;
-  _BitScanForward(&result, x);
-  return result;
-}
-#elif defined(__INTEL_COMPILER)
-#  include <immintrin.h>
-#  define countTrailingZeros(_X_) _bit_scan_forward(_X_)
-#elif defined(HAVE_FFS)
-#  include <strings.h>
-#  define countTrailingZeros(_X_) (ffs(_X_) - 1)
-#elif defined(__MINGW32__)
-#  define countTrailingZeros(_X_) (__builtin_ffs(_X_) - 1)
-#else
-static inline uint32_t countTrailingZeros(uint32_t x) {
-  static const uint8_t ctzTable[] = {
-    0, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 
-    0, 5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 
-    0, 1, 0, 6, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 
-    0, 2, 0, 1, 0, 5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 
-    0, 1, 0, 2, 0, 1, 0, 7, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 
-    0, 3, 0, 1, 0, 2, 0, 1, 0, 5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 
-    0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 6, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 
-    0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 
-    0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1 };
 
-  uint32_t n = 0;
-  if ((x & 0x0000FFFF) == 0) { n += 16; x >>= 16; }
-  if ((x & 0x000000FF) == 0) { n +=  8; x >>= 8;  }
-  n += ctzTable[x];
-  return n;
-#endif
-
-void ext_art_initialize(Tree* t) {
+void misc_art_initialize(Tree* t) {
   t->root = NULL;
   t->size = 0;
 }
 
-int ext_art_invalidate(Tree* t) {
+int misc_art_invalidate(Tree* t) {
   int result = destroyNode(t->root);
   t->root = NULL;
   t->size = 0;
   return result;
 }
 
-Tree* ext_art_create() {
+Tree* misc_art_create() {
   Tree* result = (Tree*) malloc(sizeof(Tree));
-  if (result != NULL) ext_art_initialize(result);
+  if (result != NULL) misc_art_initialize(result);
   return result;
 }
 
-int ext_art_destroy(Tree* t) {
+int misc_art_destroy(Tree* t) {
   if (t == NULL) return 0;
-  int result = ext_art_invalidate(t);
+  int result = misc_art_invalidate(t);
   free(t);
   return result;
 }
 
-void* ext_art_insert(Tree* restrict t, const uint8_t* restrict key, size_t keyLength, const void* restrict value)
+void* misc_art_insert(Tree* restrict t, const uint8_t* restrict key, size_t keyLength, const void* restrict value)
 {
   bool addedNode = true;
   void* oldValue = NULL;
@@ -220,7 +169,7 @@ void* ext_art_insert(Tree* restrict t, const uint8_t* restrict key, size_t keyLe
   return oldValue;
 }
 
-void* ext_art_delete(ext_art_tree* restrict t, const uint8_t* restrict key, size_t keyLength)
+void* misc_art_delete(misc_art_tree* restrict t, const uint8_t* restrict key, size_t keyLength)
 {
   Leaf* l = NULL;
   int errorCode = deleteKey(t->root, key, keyLength, 0, &t->root, &l);
@@ -234,7 +183,7 @@ void* ext_art_delete(ext_art_tree* restrict t, const uint8_t* restrict key, size
   return oldValue;
 }
 
-void* ext_art_search(const Tree* restrict t, const uint8_t* restrict key, size_t keyLength)
+void* misc_art_search(const Tree* restrict t, const uint8_t* restrict key, size_t keyLength)
 {
   Node** child;
   const Node* n = t->root;
@@ -266,11 +215,11 @@ void* ext_art_search(const Tree* restrict t, const uint8_t* restrict key, size_t
   return NULL;
 }
 
-int ext_art_map(const Tree* restrict t, ext_art_callback cb, void* restrict data) {
+int misc_art_map(const Tree* restrict t, misc_art_callback cb, void* restrict data) {
   return map(t->root, cb, data);
 }
 
-int ext_art_mapOverPrefix(const ext_art_tree* restrict t, const uint8_t* prefix, ext_size_t prefixLength, ext_art_callback cb, void* restrict data)
+int misc_art_mapOverPrefix(const misc_art_tree* restrict t, const uint8_t* prefix, misc_size_t prefixLength, misc_art_callback cb, void* restrict data)
 {
   size_t depth = 0;
   const Node* n = t->root;
@@ -309,7 +258,7 @@ int ext_art_mapOverPrefix(const ext_art_tree* restrict t, const uint8_t* prefix,
   return 0;
 }
 
-void ext_art_print(const Tree* t)
+void misc_art_print(const Tree* t)
 {
   printAtDepth(t->root, 0);
 }
@@ -508,7 +457,55 @@ static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* rest
   return index;
 }
 
-static Node** findChildMatchingKey(const Node* n, uint8_t c)
+static Node** findChildMatchingKey_c(const Node* n, uint8_t c)
+{
+  uint8_t index;
+  union {
+    const Node4  * p1;
+    const Node16 * p2;
+    const Node48 * p3;
+    const Node256* p4;
+  } p;
+  switch (n->type) {
+    case NODE4:
+    p.p1 = (const Node4*) n;
+    for (index = 0; index < n->numChildren; ++index)
+      if (p.p1->keys[index] == c) return (Node**) &p.p1->children[index];
+    break;
+    
+    case NODE16:
+    {
+      unsigned int bitfield = 0;
+      p.p2 = (const Node16*) n;
+
+      for (uint_least8_t i = 0; i < 16; ++i)
+        if (p.p2->keys[i] == c) bitfield |= (1 << i);
+      bitfield &= (1 << n->numChildren) - 1;
+      
+      if (bitfield != 0) return (Node**) &p.p2->children[countTrailingZeros(bitfield)];
+    }
+    break;
+    
+    case NODE48:
+    p.p3 = (const Node48*) n;
+    index = p.p3->keys[c];
+    if (index > 0) return (Node**) &p.p3->children[index - 1];
+    break;
+    
+    case NODE256:
+    p.p4 = (const Node256*) n;
+    if (p.p4->children[c] != NULL) return (Node**) &p.p4->children[c];
+    break;
+    
+    default:
+    errno = EINVAL;
+    break;
+  }
+  return NULL;
+}
+
+#ifdef __SSE2__
+static Node** findChildMatchingKey_sse2(const Node* n, uint8_t c)
 {
   uint8_t index;
   union {
@@ -528,19 +525,9 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
     {
       unsigned int bitfield;
       p.p2 = (const Node16*) n;
-#ifdef HAVE_SSE2
-      if (((uintptr_t) p.p2->keys % 0x10) != 0)
-        ext_throwError("adaptive radix tree keys not aligned for SSE2 operations; contact author for support");
-      
       __m128i comparison = _mm_cmpeq_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) p.p2->keys));
       
       bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
-#else
-      bitfield = 0;
-      for (uint_least8_t i = 0; i < 16; ++i)
-        if (p.p2->keys[i] == c) bitfield |= (1 << i);
-      bitfield &= (1 << n->numChildren) - 1;
-#endif
       if (bitfield != 0) return (Node**) &p.p2->children[countTrailingZeros(bitfield)];
     }
     break;
@@ -562,6 +549,7 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
   }
   return NULL;
 }
+#endif // __SSE2__
 
 static Leaf* getMinimumLeafUnderNode(const Node* n) {
   if (n == NULL) return NULL;
@@ -623,7 +611,7 @@ static Leaf* getMinimumLeafUnderNode(const Node* n) {
   }
 } */
 
-static int map(const Node* restrict n, ext_art_callback cb, void* restrict data)
+static int map(const Node* restrict n, misc_art_callback cb, void* restrict data)
 {
   if (n == NULL) return 0;
   if (nodeIsLeaf(n)) {
@@ -662,7 +650,7 @@ static int map(const Node* restrict n, ext_art_callback cb, void* restrict data)
     p.p3 = (const Node48*) n;
     for (size_t i = 0; i < 256; ++i) {
       index = p.p3->keys[i];
-      if (index != 0) continue;
+      if (index == 0) continue;
       
       if ((result = map(p.p3->children[index - 1], cb, data)) != 0)
         return result;
@@ -682,7 +670,7 @@ static int map(const Node* restrict n, ext_art_callback cb, void* restrict data)
   return EINVAL;
 }
 
-static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent);
+static int (*addChild16)(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent) = 0;
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent);
 static int addChild256(Node256* restrict n, uint8_t c, void* restrict child);
 
@@ -733,26 +721,18 @@ static int addChild4(Node4* restrict n, uint8_t c, void* restrict child, Node* r
   return addChild16(newNode, c, child, positionInParent);
 }
 
-static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
+static int addChild16_c(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {
   if (n->n.numChildren < 16) {
     size_t index;
 
-    unsigned int bitfield;
-#if defined(HAVE_SSE2)
-    // Compare the key to all 16 stored keys
-    __m128i comparison = _mm_cmplt_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) n->keys));
-
-    // Use a mask to ignore children that don't exist
-    bitfield = ((1 << n->n.numChildren) - 1) & _mm_movemask_epi8(comparison);
-#else
-    bitfield = 0;
+    unsigned int bitfield = 0;
     for (uint_least8_t i = 0; i < 16; ++i) {
       if (c < n->keys[i])
         bitfield |= (1 << i);
     }
     bitfield &= (1 << n->n.numChildren) - 1;
-#endif
+    
      // Check if less than any and bump up if so
     if (bitfield != 0) {
       index = countTrailingZeros(bitfield);
@@ -785,6 +765,60 @@ static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node*
   
   return addChild48(newNode, c, child, positionInParent);
 }
+
+#ifdef __SSE2__
+
+#define _mm_cmpge_epu8(a, b) ~_mm_cmplt_epi8(_mm_add_epi8(a, _mm_set1_epi8((uint8_t) 0x80u)), \
+                                             _mm_add_epi8(b, _mm_set1_epi8((uint8_t) 0x80u)))
+#define _mm_cmple_epu8(a, b) _mm_cmpge_epu8(b, a)
+#define _mm_cmpgt_epu8(a, b) _mm_xor_si128(_mm_cmple_epu8(a, b), _mm_set1_epi8(-1))
+#define _mm_cmplt_epu8(a, b) _mm_cmpgt_epu8(b, a)
+
+static int addChild16_sse2(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
+{
+  if (n->n.numChildren < 16) {
+    size_t index;
+
+    unsigned int bitfield;
+    // Compare the key to all 16 stored keys
+    __m128i comparison = _mm_cmplt_epu8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) n->keys));
+
+    // Use a mask to ignore children that don't exist
+    bitfield = ((1 << n->n.numChildren) - 1) & _mm_movemask_epi8(comparison);
+    
+     // Check if less than any and bump up if so
+    if (bitfield != 0) {
+      index = countTrailingZeros(bitfield);
+      memmove(n->keys + index + 1,     n->keys + index,     (n->n.numChildren - index) * sizeof(uint8_t));
+      memmove(n->children + index + 1, n->children + index, (n->n.numChildren - index) * sizeof(void*));
+    } else {
+      index = n->n.numChildren;
+    }
+    
+    // Set the child
+    n->keys[index] = c;
+    n->children[index] = child;
+    n->n.numChildren++;
+    
+    return 0;
+  }
+  
+  // convert Node16 to Node48
+  Node48* newNode = (Node48*) createNode(NODE48);
+  if (newNode == NULL) return errno;
+
+  // Copy the child pointers and populate the key map
+  memcpy(newNode->children, n->children, n->n.numChildren * sizeof(void*));
+  for (uint8_t i = 0; i < n->n.numChildren; ++i) {
+    newNode->keys[n->keys[i]] = i + 1;
+  }
+  copyNodeHeader((Node*) newNode, (const Node*) n);
+  *positionInParent = (Node*) newNode;
+  free(n);
+  
+  return addChild48(newNode, c, child, positionInParent);
+}
+#endif
 
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {
@@ -970,13 +1004,9 @@ static Node* createNode(NodeType type) {
       break;
     case NODE16:
 #ifdef __SUNPRO_C
-#  ifdef HAVE_POSIX_MEMALIGN
-      if (posix_memalign((void**) &n, alignment, sizeof(Node16)) != 0) n = NULL;
+      if (misc_alignedAllocate((void**) &n, alignment, sizeof(Node16)) != 0)
+        n = NULL;
       else
-#  else
-      n = memalign(alignment, sizeof(Node16));
-      if (n != NULL)
-#  endif
         memset(n, 0, sizeof(Node16));
 #else
       n = (Node*) calloc(1, sizeof(Node16));
@@ -1019,11 +1049,20 @@ static int destroyNode(Node* n) {
     case NODE16:
     p.p2 = (Node16*) n;
     for (uint8_t i = 0; i < n->numChildren; ++i) destroyNode(p.p2->children[i]);
+#ifdef __SUNPRO_C
+    misc_alignedFree(n);
+    return 0;
+#endif 
     break;
     
     case NODE48:
     p.p3 = (Node48*) n;
-    for (uint8_t i = 0; i < n->numChildren; ++i) destroyNode(p.p3->children[i]);
+    for (uint8_t i = 0; i < 255; ++i) {
+      uint8_t index = p.p3->keys[i];
+      if (index == 0) continue;
+      destroyNode(p.p3->children[index - 1]);
+    }
+    if (p.p3->keys[255] != 0) destroyNode(p.p3->children[p.p3->keys[255] - 1]);
     break;
     
     case NODE256:
@@ -1113,12 +1152,14 @@ static void printAtDepth(Node* const n, size_t depth)
     p.p3 = (const Node48*) n;
     for (uint8_t i = 0; i <= 254; ++i)
       if (p.p3->keys[i] != 0) ext_printf("%c", i);
+    if (p.p3->keys[255] != 0) ext_printf("%c", 255);
     break;
     
     case NODE256:
     p.p4 = (const Node256*) n;
     for (uint8_t i = 0; i <= 254; ++i)
       if (p.p4->children[i] != NULL) ext_printf("%c", i);
+    if (p.p4->children[255] != 0) ext_printf("%c", 255);
     break;
   }
   ext_printf("'\n");
@@ -1152,6 +1193,11 @@ static void printAtDepth(Node* const n, size_t depth)
         printAtDepth(p.p3->children[p.p3->keys[i] - 1], depth + 1);
       }
     }
+    if (p.p3->keys[255] != 0) {
+      for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
+      ext_printf("%c: ", 255);
+      printAtDepth(p.p3->children[p.p3->keys[255] - 1], depth + 1);
+    }
     break;
     
     case NODE256:
@@ -1162,6 +1208,11 @@ static void printAtDepth(Node* const n, size_t depth)
         printAtDepth(p.p4->children[i], depth + 1);
       }
     }
+    if (p.p4->children[255] != NULL) {
+      for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
+      ext_printf("%c: ", 255);
+      printAtDepth(p.p4->children[255], depth + 1);
+    }
     break;
   }
 
@@ -1169,5 +1220,20 @@ static void printAtDepth(Node* const n, size_t depth)
 #  pragma GCC diagnostic pop
 #endif
 
+}
+
+#include <misc/simd.h>
+
+void misc_initART(misc_simd_instructionLevel i) {
+#ifdef __SSE2__
+  if (i >= MISC_INST_SSE2) {
+    findChildMatchingKey = &findChildMatchingKey_sse2;
+    addChild16 = &addChild16_sse2;
+  } else
+#endif
+  {
+    findChildMatchingKey = &findChildMatchingKey_c;
+    addChild16 = &addChild16_c;
+  }
 }
 

@@ -1,5 +1,5 @@
-#ifndef EXT_ADAPTIVE_RADIX_TREE_H
-#define EXT_ADAPTIVE_RADIX_TREE_H
+#ifndef MISC_ADAPTIVE_RADIX_TREE_H
+#define MISC_ADAPTIVE_RADIX_TREE_H
 
 // Copyright (c) 2012, Armon Dadgar
 // All rights reserved.
@@ -40,47 +40,47 @@
 extern "C" {
 #endif
 
-typedef struct ext_art_node ext_art_node;
+typedef struct misc_art_node misc_art_node;
 
 typedef struct {
-  ext_art_node* root;
-  ext_size_t size;
-} ext_art_tree;
+  misc_art_node* root;
+  misc_size_t size;
+} misc_art_tree;
 
-void ext_art_initialize(ext_art_tree* t);
-int ext_art_invalidate(ext_art_tree* t);
-ext_art_tree* ext_art_create();
-int ext_art_destroy(ext_art_tree* t);
+void misc_art_initialize(misc_art_tree* t);
+int misc_art_invalidate(misc_art_tree* t);
+misc_art_tree* misc_art_create();
+int misc_art_destroy(misc_art_tree* t);
 
 
 #if defined(__GNUC__) && !defined(__clang__) && __STDC_VERSION__ >= 199901L && 402 == (__GNUC__ * 100 + __GNUC_MINOR__)
 #  define BROKEN_GCC_C99_INLINE
-#  define ext_art_getSize(t) ((t)->size)
+#  define misc_art_getSize(t) ((t)->size)
 #else
-inline ext_size_t ext_art_getSize(const ext_art_tree* t) {
+inline misc_size_t misc_art_getSize(const misc_art_tree* t) {
   return t->size;
 }
 #endif
 
 // returns the value that got overwritten, if any exists; otherwise NULL
 // if NULL, errno may have been set
-void* ext_art_insert(ext_art_tree* restrict t, const uint8_t* restrict key, ext_size_t keyLength, const void* restrict value);
+void* misc_art_insert(misc_art_tree* restrict t, const uint8_t* restrict key, misc_size_t keyLength, const void* restrict value);
 // returns the value that got deleted, if any exists; otherwise NULL
 // if NULL, errno may have been set
-void* ext_art_delete(ext_art_tree* restrict t, const uint8_t* restrict key, ext_size_t keyLength);
+void* misc_art_delete(misc_art_tree* restrict t, const uint8_t* restrict key, misc_size_t keyLength);
 // returns the value found, if any exists; otherwise NULL
 // if NULL, errno may have been set
-void* ext_art_search(const ext_art_tree* restrict t, const uint8_t* restrict key, ext_size_t keyLength);
+void* misc_art_search(const misc_art_tree* restrict t, const uint8_t* restrict key, misc_size_t keyLength);
 
-typedef int (*ext_art_callback)(void* restrict data, const uint8_t* restrict key, ext_size_t keyLength, void* restrict value);
-int ext_art_map(const ext_art_tree* restrict t, ext_art_callback cb, void* restrict data);
-int ext_art_mapOverPrefix(const ext_art_tree* restrict t, const uint8_t* prefix, ext_size_t prefixLength, ext_art_callback cb, void* restrict data);
+typedef int (*misc_art_callback)(void* restrict data, const uint8_t* restrict key, misc_size_t keyLength, void* restrict value);
+int misc_art_map(const misc_art_tree* restrict t, misc_art_callback cb, void* restrict data);
+int misc_art_mapOverPrefix(const misc_art_tree* restrict t, const uint8_t* prefix, misc_size_t prefixLength, misc_art_callback cb, void* restrict data);
 
-void ext_art_print(const ext_art_tree* t);
+void misc_art_print(const misc_art_tree* t);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // EXT_ADAPTIVE_RADIX_TREE_H
+#endif // MISC_ADAPTIVE_RADIX_TREE_H
 

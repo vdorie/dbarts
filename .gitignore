@@ -12,4 +12,6 @@ autom4te.cache
 src/config.hpp
 src/dbarts/config.hpp
 src/external/config.h
-inst/include/dbarts/config.hpp
+src/misc/config.h
+src/include/misc/types.h
+inst/include/dbarts/types.hpp

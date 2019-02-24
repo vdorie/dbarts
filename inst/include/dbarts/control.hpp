@@ -2,9 +2,9 @@
 #define DBARTS_CONTROL_HPP
 
 #include <cstddef> // size_t
-#include "cstdint.hpp" // int types
+#include <dbarts/cstdint.hpp> // int types
 
-#include <external/random.h>
+#include <dbarts/random.hpp>
 
 namespace dbarts {
   struct BARTFit;
@@ -30,10 +30,8 @@ namespace dbarts {
     std::uint32_t printEvery;
     std::uint32_t printCutoffs;
     
-    // these should be from external/random.h with the exception that we catch "INVALID" codes
-    // and use them to construct a default RNG (e.g., one that matches the environment's)
-    ext_rng_algorithm_t rng_algorithm;
-    ext_rng_standardNormal_t rng_standardNormal;
+    rng_algorithm_t rng_algorithm;
+    rng_standardNormal_t rng_standardNormal;
     
     CallbackFunction callback;
     void* callbackData;
@@ -41,8 +39,8 @@ namespace dbarts {
     Control() :
       responseIsBinary(false), verbose(true), keepTrainingFits(true), useQuantiles(false), keepTrees(false),
       defaultNumSamples(800), defaultNumBurnIn(200), numTrees(75), numChains(1), numThreads(1), treeThinningRate(1),
-      printEvery(100), printCutoffs(0), rng_algorithm(EXT_RNG_ALGORITHM_MERSENNE_TWISTER),
-      rng_standardNormal(EXT_RNG_STANDARD_NORMAL_INVERSION), callback(NULL), callbackData(NULL)
+      printEvery(100), printCutoffs(0), rng_algorithm(RNG_ALGORITHM_MERSENNE_TWISTER),
+      rng_standardNormal(RNG_STANDARD_NORMAL_INVERSION), callback(NULL), callbackData(NULL)
     { }
     Control(std::size_t defaultNumSamples,
             std::size_t defaultNumBurnIn,
@@ -57,8 +55,8 @@ namespace dbarts {
             bool useQuantiles,
             bool keepTrees,
             uint32_t printCutoffs,
-            ext_rng_algorithm_t rng_algorithm,
-            ext_rng_standardNormal_t rng_standardNormal,
+            rng_algorithm_t rng_algorithm,
+            rng_standardNormal_t rng_standardNormal,
             CallbackFunction callback,
             void* callbackData) :
       responseIsBinary(responseIsBinary), verbose(verbose), keepTrainingFits(keepTrainingFits), useQuantiles(useQuantiles),
@@ -71,3 +69,4 @@ namespace dbarts {
 } // namespace dbarts
 
 #endif // BART_CONTROL_HPP
+

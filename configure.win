@@ -2,5 +2,14 @@
 
 cp -f src/config.hpp.win src/config.hpp
 cp -f src/external/config.h.win src/external/config.h
+cp -f src/misc/config.h.win src/misc/config.h
 cp -f src/dbarts/config.hpp.win src/dbarts/config.hpp
-cp -f inst/include/dbarts/config.hpp.win inst/include/dbarts/config.hpp
+cp -f inst/include/dbarts/types.hpp.win inst/include/dbarts/types.hpp
+cp -f src/include/misc/types.h.win src/include/misc/types.h
+
+cp -f src/config.hpp.win src/config.hpp
+cp -f src/dbarts/config.hpp.win src/dbarts/config.hpp
+cp -f src/external/config.h.win src/external/config.h
+cp -f src/misc/config.h.win src/misc/config.h
+cp -f src/include/misc/types.h.win src/include/misc/types.h
+cp -f inst/include/dbarts/types.hpp.win inst/include/dbarts/types.hpp
