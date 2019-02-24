@@ -1,17 +1,17 @@
 ## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
 MATCH_BAYES_TREE=
 THREAD_SAFE_UNLOAD=
-SIMD_FLAGS= -mmmx -msse -msse2 -msse3 -msse4.1 -msse4.2 -mavx -mavx2
+SIMD_FLAGS=-mmmx -msse -msse2 -msse3 -msse4.1 -msse4.2 -mavx -mavx2
 
 INST_DIR=../inst
 
 PTHREAD_FLAGS=-pthread
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude
-PKG_LIBS= dbarts.a external.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
+PKG_LIBS= dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
-SUBDIRS = dbarts external rc
+SUBDIRS = dbarts external misc rc
 SUBLIBS = $(SUBDIRS:=.a)
 
 all: $(SHLIB)

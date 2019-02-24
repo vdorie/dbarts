@@ -9,5 +9,7 @@
 #define XINT_TYPE uint16_t
 #endif
 
+typedef XINT_TYPE misc_xint_t;
+
 #endif // MISC_TYPES_H
 

@@ -1,7 +1,7 @@
 #ifndef DBARTS_XVAL_CROSSVALIDATE_HPP
 #define DBARTS_XVAL_CROSSVALIDATE_HPP
 
-#include <cstddef>
+#include <misc/stddef.h>
 
 #include <dbarts/control.hpp>
 #include <dbarts/data.hpp>
