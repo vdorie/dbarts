@@ -53,14 +53,16 @@
 
 #  ifdef __USE_SSE4_1__
 #    define _mm_cmpge_epu16(a, b) _mm_cmpeq_epi16(_mm_max_epu16(a, b), a)
+#    define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
+#    define _mm_cmpgt_epu16(a, b) _mm_xor_si128(_mm_cmple_epu16(a, b), _mm_set1_epi16(-1))
+#    define _mm_cmplt_epu16(a, b) _mm_cmpgt_epu16(b, a)
 #  else
-#    define _mm_cmpge_epu16(a, b) ~_mm_cmplt_epi16(_mm_add_epi16(a, _mm_set1_epi16((uint16_t) 0x8000u)), \
-                                                   _mm_add_epi16(b, _mm_set1_epi16((uint16_t) 0x8000u)))
+#    define _mm_cmpgt_epu16(a, b) _mm_cmpgt_epi16(_mm_add_epi16(a, _mm_set1_epi16((uint16_t) 0x8000u)), \
+                                                  _mm_add_epi16(b, _mm_set1_epi16((uint16_t) 0x8000u)))
+#    define _mm_cmplt_epu16(a, b) _mm_cmpgt_epu16(b, a)
+#    define _mm_cmpge_epu16(a, b) _mm_xor_si128(_mm_cmplt_epu16(a, b), _mm_set1_epi16(-1))
+#    define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
 #  endif
-
-#  define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
-#  define _mm_cmpgt_epu16(a, b) _mm_xor_si128(_mm_cmple_epu16(a, b), _mm_set1_epi16(-1))
-#  define _mm_cmplt_epu16(a, b) _mm_cmpgt_epu16(b, a)
 
 #  define loadLHComp(_X_) \
     (values = _mm_set_epi16(getDataAt(_X_ + 7), \

@@ -1,6 +1,17 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-9}{
+  \subsection{OPTIMIZATIONS}{
+    \itemize{
+      \item Stores \code{x} as integer matrix of the max of which cut point an observation is
+            to the left of, by default using 16 bit integers. Limited to 65535 cut points
+            unless configure option \code{with-xint-size=32} (or higher).
+      \item Uses CPU dispatch and SIMD instructions for some operations. This and the integer
+            \code{x} make BART about 30\% faster on datasets of around 10k observations.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-8}{
   \subsection{NEW FEATURES}{
     \itemize{

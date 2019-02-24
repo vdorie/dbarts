@@ -376,242 +376,7 @@ namespace dbarts {
     
     return leftChild->findBottomNode(fit, xt);
   }
-}
-
-#include <emmintrin.h>
-#include <smmintrin.h>
-
-#define _mm_cmpge_epu16(a, b) \
-        _mm_cmpeq_epi16(_mm_max_epu16(a, b), a)
-
-#define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
-
-#define _mm_cmpgt_epu16(a, b) \
-        _mm_xor_si128(_mm_cmple_epu16(a, b), _mm_set1_epi16(-1))
-
-#define _mm_cmplt_epu16(a, b) _mm_cmpgt_epu16(b, a)
-
-#  define countTrailingZeros(_X_) __builtin_ctz(_X_)
-
-namespace {
-  using namespace dbarts;
-
- #define getDataAt(_I_) x[_I_]
-
-#define loadLHComp(_X_) \
-  (values = _mm_set_epi16(getDataAt(_X_ + 7), \
-                          getDataAt(_X_ + 6), \
-                          getDataAt(_X_ + 5), \
-                          getDataAt(_X_ + 4), \
-                          getDataAt(_X_ + 3), \
-                          getDataAt(_X_ + 2), \
-                          getDataAt(_X_ + 1), \
-                          getDataAt(_X_    )), \
-    _mm_cmpgt_epu16(values, _mm_set1_epi16(static_cast<xint_t>(rule.splitIndex))))
-
-#define loadRHComp(_X_) \
-  (values = _mm_set_epi16(getDataAt(_X_ - 7), \
-                          getDataAt(_X_ - 6), \
-                          getDataAt(_X_ - 5), \
-                          getDataAt(_X_ - 4), \
-                          getDataAt(_X_ - 3), \
-                          getDataAt(_X_ - 2), \
-                          getDataAt(_X_ - 1), \
-                          getDataAt(_X_    )), \
-    _mm_cmple_epu16(values, _mm_set1_epi16(static_cast<xint_t>(rule.splitIndex))))
   
-  // returns how many observations are on the "left"
-  size_t partitionRange(const BARTFit& fit, const Rule& rule, size_t* restrict indices, size_t length) {
-    return misc_partitionRange(fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations,
-                               rule.splitIndex, indices, length);
-    /* size_t lengthOfLeft;
-    
-    size_t lh = 0, rh = length - 1;
-    
-    for (size_t i = 0; i < length; ++i) indices[i] = i;
-    
-    const xint_t* x = fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations; */
-    
-    /* if (lh + 16 < rh) {
-      
-      __m128i lh_comp, rh_comp, values;
-      uint8_t lh_sub = 0, rh_sub = 0;
-      uint16_t lh_mask = 0, rh_mask = 0;
-      
-      lh_comp = loadLHComp(lh);
-      lh_mask = _mm_movemask_epi8(lh_comp);
-      rh_comp = loadRHComp(rh);
-      rh_mask = _mm_movemask_epi8(rh_comp);
-      
-      while (true) {
-        while (lh_mask == 0 && lh + 16 < rh) {
-          lh += 8;
-          lh_comp = loadLHComp(lh);
-          lh_mask = _mm_movemask_epi8(lh_comp);
-          lh_sub = 0;
-        }
-        while (rh_mask == 0 && lh + 16 < rh) {
-          rh -= 8;
-          rh_comp = loadRHComp(rh);
-          rh_mask = _mm_movemask_epi8(rh_comp);
-          rh_sub = 0;
-        }
-        if (lh + 16 >= rh) {
-          lh += lh_sub;
-          rh -= rh_sub;
-          break;
-        }
-        
-        do {
-          int zeros = countTrailingZeros(lh_mask);
-          lh_mask >>= zeros;
-          lh_sub += zeros / 2;
-          
-          zeros = countTrailingZeros(rh_mask);
-          rh_mask >>= zeros;
-          rh_sub += zeros / 2;
-          
-          indices[rh - rh_sub] = lh + lh_sub;
-          indices[lh + lh_sub] = rh - rh_sub;
-                    
-          lh_mask >>= 2;
-          rh_mask >>= 2;
-          ++lh_sub;
-          ++rh_sub;
-          
-        } while (lh_mask != 0 && rh_mask != 0);
-      }
-    } */
-    /* while (true) {
-      while (x[lh] <= rule.splitIndex && lh < rh) ++lh;
-      while (x[rh]  > rule.splitIndex && lh < rh) --rh;
-      
-      if (lh >= rh) break;
-      
-      indices[rh] = lh;
-      indices[lh] = rh;
-      
-      ++lh;
-      --rh;
-    }
-    
-    lengthOfLeft = x[indices[lh]] <= rule.splitIndex ? lh + 1 : lh; */
-    
-    /* for (size_t i = 0; i < length; ++i) {
-      if (indices[i] >= fit.data.numObservations)
-        ext_throwError("partition range: index %lu out of range (%lu); lh: %lu, rh: %lu, lol: %lu", i, indices[i], lh, rh, lengthOfLeft);
-      if (i < lengthOfLeft && x[indices[i]] > rule.splitIndex)
-        ext_throwError("partition range: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
-      if (i >= lengthOfLeft && x[indices[i]] <= rule.splitIndex)
-        ext_throwError("partition range: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
-    } */
-    
-    // return lengthOfLeft;
-  }
-
-#undef getDataAt
-
-// #define getDataAt(_I_) fit.sharedScratch.xt[indices[_I_] * fit.data.numPredictors + rule.variableIndex]
-#define getDataAt(_I_) x[indices[_I_]]
-
-  size_t partitionIndices(const BARTFit& fit, const Rule& rule, size_t* restrict indices, size_t length) {
-    return misc_partitionIndices(fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations,
-                                 rule.splitIndex, indices, length);
-    /* if (length == 0) return 0;
-    
-    const xint_t* x = fit.sharedScratch.x + rule.variableIndex * fit.data.numObservations;
-    
-    size_t lengthOfLeft;
-    
-    size_t lh = 0, rh = length - 1; */
-    
-    /* if (lh + 16 < rh) {
-      
-      __m128i lh_comp, rh_comp, values;
-      uint8_t lh_sub = 0, rh_sub = 0;
-      uint16_t lh_mask = 0, rh_mask = 0;
-      
-      lh_comp = loadLHComp(lh);
-      lh_mask = _mm_movemask_epi8(lh_comp);
-      rh_comp = loadRHComp(rh);
-      rh_mask = _mm_movemask_epi8(rh_comp);
-      
-      while (true) {
-        while (lh_mask == 0 && lh + 16 < rh) {
-          lh += 8;
-          lh_comp = loadLHComp(lh);
-          lh_mask = _mm_movemask_epi8(lh_comp);
-          lh_sub = 0;
-        }
-        while (rh_mask == 0 && lh + 16 < rh) {
-          rh -= 8;
-          rh_comp = loadRHComp(rh);
-          rh_mask = _mm_movemask_epi8(rh_comp);
-          rh_sub = 0;
-        }
-        if (lh + 16 >= rh) {
-          lh += lh_sub;
-          rh -= rh_sub;
-          break;
-        }
-        
-        do {
-          int zeros = countTrailingZeros(lh_mask);
-          lh_mask >>= zeros;
-          lh_sub += zeros / 2;
-          
-          zeros = countTrailingZeros(rh_mask);
-          rh_mask >>= zeros;
-          rh_sub += zeros / 2;
-          
-          size_t temp = indices[rh - rh_sub];
-          indices[rh - rh_sub] = indices[lh + lh_sub];
-          indices[lh + lh_sub] = temp;
-          
-          lh_mask >>= 2;
-          rh_mask >>= 2;
-          ++lh_sub;
-          ++rh_sub;
-        } while (lh_mask != 0 && rh_mask != 0);
-      }
-    } */
-   /*  while (true) {
-      while (x[indices[lh]] <= rule.splitIndex && lh < rh) ++lh;
-      while (x[indices[rh]]  > rule.splitIndex && lh < rh) --rh;
-      
-      
-      if (lh >= rh) break;
-      
-      size_t temp = indices[rh];
-      indices[rh] = indices[lh];
-      indices[lh] = temp;
-      
-      ++lh;
-      --rh;
-    }
-    lengthOfLeft = x[indices[lh]] <= rule.splitIndex ? lh + 1 : lh; */
-    
-    /* for (size_t i = 0; i < length; ++i) {
-      if (indices[i] >= fit.data.numObservations)
-        ext_throwError("partition indices: index %lu out of range (%lu); lh: %lu, rh: %lu, lol: %lu", i, indices[i], lh, rh, lengthOfLeft);
-      if (i < lengthOfLeft && x[indices[i]] > rule.splitIndex)
-        ext_throwError("partition indices: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
-      if (i >= lengthOfLeft && x[indices[i]] <= rule.splitIndex)
-        ext_throwError("partition indices: observation %lu on left but should be on right (%hu); lh: %lu, rh: %lu, lol: %lu", indices[i], x[indices[i]], lh, rh, lengthOfLeft);
-    } */
-    
-    // return lengthOfLeft;
-  }
-
-#undef getDataAt
-
-#undef loadLHComp
-#undef loadRHComp
-  
-} // anon namespace
-
-
-namespace dbarts {
   void Node::addObservationsToChildren(const BARTFit& fit, size_t chainNum, const double* y) {
     if (isBottom()) {
       if (isTop()) {
@@ -641,8 +406,10 @@ namespace dbarts {
       size_t numOnLeft = 0;
     
       numOnLeft = (isTop() ?
-                   partitionRange(fit, p.rule, observationIndices, numObservations) :
-                   partitionIndices(fit, p.rule, observationIndices, numObservations));
+                   misc_partitionRange(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
+                                       p.rule.splitIndex, observationIndices, numObservations) :
+                   misc_partitionIndices(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
+                                          p.rule.splitIndex, observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;
@@ -666,8 +433,10 @@ namespace dbarts {
     
     if (numObservations > 0) {
       size_t numOnLeft = (isTop() ?
-                          partitionRange(fit, p.rule, observationIndices, numObservations) :
-                          partitionIndices(fit, p.rule, observationIndices, numObservations));
+                          misc_partitionRange(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
+                                              p.rule.splitIndex, observationIndices, numObservations) :
+                          misc_partitionIndices(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
+                                                p.rule.splitIndex, observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;

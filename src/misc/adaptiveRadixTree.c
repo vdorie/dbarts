@@ -767,12 +767,11 @@ static int addChild16_c(Node16* restrict n, uint8_t c, void* restrict child, Nod
 }
 
 #ifdef __SSE2__
-
-#define _mm_cmpge_epu8(a, b) ~_mm_cmplt_epi8(_mm_add_epi8(a, _mm_set1_epi8((uint8_t) 0x80u)), \
-                                             _mm_add_epi8(b, _mm_set1_epi8((uint8_t) 0x80u)))
-#define _mm_cmple_epu8(a, b) _mm_cmpge_epu8(b, a)
-#define _mm_cmpgt_epu8(a, b) _mm_xor_si128(_mm_cmple_epu8(a, b), _mm_set1_epi8(-1))
+#define _mm_cmpgt_epu8(a, b) _mm_cmpgt_epi8(_mm_add_epi8(a, _mm_set1_epi16((uint8_t) 0x80u)), \
+                                            _mm_add_epi8(b, _mm_set1_epi8((uint8_t) 0x80u)))
 #define _mm_cmplt_epu8(a, b) _mm_cmpgt_epu8(b, a)
+#define _mm_cmpge_epu8(a, b) _mm_xor_si128(_mm_cmplt_epu8(a, b), _mm_set1_epi8(-1))
+#define _mm_cmple_epu8(a, b) _mm_cmpge_epu8(b, a)
 
 static int addChild16_sse2(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {

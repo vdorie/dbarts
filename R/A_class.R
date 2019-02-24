@@ -207,7 +207,8 @@ methods::setValidity("dbartsData",
     if (!is.null(object@weights)) {
       if (length(object@weights) != numObservations) return("'weights' must be null or have length equal to that of 'y'")
       if (anyNA(object@weights)) return("'weights' cannot be NA")
-      if (any(object@weights <= 0.0)) return("'weights' must all be positive")
+      if (any(object@weights < 0.0)) return("'weights' must all be non-negative")
+      if (any(object@weights == 0.0)) warning("'weights' of 0 will be ignored but increase computation time")
     }
     if (!is.null(object@offset) && length(object@offset) != numObservations) return("'offset' must be null or have length equal to that of 'y'")
     if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
