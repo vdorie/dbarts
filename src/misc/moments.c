@@ -101,8 +101,10 @@ static double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, cons
 // var for known mean
 UNUSED static double computeVarianceForKnownMean                     (const double* x, size_t length, double mean);
 UNUSED static double computeIndexedVarianceForKnownMean              (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-static double computeUnrolledVarianceForKnownMean             (const double* restrict x, size_t length, double mean);
-static double computeIndexedUnrolledVarianceForKnownMean      (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+// static double computeUnrolledVarianceForKnownMean             (const double* restrict x, size_t length, double mean);
+static double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean);
+// static double computeIndexedUnrolledVarianceForKnownMean      (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+static double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
 UNUSED static double computeOnlineVarianceForKnownMean               (const double* restrict x, size_t length, double mean);
 UNUSED static double computeIndexedOnlineVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
 static double computeOnlineUnrolledVarianceForKnownMean       (const double* restrict x, size_t length, double mean);
@@ -638,7 +640,7 @@ static double computeIndexedVarianceForKnownMean(const double* restrict x, const
   return result / (double) (length - 1);
 }
 
-static double computeUnrolledVarianceForKnownMean(const double* x, size_t length, double mean)
+static double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -653,17 +655,71 @@ static double computeUnrolledVarianceForKnownMean(const double* x, size_t length
   }
   
   for ( ; i < length; i += 5) {
-    result += (x[i] - mean) * (x[i] - mean) +
-    (x[i + 1] - mean) * (x[i + 1] - mean) +
-    (x[i + 2] - mean) * (x[i + 2] - mean) +
-    (x[i + 3] - mean) * (x[i + 3] - mean) +
-    (x[i + 4] - mean) * (x[i + 4] - mean);
+    result += (x[i    ] - mean) * (x[i    ] - mean) +
+              (x[i + 1] - mean) * (x[i + 1] - mean) +
+              (x[i + 2] - mean) * (x[i + 2] - mean) +
+              (x[i + 3] - mean) * (x[i + 3] - mean) +
+              (x[i + 4] - mean) * (x[i + 4] - mean);
   }
   
   return result / (double) (length - 1);
 }
 
-static double computeIndexedUnrolledVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+#ifdef __SSE2__
+static double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
+  size_t prefix = 2 + offset == 0 ? 0 : sizeof(double) - offset;
+  
+  if (prefix > length) prefix = length;
+  
+  double result = 0.0;
+  size_t i = 0;
+  for ( ; i < prefix; ++i)
+    result += (x[i] - mean) * (x[i] - mean);
+  
+  size_t suffix = prefix + 12 * ((length - prefix) / 12);
+  
+  if (suffix > prefix) {
+    __m128d m = _mm_set1_pd(mean);
+    __m128d result_vec = _mm_setzero_pd();
+
+    for ( ; i < suffix; i += 12) {
+      __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+              c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+              e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+      
+      a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+      c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+      e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+      
+      result_vec = _mm_add_pd(result_vec,
+        _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, a),
+                                         _mm_mul_pd(b, b)),
+                              _mm_add_pd(_mm_mul_pd(c, c),
+                                         _mm_mul_pd(d, d))),
+                   _mm_add_pd(           _mm_mul_pd(e, e),
+                                         _mm_mul_pd(f, f))));
+    }
+    
+    double lower, upper;
+    _mm_storeh_pd(&upper, result_vec);
+    _mm_storel_pd(&lower, result_vec);
+    
+    result += lower + upper;
+  }
+  
+  for ( ; i < length; ++i)
+    result += (x[i] - mean) * (x[i] - mean);
+    
+  return result / (double) (length - 1);
+}
+#endif
+
+static double computeIndexedUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -687,6 +743,54 @@ static double computeIndexedUnrolledVarianceForKnownMean(const double* restrict 
   
   return result / (double) (length - 1);
 }
+
+#ifdef __SSE2__
+static double computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t i = 0;
+  size_t lengthMod12 = length % 12;
+  
+  double result = 0.0;
+  if (lengthMod12 != 0) {
+    for ( ; i < lengthMod12; ++i) result += (x[indices[i]] - mean) * (x[indices[i]] - mean);
+    if (length < 12) return result / (double) (length - 1);
+  }
+  
+  __m128d m = _mm_set1_pd(mean);
+  __m128d result_vec = _mm_setzero_pd();
+  for ( ; i < length; i += 12) {
+    __m128d a = _mm_set_pd(x[indices[i     ]], x[indices[i +  1]]),
+            b = _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]),
+            c = _mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]),
+            d = _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]),
+            e = _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]),
+            f = _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]);
+    
+    a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+    c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+    e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+    
+    result_vec = _mm_add_pd(result_vec,
+      _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, a),
+                                       _mm_mul_pd(b, b)),
+                            _mm_add_pd(_mm_mul_pd(c, c),
+                                       _mm_mul_pd(d, d))),
+                 _mm_add_pd(           _mm_mul_pd(e, e),
+                                       _mm_mul_pd(f, f))));
+  }
+  
+  double lower, upper;
+  _mm_storeh_pd(&upper, result_vec);
+  _mm_storel_pd(&lower, result_vec);
+  
+  result += lower + upper;
+  
+  return result / (double) (length - 1);
+}
+#endif
 
 static double computeOnlineVarianceForKnownMean(const double* x, size_t length, double mean)
 {
@@ -1446,6 +1550,9 @@ void misc_initStats(misc_simd_instructionLevel i) {
     computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_sse2;
     computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_sse2;
     computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_sse2;
+    
+    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_sse2;
+    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_sse2;
   } else
 #endif
   {
@@ -1457,6 +1564,9 @@ void misc_initStats(misc_simd_instructionLevel i) {
     computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_c;
     computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_c;
     computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_c;
+    
+    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_c;
+    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_c;
   }
 }
 
@@ -1883,7 +1993,7 @@ static double mt_computeIndexedOnlineUnrolledMean(misc_mt_manager_t restrict thr
 }
 
 
-typedef double (*varianceForKnownMeanFunction)(const double* restrict x, size_t length, double mean);
+typedef double (*varianceForKnownMeanFunction)(const double* x, size_t length, double mean);
 typedef double (*indexedVarianceForKnownMeanFunction)(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
 
 typedef struct {
@@ -2035,7 +2145,7 @@ static double mt_computeUnrolledVarianceForKnownMean(misc_mt_manager_t restrict 
   if (numThreads <= 1) return computeUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2056,7 +2166,7 @@ static double mt_computeIndexedUnrolledVarianceForKnownMean(misc_mt_manager_t re
   if (numThreads <= 1) return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3459,7 +3569,7 @@ static double htm_computeUnrolledVarianceForKnownMean(misc_htm_manager_t restric
   if (numPieces <= 1) return computeUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData data[numPieces];
-  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, &computeUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3500,7 +3610,7 @@ static double htm_computeIndexedUnrolledVarianceForKnownMean(misc_htm_manager_t 
   if (numPieces <= 1) return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData data[numPieces];
-  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, &computeIndexedUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
