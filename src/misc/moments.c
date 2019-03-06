@@ -87,28 +87,22 @@
 // mean
 UNUSED static double computeMean                     (const double* restrict x, size_t length);
 UNUSED static double computeIndexedMean              (const double* restrict x, const size_t* restrict indices, size_t length);
-// static double computeUnrolledMean             (const double* restrict x, size_t length);
 static double (*computeUnrolledMean)(const double* x, size_t length) = 0;
-// static double computeIndexedUnrolledMean      (const double* restrict x, const size_t* restrict indices, size_t length);
 static double (*computeIndexedUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
 UNUSED static double computeOnlineMean               (const double* restrict x, size_t length);
 UNUSED static double computeIndexedOnlineMean        (const double* restrict x, const size_t* restrict indices, size_t length);
-// static double computeOnlineUnrolledMean       (const double* restrict x, size_t length);
 static double (*computeOnlineUnrolledMean)(const double* restrict x, size_t length) = 0;
-// static double computeIndexedOnlineUnrolledMean(const double* restrict x, const size_t* restrict indices, size_t length);
 static double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
 
 // var for known mean
 UNUSED static double computeVarianceForKnownMean                     (const double* x, size_t length, double mean);
 UNUSED static double computeIndexedVarianceForKnownMean              (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-// static double computeUnrolledVarianceForKnownMean             (const double* restrict x, size_t length, double mean);
-static double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean);
-// static double computeIndexedUnrolledVarianceForKnownMean      (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-static double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+static double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean) = 0;
+static double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
 UNUSED static double computeOnlineVarianceForKnownMean               (const double* restrict x, size_t length, double mean);
 UNUSED static double computeIndexedOnlineVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-static double computeOnlineUnrolledVarianceForKnownMean       (const double* restrict x, size_t length, double mean);
-static double computeIndexedOnlineUnrolledVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+static double (*computeOnlineUnrolledVarianceForKnownMean)(const double* restrict x, size_t length, double mean) = 0;
+static double (*computeIndexedOnlineUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
 
 // variance and mean together
 UNUSED static double computeVariance                     (const double* restrict x, size_t length, double* restrict meanPtr);
@@ -125,24 +119,20 @@ UNUSED static double computeWeightedMean                     (const double* rest
 UNUSED static double computeIndexedWeightedMean              (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double (*computeUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 static double (*computeIndexedUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
-// static double computeUnrolledWeightedMean             (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-// static double computeIndexedUnrolledWeightedMean      (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 UNUSED static double computeOnlineWeightedMean               (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
 UNUSED static double computeIndexedOnlineWeightedMean        (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 static double (*computeOnlineUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 static double (*computeIndexedOnlineUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
-// static double computeOnlineUnrolledWeightedMean       (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-// static double computeIndexedOnlineUnrolledWeightedMean(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
 
 // weighted variance for known mean
 UNUSED static double computeWeightedVarianceForKnownMean                     (const double* restrict x, size_t length, const double* restrict w, double mean);
 UNUSED static double computeIndexedWeightedVarianceForKnownMean              (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-static double computeUnrolledWeightedVarianceForKnownMean             (const double* restrict x, size_t length, const double* restrict w, double mean);
-static double computeIndexedUnrolledWeightedVarianceForKnownMean      (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
+static double (*computeUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeIndexedUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
 UNUSED static double computeOnlineWeightedVarianceForKnownMean               (const double* restrict x, size_t length, const double* restrict w, double mean);
 UNUSED static double computeIndexedOnlineWeightedVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-static double computeOnlineUnrolledWeightedVarianceForKnownMean       (const double* restrict x, size_t length, const double* restrict w, double mean);
-static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
+static double (*computeOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeIndexedOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
 
 // static double mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
 // static double mt_computeIndexedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const size_t* indices, size_t length);
@@ -390,7 +380,6 @@ static double computeUnrolledMean_c(const double* x, size_t length)
   return result / (double) length;
 }
 
-
 #ifdef __SSE2__
 static double computeUnrolledMean_sse2(const double* x, size_t length)
 {
@@ -420,11 +409,10 @@ static double computeUnrolledMean_sse2(const double* x, size_t length)
                               _mm_add_pd(_mm_load_pd(x + i + 12), _mm_load_pd(x + i + 14)))));
     }
     
-    double upper, lower;
-    _mm_storeh_pd(&upper, result_vec);
-    _mm_storel_pd(&lower, result_vec);
+    double result_arr[2];
+    _mm_storeu_pd(result_arr, result_vec);
     
-    result += upper + lower;
+    result += result_arr[0] + result_arr[1];
   }
   
   for ( ; i < length; ++i)
@@ -468,10 +456,10 @@ static double computeIndexedUnrolledMean_sse2(const double* restrict x, const si
     if (length < 12) return result / (double) length;
   }
     
-  __m128d vec_sum = _mm_setzero_pd();
+  __m128d result_vec = _mm_setzero_pd();
   
   for ( ; i < length; i += 12) {
-    vec_sum = _mm_add_pd(vec_sum,
+    result_vec = _mm_add_pd(result_vec,
       _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_set_pd(x[indices[i     ]], x[indices[i +  1]]),
                                        _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]])),
                             _mm_add_pd(_mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]),
@@ -480,11 +468,10 @@ static double computeIndexedUnrolledMean_sse2(const double* restrict x, const si
                                        _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]))));
   }
   
-  double upper, lower;
-  _mm_storeh_pd(&upper, vec_sum);
-  _mm_storel_pd(&lower, vec_sum);
+  double result_arr[2];
+  _mm_storeu_pd(result_arr, result_vec);
   
-  result += upper + lower;
+  result += result_arr[0] + result_arr[1];
   
   return result / (double) length;
 }
@@ -546,17 +533,18 @@ static double computeOnlineUnrolledMean_sse2(const double* x, size_t length)
   size_t suffix = prefix + 16 * ((length - prefix) / 16);
   
   if (suffix > prefix) {
-    double upper, lower;
+    double sum_arr[2];
     
     for ( ; i < suffix; i += 16) {
-      __m128d vec_sum = _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_load_pd(x + i     ), _mm_load_pd(x + i +  2)),
-                                              _mm_add_pd(_mm_load_pd(x + i +  4), _mm_load_pd(x + i +  6))),
-                                   _mm_add_pd(_mm_add_pd(_mm_load_pd(x + i +  8), _mm_load_pd(x + i + 10)),
-                                              _mm_add_pd(_mm_load_pd(x + i + 12), _mm_load_pd(x + i + 14))));
-      _mm_storeh_pd(&upper, vec_sum);
-      _mm_storel_pd(&lower, vec_sum);
+      __m128d sum_vec =
+        _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_load_pd(x + i     ), _mm_load_pd(x + i +  2)),
+                              _mm_add_pd(_mm_load_pd(x + i +  4), _mm_load_pd(x + i +  6))),
+                   _mm_add_pd(_mm_add_pd(_mm_load_pd(x + i +  8), _mm_load_pd(x + i + 10)),
+                              _mm_add_pd(_mm_load_pd(x + i + 12), _mm_load_pd(x + i + 14))));
       
-      result += ((upper - 8.0 * result) + (lower - 8.0 * result)) / (double) (i + 16);
+      _mm_storeu_pd(sum_arr, sum_vec);
+      
+      result += ((sum_arr[0] - 8.0 * result) + (sum_arr[1] - 8.0 * result)) / (double) (i + 16);
     }
   }
   
@@ -601,19 +589,19 @@ static double computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, co
     if (length < 12) return result;
   }
   
-  double upper, lower;
+  double sum_arr[2];
   for ( ; i < length; i += 12) {
-    __m128d vec_sum = _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_set_pd(x[indices[i     ]], x[indices[i +  1]]),
-                                                       _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]])),
-                                            _mm_add_pd(_mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]),
-                                                       _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]))),
-                                 _mm_add_pd(           _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]),
-                                                       _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]])));
+    __m128d sum_vec =
+      _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_set_pd(x[indices[i     ]], x[indices[i +  1]]),
+                                       _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]])),
+                            _mm_add_pd(_mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]),
+                                       _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]))),
+                 _mm_add_pd(           _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]),
+                                       _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]])));
     
-    _mm_storeh_pd(&upper, vec_sum);
-    _mm_storel_pd(&lower, vec_sum);
+    _mm_storeu_pd(sum_arr, sum_vec);
     
-    result += ((upper - 6.0 * result) + (lower - 6.0 * result)) / (double) (i + 12);
+    result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 12);
   }
     
   return result;
@@ -672,7 +660,7 @@ static double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t l
   if (length == 1) return 0.0;
   
   size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = 2 + offset == 0 ? 0 : sizeof(double) - offset;
+  size_t prefix = offset == 0 ? 0 : sizeof(double) - offset;
   
   if (prefix > length) prefix = length;
   
@@ -705,11 +693,10 @@ static double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t l
                                          _mm_mul_pd(f, f))));
     }
     
-    double lower, upper;
-    _mm_storeh_pd(&upper, result_vec);
-    _mm_storel_pd(&lower, result_vec);
+    double result_arr[2];
+    _mm_storeu_pd(result_arr, result_vec);
     
-    result += lower + upper;
+    result += result_arr[0] + result_arr[1];
   }
   
   for ( ; i < length; ++i)
@@ -782,11 +769,10 @@ static double computeIndexedUnrolledVarianceForKnownMean_sse2(const double* rest
                                        _mm_mul_pd(f, f))));
   }
   
-  double lower, upper;
-  _mm_storeh_pd(&upper, result_vec);
-  _mm_storel_pd(&lower, result_vec);
+  double result_arr[2];
+  _mm_storeu_pd(result_arr, result_vec);
   
-  result += lower + upper;
+  result += result_arr[0] + result_arr[1];
   
   return result / (double) (length - 1);
 }
@@ -814,7 +800,7 @@ static double computeIndexedOnlineVarianceForKnownMean(const double* restrict x,
   return result;
 }
 
-static double computeOnlineUnrolledVarianceForKnownMean(const double* x, size_t length, double mean)
+static double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -839,7 +825,58 @@ static double computeOnlineUnrolledVarianceForKnownMean(const double* x, size_t 
   return result;
 }
 
-static double computeIndexedOnlineUnrolledVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+#ifdef __SSE2__
+static double computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
+  size_t prefix = 2 + offset == 0 ? 0 : sizeof(double) - offset;
+  
+  if (prefix > length) prefix = length;
+  
+  double result = (x[0] - mean) * (x[0] - mean) + (x[1] - mean) * (x[1] - mean);
+  size_t i = 2;
+  for ( ; i < prefix; ++i)
+    result += ((x[i] - mean) * (x[i] - mean) - result) / (double) i;
+  
+  size_t suffix = prefix + 12 * ((length - prefix) / 12);
+  
+  if (suffix > prefix) {
+    __m128d m = _mm_set1_pd(mean);
+    
+    for ( ; i < suffix; i += 12) {
+      __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+              c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+              e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+      
+      a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+      c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+      e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+      
+      __m128d sum_vec = 
+        _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, a),
+                                         _mm_mul_pd(b, b)),
+                              _mm_add_pd(_mm_mul_pd(c, c),
+                                         _mm_mul_pd(d, d))),
+                   _mm_add_pd(           _mm_mul_pd(e, e),
+                                         _mm_mul_pd(f, f)));
+      double sum_arr[2];
+      _mm_storeu_pd(sum_arr, sum_vec);
+      
+      result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 11);
+    }
+  }
+  
+  for ( ; i < length; ++i)
+    result += ((x[i] - mean) * (x[i] - mean) - result) / (double) i;
+    
+  return result;
+}
+#endif
+
+static double computeIndexedOnlineUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -863,6 +900,53 @@ static double computeIndexedOnlineUnrolledVarianceForKnownMean(const double* res
   
   return result;
 }
+
+#ifdef __SSE2__
+static double computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t i = 2;
+  size_t lengthMod12 = (length - 2) % 12;
+  
+  double result = (x[indices[0]] - mean) * (x[indices[0]] - mean) + (x[indices[1]] - mean) * (x[indices[1]] - mean);
+  if (lengthMod12 != 0) {
+    for ( ; i < lengthMod12 + 2; ++i) result += ((x[indices[i]] - mean) * (x[indices[i]] - mean) - result) / (double) i;
+    if (length < 12 + 2) return result;
+  }
+  
+  __m128d m = _mm_set1_pd(mean);
+  
+  for ( ; i < length; i += 12) {
+    __m128d a = _mm_set_pd(x[indices[i     ]], x[indices[i +  1]]),
+            b = _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]),
+            c = _mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]),
+            d = _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]),
+            e = _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]),
+            f = _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]);
+    
+    a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+    c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+    e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+    
+    __m128d sum_vec =
+      _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, a),
+                                       _mm_mul_pd(b, b)),
+                            _mm_add_pd(_mm_mul_pd(c, c),
+                                       _mm_mul_pd(d, d))),
+                 _mm_add_pd(           _mm_mul_pd(e, e),
+                                       _mm_mul_pd(f, f)));
+    
+    double sum_arr[2];
+    _mm_storeu_pd(sum_arr, sum_vec);
+    
+    result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 11);
+  }
+  
+  return result;
+}
+#endif
 
 static double computeVariance(const double* restrict x, size_t length, double* restrict meanPtr)
 {
@@ -1136,8 +1220,6 @@ static double computeUnrolledWeightedMean_c(const double* restrict x, size_t len
   return result / n;
 }
 
-#include <external/io.h>
-
 #ifdef __SSE2__
 static double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
@@ -1159,8 +1241,8 @@ static double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t 
   size_t suffix = prefix + 12 * ((length - prefix) / 12);
   
   if (suffix > prefix) {
-    __m128d vec_sum = _mm_setzero_pd();
-    __m128d vec_n   = _mm_setzero_pd();
+    __m128d sum_vec = _mm_setzero_pd();
+    __m128d n_vec   = _mm_setzero_pd();
     
     if (x_offset == w_offset) {
       for ( ; i < suffix; i += 12) {
@@ -1168,7 +1250,7 @@ static double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t 
         __m128d w_2 = _mm_load_pd(w + i +  4), w_3 = _mm_load_pd(w + i +  6);
         __m128d w_4 = _mm_load_pd(w + i +  8), w_5 = _mm_load_pd(w + i + 10);
         
-        vec_sum = _mm_add_pd(vec_sum,
+        sum_vec = _mm_add_pd(sum_vec,
           _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i     ), w_0),
                                            _mm_mul_pd(_mm_load_pd(x + i +  2), w_1)),
                                 _mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i +  4), w_2),
@@ -1176,24 +1258,22 @@ static double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t 
                      _mm_add_pd(           _mm_mul_pd(_mm_load_pd(x + i +  8), w_4),
                                            _mm_mul_pd(_mm_load_pd(x + i + 10), w_5))));
         
-        vec_n = _mm_add_pd(vec_n, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
+        n_vec = _mm_add_pd(n_vec, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
       }
       
-      double upper, lower;
-      _mm_storeh_pd(&upper, vec_sum);
-      _mm_storel_pd(&lower, vec_sum);
-      result += upper + lower;
+      double arr[2];
+      _mm_storeu_pd(arr, sum_vec);
+      result += arr[0] + arr[1];
       
-      _mm_storeh_pd(&upper, vec_n);
-      _mm_storel_pd(&lower, vec_n);
-      n += upper + lower;
+      _mm_storeu_pd(arr, n_vec);
+      n += arr[0] + arr[1];
     } else {
       for ( ; i < suffix; i += 12) {
         __m128d w_0 = _mm_loadu_pd(w + i     ), w_1 = _mm_loadu_pd(w + i +  2);
         __m128d w_2 = _mm_loadu_pd(w + i +  4), w_3 = _mm_loadu_pd(w + i +  6);
         __m128d w_4 = _mm_loadu_pd(w + i +  8), w_5 = _mm_loadu_pd(w + i + 10);
         
-        vec_sum = _mm_add_pd(vec_sum,
+        sum_vec = _mm_add_pd(sum_vec,
           _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i     ), w_0),
                                            _mm_mul_pd(_mm_load_pd(x + i +  2), w_1)),
                                 _mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i +  4), w_2),
@@ -1201,17 +1281,15 @@ static double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t 
                      _mm_add_pd(           _mm_mul_pd(_mm_load_pd(x + i +  8), w_4),
                                            _mm_mul_pd(_mm_load_pd(x + i + 10), w_5))));
         
-        vec_n = _mm_add_pd(vec_n, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
+        n_vec = _mm_add_pd(n_vec, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
       }
       
-      double upper, lower;
-      _mm_storeh_pd(&upper, vec_sum);
-      _mm_storel_pd(&lower, vec_sum);
-      result += upper + lower;
+      double arr[2];
+      _mm_storeu_pd(arr, sum_vec);
+      result += arr[0] + arr[1];
       
-      _mm_storeh_pd(&upper, vec_n);
-      _mm_storel_pd(&lower, vec_n);
-      n += upper + lower;
+      _mm_storeu_pd(arr, n_vec);
+      n += arr[0] + arr[1];
     }
   }
   
@@ -1267,8 +1345,8 @@ static double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, 
     if (length < 12) { if (nPtr != NULL) *nPtr = n; return result / n; }
   }
   
-  __m128d vec_sum = _mm_setzero_pd();
-  __m128d vec_n   = _mm_setzero_pd();
+  __m128d sum_vec = _mm_setzero_pd();
+  __m128d n_vec   = _mm_setzero_pd();
   for ( ; i < length; i += 12) {
     __m128d w_0 = _mm_set_pd(w[indices[i     ]], w[indices[i +  1]]);
     __m128d w_1 = _mm_set_pd(w[indices[i +  2]], w[indices[i +  3]]);
@@ -1277,7 +1355,7 @@ static double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, 
     __m128d w_4 = _mm_set_pd(w[indices[i +  8]], w[indices[i +  9]]);
     __m128d w_5 = _mm_set_pd(w[indices[i + 10]], w[indices[i + 11]]);
     
-    vec_sum = _mm_add_pd(vec_sum,
+    sum_vec = _mm_add_pd(sum_vec,
       _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_set_pd(x[indices[i     ]], x[indices[i +  1]]), w_0),
                                        _mm_mul_pd(_mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]), w_1)),
                             _mm_add_pd(_mm_mul_pd(_mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]), w_2),
@@ -1285,17 +1363,15 @@ static double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, 
                  _mm_add_pd(           _mm_mul_pd(_mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]), w_4),
                                        _mm_mul_pd(_mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]), w_5))));
         
-    vec_n = _mm_add_pd(vec_n, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
+    n_vec = _mm_add_pd(n_vec, _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5)));
   }
   
-  double upper, lower;
-  _mm_storeh_pd(&upper, vec_sum);
-  _mm_storel_pd(&lower, vec_sum);
-  result += upper + lower;
+  double arr[2];
+  _mm_storeu_pd(arr, sum_vec);
+  result += arr[0] + arr[1];
   
-  _mm_storeh_pd(&upper, vec_n);
-  _mm_storel_pd(&lower, vec_n);
-  n += upper + lower;
+  _mm_storeu_pd(arr, n_vec);
+  n += arr[0] + arr[1];
   
   if (nPtr != NULL) *nPtr = n;
   return result / n;
@@ -1386,7 +1462,8 @@ static double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, s
   size_t suffix = prefix + 12 * ((length - prefix) / 12);
   
   if (suffix > prefix) {
-    double upper, lower;
+    
+    double arr[2];
     
     if (x_offset == w_offset) {
       for ( ; i < suffix; i += 12) {
@@ -1394,23 +1471,21 @@ static double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, s
         __m128d w_2 = _mm_load_pd(w + i +  4), w_3 = _mm_load_pd(w + i +  6);
         __m128d w_4 = _mm_load_pd(w + i +  8), w_5 = _mm_load_pd(w + i + 10);
         
-        __m128d vec_n = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
-        __m128d vec_sum =
+        __m128d n_vec = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
+        __m128d sum_vec =
           _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i     ), w_0),
                                            _mm_mul_pd(_mm_load_pd(x + i +  2), w_1)),
                                 _mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i +  4), w_2),
                                            _mm_mul_pd(_mm_load_pd(x + i +  6), w_3))),
                      _mm_add_pd(           _mm_mul_pd(_mm_load_pd(x + i +  8), w_4),
                                            _mm_mul_pd(_mm_load_pd(x + i + 10), w_5)));
-        _mm_storeh_pd(&upper, vec_n);
-        _mm_storel_pd(&lower, vec_n);
-        double delta_n = upper + lower;
+        _mm_storeu_pd(arr, n_vec);
+        double delta_n = arr[0] + arr[1];
         
-        _mm_storeh_pd(&upper, vec_sum);
-        _mm_storel_pd(&lower, vec_sum);
+        _mm_storeu_pd(arr, sum_vec);
          
         n += delta_n;
-        result += (upper + lower - delta_n * result) / n;
+        result += (arr[0] + arr[1] - delta_n * result) / n;
       }
     } else {
       for ( ; i < suffix; i += 12) {
@@ -1418,23 +1493,21 @@ static double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, s
         __m128d w_2 = _mm_loadu_pd(w + i +  4), w_3 = _mm_loadu_pd(w + i +  6);
         __m128d w_4 = _mm_loadu_pd(w + i +  8), w_5 = _mm_loadu_pd(w + i + 10);
         
-        __m128d vec_n = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
-        __m128d vec_sum =
+        __m128d n_vec = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
+        __m128d sum_vec =
           _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i     ), w_0),
                                            _mm_mul_pd(_mm_load_pd(x + i +  2), w_1)),
                                 _mm_add_pd(_mm_mul_pd(_mm_load_pd(x + i +  4), w_2),
                                            _mm_mul_pd(_mm_load_pd(x + i +  6), w_3))),
                      _mm_add_pd(           _mm_mul_pd(_mm_load_pd(x + i +  8), w_4),
                                            _mm_mul_pd(_mm_load_pd(x + i + 10), w_5)));
-        _mm_storeh_pd(&upper, vec_n);
-        _mm_storel_pd(&lower, vec_n);
-        double delta_n = upper + lower;
+        _mm_storeu_pd(arr, n_vec);
+        double delta_n = arr[0] + arr[1];
         
-        _mm_storeh_pd(&upper, vec_sum);
-        _mm_storel_pd(&lower, vec_sum);
+        _mm_storeu_pd(arr, sum_vec);
          
         n += delta_n;
-        result += (upper + lower - delta_n * result) / n;
+        result += (arr[0] + arr[1] - delta_n * result) / n;
       }
     }
   }
@@ -1510,7 +1583,7 @@ static double computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restri
     __m128d w_4 = _mm_set_pd(w[indices[i +  8]], w[indices[i +  9]]);
     __m128d w_5 = _mm_set_pd(w[indices[i + 10]], w[indices[i + 11]]);
     
-    __m128d vec_sum = 
+    __m128d sum_vec = 
       _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(_mm_set_pd(x[indices[i     ]], x[indices[i +  1]]), w_0),
                                        _mm_mul_pd(_mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]), w_1)),
                             _mm_add_pd(_mm_mul_pd(_mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]), w_2),
@@ -1518,57 +1591,23 @@ static double computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restri
                  _mm_add_pd(           _mm_mul_pd(_mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]), w_4),
                                        _mm_mul_pd(_mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]), w_5)));
         
-    __m128d vec_n = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
+    __m128d n_vec = _mm_add_pd(_mm_add_pd(_mm_add_pd(w_0, w_1), _mm_add_pd(w_2, w_3)), _mm_add_pd(w_4, w_5));
     
-    double upper, lower;
-    _mm_storeh_pd(&upper, vec_n);
-    _mm_storel_pd(&lower, vec_n);
-    double delta_n = upper + lower;
+    double arr[2];
+    _mm_storeu_pd(arr, n_vec);
     
-    _mm_storeh_pd(&upper, vec_sum);
-    _mm_storel_pd(&lower, vec_sum);
+    double delta_n = arr[0] + arr[1];
+    
+    _mm_storeu_pd(arr, sum_vec);
     
     n += delta_n;
-    result += (upper + lower - delta_n * result) / n;
+    result += (arr[0] + arr[1] - delta_n * result) / n;
   }
   
   if (nPtr != NULL) *nPtr = n;
   return result;
 }
 #endif
-
-#include <misc/simd.h>
-
-void misc_initStats(misc_simd_instructionLevel i) {
-#ifdef __SSE2__
-  if (i >= MISC_INST_SSE2) {
-    computeUnrolledMean = &computeUnrolledMean_sse2;
-    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_sse2;
-    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_sse2;
-    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_sse2;
-    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_sse2;
-    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_sse2;
-    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_sse2;
-    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_sse2;
-    
-    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_sse2;
-    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_sse2;
-  } else
-#endif
-  {
-    computeUnrolledMean = &computeUnrolledMean_c;
-    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_c;
-    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_c;
-    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_c;
-    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_c;
-    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_c;
-    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_c;
-    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_c;
-    
-    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_c;
-    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_c;
-  }
-}
 
 static double computeWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
@@ -1590,7 +1629,7 @@ static double computeIndexedWeightedVarianceForKnownMean(const double* restrict 
   return result / (double) (length - 1);
 }
 
-static double computeUnrolledWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
+static double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1615,7 +1654,89 @@ static double computeUnrolledWeightedVarianceForKnownMean(const double* restrict
   return result / (double) (length - 1);
 }
 
-static double computeIndexedUnrolledWeightedVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+#ifdef __SSE2__
+static double computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double)) / sizeof(double);
+  size_t prefix = x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  
+  if (prefix > length) prefix = length;
+  
+  double result = 0.0;
+  size_t i = 0;
+  for ( ; i < prefix; ++i)
+    result += w[i] * (x[i] - mean) * (x[i] - mean);
+  
+  size_t suffix = prefix + 12 * ((length - prefix) / 12);
+  
+  if (suffix > prefix) {
+    __m128d m = _mm_set1_pd(mean);
+    __m128d result_vec = _mm_setzero_pd();
+    
+    if (x_offset == w_offset) {
+      for ( ; i < suffix; i += 12) {
+        __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+                c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+                e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+        
+        a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+        c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+        e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+        
+        a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+        c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+        e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+        
+        result_vec = _mm_add_pd(result_vec,
+          _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_load_pd(w + i     )),
+                                           _mm_mul_pd(b, _mm_load_pd(w + i +  2))),
+                                _mm_add_pd(_mm_mul_pd(c, _mm_load_pd(w + i +  4)),
+                                           _mm_mul_pd(d, _mm_load_pd(w + i +  6)))),
+                     _mm_add_pd(           _mm_mul_pd(e, _mm_load_pd(w + i +  8)),
+                                           _mm_mul_pd(f, _mm_load_pd(w + i + 10)))));
+      }
+    } else {
+      for ( ; i < suffix; i += 12) {
+        __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+                c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+                e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+        
+        a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+        c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+        e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+        
+        a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+        c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+        e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+        
+        result_vec = _mm_add_pd(result_vec,
+          _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_loadu_pd(w + i     )),
+                                           _mm_mul_pd(b, _mm_loadu_pd(w + i +  2))),
+                                _mm_add_pd(_mm_mul_pd(c, _mm_loadu_pd(w + i +  4)),
+                                           _mm_mul_pd(d, _mm_loadu_pd(w + i +  6)))),
+                     _mm_add_pd(           _mm_mul_pd(e, _mm_loadu_pd(w + i +  8)),
+                                           _mm_mul_pd(f, _mm_loadu_pd(w + i + 10)))));
+      }
+    }
+    
+    double result_arr[2];
+    _mm_storeu_pd(result_arr, result_vec);
+    
+    result += result_arr[0] + result_arr[1];
+  }
+  
+  for ( ; i < length; ++i)
+    result += w[i] * (x[i] - mean) * (x[i] - mean);
+    
+  return result / (double) (length - 1);
+}
+#endif
+
+static double computeIndexedUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1639,6 +1760,58 @@ static double computeIndexedUnrolledWeightedVarianceForKnownMean(const double* r
   
   return result / (double) (length - 1);
 }
+
+#ifdef __SSE2__
+static double computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+    
+  size_t i = 0;
+  size_t lengthMod12 = length % 12;
+  
+  double result = 0.0;
+  if (lengthMod12 != 0) {
+    for ( ; i < lengthMod12; ++i) result += w[indices[i]] * (x[indices[i]] - mean) * (x[indices[i]] - mean);
+    if (length < 12) return result / (double) (length - 1);
+  }
+  
+  __m128d m = _mm_set1_pd(mean);
+  __m128d result_vec = _mm_setzero_pd();
+  
+  for ( ; i < length; i += 12) {
+    __m128d a = _mm_set_pd(x[indices[i     ]], x[indices[i +  1]]);
+    __m128d b = _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]);
+    __m128d c = _mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]);
+    __m128d d = _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]);
+    __m128d e = _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]);
+    __m128d f = _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]);
+    
+    a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+    c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+    e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+    
+    a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+    c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+    e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+    
+    result_vec = _mm_add_pd(result_vec,
+      _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_set_pd(w[indices[i     ]], w[indices[i +  1]])),
+                                       _mm_mul_pd(b, _mm_set_pd(w[indices[i +  2]], w[indices[i +  3]]))),
+                            _mm_add_pd(_mm_mul_pd(c, _mm_set_pd(w[indices[i +  4]], w[indices[i +  5]])),
+                                       _mm_mul_pd(d, _mm_set_pd(w[indices[i +  6]], w[indices[i +  7]])))),
+                 _mm_add_pd(           _mm_mul_pd(e, _mm_set_pd(w[indices[i +  8]], w[indices[i +  9]])),
+                                       _mm_mul_pd(f, _mm_set_pd(w[indices[i + 10]], w[indices[i + 11]])))));
+  }
+  
+  double result_arr[2];
+  _mm_storeu_pd(result_arr, result_vec);
+  
+  result += result_arr[0] + result_arr[1];
+      
+  return result / (double) (length - 1);
+}
+#endif
 
 static double computeOnlineWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
@@ -1666,7 +1839,7 @@ static double computeIndexedOnlineWeightedVarianceForKnownMean(const double* res
   return result;
 }
 
-static double computeOnlineUnrolledWeightedVarianceForKnownMean(const double* restrict x, size_t length, const double* restrict w, double mean)
+static double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1691,7 +1864,90 @@ static double computeOnlineUnrolledWeightedVarianceForKnownMean(const double* re
   return result;
 }
 
-static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+#ifdef __SSE2__
+static double computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+  
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double)) / sizeof(double);
+  size_t prefix = 2 + x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  
+  if (prefix > length) prefix = length;
+  
+  double result = w[0] * (x[0] - mean) * (x[0] - mean) + w[1] * (x[1] - mean) * (x[1] - mean);
+  size_t i = 2;
+  for ( ; i < prefix; ++i)
+    result += (w[i] * (x[i] - mean) * (x[i] - mean) - result) / (double) i;
+  
+  size_t suffix = prefix + 12 * ((length - prefix) / 12);
+  
+  if (suffix > prefix) {
+    __m128d m = _mm_set1_pd(mean);
+    double sum_arr[2];
+    
+    if (x_offset == w_offset) {
+      for ( ; i < suffix; i += 12) {
+        __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+                c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+                e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+        
+        a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+        c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+        e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+        
+        a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+        c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+        e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+        
+        __m128d sum_vec =
+          _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_load_pd(w + i     )),
+                                           _mm_mul_pd(b, _mm_load_pd(w + i +  2))),
+                                _mm_add_pd(_mm_mul_pd(c, _mm_load_pd(w + i +  4)),
+                                           _mm_mul_pd(d, _mm_load_pd(w + i +  6)))),
+                     _mm_add_pd(           _mm_mul_pd(e, _mm_load_pd(w + i +  8)),
+                                           _mm_mul_pd(f, _mm_load_pd(w + i + 10))));
+        
+        _mm_storeu_pd(sum_arr, sum_vec);
+        result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 11);
+      }
+    } else {
+      for ( ; i < suffix; i += 12) {
+        __m128d a = _mm_load_pd(x + i     ), b = _mm_load_pd(x + i +  2),
+                c = _mm_load_pd(x + i +  4), d = _mm_load_pd(x + i +  6),
+                e = _mm_load_pd(x + i +  8), f = _mm_load_pd(x + i + 10);
+        
+        a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+        c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+        e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+        
+        a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+        c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+        e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+        
+        __m128d sum_vec =
+          _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_loadu_pd(w + i     )),
+                                           _mm_mul_pd(b, _mm_loadu_pd(w + i +  2))),
+                                _mm_add_pd(_mm_mul_pd(c, _mm_loadu_pd(w + i +  4)),
+                                           _mm_mul_pd(d, _mm_loadu_pd(w + i +  6)))),
+                     _mm_add_pd(           _mm_mul_pd(e, _mm_loadu_pd(w + i +  8)),
+                                           _mm_mul_pd(f, _mm_loadu_pd(w + i + 10))));
+        
+        _mm_storeu_pd(sum_arr, sum_vec);
+        result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 11);
+      }
+    }
+  }
+  
+  for ( ; i < length; ++i)
+    result += (w[i] * (x[i] - mean) * (x[i] - mean) - result) / (double) i;
+    
+  return result;
+}
+#endif
+
+static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1716,7 +1972,102 @@ static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(const dou
   return result;
 }
 
+#ifdef __SSE2__
+static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+{
+  if (length == 0 || isnan(mean)) return nan("");
+  if (length == 1) return 0.0;
+    
+  size_t i = 2;
+  size_t lengthMod12 = (length - 2) % 12;
+  
+  double result = w[indices[0]] * (x[indices[0]] - mean) * (x[indices[0]] - mean) + w[indices[1]] * (x[indices[1]] - mean) * (x[indices[1]] - mean);
+  if (lengthMod12 != 0) {
+    for ( ; i < lengthMod12 + 2; ++i) result += (w[indices[i]] * (x[indices[i]] - mean) * (x[indices[i]] - mean) - result) / (double) i;
+    if (length < 12 + 2) return result;
+  }
+  
+  __m128d m = _mm_set1_pd(mean);
+  double sum_arr[2];
+    
+  for ( ; i < length; i += 12) {
+    __m128d a = _mm_set_pd(x[indices[i     ]], x[indices[i +  1]]);
+    __m128d b = _mm_set_pd(x[indices[i +  2]], x[indices[i +  3]]);
+    __m128d c = _mm_set_pd(x[indices[i +  4]], x[indices[i +  5]]);
+    __m128d d = _mm_set_pd(x[indices[i +  6]], x[indices[i +  7]]);
+    __m128d e = _mm_set_pd(x[indices[i +  8]], x[indices[i +  9]]);
+    __m128d f = _mm_set_pd(x[indices[i + 10]], x[indices[i + 11]]);
+    
+    a = _mm_sub_pd(a, m); b = _mm_sub_pd(b, m);
+    c = _mm_sub_pd(c, m); d = _mm_sub_pd(d, m);
+    e = _mm_sub_pd(e, m); f = _mm_sub_pd(f, m);
+    
+    a = _mm_mul_pd(a, a); b = _mm_mul_pd(b, b);
+    c = _mm_mul_pd(c, c); d = _mm_mul_pd(d, d);
+    e = _mm_mul_pd(e, e); f = _mm_mul_pd(f, f);
+    
+    __m128d sum_vec =
+      _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_mul_pd(a, _mm_set_pd(w[indices[i     ]], w[indices[i +  1]])),
+                                       _mm_mul_pd(b, _mm_set_pd(w[indices[i +  2]], w[indices[i +  3]]))),
+                            _mm_add_pd(_mm_mul_pd(c, _mm_set_pd(w[indices[i +  4]], w[indices[i +  5]])),
+                                       _mm_mul_pd(d, _mm_set_pd(w[indices[i +  6]], w[indices[i +  7]])))),
+                 _mm_add_pd(           _mm_mul_pd(e, _mm_set_pd(w[indices[i +  8]], w[indices[i +  9]])),
+                                       _mm_mul_pd(f, _mm_set_pd(w[indices[i + 10]], w[indices[i + 11]]))));
+    
+    _mm_storeu_pd(sum_arr, sum_vec);
+    result += ((sum_arr[0] - 6.0 * result) + (sum_arr[1] - 6.0 * result)) / (double) (i + 11);
+  }
+  
+  return result;
+}
+#endif
 
+
+
+#include <misc/simd.h>
+
+void misc_initStats(misc_simd_instructionLevel i) {
+#ifdef __SSE2__
+  if (i >= MISC_INST_SSE2) {
+    computeUnrolledMean = &computeUnrolledMean_sse2;
+    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_sse2;
+    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_sse2;
+    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_sse2;
+    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_sse2;
+    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_sse2;
+    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_sse2;
+    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_sse2;
+    
+    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_sse2;
+    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_sse2;
+    computeOnlineUnrolledVarianceForKnownMean = &computeOnlineUnrolledVarianceForKnownMean_sse2;
+    computeIndexedOnlineUnrolledVarianceForKnownMean = &computeIndexedOnlineUnrolledVarianceForKnownMean_sse2;
+    computeUnrolledWeightedVarianceForKnownMean = &computeUnrolledWeightedVarianceForKnownMean_sse2;
+    computeIndexedUnrolledWeightedVarianceForKnownMean = &computeIndexedUnrolledWeightedVarianceForKnownMean_sse2;
+    computeOnlineUnrolledWeightedVarianceForKnownMean = &computeOnlineUnrolledWeightedVarianceForKnownMean_sse2;
+    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2;
+  } else
+#endif
+  {
+    computeUnrolledMean = &computeUnrolledMean_c;
+    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_c;
+    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_c;
+    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_c;
+    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_c;
+    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_c;
+    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_c;
+    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_c;
+    
+    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_c;
+    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_c;
+    computeOnlineUnrolledVarianceForKnownMean = &computeOnlineUnrolledVarianceForKnownMean_c;
+    computeIndexedOnlineUnrolledVarianceForKnownMean = &computeIndexedOnlineUnrolledVarianceForKnownMean_c;
+    computeUnrolledWeightedVarianceForKnownMean = &computeUnrolledWeightedVarianceForKnownMean_c;
+    computeIndexedUnrolledWeightedVarianceForKnownMean = &computeIndexedUnrolledWeightedVarianceForKnownMean_c;
+    computeOnlineUnrolledWeightedVarianceForKnownMean = &computeOnlineUnrolledWeightedVarianceForKnownMean_c;
+    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c;
+  }
+}
 
 
 // below this, multithreaded madness
@@ -2230,7 +2581,7 @@ static double mt_computeOnlineUnrolledVarianceForKnownMean(misc_mt_manager_t res
   if (numThreads <= 1) return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData threadData[numThreads];
-  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, &computeOnlineUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(threadData, numThreads, x, numValuesPerThread, offByOneIndex, computeOnlineUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2251,7 +2602,7 @@ static double mt_computeIndexedOnlineUnrolledVarianceForKnownMean(misc_mt_manage
   if (numThreads <= 1) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, &computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(threadData, numThreads, x, indices, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -2991,7 +3342,7 @@ static double mt_computeUnrolledWeightedVarianceForKnownMean(misc_mt_manager_t r
   if (numThreads <= 1) return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, &computeUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3012,7 +3363,7 @@ static double mt_computeIndexedUnrolledWeightedVarianceForKnownMean(misc_mt_mana
   if (numThreads <= 1) return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, &computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3076,7 +3427,7 @@ static double mt_computeOnlineUnrolledWeightedVarianceForKnownMean(misc_mt_manag
   if (numThreads <= 1) return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData threadData[numThreads];
-  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, &computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(threadData, numThreads, x, w, numValuesPerThread, offByOneIndex, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3097,7 +3448,7 @@ static double mt_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(misc_m
   if (numThreads <= 1) return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData threadData[numThreads];
-  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(threadData, numThreads, x, indices, w, numValuesPerThread, offByOneIndex, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* threadDataPtrs[numThreads];
   for (size_t i = 0; i < numThreads; ++i) threadDataPtrs[i] = (void*) &threadData[i];
@@ -3590,7 +3941,7 @@ static double htm_computeOnlineUnrolledVarianceForKnownMean(misc_htm_manager_t r
   if (numPieces <= 1) return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
   
   VarianceForKnownMeanData data[numPieces];
-  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, &computeOnlineUnrolledVarianceForKnownMean, mean);
+  setupVarianceForKnownMeanData(data, numPieces, x, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3630,7 +3981,7 @@ static double htm_computeIndexedOnlineUnrolledVarianceForKnownMean(misc_htm_mana
   if (numPieces <= 1) return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
   
   IndexedVarianceForKnownMeanData data[numPieces];
-  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, &computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
+  setupIndexedVarianceForKnownMeanData(data, numPieces, x, indices, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3691,7 +4042,7 @@ static double htm_computeUnrolledWeightedVarianceForKnownMean(
   if (numPieces <= 1) return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData data[numPieces];
-  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, &computeUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3712,7 +4063,7 @@ static double htm_computeOnlineUnrolledWeightedVarianceForKnownMean(
   if (numPieces <= 1) return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
   
   WeightedVarianceForKnownMeanData data[numPieces];
-  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, &computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupWeightedVarianceForKnownMeanData(data, numPieces, x, w, numValuesPerPiece, offByOneIndex, computeOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3735,7 +4086,7 @@ static double htm_computeIndexedUnrolledWeightedVarianceForKnownMean(
   if (numPieces <= 1) return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData data[numPieces];
-  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, &computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
@@ -3757,7 +4108,7 @@ static double htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(
   if (numPieces <= 1) return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
   
   IndexedWeightedVarianceForKnownMeanData data[numPieces];
-  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
+  setupIndexedWeightedVarianceForKnownMeanData(data, numPieces, x, indices, w, numValuesPerPiece, offByOneIndex, computeIndexedOnlineUnrolledWeightedVarianceForKnownMean, mean);
   
   void* dataPtrs[numPieces];
   for (size_t i = 0; i < numPieces; ++i) dataPtrs[i] = (void*) &data[i];
