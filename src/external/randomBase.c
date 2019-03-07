@@ -40,6 +40,7 @@
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
+#include <external/R.h> // R version
 #include <external/Rinternals.h> // SEXP
 
 // should match enum order
@@ -194,8 +195,19 @@ ext_rng* ext_rng_createDefault(bool useNative)
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
   UNPROTECT(1);
   
+  if (seed0 == (uint_least32_t) NA_INTEGER || seed0 > 11000) {
+    ext_issueWarning("'.Random.seed' is not a valid integer, so ignored");
+    result = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (result != NULL) ext_rng_setSeedFromClock(result);
+    return result;
+  }
+  
   ext_rng_algorithm_t algorithmType      = (ext_rng_algorithm_t) (seed0 % 100);
+#if R_VERSION < R_Version(3,6,0)
   ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+#else
+  ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
+#endif
   
   void* state = (void*) (1 + INTEGER(seedsExpr));
   
@@ -337,7 +349,13 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType()
   
   uint_least32_t seed0 = (uint_least32_t) INTEGER(seedsExpr)[0];
   
+
+#if R_VERSION < R_Version(3,6,0)
   return (ext_rng_standardNormal_t) (seed0 / 100);
+  ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
+#else
+  return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
+#endif
 }
 
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state)
@@ -377,7 +395,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
   if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) generator->normalState.nextNormal = 0.0;
 
   // initial scrambling
-  for (size_t j = 0; j < 50; ++j) seed = (69069 * seed + 1);
+  for (uint32_t j = 0; j < 50; ++j) seed = (69069 * seed + 1);
   
   switch (generator->algorithm) {
     case EXT_RNG_ALGORITHM_WICHMANN_HILL:
@@ -536,20 +554,18 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
     state[1] = state[1] % 30307;
     state[2] = state[2] % 30323;
     
-  	// map values equal to 0 mod modulus to 1
-  	if (state[0] == 0) state[0] = 1;
-  	if (state[1] == 0) state[1] = 1;
-  	if (state[2] == 0) state[2] = 1;
+    // map values equal to 0 mod modulus to 1
+    if (state[0] == 0) state[0] = 1;
+    if (state[1] == 0) state[1] = 1;
+    if (state[2] == 0) state[2] = 1;
     
     break;
     
     case EXT_RNG_ALGORITHM_SUPER_DUPER:
-  	if (state[0] == 0) state[0] = 1;
-  	// state[1] = Congruential: must be ODD
-  	state[1] |= 1;
+    if (state[0] == 0) state[0] = 1;
+    // state[1] = Congruential: must be ODD
+    state[1] |= 1;
     break;
-    
-
 
     case EXT_RNG_ALGORITHM_MARSAGLIA_MULTICARRY:
     if (state[0] == 0) state[0] = 1;
@@ -563,8 +579,9 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
       if (isFirstRun || mt->info <= 0) mt->info = EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM;
     
       for (size_t j = 0; j < EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM; ++j) {
-	      if (mt->state[j] != 0) {
-		      notAllAreZero = true; break;
+        if (mt->state[j] != 0) {
+          notAllAreZero = true;
+          break;
         }
       }
       if (!notAllAreZero) ext_rng_setSeedFromClock(generator);
@@ -577,9 +594,10 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
       KnuthState* kt = (KnuthState*) generator->state;
     
       if (kt->info <= 0) kt->info = EXT_RNG_KNUTH_NUM_RANDOM;
-	    for (size_t j = 0; j < EXT_RNG_KNUTH_NUM_RANDOM; ++j) {
+      for (size_t j = 0; j < EXT_RNG_KNUTH_NUM_RANDOM; ++j) {
         if (state[j] != 0) {
-          notAllAreZero = true; break;
+          notAllAreZero = true;
+          break;
         }
       }
       if (!notAllAreZero) ext_rng_setSeedFromClock(generator);
@@ -643,26 +661,26 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
     {
       state[0] = state[0] * 171 % 30269;
       state[1] = state[1] * 172 % 30307;
-    	state[2] = state[2] * 170 % 30323;
+      state[2] = state[2] * 170 % 30323;
       result = state[0] / 30269.0 + state[1] / 30307.0 + state[2] / 30323.0;
       result -= (int) result;
     }
     break;
     case EXT_RNG_ALGORITHM_MARSAGLIA_MULTICARRY: // 0177777(octal) == 65535(decimal)
     {
-	    state[0] = 36969 * (state[0] & 0177777) + (state[0] >> 16);
+      state[0] = 36969 * (state[0] & 0177777) + (state[0] >> 16);
       state[1] = 18000 * (state[1] & 0177777) + (state[1] >> 16);
       result = ((double) ((state[0] << 16) ^ (state[1] & 0177777))) * THIRTY_TWO_BIT_INVERSE;
     }
     break;
     case EXT_RNG_ALGORITHM_SUPER_DUPER:
-	    /* This is Reeds et al (1984) implementation;
-	     * modified using __unsigned__ states instead of signed ones
-	      */
+    /* This is Reeds et al (1984) implementation;
+     * modified using __unsigned__ states instead of signed ones
+     */
     {
       state[0] ^= ((state[0] >> 15) & 0377777); /* Tausworthe */
-    	state[0] ^= state[0] << 17;
-    	state[1] *= 69069;  /* Congruential */
+      state[0] ^= state[0] << 17;
+      state[1] *= 69069;  /* Congruential */
       result = (state[0] ^ state[1]) * THIRTY_TWO_BIT_INVERSE;
     }
     break;
@@ -698,12 +716,12 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
 #define a13n    (int_least64_t) 810728
 #define a21     (int_least64_t) 527612
 #define a23n    (int_least64_t) 1370589
-
-	    p1 = a12 * state[1] - a13n * state[0];
-	    /* p1 % m1 would surely do */
-	    k = (int_least32_t) (p1 / LECUYER_M1);
-	    p1 -= k * LECUYER_M1;
-	    if (p1 < 0) p1 += LECUYER_M1;
+      
+      p1 = a12 * state[1] - a13n * state[0];
+      /* p1 % m1 would surely do */
+      k = (int_least32_t) (p1 / LECUYER_M1);
+      p1 -= k * LECUYER_M1;
+      if (p1 < 0) p1 += LECUYER_M1;
       state[0] = state[1]; state[1] = state[2]; state[2] = (uint_least32_t) p1;
       
       p2 = a21 * state[5] - a23n * state[3];
