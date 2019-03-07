@@ -352,7 +352,6 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType()
 
 #if R_VERSION < R_Version(3,6,0)
   return (ext_rng_standardNormal_t) (seed0 / 100);
-  ext_rng_standardNormal_t stdNormalType = (ext_rng_standardNormal_t) (seed0 / 100);
 #else
   return (ext_rng_standardNormal_t) (seed0 % 10000 / 100);
 #endif
