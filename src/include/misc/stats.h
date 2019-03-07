@@ -14,7 +14,7 @@ double misc_computeIndexedMean(const double* restrict x, const misc_size_t* rest
 double misc_computeWeightedMean(const double* restrict x, misc_size_t length, const double* restrict w, double* restrict n);
 double misc_computeIndexedWeightedMean(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict n);
   
-// variance := ssr / (n - 1)
+// variance := ssr / (n - 1); renormalize by (n - 1) / w'1 for a weighted estimate
 double misc_computeVariance(const double* restrict x, misc_size_t length, double* restrict mean);
 double misc_computeVarianceForKnownMean(const double* x, misc_size_t length, double mean);
 double misc_computeIndexedVariance(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double* restrict mean);

@@ -39,6 +39,8 @@ namespace dbarts {
     double posteriorPrecision = node.getNumEffectiveObservations() / residualVariance;
     
     double result;
+    // we divide out by the actual n - 1 instead of a weighted sum because the variance
+    // divides that number regardless; the calculations are correct in both cases
     result  = 0.5 * std::log(this->precision / (this->precision + posteriorPrecision));
     result -= 0.5 * (var_y / residualVariance) * static_cast<double>(numObservationsInNode - 1);
     result -= 0.5 * ((this->precision * y_bar) * (posteriorPrecision * y_bar)) / (this->precision + posteriorPrecision);
