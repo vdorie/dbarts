@@ -76,8 +76,6 @@ namespace dbarts {
     Node(const Node& parent, std::size_t numPredictors, const Node& other); // copies tree structure from other
     ~Node();
     
-    void copyFrom(const BARTFit& fit, const Node& other);
-    
     
     bool isTop() const;
     bool isBottom() const;
@@ -136,9 +134,51 @@ namespace dbarts {
     void countVariableUses(std::uint32_t* variableCounts) const;
     
     void checkIndices(const BARTFit& fit, const Node& top);
+    
+    std::size_t getSerializedLength(const BARTFit& fit) const;
+    std::size_t serialize(const BARTFit& fit, void* state) const;
+    std::size_t deserialize(const BARTFit& fit, const void* state);
   };
   
+  struct SavedNode;
   
+  typedef std::vector<SavedNode*> SavedNodeVector;
+  
+  struct SavedNode {
+    SavedNode* parent;
+    SavedNode* leftChild;
+    SavedNode* rightChild;
+    std::int32_t variableIndex;
+    
+    union {
+      double split;
+      double prediction;
+    };
+    
+    SavedNode();
+    SavedNode(const BARTFit& fit, const SavedNode& parent, const Node& other);
+    ~SavedNode();
+    
+    void clear();
+    std::size_t getDepth() const;
+    
+    bool isBottom() const;
+    bool isTop() const;
+    bool childrenAreBottom() const;
+    SavedNode* getParent() const;
+    SavedNode* getLeftChild() const;
+    SavedNode* getRightChild() const;
+    
+    SavedNodeVector getBottomVector() const;
+    
+    SavedNode* findBottomNode(const BARTFit& fit, const double* xt) const;
+    
+    void print(const BARTFit& fit, std::size_t indentation) const;
+    
+    std::size_t getSerializedLength() const;
+    std::size_t serialize(void* state) const;
+    std::size_t deserialize(const void* state);
+  };
   
   
   
@@ -162,6 +202,13 @@ namespace dbarts {
   inline Node* Node::getParent() const { return const_cast<Node*>(parent); }
   inline Node* Node::getLeftChild() const { return const_cast<Node*>(leftChild); }
   inline Node* Node::getRightChild() const { return const_cast<Node*>(p.rightChild); }
+  
+  inline bool SavedNode::isTop() const { return parent == NULL; }
+  inline bool SavedNode::isBottom() const { return leftChild == NULL; }
+  inline bool SavedNode::childrenAreBottom() const { return leftChild != NULL && leftChild->leftChild == NULL && rightChild->leftChild == NULL; }
+  inline SavedNode* SavedNode::getParent() const { return const_cast<SavedNode*>(parent); }
+  inline SavedNode* SavedNode::getLeftChild() const { return const_cast<SavedNode*>(leftChild); }
+  inline SavedNode* SavedNode::getRightChild() const { return const_cast<SavedNode*>(rightChild); }
 
   inline std::size_t Node::getNumObservations() const { return numObservations; }
   inline double Node::getAverage() const { return m.average; }

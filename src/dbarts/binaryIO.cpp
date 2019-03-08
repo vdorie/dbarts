@@ -315,6 +315,8 @@ read_model_cleanup:
 namespace {
   int writeTree(misc_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices);
   int readTree(misc_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices);
+  int writeTree(misc_binaryIO* bio, const dbarts::SavedTree& tree);
+  int readTree(misc_binaryIO* bio, dbarts::SavedTree& tree);
 }
 
 namespace dbarts {
@@ -334,15 +336,9 @@ namespace dbarts {
       
       // saved trees
       if (control.keepTrees) {
-        if ((errorCode = misc_bio_writeNSizeTypes(bio, state[chainNum].savedTreeIndices, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
-
-        for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
-          for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-            size_t treeOffset = treeNum + sampleNum * control.numTrees;
-            if ((errorCode = writeTree(bio, state[chainNum].savedTrees[treeOffset], data, state[chainNum].savedTreeIndices + treeOffset * data.numObservations)) != 0) goto write_state_cleanup;
-          }
-        }
-        if ((errorCode = misc_bio_writeNDoubles(bio, state[chainNum].savedTreeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto write_state_cleanup;
+        size_t totalNumTrees = numSamples * control.numTrees;
+        for (treeNum = 0; treeNum < totalNumTrees; ++treeNum)
+          if ((errorCode = writeTree(bio, state[chainNum].savedTrees[treeNum])) != 0) goto write_state_cleanup;
       }
       
       
@@ -389,15 +385,9 @@ write_state_cleanup:
       if ((errorCode = misc_bio_readNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees)) != 0) goto read_state_cleanup;
       
       if (control.keepTrees) {
-        if ((errorCode = misc_bio_readNSizeTypes(bio, state[chainNum].savedTreeIndices, data.numObservations * control.numTrees * numSamples)) != 0) goto read_state_cleanup;
-        
-        for (size_t sampleNum = 0; sampleNum < numSamples; ++sampleNum) {
-          for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-            size_t treeOffset = treeNum + sampleNum * control.numTrees;
-            if ((errorCode = readTree(bio, state[chainNum].savedTrees[treeOffset], data, state[chainNum].savedTreeIndices + treeOffset * data.numObservations)) != 0) goto read_state_cleanup;
-          }
-        }
-        if ((errorCode = misc_bio_readNDoubles(bio, state[chainNum].savedTreeFits, data.numObservations * control.numTrees * numSamples)) != 0) goto read_state_cleanup;
+        size_t totalNumTrees = numSamples * control.numTrees;
+        for (treeNum = 0; treeNum < totalNumTrees; ++treeNum)
+          if ((errorCode = readTree(bio, state[chainNum].savedTrees[treeNum])) != 0) goto read_state_cleanup;
       }
       
       if ((errorCode = misc_bio_readDouble(bio, &state[chainNum].sigma)) != 0) goto read_state_cleanup;
@@ -540,9 +530,38 @@ write_node_cleanup:
     return errorCode;
   }
   
+  int writeNode(misc_binaryIO* bio, const dbarts::SavedNode& node)
+  {
+    int errorCode = 0;
+    
+    unsigned char nodeFlags = 0;
+    
+    if (node.getLeftChild() != NULL)
+      nodeFlags += NODE_HAS_CHILDREN;
+    if ((errorCode = misc_bio_writeChar(bio, *reinterpret_cast<char*>(&nodeFlags))) != 0) goto write_saved_node_cleanup;
+    
+    if ((errorCode = misc_bio_writeUnsigned32BitInteger(bio, *(reinterpret_cast<const uint32_t*>(&node.variableIndex)))) != 0) goto write_saved_node_cleanup;
+    
+    if ((errorCode = misc_bio_writeDouble(bio, node.split)) != 0) goto write_saved_node_cleanup;
+    
+    if (node.getLeftChild() != NULL) {
+      if ((errorCode = writeNode(bio, *node.getLeftChild()))) goto write_saved_node_cleanup;
+      if ((errorCode = writeNode(bio, *node.getRightChild()))) goto write_saved_node_cleanup;
+    }
+    
+write_saved_node_cleanup:
+    
+    return errorCode;
+  }
+  
   int writeTree(misc_binaryIO* bio, const dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices)
   {
     return writeNode(bio, tree.top, data, treeIndices);
+  }
+  
+  int writeTree(misc_binaryIO* bio, const dbarts::SavedTree& tree)
+  {
+    return writeNode(bio, tree.top);
   }
   
   int readNode(misc_binaryIO* bio, dbarts::Node& node, const dbarts::Data& data, const size_t* treeIndices)
@@ -600,8 +619,52 @@ read_node_cleanup:
     return errorCode;
   }
   
+  int readNode(misc_binaryIO* bio, dbarts::SavedNode& node)
+  {
+    int errorCode = 0;
+    
+    unsigned char nodeFlags = 0;
+    
+    node.leftChild = NULL;
+    node.rightChild = NULL;
+    
+    if ((errorCode = misc_bio_readChar(bio, reinterpret_cast<char*>(&nodeFlags))) != 0) goto read_saved_node_cleanup;
+    if (nodeFlags > NODE_HAS_CHILDREN) { errorCode = EINVAL; goto read_saved_node_cleanup; }
+    
+    if ((errorCode = misc_bio_readUnsigned32BitInteger(bio, (reinterpret_cast<uint32_t*>(&node.variableIndex)))) != 0) goto read_saved_node_cleanup;
+    
+    if ((errorCode = misc_bio_readDouble(bio, &node.split)) != 0) goto read_saved_node_cleanup;
+    
+    if (nodeFlags & NODE_HAS_CHILDREN) {
+      node.leftChild = new dbarts::SavedNode();
+      node.leftChild->parent = &node;
+      if ((errorCode = writeNode(bio, *node.getLeftChild()))) goto read_saved_node_cleanup;
+      node.rightChild = new dbarts::SavedNode();
+      node.rightChild->parent = &node;
+      if ((errorCode = writeNode(bio, *node.getRightChild()))) goto read_saved_node_cleanup;
+    }
+    
+read_saved_node_cleanup:
+    
+    if (errorCode != 0) {
+      delete node.rightChild;
+      delete node.leftChild;
+      
+      node.leftChild = NULL;
+    }
+    
+    return errorCode;
+  }
+  
   int readTree(misc_binaryIO* bio, dbarts::Tree& tree, const dbarts::Data& data, const size_t* treeIndices)
   {
+    tree.top.clear();
     return readNode(bio, tree.top, data, treeIndices);
+  }
+  
+  int readTree(misc_binaryIO* bio, dbarts::SavedTree& tree)
+  {
+    tree.top.clear();
+    return readNode(bio, tree.top);
   }
 }

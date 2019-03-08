@@ -101,6 +101,17 @@ namespace dbarts {
     clearObservations();
   }
   
+  void SavedNode::clear()
+  {
+    if (leftChild != NULL) {
+      delete leftChild;
+      delete rightChild;
+      
+      leftChild = NULL;
+      rightChild = NULL;
+    }
+  }
+  
   Node::Node(size_t* observationIndices, size_t numObservations, size_t numPredictors) :
     parent(NULL), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM), variablesAvailableForSplit(NULL),
     observationIndices(observationIndices), numObservations(numObservations)
@@ -127,6 +138,23 @@ namespace dbarts {
     }
     
     std::memcpy(variablesAvailableForSplit, other.variablesAvailableForSplit, sizeof(bool) * numPredictors);
+  }
+  
+  SavedNode::SavedNode() :
+    parent(NULL), leftChild(NULL), rightChild(NULL), variableIndex(DBARTS_INVALID_RULE_VARIABLE), split(0.0)
+  {
+  }
+  
+  SavedNode::SavedNode(const BARTFit& fit, const SavedNode& parent, const Node& other) :
+    parent(const_cast<SavedNode*>(&parent)), leftChild(NULL), rightChild(NULL),
+    variableIndex(DBARTS_INVALID_RULE_VARIABLE), split(0.0)
+  {
+    if (other.leftChild != NULL) {
+      leftChild  = new SavedNode(fit, *this, *other.getLeftChild());
+      rightChild = new SavedNode(fit, *this, *other.getRightChild());
+      variableIndex = other.p.rule.variableIndex;
+      split = fit.sharedScratch.cutPoints[variableIndex][other.p.rule.splitIndex];
+    }
   }
   
   void Node::checkIndices(const BARTFit& fit, const Node& top) {
@@ -163,25 +191,13 @@ namespace dbarts {
     }
     delete [] variablesAvailableForSplit; variablesAvailableForSplit = NULL;
   }
-    
-  void Node::copyFrom(const BARTFit& fit, const Node& other)
+  
+  SavedNode::~SavedNode()
   {
-    parent = other.parent;
-    leftChild = other.leftChild;
     if (leftChild != NULL) {
-      p.rightChild = other.p.rightChild;
-      p.rule.copyFrom(other.p.rule);
+      delete leftChild; leftChild = NULL;
+      delete rightChild; rightChild = NULL;
     }
-    else {
-      m.average = other.m.average;
-      m.numEffectiveObservations = other.m.numEffectiveObservations;
-    }
-    
-    enumerationIndex = other.enumerationIndex;
-    std::memcpy(variablesAvailableForSplit, other.variablesAvailableForSplit, sizeof(bool) * fit.data.numPredictors);
-    
-    observationIndices = other.observationIndices;
-    numObservations = other.numObservations;
   }
   
   void Node::print(const BARTFit& fit, size_t indentation) const
@@ -210,6 +226,25 @@ namespace dbarts {
     if (!isBottom()) {
       leftChild->print(fit, indentation);
       p.rightChild->print(fit, indentation);
+    }
+  }
+  
+  void SavedNode::print(const BARTFit& fit, size_t indentation) const
+  {
+    ext_printf("%*s", indentation + getDepth(), "");
+    ext_printf("TBN: %u%u%u ", isTop(), isBottom(), childrenAreBottom());
+    
+    if (!isBottom()) {
+      ext_printf(" var: %d ", variableIndex);
+      ext_printf("ORDRule: %f", split);
+    } else {
+      ext_printf(" pred: %f", prediction);
+    }
+    ext_printf("\n");
+    
+    if (!isBottom()) {
+      leftChild->print(fit, indentation);
+      rightChild->print(fit, indentation);
     }
   }
   
@@ -259,6 +294,17 @@ namespace {
     
     fillBottomVector(*node.leftChild, result);
     fillBottomVector(*node.p.rightChild, result);
+  }
+  
+  void fillBottomVector(const SavedNode& node, SavedNodeVector& result)
+  {
+    if (node.leftChild == NULL) {
+      result.push_back(const_cast<SavedNode*>(&node));
+      return;
+    }
+    
+    fillBottomVector(*node.leftChild, result);
+    fillBottomVector(*node.rightChild, result);
   }
 
   void enumerateBottomNodes(Node& node, size_t& index)
@@ -332,6 +378,13 @@ namespace dbarts {
     fillBottomVector(*this, result);
     return result;
   }
+  
+  SavedNodeVector SavedNode::getBottomVector() const
+  {
+    SavedNodeVector result;
+    fillBottomVector(*this, result);
+    return result;
+  }
 
   void Node::enumerateBottomNodes()
   {
@@ -373,6 +426,15 @@ namespace dbarts {
     if (isBottom()) return const_cast<Node*>(this);
     
     if (xt[p.rule.variableIndex] > p.rule.splitIndex) return p.rightChild->findBottomNode(fit, xt);
+    
+    return leftChild->findBottomNode(fit, xt);
+  }
+  
+  SavedNode* SavedNode::findBottomNode(const BARTFit& fit, const double* xt) const
+  {
+    if (isBottom()) return const_cast<SavedNode*>(this);
+       
+    if (xt[variableIndex] > split) return rightChild->findBottomNode(fit, xt);
     
     return leftChild->findBottomNode(fit, xt);
   }
@@ -526,6 +588,19 @@ namespace dbarts {
     return result;
   }
   
+  size_t SavedNode::getDepth() const
+  {
+    size_t result = 0;
+    const SavedNode* node = this;
+
+    while (!node->isTop()) {
+      ++result;
+      node = node->parent;
+    }
+    
+    return result;
+  }
+  
   size_t Node::getDepthBelow() const
   {
     if (childrenAreBottom()) return 1;
@@ -592,4 +667,133 @@ namespace dbarts {
     leftChild->countVariableUses(variableCounts);
     p.rightChild->countVariableUses(variableCounts);
   }
+  
+  size_t Node::getSerializedLength(const BARTFit& fit) const {
+    size_t length;
+    
+    if (leftChild != NULL) {
+      length = sizeof(Rule);
+      length += length % sizeof(int);
+      
+      length += leftChild->getSerializedLength(fit);
+      length += p.rightChild->getSerializedLength(fit);
+    } else {
+      length = sizeof(std::int32_t);
+      length += length % sizeof(int);
+    }
+    
+    return length;
+  }
+  
+  size_t Node::serialize(const BARTFit& fit, void* state) const {
+    size_t length;
+    if (leftChild != NULL) {
+      std::memcpy(state, reinterpret_cast<const void*>(&p.rule), sizeof(Rule));
+      length = sizeof(Rule);
+      length += length % sizeof(int);
+      
+      length += leftChild->serialize(fit, reinterpret_cast<void*>(reinterpret_cast<char*>(state) + length));
+      length += p.rightChild->serialize(fit, reinterpret_cast<void*>(reinterpret_cast<char*>(state) + length));
+    } else {
+      *reinterpret_cast<std::int32_t*>(state) = DBARTS_INVALID_RULE_VARIABLE;
+      length = sizeof(std::int32_t);
+      length += length % sizeof(int);
+    }
+     
+    return length;
+  }
+  
+  size_t Node::deserialize(const BARTFit& fit, const void* state) {
+    size_t length;
+    std::int32_t variableIndex = *reinterpret_cast<const std::int32_t*>(state);
+    if (variableIndex != DBARTS_INVALID_RULE_VARIABLE) {
+      std::memcpy(reinterpret_cast<void*>(&p.rule), state, sizeof(Rule));
+      length = sizeof(Rule);
+      length += length % sizeof(int);
+      
+      leftChild    = new Node(*this, fit.data.numPredictors);
+      p.rightChild = new Node(*this, fit.data.numPredictors);
+      
+      length += leftChild->deserialize(fit, reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
+      length += p.rightChild->deserialize(fit, reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
+    } else {
+      length = sizeof(std::int32_t);
+      length += length % sizeof(int);
+    }
+    
+    return length;
+  }
+  
+  size_t SavedNode::getSerializedLength() const {
+    size_t length;
+    
+    length = sizeof(std::int32_t);
+    length += length % sizeof(int);
+    
+    if (leftChild != NULL) {
+      length += sizeof(double);
+      length += length % sizeof(int);
+      
+      length += leftChild->getSerializedLength();
+      length += rightChild->getSerializedLength();
+    } else {
+      length = sizeof(double);
+      length += length % sizeof(int);
+    }
+    
+    return length;
+  }
+  
+  size_t SavedNode::serialize(void* state) const {
+    size_t length;
+    if (leftChild != NULL) {
+      *reinterpret_cast<std::int32_t*>(state) = variableIndex;
+      length = sizeof(std::int32_t);
+      length += length % sizeof(int);
+      
+      *reinterpret_cast<double*>(reinterpret_cast<char*>(state) + length) = split;
+      length = sizeof(double);
+      length += length % sizeof(int);
+            
+      length += leftChild->serialize(reinterpret_cast<void*>(reinterpret_cast<char*>(state) + length));
+      length += rightChild->serialize(reinterpret_cast<void*>(reinterpret_cast<char*>(state) + length));
+    } else {
+      *reinterpret_cast<std::int32_t*>(state) = DBARTS_INVALID_RULE_VARIABLE;
+      length = sizeof(std::int32_t);
+      length += length % sizeof(int);
+      
+      *reinterpret_cast<double*>(reinterpret_cast<char*>(state) + length) = prediction;
+      length = sizeof(double);
+      length += length % sizeof(int);
+    }
+     
+    return length;
+  }
+  
+  size_t SavedNode::deserialize(const void* state) {
+    variableIndex = *reinterpret_cast<const std::int32_t*>(state);
+    size_t length = sizeof(std::int32_t);
+    length += length % sizeof(int);
+    
+    if (variableIndex != DBARTS_INVALID_RULE_VARIABLE) {
+      split = *reinterpret_cast<const double*>(reinterpret_cast<const char*>(state) + length);
+      length = sizeof(double);
+      length += length % sizeof(int);
+            
+      leftChild    = new SavedNode();
+      leftChild->parent = this;
+      rightChild = new SavedNode();
+      leftChild->parent = this;
+      
+      length += leftChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
+      length += rightChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
+    } else {
+      prediction = *reinterpret_cast<const double*>(reinterpret_cast<const char*>(state) + length);
+      length = sizeof(double);
+      length += length % sizeof(int);
+    }
+    
+    return length;
+  }
 }
+

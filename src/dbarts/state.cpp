@@ -19,7 +19,6 @@ using std::snprintf;
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>
 #include <dbarts/data.hpp>
-#include "functions.hpp"
 #include "node.hpp"
 #include "tree.hpp"
 
@@ -58,32 +57,22 @@ namespace dbarts {
     if (control.keepTrees) {
       totalNumTrees *= control.defaultNumSamples;
       
-      savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
-      
-      savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
+      savedTrees = static_cast<SavedTree*>(::operator new (totalNumTrees * sizeof(SavedTree)));
       for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
-        new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
-      
-      savedTreeFits = new double[data.numObservations * totalNumTrees];
-      misc_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
+        new (savedTrees + treeNum) SavedTree();
     } else {
-      savedTreeIndices = NULL;
       savedTrees = NULL;
-      savedTreeFits = NULL;
     }
         
     rng = NULL;
   }
   
   void State::invalidate(size_t numTrees, size_t numSamples) {
-    delete [] savedTreeFits;
     if (savedTrees != NULL) {
       for (size_t treeNum = numTrees * numSamples; treeNum > 0; --treeNum)
-        savedTrees[treeNum - 1].~Tree();
+        savedTrees[treeNum - 1].~SavedTree();
       ::operator delete (savedTrees);
     }
-    delete [] savedTreeIndices;
-
     
     delete [] treeFits;
     for (size_t treeNum = numTrees; treeNum > 0; --treeNum)
@@ -107,6 +96,15 @@ namespace {
     
     const TreeData& oldTreeData;
     TreeData& newTreeData;
+  };
+  struct SavedResizeData {
+    const Data& data;
+    
+    const Control& oldControl;
+    const Control& newControl;
+    
+    const SavedTree* oldTrees;
+    SavedTree* newTrees;
   };
     
   void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum) {
@@ -160,6 +158,45 @@ namespace {
     for (size_t treeNum = oldControl.numTrees; treeNum > assignEnd; --treeNum)
       oldTreeData.trees[treeNum - 1 + oldSampleOffset].~Tree();
   }
+  
+  void copyTreesForSample(SavedResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum) {
+    const Control& oldControl(resizeData.oldControl);
+    const Control& newControl(resizeData.newControl);
+    
+    const SavedTree* oldTrees = resizeData.oldTrees;
+    SavedTree* newTrees       = resizeData.newTrees;
+    
+    size_t assignEnd = std::min(oldControl.numTrees, newControl.numTrees);
+    
+    // copy in trees that will be in the new one
+    for (size_t treeNum = 0; treeNum < assignEnd; ++treeNum) {
+      size_t oldTreeOffset = treeNum + oldSampleNum * oldControl.numTrees;
+      size_t newTreeOffset = treeNum + newSampleNum * newControl.numTrees;
+      
+      // copy over children pointers, if any
+      newTrees[newTreeOffset] = oldTrees[oldTreeOffset];
+      
+      if (!newTrees[newTreeOffset].top.isBottom()) {
+        newTrees[newTreeOffset].top.getRightChild()->parent = &newTrees[newTreeOffset].top;
+        newTrees[newTreeOffset].top.getLeftChild()->parent  = &newTrees[newTreeOffset].top;
+        
+        // prevent destructor from freeing children since we just assigned them over
+        const_cast<SavedTree*>(oldTrees)[oldTreeOffset].top.leftChild = NULL;
+      }
+    }
+    
+    // if any new trees are required, create and initialize those
+    for (size_t treeNum = assignEnd; treeNum < newControl.numTrees; ++treeNum) {
+      size_t treeOffset = treeNum + newSampleNum * newControl.numTrees;
+      new (newTrees + treeOffset) SavedTree();
+    }
+    
+    // if any extra trees exist, delete them
+    size_t oldSampleOffset = oldSampleNum * oldControl.numTrees;
+    
+    for (size_t treeNum = oldControl.numTrees; treeNum > assignEnd; --treeNum)
+      oldTrees[treeNum - 1 + oldSampleOffset].~SavedTree();
+  }
 }
 
 namespace dbarts {
@@ -190,37 +227,26 @@ namespace dbarts {
     if (newControl.keepTrees) {
       size_t totalNumTrees = newControl.numTrees * fit.currentNumSamples;
       
-      savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
-      savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
-      savedTreeFits = new double[data.numObservations * totalNumTrees];
+      savedTrees = static_cast<SavedTree*>(::operator new (totalNumTrees * sizeof(SavedTree)));
       
       if (oldControl.keepTrees) {
-        TreeData oldTrees = { oldState.savedTreeIndices, oldState.savedTrees, oldState.savedTreeFits };
-        TreeData newTrees = { savedTreeIndices, savedTrees, savedTreeFits };
-        ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees };
+        SavedResizeData resizeData = { fit.data, oldControl, newControl, oldState.savedTrees, savedTrees };
         
         for (size_t sampleNum = 0; sampleNum < fit.currentNumSamples; ++sampleNum)
           copyTreesForSample(resizeData, sampleNum, sampleNum);
         
-        delete [] oldState.savedTreeFits;
         ::operator delete (oldState.savedTrees);
-        delete [] oldState.savedTreeIndices;
       } else {
         for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
-          new (savedTrees + treeNum) Tree(savedTreeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
-        misc_setVectorToConstant(savedTreeFits, data.numObservations * totalNumTrees, 0.0);
+          new (savedTrees + treeNum) SavedTree();
       }
     } else {
-      savedTreeIndices = NULL;
       savedTrees = NULL;
-      savedTreeFits = NULL;
       
       if (oldControl.keepTrees) {
-        delete [] oldState.savedTreeFits;
         for (size_t treeNum = oldControl.numTrees * fit.currentNumSamples; treeNum > 0; --treeNum)
-          oldState.savedTrees[treeNum - 1].~Tree();
+          oldState.savedTrees[treeNum - 1].~SavedTree();
         ::operator delete (oldState.savedTrees);
-        delete [] oldState.savedTreeIndices;
       }
     }
     
@@ -229,7 +255,6 @@ namespace dbarts {
   
   bool State::resize(const BARTFit& fit, size_t newNumSamples) {
     const Control& control(fit.control);
-    const Data& data(fit.data);
     
     size_t oldNumSamples = fit.currentNumSamples;
     
@@ -239,13 +264,9 @@ namespace dbarts {
     
     size_t totalNumTrees = control.numTrees * newNumSamples;
     
-    savedTreeIndices = new size_t[data.numObservations * totalNumTrees];
-    savedTrees = static_cast<Tree*>(::operator new (totalNumTrees * sizeof(Tree)));
-    savedTreeFits = new double[data.numObservations * totalNumTrees];
+    savedTrees = static_cast<SavedTree*>(::operator new (totalNumTrees * sizeof(SavedTree)));
     
-    TreeData oldTrees = { oldState.savedTreeIndices, oldState.savedTrees, oldState.savedTreeFits };
-    TreeData newTrees = { savedTreeIndices, savedTrees, savedTreeFits };
-    ResizeData resizeData = { fit.data, control, control, oldTrees, newTrees };
+    SavedResizeData resizeData = { fit.data, control, control, oldState.savedTrees, savedTrees };
         
     size_t numSamplesToCopy, oldSampleStart, newSampleStart;
     if (oldNumSamples > newNumSamples) {
@@ -267,8 +288,7 @@ namespace dbarts {
       for (size_t sampleNum = 0; sampleNum < newNumSamples - oldNumSamples; ++sampleNum) {
         size_t sampleOffset = sampleNum * control.numTrees;
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          new (trees + treeNum + sampleOffset)
-            Tree(treeIndices + data.numObservations * (treeNum + sampleOffset), data.numObservations, data.numPredictors);
+          new (trees + treeNum + sampleOffset) SavedTree();
         }
       }
     }
@@ -276,171 +296,75 @@ namespace dbarts {
     for (size_t sampleNum = 0; sampleNum < numSamplesToCopy; ++sampleNum)
       copyTreesForSample(resizeData, oldSampleStart + sampleNum, newSampleStart + sampleNum);
     
-    delete [] oldState.treeFits;
-     ::operator delete (oldState.trees);
-    delete [] oldState.treeIndices;
+    ::operator delete (oldState.trees);
     
     return true;
   }
-}
-
-
-namespace {
-  using namespace dbarts;
   
-  struct StringWriter {
-    char* buffer;
-    size_t length;
-    size_t pos;
+  size_t State::getSerializedTreesLength(const BARTFit& fit) const {
+    const Control& control(fit.control);
+        
+    size_t stateLength = 0;
     
-    void writeChar(char c) {
-      buffer[pos++] = c;
-      
-      if (pos >= length) reallocate();
+    for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
+      stateLength += trees[treeNum].getSerializedLength(fit);
+    
+    return stateLength;
+  }
+  
+  void State::serializeTrees(const BARTFit& fit, void* state) const {
+    const Control& control(fit.control);
+    
+    for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+      size_t stateLength = trees[treeNum].serialize(fit, state);
+      state = reinterpret_cast<void*>(reinterpret_cast<char*>(state) + stateLength);
     }
-    void writeString(const char* s, size_t len) {
-      if (pos + len >= length) reallocate();
-      std::memcpy(buffer + pos, s, len * sizeof(char));
-      pos += len;
+  }
+  
+  void State::deserializeTrees(const BARTFit& fit, const void* state) {
+    const Control& control(fit.control);
+    
+    for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+      size_t stateLength = trees[treeNum].deserialize(fit, state);
+      state = reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + stateLength);
     }
-    
-    void writeInt(int32_t i) {
-      char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%d", i);
-      writeString(intBuffer, static_cast<size_t>(bytesWritten));
-    }
-    
-    /* void writeUInt(uint32_t u) {
-      char intBuffer[INT_BUFFER_SIZE];
-      int bytesWritten = snprintf(intBuffer, INT_BUFFER_SIZE, "%u", u);
-      writeString(intBuffer, (size_t) bytesWritten);
-    } */
-    
-    void writeNode(const Node& node) {
-      if (node.isBottom()) {
-        writeChar('.');
-        return;
+  }
+  
+  size_t State::getSerializedSavedTreesLength(const BARTFit& fit) const {
+    const Control& control(fit.control);
+        
+    size_t stateLength = 0;
+           
+    if (control.keepTrees) {
+      size_t numSavedTrees = fit.currentNumSamples * control.numTrees;
+      for (size_t treeNum = 0; treeNum < numSavedTrees; ++treeNum) {
+        stateLength += savedTrees[treeNum].getSerializedLength();
       }
-      
-      writeInt(node.p.rule.variableIndex);
-      writeChar(' ');
-      writeInt(node.p.rule.splitIndex);
-      writeChar(' ');
-      
-      writeNode(*node.getLeftChild());
-      writeNode(*node.getRightChild());
     }
     
-    void reallocate() {
-      char* temp = new char[length + BASE_BUFFER_SIZE];
-      std::memcpy(temp, const_cast<const char*>(buffer), length * sizeof(char));
-      
-      length += BASE_BUFFER_SIZE;
-      delete [] buffer;
-      buffer = temp;
-    }
-  };
-
-  using namespace dbarts;
-  
-  size_t readNode(Node& node, const char* treeString, size_t numPredictors) {
-    if (treeString[0] == '\0') return 0;
-    if (treeString[0] == '.') return 1;
-    
-    
-    size_t pos = 0;
-    
-    char buffer[INT_BUFFER_SIZE];
-    while (treeString[pos] != ' ' && pos < INT_BUFFER_SIZE) {
-      buffer[pos] = treeString[pos];
-      ++pos;
-    }
-    
-    if (pos == INT_BUFFER_SIZE) ext_throwError("Unable to parse tree string: expected integer.");
-    buffer[pos++] = '\0';
-    
-    
-    errno = 0;
-    node.p.rule.variableIndex = static_cast<int32_t>(std::strtol(buffer, NULL, 10));
-    if (node.p.rule.variableIndex == 0 && errno != 0)
-      ext_throwError("Unable to parse tree string: %s", std::strerror(errno));
-    
-    size_t bufferPos = 0;
-    while (treeString[pos] != ' ' && bufferPos < INT_BUFFER_SIZE) {
-      buffer[bufferPos++] = treeString[pos++];
-    }
-    
-    if (pos == INT_BUFFER_SIZE) ext_throwError("Unable to parse tree string: expected integer.");
-    buffer[bufferPos++] = '\0';
-    ++pos;
-    
-    errno = 0;
-    node.p.rule.splitIndex = static_cast<int32_t>(std::strtol(buffer, NULL, 10));
-    if (node.p.rule.splitIndex == 0 && errno != 0)
-      ext_throwError("Unable to parse tree string: %s", std::strerror(errno));
-    
-    node.leftChild  = new Node(node, numPredictors);
-    node.p.rightChild = new Node(node, numPredictors);
-    
-    pos += readNode(*node.getLeftChild(), treeString + pos, numPredictors);
-    pos += readNode(*node.getRightChild(), treeString + pos, numPredictors);
-    
-    return pos;
-  }
-}
-
-
-namespace dbarts {
-  const char* const* State::createTreeStrings(const BARTFit& fit, bool useSavedTrees) const
-  {
-    StringWriter writer;
-    
-    size_t numTrees;
-    const Tree* targetTrees;
-    if (!useSavedTrees || !fit.control.keepTrees) {
-      numTrees = fit.control.numTrees;
-      targetTrees = trees;
-    } else {
-      numTrees = fit.control.numTrees * fit.currentNumSamples;
-      targetTrees = savedTrees;
-    }
-    
-    char** result = new char*[numTrees];
-    for (size_t i = 0; i < numTrees; ++i) {
-      writer.buffer = new char[BASE_BUFFER_SIZE];
-      writer.length = BASE_BUFFER_SIZE;
-      writer.pos = 0;
-      
-      writer.writeNode(targetTrees[i].top);
-     
-      writer.writeChar('\0');
-      
-      result[i] = writer.buffer;
-    }
-    
-    return(result);
+    return stateLength;
   }
   
-  void State::recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings, bool useSavedTrees)
-  {
-    size_t numTrees;
-    Tree* targetTrees;
-    if (!useSavedTrees || !fit.control.keepTrees) {
-      numTrees = fit.control.numTrees;
-      targetTrees = trees;
-    } else {
-      numTrees = fit.control.numTrees * fit.currentNumSamples;
-      targetTrees = savedTrees;
-    }
+  void State::serializeSavedTrees(const BARTFit& fit, void* state) const {
+    const Control& control(fit.control);
     
-    for (size_t i = 0; i < numTrees; ++i) {
-      targetTrees[i].top.clear();
-      readNode(targetTrees[i].top, treeStrings[i], fit.data.numPredictors);
-      
-      if (!targetTrees[i].top.isBottom()) {
-        updateVariablesAvailable(fit, targetTrees[i].top, targetTrees[i].top.p.rule.variableIndex);
-      
-        targetTrees[i].top.addObservationsToChildren(fit);
+    if (control.keepTrees) {
+      size_t numSavedTrees = fit.currentNumSamples * control.numTrees;
+      for (size_t treeNum = 0; treeNum < numSavedTrees; ++treeNum) {
+        size_t stateLength = savedTrees[treeNum].serialize(state);
+        state = reinterpret_cast<void*>(reinterpret_cast<char*>(state) + stateLength);
+      }
+    }
+  }
+  
+  void State::deserializeSavedTrees(const BARTFit& fit, const void* state) {
+    const Control& control(fit.control);
+    
+    if (control.keepTrees) {
+      size_t numSavedTrees = fit.currentNumSamples * control.numTrees;
+      for (size_t treeNum = 0; treeNum < numSavedTrees; ++treeNum) {
+        size_t stateLength = savedTrees[treeNum].deserialize(state);
+        state = reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + stateLength);
       }
     }
   }

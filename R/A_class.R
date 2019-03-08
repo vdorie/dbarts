@@ -218,10 +218,9 @@ methods::setValidity("dbartsData",
 
 ## this shouldn't ever get created, used, modified, whathaveyou
 methods::setClass("dbartsState",
-  slots = list(trees         = "character",
+  slots = list(trees         = "integer",
                treeFits      = "numeric",
-               savedTrees    = "character",
-               savedTreeFits = "numeric",
+               savedTrees    = "integer",
                sigma         = "numeric",
                rng.state     = "integer"))
 

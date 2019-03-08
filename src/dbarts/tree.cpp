@@ -14,6 +14,8 @@
 #include <dbarts/scratch.hpp>
 #include <dbarts/state.hpp>
 
+#include "functions.hpp"
+
 namespace {
   using namespace dbarts;
   
@@ -35,28 +37,39 @@ namespace {
   }
 }
 
-// #include <external/io.h>
-// #include <math.h>
-
 namespace dbarts {
-  void Tree::copyFrom(const BARTFit& fit, const Tree& other)
+  void SavedTree::copyStructureFrom(const BARTFit& fit, const Tree& other, const double* treeFits)
   {
     top.clear();
-    
-    std::memcpy(top.observationIndices, other.top.observationIndices, sizeof(size_t) * fit.data.numObservations);
-    
+        
     if (other.top.leftChild != NULL) {
-      top.leftChild = new Node(top, fit.data.numPredictors, *other.top.leftChild);
-      top.p.rightChild = new Node(top, fit.data.numPredictors, *other.top.p.rightChild);
-      top.p.rule.copyFrom(other.top.p.rule);
-    } else {
-      top.m.average = other.top.m.average;
-      top.m.numEffectiveObservations = other.top.m.numEffectiveObservations;
+      top.leftChild  = new SavedNode(fit, top, *other.top.leftChild);
+      top.rightChild = new SavedNode(fit, top, *other.top.p.rightChild);
+      top.variableIndex = other.top.p.rule.variableIndex;
+      top.split = fit.sharedScratch.cutPoints[top.variableIndex][other.top.p.rule.splitIndex];
     }
     
-    top.enumerationIndex = other.top.enumerationIndex;
-    std::memcpy(top.variablesAvailableForSplit, other.top.variablesAvailableForSplit, sizeof(bool) * fit.data.numPredictors);
+    const NodeVector bottomNodes_other(other.top.getBottomVector());
+    SavedNodeVector  bottomNodes_self(top.getBottomVector());
     
+    size_t numBottomNodes = bottomNodes_other.size();
+    for (size_t i = 0; i < numBottomNodes; ++i) {
+      if (bottomNodes_other[i]->isTop()) {
+        bottomNodes_self[i]->prediction = treeFits[0];
+      } else if (bottomNodes_other[i]->getNumObservations() > 0) {
+        bottomNodes_self[i]->prediction = treeFits[bottomNodes_other[i]->observationIndices[0]];
+      } else {
+        bottomNodes_self[i]->prediction = 0.0;
+      }
+    }
+  }
+  
+  void SavedTree::getPredictions(const BARTFit& fit, const double* xt, std::size_t numTestObservations, double* result)
+  {
+    for (size_t i = 0; i < numTestObservations; ++i) {
+      SavedNode* bottomNode = top.findBottomNode(fit, xt + i * fit.data.numPredictors);
+      result[i] = bottomNode->prediction;
+    }
   }
   
   void Tree::setNodeAverages(const BARTFit& fit, size_t chainNum, const double* y) {
@@ -97,6 +110,7 @@ namespace dbarts {
       misc_stackFree(nodePosteriorPredictions);
     }
   }
+  
   
   double* Tree::recoverAveragesFromFits(const BARTFit&, const double* treeFits)
   {
@@ -326,3 +340,37 @@ namespace {
     sampleFromPrior(fit, rng, *n.p.rightChild);
   }
 }
+
+namespace dbarts {
+  size_t Tree::getSerializedLength(const BARTFit& fit) const {
+    return top.getSerializedLength(fit);
+  }
+  size_t Tree::serialize(const BARTFit& fit, void* state) const {
+    return top.serialize(fit, state);
+  }
+  size_t Tree::deserialize(const BARTFit& fit, const void* state) {
+    top.clear();
+    
+    size_t result = top.deserialize(fit, state);
+    
+    if (!top.isBottom()) {
+      updateVariablesAvailable(fit, top, top.p.rule.variableIndex);
+      
+      top.addObservationsToChildren(fit);
+    }
+    
+    return result;
+  }
+  
+  size_t SavedTree::getSerializedLength() const {
+    return top.getSerializedLength();
+  }
+  size_t SavedTree::serialize(void* state) const {
+    return top.serialize(state);
+  }
+  size_t SavedTree::deserialize(const void* state) {
+    top.clear();
+    return top.deserialize(state);
+  }
+}
+

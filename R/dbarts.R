@@ -219,6 +219,9 @@ dbartsSampler <-
                       }
                       newState[[chainNum]]@sigma <- .Call(C_dbarts_deepCopy, state[[chainNum]]@sigma)
                       newState[[chainNum]]@trees <- .Call(C_dbarts_deepCopy, state[[chainNum]]@trees)
+                      
+                      if (control@keepTrees)
+                        newState[[chainNum]]@savedTrees <- .Call(C_dbarts_deepCopy, state[[chainNum]]@savedTrees)
                     }
                     attr(newState, "runningTime") <- .Call(C_dbarts_deepCopy, attr(state, "runningTime"))
                     

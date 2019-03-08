@@ -63,13 +63,13 @@ node.o : node.cpp node.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/data.hpp $(BART_I
 parameterPrior.o : parameterPrior.cpp $(BART_INC)/model.hpp $(BART_INC)/control.hpp node.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c parameterPrior.cpp -o parameterPrior.o
 
-state.o : state.cpp $(BART_INC)/state.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/control.hpp functions.hpp node.hpp tree.hpp
+state.o : state.cpp $(BART_INC)/state.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/control.hpp node.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c state.cpp -o state.o
 
 swapRule.o : swapRule.cpp swapRule.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/model.hpp $(BART_INC)/scratch.hpp $(BART_INC)/types.hpp functions.hpp likelihood.hpp node.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c swapRule.cpp -o swapRule.o
 
-tree.o : tree.cpp tree.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/data.hpp $(BART_INC)/model.hpp $(BART_INC)/scratch.hpp $(BART_INC)/state.hpp
+tree.o : tree.cpp tree.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/data.hpp $(BART_INC)/model.hpp $(BART_INC)/scratch.hpp $(BART_INC)/state.hpp functions.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c tree.cpp -o tree.o
 
 treePrior.o : treePrior.cpp $(BART_INC)/model.hpp $(BART_INC)/data.hpp $(BART_INC)/scratch.hpp $(BART_INC)/types.hpp functions.hpp node.hpp tree.hpp

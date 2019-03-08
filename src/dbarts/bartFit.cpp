@@ -242,15 +242,13 @@ namespace dbarts {
   
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
   {
-    xint_t* xt_test = new xint_t[numTestObservations * data.numPredictors];
+    if (!control.keepTrees) ext_throwError("predict requires 'keepTrees' to be true");
+    
     double* currTestFits = new double[numTestObservations];
     double* totalTestFits = new double[numTestObservations];
     
-    if (!control.keepTrees) ext_throwError("predict requires 'keepTrees' to be true");
-    
-    setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
-    
-    // misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
+    double* xt_test = new double[numTestObservations * data.numPredictors];
+    misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
@@ -259,15 +257,10 @@ namespace dbarts {
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
           size_t treeOffset = treeNum + sampleNum * control.numTrees;
-          const double* treeFits = state[chainNum].savedTreeFits + treeOffset * data.numObservations;
           
-          const double* nodePosteriorPredictions = state[chainNum].savedTrees[treeOffset].recoverAveragesFromFits(*this, treeFits);
+          state[chainNum].savedTrees[treeOffset].getPredictions(*this, xt_test, numTestObservations, currTestFits);
           
-          state[chainNum].savedTrees[treeOffset].setCurrentFitsFromAverages(*this, nodePosteriorPredictions, xt_test, numTestObservations, currTestFits);
-      
           misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
-          
-          delete [] nodePosteriorPredictions;
         }
         
         double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
@@ -282,9 +275,9 @@ namespace dbarts {
       }
     }
     
+    delete [] xt_test;
     delete [] totalTestFits;
     delete [] currTestFits;
-    delete [] xt_test;
   }
 
   // this can leave the tree structures in an invalid state and doesn't roll-back
@@ -514,8 +507,6 @@ namespace dbarts {
     
     size_t** oldTreeIndices      = misc_stackAllocate(control.numChains, size_t*);
     double** oldTreeFits         = misc_stackAllocate(control.numChains, double*);
-    size_t** oldSavedTreeIndices = misc_stackAllocate(control.numChains, size_t*);
-    double** oldSavedTreeFits    = misc_stackAllocate(control.numChains, double*);
     
     double** currTestFits = misc_stackAllocate(control.numChains, double*);
     
@@ -523,8 +514,6 @@ namespace dbarts {
       // extract from old data what we'll need to update
       oldTreeIndices[chainNum]      = state[chainNum].treeIndices;
       oldTreeFits[chainNum]         = state[chainNum].treeFits;
-      oldSavedTreeIndices[chainNum] = state[chainNum].savedTreeIndices;
-      oldSavedTreeFits[chainNum]    = state[chainNum].savedTreeFits;
       
       currTestFits[chainNum] = NULL;
       
@@ -542,10 +531,6 @@ namespace dbarts {
         
         state[chainNum].treeIndices = new size_t[data.numObservations * control.numTrees];
         state[chainNum].treeFits    = new double[data.numObservations * control.numTrees];
-        if (control.keepTrees) {
-          state[chainNum].savedTreeIndices = new size_t[data.numObservations * control.numTrees * currentNumSamples];
-          state[chainNum].savedTreeFits    = new double[data.numObservations * control.numTrees * currentNumSamples];
-        }
       }
     }
     
@@ -570,22 +555,24 @@ namespace dbarts {
     }
            
     // cache old cut points, for use in updating trees
-    const double** oldCutPoints = misc_stackAllocate(data.numPredictors, const double*);
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      oldCutPoints[j] = sharedScratch.cutPoints[j];
-      // next assignments 'reset' the variables, so setCutPoints() ignores old values
-      const_cast<uint32_t*>(sharedScratch.numCutsPerVariable)[j] = static_cast<uint32_t>(-1);
-      const_cast<double**>(sharedScratch.cutPoints)[j] = NULL;
-    }
-    // set new cut points
-    size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
-    for (size_t j = 0; j < data.numPredictors; ++j) columns[j] = j;
-    setCutPoints(*this, columns, data.numPredictors);
-    misc_stackFree(columns);
+    const double** oldCutPoints;
+    // if (updateCutPoints) {
+      oldCutPoints = misc_stackAllocate(data.numPredictors, const double*);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        oldCutPoints[j] = sharedScratch.cutPoints[j];
+        // next assignments 'reset' the variables, so setCutPoints() ignores old values
+        const_cast<uint32_t*>(sharedScratch.numCutsPerVariable)[j] = static_cast<uint32_t>(-1);
+        const_cast<double**>(sharedScratch.cutPoints)[j] = NULL;
+      }
+      // set new cut points
+      size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
+      for (size_t j = 0; j < data.numPredictors; ++j) columns[j] = j;
+      setCutPoints(*this, columns, data.numPredictors);
+      misc_stackFree(columns);
+    // }
     
     // now initialize remaining arrays that use numObs
     setXIntegerCutMap(*this);
-    // misc_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt)); 
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
     
@@ -610,8 +597,7 @@ namespace dbarts {
         }
       }
       setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
-      // misc_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
-
+      
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         currTestFits[chainNum] = new double[data.numTestObservations];
         misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
@@ -653,32 +639,6 @@ namespace dbarts {
         
         delete [] nodePosteriorPredictions;
       }
-      
-      if (control.keepTrees) for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
-        for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          size_t treeOffset = treeNum + sampleNum * control.numTrees;
-          
-          const double* oldTreeFits_i = oldSavedTreeFits[chainNum] + treeOffset * oldNumObservations;
-          
-          state[chainNum].savedTrees[treeOffset].top.enumerateBottomNodes();
-          
-          double* nodePosteriorPredictions = state[chainNum].savedTrees[treeOffset].recoverAveragesFromFits(*this, oldTreeFits_i);
-          
-          state[chainNum].savedTrees[treeOffset].mapOldCutPointsOntoNew(*this, oldCutPoints, nodePosteriorPredictions);
-          
-          if (oldNumObservations != data.numObservations) {
-            state[chainNum].savedTrees[treeOffset].top.observationIndices = state[chainNum].savedTreeIndices + treeOffset * data.numObservations;
-            state[chainNum].savedTrees[treeOffset].top.numObservations = data.numObservations;
-          }
-          
-          state[chainNum].savedTrees[treeOffset].top.addObservationsToChildren(*this);
-          state[chainNum].savedTrees[treeOffset].collapseEmptyNodes(*this, nodePosteriorPredictions);
-          for (int32_t i = 0; i < static_cast<int32_t>(data.numPredictors); ++i)
-            updateVariablesAvailable(*this, state[chainNum].savedTrees[treeOffset].top, i);
-          
-          delete [] nodePosteriorPredictions;
-        }
-      }
     }
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
@@ -689,8 +649,6 @@ namespace dbarts {
     
     if (oldNumObservations != data.numObservations) {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-        delete [] oldSavedTreeFits[chainNum];
-        delete [] oldSavedTreeIndices[chainNum];
         delete [] oldTreeFits[chainNum];
         delete [] oldTreeIndices[chainNum];
       }
@@ -698,8 +656,6 @@ namespace dbarts {
     
     misc_stackFree(currTestFits);
     
-    misc_stackFree(oldSavedTreeFits);
-    misc_stackFree(oldSavedTreeIndices);
     misc_stackFree(oldTreeFits);
     misc_stackFree(oldTreeIndices);
   }
@@ -804,15 +760,7 @@ namespace dbarts {
           
           size_t treeOffset = treeNum + sampleNum * control.numTrees;
           
-          const double* treeFits = state[chainNum].treeFits + treeOffset * data.numObservations;
-          double* nodePosteriorPredictions = state[chainNum].trees[treeOffset].recoverAveragesFromFits(*this, treeFits);
-          
-          NodeVector bottomNodes(const_cast<Tree*>(&state[chainNum].trees[treeOffset])->top.getBottomVector());
-          size_t numBottomNodes = bottomNodes.size();
-          for (size_t k = 0; k < numBottomNodes; ++k) bottomNodes[k]->setAverage(nodePosteriorPredictions[k]);
-          delete [] nodePosteriorPredictions;
-          
-          state[chainNum].trees[treeOffset].top.print(*this, indent);
+          state[chainNum].savedTrees[treeOffset].top.print(*this, indent);
         }
         if (numSampleIndices > 1) indent -= 2;
       }
@@ -1012,8 +960,7 @@ extern "C" {
         size_t treeSampleNum = (fit.currentSampleNum + resultSampleNum) % fit.currentNumSamples;
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-          state.savedTrees[treeNum + treeSampleNum * control.numTrees].copyFrom(fit, state.trees[treeNum]);
-        std::memcpy(state.savedTreeFits + treeSampleNum * control.numTrees * data.numObservations, const_cast<const double*>(state.treeFits), control.numTrees * data.numObservations * sizeof(double));
+          state.savedTrees[treeNum + treeSampleNum * control.numTrees].copyStructureFrom(fit, state.trees[treeNum], const_cast<const double*>(state.treeFits + treeNum * data.numObservations));
       }
       
       if (control.responseIsBinary) {
@@ -1272,13 +1219,6 @@ namespace {
     }
     
     // shared scratch
-    /* sharedScratch.xt = new double[data.numObservations * data.numPredictors];
-    misc_transposeMatrix(data.x, data.numObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt));
-    
-    if (data.numTestObservations > 0) {
-      sharedScratch.xt_test = new double[data.numTestObservations * data.numPredictors];
-      misc_transposeMatrix(data.x_test, data.numTestObservations, data.numPredictors, const_cast<double*>(sharedScratch.xt_test));
-    } */
     sharedScratch.x = new xint_t[data.numObservations * data.numPredictors];
     if (data.numTestObservations > 0)
       sharedScratch.xt_test = new xint_t[data.numTestObservations * data.numPredictors];

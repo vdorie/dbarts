@@ -16,7 +16,6 @@ namespace dbarts {
     Node top;
     
     Tree(std::size_t* indices, std::size_t numObservations, std::size_t numPredictors) : top(indices, numObservations, numPredictors) { }
-    void copyFrom(const BARTFit& fit, const Tree& other);
     
     void sampleAveragesAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
     double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
@@ -47,7 +46,24 @@ namespace dbarts {
     
     const char* createString() const;
     
+    std::size_t getSerializedLength(const BARTFit& fit) const;
+    std::size_t serialize(const BARTFit& fit, void* state) const;
+    std::size_t deserialize(const BARTFit& fit, const void* state);
+    
     bool isValid() const;
+  };
+  
+  struct SavedTree {
+    SavedNode top;
+    
+    SavedTree() : top() { }
+    void copyStructureFrom(const BARTFit& fit, const Tree& other, const double* treeFits);
+    
+    void getPredictions(const BARTFit& fit, const double* xt, std::size_t numTestObservations, double* result);
+    
+    std::size_t getSerializedLength() const;
+    std::size_t serialize(void* state) const;
+    std::size_t deserialize(const void* state);
   };
   
   

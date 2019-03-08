@@ -9,6 +9,7 @@ namespace dbarts {
   struct Control;
   struct Data;
   struct Tree;
+  struct SavedTree;
   struct BARTFit;
   
   struct State {
@@ -16,10 +17,8 @@ namespace dbarts {
     Tree* trees;              // numTrees
     double* treeFits;         // numObs x numTrees; vals for tree <=> obsNum + treeNum * numObs
     
-    std::size_t* savedTreeIndices; // numObs x numTrees x numSamples
-    Tree* savedTrees;              // numTrees x numSamples
-    double* savedTreeFits;         // numObs x numTrees x numSamples; vals for tree <=> obsNum + treeNum * numObs + sampleNum * numTrees * numSamples
-
+    SavedTree* savedTrees;              // numTrees x numSamples
+    
     double sigma;
     
     ext_rng* rng;
@@ -31,8 +30,13 @@ namespace dbarts {
     bool resize(const BARTFit& fit, const Control& newControl);
     bool resize(const BARTFit& fit, std::size_t numSamples);
     
-    const char* const* createTreeStrings(const BARTFit& fit, bool useSavedTrees) const;
-    void recreateTreesFromStrings(const BARTFit& fit, const char* const* treeStrings, bool useSavedTrees);
+    std::size_t getSerializedTreesLength(const BARTFit& fit) const;
+    void serializeTrees(const BARTFit& fit, void* state) const;
+    void deserializeTrees(const BARTFit& fit, const void* state);
+    
+    std::size_t getSerializedSavedTreesLength(const BARTFit& fit) const;
+    void serializeSavedTrees(const BARTFit& fit, void* state) const;
+    void deserializeSavedTrees(const BARTFit& fit, const void* state);
   };
 } // namespace dbarts
 

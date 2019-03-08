@@ -296,7 +296,7 @@ extern "C" {
   SEXP setResponse(SEXP fitExpr, SEXP y)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) Rf_error("dbarts_setY called on NULL external pointer");
+    if (fit == NULL) Rf_error("dbarts_setResponse called on NULL external pointer");
     
     rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations), RC_END);
     
