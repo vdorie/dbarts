@@ -99,6 +99,9 @@ namespace dbarts {
     std::size_t* numObservations;
     std::int32_t* variable;
     double* value;
+    
+    FlattenedTrees(std::size_t totalNumNodes);
+    ~FlattenedTrees();
   };
 } // namespace dbarts
 

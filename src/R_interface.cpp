@@ -293,6 +293,7 @@ namespace {
     DEF_FUNC("dbarts_run", run, 3),
     DEF_FUNC("dbarts_sampleTreesFromPrior", sampleTreesFromPrior, 1),
     DEF_FUNC("dbarts_printTrees", printTrees, 4),
+    DEF_FUNC("dbarts_getTrees", getTrees, 4),
     DEF_FUNC("dbarts_predict", predict, 3),
     DEF_FUNC("dbarts_setResponse", setResponse, 2),
     DEF_FUNC("dbarts_setOffset", setOffset, 2),

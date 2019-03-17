@@ -844,13 +844,13 @@ namespace {
     if (node.isBottom()) {
       *numObservations = node.numObservations;
       *variable = DBARTS_INVALID_RULE_VARIABLE;
-      *value = fit.cutPoints[node.p.rule.variableIndex][node.p.rule.splitIndex];
+      *value = node.m.average;
       return 1;
     }
     
     *numObservations = node.numObservations;
     *variable = node.p.rule.variableIndex;
-    *value = node.m.average;
+    *value = fit.cutPoints[node.p.rule.variableIndex][node.p.rule.splitIndex];
     
     size_t numNodes = 1;
     numNodes += storeFlattenedTree(fit, *node.getLeftChild(), numObservations + numNodes,
@@ -867,13 +867,13 @@ namespace {
     if (node.isBottom()) {
       *numObservations = indexSet.size();
       *variable = DBARTS_INVALID_RULE_VARIABLE;
-      *value = node.split;
+      *value = node.prediction;
       return 1;
     }
     
     *numObservations = indexSet.size();
     *variable = node.variableIndex;
-    *value = node.prediction;
+    *value = node.split;
     
     std::set<size_t> leftIndexSet;
     std::set<size_t> rightIndexSet;
@@ -899,15 +899,31 @@ namespace {
 }
 
 namespace dbarts {
+  FlattenedTrees::FlattenedTrees(size_t totalNumNodes) : totalNumNodes(totalNumNodes), chainNumber(NULL),
+    sampleNumber(NULL), treeNumber(NULL), numObservations(NULL), variable(NULL), value(NULL)
+  {
+    chainNumber     = new size_t[totalNumNodes];
+    sampleNumber    = new size_t[totalNumNodes];
+    treeNumber      = new size_t[totalNumNodes];
+    numObservations = new size_t[totalNumNodes];
+    variable = new int32_t[totalNumNodes];
+    value = new double[totalNumNodes];
+  }
+  FlattenedTrees::~FlattenedTrees() {
+    delete [] value;
+    delete [] variable;
+    delete [] numObservations;
+    delete [] treeNumber;
+    delete [] sampleNumber;
+    delete [] chainNumber;
+  }
   
   FlattenedTrees* BARTFit::getFlattenedTrees(const size_t* chainIndices, size_t numChainIndices,
                                              const size_t* sampleIndices, size_t numSampleIndices,
                                              const size_t* treeIndices, size_t numTreeIndices) const
   {
-    FlattenedTrees* resultPtr = new FlattenedTrees();
-    FlattenedTrees& result(*resultPtr);
     
-    result.totalNumNodes = 0;
+    size_t totalNumNodes = 0;
     
     // count how many nodes we're getting
     for (size_t i = 0; i < numChainIndices; ++i) {
@@ -916,17 +932,20 @@ namespace dbarts {
       if (!control.keepTrees) { 
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
-          result.totalNumNodes += 1 + state[chainNum].trees[treeNum].top.getNumNodesBelow();
+          totalNumNodes += 1 + state[chainNum].trees[treeNum].top.getNumNodesBelow();
         }
       } else for (size_t j = 0; j < numSampleIndices; ++j) {
         size_t sampleNum = sampleIndices[j];
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
           size_t treeOffset = treeNum + sampleNum * control.numTrees;
-          result.totalNumNodes += 1 + state[chainNum].savedTrees[treeOffset].top.getNumNodesBelow();
+          totalNumNodes += 1 + state[chainNum].savedTrees[treeOffset].top.getNumNodesBelow();
         }
       }
     }
+    
+    FlattenedTrees* resultPtr = new FlattenedTrees(totalNumNodes);
+    FlattenedTrees& result(*resultPtr);
     
     result.chainNumber     = new size_t[result.totalNumNodes];
     result.sampleNumber    = new size_t[result.totalNumNodes];
@@ -957,6 +976,7 @@ namespace dbarts {
                                                      result.numObservations + offset,
                                                      result.variable + offset,
                                                      result.value + offset);
+          
           for (size_t l = 0; l < numNodesInTree; ++l) {
             result.chainNumber [offset + l] = chainNum;
             result.sampleNumber[offset + l] = 0;

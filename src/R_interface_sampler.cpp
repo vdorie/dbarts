@@ -2,7 +2,9 @@
 #include "R_interface_sampler.hpp"
 
 #include <cstddef>
+#include <cstdio>  // sprintf
 #include <cstring> // strcmp, memcpy
+
 
 #include <misc/alloca.h>
 
@@ -665,9 +667,15 @@ extern "C" {
     
     R_xlen_t numCols = 4 + (numChains > 1 ? 1 : 0) + (fit.control.keepTrees ? 1 : 0);
     SEXP resultExpr = PROTECT(rc_newList(numCols));
-    rc_setDims(resultExpr, rc_asRLength(flattenedTrees.totalNumNodes), numCols, -1);
-    Rf_setAttrib(resultExpr, R_ClassSymbol, PROTECT(Rf_mkChar("data.frame")));
+        
+    SEXP classExpr = PROTECT(rc_newCharacter(1));
+    SET_STRING_ELT(classExpr, 0, Rf_mkChar("data.frame"));
+    Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
     UNPROTECT(1);
+    
+    SEXP resultRowNamesExpr;
+    rc_allocateInSlot2(resultRowNamesExpr, resultExpr, R_RowNamesSymbol, STRSXP, flattenedTrees.totalNumNodes);
+    
     SEXP resultNamesExpr;
     rc_allocateInSlot2(resultNamesExpr, resultExpr, R_NamesSymbol, STRSXP, numCols);
     
@@ -679,45 +687,60 @@ extern "C" {
     R_xlen_t colNum = 0;
     if (numChains > 1) {
       SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
-      SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("chain")));
+      SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("chain")));
       UNPROTECT(2);
       chainNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
       ++colNum;
     }
     if (fit.control.keepTrees) {
       SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
-      SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("sample")));
+      SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("sample")));
       UNPROTECT(2);
       sampleNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
       ++colNum;
     }
     SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
-    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("tree")));
+    SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("tree")));
     treeNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
     ++colNum;
     SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
-    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("n")));
+    SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("n")));
     numObservations = INTEGER(VECTOR_ELT(resultExpr, colNum));
     ++colNum;
     SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
-    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("var")));
+    SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("var")));
     variable = INTEGER(VECTOR_ELT(resultExpr, colNum));
     ++colNum;
     SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newReal(flattenedTrees.totalNumNodes)));
-    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("value")));
+    SET_STRING_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("value")));
     value = REAL(VECTOR_ELT(resultExpr, colNum));
     UNPROTECT(8);
     
+    size_t numDigits = 1;
+    size_t temp = flattenedTrees.totalNumNodes;
+    while (temp >= 10) {
+      temp /= 10;
+      ++numDigits;
+    }
+    char* buffer = new char[numDigits + 1];
     for (size_t i = 0; i < flattenedTrees.totalNumNodes; ++i) {
       if (chainNumber != NULL)
-        chainNumber[i] = static_cast<int>(flattenedTrees.chainNumber[i]);
+        chainNumber[i] = static_cast<int>(flattenedTrees.chainNumber[i] + 1);
       if (sampleNumber != NULL)
-        sampleNumber[i] = static_cast<int>(flattenedTrees.sampleNumber[i]);
-      treeNumber[i] = static_cast<int>(flattenedTrees.treeNumber[i]);
+        sampleNumber[i] = static_cast<int>(flattenedTrees.sampleNumber[i] + 1);
+      treeNumber[i] = static_cast<int>(flattenedTrees.treeNumber[i] + 1);
       numObservations[i] = static_cast<int>(flattenedTrees.numObservations[i]);
-      variable[i] = static_cast<int>(flattenedTrees.variable[i]);
+      int variable_i = static_cast<int>(flattenedTrees.variable[i]);
+      variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
+      
+      sprintf(buffer, "%lu", i + 1);
+      SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
+      UNPROTECT(1);
     }
+    
+    delete [] buffer;
+    delete flattenedTreesPtr;
     
     UNPROTECT(1);
     
