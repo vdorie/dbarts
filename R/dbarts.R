@@ -370,13 +370,61 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
-                setPredictor = function(x, column, updateState = NA) {
-                  'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. TRUE/FALSE returned as to whether or not the operation was successful.'
+                setPredictor = function(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA) {
+                  'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. Can force the trees to update, or roll back for rejection sampling.'
                   
                   selfEnv <- parent.env(environment())
                   
-                  if (control@keepTrees && (is.null(selfEnv$keepTreesWarnOnce) || self$keepTreesWarnOnce == FALSE)) {
-                    warning("changing predictor with keepTrees == TRUE can render old predictions invalid")
+                  if (control@keepTrees && updateCutPoints &&
+                      (is.null(selfEnv$keepTreesWarnOnce) || self$keepTreesWarnOnce == FALSE)) {
+                    warning("changing cut points does not update saved trees")
+                    selfEnv$keepTreesWarnOnce <- TRUE
+                  }
+
+                  columnIsMissing <- missing(column)
+                  forceUpdateIsMissing <- missing(forceUpdate)
+
+                  if (!columnIsMissing && is.character(column)) {
+                    if (is.null(colnames(data@x))) stop("column names not specified at initialization, so cannot be replaced by name")
+                    
+                    column <- match(column, colnames(data@x))
+                    if (is.na(column)) stop("column name not found in names of current X")
+                  }
+                  
+                  x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
+                   
+                  forceUpdate <-
+                    if (forceUpdateIsMissing) {
+                      columnIsMissing
+                    } else {
+                      coerceOrError(forceUpdate, "logical")
+                    }
+                  updateCutPoints <- coerceOrError(updateCutPoints, "logical")
+                  
+                  ptr <- getPointer()
+                   
+                  if (columnIsMissing) {
+                    x.old <- selfEnv$data@x
+                    selfEnv$data@x <- x
+                    updateSuccessful <- .Call(C_dbarts_setPredictor, ptr, data@x, forceUpdate, updateCutPoints)
+                    if (!forceUpdate && !updateSuccessful) selfEnv$data@x <- x.old
+                  } else {
+                    updateSuccessful <- .Call(C_dbarts_updatePredictor, ptr, x, as.integer(column), forceUpdate, updateCutPoints)
+                  }
+                  
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+                  
+                  if (!forceUpdate) updateSuccessful else invisible(NULL)
+                },
+                setCutPoints = function(cuts, columns) {
+                  'Changes the cut points for the predictors in columns,or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty.'
+                  
+                  selfEnv <- parent.env(environment())
+                  
+                  if (control@keepTrees && 
+                      (is.null(selfEnv$keepTreesWarnOnce) || self$keepTreesWarnOnce == FALSE)) {
+                    warning("changing cut points does not update saved trees")
                     selfEnv$keepTreesWarnOnce <- TRUE
                   }
 
@@ -389,24 +437,21 @@ dbartsSampler <-
                     if (is.na(column)) stop("column name not found in names of current X")
                   }
                   
-                  x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
+                  if (!is.list(cuts))
+                    cuts <- as.list(cuts)
+                  for (j in seq_along(cuts))
+                    if (!is.double(cuts[[j]])) cuts[[j]] <- as.double(cuts[[j]])
                   
                   ptr <- getPointer()
                   
-                  updateSuccessful <-
-                    if (columnIsMissing) {
-                      selfEnv$data@x <- x
-                      .Call(C_dbarts_setPredictor, ptr, data@x)
-                    } else {
-                      .Call(C_dbarts_updatePredictor, ptr, x, as.integer(column))
-                    }
+                  .Call(C_dbarts_setCutPoints, ptr, cuts, if (columnIsMissing) NULL else as.integer(column))
                   
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
-
-                  updateSuccessful
+                  
+                  invisible(NULL)
                 },
-                setTestPredictor = function(x.test, column, updateState = NA) {
+                setTestPredictor = function(x.test, column) {
                   'Changes a single column of the test predictor matrix.'
 
                   columnIsMissing <- missing(column)
@@ -429,12 +474,9 @@ dbartsSampler <-
                     .Call(C_dbarts_updateTestPredictor, ptr, x.test, as.integer(column))
                   }
                   
-                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
-                    storeState(ptr)
-
                   invisible(NULL)
                 },
-                setTestPredictorAndOffset = function(x.test, offset.test, updateState = NA) {
+                setTestPredictorAndOffset = function(x.test, offset.test) {
                   'Changes the test predictor matrix, and optionally the test offset.'
                   ptr <- getPointer()
                   selfEnv <- parent.env(environment())
@@ -463,11 +505,9 @@ dbartsSampler <-
                     selfEnv$data@x.test <- x.test
                     .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
                   }
-                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
-                    storeState(ptr)
                   invisible(NULL)
                 },
-                setTestOffset = function(offset.test, updateState = NA) {
+                setTestOffset = function(offset.test) {
                   'Changes the test offset.'
                   ptr <- getPointer()
                   selfEnv <- parent.env(environment())
@@ -482,9 +522,6 @@ dbartsSampler <-
                   selfEnv$data@offset.test <- offset.test
                   .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
                   
-                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
-                    storeState(ptr)
-
                   invisible(NULL)
                 },
                 getPointer = function() {
@@ -560,6 +597,25 @@ dbartsSampler <-
                   ptr <- getPointer()
                   invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums)))
                 },
+                getTrees = function(chainNums, sampleNums, treeNums) {
+                  'Returns a data.frame containing the internal state of the trees.'
+                  matchedCall <- match.call()
+                  if (is.null(matchedCall$chainNums)) chainNums <- seq_len(control@n.chains)
+                  if (is.null(matchedCall$sampleNums)) {
+                    sampleNums <- if (control@keepTrees) seq_len(control@n.samples) else NULL
+                  } else {
+                    if (!control@keepTrees) {
+                      warning("sampleNums ignored if keepTrees is FALSE")
+                      sampleNums <- NULL
+                    } else {
+                      sampleNums <- as.integer(sampleNums)
+                    }
+                  }
+                  if (is.null(matchedCall$treeNums)) treeNums <- seq_len(control@n.trees)
+                  
+                  ptr <- getPointer()
+                  .Call(C_dbarts_getTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums))
+                },
                 plotTree = function(chainNum, sampleNum, treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'
                   
@@ -604,54 +660,5 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 }
-                #crossvalidate = function(K = 5L, n.reps = 200L, n.burn = c(control@n.burn, control@n.burn %/% 5L),
-                #                         loss = if (control@binary) "mcr" else "rmse", n.threads = guessNumCores(),
-                #                         n.trees, k, power, base, drop = TRUE) {
-                #  'K-fold crossvalidates across sets of parameters.'
-                #  
-                #  if (missing(n.trees)) n.trees <- control@n.trees
-                #  if (missing(k))       k <- model@node.prior@k
-                #  if (missing(power))   power <- model@tree.prior@power
-                #  if (missing(base))    base <- model@tree.prior@base
-                #  
-                #  if (is.function(loss)) loss <- list(loss, parent.frame(1L))
-                #  
-                #  kOrder <- order(k, decreasing = TRUE)
-                #  kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
-                #  k <- k[kOrder] 
-                #  
-                #  n.trees <- as.integer(n.trees)
-                #  k       <- as.double(k)
-                #  power   <- as.double(power)
-                #  base    <- as.double(base)
-                #  drop    <- as.logical(drop)
-                #  
-                #  ptr <- getPointer()
-                #  result <- .Call(C_dbarts_xbart, ptr, as.integer(K), as.integer(n.reps), as.integer(n.burn), loss, as.integer(n.threads),
-                #                  n.trees, k, power, base, drop)
-                #  
-                #  if (is.null(result) || is.null(dim(result))) return(result)
-                #  
-                #  varNames <- c("n.trees", "k", "power", "base")
-                #  if (identical(drop, TRUE))
-                #    varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1L) TRUE else FALSE)]
-                #  
-                #  if ("k" %in% varNames && any(kOrder != seq_along(k))) {
-                #    indices <- rep(list(bquote()), length(dim(result)))
-                #    indices[[1L + which(varNames == "k")]] <- kOrder.inv
-                #    indexCall <- as.call(c(list(as.name("["), quote(result)), indices))
-                #    result <- eval(indexCall)
-                #    k <- k[kOrder.inv]
-                #  }
-                #  
-                #  dimNames <- vector("list", length(dim(result)))
-                #  for (i in seq_along(varNames)) {
-                #    x <- get(varNames[i])
-                #    dimNames[[i + 1L]] <- as.character(if (is.double(x)) signif(x, 2L) else x)
-                #  }
-                #  names(dimNames) <- c("rep", varNames)
-                #  dimnames(result) <- dimNames
-                #  
-                #  result
-                #}
               ))
+

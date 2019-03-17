@@ -234,7 +234,7 @@ test_that("dbarts sampler runs", {
     p.z <- p1 / (p0 + p1)
 
     new.z <- rbinom(n, 1, p.z)
-    while (sampler$setPredictor(x = new.z, column = 2) == FALSE) {
+    while (sampler$setPredictor(x = new.z, column = 2, forceUpdate = FALSE) == FALSE) {
       new.z <- rbinom(n, 1, p.z)
     }
     z <- new.z

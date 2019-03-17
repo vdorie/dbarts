@@ -8,7 +8,6 @@
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
-#include <dbarts/scratch.hpp>
 #include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "birthDeathRule.hpp"
@@ -26,7 +25,7 @@ namespace dbarts {
   void updateVariablesAvailable(const BARTFit& fit, Node& node, int32_t variableIndex)
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = new bool[fit.sharedScratch.numCutsPerVariable[variableIndex]];
+      bool* catGoesRight = new bool[fit.numCutsPerVariable[variableIndex]];
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       // note catGoesRight is deleted in here
@@ -62,7 +61,7 @@ namespace dbarts {
   
   void updateCategoricalVariablesAvailable(const BARTFit& fit, Node* node, int32_t variableIndex, bool* catGoesRight)
   {
-    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
 
 
     node->variablesAvailableForSplit[variableIndex] = countTrueValues(catGoesRight, numCategories) >= 2;
@@ -148,7 +147,7 @@ namespace dbarts {
   {
     if (fit.data.variableTypes[variableIndex] != CATEGORICAL) ext_throwError("error in setCategoryBranching: not a categorical variable\n");
     
-    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
     for (uint32_t i = 0; i < numCategories; ++i) categoriesCanReachNode[i] = true;
     
     const Node* curr = &node;
@@ -203,7 +202,7 @@ namespace dbarts {
     bool rightFound = false;
     
     *leftIndex = 0; // left value if you top out
-    *rightIndex = static_cast<int32_t>(fit.sharedScratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
+    *rightIndex = static_cast<int32_t>(fit.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
     
     bool isRightChild;
     

@@ -26,7 +26,7 @@ namespace dbarts {
     if (variableIndex < 0) return -1000.0;
     if (fit.data.variableTypes[variableIndex] != ORDINAL) return -2000.0;
     
-    return fit.sharedScratch.cutPoints[variableIndex][splitIndex];
+    return fit.cutPoints[variableIndex][splitIndex];
   }
   
   void Rule::invalidate() {
@@ -120,6 +120,14 @@ namespace dbarts {
     for (size_t i = 0; i < numPredictors; ++i) variablesAvailableForSplit[i] = true;
   }
   
+  Node::Node(const Node& parent, size_t numPredictors) :
+    parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM),
+    variablesAvailableForSplit(NULL), observationIndices(NULL), numObservations(0)
+  {
+    variablesAvailableForSplit = new bool[numPredictors];
+    std::memcpy(variablesAvailableForSplit, this->parent->variablesAvailableForSplit, sizeof(bool) * numPredictors);
+  }
+  
   Node::Node(const Node& parent, size_t numPredictors, const Node& other) :
     parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(other.enumerationIndex), variablesAvailableForSplit(NULL),
     observationIndices(NULL), numObservations(other.numObservations)
@@ -139,7 +147,7 @@ namespace dbarts {
     
     std::memcpy(variablesAvailableForSplit, other.variablesAvailableForSplit, sizeof(bool) * numPredictors);
   }
-  
+    
   SavedNode::SavedNode() :
     parent(NULL), leftChild(NULL), rightChild(NULL), variableIndex(DBARTS_INVALID_RULE_VARIABLE), split(0.0)
   {
@@ -153,7 +161,7 @@ namespace dbarts {
       leftChild  = new SavedNode(fit, *this, *other.getLeftChild());
       rightChild = new SavedNode(fit, *this, *other.getRightChild());
       variableIndex = other.p.rule.variableIndex;
-      split = fit.sharedScratch.cutPoints[variableIndex][other.p.rule.splitIndex];
+      split = fit.cutPoints[variableIndex][other.p.rule.splitIndex];
     }
   }
   
@@ -172,15 +180,6 @@ namespace dbarts {
       leftChild->checkIndices(fit, top);
       p.rightChild->checkIndices(fit, top);
     }
-  }
-
-  
-  Node::Node(const Node& parent, size_t numPredictors) :
-    parent(const_cast<Node*>(&parent)), leftChild(NULL), enumerationIndex(BART_INVALID_NODE_ENUM),
-    variablesAvailableForSplit(NULL), observationIndices(NULL), numObservations(0)
-  {
-    variablesAvailableForSplit = new bool[numPredictors];
-    std::memcpy(variablesAvailableForSplit, this->parent->variablesAvailableForSplit, sizeof(bool) * numPredictors);
   }
   
   Node::~Node()
@@ -214,7 +213,7 @@ namespace dbarts {
       
       if (fit.data.variableTypes[p.rule.variableIndex] == CATEGORICAL) {
         ext_printf("CATRule: ");
-        for (size_t i = 0; 0 < fit.sharedScratch.numCutsPerVariable[p.rule.variableIndex]; ++i) ext_printf(" %u", (p.rule.categoryDirections >> i) & 1);
+        for (size_t i = 0; 0 < fit.numCutsPerVariable[p.rule.variableIndex]; ++i) ext_printf(" %u", (p.rule.categoryDirections >> i) & 1);
       } else {
         ext_printf("ORDRule: (%d)=%f", p.rule.splitIndex, p.rule.getSplitValue(fit));
       }
@@ -612,6 +611,12 @@ namespace dbarts {
   {
     if (isBottom()) return 0;
     return 2 + leftChild->getNumNodesBelow() + p.rightChild->getNumNodesBelow();
+  }
+  
+  size_t SavedNode::getNumNodesBelow() const
+  {
+    if (isBottom()) return 0;
+    return 2 + leftChild->getNumNodesBelow() + rightChild->getNumNodesBelow();
   }
   
   size_t Node::getNumVariablesAvailableForSplit(size_t numVariables) const {

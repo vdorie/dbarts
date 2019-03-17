@@ -14,7 +14,6 @@
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
-#include <dbarts/scratch.hpp>
 #include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "functions.hpp"
@@ -92,7 +91,7 @@ namespace dbarts {
       // get the list of good cat rules given var choice
       uint32_t firstGoodCategory;
       
-      uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[newVariableIndex];
+      uint32_t numCategories = fit.numCutsPerVariable[newVariableIndex];
       size_t numCategoryCombinations = (1 << (numCategories - 1)) - 1;
       // bool* categoryCombinationsAreGood = new bool[numCategoryCombinations];
       bool* categoryCombinationsAreGood = misc_stackAllocate(numCategoryCombinations, bool);
@@ -247,7 +246,7 @@ namespace dbarts {
   {
     int32_t leftIndex, rightIndex; 
     leftIndex = 0; // left value if you top out
-    rightIndex = static_cast<int32_t>(fit.sharedScratch.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
+    rightIndex = static_cast<int32_t>(fit.numCutsPerVariable[variableIndex]) - 1; // right value if you top out
     
     int32_t leftMin, leftMax, rightMin, rightMax;
     
@@ -289,7 +288,7 @@ namespace dbarts {
   //	on exit 1 if rule ok 0 otherwise, already allocated
   //firstone: first category still "alive" at node n, depends on tree above n
   {
-    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
     bool* sel = misc_stackAllocate(numCategories, bool);
     
     bool* categoriesGoRight = misc_stackAllocate(numCategories, bool);

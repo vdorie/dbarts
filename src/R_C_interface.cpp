@@ -51,17 +51,17 @@ extern "C" {
   }
   
   
-  int dbarts_setPredictor(BARTFit* fit, const double* newPredictor) {
-    return fit->setPredictor(newPredictor);
+  int dbarts_setPredictor(BARTFit* fit, const double* newPredictor, int forceUpdate, int updateCutPoints) {
+    return fit->setPredictor(newPredictor, forceUpdate, updateCutPoints);
   }
   
-  int dbarts_updatePredictor(BARTFit* fit, const double* newPredictor, size_t column) {
-    return fit->updatePredictor(newPredictor, column);
+  int dbarts_updatePredictor(BARTFit* fit, const double* newPredictor, size_t column, int forceUpdate, int updateCutPoints) {
+    return fit->updatePredictor(newPredictor, &column, 1, forceUpdate, updateCutPoints);
   }
   
-  int dbarts_updatePredictors(BARTFit* fit, const double* newPredictor, const size_t* columns, size_t numColumns)
+  int dbarts_updatePredictors(BARTFit* fit, const double* newPredictor, const size_t* columns, size_t numColumns, int forceUpdate, int updateCutPoints)
   {
-    return fit->updatePredictors(newPredictor, columns, numColumns);
+    return fit->updatePredictor(newPredictor, columns, numColumns, forceUpdate, updateCutPoints);
   }
   
   void dbarts_setTestPredictor(BARTFit* fit, const double* newTestPredictor, size_t numTestObservations)

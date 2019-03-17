@@ -134,14 +134,14 @@ bart2 <- function(
     oldKeepTrainingFits <- control@keepTrainingFits
     oldVerbose <- control@verbose
 
-    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL, updateState = FALSE)
+    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL)
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
 
     burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
     
-    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
+    if (length(oldX.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
     if (keepTrees == TRUE) control@keepTrees <- TRUE
@@ -211,14 +211,14 @@ bart <- function(
     oldKeepTrainingFits <- control@keepTrainingFits
     oldVerbose <- control@verbose
 
-    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL, updateState = FALSE)
+    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(NULL, NULL)
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
 
     burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
     
-    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test, updateState = FALSE)
+    if (length(x.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
     control@keepTrainingFits <- oldKeepTrainingFits
     control@verbose <- oldVerbose
     if (keeptrees == TRUE) control@keepTrees <- TRUE

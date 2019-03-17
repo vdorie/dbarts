@@ -170,6 +170,7 @@ namespace dbarts {
     SavedNode* getRightChild() const;
     
     SavedNodeVector getBottomVector() const;
+    std::size_t getNumNodesBelow() const;
     
     SavedNode* findBottomNode(const BARTFit& fit, const double* xt) const;
     

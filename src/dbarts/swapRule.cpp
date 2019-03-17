@@ -12,7 +12,6 @@
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/model.hpp>
-#include <dbarts/scratch.hpp>
 #include <dbarts/state.hpp>
 #include <dbarts/types.hpp>
 #include "functions.hpp"
@@ -228,7 +227,7 @@ namespace dbarts {
   {
     if (node.isBottom()) return true;
     
-    uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+    uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
     
     bool* leftChildCategories  = misc_stackAllocate(numCategories, bool);
     bool* rightChildCategories = misc_stackAllocate(numCategories, bool);
@@ -305,7 +304,7 @@ namespace dbarts {
   //starting at node n, check rules using VarI to see if they make sense
   {
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      bool* catGoesRight = misc_stackAllocate(fit.sharedScratch.numCutsPerVariable[variableIndex], bool);
+      bool* catGoesRight = misc_stackAllocate(fit.numCutsPerVariable[variableIndex], bool);
       setCategoryReachability(fit, node, variableIndex, catGoesRight);
       
       bool result = categoricalRuleIsValid(fit, node, variableIndex, catGoesRight);

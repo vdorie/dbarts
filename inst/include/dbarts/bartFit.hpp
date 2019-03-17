@@ -19,6 +19,7 @@ extern "C" {
 namespace dbarts {
   struct Results;
   struct SharedScratch;
+  struct FlattenedTrees;
   
   struct BARTFit {
     Control control; // top three are passed in from elsewhere
@@ -34,6 +35,9 @@ namespace dbarts {
     std::size_t currentSampleNum;
     
     misc_htm_manager_t threadManager;
+    
+    const std::uint32_t* numCutsPerVariable;
+    const double* const* cutPoints;
     
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();
@@ -51,11 +55,11 @@ namespace dbarts {
     void setResponse(const double* newResponse); 
     void setOffset(const double* newOffset);
     
-    // predictor changes will return false if the new covariates would leave the sampler in an invalid state
-    // (i.e. with an empty terminal node); the update functions auto-revert to the previous while set does not
-    bool setPredictor(const double* newPredictor);
-    bool updatePredictor(const double* newPredictor, std::size_t column); // false if same, but reverts on own
-    bool updatePredictors(const double* newPredictor, const std::size_t* columns, std::size_t numColumns); 
+    // returns true/false if update is successful; if forceUpdate is true, will prune empty leaves
+    bool setPredictor(const double* newPredictor, bool forceUpdate, bool updateCutPoints);
+    bool updatePredictor(const double* newPredictor, const std::size_t* columns, std::size_t numColumns, bool forceUpdate, bool updateCutPoints); 
+    
+    void setCutPoints(const double* const* cutPoints, const std::uint32_t* numCutPoints, const std::size_t* columns, std::size_t numColumns);
     
     void setTestPredictor(const double* newTestPredictor, std::size_t numTestObservations);
     void setTestOffset(const double* newTestOffset);
@@ -71,6 +75,9 @@ namespace dbarts {
     void printTrees(const std::size_t* chains, std::size_t numChains,
                     const std::size_t* samples, std::size_t numSamples,
                     const std::size_t* indices, std::size_t numIndices) const;
+    FlattenedTrees* getFlattenedTrees(const size_t* chainIndices, size_t numChainIndices,
+                                      const size_t* sampleIndices, size_t numSampleIndices,
+                                      const size_t* treeIndices, size_t numTreeIndices) const;
     
     // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
     // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
@@ -83,6 +90,17 @@ namespace dbarts {
     bool saveToFile(const char* fileName) const;
     static BARTFit* loadFromFile(const char* fileName);
   };
+  
+  struct FlattenedTrees {
+    std::size_t totalNumNodes;
+    std::size_t* chainNumber;
+    std::size_t* sampleNumber;
+    std::size_t* treeNumber;
+    std::size_t* numObservations;
+    std::int32_t* variable;
+    double* value;
+  };
 } // namespace dbarts
 
 #endif // DBARTS_BART_FIT_HPP
+

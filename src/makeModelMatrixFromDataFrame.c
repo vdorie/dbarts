@@ -71,7 +71,7 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
     goto mkmm_cleanup;
   }
   
-  result = PROTECT(rc_newNumeric(numRows * numOutputColumns));
+  result = PROTECT(rc_newReal(numRows * numOutputColumns));
   ++protectCount;
   rc_setDims(result, (int) numRows, (int) numOutputColumns, -1);
   

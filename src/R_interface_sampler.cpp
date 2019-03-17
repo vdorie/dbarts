@@ -110,10 +110,10 @@ extern "C" {
     
     SEXP resultExpr = PROTECT(rc_newList(4));
     ++protectCount;
-    SET_VECTOR_ELT(resultExpr, 0, rc_newNumeric(asRXLen(bartResults->getNumSigmaSamples())));
-    SET_VECTOR_ELT(resultExpr, 1, rc_newNumeric(asRXLen(bartResults->getNumTrainingSamples())));
+    SET_VECTOR_ELT(resultExpr, 0, rc_newReal(asRXLen(bartResults->getNumSigmaSamples())));
+    SET_VECTOR_ELT(resultExpr, 1, rc_newReal(asRXLen(bartResults->getNumTrainingSamples())));
     if (fit->data.numTestObservations > 0)
-      SET_VECTOR_ELT(resultExpr, 2, rc_newNumeric(asRXLen(bartResults->getNumTestSamples())));
+      SET_VECTOR_ELT(resultExpr, 2, rc_newReal(asRXLen(bartResults->getNumTestSamples())));
     else
       SET_VECTOR_ELT(resultExpr, 2, R_NilValue);
     SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(asRXLen(bartResults->getNumVariableCountSamples())));
@@ -333,27 +333,84 @@ extern "C" {
     return R_NilValue;
   }
   
-  SEXP setPredictor(SEXP fitExpr, SEXP x)
+  SEXP setPredictor(SEXP fitExpr, SEXP xExpr, SEXP forceUpdateExpr, SEXP updateCutPointsExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setPredictor called on NULL external pointer");
     
-    if (!Rf_isReal(x)) Rf_error("x must be of type real");
+    if (!Rf_isReal(xExpr)) Rf_error("x must be of type real");
     
-    rc_assertDimConstraints(x, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
+    bool forceUpdate     = rc_getBool(forceUpdateExpr,         "forceUpdate", RC_NA | RC_NO, RC_END);
+    bool updateCutPoints = rc_getBool(updateCutPointsExpr, "updateCutPoints", RC_NA | RC_NO, RC_END);
+    
+    rc_assertDimConstraints(xExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
                             RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
                             RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
                             RC_END);
+      
+    bool result = fit->setPredictor(REAL(xExpr), forceUpdate, updateCutPoints);
+        
+    return Rf_ScalarLogical(result);
+  }
+  
+  SEXP updatePredictor(SEXP fitExpr, SEXP xExpr, SEXP colsExpr, SEXP forceUpdateExpr, SEXP updateCutPointsExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_updatePredictor called on NULL external pointer");
     
-    // SEXP dimsExpr = Rf_getAttrib(x, R_DimSymbol);
-    //
-    //if (Rf_isNull(dimsExpr) || rc_getLength(dimsExpr) != 2) Rf_error("x must be a matrix, i.e. have two dimensions");
-    //int* dims = INTEGER(dimsExpr);
-    //
-    //if (static_cast<size_t>(dims[0]) != fit->data.numObservations) Rf_error("number of rows in new x does not match y");
-    //if (static_cast<size_t>(dims[1]) != fit->data.numPredictors) Rf_error("number of columns in new x does not match old");
+    if (!Rf_isReal(xExpr)) Rf_error("x must be of type real");
     
-    return Rf_ScalarLogical(fit->setPredictor(REAL(x)));
+    bool forceUpdate     = rc_getBool(forceUpdateExpr,         "forceUpdate", RC_NA | RC_NO, RC_END);
+    bool updateCutPoints = rc_getBool(updateCutPointsExpr, "updateCutPoints", RC_NA | RC_NO, RC_END);
+    
+    bool result;
+    if (Rf_isNull(colsExpr)) {
+      rc_assertDimConstraints(xExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
+                              RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
+                              RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
+                              RC_END);
+      
+      result = fit->setPredictor(REAL(xExpr), forceUpdate, updateCutPoints);
+    } else {
+      
+      if (!Rf_isInteger(colsExpr)) Rf_error("columns must be of type integer");
+      
+      SEXP dimsExpr = Rf_getAttrib(xExpr, R_DimSymbol);
+      int* dims = NULL;
+      
+      if (!Rf_isNull(dimsExpr)) {
+        size_t numDims = rc_getLength(dimsExpr);
+        
+        if (numDims != 1 && numDims != 2) Rf_error("x must be a vector or a matrix");
+        if (numDims == 2) dims = INTEGER(dimsExpr);
+      }
+      
+      if (rc_getLength(colsExpr) == 0) Rf_error("length of columns is 0");
+      
+      if (dims != NULL) {
+        if (static_cast<size_t>(dims[0]) != fit->data.numObservations) Rf_error("number of rows of new x does not match y");
+        if (static_cast<size_t>(dims[1]) != rc_getLength(colsExpr)) Rf_error("number of columns of new x does not match length of columns to replace");
+      } else {
+        if (rc_getLength(xExpr) != fit->data.numObservations) Rf_error("length of new x does not match y");
+      }
+      
+      int* colsInt = INTEGER(colsExpr);
+      size_t numCols = rc_getLength(colsExpr);
+      size_t* cols = misc_stackAllocate(numCols, size_t);
+      for (size_t i = 0 ; i < numCols; ++i) {
+        cols[i] = static_cast<size_t>(colsInt[i] - 1);
+        if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) {
+          misc_stackFree(cols);
+          Rf_error("column '%d' is out of range", colsInt[i]);
+        }
+      }
+      
+      result = fit->updatePredictor(REAL(xExpr), cols, numCols, forceUpdate, updateCutPoints);
+      
+      misc_stackFree(cols);
+    }
+    
+    return Rf_ScalarLogical(result);
   }
   
   SEXP setTestPredictor(SEXP fitExpr, SEXP x_test)
@@ -374,11 +431,6 @@ extern "C" {
                             RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
                             RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_test, R_DimSymbol));
-    
-    // SEXP dimsExpr = Rf_getAttrib(x_test, R_DimSymbol);
-    // if (rc_getLength(dimsExpr) != 2) Rf_error("x.test must be a matrix, i.e. have two dimensions");
-    // int* dims = INTEGER(dimsExpr);
-    // if (static_cast<size_t>(dims[1]) != fit->data.numPredictors) Rf_error("number of columns of x.test and x must be equal");
     
     fit->setTestPredictor(REAL(x_test), static_cast<size_t>(dims[0]));
     
@@ -420,11 +472,6 @@ extern "C" {
                             RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_test, R_DimSymbol));
     
-    // SEXP dimsExpr = Rf_getAttrib(x_test, R_DimSymbol);
-    // if (rc_getLength(dimsExpr) != 2) Rf_error("x.test must be a matrix, i.e. have two dimensions");
-    // int* dims = INTEGER(dimsExpr);
-    // if (static_cast<size_t>(dims[1]) != fit->data.numPredictors) Rf_error("number of columns of x.test and x must be equal");
-    
     if (Rf_isNull(offset_test)) {
       fit->setTestPredictorAndOffset(REAL(x_test), NULL, static_cast<size_t>(dims[0]));
     } else {
@@ -438,53 +485,6 @@ extern "C" {
     }
     
     return R_NilValue;
-  }
-  
-  
-  SEXP updatePredictor(SEXP fitExpr, SEXP x, SEXP colsExpr)
-  {
-    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) Rf_error("dbarts_updatePredictor called on NULL external pointer");
-    
-    if (!Rf_isReal(x)) Rf_error("x must be of type real");
-    if (!Rf_isInteger(colsExpr)) Rf_error("columns must be of type integer");
-    
-    SEXP dimsExpr = Rf_getAttrib(x, R_DimSymbol);
-    int* dims = NULL;
-    
-    if (!Rf_isNull(dimsExpr)) {
-      size_t numDims = rc_getLength(dimsExpr);
-      
-      if (numDims != 1 && numDims != 2) Rf_error("x must be a vector or a matrix");
-      if (numDims == 2) dims = INTEGER(dimsExpr);
-    }
-    
-    if (rc_getLength(colsExpr) == 0) Rf_error("length of columns is 0");
-
-    if (dims != NULL) {
-      if (static_cast<size_t>(dims[0]) != fit->data.numObservations) Rf_error("number of rows of new x does not match y");
-      if (static_cast<size_t>(dims[1]) != rc_getLength(colsExpr)) Rf_error("number of columns of new x does not match length of columns to replace");
-    } else {
-      if (rc_getLength(x) != fit->data.numObservations) Rf_error("length of new x does not match y");
-    }
-    
-    
-    int* colsInt = INTEGER(colsExpr);
-    size_t numCols = rc_getLength(colsExpr);
-    size_t* cols = misc_stackAllocate(numCols, size_t);
-    for (size_t i = 0 ; i < numCols; ++i) {
-      cols[i] = static_cast<size_t>(colsInt[i] - 1);
-      if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) {
-        misc_stackFree(cols);
-        Rf_error("column '%d' is out of range", colsInt[i]);
-      }
-    }
-    
-    bool result = fit->updatePredictors(REAL(x), cols, numCols);
-    
-    misc_stackFree(cols);
-    
-    return Rf_ScalarLogical(result);
   }
   
   SEXP updateTestPredictor(SEXP fitExpr, SEXP x_test, SEXP colsExpr)
@@ -515,7 +515,6 @@ extern "C" {
     } else {
       if (rc_getLength(x_test) != fit->data.numTestObservations) Rf_error("length of new x does not match old x.test");
     }
-    
     
     int* colsInt = INTEGER(colsExpr);
     size_t numCols = rc_getLength(colsExpr);
@@ -567,12 +566,13 @@ extern "C" {
   
   SEXP printTrees(SEXP fitExpr, SEXP chainIndicesExpr, SEXP sampleIndicesExpr, SEXP treeIndicesExpr)
   {
-    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) Rf_error("dbarts_printTrees called on NULL external pointer");
+    BARTFit* fitPtr = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fitPtr == NULL) Rf_error("dbarts_printTrees called on NULL external pointer");
+    BARTFit& fit(*fitPtr);
     
-    size_t numChains  = fit->control.numChains;
-    size_t numSamples = fit->control.keepTrees ? fit->currentNumSamples : 0;
-    size_t numTrees   = fit->control.numTrees;
+    size_t numChains  = fit.control.numChains;
+    size_t numSamples = fit.control.keepTrees ? fit.currentNumSamples : 0;
+    size_t numTrees   = fit.control.numTrees;
     
     size_t numChainIndices  = Rf_isNull(chainIndicesExpr)  ? numChains  : rc_getLength(chainIndicesExpr);
     size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
@@ -580,7 +580,7 @@ extern "C" {
     
     
     size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
-    size_t* sampleIndices = fit->control.keepTrees ? new size_t[numSamples] : NULL;
+    size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
     size_t* treeIndices   = new size_t[numTreeIndices];
     
     if (Rf_isNull(chainIndicesExpr)) {
@@ -604,13 +604,124 @@ extern "C" {
       for (size_t i = 0; i < numTreeIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
     }
    
-    fit->printTrees(chainIndices, numChainIndices, sampleIndices, numSampleIndices, treeIndices, numTreeIndices);
+    fit.printTrees(chainIndices, numChainIndices, sampleIndices, numSampleIndices, treeIndices, numTreeIndices);
     
     delete [] treeIndices;
     delete [] sampleIndices;
     misc_stackFree(chainIndices);
     
     return R_NilValue;
+  }
+  
+  SEXP getTrees(SEXP fitExpr, SEXP chainIndicesExpr, SEXP sampleIndicesExpr, SEXP treeIndicesExpr)
+  {
+    BARTFit* fitPtr = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fitPtr == NULL) Rf_error("dbarts_getTrees called on NULL external pointer");
+    BARTFit& fit(*fitPtr);
+    
+    size_t numChains  = fit.control.numChains;
+    size_t numSamples = fit.control.keepTrees ? fit.currentNumSamples : 0;
+    size_t numTrees   = fit.control.numTrees;
+    
+    size_t numChainIndices  = Rf_isNull(chainIndicesExpr)  ? numChains  : rc_getLength(chainIndicesExpr);
+    size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
+    size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
+    
+    
+    size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
+    size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
+    size_t* treeIndices   = new size_t[numTreeIndices];
+    
+    if (Rf_isNull(chainIndicesExpr)) {
+      for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
+    } else {
+      int* i_chainIndices = INTEGER(chainIndicesExpr);
+      for (size_t i = 0; i < numChainIndices; ++i) chainIndices[i] = static_cast<size_t>(i_chainIndices[i] - 1);
+    }
+    
+    if (Rf_isNull(sampleIndicesExpr)) {
+      for (size_t i = 0; i < numSamples; ++i) sampleIndices[i] = i;
+    } else {
+      int* i_sampleIndices = INTEGER(sampleIndicesExpr);
+      for (size_t i = 0; i < numSampleIndices; ++i) sampleIndices[i] = static_cast<size_t>(i_sampleIndices[i] - 1);
+    }
+    
+    if (Rf_isNull(treeIndicesExpr)) {
+      for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
+    } else {
+      int* i_treeIndices = INTEGER(treeIndicesExpr);
+      for (size_t i = 0; i < numTreeIndices; ++i) treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
+    }
+    
+    FlattenedTrees* flattenedTreesPtr =
+      fit.getFlattenedTrees(chainIndices, numChainIndices,
+                            sampleIndices, numSampleIndices,
+                            treeIndices, numTreeIndices);
+    FlattenedTrees& flattenedTrees(*flattenedTreesPtr);
+    
+    delete [] treeIndices;
+    delete [] sampleIndices;
+    misc_stackFree(chainIndices);
+    
+    R_xlen_t numCols = 4 + (numChains > 1 ? 1 : 0) + (fit.control.keepTrees ? 1 : 0);
+    SEXP resultExpr = PROTECT(rc_newList(numCols));
+    rc_setDims(resultExpr, rc_asRLength(flattenedTrees.totalNumNodes), numCols, -1);
+    Rf_setAttrib(resultExpr, R_ClassSymbol, PROTECT(Rf_mkChar("data.frame")));
+    UNPROTECT(1);
+    SEXP resultNamesExpr;
+    rc_allocateInSlot2(resultNamesExpr, resultExpr, R_NamesSymbol, STRSXP, numCols);
+    
+    int* chainNumber = NULL;
+    int* sampleNumber = NULL;
+    int* treeNumber, *numObservations, *variable;
+    double* value;
+        
+    R_xlen_t colNum = 0;
+    if (numChains > 1) {
+      SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
+      SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("chain")));
+      UNPROTECT(2);
+      chainNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
+      ++colNum;
+    }
+    if (fit.control.keepTrees) {
+      SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
+      SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("sample")));
+      UNPROTECT(2);
+      sampleNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
+      ++colNum;
+    }
+    SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
+    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("tree")));
+    treeNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
+    ++colNum;
+    SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
+    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("n")));
+    numObservations = INTEGER(VECTOR_ELT(resultExpr, colNum));
+    ++colNum;
+    SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newInteger(flattenedTrees.totalNumNodes)));
+    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("var")));
+    variable = INTEGER(VECTOR_ELT(resultExpr, colNum));
+    ++colNum;
+    SET_VECTOR_ELT(resultExpr, colNum, PROTECT(rc_newReal(flattenedTrees.totalNumNodes)));
+    SET_VECTOR_ELT(resultNamesExpr, colNum, PROTECT(Rf_mkChar("value")));
+    value = REAL(VECTOR_ELT(resultExpr, colNum));
+    UNPROTECT(8);
+    
+    for (size_t i = 0; i < flattenedTrees.totalNumNodes; ++i) {
+      if (chainNumber != NULL)
+        chainNumber[i] = static_cast<int>(flattenedTrees.chainNumber[i]);
+      if (sampleNumber != NULL)
+        sampleNumber[i] = static_cast<int>(flattenedTrees.sampleNumber[i]);
+      treeNumber[i] = static_cast<int>(flattenedTrees.treeNumber[i]);
+      numObservations[i] = static_cast<int>(flattenedTrees.numObservations[i]);
+      variable[i] = static_cast<int>(flattenedTrees.variable[i]);
+      value[i] = flattenedTrees.value[i];
+    }
+    
+    UNPROTECT(1);
+    
+    return resultExpr;
   }
 
   

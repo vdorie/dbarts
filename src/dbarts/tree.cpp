@@ -38,6 +38,7 @@ namespace {
 }
 
 namespace dbarts {
+  
   void SavedTree::copyStructureFrom(const BARTFit& fit, const Tree& other, const double* treeFits)
   {
     top.clear();
@@ -46,7 +47,7 @@ namespace dbarts {
       top.leftChild  = new SavedNode(fit, top, *other.top.leftChild);
       top.rightChild = new SavedNode(fit, top, *other.top.p.rightChild);
       top.variableIndex = other.top.p.rule.variableIndex;
-      top.split = fit.sharedScratch.cutPoints[top.variableIndex][other.top.p.rule.splitIndex];
+      top.split = fit.cutPoints[top.variableIndex][other.top.p.rule.splitIndex];
     }
     
     const NodeVector bottomNodes_other(other.top.getBottomVector());
@@ -178,7 +179,7 @@ namespace dbarts {
     
     for (size_t i = 0; i < fit.data.numPredictors; ++i) {
       minIndices[i] = 0;
-      maxIndices[i] = fit.sharedScratch.numCutsPerVariable[i];
+      maxIndices[i] = fit.numCutsPerVariable[i];
     }
     
     mapCutPoints(top, fit, oldCutPoints, posteriorPredictions, minIndices, maxIndices, 2);
@@ -244,7 +245,7 @@ namespace {
       int32_t maxIndex = maxIndices[varIndex];
       
       double oldCut = oldCutPoints[varIndex][n.p.rule.splitIndex];
-      const double* cutPoints_i = fit.sharedScratch.cutPoints[varIndex];
+      const double* cutPoints_i = fit.cutPoints[varIndex];
       
       
       if (minIndex > maxIndex - 1) {

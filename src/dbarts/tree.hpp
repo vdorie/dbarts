@@ -11,6 +11,7 @@ extern "C" struct ext_rng;
 
 namespace dbarts {
   struct BARTFit;
+  struct SavedTree;
   
   struct Tree {
     Node top;

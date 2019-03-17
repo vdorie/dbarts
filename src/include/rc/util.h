@@ -43,7 +43,7 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length);
 #define rc_newInteger(_N_)   Rf_allocVector(INTSXP, _N_)
 #define rc_newList(_N_)      Rf_allocVector(VECSXP, _N_)
 #define rc_newLogical(_N_)   Rf_allocVector(LGLSXP, _N_)
-#define rc_newNumeric(_N_)   Rf_allocVector(REALSXP, _N_)
+#define rc_newReal(_N_)      Rf_allocVector(REALSXP, _N_)
 
 #define rc_getClass(_X_)  Rf_getAttrib(_X_, R_ClassSymbol)
 #define rc_getLevels(_X_) Rf_getAttrib(_X_, R_LevelsSymbol)

@@ -2,6 +2,21 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-9}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item More control over cut points has been added. It is now possible to specify
+            the cut points for a variable once and subsequently change that predictor
+            without also modifying the cuts using \code{sampler$setCutPoints} and
+            \code{sampler$setPredictor}.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item For \code{sampler$setPredictor}, an argument specifies whether or not to
+            rollback or force the change if the new data would result in a leaf
+            having 0 observations.
+    }
+  }
   \subsection{OPTIMIZATIONS}{
     \itemize{
       \item Stores \code{x} as integer matrix of the max of which cut point an observation is
@@ -9,6 +24,7 @@
             unless configure option \code{with-xint-size=32} (or higher).
       \item Uses CPU dispatch and SIMD instructions for some operations. This and the integer
             \code{x} make BART about 30\% faster on datasets of around 10k observations.
+      \item Saved trees are stored using significantly less memory.
     }
   }
 }

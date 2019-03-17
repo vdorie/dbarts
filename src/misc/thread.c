@@ -131,7 +131,7 @@ size_t misc_mt_getNumThreads(const misc_mt_manager_t manager)
 
 
 void misc_mt_getNumThreadsForJob(const misc_mt_manager_t restrict threadManager, size_t numElements, size_t minNumElementsPerThread,
-                                size_t* restrict numThreadsPtr, size_t* restrict numElementsPerThreadPtr, size_t* restrict offByOneIndexPtr)
+                                 size_t* restrict numThreadsPtr, size_t* restrict numElementsPerThreadPtr, size_t* restrict offByOneIndexPtr)
 {
   size_t numThreadsManaged = 0;
   if (numElements < 2 * minNumElementsPerThread || threadManager == NULL ||
@@ -156,7 +156,7 @@ void misc_mt_getNumThreadsForJob(const misc_mt_manager_t restrict threadManager,
 }
 
 int misc_mt_runTasks(misc_mt_manager_t restrict manager, misc_mt_taskFunction_t function,
-                    void** restrict data, size_t numTasks)
+                     void** restrict data, size_t numTasks)
 {
   if (manager->threads == NULL || manager->threadData == NULL ||
       manager->numThreadsActive == 0) return EINVAL;

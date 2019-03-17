@@ -320,11 +320,27 @@ namespace dbarts {
     
     SEXP result = PROTECT(rc_newList(control.numChains));
     
-    SEXP slotExpr = rc_allocateInSlot(result, Rf_install("currentNumSamples"), INTSXP, 1);
+    SEXP slotExpr;
+    
+    rc_allocateInSlot2(slotExpr, result, Rf_install("runningTime"), REALSXP, 1);
+    REAL(slotExpr)[0] = fit.runningTime;
+    
+    rc_allocateInSlot2(slotExpr, result, Rf_install("currentNumSamples"), INTSXP, 1);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentNumSamples);
     
-    slotExpr = rc_allocateInSlot(result, Rf_install("currentSampleNum"), INTSXP, 1);
+    rc_allocateInSlot2(slotExpr, result, Rf_install("currentSampleNum"), INTSXP, 1);
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
+    
+    rc_allocateInSlot2(slotExpr, result, Rf_install("numCuts"), INTSXP, data.numPredictors);
+    int* numCuts = INTEGER(slotExpr);
+    rc_allocateInSlot2(slotExpr, result, Rf_install("cutPoints"), VECSXP, data.numPredictors);
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      numCuts[j] = static_cast<int>(fit.numCutsPerVariable[j]);
+      SEXP cutPointsExpr = PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
+      std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
+      SET_VECTOR_ELT(slotExpr, j, cutPointsExpr);
+      UNPROTECT(1);
+    }
     
     SEXP classDef = PROTECT(R_getClassDef("dbartsState"));
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -356,14 +372,11 @@ namespace dbarts {
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
     
-    rc_allocateInSlot2(slotExpr, result, Rf_install("runningTime"), REALSXP, 1);
-    REAL(slotExpr)[0] = fit.runningTime;
-    
     UNPROTECT(2);
     
     return result;
   }
-  
+
   void storeStateExpressionFromFit(const BARTFit& fit, SEXP stateExpr)
   {
     const Control& control(fit.control);
@@ -384,11 +397,43 @@ namespace dbarts {
     if (rc_getLength(stateExpr) != control.numChains)
       Rf_error("length of state list not equal to number of chains");
     
-    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentNumSamples"));
+    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
+    REAL(slotExpr)[0] = fit.runningTime;
+    
+    slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentNumSamples"));
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentNumSamples);
     
     slotExpr = Rf_getAttrib(stateExpr, Rf_install("currentSampleNum"));
     INTEGER(slotExpr)[0] = static_cast<int>(fit.currentSampleNum);
+    
+    slotExpr = Rf_getAttrib(stateExpr, Rf_install("numCuts"));
+    if (rc_getLength(slotExpr) != data.numPredictors) {
+      rc_allocateInSlot2(slotExpr, stateExpr, Rf_install("numCuts"), INTSXP, data.numPredictors);
+      int* numCuts = INTEGER(slotExpr);
+      for (size_t j = 0; j < data.numPredictors; ++j) numCuts[j] = static_cast<int>(fit.numCutsPerVariable[j]);
+    }
+    slotExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
+    if (rc_getLength(slotExpr) != data.numPredictors) {
+      rc_allocateInSlot2(slotExpr, stateExpr, Rf_install("cutPoints"), VECSXP, data.numPredictors);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        SEXP cutPointsExpr = PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
+        std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
+        SET_VECTOR_ELT(slotExpr, j, cutPointsExpr);
+        UNPROTECT(1);
+      }
+    } else {
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        SEXP cutPointsExpr = VECTOR_ELT(slotExpr, j);
+        if (rc_getLength(cutPointsExpr) != static_cast<size_t>(fit.numCutsPerVariable[j])) {
+          PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
+          std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
+          SET_VECTOR_ELT(slotExpr, j, cutPointsExpr);
+          UNPROTECT(1);
+        } else {
+          std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
+        }
+      }
+    }
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
     {
@@ -432,9 +477,6 @@ namespace dbarts {
         rc_allocateInSlot2(slotExpr, stateExpr_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
     }
-    
-    slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
-    REAL(slotExpr)[0] = fit.runningTime;
   }
   
   void initializeStateFromExpression(BARTFit& fit, State* state, SEXP stateExpr)
@@ -446,6 +488,9 @@ namespace dbarts {
     SEXP classExpr = rc_getClass(stateExpr);
     if (!Rf_isNull(classExpr) && std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsState") == 0) 
       Rf_error("object from earlier version detected - model must be refit");
+    
+    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
+    fit.runningTime = REAL(slotExpr)[0];
     
     fit.currentSampleNum = static_cast<size_t>(INTEGER(Rf_getAttrib(stateExpr, Rf_install("currentSampleNum")))[0]);
     
@@ -481,10 +526,25 @@ namespace dbarts {
       ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr_i, Rf_install("rng.state"))));
     }
     
+    uint32_t* numCuts        = new uint32_t[data.numPredictors];
+    const double** cutPoints = new const double*[data.numPredictors];
+    size_t* columns          = new size_t[data.numPredictors];
+    
+    const int* numCuts_i = INTEGER(Rf_getAttrib(stateExpr, Rf_install("numCuts")));
+    
+    slotExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      numCuts[j] = static_cast<uint32_t>(numCuts_i[j]);
+      cutPoints[j] = REAL(VECTOR_ELT(slotExpr, j));
+      columns[j] = j;
+    }
+    fit.setCutPoints(cutPoints, numCuts, columns, data.numPredictors);
+    
+    delete [] columns;
+    delete [] cutPoints;
+    delete [] numCuts;
+    
     fit.rebuildScratchFromState();
-      
-    SEXP slotExpr = Rf_getAttrib(stateExpr, Rf_install("runningTime"));
-    fit.runningTime = REAL(slotExpr)[0];
   }
 }
 

@@ -10,7 +10,6 @@
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/data.hpp>
-#include <dbarts/scratch.hpp>
 #include <dbarts/types.hpp>
 #include "functions.hpp"
 #include "node.hpp"
@@ -59,7 +58,7 @@ namespace dbarts {
     double result;
     
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
       
       bool* categoriesCanReachNode = misc_stackAllocate(numCategories, bool);
       
@@ -106,7 +105,7 @@ namespace dbarts {
     *exhaustedRightSplits = false;
     
     if (fit.data.variableTypes[variableIndex] == CATEGORICAL) {
-      uint32_t numCategories = fit.sharedScratch.numCutsPerVariable[variableIndex];
+      uint32_t numCategories = fit.numCutsPerVariable[variableIndex];
       
       bool* categoriesCanReachNode = misc_stackAllocate(numCategories, bool);
       // result.categoryDirections = new CategoryBranchingType[numCategories];

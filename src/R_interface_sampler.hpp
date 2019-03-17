@@ -18,18 +18,19 @@ extern "C" {
   SEXP predict(SEXP fit, SEXP x_test, SEXP offset_test);
   SEXP setResponse(SEXP fit, SEXP y);
   SEXP setOffset(SEXP fit, SEXP offset);
-  SEXP setPredictor(SEXP fit, SEXP x);
+  SEXP setPredictor(SEXP fit, SEXP x, SEXP forceUpdate, SEXP updateCutPoints);
+  SEXP updatePredictor(SEXP fit, SEXP x, SEXP cols, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP setTestPredictor(SEXP fit, SEXP x_test);
   SEXP setTestOffset(SEXP fit, SEXP offset_test);
   SEXP setTestPredictorAndOffset(SEXP fit, SEXP x_test, SEXP offset_test);
   
-  SEXP updatePredictor(SEXP fit, SEXP x, SEXP cols);
-  SEXP updateTestPredictor(SEXP fit, SEXP x_test, SEXP colsExpr);
+  SEXP updateTestPredictor(SEXP fit, SEXP x_test, SEXP cols);
    
   SEXP createState(SEXP fit);
   SEXP storeState(SEXP fit, SEXP state);
   SEXP restoreState(SEXP fit, SEXP state);
   
+  SEXP getTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
   SEXP printTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
   
   SEXP saveToFile(SEXP fit, SEXP fileName);
