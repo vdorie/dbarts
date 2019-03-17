@@ -5,7 +5,6 @@
 #include <cstdio>  // sprintf
 #include <cstring> // strcmp, memcpy
 
-
 #include <misc/alloca.h>
 
 #include <R_ext/Random.h> // GetRNGstate, PutRNGState
@@ -401,9 +400,9 @@ extern "C" {
       size_t* cols = misc_stackAllocate(numCols, size_t);
       for (size_t i = 0 ; i < numCols; ++i) {
         cols[i] = static_cast<size_t>(colsInt[i] - 1);
-        if (static_cast<size_t>(cols[i]) >= fit->data.numPredictors) {
+        if (cols[i] >= fit->data.numPredictors) {
           misc_stackFree(cols);
-          Rf_error("column '%d' is out of range", colsInt[i]);
+          Rf_error("column '%d' is out of range", colsInt[i] + 1);
         }
       }
       
@@ -413,6 +412,54 @@ extern "C" {
     }
     
     return Rf_ScalarLogical(result);
+  }
+  
+  SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_setCutPoints called on NULL external pointer");
+    
+    if (!Rf_isNewList(cutPointsExpr)) Rf_error("cutPoints must be of type list");
+ 
+    
+    size_t numCols;
+    if (Rf_isNull(colsExpr)) {
+      numCols = fit->data.numPredictors;
+    } else {
+      if (!Rf_isInteger(colsExpr)) Rf_error("columns must be of type integer");
+      numCols = rc_getLength(colsExpr);
+    }
+    
+    if (rc_getLength(cutPointsExpr) != numCols)
+      Rf_error("length of cutPoints (%lu) must equal length of columns (%lu)", rc_getLength(cutPointsExpr), numCols);
+    
+    const double** cutPoints = misc_stackAllocate(numCols, const double*);
+    uint32_t* numCutPoints = misc_stackAllocate(numCols, uint32_t);
+    size_t* cols = misc_stackAllocate(numCols, size_t);
+    
+    int* colsInt = Rf_isNull(colsExpr) ? NULL : INTEGER(colsExpr);
+    for (size_t i = 0; i < numCols; ++i) {
+      SEXP cutPointsExpr_i = VECTOR_ELT(cutPointsExpr, i);
+      
+      cutPoints[i] = REAL(cutPointsExpr_i);
+      numCutPoints[i] = static_cast<uint32_t>(rc_getLength(cutPointsExpr_i));
+      cols[i] = colsInt == NULL ? i : static_cast<size_t>(colsInt[i] - 1);
+       
+      if (cols[i] >= fit->data.numPredictors) {
+        misc_stackFree(cols);
+        misc_stackFree(numCutPoints);
+        misc_stackFree(cutPoints);
+        Rf_error("column '%d' is out of range", colsInt[i] + 1);
+      }
+    }
+    
+    fit->setCutPoints(cutPoints, numCutPoints, cols, numCols);
+    
+    misc_stackFree(cols);
+    misc_stackFree(numCutPoints);
+    misc_stackFree(cutPoints);
+        
+    return R_NilValue;
   }
   
   SEXP setTestPredictor(SEXP fitExpr, SEXP x_test)
@@ -580,6 +627,12 @@ extern "C" {
     size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
+    if (numChainIndices > numChains)
+      Rf_error("%lu chains specified but only %lu in sampler", numChainIndices, numChains);
+    if (numSampleIndices > numSamples)
+      Rf_error("%lu samples specified but only %lu in sampler", numSampleIndices, numSamples);
+    if (numTreeIndices > numTrees)
+      Rf_error("%lu trees specified but only %lu in sampler", numTreeIndices, numTrees);    
     
     size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
@@ -629,6 +682,12 @@ extern "C" {
     size_t numSampleIndices = Rf_isNull(sampleIndicesExpr) ? numSamples : rc_getLength(sampleIndicesExpr);
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
+    if (numChainIndices > numChains)
+      Rf_error("%lu chains specified but only %lu in sampler", numChainIndices, numChains);
+    if (numSampleIndices > numSamples)
+      Rf_error("%lu samples specified but only %lu in sampler", numSampleIndices, numSamples);
+    if (numTreeIndices > numTrees)
+      Rf_error("%lu trees specified but only %lu in sampler", numTreeIndices, numTrees);
     
     size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;

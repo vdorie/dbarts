@@ -417,8 +417,8 @@ dbartsSampler <-
                   
                   if (!forceUpdate) updateSuccessful else invisible(NULL)
                 },
-                setCutPoints = function(cuts, columns) {
-                  'Changes the cut points for the predictors in columns,or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty.'
+                setCutPoints = function(cuts, column, updateState = NA) {
+                  'Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty.'
                   
                   selfEnv <- parent.env(environment())
                   
@@ -438,7 +438,7 @@ dbartsSampler <-
                   }
                   
                   if (!is.list(cuts))
-                    cuts <- as.list(cuts)
+                    cuts <- list(cuts)
                   for (j in seq_along(cuts))
                     if (!is.double(cuts[[j]])) cuts[[j]] <- as.double(cuts[[j]])
                   
@@ -578,7 +578,7 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                printTrees = function(chainNums, sampleNums, treeNums) {
+                printTrees = function(treeNums, chainNums, sampleNums) {
                   'Produces an info dump of the internal state of the trees.'
                   matchedCall <- match.call()
                   if (is.null(matchedCall$chainNums)) chainNums <- seq_len(control@n.chains)
@@ -597,7 +597,7 @@ dbartsSampler <-
                   ptr <- getPointer()
                   invisible(.Call(C_dbarts_printTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums)))
                 },
-                getTrees = function(chainNums, sampleNums, treeNums) {
+                getTrees = function(treeNums, chainNums, sampleNums) {
                   'Returns a data.frame containing the internal state of the trees.'
                   matchedCall <- match.call()
                   if (is.null(matchedCall$chainNums)) chainNums <- seq_len(control@n.chains)
@@ -613,8 +613,18 @@ dbartsSampler <-
                   }
                   if (is.null(matchedCall$treeNums)) treeNums <- seq_len(control@n.trees)
                   
+                  chainNums <- as.integer(chainNums)
+                  treeNums <- as.integer(treeNums)
+                  
+                  if (any(chainNums <= 0 | chainNums > control@n.chains))
+                    stop("chainNums must be in [1, ", control@n.chains, "]")
+                  if (control@keepTrees && any(sampleNums <= 0 | sampleNums > control@n.samples))
+                    stop("sampleNums must be in [1, ", control@n.samples, "]")
+                  if (any(treeNums <= 0 | treeNums > control@n.trees))
+                    stop("treeNums must be in [1, ", control@n.trees, "]")
+                  
                   ptr <- getPointer()
-                  .Call(C_dbarts_getTrees, ptr, as.integer(chainNums), sampleNums, as.integer(treeNums))
+                  .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums)
                 },
                 plotTree = function(chainNum, sampleNum, treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'

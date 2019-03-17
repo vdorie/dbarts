@@ -420,7 +420,7 @@ namespace dbarts {
       
       size_t col = columns[j];
       if (numCutsPerVariable[col] != numCutPoints[j]) {
-        delete [] cutPoints[col];
+        delete [] this->cutPoints[col];
         const_cast<double**>(this->cutPoints)[col] = new double[numCutPoints[j]];
         const_cast<uint32_t*>(numCutsPerVariable)[col] = numCutPoints[j];
       }

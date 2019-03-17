@@ -234,9 +234,7 @@ test_that("dbarts sampler runs", {
     p.z <- p1 / (p0 + p1)
 
     new.z <- rbinom(n, 1, p.z)
-    while (sampler$setPredictor(x = new.z, column = 2, forceUpdate = FALSE) == FALSE) {
-      new.z <- rbinom(n, 1, p.z)
-    }
+    sampler$setPredictor(x = new.z, column = 2, forceUpdate = TRUE)
     z <- new.z
     sampler$setTestPredictor(x = 1 - z, column = 2)
 
@@ -244,10 +242,15 @@ test_that("dbarts sampler runs", {
     p <- rbeta(1, 1 + n0, 1 + n1)
   }
 
-  expect_equal(z[1:20], c(1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0))
-  expect_equal(p, 0.752524462781995)
-  expect_equal(samples$train[1:5], c(92.9097072071659, 89.5678004457774, 94.3796783179876, 92.3334894203356, 93.8591081993109))
-  expect_equal(samples$test[1:5], c(89.5678004457774, 92.9097072071659, 92.2539393041346, 91.3459458199908, 90.5089891735555))
+  expect_equal(z[1:20], c(1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0))
+  expect_equal(p, 0.798940367044864)
+  expect_equal(samples$train[1:5], c(92.2346314295292, 92.2346314295292, 93.2625174768788, 93.175018343565, 95.7274853600248))
+  expect_equal(samples$test[1:5], c(88.5575770105452, 88.5575770105452, 89.8876784832323, 89.7059877770997, 89.909927780463))
+  
+  tree <- sampler$getTrees(treeNum = 5)
+  expect_equal(tree$n, c(120, 3, 117, 79, 38))
+  expect_equal(tree$var, c(1, -1, 1, -1, -1))
+  expect_equal(tree$value, c(2.71437856704431, 0.00646648370896642, 41.5978214380142, 0.0204670381245866, 0.000214418651379378))
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"))

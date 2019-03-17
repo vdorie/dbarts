@@ -76,10 +76,10 @@ test_that("control argument works", {
 
 test_that("keepevery behaves as it did in BayesTree", {
   n.burn <- 0L
-  n.sims <- 200L
-  keepevery <- 10L
+  n.sims <- 50L
+  keepevery <- 5L
   
-  bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 25L, verbose = FALSE, keepevery = keepevery)
+  bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 5L, verbose = FALSE, keepevery = keepevery)
   
   expect_equal(nrow(bartFit$yhat.train), n.sims %/% keepevery)
 })

@@ -20,6 +20,7 @@ extern "C" {
   SEXP setOffset(SEXP fit, SEXP offset);
   SEXP setPredictor(SEXP fit, SEXP x, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP updatePredictor(SEXP fit, SEXP x, SEXP cols, SEXP forceUpdate, SEXP updateCutPoints);
+  SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr);
   SEXP setTestPredictor(SEXP fit, SEXP x_test);
   SEXP setTestOffset(SEXP fit, SEXP offset_test);
   SEXP setTestPredictorAndOffset(SEXP fit, SEXP x_test, SEXP offset_test);
