@@ -29,7 +29,7 @@ AC_DEFUN([AX_FUNC_POSIX_MEMALIGN],
   [ax_cv_func_posix_memalign_works],
   [AC_TRY_RUN([
 #ifdef __STRICT_ANSI__
-#  define __USE_XOPEN2K 1
+#  define _POSIX_C_SOURCE 200112L
 #endif
 #include <stdlib.h>
 

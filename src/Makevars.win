@@ -1,7 +1,10 @@
 ## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
 MATCH_BAYES_TREE=
 THREAD_SAFE_UNLOAD=
-SIMD_FLAGS=-mmmx -msse -msse2 -msse3 -msse4.1 -msse4.2 -mavx -mavx2
+SSE2_FLAG=-msse2
+SSE4_1_FLAG=-msse4.1
+AVX_FLAG=-mavx
+AVX2_FLAG=-mavx2
 
 INST_DIR=../inst
 
@@ -24,7 +27,7 @@ sublibraries:
 	@for d in $(SUBDIRS); do \
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
 	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" DBARTS_FLAGS="$(MATCH_BAYES_TREE)" \
-           SIMD_FLAGS="$(SIMD_FLAGS)" \
+           SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
            || exit 1; \

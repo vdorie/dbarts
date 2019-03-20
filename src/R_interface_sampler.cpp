@@ -21,8 +21,6 @@
 #include "R_interface.hpp"
 #include "R_interface_common.hpp"
 
-#define asRXLen(_X_) static_cast<R_xlen_t>(_X_)
-
 using std::size_t;
 using namespace dbarts;
 
@@ -76,10 +74,10 @@ extern "C" {
     int i_temp;
     size_t numBurnIn, numSamples;
     
-    i_temp = rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);
+    i_temp = rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);
     numBurnIn = i_temp == NA_INTEGER ? fit->control.defaultNumBurnIn : static_cast<size_t>(i_temp);
     
-    i_temp = rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_GEQ, asRXLen(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);    
+    i_temp = rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);    
     numSamples = i_temp == NA_INTEGER ? fit->control.defaultNumSamples : static_cast<size_t>(i_temp);
     
     if (numBurnIn == 0 && numSamples == 0) Rf_error("either number of burn-in or samples must be positive");
@@ -87,14 +85,14 @@ extern "C" {
     size_t numTrainingSamples = fit->data.numObservations * numSamples;
     if (numSamples != 0 && numTrainingSamples / numSamples != fit->data.numObservations)
       Rf_error("training sample array size exceeds architecture's capacity");
-    R_xlen_t s_numTrainingSamples = asRXLen(numTrainingSamples);
+    R_xlen_t s_numTrainingSamples = rc_asRLength(numTrainingSamples);
     if (s_numTrainingSamples < 0 || static_cast<size_t>(s_numTrainingSamples) != numTrainingSamples)
       Rf_error("training sample array size cannot be represented by a signed integer on this architecture");
     
     size_t numTestSamples = fit->data.numTestObservations * numSamples;
      if (numSamples != 0 && numTestSamples / numSamples != fit->data.numTestObservations)
       Rf_error("test sample array size exceeds architecture's capacity");
-    R_xlen_t s_numTestSamples = asRXLen(numTestSamples);
+    R_xlen_t s_numTestSamples = rc_asRLength(numTestSamples);
     if (s_numTestSamples < 0 || static_cast<size_t>(s_numTestSamples) != numTestSamples)
       Rf_error("test sample array size cannot be represented by a signed integer on this architecture");
     
@@ -111,13 +109,13 @@ extern "C" {
     
     SEXP resultExpr = PROTECT(rc_newList(4));
     ++protectCount;
-    SET_VECTOR_ELT(resultExpr, 0, rc_newReal(asRXLen(bartResults->getNumSigmaSamples())));
-    SET_VECTOR_ELT(resultExpr, 1, rc_newReal(asRXLen(bartResults->getNumTrainingSamples())));
+    SET_VECTOR_ELT(resultExpr, 0, rc_newReal(rc_asRLength(bartResults->getNumSigmaSamples())));
+    SET_VECTOR_ELT(resultExpr, 1, rc_newReal(rc_asRLength(bartResults->getNumTrainingSamples())));
     if (fit->data.numTestObservations > 0)
-      SET_VECTOR_ELT(resultExpr, 2, rc_newReal(asRXLen(bartResults->getNumTestSamples())));
+      SET_VECTOR_ELT(resultExpr, 2, rc_newReal(rc_asRLength(bartResults->getNumTestSamples())));
     else
       SET_VECTOR_ELT(resultExpr, 2, R_NilValue);
-    SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(asRXLen(bartResults->getNumVariableCountSamples())));
+    SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(rc_asRLength(bartResults->getNumVariableCountSamples())));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
     if (fit->control.numChains > 1)
@@ -299,7 +297,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setResponse called on NULL external pointer");
     
-    rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, asRXLen(fit->data.numObservations), RC_END);
+    rc_assertDoubleConstraints(y, "y", RC_LENGTH | RC_EQ, rc_asRLength(fit->data.numObservations), RC_END);
     
     // for binary responses, updates latents and samples
     if (fit->control.responseIsBinary) GetRNGstate();
@@ -793,7 +791,7 @@ extern "C" {
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
       
-      sprintf(buffer, "%lu", i + 1);
+      sprintf(buffer, "%zu", i + 1);
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);
     }

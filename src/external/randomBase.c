@@ -3,9 +3,7 @@
  * the GNU General Public License (http://www.r-project.org/Licenses/).
  */
 
-#ifdef __INTEL_COMPILER
-#  define __need_timespec 1
-#endif
+#define _POSIX_SOURCE 1
 
 #include <external/random.h>
 #include "config.h"

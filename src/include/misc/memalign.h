@@ -1,16 +1,11 @@
 #ifndef MISC_MEMALIGN_H
 #define MISC_MEMALIGN_H
 
-#ifdef __STRICT_ANSI__
-#  define __USE_XOPEN2K 1 // gets posix_memalign when strict ANSI
-#endif
-#include <stdlib.h>   // malloc, posix_memalign
-#undef __USE_XOPEN2K
-
+#include <errno.h> // ENOMEM
 #if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_MALLOC_H)
 #  include <malloc.h>   // memalign, __mingw_aligned_malloc
 #endif
-
+#include <stdlib.h>   // malloc, posix_memalign
 #include <misc/stddef.h> // size_t
 
 inline int misc_alignedAllocate(void** result, misc_size_t alignment, misc_size_t allocationSize) {

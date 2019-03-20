@@ -981,13 +981,6 @@ namespace dbarts {
     FlattenedTrees* resultPtr = new FlattenedTrees(totalNumNodes);
     FlattenedTrees& result(*resultPtr);
     
-    result.chainNumber     = new size_t[result.totalNumNodes];
-    result.sampleNumber    = new size_t[result.totalNumNodes];
-    result.treeNumber      = new size_t[result.totalNumNodes];
-    result.numObservations = new size_t[result.totalNumNodes];
-    result.variable = new int32_t[result.totalNumNodes];
-    result.value = new double[result.totalNumNodes];
-    
     size_t offset = 0;
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];

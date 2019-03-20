@@ -43,9 +43,18 @@ pdbart <- function (
     stop("sampler must have keepTrees == TRUE")
   
   tryResult <- tryCatch(xind, error = I)
+
   if (is(tryResult, "error")) {
     formula <- ~a
     formula[[2L]] <- matchedCall[["xind"]]
+    terms <- terms(formula)
+    
+    xind <- attr(terms, "term.labels")
+  } else if (!is(tryResult, "error") && is.character(xind) &&
+             length(xind) == 1L && xind %not_in% colnames(sampler$data@x))
+  {
+    formula <- ~a
+    formula[[2L]] <- parse(text = xind)[[1L]]
     terms <- terms(formula)
     
     xind <- attr(terms, "term.labels")
@@ -171,6 +180,14 @@ pd2bart <- function(
   if (is(tryResult, "error")) {
     formula <- ~a
     formula[[2L]] <- matchedCall[["xind"]]
+    terms <- terms(formula)
+    
+    xind <- attr(terms, "term.labels")
+  } else if (!is(tryResult, "error") && is.character(xind) &&
+             length(xind) == 1L && xind %not_in% colnames(sampler$data@x))
+  {
+    formula <- ~a
+    formula[[2L]] <- parse(text = xind)[[1L]]
     terms <- terms(formula)
     
     xind <- attr(terms, "term.labels")

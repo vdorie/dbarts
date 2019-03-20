@@ -8,6 +8,8 @@
             the cut points for a variable once and subsequently change that predictor
             without also modifying the cuts using \code{sampler$setCutPoints} and
             \code{sampler$setPredictor}.
+      \item \code{sampler$getTrees} implemented to get a flattened, depth-first down
+            left traversal of the trees.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
@@ -15,6 +17,8 @@
       \item For \code{sampler$setPredictor}, an argument specifies whether or not to
             rollback or force the change if the new data would result in a leaf
             having 0 observations.
+      \item \code{pdbart} and \code{pd2bart} now work with formula/data specifications,
+            as well as taking models or samplers that have \code{keepTrees} as \code{TRUE}.
     }
   }
   \subsection{OPTIMIZATIONS}{

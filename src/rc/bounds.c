@@ -7,12 +7,6 @@
 
 #include <rc/util.h>
 
-#ifdef _WIN32
-#  define SIZE_T_FMT "%Iu"
-#else
-#  define SIZE_T_FMT "%zu"
-#endif
-
 #if R_XLEN_T_MAX < INT_MAX
 #  define va_arg_xlen_t(_ARGS_) (R_xlen_t) va_arg(_ARGS_, int)
 #else 
@@ -666,10 +660,10 @@ static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_
   if (length == 0) {
     switch (boundType) {
       case _RC_GT:
-      Rf_error("%s must be of length greater than " SIZE_T_FMT, name, bound);
+      Rf_error("%s must be of length greater than %zu", name, bound);
       break;
       case _RC_GEQ:
-      if (bound > 0) Rf_error("%s must be of length greater than or equal to " SIZE_T_FMT, name, bound);
+      if (bound > 0) Rf_error("%s must be of length greater than or equal to %zu", name, bound);
       break;
       case _RC_LT:
       if (bound == 0) Rf_error("internal error: %s cannot be of length less than 0", name);
@@ -686,22 +680,22 @@ static void assertLengthConstraint(const char* name, _rc_boundType boundType, R_
   } else {
     switch (boundType) {
       case _RC_GT:
-      if (length <= bound) Rf_error("%s must be of length greater than " SIZE_T_FMT, name, bound);
+      if (length <= bound) Rf_error("%s must be of length greater than %zu", name, bound);
       break;
       case _RC_GEQ:
-      if (length < bound) Rf_error("%s must be of length greater than or equal to " SIZE_T_FMT, name, bound);
+      if (length < bound) Rf_error("%s must be of length greater than or equal to %zu", name, bound);
       break;
       case _RC_LT:
-      if (length >= bound) Rf_error("%s must be of length less than " SIZE_T_FMT, name, bound);
+      if (length >= bound) Rf_error("%s must be of length less than %zu", name, bound);
       break;
       case _RC_LEQ:
-      if (length > bound) Rf_error("%s must be of length less than or equal to " SIZE_T_FMT, name, bound);
+      if (length > bound) Rf_error("%s must be of length less than or equal to %zu", name, bound);
       break;
       case _RC_EQ:
-      if (length != bound) Rf_error("%s must be of length equal to " SIZE_T_FMT, name, bound);
+      if (length != bound) Rf_error("%s must be of length equal to %zu", name, bound);
       break;
       case _RC_NE:
-      if (length == bound) Rf_error("%s cannot be of length equal to " SIZE_T_FMT, name, bound);
+      if (length == bound) Rf_error("%s cannot be of length equal to %zu", name, bound);
       break;
       default:
       break;

@@ -1,5 +1,11 @@
+#ifdef __STRICT_ANSI__
+#  define _POSIX_C_SOURCE 200112L  // gets posix_memalign when strict ANSI
+#endif
+
 #include "config.h"
 #include <misc/adaptiveRadixTree.h>
+
+#include <misc/memalign.h>
 
 #include <errno.h>
 #include <stdbool.h>
@@ -8,7 +14,6 @@
 #include <string.h> // memcpy, memcmp
 
 #include <misc/intrinsic.h>
-#include <misc/memalign.h>
 
 #include <external/io.h>
 
@@ -114,7 +119,7 @@ static size_t getLongestCommonPrefixLength(const Leaf* restrict l1, const Leaf* 
 static size_t getPartialMismatchIndex(const Node* restrict n, const uint8_t* restrict key, size_t keyLength, size_t depth);
 static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* restrict key, size_t keyLength, size_t depth);
 
-static Node** (*findChildMatchingKey)(const Node* n, uint8_t c) = 0;
+static Node** findChildMatchingKey(const Node* n, uint8_t c);
 static Leaf* getMinimumLeafUnderNode(const Node* n);
 // static Leaf* getMaximumLeafUnderNode(const Node* n);
 
@@ -457,7 +462,7 @@ static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* rest
   return index;
 }
 
-static Node** findChildMatchingKey_c(const Node* n, uint8_t c)
+static Node** findChildMatchingKey(const Node* n, uint8_t c)
 {
   uint8_t index;
   union {
@@ -475,12 +480,18 @@ static Node** findChildMatchingKey_c(const Node* n, uint8_t c)
     
     case NODE16:
     {
-      unsigned int bitfield = 0;
       p.p2 = (const Node16*) n;
+#ifdef __SSE2__
+      __m128i comparison = _mm_cmpeq_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) p.p2->keys));
+      
+      unsigned int bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
+#else
+      unsigned int bitfield = 0;
 
       for (uint_least8_t i = 0; i < 16; ++i)
         if (p.p2->keys[i] == c) bitfield |= (1 << i);
       bitfield &= (1 << n->numChildren) - 1;
+#endif
       
       if (bitfield != 0) return (Node**) &p.p2->children[countTrailingZeros(bitfield)];
     }
@@ -503,53 +514,6 @@ static Node** findChildMatchingKey_c(const Node* n, uint8_t c)
   }
   return NULL;
 }
-
-#ifdef __SSE2__
-static Node** findChildMatchingKey_sse2(const Node* n, uint8_t c)
-{
-  uint8_t index;
-  union {
-    const Node4  * p1;
-    const Node16 * p2;
-    const Node48 * p3;
-    const Node256* p4;
-  } p;
-  switch (n->type) {
-    case NODE4:
-    p.p1 = (const Node4*) n;
-    for (index = 0; index < n->numChildren; ++index)
-      if (p.p1->keys[index] == c) return (Node**) &p.p1->children[index];
-    break;
-    
-    case NODE16:
-    {
-      unsigned int bitfield;
-      p.p2 = (const Node16*) n;
-      __m128i comparison = _mm_cmpeq_epi8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) p.p2->keys));
-      
-      bitfield = ((1 << n->numChildren) - 1) & (unsigned int) _mm_movemask_epi8(comparison);
-      if (bitfield != 0) return (Node**) &p.p2->children[countTrailingZeros(bitfield)];
-    }
-    break;
-    
-    case NODE48:
-    p.p3 = (const Node48*) n;
-    index = p.p3->keys[c];
-    if (index != 0) return (Node**) &p.p3->children[index - 1];
-    break;
-    
-    case NODE256:
-    p.p4 = (const Node256*) n;
-    if (p.p4->children[c] != NULL) return (Node**) &p.p4->children[c];
-    break;
-    
-    default:
-    errno = EINVAL;
-    break;
-  }
-  return NULL;
-}
-#endif // __SSE2__
 
 static Leaf* getMinimumLeafUnderNode(const Node* n) {
   if (n == NULL) return NULL;
@@ -670,7 +634,7 @@ static int map(const Node* restrict n, misc_art_callback cb, void* restrict data
   return EINVAL;
 }
 
-static int (*addChild16)(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent) = 0;
+static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent);
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent);
 static int addChild256(Node256* restrict n, uint8_t c, void* restrict child);
 
@@ -721,17 +685,32 @@ static int addChild4(Node4* restrict n, uint8_t c, void* restrict child, Node* r
   return addChild16(newNode, c, child, positionInParent);
 }
 
-static int addChild16_c(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
+#ifdef __SSE2__
+#  define _mm_cmpgt_epu8(a, b) _mm_cmpgt_epi8(_mm_add_epi8(a, _mm_set1_epi16((uint8_t) 0x80u)), \
+                                              _mm_add_epi8(b, _mm_set1_epi8((uint8_t) 0x80u)))
+#  define _mm_cmplt_epu8(a, b) _mm_cmpgt_epu8(b, a)
+#  define _mm_cmpge_epu8(a, b) _mm_xor_si128(_mm_cmplt_epu8(a, b), _mm_set1_epi8(-1))
+#  define _mm_cmple_epu8(a, b) _mm_cmpge_epu8(b, a)
+#endif
+
+static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {
   if (n->n.numChildren < 16) {
     size_t index;
 
     unsigned int bitfield = 0;
+// __SSE2__ supported by default on x86_64, which should be good enough
+#ifdef __SSE2__
+    // Compare the key to all 16 stored keys
+    __m128i comparison = _mm_cmplt_epu8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) n->keys));
+    bitfield = ((1 << n->n.numChildren) - 1) & _mm_movemask_epi8(comparison);
+#else
     for (uint_least8_t i = 0; i < 16; ++i) {
       if (c < n->keys[i])
         bitfield |= (1 << i);
     }
     bitfield &= (1 << n->n.numChildren) - 1;
+#endif
     
      // Check if less than any and bump up if so
     if (bitfield != 0) {
@@ -767,56 +746,10 @@ static int addChild16_c(Node16* restrict n, uint8_t c, void* restrict child, Nod
 }
 
 #ifdef __SSE2__
-#define _mm_cmpgt_epu8(a, b) _mm_cmpgt_epi8(_mm_add_epi8(a, _mm_set1_epi16((uint8_t) 0x80u)), \
-                                            _mm_add_epi8(b, _mm_set1_epi8((uint8_t) 0x80u)))
-#define _mm_cmplt_epu8(a, b) _mm_cmpgt_epu8(b, a)
-#define _mm_cmpge_epu8(a, b) _mm_xor_si128(_mm_cmplt_epu8(a, b), _mm_set1_epi8(-1))
-#define _mm_cmple_epu8(a, b) _mm_cmpge_epu8(b, a)
-
-static int addChild16_sse2(Node16* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
-{
-  if (n->n.numChildren < 16) {
-    size_t index;
-
-    unsigned int bitfield;
-    // Compare the key to all 16 stored keys
-    __m128i comparison = _mm_cmplt_epu8(_mm_set1_epi8(c), _mm_loadu_si128((__m128i*) n->keys));
-
-    // Use a mask to ignore children that don't exist
-    bitfield = ((1 << n->n.numChildren) - 1) & _mm_movemask_epi8(comparison);
-    
-     // Check if less than any and bump up if so
-    if (bitfield != 0) {
-      index = countTrailingZeros(bitfield);
-      memmove(n->keys + index + 1,     n->keys + index,     (n->n.numChildren - index) * sizeof(uint8_t));
-      memmove(n->children + index + 1, n->children + index, (n->n.numChildren - index) * sizeof(void*));
-    } else {
-      index = n->n.numChildren;
-    }
-    
-    // Set the child
-    n->keys[index] = c;
-    n->children[index] = child;
-    n->n.numChildren++;
-    
-    return 0;
-  }
-  
-  // convert Node16 to Node48
-  Node48* newNode = (Node48*) createNode(NODE48);
-  if (newNode == NULL) return errno;
-
-  // Copy the child pointers and populate the key map
-  memcpy(newNode->children, n->children, n->n.numChildren * sizeof(void*));
-  for (uint8_t i = 0; i < n->n.numChildren; ++i) {
-    newNode->keys[n->keys[i]] = i + 1;
-  }
-  copyNodeHeader((Node*) newNode, (const Node*) n);
-  *positionInParent = (Node*) newNode;
-  free(n);
-  
-  return addChild48(newNode, c, child, positionInParent);
-}
+#  undef _mm_cmple_epu8
+#  undef _mm_cmpge_epu8
+#  undef _mm_cmplt_epu8
+#  undef _mm_cmpgt_epu8
 #endif
 
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
@@ -1219,20 +1152,5 @@ static void printAtDepth(Node* const n, size_t depth)
 #  pragma GCC diagnostic pop
 #endif
 
-}
-
-#include <misc/simd.h>
-
-void misc_initART(misc_simd_instructionLevel i) {
-#ifdef __SSE2__
-  if (i >= MISC_INST_SSE2) {
-    findChildMatchingKey = &findChildMatchingKey_sse2;
-    addChild16 = &addChild16_sse2;
-  } else
-#endif
-  {
-    findChildMatchingKey = &findChildMatchingKey_c;
-    addChild16 = &addChild16_c;
-  }
 }
 

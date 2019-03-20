@@ -14,7 +14,7 @@
 }
 \usage{
 pdbart(x.train, y.train,
-       xind = seq_len(ncol(x.train)),
+       xind = NULL,
        levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
        pl = TRUE, plquants = c(0.05, 0.95),
        \dots)
@@ -25,10 +25,10 @@ pdbart(x.train, y.train,
      \dots)
       
 pd2bart(x.train, y.train,
-       xind = c(1, 2),
-       levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-       pl = TRUE, plquants = c(0.05, 0.95),
-       \dots)
+        xind = NULL,
+        levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
+        pl = TRUE, plquants = c(0.05, 0.95),
+        \dots)
       
 \method{plot}{pd2bart}(x,
      plquants = c(0.05, 0.95), contour.color = 'white',
@@ -37,23 +37,25 @@ pd2bart(x.train, y.train,
 }
 \arguments{
   \item{x.train}{
-    Explanatory variables for training (in sample) data. Must be a matrix of numeric type
-    with rows corresponding to observations and columns to variables. Categorical
-    variables/factors need to be converted to dummies, with a full set of columns present
-    if there are more than two levels.
-   }
-
-  \item{y.train}{
-    Dependent variable for training (in sample) data. Must be a numeric vector with length
-    equal to the number of rows in \code{x.train}.
+    Explanatory variables for training (in sample) data. Can be any valid input to \code{\link{bart}},
+    such as a matrix or a formula. Also accepted are fitted \code{bart} models or
+    \code{\link[=dbartsSampler-class]{dbartsSampler}} with \code{keepTrees} equal to \code{TRUE}.
   }
 
-   \item{xind}{
-     Integer vector indicating which variables are to be plotted.
-     In \code{pdbart}, corresponds to the variables (columns of \code{x.train}) for which a plot is to be constructed.
-     In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed.
-     In \code{pd2bart}, the indicies of a pair of variables (columns of \code{x.train}) to plot.
-   }
+  \item{y.train}{
+    Dependent variable for training (in sample) data. Can be a numeric vector or, when passing
+    \code{x.train} as a formula, a \code{data.frame} or other object used to find variables. Not
+    required if \code{x.train} is a fitted model or sampler.
+  }
+  
+  \item{xind}{
+    Integer, character vector, or the right-hand side of a formula indicating which variables are to be
+    plotted. In \code{pdbart}, corresponds to the variables (columns of \code{x.train}) for which a plot
+    is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by
+    \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indicies of a pair of
+    variables (columns of \code{x.train}) to plot. If \code{NULL} a default of all columns is used for
+    \code{pdbart} and the first two columns is used for \code{pd2bart}.
+  }
 
    \item{levs}{
      Gives the values of a variable at which the plot is to be constructed.
@@ -240,6 +242,13 @@ lmFit  <- lm(y ~., data.frame(x, y))
 fitmat <- cbind(y, Ey, lmFit$fitted, pdb1$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
+
+## example showing the use of a pre-fitted model
+df <- data.frame(y, x)
+set.seed(99)
+bartFit <- bart(y ~ rob + hugh + ed, df,
+                keepevery = 10, ntree = 100, keeptrees = TRUE)
+pdb1 <- pdbart(bartFit, xind = rob + ed, pl = FALSE)
 }}
 \keyword{nonparametric}
 \keyword{tree}

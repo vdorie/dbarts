@@ -639,7 +639,6 @@ build_os
 build_vendor
 build_cpu
 build
-SIMD_FLAGS
 EGREP
 GREP
 CXXCPP
@@ -656,6 +655,10 @@ CFLAGS
 CC
 thread_safe_unload
 match_bayes_tree
+AVX2_FLAG
+AVX_FLAG
+SSE4_1_FLAG
+SSE2_FLAG
 target_alias
 host_alias
 build_alias
@@ -2993,6 +2996,109 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 #m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
 #m4_include([tools/m4/ax_ext.m4])
 # ===========================================================================
+#    https://www.gnu.org/software/autoconf-archive/ax_compiler_vendor.html
+# ===========================================================================
+#
+# SYNOPSIS
+#
+#   AX_COMPILER_VENDOR
+#
+# DESCRIPTION
+#
+#   Determine the vendor of the C, C++ or Fortran compiler.  The vendor is
+#   returned in the cache variable $ax_cv_c_compiler_vendor for C,
+#   $ax_cv_cxx_compiler_vendor for C++ or $ax_cv_fc_compiler_vendor for
+#   (modern) Fortran.  The value is one of "intel", "ibm", "pathscale",
+#   "clang" (LLVM), "cray", "fujitsu", "sdcc", "sx", "portland" (PGI), "gnu"
+#   (GCC), "sun" (Oracle Developer Studio), "hp", "dec", "borland",
+#   "comeau", "kai", "lcc", "sgi", "microsoft", "metrowerks", "watcom",
+#   "tcc" (Tiny CC) or "unknown" (if the compiler cannot be determined).
+#
+#   To check for a Fortran compiler, you must first call AC_FC_PP_SRCEXT
+#   with an appropriate preprocessor-enabled extension.  For example:
+#
+#     AC_LANG_PUSH([Fortran])
+#     AC_PROG_FC
+#     AC_FC_PP_SRCEXT([F])
+#     AX_COMPILER_VENDOR
+#     AC_LANG_POP([Fortran])
+#
+# LICENSE
+#
+#   Copyright (c) 2008 Steven G. Johnson <stevenj@alum.mit.edu>
+#   Copyright (c) 2008 Matteo Frigo
+#   Copyright (c) 2018-19 John Zaitseff <J.Zaitseff@zap.org.au>
+#
+#   This program is free software: you can redistribute it and/or modify it
+#   under the terms of the GNU General Public License as published by the
+#   Free Software Foundation, either version 3 of the License, or (at your
+#   option) any later version.
+#
+#   This program is distributed in the hope that it will be useful, but
+#   WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+#   Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License along
+#   with this program. If not, see <https://www.gnu.org/licenses/>.
+#
+#   As a special exception, the respective Autoconf Macro's copyright owner
+#   gives unlimited permission to copy, distribute and modify the configure
+#   scripts that are the output of Autoconf when processing the Macro. You
+#   need not follow the terms of the GNU General Public License when using
+#   or distributing such scripts, even though portions of the text of the
+#   Macro appear in them. The GNU General Public License (GPL) does govern
+#   all other use of the material that constitutes the Autoconf Macro.
+#
+#   This special exception to the GPL applies to versions of the Autoconf
+#   Macro released by the Autoconf Archive. When you make and distribute a
+#   modified version of the Autoconf Macro, you may extend this special
+#   exception to the GPL to apply to your modified version as well.
+
+#serial 30
+
+
+# SYNOPSIS
+#
+#   AX_COMPILER_EXT
+#
+# DESCRIPTION
+#
+#   Checks compiler for support for SIMD extensions.#
+#   This macro calls:
+#
+#     AC_SUBST(SSE2_FLAGS)
+#     AC_SUBST(SSE4_1_FLAGS)
+#     AC_SUBST(AVX_FLAGS)
+#     AC_SUBST(AVX2_FLAGS)
+#
+#   And defines:
+#
+#     HAVE_MMX / HAVE_SSE / HAVE_SSE2
+#     HAVE_SSE3 / HAVE_SSSE3 / HAVE_SSE4_1 / HAVE_SSE4_2 / HAVE_SSE4a
+#     HAVE_AVX / HAVE_AVX2
+#
+# LICENSE
+#
+#   Copyright (c) 2007 Christophe Tournayre <turn3r@users.sourceforge.net>
+#   Copyright (c) 2013,2015 Michael Petch <mpetch@capp-sysware.com>
+#   Copyright (c) 2017 Rafael de Lucena Valle <rafaeldelucena@gmail.com>
+#
+#   Copying and distribution of this file, with or without modification, are
+#   permitted in any medium without royalty provided the copyright notice
+#   and this notice are preserved. This file is offered as-is, without any
+#   warranty.
+
+#serial 18
+
+
+
+
+
+
+
+
+# ===========================================================================
 #   http://www.gnu.org/software/autoconf-archive/ax_cxx_namespace_std.html
 # ===========================================================================
 #
@@ -3089,6 +3195,7 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 #   warranty.
 
 #serial 7
+
 
 
 
@@ -5201,8 +5308,120 @@ $as_echo "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
  esac
 
 
-#AX_EXT
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mmmx" >&5
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for C compiler vendor" >&5
+$as_echo_n "checking for C compiler vendor... " >&6; }
+if ${ax_cv_c_compiler_vendor+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+	vendors="
+		intel:		__ICC,__ECC,__INTEL_COMPILER
+		ibm:		__xlc__,__xlC__,__IBMC__,__IBMCPP__,__ibmxl__
+		pathscale:	__PATHCC__,__PATHSCALE__
+		clang:		__clang__
+		cray:		_CRAYC
+		fujitsu:	__FUJITSU
+		sdcc:		SDCC,__SDCC
+		sx:		_SX
+		portland:	__PGI
+		gnu:		__GNUC__
+		sun:		__SUNPRO_C,__SUNPRO_CC,__SUNPRO_F90,__SUNPRO_F95
+		hp:		__HP_cc,__HP_aCC
+		dec:		__DECC,__DECCXX,__DECC_VER,__DECCXX_VER
+		borland:	__BORLANDC__,__CODEGEARC__,__TURBOC__
+		comeau:		__COMO__
+		kai:		__KCC
+		lcc:		__LCC__
+		sgi:		__sgi,sgi
+		microsoft:	_MSC_VER
+		metrowerks:	__MWERKS__
+		watcom:		__WATCOMC__
+		tcc:		__TINYC__
+		unknown:	UNKNOWN
+	"
+	for ventest in $vendors; do
+	    case $ventest in
+		*:)
+		    vendor=$ventest
+		    continue
+		    ;;
+		*)
+		    vencpp="defined("`echo $ventest | sed 's/,/) || defined(/g'`")"
+		    ;;
+	    esac
+
+	    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+#if !($vencpp)
+      thisisanerror;
+#endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  break
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+	done
+
+	ax_cv_c_compiler_vendor=`echo $vendor | cut -d: -f1`
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_c_compiler_vendor" >&5
+$as_echo "$ax_cv_c_compiler_vendor" >&6; }
+
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts " >&5
+$as_echo_n "checking whether C compiler accepts ... " >&6; }
+if ${ax_cv_check_cflags__+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  "
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags__=yes
+else
+  ax_cv_check_cflags__=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags__" >&5
+$as_echo "$ax_cv_check_cflags__" >&6; }
+if test "x$ax_cv_check_cflags__" = xyes; then :
+  :
+else
+  :
+fi
+
+
+
+
+
+  SSE2_FLAG=""
+  SSE4_1_FLAG=""
+  AVX=""
+  AVX2=""
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mmmx" >&5
 $as_echo_n "checking whether C compiler accepts -mmmx... " >&6; }
 if ${ax_cv_check_cflags___mmmx+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5237,13 +5456,13 @@ else
   :
 fi
 
-if test x"$ax_cv_support_mmx_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -mmmx"
+  if test x"$ax_cv_support_mmx_ext" = x"yes"; then
 
 $as_echo "#define HAVE_MMX /**/" >>confdefs.h
 
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse" >&5
+  fi
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse" >&5
 $as_echo_n "checking whether C compiler accepts -msse... " >&6; }
 if ${ax_cv_check_cflags___msse+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5278,11 +5497,13 @@ else
   :
 fi
 
-if test x"$ax_cv_support_sse_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -msse"
-fi
+  if test x"$ax_cv_support_sse_ext" = x"yes"; then
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse2" >&5
+$as_echo "#define HAVE_SSE /**/" >>confdefs.h
+
+  fi
+
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse2" >&5
 $as_echo_n "checking whether C compiler accepts -msse2... " >&6; }
 if ${ax_cv_check_cflags___msse2+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5317,14 +5538,14 @@ else
   :
 fi
 
-if test x"$ax_cv_support_sse2_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -msse2"
+  if test x"$ax_cv_support_sse2_ext" = x"yes"; then
+    SSE2_FLAG="-msse2"
 
-$as_echo "#define HAVE_SSE2 /**/" >>confdefs.h
+$as_echo "#define HAVE_SSE2 1" >>confdefs.h
 
-fi
+  fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse3" >&5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse3" >&5
 $as_echo_n "checking whether C compiler accepts -msse3... " >&6; }
 if ${ax_cv_check_cflags___msse3+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5359,14 +5580,13 @@ else
   :
 fi
 
-if test x"$ax_cv_support_sse3_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -msse3"
+  if test x"$ax_cv_support_sse3_ext" = x"yes"; then
 
 $as_echo "#define HAVE_SSE3 /**/" >>confdefs.h
 
-fi
+  fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.1" >&5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.1" >&5
 $as_echo_n "checking whether C compiler accepts -msse4.1... " >&6; }
 if ${ax_cv_check_cflags___msse4_1+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5401,14 +5621,14 @@ else
   :
 fi
 
-if test x"$ax_cv_support_sse41_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -msse4.1"
+  if test x"$ax_cv_support_sse41_ext" = x"yes"; then
+    SSE4_1_FLAG="-msse4.1"
 
 $as_echo "#define HAVE_SSE4_1 /**/" >>confdefs.h
 
-fi
+  fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.2" >&5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.2" >&5
 $as_echo_n "checking whether C compiler accepts -msse4.2... " >&6; }
 if ${ax_cv_check_cflags___msse4_2+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5443,14 +5663,13 @@ else
   :
 fi
 
-if test x"$ax_cv_support_sse42_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -msse4.2"
+  if test x"$ax_cv_support_sse42_ext" = x"yes"; then
 
 $as_echo "#define HAVE_SSE4_2 /**/" >>confdefs.h
 
-fi
+  fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx" >&5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx" >&5
 $as_echo_n "checking whether C compiler accepts -mavx... " >&6; }
 if ${ax_cv_check_cflags___mavx+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5485,14 +5704,57 @@ else
   :
 fi
 
-if test x"$ax_cv_support_avx_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -mavx"
+  if test x"$ax_cv_support_avx_ext" = x"yes"; then
+    AVX_FLAG="-mavx"
 
 $as_echo "#define HAVE_AVX /**/" >>confdefs.h
 
+  fi
+
+  if test x"$ax_cv_c_compiler_vendor" = x"intel"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -xcore-avx2" >&5
+$as_echo_n "checking whether C compiler accepts -xcore-avx2... " >&6; }
+if ${ax_cv_check_cflags___xcore_avx2+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -xcore-avx2"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___xcore_avx2=yes
+else
+  ax_cv_check_cflags___xcore_avx2=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___xcore_avx2" >&5
+$as_echo "$ax_cv_check_cflags___xcore_avx2" >&6; }
+if test "x$ax_cv_check_cflags___xcore_avx2" = xyes; then :
+  ax_cv_support_avx2_ext=yes
+else
+  :
 fi
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx2" >&5
+    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
+      AVX2_FLAG="-xcore-avx2"
+
+$as_echo "#define HAVE_AVX2 /**/" >>confdefs.h
+
+    fi
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx2" >&5
 $as_echo_n "checking whether C compiler accepts -mavx2... " >&6; }
 if ${ax_cv_check_cflags___mavx2+:} false; then :
   $as_echo_n "(cached) " >&6
@@ -5527,12 +5789,28 @@ else
   :
 fi
 
-if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-  SIMD_FLAGS="$SIMD_FLAGS -mavx2"
+    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
+      AVX2_FLAG="-mavx2"
 
 $as_echo "#define HAVE_AVX2 /**/" >>confdefs.h
 
-fi
+    fi
+  fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -6735,7 +7013,7 @@ else
 /* end confdefs.h.  */
 
 #ifdef __STRICT_ANSI__
-#  define __USE_XOPEN2K 1
+#  define _XOPEN_SOURCE 500
 #endif
 #include <stdlib.h>
 

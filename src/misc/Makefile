@@ -1,9 +1,55 @@
+BOOL,true = true
+BOOL,1 = true
+BOOL,false = false
+BOOL,0 = false
+BOOL, = false
+OR,true,true  = true
+OR,true,false = true
+OR,false,true = true
+OR,false,false = false
+
+have.sse2.test,-msse2 = true
+have.sse2 = $(BOOL,$(have.sse2.test,$(SSE2_FLAG)))
+
+have.sse4.1.test,-msse4.1 = true
+have.sse4.1 = $(BOOL,$(have.sse4.1.test,$(SSE4_1_FLAG)))
+
+have.avx.test,-mavx = true
+have.avx = $(BOOL,$(have.avx.test,$(AVX_FLAG)))
+
+have.avx2.gcc.test,-mavx2 = true
+have.avx2.gcc = $(BOOL,$(have.avx2.gcc.test,$(AVX2_FLAG)))
+
+have.avx2.icc.test,-xcore-avx2 = true
+have.avx2.icc = $(BOOL,$(have.avx2.icc.test,$(AVX2_FLAG)))
+
+have.avx2 = $(OR,$(have.avx2.gcc),$(have.avx2.icc))
+
+
 INCLUDE_DIR=../include
 
 PKG_CPPFLAGS=-I$(INCLUDE_DIR) $(PTHREAD_FLAGS)
 
-LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c
-LOCAL_OBJECTS=adaptiveRadixTree.o binaryIO.o blockingThreadManager.o hierarchicalThreadManager.o linearAlgebra.o moments.o partition.o simd.o string.o thread.o
+simd.source.sse2.true = linearAlgebra_sse2.c moments_sse2.c partition_sse2.c
+simd.source.sse2.false = 
+simd.source.sse2 = $(simd.source.sse2.$(have.sse2))
+
+simd.source.sse4.1.true = $(simd.source.sse2) partition_sse4_1.c
+simd.source.sse4.1.false = $(simd.source.sse2)
+simd.source.sse4.1 = $(simd.source.sse4.1.$(have.sse4.1))
+
+simd.source.avx.true = $(simd.source.sse4.1) linearAlgebra_avx.c
+simd.source.avx.false = $(simd.source.sse4.1)
+simd.source.avx = $(simd.source.avx.$(have.avx))
+
+simd.source.avx2.true = $(simd.source.avx) partition_avx2.c
+simd.source.avx2.false = $(simd.source.avx)
+
+simd.sources = $(simd.source.avx2.$(have.avx2))
+simd.objects = $(simd.sources:.c=.o)
+
+LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c $(simd.sources)
+LOCAL_OBJECTS=adaptiveRadixTree.o binaryIO.o blockingThreadManager.o hierarchicalThreadManager.o linearAlgebra.o moments.o partition.o simd.o string.o thread.o $(simd.objects)
 
 all : library
 
@@ -30,7 +76,7 @@ $(INCLUDE_DIR)/misc/string.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/thread.h : $(INCLUDE_DIR)/misc/stddef.h
 
 adaptiveRadixTree.o : adaptiveRadixTree.c $(INCLUDE_DIR)/misc/adaptiveRadixTree.h
-	$(CC) $(ALL_CPPFLAGS) $(SIMD_FLAGS) $(CFLAGS) -c adaptiveRadixTree.c -o adaptiveRadixTree.o
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c adaptiveRadixTree.c -o adaptiveRadixTree.o
 
 binaryIO.o : binaryIO.c $(INCLUDE_DIR)/misc/binaryIO.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c binaryIO.c -o binaryIO.o
@@ -42,16 +88,58 @@ hierarchicalThreadManager.o : hierarchicalThreadManager.c $(INCLUDE_DIR)/misc/th
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c hierarchicalThreadManager.c -o hierarchicalThreadManager.o
 
 linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/misc/linearAlgebra.h
-	$(CC) $(ALL_CPPFLAGS) $(SIMD_FLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
+
+linearAlgebra.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c linearAlgebra_sse2.c -o linearAlgebra_sse2.o
+linearAlgebra.sse2.false = touch linearAlgebra_sse2.o
+compile.linearAlgebra.sse2 = $(linearAlgebra.sse2.$(have.sse2))
+
+linearAlgebra_sse2.o : linearAlgebra_sse2.c $(INCLUDE_DIR)/misc/linearAlgebra.h
+	$(compile.linearAlgebra.sse2)
+
+linearAlgebra.avx.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(AVX_FLAG) $(CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
+linearAlgebra.avx.false = touch linearAlgebra_avx.o
+compile.linearAlgebra.avx = $(linearAlgebra.avx.$(have.avx))
+
+linearAlgebra_avx.o : linearAlgebra_avx.c $(INCLUDE_DIR)/misc/linearAlgebra.h
+	$(compile.linearAlgebra.avx)
 
 moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h
-	$(CC) $(ALL_CPPFLAGS) $(SIMD_FLAGS) $(CFLAGS) -c moments.c -o moments.o
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
+
+moments.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c moments_sse2.c -o moments_sse2.o
+moments.sse2.false = touch moments_sse2.o
+compile.moments.sse2 = $(moments.sse2.$(have.sse2))
+
+moments_sse2.o : moments_sse2.c $(INCLUDE_DIR)/misc/stats.h
+	$(compile.moments.sse2)
 
 partition.o : partition.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
-	$(CC) $(ALL_CPPFLAGS) $(SIMD_FLAGS) $(CFLAGS) -c partition.c -o partition.o
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c partition.c -o partition.o
+
+partition.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c partition_sse2.c -o partition_sse2.o
+partition.sse2.false = touch partition_sse2.o
+compile.partition.sse2 = $(partition.sse2.$(have.sse2))
+
+partition_sse2.o : partition_sse2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
+	$(compile.partition.sse2)
+
+partition.sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(SSE4_1_FLAG) $(CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
+partition.sse4.1.false = touch partition_sse4_1.o
+compile.partition.sse4.1 = $(partition.sse4.1.$(have.sse4.1))
+
+partition_sse4_1.o : partition_sse4_1.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
+	$(compile.partition.sse4.1)
+
+partition.avx2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(SSE4_1_FLAG) $(AVX2_FLAG) $(CFLAGS) -c partition_avx2.c -o partition_avx2.o
+partition.avx2.false = touch partition_avx2.o
+compile.partition.avx2 = $(partition.avx2.$(have.avx2))
+
+partition_avx2.o : partition_avx2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
+	$(compile.partition.avx2)
 
 simd.o : simd.c $(INCLUDE_DIR)/misc/simd.h
-	$(CC) $(ALL_CPPFLAGS) $(SIMD_FLAGS) $(CFLAGS) -c simd.c -o simd.o
+	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c simd.c -o simd.o
 
 string.o : string.c $(INCLUDE_DIR)/misc/string.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c string.c -o string.o
