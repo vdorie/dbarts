@@ -46,7 +46,10 @@ namespace {
   void destroyRNG(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
   void setXIntegerCutMap(BARTFit& fit);
+  void setXIntegerCutMap(BARTFit& fit, const size_t* columns, size_t numColumns);
   void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test);
+  void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations,
+                             xint_t* xt_test, const size_t* columns, size_t numColumns);
   void setInitialFit(BARTFit& fit);
   
   void setPrior(BARTFit& fit);
@@ -216,9 +219,40 @@ namespace dbarts {
 }
 
 namespace {
-  bool updateTreesWithNewPredictor(const BARTFit& fit, State* state, ChainScratch* chainScratch, bool allowInvalid) {
+  void forceUpdateTrees(BARTFit& fit) {
     const Control& control(fit.control);
     const Data& data(fit.data);
+    State* state(fit.state);
+    ChainScratch* chainScratch(fit.chainScratch);
+    
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
+      
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        double* treeFits = const_cast<double*>(state[chainNum].treeFits + treeNum * data.numObservations);
+        
+        // duplicate old node parameters
+        double* nodePosteriorPredictions = state[chainNum].trees[treeNum].recoverAveragesFromFits(fit, treeFits);
+        
+        state[chainNum].trees[treeNum].top.addObservationsToChildren(fit);
+        state[chainNum].trees[treeNum].collapseEmptyNodes(fit, nodePosteriorPredictions);
+        // this could be combined with collapseEmptyNodes
+        for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j)
+          updateVariablesAvailable(fit, state[chainNum].trees[treeNum].top, j);
+                
+        state[chainNum].trees[treeNum].setCurrentFitsFromAverages(fit, nodePosteriorPredictions, treeFits, NULL);
+        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        
+        delete [] nodePosteriorPredictions;
+      }
+    }
+  }
+  
+  bool updateTreesWithNewPredictor(BARTFit& fit) {
+    const Control& control(fit.control);
+    const Data& data(fit.data);
+    State* state(fit.state);
+    ChainScratch* chainScratch(fit.chainScratch);
     
     size_t totalNumTrees = control.numTrees * control.numChains;
     double** nodePosteriorPredictions = new double*[totalNumTrees];
@@ -226,13 +260,11 @@ namespace {
       nodePosteriorPredictions[treeNum] = NULL;
     
     bool allTreesAreValid = true;
-    bool* allTreesInChainAreValid = misc_stackAllocate(control.numChains, bool);
     
-    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      allTreesInChainAreValid[chainNum] = true;
+    for (size_t chainNum = 0; chainNum < control.numChains && allTreesAreValid; ++chainNum) {
       
-      for (size_t treeNum = 0; treeNum < control.numTrees && allTreesInChainAreValid[chainNum] == true; ++treeNum) {
-        const double* treeFits = fit.state[chainNum].treeFits + treeNum * data.numObservations;
+      for (size_t treeNum = 0; treeNum < control.numTrees && allTreesAreValid; ++treeNum) {
+        const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
         
         // next allocates memory
         nodePosteriorPredictions[treeNum + chainNum * control.numTrees] = 
@@ -240,21 +272,17 @@ namespace {
         
         state[chainNum].trees[treeNum].top.addObservationsToChildren(fit);
         
-        bool isValid = state[chainNum].trees[treeNum].isValid();
-        allTreesAreValid &= isValid;
-        allTreesInChainAreValid[chainNum] &= isValid;
+        allTreesAreValid &= state[chainNum].trees[treeNum].isValid();
       }
     }
     
-    if (!allTreesAreValid && !allowInvalid) goto updateTreesWithNewPredictor_cleanup;
+    if (!allTreesAreValid) goto updateTreesWithNewPredictor_cleanup;
     
     // go back across bottoms and set predictions to those mus for obs now in node
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      if (!allTreesInChainAreValid[chainNum]) continue;
-      
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
-        double* posteriorPredictions = nodePosteriorPredictions[treeNum + chainNum * control.numTrees];
+        const double* posteriorPredictions = nodePosteriorPredictions[treeNum + chainNum * control.numTrees];
         
         misc_addVectorsInPlace(treeFits, data.numObservations, -1.0, chainScratch[chainNum].totalFits);
         
@@ -270,8 +298,6 @@ updateTreesWithNewPredictor_cleanup:
     for (size_t treeNum = totalNumTrees; treeNum > 0; --treeNum)
       delete [] nodePosteriorPredictions[treeNum - 1];
     
-    misc_stackFree(allTreesInChainAreValid);
-    
     delete [] nodePosteriorPredictions;
     
     return allTreesAreValid;
@@ -285,6 +311,7 @@ namespace dbarts {
     const double* oldPredictor = data.x;
     double** oldCutPoints = NULL;
     
+    // cache old cutpoints if necessary
     if (!forceUpdate && updateCutPoints) {
       oldCutPoints = new double*[data.numPredictors];
       for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -293,7 +320,10 @@ namespace dbarts {
       }
     }
     
+    data.x = newPredictor;
+    
     if (updateCutPoints) {
+      // find new cut points from default rule
       size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
       for (size_t i = 0; i < data.numPredictors; ++i) columns[i] = i;
       
@@ -302,19 +332,23 @@ namespace dbarts {
       misc_stackFree(columns);
     }
     
-    data.x = newPredictor;
-    
     setXIntegerCutMap(*this);
     
-    bool treesAreValid = updateTreesWithNewPredictor(*this, state, chainScratch, forceUpdate);
+    if (forceUpdate) {
+      forceUpdateTrees(*this);
+      if (data.numTestObservations > 0 && updateCutPoints)
+        setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
+      return true;
+    }
     
-    if (!forceUpdate && !treesAreValid) {
-      // rollback
+    bool treesAreValid = updateTreesWithNewPredictor(*this);
+    
+    // rollback
+    if (!treesAreValid) {
       data.x = oldPredictor;
       
-      if (updateCutPoints) for (size_t j = 0; j < data.numPredictors; ++j) {
+      if (updateCutPoints) for (size_t j = 0; j < data.numPredictors; ++j)
         std::memcpy(const_cast<double**>(cutPoints)[j], oldCutPoints[j], numCutsPerVariable[j] * sizeof(double));
-      }
       
       setXIntegerCutMap(*this);
             
@@ -322,9 +356,12 @@ namespace dbarts {
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
           state[chainNum].trees[treeNum].top.addObservationsToChildren(*this);
       }
+    } else {
+      if (updateCutPoints && data.numTestObservations > 0)
+        setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
     }
     
-    if (!forceUpdate && updateCutPoints) {
+    if (updateCutPoints) {
       for (size_t j = data.numPredictors; j > 0; --j) delete [] oldCutPoints[j - 1];
       delete [] oldCutPoints;
     }
@@ -337,10 +374,6 @@ namespace dbarts {
     // store current
     double* oldPredictor = NULL;
     double** oldCutPoints = NULL;
-    
-    /* ext_printf("updating predictor for columns %lu", columns[0]);
-    for (size_t j = 1; j < numColumns; ++j) ext_printf(", %lu", columns[j]);
-    ext_printf("; force = %s, cutpoints = %s\n", forceUpdate ? "true" : "false", updateCutPoints ? "true" : "false"); */
     
     if (!forceUpdate) {
       oldPredictor = new double[data.numObservations * numColumns];
@@ -357,86 +390,87 @@ namespace dbarts {
       }
     }
     
+    double* x = const_cast<double*>(data.x);
+    for (size_t j = 0; j < numColumns; ++j) {
+      size_t col = columns[j];
+      std::memcpy(x + col * data.numObservations, newPredictor + j * data.numObservations, data.numObservations * sizeof(double));
+    }
+    
     // install new
     if (updateCutPoints)
       ::setCutPoints(*this, columns, numColumns);
     
-    double* x = const_cast<double*>(data.x);
-    xint_t* xint = const_cast<xint_t*>(sharedScratch.x);
-    for (size_t j = 0; j < numColumns; ++j) {
-      size_t col = columns[j];
-      std::memcpy(x + col * data.numObservations, newPredictor + j * data.numObservations, data.numObservations * sizeof(double));
-      for (size_t i = 0; i < data.numObservations; ++i) {
-        xint_t k = 0;
-        while (k < numCutsPerVariable[col] &&
-               data.x[i + col * data.numObservations] > cutPoints[col][k]) ++k;
-        xint[i + col * data.numObservations] = k;
-      }
+    setXIntegerCutMap(*this, columns, numColumns);
+    
+    if (forceUpdate) {
+      forceUpdateTrees(*this);
+      if (data.numTestObservations > 0 && updateCutPoints)
+        setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations,
+                              const_cast<xint_t*>(sharedScratch.xt_test), columns, numColumns);
+      return true;
     }
     
-    bool treesAreValid = updateTreesWithNewPredictor(*this, state, chainScratch, forceUpdate);
+    bool treesAreValid = updateTreesWithNewPredictor(*this);
     
-    if (!forceUpdate && !treesAreValid) {
-      // rollback
+    if (!treesAreValid) {
       for (size_t j = 0; j < numColumns; ++j) {
         size_t col = columns[j];
         
         std::memcpy(x + col * data.numObservations, oldPredictor + j * data.numObservations, data.numObservations * sizeof(double));
         if (updateCutPoints)
           std::memcpy(const_cast<double**>(cutPoints)[col], oldCutPoints[j], numCutsPerVariable[col] * sizeof(double));
-          
-        for (size_t i = 0; i < data.numObservations; ++i) {
-          xint_t k = 0;
-          while (k < numCutsPerVariable[col] &&
-                 data.x[i + col * data.numObservations] > cutPoints[col][k]) ++k;
-          xint[i + col * data.numObservations] = k;
-        }
       }
+      setXIntegerCutMap(*this, columns, numColumns);
       
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
           state[chainNum].trees[treeNum].top.addObservationsToChildren(*this);
       }
+    } else {
+      if (updateCutPoints && data.numTestObservations > 0)
+        setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations,
+                              const_cast<xint_t*>(sharedScratch.xt_test), columns, numColumns);
     }
     
-    if (!forceUpdate) {
-      if (updateCutPoints) {
-        for (size_t j = numColumns; j > 0; --j) delete [] oldCutPoints[j - 1];
-        delete [] oldCutPoints;
-      }
-      delete [] oldPredictor;
+    if (updateCutPoints) {
+      for (size_t j = numColumns; j > 0; --j) delete [] oldCutPoints[j - 1];
+      delete [] oldCutPoints;
     }
+    delete [] oldPredictor;
     
     return treesAreValid;
   }
   
-  void BARTFit::setCutPoints(const double* const* cutPoints, const uint32_t* numCutPoints,
+  void BARTFit::setCutPoints(const double* const* newCutPoints, const uint32_t* numCutPoints,
                              const size_t* columns, size_t numColumns)
   {
     for (size_t j = 0; j < numColumns; ++j) {
-      if (numCutPoints[j] > static_cast<uint32_t>(((1 >> sizeof(xint_t)) - 1)))
+      if (numCutPoints[j] > static_cast<uint32_t>(((1 >> sizeof(xint_t)) - 1))) {
         ext_throwError("number of cut points for column %lu exceeds the max allowable; "
                         "recompile package with -with-xint-size=32 or 64");
-      
+      }
+    }
+    
+    // install the new cutpoints
+    for (size_t j = 0; j < numColumns; ++j) {
       size_t col = columns[j];
       if (numCutsPerVariable[col] != numCutPoints[j]) {
-        delete [] this->cutPoints[col];
-        const_cast<double**>(this->cutPoints)[col] = new double[numCutPoints[j]];
+        delete [] const_cast<double**>(cutPoints)[col];
+        const_cast<double**>(cutPoints)[col] = new double[numCutPoints[j]];
         const_cast<uint32_t*>(numCutsPerVariable)[col] = numCutPoints[j];
+        
+        if (data.maxNumCuts[col] <= numCutPoints[j])
+          const_cast<uint32_t*>(data.maxNumCuts)[col] = numCutPoints[j];
       }
-      std::memcpy(const_cast<double**>(this->cutPoints)[col], cutPoints[j], numCutPoints[j] * sizeof(double));
-      
-      for (size_t i = 0; i < data.numObservations; ++i) {
-        xint_t k = 0;
-        while (k < numCutsPerVariable[col] &&
-               data.x[i + col * data.numObservations] > this->cutPoints[col][k]) ++k;
-        const_cast<xint_t*>(sharedScratch.x)[i + col * data.numObservations] = k;
-      }
+        
+      std::memcpy(const_cast<double**>(cutPoints)[col], newCutPoints[j], numCutsPerVariable[col] * sizeof(double));
     }
-    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        state[chainNum].trees[treeNum].top.addObservationsToChildren(*this);
-    }
+    setXIntegerCutMap(*this, columns, numColumns);
+    if (data.numTestObservations > 0)
+      setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations,
+                              const_cast<xint_t*>(sharedScratch.xt_test), columns, numColumns);
+    
+    forceUpdateTrees(*this);
   }
   
 #define INVALID_ADDRESS reinterpret_cast<const double*>(this)
@@ -546,7 +580,7 @@ namespace dbarts {
    *   chainScratch.treeY         - just resize, is a temp array
    *   chainScratch.probitLatents - resize and initialize to new values
    *   sharedScratch.dataScale    - compute
-   *   sharedScratch.cutPoints and sharedScratch.numCutsPerVariable - compute from data.maxNumCuts and new data
+   *   cutPoints and numCutsPerVariable - compute from data.maxNumCuts and new data
    *
    *   state.trees         - we have to go through these and prune any now-invalid end nodes
    *   state.treeIndices   - resize and assign into trees
@@ -708,7 +742,7 @@ namespace dbarts {
     }
     
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      delete [] currTestFits[chainNum]; // can be NULL, no big deal
+      delete [] currTestFits[chainNum];
     
     for (size_t i = 0; i < data.numPredictors; ++i) delete [] oldCutPoints[i];
     misc_stackFree(oldCutPoints);
@@ -1526,8 +1560,8 @@ namespace {
     
     xint_t* x = const_cast<xint_t*>(fit.sharedScratch.x);
     
-    for (size_t i = 0; i < data.numObservations; ++i) {
-      for (size_t j = 0; j < data.numPredictors; ++j) {
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      for (size_t i = 0; i < data.numObservations; ++i) {
         
         xint_t k = 0;
         
@@ -1540,19 +1574,55 @@ namespace {
     }
   }
   
+  void setXIntegerCutMap(BARTFit& fit, const size_t* columns, size_t numColumns)
+  {
+    const Data& data(fit.data);
+    
+    xint_t* x = const_cast<xint_t*>(fit.sharedScratch.x);
+    
+    for (size_t j = 0; j < numColumns; ++j) {
+      size_t col = columns[j];
+      for (size_t i = 0; i < data.numObservations; ++i) {
+        xint_t k = 0;
+        while (k < fit.numCutsPerVariable[col] &&
+               data.x[i + col * data.numObservations] > fit.cutPoints[col][k]) ++k;
+        
+        x[i + col * data.numObservations] = k;
+      }
+    }
+  }
+  
   void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test)
   {
     const Data& data(fit.data);
     
-    for (size_t i = 0; i < numTestObservations; ++i) {
-      for (size_t j = 0; j < data.numPredictors; ++j) {
-        
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      for (size_t i = 0; i < numTestObservations; ++i) {
         xint_t k = 0;
         
         while (k < fit.numCutsPerVariable[j] &&
                x_test[i + j * numTestObservations] > fit.cutPoints[j][k]) ++k;
       
         xt_test[i * data.numPredictors + j] = k;
+      }
+    }
+  }
+  
+  void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations,
+                             xint_t* xt_test, const size_t* columns, size_t numColumns)
+  {
+    const Data& data(fit.data);
+    
+    for (size_t j = 0; j < numColumns; ++j) {
+      for (size_t i = 0; i < numTestObservations; ++i) {
+        size_t col = columns[j];
+        
+        xint_t k = 0;
+        
+        while (k < fit.numCutsPerVariable[col] &&
+               x_test[i + col * numTestObservations] > fit.cutPoints[col][k]) ++k;
+      
+        xt_test[i * data.numPredictors + col] = k;
       }
     }
   }

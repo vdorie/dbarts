@@ -626,7 +626,7 @@ dbartsSampler <-
                   ptr <- getPointer()
                   .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums)
                 },
-                plotTree = function(chainNum, sampleNum, treeNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
+                plotTree = function(treeNum, chainNum, sampleNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'
                   
                   matchedCall <- match.call()
@@ -637,28 +637,17 @@ dbartsSampler <-
                   if (is.null(matchedCall$sampleNum)) {
                     sampleNum <- if (control@keepTrees) control@n.samples else 1L
                   }
-                  cutPoints <- createCutPoints(.self)
                   
-                  treeString <-
-                    if (control@keepTrees) state[[chainNum]]@savedTrees[treeNum, sampleNum]
-                    else                   state[[chainNum]]@trees[treeNum]
-                  treeFits <-
-                    if (control@keepTrees) state[[chainNum]]@savedTreeFits[,treeNum, sampleNum]
-                    else                   state[[chainNum]]@treeFits[,treeNum]
+                  tree <-
+                    if (control@keepTrees) .self$getTrees(treeNum, chainNum, sampleNum)
+                    else                   .self$getTrees(treeNum, chainNum)
                   
-                  tree <- buildTree(strsplit(gsub("\\.", "\\. ", treeString), " ", fixed = TRUE)[[1]])
-                  tree$remainder <- NULL
+                  maxDepth <- getTreeDepthAndSize(tree)[["depth"]]
                   
-                  tree$indices <- seq_len(nrow(data@x))
-                  tree <- fillObservationsForNode(tree, .self, cutPoints)
-                  
-                  tree <- fillPlotInfoForNode(tree, .self, treeFits)
-                  
-                  maxDepth <- getMaxDepth(tree)
-                  
+                  tree <- cbind(tree, y = numeric(nrow(tree)), x = numeric(nrow(tree)), index = integer(nrow(tree)))
                   tree <- fillPlotCoordinatesForNode(tree, maxDepth, 1L, 1L)
-                  numEndNodes <- tree$index - 1L
-                  tree$index <- NULL
+                  numEndNodes <- tree$index[1L] - 1L
+                  #tree$index <- NULL
                   
                   plotHeight <- treePlotPars$nodeHeight * maxDepth + treePlotPars$nodeGap * (maxDepth - 1)
                   dotsList <- list(...)
@@ -666,7 +655,7 @@ dbartsSampler <-
                   par(dotsList)
                   plot(NULL, type = "n", bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "",
                        xlim = c(0, treePlotPars$nodeWidth * numEndNodes), ylim = c(0, plotHeight))
-                  plotNode(tree, .self, cutPoints, treePlotPars)
+                  plotNode(tree, .self, treePlotPars)
                   
                   invisible(NULL)
                 }

@@ -23,6 +23,8 @@ namespace dbarts {
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
     void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const xint_t* xt, std::size_t numObservations, double* fits);
     
+    // deals largely if there are a different number of cut points, since a tree could then conceivably have
+    // splits out of range
     void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions);
     void collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions);
     

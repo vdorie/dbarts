@@ -55,11 +55,33 @@ namespace dbarts {
     void setResponse(const double* newResponse); 
     void setOffset(const double* newOffset);
     
-    // returns true/false if update is successful; if forceUpdate is true, will prune empty leaves
+    /* These functions change the predictors or the cut points derived from them, and thus can change the
+     * trees. Consequently, they have differring semantics depending on intended use.
+     *
+     *   setPredictor/updatePredictor - for use in a sampler; set replaces 'x' in memory with
+     *                                  a different matrix, update modifies existing
+     *   setCutPoints - for use at the beginning of a process so that the cut points aren't
+     *                  derived from a random sample
+     *   setData - for use when fitting a model 'near' another model, so as to preserve 
+     *             the tree structure as a starting point
+     *
+     * Changing a predictor can mean that some nodes are empty and the tree would have 0 prior
+     * probability. Consequently, setPredictor and updatePredictor can roll back the change
+     * and be used in a rejection-sampling scheme.
+     * 
+     * Changing cut points can invalidate trees by leaving a node empty as before, but if the number of
+     * cut points change it is also possible to cause a tree to prematurely exhaust all available splits.
+     *
+     * setPredictor, updatePredictor, and setCutPoints - as they are meant to be used within a single
+     * context - view the cutpoints as real numbers and don't attempt to preserve the tree structure.
+     * setData will attempt to map the old cut points onto new ones so as to preserve as much of
+     * the tree as possible.
+     */
+    // updateCutPoints == true uses the default rule and max number of cut points set elsewhere
     bool setPredictor(const double* newPredictor, bool forceUpdate, bool updateCutPoints);
     bool updatePredictor(const double* newPredictor, const std::size_t* columns, std::size_t numColumns, bool forceUpdate, bool updateCutPoints); 
-    
     void setCutPoints(const double* const* cutPoints, const std::uint32_t* numCutPoints, const std::size_t* columns, std::size_t numColumns);
+    void setData(const Data& data);
     
     void setTestPredictor(const double* newTestPredictor, std::size_t numTestObservations);
     void setTestOffset(const double* newTestOffset);
@@ -79,10 +101,7 @@ namespace dbarts {
                                       const size_t* sampleIndices, size_t numSampleIndices,
                                       const size_t* treeIndices, size_t numTreeIndices) const;
     
-    // this assumes that the new data has as many predictors as the old, and that they correspond to each other;
-    // it'll attempt to map cut points from the old to the new, and prune any trees that may have been left in an
-    // invalid state
-    void setData(const Data& data);
+    
     // the new control must have the same number of chains as the previous or else prob seg fault
     void setControl(const Control& control);
     void setModel(const Model& model);

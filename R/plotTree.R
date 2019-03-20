@@ -1,128 +1,93 @@
-buildTree <- function(treeChars)
+getTreeDepthAndSize <- function(node)
 {
-  if (treeChars[1] == ".") return(list(remainder = treeChars[-1]))
+  if (node$var[1L] == -1) return(c(depth = 1, size = 1))
   
-  splitVar <- as.integer(treeChars[1]) + 1L
-  splitIndex <- as.integer(treeChars[2]) + 1L
+  left  <- getTreeDepthAndSize(node[-1L,,drop = FALSE])
+  right <- getTreeDepthAndSize(node[seq.int(2L + left[["size"]], nrow(node)),,drop = FALSE])
   
-  leftChild <- buildTree(treeChars[-c(1, 2)])
-  rightChild <- buildTree(leftChild$remainder)
-  leftChild$remainder <- NULL
-  remainder <- rightChild$remainder
-  rightChild$remainder <- NULL
-  
-  result <- namedList(splitVar, splitIndex, leftChild, rightChild, remainder)
-  leftChild$parent <- result
-  rightChild$parent <- result
-  
-  result
-}
-
-fillObservationsForNode <- function(node, sampler, cutPoints)
-{
-  if (!is.null(node$leftChild)) {
-    goesLeft <- sampler$data@x[node$indices, node$splitVar] <= cutPoints[[node$splitVar]][node$splitIndex]
-    node$leftChild$indices  <- node$indices[goesLeft]
-    node$rightChild$indices <- node$indices[!goesLeft]
-    
-    node$leftChild  <- fillObservationsForNode(node$leftChild,  sampler, cutPoints)
-    node$rightChild <- fillObservationsForNode(node$rightChild, sampler, cutPoints)
-  }
-  node
-}
-
-fillPlotInfoForNode <- function(node, sampler, treeFits)
-{
-  if (!is.null(node$leftChild)) {
-    node$leftChild  <- fillPlotInfoForNode(node$leftChild,  sampler, treeFits)
-    node$rightChild <- fillPlotInfoForNode(node$rightChild, sampler, treeFits)
-  } else {
-    node$mu <- treeFits[node$indices[1]]
-  }
-  node
-}
-
-getNumEndNodes <- function(node)
-{
-  if (!is.null(node$leftChild))
-    return(getNumEndNodes(node$leftChild) + getNumEndNodes(node$rightChild))
-  1
-}
-
-getMaxDepth <- function(node)
-{
-  if (!is.null(node$leftChild))
-    return(1 + max(getMaxDepth(node$leftChild), getMaxDepth(node$rightChild)))
-  1
+  c(depth = 1 + max(left[["depth"]], right[["depth"]]), size = 1 + left[["size"]] + right[["size"]])
 }
 
 fillPlotCoordinatesForNode <- function(node, maxDepth, currDepth, index)
 {
-  if (is.null(node$leftChild)) {
-    node$y <- 1L # maxDepth
-    node$x <- index
-    node$index <- index + 1L
+  if (node$var[1L] == -1) {
+    node$y[1L] <- 1 # maxDepth
+    node$x[1L] <- index
+    node$index[1L] <- index + 1L
     return(node)
   }
   
-  node$leftChild <- fillPlotCoordinatesForNode(node$leftChild, maxDepth, currDepth + 1L, index)
-  index <- node$leftChild$index
-  node$leftChild$index <- NULL
-  node$rightChild <- fillPlotCoordinatesForNode(node$rightChild, maxDepth, currDepth + 1L, index)
-  node$index <- node$rightChild$index
-  node$rightChild$index <- NULL
+  leftSize  <- getTreeDepthAndSize(node[-1L,,drop = FALSE])
   
-  node$y <- maxDepth - currDepth + 1L
-  node$x <- (node$leftChild$x + node$rightChild$x) / 2
+  leftNodes  <- seq.int(2L, 1L + leftSize[["size"]])
+  rightNodes <- seq.int(2L + leftSize[["size"]], nrow(node))
+  
+  left <- node[leftNodes,,drop = FALSE]
+  left <- fillPlotCoordinatesForNode(left, maxDepth, currDepth + 1L, index)
+  index <- left$index[1L]
+  left$index[1L] <- NA_integer_
+  
+  right <- node[rightNodes,,drop = FALSE]
+  right <- fillPlotCoordinatesForNode(right, maxDepth, currDepth + 1L, index)
+  node$index[1L] <- right$index[1L]
+  right$index[1L] <- NA_integer_
+  
+  node$y[1L] <- maxDepth - currDepth + 1L
+  node$x[1L] <- (left$x[1L] + right$x[1L]) / 2
+  
+  node[leftNodes,] <- left
+  node[rightNodes,] <- right
   node
 }
 
-plotNode <- function(node, sampler, cutPoints, plotPars)
+plotNode <- function(node, sampler, plotPars)
 {
   compress <- FALSE
-  if (!is.null(node$leftChild)) {
+  if (node$var[1L] != -1) {
     expr1 <- expression(a <= b)
     if (!is.null(colnames(sampler$data@x))) {
-      expr1[[1]][[2]] <- colnames(sampler$data@x)[node$splitVar]
+      expr1[[1]][[2]] <- colnames(sampler$data@x)[node$var[1L]]
     } else {
       expr1[[1]][[2]] <- quote(x[a])
-      expr1[[1]][[2]][[3]] <- node$splitVar
+      expr1[[1]][[2]][[3]] <- node$var[1L]
     }
-    expr1[[1]][[3]] <- signif(cutPoints[[node$splitVar]][node$splitIndex], 2)
+    expr1[[1]][[3]] <- signif(node$value[1L], 3)
   } else {
     expr1 <- expression(mu == b)
-    expr1[[1]][[3]] <- signif(node$mu, 2)
+    expr1[[1]][[3]] <- signif(node$value[1L], 3)
   }
-  if (length(node$indices) <= 4) {
-    expr2 <- expression(i == group("(", list(a), ")"))
-    for (i in seq_along(node$indices))
-      expr2[[1]][[3]][[3]][[1 + i]] <- node$indices[i]
-    compress <- TRUE
-  } else {
-    expr2 <- expression(n == a)
-    expr2[[1]][[3]] <- length(node$indices)
-  }
+  expr2 <- expression(n == a)
+  expr2[[1]][[3]] <- node$n[1L]
+  
   plotExpr <- expression(atop(a, b))
   plotExpr[[1]][[2]] <- expr1[[1]]
   plotExpr[[1]][[3]] <- expr2[[1]]
-  y <- node$y * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (node$y - 1) * plotPars$nodeGap
-  x <- node$x * plotPars$nodeWidth - plotPars$nodeWidth / 2
+  y <- node$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (node$y[1L] - 1) * plotPars$nodeGap
+  x <- node$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
   
   cex <- par("cex")
   verticalOffset <- graphics::strheight("\n", cex = cex) / 2
   graphics::text(x, y + verticalOffset, expr1, adj = c(0.5, 0.5), cex = cex)
   graphics::text(x, y - verticalOffset, expr2, adj = c(0.5, 0.5), cex = cex * if (compress) 0.8 else 1)
   
-  if (!is.null(node$leftChild)) {
-    plotNode(node$leftChild, sampler, cutPoints, plotPars)
-    plotNode(node$rightChild, sampler, cutPoints, plotPars)
+  if (node$var[1L] != -1) {
+    leftSize  <- getTreeDepthAndSize(node[-1L,,drop = FALSE])
     
-    y.l <- node$leftChild$y * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (node$leftChild$y - 1) * plotPars$nodeGap
-    x.l <- node$leftChild$x * plotPars$nodeWidth - plotPars$nodeWidth / 2
-    y.r <- node$rightChild$y * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (node$rightChild$y - 1) * plotPars$nodeGap
-    x.r <- node$rightChild$x * plotPars$nodeWidth - plotPars$nodeWidth / 2
+    leftNodes  <- seq.int(2L, 1L + leftSize[["size"]])
+    rightNodes <- seq.int(2L + leftSize[["size"]], nrow(node))
     
-    skippedSpace <- (node$y - node$leftChild$y - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
+    left  <- node[ leftNodes,,drop = FALSE]
+    right <- node[rightNodes,,drop = FALSE]
+    
+    plotNode(left, sampler, plotPars)
+    plotNode(right, sampler, plotPars)
+    
+    y.l <- left$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (left$y[1L] - 1) * plotPars$nodeGap
+    x.l <- left$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
+    y.r <- right$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (right$y[1L] - 1) * plotPars$nodeGap
+    x.r <- right$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
+    
+    skippedSpace <- (node$y[1L] - left$y[1L] - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
     
     y.m <- (y + y.l) / 2
     x.m <- (x + x.l) / 2
@@ -134,7 +99,7 @@ plotNode <- function(node, sampler, cutPoints, plotPars)
     x.2 <- x.m - segmentLength * cos(theta)
     lines(c(x.1, x.2), c(y.1, y.2))
     
-    skippedSpace <- (node$y - node$rightChild$y - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
+    skippedSpace <- (node$y[1L] - right$y[1L] - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
     
     y.m <- (y.r + y) / 2
     x.m <- (x.r + x) / 2
@@ -148,31 +113,3 @@ plotNode <- function(node, sampler, cutPoints, plotPars)
   }
 }
 
-createCutPoints <- function(sampler)
-{
-  if (sampler$control@useQuantiles) {
-    cutter <- function(j) {
-      uniqueElements <- unique(sampler$data@x[,j])
-      numUnique <- length(uniqueElements)
-      if (numUnique <= sampler$data@n.cuts[j] + 1L) {
-        numCuts <- numUnique - 1L
-        step <- 1L
-        offset <- 0L
-      } else {
-        numCuts <- sampler$data@n.cuts[j]
-        step <- numUnique %/% numCuts
-        offset <- step %/% 2
-      }
-      indices <- sapply(seq.int(0L, numCuts - 1L) * step + offset, function(x) min(x, numUnique - 2L)) + 1L
-      sortedElements <- sort(uniqueElements)
-      (sortedElements[indices] + sortedElements[indices + 1L]) / 2
-    }
-  } else {
-    cutter <- function(j) {
-      m <- min(sampler$data@x[,j]); M <- max(sampler$data@x[,j])
-      inc <- (M - m) / (sampler$data@n.cuts[j] + 1)
-      m + inc * seq_len(sampler$data@n.cuts[j])
-    }
-  }
-  return(lapply(seq_len(ncol(sampler$data@x)), cutter))
-}
