@@ -790,8 +790,17 @@ extern "C" {
       int variable_i = static_cast<int>(flattenedTrees.variable[i]);
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
-      
-      std::sprintf(buffer, "%zu", i + 1);
+
+#if __cplusplus <= 199711L && defined(__MINGW32__)
+#  ifdef _WIN64
+#    define SIZE_T_FMT "%I64u"
+#  else
+#    define SIZE_T_FMT "%I32u"
+#  endif
+#else
+#  define SIZE_T_FMT "%zu"
+#endif
+      std::sprintf(buffer, SIZE_T_FMT, i + 1);
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);
     }
