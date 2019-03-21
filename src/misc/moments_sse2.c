@@ -5,7 +5,7 @@
 
 #include <misc/intrinsic.h>
 
-double computeUnrolledMean_sse2(const double* x, size_t length)
+double misc_computeUnrolledMean_sse2(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -45,7 +45,7 @@ double computeUnrolledMean_sse2(const double* x, size_t length)
   return result / (double) length;
 }
 
-double computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length)
+double misc_computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -78,7 +78,7 @@ double computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* r
   return result / (double) length;
 }
 
-double computeOnlineUnrolledMean_sse2(const double* x, size_t length)
+double misc_computeOnlineUnrolledMean_sse2(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -116,7 +116,7 @@ double computeOnlineUnrolledMean_sse2(const double* x, size_t length)
   return result;
 }
 
-double computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length)
+double misc_computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -147,7 +147,7 @@ double computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, const siz
   return result;
 }
 
-double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
+double misc_computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -198,7 +198,7 @@ double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, 
   return result / (double) (length - 1);
 }
 
-double computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+double misc_computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -243,7 +243,7 @@ double computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x,
   return result / (double) (length - 1);
 }
 
-double computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
+double misc_computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -292,7 +292,7 @@ double computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t le
   return result;
 }
 
-double computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+double misc_computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -337,7 +337,7 @@ double computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restr
   return result;
 }
 
-double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
+double misc_computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -418,7 +418,7 @@ double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length,
   return result / n;
 }
 
-double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
+double misc_computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -467,7 +467,7 @@ double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, const s
   return result / n;
 }
 
-double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
+double misc_computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -547,7 +547,7 @@ double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, size_t l
   return result;
 }
 
-double computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
+double misc_computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -601,7 +601,7 @@ double computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restrict x, c
   return result;
 }
 
-double computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
+double misc_computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -681,7 +681,7 @@ double computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x
   return result / (double) (length - 1);
 }
 
-double computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+double misc_computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -731,7 +731,7 @@ double computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* res
   return result / (double) (length - 1);
 }
 
-double computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
+double misc_computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -812,7 +812,7 @@ double computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* rest
   return result;
 }
 
-double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+double misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;

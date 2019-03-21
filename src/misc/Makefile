@@ -25,21 +25,21 @@ INCLUDE_DIR=../include
 PKG_CPPFLAGS=-I$(INCLUDE_DIR) $(PTHREAD_FLAGS)
 
 simd.source.sse2.true = linearAlgebra_sse2.c moments_sse2.c partition_sse2.c
-simd.source.sse2.false = 
+simd.source.sse2.false =
 simd.source.sse2 = $(simd.source.sse2.$(have.sse2))
 
-simd.source.sse4.1.true = $(simd.source.sse2) partition_sse4_1.c
-simd.source.sse4.1.false = $(simd.source.sse2)
-simd.source.sse4.1 = $(simd.source.sse4.1.$(have.sse4.1))
+simd.source.sse4.1.true = partition_sse4_1.c
+simd.source.sse4.1.false =
+simd.source.sse4.1 = $(simd.source.sse2) $(simd.source.sse4.1.$(have.sse4.1))
 
-simd.source.avx.true = $(simd.source.sse4.1) linearAlgebra_avx.c
-simd.source.avx.false = $(simd.source.sse4.1)
-simd.source.avx = $(simd.source.avx.$(have.avx))
+simd.source.avx.true = linearAlgebra_avx.c
+simd.source.avx.false =
+simd.source.avx = $(simd.source.sse4.1) $(simd.source.avx.$(have.avx))
 
-simd.source.avx2.true = $(simd.source.avx) partition_avx2.c
-simd.source.avx2.false = $(simd.source.avx)
+simd.source.avx2.true = partition_avx2.c
+simd.source.avx2.false = 
 
-simd.sources = $(simd.source.avx2.$(have.avx2))
+simd.sources = $(simd.source.avx) $(simd.source.avx2.$(have.avx2))
 simd.objects = $(simd.sources:.c=.o)
 
 LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c $(simd.sources)
@@ -64,7 +64,7 @@ $(INCLUDE_DIR)/misc/intrinsic.h :
 $(INCLUDE_DIR)/misc/linearAlgebra.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/partition.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/simd.h :
-$(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h $(INCLUDE_DIR)/misc/thread.h $(INCLUDE_DIR)/misc/simd.h
+$(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h $(INCLUDE_DIR)/misc/thread.h
 $(INCLUDE_DIR)/misc/stddef.h :
 $(INCLUDE_DIR)/misc/string.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/thread.h : $(INCLUDE_DIR)/misc/stddef.h
@@ -98,7 +98,7 @@ compile.linearAlgebra.avx = $(linearAlgebra.avx.$(have.avx))
 linearAlgebra_avx.o : linearAlgebra_avx.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	$(compile.linearAlgebra.avx)
 
-moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h
+moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
 
 moments.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c moments_sse2.c -o moments_sse2.o
@@ -141,5 +141,5 @@ string.o : string.c $(INCLUDE_DIR)/misc/string.h
 thread.o : thread.c $(INCLUDE_DIR)/misc/thread.h pthread.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c thread.c -o thread.o
 
-partition_impl.c : 
+partition_body.c : 
 

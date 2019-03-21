@@ -86,22 +86,22 @@
 // mean
 UNUSED static double computeMean                     (const double* restrict x, size_t length);
 UNUSED static double computeIndexedMean              (const double* restrict x, const size_t* restrict indices, size_t length);
-double (*computeUnrolledMean)(const double* x, size_t length) = 0;
-double (*computeIndexedUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
+static double (*computeUnrolledMean)(const double* x, size_t length) = 0;
+static double (*computeIndexedUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
 UNUSED static double computeOnlineMean               (const double* restrict x, size_t length);
 UNUSED static double computeIndexedOnlineMean        (const double* restrict x, const size_t* restrict indices, size_t length);
-double (*computeOnlineUnrolledMean)(const double* restrict x, size_t length) = 0;
-double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
+static double (*computeOnlineUnrolledMean)(const double* restrict x, size_t length) = 0;
+static double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length) = 0;
 
 // var for known mean
 UNUSED static double computeVarianceForKnownMean                     (const double* x, size_t length, double mean);
 UNUSED static double computeIndexedVarianceForKnownMean              (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean) = 0;
-double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
+static double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean) = 0;
+static double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
 UNUSED static double computeOnlineVarianceForKnownMean               (const double* restrict x, size_t length, double mean);
 UNUSED static double computeIndexedOnlineVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-double (*computeOnlineUnrolledVarianceForKnownMean)(const double* restrict x, size_t length, double mean) = 0;
-double (*computeIndexedOnlineUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
+static double (*computeOnlineUnrolledVarianceForKnownMean)(const double* restrict x, size_t length, double mean) = 0;
+static double (*computeIndexedOnlineUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean) = 0;
 
 // variance and mean together
 UNUSED static double computeVariance                     (const double* restrict x, size_t length, double* restrict meanPtr);
@@ -116,22 +116,22 @@ static double computeIndexedOnlineUnrolledVariance(const double* restrict x, con
 // weighted mean
 UNUSED static double computeWeightedMean                     (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
 UNUSED static double computeIndexedWeightedMean              (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-double (*computeUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
-double (*computeIndexedUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
+static double (*computeUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
+static double (*computeIndexedUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 UNUSED static double computeOnlineWeightedMean               (const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
 UNUSED static double computeIndexedOnlineWeightedMean        (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-double (*computeOnlineUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
-double (*computeIndexedOnlineUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
+static double (*computeOnlineUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr) = 0;
+static double (*computeIndexedOnlineUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr) = 0;
 
 // weighted variance for known mean
 UNUSED static double computeWeightedVarianceForKnownMean                     (const double* restrict x, size_t length, const double* restrict w, double mean);
 UNUSED static double computeIndexedWeightedVarianceForKnownMean              (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-double (*computeUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
-double (*computeIndexedUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeIndexedUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
 UNUSED static double computeOnlineWeightedVarianceForKnownMean               (const double* restrict x, size_t length, const double* restrict w, double mean);
 UNUSED static double computeIndexedOnlineWeightedVarianceForKnownMean        (const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-double (*computeOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
-double (*computeIndexedOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean) = 0;
+static double (*computeIndexedOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean) = 0;
 
 // static double mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length);
 // static double mt_computeIndexedMean(misc_mt_manager_t restrict threadManager, const double* restrict x, const size_t* indices, size_t length);
@@ -359,7 +359,7 @@ static double computeIndexedMean(const double* restrict x, const size_t* restric
   return result / (double) length;
 }
 
-double computeUnrolledMean_c(const double* x, size_t length)
+static double computeUnrolledMean_c(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -379,7 +379,7 @@ double computeUnrolledMean_c(const double* x, size_t length)
   return result / (double) length;
 }
 
-double computeIndexedUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length)
+static double computeIndexedUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -417,7 +417,7 @@ static double computeIndexedOnlineMean(const double* restrict x, const size_t* r
   return result;
 }
 
-double computeOnlineUnrolledMean_c(const double* x, size_t length)
+static double computeOnlineUnrolledMean_c(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -437,7 +437,7 @@ double computeOnlineUnrolledMean_c(const double* x, size_t length)
   return result;
 }
 
-double computeIndexedOnlineUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length)
+static double computeIndexedOnlineUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length)
 {
   if (length == 0) return 0.0;
   
@@ -477,7 +477,7 @@ static double computeIndexedVarianceForKnownMean(const double* restrict x, const
   return result / (double) (length - 1);
 }
 
-double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
+static double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -502,7 +502,7 @@ double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, dou
   return result / (double) (length - 1);
 }
 
-double computeIndexedUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+static double computeIndexedUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -549,7 +549,7 @@ static double computeIndexedOnlineVarianceForKnownMean(const double* restrict x,
   return result;
 }
 
-double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
+static double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -574,7 +574,7 @@ double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t lengt
   return result;
 }
 
-double computeIndexedOnlineUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+static double computeIndexedOnlineUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -848,7 +848,7 @@ static double computeIndexedWeightedMean(const double* restrict x, const size_t*
   return result / n;
 }
 
-double computeUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
+static double computeUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -871,7 +871,7 @@ double computeUnrolledWeightedMean_c(const double* restrict x, size_t length, co
   return result / n;
 }
 
-double computeIndexedUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
+static double computeIndexedUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -925,7 +925,7 @@ static double computeIndexedOnlineWeightedMean(const double* restrict x, const s
   return result;
 }
 
-double computeOnlineUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
+static double computeOnlineUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -956,7 +956,7 @@ double computeOnlineUnrolledWeightedMean_c(const double* restrict x, size_t leng
   return result;
 }
 
-double computeIndexedOnlineUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
+static double computeIndexedOnlineUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
@@ -1008,7 +1008,7 @@ static double computeIndexedWeightedVarianceForKnownMean(const double* restrict 
   return result / (double) (length - 1);
 }
 
-double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
+static double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1033,7 +1033,7 @@ double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, s
   return result / (double) (length - 1);
 }
 
-double computeIndexedUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+static double computeIndexedUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1084,7 +1084,7 @@ static double computeIndexedOnlineWeightedVarianceForKnownMean(const double* res
   return result;
 }
 
-double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
+static double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1109,7 +1109,7 @@ double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restric
   return result;
 }
 
-double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
@@ -1132,6 +1132,72 @@ double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const double* 
   }
   
   return result;
+}
+
+#include <misc/simd.h>
+
+#ifdef HAVE_SSE2
+extern double misc_computeUnrolledMean_sse2(const double* x, size_t length);
+extern double misc_computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length);
+extern double misc_computeOnlineUnrolledMean_sse2(const double* x, size_t length);
+extern double misc_computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length);
+extern double misc_computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean);
+extern double misc_computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+extern double misc_computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean);
+extern double misc_computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
+extern double misc_computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
+extern double misc_computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
+extern double misc_computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
+extern double misc_computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
+extern double misc_computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean);
+extern double misc_computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
+extern double misc_computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean);
+extern double misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
+#endif
+
+void misc_stat_setSIMDInstructionSet(misc_simd_instructionLevel i)
+{
+#ifdef HAVE_SSE2
+  if (i >= MISC_INST_SSE2) {
+    computeUnrolledMean = &misc_computeUnrolledMean_sse2;
+    computeOnlineUnrolledMean = &misc_computeOnlineUnrolledMean_sse2;
+    computeIndexedUnrolledMean = &misc_computeIndexedUnrolledMean_sse2;
+    computeIndexedOnlineUnrolledMean = &misc_computeIndexedOnlineUnrolledMean_sse2;
+    computeUnrolledWeightedMean = &misc_computeUnrolledWeightedMean_sse2;
+    computeIndexedUnrolledWeightedMean = &misc_computeIndexedUnrolledWeightedMean_sse2;
+    computeOnlineUnrolledWeightedMean = &misc_computeOnlineUnrolledWeightedMean_sse2;
+    computeIndexedOnlineUnrolledWeightedMean = &misc_computeIndexedOnlineUnrolledWeightedMean_sse2;
+    
+    computeUnrolledVarianceForKnownMean = &misc_computeUnrolledVarianceForKnownMean_sse2;
+    computeIndexedUnrolledVarianceForKnownMean = &misc_computeIndexedUnrolledVarianceForKnownMean_sse2;
+    computeOnlineUnrolledVarianceForKnownMean = &misc_computeOnlineUnrolledVarianceForKnownMean_sse2;
+    computeIndexedOnlineUnrolledVarianceForKnownMean = &misc_computeIndexedOnlineUnrolledVarianceForKnownMean_sse2;
+    computeUnrolledWeightedVarianceForKnownMean = &misc_computeUnrolledWeightedVarianceForKnownMean_sse2;
+    computeIndexedUnrolledWeightedVarianceForKnownMean = &misc_computeIndexedUnrolledWeightedVarianceForKnownMean_sse2;
+    computeOnlineUnrolledWeightedVarianceForKnownMean = &misc_computeOnlineUnrolledWeightedVarianceForKnownMean_sse2;
+    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2;
+  } else
+#endif
+  {
+    computeUnrolledMean = &computeUnrolledMean_c;
+    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_c;
+    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_c;
+    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_c;
+    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_c;
+    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_c;
+    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_c;
+    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_c;
+    
+    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_c;
+    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_c;
+    computeOnlineUnrolledVarianceForKnownMean = &computeOnlineUnrolledVarianceForKnownMean_c;
+    computeIndexedOnlineUnrolledVarianceForKnownMean = &computeIndexedOnlineUnrolledVarianceForKnownMean_c;
+    computeUnrolledWeightedVarianceForKnownMean = &computeUnrolledWeightedVarianceForKnownMean_c;
+    computeIndexedUnrolledWeightedVarianceForKnownMean = &computeIndexedUnrolledWeightedVarianceForKnownMean_c;
+    computeOnlineUnrolledWeightedVarianceForKnownMean = &computeOnlineUnrolledWeightedVarianceForKnownMean_c;
+    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c;
+  }
+
 }
 
 // below this, multithreaded madness

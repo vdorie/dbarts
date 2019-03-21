@@ -55,23 +55,6 @@ extern size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_
 // linear algebra
 extern void (*misc_addVectors)(const double* restrict x, misc_size_t length, double alpha, const double* restrict y, double* restrict z);
 extern void (*misc_setVectorToConstant)(double* x, size_t length, double alpha);
-// moments
-extern double (*computeUnrolledMean)(const double* x, size_t length);
-extern double (*computeIndexedUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double (*computeOnlineUnrolledMean)(const double* restrict x, size_t length);
-extern double (*computeIndexedOnlineUnrolledMean)(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double (*computeUnrolledVarianceForKnownMean)(const double* x, size_t length, double mean);
-extern double (*computeIndexedUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double (*computeOnlineUnrolledVarianceForKnownMean)(const double* restrict x, size_t length, double mean);
-extern double (*computeIndexedOnlineUnrolledVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double (*computeUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double (*computeIndexedUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double (*computeOnlineUnrolledWeightedMean)(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double (*computeIndexedOnlineUnrolledWeightedMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double (*computeUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double (*computeIndexedUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-extern double (*computeOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double (*computeIndexedOnlineUnrolledWeightedVarianceForKnownMean)(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
 
 
 /* implementing functions */
@@ -95,22 +78,6 @@ extern size_t misc_partitionRange_sse2(const misc_xint_t* restrict x, misc_xint_
 extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern void misc_addVectors_sse2(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
 extern void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha);
-extern double computeUnrolledMean_sse2(const double* x, size_t length);
-extern double computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double computeOnlineUnrolledMean_sse2(const double* x, size_t length);
-extern double computeIndexedOnlineUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean);
-extern double computeIndexedUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size_t length, double mean);
-extern double computeIndexedOnlineUnrolledVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double computeUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeIndexedUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeIndexedOnlineUnrolledWeightedMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-extern double computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
 #endif
 
 // partition
@@ -119,29 +86,14 @@ extern size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t
 // linearAlgebra
 extern void misc_addVectors_c(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
 extern void misc_setVectorToConstant_c(double* x, size_t length, double alpha);
-// moments
-extern double computeUnrolledMean_c(const double* x, size_t length);
-extern double computeIndexedUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double computeOnlineUnrolledMean_c(const double* x, size_t length);
-extern double computeIndexedOnlineUnrolledMean_c(const double* restrict x, const size_t* restrict indices, size_t length);
-extern double computeUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean);
-extern double computeIndexedUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double computeOnlineUnrolledVarianceForKnownMean_c(const double* x, size_t length, double mean);
-extern double computeIndexedOnlineUnrolledVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, double mean);
-extern double computeUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeIndexedUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeOnlineUnrolledWeightedMean_c(const double* restrict x, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeIndexedOnlineUnrolledWeightedMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr);
-extern double computeUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double computeIndexedUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
-extern double computeOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, size_t length, const double* restrict w, double mean);
-extern double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
 
 void misc_simd_init(void) {
   misc_simd_instructionLevel i = misc_simd_getMaxSIMDInstructionSet();
   
   misc_simd_setSIMDInstructionSet(i);
 }
+
+extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionLevel i);
 
 void misc_simd_setSIMDInstructionSet(misc_simd_instructionLevel i)
 {
@@ -154,48 +106,6 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionLevel i)
   // default to base C implementations
   
   if (i < MISC_INST_C || i > MISC_INST_AVX512F) return;
-  
-  // moments
-#ifdef HAVE_SSE2
-  if (i >= MISC_INST_SSE2) {
-    computeUnrolledMean = &computeUnrolledMean_sse2;
-    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_sse2;
-    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_sse2;
-    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_sse2;
-    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_sse2;
-    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_sse2;
-    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_sse2;
-    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_sse2;
-    
-    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_sse2;
-    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_sse2;
-    computeOnlineUnrolledVarianceForKnownMean = &computeOnlineUnrolledVarianceForKnownMean_sse2;
-    computeIndexedOnlineUnrolledVarianceForKnownMean = &computeIndexedOnlineUnrolledVarianceForKnownMean_sse2;
-    computeUnrolledWeightedVarianceForKnownMean = &computeUnrolledWeightedVarianceForKnownMean_sse2;
-    computeIndexedUnrolledWeightedVarianceForKnownMean = &computeIndexedUnrolledWeightedVarianceForKnownMean_sse2;
-    computeOnlineUnrolledWeightedVarianceForKnownMean = &computeOnlineUnrolledWeightedVarianceForKnownMean_sse2;
-    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2;
-  } else
-#endif
-  {
-    computeUnrolledMean = &computeUnrolledMean_c;
-    computeOnlineUnrolledMean = &computeOnlineUnrolledMean_c;
-    computeIndexedUnrolledMean = &computeIndexedUnrolledMean_c;
-    computeIndexedOnlineUnrolledMean = &computeIndexedOnlineUnrolledMean_c;
-    computeUnrolledWeightedMean = &computeUnrolledWeightedMean_c;
-    computeIndexedUnrolledWeightedMean = &computeIndexedUnrolledWeightedMean_c;
-    computeOnlineUnrolledWeightedMean = &computeOnlineUnrolledWeightedMean_c;
-    computeIndexedOnlineUnrolledWeightedMean = &computeIndexedOnlineUnrolledWeightedMean_c;
-    
-    computeUnrolledVarianceForKnownMean = &computeUnrolledVarianceForKnownMean_c;
-    computeIndexedUnrolledVarianceForKnownMean = &computeIndexedUnrolledVarianceForKnownMean_c;
-    computeOnlineUnrolledVarianceForKnownMean = &computeOnlineUnrolledVarianceForKnownMean_c;
-    computeIndexedOnlineUnrolledVarianceForKnownMean = &computeIndexedOnlineUnrolledVarianceForKnownMean_c;
-    computeUnrolledWeightedVarianceForKnownMean = &computeUnrolledWeightedVarianceForKnownMean_c;
-    computeIndexedUnrolledWeightedVarianceForKnownMean = &computeIndexedUnrolledWeightedVarianceForKnownMean_c;
-    computeOnlineUnrolledWeightedVarianceForKnownMean = &computeOnlineUnrolledWeightedVarianceForKnownMean_c;
-    computeIndexedOnlineUnrolledWeightedVarianceForKnownMean = &computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c;
-  }
   
 #ifdef HAVE_AVX2
   if (i >= MISC_INST_AVX2) {
@@ -236,6 +146,8 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionLevel i)
     misc_addVectors = &misc_addVectors_c;
     misc_setVectorToConstant = &misc_setVectorToConstant_c;
   }
+  
+  misc_stat_setSIMDInstructionSet(i);
 }
 
 

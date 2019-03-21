@@ -2992,9 +2992,6 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 # information on what to do *after* running autoupdate.
 
 
-#m4_include([tools/m4/ax_gcc_x86_cpuid.m4])
-#m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
-#m4_include([tools/m4/ax_ext.m4])
 # ===========================================================================
 #    https://www.gnu.org/software/autoconf-archive/ax_compiler_vendor.html
 # ===========================================================================
