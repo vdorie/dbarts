@@ -1,7 +1,9 @@
 #include <rc/util.h>
 
+#include <errno.h>
 #include <stdarg.h>
-#include <stddef.h> // size_t
+#include <misc/stddef.h> // size_t
+#include <stdlib.h> // atoi
 #include <string.h> // strncmp
 
 SEXP rc_setDims(SEXP obj, ...)
@@ -54,3 +56,50 @@ bool rc_isS4Null(SEXP obj)
   return false;
 }
 
+static char* rc_strdup(const char* c) {
+  size_t len = strlen(c);
+  char* result = (char*) malloc(len + 1);
+  if (result != NULL) memcpy(result, c, len + 1);
+  return result;
+}
+
+int rc_getRuntimeVersion(int* major, int* minor, int* revision)
+{
+  *major = -1, *minor = -1, *revision = -1;
+  SEXP versionFunction = PROTECT(Rf_findVarInFrame(R_BaseNamespace, Rf_install("R.Version")));
+  if (versionFunction == R_UnboundValue) {
+    UNPROTECT(1);
+    return ENXIO;
+  }
+  SEXP closure = PROTECT(Rf_lang1(versionFunction));
+  SEXP version = PROTECT(Rf_eval(closure, R_GlobalEnv));
+  if (Rf_isNull(version)) {
+    UNPROTECT(3);
+    return ENOSYS;
+  }
+  
+  R_xlen_t versionLength = XLENGTH(version);
+  SEXP versionNames = rc_getNames(version);
+  for (R_xlen_t i = 0; i < versionLength; ++i) {
+    if (strcmp(CHAR(STRING_ELT(versionNames, i)), "major") == 0) {
+      *major = atoi(CHAR(STRING_ELT(VECTOR_ELT(version, i), 0)));
+    } else if (strcmp(CHAR(STRING_ELT(versionNames, i)), "minor") == 0) {
+      char* minorString = rc_strdup(CHAR(STRING_ELT(VECTOR_ELT(version, i), 0)));
+      int period = 0;
+      for ( ; minorString[period] != '.' && minorString[period] != '\0'; ++period) ;
+      if (minorString[period] == '.') {
+        minorString[period] = '\0';
+        *minor = atoi(minorString);
+        if (minorString[period + 1] != '\0')
+          *revision = atoi(minorString + period + 1);
+      } else {
+        *minor = atoi(minorString);
+        *revision = 0;
+      }
+      free(minorString);
+    }
+  }
+  UNPROTECT(3);
+  
+  return (*major >= 0 && *minor >= 0 && *revision >= 0) ? 0 : EPROTO;
+}

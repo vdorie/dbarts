@@ -50,6 +50,8 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length);
 
 bool rc_isS4Null(SEXP obj);
 
+int rc_getRuntimeVersion(int* major, int* minor, int* revision);
+
 #ifdef __cplusplus
 }
 #endif
