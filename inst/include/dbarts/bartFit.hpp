@@ -97,9 +97,9 @@ namespace dbarts {
     void printTrees(const std::size_t* chains, std::size_t numChains,
                     const std::size_t* samples, std::size_t numSamples,
                     const std::size_t* indices, std::size_t numIndices) const;
-    FlattenedTrees* getFlattenedTrees(const size_t* chainIndices, size_t numChainIndices,
-                                      const size_t* sampleIndices, size_t numSampleIndices,
-                                      const size_t* treeIndices, size_t numTreeIndices) const;
+    FlattenedTrees* getFlattenedTrees(const std::size_t* chainIndices,  std::size_t numChainIndices,
+                                      const std::size_t* sampleIndices, std::size_t numSampleIndices,
+                                      const std::size_t* treeIndices,   std::size_t numTreeIndices) const;
     
     
     // the new control must have the same number of chains as the previous or else prob seg fault

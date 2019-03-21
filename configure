@@ -1657,6 +1657,97 @@ $as_echo "$ac_res" >&6; }
 
 } # ac_fn_c_check_header_compile
 
+# ac_fn_c_check_header_mongrel LINENO HEADER VAR INCLUDES
+# -------------------------------------------------------
+# Tests whether HEADER exists, giving a warning if it cannot be compiled using
+# the include files in INCLUDES and setting the cache variable VAR
+# accordingly.
+ac_fn_c_check_header_mongrel ()
+{
+  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+  if eval \${$3+:} false; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+$as_echo_n "checking for $2... " >&6; }
+if eval \${$3+:} false; then :
+  $as_echo_n "(cached) " >&6
+fi
+eval ac_res=\$$3
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+else
+  # Is the header compilable?
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 usability" >&5
+$as_echo_n "checking $2 usability... " >&6; }
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+$4
+#include <$2>
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ac_header_compiler=yes
+else
+  ac_header_compiler=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_compiler" >&5
+$as_echo "$ac_header_compiler" >&6; }
+
+# Is the header present?
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 presence" >&5
+$as_echo_n "checking $2 presence... " >&6; }
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <$2>
+_ACEOF
+if ac_fn_c_try_cpp "$LINENO"; then :
+  ac_header_preproc=yes
+else
+  ac_header_preproc=no
+fi
+rm -f conftest.err conftest.i conftest.$ac_ext
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_preproc" >&5
+$as_echo "$ac_header_preproc" >&6; }
+
+# So?  What about this header?
+case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in #((
+  yes:no: )
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&5
+$as_echo "$as_me: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&2;}
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
+    ;;
+  no:yes:* )
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: present but cannot be compiled" >&5
+$as_echo "$as_me: WARNING: $2: present but cannot be compiled" >&2;}
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     check for missing prerequisite headers?" >&5
+$as_echo "$as_me: WARNING: $2:     check for missing prerequisite headers?" >&2;}
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: see the Autoconf documentation" >&5
+$as_echo "$as_me: WARNING: $2: see the Autoconf documentation" >&2;}
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&5
+$as_echo "$as_me: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&2;}
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
+$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
+( $as_echo "## ------------------------------- ##
+## Report this to vdorie@gmail.com ##
+## ------------------------------- ##"
+     ) | sed "s/^/$as_me: WARNING:     /" >&2
+    ;;
+esac
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+$as_echo_n "checking for $2... " >&6; }
+if eval \${$3+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  eval "$3=\$ac_header_compiler"
+fi
+eval ac_res=\$$3
+	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+$as_echo "$ac_res" >&6; }
+fi
+  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+
+} # ac_fn_c_check_header_mongrel
+
 # ac_fn_c_try_link LINENO
 # -----------------------
 # Try to link conftest.$ac_ext, and return whether this succeeded.
@@ -1793,97 +1884,6 @@ fi
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_cxx_check_header_mongrel
-
-# ac_fn_c_check_header_mongrel LINENO HEADER VAR INCLUDES
-# -------------------------------------------------------
-# Tests whether HEADER exists, giving a warning if it cannot be compiled using
-# the include files in INCLUDES and setting the cache variable VAR
-# accordingly.
-ac_fn_c_check_header_mongrel ()
-{
-  as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
-  if eval \${$3+:} false; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
-$as_echo_n "checking for $2... " >&6; }
-if eval \${$3+:} false; then :
-  $as_echo_n "(cached) " >&6
-fi
-eval ac_res=\$$3
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-else
-  # Is the header compilable?
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 usability" >&5
-$as_echo_n "checking $2 usability... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-$4
-#include <$2>
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ac_header_compiler=yes
-else
-  ac_header_compiler=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_compiler" >&5
-$as_echo "$ac_header_compiler" >&6; }
-
-# Is the header present?
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking $2 presence" >&5
-$as_echo_n "checking $2 presence... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-#include <$2>
-_ACEOF
-if ac_fn_c_try_cpp "$LINENO"; then :
-  ac_header_preproc=yes
-else
-  ac_header_preproc=no
-fi
-rm -f conftest.err conftest.i conftest.$ac_ext
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_header_preproc" >&5
-$as_echo "$ac_header_preproc" >&6; }
-
-# So?  What about this header?
-case $ac_header_compiler:$ac_header_preproc:$ac_c_preproc_warn_flag in #((
-  yes:no: )
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&5
-$as_echo "$as_me: WARNING: $2: accepted by the compiler, rejected by the preprocessor!" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
-$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
-    ;;
-  no:yes:* )
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: present but cannot be compiled" >&5
-$as_echo "$as_me: WARNING: $2: present but cannot be compiled" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     check for missing prerequisite headers?" >&5
-$as_echo "$as_me: WARNING: $2:     check for missing prerequisite headers?" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: see the Autoconf documentation" >&5
-$as_echo "$as_me: WARNING: $2: see the Autoconf documentation" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&5
-$as_echo "$as_me: WARNING: $2:     section \"Present But Cannot Be Compiled\"" >&2;}
-    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
-$as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
-( $as_echo "## ------------------------------- ##
-## Report this to vdorie@gmail.com ##
-## ------------------------------- ##"
-     ) | sed "s/^/$as_me: WARNING:     /" >&2
-    ;;
-esac
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
-$as_echo_n "checking for $2... " >&6; }
-if eval \${$3+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  eval "$3=\$ac_header_compiler"
-fi
-eval ac_res=\$$3
-	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-$as_echo "$ac_res" >&6; }
-fi
-  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
-
-} # ac_fn_c_check_header_mongrel
 
 # ac_fn_c_find_intX_t LINENO BITS VAR
 # -----------------------------------
@@ -5377,444 +5377,6 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_c_compiler_vendor" >&5
 $as_echo "$ax_cv_c_compiler_vendor" >&6; }
 
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts " >&5
-$as_echo_n "checking whether C compiler accepts ... " >&6; }
-if ${ax_cv_check_cflags__+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  "
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags__=yes
-else
-  ax_cv_check_cflags__=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags__" >&5
-$as_echo "$ax_cv_check_cflags__" >&6; }
-if test "x$ax_cv_check_cflags__" = xyes; then :
-  :
-else
-  :
-fi
-
-
-
-
-
-  SSE2_FLAG=""
-  SSE4_1_FLAG=""
-  AVX=""
-  AVX2=""
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mmmx" >&5
-$as_echo_n "checking whether C compiler accepts -mmmx... " >&6; }
-if ${ax_cv_check_cflags___mmmx+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -mmmx"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___mmmx=yes
-else
-  ax_cv_check_cflags___mmmx=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mmmx" >&5
-$as_echo "$ax_cv_check_cflags___mmmx" >&6; }
-if test "x$ax_cv_check_cflags___mmmx" = xyes; then :
-  ax_cv_support_mmx_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_mmx_ext" = x"yes"; then
-
-$as_echo "#define HAVE_MMX /**/" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse" >&5
-$as_echo_n "checking whether C compiler accepts -msse... " >&6; }
-if ${ax_cv_check_cflags___msse+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -msse"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___msse=yes
-else
-  ax_cv_check_cflags___msse=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse" >&5
-$as_echo "$ax_cv_check_cflags___msse" >&6; }
-if test "x$ax_cv_check_cflags___msse" = xyes; then :
-  ax_cv_support_sse_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_sse_ext" = x"yes"; then
-
-$as_echo "#define HAVE_SSE /**/" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse2" >&5
-$as_echo_n "checking whether C compiler accepts -msse2... " >&6; }
-if ${ax_cv_check_cflags___msse2+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -msse2"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___msse2=yes
-else
-  ax_cv_check_cflags___msse2=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse2" >&5
-$as_echo "$ax_cv_check_cflags___msse2" >&6; }
-if test "x$ax_cv_check_cflags___msse2" = xyes; then :
-  ax_cv_support_sse2_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_sse2_ext" = x"yes"; then
-    SSE2_FLAG="-msse2"
-
-$as_echo "#define HAVE_SSE2 1" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse3" >&5
-$as_echo_n "checking whether C compiler accepts -msse3... " >&6; }
-if ${ax_cv_check_cflags___msse3+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -msse3"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___msse3=yes
-else
-  ax_cv_check_cflags___msse3=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse3" >&5
-$as_echo "$ax_cv_check_cflags___msse3" >&6; }
-if test "x$ax_cv_check_cflags___msse3" = xyes; then :
-  ax_cv_support_sse3_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_sse3_ext" = x"yes"; then
-
-$as_echo "#define HAVE_SSE3 /**/" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.1" >&5
-$as_echo_n "checking whether C compiler accepts -msse4.1... " >&6; }
-if ${ax_cv_check_cflags___msse4_1+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -msse4.1"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___msse4_1=yes
-else
-  ax_cv_check_cflags___msse4_1=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse4_1" >&5
-$as_echo "$ax_cv_check_cflags___msse4_1" >&6; }
-if test "x$ax_cv_check_cflags___msse4_1" = xyes; then :
-  ax_cv_support_sse41_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_sse41_ext" = x"yes"; then
-    SSE4_1_FLAG="-msse4.1"
-
-$as_echo "#define HAVE_SSE4_1 /**/" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.2" >&5
-$as_echo_n "checking whether C compiler accepts -msse4.2... " >&6; }
-if ${ax_cv_check_cflags___msse4_2+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -msse4.2"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___msse4_2=yes
-else
-  ax_cv_check_cflags___msse4_2=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse4_2" >&5
-$as_echo "$ax_cv_check_cflags___msse4_2" >&6; }
-if test "x$ax_cv_check_cflags___msse4_2" = xyes; then :
-  ax_cv_support_sse42_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_sse42_ext" = x"yes"; then
-
-$as_echo "#define HAVE_SSE4_2 /**/" >>confdefs.h
-
-  fi
-
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx" >&5
-$as_echo_n "checking whether C compiler accepts -mavx... " >&6; }
-if ${ax_cv_check_cflags___mavx+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -mavx"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___mavx=yes
-else
-  ax_cv_check_cflags___mavx=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mavx" >&5
-$as_echo "$ax_cv_check_cflags___mavx" >&6; }
-if test "x$ax_cv_check_cflags___mavx" = xyes; then :
-  ax_cv_support_avx_ext=yes
-else
-  :
-fi
-
-  if test x"$ax_cv_support_avx_ext" = x"yes"; then
-    AVX_FLAG="-mavx"
-
-$as_echo "#define HAVE_AVX /**/" >>confdefs.h
-
-  fi
-
-  if test x"$ax_cv_c_compiler_vendor" = x"intel"; then
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -xcore-avx2" >&5
-$as_echo_n "checking whether C compiler accepts -xcore-avx2... " >&6; }
-if ${ax_cv_check_cflags___xcore_avx2+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -xcore-avx2"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___xcore_avx2=yes
-else
-  ax_cv_check_cflags___xcore_avx2=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___xcore_avx2" >&5
-$as_echo "$ax_cv_check_cflags___xcore_avx2" >&6; }
-if test "x$ax_cv_check_cflags___xcore_avx2" = xyes; then :
-  ax_cv_support_avx2_ext=yes
-else
-  :
-fi
-
-    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-      AVX2_FLAG="-xcore-avx2"
-
-$as_echo "#define HAVE_AVX2 /**/" >>confdefs.h
-
-    fi
-  else
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx2" >&5
-$as_echo_n "checking whether C compiler accepts -mavx2... " >&6; }
-if ${ax_cv_check_cflags___mavx2+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -mavx2"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  ax_cv_check_cflags___mavx2=yes
-else
-  ax_cv_check_cflags___mavx2=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mavx2" >&5
-$as_echo "$ax_cv_check_cflags___mavx2" >&6; }
-if test "x$ax_cv_check_cflags___mavx2" = xyes; then :
-  ax_cv_support_avx2_ext=yes
-else
-  :
-fi
-
-    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-      AVX2_FLAG="-mavx2"
-
-$as_echo "#define HAVE_AVX2 /**/" >>confdefs.h
-
-    fi
-  fi
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Checks for libraries.
 # Make sure we can run config.sub.
 $SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
   as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
@@ -5886,6 +5448,327 @@ IFS=$ac_save_IFS
 case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
 
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts " >&5
+$as_echo_n "checking whether C compiler accepts ... " >&6; }
+if ${ax_cv_check_cflags__+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  "
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags__=yes
+else
+  ax_cv_check_cflags__=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags__" >&5
+$as_echo "$ax_cv_check_cflags__" >&6; }
+if test "x$ax_cv_check_cflags__" = xyes; then :
+  :
+else
+  :
+fi
+
+
+
+
+
+
+
+  SSE2_FLAG=""
+  SSE4_1_FLAG=""
+  AVX_FLAG=""
+  AVX2_FLAG=""
+
+  case $host_cpu in
+  i[3456]86*|x86_64*|amd64*)
+
+    case "$ax_cv_c_compiler_vendor" in
+    sun)
+      as_ac_Header=`$as_echo "ac_cv_header_"xmmintrin.h"" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" ""xmmintrin.h"" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+
+        ax_cv_support_sse2_ext=yes
+        SSE2_FLAG="-xarch=sse2"
+
+fi
+
+
+      as_ac_Header=`$as_echo "ac_cv_header_"nmmintrin.h"" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" ""nmmintrin.h"" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+
+        ax_cv_support_sse4_1_ext=yes
+        SSE4_1_FLAG="-xarch=sse4_1"
+
+fi
+
+
+      as_ac_Header=`$as_echo "ac_cv_header_"immintrin.h"" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" ""immintrin.h"" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+
+        ax_cv_support_avx_ext=yes
+        ax_cv_support_avx2_ext=yes
+        AVX_FLAG="-xarch=avx"
+        AVX2_FLAG="-xarch=avx2"
+
+fi
+
+
+      ;;
+
+    *)
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse2" >&5
+$as_echo_n "checking whether C compiler accepts -msse2... " >&6; }
+if ${ax_cv_check_cflags___msse2+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -msse2"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___msse2=yes
+else
+  ax_cv_check_cflags___msse2=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse2" >&5
+$as_echo "$ax_cv_check_cflags___msse2" >&6; }
+if test "x$ax_cv_check_cflags___msse2" = xyes; then :
+
+        ax_cv_support_sse2_ext=yes
+        SSE2_FLAG=-msse2
+
+else
+  :
+fi
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -msse4.1" >&5
+$as_echo_n "checking whether C compiler accepts -msse4.1... " >&6; }
+if ${ax_cv_check_cflags___msse4_1+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -msse4.1"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___msse4_1=yes
+else
+  ax_cv_check_cflags___msse4_1=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___msse4_1" >&5
+$as_echo "$ax_cv_check_cflags___msse4_1" >&6; }
+if test "x$ax_cv_check_cflags___msse4_1" = xyes; then :
+
+        ax_cv_support_sse4_1_ext=yes
+        SSE4_1_FLAG=-msse4.1
+
+else
+  :
+fi
+
+      { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx" >&5
+$as_echo_n "checking whether C compiler accepts -mavx... " >&6; }
+if ${ax_cv_check_cflags___mavx+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -mavx"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___mavx=yes
+else
+  ax_cv_check_cflags___mavx=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mavx" >&5
+$as_echo "$ax_cv_check_cflags___mavx" >&6; }
+if test "x$ax_cv_check_cflags___mavx" = xyes; then :
+
+        ax_cv_support_avx_ext=yes
+        AVX_FLAG=-mavx
+
+else
+  :
+fi
+
+      if test x"$ax_cv_c_compiler_vendor" = x"intel"; then
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -xcore-avx2" >&5
+$as_echo_n "checking whether C compiler accepts -xcore-avx2... " >&6; }
+if ${ax_cv_check_cflags___xcore_avx2+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -xcore-avx2"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___xcore_avx2=yes
+else
+  ax_cv_check_cflags___xcore_avx2=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___xcore_avx2" >&5
+$as_echo "$ax_cv_check_cflags___xcore_avx2" >&6; }
+if test "x$ax_cv_check_cflags___xcore_avx2" = xyes; then :
+
+          ax_cv_support_avx2_ext=yes
+          AVX2_FLAG=-xcore-avx2
+
+else
+  :
+fi
+
+      else
+        { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mavx2" >&5
+$as_echo_n "checking whether C compiler accepts -mavx2... " >&6; }
+if ${ax_cv_check_cflags___mavx2+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -mavx2"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  ax_cv_check_cflags___mavx2=yes
+else
+  ax_cv_check_cflags___mavx2=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mavx2" >&5
+$as_echo "$ax_cv_check_cflags___mavx2" >&6; }
+if test "x$ax_cv_check_cflags___mavx2" = xyes; then :
+
+          ax_cv_support_avx2_ext=yes
+          AVX2_FLAG=-mavx2
+
+else
+  :
+fi
+
+      fi
+    ;;
+    esac
+  ;;
+  esac
+
+  if test x"$ax_cv_support_sse2_ext" = x"yes"; then
+
+$as_echo "#define HAVE_SSE2 1" >>confdefs.h
+
+  fi
+
+  if test x"$ax_cv_support_sse41_ext" = x"yes"; then
+
+$as_echo "#define HAVE_SSE4_1 1" >>confdefs.h
+
+  fi
+
+  if test x"$ax_cv_support_avx_ext" = x"yes"; then
+
+$as_echo "#define HAVE_AVX 1" >>confdefs.h
+
+  fi
+
+  if test x"$ax_cv_support_avx2_ext" = x"yes"; then
+
+$as_echo "#define HAVE_AVX2 1" >>confdefs.h
+
+  fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Checks for libraries.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for a sed that does not truncate output" >&5
 $as_echo_n "checking for a sed that does not truncate output... " >&6; }
 if ${ac_cv_path_SED+:} false; then :
@@ -7013,7 +6896,7 @@ else
 /* end confdefs.h.  */
 
 #ifdef __STRICT_ANSI__
-#  define _XOPEN_SOURCE 500
+#  define _POSIX_C_SOURCE 200112L
 #endif
 #include <stdlib.h>
 

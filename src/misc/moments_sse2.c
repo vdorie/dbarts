@@ -3,7 +3,6 @@
 #include <math.h>
 #include <stdint.h>
 
-// #include <misc/stats.h>
 #include <misc/intrinsic.h>
 
 double computeUnrolledMean_sse2(const double* x, size_t length)

@@ -2,29 +2,23 @@ BOOL,true = true
 BOOL,1 = true
 BOOL,false = false
 BOOL,0 = false
-BOOL, = false
+BOOL, = true
 OR,true,true  = true
 OR,true,false = true
 OR,false,true = true
 OR,false,false = false
 
-have.sse2.test,-msse2 = true
+have.sse2.test, = false
 have.sse2 = $(BOOL,$(have.sse2.test,$(SSE2_FLAG)))
 
-have.sse4.1.test,-msse4.1 = true
+have.sse4.1.test, = false
 have.sse4.1 = $(BOOL,$(have.sse4.1.test,$(SSE4_1_FLAG)))
 
-have.avx.test,-mavx = true
+have.avx.test, = false
 have.avx = $(BOOL,$(have.avx.test,$(AVX_FLAG)))
 
-have.avx2.gcc.test,-mavx2 = true
-have.avx2.gcc = $(BOOL,$(have.avx2.gcc.test,$(AVX2_FLAG)))
-
-have.avx2.icc.test,-xcore-avx2 = true
-have.avx2.icc = $(BOOL,$(have.avx2.icc.test,$(AVX2_FLAG)))
-
-have.avx2 = $(OR,$(have.avx2.gcc),$(have.avx2.icc))
-
+have.avx2.test, = false
+have.avx2 = $(BOOL,$(have.avx2.test,$(AVX2_FLAG)))
 
 INCLUDE_DIR=../include
 
@@ -97,7 +91,7 @@ compile.linearAlgebra.sse2 = $(linearAlgebra.sse2.$(have.sse2))
 linearAlgebra_sse2.o : linearAlgebra_sse2.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	$(compile.linearAlgebra.sse2)
 
-linearAlgebra.avx.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(AVX_FLAG) $(CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
+linearAlgebra.avx.true = $(CC) $(ALL_CPPFLAGS) $(AVX_FLAG) $(CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
 linearAlgebra.avx.false = touch linearAlgebra_avx.o
 compile.linearAlgebra.avx = $(linearAlgebra.avx.$(have.avx))
 
@@ -124,14 +118,14 @@ compile.partition.sse2 = $(partition.sse2.$(have.sse2))
 partition_sse2.o : partition_sse2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	$(compile.partition.sse2)
 
-partition.sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(SSE4_1_FLAG) $(CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
+partition.sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(SSE4_1_FLAG) $(CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
 partition.sse4.1.false = touch partition_sse4_1.o
 compile.partition.sse4.1 = $(partition.sse4.1.$(have.sse4.1))
 
 partition_sse4_1.o : partition_sse4_1.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	$(compile.partition.sse4.1)
 
-partition.avx2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(SSE4_1_FLAG) $(AVX2_FLAG) $(CFLAGS) -c partition_avx2.c -o partition_avx2.o
+partition.avx2.true = $(CC) $(ALL_CPPFLAGS) $(AVX2_FLAG) $(CFLAGS) -c partition_avx2.c -o partition_avx2.o
 partition.avx2.false = touch partition_avx2.o
 compile.partition.avx2 = $(partition.avx2.$(have.avx2))
 

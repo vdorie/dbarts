@@ -791,7 +791,7 @@ extern "C" {
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
       
-      sprintf(buffer, "%zu", i + 1);
+      std::sprintf(buffer, "%zu", i + 1);
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);
     }

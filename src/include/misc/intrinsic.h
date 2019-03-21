@@ -4,13 +4,17 @@
 #ifdef _MSC_VER
 #  include <intrin.h>
 #else 
-#  ifdef __SSE2__
-#    include <emmintrin.h> // SSE2 intrinsics
+#  ifdef HAVE_SSE2
+#    ifdef __SUNPRO_C
+#      include <xmmintrin.h>
+#    else
+#      include <emmintrin.h> // SSE2 intrinsics
+#    endif
 #  endif
-#  ifdef __SSE4_1__
+#  ifdef HAVE_SSE4_1
 #    include <smmintrin.h>
 #  endif
-#  ifdef __AVX__
+#  ifdef HAVE_AVX
 #    include <immintrin.h>
 #  endif
 #endif

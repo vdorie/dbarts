@@ -8,7 +8,7 @@
 #include <stdlib.h>   // malloc, posix_memalign
 #include <misc/stddef.h> // size_t
 
-inline int misc_alignedAllocate(void** result, misc_size_t alignment, misc_size_t allocationSize) {
+static inline int misc_alignedAllocate(void** result, misc_size_t alignment, misc_size_t allocationSize) {
 #ifdef HAVE_POSIX_MEMALIGN
   int errorCode = posix_memalign(result, alignment, allocationSize);
   if (errorCode != 0 && *result != NULL) free(*result);

@@ -3,7 +3,9 @@
  * the GNU General Public License (http://www.r-project.org/Licenses/).
  */
 
-#define _POSIX_SOURCE 1
+#ifdef __INTEL_COMPILER
+#  define _POSIX_SOURCE 1
+#endif
 
 #include <external/random.h>
 #include "config.h"

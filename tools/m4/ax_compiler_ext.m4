@@ -38,74 +38,85 @@ AC_SUBST(AVX2_FLAG)
 
 AC_DEFUN([AX_COMPILER_EXT],
 [
+  AC_REQUIRE([AC_CANONICAL_HOST])
   AC_REQUIRE([AC_PROG_CC])
+  
   AC_REQUIRE([AX_CHECK_COMPILE_FLAG])
   
   SSE2_FLAG=""
   SSE4_1_FLAG=""
-  AVX=""
-  AVX2=""
+  AVX_FLAG=""
+  AVX2_FLAG=""
   
-  AX_CHECK_COMPILE_FLAG(-mmmx, ax_cv_support_mmx_ext=yes, [])
-  if test x"$ax_cv_support_mmx_ext" = x"yes"; then
-    AC_DEFINE(HAVE_MMX,,[Support mmx instructions])
-  fi
+  case $host_cpu in
+  i[[3456]]86*|x86_64*|amd64*)
   
-  AX_CHECK_COMPILE_FLAG(-msse, ax_cv_support_sse_ext=yes, [])
-  if test x"$ax_cv_support_sse_ext" = x"yes"; then
-    AC_DEFINE(HAVE_SSE,,[Support SSE (Streaming SIMD Extensions) instructions])
-  fi
-  
-  AX_CHECK_COMPILE_FLAG(-msse2, ax_cv_support_sse2_ext=yes, [])
+    case "$ax_cv_c_compiler_vendor" in
+    sun)
+      AC_CHECK_HEADER("xmmintrin.h",[
+        ax_cv_support_sse2_ext=yes
+        SSE2_FLAG="-xarch=sse2"
+      ])
+      AC_CHECK_HEADER("nmmintrin.h",[
+        ax_cv_support_sse4_1_ext=yes
+        SSE4_1_FLAG="-xarch=sse4_1"
+      ])
+      AC_CHECK_HEADER("immintrin.h",[
+        ax_cv_support_avx_ext=yes
+        ax_cv_support_avx2_ext=yes
+        AVX_FLAG="-xarch=avx"
+        AVX2_FLAG="-xarch=avx2"
+      ])
+      ;;
+    
+    *)
+      AX_CHECK_COMPILE_FLAG(-msse2,[
+        ax_cv_support_sse2_ext=yes
+        SSE2_FLAG=-msse2
+      ])
+      AX_CHECK_COMPILE_FLAG(-msse4.1,[
+        ax_cv_support_sse4_1_ext=yes
+        SSE4_1_FLAG=-msse4.1
+      ])
+      AX_CHECK_COMPILE_FLAG(-mavx,[
+        ax_cv_support_avx_ext=yes
+        AVX_FLAG=-mavx
+      ])
+      if test x"$ax_cv_c_compiler_vendor" = x"intel"; then
+        AX_CHECK_COMPILE_FLAG(-xcore-avx2,[
+          ax_cv_support_avx2_ext=yes
+          AVX2_FLAG=-xcore-avx2
+        ])
+      else
+        AX_CHECK_COMPILE_FLAG(-mavx2,[
+          ax_cv_support_avx2_ext=yes
+          AVX2_FLAG=-mavx2
+        ])
+      fi
+    ;;
+    esac
+  ;;
+  esac
+        
   if test x"$ax_cv_support_sse2_ext" = x"yes"; then
-    SSE2_FLAG="-msse2"
-    AC_DEFINE(HAVE_SSE2, 1,[Support SSE2 (Streaming SIMD Extensions 2) instructions])
+    AC_DEFINE(HAVE_SSE2,1,[Support SSE2 (Streaming SIMD Extensions 2) instructions])
   fi
-  
-  AX_CHECK_COMPILE_FLAG(-msse3, ax_cv_support_sse3_ext=yes, [])
-  if test x"$ax_cv_support_sse3_ext" = x"yes"; then
-    AC_DEFINE(HAVE_SSE3,,[Support SSE3 (Streaming SIMD Extensions 3) instructions])
-  fi
-  
-  AX_CHECK_COMPILE_FLAG(-msse4.1, ax_cv_support_sse41_ext=yes, [])
+ 
   if test x"$ax_cv_support_sse41_ext" = x"yes"; then
-    SSE4_1_FLAG="-msse4.1"
-    AC_DEFINE(HAVE_SSE4_1,,[Support SSSE4.1 (Streaming SIMD Extensions 4.1) instructions])
+    AC_DEFINE(HAVE_SSE4_1,1,[Support SSSE4.1 (Streaming SIMD Extensions 4.1) instructions])
   fi
   
-  AX_CHECK_COMPILE_FLAG(-msse4.2, ax_cv_support_sse42_ext=yes, [])
-  if test x"$ax_cv_support_sse42_ext" = x"yes"; then
-    AC_DEFINE(HAVE_SSE4_2,,[Support SSSE4.2 (Streaming SIMD Extensions 4.2) instructions])
-  fi
-  
-  AX_CHECK_COMPILE_FLAG(-mavx, ax_cv_support_avx_ext=yes, [])
   if test x"$ax_cv_support_avx_ext" = x"yes"; then
-    AVX_FLAG="-mavx"
-    AC_DEFINE(HAVE_AVX,,[Support AVX (Advanced Vector Extensions) instructions])
+    AC_DEFINE(HAVE_AVX,1,[Support AVX (Advanced Vector Extensions) instructions])
   fi
   
-  if test x"$ax_cv_c_compiler_vendor" = x"intel"; then
-    AX_CHECK_COMPILE_FLAG(-xcore-avx2, ax_cv_support_avx2_ext=yes, [])
-    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-      AVX2_FLAG="-xcore-avx2"
-      AC_DEFINE(HAVE_AVX2,,[Support AVX2 (Advanced Vector Extensions 2) instructions])
-    fi
-  else
-    AX_CHECK_COMPILE_FLAG(-mavx2, ax_cv_support_avx2_ext=yes, [])
-    if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-      AVX2_FLAG="-mavx2"
-      AC_DEFINE(HAVE_AVX2,,[Support AVX2 (Advanced Vector Extensions 2) instructions])
-    fi
-  fi 
+  if test x"$ax_cv_support_avx2_ext" = x"yes"; then
+    AC_DEFINE(HAVE_AVX2,1,[Support AVX2 (Advanced Vector Extensions 2) instructions])
+  fi
   
-  AH_TEMPLATE([HAVE_MMX],[Define to 1 to support Multimedia Extensions])
-  AH_TEMPLATE([HAVE_SSE],[Define to 1 to support Streaming SIMD Extensions])
+  
   AH_TEMPLATE([HAVE_SSE2],[Define to 1 to support Streaming SIMD Extensions])
-  AH_TEMPLATE([HAVE_SSE3],[Define to 1 to support Streaming SIMD Extensions 3])
-  AH_TEMPLATE([HAVE_SSSE3],[Define to 1 to support Supplemental Streaming SIMD Extensions 3])
   AH_TEMPLATE([HAVE_SSE4_1],[Define to 1 to support Streaming SIMD Extensions 4.1])
-  AH_TEMPLATE([HAVE_SSE4_2],[Define to 1 to support Streaming SIMD Extensions 4.2])
-  AH_TEMPLATE([HAVE_SSE4a],[Define to 1 to support AMD Streaming SIMD Extensions 4a])
   AH_TEMPLATE([HAVE_AVX],[Define to 1 to support Advanced Vector Extensions])
   AH_TEMPLATE([HAVE_AVX2],[Define to 1 to support Advanced Vector Extensions 2])
   
