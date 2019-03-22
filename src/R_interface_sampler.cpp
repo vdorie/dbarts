@@ -1,4 +1,7 @@
 #include "config.hpp"
+#ifdef __MINGW32__
+#  define __USE_MINGW_ANSI_STDIO 1
+#endif
 #include "R_interface_sampler.hpp"
 
 #include <cstddef>
@@ -790,17 +793,15 @@ extern "C" {
       int variable_i = static_cast<int>(flattenedTrees.variable[i]);
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
-
-#if __cplusplus <= 199711L && defined(__MINGW32__)
+#if defined(__MINGW32__) && __cplusplus < 201112L
 #  ifdef _WIN64
-#    define SIZE_T_FMT "%I64u"
+      std::sprintf(buffer, "%lu", static_cast<unsigned long>(i + 1));
 #  else
-#    define SIZE_T_FMT "%I32u"
+      std::sprintf(buffer, "%u", i + 1);
 #  endif
 #else
-#  define SIZE_T_FMT "%zu"
+      std::sprintf(buffer, "%zu", i + 1);
 #endif
-      std::sprintf(buffer, SIZE_T_FMT, i + 1);
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);
     }

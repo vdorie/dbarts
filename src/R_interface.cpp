@@ -206,13 +206,13 @@ extern "C" {
   
   static SEXP setSIMDInstructionSet(SEXP i)
   {
-    misc_simd_setSIMDInstructionSet(static_cast<misc_simd_instructionLevel>(INTEGER(i)[0]));
+    misc_simd_setSIMDInstructionSet(static_cast<misc_simd_instructionSet>(INTEGER(i)[0]));
     return R_NilValue;
   }
-  
+
   static SEXP getMaxSIMDInstructionSet()
   {
-    misc_simd_instructionLevel result = misc_simd_getMaxSIMDInstructionSet();
+    misc_simd_instructionSet result = misc_simd_getMaxSIMDInstructionSet();
     
     return Rf_ScalarInteger(static_cast<int>(result));
   }

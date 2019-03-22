@@ -35,3 +35,4 @@ test_that("prior model arguments create valid objects", {
                    control = dbartsControl(n.threads = 1L, n.chains = 1L)),
             "dbartsSampler")
 })
+

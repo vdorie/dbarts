@@ -200,3 +200,4 @@ test_that("fails with invalid inputs", {
   expect_error(xbart(y ~ x, sigma = -1))
   expect_error(xbart(y ~ x, sigma = "not-a-numeric"))
 })
+

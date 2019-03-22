@@ -1,7 +1,13 @@
+#ifdef __MINGW32__
+#  define __USE_MINGW_ANSI_STDIO 1
+#else
+#endif
+
 #include "makeModelMatrixFromDataFrame.h"
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h> // snprintf
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -335,16 +341,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
               free(colName);
             } else if (names != R_NilValue) {
               char buffer[16];
-#if defined(__MINGW32__)
-#  ifdef _WIN64
-#    define SIZE_T_FMT "%I64u"
-#  else
-#    define SIZE_T_FMT "%I32u"
-#  endif
-#else
-#  define SIZE_T_FMT "%zu"
-#endif
-              snprintf(buffer, 16, SIZE_T_FMT, j + 1);
+              snprintf(buffer, 16, "%zu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
@@ -374,7 +371,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
               free(colName);
             } else if (names != R_NilValue) {
               char buffer[16];
-              snprintf(buffer, 16, SIZE_T_FMT, j + 1);
+              snprintf(buffer, 16, "%zu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);

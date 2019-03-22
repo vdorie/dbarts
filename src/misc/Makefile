@@ -57,7 +57,7 @@ clean :
 
 rebuild : clean all
 
-$(INCLUDE_DIR)/misc/adaptiveRadixTree.h : $(INCLUDE_DIR)/misc/stddef.h $(INCLUDE_DIR)/misc/simd.h
+$(INCLUDE_DIR)/misc/adaptiveRadixTree.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/alloca.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/binaryIO.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/intrinsic.h :
@@ -84,53 +84,53 @@ hierarchicalThreadManager.o : hierarchicalThreadManager.c $(INCLUDE_DIR)/misc/th
 linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c linearAlgebra.c -o linearAlgebra.o
 
-linearAlgebra.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c linearAlgebra_sse2.c -o linearAlgebra_sse2.o
-linearAlgebra.sse2.false = touch linearAlgebra_sse2.o
-compile.linearAlgebra.sse2 = $(linearAlgebra.sse2.$(have.sse2))
+linearAlgebra_sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c linearAlgebra_sse2.c -o linearAlgebra_sse2.o
+linearAlgebra_sse2.false = touch linearAlgebra_sse2.o
+compile.linearAlgebra_sse2 = $(linearAlgebra_sse2.$(have.sse2))
 
 linearAlgebra_sse2.o : linearAlgebra_sse2.c $(INCLUDE_DIR)/misc/linearAlgebra.h
-	$(compile.linearAlgebra.sse2)
+	$(compile.linearAlgebra_sse2)
 
-linearAlgebra.avx.true = $(CC) $(ALL_CPPFLAGS) $(AVX_FLAG) $(CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
-linearAlgebra.avx.false = touch linearAlgebra_avx.o
-compile.linearAlgebra.avx = $(linearAlgebra.avx.$(have.avx))
+linearAlgebra_avx.true = $(CC) $(ALL_CPPFLAGS) $(AVX_FLAG) $(CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.o
+linearAlgebra_avx.false = touch linearAlgebra_avx.o
+compile.linearAlgebra_avx = $(linearAlgebra_avx.$(have.avx))
 
 linearAlgebra_avx.o : linearAlgebra_avx.c $(INCLUDE_DIR)/misc/linearAlgebra.h
-	$(compile.linearAlgebra.avx)
+	$(compile.linearAlgebra_avx)
 
 moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c moments.c -o moments.o
 
-moments.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c moments_sse2.c -o moments_sse2.o
-moments.sse2.false = touch moments_sse2.o
-compile.moments.sse2 = $(moments.sse2.$(have.sse2))
+moments_sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c moments_sse2.c -o moments_sse2.o
+moments_sse2.false = touch moments_sse2.o
+compile.moments_sse2 = $(moments_sse2.$(have.sse2))
 
 moments_sse2.o : moments_sse2.c $(INCLUDE_DIR)/misc/stats.h
-	$(compile.moments.sse2)
+	$(compile.moments_sse2)
 
 partition.o : partition.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c partition.c -o partition.o
 
-partition.sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c partition_sse2.c -o partition_sse2.o
-partition.sse2.false = touch partition_sse2.o
-compile.partition.sse2 = $(partition.sse2.$(have.sse2))
+partition_sse2.true = $(CC) $(ALL_CPPFLAGS) $(SSE2_FLAG) $(CFLAGS) -c partition_sse2.c -o partition_sse2.o
+partition_sse2.false = touch partition_sse2.o
+compile.partition_sse2 = $(partition_sse2.$(have.sse2))
 
 partition_sse2.o : partition_sse2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
-	$(compile.partition.sse2)
+	$(compile.partition_sse2)
 
-partition.sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(SSE4_1_FLAG) $(CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
-partition.sse4.1.false = touch partition_sse4_1.o
-compile.partition.sse4.1 = $(partition.sse4.1.$(have.sse4.1))
+partition_sse4.1.true = $(CC) $(ALL_CPPFLAGS) $(SSE4_1_FLAG) $(CFLAGS) -c partition_sse4_1.c -o partition_sse4_1.o
+partition_sse4.1.false = touch partition_sse4_1.o
+compile.partition_sse4.1 = $(partition_sse4.1.$(have.sse4.1))
 
 partition_sse4_1.o : partition_sse4_1.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
-	$(compile.partition.sse4.1)
+	$(compile.partition_sse4.1)
 
-partition.avx2.true = $(CC) $(ALL_CPPFLAGS) $(AVX2_FLAG) $(CFLAGS) -c partition_avx2.c -o partition_avx2.o
-partition.avx2.false = touch partition_avx2.o
-compile.partition.avx2 = $(partition.avx2.$(have.avx2))
+partition_avx2.true = $(CC) $(ALL_CPPFLAGS) $(AVX2_FLAG) $(CFLAGS) -c partition_avx2.c -o partition_avx2.o
+partition_avx2.false = touch partition_avx2.o
+compile.partition_avx2 = $(partition_avx2.$(have.avx2))
 
 partition_avx2.o : partition_avx2.c $(INCLUDE_DIR)/misc/partition.h partition_body.c
-	$(compile.partition.avx2)
+	$(compile.partition_avx2)
 
 simd.o : simd.c $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(CFLAGS) -c simd.c -o simd.o

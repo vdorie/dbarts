@@ -10,11 +10,10 @@ void misc_addVectors_avx(const double* restrict x, size_t length, double alpha, 
 {
   if (length == 0) return;
   
-  size_t x_offset = ((uintptr_t) x) % (4 * sizeof(double)) / sizeof(double);
-  size_t y_offset = ((uintptr_t) y) % (4 * sizeof(double)) / sizeof(double);
-  size_t z_offset = ((uintptr_t) z) % (4 * sizeof(double)) / sizeof(double);
-  
-  size_t prefix = z_offset == 0 ? 0 : sizeof(double) - z_offset;
+  size_t y_offset = ((uintptr_t) y) % (4 * sizeof(double));
+  size_t x_offset = ((uintptr_t) x) % (4 * sizeof(double));
+  size_t z_offset = ((uintptr_t) z) % (4 * sizeof(double));
+  size_t prefix = z_offset == 0 ? 0 : (4 * sizeof(double) - z_offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
     
@@ -47,12 +46,18 @@ void misc_addVectors_avx(const double* restrict x, size_t length, double alpha, 
     z[i] = y[i] + alpha * x[i];
 }
 
+extern void misc_setVectorToConstant_c(double* x, size_t length, double alpha);
+
 void misc_setVectorToConstant_avx(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
+  if (((uintptr_t) x) % sizeof(double) != 0) {
+    misc_setVectorToConstant_c(x, length, alpha);
+    return;
+  }
   
-  size_t offset = ((uintptr_t) x) % (4 * sizeof(double)) / sizeof(double);
-  size_t prefix = offset == 0 ? 0 : sizeof(double) - offset;
+  size_t offset = ((uintptr_t) x) % (4 * sizeof(double));
+  size_t prefix = offset == 0 ? 0 : (4 * sizeof(double) - offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
   

@@ -115,3 +115,4 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   
   expect_true(mean((b - ranef.rbart)^2) < mean((b - ranef.lmer)^2))
 })
+

@@ -149,3 +149,4 @@ test_that("rng cooperates with native generator", {
   
   expect_equal(sampler$state[[1L]]@rng.state, oldSeed)
 })
+

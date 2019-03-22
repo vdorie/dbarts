@@ -59,11 +59,12 @@ static inline uint32_t countTrailingZeros(uint32_t v) {
 #endif
 
 #ifdef CLZ_MISSING
+#include <external/io.h>
 static inline unsigned int countLeadingZeros(uint32_t v)
 {
   static const int clzTable[32] = {
-    0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
-    8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
+    31, 22, 30, 21, 18, 10, 29, 2, 20, 17, 15, 13, 9, 6, 28, 1,
+    23, 19, 11, 3, 16, 14, 7, 24, 12, 4, 8, 25, 5, 26, 27, 0
   };
   
   v |= v >> 1; // first round down to one less than a power of 2

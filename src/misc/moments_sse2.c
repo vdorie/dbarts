@@ -9,8 +9,8 @@ double misc_computeUnrolledMean_sse2(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
-  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = offset == 0 ? 0 : sizeof(double) - offset;
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t prefix = offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
   
@@ -24,7 +24,6 @@ double misc_computeUnrolledMean_sse2(const double* x, size_t length)
   
   if (suffix > prefix) {
     __m128d result_vec = _mm_setzero_pd();
-    
     for ( ; i < suffix; i += 16) {
       result_vec = _mm_add_pd(result_vec,
         _mm_add_pd(_mm_add_pd(_mm_add_pd(_mm_load_pd(x + i     ), _mm_load_pd(x + i +  2)),
@@ -82,8 +81,8 @@ double misc_computeOnlineUnrolledMean_sse2(const double* x, size_t length)
 {
   if (length == 0) return 0.0;
   
-  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = 2 + offset == 0 ? 0 : sizeof(double) - offset;
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t prefix = 2 + (offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double));
   
   if (prefix > length) prefix = length;
   
@@ -152,8 +151,8 @@ double misc_computeUnrolledVarianceForKnownMean_sse2(const double* x, size_t len
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
   
-  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = offset == 0 ? 0 : sizeof(double) - offset;
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t prefix = offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
   
@@ -248,8 +247,8 @@ double misc_computeOnlineUnrolledVarianceForKnownMean_sse2(const double* x, size
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
   
-  size_t offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = 2 + offset == 0 ? 0 : sizeof(double) - offset;
+  size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t prefix = 2 + (offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double));
   
   if (prefix > length) prefix = length;
   
@@ -341,9 +340,9 @@ double misc_computeUnrolledWeightedMean_sse2(const double* restrict x, size_t le
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
-  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double));
+  size_t prefix = x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
   
@@ -471,9 +470,9 @@ double misc_computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, siz
 {
   if (length == 0) { if (nPtr != NULL) *nPtr = 0.0; return 0.0; }
   
-  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t w_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = 2 + x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double));
+  size_t prefix = 2 + (x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double));
   
   if (prefix > length) prefix = length;
   
@@ -489,7 +488,6 @@ double misc_computeOnlineUnrolledWeightedMean_sse2(const double* restrict x, siz
   size_t suffix = prefix + 12 * ((length - prefix) / 12);
   
   if (suffix > prefix) {
-    
     double arr[2];
     
     if (x_offset == w_offset) {
@@ -606,9 +604,9 @@ double misc_computeUnrolledWeightedVarianceForKnownMean_sse2(const double* restr
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
   
-  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double));
+  size_t prefix = x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
   
@@ -685,7 +683,7 @@ double misc_computeIndexedUnrolledWeightedVarianceForKnownMean_sse2(const double
 {
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
-    
+  
   size_t i = 0;
   size_t lengthMod12 = length % 12;
   
@@ -736,9 +734,9 @@ double misc_computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double*
   if (length == 0 || isnan(mean)) return nan("");
   if (length == 1) return 0.0;
   
-  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double)) / sizeof(double);
-  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double)) / sizeof(double);
-  size_t prefix = 2 + x_offset == 0 ? 0 : sizeof(double) - x_offset;
+  size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
+  size_t w_offset = ((uintptr_t) w) % (2 * sizeof(double));
+  size_t prefix = 2 + (x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double));
   
   if (prefix > length) prefix = length;
   

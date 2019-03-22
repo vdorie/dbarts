@@ -334,3 +334,4 @@ test_that("dbarts sampler updates offsets in C++", {
   samples <- sampler$run(0, 1)
   expect_equal(samples$train, samples$test)
 })
+

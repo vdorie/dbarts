@@ -13,28 +13,28 @@ test_that("basic Friedman example gets same result with various SIMD sets", {
   bartFit.0 <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
   
   if (maxSIMDLevel >= 2L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 2L)
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 2L) # SSE2
     set.seed(99)
     bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
     
     expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
   }
-  if (maxSIMDLevel >= 4L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 4L)
-    set.seed(99)
-    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
-    
-    expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
-  }
-  if (maxSIMDLevel >= 6L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 6L)
+  if (maxSIMDLevel >= 5L) {
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 5L) # SSE4_1
     set.seed(99)
     bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
     
     expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
   }
   if (maxSIMDLevel >= 7L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L)
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L) # AVX
+    set.seed(99)
+    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
+    
+    expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+  }
+  if (FALSE && maxSIMDLevel >= 8L) {
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 8L) # AVX2
     set.seed(99)
     bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
     
@@ -53,33 +53,33 @@ test_that("long data gets same result with various SIMD sets", {
   
   .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 0L)
   set.seed(99)
-  bartFit.0 <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
+  bartFit.0 <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 10L, verbose = FALSE)
   
   if (maxSIMDLevel >= 2L) {
     .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 2L)
     set.seed(99)
-    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
+    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 10L, verbose = FALSE)
     
     expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
   }
-  if (maxSIMDLevel >= 4L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 4L)
+  if (maxSIMDLevel >= 5L) {
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 5L) # SSE4_1
     set.seed(99)
-    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
-    
-    expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
-  }
-  if (maxSIMDLevel >= 6L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 6L)
-    set.seed(99)
-    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
+    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 10L, verbose = FALSE)
     
     expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
   }
   if (maxSIMDLevel >= 7L) {
-    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L)
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 7L) # AVX
     set.seed(99)
-    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 50L, verbose = FALSE)
+    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 10L, verbose = FALSE)
+    
+    expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
+  }
+  if (maxSIMDLevel >= 8L) {
+    .Call(dbarts:::C_dbarts_setSIMDInstructionSet, 8L) # AVX2
+    set.seed(99)
+    bartFit <- bart(testData$x, testData$y, ndpost = n.sims, nskip = n.burn, ntree = 10L, verbose = FALSE)
     
     expect_equal(bartFit.0$yhat.test, bartFit$yhat.test)
   }

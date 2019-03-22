@@ -1155,7 +1155,7 @@ extern double misc_computeOnlineUnrolledWeightedVarianceForKnownMean_sse2(const 
 extern double misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean);
 #endif
 
-void misc_stat_setSIMDInstructionSet(misc_simd_instructionLevel i)
+void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
 #ifdef HAVE_SSE2
   if (i >= MISC_INST_SSE2) {

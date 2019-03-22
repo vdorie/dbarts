@@ -1,6 +1,7 @@
 #include "config.h"
 #include <misc/simd.h>
 
+#include <stdbool.h>
 #include <misc/stddef.h>
 #include <misc/types.h>
 #include <misc/intrinsic.h>
@@ -13,40 +14,179 @@
 #define SIMD_AVX     0x20
 #define SIMD_AVX2    0x40
 #define SIMD_AVX512F 0x80
- 
+
+/* static const char* const simdNames[] = {
+  "none",
+  "SSE",
+  "SSE2",
+  "SSE3",
+  "SSSE3",
+  "SSE4.1",
+  "SSE4.2",
+  "AVX",
+  "AVX2",
+  "AVX512F",
+  "AVX512VL",
+  "AVX512BW",
+  "invalid"
+}; */
+
+#if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__)
 static unsigned int getx86SIMDSets(void) {
-#ifdef __SUNPRO_C
   return 0;
+}
 #else
-  unsigned int eax, ebx, ecx, edx, flag = 0;
-#  ifdef _MSC_VER
-  int cpuid[4];
-  __cpuid(cpuid, 1);
-  eax = cpuid[0], ebx = cpuid[1], ecx = cpuid[2], edx = cpuid[3];
-#  elif __GNUC__
-  __asm__("cpuid" : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "a" (1));
-#  else
-  asm volatile("cpuid" : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx) : "a" (1));
+
+#ifdef __GNUC__
+#  include <cpuid.h>
+#  ifndef __clang__
+#    include <x86intrin.h>
+#    include <immintrin.h>
 #  endif
+#elif defined(_MSC_VER)
+#  include <intrin.h>
+#elif defined(__INTEL_COMPILER)
+#  include <immintrin.h>
+#endif
+
+static inline uint64_t xgetbv() {
+#if (defined(_MSC_VER) && _MSC_FULL_VER >= 160040000) || \
+    (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 1200) || \
+    (defined(__XSAVE__) && defined(__GNUC__) && (__GNUC__ > 8 || (__GNUC__ == 8 && __GNUC_MINOR__ >= 2)))
+
+  return (uint64_t) _xgetbv(0);
+
+#elif defined(__GNUC__) || defined(__SUNPRO_C)
   
-  if ((edx >> 25) & 1) flag |= SIMD_SSE;
-  if ((edx >> 26) & 1) flag |= SIMD_SSE2;
-  if ((ecx >>  0) & 1) flag |= SIMD_SSE3;
-  if ((ecx >> 19) & 1) flag |= SIMD_SSE4_1;
-  if ((ecx >> 20) & 1) flag |= SIMD_SSE4_2;
-  if ((ecx >> 28) & 1) flag |= SIMD_AVX;
-  if ((ebx >>  5) & 1) flag |= SIMD_AVX2;
-  if ((ebx >> 16) & 1) flag |= SIMD_AVX512F;
-  
-  return flag;
+  uint32_t eax, edx;
+  __asm__ (".byte 0x0f, 0x01, 0xd0" : "=a" (eax), "=d"(edx) : "c" (0));
+  return ((uint64_t) edx << 32) | eax;
+
+#else
+
+  uint32_t veax, vedx;
+  __asm {
+    xor ecx, ecx    // for xcr0, set ecx to 0
+    _emit 0x0f
+    _emit 0x01
+    _emit 0xd0
+    mov veax, eax
+    mov vedx, edx
+  }
+  return ((uint64_t) vedx << 32) | veax;
 #endif
 }
 
-misc_simd_instructionLevel misc_simd_getMaxSIMDInstructionSet() {
-  unsigned int flag = getx86SIMDSets();
-  
-  return flag == 0 ? MISC_INST_C : (misc_simd_instructionLevel) (8 * sizeof(unsigned int) - countLeadingZeros(flag));
+static inline int cpuid(int leafNumber, int* info)
+{
+#if defined(__GNUC__) || defined(__clang__)
+  unsigned int* u_info =  (unsigned int*) info;
+  return __get_cpuid(leafNumber, u_info, u_info + 1, u_info + 2, u_info + 3);
+#elif defined (_MSC_VER) || defined (__INTEL_COMPILER)
+  __cpuid(info, leafNumber);
+#elif defined(__SUNPRO_C)
+  __asm__ __volatile__(
+    // check for 64 bit system
+#if defined(__x86_64__) || defined(_M_AMD64) || defined (_M_X64)
+    "pushq %%rbx        \n\t" /* save %rbx */
+#else
+    "pushl %%ebx        \n\t" /* save %ebx */
+#endif
+    "cpuid              \n\t"
+    "movl %%ebx ,%[ebx] \n\t" /* write the result into output var */
+#if defined(__x86_64__) || defined(_M_AMD64) || defined (_M_X64)
+    "popq %%rbx         \n\t"
+#else
+    "popl %%ebx         \n\t"
+#endif
+    : "=a"(info[0]), [ebx] "=r"(info[1]), "=c"(info[2]), "=d"(info[3])
+    : "a"(leafNumber));
+#else
+  __asm {
+    mov eax, leafNumber
+    xor ecx, ecx
+    cpuid;
+    mov esi, info
+    mov [esi],      eax
+    mov [esi + 4],  ebx
+    mov [esi + 8],  ecx
+    mov [esi + 12], edx
+  }
+#endif
+  return info[0]; 
 }
+
+misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
+{
+  static misc_simd_instructionSet instructionSet = MISC_INST_INVALID;
+  
+  if (instructionSet != MISC_INST_INVALID) return instructionSet;
+  
+  instructionSet = MISC_INST_C;
+  
+  unsigned int maxBasicLeaf;
+  int info[4] = { 0, 0, 0, 0 };
+  
+#if defined(__GNUC__)
+  if ((maxBasicLeaf = __get_cpuid_max(0, NULL)) == 0) return instructionSet;
+#else
+  if (cpuid(0, info) == 0) return instructionSet;
+  maxBasicLeaf = info[0];
+#endif
+  
+  cpuid(1, info);
+  
+  int ecx = info[2], edx = info[3];
+  
+  if ((edx & (1 <<  0)) == 0) return instructionSet; // no floating point
+  if ((edx & (1 << 23)) == 0) return instructionSet; // no MMX
+  if ((edx & (1 << 15)) == 0) return instructionSet; // no conditional move
+  if ((edx & (1 << 24)) == 0) return instructionSet; // no FXSAVE
+  if ((edx & (1 << 25)) == 0) return instructionSet; // no SSE
+  instructionSet = MISC_INST_SSE;
+  
+  if ((edx & (1 << 26)) == 0) return instructionSet; // no SSE2
+  instructionSet = MISC_INST_SSE2;
+  if ((ecx & (1 <<  0)) == 0) return instructionSet; // no SSE3
+  instructionSet = MISC_INST_SSE3;
+  if ((ecx & (1 <<  9)) == 0) return instructionSet; // no SSSE3
+  instructionSet = MISC_INST_SSSE3;
+  if ((ecx & (1 << 19)) == 0) return instructionSet; // no SSE4.1
+  instructionSet = MISC_INST_SSE4_1;
+  if ((ecx & (1 << 23)) == 0) return instructionSet; // no POPCNT
+  if ((ecx & (1 << 20)) == 0) return instructionSet; // no SSE4.2
+  instructionSet = MISC_INST_SSE4_2;
+  if ((ecx & (1 << 27)) == 0) return instructionSet; // no OSXSAVE
+  if ((xgetbv() & 6) != 6)    return instructionSet; // AVX not enabled in O.S.
+  if ((ecx & (1 << 28)) == 0) return instructionSet; // no AVX
+  instructionSet = MISC_INST_AVX;
+  
+  // check next leaf for feature flags
+  if (maxBasicLeaf < 7) return instructionSet;
+  
+  cpuid(7, info);
+  
+  int ebx = info[1];  
+  
+  if ((ebx & (1 <<  5)) == 0) return instructionSet; // no AVX2
+  instructionSet = MISC_INST_AVX2;
+  if ((ebx & (1 << 16)) == 0) return instructionSet; // no AVX512
+  
+  if (maxBasicLeaf < 0x60) return instructionSet;
+  
+  cpuid(0xD, info);
+  if ((info[0] & 0x60) != 0x60) return instructionSet; // no AVX512F
+  instructionSet = MISC_INST_AVX512F; 
+  
+  if ((ebx & 0x80000000) == 0) return instructionSet; // no AVX512VL
+  instructionSet = MISC_INST_AVX512VL; 
+  
+  if ((ebx & 0x40020000) != 0x40020000) return instructionSet; // no AVX512BW, AVX512DQ
+  instructionSet = MISC_INST_AVX512BW; 
+  
+  return instructionSet;
+}
+#endif // !defined(__i386) && !defined(_X86_) && !defined(__x86_64__)
 
 /* function pointers */
 // partition
@@ -88,14 +228,14 @@ extern void misc_addVectors_c(const double* restrict x, size_t length, double al
 extern void misc_setVectorToConstant_c(double* x, size_t length, double alpha);
 
 void misc_simd_init(void) {
-  misc_simd_instructionLevel i = misc_simd_getMaxSIMDInstructionSet();
+  misc_simd_instructionSet i = misc_simd_getMaxSIMDInstructionSet();
   
   misc_simd_setSIMDInstructionSet(i);
 }
 
-extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionLevel i);
+extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i);
 
-void misc_simd_setSIMDInstructionSet(misc_simd_instructionLevel i)
+void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
   // if the compiler supports SIMD instruction sets then the binary will be built
   // with code that supports them; check this by preprocessor defines
@@ -105,7 +245,29 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionLevel i)
   
   // default to base C implementations
   
-  if (i < MISC_INST_C || i > MISC_INST_AVX512F) return;
+  if (i < MISC_INST_C || i >= MISC_INST_INVALID) return;
+  
+#ifdef HAVE_AVX2
+#  define MAX_SIMD 8
+#elif defined(HAVE_AVX)
+#  define MAX_SIMD 7
+#elif defined(HAVE_SSE4_2)
+#  define MAX_SIMD 6
+#elif defined(HAVE_SSE4_1)
+#  define MAX_SIMD 5
+#elif defined(HAVE_SSE3)
+#  define MAX_SIMD 3
+#elif defined(HAVE_SSE2)
+#  define MAX_SIMD 2
+#elif defined(HAVE_SSE)
+#  define MAX_SIMD 1
+#else
+#  define MAX_SIMD 0
+#endif
+  misc_simd_instructionSet i_max = misc_simd_getMaxSIMDInstructionSet();
+  //ext_printf("SIMD instruction set %s (%d) requested, %s max compiled, %s max supported\n", simdNames[i], i,
+  //           simdNames[MAX_SIMD], simdNames[i_max]);
+  if (i > i_max) i = i_max;
   
 #ifdef HAVE_AVX2
   if (i >= MISC_INST_AVX2) {

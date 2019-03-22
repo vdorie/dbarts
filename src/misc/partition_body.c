@@ -22,8 +22,8 @@
                                getDataAt(_X_ +  3), \
                                getDataAt(_X_ +  2), \
                                getDataAt(_X_ +  1), \
-                               getDataAt(_X_    )), \
-     _mm256_cmpgt_epu16(values, _mm256_set1_epi16(cut)))
+                               getDataAt(_X_     )), \
+     _mm256_cmpgt_epu16(values, _mm256_set1_epi16((misc_xint_t) cut)))
 
 #  define loadRHComp(_X_) \
     (values = _mm256_set_epi16(getDataAt(_X_ - 15), \
@@ -41,12 +41,13 @@
                                getDataAt(_X_ -  3), \
                                getDataAt(_X_ -  2), \
                                getDataAt(_X_ -  1), \
-                               getDataAt(_X_    )), \
-     _mm256_cmple_epu16(values, _mm256_set1_epi16(cut)))
+                               getDataAt(_X_     )), \
+     _mm256_cmple_epu16(values, _mm256_set1_epi16((misc_xint_t) cut)))
 
 #  define movemask _mm256_movemask_epi8
+#  define mask_t uint32_t
 #  define cmp_width 16
-#  define cmp_type __m256i
+#  define cmp_t __m256i
 
 #elif defined(__USE_SSE2__) || defined(__USE_SSE4_1__)
 #  define __USE_SIMD__ 1
@@ -87,15 +88,15 @@
      _mm_cmple_epu16(values, _mm_set1_epi16((misc_xint_t) cut)))
 
 #  define movemask _mm_movemask_epi8
+#  define mask_t uint16_t
 #  define cmp_width 8
-#  define cmp_type __m128i
+#  define cmp_t __m128i
 
 #endif
 
 #if PARTITION_RANGE == 1
 
 #  define getDataAt(_I_) x[_I_]
-
 
   size_t lengthOfLeft;
   
@@ -107,9 +108,9 @@
 
   if (lh + 2 * cmp_width < rh) {
     
-    cmp_type lh_comp, rh_comp, values;
+    cmp_t lh_comp, rh_comp, values;
     uint8_t lh_sub = 0, rh_sub = 0;
-    uint16_t lh_mask = 0, rh_mask = 0;
+    mask_t lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
     lh_mask = movemask(lh_comp);
@@ -188,9 +189,9 @@
 #  ifdef __USE_SIMD__
   if (lh + 2 * cmp_width < rh) {
     
-    cmp_type lh_comp, rh_comp, values;
+    cmp_t lh_comp, rh_comp, values;
     uint8_t lh_sub = 0, rh_sub = 0;
-    uint16_t lh_mask = 0, rh_mask = 0;
+    mask_t lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
     lh_mask = movemask(lh_comp);

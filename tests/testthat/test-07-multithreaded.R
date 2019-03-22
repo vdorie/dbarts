@@ -23,3 +23,4 @@ test_that("multithreaded matches single threaded", {
   expect_identical(multiThreadedFit$yhat.test.mean, NULL)
   expect_equal(singleThreadedFit$varcount[n.sims,], multiThreadedFit$varcount[n.sims,])
 })
+

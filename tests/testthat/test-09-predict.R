@@ -53,3 +53,4 @@ test_that("predict gives same result as x_train with binary data", {
   predictions <- predict(bartFit, testData$X)
   expect_equal(predictions, bartFit$yhat.train)
 })
+

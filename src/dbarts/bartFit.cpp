@@ -1215,7 +1215,7 @@ extern "C" {
         state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
         metropolisJumpForTree(fit, chainNum, state.trees[treeNum], chainScratch.treeY, state.sigma, &stepTaken, &ignored);
-                
+        
         state.trees[treeNum].sampleAveragesAndSetFits(fit, chainNum, state.sigma, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
