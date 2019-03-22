@@ -3,17 +3,10 @@
 
 #include <stdbool.h>
 #include <misc/stddef.h>
+#include <stdint.h>
+
 #include <misc/types.h>
 #include <misc/intrinsic.h>
-
-#define SIMD_SSE      0x1
-#define SIMD_SSE2     0x2
-#define SIMD_SSE3     0x4
-#define SIMD_SSE4_1   0x8
-#define SIMD_SSE4_2  0x10
-#define SIMD_AVX     0x20
-#define SIMD_AVX2    0x40
-#define SIMD_AVX512F 0x80
 
 /* static const char* const simdNames[] = {
   "none",
@@ -31,9 +24,9 @@
   "invalid"
 }; */
 
-#if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__)
-static unsigned int getx86SIMDSets(void) {
-  return 0;
+#if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
+static misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
+  return MISC_INST_C;
 }
 #else
 
@@ -247,7 +240,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   
   if (i < MISC_INST_C || i >= MISC_INST_INVALID) return;
   
-#ifdef HAVE_AVX2
+/* #ifdef HAVE_AVX2
 #  define MAX_SIMD 8
 #elif defined(HAVE_AVX)
 #  define MAX_SIMD 7
@@ -263,7 +256,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 #  define MAX_SIMD 1
 #else
 #  define MAX_SIMD 0
-#endif
+#endif */
   misc_simd_instructionSet i_max = misc_simd_getMaxSIMDInstructionSet();
   //ext_printf("SIMD instruction set %s (%d) requested, %s max compiled, %s max supported\n", simdNames[i], i,
   //           simdNames[MAX_SIMD], simdNames[i_max]);
@@ -311,5 +304,4 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   
   misc_stat_setSIMDInstructionSet(i);
 }
-
 
