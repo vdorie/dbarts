@@ -1,3 +1,10 @@
+/* This is taken from bits an pieces all over the internet. The strongest inspiriation is
+ * Agner Fog's C++ vector class library (https://www.agner.org/optimize/#vectorclass)
+ * which is vailable under the GPL. The cross-platform cpuid is from Wikipedia 
+ * (https://en.wikipedia.org/wiki/CPUID#CPUID_usage_from_high-level_languages) and is 
+ * available under a creative-commons license. I've mostly tried to use built-ins
+ * when possible, and probably done more testing on Solaris-x86 than most.
+ */
 #include "config.h"
 #include <misc/simd.h>
 
