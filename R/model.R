@@ -1,7 +1,7 @@
 setMethod("initialize", "dbartsModel",
           function(.Object, tree.prior, node.prior, resid.prior,
                    p.birth_death = 0.5, p.swap = 0.1, p.change = 0.4,
-                   p.birth = 0.5)
+                   p.birth = 0.5, node.scale = 0.5)
 {
   if (!missing(tree.prior)) .Object@tree.prior  <- tree.prior
   if (!missing(node.prior)) .Object@node.prior  <- node.prior
@@ -11,6 +11,7 @@ setMethod("initialize", "dbartsModel",
   .Object@p.swap <- p.swap
   .Object@p.change <- p.change
   .Object@p.birth <- p.birth
+  .Object@node.scale <- node.scale
 
   validObject(.Object)
   .Object
@@ -26,16 +27,17 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   evalEnv$cgm <- cgm
   evalEnv$normal <- normal
   evalEnv$chisq <- chisq
+  evalEnv$fixed <- fixed
 
   if (is.symbol(matchedCall$tree.prior)) matchedCall$tree.prior <- call(as.character(matchedCall$tree.prior))
-  if (is.symbol(matchedCall$node.prior)) matchedCall$node.prior <- call(as.character(matchedCall$node.prior))
   if (is.symbol(matchedCall$resid.prior)) matchedCall$resid.prior <- call(as.character(matchedCall$resid.prior))
+  if (is.symbol(matchedCall$node.prior)) matchedCall$node.prior <- call(as.character(matchedCall$node.prior))
   
-  tree.prior  <- eval(matchedCall$tree.prior, evalEnv)
-  node.prior  <- eval(matchedCall$node.prior, evalEnv)
+  tree.prior <- eval(matchedCall$tree.prior, evalEnv)
   resid.prior <- eval(matchedCall$resid.prior, evalEnv)
+  node.prior <- eval(matchedCall$node.prior, evalEnv)
   
-  namedList(tree.prior, node.prior, resid.prior)
+  namedList(tree.prior, resid.prior, node.prior)
 }
 
 
@@ -46,6 +48,17 @@ cgm <- function(power = 2, base = 0.95)
 
 normal <- function(k = 2.0)
 {
+  matchedCall <- match.call()
+  
+  if (!is.null(matchedCall[["k"]])) {
+    evalEnv <- new.env(parent = parent.frame())
+    evalEnv$normal <- function(scale = 1) new("dbartsNormalHyperprior", scale = scale)
+    
+    if (is.symbol(matchedCall[["k"]])) matchedCall[["k"]] <- call(as.character(matchedCall[["k"]]))
+    
+    k <- eval(matchedCall[["k"]], evalEnv)
+  }
+  
   new("dbartsNormalPrior", k = k)
 }
 
@@ -54,5 +67,8 @@ chisq <- function(df = 3, quant = 0.9)
   new("dbartsChiSqPrior", df = df, quantile = quant)
 }
     
-
+fixed <- function(value = 1.0)
+{
+  new("dbartsFixedPrior", value = value)
+}
 

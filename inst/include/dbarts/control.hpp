@@ -12,7 +12,7 @@ namespace dbarts {
   typedef void (*CallbackFunction)(void* data, BARTFit& fit, bool isBurningIn,
                                    const double* trainingDraw,
                                    const double* testDraw,
-                                   double sigma);
+                                   double sigma, const double* k);
   
   struct Control {
     bool responseIsBinary;

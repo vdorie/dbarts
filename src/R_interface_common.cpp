@@ -151,6 +151,9 @@ namespace dbarts {
   
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
   {
+    int errorCode;
+    size_t priorType;
+    
     SEXP slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth_death"));
     model.birthOrDeathProbability =
       rc_getDouble(slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
@@ -174,6 +177,10 @@ namespace dbarts {
       rc_getDouble(slotExpr, "probability of birth in birth/death rule", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
+    slotExpr = Rf_getAttrib(modelExpr, Rf_install("node.scale"));
+    model.nodeScale = 
+      rc_getDouble(slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
+                   RC_VALUE | RC_GT, 0.0, RC_END);
     
     SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
     CGMPrior* treePrior = new CGMPrior;
@@ -193,35 +200,69 @@ namespace dbarts {
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
       
     slotExpr = Rf_getAttrib(priorExpr, Rf_install("k"));
-    double k = rc_getDouble(slotExpr, "k", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-    model.muPrior = new NormalPrior(control, k);
-    
+    if (Rf_isReal(slotExpr)) {
+      double k = rc_getDouble(slotExpr, "k", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+      model.muPrior = new NormalPrior(control, model, k);
+    } else {
+      SEXP classExpr = rc_getClass(slotExpr);
+      const char* classStr = CHAR(STRING_ELT(classExpr, 0));
+      errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsNormalHyperprior", NULL);
+      if (errorCode != 0) Rf_error("error matching node hyper prior: %s", std::strerror(errorCode));
+      if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported hyperprior type '%s'", classStr);
+      // some day, we will have a switch statement here
+      double scale = rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("scale")), "scale",
+                                  RC_LENGTH | RC_EQ, rc_asRLength(1),
+                                  RC_VALUE | RC_GT, 0.0, RC_END);
+      
+      model.muPrior = new NormalPrior(control, model, 2.0);
+      model.kPrior = new NormalHyperprior(scale);
+    }
     
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
-      
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("df"));
-    double sigmaPriorDf =
-      rc_getDouble(slotExpr, "sigma prior degrees of freedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
-                   RC_VALUE | RC_GT, 0.0, RC_END);
+    SEXP classExpr = rc_getClass(priorExpr);
+    const char* classStr = CHAR(STRING_ELT(classExpr, 0));
+    errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiSqPrior", "dbartsFixedPrior", NULL);
+    if (errorCode != 0) Rf_error("error matching residual variance prior: %s", std::strerror(errorCode));
+    if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported residual variance prior type '%s'", classStr);
     
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("quantile"));
-    double sigmaPriorQuantile =
-      rc_getDouble(slotExpr, "sigma prior quantile", RC_LENGTH | RC_EQ, rc_asRLength(1),
-                   RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-    
-    model.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, sigmaPriorQuantile);
+    switch (priorType) {
+      case 0:
+      {
+        slotExpr = Rf_getAttrib(priorExpr, Rf_install("df"));
+        double sigmaPriorDf =
+          rc_getDouble(slotExpr, "sigma prior degrees of freedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
+                     RC_VALUE | RC_GT, 0.0, RC_END);
+        
+        slotExpr = Rf_getAttrib(priorExpr, Rf_install("quantile"));
+        double sigmaPriorQuantile =
+          rc_getDouble(slotExpr, "sigma prior quantile", RC_LENGTH | RC_EQ, rc_asRLength(1),
+                     RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+        
+        model.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, sigmaPriorQuantile);
+      }
+      break;
+      default:
+      slotExpr = Rf_getAttrib(priorExpr, Rf_install("value"));
+      model.sigmaSqPrior = new FixedPrior(
+          rc_getDouble(slotExpr, "residual variance prior fixed value", RC_LENGTH | RC_EQ, rc_asRLength(1),
+                       RC_VALUE | RC_GT, 0.0, RC_END));
+      break;
+    }
   }
   
   void invalidateModel(Model& model)
   {
-    delete static_cast<ChiSquaredPrior*>(model.sigmaSqPrior); model.sigmaSqPrior = NULL;
-    delete static_cast<NormalPrior*>(model.muPrior);          model.muPrior = NULL;
-    delete static_cast<CGMPrior*>(model.treePrior);           model.treePrior = NULL;
+    if (model.kPrior != NULL) {
+      delete model.kPrior; model.kPrior = NULL;
+    }
+      
+    delete model.sigmaSqPrior; model.sigmaSqPrior = NULL;
+    delete model.muPrior;      model.muPrior = NULL;
+    delete model.treePrior;    model.treePrior = NULL;
   }
   
   void initializeDataFromExpression(Data& data, SEXP dataExpr)
   {
-    // SEXP dimsExpr;
     int* dims;
     
     SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
@@ -235,9 +276,6 @@ namespace dbarts {
     rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_VALUE | RC_EQ, static_cast<int>(data.numObservations), RC_END);
     dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
     
-    // rc_assertIntConstraints(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
-    // dims = INTEGER(dimsExpr);
-    // if (static_cast<size_t>(dims[0]) != data.numObservations) Rf_error("number of rows of x and length of y must be equal");
     data.x = REAL(slotExpr);
     data.numPredictors = static_cast<size_t>(dims[1]);
     
@@ -258,9 +296,6 @@ namespace dbarts {
                     RC_NA, RC_VALUE | RC_EQ, static_cast<int>(data.numPredictors), RC_END);
       dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
       
-      // rc_assertIntConstraints(dimsExpr = Rf_getAttrib(slotExpr, R_DimSymbol), "x.test dimensions", RC_LENGTH | RC_EQ, rc_asRLength(2), RC_END);
-      // dims = INTEGER(dimsExpr);
-      // if (static_cast<size_t>(dims[1]) != data.numPredictors) Rf_error("number of columns of x.test and x must be equal");
       data.x_test = REAL(slotExpr);
       data.numTestObservations = static_cast<size_t>(dims[0]);
     }
@@ -292,6 +327,7 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("sigma"));
     data.sigmaEstimate = rc_getDouble(slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
     
+    
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
     rc_assertIntConstraints(slotExpr, "maximum number of cuts", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_maxNumCuts = INTEGER(slotExpr);
@@ -310,12 +346,14 @@ namespace dbarts {
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
+    const Model& model(fit.model);
     const State* state(fit.state);
     
     SEXP treesSym         = Rf_install("trees");
     SEXP treeFitsSym      = Rf_install("treeFits");
     SEXP savedTreesSym    = Rf_install("savedTrees");
     SEXP sigmaSym         = Rf_install("sigma");
+    SEXP kSym             = Rf_install("k");
     SEXP rngStateSym      = Rf_install("rng.state");
     
     SEXP result = PROTECT(rc_newList(control.numChains));
@@ -367,6 +405,13 @@ namespace dbarts {
       rc_allocateInSlot2(slotExpr, result_i, sigmaSym, REALSXP, 1);
       REAL(slotExpr)[0] = state[chainNum].sigma;
       
+      if (model.kPrior != NULL) {
+        rc_allocateInSlot2(slotExpr, result_i, kSym, REALSXP, 1);
+        REAL(slotExpr)[0] = state[chainNum].k;
+      } else {
+        Rf_setAttrib(slotExpr, kSym, R_NilValue);
+      }
+      
       size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
       rc_allocateInSlot2(slotExpr, result_i, rngStateSym, INTSXP, rc_asRLength(rngStateLength));
       ext_rng_writeSerializedState(state[chainNum].rng, INTEGER(slotExpr));
@@ -381,12 +426,14 @@ namespace dbarts {
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
+    const Model& model(fit.model);
     const State* state(fit.state);
     
     SEXP treesSym         = Rf_install("trees");
     SEXP treeFitsSym      = Rf_install("treeFits");
     SEXP savedTreesSym    = Rf_install("savedTrees");
     SEXP sigmaSym         = Rf_install("sigma");
+    SEXP kSym             = Rf_install("k");
     SEXP rngStateSym      = Rf_install("rng.state");
     
     // check to see if it is an old-style saved object with only a single state
@@ -471,6 +518,11 @@ namespace dbarts {
       slotExpr = Rf_getAttrib(stateExpr_i, sigmaSym);
       REAL(slotExpr)[0] = state[chainNum].sigma;
       
+      if (model.kPrior != NULL) {
+        slotExpr = Rf_getAttrib(stateExpr_i, kSym);
+        REAL(slotExpr)[0] = state[chainNum].k;
+      }
+      
       size_t rngStateLength = ext_rng_getSerializedStateLength(state[chainNum].rng) / sizeof(int);
       slotExpr = Rf_getAttrib(stateExpr_i, rngStateSym);
       if (rc_getLength(slotExpr) != rngStateLength)
@@ -483,6 +535,7 @@ namespace dbarts {
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
+    const Model& model(fit.model);
     
     // check to see if it is an old-style saved object with only a single state
     SEXP classExpr = rc_getClass(stateExpr);
@@ -522,6 +575,11 @@ namespace dbarts {
             
       slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("sigma"));
       state[chainNum].sigma = REAL(slotExpr)[0];
+      
+      if (model.kPrior != NULL) {
+        slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("k"));
+        state[chainNum].k = REAL(slotExpr)[0];
+      }
       
       ext_rng_readSerializedState(state[chainNum].rng, INTEGER(Rf_getAttrib(stateExpr_i, Rf_install("rng.state"))));
     }

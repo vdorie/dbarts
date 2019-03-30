@@ -110,7 +110,7 @@ extern "C" {
     
     int protectCount = 0;
     
-    SEXP resultExpr = PROTECT(rc_newList(4));
+    SEXP resultExpr = PROTECT(rc_newList(bartResults->kSamples == NULL ? 4 : 5));
     ++protectCount;
     SET_VECTOR_ELT(resultExpr, 0, rc_newReal(rc_asRLength(bartResults->getNumSigmaSamples())));
     SET_VECTOR_ELT(resultExpr, 1, rc_newReal(rc_asRLength(bartResults->getNumTrainingSamples())));
@@ -119,6 +119,8 @@ extern "C" {
     else
       SET_VECTOR_ELT(resultExpr, 2, R_NilValue);
     SET_VECTOR_ELT(resultExpr, 3, rc_newInteger(rc_asRLength(bartResults->getNumVariableCountSamples())));
+    if (bartResults->kSamples != NULL)
+      SET_VECTOR_ELT(resultExpr, 4, rc_newReal(rc_asRLength(bartResults->getNumSigmaSamples())));
     
     SEXP sigmaSamples = VECTOR_ELT(resultExpr, 0);
     if (fit->control.numChains > 1)
@@ -151,15 +153,23 @@ extern "C" {
     // these likely need to be down-sized from 64 to 32 bits
     for (size_t i = 0; i < length; ++i) variableCountStorage[i] = static_cast<int>(bartResults->variableCountSamples[i]);
     
+    if (bartResults->kSamples != NULL) {
+      SEXP kSamples = VECTOR_ELT(resultExpr, 4);
+      if (fit->control.numChains > 1)
+        rc_setDims(kSamples, static_cast<int>(bartResults->numSamples), static_cast<int>(fit->control.numChains), -1);
+      std::memcpy(REAL(kSamples), const_cast<const double*>(bartResults->kSamples), bartResults->getNumSigmaSamples() * sizeof(double));
+    }
         
     // create result storage and make it user friendly
     SEXP namesExpr;
     
-    rc_setNames(resultExpr, namesExpr = rc_newCharacter(4));
+    rc_setNames(resultExpr, namesExpr = rc_newCharacter(bartResults->kSamples == NULL ? 4 : 5));
     SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
     SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
     SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
     SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
+    if (bartResults->kSamples != NULL)
+      SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
     
     UNPROTECT(protectCount);
     
@@ -242,6 +252,15 @@ extern "C" {
     initializeModelFromExpression(model, modelExpr, fit->control);
     
     Model oldModel = fit->model;
+    
+    if ((model.kPrior != NULL && oldModel.kPrior == NULL) ||
+        (model.kPrior == NULL && oldModel.kPrior != NULL))
+    {
+      Rf_error("k prior cannot be changed after sampler has been created");
+      invalidateModel(model);
+      
+      return R_NilValue;
+    }
     
     fit->setModel(model);
     
@@ -814,33 +833,6 @@ extern "C" {
     return resultExpr;
   }
 
-  
-  SEXP saveToFile(SEXP fitExpr, SEXP fileName)
-  {
-    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
-    if (fit == NULL) Rf_error("dbarts_saveToFile called on NULL external pointer");
-    
-    return Rf_ScalarLogical(fit->saveToFile(CHAR(STRING_ELT(fileName, 0))));
-  }
-
-  SEXP loadFromFile(SEXP fileName)
-  {
-    BARTFit* fit = BARTFit::loadFromFile(CHAR(STRING_ELT(fileName, 0)));
-    
-    delete [] fit->data.maxNumCuts;
-    delete [] fit->data.variableTypes;
-    
-    delete fit->model.sigmaSqPrior;
-    delete fit->model.muPrior;
-    delete fit->model.treePrior;
-    
-    delete fit;
-    
-    /* TODO: turn into an R object */
-    
-    return R_NilValue;
-  }
-  
   
   static void fitFinalizer(SEXP fitExpr)
   {

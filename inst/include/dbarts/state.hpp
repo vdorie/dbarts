@@ -20,6 +20,7 @@ namespace dbarts {
     SavedTree* savedTrees;              // numTrees x numSamples
     
     double sigma;
+    double k;
     
     ext_rng* rng;
     

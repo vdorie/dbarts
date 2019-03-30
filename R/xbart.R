@@ -32,6 +32,9 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
   
+  if (control@binary && is.null(matchedCall[["resid.prior"]]))
+    matchedCall[["resid.prior"]] <- quote(fixed(1))
+  
   if (!is.character(method) || method[1L] %not_in% eval(formals(xbart)$method))
     stop("method must be in '", paste0(eval(formals(xbart)$method), collapse = "', '"), "'")
   method <- method[1L]
@@ -82,7 +85,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     } else {
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }
-  model <- new("dbartsModel", tree.prior, node.prior, resid.prior)
+  model <- new("dbartsModel", tree.prior, node.prior, resid.prior,
+               node.scale = if (control@binary) 3.0 else 0.5)
   
   if (method == "k-fold") {
     n.test <- coerceOrError(n.test, "integer")

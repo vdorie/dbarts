@@ -319,8 +319,6 @@ namespace {
     DEF_FUNC("dbarts_xbart", xbart, 14),
     DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),
     // experimental
-    DEF_FUNC("dbarts_saveToFile", saveToFile, 2),
-    DEF_FUNC("dbarts_loadFromFile", loadFromFile, 1),
     DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
     // below: testing
     DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
@@ -349,6 +347,12 @@ namespace {
     DEF_FUNC("destroyNormalPrior", dbarts_destroyNormalPrior),
     DEF_FUNC("initializeNormalPriorFromOptions", dbarts_initializeNormalPriorFromOptions),
     DEF_FUNC("invalidateNormalPrior", dbarts_invalidateNormalPrior),
+    
+    DEF_FUNC("createNormalHyperprior", dbarts_createNormalHyperprior),
+    DEF_FUNC("createNormalHyperpriorFromOptions", dbarts_createNormalHyperpriorFromOptions),
+    DEF_FUNC("destroyNormalHyperprior", dbarts_destroyNormalHyperprior),
+    DEF_FUNC("initializeNormalHyperpriorFromOptions", dbarts_initializeNormalHyperpriorFromOptions),
+    DEF_FUNC("invalidateNormalHyperprior", dbarts_invalidateNormalHyperprior),
     
     DEF_FUNC("createChiSquaredPrior", dbarts_createChiSquaredPrior),
     DEF_FUNC("createChiSquaredPriorFromOptions", dbarts_createChiSquaredPriorFromOptions),

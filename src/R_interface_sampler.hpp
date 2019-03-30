@@ -34,9 +34,6 @@ extern "C" {
   SEXP getTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
   SEXP printTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
   
-  SEXP saveToFile(SEXP fit, SEXP fileName);
-  SEXP loadFromFile(SEXP fileName);
-  
 }
 
 #endif

@@ -117,7 +117,7 @@ namedList <- function(...) {
 ## factors 
 makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) stop('x is not a dataframe')
-  if (is.logical(drop) && is.na(drop)) stop('when logical, drop must be TRUE or FALSE')
+  if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) stop('when logical, drop must be TRUE or FALSE')
   if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
   
   result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)

@@ -109,18 +109,35 @@ extern "C" {
   NormalPrior* dbarts_createNormalPrior() {
     return new NormalPrior;
   }
-  NormalPrior* dbarts_createNormalPriorFromOptions(const Control* control, double k) {
-    return new NormalPrior(*control, k);
+  NormalPrior* dbarts_createNormalPriorFromOptions(const Control* control, const Model* model, double k) {
+    return new NormalPrior(*control, *model, k);
   }
   void dbarts_destroyNormalPrior(NormalPrior* prior) {
     delete prior;
   }
-  void dbarts_initializeNormalPriorFromOptions(NormalPrior* prior, const Control* control, double k)
+  void dbarts_initializeNormalPriorFromOptions(NormalPrior* prior, const Control* control, const Model* model, double k)
   {
-    new (prior) NormalPrior(*control, k);
+    new (prior) NormalPrior(*control, *model, k);
   }
   void dbarts_invalidateNormalPrior(NormalPrior* prior) {
     prior->~NormalPrior();
+  }
+  
+  NormalHyperprior* dbarts_createNormalHyperprior() {
+    return new NormalHyperprior;
+  }
+  NormalHyperprior* dbarts_createNormalHyperpriorFromOptions(double scale) {
+    return new NormalHyperprior(scale);
+  }
+  void dbarts_destroyNormalHyperprior(NormalHyperprior* prior) {
+    delete prior;
+  }
+  void dbarts_initializeNormalHyperpriorFromOptions(NormalHyperprior* prior, double scale)
+  {
+    new (prior) NormalHyperprior(scale);
+  }
+  void dbarts_invalidateNormalHyperprior(NormalHyperprior* prior) {
+    prior->~NormalHyperprior();
   }
   
   ChiSquaredPrior* dbarts_createChiSquaredPrior() {

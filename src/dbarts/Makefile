@@ -60,7 +60,7 @@ likelihood.o : likelihood.cpp likelihood.hpp $(BART_INC)/bartFit.hpp $(BART_INC)
 node.o : node.cpp node.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/data.hpp $(BART_INC)/model.hpp $(BART_INC)/scratch.hpp functions.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c node.cpp -o node.o
 
-parameterPrior.o : parameterPrior.cpp $(BART_INC)/model.hpp $(BART_INC)/control.hpp node.hpp
+parameterPrior.o : parameterPrior.cpp $(BART_INC)/bartFit.hpp $(BART_INC)/model.hpp $(BART_INC)/control.hpp node.hpp tree.hpp
 	$(CXX) $(ALL_CPPFLAGS) $(CXXFLAGS) -c parameterPrior.cpp -o parameterPrior.o
 
 state.o : state.cpp $(BART_INC)/state.hpp $(BART_INC)/bartFit.hpp $(BART_INC)/control.hpp node.hpp tree.hpp

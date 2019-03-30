@@ -126,10 +126,17 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
   parsePriorsCall$parentEnv <- evalEnv
+  if (control@binary) {
+    if (any(names(parsePriorsCall) == "resid.prior"))
+      parsePriorsCall[[which(names(parsePriorsCall) == "resid.prior")]] <- quote(fixed(1))
+    else 
+      parsePriorsCall[[which(names(formals(parsePriors)) == "resid.prior") + 1L]] <- quote(fixed(1))
+  }
   priors <- eval(parsePriorsCall)
 
-  model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$resid.prior)
-
+  model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$resid.prior,
+               node.scale = if (control@binary) 3.0 else 0.5)
+  
   result <- new("dbartsSampler", control, model, data)
   #cat("x address after creating sampler: ", .Call("dbarts_getPointerAddress", data@x), "\n", sep = "")
   #cat("x address in sampler$data: ", .Call("dbarts_getPointerAddress", result$data@x), "\n", sep = "")

@@ -328,12 +328,12 @@ extern "C" {
     
     Results* samples =
       suppliedTestSamples == NULL ?
-        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1) :
+        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1, false) :
         new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1,
                     new double[numSamples],
                     new double[maxNumTrainingObservations * numSamples],
                     suppliedTestSamples,
-                    new double[origData.numPredictors * numSamples]);
+                    new double[origData.numPredictors * numSamples], NULL);
     
     Control repControl = origControl;
     repControl.numThreads = 1;

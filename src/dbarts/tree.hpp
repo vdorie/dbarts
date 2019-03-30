@@ -18,15 +18,16 @@ namespace dbarts {
     
     Tree(std::size_t* indices, std::size_t numObservations, std::size_t numPredictors) : top(indices, numObservations, numPredictors) { }
     
-    void sampleAveragesAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
-    double* recoverAveragesFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
-    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, double* trainingFits, double* testFits);
-    void setCurrentFitsFromAverages(const BARTFit& fit, const double* posteriorPredictions, const xint_t* xt, std::size_t numObservations, double* fits);
+    void sampleParametersAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
+    double* recoverParametersFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
+    double* recoverParametersFromFits(const BARTFit& fit, const double* treeFits, std::size_t* numBottomNodes); // allocates result; are ordered as bottom nodes are
+    void setCurrentFitsFromParameters(const BARTFit& fit, const double* nodeParams, double* trainingFits, double* testFits);
+    void setCurrentFitsFromParameters(const BARTFit& fit, const double* nodeParams, const xint_t* xt, std::size_t numObservations, double* fits);
     
     // deals largely if there are a different number of cut points, since a tree could then conceivably have
     // splits out of range
-    void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* posteriorPredictions);
-    void collapseEmptyNodes(const BARTFit& fit, double* posteriorPredictions);
+    void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* nodeParams);
+    void collapseEmptyNodes(const BARTFit& fit, double* nodeParams);
     
     void sampleFromPrior(const BARTFit& fit, ext_rng* rng);
     

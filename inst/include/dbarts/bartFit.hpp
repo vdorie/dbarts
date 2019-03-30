@@ -105,9 +105,6 @@ namespace dbarts {
     // the new control must have the same number of chains as the previous or else prob seg fault
     void setControl(const Control& control);
     void setModel(const Model& model);
-    
-    bool saveToFile(const char* fileName) const;
-    static BARTFit* loadFromFile(const char* fileName);
   };
   
   struct FlattenedTrees {

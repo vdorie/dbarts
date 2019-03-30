@@ -59,6 +59,7 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
   
   if (fit$control@keepTrees)
     result$fit <- fit
+  if (!is.null(samples[["k"]])) result[["k"]] <- packageSamples(n.chains, combineChains, samples[["k"]])
   
   class(result) <- 'bart'
   invisible(result)
@@ -107,7 +108,7 @@ bart2 <- function(
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
 
   node.prior <- quote(normal(k))
-  node.prior[[2L]] <- k
+  node.prior[[2L]] <- if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k
 
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
@@ -190,7 +191,7 @@ bart <- function(
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
 
   node.prior <- quote(normal(k))
-  node.prior[[2L]] <- k
+  node.prior[[2L]] <- if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k
 
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
