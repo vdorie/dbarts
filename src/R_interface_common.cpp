@@ -206,16 +206,21 @@ namespace dbarts {
     } else {
       SEXP classExpr = rc_getClass(slotExpr);
       const char* classStr = CHAR(STRING_ELT(classExpr, 0));
-      errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsNormalHyperprior", NULL);
+      errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiHyperprior", NULL);
       if (errorCode != 0) Rf_error("error matching node hyper prior: %s", std::strerror(errorCode));
       if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported hyperprior type '%s'", classStr);
       // some day, we will have a switch statement here
-      double scale = rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("scale")), "scale",
-                                  RC_LENGTH | RC_EQ, rc_asRLength(1),
-                                  RC_VALUE | RC_GT, 0.0, RC_END);
+      double degreesOfFreedom =
+        rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("degreesOfFreedom")), "degreesOfFreedom",
+                     RC_LENGTH | RC_EQ, rc_asRLength(1),
+                     RC_VALUE | RC_GT, 0.0, RC_END);
+      double scale =
+        rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("scale")), "scale",
+                     RC_LENGTH | RC_EQ, rc_asRLength(1),
+                     RC_VALUE | RC_GT, 0.0, RC_END);
       
       model.muPrior = new NormalPrior(control, model, 2.0);
-      model.kPrior = new NormalHyperprior(scale);
+      model.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
     }
     
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));

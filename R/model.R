@@ -52,7 +52,8 @@ normal <- function(k = 2.0)
   
   if (!is.null(matchedCall[["k"]])) {
     evalEnv <- new.env(parent = parent.frame())
-    evalEnv$normal <- function(scale = 1) new("dbartsNormalHyperprior", scale = scale)
+    evalEnv$chi <- function(degreesOfFreedom = 2.5, scale = 1)
+      new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
     
     if (is.symbol(matchedCall[["k"]])) matchedCall[["k"]] <- call(as.character(matchedCall[["k"]]))
     

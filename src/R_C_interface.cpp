@@ -123,21 +123,21 @@ extern "C" {
     prior->~NormalPrior();
   }
   
-  NormalHyperprior* dbarts_createNormalHyperprior() {
-    return new NormalHyperprior;
+  ChiHyperprior* dbarts_createChiHyperprior() {
+    return new ChiHyperprior;
   }
-  NormalHyperprior* dbarts_createNormalHyperpriorFromOptions(double scale) {
-    return new NormalHyperprior(scale);
+  ChiHyperprior* dbarts_createChiHyperpriorFromOptions(double degreesOfFreedom, double scale) {
+    return new ChiHyperprior(degreesOfFreedom, scale);
   }
-  void dbarts_destroyNormalHyperprior(NormalHyperprior* prior) {
+  void dbarts_destroyChiHyperprior(ChiHyperprior* prior) {
     delete prior;
   }
-  void dbarts_initializeNormalHyperpriorFromOptions(NormalHyperprior* prior, double scale)
+  void dbarts_initializeChiHyperpriorFromOptions(ChiHyperprior* prior, double degreesOfFreedom, double scale)
   {
-    new (prior) NormalHyperprior(scale);
+    new (prior) ChiHyperprior(degreesOfFreedom, scale);
   }
-  void dbarts_invalidateNormalHyperprior(NormalHyperprior* prior) {
-    prior->~NormalHyperprior();
+  void dbarts_invalidateChiHyperprior(ChiHyperprior* prior) {
+    prior->~ChiHyperprior();
   }
   
   ChiSquaredPrior* dbarts_createChiSquaredPrior() {

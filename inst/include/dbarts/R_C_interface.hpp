@@ -11,7 +11,7 @@ namespace dbarts {
   struct CGMPrior;
   struct NormalPrior;
   struct ChiSquaredPrior;
-  struct NormalHyperprior;
+  struct ChiHyperprior;
   
   struct BARTFit;
   struct Results;
@@ -64,11 +64,11 @@ extern "C" {
   void dbarts_initializeNormalPriorFromOptions(dbarts::NormalPrior* prior, const dbarts::Control* control, const dbarts::Model* model, double k);
   void dbarts_invalidateNormalPrior(dbarts::NormalPrior* prior);
   
-  dbarts::NormalHyperprior* dbarts_createNormalHyperprior();
-  dbarts::NormalHyperprior* dbarts_createNormalHyperpriorFromOptions(double scale);
-  void dbarts_destroyNormalHyperprior(dbarts::NormalHyperprior* prior);
-  void dbarts_initializeNormalHyperpriorFromOptions(dbarts::NormalHyperprior* prior, double scale);
-  void dbarts_invalidateNormalHyperprior(dbarts::NormalHyperprior* prior);
+  dbarts::ChiHyperprior* dbarts_createChiHyperprior();
+  dbarts::ChiHyperprior* dbarts_createChiHyperpriorFromOptions(double degreesOfFreedom, double scale);
+  void dbarts_destroyChiHyperprior(dbarts::ChiHyperprior* prior);
+  void dbarts_initializeChiHyperpriorFromOptions(dbarts::ChiHyperprior* prior, double degreesOfFreedom, double scale);
+  void dbarts_invalidateChiHyperprior(dbarts::ChiHyperprior* prior);
   
   dbarts::ChiSquaredPrior* dbarts_createChiSquaredPrior();
   dbarts::ChiSquaredPrior* dbarts_createChiSquaredPriorFromOptions(double degreesOfFreedom, double quantile);

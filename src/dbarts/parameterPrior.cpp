@@ -2,6 +2,7 @@
 #include <dbarts/model.hpp>
 
 #include <cmath>
+#include <limits>
 
 #include <external/io.h>
 #include <external/random.h>
@@ -112,12 +113,12 @@ namespace dbarts {
     ext_printf("\tresidual variance prior fixed to %f\n", value);
   }
   
-  void NormalHyperprior::print(const BARTFit&) const
+  void ChiHyperprior::print(const BARTFit&) const
   {
-    ext_printf("\tprior on k: normal with scale %f\n", scale);
+    ext_printf("\tprior on k: chi with %f degrees of freedom and %f scale\n", degreesOfFreedom, scale);
   }
   
-  double NormalHyperprior::drawFromPosterior(const BARTFit& fit, size_t chainNum) const
+  double ChiHyperprior::drawFromPosterior(const BARTFit& fit, size_t chainNum) const
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
@@ -140,8 +141,10 @@ namespace dbarts {
     
     double numTrees = static_cast<double>(control.numTrees);
     
-    double shape = 0.5 * (totalNumBottomNodes + 1.0);
-    double rate = 0.5 * (numTrees * s_sq / (model.nodeScale * model.nodeScale) + scale * scale);
+    double shape = 0.5 * (totalNumBottomNodes + 2.0 * degreesOfFreedom - 1.0);
+    double rate = 0.5 * (numTrees * s_sq / (model.nodeScale * model.nodeScale));
+    if (std::fabs(scale) <= std::numeric_limits<double>::max())
+      rate += 0.5 / (scale * scale);
     
     return std::sqrt(ext_rng_simulateGamma(state.rng, shape, 1.0 / rate));
   }

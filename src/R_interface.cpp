@@ -348,11 +348,11 @@ namespace {
     DEF_FUNC("initializeNormalPriorFromOptions", dbarts_initializeNormalPriorFromOptions),
     DEF_FUNC("invalidateNormalPrior", dbarts_invalidateNormalPrior),
     
-    DEF_FUNC("createNormalHyperprior", dbarts_createNormalHyperprior),
-    DEF_FUNC("createNormalHyperpriorFromOptions", dbarts_createNormalHyperpriorFromOptions),
-    DEF_FUNC("destroyNormalHyperprior", dbarts_destroyNormalHyperprior),
-    DEF_FUNC("initializeNormalHyperpriorFromOptions", dbarts_initializeNormalHyperpriorFromOptions),
-    DEF_FUNC("invalidateNormalHyperprior", dbarts_invalidateNormalHyperprior),
+    DEF_FUNC("createChiHyperprior", dbarts_createChiHyperprior),
+    DEF_FUNC("createChiHyperpriorFromOptions", dbarts_createChiHyperpriorFromOptions),
+    DEF_FUNC("destroyChiHyperprior", dbarts_destroyChiHyperprior),
+    DEF_FUNC("initializeChiHyperpriorFromOptions", dbarts_initializeChiHyperpriorFromOptions),
+    DEF_FUNC("invalidateChiHyperprior", dbarts_invalidateChiHyperprior),
     
     DEF_FUNC("createChiSquaredPrior", dbarts_createChiSquaredPrior),
     DEF_FUNC("createChiSquaredPriorFromOptions", dbarts_createChiSquaredPriorFromOptions),

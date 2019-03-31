@@ -145,12 +145,13 @@ namespace dbarts {
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const;
   }; */
   
-  struct NormalHyperprior : EndNodeHyperprior {
+  struct ChiHyperprior : EndNodeHyperprior {
+    double degreesOfFreedom;
     double scale;
     
-    NormalHyperprior() : scale(1.0) { }
-    NormalHyperprior(double scale) : scale(scale) { }
-    virtual ~NormalHyperprior() { }
+    ChiHyperprior() : degreesOfFreedom(2.0), scale(1.0) { }
+    ChiHyperprior(double degreesOfFreedom, double scale) : degreesOfFreedom(degreesOfFreedom), scale(scale) { }
+    virtual ~ChiHyperprior() { }
     
     virtual void print(const BARTFit& fit) const;
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const;

@@ -11,10 +11,13 @@ methods::setValidity("dbartsCGMPrior",
 
 # this is a prior over k
 methods::setClass("dbartsNodeHyperprior")
-methods::setClass("dbartsNormalHyperprior", contains = "dbartsNodeHyperprior",
-                  slots = list(scale = "numeric"))
-methods::setValidity("dbartsNormalHyperprior",
-  function(object) if (object@scale <= 0.0) return("'scale' must be positive"))
+methods::setClass("dbartsChiHyperprior", contains = "dbartsNodeHyperprior",
+                  slots = list(degreesOfFreedom = "numeric", scale = "numeric"))
+methods::setValidity("dbartsChiHyperprior",
+  function(object) {
+    if (object@degreesOfFreedom <= 0.0) return("'degreesOfFreedom' must be positive")
+    if (object@scale <= 0.0) return("'scale' must be positive")
+  })
 
 
 methods::setClassUnion("hyperpriorOrNumeric", c("dbartsNodeHyperprior", "numeric"))
