@@ -55,9 +55,16 @@ normal <- function(k = 2.0)
     evalEnv$chi <- function(degreesOfFreedom = 2.5, scale = 1)
       new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
     
-    if (is.symbol(matchedCall[["k"]])) matchedCall[["k"]] <- call(as.character(matchedCall[["k"]]))
+    kExpr <- matchedCall[["k"]]
+    if (is.symbol(kExpr) && startsWith(as.character(kExpr), "chi")) {
+      kExpr <- call(as.character(kExpr))
+    } else if (is.character(kExpr) && startsWith(kExpr, "chi")) {
+      kExpr <- parse(text = kExpr)[[1L]]
+      if (!is.call(kExpr))
+        kExpr <- call(as.character(kExpr))
+    }
     
-    k <- eval(matchedCall[["k"]], evalEnv)
+    k <- eval(kExpr, evalEnv)
   }
   
   new("dbartsNormalPrior", k = k)
