@@ -56,15 +56,25 @@ normal <- function(k = 2.0)
       new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
     
     kExpr <- matchedCall[["k"]]
-    if (is.symbol(kExpr) && startsWith(as.character(kExpr), "chi")) {
-      kExpr <- call(as.character(kExpr))
-    } else if (is.character(kExpr) && startsWith(kExpr, "chi")) {
-      kExpr <- parse(text = kExpr)[[1L]]
-      if (!is.call(kExpr))
+    for (i in seq_len(2L)) {
+      if (is.numeric(kExpr) || is(kExpr, "dbartsNodeHyperprior")) break
+      
+      if (is.character(kExpr)) {
+        if (startsWith(kExpr, "chi")) {
+          kExpr <- parse(text = kExpr)[[1L]]
+          if (!is.call(kExpr))
+            kExpr <- call(as.character(kExpr))
+        }
+        else kExpr <- coerceOrError(kExpr, "numeric")
+      }
+      if (is.symbol(kExpr) && !is.call(kExpr) && startsWith(as.character(kExpr), "chi"))
         kExpr <- call(as.character(kExpr))
+      
+      # the below evaluation might only lead to a lookup, in which case we have to do an
+      # additional level of casting/eval
+      kExpr <- eval(kExpr, evalEnv)
     }
-    
-    k <- eval(kExpr, evalEnv)
+    k <- kExpr
   }
   
   new("dbartsNormalPrior", k = k)
