@@ -59,12 +59,13 @@ namespace dbarts {
 #endif
     if (fit == NULL) return;
     
-    delete fit->model.treePrior;
-    delete fit->model.muPrior;
+    delete fit->model.kPrior;
     delete fit->model.sigmaSqPrior;
+    delete fit->model.muPrior;
+    delete fit->model.treePrior;
     
-    delete [] fit->data.maxNumCuts;
     delete [] fit->data.variableTypes;
+    delete [] fit->data.maxNumCuts;
     
     delete fit;
   }
@@ -148,11 +149,32 @@ namespace dbarts {
     
     control.rng_standardNormal = static_cast<rng_standardNormal_t>(rngNormalKindNumber);
   }
-  
+}
+
+namespace {
+  struct ModelStackDeconstructor {
+    dbarts::TreePrior* treePrior;
+    dbarts::EndNodePrior* muPrior;
+    dbarts::ResidualVariancePrior* sigmaSqPrior;
+    dbarts::EndNodeHyperprior* kPrior;
+    
+    ModelStackDeconstructor() : treePrior(NULL), muPrior(NULL), sigmaSqPrior(NULL), kPrior(NULL) { }
+    ~ModelStackDeconstructor() {
+      delete kPrior;
+      delete sigmaSqPrior;
+      delete muPrior;
+      delete treePrior;
+    }
+  };
+}
+
+namespace dbarts {
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
   {
     int errorCode;
     size_t priorType;
+    
+    ModelStackDeconstructor stackModel;
     
     SEXP slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth_death"));
     model.birthOrDeathProbability =
@@ -182,9 +204,10 @@ namespace dbarts {
       rc_getDouble(slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_END);
     
+    
     SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
     CGMPrior* treePrior = new CGMPrior;
-    model.treePrior = treePrior;
+    stackModel.treePrior = treePrior;
     
     slotExpr = Rf_getAttrib(priorExpr, Rf_install("power"));
     treePrior->power =
@@ -202,7 +225,7 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(priorExpr, Rf_install("k"));
     if (Rf_isReal(slotExpr)) {
       double k = rc_getDouble(slotExpr, "k", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-      model.muPrior = new NormalPrior(control, model, k);
+      stackModel.muPrior = new NormalPrior(control, model, k);
     } else {
       SEXP classExpr = rc_getClass(slotExpr);
       const char* classStr = CHAR(STRING_ELT(classExpr, 0));
@@ -219,8 +242,8 @@ namespace dbarts {
                      RC_LENGTH | RC_EQ, rc_asRLength(1),
                      RC_VALUE | RC_GT, 0.0, RC_END);
       
-      model.muPrior = new NormalPrior(control, model, 2.0);
-      model.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
+      stackModel.muPrior = new NormalPrior(control, model, 2.0);
+      stackModel.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
     }
     
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
@@ -243,16 +266,21 @@ namespace dbarts {
           rc_getDouble(slotExpr, "sigma prior quantile", RC_LENGTH | RC_EQ, rc_asRLength(1),
                      RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
         
-        model.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, sigmaPriorQuantile);
+        stackModel.sigmaSqPrior = new ChiSquaredPrior(sigmaPriorDf, sigmaPriorQuantile);
       }
       break;
       default:
       slotExpr = Rf_getAttrib(priorExpr, Rf_install("value"));
-      model.sigmaSqPrior = new FixedPrior(
+      stackModel.sigmaSqPrior = new FixedPrior(
           rc_getDouble(slotExpr, "residual variance prior fixed value", RC_LENGTH | RC_EQ, rc_asRLength(1),
                        RC_VALUE | RC_GT, 0.0, RC_END));
       break;
     }
+    
+    model.kPrior       = stackModel.kPrior;       stackModel.kPrior = NULL;
+    model.sigmaSqPrior = stackModel.sigmaSqPrior; stackModel.sigmaSqPrior = NULL;
+    model.muPrior      = stackModel.muPrior;      stackModel.muPrior = NULL;
+    model.treePrior    = stackModel.treePrior;    stackModel.treePrior = NULL;
   }
   
   void invalidateModel(Model& model)
@@ -265,9 +293,26 @@ namespace dbarts {
     delete model.muPrior;      model.muPrior = NULL;
     delete model.treePrior;    model.treePrior = NULL;
   }
-  
+}
+
+// begging to be an auto_ptr or unique, but I don't want to get into
+// C++ versioning
+namespace {
+  struct DataStackDeconstructor {
+    dbarts::VariableType* variableTypes;
+    
+    DataStackDeconstructor() : variableTypes(NULL) { }
+    ~DataStackDeconstructor() {
+      delete variableTypes;
+    }
+  };
+}
+
+namespace dbarts {
   void initializeDataFromExpression(Data& data, SEXP dataExpr)
   {
+    DataStackDeconstructor stackData;
+    
     int* dims;
     
     SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
@@ -287,9 +332,9 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
     rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ, rc_asRLength(data.numPredictors), RC_END);
     int* i_variableTypes = INTEGER(slotExpr);
-    VariableType* variableTypes = new VariableType[data.numPredictors];
-    for (size_t i = 0; i < data.numPredictors; ++i) variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
-    data.variableTypes = variableTypes;
+    stackData.variableTypes = new VariableType[data.numPredictors];
+    for (size_t i = 0; i < data.numPredictors; ++i) stackData.variableTypes[i] = (i_variableTypes[i] == 0 ? ORDINAL : CATEGORICAL);
+    data.variableTypes = stackData.variableTypes;
     
     slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
     if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) || rc_getLength(slotExpr) == 0) {
@@ -339,12 +384,14 @@ namespace dbarts {
     uint32_t* maxNumCuts = new uint32_t[data.numPredictors];
     for (size_t i = 0; i < data.numPredictors; ++i) maxNumCuts[i] = static_cast<uint32_t>(i_maxNumCuts[i]);
     data.maxNumCuts = maxNumCuts;
+    
+    stackData.variableTypes = NULL;
   }
   
   void invalidateData(Data& data)
   {
-    delete [] data.maxNumCuts;    data.maxNumCuts = NULL;
     delete [] data.variableTypes; data.variableTypes = NULL;
+    delete [] data.maxNumCuts;    data.maxNumCuts = NULL;
   }
   
   SEXP createStateExpressionFromFit(const BARTFit& fit)

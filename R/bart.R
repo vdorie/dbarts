@@ -68,7 +68,7 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
 bart2 <- function(
   formula, data, test, subset, weights, offset, offset.test = offset,
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-  k = 2.0,
+  k = NULL,
   power = 2.0, base = 0.95,
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
@@ -76,8 +76,8 @@ bart2 <- function(
   n.cuts = 100L, useQuantiles = TRUE,
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
-  verbose = TRUE,
-  keepTrees = FALSE, keepCall = TRUE, ...
+  verbose = TRUE, keepTrees = FALSE, keepCall = TRUE,
+  samplerOnly = FALSE, ...
 )
 {
   matchedCall <- match.call()
@@ -107,8 +107,14 @@ bart2 <- function(
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
 
+  dotsList <- list(...)
   node.prior <- quote(normal(k))
-  node.prior[[2L]] <- if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k
+  node.prior[[2L]] <-
+    if (!is.null(dotsList[["k"]]))
+      dotsList[["k"]]
+    else {
+      if (control@binary) quote(chi(1.25, Inf)) else 2
+    }
 
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
@@ -122,6 +128,7 @@ bart2 <- function(
   samplerCall$sigma <- as.numeric(sigest)
   
   sampler <- eval(samplerCall, envir = callingEnv)
+  if (samplerOnly == TRUE) return(sampler)
   
   control <- sampler$control
   

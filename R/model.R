@@ -52,7 +52,7 @@ normal <- function(k = 2.0)
   
   if (!is.null(matchedCall[["k"]])) {
     evalEnv <- new.env(parent = parent.frame())
-    evalEnv$chi <- function(degreesOfFreedom = 2.5, scale = 1)
+    evalEnv$chi <- function(degreesOfFreedom = 1.25, scale = Inf)
       new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
     
     kExpr <- matchedCall[["k"]]

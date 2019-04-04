@@ -29,7 +29,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
 
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
-      k = 2.0,
+      k = NULL,
       power = 2.0, base = 0.95,
       n.trees = 75L,
       n.samples = 500L, n.burn = 500L,
@@ -37,8 +37,8 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       n.cuts = 100L, useQuantiles = TRUE,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
-      verbose = TRUE,
-      keepTrees = FALSE, keepCall = TRUE, \dots)
+      verbose = TRUE, keepTrees = FALSE, 
+      keepCall = TRUE, samplerOnly = FALSE, \dots)
      
 \method{plot}{bart}(x,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
@@ -86,11 +86,14 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    }
 
    \item{k}{
-     For numeric \eqn{y},
-     \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}.
-     The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}.
-     For binary \eqn{y}, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from
-     \eqn{\pm 3}{+/- 3}. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be.
+     For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away
+     from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from
+     \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y}, \code{k} is the number of prior standard deviations
+     \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}. In both cases, the bigger \eqn{k} is, the more
+     conservative the fitting will be. The value can be either a fixed number, or the a \emph{hyperprior}
+     of the form \code{chi(degreesOfFreedom = 1.25, scale = Inf)}. For \code{bart2}, the default of
+     \code{NULL} uses the value 2 for continuous reponses and a \code{chi} hyperprior for binary ones.
+     The default \code{chi} hyperprior is improper, and slightly penalizes small values of \code{k}.
    }
 
    \item{power}{
@@ -207,6 +210,11 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
    }
    
+   \item{samplerOnly}{
+     Builds the sampler from its arguments and returns it without running it. Useful to use the
+     \code{bart2} interface in more complicated models.
+   }
+   
    \item{n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts,
          n.thin, keepTrainingFits, useQuantiles, printEvery, printCutoffs,
          keepTrees, keepCall}{
@@ -226,6 +234,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      Vector of two colors. First color is used to plot the median of \eqn{f(x)} and
      the second color is used to plot the lower and upper quantiles.
    }
+   
 
    \item{\dots}{
      Additional arguments passed on to \code{plot} or \code{dbartsControl}, respectively. Not used in
@@ -261,7 +270,23 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
     the minimum of \code{numcut} and one less than the number
     of unique elements for that variable are used.
   }
-  
+  \subsection{\code{k}}{
+    The amount of shrinkage of the node parameters is controlled by \code{k}.
+    \code{k} can be given as either a fixed, positive number, or as any value
+    that can be used to build a supported hyperprior. At present, only
+    \eqn{\chi_\nu s} priors are supported, where \eqn{\nu} is a degrees of freedom
+    and \eqn{s} is a scale. Both values must be positive, however the scale can
+    be infinite which yields an improper prior, interpretted as just the polynomial
+    part of the distribution. If \eqn{nu} is 1 and \eqn{s} is \eqn{\infty}, the
+    prior is \dQuote{flat}.
+    
+    For BART on binary outcomes, the degree of overfitting can be highly sensitive to
+    \code{k} so it is encouraged to consider a number of values. The default
+    hyperprior for binary BART, \code{chi(1.25, Inf)}, has been shown to work well
+    in a large number of datasets, however crossvalidation may be helpful. Running
+    for a short time with a flat prior may be helpful to see the range of values of
+    \code{k} that are consistent with the data.
+  }
   \subsection{Predict}{
     Using \code{predict} with a \code{bart} object requires that it be fitted with the
     option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. Keeping the trees for
@@ -313,6 +338,9 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   \item{\code{fit}}{
         Optional sampler object which stores the values of the tree splits. Required for using
         \code{predict} and only stored if \code{keeptrees} is \code{TRUE}.}
+  \item{\code{k}}{
+        Optional matrix of posterior samples of \code{k}. Only present when \code{k} is modeled,
+        i.e. there is a hyperprior.}
     
   In the binary \eqn{y} case, the returned list has the components
   \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list 
