@@ -6,13 +6,13 @@ test_that("random subsample runs correctly with valid inputs", {
   x <- testData$x
   y <- testData$y
   
-  n.reps  <- 8L
+  n.reps  <- 3L
   n.trees <- c(5L, 7L)
   k       <- c(1, 2, 4)
   power   <- c(1.5, 2)
   base    <- c(0.75, 0.8, 0.95)
 
-  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "random subsample",
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "random subsample",
                 n.reps = n.reps,
                 n.trees = n.trees,
                 k = k,
@@ -35,13 +35,13 @@ test_that("k-fold runs correctly with valid inputs", {
   x <- testData$x
   y <- testData$y
   
-  n.reps  <- 8L
+  n.reps  <- 3L
   n.trees <- c(5L, 7L)
   k       <- c(1, 2, 4)
   power   <- c(1.5, 2)
   base    <- c(0.75, 0.8, 0.95)
 
-  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "k-fold", n.test = 6,
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
                 n.reps = n.reps,
                 n.trees = n.trees,
                 k = k,
@@ -64,27 +64,46 @@ test_that("k-fold and random subsample are roughly similar", {
   x <- testData$x
   y <- testData$y
   
-  k <- c(0.5, 8)
+  k <- c(4, 8)
   
   set.seed(0)
   xval.kf <- xbart(x, y, method = "k-fold",
-                   n.reps = 20L, n.samples = 100L, n.burn = c(100L, 50L, 10L),
+                   n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
                    k = k,
                    n.threads = 1L)
 
   xval.rs <- xbart(x, y, method = "random subsample", 
-                   n.reps = 100L, n.samples = 100L, n.burn = c(100L, 50L, 10L),
+                   n.reps = 20L, n.samples = 20L, n.burn = c(10L, 5L, 1L),
                    k = k, 
                    n.threads = 1L)
   
-  expect_true(sign(diff(apply(xval.rs, 2, mean))) == sign(diff(apply(xval.kf, 2, mean))))
+  expect_true(all(abs(apply(xval.rs, 2, mean) - apply(xval.kf, 2, mean)) < .1))
+})
+
+test_that("works with non-standard models", {
+  x <- testData$x
+  y <- testData$y
+  
+  k <- c(4, 8)
+  expect_silent(xbart(x, y, method = "k-fold",
+                      n.reps = 3L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                      k = k, n.threads = 1L, resid.prior = chisq(2.5, 0.9)))
+  
+  expect_silent(xbart(x, y, method = "k-fold",
+                      n.reps = 3L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                      k = k, n.threads = 1L, resid.prior = fixed(2)))
+  
+  n.trees <- c(5, 10)
+  expect_silent(xbart(x, y, method = "k-fold",
+                      n.reps = 3L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                      n.trees = n.trees, n.threads = 1L))
 })
 
 test_that("works with custom loss", {
   x <- testData$x
   y <- testData$y
   
-  n.reps  <- 8L
+  n.reps  <- 3L
   n.trees <- c(5L, 7L)
   k       <- c(1, 2, 4)
   power   <- c(1.5, 2)
@@ -93,7 +112,7 @@ test_that("works with custom loss", {
   mad <- function(y.train, y.train.hat) 
     mean(abs(y.train - apply(y.train.hat, 1L, mean)))
 
-  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "k-fold", n.test = 6,
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
                 n.reps = n.reps,
                 n.trees = n.trees,
                 k = k,
@@ -112,7 +131,7 @@ test_that("works with custom loss", {
     base    = as.character(base)))
   
   
-  xval <- xbart(x, y, n.samples = 15L, n.burn = c(10L, 3L, 1L), method = "k-fold", n.test = 6,
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
                 n.reps = n.reps,
                 n.trees = n.trees,
                 k = k,

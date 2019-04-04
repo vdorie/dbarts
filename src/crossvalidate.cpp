@@ -300,7 +300,7 @@ extern "C" {
       else
         maxNumTrainingObservations = origData.numObservations - maxNumTestObservations++;
     } else {
-      maxNumTestObservations = origData.numObservations -
+      maxNumTestObservations =
         static_cast<size_t>(std::floor(static_cast<double>(origData.numObservations) * sharedData.testSampleSize.p + 0.5));
       maxNumTrainingObservations = origData.numObservations - maxNumTestObservations;
     }
@@ -584,7 +584,6 @@ namespace {
   void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
                                  ext_rng* restrict generator, size_t* restrict permutation)
   {
-    size_t i, j, obsIndex;
     double* restrict y = const_cast<double* restrict>(repData.y);
     double* restrict x = const_cast<double* restrict>(repData.x);
     double* restrict x_test = const_cast<double* restrict>(repData.x_test);
@@ -596,20 +595,36 @@ namespace {
     std::sort(permutation, permutation + numTestObservations);
     std::sort(permutation + numTestObservations, permutation + origData.numObservations);
     
-    for (i = 0; i < numTestObservations; ++i) {
-      obsIndex = *permutation++;
+    for (size_t i = 0; i < numTestObservations; ++i) {
+      size_t obsIndex = *permutation++;
       y_test[i] = origData.y[obsIndex];
-      for (j = 0; j < origData.numPredictors; ++j) {
+      for (size_t j = 0; j < origData.numPredictors; ++j) {
         x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
     }
-    for (i = 0; i < numTrainingObservations; ++i) {
-      obsIndex = *permutation++;
+    for (size_t i = 0; i < numTrainingObservations; ++i) {
+      size_t obsIndex = *permutation++;
       y[i] = origData.y[obsIndex];
-      for (j = 0; j < origData.numPredictors; ++j) {
+      for (size_t j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
     }
+    
+    /* ext_printf("training data:\n");
+    for (size_t i = 0; i < numTrainingObservations; ++i) {
+      ext_printf("%.4f %.4f", repData.y[i], repData.x[i]);
+      for (size_t j = 1; j < origData.numPredictors; ++j)
+        ext_printf(" %.4f", repData.x[i + j * numTrainingObservations]);
+      ext_printf("\n");
+    }
+    ext_printf("\ntest data:\n");
+    for (size_t i = 0; i < numTestObservations; ++i) {
+      ext_printf("%.4f %.4f", y_test[i], repData.x_test[i]);
+      for (size_t j = 1; j < origData.numPredictors; ++j)
+        ext_printf(" %.4f", repData.x_test[i + j * numTestObservations]);
+      ext_printf("\n");
+    }
+    ext_printf("\n"); */
   }
   
   void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,

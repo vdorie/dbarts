@@ -15,6 +15,11 @@
             with binary outcomes. The default accuracy should improve substantially
     }
   }
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item \code{xbart} divides data correctly with random subsampling.
+    }
+  }
 }
 \section{CHANGES IN VERSION 0.9-9}{
   \subsection{NEW FEATURES}{
