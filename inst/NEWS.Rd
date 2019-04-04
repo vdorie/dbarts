@@ -1,6 +1,21 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-10}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item A hyperpriors for \code{k} has now been implemented. Passing
+            \code{k = chi(degreesOfFreedom, scale)} now penalizes small values of
+            \code{k}, encouraging more shrinkage.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item Hyperprior of \code{chi(1.25, Inf)} is now default for \code{bart2}
+            with binary outcomes. The default accuracy should improve substantially
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-9}{
   \subsection{NEW FEATURES}{
     \itemize{

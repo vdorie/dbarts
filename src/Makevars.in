@@ -33,7 +33,7 @@ sublibs:
 	done
 
 clean: subclean
-	-rm -f ../inst/include/dbarts/types.hpp src/include/misc/types.h
+	-rm -f ../inst/include/dbarts/types.hpp src/include/misc/types.h config.hpp
 	@-rm -rf .libs _libs
 	@-rm -f *.o $(SHLIB)
 
