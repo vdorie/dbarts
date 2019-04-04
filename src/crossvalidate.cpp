@@ -117,7 +117,7 @@ namespace dbarts { namespace xval {
           for (size_t bIndex = 0; bIndex < numBases; ++bIndex) {
             
             cellParameters[cellNumber].numTrees = nTrees[nIndex];
-            cellParameters[cellNumber].k        = k[kIndex];
+            cellParameters[cellNumber].k        = k != NULL ? k[kIndex] : -1.0;
             cellParameters[cellNumber].power    = power[pIndex];
             cellParameters[cellNumber].base     = base[bIndex];
             cellNumber++;
@@ -678,6 +678,7 @@ namespace {
     repModel.swapProbability = origModel.swapProbability;
     repModel.changeProbability = origModel.changeProbability;
     repModel.birthProbability = origModel.birthProbability;
+    repModel.nodeScale = origModel.nodeScale;
     
     CGMPrior* repTreePrior = new CGMPrior();
     const CGMPrior* oldTreePrior = static_cast<CGMPrior*>(origModel.treePrior);
@@ -693,13 +694,14 @@ namespace {
     
     repModel.muPrior = repNodePrior;
     
+    repModel.sigmaSqPrior = origModel.sigmaSqPrior->duplicate();
     
-    ChiSquaredPrior* repResidPrior = new ChiSquaredPrior();
-    const ChiSquaredPrior* oldResidPrior = static_cast<ChiSquaredPrior*>(origModel.sigmaSqPrior);
-    repResidPrior->degreesOfFreedom = oldResidPrior->degreesOfFreedom;
-    repResidPrior->scale = oldResidPrior->scale;
-    
-    repModel.sigmaSqPrior = repResidPrior;
+    if (origModel.kPrior != NULL) {
+      const ChiHyperprior* oldKPrior = static_cast<ChiHyperprior*>(origModel.kPrior);
+      repModel.kPrior = new ChiHyperprior(oldKPrior->degreesOfFreedom, oldKPrior->scale);
+    } else {
+      repModel.kPrior = NULL;
+    }
   }
   
   void freeDataStorage(Data& repData)
@@ -715,6 +717,7 @@ namespace {
   
   void freeModelStorage(Model& repModel)
   {
+    delete repModel.kPrior;
     delete repModel.sigmaSqPrior;
     delete repModel.muPrior;
     delete repModel.treePrior;
@@ -792,8 +795,10 @@ namespace {
     
     repControl.numTrees = numTrees;
     
-    double endNodeSd = (repControl.responseIsBinary ? 3.0 : 0.5) / (k * std::sqrt(static_cast<double>(repControl.numTrees)));
-    static_cast<NormalPrior*>(repModel.muPrior)->precision = 1.0 / (endNodeSd * endNodeSd);
+    if (k > 0.0) {
+      double endNodeSd = repModel.nodeScale / (k * std::sqrt(static_cast<double>(repControl.numTrees)));
+      static_cast<NormalPrior*>(repModel.muPrior)->precision = 1.0 / (endNodeSd * endNodeSd);
+    }
     
     static_cast<CGMPrior*>(repModel.treePrior)->power = power;
     static_cast<CGMPrior*>(repModel.treePrior)->base  = base;

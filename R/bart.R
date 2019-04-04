@@ -65,6 +65,8 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
   invisible(result)
 }
 
+.kDefault <- quote(if (control@binary) quote(chi(1.25, Inf)) else 2)
+
 bart2 <- function(
   formula, data, test, subset, weights, offset, offset.test = offset,
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
@@ -109,12 +111,7 @@ bart2 <- function(
 
   dotsList <- list(...)
   node.prior <- quote(normal(k))
-  node.prior[[2L]] <-
-    if (!is.null(dotsList[["k"]]))
-      dotsList[["k"]]
-    else {
-      if (control@binary) quote(chi(1.25, Inf)) else 2
-    }
+  node.prior[[2L]] <- if (!is.null(dotsList[["k"]])) dotsList[["k"]] else eval(eval(quoteInNamespace(.kDefault)))
 
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant

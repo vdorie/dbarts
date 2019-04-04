@@ -60,7 +60,12 @@ extern "C" {
              SEXP dropExpr)
   {
     rc_assertIntConstraints(numTreesExpr, "num trees", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0, RC_END);
-    rc_assertDoubleConstraints(kExpr, "k", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    if (Rf_isReal(kExpr)) {
+      rc_assertDoubleConstraints(kExpr, "k", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    } else if (!Rf_isNull(kExpr)) {
+      Rf_error("k must be numeric or NULL; hyperprior crossvalidation not supported at this time");
+    }
+       
     rc_assertDoubleConstraints(powerExpr, "power", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
     rc_assertDoubleConstraints(baseExpr, "base", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     rc_assertIntConstraints(numBurnInExpr, "num burn",  RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_LENGTH | RC_LEQ, rc_asRLength(3), RC_VALUE | RC_GEQ, 0, RC_END);
@@ -176,7 +181,7 @@ extern "C" {
     }
     
     size_t numNTrees = rc_getLength(numTreesExpr);
-    size_t numKs     = rc_getLength(kExpr);
+    size_t numKs     = Rf_isReal(kExpr) ? rc_getLength(kExpr) : 1;
     size_t numPowers = rc_getLength(powerExpr);
     size_t numBases  = rc_getLength(baseExpr);
     
@@ -184,7 +189,7 @@ extern "C" {
     size_t* nTrees = misc_stackAllocate(numNTrees, size_t);
     for (size_t i = 0; i < numNTrees; ++i) nTrees[i] = static_cast<size_t>(nTreesInt[i]);
     
-    double* k     = REAL(kExpr);
+    double* k     = Rf_isReal(kExpr) ? REAL(kExpr) : NULL;
     double* power = REAL(powerExpr);
     double* base  = REAL(baseExpr);
     

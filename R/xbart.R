@@ -2,7 +2,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
                   n.reps = 40L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "log", "mcr"),
                   n.threads = guessNumCores(),
-                  n.trees = 75L, k = 2, power = 2, base = 0.95, drop = TRUE,
+                  n.trees = 75L, k = NULL, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
 {
   matchedCall <- match.call()
@@ -60,10 +60,12 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     control@n.trees <- n.trees[1L]
   }
   
-  k      <- coerceOrError(k, "numeric")
-  kOrder <- order(k, decreasing = TRUE)
-  kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
-  k <- k[kOrder]
+  if (is.null(matchedCall[["k"]])) k <- eval(eval(quoteInNamespace(.kDefault)))
+  if (is.numeric(k)) {
+    kOrder <- order(k, decreasing = TRUE)
+    kOrder.inv <- kOrder; kOrder.inv[kOrder] <- seq_along(kOrder)
+    k <- k[kOrder]
+  }
   
   power   <- coerceOrError(power, "numeric")
   base    <- coerceOrError(base,  "numeric")
@@ -76,15 +78,19 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
 
   node.prior <- quote(normal(k))
   node.prior[[1L]] <- quoteInNamespace(normal)
-  node.prior[[2L]] <- k[1L]
+  node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
   node.prior <- eval(node.prior)
   
   resid.prior <-
     if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {
-      eval(matchedCall$resid.prior, evalEnv, getNamespace("dbarts"))
+      env <- new.env(parent = evalEnv)
+      env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
+      env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
+      eval(matchedCall$resid.prior, env)
     } else {
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }
+  if (is.call(resid.prior)) resid.prior <- eval(resid.prior, getNamespace("dbarts"))
   model <- new("dbartsModel", tree.prior, node.prior, resid.prior,
                node.scale = if (control@binary) 3.0 else 0.5)
   
@@ -104,7 +110,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   
   result <- .Call(C_dbarts_xbart, control, model, data, method,
                   n.test, n.reps, n.burn, loss,
-                  n.threads, n.trees, k, power, base, drop)
+                  n.threads, n.trees, if (is.numeric(k)) k else NULL, power, base, drop)
   
   if (is.null(result) || is.null(dim(result))) return(result)
   
@@ -113,7 +119,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (identical(drop, TRUE))
     varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1L) TRUE else FALSE)]
   
-  if ("k" %in% varNames && any(kOrder != seq_along(k))) {
+  if ("k" %in% varNames && exists("kOrder") && any(kOrder != seq_along(k))) {
     indices <- rep(list(bquote()), length(dim(result)))
     indices[[1L + which(varNames == "k")]] <- kOrder.inv
     indexCall <- as.call(c(list(as.name("["), quote(result)), indices, drop = FALSE))

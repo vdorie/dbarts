@@ -76,6 +76,14 @@ namespace dbarts {
   {
   }
   
+  ResidualVariancePrior* ChiSquaredPrior::duplicate() const {
+    ChiSquaredPrior* result = new ChiSquaredPrior();
+    result->degreesOfFreedom = degreesOfFreedom;
+    result->scale = scale;
+    
+    return result;
+  }
+  
   double ChiSquaredPrior::drawFromPosterior(const BARTFit& fit, size_t chainNum,
                                             const double* y,
                                             const double* y_hat) const
@@ -107,6 +115,11 @@ namespace dbarts {
     ext_printf("\tquantile in sigma prior: %f\n", quantile);
     ext_printf("\tscale in sigma prior: %f\n", scale);
   }
+  
+  ResidualVariancePrior* FixedPrior::duplicate() const {
+    return new FixedPrior(value);
+  }
+
   
   void FixedPrior::print(const BARTFit&) const
   {

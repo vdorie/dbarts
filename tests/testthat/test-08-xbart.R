@@ -178,7 +178,6 @@ test_that("fails with invalid inputs", {
   
   expect_error(xbart(y ~ x, k = c(-0.5, 1)))
   expect_error(xbart(y ~ x, k = "not-a-numeric"))
-  expect_error(xbart(y ~ x, k = NULL))
   expect_error(xbart(y ~ x, k = NA_real_))
   
   expect_error(xbart(y ~ x, power = c(0, 0.5)))

@@ -94,6 +94,7 @@ namespace dbarts {
     
     virtual double getScale() const = 0;
     virtual void setScale(double scale) = 0;
+    virtual ResidualVariancePrior* duplicate() const = 0;
     
     virtual void print(const BARTFit& fit) const = 0;
     
@@ -149,7 +150,7 @@ namespace dbarts {
     double degreesOfFreedom;
     double scale;
     
-    ChiHyperprior() : degreesOfFreedom(2.0), scale(1.0) { }
+    ChiHyperprior() : degreesOfFreedom(1.25), scale(1.0) { }
     ChiHyperprior(double degreesOfFreedom, double scale) : degreesOfFreedom(degreesOfFreedom), scale(scale) { }
     virtual ~ChiHyperprior() { }
     
@@ -167,6 +168,7 @@ namespace dbarts {
       scale(1.0) { }
     ChiSquaredPrior(double degreesOfFreedom, double quantile);
     virtual ~ChiSquaredPrior() { }
+    virtual ResidualVariancePrior* duplicate() const;
     
     virtual double getScale() const { return scale; }
     virtual void setScale(double newScale) { scale = newScale; }
@@ -182,6 +184,7 @@ namespace dbarts {
     
     FixedPrior() : value(1.0) { }
     FixedPrior(double value) : value(value) { }
+    virtual ResidualVariancePrior* duplicate() const;
     
     virtual double drawFromPosterior(const BARTFit&, std::size_t,
                                      const double*,
