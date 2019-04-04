@@ -108,20 +108,23 @@ bart2 <- function(
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-
-  dotsList <- list(...)
-  node.prior <- quote(normal(k))
-  node.prior[[2L]] <- if (!is.null(dotsList[["k"]])) dotsList[["k"]] else eval(eval(quoteInNamespace(.kDefault)))
-
+  
+  if (!is.null(matchedCall[["k"]])) {
+    node.prior <- quote(normal(k))
+    node.prior[[2L]] <- matchedCall[["k"]]
+  } else {
+    node.prior <- NULL
+  }
+  
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
   samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
-  samplerCall$tree.prior = tree.prior
-  samplerCall$node.prior = node.prior
-  samplerCall$resid.prior = resid.prior
+  samplerCall$tree.prior <- tree.prior
+  samplerCall$node.prior <- node.prior
+  samplerCall$resid.prior <- resid.prior
   samplerCall$sigma <- as.numeric(sigest)
   
   sampler <- eval(samplerCall, envir = callingEnv)

@@ -28,6 +28,10 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   evalEnv$normal <- normal
   evalEnv$chisq <- chisq
   evalEnv$fixed <- fixed
+  
+  # sub in a different default for node prior if data are binary
+  if (control@binary)
+    formals(evalEnv$normal)[["k"]] <- quote(chi(1.25, Inf))
 
   if (is.symbol(matchedCall$tree.prior)) matchedCall$tree.prior <- call(as.character(matchedCall$tree.prior))
   if (is.symbol(matchedCall$resid.prior)) matchedCall$resid.prior <- call(as.character(matchedCall$resid.prior))
@@ -49,12 +53,11 @@ cgm <- function(power = 2, base = 0.95)
 normal <- function(k = 2.0)
 {
   matchedCall <- match.call()
-  
+  evalEnv <- new.env(parent = parent.frame())
+  evalEnv$chi <- function(degreesOfFreedom = 1.25, scale = Inf)
+    new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
+
   if (!is.null(matchedCall[["k"]])) {
-    evalEnv <- new.env(parent = parent.frame())
-    evalEnv$chi <- function(degreesOfFreedom = 1.25, scale = Inf)
-      new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
-    
     kExpr <- matchedCall[["k"]]
     for (i in seq_len(2L)) {
       if (is.numeric(kExpr) || is(kExpr, "dbartsNodeHyperprior")) break
@@ -75,6 +78,8 @@ normal <- function(k = 2.0)
       kExpr <- eval(kExpr, evalEnv)
     }
     k <- kExpr
+  } else {
+    k <- eval(formals()[["k"]], evalEnv)
   }
   
   new("dbartsNormalPrior", k = k)
