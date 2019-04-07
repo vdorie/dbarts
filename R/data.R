@@ -26,6 +26,7 @@ methods::setMethod("initialize", "dbartsData",
 validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)
+  if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) x.test <- matrix(x.test, ncol = length(x.test))
   if (is.numeric(x.test) && NCOL(x.test) == 0L) return(NULL)
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels))
