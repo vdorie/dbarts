@@ -524,7 +524,7 @@ namespace dbarts {
       for (size_t j = 0; j < data.numPredictors; ++j) {
         SEXP cutPointsExpr = VECTOR_ELT(slotExpr, j);
         if (rc_getLength(cutPointsExpr) != static_cast<size_t>(fit.numCutsPerVariable[j])) {
-          PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
+          cutPointsExpr = PROTECT(rc_newReal(rc_asRLength(fit.numCutsPerVariable[j])));
           std::memcpy(REAL(cutPointsExpr), fit.cutPoints[j], fit.numCutsPerVariable[j] * sizeof(double));
           SET_VECTOR_ELT(slotExpr, j, cutPointsExpr);
           UNPROTECT(1);
