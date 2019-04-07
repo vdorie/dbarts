@@ -377,6 +377,19 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
+                setWeights = function(weights, updateState = NA) {
+                  'Changes the weights with which the sampler is fitted.'
+                  ptr <- getPointer()
+                  selfEnv <- parent.env(environment())
+                  
+                  selfEnv$data@weights <- as.double(weights)
+                  .Call(C_dbarts_setWeights, ptr, data@weights)
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
+                },
                 setPredictor = function(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA) {
                   'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. Can force the trees to update, or roll back for rejection sampling.'
                   

@@ -52,8 +52,9 @@ namespace dbarts {
     void predict(const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) const;
     // settors simply replace local pointers to variables. dimensions much match
     // update modifies the local copy (which may belong to someone else)
-    void setResponse(const double* newResponse); 
+    void setResponse(const double* newResponse);
     void setOffset(const double* newOffset);
+    void setWeights(const double* newWeights);
     
     /* These functions change the predictors or the cut points derived from them, and thus can change the
      * trees. Consequently, they have differring semantics depending on intended use.

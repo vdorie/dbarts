@@ -354,6 +354,19 @@ extern "C" {
     return R_NilValue;
   }
   
+  SEXP setWeights(SEXP fitExpr, SEXP weights)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_setWeights called on NULL external pointer");
+    
+    rc_assertDoubleConstraints(weights, "weights", RC_LENGTH | RC_EQ, rc_asRLength(fit->data.numObservations),
+                               RC_VALUE | RC_GEQ, 0.0,
+                               RC_END);
+    fit->setWeights(REAL(weights));
+    
+    return R_NilValue;
+  }
+  
   SEXP setPredictor(SEXP fitExpr, SEXP xExpr, SEXP forceUpdateExpr, SEXP updateCutPointsExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

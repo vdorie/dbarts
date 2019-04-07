@@ -297,6 +297,7 @@ namespace {
     DEF_FUNC("dbarts_predict", predict, 3),
     DEF_FUNC("dbarts_setResponse", setResponse, 2),
     DEF_FUNC("dbarts_setOffset", setOffset, 2),
+    DEF_FUNC("dbarts_setWeights", setWeights, 2),
     DEF_FUNC("dbarts_setPredictor", setPredictor, 4),
     DEF_FUNC("dbarts_updatePredictor", updatePredictor, 5),
     DEF_FUNC("dbarts_setCutPoints", setCutPoints, 3),

@@ -178,6 +178,10 @@ namespace dbarts {
     }
   }
   
+  void BARTFit::setWeights(const double* newWeights) {
+    data.weights = newWeights;
+  }
+  
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
   {
     if (!control.keepTrees) ext_throwError("predict requires 'keepTrees' to be true");
