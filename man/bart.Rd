@@ -151,7 +151,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
    	 \code{ncol(x.train)}. Fewer rules may be used if a covariate lacks enough unique values.
    }
 
-   \item{printcutoffs}{
+   \item{printcutoffs, printCutoffs}{
      The number of cutoff rules to printed to screen before the MCMC is run.
      Given a single integer, the same value will be used for all variables.
      If 0, nothing is printed.

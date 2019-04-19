@@ -14,14 +14,14 @@ Steps to install from source:
     2. OS X: [clang and gfortran](https://cran.r-project.org/bin/macosx/tools/)
     3. Windows: [Rtools](http://cran.r-project.org/bin/windows/Rtools/)
 
-2. Install the devtools package from within R:
+2. Install the remotes package from within R:
 
 ```R
-install.packages("devtools")
+install.packages("remotes")
 ```
 
 3. Run:
 
 ```R
-install_github("vdorie/dbarts")
+remotes::install_github("vdorie/dbarts")
 ```
