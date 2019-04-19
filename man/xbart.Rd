@@ -63,7 +63,7 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     parameter is also the burn in when moving between folds in \code{"k-fold"} crossvalidation.
   }
   \item{loss}{
-    Either a one of the present loss functions as character-strings (\code{mcr} - missclassification rate for
+    Either a one of the pre-set loss functions as character-strings (\code{mcr} - missclassification rate for
     binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative 
     log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or
     a function- evaluation environment list-pair. Functions should have prototypes of the form

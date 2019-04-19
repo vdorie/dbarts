@@ -75,7 +75,7 @@ bart2 <- function(
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
   n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
-  n.cuts = 100L, useQuantiles = TRUE,
+  n.cuts = 100L, useQuantiles = FALSE,
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE, keepTrees = FALSE, keepCall = TRUE,
@@ -176,8 +176,7 @@ bart <- function(
   printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
   verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE,
-  keeptrees = FALSE,
-  keepcall = TRUE
+  keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
@@ -208,7 +207,9 @@ bart <- function(
                tree.prior = tree.prior, node.prior = node.prior,
                resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
-
+  
+  if (sampleronly) return(sampler)
+  
   control <- sampler$control
   
   burnInSigma <- NULL

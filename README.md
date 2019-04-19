@@ -20,7 +20,7 @@ Steps to install from source:
 install.packages("devtools")
 ```
 
-  3. Run:
+3. Run:
 
 ```R
 install_github("vdorie/dbarts")

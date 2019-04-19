@@ -212,7 +212,7 @@ sigma <- 0.2
 n     <- 100
 
 set.seed(27)
-x <- matrix(2 * runif(n * 3) -1, ncol = 3);
+x <- matrix(2 * runif(n * 3) -1, ncol = 3)
 colnames(x) <- c('rob', 'hugh', 'ed')
 
 Ey <- f(x)

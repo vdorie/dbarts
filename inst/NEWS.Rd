@@ -38,14 +38,14 @@
             rollback or force the change if the new data would result in a leaf
             having 0 observations.
       \item \code{pdbart} and \code{pd2bart} now work with formula/data specifications,
-            as well as taking models or samplers that have \code{keepTrees} as \code{TRUE}.
+            as well as taking models or samplers that have previously stored trees.
     }
   }
   \subsection{OPTIMIZATIONS}{
     \itemize{
       \item Stores \code{x} as integer matrix of the max of which cut point an observation is
-            to the left of, by default using 16 bit integers. Limited to 65535 cut points
-            unless configure option \code{with-xint-size=32} (or higher).
+            to the left of, by default using 16 bit integers. Limited to 65535 cut points.
+            That can be increased with some special compilation instructions.
       \item Uses CPU dispatch and SIMD instructions for some operations. This and the integer
             \code{x} make BART about 30\% faster on datasets of around 10k observations.
       \item Saved trees are stored using significantly less memory.

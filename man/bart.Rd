@@ -25,7 +25,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      printevery = 100, keepevery = 1, keeptrainfits = TRUE,
      usequants = FALSE, numcut = 100, printcutoffs = 0,
      verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE,
-     keeptrees = FALSE, keepcall = TRUE)
+     keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE)
 
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
@@ -34,7 +34,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       n.trees = 75L,
       n.samples = 500L, n.burn = 500L,
       n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
-      n.cuts = 100L, useQuantiles = TRUE,
+      n.cuts = 100L, useQuantiles = FALSE,
       n.thin = 1L, keepTrainingFits = TRUE,
       printEvery = 100L, printCutoffs = 0L,
       verbose = TRUE, keepTrees = FALSE, 
@@ -114,38 +114,38 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       fits a model with observations \eqn{y \mid x \sim N(f(x), \sigma^2 / w)}{y | x ~ N(f(x), \sigma^2 / w)}, 
       where \eqn{f(x)} is the unknown function.
   }
-   \item{ntree}{
+   \item{ntree, n.trees}{
      The number of trees in the sum-of-trees formulation.
    }
 
-   \item{ndpost}{
+   \item{ndpost, n.samples}{
      The number of posterior draws after burn in, \code{ndpost / keepevery} will actually be returned.
    }
 
-   \item{nskip}{
+   \item{nskip, n.burn}{
      Number of MCMC iterations to be treated as burn in.
    }
 
-   \item{printevery}{
+   \item{printevery, printEvery}{
      As the MCMC runs, a message is printed every \code{printevery} draws.
    }
 
-   \item{keepevery}{
+   \item{keepevery, n.thin}{
      Every \code{keepevery} draw is kept to be returned to the user. Useful for \dQuote{thinning}
      samples.
    }
 
-   \item{keeptrainfits}{
+   \item{keeptrainfits, keepTrainingFits}{
      If \code{TRUE} the draws of \eqn{f(x)} for \eqn{x} corresponding to the rows of \code{x.train} are returned.
    }
 
-   \item{usequants}{
+   \item{usequants, useQuantiles}{
      When \code{TRUE}, determine tree decision rules using estimated quantiles derived
      from the \code{x.train} variables. When \code{FALSE}, splits are determined using
      values equally spaced across the range of a variable. See details for more information.
    }
    
-   \item{numcut}{
+   \item{numcut, n.cuts}{
    	 The maximum number of possible values used in decision rules (see \code{usequants}, details). If a single
    	 number, it is recycled for all variables; otherwise must be a vector of length equal to
    	 \code{ncol(x.train)}. Fewer rules may be used if a covariate lacks enough unique values.
@@ -161,25 +161,25 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      Logical; if \code{FALSE} supress printing.
    }
    
-   \item{nchain}{
+   \item{nchain, n.chains}{
    	  Integer specifying how many independent tree sets and fits should be calculated.
    }
    
-   \item{nthread}{
+   \item{nthread, n.threads}{
    	  Integer specifying how many threads to use. Depending on the CPU architecture, using more than the
           number of chains can degrade performance for small/medium data sets. As such
    	  some calculations may be executed single threaded regardless.
    }
    
-   \item{combinechains}{
+   \item{combinechains, combineChains}{
      Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times}
      \code{ndpost} \eqn{\times} number of observations.
    }
    
-   \item{keeptrees}{
+   \item{keeptrees, keepTrees}{
      Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
    }
-   \item{keepcall}{
+   \item{keepcall, keepCall}{
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
           used to instantiate BART.
    }
@@ -210,15 +210,9 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
    }
    
-   \item{samplerOnly}{
+   \item{sampleronly, samplerOnly}{
      Builds the sampler from its arguments and returns it without running it. Useful to use the
      \code{bart2} interface in more complicated models.
-   }
-   
-   \item{n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts,
-         n.thin, keepTrainingFits, useQuantiles, printEvery, printCutoffs,
-         keepTrees, keepCall}{
-     Same as their counterparts for \code{bart}.
    }
    \item{x}{
      Object of class \code{bart}, returned by function \code{bart}, which contains the information to be plotted.

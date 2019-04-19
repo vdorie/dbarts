@@ -99,6 +99,9 @@ massign <- structure(NA, class = "lval")
   x
 }
 
+# adds names to arguments so that
+#   unpack[a,b] = unpack[a = a, b = b] = unpack[b = b, a = a] = unpack[b,a]
+# while massign[a,b] != massign[b,a]
 unpack <- structure(NA, class = "named_lval")
 
 "[<-.named_lval" <- function(x, ..., value) {
