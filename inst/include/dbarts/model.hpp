@@ -45,6 +45,16 @@ namespace dbarts {
       swapProbability(DBARTS_SWAP_PROBABILITY),
       changeProbability(DBARTS_CHANGE_PROBABILITY),
       birthProbability(DBARTS_BIRTH_PROBABILITY),
+      nodeScale(-1.0),
+      treePrior(NULL), muPrior(NULL), sigmaSqPrior(NULL), kPrior(NULL)
+    {
+    }
+    Model(bool responseIsBinary) : 
+      birthOrDeathProbability(DBARTS_BIRTH_OR_DEATH_PROBABILITY),
+      swapProbability(DBARTS_SWAP_PROBABILITY),
+      changeProbability(DBARTS_CHANGE_PROBABILITY),
+      birthProbability(DBARTS_BIRTH_PROBABILITY),
+      nodeScale(responseIsBinary ? 3.0 : 0.5),
       treePrior(NULL), muPrior(NULL), sigmaSqPrior(NULL), kPrior(NULL)
     {
     }
