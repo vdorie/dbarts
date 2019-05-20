@@ -89,6 +89,11 @@ extern "C" {
     fit->updateTestPredictors(newTestPredictor, columns, numColumns);
   }
   
+  void dbarts_storeLatents(const dbarts::BARTFit* fit, double* target)
+  {
+    fit->storeLatents(target);
+  }
+  
   CGMPrior* dbarts_createCGMPrior() {
     return new CGMPrior;
   }

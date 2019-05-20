@@ -25,6 +25,7 @@ extern "C" {
   SEXP setTestPredictor(SEXP fit, SEXP x_test);
   SEXP setTestOffset(SEXP fit, SEXP offset_test);
   SEXP setTestPredictorAndOffset(SEXP fit, SEXP x_test, SEXP offset_test);
+  SEXP storeLatents(SEXP fit, SEXP result);
   
   SEXP updateTestPredictor(SEXP fit, SEXP x_test, SEXP cols);
    

@@ -90,6 +90,7 @@ namespace dbarts {
     
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
+    void storeLatents(double* target) const;
     
     void sampleTreesFromPrior();
     

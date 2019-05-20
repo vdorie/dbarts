@@ -147,8 +147,6 @@ namespace dbarts {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
         sampleProbitLatentVariables(*this, state[chainNum], const_cast<const double*>(chainScratch[chainNum].totalFits), chainScratch[chainNum].probitLatents);
     }
-    
-    // resampleTreeFits(*this);
   }
   
   void BARTFit::setOffset(const double* newOffset) {
@@ -173,8 +171,9 @@ namespace dbarts {
     } else {
       data.offset = newOffset;
       
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-        sampleProbitLatentVariables(*this, state[chainNum], const_cast<const double*>(chainScratch[chainNum].totalFits), chainScratch[chainNum].probitLatents);
+      // turns out, this isn't necessary for a valid statistical model
+      // for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+      //   sampleProbitLatentVariables(*this, state[chainNum], const_cast<const double*>(chainScratch[chainNum].totalFits), chainScratch[chainNum].probitLatents);
     }
   }
   
@@ -574,6 +573,11 @@ namespace dbarts {
     }
     
     updateTestFitsWithNewPredictor(*this, chainScratch);
+  }
+  
+  void BARTFit::storeLatents(double* target) const {
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+      std::memcpy(target + chainNum * data.numObservations, chainScratch[chainNum].probitLatents, data.numObservations * sizeof(double));
   }
   
   /* to update data, we need to keep the scratch and the state sane
@@ -1960,6 +1964,7 @@ namespace {
       if (control.keepTrainingFits) {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
+        
         if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       

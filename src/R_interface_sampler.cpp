@@ -344,12 +344,7 @@ extern "C" {
       Rf_error("offset must be of type real or NULL");
     }
     
-    // for binary responses, updates latents and samples
-    if (fit->control.responseIsBinary) GetRNGstate();
-    
     fit->setOffset(offset);
-    
-    if (fit->control.responseIsBinary) PutRNGstate();
     
     return R_NilValue;
   }
@@ -616,6 +611,29 @@ extern "C" {
     return R_NilValue;
   }
   
+  SEXP storeLatents(SEXP fitExpr, SEXP resultExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_storeLatents called on NULL external pointer");
+    
+    if (!fit->control.responseIsBinary)
+      Rf_error("dbarts_storeLatents called on sampler with non-binary response");
+    
+    if (Rf_isNull(resultExpr)) {
+      resultExpr = PROTECT(rc_newReal(fit->data.numObservations * fit->control.numChains));
+    
+      fit->storeLatents(REAL(resultExpr));
+      
+      UNPROTECT(1);
+    } else {
+      if (rc_getLength(resultExpr) < fit->data.numObservations * fit->control.numChains)
+        Rf_error("dbarts_storeLatents called with vector of insufficient length");
+      
+      fit->storeLatents(REAL(resultExpr));
+    }
+    
+    return resultExpr;
+  }
   
   SEXP createState(SEXP fitExpr)
   {

@@ -544,6 +544,14 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
+                getLatents = function(result) {
+                  'For binary models, returns the current value of the latent variable representation.'
+                  resultIsMissing <- missing(result)
+                  
+                  ptr <- getPointer()
+                  
+                  .Call(C_dbarts_storeLatents, ptr, if (resultIsMissing) NULL else result)
+                },
                 getPointer = function() {
                   'Returns the underlying reference pointer, checking for consistency first.'
                   selfEnv <- parent.env(environment())

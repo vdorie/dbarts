@@ -305,6 +305,7 @@ namespace {
     DEF_FUNC("dbarts_setTestOffset", setTestOffset, 2),
     DEF_FUNC("dbarts_setTestPredictorAndOffset", setTestPredictorAndOffset, 3),
     DEF_FUNC("dbarts_updateTestPredictor", updateTestPredictor, 3),
+    DEF_FUNC("dbarts_storeLatents", storeLatents, 2),
     DEF_FUNC("dbarts_setData", setData, 2),
     DEF_FUNC("dbarts_setControl", setControl, 2),
     DEF_FUNC("dbarts_setModel", setModel, 2),
@@ -380,6 +381,7 @@ namespace {
     DEF_FUNC("setTestPredictorsAndOffset", dbarts_setTestPredictorAndOffset),
     DEF_FUNC("updateTestPredictor", dbarts_updateTestPredictor),
     DEF_FUNC("updateTestPredictors", dbarts_updateTestPredictors),
+    DEF_FUNC("storeLatents", dbarts_storeLatents),
     
     { NULL, 0 }
   };

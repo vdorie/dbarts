@@ -75,6 +75,20 @@ test_that("rbart runs example", {
   expect_true(length(unique(rbartFit$ranef)) > 1L)
 })
 
+test_that("rbart passes regression test", {
+  df <- as.data.frame(testData$x)
+  colnames(df) <- paste0("x_", seq_len(ncol(testData$x)))
+  df$y <- testData$y
+  df$g <- testData$g
+  
+  rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
+                       n.samples = 1L, n.burn = 5L, n.thin = 1L, n.chains = 1L,
+                       n.trees = 25L, n.threads = 1L)
+  
+  expect_equal(as.numeric(rbartFit$ranef),
+               c(-0.46811236716679, -0.147440854656375, -0.929969014036462, -0.073569916731926, 0.955656580320952))
+})
+
 test_that("rbart compares favorably to lmer for nonlinear models", {
   skip_if_not_installed("lme4")
   lme4 <- asNamespace("lme4")
@@ -106,13 +120,40 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   
   
   rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
-                       n.samples = 600L, n.burn = 300L, n.thin = 2L, n.chains = 2L,
+                       n.samples = 200L, n.burn = 100L, n.thin = 2L, n.chains = 2L,
                        n.trees = 50L, n.threads = 1L)
   ranef.rbart <- rbartFit$ranef.mean
   
   lmerFit <- lme4$lmer(y ~ . - g + (1 | g), df)
   ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
   
-  expect_true(mean((b - ranef.rbart)^2) < mean((b - ranef.lmer)^2))
+  expect_true(sqrt(mean((b - ranef.rbart)^2)) < sqrt(mean((b - ranef.lmer)^2)))
+  
+  
+  f <- function(x) {
+      10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
+        10 * x[,4] + 5 * x[,5]
+  }
+  
+  rho <- 0.4
+  p.y <- pnorm((Ey - mean(Ey)) / sd(Ey) + rho * .75 * b[g])
+  set.seed(99)
+  y <- rbinom(n, 1L, p.y)
+  df <- as.data.frame(x)
+  colnames(df) <- paste0("x_", seq_len(ncol(x)))
+  df$y <- y
+  df$g <- g
+  
+  rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
+                       n.samples = 240L, n.burn = 120L, n.thin = 3L, n.chains = 2L,
+                       n.trees = 50L, n.threads = 1L)
+  ranef.rbart <- rbartFit$ranef.mean
+  
+  lmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = probit))
+  ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
+  
+  rbart.mu.hat <- apply(rbartFit$yhat.train, 3, mean)
+  lmer.mu.hat  <- predict(lmerFit)
+  expect_true(sqrt(mean((rbart.mu.hat - Ey)^2)) < sqrt(mean((lmer.mu.hat - Ey)^2)))
 })
 

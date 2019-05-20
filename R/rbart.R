@@ -42,8 +42,12 @@ rbart_vi <- function(
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
 
-  node.prior <- quote(normal(k))
-  node.prior[[2L]] <- k
+  if (!is.null(matchedCall[["k"]])) {
+    node.prior <- quote(normal(k))
+    node.prior[[2L]] <- matchedCall[["k"]]
+  } else {
+    node.prior <- NULL
+  }
 
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
@@ -68,13 +72,13 @@ rbart_vi <- function(
   
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
   
-  if (length(unique(data@y)) == 2L)
-    stop("rbart requires continuous response")
   if (length(group.by) != length(data@y))
     stop("'group.by' not of length equal to that of data")
   group.by <- droplevels(as.factor(group.by))
   
-  samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior, sigma = as.numeric(sigest))
+  samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
+                           sigma = as.numeric(sigest))
+  if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
 
   chainResults <- vector("list", n.chains)
   if (n.threads == 1L || n.chains == 1L) {
@@ -106,7 +110,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   sampler$setControl(control)
   
   y <- sampler$data@y
-  rel.scale <- sd(y)
+  rel.scale <- if (!control@binary) sd(y) else 0.50
   
   g <- as.integer(group.by)
   numRanef <- nlevels(group.by)
@@ -115,7 +119,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef))
   b.sq <- NULL ## for R CMD check
-  posteriorClosure <- function(x) { ifelse(x <= 0 | is.infinite(x), -.Machine$double.xmax * .Machine$double.eps, -q * base::log(x) - 0.5 * b.sq / x^2 + prior(x, rel.scale)) }
+  posteriorClosure <- function(x) { ifelse(x <= 0.0 | is.infinite(x), -.Machine$double.xmax * .Machine$double.eps, -q * base::log(x) - 0.5 * b.sq / x^2.0 + prior(x, rel.scale)) }
   environment(posteriorClosure) <- evalEnv
   
   
@@ -123,9 +127,9 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   numTestObservations <- NROW(sampler$data@x.test)
   
   firstTau   <- rep(NA_real_, control@n.burn)
-  firstSigma <- rep(NA_real_, control@n.burn)
+  firstSigma <- if (!control@binary) rep(NA_real_, control@n.burn) else NULL
   tau   <- rep(NA_real_, control@n.samples)
-  sigma <- rep(NA_real_, control@n.samples)
+  sigma <- if (!control@binary) rep(NA_real_, control@n.samples) else NULL
   ranef <- matrix(NA_real_, numRanef, control@n.samples)
   yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
   yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
@@ -133,10 +137,12 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   sampler$sampleTreesFromPrior()
   
-  tau.i <- rel.scale / 5
-  ranef.i <- rnorm(numRanef, 0, tau.i)
+  tau.i <- rel.scale / 5.0
+  ranef.i <- rnorm(numRanef, 0.0, tau.i)
+  offset <- ranef.i[g]
   
-  sampler$setResponse(y - ranef.i[g])
+  sampler$setOffset(offset)
+  y.st <- if (!control@binary) y else sampler$getLatents()
   
   if (control@n.burn > 0L) {
     oldKeepTrees <- control@keepTrees
@@ -145,20 +151,24 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     
     for (i in seq_len(control@n.burn)) {
       samples <- sampler$run(0L, 1L)
+      if (control@binary)
+        sampler$getLatents(y.st)
       
-      evalEnv$b.sq <- sum(ranef.i^2)
-      tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0, Inf))[control@n.thin]
+      evalEnv$b.sq <- sum(ranef.i^2.0)
+      tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
       
-      resid <- y - as.numeric(samples$train)
-      post.var <- 1 / (n.g / samples$sigma[1L]^2 + 1 / tau.i^2)
-      post.mean <- (n.g / samples$sigma[1L]^2) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
+      resid <- y.st - (as.vector(samples$train) - offset)
+      post.var <- 1.0 / (n.g / samples$sigma[1L]^2.0 + 1.0 / tau.i^2.0)
+      post.mean <- (n.g / samples$sigma[1L]^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
       
       ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
+      offset <- ranef.i[g]
       
-      sampler$setResponse(y - ranef.i[g])
+      sampler$setOffset(offset)
       
       .Call(C_dbarts_assignInPlace, firstTau, i, tau.i)
-      .Call(C_dbarts_assignInPlace, firstSigma, i, samples$sigma[1L])
+      if (!control@binary)
+        .Call(C_dbarts_assignInPlace, firstSigma, i, samples$sigma[1L])
     }
     
     if (control@keepTrees != oldKeepTrees) {
@@ -169,22 +179,26 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
   
   for (i in seq_len(control@n.samples)) {
     samples <- sampler$run(0L, 1L)
+    if (control@binary)
+        sampler$getLatents(y.st)
     
-    evalEnv$b.sq <- sum(ranef.i^2)
-    tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0, Inf))[control@n.thin]
+    evalEnv$b.sq <- sum(ranef.i^2.0)
+    tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
     
-    resid <- y - as.numeric(samples$train)
-    post.var <- 1 / (n.g / samples$sigma[1L]^2 + 1 / tau.i^2)
-    post.mean <- (n.g / samples$sigma[1L]^2) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
+    resid <- y.st - (as.vector(samples$train) - offset)
+    post.var <- 1.0 / (n.g / samples$sigma[1L]^2.0 + 1.0 / tau.i^2.0)
+    post.mean <- (n.g / samples$sigma[1L]^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
     
     ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
+    offset <- ranef.i[g]
     
-    sampler$setResponse(y - ranef.i[g])
+    sampler$setOffset(offset)
     
     .Call(C_dbarts_assignInPlace, tau, i, tau.i)
-    .Call(C_dbarts_assignInPlace, sigma, i, samples$sigma[1L])
+    if (control@binary)
+      .Call(C_dbarts_assignInPlace, sigma, i, samples$sigma[1L])
     .Call(C_dbarts_assignInPlace, ranef, i, ranef.i)
-    .Call(C_dbarts_assignInPlace, yhat.train, i, samples$train)
+    .Call(C_dbarts_assignInPlace, yhat.train, i, samples$train - offset)
     .Call(C_dbarts_assignInPlace, varcount, i, samples$varcount)
     if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i, samples$test)
     

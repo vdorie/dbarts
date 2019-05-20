@@ -701,6 +701,10 @@ static double computeIndexedUnrolledVariance(const double* restrict x, const siz
   return (x_sq - mean * mean * (double) length) / (double) (length - 1);
 }
 
+// sigsq_np1 = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)^2 / np1
+//           = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)(xbar_np1 - xbar_n)
+//           = sigsq_n - sig_sq_n / n + (x_np1 - xbar_n)(x_np1 - xbar_np1) / n
+//           = sigsq_n + ((x_np1 - xbar_n)(x_np1 - xbar_np1) - sig_sq_n) / n
 static double computeOnlineVariance(const double* restrict x, size_t length, double* restrict meanPtr)
 {
   if (length == 0) { if (meanPtr != NULL) *meanPtr = 0.0; return nan(""); }

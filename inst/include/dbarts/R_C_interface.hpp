@@ -51,6 +51,8 @@ extern "C" {
   
   void dbarts_updateTestPredictor(dbarts::BARTFit* fit, const double* newTestPredictor, std::size_t column);
   void dbarts_updateTestPredictors(dbarts::BARTFit* fit, const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
+  
+  void dbarts_storeLatents(const dbarts::BARTFit* fit, double* target);
     
   dbarts::CGMPrior* dbarts_createCGMPrior();
   dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power);
