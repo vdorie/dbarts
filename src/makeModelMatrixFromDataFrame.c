@@ -340,8 +340,8 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
             } else if (names != R_NilValue) {
-              char buffer[16];
-              snprintf(buffer, 16, "%zu", j + 1);
+              char buffer[21];
+              snprintf(buffer, 21, "%zu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
@@ -370,8 +370,8 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);
             } else if (names != R_NilValue) {
-              char buffer[16];
-              snprintf(buffer, 16, "%zu", j + 1);
+              char buffer[21];
+              snprintf(buffer, 21, "%zu", j + 1);
               char* colName = concatenateStrings(CHAR(STRING_ELT(names, i)), buffer);
               SET_STRING_ELT(resultNames, resultCol, Rf_mkChar(colName));
               free(colName);

@@ -1,6 +1,13 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-12}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Varying intercepts model for probit regression.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-10}{
   \subsection{NEW FEATURES}{
     \itemize{

@@ -81,12 +81,13 @@ test_that("rbart passes regression test", {
   df$y <- testData$y
   df$g <- testData$g
   
+  set.seed(99)
   rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
                        n.samples = 1L, n.burn = 5L, n.thin = 1L, n.chains = 1L,
                        n.trees = 25L, n.threads = 1L)
   
   expect_equal(as.numeric(rbartFit$ranef),
-               c(-0.46811236716679, -0.147440854656375, -0.929969014036462, -0.073569916731926, 0.955656580320952))
+               c(0.548756620200975, 1.98489377073739, -0.123942881873723, -0.643642914323586, 3.02981874312062))
 })
 
 test_that("rbart compares favorably to lmer for nonlinear models", {
