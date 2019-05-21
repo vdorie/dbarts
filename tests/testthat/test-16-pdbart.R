@@ -28,8 +28,9 @@ test_that("pdbart gives same results when run with different x.train argument ty
   set.seed(0)
   sampler <- dbarts(x, y, control = control)
   invisible(sampler$run(0, 5))
-  pdb4 <- pdbart(sampler, xind = c(1, 2), pl = FALSE,
-                 levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2)))
+  pdb4 <- suppressWarnings(
+    pdbart(sampler, xind = c(1, 2), pl = FALSE,
+           levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2))))
   
   
   control@keepTrees <- TRUE

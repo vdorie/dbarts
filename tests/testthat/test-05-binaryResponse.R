@@ -1,6 +1,6 @@
 context("bart w/binary response")
 
-source(system.file("common", "probitData.R", package = "dbarts"))
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("basic probit example passes regression test", {
   n.burn <- 10L
@@ -46,9 +46,7 @@ test_that("basic probit example with flat hyperprior superior to default", {
               cor(qnorm(testData$p), colMeans(bartFit.flat$yhat.train)))
 })
 
-# rm(testData)
-
-source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"))
+source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"), local = TRUE)
 
 fitSubset  <- 1:100
 testSubset <- 101:200

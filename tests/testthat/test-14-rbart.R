@@ -1,9 +1,18 @@
 context("rbart")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 n.g <- 5L
+if (getRversion() >= "3.6.0") {
+  oldSampleKind <- RNGkind()[3L]
+  suppressWarnings(RNGkind(sample.kind = "Rounding"))
+}
 g <- sample(n.g, length(testData$y), replace = TRUE)
+if (getRversion() >= "3.6.0") {
+  suppressWarnings(RNGkind(sample.kind = oldSampleKind))
+  rm(oldSampleKind)
+}
+
 sigma.b <- 1.5
 b <- rnorm(n.g, 0, sigma.b)
 
@@ -125,16 +134,11 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
                        n.trees = 50L, n.threads = 1L)
   ranef.rbart <- rbartFit$ranef.mean
   
-  lmerFit <- lme4$lmer(y ~ . - g + (1 | g), df)
+  lmerFit <- suppressWarnings(lme4$lmer(y ~ . - g + (1 | g), df))
   ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
   
   expect_true(sqrt(mean((b - ranef.rbart)^2)) < sqrt(mean((b - ranef.lmer)^2)))
   
-  
-  f <- function(x) {
-      10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
-        10 * x[,4] + 5 * x[,5]
-  }
   
   rho <- 0.4
   p.y <- pnorm((Ey - mean(Ey)) / sd(Ey) + rho * .75 * b[g])
@@ -150,11 +154,10 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
                        n.trees = 50L, n.threads = 1L)
   ranef.rbart <- rbartFit$ranef.mean
   
-  lmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = probit))
-  ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
+  glmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = probit))
   
   rbart.mu.hat <- apply(rbartFit$yhat.train, 3, mean)
-  lmer.mu.hat  <- predict(lmerFit)
-  expect_true(sqrt(mean((rbart.mu.hat - Ey)^2)) < sqrt(mean((lmer.mu.hat - Ey)^2)))
+  glmer.mu.hat  <- predict(glmerFit)
+  expect_true(sqrt(mean((rbart.mu.hat - Ey)^2)) < sqrt(mean((glmer.mu.hat - Ey)^2)))
 })
 
