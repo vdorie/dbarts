@@ -1,6 +1,6 @@
 context("dbarts model arguments")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("non-prior, model arguments raise errors", {
   expect_error(dbarts(y ~ x, testData, verbose = NA))

@@ -54,7 +54,7 @@ test_that("integer arguments are identified and bounded", {
   expect_error(dbartsControl(rngNormalKind = "not-an-rng"))
 })
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("control argument works", {
   n.samples <- 500L

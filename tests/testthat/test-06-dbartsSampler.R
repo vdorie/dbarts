@@ -1,6 +1,6 @@
 context("dbarts sampler as a discrete object")
 
-source(system.file("common", "hillData.R", package = "dbarts"))
+source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
 
 test_that("dbarts sampler settors raise errors", {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
@@ -142,7 +142,7 @@ test_that("dbarts sampler shallow/deep copies", {
   expect_equal(sampler$data@x, deepCopy$data@x)
 })
 
-source(system.file("common", "probitData.R", package = "dbarts"))
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("dbarts sampler correctly updates R test offsets only when applicable", {
   n <- nrow(testData$X)
@@ -204,7 +204,7 @@ test_that("dbarts sampler correctly updates R test offsets only when applicable"
   expect_equal(sampler$data@offset.test, rep_len(-0.1, n))
 })
 
-source(system.file("common", "hillData.R", package = "dbarts"))
+source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
 
 fitTinyModel <- function(testData, n.samples) {  
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
@@ -317,7 +317,7 @@ test_that("sampler set data collapses nodes correctly", {
 
 rm(fitTinyModel)
 
-source(system.file("common", "probitData.R", package = "dbarts"))
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("dbarts sampler updates offsets in C++", {
   control <- dbartsControl(updateState = FALSE, n.burn = 0L, n.samples = 1L, verbose = FALSE,

@@ -1,6 +1,6 @@
 context("bart w/continuous response")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("basic Friedman example passes regression test", {
   set.seed(99)
@@ -74,7 +74,7 @@ test_that("Friedman example with test data passes regression test", {
   expect_equal(bartFit$y, testData$y)
 })
 
-source(system.file("common", "multithreadData.R", package = "dbarts"))
+source(system.file("common", "multithreadData.R", package = "dbarts"), local = TRUE)
 
 test_that("weighted Friedman with large n passes regression", {
   n.sims <- 5L

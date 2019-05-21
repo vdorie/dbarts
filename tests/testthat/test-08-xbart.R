@@ -1,6 +1,6 @@
 context("xbart")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("random subsample runs correctly with valid inputs", {
   x <- testData$x

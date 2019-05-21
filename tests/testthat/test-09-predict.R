@@ -1,6 +1,6 @@
 context("predict")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("predict fails if sampler not saved", {
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE)
@@ -44,7 +44,7 @@ test_that("sequentially running samples don't overflow with fixed trees", {
   expect_is(sampler, "dbartsSampler")
 })
 
-source(system.file("common", "probitData.R", package = "dbarts"))
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("predict gives same result as x_train with binary data", {
   bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, verbose = FALSE, keeptrees = TRUE)

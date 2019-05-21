@@ -1,6 +1,6 @@
 context("multithreaded bart")
 
-source(system.file("common", "multithreadData.R", package = "dbarts"))
+source(system.file("common", "multithreadData.R", package = "dbarts"), local = TRUE)
 
 test_that("multithreaded matches single threaded", {
   ## something weak so that it runs quickly w/500k observations

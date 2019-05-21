@@ -1,6 +1,6 @@
 context("pdbart")
 
-source(system.file("common", "pdData.R", package = "dbarts"))
+source(system.file("common", "pdData.R", package = "dbarts"), local = TRUE)
 
 test_that("pdbart gives same results when run with different x.train argument types", {
   x <- testData$x

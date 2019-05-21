@@ -1,6 +1,6 @@
 context("bart with multiple chains")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("multiple chains single threads runs correctly", {
   set.seed(99)

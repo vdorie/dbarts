@@ -1,6 +1,6 @@
 context("dbarts data arguments")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("formula specification raises errors", {
   expect_error(dbartsData("not-a-formula", testData))
@@ -102,9 +102,7 @@ test_that("test argument creates valid objects", {
   expect_is(dbartsData(y ~ x, testData, testData$x[11:20,]), "dbartsData")
 })
 
-## rm(testData)
-
-source(system.file("common", "probitData.R", package = "dbarts"))
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("test offset fills in control logicals depending on specification", {
   data <- dbartsData(Z ~ X, testData, testData$X)
@@ -203,7 +201,7 @@ test_that("test offset fills in control logicals depending on specification", {
   expect_that(data@testUsesRegularOffset, equals(FALSE))
 })
 
-source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"))
+source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"), local = TRUE)
 
 test_that("bart creates viable sampler with formula, data specification", {
   data <- data.frame(y = testData$y, x = testData$x)

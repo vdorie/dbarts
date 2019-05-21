@@ -1,6 +1,6 @@
 context("bart2 validity")
 
-source(system.file("common", "friedmanData.R", package = "dbarts"))
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 test_that("bart2 yields similar results to bart", {
   n.burn <- 200L
