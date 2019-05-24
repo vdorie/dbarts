@@ -752,11 +752,11 @@ namespace dbarts {
   size_t SavedNode::serialize(void* state) const {
     size_t length;
     if (leftChild != NULL) {
-      *reinterpret_cast<std::int32_t*>(state) = variableIndex;
+      std::memcpy(state, &variableIndex, sizeof(std::int32_t));
       length = sizeof(std::int32_t);
       length += length % sizeof(int);
       
-      *reinterpret_cast<double*>(reinterpret_cast<char*>(state) + length) = split;
+      std::memcpy(reinterpret_cast<char*>(state) + length, &split, sizeof(double));
       length = sizeof(double);
       length += length % sizeof(int);
             
@@ -767,7 +767,7 @@ namespace dbarts {
       length = sizeof(std::int32_t);
       length += length % sizeof(int);
       
-      *reinterpret_cast<double*>(reinterpret_cast<char*>(state) + length) = prediction;
+      std::memcpy(reinterpret_cast<char*>(state) + length, &prediction, sizeof(double));
       length = sizeof(double);
       length += length % sizeof(int);
     }
@@ -776,16 +776,16 @@ namespace dbarts {
   }
   
   size_t SavedNode::deserialize(const void* state) {
-    variableIndex = *reinterpret_cast<const std::int32_t*>(state);
+    std::memcpy(&variableIndex, state, sizeof(std::int32_t));
     size_t length = sizeof(std::int32_t);
     length += length % sizeof(int);
     
     if (variableIndex != DBARTS_INVALID_RULE_VARIABLE) {
-      split = *reinterpret_cast<const double*>(reinterpret_cast<const char*>(state) + length);
+      std::memcpy(&split, reinterpret_cast<const char*>(state) + length, sizeof(double));
       length = sizeof(double);
       length += length % sizeof(int);
             
-      leftChild    = new SavedNode();
+      leftChild  = new SavedNode();
       leftChild->parent = this;
       rightChild = new SavedNode();
       leftChild->parent = this;
@@ -793,7 +793,7 @@ namespace dbarts {
       length += leftChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
       length += rightChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
     } else {
-      prediction = *reinterpret_cast<const double*>(reinterpret_cast<const char*>(state) + length);
+      std::memcpy(&prediction, reinterpret_cast<const char*>(state) + length, sizeof(double));
       length = sizeof(double);
       length += length % sizeof(int);
     }
