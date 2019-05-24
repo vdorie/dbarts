@@ -6,6 +6,7 @@
 #include <cstring> // memcpy
 
 #include <misc/alloca.h>
+
 #include <misc/linearAlgebra.h>
 
 #include <external/random.h>
@@ -21,15 +22,12 @@ using std::size_t;
 
 
 namespace {
-  using namespace dbarts;
-  struct State {
-    Node node;
-    
-    void store(const Node& other);
-    void destroy();
-    void restore(Node& other) const;
-  };
+  void storeState(dbarts::Node& state, const dbarts::Node& other);
+  void destroyState(dbarts::Node& state);
+  void restoreState(const dbarts::Node& state, dbarts::Node& other);
 }
+
+#include <external/io.h>
 
 namespace dbarts {
   
@@ -41,7 +39,7 @@ namespace dbarts {
   double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree, bool birthableNodeExists);
   double computeProbabilityOfSelectingNodeForDeath(const Tree& tree);
   double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree);
-    
+  
   // returns probability of jump
   double birthOrDeathNode(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepWasTaken, bool* stepWasBirth)
   {
@@ -49,10 +47,16 @@ namespace dbarts {
     
     double ratio;
     
-    ::State* oldStatePtr = misc_stackAllocate(1, ::State);
-    ::State& oldState(*oldStatePtr);
-    
-    
+#if __cplusplus >= 201103L && defined(__SUNPRO_CC)
+    // solaris studio seems to have trouble with higher optimization levels and allocating a fixed
+    // amount on the stack
+    alignas(Node) char oldStatePtr[sizeof(Node)];
+    Node& oldState(*reinterpret_cast<Node*>(oldStatePtr));
+#else
+    Node* oldStatePtr = misc_stackAllocate(1, Node);
+    Node& oldState(*oldStatePtr);
+#endif
+         
     // Rather than flipping a coin to see if birth or death, we have to first check that either is possible.
     // Since that involves pretty much finding a node to give birth, we just do that and then possibly ignore
     // it.
@@ -72,8 +76,8 @@ namespace dbarts {
       double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
       
       // now perform birth;
-      oldState.store(nodeToChange);
-
+      storeState(oldState, nodeToChange);
+      
       bool exhaustedLeftSplits, exhaustedRightSplits;
       Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, state.rng, nodeToChange, &exhaustedLeftSplits, &exhaustedRightSplits);
       nodeToChange.split(fit, chainNum, newRule, y, exhaustedLeftSplits, exhaustedRightSplits);
@@ -90,6 +94,7 @@ namespace dbarts {
       
       // compute ratios
       double priorRatio = newPriorProbability / oldPriorProbability;
+      
       double transitionRatio = (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
                                (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth);
       
@@ -98,11 +103,11 @@ namespace dbarts {
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
       if (ext_rng_simulateContinuousUniform(state.rng) < ratio) {
-        oldState.destroy();
+        destroyState(oldState);
         
         *stepWasTaken = true;
       } else {
-        oldState.restore(nodeToChange);
+        restoreState(oldState, nodeToChange);
         
         *stepWasTaken = false;
       }
@@ -121,7 +126,7 @@ namespace dbarts {
       double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
       
-      oldState.store(nodeToChange);
+      storeState(oldState, nodeToChange);
       
       // now figure out how the node could have given birth
       nodeToChange.orphanChildren();
@@ -145,18 +150,20 @@ namespace dbarts {
       ratio = priorRatio * likelihoodRatio * transitionRatio;
       
       if (ext_rng_simulateContinuousUniform(state.rng) < ratio) {
-        oldState.destroy();
+        destroyState(oldState);
         
         *stepWasTaken = true;
       } else {
-        oldState.restore(nodeToChange);
+        restoreState(oldState, nodeToChange);
         
         *stepWasTaken = false;
       }
     }
     
+#if __cplusplus < 201103L || !defined(___SUNPRO_CC)
     misc_stackFree(oldStatePtr);
-    
+#endif
+
     return ratio < 1.0 ? ratio : 1.0;
   }
   
@@ -240,7 +247,7 @@ namespace dbarts {
     
     if (totalProbability > 0.0) {
       misc_scalarMultiplyVectorInPlace(nodeBirthProbabilities, numBottomNodes, 1.0 / totalProbability);
-
+      
       size_t index = ext_rng_drawFromDiscreteDistribution(rng, nodeBirthProbabilities, numBottomNodes);
 
       result = bottomNodes[index];
@@ -279,22 +286,20 @@ namespace dbarts {
 }
 
 namespace {
-  using namespace dbarts;
-  
-  void ::State::store(const Node& other) {
-    std::memcpy(static_cast<void*>(&node), static_cast<const void*>(&other), sizeof(Node));
+  void storeState(dbarts::Node& state, const dbarts::Node& other) {
+    std::memcpy(static_cast<void*>(&state), static_cast<const void*>(&other), sizeof(dbarts::Node));
   }
   
-  void ::State::destroy() {
-    if (node.getLeftChild() != NULL) {
+  void destroyState(dbarts::Node& state) {
+    if (state.getLeftChild() != NULL) {
       // successful death step
-      delete node.getLeftChild();
-      delete node.getRightChild();
+      delete state.getLeftChild();
+      delete state.getRightChild();
     }
   }
   
-  void ::State::restore(Node& other) const {
-    if (node.getLeftChild() == NULL) {
+  void restoreState(const dbarts::Node& state, dbarts::Node& other) {
+    if (state.getLeftChild() == NULL) {
       // failed birth step
       if (other.getLeftChild() != NULL) {
         // TODO: clean this up
@@ -302,6 +307,6 @@ namespace {
         delete other.p.rightChild; other.p.rightChild = NULL;
       }
     }
-    std::memcpy(static_cast<void*>(&other), static_cast<const void*>(&node), sizeof(Node));
+    std::memcpy(static_cast<void*>(&other), static_cast<const void*>(&state), sizeof(dbarts::Node));
   }
 }
