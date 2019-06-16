@@ -19,13 +19,20 @@ int misc_str_matchInArray(const char* s, const char* const* strings, size_t numS
   
   for (size_t i = 0; i < numStrings; ++i) {
     errno = 0;
-    misc_art_insert(&tree, (const uint8_t*) strings[i], strlen(strings[i]) + 1, (void*) pos++);
-    if (errno != 0) { errorCode = errno; goto MATCH_CLEANUP; }
+    if (misc_art_insert(&tree, (const uint8_t*) strings[i], strlen(strings[i]) + 1, (void*) pos++) == NULL &&
+        errno != 0)
+    {
+      errorCode = errno;
+      goto MATCH_CLEANUP;
+    }
   }
   
   errno = 0;
   searchResult = misc_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
-  if (searchResult == NULL && errno != 0) { errorCode = errno; goto MATCH_CLEANUP; }
+  if (searchResult == NULL && errno != 0) {
+    errorCode = errno;
+    goto MATCH_CLEANUP;
+  }
   
   *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : MISC_STR_NO_MATCH;
   
@@ -49,8 +56,12 @@ int misc_str_matchInVArray(const char* s, misc_size_t* matchPos, ...)
   const char* string = va_arg(stringsPointer, const char*);
   while (string != NULL) {
     errno = 0;
-    misc_art_insert(&tree, (const uint8_t*) string, strlen(string) + 1, (void*) pos++);
-    if (errno != 0) { errorCode = errno; break; }
+    if (misc_art_insert(&tree, (const uint8_t*) string, strlen(string) + 1, (void*) pos++) == NULL &&
+        errno != 0)
+    {
+      errorCode = errno;
+      break;
+    }
     string = va_arg(stringsPointer, const char*);
   }
   va_end(stringsPointer);
@@ -59,7 +70,10 @@ int misc_str_matchInVArray(const char* s, misc_size_t* matchPos, ...)
   
   errno = 0;
   searchResult = misc_art_search(&tree, (const uint8_t*) s, strlen(s) + 1);
-  if (searchResult == NULL && errno != 0) { errorCode = errno; goto VA_MATCH_CLEANUP; }
+  if (searchResult == NULL && errno != 0) {
+    errorCode = errno;
+    goto VA_MATCH_CLEANUP;
+  }
   
   *matchPos = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : MISC_STR_NO_MATCH;
   

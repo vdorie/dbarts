@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <misc/stddef.h>
+#include <stdio.h> // snprintf
 #include <stdlib.h> // malloc, free
 #include <string.h> // memcpy, memcmp
 
@@ -134,7 +135,15 @@ static Node* createNode(NodeType type);
 static Leaf* createLeaf(const uint8_t* restrict key, size_t keyLength, const void* restrict value);
 static void copyNodeHeader(Node* restrict dest, const Node* restrict src);
 
-static void printAtDepth(Node* const n, size_t depth);
+static void printAtDepth(const Node* n, size_t depth);
+
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
+#  define UNUSED __attribute__ ((unused))
+#else
+#  define UNUSED
+#endif
+
+UNUSED static int snprintAtDepth(char* buffer, size_t len, const Node* n, size_t depth);
 
 static inline size_t getMinLength(size_t a, size_t b) { return (a < b) ? a : b; }
 
@@ -169,8 +178,13 @@ void* misc_art_insert(Tree* restrict t, const uint8_t* restrict key, size_t keyL
   bool addedNode = true;
   void* oldValue = NULL;
   int errorCode = insertKeyValue(t->root, key, keyLength, value, 0, &t->root, &addedNode, &oldValue);
-  if (errorCode != 0) { errno = errorCode; return NULL; }
+  if (errorCode != 0) {
+    errno = errorCode;
+    return NULL;
+  }
+  
   if (addedNode == true) t->size++;
+  if (oldValue == NULL) errno = 0;
   return oldValue;
 }
 
@@ -178,9 +192,15 @@ void* misc_art_delete(misc_art_tree* restrict t, const uint8_t* restrict key, si
 {
   Leaf* l = NULL;
   int errorCode = deleteKey(t->root, key, keyLength, 0, &t->root, &l);
-  if (errorCode != 0) { errno = errorCode; return NULL; }
+  if (errorCode != 0) {
+    errno = errorCode;
+    return NULL;
+  }
   
-  if (l == NULL) return NULL;
+  if (l == NULL) {
+    errno = 0;
+    return NULL;
+  }
   
   t->size--;
   void* oldValue = (void*) l->value;
@@ -239,7 +259,7 @@ int misc_art_mapOverPrefix(const misc_art_tree* restrict t, const uint8_t* prefi
     
     if (depth == prefixLength) {
       const Leaf* l = getMinimumLeafUnderNode(n);
-      if (prefixesMatch(l, prefix, prefixLength))
+      if (l != NULL && prefixesMatch(l, prefix, prefixLength))
         return map(n, cb, data);
       else
         return 0;
@@ -280,7 +300,6 @@ static int insertKeyValue(Node* restrict n, const uint8_t* restrict key, size_t 
 
   if (nodeIsLeaf(n)) {
     Leaf* l = (Leaf*) getRawLeafPointer(n);
-    
     if (keysMatch(l, key, keyLength)) {
       *addedNode = false;
       *oldValue = (void*) l->value;
@@ -301,8 +320,8 @@ static int insertKeyValue(Node* restrict n, const uint8_t* restrict key, size_t 
     memcpy(newNode->n.partial, key + depth, getMinLength(prefixLength, MAX_PARTIAL_LENGTH));
     
     int errorCode = 0;
-    if ((errorCode = addChild4(newNode, l->key[depth + prefixLength],  tagNodeAsLeaf(l), NULL)) != 0 ||
-        (errorCode = addChild4(newNode, l2->key[depth + prefixLength], tagNodeAsLeaf(l2), NULL) != 0))
+    if ((errorCode = addChild4(newNode, l->key[depth + prefixLength],  tagNodeAsLeaf(l),  NULL)) != 0 ||
+        (errorCode = addChild4(newNode, l2->key[depth + prefixLength], tagNodeAsLeaf(l2), NULL)  != 0))
     {
       free(l2);
       destroyNode((Node*) newNode);
@@ -324,22 +343,27 @@ static int insertKeyValue(Node* restrict n, const uint8_t* restrict key, size_t 
       newNode->n.prefixLength = commonPrefixLength;
       memcpy(newNode->n.partial, n->partial, getMinLength(MAX_PARTIAL_LENGTH, commonPrefixLength));
       
+      int errorCode = 0;
+      
       // adjust the prefix of the old node
       if (n->prefixLength <= MAX_PARTIAL_LENGTH) {
-        if (addChild4(newNode, n->partial[commonPrefixLength], n, NULL) != 0) return destroyNode((Node*) newNode), errno;
+        if ((errorCode = addChild4(newNode, n->partial[commonPrefixLength], n, NULL)) != 0)
+          return destroyNode((Node*) newNode), errorCode;
         n->prefixLength -= (commonPrefixLength + 1);
         memmove(n->partial, n->partial + commonPrefixLength + 1, getMinLength(MAX_PARTIAL_LENGTH, n->prefixLength));
       } else {
         n->prefixLength -= (commonPrefixLength + 1);
+        errno = 0;
         Leaf* l = getMinimumLeafUnderNode(n);
-        if (addChild4(newNode, l->key[depth + commonPrefixLength], n, NULL) != 0) return destroyNode((Node*) newNode), errno;
+        if (l == NULL) return destroyNode((Node*) newNode), errno;
+        if ((errorCode = addChild4(newNode, l->key[depth + commonPrefixLength], n, NULL)) != 0)
+          return destroyNode((Node*) newNode), errorCode;
         memcpy(n->partial, l->key + depth + commonPrefixLength + 1, getMinLength(MAX_PARTIAL_LENGTH, n->prefixLength));
       }
       
       // insert the new leaf
       Leaf* l = createLeaf(key, keyLength, value);
       if (l == NULL) return errno;
-      int errorCode = 0;
       if ((errorCode = addChild4(newNode, key[depth + commonPrefixLength], tagNodeAsLeaf(l), NULL)) != 0) {
         free(l);
         return destroyNode((Node*) newNode), errorCode;
@@ -452,6 +476,7 @@ static size_t getPrefixMismatchIndex(const Node* restrict n, const uint8_t* rest
   if (n->prefixLength > MAX_PARTIAL_LENGTH) {
     // Prefix is longer than what we've checked, find a leaf
     Leaf* l = getMinimumLeafUnderNode(n);
+    if (l == NULL) return index;
     maxIndex = getMinLength(l->keyLength, keyLength) - depth;
     for (; index < maxIndex; ++index) {
       if (l->key[index + depth] != key[depth + index])
@@ -471,6 +496,7 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
     const Node48 * p3;
     const Node256* p4;
   } p;
+  
   switch (n->type) {
     case NODE4:
     p.p1 = (const Node4*) n;
@@ -518,7 +544,10 @@ static Node** findChildMatchingKey(const Node* n, uint8_t c)
 static Leaf* getMinimumLeafUnderNode(const Node* n) {
   if (n == NULL) return NULL;
   if (nodeIsLeaf(n)) return getRawLeafPointer(n);
-  if (n->numChildren == 0) { errno = EINVAL; return NULL; }
+  if (n->numChildren == 0) {
+    errno = EINVAL;
+    return NULL;
+  }
   
   uint8_t index;
   switch (n->type) {
@@ -631,6 +660,7 @@ static int map(const Node* restrict n, misc_art_callback cb, void* restrict data
     }
     break;
   }
+  
   return EINVAL;
 }
 
@@ -650,6 +680,7 @@ static int addChild(Node* restrict n, uint8_t c, void* restrict child, Node* res
     case NODE256:
     return addChild256((Node256*) n, c, child);
   }
+  
   return EINVAL;
 }
 
@@ -772,7 +803,7 @@ static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node*
       newNode->children[i] = n->children[n->keys[i] - 1];
   }
   if (n->keys[255] != 0)
-      newNode->children[255] = n->children[n->keys[255] - 1];
+    newNode->children[255] = n->children[n->keys[255] - 1];
   
   copyNodeHeader((Node*) newNode, (const Node*) n);
   *positionInParent = (Node*) newNode;
@@ -805,6 +836,7 @@ static int removeChild(Node* restrict n, uint8_t c, Node* restrict* restrict pos
     case NODE256:
     return removeChild256((Node256*) n, positionInParent, c);
   }
+  
   return EINVAL;
 }
 
@@ -932,28 +964,33 @@ static Node* createNode(NodeType type) {
 #endif
   switch (type) {
     case NODE4:
-      n = (Node*) calloc(1, sizeof(Node4));
-      break;
+    n = (Node*) calloc(1, sizeof(Node4));
+    break;
     case NODE16:
 #ifdef __SUNPRO_C
-      if (misc_alignedAllocate((void**) &n, alignment, sizeof(Node16)) != 0)
-        n = NULL;
-      else
-        memset(n, 0, sizeof(Node16));
+    int errorCode = misc_alignedAllocate((void**) &n, alignment, sizeof(Node16));
+    if (errorCode != 0) {
+      errno = errorCode;
+      n = NULL;
+    } else {
+      memset(n, 0, sizeof(Node16));
+    }
 #else
-      n = (Node*) calloc(1, sizeof(Node16));
+    n = (Node*) calloc(1, sizeof(Node16));
 #endif
-      break;
+    break;
     case NODE48:
-      n = (Node*) calloc(1, sizeof(Node48));
-      break;
+    n = (Node*) calloc(1, sizeof(Node48));
+    break;
     case NODE256:
-      n = (Node*) calloc(1, sizeof(Node256));
-      break;
+    n = (Node*) calloc(1, sizeof(Node256));
+    break;
     default:
-      return NULL;
+    errno = EINVAL;
+    return NULL;
   }
   if (n == NULL) return NULL;
+  
   n->type = type;
   return n;
 }
@@ -1006,7 +1043,7 @@ static int destroyNode(Node* n) {
     break;
     
     default:
-      return EINVAL;
+    return EINVAL;
   }
   
   free(n);
@@ -1031,7 +1068,7 @@ static void copyNodeHeader(Node* restrict dest, const Node* restrict src) {
   memcpy(dest->partial, src->partial, getMinLength(MAX_PARTIAL_LENGTH, src->prefixLength));
 }
 
-static void printAtDepth(Node* const n, size_t depth)
+static void printAtDepth(const Node* n, size_t depth)
 {
   if (n == NULL) {
     ext_printf("NULL\n");
@@ -1152,5 +1189,150 @@ static void printAtDepth(Node* const n, size_t depth)
 #  pragma GCC diagnostic pop
 #endif
 
+}
+
+static int snprintAtDepth(char* buffer, size_t len, const Node* n, size_t depth)
+{
+  int numChars = 0;
+  if (n == NULL) {
+    numChars += snprintf(buffer, len, "NULL\n");
+    return numChars;
+  }
+  
+  if (nodeIsLeaf(n)) {
+    Leaf* const l = (Leaf* const) getRawLeafPointer(n);
+    
+    numChars += snprintf(buffer + numChars, len - numChars, "leaf: ");
+    
+    for (size_t i = 0; i < l->keyLength; ++i)
+      numChars += snprintf(buffer + numChars, len - numChars, "%c", l->key[i]);
+    
+    numChars += snprintf(buffer + numChars, len - numChars, "\n");
+    return numChars;
+  }
+  
+  static const char* const sizeNames[] = { "4", "16", "48", "256" };
+  
+  numChars += snprintf(buffer + numChars, len - numChars, "node %s", sizeNames[n->type]);
+  
+  if (n->prefixLength > 0) {
+    numChars += snprintf(buffer + numChars, len - numChars, ", partial: '");
+    
+    for (size_t i = 0; i < n->prefixLength; ++i)
+      numChars += snprintf(buffer + numChars, len - numChars, "%c", n->partial[i]);
+    
+    numChars += snprintf(buffer + numChars, len - numChars, "'");
+  }
+  numChars += snprintf(buffer + numChars, len - numChars, ", keys: '");
+  
+#if defined(SUPPRESS_DIAGNOSTIC) && defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+  
+  union {
+    const Node4  * p1;
+    const Node16 * p2;
+    const Node48 * p3;
+    const Node256* p4;
+  } p;
+  switch (n->type) {
+    case NODE4:
+    p.p1 = (const Node4*) n;
+    for (uint8_t i = 0; i < n->numChildren; ++i)
+      if (p.p1->keys[i] != 0)
+        numChars += snprintf(buffer + numChars, len - numChars, "%c", p.p1->keys[i]);
+    break;
+    
+    case NODE16:
+    p.p2 = (const Node16*) n;
+    for (uint8_t i = 0; i < n->numChildren; ++i)
+      if (p.p2->keys[i] != 0)
+        numChars += snprintf(buffer + numChars, len - numChars, "%c", p.p2->keys[i]);
+    break;
+    
+    case NODE48:
+    p.p3 = (const Node48*) n;
+    for (uint8_t i = 0; i <= 254; ++i)
+      if (p.p3->keys[i] != 0)
+        numChars += snprintf(buffer + numChars, len - numChars, "%c", i);
+    if (p.p3->keys[255] != 0)
+      numChars += snprintf(buffer + numChars, len - numChars, "%c", 255);
+    break;
+    
+    case NODE256:
+    p.p4 = (const Node256*) n;
+    for (uint8_t i = 0; i <= 254; ++i)
+      if (p.p4->children[i] != NULL)
+        numChars += snprintf(buffer + numChars, len - numChars, "%c", i);
+    if (p.p4->children[255] != 0)
+      numChars += snprintf(buffer + numChars, len - numChars, "%c", 255);
+    break;
+  }
+  numChars += snprintf(buffer + numChars, len - numChars, "'\n");
+  
+  switch (n->type) {
+    case NODE4:
+    for (uint8_t i = 0; i < n->numChildren; ++i) {
+      if (p.p1->keys[i] != 0) {
+        for (size_t i = 0; i < depth + 1; ++i)
+          numChars += snprintf(buffer + numChars, len - numChars, "  ");
+        numChars += snprintf(buffer + numChars, len - numChars, "%c: ", p.p1->keys[i]);
+        numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p1->children[i], depth + 1);
+      }
+    }
+    break;
+    
+    case NODE16:
+    for (uint8_t i = 0; i < n->numChildren; ++i) {
+      if (p.p2->keys[i] != 0) {
+        for (size_t i = 0; i < depth + 1; ++i)
+          numChars += snprintf(buffer + numChars, len - numChars, "  ");
+        numChars += snprintf(buffer + numChars, len - numChars, "%c: ", p.p2->keys[i]);
+        numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p2->children[i], depth + 1);
+      }
+    }
+    break;
+    
+    case NODE48:
+    for (uint8_t i = 0; i <= 254; ++i) {
+      if (p.p3->keys[i] != 0) {
+        for (size_t j = 0; j < depth + 1; ++j)
+          numChars += snprintf(buffer + numChars, len - numChars, "  ");
+        numChars += snprintf(buffer + numChars, len - numChars, "%c: ", i);
+        numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p3->children[p.p3->keys[i] - 1], depth + 1);
+      }
+    }
+    if (p.p3->keys[255] != 0) {
+      for (size_t j = 0; j < depth + 1; ++j)
+        numChars += snprintf(buffer + numChars, len - numChars, "  ");
+      numChars += snprintf(buffer + numChars, len - numChars, "%c: ", 255);
+      numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p3->children[p.p3->keys[255] - 1], depth + 1);
+    }
+    break;
+    
+    case NODE256:
+    for (uint8_t i = 0; i <= 254; ++i) {
+      if (p.p4->children[i] != NULL) {
+        for (size_t j = 0; j < depth + 1; ++j)
+          numChars += snprintf(buffer + numChars, len - numChars, "  ");
+        numChars += snprintf(buffer + numChars, len - numChars, "%c: ", i);
+        numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p4->children[i], depth + 1);
+      }
+    }
+    if (p.p4->children[255] != NULL) {
+      for (size_t j = 0; j < depth + 1; ++j) 
+        numChars += snprintf(buffer + numChars, len - numChars, "  ");
+      numChars += snprintf(buffer + numChars, len - numChars, "%c: ", 255);
+      numChars += snprintAtDepth(buffer + numChars, len - numChars, p.p4->children[255], depth + 1);
+    }
+    break;
+  }
+
+#if defined(SUPPRESS_DIAGNOSTIC) && defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+#  pragma GCC diagnostic pop
+#endif
+  
+  return numChars;
 }
 
