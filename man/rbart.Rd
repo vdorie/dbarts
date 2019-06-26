@@ -5,9 +5,6 @@
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
 Fits a varying intercept/random effect BART model.
-
-For numeric response \eqn{y_i = f(x_i) + \alpha_{j[i]} + \epsilon_i}{y_i = f(x_i) + \alpha_{j[i]} + \epsilon_i},
-where \eqn{\epsilon_i \sim N(0, \sigma_y^2)}{\epsilon_i ~ N(0, \sigma_y^2)} and \eqn{\alpha_j \sim N(0, \sigma_\alpha^2)}{\alpha_j ~ N(0, \sigma_\alpha^2)}.
 }
 \usage{
 rbart_vi(
@@ -52,15 +49,15 @@ rbart_vi(
   \item{x, plquants, cols}{Same as in \code{\link{plot.bart}}.}
 }
 \details{
-  Fits a BART model with additive random intercepts, one for each factor level of \code{group.by}. That is
+  Fits a BART model with additive random intercepts, one for each factor level of \code{group.by}. For continuous responses:
 
 \itemize{
-  \item \eqn{y_i = b_{g[i]} + f(x_i) + \epsilon}{y_i = b_g[i] + f(x_i) + \epsilon},
-  \item \eqn{b_j \sim N(0, \tau^2)}{b_j ~ N(0, \tau^2)}.
+  \item \eqn{y_i \sim N(f(x_i) + \alpha_{g[i]}, \sigma^2)}{y_i ~ N(f(x_i) + \alpha_{g[i]}, \sigma^2)}
+  \item \eqn{\alpha_j \sim N(0, \tau^2)}{\alpha_j ~ N(0, \tau^2)}.
 }
 
-  where \eqn{i} indices observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
-  \eqn{\epsilon} come from a BART model, and  \eqn{b_j} are the independent and identically distributed
+For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
+  \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed
   random intercepts.
 }
 \value{
@@ -68,13 +65,13 @@ rbart_vi(
   as well as the elements
 
   \item{ranef}{Samples from the posterior of the random effects. A array/matrix of posterior samples.
-        The \eqn{(i, j, k)} value is the \eqn{j}th draw of the posterior of the random effect for group
-        \eqn{k} (i.e. \eqn{b^*_k}{b*__k}) corresponding to chain \eqn{i}. When \code{nchain}
+        The \eqn{(k, l, j)} value is the \eqn{l}th draw of the posterior of the random effect for group
+        \eqn{j} (i.e. \eqn{\alpha^*_j}{\alpha*_j}) corresponding to chain \eqn{k}. When \code{n.chains}
         is one or \code{combineChains} is \code{TRUE}, the result is a collapsed down to a matrix.}
   \item{ranef.mean}{Posterior mean of random effects, derived by taking mean across group index of
         samples.}
   \item{tau}{Matrix of posterior samples of \code{tau}, the standard deviation of the random effects.
-        Dimensions are equal to the number of chains times the numbers of samples unless \code{nchain} is
+        Dimensions are equal to the number of chains times the numbers of samples unless \code{n.chains} is
         one or \code{combineChains} is \code{TRUE}.}
   \item{\code{first.tau}}{
         Burn-in draws of \code{tau}.}

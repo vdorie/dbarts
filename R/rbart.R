@@ -195,7 +195,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     sampler$setOffset(offset)
     
     .Call(C_dbarts_assignInPlace, tau, i, tau.i)
-    if (control@binary)
+    if (!control@binary)
       .Call(C_dbarts_assignInPlace, sigma, i, samples$sigma[1L])
     .Call(C_dbarts_assignInPlace, ranef, i, ranef.i)
     .Call(C_dbarts_assignInPlace, yhat.train, i, samples$train - offset)
