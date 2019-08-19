@@ -26,6 +26,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// original at https://github.com/armon/libart
+
 // Portability note: this was originally designed around the assumption that chars
 // are 8 bits, and hence I've forced it to take uint8_ts instead. If this were to
 // change, one could go through in the innards and use different node sizes,

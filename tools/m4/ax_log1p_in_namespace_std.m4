@@ -7,6 +7,14 @@
 #   If the function log1p is in the cmath header file and std::
 #   namespace, define HAVE_LOG1P_IN_NAMESPACE_STD.
 #
+# LICENSE
+#
+#   Copyright (c) 2019 Vincent Dorie <vdorie@gmail.com>
+#
+#   Copying and distribution of this file, with or without modification, are
+#   permitted in any medium without royalty provided the copyright notice
+#   and this notice are preserved. This file is offered as-is, without any
+#   warranty.
 
 #serial 7
 

@@ -1,4 +1,4 @@
-/* This is taken from bits an pieces all over the internet. The strongest inspiriation is
+/* This is taken from bits and pieces all over the internet. The strongest inspiriation is
  * Agner Fog's C++ vector class library (https://www.agner.org/optimize/#vectorclass)
  * which is vailable under the GPL. The cross-platform cpuid is from Wikipedia 
  * (https://en.wikipedia.org/wiki/CPUID#CPUID_usage_from_high-level_languages) and is 
@@ -31,6 +31,7 @@
   "invalid"
 }; */
 
+// if not on any x86 descendent, use pure C no matter what
 #if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
 static misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
   return MISC_INST_C;
@@ -86,7 +87,7 @@ static inline int cpuid(int leafNumber, int* info)
   __cpuid(info, leafNumber);
 #elif defined(__SUNPRO_C)
   __asm__ __volatile__(
-    // check for 64 bit system
+    // check for 64 bit system, use rbx there and ebx on 32 bit
 #if defined(__x86_64__) || defined(_M_AMD64) || defined (_M_X64)
     "pushq %%rbx        \n\t" /* save %rbx */
 #else
@@ -157,7 +158,7 @@ misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
   if ((ecx & (1 << 20)) == 0) return instructionSet; // no SSE4.2
   instructionSet = MISC_INST_SSE4_2;
   if ((ecx & (1 << 27)) == 0) return instructionSet; // no OSXSAVE
-  if ((xgetbv() & 6) != 6)    return instructionSet; // AVX not enabled in O.S.
+  if ((xgetbv() & 6) != 6)    return instructionSet; // AVX not enabled in OS
   if ((ecx & (1 << 28)) == 0) return instructionSet; // no AVX
   instructionSet = MISC_INST_AVX;
   
@@ -247,26 +248,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   
   if (i < MISC_INST_C || i >= MISC_INST_INVALID) return;
   
-/* #ifdef HAVE_AVX2
-#  define MAX_SIMD 8
-#elif defined(HAVE_AVX)
-#  define MAX_SIMD 7
-#elif defined(HAVE_SSE4_2)
-#  define MAX_SIMD 6
-#elif defined(HAVE_SSE4_1)
-#  define MAX_SIMD 5
-#elif defined(HAVE_SSE3)
-#  define MAX_SIMD 3
-#elif defined(HAVE_SSE2)
-#  define MAX_SIMD 2
-#elif defined(HAVE_SSE)
-#  define MAX_SIMD 1
-#else
-#  define MAX_SIMD 0
-#endif */
   misc_simd_instructionSet i_max = misc_simd_getMaxSIMDInstructionSet();
-  //ext_printf("SIMD instruction set %s (%d) requested, %s max compiled, %s max supported\n", simdNames[i], i,
-  //           simdNames[MAX_SIMD], simdNames[i_max]);
   if (i > i_max) i = i_max;
   
 #ifdef HAVE_AVX2
