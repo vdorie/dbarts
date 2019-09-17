@@ -252,8 +252,6 @@ dbartsSampler <-
                   
                   selfEnv <- parent.env(environment())
                   
-                  if (!control@keepTrees) stop("predict requires that keepTrees is TRUE")
-                   
                   ptr <- getPointer()
                   
                   x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))

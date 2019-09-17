@@ -96,6 +96,10 @@
   were replaced, on the update is rolled-back so that the sampler remains in a valid state.
   
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits.
-  It is intended that this function only be used when the \code{runMode} of \code{\link{dbartsControl}} is
-  \code{"fixedSamples"}, since otherwise only a single set of trees are stored.
+  This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is
+  \code{TRUE}, in which case the sampler should be run to completion and the function can be used
+  to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be
+  used to obtain the likelihood as part of a proposed new set of covariates in a
+  Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call
+  to \code{setPredictor} if the step is accepted.
 }

@@ -2,6 +2,14 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-12}{
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{predict} now works when trees aren't saved, for use in testing
+            Metropolis-Hasting steps.
+    }
+  }
+}
+\section{CHANGES IN VERSION 0.9-12}{
   \subsection{NEW FEATURES}{
     \itemize{
       \item Varying intercepts model for probit regression.

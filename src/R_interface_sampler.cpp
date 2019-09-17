@@ -276,8 +276,6 @@ extern "C" {
     
     const Control& control(fit->control);
     
-    if (control.keepTrees == FALSE) Rf_error("predict requires keepTrees to be TRUE");
-    
     if (Rf_isNull(x_testExpr) || rc_isS4Null(x_testExpr)) return R_NilValue;
     
     if (!Rf_isReal(x_testExpr)) Rf_error("x.test must be of type real");
@@ -288,7 +286,8 @@ extern "C" {
                             RC_END);
     int* dims = INTEGER(Rf_getAttrib(x_testExpr, R_DimSymbol));
     
-    size_t numSamples = fit->currentNumSamples;
+    
+    size_t numSamples = control.keepTrees ? fit->currentNumSamples : 1;
     size_t numTestObservations = static_cast<size_t>(dims[0]);
     
     
@@ -302,10 +301,15 @@ extern "C" {
     }
     
     SEXP result = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples * control.numChains));
-    if (fit->control.numChains <= 1)
-      rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
-    else
-      rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), static_cast<int>(control.numChains), -1);
+    if (control.keepTrees) {
+      if (fit->control.numChains <= 1)
+        rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
+      else
+        rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(numSamples), static_cast<int>(control.numChains), -1);
+    } else {
+      if (fit->control.numChains > 1)
+        rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(control.numChains), -1);
+    }
     
     fit->predict(REAL(x_testExpr), numTestObservations, testOffset, REAL(result));
     

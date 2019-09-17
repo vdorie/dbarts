@@ -183,28 +183,56 @@ namespace dbarts {
   
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
   {
-    if (!control.keepTrees) ext_throwError("predict requires 'keepTrees' to be true");
-    
     double* currTestFits = new double[numTestObservations];
     double* totalTestFits = new double[numTestObservations];
     
-    double* xt_test = new double[numTestObservations * data.numPredictors];
-    misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
-    
-    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
-        
+    if (control.keepTrees) {
+      double* xt_test = new double[numTestObservations * data.numPredictors];
+      misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
+      
+      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+        for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
+          
+          misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
+          
+          for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+            size_t treeOffset = treeNum + sampleNum * control.numTrees;
+            
+            state[chainNum].savedTrees[treeOffset].getPredictions(*this, xt_test, numTestObservations, currTestFits);
+            
+            misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
+          }
+          
+          double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
+          if (control.responseIsBinary) {
+            std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
+          } else {
+            misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+            misc_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+          }
+          
+          if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
+        }
+      }
+      delete [] xt_test;
+    } else {
+      xint_t* xt_test = new xint_t[numTestObservations * data.numPredictors];
+      setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
+
+      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      
         misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          size_t treeOffset = treeNum + sampleNum * control.numTrees;
+          const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+          const double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
           
-          state[chainNum].savedTrees[treeOffset].getPredictions(*this, xt_test, numTestObservations, currTestFits);
+          state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, xt_test, numTestObservations, currTestFits);
           
           misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
         }
         
-        double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
+        double* result_i = result + chainNum * numTestObservations;
         if (control.responseIsBinary) {
           std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
         } else {
@@ -214,9 +242,9 @@ namespace dbarts {
         
         if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
       }
+      delete [] xt_test;
     }
     
-    delete [] xt_test;
     delete [] totalTestFits;
     delete [] currTestFits;
   }
