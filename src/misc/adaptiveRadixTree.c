@@ -1001,12 +1001,14 @@ static Node* createNode(NodeType type) {
     break;
     case NODE16:
 #ifdef __SUNPRO_C
-    int errorCode = misc_alignedAllocate((void**) &n, alignment, sizeof(Node16));
-    if (errorCode != 0) {
-      errno = errorCode;
-      n = NULL;
-    } else {
-      memset(n, 0, sizeof(Node16));
+    {
+      int errorCode = misc_alignedAllocate((void**) &n, alignment, sizeof(Node16));
+      if (errorCode != 0) {
+        errno = errorCode;
+        n = NULL;
+      } else {
+        memset(n, 0, sizeof(Node16));
+      }
     }
 #else
     n = (Node*) calloc(1, sizeof(Node16));
