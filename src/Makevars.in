@@ -8,9 +8,28 @@ AVX2_FLAG=@AVX2_FLAG@
 
 INST_DIR=../inst
 
-PTHREAD_FLAGS=@PTHREAD_CFLAGS@ $(THREAD_SAFE_UNLOAD)
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude 
-PKG_LIBS=dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) @PTHREAD_LIBS@ 
+# pthreads can be tricky to setup across compilers so we take what our configure script gives
+# us and re-use the preprocessor and linker flags depending on which compiler is being used
+#
+# specifically, gcc/clang have to reuse the compiler flag for linking as the lib flag is empty
+# while oracle developer studio has to use both flags in all places
+COMPILER=@COMPILER_VENDOR@
+
+PTHREAD_CPPFLAGS.sun = @PTHREAD_CFLAGS@ @PTHREAD_LIBS@
+PTHREAD_CPPFLAGS.clang = @PTHREAD_CFLAGS@
+PTHREAD_CPPFLAGS.gcc = @PTHREAD_CFLAGS@
+PTHREAD_CPPFLAGS. = @PTHREAD_CFLAGS@
+
+PTHREAD_LIBS.sun = @PTHREAD_CFLAGS@ @PTHREAD_LIBS@
+PTHREAD_LIBS.clang = @PTHREAD_CFLAGS@
+PTHREAD_LIBS.gcc = @PTHREAD_CFLAGS@
+PTHREAD_LIBS. = @PTHREAD_LIBS@
+
+PTHREAD_CPPFLAGS = $(PTHREAD_CPPFLAGS.$(COMPILER))
+PTHREAD_LIBS = $(PTHREAD_LIBS.$(COMPILER))
+
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
+PKG_LIBS=dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
@@ -24,8 +43,8 @@ $(SHLIB): sublibs
 sublibs:
 	@for d in $(SUBDIRS); do \
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
-	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" \
-           DBARTS_FLAGS="$(MATCH_BAYES_TREE) $(THREAD_SAFE_UNLOAD)" \
+	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
+           DBARTS_FLAGS="$(MATCH_BAYES_TREE) $(THREAD_SAFE_UNLOAD)"  \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CLINK_CPPFLAGS="$(CLINK_CPPFLAGS)" CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \

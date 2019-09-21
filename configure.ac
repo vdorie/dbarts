@@ -65,7 +65,6 @@ if test -z "${R_HOME}"; then
   exit 1
 fi
 CC=`"${R_HOME}/bin/R" CMD config CC`
-CPP=`"${R_HOME}/bin/R" CMD config CPP`
 CXX=`"${R_HOME}/bin/R" CMD config CXX`
 CFLAGS=`"${R_HOME}/bin/R" CMD config CFLAGS`
 CPICFLAGS=`"${R_HOME}/bin/R" CMD config CPICFLAGS`
@@ -87,12 +86,12 @@ AC_LANG_POP(C++)
 AC_C_BIGENDIAN
 
 AX_COMPILER_VENDOR
+AC_SUBST(COMPILER_VENDOR, $ax_cv_c_compiler_vendor)
 AX_COMPILER_EXT
 
 # Checks for libraries.
 AX_PTHREAD
 AC_SUBST(PTHREAD_CFLAGS)
-AC_SUBST(PTHREAD_LDFLAGS)
 AC_SUBST(PTHREAD_LIBS)
 
 # Checks for header files.

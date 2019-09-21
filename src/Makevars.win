@@ -8,9 +8,11 @@ AVX2_FLAG=-mavx2
 
 INST_DIR=../inst
 
-PTHREAD_FLAGS=-pthread
-PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude
-PKG_LIBS= dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) -lpthread 
+PTHREAD_CPPFLAGS=$(SHLIB_PTHREAD_FLAGS)
+PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
+
+PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
+PKG_LIBS= dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
@@ -21,12 +23,11 @@ all: $(SHLIB)
 
 $(SHLIB): sublibs
 
-sublibs: sublibraries
-
-sublibraries:
+sublibs:
 	@for d in $(SUBDIRS); do \
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
-	   PTHREAD_FLAGS="$(PTHREAD_FLAGS)" INST_DIR="$(INST_DIR)" DBARTS_FLAGS="$(MATCH_BAYES_TREE)" \
+	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
+	   DBARTS_FLAGS="$(MATCH_BAYES_TREE)" \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
