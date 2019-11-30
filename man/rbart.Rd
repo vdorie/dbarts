@@ -1,6 +1,8 @@
 \name{rbart}
 \alias{rbart_vi}
 \alias{plot.rbart}
+\alias{fitted.rbart}
+\alias{extract.rbart}
 \alias{predict.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
@@ -23,7 +25,20 @@ rbart_vi(
   keepTrees = TRUE, keepCall = TRUE, ...)
 
 \method{plot}{rbart}(x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
-\method{predict}{rbart}(object, test, group.by, offset.test, combineChains, \dots)
+\method{fitted}{rbart}(object,
+                       value = c("post-mean", "ppd", "bart", "ranef"),
+                       sample = c("train", "test"),
+                       combineChains = TRUE,
+                       \dots)
+\method{extract}{rbart}(object,
+                        value = c("post-mean", "ppd", "bart", "ranef"),
+                        sample = c("train", "test"),
+                        combineChains = TRUE,
+                        \dots)
+\method{predict}{rbart}(object, newdata, group.by, offset,
+                        value = c("post-mean", "ppd", "bart", "ranef"),
+                        combineChains = TRUE,
+                        \dots)
 }
 \arguments{
   \item{group.by}{
@@ -45,7 +60,14 @@ rbart_vi(
         n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose,
         keepTrees, keepCall, \dots}{
     Same as in \code{\link{bart2}}.}
-  \item{object}{Same as in \code{\link{predict.bart}}.}
+  \item{object}{A fitted \code{rbart} model.}
+  \item{value}{One of \code{"post-mean"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"} for
+        the posterior mean, posterior predictive distribution, non-parametric/BART component,
+        or random effect respectively. The posterior mean is sum of the BART component and the
+        random effects, while the posterior predictive distribution is a response sampled
+        with that mean.}
+  \item{sample}{One of \code{"train"} or \code{"test"}, referring to the training or tests samples
+        respectively.}
   \item{x, plquants, cols}{Same as in \code{\link{plot.bart}}.}
 }
 \details{
@@ -59,6 +81,14 @@ rbart_vi(
 For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
   \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed
   random intercepts.
+
+\subsection{Out Of Sample Groups}{
+  Predicting random effects for groups not in the training sample is supported by sampling
+  from their posterior predictive distribution, that is a draw is taken from
+  \eqn{\alpha \mid \tau^2, y \sim N(0, \tau^2)}{\alpha | \tau^2, y ~ N(0, \tau^2)}.
+  For out-of-sample groups in the test data, these random effect draws can be kept 
+  with the saved object. For those supplied to \code{predict}, they cannot and may
+  change for subsequent calls.}
 }
 \value{
   An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}},

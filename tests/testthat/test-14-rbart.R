@@ -51,8 +51,126 @@ test_that("rbart finds group.by", {
                      n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
                      n.trees = 25L, n.threads = 1L),
             "rbart")
+})
+
+test_that("extract works at baseline", {
+  x <- testData$x
+  y <- testData$y
+  g <- factor(testData$g)
   
-  rm(y, x, g, df)
+  set.seed(0)
+  rbartFit <- rbart_vi(y ~ x, group.by = g,
+                       n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                       n.trees = 25L, n.threads = 1L)
+  expect_equal(extract(rbartFit, value = "bart", combineChains = FALSE), rbartFit$yhat.train)
+  expect_equal(extract(rbartFit, value = "ranef", combineChains = FALSE), rbartFit$ranef)
+  expect_equal(extract(rbartFit, value = "post-mean", combineChains = FALSE), rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]))
+  
+  ppd <- extract(rbartFit, value = "ppd", combineChains = FALSE)
+  sigma.hat <- apply(ppd - extract(rbartFit, value = "post-mean", combineChains = FALSE), c(1L, 2L), sd)
+  expect_true(cor(as.vector(sigma.hat), as.vector(rbartFit$sigma)) >= 0.95)
+  
+  set.seed(0)
+  rbartFit.2 <- rbart_vi(y ~ x, group.by = g,
+                         n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                         n.trees = 25L, n.threads = 1L, combineChains = TRUE)
+  expect_equal(extract(rbartFit,   value = "post-mean", combineChains = TRUE),
+               extract(rbartFit.2, value = "post-mean", combineChains = TRUE))
+  expect_equal(extract(rbartFit,   value = "post-mean", combineChains = FALSE),
+               extract(rbartFit.2, value = "post-mean", combineChains = FALSE))
+})
+
+test_that("fitted works correctly", {
+  x <- testData$x
+  y <- testData$y
+  g <- factor(testData$g)
+
+  
+  rbartFit <- rbart_vi(y ~ x, group.by = g, test = x, group.by.test = g, offset.test = 5,
+                       n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                       n.trees = 25L, n.threads = 1L)
+  expect_equal(as.vector(rbartFit$yhat.train), as.vector(rbartFit$yhat.test) - 5)
+  expect_equal(apply(rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit))
+  expect_equal(apply(rbartFit$yhat.test  + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit, sample = "test"))
+})
+
+test_that("predict matches fitted", {
+  x <- testData$x
+  y <- testData$y
+  g <- factor(testData$g)
+
+  set.seed(0)
+  rbartFit.0 <- rbart_vi(y ~ x, group.by = g,
+                       n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                       n.trees = 25L, n.threads = 1L, keepTrees = TRUE)
+  expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g), 2L, mean))
+
+  set.seed(0)
+  rbartFit.0 <- rbart_vi(y ~ x, group.by = g,
+                       n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                       n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = FALSE)
+  expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g, combineChains = FALSE), 3L, mean))
+  
+  set.seed(0)
+  rbartFit.1 <- rbart_vi(y ~ x, group.by = g,
+                       n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                       n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = TRUE)
+  expect_equal(fitted(rbartFit.1), apply(predict(rbartFit.1, x, g), 2L, mean))
+  expect_equal(predict(rbartFit.0, x, g), predict(rbartFit.1, x, g))
+  expect_equal(predict(rbartFit.0, x, g, combineChains = FALSE), predict(rbartFit.1, x, g, combineChains = FALSE))
+})
+
+test_that("works with missing levels", {
+  n.train <- 80L
+  x <- testData$x[seq_len(n.train),]
+  y <- testData$y[seq_len(n.train)]
+  g <- factor(testData$g[seq_len(n.train)])
+
+  x.test <- testData$x[seq.int(n.train + 1L, nrow(testData$x)),]
+  g.test <- factor(testData$g[seq.int(n.train + 1L, nrow(testData$x))], levels(g))
+  levels(g.test)[5L] <- "6"
+  
+  # check that predict works when we've fit with missing levels
+  rbartFit <- suppressWarnings(rbart_vi(y ~ x, group.by = g, test = x.test, group.by.test = g.test,
+                                        n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                                        n.trees = 25L, n.threads = 1L, keepTrees = TRUE))
+  expect_equal(apply(predict(rbartFit, x.test, g.test), 2L, mean), fitted(rbartFit, sample = "test"))
+  expect_equal(apply(predict(rbartFit, x.test, g.test, combineChains = FALSE), 3L, mean), fitted(rbartFit, sample = "test"))
+  
+  # check that predicts works for completely new levels
+  levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
+  set.seed(0)
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef", combineChains = FALSE))
+  expect_equal(as.numeric(ranef.pred[,,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,,as.character(1L:4L)]))
+  expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,,5L:26L], c(1L, 2L), sd))) > 0.90)
+  
+  # check again with combineChains as TRUE at the top level
+  g.test <- droplevels(g.test)
+  levels(g.test) <- c(levels(g)[-5L], "6")
+  rbartFit <- suppressWarnings(rbart_vi(y ~ x, group.by = g, test = x.test, group.by.test = g.test,
+                                        n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                                        n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = TRUE))
+  expect_equal(apply(predict(rbartFit, x.test, g.test), 2L, mean), fitted(rbartFit, sample = "test"))
+  expect_equal(apply(predict(rbartFit, x.test, g.test, combineChains = FALSE), 3L, mean), fitted(rbartFit, sample = "test"))
+  
+  levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
+  set.seed(0)
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
+  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
+  expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
+  
+  # check one last time with one chain
+  g.test <- droplevels(g.test)
+  levels(g.test) <- c(levels(g)[-5L], "6")
+  rbartFit <- suppressWarnings(rbart_vi(y ~ x, group.by = g, test = x.test, group.by.test = g.test,
+                                        n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                                        n.trees = 25L, n.threads = 1L, keepTrees = TRUE))
+  expect_equal(apply(predict(rbartFit, x.test, g.test), 2L, mean), fitted(rbartFit, sample = "test"))
+  levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
+  set.seed(0)
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
+  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
+  expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
 })
 
 test_that("rbart runs example", {
@@ -96,7 +214,7 @@ test_that("rbart passes regression test", {
                        n.trees = 25L, n.threads = 1L)
   
   expect_equal(as.numeric(rbartFit$ranef),
-               c(0.548756620200975, 1.98489377073739, -0.123942881873723, -0.643642914323586, 3.02981874312062))
+               c(-0.154686628520804, -0.527681058828744, -1.53211529167885, -1.09649147474781, 0.814510377447672))
 })
 
 test_that("rbart compares favorably to lmer for nonlinear models", {

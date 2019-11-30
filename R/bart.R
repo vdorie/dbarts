@@ -4,7 +4,11 @@ packageSamples <- function(n.chains, combineChains, samples) {
     if (is.matrix(samples)) t(samples) else samples
   } else {
     if (length(dim(samples)) > 2L) {
-      if (!combineChains) aperm(samples, c(3L, 2L, 1L)) else evalx(dim(samples), t(matrix(samples, x[1L], x[2L] * x[3L])))
+      if (!combineChains) aperm(samples, c(3L, 2L, 1L)) else {
+        res <- evalx(dim(samples), t(matrix(samples, x[1L], x[2L] * x[3L])))
+        if (!is.null(dimnames(samples))) colnames(res) <- dimnames(samples)[[1L]]
+        res
+      }
     } else {
       if (!combineChains) t(samples) else as.vector(samples)
     }

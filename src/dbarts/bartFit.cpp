@@ -1924,11 +1924,11 @@ namespace {
     
     double* yRescaled = const_cast<double*>(fit.sharedScratch.yRescaled);
     
-    if (data.offset != NULL) {
-      misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
-    } else {
+    //if (data.offset != NULL) {
+    //  misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
+    //} else {
       std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
-    }
+    //}
     
     sharedScratch.dataScale.min = yRescaled[0];
     sharedScratch.dataScale.max = yRescaled[0];
@@ -1938,6 +1938,9 @@ namespace {
     }
     sharedScratch.dataScale.range = sharedScratch.dataScale.max - sharedScratch.dataScale.min;
     if (sharedScratch.dataScale.max == sharedScratch.dataScale.min) sharedScratch.dataScale.range = 1.0;
+    
+    if (data.offset != NULL)
+      misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
     
     // yRescaled = (y - offset - min) / (max - min) - 0.5
     misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);

@@ -11,12 +11,15 @@ export(guessNumCores)
 export(makeind, makeModelMatrixFromDataFrame)
 
 exportClasses(dbartsSampler)
+export(extract)
 
 S3method(plot, bart)
 S3method(plot, rbart)
 S3method(plot, pdbart)
 S3method(plot, pd2bart)
 S3method(predict, bart)
+S3method(fitted, rbart)
+S3method(extract, rbart)
 S3method(predict, rbart)
 
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, is, new, setValidity, setMethod)

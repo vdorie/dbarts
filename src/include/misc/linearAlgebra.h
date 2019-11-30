@@ -11,7 +11,6 @@ extern "C" {
 #endif
 
 // z = alpha * x + y; z must be distinct from x and y
-// void misc_addVectors(const double* restrict x, misc_size_t length, double alpha, const double* restrict y, double* restrict z);
 extern void (*misc_addVectors)(const double* restrict x, misc_size_t length, double alpha, const double* restrict y, double* restrict z);
  
 // x: = alpha

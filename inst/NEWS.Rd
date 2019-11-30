@@ -1,11 +1,26 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
-\section{CHANGES IN VERSION 0.9-12}{
+\section{CHANGES IN VERSION 0.9-14}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Fits from \code{rbart_vi} now work with generics \code{fitted},
+            \code{extract}, and \code{predict}. \code{extract} retrieves
+            samples from the posterior distribution for the training and test
+            samples, \code{fitted} applies averages across those samples,
+            while \code{predict} can be used to obtain values for completely
+            new observations.
+    }
+  }
+}
+\section{CHANGES IN VERSION 0.9-13}{
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{predict} now works when trees aren't saved, for use in testing
-            Metropolis-Hasting steps.
+            Metropolis-Hasting proposals.
+      \item The \code{offset} slot no longer changes the relative scaling of the
+            response. This stabilizes predictions across iterations. For a semantic
+            where the scaling does change, use \code{setResponse} instead.
     }
   }
 }
