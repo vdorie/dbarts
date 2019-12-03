@@ -85,7 +85,7 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
 \subsection{Out Of Sample Groups}{
   Predicting random effects for groups not in the training sample is supported by sampling
   from their posterior predictive distribution, that is a draw is taken from
-  \eqn{\alpha \mid \tau^2, y \sim N(0, \tau^2)}{\alpha | \tau^2, y ~ N(0, \tau^2)}.
+  \eqn{p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\alpha}.
   For out-of-sample groups in the test data, these random effect draws can be kept 
   with the saved object. For those supplied to \code{predict}, they cannot and may
   change for subsequent calls.}
