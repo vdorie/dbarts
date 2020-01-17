@@ -742,7 +742,7 @@ namespace dbarts {
       length += leftChild->getSerializedLength();
       length += rightChild->getSerializedLength();
     } else {
-      length = sizeof(double);
+      length += sizeof(double);
       length += length % sizeof(int);
     }
     
@@ -757,7 +757,7 @@ namespace dbarts {
       length += length % sizeof(int);
       
       std::memcpy(reinterpret_cast<char*>(state) + length, &split, sizeof(double));
-      length = sizeof(double);
+      length += sizeof(double);
       length += length % sizeof(int);
             
       length += leftChild->serialize(reinterpret_cast<void*>(reinterpret_cast<char*>(state) + length));
@@ -768,7 +768,7 @@ namespace dbarts {
       length += length % sizeof(int);
       
       std::memcpy(reinterpret_cast<char*>(state) + length, &prediction, sizeof(double));
-      length = sizeof(double);
+      length += sizeof(double);
       length += length % sizeof(int);
     }
      
@@ -782,7 +782,7 @@ namespace dbarts {
     
     if (variableIndex != DBARTS_INVALID_RULE_VARIABLE) {
       std::memcpy(&split, reinterpret_cast<const char*>(state) + length, sizeof(double));
-      length = sizeof(double);
+      length += sizeof(double);
       length += length % sizeof(int);
             
       leftChild  = new SavedNode();
@@ -794,7 +794,7 @@ namespace dbarts {
       length += rightChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
     } else {
       std::memcpy(&prediction, reinterpret_cast<const char*>(state) + length, sizeof(double));
-      length = sizeof(double);
+      length += sizeof(double);
       length += length % sizeof(int);
     }
     

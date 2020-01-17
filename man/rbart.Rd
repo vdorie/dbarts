@@ -2,6 +2,7 @@
 \alias{rbart_vi}
 \alias{plot.rbart}
 \alias{fitted.rbart}
+\alias{extract}
 \alias{extract.rbart}
 \alias{predict.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
@@ -11,7 +12,7 @@ Fits a varying intercept/random effect BART model.
 \usage{
 rbart_vi(
   formula, data, test, subset, weights, offset, offset.test = offset,
-  group.by, prior = cauchy,
+  group.by, group.by.test, prior = cauchy,
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
   k = 2.0,
   power = 2.0, base = 0.95,
@@ -22,27 +23,31 @@ rbart_vi(
   n.thin = 5L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = TRUE, keepCall = TRUE, ...)
+  keepTrees = TRUE, keepCall = TRUE, \dots)
 
-\method{plot}{rbart}(x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
-\method{fitted}{rbart}(object,
-                       value = c("post-mean", "ppd", "bart", "ranef"),
-                       sample = c("train", "test"),
-                       combineChains = TRUE,
-                       \dots)
-\method{extract}{rbart}(object,
-                        value = c("post-mean", "ppd", "bart", "ranef"),
-                        sample = c("train", "test"),
-                        combineChains = TRUE,
-                        \dots)
-\method{predict}{rbart}(object, newdata, group.by, offset,
-                        value = c("post-mean", "ppd", "bart", "ranef"),
-                        combineChains = TRUE,
-                        \dots)
+\S3method{plot}{rbart}(x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
+\S3method{fitted}{rbart}(object,
+                         value = c("post-mean", "ppd", "bart", "ranef"),
+                         sample = c("train", "test"),
+                         combineChains = TRUE,
+                         \dots)
+extract(object, \dots)
+\S3method{extract}{rbart}(object,
+                          value = c("post-mean", "ppd", "bart", "ranef"),
+                          sample = c("train", "test"),
+                          combineChains = TRUE,
+                          \dots)
+\S3method{predict}{rbart}(object, newdata, group.by, offset,
+                          value = c("post-mean", "ppd", "bart", "ranef"),
+                          combineChains = TRUE,
+                          \dots)
 }
 \arguments{
   \item{group.by}{
     Grouping factor. Can be an integer vector/factor, or a reference to such in \code{data}.
+  }
+  \item{group.by.test}{
+    Grouping factor for test data, of the same type as \code{group.by}. Can be missing.
   }
   \item{prior}{
     A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of 
@@ -61,6 +66,7 @@ rbart_vi(
         keepTrees, keepCall, \dots}{
     Same as in \code{\link{bart2}}.}
   \item{object}{A fitted \code{rbart} model.}
+  \item{newdata}{Same as \code{test}, but named to match \code{\link{predict}} generic.}
   \item{value}{One of \code{"post-mean"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"} for
         the posterior mean, posterior predictive distribution, non-parametric/BART component,
         or random effect respectively. The posterior mean is sum of the BART component and the

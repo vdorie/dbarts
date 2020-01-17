@@ -78,7 +78,7 @@
   with BART components filling arbitrary roles.
   
   \subsection{Saving}{
-    \code{\link{save}}ing and \code{\link{load}}ing a \code{dbarts} sampler for future use
+    \code{\link{save}}-ing and \code{\link{load}}ing a \code{dbarts} sampler for future use
     requires that R's serialization mechanism be able to access the state of the sampler
     which, for memory purposes, is only made available to R on request. To do this, one must
     \dQuote{touch} the sampler's state object before saving, e.g. for the object \code{sampler},

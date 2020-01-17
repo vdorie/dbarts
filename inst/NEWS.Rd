@@ -12,6 +12,11 @@
             new observations.
     }
   }
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item \code{save}/\code{load} should work correctly.
+    }
+  }
 }
 \section{CHANGES IN VERSION 0.9-13}{
   \subsection{USER-VISIBLE CHANGES}{

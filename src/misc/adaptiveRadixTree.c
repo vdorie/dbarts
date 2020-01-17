@@ -585,21 +585,21 @@ static Leaf* getMinimumLeafUnderNode(const Node* n) {
   uint8_t index;
   switch (n->type) {
     case NODE4:
-    return getMinimumLeafUnderNode(((Node4*) n)->children[0]);
+    return getMinimumLeafUnderNode(((const Node4*) n)->children[0]);
     
     case NODE16:
-    return getMinimumLeafUnderNode(((Node16*) n)->children[0]);
+    return getMinimumLeafUnderNode(((const Node16*) n)->children[0]);
     
     case NODE48:
     index = 0;
-    while (((Node48*) n)->keys[index] != 0) ++index;
-    index = ((Node48*) n)->keys[index] - 1;
-    return getMinimumLeafUnderNode(((Node48*) n)->children[index]);
+    while (((const Node48*) n)->keys[index] == 0) ++index;
+    index = ((const Node48*) n)->keys[index] - 1;
+    return getMinimumLeafUnderNode(((const Node48*) n)->children[index]);
     
     case NODE256:
     index = 0;
-    while (((Node256*) n)->children[index] != 0) ++index;
-    return getMinimumLeafUnderNode(((Node256*) n)->children[index]);
+    while (((const Node256*) n)->children[index] != 0) ++index;
+    return getMinimumLeafUnderNode(((const Node256*) n)->children[index]);
     
     default:
     errno = EINVAL;
@@ -820,7 +820,7 @@ static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node*
 {
   if (n->n.numChildren < 48) {
     size_t pos = 0;
-    while (n->children[pos]) ++pos;
+    while (n->children[pos] != NULL) ++pos;
     n->children[pos] = child;
     n->keys[c] = pos + 1;
     n->n.numChildren++;

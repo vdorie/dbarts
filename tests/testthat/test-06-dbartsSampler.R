@@ -142,6 +142,27 @@ test_that("dbarts sampler shallow/deep copies", {
   expect_equal(sampler$data@x, deepCopy$data@x)
 })
 
+source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+
+# test thanks to Jeremy Coyle
+test_that("sampler saves/loads correctly", {
+  set.seed(99)
+  bartFit <- bart(testData$x, testData$y, keeptrees = TRUE, verbose = FALSE, ntree = 3L, ndpost = 7L, nskip = 0L)
+  
+  preds.old <- predict(bartFit, testData$x)
+
+  invisible(bartFit$fit$state)
+  
+  tempFile <- tempfile()
+  save(bartFit, file = tempFile)
+  rm(bartFit)
+  load(tempFile)
+  unlink(tempFile)
+
+  preds.new <- predict(bartFit, testData$x)
+  expect_equal(preds.old, preds.new)
+})
+
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("dbarts sampler correctly updates R test offsets only when applicable", {
@@ -334,4 +355,3 @@ test_that("dbarts sampler updates offsets in C++", {
   samples <- sampler$run(0, 1)
   expect_equal(samples$train, samples$test)
 })
-
