@@ -186,6 +186,7 @@ namespace {
   void mapCutPoints(Node& n, const BARTFit& fit, const double* const* oldCutPoints, double* nodeParams, int32_t* minIndices, int32_t* maxIndices, int32_t depth);
   void collapseEmptyNodes(Node& n, const BARTFit& fit, double* nodeParams, int depth);
   void sampleFromPrior(const BARTFit& fit, ext_rng* rng, Node& n);
+  void collapseEmptyNodes(Node& n);
 }
 
 namespace dbarts {
@@ -212,6 +213,11 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       nodeParams[i] = nodeParams[bottomNodes[i]->enumerationIndex];
     }
+  }
+  
+  void Tree::collapseEmptyNodes()
+  {
+    ::collapseEmptyNodes(top);
   }
   
   void Tree::collapseEmptyNodes(const BARTFit& fit, double* nodeParams)
@@ -312,6 +318,21 @@ namespace {
       minIndices[varIndex] = minIndex;
     }
   }
+  
+  void collapseEmptyNodes(Node& n)
+  {
+    if (n.isBottom()) return; // only happens if is top and bottom
+    
+    if (n.getLeftChild()->getNumObservations() == 0 || n.getRightChild()->getNumObservations() == 0) {
+      delete n.getLeftChild();
+      delete n.getRightChild();
+      n.leftChild = NULL;
+    } else {
+      if (!n.getLeftChild()->isBottom()) collapseEmptyNodes(*n.getLeftChild());
+      if (!n.getRightChild()->isBottom()) collapseEmptyNodes(*n.getRightChild());
+    }
+  }
+
   
   void collapseEmptyNodes(Node& n, const BARTFit& fit, double* nodeParams, int depth)
   {

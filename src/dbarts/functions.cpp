@@ -101,11 +101,10 @@ namespace dbarts {
   { 
     double alpha;
     bool birthedTree;
-    
-    
-    
+       
     double u = ext_rng_simulateContinuousUniform(fit.state[chainNum].rng);
     // ext_printf("type: %s; ", u < fit.model.birthOrDeathProbability ? "birth/death" : (u < fit.model.birthOrDeathProbability + fit.model.swapProbability ? "swap" : "change"));
+    
     if (u < fit.model.birthOrDeathProbability) {
       alpha = birthOrDeathNode(fit, chainNum, tree, y, sigma, stepTaken, &birthedTree);
       if (birthedTree == true) {
@@ -123,7 +122,6 @@ namespace dbarts {
     // const char * const jumpNames[] = { "birth", "death", "swap", "change" };
     // ext_printf("jump: %s, succ: %s, u: %f\n", jumpNames[*stepType], *stepTaken ? "true" : "false", u);
     
-
     return alpha;
   }
   

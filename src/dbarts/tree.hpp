@@ -27,7 +27,9 @@ namespace dbarts {
     // deals largely if there are a different number of cut points, since a tree could then conceivably have
     // splits out of range
     void mapOldCutPointsOntoNew(const BARTFit& fit, const double* const* oldCutPoints, double* nodeParams);
-    void collapseEmptyNodes(const BARTFit& fit, double* nodeParams);
+    
+    void collapseEmptyNodes(); // this ignores parameters and should be used on an invalid tree
+    void collapseEmptyNodes(const BARTFit& fit, double* nodeParams); // this combines the parameters in the nodes
     
     void sampleFromPrior(const BARTFit& fit, ext_rng* rng);
     

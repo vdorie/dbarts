@@ -1166,13 +1166,15 @@ namespace dbarts {
     
     return resultsPointer;
   }
-  
-    
+
   void BARTFit::sampleTreesFromPrior()
   {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        // sample tree from prior should probably be re-written to be consistent with the observed
+        // (and conditioned on) data
         state[chainNum].trees[treeNum].sampleFromPrior(*this, state[chainNum].rng);
+        state[chainNum].trees[treeNum].collapseEmptyNodes();
       }
     }
   }
