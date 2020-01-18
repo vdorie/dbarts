@@ -344,13 +344,17 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
 }
 
 predict.rbart <- function(object, newdata, group.by, offset,
-                          value = c("post-mean", "ppd", "bart", "ranef"),
+                          value = c("ev", "ppd", "bart", "ranef"),
                           combineChains = TRUE,
                           ...)
 {
   if (is.null(object$fit))
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
-  if (!is.character(value) || value[1L] %not_in% eval(formals(predict.rbart)$value))
+  if (is.character(value) && length(value) > 0L &&  value[1L] == "post-mean") {
+    warning("value of 'post-mean' for predict deprecate; use 'ev' instead")
+    value[1L] <- "ev"
+  }
+  if (!is.character(value) || length(value) == 0L || value[1L] %not_in% eval(formals(predict.rbart)$value))
     stop("value must be in '", paste0(eval(formals(predict.rbart)$value), collapse = "', '"), "'")
   value <- value[1L]
   
@@ -437,7 +441,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
 }
 
 extract.rbart <- function(object,
-                          value = c("post-mean", "ppd", "bart", "ranef"),
+                          value = c("ev", "ppd", "bart", "ranef"),
                           sample = c("train", "test"),
                           combineChains = TRUE,
                           ...)
@@ -511,7 +515,7 @@ extract.rbart <- function(object,
 extract <- function(object, ...) UseMethod("extract")
 
 fitted.rbart <- function(object,
-                         value = c("post-mean", "ppd", "bart", "ranef"),
+                         value = c("ev", "ppd", "bart", "ranef"),
                          sample = c("train", "test"),
                          combineChains = TRUE,
                          ...)

@@ -64,20 +64,20 @@ test_that("extract works at baseline", {
                        n.trees = 25L, n.threads = 1L)
   expect_equal(extract(rbartFit, value = "bart", combineChains = FALSE), rbartFit$yhat.train)
   expect_equal(extract(rbartFit, value = "ranef", combineChains = FALSE), rbartFit$ranef)
-  expect_equal(extract(rbartFit, value = "post-mean", combineChains = FALSE), rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]))
+  expect_equal(extract(rbartFit, value = "ev", combineChains = FALSE), rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]))
   
   ppd <- extract(rbartFit, value = "ppd", combineChains = FALSE)
-  sigma.hat <- apply(ppd - extract(rbartFit, value = "post-mean", combineChains = FALSE), c(1L, 2L), sd)
+  sigma.hat <- apply(ppd - extract(rbartFit, value = "ev", combineChains = FALSE), c(1L, 2L), sd)
   expect_true(cor(as.vector(sigma.hat), as.vector(rbartFit$sigma)) >= 0.85) # silly test with 7 samples
   
   set.seed(0)
   rbartFit.2 <- rbart_vi(y ~ x, group.by = g,
                          n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
                          n.trees = 25L, n.threads = 1L, combineChains = TRUE)
-  expect_equal(extract(rbartFit,   value = "post-mean", combineChains = TRUE),
-               extract(rbartFit.2, value = "post-mean", combineChains = TRUE))
-  expect_equal(extract(rbartFit,   value = "post-mean", combineChains = FALSE),
-               extract(rbartFit.2, value = "post-mean", combineChains = FALSE))
+  expect_equal(extract(rbartFit,   value = "ev", combineChains = TRUE),
+               extract(rbartFit.2, value = "ev", combineChains = TRUE))
+  expect_equal(extract(rbartFit,   value = "ev", combineChains = FALSE),
+               extract(rbartFit.2, value = "ev", combineChains = FALSE))
 })
 
 test_that("fitted works correctly", {

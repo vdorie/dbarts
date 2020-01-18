@@ -12,6 +12,14 @@
             new observations.
     }
   }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{predict} for \code{rbart_vi} takes value "ev" instead of "post-mean"
+            to clarify what is being returned, i.e. samples from the posterior 
+            distribution of the observation-level expected values.
+
+    }
+  }
   \subsection{BUG-FIXES}{
     \itemize{
       \item \code{save}/\code{load} should work correctly.
