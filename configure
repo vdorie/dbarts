@@ -630,6 +630,8 @@ PTHREAD_LIBS
 PTHREAD_CC
 ax_pthread_config
 SED
+SHLIB_LINK_REDEFINE
+COMPILER_VENDOR
 host_os
 host_vendor
 host_cpu
@@ -638,7 +640,6 @@ build_os
 build_vendor
 build_cpu
 build
-COMPILER_VENDOR
 EGREP
 GREP
 CXXCPP
@@ -5320,77 +5321,6 @@ $as_echo "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
  esac
 
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for C compiler vendor" >&5
-$as_echo_n "checking for C compiler vendor... " >&6; }
-if ${ax_cv_c_compiler_vendor+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-
-	vendors="
-		intel:		__ICC,__ECC,__INTEL_COMPILER
-		ibm:		__xlc__,__xlC__,__IBMC__,__IBMCPP__,__ibmxl__
-		pathscale:	__PATHCC__,__PATHSCALE__
-		clang:		__clang__
-		cray:		_CRAYC
-		fujitsu:	__FUJITSU
-		sdcc:		SDCC,__SDCC
-		sx:		_SX
-		portland:	__PGI
-		gnu:		__GNUC__
-		sun:		__SUNPRO_C,__SUNPRO_CC,__SUNPRO_F90,__SUNPRO_F95
-		hp:		__HP_cc,__HP_aCC
-		dec:		__DECC,__DECCXX,__DECC_VER,__DECCXX_VER
-		borland:	__BORLANDC__,__CODEGEARC__,__TURBOC__
-		comeau:		__COMO__
-		kai:		__KCC
-		lcc:		__LCC__
-		sgi:		__sgi,sgi
-		microsoft:	_MSC_VER
-		metrowerks:	__MWERKS__
-		watcom:		__WATCOMC__
-		tcc:		__TINYC__
-		unknown:	UNKNOWN
-	"
-	for ventest in $vendors; do
-	    case $ventest in
-		*:)
-		    vendor=$ventest
-		    continue
-		    ;;
-		*)
-		    vencpp="defined("`echo $ventest | sed 's/,/) || defined(/g'`")"
-		    ;;
-	    esac
-
-	    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main ()
-{
-
-#if !($vencpp)
-      thisisanerror;
-#endif
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"; then :
-  break
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-	done
-
-	ax_cv_c_compiler_vendor=`echo $vendor | cut -d: -f1`
-
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_c_compiler_vendor" >&5
-$as_echo "$ax_cv_c_compiler_vendor" >&6; }
-
-COMPILER_VENDOR=$ax_cv_c_compiler_vendor
-
 # Make sure we can run config.sub.
 $SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
   as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
@@ -5461,6 +5391,77 @@ host_os=$*
 IFS=$ac_save_IFS
 case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for C compiler vendor" >&5
+$as_echo_n "checking for C compiler vendor... " >&6; }
+if ${ax_cv_c_compiler_vendor+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+
+	vendors="
+		intel:		__ICC,__ECC,__INTEL_COMPILER
+		ibm:		__xlc__,__xlC__,__IBMC__,__IBMCPP__,__ibmxl__
+		pathscale:	__PATHCC__,__PATHSCALE__
+		clang:		__clang__
+		cray:		_CRAYC
+		fujitsu:	__FUJITSU
+		sdcc:		SDCC,__SDCC
+		sx:		_SX
+		portland:	__PGI
+		gnu:		__GNUC__
+		sun:		__SUNPRO_C,__SUNPRO_CC,__SUNPRO_F90,__SUNPRO_F95
+		hp:		__HP_cc,__HP_aCC
+		dec:		__DECC,__DECCXX,__DECC_VER,__DECCXX_VER
+		borland:	__BORLANDC__,__CODEGEARC__,__TURBOC__
+		comeau:		__COMO__
+		kai:		__KCC
+		lcc:		__LCC__
+		sgi:		__sgi,sgi
+		microsoft:	_MSC_VER
+		metrowerks:	__MWERKS__
+		watcom:		__WATCOMC__
+		tcc:		__TINYC__
+		unknown:	UNKNOWN
+	"
+	for ventest in $vendors; do
+	    case $ventest in
+		*:)
+		    vendor=$ventest
+		    continue
+		    ;;
+		*)
+		    vencpp="defined("`echo $ventest | sed 's/,/) || defined(/g'`")"
+		    ;;
+	    esac
+
+	    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+
+#if !($vencpp)
+      thisisanerror;
+#endif
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+  break
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+	done
+
+	ax_cv_c_compiler_vendor=`echo $vendor | cut -d: -f1`
+
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ax_cv_c_compiler_vendor" >&5
+$as_echo "$ax_cv_c_compiler_vendor" >&6; }
+
+COMPILER_VENDOR=$ax_cv_c_compiler_vendor
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts " >&5
 $as_echo_n "checking whether C compiler accepts ... " >&6; }
@@ -5781,6 +5782,24 @@ $as_echo "#define HAVE_AVX2 1" >>confdefs.h
 
 
 
+
+case $host_os in
+  solaris*)
+    if test "$ax_cv_c_compiler_vendor" == sun
+    then
+      echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= AVX2 SSE4\n}\n" > src/mapfile.solaris
+      SHLIB_LINK_REDEFINE= "SHLIB_LINK = \$(SHLIB_LD) -M mapfile.solaris \$(SHLIB_LDFLAGS) \$(LIBR0) \$(LDFLAGS)"
+
+    else
+      SHLIB_LINK_REDEFINE=""
+
+    fi
+  ;;
+  *)
+    SHLIB_LINK_REDEFINE=""
+
+  ;;
+  esac
 
 # Checks for libraries.
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for a sed that does not truncate output" >&5

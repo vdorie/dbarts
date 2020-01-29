@@ -351,7 +351,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
   if (is.null(object$fit))
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
   if (is.character(value) && length(value) > 0L &&  value[1L] == "post-mean") {
-    warning("value of 'post-mean' for predict deprecate; use 'ev' instead")
+    warning("value of 'post-mean' for predict deprecated; use 'ev' instead")
     value[1L] <- "ev"
   }
   if (!is.character(value) || length(value) == 0L || value[1L] %not_in% eval(formals(predict.rbart)$value))

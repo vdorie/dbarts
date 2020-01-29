@@ -85,9 +85,25 @@ AC_LANG_POP(C++)
 
 AC_C_BIGENDIAN
 
+AC_CANONICAL_HOST
 AX_COMPILER_VENDOR
 AC_SUBST(COMPILER_VENDOR, $ax_cv_c_compiler_vendor)
 AX_COMPILER_EXT
+
+case $host_os in
+  solaris*)
+    if test "$ax_cv_c_compiler_vendor" == sun
+    then
+      echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= AVX2 SSE4\n}\n" > src/mapfile.solaris
+      AC_SUBST(SHLIB_LINK_REDEFINE, [ "SHLIB_LINK = \$(SHLIB_LD) -M mapfile.solaris \$(SHLIB_LDFLAGS) \$(LIBR0) \$(LDFLAGS)" ])
+    else
+      AC_SUBST(SHLIB_LINK_REDEFINE, "")
+    fi
+  ;;
+  *)
+    AC_SUBST(SHLIB_LINK_REDEFINE, "")
+  ;;
+  esac
 
 # Checks for libraries.
 AX_PTHREAD
