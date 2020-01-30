@@ -19,7 +19,6 @@ COMPILER.gnu=gnu
 COMPILER.=default
 COMPILER=$(COMPILER.@COMPILER_VENDOR@)
 
-
 PTHREAD_CPPFLAGS.sun = @PTHREAD_CFLAGS@ @PTHREAD_LIBS@
 PTHREAD_CPPFLAGS.clang = @PTHREAD_CFLAGS@
 PTHREAD_CPPFLAGS.gnu = @PTHREAD_CFLAGS@
@@ -34,7 +33,9 @@ PTHREAD_CPPFLAGS = $(PTHREAD_CPPFLAGS.$(COMPILER))
 PTHREAD_LIBS = $(PTHREAD_LIBS.$(COMPILER))
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
-PKG_LIBS=dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
+# on Solaris, we need to include a flag to the linker
+# since there is no PKG_LDFLAGS, we include that here
+PKG_LIBS=@MAPFILE_FLAG@ dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
