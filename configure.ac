@@ -91,7 +91,6 @@ AC_C_BIGENDIAN
 AC_CANONICAL_HOST
 AX_COMPILER_VENDOR
 AC_SUBST(COMPILER_VENDOR, $ax_cv_c_compiler_vendor)
-AX_EXT
 AX_COMPILER_EXT
 
 # on SOLARIS, need to strip out some hardware flags from the library,
@@ -100,6 +99,7 @@ AX_COMPILER_EXT
 mapfile_flag=
 case $host_os in
   solaris*)
+AX_EXT
     if test "$ax_cv_c_compiler_vendor" = sun
     then
       unsupported_isets=
