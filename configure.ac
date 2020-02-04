@@ -16,9 +16,6 @@ m4_include([tools/m4/ax_check_compile_flag.m4])
 m4_include([tools/m4/ax_pthread.m4])
 m4_include([tools/m4/ax_compiler_vendor.m4])
 m4_include([tools/m4/ax_compiler_ext.m4])
-m4_include([tools/m4/ax_ext.m4])
-m4_include([tools/m4/ax_gcc_x86_cpuid.m4])
-m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
 m4_include([tools/m4/ax_cxx_namespace_std.m4])
 m4_include([tools/m4/ax_snprintf_in_namespace_std.m4])
 m4_include([tools/m4/ax_log1p_in_namespace_std.m4])
@@ -99,26 +96,34 @@ AX_COMPILER_EXT
 mapfile_flag=
 case $host_os in
   solaris*)
-AX_EXT
-    if test "$ax_cv_c_compiler_vendor" = sun
-    then
-      unsupported_isets=
-      # only test for those that we explicitly add beyond what
-      # the compiler will come up with on "-xarch=native"
-      for iset in "avx;AVX" "sse4_1;SSE4_1" "avx2;AVX2"; do
-        iset_varname=$(echo $iset | cut -d ";" -f 1)
-        iset_mapname=$(echo $iset | cut -d ";" -f 2)
-        if test x"$(eval echo \$ax_cv_have_${iset_varname}_ext)" = x"no"; then
-          unsupported_isets="${unsupported_isets} ${iset_mapname}"
+    case $host_cpu in
+      i[[3456]]86*|x86_64*|amd64*)
+        if test "$ax_cv_c_compiler_vendor" = sun; then
+          m4_include([tools/m4/ax_ext_solaris.m4])
+          m4_include([tools/m4/ax_gcc_x86_cpuid.m4])
+          m4_include([tools/m4/ax_gcc_x86_avx_xgetbv.m4])
+          AX_EXT_SOLARIS
+          
+          unsupported_isets=
+          # only test for those that we explicitly add beyond what
+          # the compiler will come up with on "-xarch=native"
+          for iset in "avx;AVX" "sse4_1;SSE4_1" "avx2;AVX2"; do
+            iset_varname=$(echo $iset | cut -d ";" -f 1)
+            iset_mapname=$(echo $iset | cut -d ";" -f 2)
+            # have variables test for CPU and OS support
+            if test x"$(eval echo \$ax_cv_have_${iset_varname}_ext)" = x"no"; then
+              unsupported_isets="${unsupported_isets} ${iset_mapname}"
+            fi
+          done
+          if test ! -z "${unsupported_isets}"; then
+            echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= ${unsupported_isets};\n};\n" > src/mapfile.solaris
+            mapfile_flag="-M mapfile.solaris"
+          fi
         fi
-      done
-      if test ! -z "${unsupported_isets}"; then
-        echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= ${unsupported_isets};\n};\n" > src/mapfile.solaris
-        mapfile_flag="-M mapfile.solaris"
-      fi
-    fi
+      ;;
+    esac
   ;;
-  esac
+esac
 
 AC_SUBST(MAPFILE_FLAG, $mapfile_flag)
 
