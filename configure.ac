@@ -116,6 +116,8 @@ case $host_os in
             fi
           done
           if test ! -z "${unsupported_isets}"; then
+            unsupported_isets=${unsupported_isets##[[:space:]]} # remove leading space
+            echo "creating mapfile to remove ${unsupported_isets} instruction set(s)"
             echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= ${unsupported_isets};\n};\n" > src/mapfile.solaris
             mapfile_flag="-M mapfile.solaris"
           fi
