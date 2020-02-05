@@ -107,6 +107,7 @@ case $host_os in
           unsupported_isets=
           # only test for those that we explicitly add beyond what
           # the compiler will come up with on "-xarch=native"
+          ax_cv_have_avx2_ext=no
           for iset in "avx;AVX" "sse4_1;SSE4_1" "avx2;AVX2"; do
             iset_varname=$(echo $iset | cut -d ";" -f 1)
             iset_mapname=$(echo $iset | cut -d ";" -f 2)
@@ -116,6 +117,7 @@ case $host_os in
             fi
           done
           if test ! -z "${unsupported_isets}"; then
+            echo "creating mapfile to remove ${unsupported_isets} instruction sets"
             echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= ${unsupported_isets};\n};\n" > src/mapfile.solaris
             mapfile_flag="-M mapfile.solaris"
           fi
