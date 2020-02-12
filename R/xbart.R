@@ -118,6 +118,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   varNames <- c("n.trees", "k", "power", "base")
   if (identical(drop, TRUE))
     varNames <- varNames[sapply(varNames, function(varName) if (length(get(varName)) > 1L) TRUE else FALSE)]
+  if ("k" %in% varNames && is.call(k))
+    varNames <- varNames[varNames != "k"]
   
   if ("k" %in% varNames && exists("kOrder") && any(kOrder != seq_along(k))) {
     indices <- rep(list(bquote()), length(dim(result)))

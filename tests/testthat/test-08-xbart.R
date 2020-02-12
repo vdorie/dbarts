@@ -219,3 +219,26 @@ test_that("fails with invalid inputs", {
   expect_error(xbart(y ~ x, sigma = "not-a-numeric"))
 })
 
+
+source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
+
+test_that("runs with binary data and k hyperprior", {
+  x <- testData$X
+  z <- testData$Z
+  
+  n.reps  <- 3L
+  power   <- c(1.5, 2)
+
+  xval <- xbart(x, z, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
+                n.reps = n.reps,
+                power = power,
+                n.threads = 2L)
+  
+  expect_is(xval, "matrix")
+  expect_equal(dim(xval), c(n.reps, length(power)))
+  expect_true(!anyNA(xval))
+  expect_equal(dimnames(xval), list(
+    rep     = NULL,
+    power   = as.character(power)))
+})
+

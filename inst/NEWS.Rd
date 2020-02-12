@@ -1,6 +1,13 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-16}{
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item \code{xbart} with a k-hyperprior should no longer crash.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-14}{
   \subsection{NEW FEATURES}{
     \itemize{

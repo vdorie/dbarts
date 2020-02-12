@@ -93,8 +93,12 @@ namespace dbarts { namespace xval {
       else
         ext_printf("%lu folds", testSampleSize.n);
       ext_printf(", %lu replications\n", numReps);
-      ext_printf("  %lu tree par(s), %lu k par(s), %lu power par(s), %lu base par(s)\n",
-                 numNTrees, numKs, numPowers, numBases);
+      ext_printf("  %lu tree par(s), ", numNTrees);
+      if (k != NULL)
+        ext_printf("%lu k par(s), ", numKs);
+      else 
+        ext_printf("k w/hyperprior, ");
+      ext_printf(" %lu power par(s), %lu base par(s)\n", numPowers, numBases);
       ext_printf("  results of type: %s\n", lossFunctorDef.displayString);
       ext_printf("  num samp: %lu, num reps: %lu\n", origControl.defaultNumSamples, numReps);
       ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
@@ -328,12 +332,13 @@ extern "C" {
     
     Results* samples =
       suppliedTestSamples == NULL ?
-        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1, false) :
+        new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1, origModel.kPrior != NULL) :
         new Results(maxNumTrainingObservations, origData.numPredictors, maxNumTestObservations, numSamples, 1,
                     new double[numSamples],
                     new double[maxNumTrainingObservations * numSamples],
                     suppliedTestSamples,
-                    new double[origData.numPredictors * numSamples], NULL);
+                    new double[origData.numPredictors * numSamples],
+                    origModel.kPrior != NULL ? new double[numSamples] : NULL);
     
     Control repControl = origControl;
     repControl.numThreads = 1;
@@ -786,9 +791,10 @@ namespace {
 }
 extern "C" void printTask(void* v_data) {
   PrintData& data(*static_cast<PrintData*>(v_data));
-  ext_printf("    [%lu, %lu] n.trees: %lu, k: %.2f, power: %.2f, base: %.2f\n",
-             data.threadId + 1, data.cellIndex + 1,
-             data.numTrees, data.k, data.power, data.base);
+  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
+             data.numTrees);
+  if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
+  ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
 }
 namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
@@ -801,7 +807,9 @@ namespace {
       
     if (verbose) {
       if (misc_btm_isNull(manager)) {
-        ext_printf("    [%lu] n.trees: %lu, k: %.2f, power: %.2f, base: %.2f\n", cellIndex, numTrees, k, power, base);
+        ext_printf("    [%lu] n.trees: %lu, ", cellIndex, numTrees);
+        if (k > 0.0) ext_printf("k: %.2f, ", k);
+        ext_printf("power: %.2f, base: %.2f\n", power, base);
       } else {
         PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
         misc_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
