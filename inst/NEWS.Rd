@@ -4,7 +4,7 @@
 \section{CHANGES IN VERSION 0.9-16}{
   \subsection{BUG-FIXES}{
     \itemize{
-      \item \code{xbart} with a k-hyperprior should no longer crash.
+      \item \code{xbart} with a k-hyperprior should no longer crash. Report thanks to Colin Carlson.
     }
   }
 }
@@ -29,7 +29,7 @@
   }
   \subsection{BUG-FIXES}{
     \itemize{
-      \item \code{save}/\code{load} should work correctly.
+      \item \code{save}/\code{load} should work correctly. Report thanks to Jeremy Coyle.
     }
   }
 }
@@ -62,7 +62,7 @@
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item Hyperprior of \code{chi(1.25, Inf)} is now default for \code{bart2}
-            with binary outcomes. The default accuracy should improve substantially
+            with binary outcomes. The default accuracy should improve substantially.
     }
   }
   \subsection{BUG-FIXES}{
