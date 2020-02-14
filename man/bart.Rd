@@ -2,7 +2,10 @@
 \alias{bart}
 \alias{bart2}
 \alias{plot.bart}
+\alias{extract}
 \alias{predict.bart}
+\alias{extract.bart}
+\alias{fitted.bart}
 \title{Bayesian Additive Regression Trees}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
@@ -44,7 +47,19 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      plquants = c(0.05, 0.95), cols = c('blue', 'black'),
      \dots)
 
-\method{predict}{bart}(object, test, offset.test, combineChains, \dots)
+\method{predict}{bart}(object, newdata, offset,
+                       value = c("ev", "ppd", "bart"),
+                       combineChains = TRUE, \dots)
+extract(object, \dots)
+\method{extract}{bart}(object,
+                       value = c("ev", "ppd", "bart"),
+                       sample = c("train", "test"),
+                       combineChains = TRUE, \dots)
+
+\method{fitted}{bart}(object,
+                      value = c("ev", "ppd", "bart"),
+                      sample = c("train", "test"),
+                      \dots)
 }
 \arguments{
    \item{x.train}{
@@ -205,11 +220,11 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      A vector of offsets to be used with test data, in case it is different than the training offset.
      If \code{offest} is missing, defaults to \code{NULL}.
    }
-   
    \item{object}{
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
    }
-   
+   \item{newdata}{
+     Test data for prediction. Obeys all the same rules as \code{x.train} but cannot be missing.}
    \item{sampleronly, samplerOnly}{
      Builds the sampler from its arguments and returns it without running it. Useful to use the
      \code{bart2} interface in more complicated models.
@@ -229,7 +244,15 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      the second color is used to plot the lower and upper quantiles.
    }
    
-
+   \item{value}{
+     The type of quantity to be returned by generic functions. Options are \code{"ev"} -
+     samples from the posterior of the individual level expected value, \code{"bart"}
+     - the sum of trees component; same as \code{"ev"} for linear models but on the probit
+     scale for binary ones, and \code{"ppd"} - samples from the posterior predictive distribution.
+   }
+   \item{sample}{
+     Either \code{"train"} or \code{"test"}.
+   }
    \item{\dots}{
      Additional arguments passed on to \code{plot} or \code{dbartsControl}, respectively. Not used in
      \code{predict}.
@@ -281,10 +304,22 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
     for a short time with a flat prior may be helpful to see the range of values of
     \code{k} that are consistent with the data.
   }
-  \subsection{Predict}{
+  \subsection{Generics}{
+    \code{bart} and \code{\link{rbart_vi}} support \code{\link{fitted}} to return the 
+    posterior mean of a predicted quantity, as well as \code{\link{predict}} to
+    return a set of posterior samples for a different sample. In addition, the
+    \code{extract} generic can be used to obtain the posterior samples for the
+    training data or test data supplied during the initial fit.
+    
     Using \code{predict} with a \code{bart} object requires that it be fitted with the
     option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. Keeping the trees for
     a fit can require a sizeable amount of memory and is off by default.
+    
+    All generics return values on the scale of expected value of the response by
+    default. This means that \code{predict}, \code{extract}, and \code{fitted}
+    for binary outcomes return probabilities unless specifically the sum-of-trees
+    component is requested (value = \code{"bart"}). This is in contrast to 
+    \code{yhat.train}/\code{yhat.test} that are returned with the fitted model.
   }
   
   \subsection{Saving}{
@@ -332,6 +367,8 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
   \item{\code{fit}}{
         Optional sampler object which stores the values of the tree splits. Required for using
         \code{predict} and only stored if \code{keeptrees} is \code{TRUE}.}
+  \item{\code{n.chains}}{
+        Information that can be lost if \code{combinechains} is \code{TRUE} is tracked here.}
   \item{\code{k}}{
         Optional matrix of posterior samples of \code{k}. Only present when \code{k} is modeled,
         i.e. there is a hyperprior.}

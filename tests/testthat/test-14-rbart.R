@@ -92,6 +92,7 @@ test_that("fitted works correctly", {
   expect_equal(as.vector(rbartFit$yhat.train), as.vector(rbartFit$yhat.test) - 5)
   expect_equal(apply(rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit))
   expect_equal(apply(rbartFit$yhat.test  + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit, sample = "test"))
+  expect_equal(fitted(rbartFit, value = "ranef"), rbartFit$ranef.mean)
 })
 
 test_that("predict matches fitted", {
@@ -101,14 +102,14 @@ test_that("predict matches fitted", {
 
   set.seed(0)
   rbartFit.0 <- rbart_vi(y ~ x, group.by = g,
-                       n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-                       n.trees = 25L, n.threads = 1L, keepTrees = TRUE)
+                         n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                         n.trees = 25L, n.threads = 1L, keepTrees = TRUE)
   expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g), 2L, mean))
 
   set.seed(0)
   rbartFit.0 <- rbart_vi(y ~ x, group.by = g,
-                       n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-                       n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = FALSE)
+                         n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                         n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = FALSE)
   expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g, combineChains = FALSE), 3L, mean))
   
   set.seed(0)
@@ -141,7 +142,7 @@ test_that("works with missing levels", {
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
   ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef", combineChains = FALSE))
-  expect_equal(as.numeric(ranef.pred[,,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,,as.character(1L:4L)]))
+  expect_equal(ranef.pred[,,as.character(1L:4L)], rbartFit$ranef[,,as.character(1L:4L)])
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,,5L:26L], c(1L, 2L), sd))) > 0.90)
   
   # check again with combineChains as TRUE at the top level
@@ -156,7 +157,8 @@ test_that("works with missing levels", {
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
   ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
-  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
+  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]),
+               as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
   
   # check one last time with one chain
@@ -169,7 +171,8 @@ test_that("works with missing levels", {
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
   ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
-  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]), as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
+  expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]),
+               as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
 })
 

@@ -2,7 +2,6 @@
 \alias{rbart_vi}
 \alias{plot.rbart}
 \alias{fitted.rbart}
-\alias{extract}
 \alias{extract.rbart}
 \alias{predict.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
@@ -31,7 +30,6 @@ rbart_vi(
                          sample = c("train", "test"),
                          combineChains = TRUE,
                          \dots)
-extract(object, \dots)
 \S3method{extract}{rbart}(object,
                           value = c("ev", "ppd", "bart", "ranef"),
                           sample = c("train", "test"),
@@ -85,8 +83,7 @@ extract(object, \dots)
 }
 
 For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
-  \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed
-  random intercepts.
+  \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts.
 
 \subsection{Out Of Sample Groups}{
   Predicting random effects for groups not in the training sample is supported by sampling
@@ -95,6 +92,9 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
   For out-of-sample groups in the test data, these random effect draws can be kept 
   with the saved object. For those supplied to \code{predict}, they cannot and may
   change for subsequent calls.}
+\subsection{Generics}{
+  See the generics section of \code{\link{bart}}.
+}
 }
 \value{
   An object of class \code{rbart}. Contains all of the same elements of an object of class \code{\link{bart}},

@@ -87,8 +87,7 @@ rbart_vi <- function(
       stop("'group.by.test' specified but not found")
     if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
       stop("'group.by.test' must be coercible to factor type")
-  }
-  
+  }  
   
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
   
@@ -104,10 +103,13 @@ rbart_vi <- function(
     if (length(group.by.test) != nrow(data@x.test))
       stop("'group.by.test' not of length equal to that of data")
     group.by.test <- droplevels(as.factor(group.by.test))
+  } else if (!is.null(data@x.test)) {
+    warning("'test' supplied by 'group.by.test' missing; recycling 'group.by'")
+    group.by.test <- rep_len(group.by, nrow(data@x.test))
   } else {
     group.by.test <- NULL
   }
-  
+    
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
                            sigma = as.numeric(sigest))
   if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
@@ -285,26 +287,26 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
       ranefDim <- c(dim(chainResults[[1L]]$ranef)[1L] + n.unmeasured, n.samples, n.chains)
       ranefDimnames <- list(c(rownames(chainResults[[1L]]$ranef), levels(group.by.test)[unmeasuredLevels]), NULL, NULL)
       ranef <- array(totalRanef, ranefDim, ranefDimnames)
-      result$ranef <- packageSamples(n.chains, combineChains, ranef)
+      result$ranef <- convertSamplesFromDbartsToBart(ranef, n.chains, combineChains)
     } else {
       ranef <- array(sapply(chainResults, function(x) x$ranef),
                      c(dim(chainResults[[1L]]$ranef), n.chains),
                      list(rownames(chainResults[[1L]]$ranef), NULL, NULL))
-      result$ranef <- packageSamples(n.chains, combineChains, ranef)
+      result$ranef <- convertSamplesFromDbartsToBart(ranef, n.chains, combineChains)
       # undo collapse: temp <- aperm(array(result$ranef, c(dim(chainResults[[1L]]$ranef)[2L], n.chains, dim(chainResults[[1L]]$ranef)[1L]), dimnames = list(NULL, NULL, colnames(result$ranef))), c(3L, 1L, 2L))
     }
-    result$first.tau   <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstTau))
+    result$first.tau   <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstTau), n.chains, combineChains)
     if (!responseIsBinary) {
-      result$first.sigma <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$firstSigma))
-      result$sigma       <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$sigma))
+      result$first.sigma <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstSigma), n.chains, combineChains)
+      result$sigma       <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$sigma), n.chains, combineChains)
      }
-    result$tau         <- packageSamples(n.chains, combineChains, sapply(chainResults, function(x) x$tau))
-    result$yhat.train  <- packageSamples(n.chains, combineChains,
-                                         array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)))
+    result$tau         <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$tau), n.chains, combineChains)
+    result$yhat.train  <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)),
+                                                         n.chains, combineChains)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
-                            packageSamples(n.chains, combineChains,
-                                           array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)))
-    result$varcount    <- packageSamples(n.chains, combineChains, array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)))
+                            convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)),
+                                           n.chains, combineChains)
+    result$varcount    <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)), n.chains, combineChains)
   } else {
     result$ranef <- t(chainResults[[1L]]$ranef)
     if (!is.null(group.by.test) && any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))) {
@@ -341,196 +343,6 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
   
   class(result) <- "rbart"
   result
-}
-
-predict.rbart <- function(object, newdata, group.by, offset,
-                          value = c("ev", "ppd", "bart", "ranef"),
-                          combineChains = TRUE,
-                          ...)
-{
-  if (is.null(object$fit))
-    stop("predict requires rbart to be called with 'keepTrees' == TRUE")
-  if (is.character(value) && length(value) > 0L &&  value[1L] == "post-mean") {
-    warning("value of 'post-mean' for predict deprecated; use 'ev' instead")
-    value[1L] <- "ev"
-  }
-  if (!is.character(value) || length(value) == 0L || value[1L] %not_in% eval(formals(predict.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(predict.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
-  
-  if (missing(offset)) offset <- NULL
-  
-  n.chains <- length(object$fit)
-  n.samples <- object$fit[[1L]]$control@n.samples
-  
-  packageResult <- function(combineChains, result) {
-    if (combineChains && length(dim(result)) > 2L) {
-      res <- matrix(aperm(result, c(2L, 1L, 3L)), c(prod(dim(result)[1L:2L]), dim(result[3L])))
-      if (!is.null(dimnames(result))) colnames(res) <- dimnames(result)[[3L]]
-      res
-    } else
-      result
-  }
-  
-  nonParametricPart <- 0
-  if (value != "ranef") {
-    if (n.chains > 1L) {
-      n.obs <- NULL
-      nonParametricPart <- aperm(array(sapply(seq_len(n.chains), function(i) {
-        res <- object$fit[[i]]$predict(newdata, offset)
-          if (is.null(n.obs)) n.obs <<- dim(res)[1L]
-          res
-        }), c(n.obs, n.samples, n.chains)), c(3L, 2L, 1L))
-    } else {
-      nonParametricPart <- t(object$fit[[1L]]$predict(newdata, offset))
-      n.obs <- ncol(nonParametricPart)
-    }
-    if (n.obs != length(group.by))
-      stop("length of group.by not equal to number of rows in test")
-  }
-  
-  if (value == "bart") return(packageResult(combineChains, nonParametricPart))
-  
-  ranef <- 0
-  if (value != "bart") {
-    ranefNames.test  <- levels(group.by)
-    ranefNames.train <- if (length(dim(object$ranef)) > 2L) dimnames(object$ranef)[[3L]] else  dimnames(object$ranef)[[2L]]
-  
-    if (n.chains > 1L && length(dim(object$ranef)) == 2L && !combineChains) {
-      # if the original call collapsed chains, we have to add back in that information
-      ranef <- aperm(array(object$ranef, c(n.samples, n.chains, ncol(object$ranef)), dimnames = list(NULL, NULL, colnames(object$ranef))), c(2L, 1L, 3L))
-    } else {
-      ranef <- object$ranef
-    }
-    
-    if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
-      warning("test includes random effect levels not present in training - ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'")
-      n.unmeasured <- sum(!measuredLevels)
-      if (n.chains > 1L) {
-        if (!combineChains) {
-          unmeasuredRanef <- array(rnorm(n.chains * n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                   c(n.chains, n.samples, n.unmeasured),
-                                   dimnames = list(NULL, NULL, ranefNames.test[!measuredLevels]))
-        } else {
-          unmeasuredRanef <- matrix(rnorm(n.chains * n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                    n.chains * n.samples, n.unmeasured,
-                                    dimnames = list(NULL, ranefNames.test[!measuredLevels]))
-        }
-        if (length(dim(object$ranef)) == 2L) {
-          ranef <- cbind(ranef, unmeasuredRanef)
-        } else {
-          ranef <- array(c(ranef, unmeasuredRanef), c(n.chains, n.samples, dim(object$ranef)[3L] + n.unmeasured),
-                       dimnames = list(NULL, NULL, c(dimnames(object$ranef)[[3L]], dimnames(unmeasuredRanef)[[3L]])))
-        }
-      } else {
-        unmeasuredRanef <- matrix(rnorm(n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                  n.samples, n.unmeasured,
-                                  dimnames = list(NULL, ranefNames.test[!measuredLevels]))
-        ranef <- cbind(ranef, unmeasuredRanef)
-      }
-    }
-  }
-  
-  if (value == "ranef") return(packageResult(combineChains, if (length(dim(ranef)) > 2L) ranef[,,ranefNames.test,drop = FALSE] else ranef[,ranefNames.test,drop = FALSE]))
-  
-  result <- 
-    packageResult(combineChains, nonParametricPart) +
-      packageResult(combineChains, unname(if (length(dim(ranef)) > 2L) ranef[,,as.character(group.by),drop = FALSE] else ranef[,as.character(group.by),drop = FALSE]))
-  if (exists("unmeasuredRanef")) attr(result, "ranef") <- unmeasuredRanef
-  result
-}
-
-extract.rbart <- function(object,
-                          value = c("ev", "ppd", "bart", "ranef"),
-                          sample = c("train", "test"),
-                          combineChains = TRUE,
-                          ...)
-{
-  if (!is.character(value) || value[1L] %not_in% eval(formals(extract.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(extract.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
-  
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.rbart)$sample))
-    stop("sample must be in '", paste0(eval(formals(extract.rbart)$sample), collapse = "', '"), "'")
-  sample <- sample[1L]
-  
-  if (sample == "test" && is.null(object[["yhat.test"]]))
-    stop("cannot extract test sample predictions if no test data exists; use `predict` instead")
-  
-  n.chains <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
-  
-  if (value == "ranef") {
-    ranefNames <- if (sample == "train") levels(object$group.by) else levels(object$group.by.test)
-    ranef <- if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames] else object$ranef[,ranefNames]
-    return(ranef)
-  }
-  
-  if (value == "bart")
-    return(if (sample == "train") object$yhat.train else object$yhat.test)
-  
-  
-  nonParametricPart <- if (sample == "train") object$yhat.train else object$yhat.test
-  
-  ranefNames <- if (sample == "train") as.character(object$group.by) else as.character(object$group.by.test)
-  ranef <- if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames] else object$ranef[,ranefNames]
-  
-  result <- nonParametricPart + unname(ranef)
-  
-  n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
-  n.obs     <- if (length(dim(result)) > 2L) dim(result)[3L] else dim(result)[2L]
-  
-  if (length(dim(result)) == 2L && !combineChains && n.chains > 1L)
-    result <- aperm(array(result, c(n.samples, n.chains, n.obs)), c(2L, 1L, 3L))
-  
-  responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) result <- pnorm(result)
-  
-  if (value == "ppd") {
-    oldSeed <- .GlobalEnv$.Random.seed
-    .GlobalEnv$.Random.seed <- object$seed
-    
-    if (responseIsBinary) {
-      if (length(dim(result)) > 2L)
-        result <- array(rbinom(length(result), 1L, result), dim(result))
-      else
-        result <- matrix(rbinom(length(result), 1L, result), nrow(result), ncol(result))
-    } else {
-      # result is n.chains x n.samples x n.obs or (n.chains x n.samples) x n.obs
-      # for any i,j, we want to repeat sigma_i,j n.obs times
-      # 
-      # each simulation iteration forms a contiguous block of n.chains x n.samples
-      # consequently, repeating sigma as it is, once for each observation, will allow
-      # us to sample from the correct s.d. with the correct index
-      result <- result + rnorm(n.obs * length(object$sigma), 0, rep_len(object$sigma, n.chains * n.samples * n.obs))
-    }
-    .GlobalEnv$.Random.seed <- oldSeed
-  }
-  
-  if (combineChains && length(dim(result)) > 2L)
-    matrix(aperm(result, c(2L, 1L, 3L)), c(prod(dim(result)[1L:2L]), dim(result[3L])))
-  else
-    result
-}
-
-extract <- function(object, ...) UseMethod("extract")
-
-fitted.rbart <- function(object,
-                         value = c("ev", "ppd", "bart", "ranef"),
-                         sample = c("train", "test"),
-                         combineChains = TRUE,
-                         ...)
-{
-  if (!is.character(value) || value[1L] %not_in% eval(formals(fitted.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(fitted.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
-  
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.rbart)$sample))
-    stop("sample must be in '", paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"), "'")
-  sample <- sample[1L]
-  
-  result <- extract(object, value, sample, ...)
-  
-  if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
 
 ## create the contents to be used in partial dependence plots

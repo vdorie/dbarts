@@ -2,6 +2,25 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-16}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Added \code{extract} and \code{fitted} generics for \code{bart}
+            models. Respects \code{"train"} and \code{"test"} sets of
+            observations while returning \code{"ev"} - samples from the
+            posterior of the individual level expected value, \code{"bart"}
+            - the sum of trees component; same as \code{"ev"} for linear
+            models but on the probit scale for binary ones, and \code{"ppd"}
+            - samples from the posterior predictive distribution.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{predict} for \code{bart} models with binary outcomes returns
+            a result on the probability scale, not probit.
+      \item \code{predict} further conforms to the same system of arguments as
+            \code{extract} and \code{fitted}.
+    }
+  }
   \subsection{BUG-FIXES}{
     \itemize{
       \item \code{xbart} with a k-hyperprior should no longer crash. Report thanks to Colin Carlson.

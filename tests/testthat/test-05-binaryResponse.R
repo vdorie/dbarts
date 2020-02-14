@@ -13,6 +13,8 @@ test_that("basic probit example passes regression test", {
   expect_equal(bartFit$yhat.train[n.sims, 1:5], c(0.360083720993859, 0.213898385154795, 0.514888279642085, 0.402547682652614, 0.0641376173491096))
   expect_identical(bartFit$yhat.test, NULL)
   expect_equal(bartFit$varcount[n.sims,], c(19, 26, 24))
+  
+  expect_equal(extract(bartFit), pnorm(bartFit$yhat.train))
 })
 
 test_that("basic probit example with offset regression test", {

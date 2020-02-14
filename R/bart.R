@@ -1,17 +1,72 @@
-packageSamples <- function(n.chains, combineChains, samples) {
-  x <- NULL
-  if (n.chains <= 1L) {
-    if (is.matrix(samples)) t(samples) else samples
+# expects n.pars x n.samples x n.chains if n.chains > 1
+# returns n.chains x n.samples x n.pars or (n.chains x n.samples) x n.pars
+#
+# for quantities such as yhat.train, n.pars is n.obs; for sigma, it is 1
+# and the dimension is dropped
+#
+# preserves the per-parameter dimnames if they exist (for ranef)
+convertSamplesFromDbartsToBart <-
+  function(samples, n.chains = dim(samples)[length(dim(samples))], combineChains = FALSE)
+{
+  if (!combineChains) {
+    ifelse_3(is.null(dim(samples)), length(dim(samples)) == 2L,
+             samples, t(samples), aperm(samples, c(3L, 2L, 1L)))
   } else {
-    if (length(dim(samples)) > 2L) {
-      if (!combineChains) aperm(samples, c(3L, 2L, 1L)) else {
-        res <- evalx(dim(samples), t(matrix(samples, x[1L], x[2L] * x[3L])))
-        if (!is.null(dimnames(samples))) colnames(res) <- dimnames(samples)[[1L]]
-        res
-      }
+    ifelse_3(is.null(dim(samples)), length(dim(samples)) == 2L,
+             samples,
+             if (n.chains <= 1L) t(samples) else as.vector(t(samples)),
+             {
+               x <- NULL
+               res <- evalx(dim(samples), t(matrix(samples, x[1L], prod(x[-1L]))))
+               if (!is.null(dimnames(samples))) colnames(res) <- dimnames(samples)[[1L]]
+               res
+             })
+  }
+}
+
+# expects n.chains x n.samples x n.pars or (n.chains x n.samples) x n.pars
+# returns n.pars x n.samples x n.chains or n.pars x (n.samples x n.chains)
+convertSamplesFromBartsToDbarts <- function(samples, n.chains, uncombineChains = FALSE)
+{
+  if (!uncombineChains) {
+    ifelse_3(is.null(dim(samples)), is.matrix(samples),
+             samples, t(samples), aperm(samples, c(3L, 2L, 1L)))
+  } else {
+    x <- NULL
+    if (is.null(dim(samples))) {
+      res <- if (n.chains == 1L) samples else matrix(samples, length(samples) %/% n.chains, n.chains)
+      evalx(dimnames(samples), if (!is.null(x)) dimnames(res) <- list(x[[length(x)]], NULL))
+      res
     } else {
-      if (!combineChains) t(samples) else as.vector(samples)
+      res <- if (n.chains == 1L) samples else array(t(samples), c(ncol(samples), nrow(samples) %/% n.chains, n.chains))
+      evalx(dimnames(samples), if (!is.null(x)) dimnames(res) <- list(x[[length(x)]], NULL, NULL))
+      res
     }
+  } 
+}
+
+# input n.samples x n.chains x n.pars, or n.samples x n.pars when n.chains = 1
+# output (n.samples * n.chains) x n.pars
+combineChains <- function(samples) {
+  ifelse_3(is.null(dim(samples)), length(dim(samples)) == 2L,
+           samples,
+           as.vector(samples),
+           {
+             x <- NULL
+             res <- evalx(dim(samples), matrix(aperm(samples, c(2L, 1L, 3L)), prod(x[1L:2L]), x[3L]))
+             if (!is.null(dimnames(samples)))
+               dimnames(res) <- evalx(dimnames(samples), list(NULL, x[[length(x)]]))
+             res
+           })
+}
+
+uncombineChains <- function(samples, n.chains) {
+  if (is.null(dim(samples))) {
+    if (n.chains == 1L) samples else matrix(samples, n.chains, length(samples) %/% n.chains)
+  } else {
+    res <- if (n.chains == 1L) samples else aperm(array(samples, c(dim(samples)[1L] %/% n.chains, n.chains, ncol(samples))), c(2L, 1L, 3L))
+    if (!is.null(dimnames(samples))) dimnames(res) <- list(NULL, NULL, dimnames(samples)[[2L]])
+    res
   }
 }
 
@@ -23,22 +78,22 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
   yhat.train <- NULL
   yhat.train.mean <- NULL
   if (fit$control@keepTrainingFits) {
-    yhat.train <- packageSamples(n.chains, combineChains, samples$train)
+    yhat.train <- convertSamplesFromDbartsToBart(samples$train, n.chains, combineChains)
     if (!responseIsBinary) yhat.train.mean <- apply(yhat.train, length(dim(yhat.train)), mean)
   }
 
   yhat.test <- NULL
   yhat.test.mean <- NULL
   if (NROW(fit$data@x.test) > 0) {
-    yhat.test <- packageSamples(n.chains, combineChains, samples$test)
+    yhat.test <- convertSamplesFromDbartsToBart(samples$test, n.chains, combineChains)
     if (!responseIsBinary) yhat.test.mean <- apply(yhat.test, length(dim(yhat.test)), mean)
   }
 
-  if (!responseIsBinary) sigma <- packageSamples(n.chains, combineChains, samples$sigma)
+  if (!responseIsBinary) sigma <- convertSamplesFromDbartsToBart(samples$sigma, n.chains, combineChains)
     
-  varcount <- packageSamples(n.chains, combineChains, samples$varcount)
+  varcount <- convertSamplesFromDbartsToBart(samples$varcount, n.chains, combineChains)
   
-  if (!is.null(burnInSigma)) burnInSigma <- packageSamples(n.chains, combineChains, burnInSigma)
+  if (!is.null(burnInSigma)) burnInSigma <- convertSamplesFromDbartsToBart(burnInSigma, n.chains, combineChains)
   
   if (responseIsBinary) {
     result <- list(
@@ -63,7 +118,10 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
   
   if (fit$control@keepTrees)
     result$fit <- fit
-  if (!is.null(samples[["k"]])) result[["k"]] <- packageSamples(n.chains, combineChains, samples[["k"]])
+  else
+    result$n.chains <- n.chains
+  if (!is.null(samples[["k"]]))
+    result[["k"]] <- convertSamplesFromDbartsToBart(samples[["k"]], n.chains, combineChains)
   
   class(result) <- 'bart'
   invisible(result)
@@ -251,23 +309,5 @@ makeind <- function(x, all = TRUE)
 {
   ignored <- all ## for R check
   makeModelMatrixFromDataFrame(x, TRUE)
-}
-
-predict.bart <- function(object, test, offset.test, combineChains, ...)
-{
-  if (is.null(object$fit)) {
-    if (as.character(object$call[[1L]]) == "bart2")
-      stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
-    else
-      stop("predict requires bart to be called with 'keeptrees' == TRUE")
-  }
-  
-  if (missing(combineChains))
-    combineChains <- object$fit$control@n.chains <= 1L || length(dim(object$varcount)) <= 2L
-  if (missing(offset.test)) offset.test <- NULL
-  
-  result <- object$fit$predict(test, offset.test)
-  
-  packageSamples(object$fit$control@n.chains, combineChains, result)
 }
 
