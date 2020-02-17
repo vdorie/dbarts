@@ -62,22 +62,22 @@ test_that("extract works at baseline", {
   rbartFit <- rbart_vi(y ~ x, group.by = g,
                        n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
                        n.trees = 25L, n.threads = 1L)
-  expect_equal(extract(rbartFit, value = "bart", combineChains = FALSE), rbartFit$yhat.train)
-  expect_equal(extract(rbartFit, value = "ranef", combineChains = FALSE), rbartFit$ranef)
-  expect_equal(extract(rbartFit, value = "ev", combineChains = FALSE), rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]))
+  expect_equal(extract(rbartFit, type = "bart", combineChains = FALSE), rbartFit$yhat.train)
+  expect_equal(extract(rbartFit, type = "ranef", combineChains = FALSE), rbartFit$ranef)
+  expect_equal(extract(rbartFit, type = "ev", combineChains = FALSE), rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]))
   
-  ppd <- extract(rbartFit, value = "ppd", combineChains = FALSE)
-  sigma.hat <- apply(ppd - extract(rbartFit, value = "ev", combineChains = FALSE), c(1L, 2L), sd)
+  ppd <- extract(rbartFit, type = "ppd", combineChains = FALSE)
+  sigma.hat <- apply(ppd - extract(rbartFit, type = "ev", combineChains = FALSE), c(1L, 2L), sd)
   expect_true(cor(as.vector(sigma.hat), as.vector(rbartFit$sigma)) >= 0.85) # silly test with 7 samples
   
   set.seed(0)
   rbartFit.2 <- rbart_vi(y ~ x, group.by = g,
                          n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
                          n.trees = 25L, n.threads = 1L, combineChains = TRUE)
-  expect_equal(extract(rbartFit,   value = "ev", combineChains = TRUE),
-               extract(rbartFit.2, value = "ev", combineChains = TRUE))
-  expect_equal(extract(rbartFit,   value = "ev", combineChains = FALSE),
-               extract(rbartFit.2, value = "ev", combineChains = FALSE))
+  expect_equal(extract(rbartFit,   type = "ev", combineChains = TRUE),
+               extract(rbartFit.2, type = "ev", combineChains = TRUE))
+  expect_equal(extract(rbartFit,   type = "ev", combineChains = FALSE),
+               extract(rbartFit.2, type = "ev", combineChains = FALSE))
 })
 
 test_that("fitted works correctly", {
@@ -92,7 +92,7 @@ test_that("fitted works correctly", {
   expect_equal(as.vector(rbartFit$yhat.train), as.vector(rbartFit$yhat.test) - 5)
   expect_equal(apply(rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit))
   expect_equal(apply(rbartFit$yhat.test  + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean), fitted(rbartFit, sample = "test"))
-  expect_equal(fitted(rbartFit, value = "ranef"), rbartFit$ranef.mean)
+  expect_equal(fitted(rbartFit, type = "ranef"), rbartFit$ranef.mean)
 })
 
 test_that("predict matches fitted", {
@@ -141,7 +141,7 @@ test_that("works with missing levels", {
   # check that predicts works for completely new levels
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
-  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef", combineChains = FALSE))
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, type = "ranef", combineChains = FALSE))
   expect_equal(ranef.pred[,,as.character(1L:4L)], rbartFit$ranef[,,as.character(1L:4L)])
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,,5L:26L], c(1L, 2L), sd))) > 0.90)
   
@@ -156,7 +156,7 @@ test_that("works with missing levels", {
   
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
-  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, type = "ranef"))
   expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]),
                as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
@@ -170,7 +170,7 @@ test_that("works with missing levels", {
   expect_equal(apply(predict(rbartFit, x.test, g.test), 2L, mean), fitted(rbartFit, sample = "test"))
   levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
   set.seed(0)
-  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, value = "ranef"))
+  ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, type = "ranef"))
   expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]),
                as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)

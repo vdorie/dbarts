@@ -10,13 +10,17 @@
             posterior of the individual level expected value, \code{"bart"}
             - the sum of trees component; same as \code{"ev"} for linear
             models but on the probit scale for binary ones, and \code{"ppd"}
-            - samples from the posterior predictive distribution.
+            - samples from the posterior predictive distribution. To synergize
+            with \code{fitted.glm}, \code{"response"} can be used as a synonym
+            for \code{"ev"} and \code{"link"} can be used as a synonym for
+            \code{"bart"}.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{predict} for \code{bart} models with binary outcomes returns
-            a result on the probability scale, not probit.
+            a result on the probability scale, not probit. The argument
+            \code{value} is deprecated - use \code{type} instead.
       \item \code{predict} further conforms to the same system of arguments as
             \code{extract} and \code{fitted}.
     }

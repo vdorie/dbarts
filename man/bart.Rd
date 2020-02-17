@@ -48,16 +48,16 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
      \dots)
 
 \method{predict}{bart}(object, newdata, offset,
-                       value = c("ev", "ppd", "bart"),
+                       type = c("ev", "ppd", "bart"),
                        combineChains = TRUE, \dots)
 extract(object, \dots)
 \method{extract}{bart}(object,
-                       value = c("ev", "ppd", "bart"),
+                       type = c("ev", "ppd", "bart"),
                        sample = c("train", "test"),
                        combineChains = TRUE, \dots)
 
 \method{fitted}{bart}(object,
-                      value = c("ev", "ppd", "bart"),
+                      type = c("ev", "ppd", "bart"),
                       sample = c("train", "test"),
                       \dots)
 }
@@ -244,11 +244,14 @@ extract(object, \dots)
      the second color is used to plot the lower and upper quantiles.
    }
    
-   \item{value}{
-     The type of quantity to be returned by generic functions. Options are \code{"ev"} -
+   \item{type}{
+     The quantity to be returned by generic functions. Options are \code{"ev"} -
      samples from the posterior of the individual level expected value, \code{"bart"}
      - the sum of trees component; same as \code{"ev"} for linear models but on the probit
-     scale for binary ones, and \code{"ppd"} - samples from the posterior predictive distribution.
+     scale for binary ones, and \code{"ppd"} - samples from the posterior predictive
+     distribution. To synergize with \code{\link{predict.glm}}, \code{"response"} can
+     be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for
+     \code{"bart"}.
    }
    \item{sample}{
      Either \code{"train"} or \code{"test"}.
@@ -318,7 +321,7 @@ extract(object, \dots)
     All generics return values on the scale of expected value of the response by
     default. This means that \code{predict}, \code{extract}, and \code{fitted}
     for binary outcomes return probabilities unless specifically the sum-of-trees
-    component is requested (value = \code{"bart"}). This is in contrast to 
+    component is requested (\code{type = "bart"}). This is in contrast to 
     \code{yhat.train}/\code{yhat.test} that are returned with the fitted model.
   }
   

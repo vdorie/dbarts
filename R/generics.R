@@ -14,7 +14,7 @@ combineOrUncombineChains <- function(x, n.chains, combineChains)
 }
 
 predict.bart <- function(object, newdata, offset,
-                         value = c("ev", "ppd", "bart"),
+                         type = c("ev", "ppd", "bart"),
                          combineChains = TRUE,
                          ...)
 {
@@ -24,9 +24,13 @@ predict.bart <- function(object, newdata, offset,
     else
       stop("predict requires bart to be called with 'keeptrees' == TRUE")
   }
-  if (!is.character(value) || length(value) == 0L || value[1L] %not_in% eval(formals(predict.bart)$value))
-    stop("value must be in '", paste0(eval(formals(predict.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.bart)$type))
+    stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
+  type <- type[1L]
 
   if (missing(offset)) offset <- NULL
   
@@ -35,27 +39,31 @@ predict.bart <- function(object, newdata, offset,
   n.chains <- object$fit$control@n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
   
-  if (value == "bart")
+  if (type == "bart")
     return(result)
   
   if ((responseIsBinary <- is.null(object[["sigma"]])))
     result <- pnorm(result)
   
-  if (value == "ppd")
+  if (type == "ppd")
     result <- sampleFromPPD(result, object)
   
   result
 }
 
 extract.bart <- function(object, 
-                         value = c("ev", "ppd", "bart"),
+                         type = c("ev", "ppd", "bart"),
                          sample = c("train", "test"),
                          combineChains = TRUE,
                          ...)
 {
-  if (!is.character(value) || value[1L] %not_in% eval(formals(extract.bart)$value))
-    stop("value must be in '", paste0(eval(formals(extract.bart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (!is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type))
+    stop("type must be in '", paste0(eval(formals(extract.bart)$type), collapse = "', '"), "'")
+  type <- type[1L]
   
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.bart)$sample))
     stop("sample must be in '", paste0(eval(formals(extract.bart)$sample), collapse = "', '"), "'")
@@ -72,50 +80,66 @@ extract.bart <- function(object,
   
   result <- combineOrUncombineChains(result, n.chains, combineChains)
     
-  if (value == "bart")
+  if (type == "bart")
     return(result)
   
   if ((responseIsBinary <- is.null(object[["sigma"]])))
     result <- pnorm(result)
   
-  if (value == "ppd")
+  if (type == "ppd")
     result <- sampleFromPPD(result, object)
   
   result
 }
 
 fitted.bart <- function(object,
-                        value = c("ev", "ppd", "bart"),
+                        type = c("ev", "ppd", "bart"),
                         sample = c("train", "test"),
                         ...)
 {
-  if (!is.character(value) || value[1L] %not_in% eval(formals(fitted.bart)$value))
-    stop("value must be in '", paste0(eval(formals(fitted.bart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type))
+    stop("type must be in '", paste0(eval(formals(fitted.bart)$type), collapse = "', '"), "'")
+  type <- type[1L]
   
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.bart)$sample))
     stop("sample must be in '", paste0(eval(formals(fitted.bart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
   
-  result <- extract(object, value, sample, ...)
+  result <- extract(object, type, sample, ...)
   
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
 
 predict.rbart <- function(object, newdata, group.by, offset,
-                          value = c("ev", "ppd", "bart", "ranef"),
+                          type = c("ev", "ppd", "bart", "ranef"),
                           combineChains = TRUE,
                           ...)
 {
   if (is.null(object$fit))
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
-  if (is.character(value) && length(value) > 0L &&  value[1L] == "post-mean") {
-    warning("value of 'post-mean' for predict deprecated; use 'ev' instead")
-    value[1L] <- "ev"
+  
+  dotsList <- list(...)
+  if (!is.null(dotsList[["value"]])) {
+    warning("argument 'value' has been deprecated; use 'type' instead")
+    type <- dotsList[["value"]]
+    dotsList[["value"]] <- NULL
   }
-  if (!is.character(value) || length(value) == 0L || value[1L] %not_in% eval(formals(predict.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(predict.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (is.character(type) && length(type) > 0L &&  type[1L] == "post-mean") {
+    warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
+    type[1L] <- "ev"
+  }
+  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.rbart)$type))
+    stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
+  type <- type[1L]
   
   if (missing(offset)) offset <- NULL
   
@@ -128,7 +152,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
   #
   # utilize bart stuff to get n.obs, since we would otherwise have to build
   # the test matrix
-  if (value != "ranef") {
+  if (type != "ranef") {
     if (n.chains > 1L) {
       n.obs <- NULL
       nonParametricPart <- array(sapply(seq_len(n.chains), function(i) {
@@ -146,10 +170,10 @@ predict.rbart <- function(object, newdata, group.by, offset,
     nonParametricPart <- convertSamplesFromDbartsToBart(nonParametricPart, n.chains, combineChains)
   }
   
-  if (value == "bart") return(nonParametricPart)
+  if (type == "bart") return(nonParametricPart)
   
   ranef <- 0
-  if (value != "bart") {
+  if (type != "bart") {
     ranefNames.test  <- levels(group.by)
     ranefNames.train <- if (length(dim(object$ranef)) > 2L) dimnames(object$ranef)[[3L]] else dimnames(object$ranef)[[2L]]
   
@@ -191,7 +215,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
     }
   }
   
-  if (value == "ranef") {
+  if (type == "ranef") {
     ranef <- if (length(dim(ranef)) > 2L) ranef[,,ranefNames.test,drop = FALSE] else ranef[,ranefNames.test,drop = FALSE]
     return(combineOrUncombineChains(ranef, n.chains, combineChains))
   }
@@ -206,7 +230,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
   responseIsBinary <- is.null(object[["sigma"]])
   if (responseIsBinary) result <- pnorm(result)
   
-  if (value == "ppd")
+  if (type == "ppd")
     result <- sampleFromPPD(result, object)
   
   if (exists("unmeasuredRanef", inherits = FALSE)) attr(result, "ranef") <- unmeasuredRanef
@@ -215,14 +239,18 @@ predict.rbart <- function(object, newdata, group.by, offset,
 }
 
 extract.rbart <- function(object,
-                          value = c("ev", "ppd", "bart", "ranef"),
+                          type = c("ev", "ppd", "bart", "ranef"),
                           sample = c("train", "test"),
                           combineChains = TRUE,
                           ...)
 {
-  if (!is.character(value) || value[1L] %not_in% eval(formals(extract.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(extract.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (!is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type))
+    stop("type must be in '", paste0(eval(formals(extract.rbart)$type), collapse = "', '"), "'")
+  type <- type[1L]
   
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.rbart)$sample))
     stop("sample must be in '", paste0(eval(formals(extract.rbart)$sample), collapse = "', '"), "'")
@@ -233,7 +261,7 @@ extract.rbart <- function(object,
   
   n.chains  <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
     
-  if (value == "ranef") {
+  if (type == "ranef") {
     ranefNames <- if (sample == "train") levels(object$group.by) else levels(object$group.by.test)
     ranef <- if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames,drop = FALSE] else object$ranef[,ranefNames,drop = FALSE]
     if (n.chains > 1L) {
@@ -258,7 +286,7 @@ extract.rbart <- function(object,
   #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
   #n.obs     <- dim(result)[length(dim(result))]
   
-  if (value == "bart") return(result)
+  if (type == "bart") return(result)
   
   ranefNames <- if (sample == "train") as.character(object$group.by) else as.character(object$group.by.test)
   ranef <- unname(if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames,drop = FALSE] else object$ranef[,ranefNames,drop = FALSE])
@@ -275,27 +303,31 @@ extract.rbart <- function(object,
   responseIsBinary <- is.null(object[["sigma"]])
   if (responseIsBinary) result <- pnorm(result)
   
-  if (value == "ppd")
+  if (type == "ppd")
     result <- sampleFromPPD(result, object)
   
   result
 }
 
 fitted.rbart <- function(object,
-                         value = c("ev", "ppd", "bart", "ranef"),
+                         type = c("ev", "ppd", "bart", "ranef"),
                          sample = c("train", "test"),
                          combineChains = TRUE,
                          ...)
 {
-  if (!is.character(value) || value[1L] %not_in% eval(formals(fitted.rbart)$value))
-    stop("value must be in '", paste0(eval(formals(fitted.rbart)$value), collapse = "', '"), "'")
-  value <- value[1L]
+  if (is.character(type)) {
+    if (type[1L] == "response") type[1L] <- "ev"
+    else if (type[1L] == "link") type[1L] <- "bart"
+  }
+  if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type))
+    stop("type must be in '", paste0(eval(formals(fitted.rbart)$type), collapse = "', '"), "'")
+  type <- type[1L]
   
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.rbart)$sample))
     stop("sample must be in '", paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
   
-  result <- extract(object, value, sample, ...)
+  result <- extract(object, type, sample, ...)
   
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }

@@ -81,7 +81,7 @@ test_that("posterior predictive distribution samples use correct sigma", {
                   ndpost = n.samples, nskip = 0L, nchain = n.chains,
                   ntree = 25L, nthread = 1L)
   set.seed(0)
-  samples.ppd <- extract(bartFit, value = "ppd")
+  samples.ppd <- extract(bartFit, type = "ppd")
   
   set.seed(0)
   samples.pm  <- extract(bartFit)
@@ -90,7 +90,7 @@ test_that("posterior predictive distribution samples use correct sigma", {
                  samples.ppd[,i])
 
   set.seed(0)
-  samples.ppd <- extract(bartFit, value = "ppd", combineChains = FALSE)
+  samples.ppd <- extract(bartFit, type = "ppd", combineChains = FALSE)
   
   set.seed(0)
   samples.pm  <- extract(bartFit, combineChains = FALSE)
@@ -130,11 +130,11 @@ source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("predict gives same result as x_train with binary data", {
   bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$X, value = "bart")
+  predictions <- predict(bartFit, testData$X, type = "bart")
   expect_equal(predictions, bartFit$yhat.train)
   
   bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$X, value = "bart")
+  predictions <- predict(bartFit, testData$X, type = "bart")
   expect_equal(predictions, bartFit$yhat.train)
 })
 
