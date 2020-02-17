@@ -151,22 +151,34 @@ namespace dbarts {
   
   void BARTFit::setOffset(const double* newOffset) {
     if (!control.responseIsBinary) {
-      double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-        sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
+      // adjusting sigma is no longer necessary, as setting the offset doesn't change the scale
       
-      double priorUnscaled = model.sigmaSqPrior->getScale() * sharedScratch.dataScale.range * sharedScratch.dataScale.range;
+      //double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
+      //for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+      //  sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
+      
+      //double priorUnscaled = model.sigmaSqPrior->getScale() * sharedScratch.dataScale.range * sharedScratch.dataScale.range;
+      
+      
+      // rather than rescale response, subtract old offset and add new one
+      double* yRescaled = const_cast<double*>(sharedScratch.yRescaled);
+      
+      if (data.offset != NULL)
+        misc_addVectorsInPlace(data.offset, data.numObservations, 1.0 / sharedScratch.dataScale.range, yRescaled);
       
       data.offset = newOffset;
       
-      rescaleResponse(*this);
+      if (data.offset != NULL)
+        misc_addVectorsInPlace(data.offset, data.numObservations, -1.0 / sharedScratch.dataScale.range, yRescaled);
       
-      model.sigmaSqPrior->setScale(priorUnscaled / (sharedScratch.dataScale.range * sharedScratch.dataScale.range));
+      // rescaleResponse(*this);
       
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-        state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
+      // model.sigmaSqPrior->setScale(priorUnscaled / (sharedScratch.dataScale.range * sharedScratch.dataScale.range));
       
-      misc_stackFree(sigmaUnscaled);
+      // for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+      //   state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
+      
+      // misc_stackFree(sigmaUnscaled);
       
     } else {
       data.offset = newOffset;
@@ -965,7 +977,7 @@ namespace {
     numNodes += storeFlattenedTree(fit, *node.getRightChild(), rightIndexSet,
                                    numObservations + numNodes, variable + numNodes, value + numNodes);
     
-    return numNodes;  
+    return numNodes;
   }
 }
 
