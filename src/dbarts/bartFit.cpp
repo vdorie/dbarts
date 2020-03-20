@@ -228,6 +228,7 @@ namespace dbarts {
       }
       delete [] xt_test;
     } else {
+      ext_printf("predicting without saved tress\n");
       xint_t* xt_test = new xint_t[numTestObservations * data.numPredictors];
       setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
 
