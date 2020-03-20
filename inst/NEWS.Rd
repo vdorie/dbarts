@@ -1,6 +1,13 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-17}{
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item Memory leak for \code{predict} when \code{keepTrees} is \code{FALSE}.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-16}{
   \subsection{NEW FEATURES}{
     \itemize{
@@ -27,7 +34,8 @@
   }
   \subsection{BUG-FIXES}{
     \itemize{
-      \item \code{xbart} with a k-hyperprior should no longer crash. Report thanks to Colin Carlson.
+      \item \code{xbart} with a k-hyperprior should no longer crash. Report thanks
+             to Colin Carlson.
     }
   }
 }

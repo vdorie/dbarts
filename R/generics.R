@@ -332,6 +332,7 @@ fitted.rbart <- function(object,
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
 
+# NOTE: this is outdated
 # ev (expected value) should have dimensions
 #   n.samples x n.chains x n.obs, (n.samples * n.chains n.obs),
 #   or n.samples x n.obs if n.chains = 1
@@ -339,8 +340,13 @@ fitted.rbart <- function(object,
 # ev consists of contiguous blocks of length equal to the number of 
 # samples, so that ev[1:totalNumSamples] should get paired with
 # as.vector(sigma), and then repeated from there
+#
+#
+# for ev of dim n.chains x n.samples x n.obs (bart default),
+# each sigma needs to be repeated as below
 sampleFromPPD <- function(ev, object)
 {
+  oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed
     .GlobalEnv$.Random.seed <- object$seed
@@ -363,7 +369,7 @@ sampleFromPPD <- function(ev, object)
     n.obs     <- dim(ev)[length(dim(ev))]
     result <- ev + rnorm(n.obs * length(object$sigma), 0, rep_len(object$sigma, n.obs * length(object$sigma)))
   }
-  if (exists("oldSeed", inherits = FALSE))
+  if (!is.null(oldSeed))
     .GlobalEnv$.Random.seed <- oldSeed
   
   result

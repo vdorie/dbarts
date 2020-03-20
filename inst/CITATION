@@ -9,6 +9,5 @@ bibentry(bibtype = "article",
          pages = "266--298",
          journal = "The Annals of Applied Statistics",
          publisher = "The Institute of Mathematical Statistics",
-         url = "http://dx.doi.org/10.1214/09-AOAS285",
          volume = 4,
          year = 2010)

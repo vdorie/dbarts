@@ -242,6 +242,8 @@ namespace dbarts {
           state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, xt_test, numTestObservations, currTestFits);
           
           misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
+          
+          delete [] nodeParams;
         }
         
         double* result_i = result + chainNum * numTestObservations;
