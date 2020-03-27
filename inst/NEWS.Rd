@@ -1,6 +1,13 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-18}{
+  \subsection{BUG-FIXES}{
+    \itemize{
+      \item Extraneous print line from debugging 0.9-18.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-17}{
   \subsection{BUG-FIXES}{
     \itemize{
