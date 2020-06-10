@@ -17,8 +17,9 @@ extern "C" {
   
   SEXP predict(SEXP fit, SEXP x_test, SEXP offset_test);
   SEXP setResponse(SEXP fit, SEXP y);
-  SEXP setOffset(SEXP fit, SEXP offset);
+  SEXP setOffset(SEXP fit, SEXP offset, SEXP updateScale);
   SEXP setWeights(SEXP fit, SEXP weights);
+  SEXP setSigma(SEXP fit, SEXP sigma);
   SEXP setPredictor(SEXP fit, SEXP x, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP updatePredictor(SEXP fit, SEXP x, SEXP cols, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr);

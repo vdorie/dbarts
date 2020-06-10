@@ -3,7 +3,9 @@
 
 #include <stdbool.h> // for bool
 
-#include <external/Rinternals.h> // SEXP
+#include <misc/stddef.h> // misc_size_t
+
+#include <external/Rinternals.h> // SEXP, R_NilValue
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,9 +30,15 @@ extern "C" {
 //
 // NA_NO is the default
 
+int rc_getInt0(SEXP x, const char* name);
 int rc_getInt(SEXP x, const char* name, ...);
+int rc_getIntAt(SEXP v, misc_size_t i, const char* name, ...);
+double rc_getDouble0(SEXP x, const char* name);
 double rc_getDouble(SEXP x, const char* name, ...);
+double rc_getDoubleAt(SEXP v, misc_size_t i, const char* name, ...);
+bool rc_getBool0(SEXP x, const char* name);
 bool rc_getBool(SEXP x, const char* name, ...);
+bool rc_getBoolAt(SEXP v, misc_size_t i, const char* name, ...);
 
 void rc_assertIntConstraints(SEXP x, const char* name, ...);
 void rc_assertDoubleConstraints(SEXP x, const char* name, ...);
@@ -43,7 +51,8 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...);
 // constraint allows missing dims. RC_NA skips the dim, regardless of the value
 // (equiv to value >= 0). e.g.
 //
-//  rc_assertDimConstraints(x, "var name", RC_LENGTH | RC_EQ, (R_xlen_t) 2,
+//  rc_assertDimConstraints(x, "var name",
+//                          RC_LENGTH | RC_EQ, (R_xlen_t) 2,
 //                          RC_NA,
 //                          RC_VALUE | RC_EQ, (int) numCols,
 //                          RC_END);
@@ -62,7 +71,8 @@ typedef enum {
   RC_GEQ = 0x0C,
   RC_LEQ = 0x10,
   RC_EQ  = 0x14,
-  RC_NE  = 0x18
+  RC_NE  = 0x18,
+  RC_DEFAULT = 0x1C
 } rc_boundType;
 
 typedef enum {

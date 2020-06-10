@@ -24,6 +24,8 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length);
   _R_ = _V_;                                    \
 }
 
+// returns R_NilValue if name not in names of list
+SEXP rc_getListElement(SEXP list, const char* name);
 
 #ifndef __cplusplus
 #  define rc_getLength(_X_) ((misc_size_t) XLENGTH(_X_))

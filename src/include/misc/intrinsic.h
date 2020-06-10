@@ -59,7 +59,6 @@ static inline uint32_t countTrailingZeros(uint32_t v) {
 #endif
 
 #ifdef CLZ_MISSING
-#include <external/io.h>
 static inline unsigned int countLeadingZeros(uint32_t v)
 {
   static const int clzTable[32] = {

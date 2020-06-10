@@ -53,10 +53,10 @@ namespace dbarts {
       delete [] sigmaSamples; sigmaSamples = NULL;
     }
     
-    std::size_t getNumSigmaSamples() { return numSamples * numChains; }
-    std::size_t getNumTrainingSamples() { return numObservations * numSamples * numChains; }
-    std::size_t getNumTestSamples() { return numTestObservations * numSamples * numChains; }
-    std::size_t getNumVariableCountSamples() { return numPredictors * numSamples * numChains; }
+    std::size_t getNumSigmaSamples() const { return numSamples * numChains; }
+    std::size_t getNumTrainingSamples() const { return numObservations * numSamples * numChains; }
+    std::size_t getNumTestSamples() const { return numTestObservations * numSamples * numChains; }
+    std::size_t getNumVariableCountSamples() const { return numPredictors * numSamples * numChains; }
   };
 } // namespace dbarts
 

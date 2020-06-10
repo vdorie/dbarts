@@ -4,6 +4,8 @@
 #include <cstring>
 #include <cstdio>
 
+#include <external/random.h>
+
 #include <misc/alloca.h>
 #include <misc/linearAlgebra.h>
 #include <misc/stats.h>

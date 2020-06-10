@@ -3,7 +3,7 @@
 
 #include <cstddef>
 
-#include <external/random.h>
+#include <dbarts/random.hpp>
 
 namespace dbarts {
   struct Control;

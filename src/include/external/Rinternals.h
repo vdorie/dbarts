@@ -1,7 +1,7 @@
 #ifndef EXTERNAL_RINTERNALS_H
 #define EXTERNAL_RINTERNALS_H
 
-// imports R.h while doing the least to pollute namespaces
+// imports Rinternals.h while doing the least to pollute namespaces
 
 #include <Rversion.h>
 

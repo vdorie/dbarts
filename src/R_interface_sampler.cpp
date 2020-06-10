@@ -335,12 +335,12 @@ extern "C" {
     return R_NilValue;
   }
   
-  SEXP setOffset(SEXP fitExpr, SEXP offsetExpr)
+  SEXP setOffset(SEXP fitExpr, SEXP offsetExpr, SEXP updateScaleExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_setOffset called on NULL external pointer");
     
-    double* offset = NULL;
+    const double* offset = NULL;
     if (Rf_isReal(offsetExpr)) {
       offset = REAL(offsetExpr);
       if (rc_getLength(offsetExpr) != fit->data.numObservations) Rf_error("length of new offset does not match y");
@@ -348,7 +348,27 @@ extern "C" {
       Rf_error("offset must be of type real or NULL");
     }
     
-    fit->setOffset(offset);
+    bool updateScale = rc_getBool(updateScaleExpr, "updateScale", RC_DEFAULT | RC_VALUE, false, RC_END);
+    
+    fit->setOffset(offset, updateScale);
+    
+    return R_NilValue;
+  }
+  
+  SEXP setSigma(SEXP fitExpr, SEXP sigmaExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_setSigma called on NULL external pointer");
+    
+    const double* sigma = NULL;
+    if (Rf_isReal(sigmaExpr)) {
+      sigma = REAL(sigmaExpr);
+      if (rc_getLength(sigmaExpr) != fit->control.numChains) Rf_error("length of new sigma does not match number of chains");
+    } else {
+      Rf_error("sigma must be of type real");
+    }
+    
+    fit->setSigma(sigma);
     
     return R_NilValue;
   }
