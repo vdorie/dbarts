@@ -3,6 +3,28 @@
 
 #include <cstddef> // size_t
 
+// imports Rinternals.h while doing the least to pollute namespaces
+
+#include <Rversion.h>
+
+#if R_VERSION <= R_Version(3,3,1)
+// Rinternals.h includes R_ext/Memory.h and R_ext/Utils.h which reference size_t
+// Rinternals.h also references FILE from stdio.h
+#  define NO_C_HEADERS
+#  include <climits>
+// #  include <cstddef>
+#  include <cstdio>
+using std::size_t;
+using std::FILE;
+#endif
+
+// prevents R_ext/Error.h from mapping Rf_error -> error and Rf_warning -> warning
+#define R_NO_REMAP
+#include <Rinternals.h>
+
+#undef NO_C_HEADERS
+#undef R_NO_REMAP
+
 namespace dbarts {
   struct Control;
   struct Model;
@@ -17,8 +39,24 @@ namespace dbarts {
   struct Results;
 }
 
+// pair calls of create<->destroy, initialize<->invalidate
 extern "C" {
-  // pair calls of create<->destroy, initialize<->invalidate
+  // creates a control C++ object from a dbartsControl R structure
+  dbarts::Control* dbarts_createControl(SEXP controlExpr);
+  void dbarts_destroyControl(dbarts::Control* control);
+  void dbarts_initializeControl(dbarts::Control* control, SEXP controlExpr);
+  // void dbarts_invalidateControl(dbarts::Control* control); // invalidation not necessary, owns no memory
+  
+  dbarts::Data* dbarts_createData(SEXP dataExpr);
+  void dbarts_destroyData(dbarts::Data* data);
+  void dbarts_initializeData(dbarts::Data* data, SEXP dataExpr);
+  void dbarts_invalidateData(dbarts::Data* data);
+  
+  dbarts::Model* dbarts_createModel(SEXP modelExpr, dbarts::Control* control);
+  void dbarts_destroyModel(dbarts::Model* model);
+  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control);
+  void dbarts_invalidateModel(dbarts::Model* model);
+  
   dbarts::BARTFit* dbarts_createFit(dbarts::Control* control, dbarts::Model* model, dbarts::Data* data);
   void dbarts_initializeFit(dbarts::BARTFit* fit, dbarts::Control* control, dbarts::Model* model, dbarts::Data* data);
   void dbarts_destroyFit(dbarts::BARTFit* fit);
@@ -26,14 +64,19 @@ extern "C" {
   
   void dbarts_setRNGState(dbarts::BARTFit* fit, const void* const* uniformState, const void* const* normalState);
   
+  void dbarts_printInitialSummary(const dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
+  void dbarts_runSamplerWithResults(dbarts::BARTFit* fit, std::size_t numBurnIn, dbarts::Results* results);
   void dbarts_sampleTreesFromPrior(dbarts::BARTFit* fit);
   
   // 'settors' simply replace local pointers to variables. dimensions much match
   // 'update' modifies the local copy (which may belong to someone else)
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);
-  void dbarts_setOffset(dbarts::BARTFit* fit, const double* newOffset);
+  void dbarts_setOffset(dbarts::BARTFit* fit, const double* newOffset, bool updateScale);
+  
+  // one sigma for each chain
+  void dbarts_setSigma(dbarts::BARTFit* fit, const double* newSigma);
   
   // forceUpdate == true will cause the sampler to go through with the change even if it
   //   would leave the sampler in an invalid state, i.e. with a leaf having no observations;

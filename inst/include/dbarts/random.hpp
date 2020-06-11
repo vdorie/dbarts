@@ -1,6 +1,8 @@
 #ifndef DBARTS_RANDOM_HPP
 #define DBARTS_RANDOM_HPP
 
+struct ext_rng;
+
 namespace dbarts {
   typedef enum {
     RNG_ALGORITHM_WICHMANN_HILL = 0,

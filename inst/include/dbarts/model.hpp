@@ -107,6 +107,7 @@ namespace dbarts {
     virtual ResidualVariancePrior* duplicate() const = 0;
     
     virtual void print(const BARTFit& fit) const = 0;
+    virtual bool isFixed() const = 0;
     
     virtual ~ResidualVariancePrior() { }
   };
@@ -188,6 +189,7 @@ namespace dbarts {
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum,
                                      const double* y,
                                      const double* y_hat) const;
+    virtual bool isFixed() const { return false; }
   };
   struct FixedPrior : ResidualVariancePrior {
     double value;
@@ -206,6 +208,7 @@ namespace dbarts {
     virtual void setScale(double scale) { value = scale; }
     
     virtual void print(const BARTFit& fit) const;
+    virtual bool isFixed() const { return true; }
     
     virtual ~FixedPrior() { }
   };

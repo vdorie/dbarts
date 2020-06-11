@@ -185,7 +185,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     control@keepTrees <- FALSE
     sampler$setControl(control)
     
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
     treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
     
     # order of update matters - need to store a ranef that goes with a prediction
@@ -200,7 +200,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
       ranef.vec <- ranef.i[g]
       
       # update BART params
-      sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+      sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
       samples <- sampler$run(0L, 1L)
       treeFit.train <- as.vector(samples$train) - ranef.vec
       if (control@binary) sampler$getLatents(y.st)
@@ -220,7 +220,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
       sampler$setControl(control)
     }
   } else {
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
     treeFit.train <- (if (control@n.samples > 1L && control@keepTrees) sampler$predict(sampler$data@x)[,1L] else sampler$predict(sampler$data@x)) - ranef.vec
   }
   
@@ -233,7 +233,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     ranef.vec <- ranef.i[g]
       
     # update BART params
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, FALSE)
     samples <- sampler$run(0L, 1L)
     treeFit.train <- as.vector(samples$train) - ranef.vec
     if (control@binary) sampler$getLatents(y.st)
@@ -254,7 +254,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
   
-  sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL)
+  sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
   
   control@updateState <- oldUpdateState
   sampler$setControl(control)

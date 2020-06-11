@@ -62,7 +62,6 @@ namespace {
   void setCutPointsUniformly(BARTFit& fit, const double* x, uint32_t maxNumCuts,
                              uint32_t& numCutsPerVariable, double*& cutPoints);
   
-  void printInitialSummary(const BARTFit& fit);
   void printTerminalSummary(const BARTFit& fit);
   
   void initializeLatents(BARTFit& fit);
@@ -85,6 +84,7 @@ namespace {
 }
 
 namespace dbarts {
+  // typedef ::ext_rng rng;
   
   void BARTFit::rebuildScratchFromState()
   {
@@ -149,48 +149,61 @@ namespace dbarts {
     }
   }
   
-  void BARTFit::setOffset(const double* newOffset) {
-    if (!control.responseIsBinary) {
-      // adjusting sigma is no longer necessary, as setting the offset doesn't change the scale
-      
-      //double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
-      //for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      //  sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
-      
-      //double priorUnscaled = model.sigmaSqPrior->getScale() * sharedScratch.dataScale.range * sharedScratch.dataScale.range;
-      
-      
-      // rather than rescale response, subtract old offset and add new one
-      double* yRescaled = const_cast<double*>(sharedScratch.yRescaled);
-      
-      if (data.offset != NULL)
-        misc_addVectorsInPlace(data.offset, data.numObservations, 1.0 / sharedScratch.dataScale.range, yRescaled);
-      
+  void BARTFit::setOffset(const double* newOffset, bool updateScale) {
+    if (control.responseIsBinary) {
+      // no scale concerns with binary outcomes
       data.offset = newOffset;
-      
-      if (data.offset != NULL)
-        misc_addVectorsInPlace(data.offset, data.numObservations, -1.0 / sharedScratch.dataScale.range, yRescaled);
-      
-      // rescaleResponse(*this);
-      
-      // model.sigmaSqPrior->setScale(priorUnscaled / (sharedScratch.dataScale.range * sharedScratch.dataScale.range));
-      
-      // for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      //   state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
-      
-      // misc_stackFree(sigmaUnscaled);
-      
     } else {
-      data.offset = newOffset;
+      if (updateScale) {
+        double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
+        for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+          sigmaUnscaled[chainNum] = state[chainNum].sigma * sharedScratch.dataScale.range;
       
-      // turns out, this isn't necessary for a valid statistical model
-      // for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      //   sampleProbitLatentVariables(*this, state[chainNum], const_cast<const double*>(chainScratch[chainNum].totalFits), chainScratch[chainNum].probitLatents);
+        double priorUnscaled = model.sigmaSqPrior->getScale() * sharedScratch.dataScale.range * sharedScratch.dataScale.range;
+        
+        data.offset = newOffset;
+        
+        rescaleResponse(*this);
+        
+        model.sigmaSqPrior->setScale(priorUnscaled / (sharedScratch.dataScale.range * sharedScratch.dataScale.range));
+      
+        for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+          state[chainNum].sigma = sigmaUnscaled[chainNum] / sharedScratch.dataScale.range;
+        
+        misc_stackFree(sigmaUnscaled);
+      } else {
+        double* yRescaled = const_cast<double*>(sharedScratch.yRescaled);
+        
+        if (data.offset == newOffset && data.offset != NULL) {
+          // offset update is in-place, don't have access to old value so recreate
+          std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
+      
+          misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
+      
+          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
+          misc_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
+          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5);
+        } else {
+          // subtract old offset and add new one
+          if (data.offset != NULL)
+            misc_addVectorsInPlace(data.offset, data.numObservations, 1.0 / sharedScratch.dataScale.range, yRescaled);
+          
+          data.offset = newOffset;
+          
+          if (data.offset != NULL)
+            misc_addVectorsInPlace(data.offset, data.numObservations, -1.0 / sharedScratch.dataScale.range, yRescaled);
+        }
+      }
     }
   }
   
   void BARTFit::setWeights(const double* newWeights) {
     data.weights = newWeights;
+  }
+  
+  void BARTFit::setSigma(const double* newSigma) {
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+      state[chainNum].sigma = newSigma[chainNum] / sharedScratch.dataScale.range;
   }
   
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
@@ -1110,7 +1123,7 @@ namespace dbarts {
       setXTestIntegerCutMap(*this, data.x_test, data.numTestObservations, const_cast<xint_t*>(sharedScratch.xt_test));
     setInitialFit(*this);
 
-    if (this->control.verbose) printInitialSummary(*this);
+    if (this->control.verbose) printInitialSummary();
   }
   
   BARTFit::~BARTFit()
@@ -1181,7 +1194,7 @@ namespace dbarts {
     
     return resultsPointer;
   }
-
+  
   void BARTFit::sampleTreesFromPrior()
   {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -1294,7 +1307,8 @@ extern "C" {
       if (control.responseIsBinary)
         sampleProbitLatentVariables(fit, state, chainScratch.totalFits, y);
       
-      state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(fit, chainNum, y, chainScratch.totalFits));
+      if (!model.sigmaSqPrior->isFixed())
+        state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(fit, chainNum, y, chainScratch.totalFits));
       if (model.kPrior != NULL) {
         state.k = model.kPrior->drawFromPosterior(fit, chainNum);
         model.muPrior->setK(fit, state.k);
@@ -1395,19 +1409,8 @@ namespace dbarts {
     
     if (control.verbose) printTerminalSummary(*this);
   }
-} // namespace dbarts
-
-
-namespace {
-  using namespace dbarts;
   
-  void printInitialSummary(const BARTFit& fit) {
-    const Control& control(fit.control);
-    const Data& data(fit.data);
-    const Model& model(fit.model);
-    
-    const SharedScratch& sharedScratch(fit.sharedScratch);
-    
+  void BARTFit::printInitialSummary() const {
     if (control.responseIsBinary)
       ext_printf("\nRunning BART with binary y\n\n");
     else
@@ -1415,13 +1418,14 @@ namespace {
     
     ext_printf("number of trees: %lu\n", control.numTrees);
     ext_printf("number of chains: %lu, number of threads %lu\n", control.numChains, control.numThreads);
+    ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
     
     ext_printf("Prior:\n");
     // dirty hack... should have priors print themselves
-    ext_printf("\tk: %f\n", model.muPrior->getK(fit));
-    if (model.kPrior != NULL) model.kPrior->print(fit);
+    ext_printf("\tk: %f\n", model.muPrior->getK(*this));
+    if (model.kPrior != NULL) model.kPrior->print(*this);
     if (!control.responseIsBinary)
-      model.sigmaSqPrior->print(fit);
+      model.sigmaSqPrior->print(*this);
     
     CGMPrior* treePrior = static_cast<CGMPrior*>(model.treePrior);
     ext_printf("\tpower and base for tree prior: %f %f\n", treePrior->power, treePrior->base);
@@ -1430,7 +1434,7 @@ namespace {
     ext_printf("\tnumber of training observations: %u\n", data.numObservations);
     ext_printf("\tnumber of test observations: %u\n", data.numTestObservations);
     ext_printf("\tnumber of explanatory variables: %u\n", data.numPredictors);
-    if (!control.responseIsBinary) ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate, fit.state[0].sigma * sharedScratch.dataScale.range);
+    if (!control.responseIsBinary) ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate, state[0].sigma * sharedScratch.dataScale.range);
     if (data.weights != NULL) ext_printf("\tusing observation weights\n");
     ext_printf("\n");
     
@@ -1438,7 +1442,7 @@ namespace {
     ext_printf("Cutoff rules c in x<=c vs x>c\n");
     ext_printf("Number of cutoffs: (var: number of possible c):\n");
     for (size_t j = 0; j < data.numPredictors; ++j) {
-      ext_printf("(%u: %u) ", j + 1, fit.numCutsPerVariable[j]);
+      ext_printf("(%u: %u) ", j + 1, numCutsPerVariable[j]);
       if ((j + 1) % 5 == 0) ext_printf("\n");
     }
     ext_printf("\n");
@@ -1448,20 +1452,20 @@ namespace {
         ext_printf("x(%u) cutoffs: ", j + 1);
         
         size_t k;
-        for (k = 0; k < fit.numCutsPerVariable[j] - 1 && k < control.printCutoffs - 1; ++k) {
-          ext_printf("%f", fit.cutPoints[j][k]);
+        for (k = 0; k < numCutsPerVariable[j] - 1 && k < control.printCutoffs - 1; ++k) {
+          ext_printf("%f", cutPoints[j][k]);
           if ((k + 1) % 5 == 0) ext_printf("\n\t");
         }
-        if (k > 2 && k == control.printCutoffs && k < fit.numCutsPerVariable[j] - 1)
+        if (k > 2 && k == control.printCutoffs && k < numCutsPerVariable[j] - 1)
           ext_printf("...");
         
-        ext_printf("%f", fit.cutPoints[j][fit.numCutsPerVariable[j] - 1]);
+        ext_printf("%f", cutPoints[j][numCutsPerVariable[j] - 1]);
         ext_printf("\n");
       }
     }
     
     if (data.offset != NULL || (data.numTestObservations > 0 && data.testOffset != NULL)) {
-      ext_printf("\noffsets:\n");
+      ext_printf("offsets:\n");
       
       if (data.offset != NULL) {
         ext_printf("\treg : %.2f", data.offset[0]);
@@ -1475,6 +1479,10 @@ namespace {
       }
     }
   }
+} // namespace dbarts
+
+namespace {
+  using namespace dbarts;
   
   void printTerminalSummary(const BARTFit& fit) {
     ext_printf("total seconds in loop: %f\n", fit.runningTime);
@@ -1949,11 +1957,11 @@ namespace {
     
     double* yRescaled = const_cast<double*>(fit.sharedScratch.yRescaled);
     
-    //if (data.offset != NULL) {
-    //  misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
-    //} else {
+    if (data.offset != NULL) {
+      misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
+    } else {
       std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
-    //}
+    }
     
     sharedScratch.dataScale.min = yRescaled[0];
     sharedScratch.dataScale.max = yRescaled[0];
@@ -1963,9 +1971,6 @@ namespace {
     }
     sharedScratch.dataScale.range = sharedScratch.dataScale.max - sharedScratch.dataScale.min;
     if (sharedScratch.dataScale.max == sharedScratch.dataScale.min) sharedScratch.dataScale.range = 1.0;
-    
-    if (data.offset != NULL)
-      misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
     
     // yRescaled = (y - offset - min) / (max - min) - 0.5
     misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);

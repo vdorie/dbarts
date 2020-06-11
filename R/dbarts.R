@@ -330,7 +330,7 @@ dbartsSampler <-
 
                   invisible(NULL)
                 },
-                setOffset = function(offset, updateState = NA) {
+                setOffset = function(offset, updateScale = FALSE, updateState = NA) {
                   'Changes the offset slot used to adjust the response.'
                   ptr <- getPointer()
                   selfEnv <- parent.env(environment())
@@ -364,7 +364,7 @@ dbartsSampler <-
                   }
 
                   selfEnv$data@offset <- offset
-                  .Call(C_dbarts_setOffset, ptr, data@offset)
+                  .Call(C_dbarts_setOffset, ptr, data@offset, updateScale)
                   if (!identical(offset.test, NA)) {
                     selfEnv$data@offset.test <- offset.test
                     .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
@@ -383,6 +383,16 @@ dbartsSampler <-
                   selfEnv$data@weights <- as.double(weights)
                   .Call(C_dbarts_setWeights, ptr, data@weights)
 
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
+                },
+                setSigma = function(sigma, updateState = NA) {
+                  'Changes the residual standard deviation parameter for each chain.'
+                  ptr <- getPointer()
+                   
+                  .Call(C_dbarts_setSigma, ptr, sigma)
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)
 

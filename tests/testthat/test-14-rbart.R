@@ -217,7 +217,7 @@ test_that("rbart passes regression test", {
                        n.trees = 25L, n.threads = 1L)
   
   expect_equal(as.numeric(rbartFit$ranef),
-               c(-0.154686628520804, -0.527681058828744, -1.53211529167885, -1.09649147474781, 0.814510377447672))
+               c(1.92008577165928, 0.750130559201404, -0.837624979286864, 0.461299843412371, 3.2085237309599))
 })
 
 test_that("rbart compares favorably to lmer for nonlinear models", {

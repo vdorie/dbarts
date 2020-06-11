@@ -41,6 +41,41 @@ MATCH_CLEANUP:
   return errorCode;
 }
 
+int misc_str_matchAllInArray(const char* const* sa, size_t numA, const char* const* sb, size_t numB, size_t* matchPos)
+{
+  misc_art_tree tree;
+  misc_art_initialize(&tree);
+  
+  int errorCode = 0;
+  void* searchResult;
+  uintptr_t pos = ((uintptr_t) NULL) + 1;
+  
+  for (size_t i = 0; i < numB; ++i) {
+    errno = 0;
+    if (misc_art_insert(&tree, (const uint8_t*) sb[i], strlen(sb[i]) + 1, (void*) pos++) == NULL &&
+        errno != 0)
+    {
+      errorCode = errno;
+      goto MATCH_ALL_CLEANUP;
+    }
+  }
+  
+  for (size_t i = 0; i < numA; ++i) {
+    errno = 0;
+    searchResult = misc_art_search(&tree, (const uint8_t*) sa[i], strlen(sa[i]) + 1);
+    if (searchResult == NULL && errno != 0) {
+      errorCode = errno;
+      goto MATCH_ALL_CLEANUP;
+    }
+  
+    matchPos[i] = (searchResult != NULL) ? (uintptr_t) searchResult - ((uintptr_t) NULL) - 1 : MISC_STR_NO_MATCH;
+  }
+  
+MATCH_ALL_CLEANUP:
+  misc_art_invalidate(&tree);
+  return errorCode;
+}
+
 int misc_str_matchInVArray(const char* s, misc_size_t* matchPos, ...)
 {
   misc_art_tree tree;

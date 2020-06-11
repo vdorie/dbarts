@@ -33,7 +33,8 @@
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
 \S4method{setResponse}{dbartsSampler}(y, updateState = NA)
-\S4method{setOffset}{dbartsSampler}(offset, updateState = NA)
+\S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
+\S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, updateState = NA)
 \S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NA)
 \S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
@@ -61,8 +62,11 @@
   \item{x.test}{A new matrix of test predictors, of the number of columns equal to that in the current model.}
   \item{offset}{A numeric vector of length equal to that with which the sampler was created, or \code{NULL}.
   	If \code{offset.test} was set from \code{offset}, will attempt to update that as well.}
+  \item{updateScale}{Logical indicating whether BART's internal scale should update with the new offset. Should
+    only be \code{TRUE} during burn-in.}
   \item{offset.test}{A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing
   	for \code{setTestPredictors}.}
+  \item{sigma}{Numeric vector of residual standard deviations, one for each chain.}
   \item{column}{An integer or character string vector specifying which column/columns of the predictor matrix is
   	to be replaced. If missing, the entire matrix is substitude.}
   \item{treeNums}{An integer vector listing the indices of the trees to print.}

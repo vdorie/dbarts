@@ -5,7 +5,9 @@
 #include <dbarts/cstdint.hpp>
 
 #include <misc/alloca.h>
+
 #include <external/io.h>
+#include <external/random.h>
 #include <external/stats.h>
 
 #include <dbarts/bartFit.hpp>
@@ -18,8 +20,6 @@
 using std::uint32_t;
 using std::uint64_t;
 using std::int32_t;
-
-
 
 namespace {
   using namespace dbarts;
