@@ -26,6 +26,9 @@
    }
 }
 \details{
+  Character vectors are included as factors. If you have numeric data coded as characters,
+  convert it using \code{as.numeric} first.
+  
   Note that if you have train and test data frames, it may be best
   to \code{\link{rbind}} the two together, apply \code{makeModelMatrixFromDataFrame}
   to the result, and then pull them back apart. Alternatively, save the drop

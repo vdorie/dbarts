@@ -13,6 +13,7 @@
 \alias{\S4method{setData}{dbartsSampler}}
 \alias{\S4method{setResponse}{dbartsSampler}}
 \alias{\S4method{setOffset}{dbartsSampler}}
+\alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
 \alias{\S4method{setTestPredictor}{dbartsSampler}}
 \alias{\S4method{setTestPredictorAndOffset}{dbartsSampler}}

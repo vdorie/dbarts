@@ -23,6 +23,8 @@
       \item Eliminated garbage read on construction of crossvalidation sampler,
             removing inconsistencies across multiple runs with the same starting
             seed.
+      \item \code{makeModelMatrixFromDataFrame} now converts character vectors
+            to factors instead of dropping them. Report thanks to Colin Carlson.
     }
   }
 }

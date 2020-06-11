@@ -49,7 +49,7 @@ SEXP dbarts_makeModelMatrixFromDataFrame(SEXP x, SEXP dropColumnsExpr)
   SEXP dropPatternExpr = R_NilValue;
   int protectCount = 0;
   
-  size_t numInputColumns = (size_t) rc_getLength(x);
+  size_t numInputColumns = rc_getLength(x);
   size_t numOutputColumns = 0;
   
   column_type columnTypes[numInputColumns];
@@ -105,7 +105,7 @@ mkmm_cleanup:
 
 static void getColumnTypes(SEXP x, column_type* columnTypes)
 {
-  size_t numColumns = (size_t) rc_getLength(x);
+  size_t numColumns = rc_getLength(x);
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
     switch (TYPEOF(col)) {
@@ -142,22 +142,22 @@ static void getColumnTypes(SEXP x, column_type* columnTypes)
 static void tableFactor(SEXP x, int* instanceCounts)
 {
   SEXP levelsExpr = rc_getLevels(x);
-  size_t numLevels = (size_t) rc_getLength(levelsExpr);
+  size_t numLevels = rc_getLength(levelsExpr);
     
   for (size_t i = 0; i < numLevels; ++i) instanceCounts[i] = 0;
     
   int* columnData = INTEGER(x);
-  size_t columnLength = (size_t) rc_getLength(x);
+  size_t columnLength = rc_getLength(x);
   for (size_t i = 0; i < columnLength; ++i) ++instanceCounts[columnData[i] - 1];
 }
 
 static bool numericVectorIsConstant(SEXP x, column_type t) {
   switch (t) {
     case REAL_VECTOR:
-    return misc_vectorIsConstant(REAL(x), (size_t) rc_getLength(x));
+    return misc_vectorIsConstant(REAL(x), rc_getLength(x));
     case INTEGER_VECTOR:
     case LOGICAL_VECTOR:
-    return integerVectorIsConstant(INTEGER(x), (size_t) rc_getLength(x));
+    return integerVectorIsConstant(INTEGER(x), rc_getLength(x));
     default:
     break;
   }
@@ -176,7 +176,7 @@ static bool integerVectorIsConstant(const int* i, size_t n) {
 
 void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPatternExpr, bool createDropPattern, size_t* result)
 {
-  size_t numColumns = (size_t) rc_getLength(x);
+  size_t numColumns = rc_getLength(x);
   bool dropColumn;
   for (size_t i = 0; i < numColumns; ++i) {
     SEXP col = VECTOR_ELT(x, i);
@@ -259,7 +259,7 @@ void countMatrixColumns(SEXP x, const column_type* columnTypes, SEXP dropPattern
       case FACTOR:
       {
         SEXP levelsExpr = rc_getLevels(col);
-        size_t numLevels = (size_t) rc_getLength(levelsExpr);
+        size_t numLevels = rc_getLength(levelsExpr);
         
         if (dropPatternExpr != R_NilValue) {
           int* factorInstanceCounts;
@@ -300,7 +300,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
   double* result = REAL(resultExpr);
   SEXP resultNames = VECTOR_ELT(rc_getDimNames(resultExpr), 1);
   
-  size_t numColumns = (size_t) rc_getLength(x);
+  size_t numColumns = rc_getLength(x);
   size_t resultCol = 0;
   
   for (size_t i = 0; i < numColumns; ++i) {
@@ -388,7 +388,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       case FACTOR:
       {
         SEXP levels = rc_getLevels(col);
-        size_t levelsLength = (size_t) rc_getLength(levels);
+        size_t levelsLength = rc_getLength(levels);
         int* colData = INTEGER(col);
         size_t numLevelsPerFactor;
         
@@ -396,12 +396,12 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           numLevelsPerFactor = levelsLength;
           if (numLevelsPerFactor <= 2) {
             int levelToKeep = numLevelsPerFactor == 2 ? 2 : 1;
-            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == levelToKeep ? 1 : 0);
+            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == levelToKeep ? 1.0 : 0.0);
             if (setFactorColumnName(names, i, levels, levelToKeep - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else {
             for (int j = 0; j < (int) levelsLength; ++j) {
-              for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1 : 0);
+              for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1.0 : 0.0);
               if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
               ++resultCol;
             }
@@ -417,13 +417,13 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
             for (lastIndex = levelsLength - 1; factorInstanceCounts[lastIndex] == 0 && lastIndex >= 0; --lastIndex) { /* */ }
             // R has factors coded with 1 based indexing
             ++lastIndex;
-            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == lastIndex ? 1 : 0);
+            for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == lastIndex ? 1.0 : 0.0);
             if (setFactorColumnName(names, i, levels, lastIndex - 1, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
             ++resultCol;
           } else if (numLevelsPerFactor > 2) {
             for (int j = 0; j < (int) levelsLength; ++j) {
               if (factorInstanceCounts[j] > 0) {
-                for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1 : 0);
+                for (size_t k = 0; k < numRows; ++k) result[k + numRows * resultCol] = (colData[k] == (j + 1) ? 1.0 : 0.0);
                 if (setFactorColumnName(names, i, levels, j, resultNames, resultCol) != 0) { UNPROTECT(protectCount); return ENOMEM; }
                 ++resultCol;
               }
@@ -463,7 +463,7 @@ static size_t getNumRowsForDataFrame(SEXP x)
 {
   SEXP x_0 = VECTOR_ELT(x, 0);
   SEXP dims = rc_getDims(x_0);
-  if (dims == R_NilValue) return (size_t) rc_getLength(x_0);
+  if (dims == R_NilValue) return rc_getLength(x_0);
   
   return (size_t) INTEGER(dims)[0];
 }
