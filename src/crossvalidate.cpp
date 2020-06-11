@@ -344,15 +344,13 @@ extern "C" {
     repControl.numThreads = 1;
     repControl.verbose = false;
     bool verbose = origControl.verbose;
-    
-    BARTFit* fit = new BARTFit(repControl, origModel, origData);
-    
+
     Data repData;
     Model repModel;
-    
-    allocateDataStorage(fit->data, repData, maxNumTrainingObservations, maxNumTestObservations);
-    allocateModelStorage(fit->model, repModel);
-    
+    allocateDataStorage(origData, repData, maxNumTrainingObservations, maxNumTestObservations);
+    allocateModelStorage(origModel, repModel);
+    BARTFit* fit = new BARTFit(repControl, repModel, repData);
+
     CrossvalidationData xvalData = { *fit, origData, repData, 0 };
     
     void (*crossvalidate)(CrossvalidationData& data,
@@ -373,12 +371,12 @@ extern "C" {
       threadScratch->numRepBurnIn = sharedData.numRepBurnIn;
       
       v_threadScratch = threadScratch;
-      
+
       crossvalidate = &kFoldCrossvalidate;
     } else {
       RandomSubsampleThreadScratch* threadScratch = new RandomSubsampleThreadScratch;
       v_threadScratch = threadScratch;
-      
+
       crossvalidate = &randomSubsampleCrossvalidate;
     }
     v_threadScratch->maxNumTrainingObservations = maxNumTrainingObservations;
@@ -507,7 +505,11 @@ namespace {
     randomSubsampleDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test,
                               threadScratch.generator, threadScratch.permutation);
     xvalData.fit.setData(xvalData.repData);
-    
+
+    // Thread race condition bug: BARTFit::run_sampler should use this thread's
+    // RNG but instead uses its own.  One should pass threadScratch.generator
+    // either to this function or more preferably when the BARTFit object is
+    // created in crossvalidationTask.
     xvalData.fit.runSampler(xvalData.numBurnIn, samples);
     
     if (lossRequiresMutex) {
