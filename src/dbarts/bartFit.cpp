@@ -849,12 +849,13 @@ namespace dbarts {
     rng_algorithm_t old_rng_algorithm = control.rng_algorithm;
     rng_standardNormal_t old_rng_standardNormal = control.rng_standardNormal;
     
+    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal)
+      destroyRNG(*this);
+    
     control = newControl;
     
-    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal) {
-      destroyRNG(*this);
+    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal)
       createRNG(*this);
-    }
     
     if (stateResized) {
       rebuildScratchFromState();
@@ -1774,12 +1775,18 @@ namespace {
     Control& control(fit.control);
     State* state(fit.state);
     
+    size_t chainNum;
+    
+    if (control.rng_algorithm == RNG_ALGORITHM_USER_POINTER) {
+      for (chainNum = 0; chainNum < control.numChains; ++chainNum) state[chainNum].rng = NULL;
+      return;
+    }
+    
     // if only one chain or one thread, can use environment's rng since randomization calls will all be
     // serial
     bool useNativeRNG = control.numChains == 1 || control.numThreads == 1;
     
     size_t numSeedResets;
-    size_t chainNum;
     const char* errorMessage = NULL;
     
     ext_rng_algorithm_t rng_algorithm = static_cast<ext_rng_algorithm_t>(control.rng_algorithm);
@@ -1880,6 +1887,8 @@ namespace dbarts {
 namespace {
   
   void destroyRNG(BARTFit& fit) {
+    if (fit.control.rng_algorithm == RNG_ALGORITHM_USER_POINTER) return;
+    
     for (size_t chainNum = fit.control.numChains; chainNum > 0; --chainNum) {
       ext_rng_destroy(fit.state[chainNum - 1].rng);
       fit.state[chainNum - 1].rng = NULL;

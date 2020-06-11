@@ -60,7 +60,7 @@ test_that("k-fold runs correctly with valid inputs", {
     base    = as.character(base)))
 })
 
-test_that("k-fold and random subsample are roughly similar", {
+test_that("k-fold and random subsample are reproducible, roughly similar", {
   x <- testData$x
   y <- testData$y
   
@@ -77,7 +77,12 @@ test_that("k-fold and random subsample are roughly similar", {
                    k = k, 
                    n.threads = 1L)
   
-  expect_true(all(abs(apply(xval.rs, 2, mean) - apply(xval.kf, 2, mean)) < .1))
+  res.rs <- apply(xval.rs, 2, mean)
+  res.kf <- apply(xval.kf, 2, mean)
+  expect_equal(unname(res.rs), c(2.35628486498732, 4.58852422816524))
+  expect_equal(unname(res.kf), c(2.33639430836633, 4.59835972227845))
+  
+  expect_true(all(abs(res.rs - res.kf) < .1))
 })
 
 test_that("works with non-standard models", {

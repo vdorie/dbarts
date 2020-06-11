@@ -40,7 +40,7 @@ test_that("rbart finds group.by", {
   
   g <- df$g
   df$g <- NULL
-  expect_is(rbart_vi(y ~ . - g, df, group.by = g,
+  expect_is(rbart_vi(y ~ . , df, group.by = g,
                      n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
                      n.trees = 25L, n.threads = 1L),
             "rbart")

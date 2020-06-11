@@ -11,7 +11,8 @@ namespace dbarts {
     RNG_ALGORITHM_USER_UNIFORM,
     RNG_ALGORITHM_KNUTH_TAOCP2,
     RNG_ALGORITHM_LECUYER_CMRG,
-    RNG_ALGORITHM_INVALID // must be last
+    RNG_ALGORITHM_INVALID,       // here and up must match ext/random.h
+    RNG_ALGORITHM_USER_POINTER   // implies user will set rng after object is created
   } rng_algorithm_t;
   
   typedef enum {
