@@ -18,6 +18,11 @@
   \subsection{BUG-FIXES}{
     \itemize{
       \item Extraneous print line from debugging 0.9-17.
+      \item Eliminated two race conditions from multithreaded crossvalidation.
+            Report thanks to Ignacio Martinez.
+      \item Eliminated garbage read on construction of crossvalidation sampler,
+            removing inconsistencies across multiple runs with the same starting
+            seed.
     }
   }
 }
