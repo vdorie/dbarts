@@ -79,8 +79,8 @@ test_that("k-fold and random subsample are reproducible, roughly similar", {
   
   res.rs <- apply(xval.rs, 2, mean)
   res.kf <- apply(xval.kf, 2, mean)
-  expect_equal(unname(res.rs), c(2.35628486498732, 4.58852422816524))
-  expect_equal(unname(res.kf), c(2.33639430836633, 4.59835972227845))
+  expect_equal(unname(res.rs), c(2.35131034003841, 4.57299444101639))
+  expect_equal(unname(res.kf), c(2.30094811299725, 4.54475202324197))
   
   expect_true(all(abs(res.rs - res.kf) < .1))
 })

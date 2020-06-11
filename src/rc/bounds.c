@@ -39,7 +39,7 @@ int rc_getInt0(SEXP x, const char* name)
 {
   if (!Rf_isInteger(x)) Rf_error("%s must be of type integer", name);
   
-  if (XLENGTH(x) == 0) Rf_error("%s cannot be of length 0", name);
+  if (rc_getLength(x) == 0) Rf_error("%s cannot be of length 0", name);
   
   return INTEGER(x)[0];
 }
@@ -268,7 +268,7 @@ double rc_getDoubleAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   double result;
-  if (i > XLENGTH(v))
+  if (i > rc_getLength(v))
     result = vgetDouble(R_NilValue, name, argsPointer);
   else
     result = vgetDouble(VECTOR_ELT(v, i), name, argsPointer);
@@ -484,7 +484,7 @@ bool rc_getBoolAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   bool result;
-  if (i > XLENGTH(v))
+  if (i > rc_getLength(v))
     result = vgetBool(R_NilValue, name, argsPointer);
   else
     result = vgetBool(VECTOR_ELT(v, i), name, argsPointer);
