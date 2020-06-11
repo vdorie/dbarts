@@ -52,7 +52,7 @@ int rc_getIntAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   int result;
-  if (i > XLENGTH(v))
+  if (i > rc_getLength(v))
     result = vgetInt(R_NilValue, name, argsPointer);
   else
     result = vgetInt(VECTOR_ELT(v, i), name, argsPointer);
