@@ -1,24 +1,149 @@
-/* src/bart/config.hpp.in.  Generated from configure.ac by autoheader.  */
+/* src/config.hpp.in.  Generated from configure.ac by autoheader.  */
+
+/* Define if building universal (internal helper macro) */
+#undef AC_APPLE_UNIVERSAL_BUILD
+
+/* The normal alignment of `void*', in bytes. */
+#undef ALIGNOF_VOIDP
+
+/* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
+   systems. This function is required for `alloca.c' support on those systems.
+   */
+#undef CRAY_STACKSEG_END
+
+/* Define to 1 if using `alloca.c'. */
+#undef C_ALLOCA
+
+/* Define to 1 to support Advanced Encryption Standard New Instruction Set
+   (AES-NI) */
+#undef HAVE_AES
+
+/* Define to 1 if you have `alloca', as a function or macro. */
+#undef HAVE_ALLOCA
+
+/* Define to 1 if you have <alloca.h> and it should be used (not on Ultrix).
+   */
+#undef HAVE_ALLOCA_H
+
+/* Support Altivec instructions */
+#undef HAVE_ALTIVEC
+
+/* Define to 1 to support Advanced Vector Extensions */
+#undef HAVE_AVX
+
+/* Define to 1 to support Advanced Vector Extensions 2 */
+#undef HAVE_AVX2
+
+/* Define to 1 to support AVX-512 Foundation Extensions */
+#undef HAVE_AVX512_F
+
+/* Define to 1 to support Bit Manipulation Instruction Set 1 */
+#undef HAVE_BMI1
+
+/* Define to 1 to support Bit Manipulation Instruction Set 2 */
+#undef HAVE_BMI2
+
+/* Define to 1 if you have the `clock_gettime' function. */
+#undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <cstdint> header file. */
 #undef HAVE_CSTDINT
 
-/* define if snprintf is in std:: */
-#undef HAVE_SNPRINTF_IN_NAMESPACE_STD
+/* Define to 1 if you have the `ffs' function. */
+#undef HAVE_FFS
 
-/* define if have log1p */
+/* Define to 1 if you have the `gettimeofday' function. */
+#undef HAVE_GETTIMEOFDAY
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the `log1p' function. */
 #undef HAVE_LOG1P
 
-/* define if log1p is in std:: */
+/* [define if log1p is in std::] */
 #undef HAVE_LOG1P_IN_NAMESPACE_STD
+
+/* Define to 1 if you have the <malloc.h> header file. */
+#undef HAVE_MALLOC_H
+
+/* Define to 1 if you have the <memory.h> header file. */
+#undef HAVE_MEMORY_H
+
+/* Define to 1 to support Multimedia Extensions */
+#undef HAVE_MMX
+
+/* Define if g++ supports namespace std. */
+#undef HAVE_NAMESPACE_STD
+
+/* Define to 1 if `posix_memalign' works. */
+#undef HAVE_POSIX_MEMALIGN
+
+/* Define to 1 to support Prefetch Vector Data Into Caches WT1 */
+#undef HAVE_PREFETCHWT1
+
+/* Define if you have POSIX threads libraries and header files. */
+#undef HAVE_PTHREAD
+
+/* Have PTHREAD_PRIO_INHERIT. */
+#undef HAVE_PTHREAD_PRIO_INHERIT
+
+/* Define to 1 to support Digital Random Number Generator */
+#undef HAVE_RDRND
+
+/* Define to 1 if you have the `snprintf' function. */
+#undef HAVE_SNPRINTF
+
+/* [define if snprintf is in std::] */
+#undef HAVE_SNPRINTF_IN_NAMESPACE_STD
+
+/* Define to 1 to support Streaming SIMD Extensions */
+#undef HAVE_SSE
+
+/* Define to 1 to support Streaming SIMD Extensions */
+#undef HAVE_SSE2
+
+/* Define to 1 to support Streaming SIMD Extensions 3 */
+#undef HAVE_SSE3
+
+/* Define to 1 to support Streaming SIMD Extensions 4.1 */
+#undef HAVE_SSE4_1
+
+/* Define to 1 to support Streaming SIMD Extensions 4.2 */
+#undef HAVE_SSE4_2
+
+/* Define to 1 to support AMD Streaming SIMD Extensions 4a */
+#undef HAVE_SSE4a
+
+/* Define to 1 to support Supplemental Streaming SIMD Extensions 3 */
+#undef HAVE_SSSE3
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
 
-/* Define to 1 if you have the alloca header file. */
-#undef HAVE_ALLOCA_H
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
 
-#undef restrict
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Support VSX instructions */
+#undef HAVE_VSX
 
 /* Define to the address where bug reports for this package should be sent. */
 #undef PACKAGE_BUGREPORT
@@ -32,20 +157,70 @@
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
 
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define to necessary symbol if this constant uses a non-standard name on
+   your system. */
+#undef PTHREAD_CREATE_JOINABLE
+
+/* The size of `size_t', as computed by sizeof. */
+#undef SIZEOF_SIZE_T
+
+/* If using the C implementation of alloca, define if you know the
+   direction of stack growth for your system; otherwise it will be
+   automatically deduced at runtime.
+	STACK_DIRECTION > 0 => grows toward higher addresses
+	STACK_DIRECTION < 0 => grows toward lower addresses
+	STACK_DIRECTION = 0 => direction of growth unknown */
+#undef STACK_DIRECTION
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS
 
+/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
+   significant byte first (like Motorola and SPARC, unlike Intel). */
+#if defined AC_APPLE_UNIVERSAL_BUILD
+# if defined __BIG_ENDIAN__
+#  define WORDS_BIGENDIAN 1
+# endif
+#else
+# ifndef WORDS_BIGENDIAN
+#  undef WORDS_BIGENDIAN
+# endif
+#endif
+
+/* Define to the integer type used to represent feature map. */
+#undef XINT_TYPE
+
 /* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
-   <pthread.h>, or <semaphore.h> is not used. If the typedef was allowed, the
+   <pthread.h>, or <semaphore.h> is not used. If the typedef were allowed, the
    #define below would cause a syntax error. */
 #undef _UINT64_T
 
 /* Define to the type of a signed integer type of width exactly 64 bits if
    such a type exists and the standard includes do not define it. */
 #undef int64_t
+
+/* Define to the equivalent of the C99 'restrict' keyword, or to
+   nothing if this is not supported.  Do not define if restrict is
+   supported directly.  */
+#undef restrict
+/* Work around a bug in Sun C++: it does not support _Restrict or
+   __restrict__, even though the corresponding Sun C compiler ends up with
+   "#define restrict _Restrict" or "#define restrict __restrict__" in the
+   previous line.  Perhaps some future version of Sun C++ will work with
+   restrict; if so, hopefully it defines __RESTRICT like Sun C does.  */
+#if defined __SUNPRO_CC && !defined __RESTRICT
+# define _Restrict
+# define __restrict__
+#endif
+
+/* Define to `unsigned int' if <sys/types.h> does not define. */
+#undef size_t
 
 /* Define to the type of an unsigned integer type of width exactly 64 bits if
    such a type exists and the standard includes do not define it. */

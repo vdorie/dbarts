@@ -1,6 +1,14 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+section{CHANGES IN VERSION 0.9-19}{
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item Parallelization for \code{rbart} now creates the correct
+            number of chains.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-18}{
   \subsection{NEW FEATURES}{
     \itemize{

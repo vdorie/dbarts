@@ -53,6 +53,18 @@ test_that("rbart finds group.by", {
             "rbart")
 })
 
+test_that("works with multiple threads", {
+  x <- testData$x
+  y <- testData$y
+  g <- factor(testData$g)
+  
+  set.seed(0)
+  expect_is(rbart_vi(y ~ x, group.by = g,
+                     n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                     n.trees = 25L, n.threads = 2L),
+            "rbart")
+})
+
 test_that("extract works at baseline", {
   x <- testData$x
   y <- testData$y

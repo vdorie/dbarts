@@ -30,7 +30,7 @@ importFrom(stats, model.frame, model.offset, model.response, model.weights, is.e
 importFrom(stats, lm, pnorm, quantile)
 importFrom(stats, as.formula, setNames)
 
-importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterCall, stopCluster)
+importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster)
 importFrom(stats, sd, rnorm, rexp, runif, rbinom, optim, optimHess, dnorm)
 
 importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)

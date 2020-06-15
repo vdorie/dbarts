@@ -117,15 +117,15 @@ rbart_vi <- function(
   chainResults <- vector("list", n.chains)
   if (n.threads == 1L || n.chains == 1L) {
     for (chainNum in seq_len(n.chains))
-      chainResults[[chainNum]] <- rbart_vi_fit(samplerArgs, group.by, prior)
+      chainResults[[chainNum]] <- rbart_vi_fit(1L, samplerArgs, group.by, prior)
   } else {
-    cluster <- makeCluster(n.threads)
+    cluster <- makeCluster(min(n.threads, n.chains))
     
     clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
     clusterEvalQ(cluster, require(dbarts))
     
     tryResult <- tryCatch(
-      chainResults <- clusterCall(cluster, "rbart_vi_fit", samplerArgs, group.by, prior))
+      chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), MoreArgs = namedList(samplerArgs, group.by, prior)))
     
     stopCluster(cluster)
   }
@@ -133,8 +133,9 @@ rbart_vi <- function(
   packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains)
 }
 
-rbart_vi_fit <- function(samplerArgs, group.by, prior) 
+rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior) 
 {
+  chain.num <- "ignored"
   sampler <- do.call(dbarts::dbarts, samplerArgs)
   sampler$control@call <- samplerArgs$control@call
   
