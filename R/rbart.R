@@ -115,21 +115,30 @@ rbart_vi <- function(
   if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
 
   chainResults <- vector("list", n.chains)
-  if (n.threads == 1L || n.chains == 1L) {
+  runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
+  if (!runSingleThreaded) {
+    tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "PSOCK"), error = function(e) e)
+    if (is(tryResult, "error"))
+      tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "FORK"), error = function(e) e)
+    
+    if (is(tryResult, "error")) {
+      warning("unable to multithread, defaulting to single: ", tryResult$message)
+      runSingleThreaded <- TRUE
+    } else {
+      clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
+      clusterEvalQ(cluster, require(dbarts))
+      
+      tryResult <- tryCatch(
+        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), MoreArgs = namedList(samplerArgs, group.by, prior)))
+    
+      stopCluster(cluster)
+    }
+  }
+
+  if (runSingleThreaded) {
     for (chainNum in seq_len(n.chains))
       chainResults[[chainNum]] <- rbart_vi_fit(1L, samplerArgs, group.by, prior)
-  } else {
-    cluster <- makeCluster(min(n.threads, n.chains))
-    
-    clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
-    clusterEvalQ(cluster, require(dbarts))
-    
-    tryResult <- tryCatch(
-      chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), MoreArgs = namedList(samplerArgs, group.by, prior)))
-    
-    stopCluster(cluster)
   }
-  
   packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains)
 }
 
