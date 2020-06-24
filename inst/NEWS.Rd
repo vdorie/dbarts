@@ -2,6 +2,11 @@
 \title{dbarts News}
 \encoding{UTF-8}
 section{CHANGES IN VERSION 0.9-19}{
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{varcount} for \code{bart} fits now has dimnames set.
+    }
+  }
   \subsection{BUG FIXES}{
     \itemize{
       \item Parallelization for \code{rbart} now creates the correct
