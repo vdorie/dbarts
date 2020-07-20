@@ -1,7 +1,7 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
-section{CHANGES IN VERSION 0.9-19}{
+\section{CHANGES IN VERSION 0.9-19}{
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{varcount} for \code{bart} fits now has dimnames set.
