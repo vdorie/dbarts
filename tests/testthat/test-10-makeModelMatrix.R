@@ -163,7 +163,7 @@ rm(getTestDataFrame)
 test_that("make model matrix handles character vectors correctly", {
   n <- 1000L
   if (getRversion() >= "3.6.0")
-    set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+    suppressWarnings(set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rounding"))
   else
     set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion")
   mf <- data.frame(x1 = runif(n),
