@@ -162,7 +162,10 @@ rm(getTestDataFrame)
 
 test_that("make model matrix handles character vectors correctly", {
   n <- 1000L
-  set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+  if (getRversion() >= "3.6.0")
+    set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rejection")
+  else
+    set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion")
   mf <- data.frame(x1 = runif(n),
                    x2 = c(rep.int(0L, n - 1L), 1L),
                    x3 = factor(sample(letters[1:5], n, TRUE)),
