@@ -95,6 +95,10 @@ extern "C" {
     fit->sampleTreesFromPrior();
   }
   
+  void dbarts_sampleNodeParametersFromPrior(BARTFit* fit) {
+    fit->sampleNodeParametersFromPrior();
+  }
+  
   void dbarts_setResponse(BARTFit* fit, const double* newResponse) {
     fit->setResponse(newResponse);
   }

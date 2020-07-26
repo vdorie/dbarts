@@ -96,6 +96,7 @@ namespace dbarts {
     void storeLatents(double* target) const;
     
     void sampleTreesFromPrior();
+    void sampleNodeParametersFromPrior();
     
     void rebuildScratchFromState();
     

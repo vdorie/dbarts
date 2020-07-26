@@ -187,11 +187,22 @@ dbartsSampler <-
                   samples
                 },
                 sampleTreesFromPrior = function(updateState = NA) {
-                  'Draws tree structure from prior; does not update tree predictions, so sampler
-                   will be in invalid state'
+                  'Draws tree structure from prior; does not update node parameters, so sampler
+                   will be in invalid state.'
                   
                   ptr <- getPointer()
-                  samples <- .Call(C_dbarts_sampleTreesFromPrior, ptr)
+                  .Call(C_dbarts_sampleTreesFromPrior, ptr)
+
+                  if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+                    storeState(ptr)
+
+                  invisible(NULL)
+                },
+                sampleNodeParametersFromPrior = function(updateState = NA) {
+                  'Draws end node parameters from prior; does not update tree structure.'
+                  
+                  ptr <- getPointer()
+                  .Call(C_dbarts_sampleNodeParametersFromPrior, ptr)
 
                   if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
                     storeState(ptr)

@@ -2,6 +2,13 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-19}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Samplers now have method \code{sampleNodeParametersFromPrior}.
+            When used in conjunction with \code{sampleTreesFromPrior} allow
+            the model to fully make predictions from the prior distribution.
+    }
+  }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{varcount} for \code{bart} fits now has dimnames set.

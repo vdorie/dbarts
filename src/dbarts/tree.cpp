@@ -85,9 +85,10 @@ namespace dbarts {
     }
   }
   
-  void Tree::sampleParametersAndSetFits(const BARTFit& fit, size_t chainNum, double sigma, double* trainingFits, double* testFits)
+  void Tree::sampleParametersAndSetFits(const BARTFit& fit, size_t chainNum, double* trainingFits, double* testFits)
   {
     State& state(fit.state[chainNum]);
+    double sigma = state.sigma;
     
     NodeVector bottomNodes(top.getAndEnumerateBottomVector());
     size_t numBottomNodes = bottomNodes.size();
@@ -187,7 +188,7 @@ namespace {
   using namespace dbarts;
   void mapCutPoints(Node& n, const BARTFit& fit, const double* const* oldCutPoints, double* nodeParams, int32_t* minIndices, int32_t* maxIndices, int32_t depth);
   void collapseEmptyNodes(Node& n, const BARTFit& fit, double* nodeParams, int depth);
-  void sampleFromPrior(const BARTFit& fit, ext_rng* rng, Node& n);
+  void sampleStructureFromPrior(const BARTFit& fit, ext_rng* rng, Node& n);
   void collapseEmptyNodes(Node& n);
 }
 
@@ -251,9 +252,38 @@ namespace dbarts {
     return true;
   }
   
-  void Tree::sampleFromPrior(const BARTFit& fit, ext_rng* rng) {
+  void Tree::sampleStructureFromPrior(const BARTFit& fit, ext_rng* rng) {
     top.clear();
-    ::sampleFromPrior(fit, rng, top);
+    ::sampleStructureFromPrior(fit, rng, top);
+  }
+  
+  void Tree::sampleParametersFromPrior(const BARTFit& fit, size_t chainNum, double* trainingFits, double* testFits)
+  {
+    State& state(fit.state[chainNum]);
+    
+    NodeVector bottomNodes(top.getAndEnumerateBottomVector());
+    size_t numBottomNodes = bottomNodes.size();
+    
+    double* nodeParams = NULL;
+    
+    if (testFits != NULL) nodeParams = misc_stackAllocate(numBottomNodes, double);
+    
+    for (size_t i = 0; i < numBottomNodes; ++i) {
+      const Node& bottomNode(*bottomNodes[i]);
+      
+      double nodeParam = fit.model.muPrior->drawFromPrior(state.rng);
+      bottomNode.setPredictions(trainingFits, nodeParam);
+      
+      if (testFits != NULL) nodeParams[i] = nodeParam;
+    }
+    
+    if (testFits != NULL) {
+      size_t* observationNodeMap = createObservationToNodeIndexMap(fit, top, fit.sharedScratch.xt_test, fit.data.numTestObservations);
+      for (size_t i = 0; i < fit.data.numTestObservations; ++i) testFits[i] = nodeParams[observationNodeMap[i]];
+      delete [] observationNodeMap;
+      
+      misc_stackFree(nodeParams);
+    }
   }
 }
 
@@ -371,7 +401,7 @@ namespace {
     }
   }
   
-  void sampleFromPrior(const BARTFit& fit, ext_rng* rng, Node& n) {
+  void sampleStructureFromPrior(const BARTFit& fit, ext_rng* rng, Node& n) {
     double parentPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, n);
     if (parentPriorGrowthProbability <= 0.0 || ext_rng_simulateBernoulli(rng, parentPriorGrowthProbability) == 0) return;
     
@@ -379,8 +409,8 @@ namespace {
     Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, rng, n, &exhaustedLeftSplits, &exhaustedRightSplits);
     n.split(fit, newRule, exhaustedLeftSplits, exhaustedRightSplits);
     
-    sampleFromPrior(fit, rng, *n.leftChild);
-    sampleFromPrior(fit, rng, *n.p.rightChild);
+    sampleStructureFromPrior(fit, rng, *n.leftChild);
+    sampleStructureFromPrior(fit, rng, *n.p.rightChild);
   }
 }
 

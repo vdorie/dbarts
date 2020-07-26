@@ -5,6 +5,7 @@
 \alias{dbartsSampler-class}
 \alias{\S4method{run}{dbartsSampler}}
 \alias{\S4method{sampleTreesFromPrior}{dbartsSampler}}
+\alias{\S4method{sampleNodeParametersFromPrior}{dbartsSampler}}
 \alias{\S4method{copy}{dbartsSampler}}
 \alias{\S4method{show}{dbartsSampler}}
 \alias{\S4method{predict}{dbartsSampler}}
@@ -27,6 +28,7 @@
 \usage{
 \S4method{run}{dbartsSampler}(numBurnIn, numSamples, updateState = NA)
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
+\S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test)

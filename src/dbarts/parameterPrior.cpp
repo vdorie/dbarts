@@ -34,6 +34,10 @@ namespace dbarts {
     return posteriorMean + posteriorSd * ext_rng_simulateStandardNormal(rng);
   }
   
+  double NormalPrior::drawFromPrior(ext_rng* rng) const {
+    return ext_rng_simulateStandardNormal(rng) / std::sqrt(this->precision);
+  }
+  
   double NormalPrior::computeLogIntegratedLikelihood(const BARTFit& fit, size_t chainNum, const Node& node, const double* y, double residualVariance) const
   {
     size_t numObservationsInNode = node.getNumObservations();

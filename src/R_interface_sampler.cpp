@@ -192,6 +192,20 @@ extern "C" {
     return R_NilValue;
   }
   
+  SEXP sampleNodeParametersFromPrior(SEXP fitExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_sampleNodeParametersFromPrior called on NULL external pointer");
+        
+    GetRNGstate();
+    
+    fit->sampleNodeParametersFromPrior();
+    
+    PutRNGstate();
+    
+    return R_NilValue;
+  }
+  
   SEXP setData(SEXP fitExpr, SEXP dataExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

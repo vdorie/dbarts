@@ -1201,10 +1201,33 @@ namespace dbarts {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         // sample tree from prior should probably be re-written to be consistent with the observed
         // (and conditioned on) data
-        state[chainNum].trees[treeNum].sampleFromPrior(*this, state[chainNum].rng);
+        state[chainNum].trees[treeNum].sampleStructureFromPrior(*this, state[chainNum].rng);
         state[chainNum].trees[treeNum].collapseEmptyNodes();
       }
     }
+  }
+  
+  void BARTFit::sampleNodeParametersFromPrior()
+  {
+    double* testFits = data.numTestObservations > 0 ? new double[data.numTestObservations] : NULL;
+    
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
+      if (data.numTestObservations > 0)
+        misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
+      
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        
+        state[chainNum].trees[treeNum].sampleParametersFromPrior(*this, chainNum, treeFits, testFits);
+        
+        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        if (data.numTestObservations > 0)
+          misc_addVectorsInPlace(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+      }
+    }
+    
+    delete [] testFits;
   }
 }
 
@@ -1285,7 +1308,7 @@ extern "C" {
         
         metropolisJumpForTree(fit, chainNum, state.trees[treeNum], chainScratch.treeY, state.sigma, &stepTaken, &ignored);
         
-        state.trees[treeNum].sampleParametersAndSetFits(fit, chainNum, state.sigma, currFits, isThinningIteration ? NULL : currTestFits);
+        state.trees[treeNum].sampleParametersAndSetFits(fit, chainNum, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
         misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
