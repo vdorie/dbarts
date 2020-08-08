@@ -53,8 +53,11 @@ namespace dbarts {
     // settors simply replace local pointers to variables. dimensions much match
     // update modifies the local copy (which may belong to someone else)
     void setResponse(const double* newResponse);
-    void setOffset(const double* newOffset);
+    void setOffset(const double* newOffset, bool updateScale);
     void setWeights(const double* newWeights);
+    
+    // one sigma for each chain
+    void setSigma(const double* newSigma);
     
     /* These functions change the predictors or the cut points derived from them, and thus can change the
      * trees. Consequently, they have differring semantics depending on intended use.
@@ -93,6 +96,7 @@ namespace dbarts {
     void storeLatents(double* target) const;
     
     void sampleTreesFromPrior();
+    void sampleNodeParametersFromPrior();
     
     void rebuildScratchFromState();
     
@@ -107,6 +111,8 @@ namespace dbarts {
     // the new control must have the same number of chains as the previous or else prob seg fault
     void setControl(const Control& control);
     void setModel(const Model& model);
+    
+    void printInitialSummary() const;
   };
   
   struct FlattenedTrees {

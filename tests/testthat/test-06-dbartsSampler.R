@@ -142,6 +142,23 @@ test_that("dbarts sampler shallow/deep copies", {
   expect_equal(sampler$data@x, deepCopy$data@x)
 })
 
+test_that("sampling from prior works correctly", {
+  train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
+  test <- data.frame(x = testData$x, z = 1 - testData$z)
+  
+  set.seed(0)
+  sampler <- dbarts(y ~ x + z, train, test, control = dbartsControl(n.threads = 1, n.chains = 1))
+  
+  sampler$sampleTreesFromPrior()
+  sampler$sampleNodeParametersFromPrior()
+  
+  trees <- sampler$getTrees()
+  
+  expect_equivalent(sd(trees$value[trees$var == -1L]),
+                    sampler$model@node.scale / (sampler$model@node.prior@k * sqrt(sampler$control@n.trees)),
+                    tolerance = 1.0e-3)
+})
+
 source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
 
 # test thanks to Jeremy Coyle

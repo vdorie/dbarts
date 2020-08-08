@@ -18,7 +18,7 @@ namespace dbarts {
     
     Tree(std::size_t* indices, std::size_t numObservations, std::size_t numPredictors) : top(indices, numObservations, numPredictors) { }
     
-    void sampleParametersAndSetFits(const BARTFit& fit, std::size_t chainNum, double sigma, double* trainingFits, double* testFits);
+    void sampleParametersAndSetFits(const BARTFit& fit, std::size_t chainNum, double* trainingFits, double* testFits);
     double* recoverParametersFromFits(const BARTFit& fit, const double* treeFits); // allocates result; are ordered as bottom nodes are
     double* recoverParametersFromFits(const BARTFit& fit, const double* treeFits, std::size_t* numBottomNodes); // allocates result; are ordered as bottom nodes are
     void setCurrentFitsFromParameters(const BARTFit& fit, const double* nodeParams, double* trainingFits, double* testFits);
@@ -31,7 +31,8 @@ namespace dbarts {
     void collapseEmptyNodes(); // this ignores parameters and should be used on an invalid tree
     void collapseEmptyNodes(const BARTFit& fit, double* nodeParams); // this combines the parameters in the nodes
     
-    void sampleFromPrior(const BARTFit& fit, ext_rng* rng);
+    void sampleStructureFromPrior(const BARTFit& fit, ext_rng* rng);
+    void sampleParametersFromPrior(const BARTFit& fit, std::size_t chainNum, double* trainingFits, double* testFits);
     
     Node* getTop() const;
     bool hasSingleNode() const;

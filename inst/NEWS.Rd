@@ -1,10 +1,50 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-19}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Samplers now have method \code{sampleNodeParametersFromPrior}.
+            When used in conjunction with \code{sampleTreesFromPrior} allow
+            the model to fully make predictions from the prior distribution.
+    }
+  }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item \code{varcount} for \code{bart} fits now has dimnames set.
+    }
+  }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item Parallelization for \code{rbart} now creates the correct
+            number of chains.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-18}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item Sampler now explicitly supports \code{setSigma} for use in 
+            hierarchical models.
+      \item Sampler function \code{setOffset} has an additional argument
+            of \code{updateScale}. When the response is continuous and
+            \code{updateScale} is \code{TRUE}, the implicit scaling,
+            effecting the node parameters' variance, is adjusted to match
+            the range of the new data. This optionally reverts the change
+            of version 0.9-13 with the intention of being used only during
+            warmup when using an offset that is itself being sampled.
+    }
+  }
   \subsection{BUG-FIXES}{
     \itemize{
-      \item Extraneous print line from debugging 0.9-18.
+      \item Extraneous print line from debugging 0.9-17.
+      \item Eliminated two race conditions from multithreaded crossvalidation.
+            Report thanks to Ignacio Martinez.
+      \item Eliminated garbage read on construction of crossvalidation sampler,
+            removing inconsistencies across multiple runs with the same starting
+            seed.
+      \item \code{makeModelMatrixFromDataFrame} now converts character vectors
+            to factors instead of dropping them. Report thanks to Colin Carlson.
     }
   }
 }

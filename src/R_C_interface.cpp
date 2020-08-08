@@ -10,6 +10,8 @@
 
 #include <external/stats.h>
 
+#include "R_interface_common.hpp"
+
 using namespace dbarts;
 
 extern "C" {
@@ -26,10 +28,57 @@ extern "C" {
     fit->~BARTFit();
   }
   
+  Control* dbarts_createControl(SEXP controlExpr) {
+    Control* result = new Control;
+    initializeControlFromExpression(*result, controlExpr);
+    return result;
+  }
+  void dbarts_destroyControl(Control* control) {
+    delete control;
+  }
+  void dbarts_initializeControl(Control* control, SEXP controlExpr) {
+    initializeControlFromExpression(*control, controlExpr);
+  }
+  // void dbarts_invalidateControl(Control* control) { }
+  
+  dbarts::Data* dbarts_createData(SEXP dataExpr) {
+    Data* result = new Data;
+    initializeDataFromExpression(*result, dataExpr);
+    return result;
+  }
+  void dbarts_destroyData(dbarts::Data* data) {
+    invalidateData(*data);
+    delete data;
+  }
+  void dbarts_initializeData(dbarts::Data* data, SEXP dataExpr) {
+    initializeDataFromExpression(*data, dataExpr);
+  }
+  void dbarts_invalidateData(dbarts::Data* data) {
+    invalidateData(*data);
+  }
+  
+  dbarts::Model* dbarts_createModel(SEXP modelExpr, dbarts::Control* control) {
+    Model* result = new Model(control->responseIsBinary);
+    initializeModelFromExpression(*result, modelExpr, *control);
+    return result;
+  }
+  void dbarts_destroyModel(dbarts::Model* model) {
+    invalidateModel(*model);
+    delete model;
+  }
+  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control) {
+    initializeModelFromExpression(*model, modelExpr, *control);
+  }
+  void dbarts_invalidateModel(dbarts::Model* model) {
+    invalidateModel(*model);
+  }
+  
   void dbarts_setRNGState(BARTFit* fit, const void* const* uniformState, const void* const* normalState) {
     fit->setRNGState(uniformState, normalState);
   }
-  
+  void dbarts_printInitialSummary(const dbarts::BARTFit* fit) {
+    fit->printInitialSummary();
+  }
   Results* dbarts_runSampler(BARTFit* fit) {
     return fit->runSampler();
   }
@@ -38,18 +87,29 @@ extern "C" {
     return fit->runSampler(numBurnIn, numSamples);
   }
   
+  void dbarts_runSamplerWithResults(BARTFit* fit, size_t numBurnIn, Results* results) {
+    fit->runSampler(numBurnIn, results);
+  }
+  
   void dbarts_sampleTreesFromPrior(BARTFit* fit) {
     fit->sampleTreesFromPrior();
+  }
+  
+  void dbarts_sampleNodeParametersFromPrior(BARTFit* fit) {
+    fit->sampleNodeParametersFromPrior();
   }
   
   void dbarts_setResponse(BARTFit* fit, const double* newResponse) {
     fit->setResponse(newResponse);
   }
   
-  void dbarts_setOffset(BARTFit* fit, const double* newOffset) {
-    fit->setOffset(newOffset);
+  void dbarts_setOffset(BARTFit* fit, const double* newOffset, bool updateScale) {
+    fit->setOffset(newOffset, updateScale);
   }
   
+  void dbarts_setSigma(BARTFit* fit, const double* newSigma) {
+    fit->setSigma(newSigma);
+  }
   
   int dbarts_setPredictor(BARTFit* fit, const double* newPredictor, int forceUpdate, int updateCutPoints) {
     return fit->setPredictor(newPredictor, forceUpdate, updateCutPoints);

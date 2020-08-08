@@ -84,6 +84,7 @@ namespace dbarts {
   struct EndNodePrior {
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const = 0;
     virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const = 0;
+    virtual double drawFromPrior(ext_rng* rng) const = 0;
     virtual void setK(const BARTFit& fit, double k) = 0;
     virtual double getK(const BARTFit& fit) const = 0;
     
@@ -107,6 +108,7 @@ namespace dbarts {
     virtual ResidualVariancePrior* duplicate() const = 0;
     
     virtual void print(const BARTFit& fit) const = 0;
+    virtual bool isFixed() const = 0;
     
     virtual ~ResidualVariancePrior() { }
   };
@@ -143,6 +145,7 @@ namespace dbarts {
     
     virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const;
     virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const;
+    virtual double drawFromPrior(ext_rng* rng) const;
     virtual void setK(const BARTFit& fit, double k);
     virtual double getK(const BARTFit& fit) const;
   };
@@ -188,6 +191,7 @@ namespace dbarts {
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum,
                                      const double* y,
                                      const double* y_hat) const;
+    virtual bool isFixed() const { return false; }
   };
   struct FixedPrior : ResidualVariancePrior {
     double value;
@@ -206,6 +210,7 @@ namespace dbarts {
     virtual void setScale(double scale) { value = scale; }
     
     virtual void print(const BARTFit& fit) const;
+    virtual bool isFixed() const { return true; }
     
     virtual ~FixedPrior() { }
   };

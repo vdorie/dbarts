@@ -115,26 +115,36 @@ rbart_vi <- function(
   if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
 
   chainResults <- vector("list", n.chains)
-  if (n.threads == 1L || n.chains == 1L) {
-    for (chainNum in seq_len(n.chains))
-      chainResults[[chainNum]] <- rbart_vi_fit(samplerArgs, group.by, prior)
-  } else {
-    cluster <- makeCluster(n.threads)
+  runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
+  if (!runSingleThreaded) {
+    tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "PSOCK"), error = function(e) e)
+    if (is(tryResult, "error"))
+      tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "FORK"), error = function(e) e)
     
-    clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
-    clusterEvalQ(cluster, require(dbarts))
+    if (is(tryResult, "error")) {
+      warning("unable to multithread, defaulting to single: ", tryResult$message)
+      runSingleThreaded <- TRUE
+    } else {
+      clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
+      clusterEvalQ(cluster, require(dbarts))
+      
+      tryResult <- tryCatch(
+        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), MoreArgs = namedList(samplerArgs, group.by, prior)))
     
-    tryResult <- tryCatch(
-      chainResults <- clusterCall(cluster, "rbart_vi_fit", samplerArgs, group.by, prior))
-    
-    stopCluster(cluster)
+      stopCluster(cluster)
+    }
   }
-  
+
+  if (runSingleThreaded) {
+    for (chainNum in seq_len(n.chains))
+      chainResults[[chainNum]] <- rbart_vi_fit(1L, samplerArgs, group.by, prior)
+  }
   packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains)
 }
 
-rbart_vi_fit <- function(samplerArgs, group.by, prior) 
+rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior) 
 {
+  chain.num <- "ignored"
   sampler <- do.call(dbarts::dbarts, samplerArgs)
   sampler$control@call <- samplerArgs$control@call
   
@@ -185,7 +195,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     control@keepTrees <- FALSE
     sampler$setControl(control)
     
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
     treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
     
     # order of update matters - need to store a ranef that goes with a prediction
@@ -200,7 +210,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
       ranef.vec <- ranef.i[g]
       
       # update BART params
-      sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+      sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
       samples <- sampler$run(0L, 1L)
       treeFit.train <- as.vector(samples$train) - ranef.vec
       if (control@binary) sampler$getLatents(y.st)
@@ -220,7 +230,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
       sampler$setControl(control)
     }
   } else {
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
     treeFit.train <- (if (control@n.samples > 1L && control@keepTrees) sampler$predict(sampler$data@x)[,1L] else sampler$predict(sampler$data@x)) - ranef.vec
   }
   
@@ -233,7 +243,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     ranef.vec <- ranef.i[g]
       
     # update BART params
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, FALSE)
     samples <- sampler$run(0L, 1L)
     treeFit.train <- as.vector(samples$train) - ranef.vec
     if (control@binary) sampler$getLatents(y.st)
@@ -254,7 +264,7 @@ rbart_vi_fit <- function(samplerArgs, group.by, prior)
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
   
-  sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL)
+  sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
   
   control@updateState <- oldUpdateState
   sampler$setControl(control)

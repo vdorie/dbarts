@@ -92,6 +92,8 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
   if (!responseIsBinary) sigma <- convertSamplesFromDbartsToBart(samples$sigma, n.chains, combineChains)
     
   varcount <- convertSamplesFromDbartsToBart(samples$varcount, n.chains, combineChains)
+  if (!is.null(colnames(fit$data@x)) && !is.null(dim(varcount)))
+   dimnames(varcount) <- if (length(dim(varcount)) > 2L) list(NULL, NULL, colnames(fit$data@x)) else list(NULL, colnames(fit$data@x))
   
   if (!is.null(burnInSigma)) burnInSigma <- convertSamplesFromDbartsToBart(burnInSigma, n.chains, combineChains)
   

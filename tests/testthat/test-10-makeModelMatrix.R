@@ -160,3 +160,36 @@ test_that("make model matrix respects drop argument when a list", {
 
 rm(getTestDataFrame)
 
+test_that("make model matrix handles character vectors correctly", {
+  n <- 1000L
+  if (getRversion() >= "3.6.0")
+    suppressWarnings(set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rounding"))
+  else
+    set.seed(0, kind = "Mersenne-Twister", normal.kind = "Inversion")
+  mf <- data.frame(x1 = runif(n),
+                   x2 = c(rep.int(0L, n - 1L), 1L),
+                   x3 = factor(sample(letters[1:5], n, TRUE)),
+                   x4 = sample(letters[1:5], n, TRUE),
+                   x5 = c("a", rep("b", n - 1L)),
+                   x6 = c("a", rep("b", n - 2L), "c"))
+  
+  mm <- dbarts::makeModelMatrixFromDataFrame(mf)
+  
+  
+  drop <- attr(mm, "drop")
+  
+  expect_true(all(!is.null(drop)))
+  expect_true(all(sapply(drop[sapply(drop, is.numeric)], sum) == n))
+  
+  factorCols <- which(sapply(mf, function(col) is.factor(col) || is.character(col)))
+  
+  for (col in factorCols) {
+    col.table <- table(mf[,col])
+    col.name  <- colnames(mf)[col]
+    col.nvals <- length(col.table)
+    
+    expect_true(sum(grepl(paste0("^", col.name, "\\."), colnames(mm))) == (if (col.nvals > 2L) col.nvals else col.nvals - 1L))
+    expect_true(all(drop[[col.name]] == col.table))
+  }
+})
+

@@ -45,6 +45,27 @@ SEXP rc_allocateInSlot(SEXP obj, SEXP slotName, SEXPTYPE type, R_xlen_t length)
   return val;
 }
 
+SEXP rc_getListElement(SEXP list, const char* name)
+{
+  SEXP names = PROTECT(rc_getNames(list));
+  if (Rf_isNull(names)) {
+    UNPROTECT(1);
+    return R_NilValue;
+  }
+  
+  SEXP result = R_NilValue;
+  size_t len = rc_getLength(names);
+  for (size_t i = 0; i < len; ++i) {
+    if (strcmp(name, CHAR(STRING_ELT(names, i))) == 0) {
+      result = VECTOR_ELT(list, i);
+      break;
+    }
+  }
+  
+  UNPROTECT(1);
+  return result;
+}
+
 bool rc_isS4Null(SEXP obj)
 {
   if (!Rf_isSymbol(obj)) return false;

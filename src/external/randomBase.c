@@ -400,6 +400,14 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType()
   }
 }
 
+const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm)
+{
+  if (algorithm > EXT_RNG_ALGORITHM_INVALID || EXT_RNG_ALGORITHM_INVALID < EXT_RNG_ALGORITHM_WICHMANN_HILL)
+    algorithm = EXT_RNG_ALGORITHM_INVALID;
+  
+  return rngNames[algorithm];
+}
+
 int ext_rng_setStandardNormalAlgorithm(ext_rng* generator, ext_rng_standardNormal_t standardNormalAlgorithm, const void* state)
 {
   if (generator == NULL) return EFAULT;

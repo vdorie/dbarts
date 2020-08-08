@@ -22,7 +22,7 @@
 #include <dbarts/model.hpp>
 #include <dbarts/state.hpp>
 
-#include "R_interface.hpp"
+// #include "R_interface.hpp"
 
 using std::size_t;
 using std::uint32_t;

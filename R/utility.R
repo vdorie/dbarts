@@ -139,6 +139,9 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) stop('when logical, drop must be TRUE or FALSE')
   if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
   
+  characterCols <- sapply(x, typeof) == "character"
+  if (any(characterCols)) x[characterCols] <- lapply(x[characterCols], as.factor)
+  
   result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
   attr(result, "term.labels") <- names(x)
   result
