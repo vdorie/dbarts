@@ -33,7 +33,7 @@
 
 // if not on any x86 descendent, use pure C no matter what
 #if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
-static misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
+misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void) {
   return MISC_INST_C;
 }
 #else

@@ -18,6 +18,8 @@
     \itemize{
       \item Parallelization for \code{rbart} now creates the correct
             number of chains.
+      \item Should now compile on non-x86 architectures. Report thanks to
+            Lars Viklund.
     }
   }
 }
