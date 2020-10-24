@@ -20,9 +20,11 @@ S3method(plot, pd2bart)
 S3method(fitted, bart)
 S3method(extract, bart)
 S3method(predict, bart)
+S3method(residuals, bart)
 S3method(fitted, rbart)
 S3method(extract, rbart)
 S3method(predict, rbart)
+S3method(residuals, rbart)
 
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, is, new, setValidity, setMethod)
 

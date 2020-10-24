@@ -6,6 +6,7 @@
 \alias{predict.bart}
 \alias{extract.bart}
 \alias{fitted.bart}
+\alias{residuals.bart}
 \title{Bayesian Additive Regression Trees}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
@@ -60,6 +61,7 @@ extract(object, \dots)
                       type = c("ev", "ppd", "bart"),
                       sample = c("train", "test"),
                       \dots)
+\method{residuals}{bart}(object, \dots)
 }
 \arguments{
    \item{x.train}{

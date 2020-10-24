@@ -4,6 +4,7 @@
 \alias{fitted.rbart}
 \alias{extract.rbart}
 \alias{predict.rbart}
+\alias{residuals.rbart}
 \title{Bayesian Additive Regression Trees with Random Effects}
 \description{
 Fits a varying intercept/random effect BART model.
@@ -39,6 +40,7 @@ rbart_vi(
                           type = c("ev", "ppd", "bart", "ranef"),
                           combineChains = TRUE,
                           \dots)
+\S3method{residuals}{rbart}(object, \dots)
 }
 \arguments{
   \item{group.by}{

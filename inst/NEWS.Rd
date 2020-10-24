@@ -12,6 +12,7 @@
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{varcount} for \code{bart} fits now has dimnames set.
+      \item \code{residuals} feneric added to \code{bart} and \code{rbart_vi}.
     }
   }
   \subsection{BUG FIXES}{

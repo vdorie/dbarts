@@ -24,8 +24,9 @@ predict.bart <- function(object, newdata, offset,
     else
       stop("predict requires bart to be called with 'keeptrees' == TRUE")
   }
+  
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
+    if (type[1L] == "response")  type[1L] <- "ev"
     else if (type[1L] == "link") type[1L] <- "bart"
   }
   if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.bart)$type))
@@ -112,6 +113,10 @@ fitted.bart <- function(object,
   result <- extract(object, type, sample, ...)
   
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
+}
+
+residuals.bart <- function(object, ...) {
+  object$y - fitted.bart(object)
 }
 
 predict.rbart <- function(object, newdata, group.by, offset,
@@ -331,6 +336,11 @@ fitted.rbart <- function(object,
   
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
+
+residuals.rbart <- function(object, ...) {
+  object$y - fitted.rbart(object)
+}
+
 
 # NOTE: this is outdated
 # ev (expected value) should have dimensions
