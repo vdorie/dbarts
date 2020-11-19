@@ -21,6 +21,8 @@
             number of chains.
       \item Should now compile on non-x86 architectures. Report thanks to
             Lars Viklund.
+      \item Fixed hang when \code{verbose = TRUE} for multiple threads and
+            multiple chains. Report thanks to Noah Greifer.
     }
   }
 }

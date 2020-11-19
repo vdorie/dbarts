@@ -215,8 +215,13 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   }
   
   getTime(&wakeTime);
+  // ext_printf("wake time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   wakeTime.tv_sec += outputDelay->tv_sec;
   wakeTime.tv_nsec += outputDelay->tv_nsec;
+  // ext_printf(", added time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
+  wakeTime.tv_sec += wakeTime.tv_nsec / 1000000000;
+  wakeTime.tv_nsec %= 1000000000;
+  // ext_printf(", mod time: %ld.%.9ld\n", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   
   // ext_printf("running top %lu level tasks with output\n", numTasks);
   

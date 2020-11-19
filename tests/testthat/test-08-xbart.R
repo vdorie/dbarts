@@ -60,6 +60,18 @@ test_that("k-fold runs correctly with valid inputs", {
     base    = as.character(base)))
 })
 
+test_that("k-fold runs correctly with one input", {
+  x <- testData$x
+  y <- testData$y
+  
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L),
+                n.reps = 3, n.test = 5,
+                k = 2,
+                n.threads = 2L)
+  
+  expect_equal(length(xval), 3)
+})
+
 test_that("k-fold and random subsample are reproducible, roughly similar", {
   x <- testData$x
   y <- testData$y
