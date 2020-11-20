@@ -224,7 +224,7 @@ ext_rng* ext_rng_createDefault(bool useNative)
     return result;
   }
   
-  ext_rng_algorithm_t algorithmType      = (ext_rng_algorithm_t) (seed0 % 100);
+  ext_rng_algorithm_t algorithmType = (ext_rng_algorithm_t) (seed0 % 100);
   
   int major, minor, revision;
   
@@ -273,7 +273,7 @@ ext_rng* ext_rng_createDefault(bool useNative)
     break;
     default:
     break;
-  }    
+  }
   result = ext_rng_create(algorithmType, state);
   if (algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP  ||
       algorithmType == EXT_RNG_ALGORITHM_KNUTH_TAOCP2 ||
@@ -305,7 +305,8 @@ ext_rng* ext_rng_createDefault(bool useNative)
 #endif
   
   int errorCode = ext_rng_setStandardNormalAlgorithm(result, stdNormalType, normalState);
-  if (stdNormalType == EXT_RNG_STANDARD_NORMAL_BOX_MULLER || stdNormalType == EXT_RNG_STANDARD_NORMAL_USER_NORM) free(normalState);
+  if (stdNormalType == EXT_RNG_STANDARD_NORMAL_BOX_MULLER ||
+      stdNormalType == EXT_RNG_STANDARD_NORMAL_USER_NORM) free(normalState);
   
   if (errorCode != 0) {
     ext_rng_destroy(result);
@@ -442,9 +443,11 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
   
   size_t stateLength = stateLengths[generator->algorithm];
   uint_least32_t* state = (uint_least32_t*) generator->state;
-  if (generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM) generator->normalState.nextNormal = 0.0;
+  if (generator->standardNormalAlgorithm != EXT_RNG_STANDARD_NORMAL_USER_NORM)
+    generator->normalState.nextNormal = 0.0;
 
   // initial scrambling
+  uint_least32_t orig_seed = seed;
   for (uint32_t j = 0; j < 50; ++j) seed = (69069 * seed + 1);
   
   switch (generator->algorithm) {
@@ -480,6 +483,24 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     }
     break;
     case EXT_RNG_ALGORITHM_USER_UNIFORM:
+    {
+      UserFunction* function = (UserFunction*) generator->state;
+      // if the user uniform is wrapping the built in sampler, call set.seed there
+      if (function->f.stateless == &unif_rand) {
+        SEXP seedExpr = PROTECT(rc_newInteger(1));
+        INTEGER(seedExpr)[0] = (int) orig_seed;
+        
+        SEXP closure = PROTECT(Rf_lang2(Rf_findVarInFrame(R_BaseEnv, Rf_install("set.seed")), seedExpr));
+        UNPROTECT(1);
+        
+        Rf_eval(closure, R_GlobalEnv);
+        UNPROTECT(1);
+      } else {
+        // no way to know how to set seed on this object
+        return EINVAL;
+      }
+    }
+    break;
     case EXT_RNG_ALGORITHM_INVALID:
     return EINVAL;
   }

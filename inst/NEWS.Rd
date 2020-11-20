@@ -7,6 +7,12 @@
       \item Samplers now have method \code{sampleNodeParametersFromPrior}.
             When used in conjunction with \code{sampleTreesFromPrior} allow
             the model to fully make predictions from the prior distribution.
+      \item \code{dbartsControl} (and now \code{bart}/\code{bart2} through
+            \code{...}) now accept \code{rngSeed} argument. This can be used
+            to generate reproducible results with multiple threads. It should
+            only be used for testing, as the thread-specific pRNGs are seeded
+            using sequential draws from a pRNG created with the user-supplied
+            seed.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

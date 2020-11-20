@@ -11,11 +11,11 @@ setMethod("initialize", "dbartsControl",
 ## this is only provided for UI hints. Exception is n.cuts, which
 ## isn't part of class
 dbartsControl <-
-  function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
-           keepTrees = FALSE, n.samples = NA_integer_, n.cuts = 100L,
+  function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE, keepTrees = FALSE,
+           n.samples = NA_integer_, n.cuts = 100L,
            n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
            n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
-           rngKind = "default", rngNormalKind = "default", updateState = TRUE)
+           rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_, updateState = TRUE)
 {
   result <- new("dbartsControl",
                 verbose = as.logical(verbose),
@@ -32,6 +32,7 @@ dbartsControl <-
                 printCutoffs = coerceOrError(printCutoffs, "integer"),
                 rngKind = rngKind,
                 rngNormalKind = rngNormalKind,
+                rngSeed = coerceOrError(rngSeed, "integer"),
                 updateState = as.logical(updateState))
   
   n.cuts <- coerceOrError(n.cuts, "integer")

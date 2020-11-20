@@ -9,7 +9,8 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
               keepTrees = FALSE, n.samples = NA_integer_,
               n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
               n.threads = guessNumCores(), n.thin = 1L, printEvery = 100L,
-              printCutoffs = 0L, rngKind = "default", rngNormalKind = "default",
+              printCutoffs = 0L,
+              rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_,
               updateState = TRUE)
 }
 \arguments{
@@ -54,6 +55,11 @@ dbartsControl(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE,
          For type \code{"default"}, the built-in generator will be used if possible. Otherwise, will
          attempt to match the built-in generator's type. Success depends on the number of threads and
          the \code{rngKind}.}
+   \item{rngSeed}{Random number generator seed, as used in \code{\link[=Random]{set.seed}}. If the
+         sampler is running single-threaded or has one chain, the behavior will be as any other
+         sequential algorithm. If the sampler is multithreaded, the seed will be used to create an
+         additional pRNG object, which in turn will be used sequentially seed the thread-specific pRNGs.
+         If equal to \code{NA}, the clock will be used to seed pRNGs when applicable.}
    \item{updateState}{Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods
    	 with regards to the immediate updating of the cached state of the object. A current, cached state
    	 is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.}

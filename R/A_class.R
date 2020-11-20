@@ -63,6 +63,7 @@ methods::setClass("dbartsControl",
        printCutoffs     = "integer",
        rngKind          = "character",
        rngNormalKind    = "character",
+       rngSeed          = "integer",
        updateState      = "logical",
        call             = "language"),
   prototype =
@@ -81,6 +82,7 @@ methods::setClass("dbartsControl",
        printCutoffs     = 0L,
        rngKind          = "default",
        rngNormalKind    = "default",
+       rngSeed          = NA_integer_,
        updateState      = TRUE,
        call             = quote(call("NA")))
   )
@@ -90,7 +92,7 @@ methods::setValidity("dbartsControl",
     if (length(object@verbose)          != 1L) return("'verbose' must be of length 1")
     if (length(object@keepTrainingFits) != 1L) return("'keepTrainingFits' must be of length 1")
     if (length(object@useQuantiles)     != 1L) return("'useQuantiles' must be of length 1")
-    if (is.na(object@keepTrees))               return("'keepTrees' must be TRUE/FALSE")
+    if (length(object@keepTrees)        != 1L) return("'keepTrees' must be of length 1")
     
     if (length(object@n.burn)    != 1L) return("'n.burn' must be of length 1")
     if (length(object@n.trees)   != 1L) return("'n.trees' must be of length 1")
@@ -102,10 +104,12 @@ methods::setValidity("dbartsControl",
     if (length(object@updateState)  != 1L) return("'updateState' must be of length 1")
     if (length(object@n.samples)    != 1L) return("'n.samples' must be of length 1")
     
+    if (length(object@rngSeed) != 1L) return("'rngSeed' must be of length 1")
     
     if (is.na(object@verbose))          return("'verbose' must be TRUE/FALSE")
     if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE")
     if (is.na(object@useQuantiles))     return("'useQuantiles' must be TRUE/FALSE")
+    if (is.na(object@keepTrees))               return("'keepTrees' must be TRUE/FALSE")
     
     if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer")
     if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer")
@@ -145,7 +149,6 @@ methods::setValidity("dbartsControl",
       if (!(object@rngKind %in% rngKinds)) return(paste0("unrecognized rng kind '", object@rngKind, "'"))
       if (!(object@rngNormalKind %in% rngNormalKinds)) return(paste0("unrecognized rng normal kind '", object@rngNormalKind, "'"))
     }
-      
     
     if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE")
     

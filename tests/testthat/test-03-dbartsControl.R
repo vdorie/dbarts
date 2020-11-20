@@ -150,3 +150,85 @@ test_that("rng cooperates with native generator", {
   expect_equal(sampler$state[[1L]]@rng.state, oldSeed)
 })
 
+test_that("rng with fixed seed matches native, one chain, one thread", {
+  set.seed(1234, kind = "Mersenne-Twister", normal.kind = "Inversion")
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  builtInResults <- sampler$run(0L, 5L)
+  
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE,
+                           rngSeed = 1234)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  seedOnlyResults <- sampler$run(0L, 5L)
+  
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE,
+                           rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
+                           rngSeed = 1234)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  allRngResults <- sampler$run(0L, 5L)
+  
+  expect_equal(builtInResults$train, seedOnlyResults$train)
+  expect_equal(builtInResults$train, allRngResults$train)
+})
+
+test_that("rng with fixed seed matches native, two chains, one threads", {
+  set.seed(1234, kind = "Mersenne-Twister", normal.kind = "Inversion")
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 2L, n.threads = 1L,
+                           updateState = FALSE)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  builtInResults <- sampler$run(0L, 5L)
+  
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE,
+                           rngSeed = 1234)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  sequentialResults_1 <- sampler$run(0L, 5L)
+  
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  sequentialResults_2 <- sampler$run(0L, 5L)
+  
+  expect_equal(as.vector(builtInResults$train),
+               c(sequentialResults_1$train, sequentialResults_2$train))
+})
+
+test_that("rng with fixed seed matches native, two chains, one threads", {
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 2L, n.threads = 2L,
+                           updateState = FALSE,
+                           rngSeed = 1234)
+  sampler <- dbarts(y ~ x, testData, control = control)
+  seedOnlyResults <- sampler$run(0L, 5L)
+  
+  
+  set.seed(1234, kind = "Mersenne-Twister", normal.kind = "Inversion")
+  seed_1 <- runif(1)
+  seed_2 <- runif(1)
+  
+  to_unsigned_int <- function(unif) {
+    unif <- unif * (.Machine$integer.max + 0.5)
+    msb <- floor(unif)
+    one <- unif - msb
+    bitwShiftL(msb, 1) + 1 * (unif - msb >= 0.5)
+  }
+  
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE,
+                           rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
+                           rngSeed = to_unsigned_int(seed_1))
+  sampler <- dbarts(y ~ x, testData, control = control)
+  sequentialResults_1 <- sampler$run(0L, 5L)
+  control <- dbartsControl(verbose = FALSE, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                           updateState = FALSE,
+                           rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
+                           rngSeed = to_unsigned_int(seed_2))
+  sampler <- dbarts(y ~ x, testData, control = control)
+  sequentialResults_2 <- sampler$run(0L, 5L)
+  
+  expect_equal(as.vector(seedOnlyResults$train),
+               c(sequentialResults_1$train, sequentialResults_2$train))
+})
+

@@ -1,6 +1,8 @@
 #ifndef DBARTS_RANDOM_HPP
 #define DBARTS_RANDOM_HPP
 
+#include <dbarts/cstdint.hpp> // int types
+
 struct ext_rng;
 
 namespace dbarts {
