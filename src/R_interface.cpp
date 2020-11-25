@@ -368,6 +368,7 @@ namespace {
     DEF_FUNC("initializeControl", dbarts_initializeControl),
     DEF_FUNC("destroyControl", dbarts_destroyControl),
     // DEF_FUNC("invalidateControl", dbarts_invalidateControl),
+    DEF_FUNC("setControl", dbarts_setControl),
     
     DEF_FUNC("createData", dbarts_createData),
     DEF_FUNC("initializeData", dbarts_initializeData),
@@ -384,6 +385,9 @@ namespace {
     DEF_FUNC("destroyFit", dbarts_destroyFit),
     DEF_FUNC("invalidateFit", dbarts_invalidateFit),
     
+    DEF_FUNC("createStateExpression", dbarts_createStateExpression),
+    DEF_FUNC("initializeState", dbarts_initializeState),
+    
     DEF_FUNC("printInitialSummary", dbarts_printInitialSummary),
     DEF_FUNC("setRNGState", dbarts_setRNGState),
     
@@ -392,6 +396,7 @@ namespace {
     DEF_FUNC("runSamplerWithResults", dbarts_runSamplerWithResults),
     DEF_FUNC("sampleTreesFromPrior", dbarts_sampleTreesFromPrior),
     DEF_FUNC("sampleNodeParametersFromPrior", dbarts_sampleNodeParametersFromPrior),
+    DEF_FUNC("predict", dbarts_predict),
     DEF_FUNC("setResponse", dbarts_setResponse),
     DEF_FUNC("setOffset", dbarts_setOffset),
     DEF_FUNC("setSigma", dbarts_setSigma),

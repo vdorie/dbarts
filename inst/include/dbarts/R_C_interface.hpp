@@ -29,6 +29,7 @@ namespace dbarts {
   struct Control;
   struct Model;
   struct Data;
+  struct State;
   
   struct CGMPrior;
   struct NormalPrior;
@@ -45,8 +46,9 @@ extern "C" {
   dbarts::Control* dbarts_createControl(SEXP controlExpr);
   void dbarts_destroyControl(dbarts::Control* control);
   void dbarts_initializeControl(dbarts::Control* control, SEXP controlExpr);
-  // void dbarts_invalidateControl(dbarts::Control* control); // invalidation not necessary, owns no memory
-  
+  // void dbarts_invalidateControl(dbarts::Control* control); // invalidation not necessary, allocates no memory
+  void dbarts_setControl(dbarts::BARTFit* fit, const dbarts::Control* control);
+    
   dbarts::Data* dbarts_createData(SEXP dataExpr);
   void dbarts_destroyData(dbarts::Data* data);
   void dbarts_initializeData(dbarts::Data* data, SEXP dataExpr);
@@ -62,6 +64,9 @@ extern "C" {
   void dbarts_destroyFit(dbarts::BARTFit* fit);
   void dbarts_invalidateFit(dbarts::BARTFit* fit);
   
+  SEXP dbarts_createStateExpression(const dbarts::BARTFit* fit);
+  void dbarts_initializeState(dbarts::BARTFit* fit, SEXP stateExpr);
+  
   void dbarts_setRNGState(dbarts::BARTFit* fit, const void* const* uniformState, const void* const* normalState);
   
   void dbarts_printInitialSummary(const dbarts::BARTFit* fit);
@@ -71,6 +76,7 @@ extern "C" {
   void dbarts_sampleTreesFromPrior(dbarts::BARTFit* fit);
   void dbarts_sampleNodeParametersFromPrior(dbarts::BARTFit* fit);
   
+  void dbarts_predict(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result);
   // 'settors' simply replace local pointers to variables. dimensions much match
   // 'update' modifies the local copy (which may belong to someone else)
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);

@@ -686,7 +686,7 @@ extern "C" {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_restoreState called on NULL external pointer");
     
-    initializeStateFromExpression(*fit, fit->state, stateExpr);
+    initializeStateFromExpression(*fit, stateExpr);
     
     return R_NilValue;
   }

@@ -13,6 +13,11 @@
             only be used for testing, as the thread-specific pRNGs are seeded
             using sequential draws from a pRNG created with the user-supplied
             seed.
+      \item C interface supports \code{dbarts_createStateExpression} and 
+            \code{dbarts_initializeState} which can be used to re-create
+            samplers that were allocated using forked multithreading.
+      \item C interface also supports \code{dbarts_predict} and
+            \code{dbarts_setControl}.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{
@@ -29,6 +34,8 @@
             Lars Viklund.
       \item Fixed hang when \code{verbose = TRUE} for multiple threads and
             multiple chains. Report thanks to Noah Greifer.
+      \item Fixed potential memory access errors when recreating sample from
+            saved state.
     }
   }
 }

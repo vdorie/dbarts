@@ -41,6 +41,10 @@ extern "C" {
   }
   // void dbarts_invalidateControl(Control* control) { }
   
+  void dbarts_setControl(dbarts::BARTFit* fit, const dbarts::Control* control) {
+    fit->setControl(*control);
+  }
+  
   dbarts::Data* dbarts_createData(SEXP dataExpr) {
     Data* result = new Data;
     initializeDataFromExpression(*result, dataExpr);
@@ -73,6 +77,13 @@ extern "C" {
     invalidateModel(*model);
   }
   
+  SEXP dbarts_createStateExpression(const dbarts::BARTFit* fit) {
+    return createStateExpressionFromFit(*fit);
+  }
+  void dbarts_initializeState(dbarts::BARTFit* fit, SEXP stateExpr) {
+    initializeStateFromExpression(*fit, stateExpr);
+  }
+  
   void dbarts_setRNGState(BARTFit* fit, const void* const* uniformState, const void* const* normalState) {
     fit->setRNGState(uniformState, normalState);
   }
@@ -97,6 +108,10 @@ extern "C" {
   
   void dbarts_sampleNodeParametersFromPrior(BARTFit* fit) {
     fit->sampleNodeParametersFromPrior();
+  }
+  
+  void dbarts_predict(const BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) {
+    fit->predict(x_test, numTestObservations, testOffset, result);
   }
   
   void dbarts_setResponse(BARTFit* fit, const double* newResponse) {

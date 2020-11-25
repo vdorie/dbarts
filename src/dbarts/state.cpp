@@ -277,7 +277,7 @@ namespace dbarts {
       for (size_t sampleNum = oldNumSamples - newNumSamples; sampleNum > 0; --sampleNum) {
         for (size_t treeNum = control.numTrees; treeNum > 0; --treeNum) {
           size_t treeOffset = (treeNum - 1) + (sampleNum - 1) * control.numTrees;
-          oldState.trees[treeOffset].~Tree();
+          oldState.savedTrees[treeOffset].~SavedTree();
         }
       }
     } else {
@@ -288,7 +288,7 @@ namespace dbarts {
       for (size_t sampleNum = 0; sampleNum < newNumSamples - oldNumSamples; ++sampleNum) {
         size_t sampleOffset = sampleNum * control.numTrees;
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          new (trees + treeNum + sampleOffset) SavedTree();
+          new (savedTrees + treeNum + sampleOffset) SavedTree();
         }
       }
     }
@@ -296,7 +296,7 @@ namespace dbarts {
     for (size_t sampleNum = 0; sampleNum < numSamplesToCopy; ++sampleNum)
       copyTreesForSample(resizeData, oldSampleStart + sampleNum, newSampleStart + sampleNum);
     
-    ::operator delete (oldState.trees);
+    ::operator delete (oldState.savedTrees);
     
     return true;
   }

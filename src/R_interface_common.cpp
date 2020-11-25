@@ -590,11 +590,12 @@ namespace dbarts {
     }
   }
   
-  void initializeStateFromExpression(BARTFit& fit, State* state, SEXP stateExpr)
+  void initializeStateFromExpression(BARTFit& fit, SEXP stateExpr)
   {
     const Control& control(fit.control);
     const Data& data(fit.data);
     const Model& model(fit.model);
+    State* state = fit.state;
     
     // check to see if it is an old-style saved object with only a single state
     SEXP classExpr = rc_getClass(stateExpr);
