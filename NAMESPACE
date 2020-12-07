@@ -8,7 +8,7 @@ export(xbart)
 export(rbart_vi)
 export(guessNumCores)
 
-export(makeind, makeModelMatrixFromDataFrame)
+export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
 
 exportClasses(dbartsSampler)
 export(extract)

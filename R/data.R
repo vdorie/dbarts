@@ -23,6 +23,10 @@ methods::setMethod("initialize", "dbartsData",
   .Object
 })
 
+makeTestModelMatrix <- function(data, newdata) {
+  validateXTest(newdata, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+}
+
 validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
 {
   if (is.null(x.test)) return(x.test)

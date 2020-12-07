@@ -18,6 +18,8 @@
             samplers that were allocated using forked multithreading.
       \item C interface also supports \code{dbarts_predict} and
             \code{dbarts_setControl}.
+      \item Exports \code{makeTestModelMatrix} to allow package authors to
+            create test data at a later point from training data.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

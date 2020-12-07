@@ -2,6 +2,7 @@
 \title{Make Model Matrix from Data Frame}
 \alias{makeModelMatrixFromDataFrame}
 \alias{makeind}
+\alias{makeTestModelMatrix}
 \description{
   Converts a data frame with numeric and factor contents into a matrix,
   suitable for use with \code{\link{bart}}. Unlike in linear regression,
@@ -11,6 +12,7 @@
 \usage{
   makeModelMatrixFromDataFrame(x, drop = TRUE)
   makeind(x, all = TRUE)
+  makeTestModelMatrix(data, newdata)
 }
 \arguments{
   \item{x}{Data frame of explanatory variables.}
@@ -22,8 +24,9 @@
       \item matrix - vector of logicals, one per column
       \item factor - table of factor levels to be referenced; levels with counts of 0 are to be dropped
     }}
-  \item{all}{Not currently implemented.
-   }
+  \item{all}{Not currently implemented.}
+  \item{data}{An existing \code{\link{dbartsData}} object.}
+  \item{newdata}{Test data frame.}
 }
 \details{
   Character vectors are included as factors. If you have numeric data coded as characters,
@@ -34,6 +37,10 @@
   to the result, and then pull them back apart. Alternatively, save the drop
   attribute used in creating the train data and use it when creating a matrix
   from the test data. Example given below.
+  
+  Use of these functions is not required when using \code{\link{bart}}, \code{bart2}, or
+  \code{\link{dbartsSampler}}; they exist to allow the user finer control and to assist
+  with writing packages that separate the creation of training from test data.
 }
 \value{
   A matrix with columns corresponding to the elements of the data frame. If \code{drop = TRUE}
