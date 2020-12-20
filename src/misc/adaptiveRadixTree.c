@@ -819,7 +819,7 @@ static int addChild16(Node16* restrict n, uint8_t c, void* restrict child, Node*
 static int addChild48(Node48* restrict n, uint8_t c, void* restrict child, Node* restrict* restrict positionInParent)
 {
   if (n->n.numChildren < 48) {
-    size_t pos = 0;
+    uint8_t pos = 0;
     while (n->children[pos] != NULL) ++pos;
     n->children[pos] = child;
     n->keys[c] = pos + 1;
@@ -1026,7 +1026,7 @@ static Node* createNode(NodeType type) {
   }
   if (n == NULL) return NULL;
   
-  n->type = type;
+  n->type = (uint8_t) type;
   return n;
 }
 

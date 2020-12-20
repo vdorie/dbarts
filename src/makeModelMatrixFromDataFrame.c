@@ -414,7 +414,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
           if (numLevelsPerFactor == 2) {
             int lastIndex;
             // skip until we find the last level that is actually in the column, make that 1
-            for (lastIndex = levelsLength - 1; factorInstanceCounts[lastIndex] == 0 && lastIndex >= 0; --lastIndex) { /* */ }
+            for (lastIndex = (int) levelsLength - 1; factorInstanceCounts[lastIndex] == 0 && lastIndex >= 0; --lastIndex) { /* */ }
             // R has factors coded with 1 based indexing
             ++lastIndex;
             for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (colData[j] == lastIndex ? 1.0 : 0.0);
