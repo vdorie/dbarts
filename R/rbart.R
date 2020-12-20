@@ -199,7 +199,7 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
     treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
     
     # order of update matters - need to store a ranef that goes with a prediction
-    # or else when they're added together they won't be consistent with `predict'
+    # or else when they're added together they won't be consistent with `predict`
     for (i in seq_len(control@n.burn)) {
       # update ranef
       resid <- y.st - treeFit.train

@@ -90,6 +90,13 @@ extern "C" {
   void dbarts_printInitialSummary(const dbarts::BARTFit* fit) {
     fit->printInitialSummary();
   }
+  void dbarts_printTrees(const dbarts::BARTFit* fit,
+                         const std::size_t* chains, std::size_t numChains,
+                         const std::size_t* samples, std::size_t numSamples,
+                         const std::size_t* indices, std::size_t numIndices)
+  {
+    fit->printTrees(chains, numChains, samples, numSamples, indices, numIndices);
+  }
   Results* dbarts_runSampler(BARTFit* fit) {
     return fit->runSampler();
   }

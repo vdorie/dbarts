@@ -70,6 +70,11 @@ extern "C" {
   void dbarts_setRNGState(dbarts::BARTFit* fit, const void* const* uniformState, const void* const* normalState);
   
   void dbarts_printInitialSummary(const dbarts::BARTFit* fit);
+  void dbarts_printTrees(const dbarts::BARTFit* fit,
+                         const std::size_t* chains,  std::size_t numChains,
+                         const std::size_t* samples, std::size_t numSamples,
+                         const std::size_t* indices, std::size_t numIndices);
+  
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
   void dbarts_runSamplerWithResults(dbarts::BARTFit* fit, std::size_t numBurnIn, dbarts::Results* results);

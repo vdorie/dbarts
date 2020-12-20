@@ -788,7 +788,7 @@ namespace dbarts {
       leftChild  = new SavedNode();
       leftChild->parent = this;
       rightChild = new SavedNode();
-      leftChild->parent = this;
+      rightChild->parent = this;
       
       length += leftChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));
       length += rightChild->deserialize(reinterpret_cast<const void*>(reinterpret_cast<const char*>(state) + length));

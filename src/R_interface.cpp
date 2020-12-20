@@ -389,6 +389,7 @@ namespace {
     DEF_FUNC("initializeState", dbarts_initializeState),
     
     DEF_FUNC("printInitialSummary", dbarts_printInitialSummary),
+    DEF_FUNC("printTrees", dbarts_printTrees),
     DEF_FUNC("setRNGState", dbarts_setRNGState),
     
     DEF_FUNC("runSampler", dbarts_runSampler),
