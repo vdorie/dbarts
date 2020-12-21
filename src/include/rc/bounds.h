@@ -58,6 +58,31 @@ void rc_assertBoolConstraints(SEXP x, const char* name, ...);
 //                          RC_END);
 void rc_assertDimConstraints(SEXP x, const char* name, ...);
 
+// if standard is > C++17 (i.e. C++20), bit-wise operations on enums has been deprecated
+// we can use constexprs since C++11, but are only doing so if the compiler would complain 
+#if defined(__cplusplus) && (__cplusplus > 201703L || (__cplusplus >= 201103L && defined(__clang__) && __clang_major__ >= 11))
+
+typedef unsigned char rc_constraintType;
+constexpr unsigned char RC_END    = 0x0;
+constexpr unsigned char RC_LENGTH = 0x1;
+constexpr unsigned char RC_VALUE  = 0x2;
+constexpr unsigned char RC_NA     = 0x3;
+
+typedef unsigned char rc_boundType;
+constexpr unsigned char RC_GT  = 0x04;
+constexpr unsigned char RC_LT  = 0x08;
+constexpr unsigned char RC_GEQ = 0x0C;
+constexpr unsigned char RC_LEQ = 0x10;
+constexpr unsigned char RC_EQ  = 0x14;
+constexpr unsigned char RC_NE  = 0x18;
+constexpr unsigned char RC_DEFAULT = 0x1C;
+
+typedef unsigned char rc_naAllowableType;
+constexpr unsigned char RC_YES = 0x04;
+constexpr unsigned char RC_NO  = 0x08;
+
+#else
+
 typedef enum {
   RC_END = 0x0,
   RC_LENGTH = 0x1,
@@ -79,6 +104,7 @@ typedef enum {
   RC_YES = 0x04,
   RC_NO = 0x08
 } rc_naAllowableType;
+#endif
 
 #ifdef __cplusplus
 }

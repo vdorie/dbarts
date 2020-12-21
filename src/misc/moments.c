@@ -343,7 +343,7 @@ double misc_mt_computeIndexedWeightedVarianceForKnownMean(misc_mt_manager_t rest
 
 static double computeMean(const double* x, size_t length)
 {
-  if (length == 0.0) return 0.0;
+  if (length == 0) return 0.0;
   
   double result = 0.0;
   for (size_t i = 0; i < length; ++i) result += x[i];
@@ -352,7 +352,7 @@ static double computeMean(const double* x, size_t length)
 
 static double computeIndexedMean(const double* restrict x, const size_t* restrict indices, size_t length)
 {
-  if (length == 0.0) return 0.0;
+  if (length == 0) return 0.0;
   
   double result = 0.0;
   for (size_t i = 0; i < length; ++i) result += x[indices[i]];

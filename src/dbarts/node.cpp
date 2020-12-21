@@ -468,9 +468,9 @@ namespace dbarts {
     
       numOnLeft = (isTop() ?
                    misc_partitionRange(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
-                                       p.rule.splitIndex, observationIndices, numObservations) :
+                                       static_cast<misc_xint_t>(p.rule.splitIndex), observationIndices, numObservations) :
                    misc_partitionIndices(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
-                                          p.rule.splitIndex, observationIndices, numObservations));
+                                         static_cast<misc_xint_t>(p.rule.splitIndex), observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;
@@ -495,9 +495,9 @@ namespace dbarts {
     if (numObservations > 0) {
       size_t numOnLeft = (isTop() ?
                           misc_partitionRange(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
-                                              p.rule.splitIndex, observationIndices, numObservations) :
+                                              static_cast<misc_xint_t>(p.rule.splitIndex), observationIndices, numObservations) :
                           misc_partitionIndices(fit.sharedScratch.x + p.rule.variableIndex * fit.data.numObservations,
-                                                p.rule.splitIndex, observationIndices, numObservations));
+                                                static_cast<misc_xint_t>(p.rule.splitIndex), observationIndices, numObservations));
       
       leftChild->observationIndices = observationIndices;
       leftChild->numObservations = numOnLeft;

@@ -1896,7 +1896,7 @@ namespace {
             if (control.rng_seed != DBARTS_CONTROL_INVALID_SEED) {
               if (ext_rng_setSeed(state[chainNum].rng, static_cast<uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<uint_least32_t>(-1)))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
             } else {
-              if (ext_rng_setSeed(state[chainNum].rng, ext_rng_simulateUnsignedIntegerUniformInRange(state[chainNum - 1].rng, 0, static_cast<uint_least32_t>(-1))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+              if (ext_rng_setSeed(state[chainNum].rng, static_cast<uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(state[chainNum - 1].rng, 0, static_cast<uint_least32_t>(-1)))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
             }
           }
           if (numSeedResets == static_cast<size_t>(-1)) { errorMessage = "could not obtain unique seed"; goto createRNG_cleanup; }

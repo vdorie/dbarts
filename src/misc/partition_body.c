@@ -113,21 +113,21 @@
     mask_t lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
-    lh_mask = movemask(lh_comp);
+    lh_mask = (mask_t) movemask(lh_comp);
     rh_comp = loadRHComp(rh);
-    rh_mask = movemask(rh_comp);
+    rh_mask = (mask_t) movemask(rh_comp);
     
     while (true) {
       while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
         lh += cmp_width;
         lh_comp = loadLHComp(lh);
-        lh_mask = movemask(lh_comp);
+        lh_mask = (mask_t) movemask(lh_comp);
         lh_sub = 0;
       }
       while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
         rh -= cmp_width;
         rh_comp = loadRHComp(rh);
-        rh_mask = movemask(rh_comp);
+        rh_mask = (mask_t) movemask(rh_comp);
         rh_sub = 0;
       }
       if (lh + 2 * cmp_width >= rh) {
@@ -194,21 +194,21 @@
     mask_t lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
-    lh_mask = movemask(lh_comp);
+    lh_mask = (mask_t) movemask(lh_comp);
     rh_comp = loadRHComp(rh);
-    rh_mask = movemask(rh_comp);
+    rh_mask = (mask_t) movemask(rh_comp);
     
     while (true) {
       while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
       lh += cmp_width;
         lh_comp = loadLHComp(lh);
-        lh_mask = movemask(lh_comp);
+        lh_mask = (mask_t) movemask(lh_comp);
         lh_sub = 0;
       }
       while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
         rh -= cmp_width;
         rh_comp = loadRHComp(rh);
-        rh_mask = movemask(rh_comp);
+        rh_mask = (mask_t) movemask(rh_comp);
         rh_sub = 0;
       }
       if (lh + 2 * cmp_width >= rh) {
