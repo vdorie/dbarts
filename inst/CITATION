@@ -1,13 +1,20 @@
-bibentry(bibtype = "article",
-         title = "BART: Bayesian additive regression trees",
-         author = c(person("Hugh A.", "Chipman"),
-             person("Edward I.", "George"),
-             person("Robert", "E. McCulloch")),
-         doi = "10.1214/09-AOAS285",
-         month = 3,
-         number = 1,
-         pages = "266--298",
-         journal = "The Annals of Applied Statistics",
-         publisher = "The Institute of Mathematical Statistics",
-         volume = 4,
-         year = 2010)
+authors <- c(person("Vincent", "Dorie"))
+
+title   <- "dbarts: Discrete Bayesian Additive Regression Trees Sampler"
+version <- paste("R package version", meta$Version)
+year    <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date)
+url     <- "https://CRAN.R-project.org/package=dbarts"
+
+text_version <- paste0(paste(authors, collapse = ", "), " (", year, "). ",
+                       title, ". ", version, ". ", url)
+
+citHeader("To cite the 'dbarts' in publications use:")
+
+citEntry(entry        = "Misc",
+         author       = authors,
+         title        = title,
+         year         = year,
+         note         = version,
+         url          = "https://CRAN.R-project.org/package=dbarts",
+         textVersion  = text_version)
+
