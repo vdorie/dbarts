@@ -28,10 +28,19 @@ Imports:
   graphics,
   parallel
 Suggests:
-  testthat (>= 0.9-0)
+    testthat (>= 0.9-0),
+    knitr,
+    rmarkdown,
+    purrr,
+    tidyr,
+    dplyr,
+    furrr,
+    ggplot2,
+    coda
 Description: Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) <doi:10.1214/09-AOAS285>) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Also serves as a drop-in replacement for package 'BayesTree'.
 License: GPL (>= 2)
 NeedsCompilation: yes
 Biarch: yes
 URL: https://github.com/vdorie/dbarts
 BugReports: https://github.com/vdorie/dbarts/issues
+VignetteBuilder: knitr

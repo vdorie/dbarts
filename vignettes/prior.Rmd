@@ -1,0 +1,341 @@
+---
+title: "Get Prior"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get Prior}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  warning = FALSE
+)
+```
+
+## Objective
+
+The goal of this vignette is to show you how to get the prior distribution of the treatment effect.
+
+## Data Generating Process
+
+$$
+\begin{align*}
+Z &\sim \mbox{Bernoulli}(0.5) \\
+X | Z = 1 &\sim N(40,10^2) \\
+X | Z = 0 &\sim N(20,10^2) \\
+Y(0) | X &\sim N(72 + 3\sqrt{X},1) \\
+Y(1) | X &\sim N(90 + exp(0.06X),1) 
+\end{align*}
+$$
+
+### Plot the DGP
+
+```{r dgp, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+library(ggplot2)
+library(dplyr)
+library(dbarts)
+library(furrr)
+plan(multiprocess)
+
+f_treated <- function(x) 90 + exp(0.06*x)
+f_control <- function(x) 72 + 3*sqrt(x)
+
+p <- ggplot(data = data.frame(x = 0), mapping = aes(x = x)) + 
+  stat_function(fun = f_control, aes(color = "truth - control")) +
+  stat_function(fun = f_treated, aes(color = "truth - treatment")) +
+  scale_color_manual("", values = c("red", "blue")) + 
+  theme(legend.position="bottom") + 
+  xlim(6,62)
+
+p  
+```
+
+## Synthetic data
+
+```{r fake_data, warning=FALSE, message=FALSE}
+set.seed(123)
+N <- 120
+
+my_data <-
+  tibble(Z = sample(
+    x = c("treatment", "control"),
+    size = N,
+    replace = TRUE,
+    p = c(0.5, 0.5)
+  )) %>%
+  rowwise()  %>%
+  mutate(
+    treatment = case_when(Z == "treatment" ~ 1,
+                          Z == "control" ~ 0),
+    X = case_when(
+      Z == "treatment" ~ rnorm(1, mean = 40, sd = 10),
+      Z == "control" ~ rnorm(1, mean = 20, sd = 10)
+    ),
+    Y1 = rnorm(1, mean = 90 + exp(0.06 * X), sd = 1),
+    Y0 = rnorm(1, mean = 72 + 3 * sqrt(X), sd = 1),
+    Y = case_when(Z == "treatment" ~ Y1,
+                  Z == "control" ~ Y0),
+    tau = Y1 - Y0
+  ) %>%
+  tidyr::drop_na() #  remove NAs from negative X's
+
+```
+
+The true Sample Average Treatment Effect in these syntetic data is `r round(mean(my_data$tau)/sd(my_data$Y),2)` standard deviations.
+
+
+
+```{r plot_samples, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+ggplot(data = my_data, aes(x=X, y=Y, color = Z)) + 
+   geom_point() + 
+   stat_function(fun = f_control, aes(color = "truth - control")) +
+   stat_function(fun = f_treated, aes(color = "truth - treatment")) + 
+   scale_color_manual("", values = c("red", "blue","red", "blue")) + 
+   theme(legend.position="bottom") + 
+   xlim(6,62)
+```
+
+
+
+## Fit the model
+
+```{r fit}
+train_data <- dbartsData(my_data %>% select(X, treatment), my_data$Y)
+
+fit <- bart2(
+  train_data,
+  keepTrees       = T,
+  verbose         = F,
+  n.thread        = 6,
+  combineChains   = TRUE
+)
+## Get the posterior distribution for the treatment effect
+
+x0 <- my_data %>% mutate(treatment = 0) %>% select(X, treatment)
+x1 <- my_data %>% mutate(treatment = 1) %>% select(X, treatment)
+
+pred0 <- predict(fit, as.matrix(x0))
+
+pred1 <- predict(fit, as.matrix(x1))
+
+tau_posterior_draws <- pred1 - pred0
+
+SATE_posterior <- rowMeans(tau_posterior_draws)
+
+
+```
+
+
+### Check Sigma
+
+```{r check_sigma, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+ggplot(data = tibble(sigma = fit$sigma, draw = 1:length(fit$sigma)),
+       aes(y = sigma, x = draw)) +
+  geom_line()
+neff_sigma <- coda::effectiveSize(x = fit$sigma)
+
+```
+
+Sigma's effective sample size is `r neff_sigma`.
+
+### How well did we recover the DGP?
+
+```{r plot_bart, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+fake_data <-
+  expand.grid(X = seq(min(my_data$X), max(my_data$X), length = 1000),
+              treatment = c(1, 0)) %>%
+  as_tibble() %>%
+  mutate(trueY = ifelse(treatment == 1, 90 + exp(0.06 * X), 72 + 3 * sqrt(X)))
+
+predictions <- predict(fit, fake_data)
+
+fake_data <- fake_data %>% 
+  mutate(bart_pred = colMeans(predictions))
+
+# add annotations to plot
+xstart <- 20-15
+length <- 4
+text_left <- 26-15
+yVals <- seq(150,180,by=4)
+
+ggplot(data = my_data, aes(x = X, y = Y, color = as.factor(treatment))) +
+  theme_bw() +
+  geom_point() +
+  stat_function(fun = f_control, aes(color = "truth - control")) +
+  stat_function(fun = f_treated, aes(color = "truth - treatment")) +
+  geom_line(data = fake_data,
+            aes(x = X, y = bart_pred, color = as.factor(treatment)),
+            linetype = "dashed") +
+  theme(legend.position = "none") +
+  scale_color_manual("",
+                     values = c("red", "blue", "red", "blue", "red", "blue", "red", "blue")) +
+  annotate(
+    geom = "segment",
+    x = xstart,
+    y = yVals[1],
+    xend = xstart + length,
+    yend = yVals[1],
+    color = "red"
+  ) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[1],
+    label = c("truth - control"),
+    hjust = 0
+  ) +
+  annotate(
+    geom = "segment",
+    x = xstart,
+    y = yVals[2],
+    xend = xstart + length,
+    yend = yVals[2],
+    color = "blue"
+  ) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[2],
+    label = c("truth - treatment"),
+    hjust = 0
+  ) +
+  geom_point(aes(x = xstart + length / 2, y = yVals[3]), color = c("red")) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[3],
+    label = c("simulated data - control"),
+    hjust = 0
+  ) +
+  geom_point(aes(x = xstart + length / 2, y = yVals[4]), color = c("blue")) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[4],
+    label = c("simulated data - treatment"),
+    hjust = 0
+  ) +
+  annotate(
+    geom = "segment",
+    x = xstart,
+    y = yVals[5],
+    xend = xstart + length,
+    yend = yVals[5],
+    color = "red",
+    linetype = "dashed"
+  ) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[5],
+    label = c("BART - control"),
+    hjust = 0
+  ) +
+  annotate(
+    geom = "segment",
+    x = xstart,
+    y = yVals[6],
+    xend = xstart + length,
+    yend = yVals[6],
+    color = "blue",
+    linetype = "dashed"
+  ) +
+  annotate(
+    geom = "text",
+    x = text_left,
+    y = yVals[6],
+    label = c("BART - treatment"),
+    hjust = 0
+  ) 
+```
+
+
+### Plot Posterior
+
+```{r plot_posterior, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+ggplot(data = tibble(value = SATE_posterior / sd(my_data$Y)), aes(x = value)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(my_data$tau) / sd(my_data$Y),
+             linetype = "dashed") +
+  ggtitle("Posterior Distribution of the Sample Average Treatment Effect") +
+  xlab("Standard Deviations")
+```
+
+
+## Get the prior distribution for the treatment effect
+
+```{r prior, fig.height=5, fig.width=7, message=FALSE, fig.align='center'}
+.getPrior <- function(i, sampler_x0, sampler_x1) {
+  sampler_x0$sampleTreesFromPrior()
+  sampler_x0$sampleNodeParametersFromPrior()
+  prior_samples_x0 <- sampler_x0$predict(x0)
+  sampler_x1$sampleTreesFromPrior()
+  sampler_x1$sampleNodeParametersFromPrior()
+  prior_samples_x1 <- sampler_x1$predict(x1)
+  prior_samples_tau <- prior_samples_x1 - prior_samples_x0
+  prior_tau_i <- mean(prior_samples_tau)
+  return(prior_tau_i)
+}
+
+getTreatmentPrior <-
+  function(dbarts_data,
+           treatment,
+           n_samples = 10000,
+           parallel = FALSE) {
+    sampler_x0 <-
+      dbarts(train_data, control = dbartsControl(n.chains = 1))
+    sampler_x0$setPredictor(rep_len(0, nrow(my_data)), "treatment")
+    
+    sampler_x1 <-
+      dbarts(train_data, control = dbartsControl(n.chains = 1))
+    sampler_x0$setPredictor(rep_len(1, nrow(my_data)), "treatment")
+    
+    prior_samples_x0 <- matrix(NA, nrow(my_data), n_samples)
+    prior_samples_x1 <- matrix(NA, nrow(my_data), n_samples)
+    prior_samples_tau <- matrix(NA, nrow(my_data), n_samples)
+    
+    if (parallel) {
+      SATE_prior <- future_map_dbl(
+        .x = seq_len(n_samples),
+        .f = ~ .getPrior(
+          i = .x,
+          sampler_x0 = sampler_x0,
+          sampler_x1 = sampler_x1
+        )
+      )
+    } else{
+      SATE_prior <-
+        purrr::map_dbl(
+          .x = seq_len(n_samples),
+          .f = ~ .getPrior(
+            i = .x,
+            sampler_x0 = sampler_x0,
+            sampler_x1 = sampler_x1
+          )
+        )
+    }
+    return(SATE_prior)
+  }
+
+
+SATE_prior <-
+  getTreatmentPrior(
+    dbarts_data = train_data,
+    treatment = "treatment",
+    n_samples = 10000,
+    parallel = TRUE
+  )
+
+
+ggplot(data = tibble(value = SATE_prior / sd(my_data$Y)), aes(x = value)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean(my_data$tau) / sd(my_data$Y),
+             linetype = "dashed") +
+  ggtitle("Prior Distribution of the Sample Average Treatment Effect") +
+  xlab("Standard Deviations")
+
+```
+

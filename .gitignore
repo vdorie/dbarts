@@ -15,3 +15,5 @@ src/external/config.h
 src/misc/config.h
 src/include/misc/types.h
 inst/include/dbarts/types.hpp
+.Rproj.user
+inst/doc
