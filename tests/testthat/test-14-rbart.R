@@ -287,7 +287,7 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
                        n.trees = 50L, n.threads = 1L)
   ranef.rbart <- rbartFit$ranef.mean
   
-  glmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = probit))
+  glmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = "probit"))
   
   rbart.mu.hat <- apply(rbartFit$yhat.train, 3, mean)
   glmer.mu.hat  <- predict(glmerFit)
