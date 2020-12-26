@@ -98,20 +98,6 @@ AC_DEFUN([AX_COMPILER_EXT],
   ;;
   esac
   
-# override for compiling whne using rosetta
-  if test x"$host_vendor" = x"apple" && x"$host_cpu" = x"x86_64"; then
-    AC_CHECK_HEADER("emmintrin.h",[], [
-      ax_cv_support_sse2_ext=no
-      SSE2_FLAG=
-      ax_cv_support_sse4_1_ext=no
-      SSE4_1_FLAG=
-      ax_cv_support_avx_ext=no
-      AVX_FLAG=
-      ax_cv_support_avx2_ext=no
-      AVX2_FLAG=
-    ])
-  fi
-  
   if test x"$ax_cv_support_sse2_ext" = x"yes"; then
     AC_DEFINE(HAVE_SSE2,1,[Support SSE2 (Streaming SIMD Extensions 2) instructions])
   fi
