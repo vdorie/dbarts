@@ -5749,6 +5749,28 @@ fi
   ;;
   esac
 
+# override for compiling whne using rosetta
+  if test x"$host_vendor" = x"apple" && x"$host_cpu" = x"x86_64"; then
+    as_ac_Header=`$as_echo "ac_cv_header_"emmintrin.h"" | $as_tr_sh`
+ac_fn_c_check_header_mongrel "$LINENO" ""emmintrin.h"" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+
+else
+
+      ax_cv_support_sse2_ext=no
+      SSE2_FLAG=
+      ax_cv_support_sse4_1_ext=no
+      SSE4_1_FLAG=
+      ax_cv_support_avx_ext=no
+      AVX_FLAG=
+      ax_cv_support_avx2_ext=no
+      AVX2_FLAG=
+
+fi
+
+
+  fi
+
   if test x"$ax_cv_support_sse2_ext" = x"yes"; then
 
 $as_echo "#define HAVE_SSE2 1" >>confdefs.h
