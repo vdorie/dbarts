@@ -5,6 +5,8 @@ source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE
 test_that("basic Friedman example gets same result with various SIMD sets", {
   maxSIMDLevel <- .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet)
   
+  skip_if(maxSIMDLevel == 0)
+  
   n.burn <- 0L
   n.sims <- 10L
   
@@ -47,6 +49,8 @@ source(system.file("common", "multithreadData.R", package = "dbarts"), local = T
 
 test_that("long data gets same result with various SIMD sets", {
   maxSIMDLevel <- .Call(dbarts:::C_dbarts_getMaxSIMDInstructionSet)
+  
+  skip_if(maxSIMDLevel == 0)
   
   n.burn <- 0L
   n.sims <- 10L
