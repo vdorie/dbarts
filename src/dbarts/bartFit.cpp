@@ -1609,12 +1609,12 @@ namespace {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         state[chainNum].sigma = 1.0;
     
-        state[chainNum].k = model.kPrior->isFixed ? static_cast<FixedHyperprior*>(model.kPrior)->getK() : std::numeric_limits<double>::quiet_NaN();
+        state[chainNum].k = model.kPrior->isFixed ? static_cast<FixedHyperprior*>(model.kPrior)->getK() : 2;
       }
     } else {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         state[chainNum].sigma = data.sigmaEstimate / sharedScratch.dataScale.range;
-        state[chainNum].k = model.kPrior->isFixed ? static_cast<FixedHyperprior*>(model.kPrior)->getK() : std::numeric_limits<double>::quiet_NaN();
+        state[chainNum].k = model.kPrior->isFixed ? static_cast<FixedHyperprior*>(model.kPrior)->getK() : 2;
       }
       model.sigmaSqPrior->setScale(state[0].sigma * state[0].sigma * model.sigmaSqPrior->getScale());
     }
@@ -1880,7 +1880,6 @@ namespace {
         if (rng_algorithm != EXT_RNG_ALGORITHM_USER_UNIFORM &&
             control.rng_seed != DBARTS_CONTROL_INVALID_SEED) {
           uint_least32_t chainSeed = static_cast<uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<uint_least32_t>(-1)));
-          ext_printf("seed for chain %lu: %u\n", chainNum + 1, chainSeed);
           if (ext_rng_setSeed(state[chainNum].rng, chainSeed) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
           // if (ext_rng_setSeed(state[chainNum].rng, static_cast<uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<uint_least32_t>(-1)))) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
         } else {

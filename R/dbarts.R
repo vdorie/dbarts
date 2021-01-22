@@ -135,7 +135,7 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   }
   priors <- eval(parsePriorsCall)
 
-  model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$resid.prior,
+  model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$node.hyperprior, priors$resid.prior,
                node.scale = if (control@binary) 3.0 else 0.5)
   
   result <- new("dbartsSampler", control, model, data)

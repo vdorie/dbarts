@@ -183,7 +183,7 @@ namespace dbarts {
     double k;
     
     FixedHyperprior() : EndNodeHyperprior(true), k(2.0) { }
-    FixedHyperprior(double k) : EndNodeHyperprior(false), k(k) { }
+    FixedHyperprior(double k) : EndNodeHyperprior(true), k(k) { }
     virtual ~FixedHyperprior() { }
     
     double getK() const { return k; }

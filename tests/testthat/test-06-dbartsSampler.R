@@ -155,7 +155,7 @@ test_that("sampling from prior works correctly", {
   trees <- sampler$getTrees()
   
   expect_equivalent(sd(trees$value[trees$var == -1L]),
-                    sampler$model@node.scale / (sampler$model@node.prior@k * sqrt(sampler$control@n.trees)),
+                    sampler$model@node.scale / (sampler$model@node.hyperprior@k * sqrt(sampler$control@n.trees)),
                     tolerance = 1.0e-3)
 })
 

@@ -79,7 +79,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   node.prior <- quote(normal(k))
   node.prior[[1L]] <- quoteInNamespace(normal)
   node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
-  node.prior <- eval(node.prior)
+  node.hyperprior <- NULL
+  massign[node.prior, node.hyperprior] <- eval(node.prior)
   
   resid.prior <-
     if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {
@@ -91,7 +92,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }
   if (is.call(resid.prior)) resid.prior <- eval(resid.prior, getNamespace("dbarts"))
-  model <- new("dbartsModel", tree.prior, node.prior, resid.prior,
+  model <- new("dbartsModel", tree.prior, node.prior, node.hyperprior, resid.prior,
                node.scale = if (control@binary) 3.0 else 0.5)
   
   if (method == "k-fold") {

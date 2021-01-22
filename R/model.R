@@ -43,8 +43,8 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   
   tree.prior  <- eval(matchedCall$tree.prior, evalEnv)
   resid.prior <- eval(matchedCall$resid.prior, evalEnv)
-  node.prior <- node.hyperprior <- NULL
   
+  node.prior <- node.hyperprior <- NULL
   massign[node.prior, node.hyperprior] <- eval(matchedCall$node.prior, evalEnv)
   
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)

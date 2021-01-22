@@ -837,7 +837,7 @@ namespace {
     repControl.numTrees = numTrees;
     
     if (k > 0.0 && repModel.kPrior->isFixed)
-      fit.setK(k);
+      static_cast<FixedHyperprior*>(repModel.kPrior)->setK(k);
     
     static_cast<CGMPrior*>(repModel.treePrior)->power = power;
     static_cast<CGMPrior*>(repModel.treePrior)->base  = base;

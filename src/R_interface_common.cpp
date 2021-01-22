@@ -227,36 +227,44 @@ namespace dbarts {
                    RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
     
     
-    priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
+    // not currently used
+    // priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
+    stackModel.muPrior = new NormalPrior(control, model);
       
-    slotExpr = Rf_getAttrib(priorExpr, Rf_install("k"));
-    if (Rf_isReal(slotExpr)) {
-      double k = rc_getDouble(slotExpr, "k", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-      stackModel.muPrior = new NormalPrior(control, model);
-      stackModel.kPrior = new FixedHyperprior(k);
-    } else {
-      SEXP classExpr = rc_getClass(slotExpr);
-      const char* classStr = CHAR(STRING_ELT(classExpr, 0));
-      errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiHyperprior", NULL);
-      if (errorCode != 0) Rf_error("error matching node hyper prior: %s", std::strerror(errorCode));
-      if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported hyperprior type '%s'", classStr);
-      // some day, we will have a switch statement here
-      double degreesOfFreedom =
-        rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("degreesOfFreedom")), "degreesOfFreedom",
-                     RC_LENGTH | RC_EQ, rc_asRLength(1),
-                     RC_VALUE | RC_GT, 0.0, RC_END);
-      double scale =
-        rc_getDouble(Rf_getAttrib(slotExpr, Rf_install("scale")), "scale",
-                     RC_LENGTH | RC_EQ, rc_asRLength(1),
-                     RC_VALUE | RC_GT, 0.0, RC_END);
-      
-      stackModel.muPrior = new NormalPrior(control, model);
-      stackModel.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
+    priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.hyperprior"));
+    SEXP classExpr = rc_getClass(priorExpr);
+    const char* classStr = CHAR(STRING_ELT(classExpr, 0));
+    errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiHyperprior", "dbartsFixedHyperprior", NULL);
+    if (errorCode != 0) Rf_error("error matching k prior: %s", std::strerror(errorCode));
+    if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported k prior type '%s'", classStr);
+    
+    switch (priorType) {
+      case 0:
+      {
+        double degreesOfFreedom =
+          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("degreesOfFreedom")), "degreesOfFreedom",
+                       RC_LENGTH | RC_EQ, rc_asRLength(1),
+                       RC_VALUE | RC_GT, 0.0, RC_END);
+        double scale =
+          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("scale")), "scale",
+                       RC_LENGTH | RC_EQ, rc_asRLength(1),
+                       RC_VALUE | RC_GT, 0.0, RC_END);
+        stackModel.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
+      }
+      break;
+      default:
+      {
+        double k =
+          rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("k")), "k",
+                       RC_LENGTH | RC_EQ, rc_asRLength(1),
+                       RC_VALUE | RC_GT, 0.0, RC_END);
+        stackModel.kPrior = new FixedHyperprior(k);
+      }
     }
     
     priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
-    SEXP classExpr = rc_getClass(priorExpr);
-    const char* classStr = CHAR(STRING_ELT(classExpr, 0));
+    classExpr = rc_getClass(priorExpr);
+    classStr = CHAR(STRING_ELT(classExpr, 0));
     errorCode = misc_str_matchInVArray(classStr, &priorType, "dbartsChiSqPrior", "dbartsFixedPrior", NULL);
     if (errorCode != 0) Rf_error("error matching residual variance prior: %s", std::strerror(errorCode));
     if (priorType == MISC_STR_NO_MATCH) Rf_error("unsupported residual variance prior type '%s'", classStr);

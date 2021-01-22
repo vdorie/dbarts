@@ -1,6 +1,21 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-20}{
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+       \item The interface registered under \code{R_RegisterCCallable} has
+             changed to reflect proper fixed hyperpriors for \code{k}.
+     }
+  }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item Fix for \code{k} mixing across chains when running multithreaded
+            and with \code{k} being modeled. Bug report thanks to Noah
+            Greifer.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-19}{
   \subsection{NEW FEATURES}{
     \itemize{
