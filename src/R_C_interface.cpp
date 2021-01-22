@@ -227,6 +227,24 @@ extern "C" {
     prior->~ChiHyperprior();
   }
   
+  FixedHyperprior* dbarts_createFixedHyperprior() {
+    return new FixedHyperprior;
+  }
+  FixedHyperprior* dbarts_createFixedHyperpriorFromOptions(double k) {
+    return new FixedHyperprior(k);
+  }
+  void dbarts_destroyFixedHyperprior(FixedHyperprior* prior) {
+    delete prior;
+  }
+  void dbarts_initializeFixedHyperpriorFromOptions(FixedHyperprior* prior, double k)
+  {
+    new (prior) FixedHyperprior(k);
+  }
+  void dbarts_invalidateFixedHyperprior(FixedHyperprior* prior) {
+    prior->~FixedHyperprior();
+  }
+
+  
   ChiSquaredPrior* dbarts_createChiSquaredPrior() {
     return new ChiSquaredPrior;
   }

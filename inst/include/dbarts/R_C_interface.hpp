@@ -35,6 +35,7 @@ namespace dbarts {
   struct NormalPrior;
   struct ChiSquaredPrior;
   struct ChiHyperprior;
+  struct FixedHyperprior;
   
   struct BARTFit;
   struct Results;
@@ -126,6 +127,12 @@ extern "C" {
   void dbarts_destroyChiHyperprior(dbarts::ChiHyperprior* prior);
   void dbarts_initializeChiHyperpriorFromOptions(dbarts::ChiHyperprior* prior, double degreesOfFreedom, double scale);
   void dbarts_invalidateChiHyperprior(dbarts::ChiHyperprior* prior);
+  
+  dbarts::FixedHyperprior* dbarts_createFixedHyperprior();
+  dbarts::FixedHyperprior* dbarts_createFixedHyperpriorFromOptions(double k);
+  void dbarts_destroyFixedHyperprior(dbarts::FixedHyperprior* prior);
+  void dbarts_initializeFixedHyperpriorFromOptions(dbarts::FixedHyperprior* prior, double k);
+  void dbarts_invalidateFixedHyperprior(dbarts::FixedHyperprior* prior);
   
   dbarts::ChiSquaredPrior* dbarts_createChiSquaredPrior();
   dbarts::ChiSquaredPrior* dbarts_createChiSquaredPriorFromOptions(double degreesOfFreedom, double quantile);

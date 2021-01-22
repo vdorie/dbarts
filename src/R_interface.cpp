@@ -358,6 +358,12 @@ namespace {
     DEF_FUNC("initializeChiHyperpriorFromOptions", dbarts_initializeChiHyperpriorFromOptions),
     DEF_FUNC("invalidateChiHyperprior", dbarts_invalidateChiHyperprior),
     
+    DEF_FUNC("createFixedHyperprior", dbarts_createFixedHyperprior),
+    DEF_FUNC("createFixedHyperpriorFromOptions", dbarts_createFixedHyperpriorFromOptions),
+    DEF_FUNC("destroyFixedHyperprior", dbarts_destroyFixedHyperprior),
+    DEF_FUNC("initializeFixedHyperpriorFromOptions", dbarts_initializeFixedHyperpriorFromOptions),
+    DEF_FUNC("invalidateFixedHyperprior", dbarts_invalidateFixedHyperprior),
+    
     DEF_FUNC("createChiSquaredPrior", dbarts_createChiSquaredPrior),
     DEF_FUNC("createChiSquaredPriorFromOptions", dbarts_createChiSquaredPriorFromOptions),
     DEF_FUNC("destroyChiSquaredPrior", dbarts_destroyChiSquaredPrior),
