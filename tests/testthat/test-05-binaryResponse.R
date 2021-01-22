@@ -48,6 +48,16 @@ test_that("basic probit example with flat hyperprior superior to default", {
               cor(qnorm(testData$p), colMeans(bartFit.flat$yhat.train)))
 })
 
+test_that("binary model with k hyperprior is reproducible when multithreaded", {
+  fit1 <- bart2(testData$X[1:100,], testData$Z[1:100], n.trees = 5L,
+                n.samples = 100L, n.burn = 0L, verbose = FALSE,
+                n.threads = 2L, n.chains = 2L, rngSeed = 99)
+  fit2 <- bart2(testData$X[1:100,], testData$Z[1:100], n.trees = 5L,
+                n.samples = 100L, n.burn = 0L, verbose = FALSE,
+                n.threads = 2L, n.chains = 2L, rngSeed = 99)
+  expect_equal(fit1$yhat.train, fit2$yhat.train)
+})
+
 source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"), local = TRUE)
 
 fitSubset  <- 1:100
