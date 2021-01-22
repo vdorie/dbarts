@@ -29,7 +29,6 @@ rbart_vi(
 \S3method{fitted}{rbart}(object,
                          type = c("ev", "ppd", "bart", "ranef"),
                          sample = c("train", "test"),
-                         combineChains = TRUE,
                          \dots)
 \S3method{extract}{rbart}(object,
                           type = c("ev", "ppd", "bart", "ranef"),

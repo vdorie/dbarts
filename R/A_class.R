@@ -7,6 +7,7 @@ methods::setValidity("dbartsCGMPrior",
   function(object) {
     if (object@power <= 0.0) return("'power' must be positive")
     if (object@base  <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1)")
+    TRUE
   })
 
 # this is a prior over k
@@ -17,19 +18,21 @@ methods::setValidity("dbartsChiHyperprior",
   function(object) {
     if (object@degreesOfFreedom <= 0.0) return("'degreesOfFreedom' must be positive")
     if (object@scale <= 0.0) return("'scale' must be positive")
+  TRUE
+  })
+methods::setClass("dbartsFixedHyperprior", contains = "dbartsNodeHyperprior",
+                  slots = list(k = "numeric"),
+                  prototype = list(k = 2))
+methods::setValidity("dbartsFixedHyperprior",
+  function(object) {
+    if (object@k <= 0.0) return("'k' must be positive")
+    TRUE
   })
 
-
-methods::setClassUnion("hyperpriorOrNumeric", c("dbartsNodeHyperprior", "numeric"))
 
 methods::setClass("dbartsNodePrior")
-methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior",
-                  slots = list(k = "hyperpriorOrNumeric"))
-methods::setValidity("dbartsNormalPrior",
-  function(object) {
-    if (is.numeric(object@k) && object@k <= 0.0) return("'k' must be positive")
-    if (is(object@k, "dbartsNodeHyperprior")) return(validObject(object@k))
-  })
+methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior")
+
 
 methods::setClass("dbartsResidPrior")
 methods::setClass("dbartsChiSqPrior", contains = "dbartsResidPrior",
@@ -38,12 +41,14 @@ methods::setValidity("dbartsChiSqPrior",
  function(object) {
    if (object@df <= 0.0) return("'df' must be positive")
    if (object@quantile <= 0.0) return("'quantile' must be positive")
+    TRUE
   })
 methods::setClass("dbartsFixedPrior", contains = "dbartsResidPrior",
                   slots = list(value = "numeric"))
 methods::setValidity("dbartsFixedPrior",
- function(object) {
-   if (object@value <= 0.0) return("'value' must be positive")
+  function(object) {
+    if (object@value <= 0.0) return("'value' must be positive")
+    TRUE
   })
 
 methods::setClass("dbartsControl",
@@ -170,9 +175,10 @@ methods::setClass("dbartsModel",
        
        node.scale = "numeric",
        
-       tree.prior  = "dbartsTreePrior",
-       node.prior  = "dbartsNodePrior",
-       resid.prior = "dbartsResidPrior"),
+       tree.prior       = "dbartsTreePrior",
+       node.prior       = "dbartsNodePrior",
+       node.hyperprior  = "dbartsNodeHyperprior",
+       resid.prior      = "dbartsResidPrior"),
   prototype =
   list(p.birth_death = 1.0,
        p.swap        = 0.0,
@@ -181,6 +187,7 @@ methods::setClass("dbartsModel",
        node.scale    = 0.5,
        tree.prior    = new("dbartsCGMPrior"),
        node.prior    = new("dbartsNormalPrior"),
+       node.hyperprior = new("dbartsFixedHyperprior"),
        resid.prior   = new("dbartsChiSqPrior")))
 methods::setValidity("dbartsModel",
   function(object) {
@@ -245,6 +252,8 @@ methods::setValidity("dbartsData",
     if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
     
     if (!is.na(object@sigma) && object@sigma <= 0.0) return("'sigma' must be positive")
+    
+    TRUE
   })
 
 ## this shouldn't ever get created, used, modified, whathaveyou

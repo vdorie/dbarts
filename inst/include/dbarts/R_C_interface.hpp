@@ -116,9 +116,9 @@ extern "C" {
   void dbarts_invalidateCGMPrior(dbarts::CGMPrior* prior);
   
   dbarts::NormalPrior* dbarts_createNormalPrior();
-  dbarts::NormalPrior* dbarts_createNormalPriorFromOptions(const dbarts::Control* control, const dbarts::Model* model, double k);
+  dbarts::NormalPrior* dbarts_createNormalPriorFromOptions(const dbarts::Control* control, const dbarts::Model* model);
   void dbarts_destroyNormalPrior(dbarts::NormalPrior* prior);
-  void dbarts_initializeNormalPriorFromOptions(dbarts::NormalPrior* prior, const dbarts::Control* control, const dbarts::Model* model, double k);
+  void dbarts_initializeNormalPriorFromOptions(dbarts::NormalPrior* prior, const dbarts::Control* control, const dbarts::Model* model);
   void dbarts_invalidateNormalPrior(dbarts::NormalPrior* prior);
   
   dbarts::ChiHyperprior* dbarts_createChiHyperprior();

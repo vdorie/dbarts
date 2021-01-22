@@ -24,7 +24,7 @@
 #define TASK_COMPLETE ((size_t) -1)
 #define TASK_BEFORE_START (((size_t) -1) - 1)
 
-#define BUFFER_LENGTH 8192
+#define BUFFER_LENGTH 32768
 
 struct ThreadData;
 
@@ -135,7 +135,8 @@ int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topL
   // ext_printf("running top %lu level tasks without output\n", numTasks);
   
   for (taskId = 0; taskId < numTasks; ++taskId) {
-    while (stackIsEmpty(&manager->availableThreadStack)) waitOnCondition(manager->taskDone, manager->mutex);
+    while (stackIsEmpty(&manager->availableThreadStack))
+      waitOnCondition(manager->taskDone, manager->mutex);
     
     ThreadData* thread = pop(&manager->availableThreadStack);
     manager->numThreadsAvailable--;
@@ -156,7 +157,8 @@ int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topL
   // ext_printf("waiting for top level tasks to finish\n");
   // printManagerStatus(manager);
   
-  while (manager->numTopLevelTasksInProgress > 0) waitOnCondition(manager->taskDone, manager->mutex);
+  while (manager->numTopLevelTasksInProgress > 0)
+    waitOnCondition(manager->taskDone, manager->mutex);
   
   // ext_printf("cleaning up top level tasks\n");
   
@@ -216,10 +218,10 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   
   getTime(&wakeTime);
   // ext_printf("wake time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
-  wakeTime.tv_sec += outputDelay->tv_sec;
+  wakeTime.tv_sec  += outputDelay->tv_sec;
   wakeTime.tv_nsec += outputDelay->tv_nsec;
   // ext_printf(", added time: %ld.%.9ld", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
-  wakeTime.tv_sec += wakeTime.tv_nsec / 1000000000;
+  wakeTime.tv_sec  += wakeTime.tv_nsec / 1000000000;
   wakeTime.tv_nsec %= 1000000000;
   // ext_printf(", mod time: %ld.%.9ld\n", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   
@@ -237,9 +239,9 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
         }
         
         getTime(&wakeTime);
-        wakeTime.tv_sec += outputDelay->tv_sec;
+        wakeTime.tv_sec  += outputDelay->tv_sec;
         wakeTime.tv_nsec += outputDelay->tv_nsec;
-        wakeTime.tv_sec += wakeTime.tv_nsec / 1000000000;
+        wakeTime.tv_sec  += wakeTime.tv_nsec / 1000000000;
         wakeTime.tv_nsec %= 1000000000;
       }
     }
@@ -273,9 +275,9 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
       }
       
       getTime(&wakeTime);
-      wakeTime.tv_sec += outputDelay->tv_sec;
+      wakeTime.tv_sec  += outputDelay->tv_sec;
       wakeTime.tv_nsec += outputDelay->tv_nsec;
-      wakeTime.tv_sec += wakeTime.tv_nsec / 1000000000;
+      wakeTime.tv_sec  += wakeTime.tv_nsec / 1000000000;
       wakeTime.tv_nsec %= 1000000000;
     }
   }

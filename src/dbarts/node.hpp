@@ -118,7 +118,7 @@ namespace dbarts {
     void clearObservations();
     void clear();
     
-    double drawFromPosterior(ext_rng* rng, const EndNodePrior& endNodePrior, double residualVariance) const;
+    double drawFromPosterior(ext_rng* rng, const EndNodePrior& endNodePrior, double k, double residualVariance) const;
     void setPredictions(double* y_hat, double prediction) const;
         
     std::size_t getDepth() const;

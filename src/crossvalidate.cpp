@@ -727,17 +727,18 @@ namespace {
     
     NormalPrior* repNodePrior = new NormalPrior();
     const NormalPrior* oldNodePrior = static_cast<NormalPrior*>(origModel.muPrior);
-    repNodePrior->precision = oldNodePrior->precision;
+    repNodePrior->scale = oldNodePrior->scale;
     
     repModel.muPrior = repNodePrior;
     
     repModel.sigmaSqPrior = origModel.sigmaSqPrior->duplicate();
     
-    if (origModel.kPrior != NULL) {
+    if (!origModel.kPrior->isFixed) {
       const ChiHyperprior* oldKPrior = static_cast<ChiHyperprior*>(origModel.kPrior);
       repModel.kPrior = new ChiHyperprior(oldKPrior->degreesOfFreedom, oldKPrior->scale);
     } else {
-      repModel.kPrior = NULL;
+      const FixedHyperprior* oldKPrior = static_cast<FixedHyperprior*>(origModel.kPrior);
+      repModel.kPrior = new FixedHyperprior(oldKPrior->getK());
     }
   }
   
@@ -835,10 +836,8 @@ namespace {
     
     repControl.numTrees = numTrees;
     
-    if (k > 0.0) {
-      double endNodeSd = repModel.nodeScale / (k * std::sqrt(static_cast<double>(repControl.numTrees)));
-      static_cast<NormalPrior*>(repModel.muPrior)->precision = 1.0 / (endNodeSd * endNodeSd);
-    }
+    if (k > 0.0 && repModel.kPrior->isFixed)
+      fit.setK(k);
     
     static_cast<CGMPrior*>(repModel.treePrior)->power = power;
     static_cast<CGMPrior*>(repModel.treePrior)->base  = base;

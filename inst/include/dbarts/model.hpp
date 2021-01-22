@@ -2,6 +2,7 @@
 #define DBARTS_MODEL_HPP
 
 #include <cstddef>
+#include <cmath> // sqrt
 #include <dbarts/cstdint.hpp>
 
 // can make these kinds of adjustments to trees during MCMC
@@ -82,15 +83,18 @@ namespace dbarts {
   };
   
   struct EndNodePrior {
-    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const = 0;
-    virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const = 0;
-    virtual double drawFromPrior(ext_rng* rng) const = 0;
-    virtual void setK(const BARTFit& fit, double k) = 0;
-    virtual double getK(const BARTFit& fit) const = 0;
+    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, double k, const Node& node, const double* y, double residualVariance) const = 0;
+    virtual double drawFromPosterior(ext_rng* rng, double k, double ybar, double numEffectiveObservations, double residualVariance) const = 0;
+    virtual double drawFromPrior(ext_rng* rng, double k) const = 0;
     
     virtual ~EndNodePrior() { }
   };
+  
   struct EndNodeHyperprior {
+    bool isFixed;
+    
+    explicit EndNodeHyperprior(bool isFixed) : isFixed(isFixed) {}
+    
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const = 0;
     virtual void print(const BARTFit& fit) const = 0;
     virtual ~EndNodeHyperprior() { }
@@ -99,6 +103,8 @@ namespace dbarts {
   // the virtual scale accessors are for the conditional bart, which can have its data rescaled
   // if your prior doesn't use them, ignore them
   struct ResidualVariancePrior {
+    bool isFixed;
+    
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum,
                                      const double* y,
                                      const double* y_hat) const = 0;
@@ -108,8 +114,8 @@ namespace dbarts {
     virtual ResidualVariancePrior* duplicate() const = 0;
     
     virtual void print(const BARTFit& fit) const = 0;
-    virtual bool isFixed() const = 0;
     
+    explicit ResidualVariancePrior(bool isFixed) : isFixed(isFixed) {}
     virtual ~ResidualVariancePrior() { }
   };
   
@@ -137,17 +143,18 @@ namespace dbarts {
   
   // nodeMu ~ normal(0, 1 / precision)
   struct NormalPrior : EndNodePrior {
-    double precision;
+    double scale;
     
-    NormalPrior() : precision(1.0) { }
-    NormalPrior(const Control& control, const Model& model, double k);
+    NormalPrior() : scale(1.0) { }
+    NormalPrior(const Control& control, const Model& model);
     virtual ~NormalPrior() { }
     
-    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, const Node& node, const double* y, double residualVariance) const;
-    virtual double drawFromPosterior(ext_rng* rng, double ybar, double numEffectiveObservations, double residualVariance) const;
-    virtual double drawFromPrior(ext_rng* rng) const;
-    virtual void setK(const BARTFit& fit, double k);
-    virtual double getK(const BARTFit& fit) const;
+    virtual double computeLogIntegratedLikelihood(const BARTFit& fit, std::size_t chainNum, double k, const Node& node, const double* y, double residualVariance) const;
+    virtual double drawFromPosterior(ext_rng* rng, double k, double ybar, double numEffectiveObservations, double residualVariance) const;
+    virtual double drawFromPrior(ext_rng* rng, double k) const;
+    virtual void setScale(double newScale) { scale = newScale; }
+    virtual void setScale(const Control& control, const Model& model);
+    virtual double getScale() const { return scale; }
   };
   
   /* struct CauchyHyperprior : EndNodeHyperprior {
@@ -163,12 +170,27 @@ namespace dbarts {
     double degreesOfFreedom;
     double scale;
     
-    ChiHyperprior() : degreesOfFreedom(1.25), scale(1.0) { }
-    ChiHyperprior(double degreesOfFreedom, double scale) : degreesOfFreedom(degreesOfFreedom), scale(scale) { }
+    ChiHyperprior() : EndNodeHyperprior(false), degreesOfFreedom(1.25), scale(1.0) { }
+    ChiHyperprior(double degreesOfFreedom, double scale) : EndNodeHyperprior(false), degreesOfFreedom(degreesOfFreedom), scale(scale) { }
     virtual ~ChiHyperprior() { }
     
     virtual void print(const BARTFit& fit) const;
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const;
+    virtual bool isFixed() const { return false; }
+  };
+  
+  struct FixedHyperprior : EndNodeHyperprior {
+    double k;
+    
+    FixedHyperprior() : EndNodeHyperprior(true), k(2.0) { }
+    FixedHyperprior(double k) : EndNodeHyperprior(false), k(k) { }
+    virtual ~FixedHyperprior() { }
+    
+    double getK() const { return k; }
+    void setK(double newK) { k = newK; }
+    
+    virtual void print(const BARTFit& fit) const;
+    virtual double drawFromPosterior(const BARTFit&, std::size_t) const { return k; }
   };
   
   // sigmaSq ~ chisq(df, scale)
@@ -176,7 +198,7 @@ namespace dbarts {
     double degreesOfFreedom;
     double scale;
     
-    ChiSquaredPrior() :
+    ChiSquaredPrior() : ResidualVariancePrior(false),
       degreesOfFreedom(DBARTS_DEFAULT_CHISQ_PRIOR_DF),
       scale(1.0) { }
     ChiSquaredPrior(double degreesOfFreedom, double quantile);
@@ -191,13 +213,12 @@ namespace dbarts {
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum,
                                      const double* y,
                                      const double* y_hat) const;
-    virtual bool isFixed() const { return false; }
   };
   struct FixedPrior : ResidualVariancePrior {
     double value;
     
-    FixedPrior() : value(1.0) { }
-    FixedPrior(double value) : value(value) { }
+    FixedPrior() : ResidualVariancePrior(true), value(1.0) { }
+    FixedPrior(double value) : ResidualVariancePrior(true), value(value) { }
     virtual ResidualVariancePrior* duplicate() const;
     
     virtual double drawFromPosterior(const BARTFit&, std::size_t,

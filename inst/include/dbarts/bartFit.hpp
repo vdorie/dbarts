@@ -56,8 +56,13 @@ namespace dbarts {
     void setOffset(const double* newOffset, bool updateScale);
     void setWeights(const double* newWeights);
     
-    // one sigma for each chain
+    // setters ignore fixed priors, but install new fixed priors also sets the
+    // parameters
+    void setSigma(double newSigma);
+    void setK(double newK);
+    // one for each chain
     void setSigma(const double* newSigma);
+    void setK(const double* newK);
     
     /* These functions change the predictors or the cut points derived from them, and thus can change the
      * trees. Consequently, they have differring semantics depending on intended use.

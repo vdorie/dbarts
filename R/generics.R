@@ -317,7 +317,6 @@ extract.rbart <- function(object,
 fitted.rbart <- function(object,
                          type = c("ev", "ppd", "bart", "ranef"),
                          sample = c("train", "test"),
-                         combineChains = TRUE,
                          ...)
 {
   if (is.character(type)) {

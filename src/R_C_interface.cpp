@@ -196,15 +196,15 @@ extern "C" {
   NormalPrior* dbarts_createNormalPrior() {
     return new NormalPrior;
   }
-  NormalPrior* dbarts_createNormalPriorFromOptions(const Control* control, const Model* model, double k) {
-    return new NormalPrior(*control, *model, k);
+  NormalPrior* dbarts_createNormalPriorFromOptions(const Control* control, const Model* model) {
+    return new NormalPrior(*control, *model);
   }
   void dbarts_destroyNormalPrior(NormalPrior* prior) {
     delete prior;
   }
-  void dbarts_initializeNormalPriorFromOptions(NormalPrior* prior, const Control* control, const Model* model, double k)
+  void dbarts_initializeNormalPriorFromOptions(NormalPrior* prior, const Control* control, const Model* model)
   {
-    new (prior) NormalPrior(*control, *model, k);
+    new (prior) NormalPrior(*control, *model);
   }
   void dbarts_invalidateNormalPrior(NormalPrior* prior) {
     prior->~NormalPrior();

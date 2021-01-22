@@ -100,7 +100,7 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double nodeParam = bottomNode.drawFromPosterior(state.rng, *fit.model.muPrior, sigma * sigma);
+      double nodeParam = bottomNode.drawFromPosterior(state.rng, *fit.model.muPrior, state.k, sigma * sigma);
       bottomNode.setPredictions(trainingFits, nodeParam);
       
       if (testFits != NULL) nodeParams[i] = nodeParam;
@@ -271,7 +271,7 @@ namespace dbarts {
     for (size_t i = 0; i < numBottomNodes; ++i) {
       const Node& bottomNode(*bottomNodes[i]);
       
-      double nodeParam = fit.model.muPrior->drawFromPrior(state.rng);
+      double nodeParam = fit.model.muPrior->drawFromPrior(state.rng, state.k);
       bottomNode.setPredictions(trainingFits, nodeParam);
       
       if (testFits != NULL) nodeParams[i] = nodeParam;

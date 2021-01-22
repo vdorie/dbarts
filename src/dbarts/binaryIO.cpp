@@ -253,8 +253,19 @@ read_data_cleanup:
     
     
     if ((errorCode = misc_bio_writeNChars(bio, "nrml", 4)) != 0) goto write_model_cleanup;
-    if ((errorCode = misc_bio_writeDouble(bio, static_cast<NormalPrior*>(model.muPrior)->precision)) != 0) goto write_model_cleanup;
+    if (model.kPrior->isFixed) {
+      if ((errorCode = misc_bio_writeNChars(bio, "fixd", 4)) != 0) goto write_model_cleanup;
+      if ((errorCode = misc_bio_writeDouble(bio, static_cast<FixedHyperprior*>(model.kPrior)->getK())) != 0) goto write_model_cleanup;
+    } else {
+      if ((errorCode = misc_bio_writeNChars(bio, "chi ", 4)) != 0) goto write_model_cleanup;
+      if ((errorCode = misc_bio_writeDouble(bio, static_cast<ChiHyperprior*>(model.kPrior)->degreesOfFreedom)) != 0) goto write_model_cleanup;
+      if ((errorCode = misc_bio_writeDouble(bio, static_cast<ChiHyperprior*>(model.kPrior)->scale)) != 0) goto write_model_cleanup;
+    }
     
+    if (model.sigmaSqPrior->isFixed) {
+      if ((errorCode = misc_bio_writeNChars(bio, "fixd", 4)) != 0) goto write_model_cleanup;
+      if ((errorCode = misc_bio_writeDouble(bio, static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale())) != 0) goto write_model_cleanup;
+    }
     if ((errorCode = misc_bio_writeNChars(bio, "chsq", 4)) != 0) goto write_model_cleanup;
     if ((errorCode = misc_bio_writeDouble(bio, static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto write_model_cleanup;
     if ((errorCode = misc_bio_writeDouble(bio, static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->scale)) != 0) goto write_model_cleanup;
@@ -288,19 +299,36 @@ write_model_cleanup:
     if (std::strncmp(priorName, "nrml", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
     
     model.muPrior = new NormalPrior;
-    if ((errorCode = misc_bio_readDouble(bio, &static_cast<NormalPrior*>(model.muPrior)->precision)) != 0) goto read_model_cleanup;
-    
     
     if ((errorCode = misc_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
-    if (std::strncmp(priorName, "chsq", 4) != 0) { errorCode = EILSEQ; goto read_model_cleanup; }
+    if (std::strncmp(priorName, "fixd", 4) == 0) {
+      model.kPrior = new FixedHyperprior();
+      if ((errorCode = misc_bio_readDouble(bio, &static_cast<FixedHyperprior*>(model.kPrior)->k)) != 0) goto read_model_cleanup;
+    } else if (std::strncmp(priorName, "chi", 4) == 0) {
+      model.kPrior = new ChiHyperprior();
+      if ((errorCode = misc_bio_readDouble(bio, &static_cast<ChiHyperprior*>(model.kPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
+      if ((errorCode = misc_bio_readDouble(bio, &static_cast<ChiHyperprior*>(model.kPrior)->scale)) != 0) goto read_model_cleanup;
+    } else {
+      errorCode = EILSEQ;
+      goto read_model_cleanup;
+    }
     
-    model.sigmaSqPrior = new ChiSquaredPrior;
-    if ((errorCode = misc_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
+    if ((errorCode = misc_bio_readNChars(bio, priorName, 4)) != 0) goto read_model_cleanup;
+    if (std::strncmp(priorName, "fixd", 4) == 0) {
+      model.sigmaSqPrior = new FixedPrior();
+      if ((errorCode = misc_bio_readDouble(bio, &static_cast<FixedPrior*>(model.sigmaSqPrior)->value)) != 0) goto read_model_cleanup;
+    } else if (std::strncmp(priorName, "chsq", 4) == 0) {
+      model.sigmaSqPrior = new ChiSquaredPrior();
+      if ((errorCode = misc_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->degreesOfFreedom)) != 0) goto read_model_cleanup;
     if ((errorCode = misc_bio_readDouble(bio, &static_cast<ChiSquaredPrior*>(model.sigmaSqPrior)->scale)) != 0) goto read_model_cleanup;
+    } else {
+      errorCode = EILSEQ; goto read_model_cleanup;
+    }
     
 read_model_cleanup:
     
     if (errorCode != 0) {
+      delete model.kPrior;
       delete model.sigmaSqPrior;
       delete model.muPrior;
       delete model.treePrior;

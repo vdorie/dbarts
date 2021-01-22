@@ -232,7 +232,8 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(priorExpr, Rf_install("k"));
     if (Rf_isReal(slotExpr)) {
       double k = rc_getDouble(slotExpr, "k", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
-      stackModel.muPrior = new NormalPrior(control, model, k);
+      stackModel.muPrior = new NormalPrior(control, model);
+      stackModel.kPrior = new FixedHyperprior(k);
     } else {
       SEXP classExpr = rc_getClass(slotExpr);
       const char* classStr = CHAR(STRING_ELT(classExpr, 0));
@@ -249,7 +250,7 @@ namespace dbarts {
                      RC_LENGTH | RC_EQ, rc_asRLength(1),
                      RC_VALUE | RC_GT, 0.0, RC_END);
       
-      stackModel.muPrior = new NormalPrior(control, model, 2.0);
+      stackModel.muPrior = new NormalPrior(control, model);
       stackModel.kPrior = new ChiHyperprior(degreesOfFreedom, scale);
     }
     
