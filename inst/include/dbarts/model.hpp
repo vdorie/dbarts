@@ -94,16 +94,20 @@ namespace dbarts {
     bool isFixed;
     
     explicit EndNodeHyperprior(bool isFixed) : isFixed(isFixed) {}
+    virtual ~EndNodeHyperprior() { }
     
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const = 0;
     virtual void print(const BARTFit& fit) const = 0;
-    virtual ~EndNodeHyperprior() { }
+    
   };
   
   // the virtual scale accessors are for the conditional bart, which can have its data rescaled
   // if your prior doesn't use them, ignore them
   struct ResidualVariancePrior {
     bool isFixed;
+    
+    explicit ResidualVariancePrior(bool isFixed) : isFixed(isFixed) {}
+    virtual ~ResidualVariancePrior() { }
     
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum,
                                      const double* y,
@@ -114,9 +118,6 @@ namespace dbarts {
     virtual ResidualVariancePrior* duplicate() const = 0;
     
     virtual void print(const BARTFit& fit) const = 0;
-    
-    explicit ResidualVariancePrior(bool isFixed) : isFixed(isFixed) {}
-    virtual ~ResidualVariancePrior() { }
   };
   
   // for lack of a better name, calling it the Chipman, George, and McCullough prior
@@ -176,7 +177,6 @@ namespace dbarts {
     
     virtual void print(const BARTFit& fit) const;
     virtual double drawFromPosterior(const BARTFit& fit, std::size_t chainNum) const;
-    virtual bool isFixed() const { return false; }
   };
   
   struct FixedHyperprior : EndNodeHyperprior {
@@ -231,7 +231,6 @@ namespace dbarts {
     virtual void setScale(double scale) { value = scale; }
     
     virtual void print(const BARTFit& fit) const;
-    virtual bool isFixed() const { return true; }
     
     virtual ~FixedPrior() { }
   };
