@@ -300,7 +300,7 @@ extern "C" {
     size_t maxNumTestObservations, maxNumTrainingObservations;
     if (sharedData.method == K_FOLD) {
       maxNumTestObservations = origData.numObservations / sharedData.testSampleSize.n;
-      if (origData.numObservations % maxNumTestObservations == 0)
+      if (origData.numObservations % sharedData.testSampleSize.n == 0)
         maxNumTrainingObservations = origData.numObservations - maxNumTestObservations;
       else
         maxNumTrainingObservations = origData.numObservations - maxNumTestObservations++;

@@ -236,6 +236,20 @@ test_that("fails with invalid inputs", {
   expect_error(xbart(y ~ x, sigma = "not-a-numeric"))
 })
 
+test_that("k-fold subdivides data correctly when data do not divide evenly by k", {
+  x <- testData$x[1:24,]
+  y <- testData$y[1:24]
+  
+  k <- c(2, 4)
+
+  xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
+                n.reps = 3L,
+                k = k,
+                n.threads = 1L)
+  
+  expect_is(xval, "array")
+})
+
 
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 

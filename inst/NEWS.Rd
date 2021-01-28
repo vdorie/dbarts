@@ -13,6 +13,9 @@
       \item Fix for \code{k} mixing across chains when running multithreaded
             and with \code{k} being modeled. Bug report thanks to Noah
             Greifer.
+      \item Fix for \code{xbart} with \code{method = "k-fold"} when data
+            not evenly divided by number of folds. Rug report thanks to Jesse
+            (@ALEXLANGLANG on Github).
     }
   }
 }
@@ -40,7 +43,7 @@
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
       \item \code{varcount} for \code{bart} fits now has dimnames set.
-      \item \code{residuals} feneric added to \code{bart} and \code{rbart_vi}.
+      \item \code{residuals} generic added to \code{bart} and \code{rbart_vi}.
     }
   }
   \subsection{BUG FIXES}{
