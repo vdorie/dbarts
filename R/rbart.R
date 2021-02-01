@@ -181,6 +181,11 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
   yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
   yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
   varcount <- matrix(NA_integer_, ncol(sampler$data@x), control@n.samples)
+  kIsModeled <- methods::is(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+  if (kIsModeled) {
+    firstK <- rep(NA_real_, control@n.burn)
+    k <- rep(NA_real_, control@n.samples)
+  }
   
   sampler$sampleTreesFromPrior()
   y.st <- if (!control@binary) y else sampler$getLatents()
@@ -223,6 +228,8 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
       .Call(C_dbarts_assignInPlace, firstTau, i, tau.i)
       if (!control@binary)
         .Call(C_dbarts_assignInPlace, firstSigma, i, sigma.i)
+      if (kIsModeled)
+        .Call(C_dbarts_assignInPlace, firstK, i, samples$k)
     }
     
     if (control@keepTrees != oldKeepTrees) {
@@ -260,6 +267,8 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
     .Call(C_dbarts_assignInPlace, yhat.train, i, treeFit.train)
     .Call(C_dbarts_assignInPlace, varcount, i, samples$varcount)
     if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i, samples$test)
+    if (kIsModeled)
+        .Call(C_dbarts_assignInPlace, k, i, samples$k) 
     
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
@@ -271,7 +280,12 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
   
   rownames(ranef) <- levels(group.by)
   
-  namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, varcount)
+  result <- namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, varcount)
+  if (kIsModeled) {
+    result$firstK <- firstK
+    result$k <- k
+  }
+  result
 }
 
 packageRbartResults <- function(control, data, group.by, group.by.test, chainResults, combineChains)
@@ -309,7 +323,7 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
     if (!responseIsBinary) {
       result$first.sigma <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstSigma), n.chains, combineChains)
       result$sigma       <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$sigma), n.chains, combineChains)
-     }
+    }
     result$tau         <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$tau), n.chains, combineChains)
     result$yhat.train  <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)),
                                                          n.chains, combineChains)
@@ -317,6 +331,12 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
                             convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)),
                                            n.chains, combineChains)
     result$varcount    <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)), n.chains, combineChains)
+    if (!is.null(chainResults[[1L]]$firstK)) {
+      result$first.k <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstK), n.chains, combineChains)
+    }
+    if (!is.null(chainResults[[1L]]$k)) {
+      result$k <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$k), n.chains, combineChains)
+    }
   } else {
     result$ranef <- t(chainResults[[1L]]$ranef)
     if (!is.null(group.by.test) && any(unmeasuredLevels <- levels(group.by.test) %not_in% levels(group.by))) {
@@ -337,6 +357,10 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
     result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
     result$varcount    <- chainResults[[1L]]$varcount
+    if (!is.null(chainResults[[1L]]$firstK))
+      result$first.k <- chainResults[[1L]]$firstK 
+    if (!is.null(chainResults[[1L]]$k))
+      result$k <- chainResults[[1L]]$k 
   }
   
   result$ranef.mean <- apply(result$ranef, length(dim(result$ranef)), mean)

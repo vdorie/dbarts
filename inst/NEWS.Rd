@@ -6,6 +6,8 @@
     \itemize{
        \item The interface registered under \code{R_RegisterCCallable} has
              changed to reflect proper fixed hyperpriors for \code{k}.
+       \item Samples of the end-node sensitivity parameter, \code{k},
+             are returned by \code{rbart_vi} when it modeled.
      }
   }
   \subsection{BUG FIXES}{
