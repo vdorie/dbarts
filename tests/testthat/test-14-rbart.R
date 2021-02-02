@@ -270,7 +270,9 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   lmerFit <- suppressWarnings(lme4$lmer(y ~ . - g + (1 | g), df))
   ranef.lmer <- lme4$ranef.merMod(lmerFit)[[1L]][[1L]]
   
-  expect_true(sqrt(mean((b - ranef.rbart)^2)) < sqrt(mean((b - ranef.lmer)^2)))
+  b_rmse.rbart <- sqrt(mean((b - ranef.rbart)^2))
+  b_rmse.lmer <- sqrt(mean((b - ranef.lmer)^2))
+  expect_true(b_rmse.rbart < b_rmse.lmer)
   
   
   rho <- 0.4
@@ -289,8 +291,11 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   
   glmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = "probit"))
   
-  rbart.mu.hat <- apply(rbartFit$yhat.train, 3, mean)
-  glmer.mu.hat  <- predict(glmerFit)
-  expect_true(sqrt(mean((rbart.mu.hat - Ey)^2)) < sqrt(mean((glmer.mu.hat - Ey)^2)))
+  rbart.mu.hat <- fitted(rbartFit)
+  glmer.mu.hat <- fitted(glmerFit, type = "response")
+  
+  dev.rbart <- -2 * mean(log(ifelse(df$y == 1, rbart.mu.hat, 1 - rbart.mu.hat)))
+  dev.glmer <- -2 * mean(log(ifelse(df$y == 1, glmer.mu.hat, 1 - glmer.mu.hat)))
+  expect_true(dev.rbart < dev.glmer)
 })
 

@@ -1280,8 +1280,16 @@ extern "C" {
     if (control.numThreads > 1 && control.numChains == 1)
       misc_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
     
-    // const cast b/c yRescaled doesn't change, but probit latents do
-    double* y = control.responseIsBinary ? chainScratch.probitLatents : const_cast<double*>(sharedScratch.yRescaled);
+    double* y = NULL;
+    if (control.responseIsBinary) {
+      y = new double[data.numObservations];
+      std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
+      if (data.offset != NULL)
+        ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+    } else {
+      // const cast b/c yRescaled doesn't change, but probit version does
+      y = const_cast<double*>(sharedScratch.yRescaled);
+    }
     
     for (size_t k = 0; k < totalNumIterations; ++k) {
       if (control.numThreads > 1 && control.numChains > 1)
@@ -1334,8 +1342,12 @@ extern "C" {
           state.savedTrees[treeNum + treeSampleNum * control.numTrees].copyStructureFrom(fit, state.trees[treeNum], const_cast<const double*>(state.treeFits + treeNum * data.numObservations));
       }
       
-      if (control.responseIsBinary)
-        sampleProbitLatentVariables(fit, state, chainScratch.totalFits, y);
+      if (control.responseIsBinary) { 
+        sampleProbitLatentVariables(fit, state, chainScratch.totalFits, chainScratch.probitLatents);
+        std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
+        if (data.offset != NULL)
+          ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+      }
       
       if (!model.sigmaSqPrior->isFixed)
         state.sigma = std::sqrt(model.sigmaSqPrior->drawFromPosterior(fit, chainNum, y, chainScratch.totalFits));
@@ -1361,6 +1373,8 @@ extern "C" {
         }
       }
     }
+    
+    if (control.responseIsBinary) delete [] y;
     
     delete [] currFits;
     if (data.numTestObservations > 0) delete [] currTestFits;
@@ -1991,7 +2005,7 @@ namespace {
     // z = 2.0 * y - 1.0 - offset; so -1 if y == 0 and 1 if y == 1 when offset == 0
 #ifndef MATCH_BAYES_TREE
     misc_setVectorToConstant(z, data.numObservations, -1.0);
-    if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
+    // if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
     misc_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
 #else
     // BayesTree initialized the latents to be -2 and 0; was probably a bug
@@ -2037,12 +2051,13 @@ namespace {
       double offset = 0.0;
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
+      // Samples a truncated normal with mean (mean + offset) and lower bound of 0
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(state.rng, mean, -offset);
+        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(state.rng, mean + offset, 0.0);
       } else {
-        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(state.rng, mean, -offset);
+        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(state.rng, mean + offset, 0.0);
       }
-#else
+      #else
       double prob;
       
       double mean = fits[i];
@@ -2057,7 +2072,6 @@ namespace {
         z[i] = mean - ext_quantileOfNormal(prob, 0.0, 1.0);
       }
 #endif
-      
     }
   }
   

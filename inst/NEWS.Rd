@@ -18,6 +18,8 @@
       \item Fix for \code{xbart} with \code{method = "k-fold"} when data
             not evenly divided by number of folds. Rug report thanks to Jesse
             (@ALEXLANGLANG on Github).
+      \item Sampler method \code{getLatents} and corresponding C function now
+            add user supplied offset to result.
     }
   }
 }
