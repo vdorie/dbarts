@@ -86,7 +86,7 @@ rbart_vi(
 }
 
 For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and
-  \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts.
+  \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts. Draws from the posterior of \eqn{tau} are made using a slice sampler, with a width dynamically determined by assessing the curvature of the posterior distribution at its mode.
 
 \subsection{Out Of Sample Groups}{
   Predicting random effects for groups not in the training sample is supported by sampling

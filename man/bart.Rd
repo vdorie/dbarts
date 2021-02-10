@@ -377,6 +377,8 @@ extract(object, \dots)
   \item{\code{k}}{
         Optional matrix of posterior samples of \code{k}. Only present when \code{k} is modeled,
         i.e. there is a hyperprior.}
+  \item{\code{first.k}}{
+  	    Burn-in draws of \code{k}, if modeled.}
     
   In the binary \eqn{y} case, the returned list has the components
   \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list 

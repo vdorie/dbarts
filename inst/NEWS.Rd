@@ -8,6 +8,9 @@
              changed to reflect proper fixed hyperpriors for \code{k}.
        \item Samples of the end-node sensitivity parameter, \code{k},
              are returned by \code{rbart_vi} when it modeled.
+       \item Burn-in samples of the end-node sensitivity parameter,
+             \code{k}, are included in the results of \code{bart},
+             \code{bart2}, and \code{rbart_vi}.
      }
   }
   \subsection{BUG FIXES}{

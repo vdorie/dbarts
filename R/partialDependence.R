@@ -135,7 +135,7 @@ pdbart <- function (
     
     samples <- sampler$run(0L, sampler$control@n.samples)
     if (is.null(fit[["call"]])) {
-      fit <- packageBartResults(sampler, samples, fit$sigma, TRUE)
+      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE)
       fit[["yhat.test"]] <- NULL
     }
     
@@ -320,7 +320,7 @@ pd2bart <- function(
       }
     }
     if (is.null(fit[["call"]])) {
-      fit <- packageBartResults(sampler, samples, fit$sigma, TRUE)
+      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE)
       fit[["yhat.test"]] <- NULL
     }
   }

@@ -70,7 +70,7 @@ uncombineChains <- function(samples, n.chains) {
   }
 }
 
-packageBartResults <- function(fit, samples, burnInSigma, combineChains)
+packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains)
 {
   responseIsBinary <- fit$control@binary
   n.chains <- fit$control@n.chains
@@ -96,7 +96,6 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
    dimnames(varcount) <- if (length(dim(varcount)) > 2L) list(NULL, NULL, colnames(fit$data@x)) else list(NULL, colnames(fit$data@x))
   
   if (!is.null(burnInSigma)) burnInSigma <- convertSamplesFromDbartsToBart(burnInSigma, n.chains, combineChains)
-  
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
@@ -122,8 +121,10 @@ packageBartResults <- function(fit, samples, burnInSigma, combineChains)
     result$fit <- fit
   else
     result$n.chains <- n.chains
-  if (!is.null(samples[["k"]]))
+  if (!is.null(samples[["k"]])) {
     result[["k"]] <- convertSamplesFromDbartsToBart(samples[["k"]], n.chains, combineChains)
+    result[["first.k"]] <- convertSamplesFromDbartsToBart(burnInK, n.chains, combineChains)
+  }
   
   class(result) <- 'bart'
   invisible(result)
@@ -199,6 +200,7 @@ bart2 <- function(
   sampler$sampleTreesFromPrior(updateState = FALSE)
   
   burnInSigma <- NULL
+  burnInK     <- NULL
   if (n.burn > 0L) {
     oldX.test <- sampler$data@x.test
     oldOffset.test <- sampler$data@offset.test
@@ -212,7 +214,9 @@ bart2 <- function(
     control@verbose <- FALSE
     sampler$setControl(control)
 
-    burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
+    samples <- sampler$run(0L, control@n.burn, FALSE)
+    if (!is.null(samples$sigma)) burnInSigma <- samples$sigma
+    if (!is.null(samples[["k"]])) burnInK <- samples[["k"]]
     
     if (length(oldX.test) > 0L)
       sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
@@ -226,7 +230,7 @@ bart2 <- function(
     samples <- sampler$run(updateState = FALSE)
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma, combineChains)
+  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combineChains)
   
   result
 }
@@ -279,6 +283,7 @@ bart <- function(
   control <- sampler$control
   
   burnInSigma <- NULL
+  burnInK     <- NULL
   if (nskip > 0L) {
     oldX.test <- sampler$data@x.test
     oldOffset.test <- sampler$data@offset.test
@@ -290,8 +295,10 @@ bart <- function(
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
-
-    burnInSigma <- sampler$run(0L, control@n.burn, FALSE)$sigma
+    
+    samples <- sampler$run(0L, control@n.burn, FALSE)
+    if (!is.null(samples$sigma)) burnInSigma <- samples$sigma
+    if (!is.null(samples[["k"]])) burnInK <- samples[["k"]]
     
     if (length(x.test) > 0) sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
     control@keepTrainingFits <- oldKeepTrainingFits
@@ -304,7 +311,7 @@ bart <- function(
     samples <- sampler$run(updateState = FALSE)
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma, combinechains)
+  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combinechains)
   
   result
 }

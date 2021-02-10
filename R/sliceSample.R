@@ -140,7 +140,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     d <- function(x) dnorm(x, mu, sigma, log = TRUE)
     environment(r) <- evalEnv; environment(d) <- evalEnv
     if (exists("optimResult") && useLog == TRUE) {
-      if (is(optimResult, "error")) browser()
+      if (is(optimResult, "error")) stop("slice sampler failed: unable to determine initial curvature")
       evalEnv$mu <- optimResult$par
       # special case for variance components
       if (is.finite(boundary[1L]) && optimResult$par - boundary[1L] < evalEnv$sigma)
@@ -166,11 +166,11 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     for (j in seq_len(maxIter)) {
       x.p <- runif(1, int[1L], int[2L])
       f.x <- f(x.p)
-      if (is.nan(f.x) || is.infinite(f.x)) { browser(); stop("underflow, or something") }
+      if (is.nan(f.x) || is.infinite(f.x)) { stop("slice sampler failed: likely due to underflow") }
       if (f.x > u.p) break
       int <- shrinkInterval(x, x.p, int)
     }
-    if (j == maxIter) { browser(); stop("maxIter reached") }
+    if (j == maxIter) { stop("slice sampler failed: maxIter reached") }
     x <- x.p
     result[i] <- x
   }
