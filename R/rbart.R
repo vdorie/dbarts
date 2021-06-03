@@ -156,7 +156,7 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
   sampler$setControl(control)
   
   y <- sampler$data@y
-  rel.scale <- if (!control@binary) sd(y) else 0.50
+  rel.scale <- if (!control@binary) sd(y) else 0.5
   
   g <- as.integer(group.by)
   numRanef <- nlevels(group.by)
@@ -165,7 +165,11 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
   
   evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef))
   b.sq <- NULL ## for R CMD check
-  posteriorClosure <- function(x) { ifelse(x <= 0.0 | is.infinite(x), -.Machine$double.xmax * .Machine$double.eps, -q * base::log(x) - 0.5 * b.sq / x^2.0 + prior(x, rel.scale)) }
+  posteriorClosure <- function(x) {
+    ifelse(x <= 0.0 | is.infinite(x),
+           -.Machine$double.xmax * .Machine$double.eps,
+           -q * base::log(x) - 0.5 * b.sq / x^2.0 + prior(x, rel.scale))
+  }
   environment(posteriorClosure) <- evalEnv
   
   offset.orig <- sampler$data@offset

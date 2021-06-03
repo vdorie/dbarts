@@ -9,6 +9,7 @@
 dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
        verbose = FALSE, n.samples = 800L,
        tree.prior = cgm, node.prior = normal, resid.prior = chisq,
+       proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
        control = dbartsControl(), sigma = NA_real_)
 }
 \arguments{
@@ -37,6 +38,8 @@ dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
   	averages within nodes.}
   \item{resid.prior}{An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on
   	the residual/error variance.}
+  \item{proposal.probs}{Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step.
+   }
   \item{control}{An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.}
   \item{sigma}{A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used
   	with all of the predictors to obtain one.}

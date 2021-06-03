@@ -144,7 +144,8 @@ bart2 <- function(
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE, keepTrees = FALSE, keepCall = TRUE,
-  samplerOnly = FALSE, ...
+  samplerOnly = FALSE,
+  proposal.probs = NULL, ...
 )
 {
   matchedCall <- match.call()
@@ -246,7 +247,8 @@ bart <- function(
   printevery = 100L, keepevery = 1L, keeptrainfits = TRUE,
   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
   verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE,
-  keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE
+  keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
+  proposalprobs = NULL
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
@@ -274,8 +276,8 @@ bart <- function(
   
   args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = weights,
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
-               tree.prior = tree.prior, node.prior = node.prior,
-               resid.prior = resid.prior, control = control, sigma = as.numeric(sigest))
+               tree.prior = tree.prior, node.prior = node.prior, resid.prior = resid.prior,
+               proposal.probs = proposalprobs, control = control, sigma = as.numeric(sigest))
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
   
   if (sampleronly) return(sampler)

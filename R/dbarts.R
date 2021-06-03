@@ -84,6 +84,7 @@ validateArgumentsInEnvironment <- function(envir, func, control, verbose, n.samp
 dbarts <- function(formula, data, test, subset, weights, offset, offset.test = offset,
                    verbose = FALSE, n.samples = 800L,
                    tree.prior = cgm, node.prior = normal, resid.prior = chisq,
+                   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
                    control = dbartsControl(), sigma = NA_real_)
 {
   matchedCall <- match.call()
@@ -135,7 +136,9 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   }
   priors <- eval(parsePriorsCall)
 
-  model <- new("dbartsModel", priors$tree.prior, priors$node.prior, priors$node.hyperprior, priors$resid.prior,
+  model <- new("dbartsModel",
+               priors$tree.prior, priors$node.prior, priors$node.hyperprior, priors$resid.prior,
+               proposal.probs = proposal.probs,
                node.scale = if (control@binary) 3.0 else 0.5)
   
   result <- new("dbartsSampler", control, model, data)

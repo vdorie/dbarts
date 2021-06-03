@@ -1,17 +1,35 @@
 setMethod("initialize", "dbartsModel",
           function(.Object, tree.prior, node.prior, node.hyperprior, resid.prior,
-                   p.birth_death = 0.5, p.swap = 0.1, p.change = 0.4,
-                   p.birth = 0.5, node.scale = 0.5)
+                   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4,
+                                      birth = 0.5),
+                   node.scale = 0.5)
 {
   if (!missing(tree.prior)) .Object@tree.prior  <- tree.prior
   if (!missing(node.prior)) .Object@node.prior  <- node.prior
   if (!missing(node.hyperprior)) .Object@node.hyperprior  <- node.hyperprior
   if (!missing(resid.prior)) .Object@resid.prior <- resid.prior
   
-  .Object@p.birth_death <- p.birth_death
-  .Object@p.swap <- p.swap
-  .Object@p.change <- p.change
-  .Object@p.birth <- p.birth
+  if (is.null(proposal.probs))
+    proposal.probs <- c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5)
+  
+  probs <- proposal.probs[c("birth_death", "swap", "change")]
+  if (sum(is.na(probs)) == 1L) {
+    probs[is.na(probs)] <- 1 - sum(probs[!is.na(probs)])
+    names(probs) <- c("birth_death", "swap", "change")
+  } else if (all(is.na(probs))) {
+    probs <- c(birth_death = 0.5, swap = 0.1, change = 0.4)
+  }
+  
+  .Object@p.birth_death <- probs[["birth_death"]]
+  .Object@p.swap <- probs[["swap"]]
+  .Object@p.change <- probs[["change"]]
+  
+  probs <- proposal.probs["birth"]
+  if (is.na(probs)) probs <- c(birth = 0.5)
+  
+  
+  .Object@p.birth <- probs[["birth"]]
+  
   .Object@node.scale <- node.scale
 
   validObject(.Object)
