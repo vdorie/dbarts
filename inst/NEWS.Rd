@@ -2,6 +2,14 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-20}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item \code{dbarts} now exposes access to the underlying proposal
+             rules and their probabilities through its \code{proposal.probs}
+             argument. \code{bart2} response to the same argument, while
+             \code{bart} uses \code{proposalprobs}.
+    }
+  }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
        \item The interface registered under \code{R_RegisterCCallable} has
