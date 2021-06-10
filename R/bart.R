@@ -145,7 +145,9 @@ bart2 <- function(
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE, keepTrees = FALSE, keepCall = TRUE,
   samplerOnly = FALSE,
-  proposal.probs = NULL, ...
+  seed = NA_integer_,
+  proposal.probs = NULL,
+  ...
 )
 {
   matchedCall <- match.call()
@@ -163,6 +165,7 @@ bart2 <- function(
     currentEnv <- sys.frame(sys.nframe())
     controlCall[missingDefaultArgs] <- lapply(formals(bart2)[missingDefaultArgs], eval, envir = currentEnv)
   }
+  if (!is.na(seed)) controlCall[["rngSeed"]] <- seed
   control <- eval(controlCall, envir = callingEnv)
   
   control@call <- if (keepCall) matchedCall else call("NULL")
@@ -248,6 +251,7 @@ bart <- function(
   usequants = FALSE, numcut = 100L, printcutoffs = 0L,
   verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE,
   keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
+  seed = NA_integer_,
   proposalprobs = NULL
 )
 {
@@ -256,7 +260,7 @@ bart <- function(
                            n.burn = as.integer(nskip), n.trees = as.integer(ntree), n.chains = as.integer(nchain),
                            n.threads = as.integer(nthread), n.thin = as.integer(keepevery),
                            printEvery = as.integer(printevery), printCutoffs = as.integer(printcutoffs),
-                           n.cuts = numcut)
+                           n.cuts = numcut, rngSeed = as.integer(seed))
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- matchedCall
   control@n.burn <- control@n.burn %/% control@n.thin

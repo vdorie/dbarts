@@ -8,6 +8,9 @@
              rules and their probabilities through its \code{proposal.probs}
              argument. \code{bart2} response to the same argument, while
              \code{bart} uses \code{proposalprobs}.
+      \item \code{bart}, \code{bart2}, and \code{rbart_vi} accept a
+             \code{seed} argument that will yield reproducible results, even
+             when running with multiple threads and multiple chains.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

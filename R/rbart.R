@@ -15,7 +15,9 @@ rbart_vi <- function(
   n.thin = 5L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = TRUE, keepCall = TRUE, ...)
+  keepTrees = TRUE, keepCall = TRUE,
+  seed = NA_integer_,
+  ...)
 {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
@@ -125,26 +127,55 @@ rbart_vi <- function(
       warning("unable to multithread, defaulting to single: ", tryResult$message)
       runSingleThreaded <- TRUE
     } else {
+      if (!is.na(seed)) {
+        # We draw sequentially from the given seed, one for each thread. To be polite
+        # (more to match bart), we set the seed back when we're are done.
+        oldSeed <- .GlobalEnv[[".Random.seed"]]
+        
+        set.seed(seed)
+        randomSeeds <- sample.int(.Machine$integer.max, n.chains)
+        
+        if (!is.null(oldSeed))
+          .Random.seed <- oldSeed
+      } else {
+        randomSeeds <- rep.int(NA_integer_, n.chains)
+      }
+      
       clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
       clusterEvalQ(cluster, require(dbarts))
       
       tryResult <- tryCatch(
-        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), MoreArgs = namedList(samplerArgs, group.by, prior)))
+        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), randomSeeds, MoreArgs = namedList(samplerArgs, group.by, prior)))
     
       stopCluster(cluster)
     }
   }
 
   if (runSingleThreaded) {
+    if (!is.na(seed)) {
+      # If the seed was passed in, since we're running single threaded everything will draw
+      # from the built-in generator. In that case, we just have to set.seed and set it
+      # back when done.
+      oldSeed <- .GlobalEnv[[".Random.seed"]]
+      set.seed(seed)
+    }
+    
     for (chainNum in seq_len(n.chains))
-      chainResults[[chainNum]] <- rbart_vi_fit(1L, samplerArgs, group.by, prior)
+      chainResults[[chainNum]] <- rbart_vi_fit(1L, NA_integer_, samplerArgs, group.by, prior)
+    
+    if (exists("oldSeed"))
+      .Random.seed <- oldSeed
   }
-  packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains)
+  packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains, seed)
 }
 
-rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior) 
+rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior) 
 {
   chain.num <- "ignored"
+  
+  if (!is.na(seed))
+    set.seed(seed)
+  
   sampler <- do.call(dbarts::dbarts, samplerArgs)
   sampler$control@call <- samplerArgs$control@call
   
@@ -292,7 +323,7 @@ rbart_vi_fit <- function(chain.num, samplerArgs, group.by, prior)
   result
 }
 
-packageRbartResults <- function(control, data, group.by, group.by.test, chainResults, combineChains)
+packageRbartResults <- function(control, data, group.by, group.by.test, chainResults, combineChains, seed)
 {
   n.chains <- length(chainResults)
   
@@ -376,8 +407,17 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
   else
     result$n.chains <- n.chains
   
-  if (!exists(".Random.seed", .GlobalEnv)) runif(1L)
-  result$seed <- .GlobalEnv[[".Random.seed"]]
+  if (!is.na(seed)) {
+    oldSeed <- .GlobalEnv[[".Random.seed"]]
+    
+    set.seed(seed)
+    result$seed <- .GlobalEnv$.Random.seed
+    
+    .GlobalEnv$.Random.seed <- oldSeed
+  } else {
+    if (!exists(".Random.seed", .GlobalEnv)) runif(1L)
+    result$seed <- .GlobalEnv$.Random.seed
+  }
   
   class(result) <- "rbart"
   result

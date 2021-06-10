@@ -65,6 +65,48 @@ test_that("works with multiple threads", {
             "rbart")
 })
 
+test_that("is reproducible", {
+  x <- testData$x
+  y <- testData$y
+  g <- factor(testData$g)
+  
+  fit1 <- rbart_vi(y ~ x, group.by = g,
+                   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                   n.trees = 3L, n.threads = 2L,
+                   seed = 0L)
+  fit2 <- rbart_vi(y ~ x, group.by = g,
+                   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+                   n.trees = 3L, n.threads = 2L,
+                   seed = 0L)
+  
+  set.seed(0)
+  seeds <- sample.int(.Machine$integer.max, 2L)
+  
+  set.seed(seeds[1L])
+  fit3 <- rbart_vi(y ~ x, group.by = g,
+                   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                   n.trees = 3L, n.threads = 1L)
+  
+  set.seed(seeds[2L])
+  fit4 <- rbart_vi(y ~ x, group.by = g,
+                   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+                   n.trees = 3L, n.threads = 1L)
+  
+  expect_equal(fit1$yhat.train, fit2$yhat.train)
+  expect_equal(fit1$ranef, fit2$ranef)
+  
+  
+  yhat <- aperm(array(c(fit3$yhat.train, fit4$yhat.train),
+                      c(dim(fit3$yhat.train), 2L)),
+                c(3L, 1L, 2L))
+  expect_equal(yhat, fit1$yhat.train)
+  
+  ranef <- aperm(array(c(fit3$ranef, fit4$ranef),
+                       c(dim(fit3$ranef), 2L)),
+                 c(3L, 1L:2L))
+  expect_equal(as.vector(ranef), as.vector(fit1$ranef))
+})
+
 test_that("extract works at baseline", {
   x <- testData$x
   y <- testData$y

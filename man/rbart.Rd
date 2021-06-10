@@ -23,7 +23,9 @@ rbart_vi(
   n.thin = 5L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
   verbose = TRUE,
-  keepTrees = TRUE, keepCall = TRUE, \dots)
+  keepTrees = TRUE, keepCall = TRUE,
+  seed = NA_integer_,
+  \dots)
 
 \S3method{plot}{rbart}(x, plquants = c(0.05, 0.95), cols = c('blue', 'black'), \dots)
 \S3method{fitted}{rbart}(object,
@@ -62,7 +64,7 @@ rbart_vi(
   \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant,
         k, power, base, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains,
         n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose,
-        keepTrees, keepCall, \dots}{
+        keepTrees, keepCall, seed, \dots}{
     Same as in \code{\link{bart2}}.}
   \item{object}{A fitted \code{rbart} model.}
   \item{newdata}{Same as \code{test}, but named to match \code{\link{predict}} generic.}

@@ -30,6 +30,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      usequants = FALSE, numcut = 100, printcutoffs = 0,
      verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE,
      keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
+     seed = NA_integer_,
      proposalprobs = NULL)
 
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
@@ -44,6 +45,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       printEvery = 100L, printCutoffs = 0L,
       verbose = TRUE, keepTrees = FALSE, 
       keepCall = TRUE, samplerOnly = FALSE,
+      seed = NA_integer_,
       proposal.probs = NULL,
       \dots)
      
@@ -203,6 +205,11 @@ extract(object, \dots)
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call
           used to instantiate BART.
    }
+   \item{seed}{
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. It should not be needed
+     when running single-threaded - \code{\link{set.seed}} will suffice, and can be used to
+     obtain reproducible results when multi-threaded. See Reproducibility section below.
+   }
    \item{proposalprobs, proposal.probs}{
      Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step.
    }
@@ -341,6 +348,26 @@ extract(object, \dots)
     specifically requested. To do this, one must \dQuote{touch} the sampler's state
     object before saving, e.g. for a fitted object \code{bartFit}, execute
     \code{invisible(bartFit$fit$state)}.
+  }
+  
+  \subsection{Reproducibility}{
+    Behavior differs when running multi- and single-threaded, as the pseudo random
+    number generators (pRNG) are not thread safe. When single-threaded, R's built-in
+    generator is used; if set at the start, \code{\link{.Random.seed}} will be used
+    and its value updated as samples are drawn. When multi-threaded, the default
+    behavior is draw new random seeds for each thread using the clock.
+    
+    This behavior can be modified by setting \code{seed}, or by using \code{\dots}
+    to pass arguments to \code{\link{dbartsControl}}. For the single-threaded case,
+    a new pRNG is built using that seed that is separate from R's native generator.
+    As such, the new state will not be reflected by subsequent calls to the
+    generator. For multi-threaded, the seeds for threads are drawn sequentially
+    from using the supplied seed, and will again be separate from R's native
+    generator.
+    
+    Consequently, the \code{seed} argument should not be needed when running
+    single-threaded - \code{\link{set.seed}} will suffice, and can be used to
+    obtain reproducible results when multi-threaded.
   }
 }
 \value{
