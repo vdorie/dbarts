@@ -26,7 +26,7 @@ S3method(extract, rbart)
 S3method(predict, rbart)
 S3method(residuals, rbart)
 
-importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, is, new, setValidity, setMethod)
+importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, quantile)

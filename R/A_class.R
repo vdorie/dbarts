@@ -142,7 +142,7 @@ methods::setValidity("dbartsControl",
       oldSeed <- .Random.seed
       
       tryResult <- tryCatch(RNGkind(object@rngKind, object@rngNormalKind), error = function(e) e)
-      if (is(tryResult, "error")) return(paste0("unrecognized rng kind ('", object@rngKind, "', '", object@rngNormalKind, "')"))
+      if (inherits(tryResult, "error")) return(paste0("unrecognized rng kind ('", object@rngKind, "', '", object@rngNormalKind, "')"))
       
       ## this will work with partial matches, so we extract the full name
       object@rngKind       <- RNGkind()[1L]

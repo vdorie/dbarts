@@ -29,7 +29,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
   findMode <- function(target, start, boundary) {
     optimResult <- tryCatch(optim(start, target, method = "L-BFGS-B", lower = boundary[1L], upper = boundary[2L], hessian = TRUE, control = list(fnscale = -1)),
                             error = function(e) e)
-    if (is(optimResult, "error")) ## ||
+    if (inherits(optimResult, "error")) ## ||
         ##(is.finite(boundary[1]) && abs(optimResult$par - boundary[1]) < 1e-6) ||
         ##(is.finite(boundary[2]) && abs(optimResult$par - boundary[2]) < 1e-6))
     {
@@ -107,7 +107,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
   if (is.na(width)) {
     optimResult <- findMode(target, start, boundary)
     
-    if (!is(optimResult, "error")) {
+    if (!inherits(optimResult, "error")) {
       if (useLog == TRUE) {
         normalizingConstant <- NULL ## for R CMD check
         evalEnv <- list2env(list(target = target, normalizingConstant = optimResult$value))
@@ -140,7 +140,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     d <- function(x) dnorm(x, mu, sigma, log = TRUE)
     environment(r) <- evalEnv; environment(d) <- evalEnv
     if (exists("optimResult") && useLog == TRUE) {
-      if (is(optimResult, "error")) stop("slice sampler failed: unable to determine initial curvature")
+      if (inherits(optimResult, "error")) stop("slice sampler failed: unable to determine initial curvature")
       evalEnv$mu <- optimResult$par
       # special case for variance components
       if (is.finite(boundary[1L]) && optimResult$par - boundary[1L] < evalEnv$sigma)
@@ -153,7 +153,7 @@ sliceSample <- function(target, start, numSamples = 100L, width = NA, maxIter = 
     }
       
     tryResult <- tryCatch(x <- rejectionSample(target, d, r, c, boundary, maxIter = maxIter), error = function(e) e)
-    if (is(tryResult, "error")) {
+    if (inherits(tryResult, "error")) {
       warning("rejection sample failed after ", maxIter, " iterations; dominating function may require hand-tuning")
       x <- start
     } else {

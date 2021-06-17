@@ -84,7 +84,7 @@ normal <- function(k = 2.0)
   if (!is.null(matchedCall[["k"]])) {
     kExpr <- matchedCall[["k"]]
     for (i in seq_len(2L)) {
-      if (is.numeric(kExpr) || is(kExpr, "dbartsNodeHyperprior")) break
+      if (is.numeric(kExpr) || inherits(kExpr, "dbartsNodeHyperprior")) break
       
       if (is.character(kExpr)) {
         if (startsWith(kExpr, "chi")) {

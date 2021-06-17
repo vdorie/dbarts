@@ -85,18 +85,18 @@ findTermInFormulaData <- function(formula, data, term)
       #attach(data, warn.conflicts = FALSE, name = ".dbartsData_data")
       tryResult <- with(data, tryCatch(eval(matchedCall$term), error = function(e) e))
       #detach(data)
-      if (!is(tryResult, "error")) return(tryResult)
+      if (!inherits(tryResult, "error")) return(tryResult)
     }
   }
   if (is.symbol(matchedCall$term)) {
     if (any(ls(environment(formula)) == as.character(matchedCall$term))) return(get(as.character(matchedCall$term), envir = environment(formula)))
     tryResult <- tryCatch(get(as.character(matchedCall$term)), error = function(e) e)
-    if (!is(tryResult, "error") && !is.null(tryResult)) return(tryResult)
+    if (!inherits(tryResult, "error") && !is.null(tryResult)) return(tryResult)
   } else if (is.language(matchedCall$term)) {
     tryResult <- tryCatch(eval(matchedCall$term, environment(formula)), error = function(e) e)
-    if (!is(tryResult, "error")) return(tryResult)
+    if (!inherits(tryResult, "error")) return(tryResult)
     tryResult <- tryCatch(eval(matchedCall$term), error = function(e) e)
-    if (!is(tryResult, "error")) return(tryResult)
+    if (!inherits(tryResult, "error")) return(tryResult)
   }
   
   NULL
@@ -123,7 +123,7 @@ getTestOffset <- quote({
         return(list(offset.test = get(testOffsetName, environment(formula)), testUsesRegularOffset = FALSE))
     }
     tryResult <- tryCatch(get(testOffsetName), error = function(e) e)
-    if (!is(tryResult, "error") && !is.null(tryResult))
+    if (!inherits(tryResult, "error") && !is.null(tryResult))
       return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
     
     stop("cannot find test offset '", testOffsetName, "'")
@@ -141,13 +141,13 @@ getTestOffset <- quote({
         #attach(data)
         tryResult <- with(data, tryCatch(eval(testOffset), error = function(e) e))
         #detach(data)
-        if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+        if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
       }
       tryResult <- tryCatch(eval(testOffset, environment(formula)), error = function(e) e)
-      if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
     }
     tryResult <- tryCatch(eval(testOffset, parent.frame(3L)), error = function(e) e)
-    if (!is(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+    if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
   }
   
   stop("cannot construct test offset")
@@ -166,7 +166,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   
   if (missing(formula)) stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
   
-  if (is(formula, "dbartsData")) {
+  if (inherits(formula, "dbartsData")) {
     if (!dataIsMissing || !testIsMissing || !offsetIsMissing || !testOffsetIsMissing)
       warning("if data supplied as dbartsData, remaining arguments are ignored")
     return(formula)

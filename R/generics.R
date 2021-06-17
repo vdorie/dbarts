@@ -369,7 +369,7 @@ sampleFromPPD <- function(ev, object)
     else
       result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
   } else {
-    #if (is(object, "bart")) {
+    #if (inherits(object, "bart")) {
     #  n.chains <- if (!is.null(object[["fit"]])) object$fit$control@n.chains else object$n.chains
     #} else {
     #  n.chains <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains

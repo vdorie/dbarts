@@ -64,28 +64,28 @@ rbart_vi <- function(
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
     
   group.by <- tryCatch(group.by, error = function(e) e)
-  if ((is(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by) || is.character(group.by))) && is.language(formula) && formula[[1L]] == '~') {
+  if ((inherits(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by) || is.character(group.by))) && is.language(formula) && formula[[1L]] == '~') {
     if (is.symbol(matchedCall[["group.by"]]) && any(names(data) == matchedCall[["group.by"]])) {
       group.by <- data[[which(names(data) == matchedCall[["group.by"]])[1L]]]
     } else {
       group.by <- eval(matchedCall[["group.by"]], environment(formula))
     }
   }
-  if (is(group.by, "error"))
+  if (inherits(group.by, "error"))
     stop("'group.by' not found")
   if (!is.numeric(group.by) && !is.factor(group.by) && !is.character(group.by))
     stop("'group.by' must be coercible to factor type")
   
   if (!is.null(matchedCall[["group.by.test"]])) {
     group.by.test <- tryCatch(group.by.test, error = function(e) e)
-    if ((is(group.by.test, "error") || !(is.numeric(group.by.test) || is.factor(group.by.test) || is.character(group.by.test))) && is.language(formula) && formula[[1L]] == '~') {
+    if ((inherits(group.by.test, "error") || !(is.numeric(group.by.test) || is.factor(group.by.test) || is.character(group.by.test))) && is.language(formula) && formula[[1L]] == '~') {
       if (is.symbol(matchedCall[["group.by.test"]]) && any(names(data) == matchedCall[["group.by.test"]])) {
         group.by.test <- data[[which(names(data) == matchedCall[["group.by.test"]])[1L]]]
       } else {
         group.by.test <- eval(matchedCall[["group.by.test"]], environment(formula))
       }
     }
-    if (is(group.by.test, "error"))
+    if (inherits(group.by.test, "error"))
       stop("'group.by.test' specified but not found")
     if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
       stop("'group.by.test' must be coercible to factor type")
@@ -120,10 +120,10 @@ rbart_vi <- function(
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
   if (!runSingleThreaded) {
     tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "PSOCK"), error = function(e) e)
-    if (is(tryResult, "error"))
+    if (inherits(tryResult, "error"))
       tryResult <- tryCatch(cluster <- makeCluster(min(n.threads, n.chains), "FORK"), error = function(e) e)
     
-    if (is(tryResult, "error")) {
+    if (inherits(tryResult, "error")) {
       warning("unable to multithread, defaulting to single: ", tryResult$message)
       runSingleThreaded <- TRUE
     } else {
@@ -145,9 +145,15 @@ rbart_vi <- function(
       clusterEvalQ(cluster, require(dbarts))
       
       tryResult <- tryCatch(
-        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), randomSeeds, MoreArgs = namedList(samplerArgs, group.by, prior)))
-    
+        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), randomSeeds, MoreArgs = namedList(samplerArgs, group.by, prior)),
+        error = function(e) e)
+      
       stopCluster(cluster)
+      
+      if (inherits(tryResult, "error")) {
+        warning("error running multithreaded, defaulting to single: ", tryResult$message)
+        runSingleThreaded <- TRUE
+      }
     }
   }
 
@@ -216,7 +222,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
   yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
   yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
   varcount <- matrix(NA_integer_, ncol(sampler$data@x), control@n.samples)
-  kIsModeled <- methods::is(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+  kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
   if (kIsModeled) {
     firstK <- rep(NA_real_, control@n.burn)
     k <- rep(NA_real_, control@n.samples)

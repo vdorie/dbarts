@@ -6,7 +6,7 @@ coerceOrError <- function(x, type)
   
   func <- switch(type, logical = as.logical, integer = as.integer, numeric = as.numeric)
   result <- tryCatch(func(x), warning = function(e) e)
-  if (is(result, "warning")) stop("'", mc[[2L]], "' must be coercible to type: ", type)
+  if (inherits(result, "warning")) stop("'", mc[[2L]], "' must be coercible to type: ", type)
   
   result
 }
