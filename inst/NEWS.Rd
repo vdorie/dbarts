@@ -34,6 +34,8 @@
             (@ALEXLANGLANG on Github).
       \item Sampler method \code{getLatents} and corresponding C function now
             add user supplied offset to result.
+      \item Saved, flattened trees now correctly partition observations on
+            left and right.
     }
   }
 }

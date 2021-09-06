@@ -988,9 +988,9 @@ namespace {
       size_t i = *it;
       
       if (fit.data.x[i + fit.data.numObservations * node.variableIndex] <= node.prediction) {
-        rightIndexSet.insert(i);
-      } else {
         leftIndexSet.insert(i); 
+      } else {
+        rightIndexSet.insert(i);
       }
     }
     
