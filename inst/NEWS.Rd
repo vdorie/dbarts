@@ -22,6 +22,9 @@
        \item Burn-in samples of the end-node sensitivity parameter,
              \code{k}, are included in the results of \code{bart},
              \code{bart2}, and \code{rbart_vi}.
+       \item \code{rbart_vi} will now look for \code{group.by} and
+             \code{group.by.test} in the \code{data} and \code{test} arguments
+             before looking in the \code{formula} or calling environments.
      }
   }
   \subsection{BUG FIXES}{
