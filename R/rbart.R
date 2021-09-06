@@ -63,33 +63,53 @@ rbart_vi <- function(
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
     
-  group.by <- tryCatch(group.by, error = function(e) e)
-  if ((inherits(group.by, "error") || !(is.numeric(group.by) || is.factor(group.by) || is.character(group.by))) && is.language(formula) && formula[[1L]] == '~') {
-    if (is.symbol(matchedCall[["group.by"]]) && any(names(data) == matchedCall[["group.by"]])) {
-      group.by <- data[[which(names(data) == matchedCall[["group.by"]])[1L]]]
-    } else {
-      group.by <- eval(matchedCall[["group.by"]], environment(formula))
-    }
-  }
-  if (inherits(group.by, "error"))
+  if (is.null(matchedCall[["group.by"]]))
+    stop("'group.by' must be specified to use rbart_vi")
+  
+  group.by.literal <- NULL
+  # look for group.by in data, if supplied, first
+  if (is.symbol(matchedCall[["group.by"]]))
+    try(group.by.literal <- data[[which.max(names(data) == matchedCall[["group.by"]])]], silent = TRUE)
+  
+  if (is.null(group.by.literal))
+    try(group.by.literal <- eval(matchedCall[["group.by"]], environment(formula)), silent = TRUE)
+  
+  if (is.null(group.by.literal)) 
+    try(group.by.literal <- group.by, silent = TRUE)
+  
+  if (is.null(group.by.literal))
     stop("'group.by' not found")
+  group.by <- group.by.literal
   if (!is.numeric(group.by) && !is.factor(group.by) && !is.character(group.by))
     stop("'group.by' must be coercible to factor type")
   
   if (!is.null(matchedCall[["group.by.test"]])) {
-    group.by.test <- tryCatch(group.by.test, error = function(e) e)
-    if ((inherits(group.by.test, "error") || !(is.numeric(group.by.test) || is.factor(group.by.test) || is.character(group.by.test))) && is.language(formula) && formula[[1L]] == '~') {
-      if (is.symbol(matchedCall[["group.by.test"]]) && any(names(data) == matchedCall[["group.by.test"]])) {
-        group.by.test <- data[[which(names(data) == matchedCall[["group.by.test"]])[1L]]]
-      } else {
-        group.by.test <- eval(matchedCall[["group.by.test"]], environment(formula))
-      }
-    }
-    if (inherits(group.by.test, "error"))
-      stop("'group.by.test' specified but not found")
+    group.by.literal <- NULL
+    if (is.symbol(matchedCall[["group.by.test"]]))
+      try(group.by.literal <- test[[which.max(names(test) == matchedCall[["group.by.test"]])]], silent = TRUE)
+  
+    if (is.null(group.by.literal))
+      try(group.by.literal <- eval(matchedCall[["group.by.test"]], environment(formula)), silent = TRUE)
+    
+    if (is.null(group.by.literal)) 
+      try(group.by.literal <- group.by.test, silent = TRUE)
+  
+    if (is.null(group.by.literal))
+      try(group.by.literal <- data[[which.max(names(data) == matchedCall[["group.by.test"]])]], silent = TRUE)
+    
+    if (is.null(group.by.literal))
+      stop("'group.by.test' not found")
+    
+    group.by.test <- group.by.literal
     if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
       stop("'group.by.test' must be coercible to factor type")
-  }  
+
+    if (is.null(group.by.test))
+      stop("'group.by.test' specified but not found")
+  
+    if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
+      stop("'group.by.test' must be coercible to factor type")
+  }
   
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
   
@@ -97,9 +117,9 @@ rbart_vi <- function(
     prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
   
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
-  
+   
   if (length(group.by) != length(data@y))
-    stop("'group.by' not of length equal to that of data")
+    stop("'group.by' not of length equal to that of data; check for name collisions with `data` argument and calling environment")
   group.by <- droplevels(as.factor(group.by))
   if (!is.null(matchedCall[["group.by.test"]])) {
     if (length(group.by.test) != nrow(data@x.test))
