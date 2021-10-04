@@ -4,7 +4,8 @@
 #
 # DESCRIPTION
 #
-#   Checks compiler for support for SIMD extensions.#
+#   Checks compiler for support for SIMD extensions.
+#
 #   This macro calls:
 #
 #     AC_SUBST(SSE2_FLAGS)
@@ -29,7 +30,7 @@
 #   and this notice are preserved. This file is offered as-is, without any
 #   warranty.
 
-#serial 18
+#serial 1
 
 AC_SUBST(SSE2_FLAG)
 AC_SUBST(SSE4_1_FLAG)

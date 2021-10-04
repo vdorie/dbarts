@@ -1,16 +1,16 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.64)
-AC_INIT(dbarts, 0.9.20, vdorie@gmail.com)
+AC_PREREQ([2.71])
+AC_INIT([dbarts],[0.9.20],[vdorie@gmail.com])
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
-AC_CONFIG_HEADER([src/config.hpp])
-AC_CONFIG_HEADER([src/dbarts/config.hpp])
-AC_CONFIG_HEADER([src/misc/config.h])
-AC_CONFIG_HEADER([src/external/config.h])
-AC_CONFIG_HEADER([inst/include/dbarts/types.hpp])
-AC_CONFIG_HEADER([src/include/misc/types.h])
+AC_CONFIG_HEADERS([src/config.hpp])
+AC_CONFIG_HEADERS([src/dbarts/config.hpp])
+AC_CONFIG_HEADERS([src/misc/config.h])
+AC_CONFIG_HEADERS([src/external/config.h])
+AC_CONFIG_HEADERS([inst/include/dbarts/types.hpp])
+AC_CONFIG_HEADERS([src/include/misc/types.h])
 
 m4_include([tools/m4/ax_check_compile_flag.m4])
 m4_include([tools/m4/ax_pthread.m4])
@@ -73,7 +73,6 @@ CXXFLAGS=`"${R_HOME}/bin/R" CMD config CXXFLAGS`
 CXXPICFLAGS=`"${R_HOME}/bin/R" CMD config CXXPICFLAGS`
 
 AC_PROG_CC
-AC_PROG_CC_C99
 AC_PROG_CPP
 AC_PROG_CXX
 AC_PROG_CXXCPP

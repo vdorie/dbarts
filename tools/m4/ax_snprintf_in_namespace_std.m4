@@ -16,7 +16,7 @@
 #   and this notice are preserved. This file is offered as-is, without any
 #   warranty.
 
-#serial 7
+#serial 1
 
 AC_DEFUN([AX_CXX_SNPRINTF_IN_NAMESPACE_STD],
 [AC_CACHE_CHECK([whether snprintf is in std::],
