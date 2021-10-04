@@ -11,7 +11,16 @@
 
 #include <external/random.h>
 
+// R includes
+#include <Rversion.h>
+
+#if R_VERSION >= R_Version(3, 6, 2)
+#define USE_FC_LEN_T
+#endif
+
 #include <Rmath.h> // unif_rand, norm_rand
+
+#undef USE_FC_LEN_T
 
 #include <rc/bounds.h>
 #include <rc/util.h>

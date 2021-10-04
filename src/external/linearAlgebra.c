@@ -11,7 +11,11 @@
 
 #include <Rversion.h>
 
-#if R_VERSION <= R_Version(3,3,1)
+#if R_VERSION >= R_Version(3, 6, 2)
+#define USE_FC_LEN_T
+#endif
+
+#if R_VERSION <= R_Version(3, 3, 1)
 #  define NO_C_HEADERS
 #endif
 
@@ -19,7 +23,13 @@
 #include <R_ext/Lapack.h> // dlassq, dpotrf, dtrtrs
 #include <R_ext/Applic.h> // dqrls
 
+#undef R_NO_REMAP
 #undef NO_C_HEADERS
+#undef USE_FC_LEN_T
+
+#ifndef FCONE
+# define FCONE
+#endif
 
 static const int increment = 1;
 
@@ -27,7 +37,7 @@ void ext_addVectorsInPlace(const double* restrict x, size_t u_length, double alp
 {
   int length = (int) u_length;
   
-  F77_NAME(daxpy)(&length, &alpha, x, &increment, y, &increment);
+  F77_CALL(daxpy)(&length, &alpha, x, &increment, y, &increment);
 }
 
 // b = Ax
@@ -40,13 +50,13 @@ void ext_leftMultiplyMatrixAndVector(const double* A, size_t n, size_t p, const 
   double d_one  = 1.0;
   double d_zero = 0.0;
   
-  F77_CALL(dgemv)(&transpose,
-                  &i_n, &i_p, &d_one,
-                  A, &i_n,
-                  x,
-                  &increment, &d_zero,
-                  b,
-                  &increment);
+  F77_CALL(dgemv)(&transpose, // trans
+                  &i_n, &i_p, // m, n
+                  &d_one, // alpha
+                  A, &i_n, //a, lda
+                  x, &increment, // x, incx
+                  &d_zero, //beta
+                  b, &increment FCONE); // y, incy, char length
 }
 
 double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
@@ -56,7 +66,7 @@ double ext_sumSquaresOfVectorElements(const double* x, size_t u_length)
   double sum = 0.0;
   double scale = 1.0;
   
-  F77_NAME(dlassq)(&length, x, &increment, &scale, &sum);
+  F77_CALL(dlassq)(&length, x, &increment, &scale, &sum);
   
   return scale * scale * sum;
 }
@@ -98,7 +108,7 @@ int ext_findLeastSquaresFitInPlace(double* y, size_t n, double* x, size_t p, dou
   double work[2 * p];
   double qrAux[p];
   int rank;
-  F77_NAME(dqrls)(x, &i_n, &i_p, y, (int*) &increment, &tolerance, b,
+  F77_CALL(dqrls)(x, &i_n, &i_p, y, (int*) &increment, &tolerance, b,
                   residuals, effects, &rank, pivot, qrAux, work);
   
   bool allKosher = true;
@@ -138,7 +148,7 @@ int ext_getSymmetricPositiveDefiniteTriangularFactorization(const double* restri
   
   int lapackResult;
   
-  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, result, &i_dim, &lapackResult);
+  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, result, &i_dim, &lapackResult FCONE);
   
   if (lapackResult < 0) return EINVAL;
   if (lapackResult > 0) return EDOM;
@@ -156,7 +166,7 @@ int ext_getSymmetricPositiveDefiniteTriangularFactorizationInPlace(double* x, si
   
   int lapackResult;
   
-  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, x, &i_dim, &lapackResult);
+  F77_CALL(dpotrf)(&useLowerTriangle, &i_dim, x, &i_dim, &lapackResult FCONE);
   
   if (lapackResult < 0) return EINVAL;
   if (lapackResult > 0) return EDOM;
@@ -182,7 +192,7 @@ void ext_getSingleMatrixCrossproduct(const double* restrict x, size_t numRows, s
                   &outputDimension,
                   &inputDimension, &d_one, x,
                   &i_numRows, &d_zero,
-                  result, &outputDimension);
+                  result, &outputDimension FCONE FCONE);
   
   if (triangleType != EXT_TRIANGLE_TYPE_BOTH) return;
   
@@ -209,7 +219,7 @@ int ext_solveTriangularSystemInPlace(const double* restrict lhs, size_t lhsDim, 
   int lapackResult;
   
   F77_CALL(dtrtrs)(&useLowerTriangle, &shouldTransposeMatrix, &isUnitDiagonal,
-                   &i_lhsDim, &i_rhsDim, lhs, &i_lhsDim, rhs, &i_lhsDim, &lapackResult);
+                   &i_lhsDim, &i_rhsDim, lhs, &i_lhsDim, rhs, &i_lhsDim, &lapackResult FCONE FCONE FCONE);
   
   if (lapackResult < 0) return EINVAL;
   if (lapackResult > 0) return EDOM;

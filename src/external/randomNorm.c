@@ -24,7 +24,15 @@
 #include <float.h> // DBL_MIN
 #include <stdbool.h> // true
 
+#include <Rversion.h>
+
+#if R_VERSION >= R_Version(3, 6, 2)
+#define USE_FC_LEN_T
+#endif
+
 #include <Rmath.h> // fmin2, fmax2
+
+#undef USE_FC_LEN_T
 
 #include <external/io.h>
 #include <external/stats.h> // qnorm

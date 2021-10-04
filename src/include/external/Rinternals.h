@@ -5,7 +5,11 @@
 
 #include <Rversion.h>
 
-#if R_VERSION <= R_Version(3,3,1)
+#if R_VERSION >= R_Version(3, 6, 2)
+#define USE_FC_LEN_T
+#endif
+
+#if R_VERSION <= R_Version(3, 3, 1)
 // Rinternals.h includes R_ext/Memory.h and R_ext/Utils.h which reference size_t
 // Rinternals.h also references FILE from stdio.h
 #  define NO_C_HEADERS
@@ -28,6 +32,7 @@ using std::FILE;
 
 #undef NO_C_HEADERS
 #undef R_NO_REMAP
+#undef USE_FC_LEN_T
 
 #endif // EXTERNAL_RINTERNALS_H
 
