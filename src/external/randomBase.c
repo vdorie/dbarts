@@ -491,10 +491,9 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
         INTEGER(seedExpr)[0] = (int) orig_seed;
         
         SEXP closure = PROTECT(Rf_lang2(Rf_findVarInFrame(R_BaseEnv, Rf_install("set.seed")), seedExpr));
-        UNPROTECT(1);
         
         Rf_eval(closure, R_GlobalEnv);
-        UNPROTECT(1);
+        UNPROTECT(2);
       } else {
         // no way to know how to set seed on this object
         return EINVAL;

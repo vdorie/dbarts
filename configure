@@ -5982,12 +5982,55 @@ if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
 
         ax_cv_support_avx_ext=yes
-        ax_cv_support_avx2_ext=yes
         AVX_FLAG="-xarch=avx"
-        AVX2_FLAG="-xarch=avx2"
 
 fi
 
+      if test x$"ax_cv_support_avx_ext" = x"yes"; then
+        as_CACHEVAR=`printf "%s\n" "ax_cv_check_cflags__"-xarch=avx2"" | $as_tr_sh`
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts \"-xarch=avx2\"" >&5
+printf %s "checking whether C compiler accepts \"-xarch=avx2\"... " >&6; }
+if eval test \${$as_CACHEVAR+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  "-xarch=avx2""
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  eval "$as_CACHEVAR=yes"
+else $as_nop
+  eval "$as_CACHEVAR=no"
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+eval ac_res=\$$as_CACHEVAR
+	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+printf "%s\n" "$ac_res" >&6; }
+if eval test \"x\$"$as_CACHEVAR"\" = x"yes"
+then :
+
+          ax_cv_support_avx2_ext=yes
+          AVX2_FLAG="-xarch=avx2"
+
+else $as_nop
+  :
+fi
+
+      fi
       ;;
 
     *)
@@ -7408,20 +7451,37 @@ fi
           unsupported_isets=
           # only test for those that we explicitly add beyond what
           # the compiler will come up with on "-xarch=native"
-          for iset in "avx;AVX" "sse4_1;SSE4_1" "avx2;AVX2"; do
+          for iset in "avx;AVX" "sse41;SSE4_1" "avx2;AVX2"; do
             iset_varname=$(echo $iset | cut -d ";" -f 1)
             iset_mapname=$(echo $iset | cut -d ";" -f 2)
-            # have variables test for CPU and OS support
-            if test x"$(eval echo \$ax_cv_have_${iset_varname}_ext)" = x"no"; then
-              unsupported_isets="${unsupported_isets} ${iset_mapname}"
+            # If instruction set is supported by the compiler but not both of the
+            # OS and CPU, remove it
+            if test x"$(eval echo \$ax_cv_have_${iset_varname}_ext)" != x"yes"; then
+              if test x"$(eval echo \$ax_cv_support_${iset_varname}_ext)" = x"yes"; then
+                unsupported_isets="${unsupported_isets} ${iset_mapname}"
+              fi
             fi
           done
+
           if test ! -z "${unsupported_isets}"; then
             unsupported_isets=${unsupported_isets##[[:space:]]} # remove leading space
-            echo "creating mapfile to remove ${unsupported_isets} instruction set(s)"
-            echo "\$mapfile_version 2\nCAPABILITY {\n  HW -= ${unsupported_isets};\n};\n" > src/mapfile.solaris
+
+            printf "\$mapfile_version 2\nCAPABILITY {\n  HW -= %s;\n};\n" "${unsupported_isets}" > src/mapfile.solaris
+
             mapfile_flag="-M mapfile.solaris"
           fi
+
+          #HEADER_FILE=
+          #printf "#include <sys/auxv_386.h>\nint main() { return 0; }\n" > conftest.c
+          #HEADER_FILE=$(eval $CC -H conftest.c -o conftest 2>&1)
+          #rm -f conftest conftest.c
+          #
+          #if test ! -z "${HEADER_FILE}"; then
+          #  echo "contents of ${HEADER_FILE}:"
+          #  grep 'AV_386_[[^B]]' ${HEADER_FILE}
+          #else
+          #  echo "could not find aux header file"
+          #fi
         fi
       ;;
     esac
@@ -8437,8 +8497,7 @@ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 
-if test "$ac_cv_header_cstdint" == no
-then
+if test "$ac_cv_header_cstdint" == no; then
   ac_fn_c_check_header_compile "$LINENO" "stdint.h" "ac_cv_header_stdint_h" "$ac_includes_default"
 if test "x$ac_cv_header_stdint_h" = xyes
 then :

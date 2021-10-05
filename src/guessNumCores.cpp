@@ -362,7 +362,6 @@ namespace dbarts {
     }
 #  if defined(_SC_NPROCESSORS_ONLN)
     else {
-      ext_printf("  cpuinfo falling back\n");
       *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_ONLN);
       if (*numLogicalProcessorsPtr < 1) *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_CONF);
     }
