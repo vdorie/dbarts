@@ -1,8 +1,8 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
-AC_INIT([dbarts],[0.9.20],[vdorie@gmail.com])
+AC_PREREQ(2.64)
+AC_INIT([dbarts],[0.9.21],[vdorie@gmail.com])
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADERS([src/config.hpp])
@@ -120,7 +120,7 @@ case $host_os in
           
           if test ! -z "${unsupported_isets}"; then
             unsupported_isets=${unsupported_isets##[[:space:]]} # remove leading space
-            
+            echo "creating mapfile to remove ${unsupported_isets} instruction set(s)"
             printf "\$mapfile_version 2\nCAPABILITY {\n  HW -= %s;\n};\n" "${unsupported_isets}" > src/mapfile.solaris
             
             mapfile_flag="-M mapfile.solaris"

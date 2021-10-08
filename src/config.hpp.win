@@ -6,6 +6,6 @@
 
 #define PACKAGE_BUGREPORT "vdorie@gmail.com"
 #define PACKAGE_NAME "dbarts"
-#define PACKAGE_STRING "dbarts 0.9.20"
+#define PACKAGE_STRING "dbarts 0.9.21"
 #define PACKAGE_TARNAME "dbarts"
-#define PACKAGE_VERSION "0.9.20"
+#define PACKAGE_VERSION "0.9.21"
