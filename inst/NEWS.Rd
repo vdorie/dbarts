@@ -1,6 +1,15 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-21}{
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item \code{xbart} for binary outcomes with log loss no longer returns
+            NaN when some subset of the response is perfectly predicted by the
+            covariates. Bug report thanks to Marcela Veselkova.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-20}{
   \subsection{NEW FEATURES}{
     \itemize{

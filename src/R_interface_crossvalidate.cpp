@@ -284,7 +284,6 @@ namespace {
                         double* restrict results)
   {
     LogLossFunctor& restrict instance(*static_cast<LogLossFunctor* restrict>(&v_instance));
-    
     double* restrict probabilities = instance.scratch;
     results[0] = 0.0;
     for (size_t i = 0; i < numTestObservations; ++i) {
@@ -292,8 +291,7 @@ namespace {
         probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
       }
       double y_test_hat = misc_computeMean(probabilities, numSamples);
-      
-      results[0] +=  -y_test[i] * std::log(y_test_hat) - (1.0 - y_test[i]) * log1p(-y_test_hat);
+      results[0] += -(y_test[i] > 0.0 ? std::log(y_test_hat) : log1p(-y_test_hat));
     }
     results[0] /= static_cast<double>(numTestObservations);
   }
