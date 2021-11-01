@@ -6,7 +6,7 @@
 #include <Rversion.h>
 
 #if R_VERSION >= R_Version(3, 6, 2)
-#define USE_FC_LEN_T
+#  define USE_FC_LEN_T
 #endif
 
 // for older versions of R we attempt to not include unnecessary headers,

@@ -285,8 +285,57 @@ namespace {
     pthread_mutex_unlock(&fitMutex);
     pthread_mutex_destroy(&fitMutex);
   }*/
-  
-#define DEF_FUNC(_N_, _F_, _A_) { _N_, reinterpret_cast<DL_FUNC>(&_F_), _A_ }
+
+}
+
+#if __cplusplus >= 202002L
+#  include <bit>
+#else
+
+namespace std {
+
+#  if __cplusplus >= 201103L
+#    include <type_traits>
+
+template <class To, class From>
+typename std::enable_if<
+  sizeof(To) == sizeof(From) &&
+  std::is_trivially_copyable<From>::value &&
+  std::is_trivially_copyable<To>::value,
+  To>::type
+// constexpr support needs compiler magic
+bit_cast(const From& src) noexcept
+{
+  static_assert(std::is_trivially_constructible<To>::value,
+    "This implementation additionally requires destination type to be trivially constructible");
+
+  To dst;
+  std::memcpy(&dst, &src, sizeof(To));
+  return dst;
+}
+
+#  else
+
+// We are only using this to cast function pointers, which are trivially copiable.
+// is_trivially_copyable is compiler specific and isn't worth trying to drop in
+// an implementation.
+template <class To, class From>
+typename To
+bit_cast(const From& src)
+{
+  To dst;
+  std::memcpy(&dst, &src, sizeof(To));
+  return dst;
+}
+
+#  endif
+
+}
+
+#endif
+
+extern "C" {
+#define DEF_FUNC(_N_, _F_, _A_) { _N_, std::bit_cast<DL_FUNC>(&_F_), _A_ }
 
   static R_CallMethodDef R_callMethods[] = {
     DEF_FUNC("dbarts_create", create, 3),
@@ -337,7 +386,7 @@ namespace {
     DL_FUNC function;
   } C_CallMethodDef;
   
-#define DEF_FUNC(_N_, _F_) { _N_, reinterpret_cast<DL_FUNC>(&_F_) }
+#define DEF_FUNC(_N_, _F_) { _N_, std::bit_cast<DL_FUNC>(&_F_) }
   
   static C_CallMethodDef C_callMethods[] = {
     DEF_FUNC("createCGMPrior", dbarts_createCGMPrior),

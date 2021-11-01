@@ -908,6 +908,7 @@ static void assertDoubleConstraint(const char* name, _rc_boundType boundType, do
     break;
     case _RC_NE:
     if (value == bound) Rf_error("%s cannot equal %f", name, bound);
+    break;
     case _RC_DEFAULT:
     Rf_error("cannot assert a default as a constraint for %s", name);
     default:
