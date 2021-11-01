@@ -6,6 +6,7 @@
 #include <cstring> // memcpy
 
 #include <R_ext/Rdynload.h>
+#include <R_ext/Visibility.h>
 
 #include <rc/util.h>
 
@@ -470,10 +471,7 @@ extern "C" {
   
 #undef DEF_FUNC
   
-}
-
-extern "C" {
-  void R_init_dbarts(DllInfo* info)
+  void attribute_visible R_init_dbarts(DllInfo* info)
   {
     R_registerRoutines(info, NULL, R_callMethods, NULL, NULL);
     R_useDynamicSymbols(info, static_cast<Rboolean>(FALSE));

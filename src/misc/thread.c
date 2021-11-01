@@ -186,7 +186,7 @@ int misc_mt_runTasks(misc_mt_manager_t restrict manager, misc_mt_taskFunction_t 
   return result;
 }
 
-inline static void getTime(struct timespec* ts)
+static inline void getTime(struct timespec* ts)
 {
 #if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_REALTIME)
   clock_gettime(CLOCK_REALTIME, ts);

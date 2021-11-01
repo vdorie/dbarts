@@ -716,7 +716,7 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
 #  endif
 #endif
 // guarantees results in (0, 1)
-inline static double truncateToUnitInterval(double x) {
+static inline double truncateToUnitInterval(double x) {
   if (x <= 0.0) return 0.5 * THIRTY_TWO_BIT_INVERSE;
   if ((1.0 - x) <= 0.0) return 1.0 - 0.5 * THIRTY_TWO_BIT_INVERSE;
   return x;
