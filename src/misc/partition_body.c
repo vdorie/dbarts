@@ -137,11 +137,11 @@
       }
       
       do {
-        int zeros = countTrailingZeros(lh_mask);
+        uint8_t zeros = (uint8_t) countTrailingZeros(lh_mask);
         lh_mask >>= zeros;
         lh_sub += zeros / 2;
         
-        zeros = countTrailingZeros(rh_mask);
+        zeros = (uint8_t) countTrailingZeros(rh_mask);
         rh_mask >>= zeros;
         rh_sub += zeros / 2;
         
@@ -218,11 +218,11 @@
       }
       
       do {
-        int zeros = countTrailingZeros(lh_mask);
+        uint8_t zeros = (uint8_t) countTrailingZeros(lh_mask);
         lh_mask >>= zeros;
         lh_sub += zeros / 2;
         
-        zeros = countTrailingZeros(rh_mask);
+        zeros = (uint8_t) countTrailingZeros(rh_mask);
         rh_mask >>= zeros;
         rh_sub += zeros / 2;
         

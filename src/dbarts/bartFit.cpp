@@ -398,7 +398,14 @@ namespace dbarts {
       size_t* columns = misc_stackAllocate(data.numPredictors, size_t);
       for (size_t i = 0; i < data.numPredictors; ++i) columns[i] = i;
       
+#if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
       ::setCutPoints(*this, columns, data.numPredictors);
+#if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
+#  pragma GCC diagnostic pop
+#endif
       
       misc_stackFree(columns);
     }

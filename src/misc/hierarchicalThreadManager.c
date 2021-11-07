@@ -505,6 +505,8 @@ static int initializeManager(misc_htm_manager_t manager, size_t numThreads)
   
   manager->threadsShouldExit = false;
   
+  manager->buffer = NULL;
+  
   bool mutexInitialized = false;
   bool threadIsActiveInitialized = false;
   bool taskDoneInitialized = false;

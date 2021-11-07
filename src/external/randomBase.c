@@ -56,9 +56,8 @@
 
 #define STANDARD_NORMAL_DEFAULT EXT_RNG_STANDARD_NORMAL_INVERSION
 
-#if defined(__GNUC__) && (\
-  (!defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))) || \
-  ( defined(__clang__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 7))))
+#if (defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 7))) || \
+    (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
@@ -247,8 +246,13 @@ ext_rng* ext_rng_createDefault(bool useNative)
   UNPROTECT(1);
   
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wswitch-enum"
+#  ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wswitch-enum"
+#  else
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wswitch-enum"
+#  endif
 #endif
   switch (algorithmType) {
     case EXT_RNG_ALGORITHM_KNUTH_TAOCP:
@@ -301,7 +305,11 @@ ext_rng* ext_rng_createDefault(bool useNative)
   }
   
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic pop
+#  ifdef __clang__
+#    pragma clang diagnostic pop
+#  else
+#    pragma GCC diagnostic pop
+#  endif
 #endif
   
   int errorCode = ext_rng_setStandardNormalAlgorithm(result, stdNormalType, normalState);
@@ -572,10 +580,10 @@ void ext_rng_writeSerializedState(const ext_rng* generator, void* state)
     
     state = (void*) ((char*) state + sizeof(double));
     
-#if defined(__clang__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 5))
+#if defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 5))
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wtautological-compare"
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wtype-limits"
 #endif
@@ -592,9 +600,9 @@ void ext_rng_writeSerializedState(const ext_rng* generator, void* state)
      *((char*) state) = 0;
      state = (void*) ((char*) state + 1);
   }
-#if defined(__clang__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 5))
+#if defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 5))
 #  pragma clang diagnostic pop
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))
 #  pragma GCC diagnostic pop
 #endif
 }
@@ -709,10 +717,15 @@ static void validateSeed(ext_rng* generator, bool isFirstRun)
 #define KNUTH_CONSTANT         9.31322574615479e-10
 
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wuninitialized"
-#  if defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
-#    pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#  ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wuninitialized"
+#  else
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wuninitialized"
+#    if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7)
+#      pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#    endif
 #  endif
 #endif
 // guarantees results in (0, 1)
@@ -821,7 +834,11 @@ double ext_rng_simulateContinuousUniform(ext_rng* generator)
 }
 
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic pop
+#  ifdef __clang__
+#    pragma clang diagnostic pop
+#  else
+#    pragma GCC diagnostic pop
+#  endif
 #endif
 
 /* ===================  Mersenne Twister ========================== */

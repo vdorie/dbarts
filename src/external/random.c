@@ -28,9 +28,8 @@
 #include <math.h> // exp, log, expm1, fabs
 #include <stdbool.h>
 
-#if defined(__GNUC__) && (\
-  (!defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6))) || \
-  ( defined(__clang__) && (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 7))))
+#if (defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 7))) || \
+    (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
@@ -121,12 +120,21 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
   
   /* Step 1: Recalculations of s2, s, d if a has changed */
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wfloat-equal"
+#  ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wfloat-equal"
+#  else
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wfloat-equal"
+#  endif
 #endif
   if (shape != oldShape) {
 #ifdef SUPPRESS_DIAGNOSTIC
-#  pragma GCC diagnostic pop
+#  ifdef __clang__
+#    pragma clang diagnostic pop
+#  else
+#    pragma GCC diagnostic pop
+#  endif
 #endif
     oldShape = shape;
     s2 = shape - 0.5;

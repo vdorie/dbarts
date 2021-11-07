@@ -308,7 +308,7 @@ namespace {
       std::memcpy(buffer, (const char*) cpuInfo + offset, endOfNumber - offset);
       buffer[endOfNumber - offset] = '\0';
       
-      long parsedInt = std::strtol(buffer, NULL, 10);
+      uint32_t parsedInt = static_cast<uint32_t>(std::strtol(buffer, NULL, 10));
       misc_stackFree(buffer);
       
       offset = endOfNumber;
@@ -354,7 +354,7 @@ namespace dbarts {
     if (parseProcCPUInfo(cpuInfo) == true) {
       for (size_t i = 0; i < cpuInfo.size(); ++i) {
         Processor* processor = cpuInfo[i];
-        *numPhyiscalProcessorsPtr += processor->coreIdThreadMap.size();
+        *numPhyiscalProcessorsPtr += static_cast<uint32_t>(processor->coreIdThreadMap.size());
         for (CoreMap::iterator it = processor->coreIdThreadMap.begin(); it != processor->coreIdThreadMap.end(); ++it) {
           *numLogicalProcessorsPtr += it->second;
         }
@@ -362,8 +362,8 @@ namespace dbarts {
     }
 #  if defined(_SC_NPROCESSORS_ONLN)
     else {
-      *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_ONLN);
-      if (*numLogicalProcessorsPtr < 1) *numLogicalProcessorsPtr = sysconf(_SC_NPROCESSORS_CONF);
+      *numLogicalProcessorsPtr = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_ONLN));
+      if (*numLogicalProcessorsPtr < 1) *numLogicalProcessorsPtr = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
     }
 #  endif
     

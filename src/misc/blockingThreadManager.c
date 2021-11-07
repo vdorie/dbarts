@@ -324,10 +324,12 @@ static int initializeManager(misc_btm_manager_t manager, size_t numThreads)
   manager->threads = NULL;
   manager->threadData = NULL;
   manager->threadsShouldExit = false;
-    
+  
   bool mutexInitialized = false;
   bool threadIsActiveInitialized = false;
   bool threadIsWaitingInitialized = false;
+  bool threadQueueInitialized = false;
+  bool parentTaskQueueInitialized = false;
   
   manager->threads = (Thread*) malloc(numThreads * sizeof(Thread));
   if (manager->threads == NULL) { result = ENOMEM; goto misc_btm_manager_initialization_failed; }
@@ -337,9 +339,11 @@ static int initializeManager(misc_btm_manager_t manager, size_t numThreads)
     
   result = initializeIndexArrayQueue(&manager->threadQueue, numThreads);
   if (result != 0) goto misc_btm_manager_initialization_failed;
+  threadQueueInitialized = true;
   
   result = initializeIndexArrayQueue(&manager->parentTaskQueue, numThreads);
   if (result != 0) goto misc_btm_manager_initialization_failed;
+  parentTaskQueueInitialized = true;
   
   result = initializeMutex(manager->mutex);
   if (result != 0) {
@@ -366,8 +370,8 @@ misc_btm_manager_initialization_failed:
   if (threadIsActiveInitialized) destroyCondition(manager->threadIsActive);
   if (mutexInitialized) destroyMutex(manager->mutex);
   
-  invalidateIndexArrayQueue(&manager->parentTaskQueue);
-  invalidateIndexArrayQueue(&manager->threadQueue);
+  if (parentTaskQueueInitialized) invalidateIndexArrayQueue(&manager->parentTaskQueue);
+  if (threadQueueInitialized) invalidateIndexArrayQueue(&manager->threadQueue);
   
   if (manager->threads != NULL) { free(manager->threads); manager->threads = NULL; }
   if (manager->threadData != NULL) { free(manager->threadData); manager->threadData = NULL; }
@@ -455,6 +459,7 @@ static int initializeIndexArrayQueue(IndexArrayQueue* queue, size_t queueSize)
 static void invalidateIndexArrayQueue(IndexArrayQueue* queue)
 {
   if (queue == NULL || queue->elements == NULL) return;
+  
   free(queue->elements);
   queue->elements = NULL;
 }

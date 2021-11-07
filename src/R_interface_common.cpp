@@ -78,6 +78,11 @@ namespace dbarts {
     
     delete fit;
   }
+
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wenum-enum-conversion"
+#endif
   
   void initializeControlFromExpression(Control& control, SEXP controlExpr)
   {
@@ -132,7 +137,6 @@ namespace dbarts {
     if (i_temp == NA_INTEGER) i_temp = 0;
     control.printCutoffs = static_cast<uint32_t>(i_temp);
     
-
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngKind"));
     size_t slotLength = rc_getLength(slotExpr);
     if (slotLength != 1) Rf_error("slot 'rngKind' must be of length 1");
@@ -165,6 +169,11 @@ namespace dbarts {
     if (i_temp == NA_INTEGER) i_temp = DBARTS_CONTROL_INVALID_SEED;
     control.rng_seed = static_cast<uint_least32_t>(i_temp);
   }
+  
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic pop
+#endif
+  
 }
 
 namespace {
@@ -185,6 +194,12 @@ namespace {
 }
 
 namespace dbarts {
+  
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wenum-enum-conversion"
+#endif
+  
   void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
   {
     int errorCode;
@@ -308,6 +323,10 @@ namespace dbarts {
     model.treePrior    = stackModel.treePrior;    stackModel.treePrior = NULL;
   }
   
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic pop
+#endif
+  
   void invalidateModel(Model& model)
   {
     if (model.kPrior != NULL) {
@@ -334,6 +353,12 @@ namespace {
 }
 
 namespace dbarts {
+  
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic push
+#  pragma clang diagnostic ignored "-Wenum-enum-conversion"
+#endif
+  
   void initializeDataFromExpression(Data& data, SEXP dataExpr)
   {
     DataStackDeconstructor stackData;
@@ -412,6 +437,10 @@ namespace dbarts {
     
     stackData.variableTypes = NULL;
   }
+  
+#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#  pragma clang diagnostic pop
+#endif
   
   void invalidateData(Data& data)
   {
@@ -683,4 +712,5 @@ namespace dbarts {
     fit.rebuildScratchFromState();
   }
 }
+
 
