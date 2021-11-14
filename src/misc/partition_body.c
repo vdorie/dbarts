@@ -45,7 +45,6 @@
      _mm256_cmple_epu16(values, _mm256_set1_epi16((misc_xint_t) cut)))
 
 #  define movemask _mm256_movemask_epi8
-#  define mask_t uint32_t
 #  define cmp_width 16
 #  define cmp_t __m256i
 
@@ -88,7 +87,6 @@
      _mm_cmple_epu16(values, _mm_set1_epi16((misc_xint_t) cut)))
 
 #  define movemask _mm_movemask_epi8
-#  define mask_t uint16_t
 #  define cmp_width 8
 #  define cmp_t __m128i
 
@@ -109,25 +107,25 @@
   if (lh + 2 * cmp_width < rh) {
     
     cmp_t lh_comp, rh_comp, values;
-    uint8_t lh_sub = 0, rh_sub = 0;
-    mask_t lh_mask = 0, rh_mask = 0;
+    uint_least8_t lh_sub = 0, rh_sub = 0;
+    unsigned int lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
-    lh_mask = (mask_t) movemask(lh_comp);
+    lh_mask = (unsigned int) movemask(lh_comp);
     rh_comp = loadRHComp(rh);
-    rh_mask = (mask_t) movemask(rh_comp);
+    rh_mask = (unsigned int) movemask(rh_comp);
     
     while (true) {
       while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
         lh += cmp_width;
         lh_comp = loadLHComp(lh);
-        lh_mask = (mask_t) movemask(lh_comp);
+        lh_mask = (unsigned int) movemask(lh_comp);
         lh_sub = 0;
       }
       while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
         rh -= cmp_width;
         rh_comp = loadRHComp(rh);
-        rh_mask = (mask_t) movemask(rh_comp);
+        rh_mask = (unsigned int) movemask(rh_comp);
         rh_sub = 0;
       }
       if (lh + 2 * cmp_width >= rh) {
@@ -137,13 +135,13 @@
       }
       
       do {
-        uint8_t zeros = (uint8_t) countTrailingZeros(lh_mask);
+        unsigned int zeros = (unsigned int) countTrailingZeros(lh_mask);
         lh_mask >>= zeros;
-        lh_sub += zeros / 2;
+        lh_sub += (uint_least8_t) zeros / 2;
         
-        zeros = (uint8_t) countTrailingZeros(rh_mask);
+        zeros = (unsigned int) countTrailingZeros(rh_mask);
         rh_mask >>= zeros;
-        rh_sub += zeros / 2;
+        rh_sub += (uint_least8_t) zeros / 2;
         
         indices[rh - rh_sub] = lh + lh_sub;
         indices[lh + lh_sub] = rh - rh_sub;
@@ -190,25 +188,25 @@
   if (lh + 2 * cmp_width < rh) {
     
     cmp_t lh_comp, rh_comp, values;
-    uint8_t lh_sub = 0, rh_sub = 0;
-    mask_t lh_mask = 0, rh_mask = 0;
+    uint_least8_t lh_sub = 0, rh_sub = 0;
+    unsigned int lh_mask = 0, rh_mask = 0;
     
     lh_comp = loadLHComp(lh);
-    lh_mask = (mask_t) movemask(lh_comp);
+    lh_mask = (unsigned int) movemask(lh_comp);
     rh_comp = loadRHComp(rh);
-    rh_mask = (mask_t) movemask(rh_comp);
+    rh_mask = (unsigned int) movemask(rh_comp);
     
     while (true) {
       while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
       lh += cmp_width;
         lh_comp = loadLHComp(lh);
-        lh_mask = (mask_t) movemask(lh_comp);
+        lh_mask = (unsigned int) movemask(lh_comp);
         lh_sub = 0;
       }
       while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
         rh -= cmp_width;
         rh_comp = loadRHComp(rh);
-        rh_mask = (mask_t) movemask(rh_comp);
+        rh_mask = (unsigned int) movemask(rh_comp);
         rh_sub = 0;
       }
       if (lh + 2 * cmp_width >= rh) {
@@ -218,13 +216,13 @@
       }
       
       do {
-        uint8_t zeros = (uint8_t) countTrailingZeros(lh_mask);
+        unsigned int zeros = (unsigned int) countTrailingZeros(lh_mask);
         lh_mask >>= zeros;
-        lh_sub += zeros / 2;
+        lh_sub += (uint_least8_t) zeros / 2;
         
-        zeros = (uint8_t) countTrailingZeros(rh_mask);
+        zeros = (unsigned int) countTrailingZeros(rh_mask);
         rh_mask >>= zeros;
-        rh_sub += zeros / 2;
+        rh_sub += (uint_least8_t) zeros / 2;
         
         size_t temp = indices[rh - rh_sub];
         indices[rh - rh_sub] = indices[lh + lh_sub];
