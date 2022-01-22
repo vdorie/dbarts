@@ -33,7 +33,7 @@ rbart_vi(
                          sample = c("train", "test"),
                          \dots)
 \S3method{extract}{rbart}(object,
-                          type = c("ev", "ppd", "bart", "ranef"),
+                          type = c("ev", "ppd", "bart", "ranef", "trees"),
                           sample = c("train", "test"),
                           combineChains = TRUE,
                           \dots)
@@ -68,13 +68,18 @@ rbart_vi(
     Same as in \code{\link{bart2}}.}
   \item{object}{A fitted \code{rbart} model.}
   \item{newdata}{Same as \code{test}, but named to match \code{\link{predict}} generic.}
-  \item{type}{One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"} for
-        the posterior of the expected value, posterior predictive distribution, non-parametric/BART
-        component, or random effect respectively. The expected value is the sum of the BART component
-        and the random effects, while the posterior predictive distribution is a response sampled
-        with that mean. To synergize with \code{\link{predict.glm}}, \code{"response"} can
-        be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for
-        \code{"bart"}.}
+  \item{type}{
+    One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or
+    \code{"trees"} for the posterior of the expected value, posterior
+    predictive distribution, non-parametric/BART component, random effect, or
+    saved trees respectively. The expected value is the sum of the BART
+    component and the random effects, while the posterior predictive
+    distribution is a response sampled with that mean. To synergize with
+    \code{\link{predict.glm}}, \code{"response"} can be used as a synonym
+    for \code{"value"} and \code{"link"} can be used as a synonym for
+    \code{"bart"}. For additional details on tree extraction, see the
+    corresponding subsection in \code{\link{bart}}.
+  }
   \item{sample}{One of \code{"train"} or \code{"test"}, referring to the training or tests samples
         respectively.}
   \item{x, plquants, cols}{Same as in \code{\link{plot.bart}}.}

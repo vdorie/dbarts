@@ -44,6 +44,8 @@ namespace dbarts {
   
   struct BARTFit;
   struct Results;
+
+  struct FlattenedTrees;
 }
 
 // pair calls of create<->destroy, initialize<->invalidate
@@ -77,9 +79,13 @@ extern "C" {
   
   void dbarts_printInitialSummary(const dbarts::BARTFit* fit);
   void dbarts_printTrees(const dbarts::BARTFit* fit,
-                         const std::size_t* chains,  std::size_t numChains,
-                         const std::size_t* samples, std::size_t numSamples,
-                         const std::size_t* indices, std::size_t numIndices);
+                         const std::size_t* chainIndices,  std::size_t numChainIndices,
+                         const std::size_t* sampleIndices, std::size_t numSampleIndices,
+                         const std::size_t* treeIndices, std::size_t numTreeIndices);
+  dbarts::FlattenedTrees* dbarts_getTrees(const dbarts::BARTFit* fit,
+                                          const std::size_t* chainIndices,  std::size_t numChainIndices,
+                                          const std::size_t* sampleIndices, std::size_t numSampleIndices,
+                                          const std::size_t* treeIndices, std::size_t numTreeIndices);
   
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);

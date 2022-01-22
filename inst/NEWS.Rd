@@ -2,6 +2,11 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-21}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item \code{extract} now accepts as a type \code{"trees"}, which
+            allows for easier inspection of models fit with
+            \code{"keepTrees"} as \code{TRUE}.
   \subsection{BUG FIXES}{
     \itemize{
       \item \code{xbart} for binary outcomes with log loss no longer returns

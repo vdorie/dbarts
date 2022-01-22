@@ -53,7 +53,7 @@ predict.bart <- function(object, newdata, offset,
 }
 
 extract.bart <- function(object, 
-                         type = c("ev", "ppd", "bart"),
+                         type = c("ev", "ppd", "bart", "trees"),
                          sample = c("train", "test"),
                          combineChains = TRUE,
                          ...)
@@ -65,6 +65,22 @@ extract.bart <- function(object,
   if (!is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type))
     stop("type must be in '", paste0(eval(formals(extract.bart)$type), collapse = "', '"), "'")
   type <- type[1L]
+  
+  if (type == "trees") {
+    if (is.null(object$fit)) {
+      if (as.character(object$call[[1L]]) == "bart2")
+        stop("extracting trees requires bart2 to be called with 'keepTrees' == TRUE")
+      else
+        stop("extracting trees requires bart to be called with 'keeptrees' == TRUE")
+    }
+    treesCall <- match.call()
+    target <- quote(object$fit$getTrees)
+    target[[2L]][[2L]] <- treesCall$object
+    treesCall[[1L]] <- target
+    treesCall$object <- NULL
+    treesCall$type <- NULL
+    return(eval(treesCall, parent.frame()))
+  }
   
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.bart)$sample))
     stop("sample must be in '", paste0(eval(formals(extract.bart)$sample), collapse = "', '"), "'")
@@ -244,7 +260,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
 }
 
 extract.rbart <- function(object,
-                          type = c("ev", "ppd", "bart", "ranef"),
+                          type = c("ev", "ppd", "bart", "ranef", "trees"),
                           sample = c("train", "test"),
                           combineChains = TRUE,
                           ...)
@@ -256,7 +272,37 @@ extract.rbart <- function(object,
   if (!is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type))
     stop("type must be in '", paste0(eval(formals(extract.rbart)$type), collapse = "', '"), "'")
   type <- type[1L]
+
+  n.chains  <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
   
+  if (type == "trees") {
+    if (is.null(object$fit))
+      stop("extracting trees requires rbart to be called with 'keepTrees' == TRUE")
+    treesCall <- match.call()
+    target <- quote(object$fit[[i]]$getTrees)
+    target[[2L]][[2L]][[2L]] <- treesCall$object
+    treesCall[[1L]] <- target
+    treesCall$object <- NULL
+    treesCall$type <- NULL
+    treesCall$chainNums <- NULL
+    evalEnv <- parent.frame()
+    dotsList <- list(...)
+    chainNums <- if ("chainNums" %in% names(dotsList)) as.integer(dotsList[["chainNums"]]) else seq_len(n.chains)
+    varOrder <- c("sample", "chain", "tree", "n", "var", "value")
+    allTrees <- lapply(chainNums, function(i) {
+      result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)
+      if (n.chains > 1L) result_i$chain <- i
+      result_i[,match(varOrder, colnames(result_i))]
+    })
+    if (length(allTrees) > 1L) {
+      allTrees <- Reduce(rbind, allTrees)
+    } else {
+      allTrees <- allTrees[[1L]]
+    }
+    row.names(allTrees) <- as.character(seq_len(nrow(allTrees)))
+    return(allTrees)
+  }
+
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.rbart)$sample))
     stop("sample must be in '", paste0(eval(formals(extract.rbart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
@@ -264,7 +310,6 @@ extract.rbart <- function(object,
   if (sample == "test" && is.null(object[["yhat.test"]]))
     stop("cannot extract test sample predictions if no test data exists; use `predict` instead")
   
-  n.chains  <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
     
   if (type == "ranef") {
     ranefNames <- if (sample == "train") levels(object$group.by) else levels(object$group.by.test)

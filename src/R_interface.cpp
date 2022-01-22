@@ -446,6 +446,7 @@ extern "C" {
     
     DEF_FUNC("printInitialSummary", dbarts_printInitialSummary),
     DEF_FUNC("printTrees", dbarts_printTrees),
+    DEF_FUNC("getTrees", dbarts_getTrees),
     DEF_FUNC("setRNGState", dbarts_setRNGState),
     
     DEF_FUNC("runSampler", dbarts_runSampler),

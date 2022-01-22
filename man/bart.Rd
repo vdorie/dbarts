@@ -58,7 +58,7 @@ bart2(formula, data, test, subset, weights, offset, offset.test = offset,
                        combineChains = TRUE, \dots)
 extract(object, \dots)
 \method{extract}{bart}(object,
-                       type = c("ev", "ppd", "bart"),
+                       type = c("ev", "ppd", "bart", "trees"),
                        sample = c("train", "test"),
                        combineChains = TRUE, \dots)
 
@@ -261,18 +261,22 @@ extract(object, \dots)
    
    \item{type}{
      The quantity to be returned by generic functions. Options are \code{"ev"} -
-     samples from the posterior of the individual level expected value, \code{"bart"}
-     - the sum of trees component; same as \code{"ev"} for linear models but on the probit
-     scale for binary ones, and \code{"ppd"} - samples from the posterior predictive
-     distribution. To synergize with \code{\link{predict.glm}}, \code{"response"} can
-     be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for
-     \code{"bart"}.
+     samples from the posterior of the individual level expected value,
+     \code{"bart"} - the sum of trees component; same as \code{"ev"} for linear
+     models but on the probit scale for binary ones, \code{"ppd"} - samples
+     from the posterior predictive distribution, and \code{"trees"} - a data
+     frame with tree information for when model was fit with \code{keepTrees}
+     equal to \code{TRUE}. To synergize with \code{\link{predict.glm}},
+     \code{"response"} can be used as a synonym for \code{"value"} and
+     \code{"link"} can be used as a synonym for \code{"bart"}. For information
+     on extracting trees, see the subsection below.
    }
    \item{sample}{
      Either \code{"train"} or \code{"test"}.
    }
    \item{\dots}{
-     Additional arguments passed on to \code{plot} or \code{dbartsControl}, respectively. Not used in
+     Additional arguments passed on to \code{plot}, \code{dbartsControl}, or
+     \code{extract} when \code{type} is \code{"trees"}. Not used in
      \code{predict}.
    }
 }
@@ -369,6 +373,30 @@ extract(object, \dots)
     Consequently, the \code{seed} argument should not be needed when running
     single-threaded - \code{\link{set.seed}} will suffice. When multi-threaded,
     \code{seed} can be used to obtain reproducible results.
+  }
+
+  \subsection{Extracting Trees}{
+    When a model is fit with \code{keeptrees} (\code{bart}) or \code{keepTrees}
+    (\code{bart2}) equal to \code{TRUE}, the generic \code{extract} can be used
+    to retrieve a data frame containing the tree fit information. In this case,
+    \code{extract} will accept the additional, optional arguments:
+    \code{chainNums}, \code{sampleNums}, and \code{treeNums}. Each should be
+    an integer vector detailing the desired trees to be returned.
+
+    The result of \code{extract} will be a data frame with columns:
+    \itemize{
+      \item \code{sample}, \code{chain}, \code{tree} - index variables
+      \item \code{n} - number of observations in node
+      \item \code{var} - either the index of the variable used for splitting
+        or -1 if the node is a leaf
+      \item \code{value} - either the value such that observations less than
+        or equal to it are sent down the left path of the tree or the predicted
+        value for a leaf node
+    }
+    The order of nodes in the result corresponds to a depth-first traversal,
+    going down the left-side first. The names of variables used in splitting
+    can be recovered by examining the column names of the \code{fit$data@x}
+    element of a fitted \code{bart} or \code{bart2} model.
   }
 }
 \value{
