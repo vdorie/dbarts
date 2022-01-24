@@ -152,6 +152,43 @@ allTrees <- by(
 bart.1$fit$plotTree(chainNum = 1, sampleNum = 3, treeNum = 1)
 ```
 
+## Getting Tree Predictions
+
+The following function traverses a flattened tree, splits observations while going the branches, and populates a vector giving the predicted value of that tree on input data. It requires a data in the same format as the fitted bart model so that it can evaluate the splits.
+
+```{r getPredictionsForTree}
+getPredictionsForTree <- function(tree, x) {
+    predictions <- rep(NA_real_, nrow(x))
+    
+    getPredictionsForTreeRecursive <- function(tree, indices) {
+        if (tree$var[1] == -1) {
+            # Assigns in the calling environment by using <<-
+            predictions[indices] <<- tree$value[1]
+            return(1)
+        }
+
+        goesLeft <- x[indices, tree$var[1]] <= tree$value[1]
+        headOfLeftBranch <- tree[-1,]
+        n_nodes.left <- getPredictionsForTreeRecursive(
+            headOfLeftBranch, indices[goesLeft])
+        
+        headOfRightBranch <- tree[seq.int(2 + n_nodes.left, nrow(tree)),]
+        n_nodes.right <- getPredictionsForTreeRecursive(
+            headOfRightBranch, indices[!goesLeft])
+        
+        return(1 + n_nodes.left + n_nodes.right)
+    }
+
+    getPredictionsForTreeRecursive(tree, seq_len(nrow(x)))
+
+    return(predictions)
+}
+
+getPredictionsForTree(treeOfInterest, bart.1$fit$data@x[1:5,])
+```
+
+A `by` statement can be used to obtain all predictions for all trees.
+
 ## Advanced Traversal
 
 The following function can be used to map an arbitrary function over a tree.
