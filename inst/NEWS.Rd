@@ -7,6 +7,8 @@
       \item \code{extract} now accepts as a type \code{"trees"}, which
             allows for easier inspection of models fit with
             \code{"keepTrees"} as \code{TRUE}.
+      \item \code{print} generics now exist for \code{bart} and \code{rbart}
+            fits; implementation thanks to Emil Hvitfeldt.
     }
   }
   \subsection{BUG FIXES}{

@@ -429,3 +429,15 @@ sampleFromPPD <- function(ev, object)
   result
 }
 
+print.bart <- function(x, ...) {
+  cat("\nCall:\n", paste(deparse(x$call), sep = "\n", collapse = "\n"), 
+      "\n\n", sep = "")
+  invisible(x)
+}
+
+print.rbart <- function(x, ...) {
+  cat("\nCall:\n", paste(deparse(x$call), sep = "\n", collapse = "\n"), 
+      "\n\n", sep = "")
+  invisible(x)
+}
+

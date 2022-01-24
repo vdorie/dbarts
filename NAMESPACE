@@ -25,6 +25,8 @@ S3method(fitted, rbart)
 S3method(extract, rbart)
 S3method(predict, rbart)
 S3method(residuals, rbart)
+S3method(print, bart)
+S3method(print, rbart)
 
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod)
 
