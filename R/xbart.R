@@ -3,7 +3,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   n.reps = 40L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "log", "mcr"),
                   n.threads = guessNumCores(),
                   n.trees = 75L, k = NULL, power = 2, base = 0.95, drop = TRUE,
-                  resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)
+                  resid.prior = chisq, control = dbartsControl(), sigma = NA_real_,
+                  seed = NA_integer_)
 {
   matchedCall <- match.call()
   
@@ -19,6 +20,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@verbose <- verbose
   control@n.chains <- 1L
   control@keepTrees <- FALSE
+  if (!is.na(seed)) control@rngSeed <- as.integer(seed)
   
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset)
   data <- eval(dataCall, evalEnv)

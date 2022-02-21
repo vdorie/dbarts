@@ -355,20 +355,20 @@ extract(object, \dots)
   }
   
   \subsection{Reproducibility}{
-    Behavior differs when running multi- and single-threaded, as the pseudo random
-    number generators (pRNG) used by R are not thread safe. When single-threaded,
-    R's built-in generator is used; if set at the start, \code{\link{.Random.seed}}
-    will be used and its value updated as samples are drawn. When multi-threaded,
-    the default behavior is draw new random seeds for each thread using the clock
-    and use thread-specific pRNGs.
+    Behavior differs when running multi- and single-threaded, as the pseudo
+    random number generators (pRNG) used by R are not thread safe. When single-
+    threaded, R's built-in generator is used; if set at the start,
+    \code{\link{.Random.seed}} will be used and its value updated as samples
+    are drawn. When multi-threaded, the default behavior is to draw new random
+    seeds for each thread using the clock and use thread-specific pRNGs.
     
-    This behavior can be modified by setting \code{seed}, or by using \code{\dots}
-    to pass arguments to \code{\link{dbartsControl}}. For the single-threaded case,
-    a new pRNG is built using that seed that is separate from R's native generator.
-    As such, the new state will not be reflected by subsequent calls to the
-    generator. For multi-threaded, the seeds for threads are drawn sequentially
-    using the supplied seed, and will again be separate from R's native
-    generator.
+    This behavior can be modified by setting \code{seed}, or by using
+    \code{\dots} to pass arguments to \code{\link{dbartsControl}}. For the
+    single-threaded case, a new pRNG is built using that seed that is separate
+    from R's native generator. As such, the new state will not be reflected by
+    subsequent calls to the generator. For multi-threaded, the seeds for
+    threads are drawn sequentially using the supplied seed, and will again be
+    separate from R's native generator.
     
     Consequently, the \code{seed} argument should not be needed when running
     single-threaded - \code{\link{set.seed}} will suffice. When multi-threaded,

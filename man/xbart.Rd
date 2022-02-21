@@ -10,7 +10,8 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
       n.reps = 40L, n.burn = c(200L, 150L, 50L),
       loss = c("rmse", "log", "mcr"), n.threads = guessNumCores(), n.trees = 75L,
       k = NULL, power = 2, base = 0.95, drop = TRUE,
-      resid.prior = chisq, control = dbartsControl(), sigma = NA_real_)}
+      resid.prior = chisq, control = dbartsControl(), sigma = NA_real_,
+      seed = NA_integer_)}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description
@@ -107,6 +108,12 @@ xbart(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
    \item{sigma}{
      A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used
      with all of the predictors to obtain one.
+   }
+   \item{seed}{
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. It
+     should not be needed when running single-threaded - \code{\link{set.seed}}
+     will suffice, and can be used to obtain reproducible results when multi-
+     threaded. See Reproducibility section of \code{\link{bart}}.
    }
 }
 \details{

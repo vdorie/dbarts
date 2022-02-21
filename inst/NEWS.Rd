@@ -9,6 +9,8 @@
             \code{"keepTrees"} as \code{TRUE}.
       \item \code{print} generics now exist for \code{bart} and \code{rbart}
             fits; implementation thanks to Emil Hvitfeldt.
+      \item \code{xbart} now accepts a \code{seed} argument to enhance
+            reproducibility.
     }
   }
   \subsection{BUG FIXES}{

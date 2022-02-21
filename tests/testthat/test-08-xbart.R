@@ -97,6 +97,43 @@ test_that("k-fold and random subsample are reproducible, roughly similar", {
   expect_true(all(abs(res.rs - res.kf) < .1))
 })
 
+test_that("works with fixed seed", {
+  x <- testData$x
+  y <- testData$y
+  
+  k <- c(4, 8)
+  
+  xval.1 <- xbart(x, y, method = "k-fold",
+                  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                  k = k,
+                  n.threads = 1L, seed = 0)
+
+  xval.2 <- xbart(x, y, method = "k-fold",
+                  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                  k = k,
+                  n.threads = 1L, seed = 0)
+  
+  expect_true(all(!is.na(xval.1)))
+  expect_equal(dim(xval.1), c(4L, length(k)))
+  expect_equal(xval.1, xval.2)
+
+  xval.3 <- xbart(x, y, method = "k-fold",
+                  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                  k = k,
+                  n.threads = 2L, seed = 0)
+
+  xval.4 <- xbart(x, y, method = "k-fold",
+                  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+                  k = k,
+                  n.threads = 2L, seed = 0)
+  
+  expect_true(all(!is.na(xval.3)))
+  expect_equal(dim(xval.3), c(4L, length(k)))
+  expect_equal(xval.3, xval.4)
+
+  expect_true(any(xval.1 != xval.3))
+})
+
 test_that("works with non-standard models", {
   x <- testData$x
   y <- testData$y

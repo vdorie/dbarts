@@ -1851,10 +1851,14 @@ namespace {
     ext_rng_algorithm_t rng_algorithm = static_cast<ext_rng_algorithm_t>(control.rng_algorithm);
     ext_rng_standardNormal_t rng_standardNormal = static_cast<ext_rng_standardNormal_t>(control.rng_standardNormal);
     
+    // If running multi-threaded and a seed was specified, create a generator
+    // that will be used to generate seeds for the thread-specific generators.
     ext_rng* seedGenerator = NULL;
     if (control.rng_seed != DBARTS_CONTROL_INVALID_SEED && !useNativeRNG) {
       if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID) {
-        seedGenerator = ext_rng_createDefault(FALSE);
+        // We can use the built-in here, because we are running single-threaded
+        // at this point.
+        seedGenerator = ext_rng_createDefault(true);
       } else {
         seedGenerator = ext_rng_create(rng_algorithm, NULL);
       }
@@ -1866,7 +1870,6 @@ namespace {
         errorMessage = "could not seed rng";
         goto createRNG_cleanup;
       }
-      ext_rng_setSeed(seedGenerator, control.rng_seed);
     }
     
     for ( /* */ ; chainNum < control.numChains; ++chainNum) {
@@ -1896,7 +1899,10 @@ namespace {
         // we are running sequentially and the (single-threaded) built-in generator 
         // will be used for everything.
         if (control.rng_seed != DBARTS_CONTROL_INVALID_SEED && chainNum == 0) {
-          if (ext_rng_setSeed(state[chainNum].rng, control.rng_seed) != 0) { errorMessage = "could not seed rng"; goto createRNG_cleanup; }
+          if (ext_rng_setSeed(state[chainNum].rng, control.rng_seed) != 0) {
+            errorMessage = "could not seed rng";
+            goto createRNG_cleanup;
+          }
         }
       } else {
         // If not using supplied generator, seed created ones
