@@ -13,8 +13,8 @@ namespace dbarts {
   void deleteFit(BARTFit* fit);
   
   void initializeControlFromExpression(Control& control, SEXP controlExpr);
-  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control);
   void initializeDataFromExpression(Data& data, SEXP dataExpr);
+  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control, const Data& data);
   
   // void invalidateControl(Control& control);
   void invalidateModel(Model& model);

@@ -136,7 +136,7 @@ bart2 <- function(
   formula, data, test, subset, weights, offset, offset.test = offset,
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
   k = NULL,
-  power = 2.0, base = 0.95,
+  power = 2.0, base = 0.95, split.probs = 1 / num.vars,
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
   n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
@@ -175,8 +175,12 @@ bart2 <- function(
   if (control@n.burn == 0L && keepTrees == TRUE) control@keepTrees <- TRUE
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   
-  tree.prior <- quote(cgm(power, base))
+  tree.prior <- quote(cgm(power, base, split.probs))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  if ("split.probs" %in% names(matchedCall))
+    tree.prior[[4L]] <- matchedCall$split.probs
+  else
+    tree.prior[[4L]] <- formals(dbarts::bart2)[["split.probs"]]
   
   if (!is.null(matchedCall[["k"]])) {
     node.prior <- quote(normal(k))
@@ -243,7 +247,7 @@ bart <- function(
   x.train, y.train, x.test = matrix(0.0, 0L, 0L),
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90, 
   k = 2.0,
-  power = 2.0, base = 0.95,
+  power = 2.0, base = 0.95, splitprobs = 1 / numvars,
   binaryOffset = 0.0, weights = NULL,
   ntree = 200L,
   ndpost = 1000L, nskip = 100L,
@@ -269,8 +273,12 @@ bart <- function(
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   ndpost <- as.integer(ndpost) %/% control@n.thin
 
-  tree.prior <- quote(cgm(power, base))
+  tree.prior <- quote(cgm(power, base, split.probs))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  if ("splitprobs" %in% names(matchedCall))
+    tree.prior[[4L]] <- matchedCall$splitprobs
+  else
+    tree.prior[[4L]] <- formals(dbarts::bart)[["splitprobs"]]
 
   node.prior <- quote(normal(k))
   node.prior[[2L]] <- if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k

@@ -126,9 +126,11 @@ namespace dbarts {
   struct CGMPrior : TreePrior {
     double base;
     double power;
+    const double* splitProbabilities; // probability a variable is used when splitting
     
     CGMPrior() { }
-    CGMPrior(double base, double power) : base(base), power(power) { }
+    CGMPrior(double base, double power, const double* splitProbabilities) :
+      base(base), power(power), splitProbabilities(splitProbabilities) { }
     virtual ~CGMPrior() { }
     
     virtual double computeGrowthProbability(const BARTFit& fit, const Node& node) const;

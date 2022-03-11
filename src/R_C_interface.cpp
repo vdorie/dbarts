@@ -61,17 +61,17 @@ extern "C" {
     invalidateData(*data);
   }
   
-  dbarts::Model* dbarts_createModel(SEXP modelExpr, dbarts::Control* control) {
+  dbarts::Model* dbarts_createModel(SEXP modelExpr, const dbarts::Control* control, const dbarts::Data* data) {
     Model* result = new Model(control->responseIsBinary);
-    initializeModelFromExpression(*result, modelExpr, *control);
+    initializeModelFromExpression(*result, modelExpr, *control, *data);
     return result;
   }
   void dbarts_destroyModel(dbarts::Model* model) {
     invalidateModel(*model);
     delete model;
   }
-  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control) {
-    initializeModelFromExpression(*model, modelExpr, *control);
+  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control, const dbarts::Data* data) {
+    initializeModelFromExpression(*model, modelExpr, *control, *data);
   }
   void dbarts_invalidateModel(dbarts::Model* model) {
     invalidateModel(*model);
@@ -192,15 +192,15 @@ extern "C" {
   CGMPrior* dbarts_createCGMPrior() {
     return new CGMPrior;
   }
-  CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power) {
-    return new CGMPrior(base, power);
+  CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power, const double* splitProbabilities) {
+    return new CGMPrior(base, power, splitProbabilities);
   }
   void dbarts_destroyCGMPrior(CGMPrior* prior) {
     delete prior;
   }
-  void dbarts_initializeCGMPriorFromOptions(CGMPrior* prior, double base, double power)
+  void dbarts_initializeCGMPriorFromOptions(CGMPrior* prior, double base, double power, const double* splitProbabilities)
   {
-    new (prior) CGMPrior(base, power);
+    new (prior) CGMPrior(base, power, splitProbabilities);
   }
   void dbarts_invalidateCGMPrior(CGMPrior* prior) {
     prior->~CGMPrior();

@@ -42,8 +42,8 @@ extern "C" {
   SEXP create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr)
   {
     Control control;
-    Model model;
     Data data;
+    Model model;
     
     SEXP classExpr = Rf_getAttrib(controlExpr, R_ClassSymbol);
     if (std::strcmp(CHAR(STRING_ELT(classExpr, 0)), "dbartsControl") != 0) Rf_error("'control' argument to dbarts_create not of class 'dbartsControl'");
@@ -56,8 +56,8 @@ extern "C" {
     
     
     initializeControlFromExpression(control, controlExpr);
-    initializeModelFromExpression(model, modelExpr, control);
     initializeDataFromExpression(data, dataExpr);
+    initializeModelFromExpression(model, modelExpr, control, data);
     
     BARTFit* fit = new BARTFit(control, model, data);
     
@@ -272,7 +272,7 @@ extern "C" {
     if (std::strcmp(CHAR(STRING_ELT(Rf_getAttrib(modelExpr, R_ClassSymbol), 0)), "dbartsModel") != 0) Rf_error("'model' argument to dbarts_setModel not of class 'dbartsModel'");
     
     Model model;
-    initializeModelFromExpression(model, modelExpr, fit->control);
+    initializeModelFromExpression(model, modelExpr, fit->control, fit->data);
     
     Model oldModel = fit->model;
     

@@ -178,12 +178,12 @@ extern "C" {
     LossFunctorDefinition* lossFunctionDef =
       createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, scratch);
     
-    initializeModelFromExpression(model, modelExpr, control);
     initializeDataFromExpression(data, dataExpr);
+    initializeModelFromExpression(model, modelExpr, control, data);
     
     if (data.numObservations == 0) {
-      invalidateData(data);
       invalidateModel(model);
+      invalidateData(data);
       delete lossFunctionDef;
       
       if (protectCount > 0) UNPROTECT(protectCount);

@@ -200,7 +200,7 @@ namespace dbarts {
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
   
-  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control)
+  void initializeModelFromExpression(Model& model, SEXP modelExpr, const Control& control, const Data& data)
   {
     int errorCode;
     size_t priorType;
@@ -249,7 +249,24 @@ namespace dbarts {
     treePrior->base =
       rc_getDouble(slotExpr, "tree prior base", RC_LENGTH | RC_EQ, rc_asRLength(1),
                    RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
-    
+
+    slotExpr = Rf_getAttrib(priorExpr, Rf_install("splitProbabilities"));
+    if (rc_getLength(slotExpr) == 0) {
+      treePrior->splitProbabilities = NULL;
+    } else {
+      treePrior->splitProbabilities = REAL(slotExpr);
+      size_t numPredictors = data.numPredictors;
+      if (rc_getLength(slotExpr) != numPredictors)
+        Rf_error("length of split probabilities must equal number of predictors");
+      double totalProbability = 0.0;
+      for (size_t i = 0; i < numPredictors; ++i) {
+        if (treePrior->splitProbabilities[i] < 0.0)
+          Rf_error("split probabilities must be non-negative");
+        totalProbability += treePrior->splitProbabilities[i];
+      }
+      if ((totalProbability - 1.0) >= 1.0e-10)
+        Rf_error("split probabilities must sum to 1.0");
+    }
     
     // not currently used
     // priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));

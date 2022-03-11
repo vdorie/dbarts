@@ -1,12 +1,23 @@
 ## stupid file name to load first
 
 methods::setClass("dbartsTreePrior")
-methods::setClass("dbartsCGMPrior", contains = "dbartsTreePrior",
-                  slots = list(power = "numeric", base = "numeric"))
+methods::setClass(
+  "dbartsCGMPrior",
+  contains = "dbartsTreePrior",
+  slots = list(
+    power = "numeric",
+    base = "numeric",
+    splitProbabilities = "numeric"
+  )
+)
 methods::setValidity("dbartsCGMPrior",
   function(object) {
     if (object@power <= 0.0) return("'power' must be positive")
     if (object@base  <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1)")
+    if (length(object@splitProbabilities) > 0L &&
+        (any(object@splitProbabilities < 0.0) ||
+         sum(object@splitProbabilities) != 1.0))
+      return("'splitProbabilities' must form a simplex")
     TRUE
   })
 

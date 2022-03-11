@@ -62,9 +62,9 @@ extern "C" {
   void dbarts_initializeData(dbarts::Data* data, SEXP dataExpr);
   void dbarts_invalidateData(dbarts::Data* data);
   
-  dbarts::Model* dbarts_createModel(SEXP modelExpr, dbarts::Control* control);
+  dbarts::Model* dbarts_createModel(SEXP modelExpr, const dbarts::Control* control, const dbarts::Data* data);
   void dbarts_destroyModel(dbarts::Model* model);
-  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control);
+  void dbarts_initializeModel(dbarts::Model* model, SEXP modelExpr, const dbarts::Control* control, const dbarts::Data* data);
   void dbarts_invalidateModel(dbarts::Model* model);
   
   dbarts::BARTFit* dbarts_createFit(dbarts::Control* control, dbarts::Model* model, dbarts::Data* data);
@@ -122,9 +122,9 @@ extern "C" {
   void dbarts_storeLatents(const dbarts::BARTFit* fit, double* target);
     
   dbarts::CGMPrior* dbarts_createCGMPrior();
-  dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power);
+  dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power, const double* splitProbabilities);
   void dbarts_destroyCGMPrior(dbarts::CGMPrior* prior);
-  void dbarts_initializeCGMPriorFromOptions(dbarts::CGMPrior* prior, double base, double power);
+  void dbarts_initializeCGMPriorFromOptions(dbarts::CGMPrior* prior, double base, double power, const double* splitProbabilities);
   void dbarts_invalidateCGMPrior(dbarts::CGMPrior* prior);
   
   dbarts::NormalPrior* dbarts_createNormalPrior();
