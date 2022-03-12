@@ -48,7 +48,14 @@ namespace dbarts {
   
   double CGMPrior::computeSplitVariableLogProbability(const BARTFit& fit, const Node& node) const
   {
-    return -std::log(static_cast<double>(node.getNumVariablesAvailableForSplit(fit.data.numPredictors)));
+    if (splitProbabilities == NULL)
+      return -std::log(static_cast<double>(node.getNumVariablesAvailableForSplit(fit.data.numPredictors)));
+
+    double totalProbability = 0.0;
+    for (size_t i = 0; i < fit.data.numPredictors; ++i)
+      if (node.variablesAvailableForSplit[i]) totalProbability += splitProbabilities[i];
+
+    return std::log(splitProbabilities[node.p.rule.variableIndex] / totalProbability);
   }
   
   double CGMPrior::computeRuleForVariableLogProbability(const BARTFit& fit, const Node& node) const
@@ -88,11 +95,33 @@ namespace dbarts {
   
   int32_t CGMPrior::drawSplitVariable(const BARTFit& fit, ext_rng* rng, const Node& node) const
   {
-    size_t numGoodVariables = node.getNumVariablesAvailableForSplit(fit.data.numPredictors);
-    
-    size_t variableNumber = ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, numGoodVariables);
-    
-    return findIndexOfIthPositiveValue(node.variablesAvailableForSplit, fit.data.numPredictors, variableNumber);
+    if (splitProbabilities == NULL) {
+      size_t numGoodVariables = node.getNumVariablesAvailableForSplit(fit.data.numPredictors);
+      
+      size_t variableNumber = ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, numGoodVariables);
+      
+      return findIndexOfIthPositiveValue(node.variablesAvailableForSplit, fit.data.numPredictors, variableNumber);
+    } else {
+      double totalProbability = 0.0;
+      for (int32_t i = 0; i < static_cast<int32_t>(fit.data.numPredictors); ++i) {
+        if (node.variablesAvailableForSplit[i]) {
+          totalProbability += splitProbabilities[i];
+        }
+      }
+
+      double cutoff = ext_rng_simulateContinuousUniform(rng) * totalProbability;
+
+      double runningProbability = 0.0;
+      for (int32_t i = 0; i < static_cast<int32_t>(fit.data.numPredictors); ++i) {
+        if (node.variablesAvailableForSplit[i]) {
+          runningProbability += splitProbabilities[i];
+          if (runningProbability >= cutoff)
+            return i;
+        }
+      }
+
+      ext_throwError("drawSplitVariable went beyond array extent without selecting a variable");
+    }
   }
   
   Rule CGMPrior::drawRuleForVariable(const BARTFit& fit, ext_rng* rng, const Node& node, int32_t variableIndex, bool* exhaustedLeftSplits, bool* exhaustedRightSplits) const

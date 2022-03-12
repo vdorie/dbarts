@@ -22,7 +22,7 @@ denotes the standard normal cdf (probit link).
 bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
      sigest = NA, sigdf = 3, sigquant = 0.90,
      k = 2.0,
-     power = 2.0, base = 0.95,
+     power = 2.0, base = 0.95, splitprobs = 1 / numvars,
      binaryOffset = 0.0, weights = NULL,
      ntree = 200,
      ndpost = 1000, nskip = 100,
@@ -36,7 +36,7 @@ bart(x.train, y.train, x.test = matrix(0.0, 0, 0),
 bart2(formula, data, test, subset, weights, offset, offset.test = offset,
       sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
       k = NULL,
-      power = 2.0, base = 0.95,
+      power = 2.0, base = 0.95, split.probs = 1 / num.vars,
       n.trees = 75L,
       n.samples = 500L, n.burn = 500L,
       n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
@@ -124,6 +124,17 @@ extract(object, \dots)
 
    \item{base}{
      Base parameter for tree prior.
+   }
+
+   \item{splitprobs, split.probs}{
+     Prior and transition probabilities of variables used to generate splits.
+     Can be missing/empty/\code{NULL} for equiprobability, a numeric vector of
+     length equal to the number variables, or a named numeric vector with
+     only a subset of the variables specified and a \code{.default} named
+     value. Values given for factor variables are replicated for each
+     resulting column in the generated model matrix. \code{numvars} and
+     \code{num.vars} symbols will be rebound before execution to the number
+     of columns in the model matrix.
    }
 
    \item{binaryOffset}{

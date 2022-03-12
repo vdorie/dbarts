@@ -85,6 +85,7 @@ namespace dbarts {
     Node& nodeToChange(*notBottomNodes[nodeIndex]);
     
     //given the node, choose a new variable for the new rule
+    // split probabilities are calculated in computeTreeLogProbability below
     int32_t newVariableIndex = fit.model.treePrior->drawSplitVariable(fit, state.rng, nodeToChange);
     
     if (fit.data.variableTypes[newVariableIndex] == CATEGORICAL) {

@@ -264,7 +264,7 @@ namespace dbarts {
           Rf_error("split probabilities must be non-negative");
         totalProbability += treePrior->splitProbabilities[i];
       }
-      if ((totalProbability - 1.0) >= 1.0e-10)
+      if (std::fabs(totalProbability - 1.0) >= 1.0e-10)
         Rf_error("split probabilities must sum to 1.0");
     }
     

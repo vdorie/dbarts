@@ -160,7 +160,8 @@ extern "C" {
     int* variableCountStorage = INTEGER(variableCountSamples);
     size_t length = bartResults->getNumVariableCountSamples();
     // these likely need to be down-sized from 64 to 32 bits
-    for (size_t i = 0; i < length; ++i) variableCountStorage[i] = static_cast<int>(bartResults->variableCountSamples[i]);
+    for (size_t i = 0; i < length; ++i)
+      variableCountStorage[i] = static_cast<int>(bartResults->variableCountSamples[i]);
     
     if (bartResults->kSamples != NULL) {
       SEXP kSamples = VECTOR_ELT(resultExpr, 4);

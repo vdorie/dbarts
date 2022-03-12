@@ -68,18 +68,18 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }
 
-
+num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
 {
   matchedCall <- match.call()
   if (is.null(matchedCall$split.probs))
-    matchedCall$split.probs <- formals(quoteInNamespace(cgm))$split.probs
+    matchedCall$split.probs <- formals()$split.probs
   split.probs.expr <- subTermInLanguage(matchedCall$split.probs, quote(num.vars), quote(ncol(data@x)))
   split.probs.expr <- subTermInLanguage(split.probs.expr, quote(numvars), quote(ncol(data@x)))
   split.probs <- eval(split.probs.expr, parent.frame())
   data <- parent.frame()$data
   
-  if (length(split.probs) == 1L) {
+  if (is.null(split.probs) || length(split.probs) == 1L) {
     # if length 1, we can ignore it
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {
@@ -121,8 +121,22 @@ cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
            ") does not equal number of columns in model matrix (", ncol(data@x), ")")
   }
   
-  if (length(split.probs) > 0L)
+  if (length(split.probs) > 0L) {
+    if (anyNA(split.probs)) {
+      if (!is.null(names(split.probs))) {
+        stop("cannot assign split probabilities: missing values for columns ",
+             paste0(paste0("'", names(split.probs)[is.na(split.probs)], "'"), collapse = ", "))
+      } else {
+        stop("cannot assign split probabilities: missing values for columns ",
+             paste0(which(is.na(split.probs)), collapse = ", "))
+      }
+    }
+
     split.probs <- split.probs / sum(split.probs)
+    if (all(split.probs == split.probs[1L]))
+      split.probs <- numeric()
+  }
+
 
   new("dbartsCGMPrior",
       power = power,

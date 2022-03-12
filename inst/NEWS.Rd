@@ -11,6 +11,10 @@
             fits; implementation thanks to Emil Hvitfeldt.
       \item \code{xbart} now accepts a \code{seed} argument to enhance
             reproducibility.
+      \item \code{bart}/\code{bart2} (and \code{dbarts} through its
+            \code{tree.prior} argument) accept \code{splitprobs}/
+            \code{split.probs} which controls the prior probability that any
+            variable is used when splitting observations.
     }
   }
   \subsection{BUG FIXES}{

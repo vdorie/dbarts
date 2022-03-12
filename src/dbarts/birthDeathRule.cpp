@@ -79,6 +79,8 @@ namespace dbarts {
       storeState(oldState, nodeToChange);
       
       bool exhaustedLeftSplits, exhaustedRightSplits;
+      // Because the proposal split is drawn from the prior, its contribution to transition ratio
+      // cancels out with the prior itself.
       Rule newRule = fit.model.treePrior->drawRuleAndVariable(fit, state.rng, nodeToChange, &exhaustedLeftSplits, &exhaustedRightSplits);
       nodeToChange.split(fit, chainNum, newRule, y, exhaustedLeftSplits, exhaustedRightSplits);
       
@@ -86,6 +88,7 @@ namespace dbarts {
       double leftPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
       double rightPriorGrowthProbability = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double newPriorProbability = parentPriorGrowthProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
+      // double newPriorProbability = parentPriorGrowthProbability * priorSplitProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
 
       double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
 
@@ -95,6 +98,8 @@ namespace dbarts {
       // compute ratios
       double priorRatio = newPriorProbability / oldPriorProbability;
       
+      /* double transitionRatio = (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
+                               (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth * transitionProbabilityOfSplit); */
       double transitionRatio = (transitionProbabilityOfDeathStep * transitionProbabilityOfSelectingNodeForDeath) /
                                (transitionProbabilityOfBirthStep * transitionProbabilityOfSelectingNodeForBirth);
       
@@ -125,7 +130,7 @@ namespace dbarts {
       double leftPriorGrowthProbability   = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getLeftChild());
       double rightPriorGrowthProbability  = fit.model.treePrior->computeGrowthProbability(fit, *nodeToChange.getRightChild());
       double oldLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
-      
+
       storeState(oldState, nodeToChange);
       
       // now figure out how the node could have given birth

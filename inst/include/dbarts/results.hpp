@@ -2,13 +2,14 @@
 #define DBARTS_RESULTS_HPP
 
 #include <cstddef> // size_t
+#include <dbarts/cstdint.hpp> // uint32_t
 
 namespace dbarts {
   struct Results {
     double* sigmaSamples;         // 1 x numSamples x numChains
     double* trainingSamples;      // numObservations x numSamples x numChains
     double* testSamples;          // numTestObservations x numSamples x numChains
-    double* variableCountSamples; // numPredictors x numSamples x numChains
+    std::uint32_t* variableCountSamples; // numPredictors x numSamples x numChains
     double* kSamples;             // 1 x numSamples x numChains, if model over k
     
     std::size_t numObservations;
@@ -27,7 +28,7 @@ namespace dbarts {
       sigmaSamples = new double[getNumSigmaSamples()];
       trainingSamples = new double[getNumTrainingSamples()];
       if (this->numTestObservations > 0) testSamples = new double[getNumTestSamples()];
-      variableCountSamples = new double[getNumVariableCountSamples()];
+      variableCountSamples = new std::uint32_t[getNumVariableCountSamples()];
       if (kIsModeled) kSamples = new double[getNumSigmaSamples()];
     }
     
@@ -37,7 +38,7 @@ namespace dbarts {
     Results(std::size_t numObservations, std::size_t numPredictors, std::size_t numTestObservations,
             std::size_t numSamples, std::size_t numChains,
             double* sigmaSamples, double* trainingSamples,
-            double* testSamples, double* variableCountSamples, double* kSamples) :
+            double* testSamples, std::uint32_t* variableCountSamples, double* kSamples) :
       sigmaSamples(sigmaSamples), trainingSamples(trainingSamples), testSamples(testSamples),
       variableCountSamples(variableCountSamples), kSamples(kSamples), numObservations(numObservations),
       numPredictors(numPredictors), numTestObservations(numTestObservations), numSamples(numSamples),

@@ -1260,7 +1260,7 @@ extern "C" {
     size_t chainNum = threadData->chainNum;
     size_t numBurnIn = threadData->numBurnIn;
     Results& results(*threadData->results);
-    
+
     Control& control(fit.control);
     Model& model(fit.model);
     Data& data(fit.data);
@@ -2137,15 +2137,15 @@ namespace {
     if (!model.kPrior->isFixed)
       results.kSamples[simNum + chainStride] = k;
     
-    double* variableCountSamples = results.variableCountSamples + (simNum + chainStride) * data.numPredictors;
-    for (size_t j = 0; j < data.numPredictors; ++j) variableCountSamples[j] = static_cast<double>(variableCounts[j]);
+    uint32_t* variableCountSamples = results.variableCountSamples + (simNum + chainStride) * data.numPredictors;
+    for (size_t j = 0; j < data.numPredictors; ++j) variableCountSamples[j] = variableCounts[j];
   }
   
   
   void countVariableUses(const BARTFit& fit, const State& state, uint32_t* variableCounts)
   {
     for (size_t treeNum = 0; treeNum < fit.control.numTrees; ++treeNum)
-      state.trees[treeNum ].countVariableUses(variableCounts);
+      state.trees[treeNum].countVariableUses(variableCounts);
   }
 
 #ifdef HAVE_GETTIMEOFDAY

@@ -395,7 +395,7 @@ extern "C" {
                     new double[numSamples],
                     new double[maxNumTrainingObservations * numSamples],
                     suppliedTestSamples,
-                    new double[origData.numPredictors * numSamples],
+                    new std::uint32_t[origData.numPredictors * numSamples],
                     origModel.kPrior != NULL ? new double[numSamples] : NULL);
     
     Control repControl = origControl;
@@ -778,6 +778,7 @@ namespace {
     const CGMPrior* oldTreePrior = static_cast<CGMPrior*>(origModel.treePrior);
     repTreePrior->base = oldTreePrior->base;
     repTreePrior->power = oldTreePrior->power;
+    repTreePrior->splitProbabilities = oldTreePrior->splitProbabilities;
     
     repModel.treePrior = repTreePrior;
     

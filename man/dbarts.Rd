@@ -32,8 +32,10 @@ dbarts(formula, data, test, subset, weights, offset, offset.test = offset,
   \item{verbose}{A logical determining if additional output is printed to the console. See \code{\link{dbartsControl}}.}
   \item{n.samples}{A positive integer setting the default number of posterior samples to be returned for each run of
   	the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}.}
-  \item{tree.prior}{An expression of the form \code{cgm} or \code{cgm(power, base)} setting the tree prior
-  	used in fitting.}
+  \item{tree.prior}{
+    An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)}
+    setting the tree prior used in fitting.
+  }
   \item{node.prior}{An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the
   	averages within nodes.}
   \item{resid.prior}{An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on
