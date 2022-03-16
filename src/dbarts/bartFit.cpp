@@ -1477,6 +1477,13 @@ namespace dbarts {
     
     CGMPrior* treePrior = static_cast<CGMPrior*>(model.treePrior);
     ext_printf("\tpower and base for tree prior: %f %f\n", treePrior->power, treePrior->base);
+    if (treePrior->splitProbabilities != NULL) {
+      ext_printf("\ttree split probabilities: %f", treePrior->splitProbabilities[0]);
+      size_t printLength = 5 < data.numPredictors ? 5 : data.numPredictors;
+      for (size_t i = 1; i < printLength; ++i)
+        ext_printf(", %f", treePrior->splitProbabilities[i]);
+      ext_printf("\n");
+    }
     ext_printf("\tuse quantiles for rule cut points: %s\n", control.useQuantiles ? "true" : "false");
     ext_printf("\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f; birth %.2f\n",
       model.birthOrDeathProbability, model.swapProbability, model.changeProbability, model.birthProbability);
