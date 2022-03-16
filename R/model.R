@@ -131,7 +131,7 @@ cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
              paste0(which(is.na(split.probs)), collapse = ", "))
       }
     }
-
+    
     split.probs <- split.probs / sum(split.probs)
     if (all(split.probs == split.probs[1L]))
       split.probs <- numeric()

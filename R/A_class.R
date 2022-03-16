@@ -16,7 +16,7 @@ methods::setValidity("dbartsCGMPrior",
     if (object@base  <= 0.0 || object@base >= 1.0) return("'base' must be in (0, 1)")
     if (length(object@splitProbabilities) > 0L &&
         (any(object@splitProbabilities < 0.0) ||
-         sum(object@splitProbabilities) != 1.0))
+         abs(sum(object@splitProbabilities) - 1.0) > 1.0e-10))
       return("'splitProbabilities' must form a simplex")
     TRUE
   })
