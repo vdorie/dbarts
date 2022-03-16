@@ -364,7 +364,7 @@ namespace {
     
     DataStackDeconstructor() : variableTypes(NULL) { }
     ~DataStackDeconstructor() {
-      delete variableTypes;
+      delete [] variableTypes;
     }
   };
 }
