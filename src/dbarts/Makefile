@@ -15,9 +15,9 @@ library : $(LOCAL_OBJECTS)
 	$(AR) $(ARFLAGS) ../dbarts.a $(LOCAL_OBJECTS)
 
 clean :
-	-rm -f config.hpp
-	-rm -f *.o
-	-rm -f *.a
+	@-rm -f config.hpp
+	@-rm -f *.o
+	@-rm -f *.a
 
 rebuild : clean all
 

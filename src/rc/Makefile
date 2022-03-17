@@ -11,9 +11,9 @@ library : $(LOCAL_OBJECTS)
 	$(AR) $(ARFLAGS) ../rc.a $(LOCAL_OBJECTS)
 
 clean :
-	-rm -f config.h
-	-rm -f *.o
-	-rm -f *.a
+	@-rm -f config.h
+	@-rm -f *.o
+	@-rm -f *.a
 
 rebuild : clean all
 

@@ -1,5 +1,6 @@
 #!/bin/sh
 
+export SHLIB="dbarts"`R CMD config SHLIB_EXT`
 if [ -f src/Makevars ]; then
   (cd src; make -f Makevars clean)
 else
