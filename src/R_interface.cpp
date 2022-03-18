@@ -298,6 +298,7 @@ namespace std {
 #  if __cplusplus >= 201103L
 #    include <type_traits>
 
+// From https://en.cppreference.com/w/cpp/numeric/bit_cast
 template <class To, class From>
 typename std::enable_if<
   sizeof(To) == sizeof(From) &&
@@ -318,10 +319,10 @@ bit_cast(const From& src) noexcept
 #  else
 
 // We are only using this to cast function pointers, which are trivially copiable.
-// is_trivially_copyable is compiler specific and isn't worth trying to drop in
-// an implementation.
+// is_trivially_copyable is compiler specific and isn't worth trying to reimplement
+// in c++98.
 template <class To, class From>
-typename To
+To
 bit_cast(const From& src)
 {
   To dst;
