@@ -334,6 +334,7 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   glmerFit <- lme4$glmer(y ~ . - g + (1 | g), df, family = binomial(link = "probit"))
   
   rbart.mu.hat <- fitted(rbartFit)
+  expect_equal(apply(extract(rbartFit), 2L, mean), rbart.mu.hat)
   glmer.mu.hat <- fitted(glmerFit, type = "response")
   
   dev.rbart <- -2 * mean(log(ifelse(df$y == 1, rbart.mu.hat, 1 - rbart.mu.hat)))

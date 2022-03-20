@@ -17,6 +17,10 @@
             variable is used when splitting observations.
     }
   }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{\code{fitted} for \code{rbart_vi} models now uses a C++
+             implementation for the expected value that uses less memory
+             and is faster.}
   \subsection{BUG FIXES}{
     \itemize{
       \item \code{xbart} for binary outcomes with log loss no longer returns

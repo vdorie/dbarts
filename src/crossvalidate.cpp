@@ -5,6 +5,7 @@
 #include <cstddef> // size_t
 #include <dbarts/cstdint.hpp> // uint_least32_t
 #include <cmath>   // sqrt, floor
+#include <errno.h>
 
 #include <misc/alloca.h>
 #include <misc/thread.h>
@@ -912,66 +913,74 @@ namespace {
     std::uint_least32_t rng_seed,
     const char*& errorMessage)
   {
-    ext_rng* rng = NULL;
+    ext_rng* result;
     if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID &&
         rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
     {
-      if ((rng = ext_rng_createDefault(true)) == NULL) {
+      if ((result = ext_rng_createDefault(true)) == NULL) {
         // Use built-in
         errorMessage = "could not allocate rng";
         return NULL;
       }
-      if (rng_seed != DBARTS_CONTROL_INVALID_SEED && ext_rng_setSeed(rng, rng_seed) != 0) {
+      if (rng_seed != DBARTS_CONTROL_INVALID_SEED && ext_rng_setSeed(result, rng_seed) != 0) {
         // Set seed if specified
         errorMessage = "could not seed rng";
-        ext_rng_destroy(rng);
+        ext_rng_destroy(result);
+        return NULL;
+      }
+      return result;
+    }
+    // Use custom
+    if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID)
+      rng_algorithm = ext_rng_getDefaultAlgorithmType();
+    if (rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
+      rng_standardNormal = ext_rng_getDefaultStandardNormalType();
+    
+    if (rng_algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM) {
+      errorMessage = "cannot create rng with user-specified uniform distribution function";
+      return NULL;
+    }
+    
+    if (rng_standardNormal == EXT_RNG_STANDARD_NORMAL_USER_NORM) {
+      errorMessage = "cannot create rng with user-specified normal distribution function";
+      return NULL;
+    }
+    
+    if (rng_seed == DBARTS_CONTROL_INVALID_SEED) {
+      // No need to use a custom seed
+      int errorCode = ext_rng_createAndSeed(&result, rng_algorithm, rng_standardNormal);
+      if (errorCode == ENOMEM) {
+        errorMessage = "could not allocate rng";
+        return NULL;
+      }
+      if (errorCode == EINVAL) {
+        errorMessage = "failure to set standard normal type or possibly seed";
+        return NULL;
+      }
+      if (errorCode != 0) {
+        errorMessage = "unknown error trying to create rng";
         return NULL;
       }
     } else {
-      // Use custom
-      if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID)
-        rng_algorithm = ext_rng_getDefaultAlgorithmType();
-      if (rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID)
-        rng_standardNormal = ext_rng_getDefaultStandardNormalType();
+      // Create first, then set seed
+      if ((result = ext_rng_create(rng_algorithm, NULL)) == NULL) {
+        errorMessage = "could not allocate rng";
+        return NULL;
+      }
       
-      if (rng_algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM) {
-        errorMessage = "cannot create rng with user-specified uniform distribution function";
+      if (ext_rng_setStandardNormalAlgorithm(result, rng_standardNormal, NULL) != 0) {
+        errorMessage = "could not set rng standard normal";
+        ext_rng_destroy(result);
         return NULL;
       }
-
-      if (rng_standardNormal == EXT_RNG_STANDARD_NORMAL_USER_NORM) {
-        errorMessage = "cannot create rng with user-specified normal distribution function";
+      if (ext_rng_setSeed(result, rng_seed) != 0) {
+        errorMessage = "could not seed rng";
+        ext_rng_destroy(result);
         return NULL;
-      }
-
-      if (rng_seed == DBARTS_CONTROL_INVALID_SEED) {
-        // No need to seed
-        if (ext_rng_createAndSeed(&rng, rng_algorithm, rng_standardNormal) != 0) {
-          errorMessage = "could not allocate rng";
-          return NULL;
-        }
-      } else {
-        // Create first, then set seed
-        if ((rng = ext_rng_create(rng_algorithm, NULL)) == NULL) {
-          errorMessage = "could not allocate rng";
-          return NULL;
-        }
-
-        if (ext_rng_setStandardNormalAlgorithm(rng, rng_standardNormal, NULL) != 0) {
-          errorMessage = "could not set rng standard normal";
-          ext_rng_destroy(rng);
-          return NULL;
-        }
-
-        if (ext_rng_setSeed(rng, rng_seed) != 0) {
-          errorMessage = "could not seed rng";
-          ext_rng_destroy(rng);
-          return NULL;
-        }
       }
     }
     
-    return rng;
+    return result;
   }
 
   ext_rng* createMultiThreadedRNG(
@@ -980,10 +989,10 @@ namespace {
     ext_rng* seedGenerator,
     const char*& errorMessage)
   {
-    ext_rng* rng = NULL;
+    ext_rng* result = NULL;
     if (rng_algorithm == EXT_RNG_ALGORITHM_INVALID &&
         rng_standardNormal == EXT_RNG_STANDARD_NORMAL_INVALID) {
-      if ((rng = ext_rng_createDefault(false)) == NULL) {
+      if ((result = ext_rng_createDefault(false)) == NULL) {
         errorMessage = "could not allocate rng";
         return NULL;
       }
@@ -1003,34 +1012,34 @@ namespace {
         return NULL;
       }
       
-      if ((rng = ext_rng_create(rng_algorithm, NULL)) == NULL) {
+      if ((result = ext_rng_create(rng_algorithm, NULL)) == NULL) {
         errorMessage = "could not allocate rng";
         return NULL;
       }
 
-      if (ext_rng_setStandardNormalAlgorithm(rng, rng_standardNormal, NULL) != 0) {
+      if (ext_rng_setStandardNormalAlgorithm(result, rng_standardNormal, NULL) != 0) {
         errorMessage = "could not set rng standard normal";
-        ext_rng_destroy(rng);
+        ext_rng_destroy(result);
         return NULL;
       }
     }
     
     if (seedGenerator != NULL) {
       std::uint_least32_t seed = static_cast<std::uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<std::uint_least32_t>(-1)));
-      if (ext_rng_setSeed(rng, seed) != 0) {
+      if (ext_rng_setSeed(result, seed) != 0) {
         errorMessage = "could not seed rng";
-        ext_rng_destroy(rng);
+        ext_rng_destroy(result);
         return NULL;
       }
     } else {
-      if (ext_rng_setSeedFromClock(rng) != 0) {
+      if (ext_rng_setSeedFromClock(result) != 0) {
         errorMessage = "could not seed rng";
-        ext_rng_destroy(rng);
+        ext_rng_destroy(result);
         return NULL;
       }
     }
 
-    return rng;
+    return result;
   }
   
   ext_rng* createSeedRNG(

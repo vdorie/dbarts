@@ -376,9 +376,23 @@ fitted.rbart <- function(object,
     stop("sample must be in '", paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
   
-  result <- extract(object, type, sample, ...)
-  
-  if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
+  if (type == "ev") {
+    ranefNames <- dimnames(object$ranef)
+    ranefNames <- ranefNames[[length(ranefNames)]]
+    if (sample == "train") {
+      groupByMatch <- match(object$group.by, ranefNames)
+      result <- .Call(C_rbart_fitted, object$yhat.train, object$ranef, groupByMatch, is.null(object[["sigma"]]))
+    } else {
+      groupByMatch <- match(object$group.by.test, ranefNames)
+      result <- .Call(C_rbart_fitted, object$yhat.test, object$ranef, groupByMatch, is.null(object[["sigma"]]))
+    }
+  } else {
+    result <- extract(object, type, sample, ...)
+    
+    result <- if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
+  }
+
+  result
 }
 
 residuals.rbart <- function(object, ...) {

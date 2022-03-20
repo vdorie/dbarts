@@ -509,6 +509,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
     }
     break;
     case EXT_RNG_ALGORITHM_INVALID:
+    default:
     return EINVAL;
   }
   
