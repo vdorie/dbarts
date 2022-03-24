@@ -891,11 +891,11 @@ extern "C" {
       int variable_i = static_cast<int>(flattenedTrees.variable[i]);
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
-#if defined(__MINGW32__) && __cplusplus < 201112L
-#  ifdef _WIN64
+#if __cplusplus < 201112L
+#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
       std::sprintf(buffer, "%lu", static_cast<unsigned long>(i + 1));
 #  else
-      std::sprintf(buffer, "%u", i + 1);
+      std::sprintf(buffer, "%u", static_cast<unsigned int>(i + 1));
 #  endif
 #else
       std::sprintf(buffer, "%zu", i + 1);

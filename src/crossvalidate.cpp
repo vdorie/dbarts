@@ -166,7 +166,9 @@ namespace dbarts { namespace xval {
     threadControl.rng_algorithm = RNG_ALGORITHM_USER_POINTER;
     
     if (numThreads <= 1) {
-      const char* errorMessage;
+      // Compiler complains that errorMessage may be unitialized unless I set it
+      // explicitly. I have no idea how that could be the case.
+      const char* errorMessage = "";
       ext_rng* rng = createSingleThreadedRNG(
         rng_algorithm, rng_standardNormal, rng_seed, errorMessage);
       
