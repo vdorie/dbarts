@@ -79,7 +79,7 @@ namespace dbarts {
     delete fit;
   }
 
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -170,7 +170,7 @@ namespace dbarts {
     control.rng_seed = static_cast<uint_least32_t>(i_temp);
   }
   
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic pop
 #endif
   
@@ -195,7 +195,7 @@ namespace {
 
 namespace dbarts {
   
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -340,7 +340,7 @@ namespace dbarts {
     model.treePrior    = stackModel.treePrior;    stackModel.treePrior = NULL;
   }
   
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic pop
 #endif
   
@@ -371,7 +371,7 @@ namespace {
 
 namespace dbarts {
   
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -455,7 +455,7 @@ namespace dbarts {
     stackData.variableTypes = NULL;
   }
   
-#if __cplusplus >= 201402L && defined(__clang__) && __clang_major__ >= 10
+#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
 #  pragma clang diagnostic pop
 #endif
   
