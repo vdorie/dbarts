@@ -5986,7 +5986,7 @@ then :
 
 fi
 
-      if test x$"ax_cv_support_avx_ext" = x"yes"; then
+      if test x"$ax_cv_support_avx_ext" = x"yes"; then
         as_CACHEVAR=`printf "%s\n" "ax_cv_check_cflags__"-xarch=avx2"" | $as_tr_sh`
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts \"-xarch=avx2\"" >&5
 printf %s "checking whether C compiler accepts \"-xarch=avx2\"... " >&6; }

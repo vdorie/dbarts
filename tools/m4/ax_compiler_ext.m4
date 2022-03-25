@@ -66,7 +66,7 @@ AC_DEFUN([AX_COMPILER_EXT],
         ax_cv_support_avx_ext=yes
         AVX_FLAG="-xarch=avx"
       ])
-      if test x$"ax_cv_support_avx_ext" = x"yes"; then
+      if test x"$ax_cv_support_avx_ext" = x"yes"; then
         AX_CHECK_COMPILE_FLAG("-xarch=avx2",[
           ax_cv_support_avx2_ext=yes
           AVX2_FLAG="-xarch=avx2"
