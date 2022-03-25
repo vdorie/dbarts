@@ -79,7 +79,13 @@ namespace dbarts {
     delete fit;
   }
 
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#if defined(__clang__)
+#  if __has_warning("-Wenum-enum-conversion")
+#    define SUPPRESS_ENUM_CONVERSION_WARNING 1
+#  endif
+#endif
+
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -170,7 +176,7 @@ namespace dbarts {
     control.rng_seed = static_cast<uint_least32_t>(i_temp);
   }
   
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic pop
 #endif
   
@@ -195,7 +201,7 @@ namespace {
 
 namespace dbarts {
   
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -340,7 +346,7 @@ namespace dbarts {
     model.treePrior    = stackModel.treePrior;    stackModel.treePrior = NULL;
   }
   
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic pop
 #endif
   
@@ -371,7 +377,7 @@ namespace {
 
 namespace dbarts {
   
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic push
 #  pragma clang diagnostic ignored "-Wenum-enum-conversion"
 #endif
@@ -455,8 +461,9 @@ namespace dbarts {
     stackData.variableTypes = NULL;
   }
   
-#if defined(__clang__) && __has_warning("-Wenum-enum-conversion")
+#ifdef SUPPRESS_ENUM_CONVERSION_WARNING
 #  pragma clang diagnostic pop
+#  undef SUPPRESS_ENUM_CONVERSION_WARNING
 #endif
   
   void invalidateData(Data& data)
