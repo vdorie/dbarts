@@ -677,7 +677,7 @@ dbartsSampler <-
                   ptr <- getPointer()
                   .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums)
                 },
-                plotTree = function(treeNum, chainNum, sampleNum, treePlotPars = list(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
+                plotTree = function(treeNum, chainNum, sampleNum, treePlotPars = c(nodeHeight = 12, nodeWidth = 40, nodeGap = 8), ...) {
                   'Minimialist visualization of tree branching and contents.'
                   
                   matchedCall <- match.call()
@@ -700,12 +700,12 @@ dbartsSampler <-
                   numEndNodes <- tree$index[1L] - 1L
                   #tree$index <- NULL
                   
-                  plotHeight <- treePlotPars$nodeHeight * maxDepth + treePlotPars$nodeGap * (maxDepth - 1)
+                  plotHeight <- treePlotPars[["nodeHeight"]] * maxDepth + treePlotPars[["nodeGap"]] * (maxDepth - 1)
                   dotsList <- list(...)
                   dotsList$mar = c(0, 0, 0, 0)
                   par(dotsList)
                   plot(NULL, type = "n", bty = "n", xaxt = "n", yaxt = "n", xlab = "", ylab = "",
-                       xlim = c(0, treePlotPars$nodeWidth * numEndNodes), ylim = c(0, plotHeight))
+                       xlim = c(0, treePlotPars[["nodeWidth"]] * numEndNodes), ylim = c(0, plotHeight))
                   plotNode(tree, .self, treePlotPars)
                   
                   invisible(NULL)

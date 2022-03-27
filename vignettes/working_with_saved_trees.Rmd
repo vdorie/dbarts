@@ -23,7 +23,8 @@ When a `dbarts` model is fit with the `keepTrees` option set to `TRUE`, the samp
 To illustrate, we generate a fake dataset according to the "Friedman 1" model [@frie:1991].
 ```{r simulateData}
 f <- function(x)
-    10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 + 10 * x[,4] + 5 * x[,5]
+    10 * sin(pi * x[,1] * x[,2]) + 20 * (x[,3] - 0.5)^2 +
+        10 * x[,4] + 5 * x[,5]
 
 set.seed(99)
 sigma <- 1.0
@@ -47,22 +48,23 @@ In the context of our fake data, with small sample numbers for illustrative purp
 ```{r fitModel}
 library(dbarts, quietly = TRUE)
 
-bart.1 <- bart(y ~ ., data,
-               ndpost = 4,   # number of posterior samples
-               nskip = 1000, # number of "warmup" samples to discard
-               nchain = 2,   # number of independent, parallel chains
-               nthread = 1,  # units of parallel execution
-               ntree = 3,    # number of trees per chain
-               seed = 2,     # chosen to generate a deep tree
-               keeptrees = TRUE,
-               verbose = FALSE)
+bartFit <- bart(
+    y ~ ., data,
+    ndpost = 4,   # number of posterior samples
+    nskip = 1000, # number of "warmup" samples to discard
+    nchain = 2,   # number of independent, parallel chains
+    nthread = 1,  # units of parallel execution
+    ntree = 3,    # number of trees per chain
+    seed = 2,     # chosen to generate a deep tree
+    keeptrees = TRUE,
+    verbose = FALSE)
 ```
 
 ## Extracting Trees
 
 The extract function accepts as a `type` the value `"trees"`. If present, the arguments `chainNums`, `sampleNums`, and/or `treeNum`s can be used to extract only a subset of trees.
 ```{r extractTrees}
-trees <- extract(bart.1, "trees")
+trees <- extract(bartFit, "trees")
 ```
 
 ## Flattened Trees
@@ -129,7 +131,7 @@ rebuildTree <- function(tree, object) {
 }
 
 treeOfInterest <- subset(trees, chain == 1 & sample == 3 & tree == 1)
-print(rebuildTree(treeOfInterest, bart.1))
+print(rebuildTree(treeOfInterest, bartFit))
 ```
 
 Using a `by` statement, it is possible to "rebuild" all trees at once:
@@ -138,8 +140,8 @@ allTrees <- by(
     data    = trees,
     INDICES = trees[,c("chain", "sample", "tree")],
     FUN     = rebuildTree, 
-    object  = bart.1
-)
+    object  = bartFit)
+
 # One way to index the result of this:
 #    allTrees[chain = "1", sample = "2", tree = "3"]
 ```
@@ -149,7 +151,7 @@ allTrees <- by(
 `dbartsSampler` objects have a `plotTree` method that can be used to visualize single trees:
 
 ```{r plotTree}
-bart.1$fit$plotTree(chainNum = 1, sampleNum = 3, treeNum = 1)
+bartFit$fit$plotTree(chainNum = 1, sampleNum = 3, treeNum = 1)
 ```
 
 ## Getting Tree Predictions
@@ -184,7 +186,7 @@ getPredictionsForTree <- function(tree, x) {
     return(predictions)
 }
 
-getPredictionsForTree(treeOfInterest, bart.1$fit$data@x[1:5,])
+getPredictionsForTree(treeOfInterest, bartFit$fit$data@x[1:5,])
 ```
 
 A `by` statement can be used to obtain all predictions for all trees.
@@ -263,8 +265,8 @@ observeInteractions <- function(node, ...) {
     return(NULL)
 }
 
-numVariables  <- ncol(bart.1$fit$data@x)
-variableNames <- colnames(bart.1$fit$data@x)
+numVariables  <- ncol(bartFit$fit$data@x)
+variableNames <- colnames(bartFit$fit$data@x)
 
 # Define this as an environment as they are mutable
 interactionData <- list2env(list(

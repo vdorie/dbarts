@@ -42,6 +42,9 @@ fillPlotCoordinatesForNode <- function(node, maxDepth, currDepth, index)
 
 plotNode <- function(node, sampler, plotPars)
 {
+  nodeHeight <- plotPars[["nodeHeight"]]
+  nodeWidth  <- plotPars[["nodeWidth"]]
+  nodeGap    <- plotPars[["nodeGap"]]
   compress <- FALSE
   if (node$var[1L] != -1) {
     expr1 <- expression(a <= b)
@@ -62,8 +65,8 @@ plotNode <- function(node, sampler, plotPars)
   plotExpr <- expression(atop(a, b))
   plotExpr[[1]][[2]] <- expr1[[1]]
   plotExpr[[1]][[3]] <- expr2[[1]]
-  y <- node$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (node$y[1L] - 1) * plotPars$nodeGap
-  x <- node$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
+  y <- node$y[1L] * nodeHeight - nodeHeight / 2 + (node$y[1L] - 1) * nodeGap
+  x <- node$x[1L] * nodeWidth - nodeWidth / 2
   
   cex <- par("cex")
   verticalOffset <- graphics::strheight("\n", cex = cex) / 2
@@ -82,29 +85,29 @@ plotNode <- function(node, sampler, plotPars)
     plotNode(left, sampler, plotPars)
     plotNode(right, sampler, plotPars)
     
-    y.l <- left$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (left$y[1L] - 1) * plotPars$nodeGap
-    x.l <- left$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
-    y.r <- right$y[1L] * plotPars$nodeHeight - plotPars$nodeHeight / 2 + (right$y[1L] - 1) * plotPars$nodeGap
-    x.r <- right$x[1L] * plotPars$nodeWidth - plotPars$nodeWidth / 2
+    y.l <- left$y[1L] * nodeHeight - nodeHeight / 2 + (left$y[1L] - 1) * nodeGap
+    x.l <- left$x[1L] * nodeWidth - nodeWidth / 2
+    y.r <- right$y[1L] * nodeHeight - nodeHeight / 2 + (right$y[1L] - 1) * nodeGap
+    x.r <- right$x[1L] * nodeWidth - nodeWidth / 2
     
-    skippedSpace <- (node$y[1L] - left$y[1L] - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
+    skippedSpace <- (node$y[1L] - left$y[1L] - 1) * (nodeHeight + nodeGap)
     
     y.m <- (y + y.l) / 2
     x.m <- (x + x.l) / 2
     theta <- atan2(y - y.m, x - x.m)
-    segmentLength <- (plotPars$nodeGap + skippedSpace) / 2
+    segmentLength <- (nodeGap + skippedSpace) / 2
     y.1 <- segmentLength * sin(theta) + y.m
     x.1 <- segmentLength * cos(theta) + x.m
     y.2 <- y.m - segmentLength * sin(theta)
     x.2 <- x.m - segmentLength * cos(theta)
     lines(c(x.1, x.2), c(y.1, y.2))
     
-    skippedSpace <- (node$y[1L] - right$y[1L] - 1) * (plotPars$nodeHeight + plotPars$nodeGap)
+    skippedSpace <- (node$y[1L] - right$y[1L] - 1) * (nodeHeight + nodeGap)
     
     y.m <- (y.r + y) / 2
     x.m <- (x.r + x) / 2
     theta <- atan2(y.m - y, x.m - x)
-    segmentLength <- (plotPars$nodeGap + skippedSpace) / 2
+    segmentLength <- (nodeGap + skippedSpace) / 2
     y.1 <- segmentLength * sin(theta) + y.m
     x.1 <- segmentLength * cos(theta) + x.m
     y.2 <- y.m - segmentLength * sin(theta)
