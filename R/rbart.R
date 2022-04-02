@@ -235,7 +235,7 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
     ranef.vec <- ranef[g]
     
     # update BART params
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, isWarmup)
     dbarts_samples <- sampler$run(0L, 1L)
     state$treeFit.train <- as.vector(dbarts_samples$train) - ranef.vec
     if (control@binary) sampler$getLatents(state$y.st)
