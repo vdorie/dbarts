@@ -229,35 +229,35 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
   for (i in seq_len(n.samples)) {
     # update ranef
     resid <- with(state, y.st - treeFit.train)
-    post.var <- with(state, 1.0 / (n.g / sigma.i^2.0 + 1.0 / tau.i^2.0))
-    post.mean <- (n.g / state$sigma.i^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
-    ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
-    ranef.vec <- ranef.i[g]
+    post.var <- 1.0 / (n.g / state$sigma^2.0 + 1.0 / state$tau^2.0)
+    post.mean <- (n.g / state$sigma^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
+    ranef <- rnorm(numRanef, post.mean, sqrt(post.var))
+    ranef.vec <- ranef[g]
     
     # update BART params
     sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
-    samples_i <- sampler$run(0L, 1L)
-    state$treeFit.train <- as.vector(samples_i$train) - ranef.vec
+    dbarts_samples <- sampler$run(0L, 1L)
+    state$treeFit.train <- as.vector(dbarts_samples$train) - ranef.vec
     if (control@binary) sampler$getLatents(state$y.st)
-    state$sigma.i <- samples_i$sigma[1L]
+    state$sigma <- dbarts_samples$sigma[1L]
     
     # update sd of ranef
-    evalEnv$b.sq <- sum(ranef.i^2.0)
-    state$tau.i <- sliceSample(posteriorClosure, state$tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
+    evalEnv$b.sq <- sum(ranef^2.0)
+    state$tau <- sliceSample(posteriorClosure, state$tau, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
     
-    .Call(C_dbarts_assignInPlace, samples$tau, i, state$tau.i)
+    .Call(C_dbarts_assignInPlace, samples$tau, i, state$tau)
     if (!is.null(samples$sigma))
-      .Call(C_dbarts_assignInPlace, samples$sigma, i, state$sigma.i)
+      .Call(C_dbarts_assignInPlace, samples$sigma, i, state$sigma)
     if (!is.null(samples$ranef))
-      .Call(C_dbarts_assignInPlace, samples$ranef, i, ranef.i)
+      .Call(C_dbarts_assignInPlace, samples$ranef, i, ranef)
     if (!is.null(samples$yhat.train))
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     if (!is.null(samples$varcount))
-      .Call(C_dbarts_assignInPlace, samples$varcount, i, samples_i$varcount)
+      .Call(C_dbarts_assignInPlace, samples$varcount, i, dbarts_samples$varcount)
     if (!is.null(samples$yhat.test) && numTestObservations > 0L)
-      .Call(C_dbarts_assignInPlace, samples$yhat.test, i, samples_i$test)
+      .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
-      .Call(C_dbarts_assignInPlace, samples$k, i, samples_i$k)
+      .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
 
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
@@ -310,12 +310,13 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
   
   sampler$sampleTreesFromPrior()
   state <- list(
-    tau.i = rel.scale / 5.0,
-    sigma.i = if (!control@binary) sampler$data@sigma else 1.0,
+    tau = rel.scale / 5.0,
+    sigma = if (!control@binary) sampler$data@sigma else 1.0,
     y.st = if (!control@binary) y else sampler$getLatents()
   )
-  ranef.i <- rnorm(numRanef, 0.0, state$tau.i)
-  ranef.vec <- ranef.i[g]
+  # Sample from prior to get started
+  ranef <- rnorm(numRanef, 0.0, state$tau)
+  ranef.vec <- ranef[g]
   
   prior <- list(
     posteriorClosure = posteriorClosure,
