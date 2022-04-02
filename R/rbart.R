@@ -161,7 +161,7 @@ rbart_vi <- function(
         randomSeeds <- rep.int(NA_integer_, n.chains)
       }
       
-      clusterExport(cluster, "rbart_vi_fit", asNamespace("dbarts"))
+      clusterExport(cluster, c("rbart_vi_fit", "rbart_vi_run"), asNamespace("dbarts"))
       clusterEvalQ(cluster, require(dbarts))
       
       tryResult <- tryCatch(
@@ -195,6 +195,76 @@ rbart_vi <- function(
   packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains, seed)
 }
 
+rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarmup)
+{
+  control <- sampler$control
+
+  n.g <- data$n.g
+  numRanef <- data$numRanef
+  g.sel <- data$g.sel
+  g <- data$g
+  offset.orig <- data$offset.orig
+  
+  kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+  posteriorClosure <- prior$posteriorClosure
+  evalEnv <- prior$evalEnv
+
+  numObservations <- length(sampler$data@y)
+  numTestObservations <- NROW(sampler$data@x.test)
+  
+  samples <- list(tau = rep(NA_real_, n.samples))
+  if (!control@binary)
+    samples$sigma <- rep(NA_real_, n.samples)
+  if (kIsModeled)
+    samples$k <- rep(NA_real_, n.samples)
+  if (!isWarmup) {
+    samples$ranef <- matrix(NA_real_, numRanef, n.samples)
+    samples$yhat.train <- matrix(NA_real_, numObservations, n.samples)
+    samples$varcount <- matrix(NA_integer_, ncol(sampler$data@x), n.samples)
+    samples$yhat.test <- matrix(NA_real_, numTestObservations, control@n.samples)
+  }
+  
+  # order of update matters - need to store a ranef that goes with a prediction
+  # or else when they're added together they won't be consistent with `predict`
+  for (i in seq_len(n.samples)) {
+    # update ranef
+    resid <- with(state, y.st - treeFit.train)
+    post.var <- with(state, 1.0 / (n.g / sigma.i^2.0 + 1.0 / tau.i^2.0))
+    post.mean <- (n.g / state$sigma.i^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
+    ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
+    ranef.vec <- ranef.i[g]
+    
+    # update BART params
+    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
+    samples_i <- sampler$run(0L, 1L)
+    state$treeFit.train <- as.vector(samples_i$train) - ranef.vec
+    if (control@binary) sampler$getLatents(state$y.st)
+    state$sigma.i <- samples_i$sigma[1L]
+    
+    # update sd of ranef
+    evalEnv$b.sq <- sum(ranef.i^2.0)
+    state$tau.i <- sliceSample(posteriorClosure, state$tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
+    
+    .Call(C_dbarts_assignInPlace, samples$tau, i, state$tau.i)
+    if (!is.null(samples$sigma))
+      .Call(C_dbarts_assignInPlace, samples$sigma, i, state$sigma.i)
+    if (!is.null(samples$ranef))
+      .Call(C_dbarts_assignInPlace, samples$ranef, i, ranef.i)
+    if (!is.null(samples$yhat.train))
+      .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
+    if (!is.null(samples$varcount))
+      .Call(C_dbarts_assignInPlace, samples$varcount, i, samples_i$varcount)
+    if (!is.null(samples$yhat.test) && numTestObservations > 0L)
+      .Call(C_dbarts_assignInPlace, samples$yhat.test, i, samples_i$test)
+    if (!is.null(samples$k))
+      .Call(C_dbarts_assignInPlace, samples$k, i, samples_i$k)
+
+    if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
+  }
+
+  list(state = state, samples = samples)
+}
+
 rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior) 
 {
   chain.num <- "ignored"
@@ -219,8 +289,10 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
   numRanef <- nlevels(group.by)
   g.sel <- lapply(seq_len(numRanef), function(j) g == j)
   n.g <- sapply(g.sel, sum)
+  offset.orig <- sampler$data@offset
+  data <- namedList(n.g, numRanef, g.sel, g, offset.orig)
   
-  evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef))
+  evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef, prior = prior))
   b.sq <- NULL ## for R CMD check
   posteriorClosure <- function(x) {
     ifelse(x <= 0.0 | is.infinite(x),
@@ -228,112 +300,69 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
            -q * base::log(x) - 0.5 * b.sq / x^2.0 + prior(x, rel.scale))
   }
   environment(posteriorClosure) <- evalEnv
+  prior <- namedList(posteriorClosure, evalEnv)
   
-  offset.orig <- sampler$data@offset
   
   numObservations <- length(sampler$data@y)
   numTestObservations <- NROW(sampler$data@x.test)
-  
-  firstTau   <- rep(NA_real_, control@n.burn)
-  firstSigma <- if (!control@binary) rep(NA_real_, control@n.burn) else NULL
-  tau   <- rep(NA_real_, control@n.samples)
-  sigma <- if (!control@binary) rep(NA_real_, control@n.samples) else NULL
-  ranef <- matrix(NA_real_, numRanef, control@n.samples)
-  yhat.train <- matrix(NA_real_, numObservations, control@n.samples)
-  yhat.test  <- matrix(NA_real_, numTestObservations, control@n.samples)
-  varcount <- matrix(NA_integer_, ncol(sampler$data@x), control@n.samples)
+
   kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
-  if (kIsModeled) {
-    firstK <- rep(NA_real_, control@n.burn)
-    k <- rep(NA_real_, control@n.samples)
-  }
   
   sampler$sampleTreesFromPrior()
-  y.st <- if (!control@binary) y else sampler$getLatents()
-  
-  tau.i <- rel.scale / 5.0
-  ranef.i <- rnorm(numRanef, 0.0, tau.i)
+  state <- list(
+    tau.i = rel.scale / 5.0,
+    sigma.i = if (!control@binary) sampler$data@sigma else 1.0,
+    y.st = if (!control@binary) y else sampler$getLatents()
+  )
+  ranef.i <- rnorm(numRanef, 0.0, state$tau.i)
   ranef.vec <- ranef.i[g]
-  sigma.i <- if (!control@binary) sampler$data@sigma else 1.0
   
+  prior <- list(
+    posteriorClosure = posteriorClosure,
+    evalEnv = evalEnv
+  )
+
   if (control@n.burn > 0L) {
     oldKeepTrees <- control@keepTrees
     control@keepTrees <- FALSE
     sampler$setControl(control)
     
     sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
-    treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
+
+    state$treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
+
+    run_result <- rbart_vi_run(sampler, data, state, prior, FALSE, control@n.burn, TRUE)
+    state <- run_result$state
     
-    # order of update matters - need to store a ranef that goes with a prediction
-    # or else when they're added together they won't be consistent with `predict`
-    for (i in seq_len(control@n.burn)) {
-      # update ranef
-      resid <- y.st - treeFit.train
-      post.var <- 1.0 / (n.g / sigma.i^2.0 + 1.0 / tau.i^2.0)
-      post.mean <- (n.g / sigma.i^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
-      
-      ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
-      ranef.vec <- ranef.i[g]
-      
-      # update BART params
-      sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
-      samples <- sampler$run(0L, 1L)
-      treeFit.train <- as.vector(samples$train) - ranef.vec
-      if (control@binary) sampler$getLatents(y.st)
-      sigma.i <- samples$sigma[1L]
-      
-      # update sd of ranef
-      evalEnv$b.sq <- sum(ranef.i^2.0)
-      tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
-      
-      .Call(C_dbarts_assignInPlace, firstTau, i, tau.i)
-      if (!control@binary)
-        .Call(C_dbarts_assignInPlace, firstSigma, i, sigma.i)
-      if (kIsModeled)
-        .Call(C_dbarts_assignInPlace, firstK, i, samples$k)
-    }
-    
+    firstTau <- run_result$samples$tau
+    firstSigma <- run_result$samples$sigma
+    firstK <- run_result$samples$k
+
     if (control@keepTrees != oldKeepTrees) {
       control@keepTrees <- TRUE
       sampler$setControl(control)
     }
   } else {
     sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, TRUE)
-    treeFit.train <- (if (control@n.samples > 1L && control@keepTrees) sampler$predict(sampler$data@x)[,1L] else sampler$predict(sampler$data@x)) - ranef.vec
+
+    state$treeFit.train <- (if (control@n.samples > 1L && control@keepTrees) sampler$predict(sampler$data@x)[,1L] else sampler$predict(sampler$data@x)) - ranef.vec
+
+    firstTau <- NULL
+    firstSigma <- NULL
+    firstK <- NULL
   }
   
-  for (i in seq_len(control@n.samples)) {
-    # update ranef
-    resid <- y.st - treeFit.train
-    post.var <- 1.0 / (n.g / sigma.i^2.0 + 1.0 / tau.i^2.0)
-    post.mean <- (n.g / sigma.i^2.0) * sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) * post.var
-    ranef.i <- rnorm(numRanef, post.mean, sqrt(post.var))
-    ranef.vec <- ranef.i[g]
-      
-    # update BART params
-    sampler$setOffset(ranef.vec + if (!is.null(offset.orig)) offset.orig else 0, FALSE)
-    samples <- sampler$run(0L, 1L)
-    treeFit.train <- as.vector(samples$train) - ranef.vec
-    if (control@binary) sampler$getLatents(y.st)
-    sigma.i <- samples$sigma[1L]
-    
-    # update sd of ranef
-    evalEnv$b.sq <- sum(ranef.i^2.0)
-    tau.i <- sliceSample(posteriorClosure, tau.i, control@n.thin, boundary = c(0.0, Inf))[control@n.thin]
-        
-    .Call(C_dbarts_assignInPlace, tau, i, tau.i)
-    if (!control@binary)
-      .Call(C_dbarts_assignInPlace, sigma, i, sigma.i)
-    .Call(C_dbarts_assignInPlace, ranef, i, ranef.i)
-    .Call(C_dbarts_assignInPlace, yhat.train, i, treeFit.train)
-    .Call(C_dbarts_assignInPlace, varcount, i, samples$varcount)
-    if (numTestObservations > 0L) .Call(C_dbarts_assignInPlace, yhat.test, i, samples$test)
-    if (kIsModeled)
-        .Call(C_dbarts_assignInPlace, k, i, samples$k) 
-    
-    if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
-  }
+  run_result <- rbart_vi_run(sampler, data, state, prior, verbose, control@n.samples, FALSE)
+  # state <- run_result$state
   
+  tau <- run_result$samples$tau
+  sigma <- run_result$samples$sigma
+  ranef <- run_result$samples$ranef
+  yhat.train <- run_result$samples$yhat.train
+  varcount <- run_result$samples$varcount
+  yhat.test <- run_result$samples$yhat.test
+  k <- run_result$samples$k
+
   sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
   
   control@updateState <- oldUpdateState
