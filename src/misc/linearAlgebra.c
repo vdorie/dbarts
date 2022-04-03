@@ -4,7 +4,11 @@
 #include <stdbool.h>
 
 void (*misc_addVectors)(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z) = 0;
+void (*misc_addVectorsInPlace)(const double* restrict x, size_t length, double alpha, double* restrict y) = 0;
+void (*misc_addScalarToVectorInPlace)(double* x, size_t length, double alpha) = 0;
 void (*misc_setVectorToConstant)(double* x, size_t length, double alpha) = 0;
+void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt) = 0;
+
 
 void misc_addVectors_c(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z)
 {
@@ -24,6 +28,48 @@ void misc_addVectors_c(const double* restrict x, size_t length, double alpha, co
     z[i + 2] = y[i + 2] + alpha * x[i + 2];
     z[i + 3] = y[i + 3] + alpha * x[i + 3];
     z[i + 4] = y[i + 4] + alpha * x[i + 4];
+  }
+}
+
+void misc_addVectorsInPlace_c(const double* restrict x, size_t length, double alpha, double* restrict y)
+{
+  if (length == 0) return;
+  
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) y[i] += alpha * x[i];
+    if (length < 5) return;
+  }
+  
+  for ( ; i < length; i += 5) {
+    y[i] += alpha * x[i];
+    y[i + 1] += alpha * x[i + 1];
+    y[i + 2] += alpha * x[i + 2];
+    y[i + 3] += alpha * x[i + 3];
+    y[i + 4] += alpha * x[i + 4];
+  }
+}
+
+void misc_addScalarToVectorInPlace_c(double* x, size_t length, double alpha)
+{
+  if (length == 0) return;
+  
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+  
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) x[i] += alpha;
+    if (length < 5) return;
+  }
+  
+  for ( ; i < length; i += 5) {
+    x[i] += alpha;
+    x[i + 1] += alpha;
+    x[i + 2] += alpha;
+    x[i + 3] += alpha;
+    x[i + 4] += alpha;
   }
 }
 
@@ -96,24 +142,6 @@ void misc_scalarMultiplyVectorInPlace(double* x, size_t length, double alpha)
     x[i + 2] *= alpha;
     x[i + 3] *= alpha;
     x[i + 4] *= alpha;
-  }
-}
-
-void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha)
-{
-  if (length == 0) return;
-  
-  size_t lengthMod5 = length % 5;
-  
-  size_t i = 0;
-  for ( /* */ ; i < lengthMod5; ++i) x[i] += alpha;
-  
-  for ( /* */ ; i < length; i += 5) {
-    x[i]     += alpha;
-    x[i + 1] += alpha;
-    x[i + 2] += alpha;
-    x[i + 3] += alpha;
-    x[i + 4] += alpha;
   }
 }
 
@@ -212,8 +240,10 @@ double misc_sumIndexedVectorElements(const double* x, const size_t* indices, siz
   return result;
 }
 
-void misc_transposeMatrix(const double* x, size_t numRows, size_t numCols, double* xt)
+void misc_transposeMatrix_c(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt)
 {
+  if (numRows == 0 || numCols == 0) return;
+
   size_t colOffset = 0;
   for (size_t col = 0; col < numCols; ++col) {
     for (size_t row = 0; row < numRows; ++row) {

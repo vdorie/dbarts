@@ -70,7 +70,7 @@ uncombineChains <- function(samples, n.chains) {
   }
 }
 
-packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains)
+packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains, keepSampler)
 {
   responseIsBinary <- fit$control@binary
   n.chains <- fit$control@n.chains
@@ -117,7 +117,7 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
       y = fit$data@y)
   }
   
-  if (fit$control@keepTrees)
+  if (keepSampler)
     result$fit <- fit
   else
     result$n.chains <- n.chains
@@ -147,6 +147,7 @@ bart2 <- function(
   samplerOnly = FALSE,
   seed = NA_integer_,
   proposal.probs = NULL,
+  keepSampler = keepTrees,
   ...
 )
 {
@@ -172,6 +173,8 @@ bart2 <- function(
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
+  keepSampler <- keepSampler || control@keepTrees
+
   if (control@n.burn == 0L && keepTrees == TRUE) control@keepTrees <- TRUE
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   
@@ -238,7 +241,7 @@ bart2 <- function(
     samples <- sampler$run(updateState = FALSE)
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combineChains)
+  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combineChains, keepSampler)
   
   result
 }
@@ -256,7 +259,8 @@ bart <- function(
   verbose = TRUE, nchain = 1L, nthread = 1L, combinechains = TRUE,
   keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
   seed = NA_integer_,
-  proposalprobs = NULL
+  proposalprobs = NULL,
+  keepsampler = keeptrees
 )
 {
   control <- dbartsControl(keepTrainingFits = as.logical(keeptrainfits), useQuantiles = as.logical(usequants),
@@ -269,6 +273,7 @@ bart <- function(
   control@call <- matchedCall
   control@n.burn <- control@n.burn %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
+  keepsampler <- keepsampler || control@keepTrees
   if (control@n.burn == 0L && keeptrees == TRUE) control@keepTrees <- TRUE
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   ndpost <- as.integer(ndpost) %/% control@n.thin
@@ -325,7 +330,7 @@ bart <- function(
     samples <- sampler$run(updateState = FALSE)
   }
 
-  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combinechains)
+  result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combinechains, keepsampler)
   
   result
 }

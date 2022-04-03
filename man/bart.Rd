@@ -30,7 +30,8 @@ bart(
     verbose = TRUE, nchain = 1, nthread = 1, combinechains = TRUE,
     keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
     seed = NA_integer_,
-    proposalprobs = NULL)
+    proposalprobs = NULL,
+    keepsampler = keeptrees)
 
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
@@ -48,6 +49,7 @@ bart2(
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
     proposal.probs = NULL,
+    keepSampler = keepTrees,
     \dots)
 
 \method{plot}{bart}(
@@ -162,6 +164,9 @@ extract(object, \dots)
    }
    \item{proposalprobs, proposal.probs}{
      Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. Defaults are 0.5, 0.1, 0.4, and 0.5 respectively.
+   }
+   \item{keepsampler, keepSampler}{
+     Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.
    }
    \item{formula}{
      The same as \code{x.train}, the name reflecting that a formula object can be used instead.
@@ -288,7 +293,7 @@ extract(object, \dots)
     The input dependent vector of values for the dependent variable. This is used in \code{plot.bart}.
   }
   \item{\code{fit}}{
-    Optional sampler object which stores the values of the tree splits. Required for using \code{predict} and only stored if \code{keeptrees} is \code{TRUE}.
+    Optional sampler object which stores the values of the tree splits. Required for using \code{predict} and only stored if \code{keeptrees} or \code{keepsampler} is \code{TRUE}.
   }
   \item{\code{n.chains}}{
     Information that can be lost if \code{combinechains} is \code{TRUE} is tracked here.

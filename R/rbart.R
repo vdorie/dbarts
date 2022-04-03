@@ -17,6 +17,7 @@ rbart_vi <- function(
   verbose = TRUE,
   keepTrees = TRUE, keepCall = TRUE,
   seed = NA_integer_,
+  keepSampler = keepTrees,
   ...)
 {
   matchedCall <- match.call()
@@ -49,6 +50,8 @@ rbart_vi <- function(
     if (control@verbose) warning("verbose output disabled for multiple threads")
     control@verbose <- FALSE
   }
+
+  keepSampler <- keepSampler || control@keepTrees
   
   tree.prior <- quote(cgm(power, base))
   tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
@@ -192,7 +195,7 @@ rbart_vi <- function(
     if (exists("oldSeed"))
       .Random.seed <- oldSeed
   }
-  packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains, seed)
+  packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains, seed, keepSampler)
 }
 
 rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarmup)
@@ -379,7 +382,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
   result
 }
 
-packageRbartResults <- function(control, data, group.by, group.by.test, chainResults, combineChains, seed)
+packageRbartResults <- function(control, data, group.by, group.by.test, chainResults, combineChains, seed, keepSampler)
 {
   n.chains <- length(chainResults)
   
@@ -458,7 +461,7 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
   result$yhat.train.mean <- apply(result$yhat.train, length(dim(result$yhat.train)), mean)
   if (!is.null(result$yhat.test)) result$yhat.test.mean <- apply(result$yhat.test, length(dim(result$yhat.test)), mean)
   
-  if (control@keepTrees == TRUE)
+  if (keepSampler)
     result$fit <- lapply(chainResults, function(x) x$sampler)
   else
     result$n.chains <- n.chains

@@ -28,7 +28,7 @@
 #include <misc/stats.h>
 
 #include <external/io.h>
-#include <external/linearAlgebra.h>
+// #include <external/linearAlgebra.h>
 #include <external/random.h>
 #include <external/stats.h>
 
@@ -1292,7 +1292,7 @@ extern "C" {
       y = new double[data.numObservations];
       std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
       if (data.offset != NULL)
-        ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+        misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
     } else {
       // const cast b/c yRescaled doesn't change, but probit version does
       y = const_cast<double*>(sharedScratch.yRescaled);
@@ -1353,7 +1353,7 @@ extern "C" {
         sampleProbitLatentVariables(fit, state, chainScratch.totalFits, chainScratch.probitLatents);
         std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
         if (data.offset != NULL)
-          ext_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+          misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
       }
       
       if (!model.sigmaSqPrior->isFixed)

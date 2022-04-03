@@ -12,7 +12,7 @@ PTHREAD_CPPFLAGS=$(SHLIB_PTHREAD_FLAGS)
 PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
-PKG_LIBS= dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
+PKG_LIBS= dbarts.a external.a misc.a rc.a $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 

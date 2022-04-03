@@ -35,7 +35,7 @@ PTHREAD_LIBS = $(PTHREAD_LIBS.$(COMPILER))
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
 # on Solaris, we need to include a flag to the linker
 # since there is no PKG_LDFLAGS, we include that here
-PKG_LIBS=@MAPFILE_FLAG@ dbarts.a external.a misc.a rc.a $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) $(PTHREAD_LIBS)
+PKG_LIBS=@MAPFILE_FLAG@ dbarts.a external.a misc.a rc.a $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 

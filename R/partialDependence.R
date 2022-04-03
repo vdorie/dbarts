@@ -50,8 +50,8 @@ pdbart <- function (
     if (is.null(sampler)) {
       bartCall <- fit$call
       if (bartCall == call("NA") || bartCall == call("NULL"))
-        stop("calling pdbart with a bart fit object requires model to be fit with keepTrees == TRUE")
-      warning("calling pdbart with a bart fit object requires model to be fit with keepTrees == TRUE; refitting using saved call")
+        stop("calling pdbart with a bart fit object requires model to be fit with keepSampler == TRUE")
+      warning("calling pdbart with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call")
       massign[sampler, fit] <- pdbart.getAndInitializeSampler(bartCall, callingEnv)
     }
   } else {
@@ -135,7 +135,7 @@ pdbart <- function (
     
     samples <- sampler$run(0L, sampler$control@n.samples)
     if (is.null(fit[["call"]])) {
-      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE)
+      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE, TRUE)
       fit[["yhat.test"]] <- NULL
     }
     
@@ -211,8 +211,8 @@ pd2bart <- function(
     if (is.null(sampler)) {
       bartCall <- fit$call
       if (bartCall == call("NA") || bartCall == call("NULL"))
-        stop("calling pd2bart with a bart fit object requires model to be fit with keepTrees == TRUE")
-      warning("calling pd2bart with a bart fit object requires model to be fit with keepTrees == TRUE; refitting using saved call")
+        stop("calling pd2bart with a bart fit object requires model to be fit with keepSampler == TRUE")
+      warning("calling pd2bart with a bart fit object requires model to be fit with keepSampler == TRUE; refitting using saved call")
       massign[sampler, fit] <- pdbart.getAndInitializeSampler(bartCall, callingEnv)
     }
   } else {
@@ -320,7 +320,7 @@ pd2bart <- function(
       }
     }
     if (is.null(fit[["call"]])) {
-      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE)
+      fit <- packageBartResults(sampler, samples, fit$sigma, fit[["k"]], TRUE, TRUE)
       fit[["yhat.test"]] <- NULL
     }
   }
