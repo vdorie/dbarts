@@ -78,7 +78,7 @@ void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double 
   }
   
   for ( ; i < length; ++i)
-    z[i] = y[i] + alpha * x[i];
+    y[i] += alpha * x[i];
 }
 
 extern void misc_addScalarToVectorInPlace_c(double* x, size_t length, double alpha);
@@ -155,7 +155,7 @@ void misc_setVectorToConstant_avx(double* x, size_t length, double alpha)
 
 
 // 8 x 8 blocks
-static inline void tranposeMatrixBlock(const double* restrict x, size_t ldx, double* restrict y, size_t ldy)
+static inline void transposeMatrixBlock(const double* restrict x, size_t ldx, double* restrict y, size_t ldy)
 {
   // x:  0  8
   //     1  9

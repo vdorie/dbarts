@@ -156,7 +156,7 @@ void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha)
 }
 
 
-static inline void tranposeMatrixBlock(const double* restrict x, size_t ldx, double* restrict y, size_t ldy)
+static inline void transposeMatrixBlock(const double* restrict x, size_t ldx, double* restrict y, size_t ldy)
 {
   // x:  0  4  8 12
   //     1  5  9 13
