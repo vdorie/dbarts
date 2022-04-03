@@ -193,14 +193,14 @@ static inline void transposeMatrixBlock(const double* restrict x, size_t ldx, do
 void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t numCols, double* restrict y)
 {
   if (numRows == 0 || numCols == 0) return;
-
+  
   // We can't really ensure that loads/stores occur on 16 byte boundaries, since
   // any time there is an odd number of rows that completely screws up
   // block transposing. For fun, we start x on a boundary and transpose
   // the first row explicitly, if necessary.
   size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double);
-
+  
   size_t row = 0;
   
   for ( ; row < prefix; ++row) {
@@ -208,7 +208,7 @@ void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t 
       y[col + row * numCols] = x[row + col * numRows];
     }
   }
-
+  
   size_t suffix = prefix + 4 * ((numRows - prefix) / 4);
   
   if (suffix > prefix) {
@@ -216,12 +216,16 @@ void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t 
       size_t col = 0, colEnd = 4 * (numCols / 4);
       for ( ; col < colEnd; col += 4)
         transposeMatrixBlock(x + row + col * numRows, numRows, y + col + row * numCols, numCols);
-      for ( ; col < numCols; ++col) {
-        y[col + row * numCols] = x[row + col * numRows];
+      
+      for (size_t rowInBlock = row; rowInBlock < row + 4; ++rowInBlock) {
+        size_t colInBlock = col;
+        for ( ; colInBlock < numCols; ++colInBlock) {
+          y[colInBlock + rowInBlock * numCols] = x[rowInBlock + colInBlock * numRows];
+        }
       }
     }
   }
-
+  
   for ( ; row < numRows; ++row) {
     for (size_t col = 0; col < numCols; ++col) {
       y[col + row * numCols] = x[row + col * numRows];
