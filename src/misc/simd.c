@@ -254,6 +254,8 @@ extern void misc_addVectorsInPlace_neon(const double* restrict x, size_t length,
 extern void misc_addScalarToVectorInPlace_neon(double* restrict x, size_t length, double alpha);
 extern void misc_setVectorToConstant_neon(double* x, size_t length, double alpha);
 extern void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
+extern size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
+extern size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 #endif
 
 // partition
@@ -306,6 +308,12 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   if (i >= MISC_INST_SSE2) {
     misc_partitionRange = &misc_partitionRange_sse2;
     misc_partitionIndices = &misc_partitionIndices_sse2;
+  } else
+#endif
+#ifdef COMPILER_SUPPORTS_NEON
+  if (i >= MISC_INST_NEON) {
+    misc_partitionRange = &misc_partitionRange_neon;
+    misc_partitionIndices = &misc_partitionIndices_neon;
   } else
 #endif
   {

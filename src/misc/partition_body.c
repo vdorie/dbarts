@@ -6,6 +6,8 @@
 #  define _mm256_cmpgt_epu16(a, b) _mm256_xor_si256(_mm256_cmple_epu16(a, b), _mm256_set1_epi16(-1))
 #  define _mm256_cmplt_epu16(a, b) _mm256_cmpgt_epu16(b, a)
 
+#  define set1(_X_) _mm256_set1_epi16((misc_xint_t) (_X_))
+
 #  define loadLHComp(_X_) \
     (values = _mm256_set_epi16(getDataAt(_X_ + 15), \
                                getDataAt(_X_ + 14), \
@@ -23,7 +25,7 @@
                                getDataAt(_X_ +  2), \
                                getDataAt(_X_ +  1), \
                                getDataAt(_X_     )), \
-     _mm256_cmpgt_epu16(values, _mm256_set1_epi16((misc_xint_t) cut)))
+     _mm256_cmpgt_epu16(values, cut_vec))
 
 #  define loadRHComp(_X_) \
     (values = _mm256_set_epi16(getDataAt(_X_ - 15), \
@@ -42,7 +44,7 @@
                                getDataAt(_X_ -  2), \
                                getDataAt(_X_ -  1), \
                                getDataAt(_X_     )), \
-     _mm256_cmple_epu16(values, _mm256_set1_epi16((misc_xint_t) cut)))
+     _mm256_cmple_epu16(values, cut_vec))
 
 #  define movemask _mm256_movemask_epi8
 #  define cmp_width 16
@@ -64,6 +66,8 @@
 #    define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
 #  endif
 
+#  define set1(_X_) _mm128_set1_epi16((misc_xint_t) (_X_))
+
 #  define loadLHComp(_X_) \
     (values = _mm_set_epi16(getDataAt(_X_ + 7), \
                             getDataAt(_X_ + 6), \
@@ -73,7 +77,7 @@
                             getDataAt(_X_ + 2), \
                             getDataAt(_X_ + 1), \
                             getDataAt(_X_    )), \
-     _mm_cmpgt_epu16(values, _mm_set1_epi16((misc_xint_t) cut)))
+     _mm_cmpgt_epu16(values, cut_vec))
 
 #  define loadRHComp(_X_) \
     (values = _mm_set_epi16(getDataAt(_X_ - 7), \
@@ -84,11 +88,59 @@
                             getDataAt(_X_ - 2), \
                             getDataAt(_X_ - 1), \
                             getDataAt(_X_    )), \
-     _mm_cmple_epu16(values, _mm_set1_epi16((misc_xint_t) cut)))
+     _mm_cmple_epu16(values, cut_vec))
 
 #  define movemask _mm_movemask_epi8
 #  define cmp_width 8
 #  define cmp_t __m128i
+
+#elif defined(__USE_NEON__)
+#  define __USE_SIMD__1
+
+#  if PARTITION_RANGE == 1
+#    define loadLHComp(_X_) \
+       (values = ((uinptr_t) (x + _X_)) % (8 * sizeof(double)) == 0 ? \
+         vld1q_u16(x + _X_) : \
+         vcombine_u16(vcreate_u16(*((uint64_t*) (x + _X_))), vcreate_u16(*(((uint64_t*) (x + _X_)) + 1))), \
+         vcgtq_u16(values, cut_vec))
+#    define loadRHComp(_X_) \
+       (values = ((uinptr_t) (x + _X_ - 7)) % (8 * sizeof(double)) == 0 ? \
+         vld1q_u16(x + _X_ - 7) : \
+         vcombine_u16(*((uint64_t*) (x + _X_ - 7)), *((uint64_t*) (x + _X_ - 3))), \
+         vcleq_u16(values, cut_vec))
+#  else
+#    define vset_u16(_X0_, _X1_, _X2_, _X3_, _X4_, _X5_, _X6_, _X7_) \
+       vcombine_u16( \
+         vcreate_u16(((uint64_t) _X0_) + (((uint64_t) _X1_) << 16) + (((uint64_t) _X2_) << 32) + (((uint64_t) _X3_) << 48), \
+         vcreate_u16(((uint64_t) _X4_) + (((uint64_t) _X5_) << 16) + (((uint64_t) _X6_) << 32) + (((uint64_t) _X7_) << 48))))
+#    define loadRHComp(_X_) \
+       (values = vset_u16(getDataAt(_X_ + 7), \
+                          getDataAt(_X_ + 6), \
+                          getDataAt(_X_ + 5), \
+                          getDataAt(_X_ + 4), \
+                          getDataAt(_X_ + 3), \
+                          getDataAt(_X_ + 2), \
+                          getDataAt(_X_ + 1), \
+                          getDataAt(_X_    )), \
+        vcgtq_u16(values, cut_vec))
+
+#    define loadRHComp(_X_) \
+       (values = vset_u16(getDataAt(_X_ - 7), \
+                          getDataAt(_X_ - 6), \
+                          getDataAt(_X_ - 5), \
+                          getDataAt(_X_ - 4), \
+                          getDataAt(_X_ - 3), \
+                          getDataAt(_X_ - 2), \
+                          getDataAt(_X_ - 1), \
+                          getDataAt(_X_    )), \
+        vcleq_u16(values, cut_vec))
+#  endif
+
+#  define set1(_X_) vdupq_n_u16((misc_xint_t) (_X_))
+
+#  define movemask(_X_) vmovemask_u8(vreinterpretq_u8_u16(_X_))
+#  define cmp_width 8
+#  define cmp_t uint16x8_t
 
 #endif
 
@@ -106,7 +158,8 @@
 
   if (lh + 2 * cmp_width < rh) {
     
-    cmp_t lh_comp, rh_comp, values;
+    cmp_t lh_comp, rh_comp, values, cut_vec;
+    cut_vec = set1(cut);
     uint_least8_t lh_sub = 0, rh_sub = 0;
     unsigned int lh_mask = 0, rh_mask = 0;
     

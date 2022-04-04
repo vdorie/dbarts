@@ -17,38 +17,94 @@ void misc_addVectors_c(const double* restrict x, size_t length, double alpha, co
   size_t i = 0;
   size_t lengthMod5 = length % 5;
   
-  if (lengthMod5 != 0) {
-    for ( ; i < lengthMod5; ++i) z[i] = y[i] + alpha * x[i];
-    if (length < 5) return;
-  }
-  
-  for ( ; i < length; i += 5) {
-    z[i] = y[i] + alpha * x[i];
-    z[i + 1] = y[i + 1] + alpha * x[i + 1];
-    z[i + 2] = y[i + 2] + alpha * x[i + 2];
-    z[i + 3] = y[i + 3] + alpha * x[i + 3];
-    z[i + 4] = y[i + 4] + alpha * x[i + 4];
+  if (alpha == 1.0) {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) z[i] = y[i] + x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      z[i    ] = y[i   ] +  x[i    ];
+      z[i + 1] = y[i + 1] + x[i + 1];
+      z[i + 2] = y[i + 2] + x[i + 2];
+      z[i + 3] = y[i + 3] + x[i + 3];
+      z[i + 4] = y[i + 4] + x[i + 4];
+    }
+  } else if (alpha == -1.0) {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) z[i] = y[i] - x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      z[i    ] = y[i    ] - x[i    ];
+      z[i + 1] = y[i + 1] - x[i + 1];
+      z[i + 2] = y[i + 2] - x[i + 2];
+      z[i + 3] = y[i + 3] - x[i + 3];
+      z[i + 4] = y[i + 4] - x[i + 4];
+    }
+  } else {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) z[i] = y[i] + alpha * x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      z[i    ] = y[i    ] + alpha * x[i    ];
+      z[i + 1] = y[i + 1] + alpha * x[i + 1];
+      z[i + 2] = y[i + 2] + alpha * x[i + 2];
+      z[i + 3] = y[i + 3] + alpha * x[i + 3];
+      z[i + 4] = y[i + 4] + alpha * x[i + 4];
+    }
   }
 }
 
 void misc_addVectorsInPlace_c(const double* restrict x, size_t length, double alpha, double* restrict y)
 {
   if (length == 0) return;
-  
+
   size_t i = 0;
   size_t lengthMod5 = length % 5;
-  
-  if (lengthMod5 != 0) {
-    for ( ; i < lengthMod5; ++i) y[i] += alpha * x[i];
-    if (length < 5) return;
-  }
-  
-  for ( ; i < length; i += 5) {
-    y[i] += alpha * x[i];
-    y[i + 1] += alpha * x[i + 1];
-    y[i + 2] += alpha * x[i + 2];
-    y[i + 3] += alpha * x[i + 3];
-    y[i + 4] += alpha * x[i + 4];
+
+  if (alpha == 1.0) {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) y[i] += x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      y[i    ] += x[i    ];
+      y[i + 1] += x[i + 1];
+      y[i + 2] += x[i + 2];
+      y[i + 3] += x[i + 3];
+      y[i + 4] += x[i + 4];
+    }
+  } else if (alpha == -1.0) {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) y[i] -= x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      y[i    ] -= x[i    ];
+      y[i + 1] -= x[i + 1];
+      y[i + 2] -= x[i + 2];
+      y[i + 3] -= x[i + 3];
+      y[i + 4] -= x[i + 4];
+    }
+  } else {
+    if (lengthMod5 != 0) {
+      for ( ; i < lengthMod5; ++i) y[i] += alpha * x[i];
+      if (length < 5) return;
+    }
+    
+    for ( ; i < length; i += 5) {
+      y[i    ] += alpha * x[i];
+      y[i + 1] += alpha * x[i + 1];
+      y[i + 2] += alpha * x[i + 2];
+      y[i + 3] += alpha * x[i + 3];
+      y[i + 4] += alpha * x[i + 4];
+    }
   }
 }
 

@@ -17,30 +17,76 @@ void misc_addVectors_sse2(const double* restrict x, size_t length, double alpha,
   if (prefix > length) prefix = length;
   
   size_t i = 0;
-  for ( ; i < prefix; ++i)
-    z[i] = y[i] + alpha * x[i];
-  
   size_t suffix = prefix + 6 * ((length - prefix) / 6);
-  
-  if (suffix > prefix) {
-    __m128d alpha_vec = _mm_load1_pd(&alpha);
-    if (z_offset == x_offset && z_offset == y_offset) {
-      for ( ; i < suffix; i += 6) {
-        _mm_stream_pd(z + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_load_pd(x + i    ), alpha_vec)));
-        _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_load_pd(x + i + 2), alpha_vec)));
-        _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_load_pd(x + i + 4), alpha_vec)));
-      }
-    } else {
-      for ( ; i < suffix; i += 6) {
-        _mm_stream_pd(z + i    , _mm_add_pd(_mm_loadu_pd(y + i    ), _mm_mul_pd(_mm_loadu_pd(x + i    ), alpha_vec)));
-        _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_loadu_pd(y + i + 2), _mm_mul_pd(_mm_loadu_pd(x + i + 2), alpha_vec)));
-        _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_loadu_pd(y + i + 4), _mm_mul_pd(_mm_loadu_pd(x + i + 4), alpha_vec)));
+
+  if (alpha == 1.0) {
+    for ( ; i < prefix; ++i)
+      z[i] = y[i] + x[i];
+    
+    if (suffix > prefix) {
+      if (z_offset == x_offset && z_offset == y_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_load_pd(x + i    )));
+          _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_load_pd(x + i + 2)));
+          _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_load_pd(x + i + 4)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_add_pd(_mm_loadu_pd(y + i    ), _mm_loadu_pd(x + i    )));
+          _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_loadu_pd(y + i + 2), _mm_loadu_pd(x + i + 2)));
+          _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_loadu_pd(y + i + 4), _mm_loadu_pd(x + i + 4)));
+        }
       }
     }
+    
+    for ( ; i < length; ++i)
+      z[i] = y[i] + x[i];
+  } else if (alpha == -1.0) {
+    for ( ; i < prefix; ++i)
+      z[i] = y[i] - x[i];
+    
+    if (suffix > prefix) {
+      if (z_offset == x_offset && z_offset == y_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_sub_pd(_mm_load_pd(y + i    ), _mm_load_pd(x + i    )));
+          _mm_stream_pd(z + i + 2, _mm_sub_pd(_mm_load_pd(y + i + 2), _mm_load_pd(x + i + 2)));
+          _mm_stream_pd(z + i + 4, _mm_sub_pd(_mm_load_pd(y + i + 4), _mm_load_pd(x + i + 4)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_sub_pd(_mm_loadu_pd(y + i    ), _mm_loadu_pd(x + i    )));
+          _mm_stream_pd(z + i + 2, _mm_sub_pd(_mm_loadu_pd(y + i + 2), _mm_loadu_pd(x + i + 2)));
+          _mm_stream_pd(z + i + 4, _mm_sub_pd(_mm_loadu_pd(y + i + 4), _mm_loadu_pd(x + i + 4)));
+        }
+      }
+    }
+    
+    for ( ; i < length; ++i)
+      z[i] = y[i] - x[i];
+  } else {
+    for ( ; i < prefix; ++i)
+      z[i] = y[i] + alpha * x[i];
+    
+    if (suffix > prefix) {
+      __m128d alpha_vec = _mm_load1_pd(&alpha);
+      if (z_offset == x_offset && z_offset == y_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_load_pd(x + i    ), alpha_vec)));
+          _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_load_pd(x + i + 2), alpha_vec)));
+          _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_load_pd(x + i + 4), alpha_vec)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(z + i    , _mm_add_pd(_mm_loadu_pd(y + i    ), _mm_mul_pd(_mm_loadu_pd(x + i    ), alpha_vec)));
+          _mm_stream_pd(z + i + 2, _mm_add_pd(_mm_loadu_pd(y + i + 2), _mm_mul_pd(_mm_loadu_pd(x + i + 2), alpha_vec)));
+          _mm_stream_pd(z + i + 4, _mm_add_pd(_mm_loadu_pd(y + i + 4), _mm_mul_pd(_mm_loadu_pd(x + i + 4), alpha_vec)));
+        }
+      }
+    }
+    
+    for ( ; i < length; ++i)
+      z[i] = y[i] + alpha * x[i];
   }
-  
-  for ( ; i < length; ++i)
-    z[i] = y[i] + alpha * x[i];
 }
 
 void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double alpha, double* restrict y)
@@ -58,32 +104,78 @@ void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double
   size_t prefix = y_offset == 0 ? 0 : (2 * sizeof(double) - y_offset) / sizeof(double);
   
   if (prefix > length) prefix = length;
-  
+
   size_t i = 0;
-  for ( ; i < prefix; ++i)
-    y[i] += alpha * x[i];
-  
   size_t suffix = prefix + 6 * ((length - prefix) / 6);
   
-  if (suffix > prefix) {
-    __m128d alpha_vec = _mm_load1_pd(&alpha);
-    if (y_offset == x_offset) {
-      for ( ; i < suffix; i += 6) {
-        _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_load_pd(x + i    ), alpha_vec)));
-        _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_load_pd(x + i + 2), alpha_vec)));
-        _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_load_pd(x + i + 4), alpha_vec)));
-      }
-    } else {
-      for ( ; i < suffix; i += 6) {
-        _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_loadu_pd(x + i    ), alpha_vec)));
-        _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_loadu_pd(x + i + 2), alpha_vec)));
-        _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_loadu_pd(x + i + 4), alpha_vec)));
+  if (alpha == 1.0) {
+    for ( ; i < prefix; ++i)
+      y[i] += x[i];
+    
+    if (suffix > prefix) {
+      if (y_offset == x_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_load_pd(x + i    )));
+          _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_load_pd(x + i + 2)));
+          _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_load_pd(x + i + 4)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_loadu_pd(x + i    )));
+          _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_loadu_pd(x + i + 2)));
+          _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_loadu_pd(x + i + 4)));
+        }
       }
     }
+    
+    for ( ; i < length; ++i)
+      y[i] += x[i];
+  } else if (alpha == -1.0) {
+    for ( ; i < prefix; ++i)
+      y[i] -= x[i];
+    
+    if (suffix > prefix) {
+      if (y_offset == x_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_sub_pd(_mm_load_pd(y + i    ), _mm_load_pd(x + i    )));
+          _mm_stream_pd(y + i + 2, _mm_sub_pd(_mm_load_pd(y + i + 2), _mm_load_pd(x + i + 2)));
+          _mm_stream_pd(y + i + 4, _mm_sub_pd(_mm_load_pd(y + i + 4), _mm_load_pd(x + i + 4)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_sub_pd(_mm_load_pd(y + i    ), _mm_loadu_pd(x + i    )));
+          _mm_stream_pd(y + i + 2, _mm_sub_pd(_mm_load_pd(y + i + 2), _mm_loadu_pd(x + i + 2)));
+          _mm_stream_pd(y + i + 4, _mm_sub_pd(_mm_load_pd(y + i + 4), _mm_loadu_pd(x + i + 4)));
+        }
+      }
+    }
+    
+    for ( ; i < length; ++i)
+      y[i] -= x[i];
+  } else {
+    for ( ; i < prefix; ++i)
+      y[i] += alpha * x[i];
+    
+    if (suffix > prefix) {
+      __m128d alpha_vec = _mm_load1_pd(&alpha);
+      if (y_offset == x_offset) {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_load_pd(x + i    ), alpha_vec)));
+          _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_load_pd(x + i + 2), alpha_vec)));
+          _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_load_pd(x + i + 4), alpha_vec)));
+        }
+      } else {
+        for ( ; i < suffix; i += 6) {
+          _mm_stream_pd(y + i    , _mm_add_pd(_mm_load_pd(y + i    ), _mm_mul_pd(_mm_loadu_pd(x + i    ), alpha_vec)));
+          _mm_stream_pd(y + i + 2, _mm_add_pd(_mm_load_pd(y + i + 2), _mm_mul_pd(_mm_loadu_pd(x + i + 2), alpha_vec)));
+          _mm_stream_pd(y + i + 4, _mm_add_pd(_mm_load_pd(y + i + 4), _mm_mul_pd(_mm_loadu_pd(x + i + 4), alpha_vec)));
+        }
+      }
+    }
+    
+    for ( ; i < length; ++i)
+      y[i] += alpha * x[i];
   }
-  
-  for ( ; i < length; ++i)
-    y[i] += alpha * x[i];
 }
 
 extern void misc_addScalarToVectorInPlace_c(double* x, size_t length, double alpha);
