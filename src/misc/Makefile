@@ -20,7 +20,7 @@ have.avx = $(BOOL,$(have.avx.test,$(AVX_FLAG)))
 have.avx2.test, = false
 have.avx2 = $(BOOL,$(have.avx2.test,$(AVX2_FLAG)))
 
-have.neon.text, = false
+have.neon.test, = false
 have.neon = $(BOOL,$(have.neon.test,$(NEON_FLAG)))
 
 INCLUDE_DIR=../include

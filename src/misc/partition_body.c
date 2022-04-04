@@ -66,7 +66,7 @@
 #    define _mm_cmple_epu16(a, b) _mm_cmpge_epu16(b, a)
 #  endif
 
-#  define set1(_X_) _mm128_set1_epi16((misc_xint_t) (_X_))
+#  define set1(_X_) _mm_set1_epi16((misc_xint_t) (_X_))
 
 #  define loadLHComp(_X_) \
     (values = _mm_set_epi16(getDataAt(_X_ + 7), \
@@ -95,7 +95,7 @@
 #  define cmp_t __m128i
 
 #elif defined(__USE_NEON__)
-#  define __USE_SIMD__1
+#  define __USE_SIMD__ 1
 
 #  if PARTITION_RANGE == 1
 #    define loadLHComp(_X_) \
@@ -240,7 +240,8 @@
 #  ifdef __USE_SIMD__
   if (lh + 2 * cmp_width < rh) {
     
-    cmp_t lh_comp, rh_comp, values;
+    cmp_t lh_comp, rh_comp, values, cut_vec;
+    cut_vec = set1(cut);
     uint_least8_t lh_sub = 0, rh_sub = 0;
     unsigned int lh_mask = 0, rh_mask = 0;
     
