@@ -219,27 +219,6 @@ extern "C" {
     return Rf_ScalarInteger(static_cast<int>(result));
   }
 
-}
-#include <misc/linearAlgebra.h>
-
-extern "C" {
-  static SEXP addVectors(SEXP x, SEXP y, SEXP alpha)
-  {
-    size_t length = rc_getLength(x);
-    SEXP z = PROTECT(rc_newReal(length));
-    misc_addVectors(REAL(x), length, REAL(alpha)[0], REAL(y), REAL(z));
-    
-    UNPROTECT(1);
-    return z;
-  }
-
-  static SEXP addVectorsInPlace(SEXP x, SEXP y, SEXP alpha)
-  {
-    size_t length = rc_getLength(x);
-    misc_addVectorsInPlace(REAL(x), length, REAL(alpha)[0], REAL(y));
-    
-    return y;
-  }
 /*
 }
 
@@ -403,6 +382,7 @@ extern "C" {
 
     DEF_FUNC("dbarts_addVectors", addVectors, 3),
     DEF_FUNC("dbarts_addVectorsInPlace", addVectorsInPlace, 3),
+    DEF_FUNC("dbarts_transposeMatrix", transposeMatrix, 1),
     
     DEF_FUNC("rbart_fitted", rbart_getFitted, 4),
     { NULL, NULL, 0 }

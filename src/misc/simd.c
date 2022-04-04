@@ -253,6 +253,7 @@ extern void misc_addVectors_neon(const double* restrict x, size_t length, double
 extern void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double alpha, double* restrict y);
 extern void misc_addScalarToVectorInPlace_neon(double* restrict x, size_t length, double alpha);
 extern void misc_setVectorToConstant_neon(double* x, size_t length, double alpha);
+extern void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 #endif
 
 // partition
@@ -337,7 +338,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
     misc_addVectorsInPlace = &misc_addVectorsInPlace_neon;
     misc_addScalarToVectorInPlace = &misc_addScalarToVectorInPlace_neon;
     misc_setVectorToConstant = &misc_setVectorToConstant_neon;
-    misc_transposeMatrix = &misc_transposeMatrix_c;
+    misc_transposeMatrix = &misc_transposeMatrix_neon;
   } else
 #endif
   {

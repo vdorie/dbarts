@@ -169,3 +169,81 @@ void misc_setVectorToConstant_neon(double* x, size_t length, double alpha)
 }
 
 
+static inline void transposeMatrixBlock(const double* restrict x, size_t ldx, double* restrict y, size_t ldy)
+{
+  // x:  0  4  8 12
+  //     1  5  9 13
+  //     2  6 10 14
+  //     3  7 11 15
+  // y:  0  1  2  3
+  //     4  5  6  7
+  //     8  9 10 11
+  //    12 13 14 15
+  
+  float64x2_t temp0, temp1;
+
+  temp0 = vld1q_f64(x              ); // 0, 1
+  temp1 = vld1q_f64(x +         ldx); // 4, 5
+  vst1q_f64(y              , vtrn1q_f64(temp0, temp1)); // 0, 4
+  vst1q_f64(y +         ldy, vtrn2q_f64(temp0, temp1)); // 1 5
+  
+  temp0 = vld1q_f64(x + 2          ); // 2, 3
+  temp1 = vld1q_f64(x + 2 +     ldx); // 6, 7
+  vst1q_f64(y +     2 * ldy, vtrn1q_f64(temp0, temp1));
+  vst1q_f64(y +     3 * ldy, vtrn2q_f64(temp0, temp1));
+  
+  temp0 = vld1q_f64(x +     2 * ldx); // 8, 9
+  temp1 = vld1q_f64(x +     3 * ldx); // 12, 13
+  vst1q_f64(y + 2          , vtrn1q_f64(temp0, temp1));
+  vst1q_f64(y + 2 +     ldy, vtrn2q_f64(temp0, temp1));
+  
+  temp0 = vld1q_f64(x + 2 + 2 * ldx); // 10, 11
+  temp1 = vld1q_f64(x + 2 + 3 * ldx); // 14, 15
+  vst1q_f64(y + 2 + 2 * ldy, vtrn1q_f64(temp0, temp1));
+  vst1q_f64(y + 2 + 3 * ldy, vtrn2q_f64(temp0, temp1));
+}
+
+void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, size_t numCols, double* restrict y)
+{
+  if (numRows == 0 || numCols == 0) return;
+  
+  // We can't really ensure that loads/stores occur on 16 byte boundaries, since
+  // any time there is an odd number of rows that completely screws up
+  // block transposing. For fun, we start x on a boundary and transpose
+  // the first row explicitly, if necessary.
+  size_t x_offset = ((uintptr_t) x) % (8 * sizeof(double));
+  size_t prefix = x_offset == 0 ? 0 : (8 * sizeof(double) - x_offset) / sizeof(double);
+  
+  size_t row = 0;
+  
+  for ( ; row < prefix; ++row) {
+    for (size_t col = 0; col < numCols; ++col) {
+      y[col + row * numCols] = x[row + col * numRows];
+    }
+  }
+  
+  size_t suffix = prefix + 4 * ((numRows - prefix) / 4);
+  
+  if (suffix > prefix) {
+    for ( ; row < suffix; row += 4) {
+      size_t col = 0, colEnd = 4 * (numCols / 4);
+      for ( ; col < colEnd; col += 4)
+        transposeMatrixBlock(x + row + col * numRows, numRows, y + col + row * numCols, numCols);
+      
+      for (size_t rowInBlock = row; rowInBlock < row + 4; ++rowInBlock) {
+        size_t colInBlock = col;
+        for ( ; colInBlock < numCols; ++colInBlock) {
+          y[colInBlock + rowInBlock * numCols] = x[rowInBlock + colInBlock * numRows];
+        }
+      }
+    }
+  }
+  
+  for ( ; row < numRows; ++row) {
+    for (size_t col = 0; col < numCols; ++col) {
+      y[col + row * numCols] = x[row + col * numRows];
+    }
+  }
+}
+
+
