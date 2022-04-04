@@ -663,6 +663,11 @@ SED
 MAPFILE_FLAG
 CPUEXT_FLAGS
 SIMD_FLAGS
+NEON_FLAG
+AVX2_FLAG
+AVX_FLAG
+SSE4_1_FLAG
+SSE2_FLAG
 COMPILER_VENDOR
 host_os
 host_vendor
@@ -686,10 +691,6 @@ CFLAGS
 CC
 thread_safe_unload
 match_bayes_tree
-AVX2_FLAG
-AVX_FLAG
-SSE4_1_FLAG
-SSE2_FLAG
 target_alias
 host_alias
 build_alias
@@ -3570,9 +3571,10 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 #
 # DESCRIPTION
 #
-#   Checks compiler for support for SIMD extensions.
+#   Checks compiler for support for SIMD extensions. Notably, it does not check
+#   if the processor supports the instructions.
 #
-#   This macro calls:
+#   On x86 platforms, this macro calls:
 #
 #     AC_SUBST(SSE2_FLAGS)
 #     AC_SUBST(SSE4_1_FLAGS)
@@ -3581,15 +3583,23 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 #
 #   And defines:
 #
-#     HAVE_MMX / HAVE_SSE / HAVE_SSE2
-#     HAVE_SSE3 / HAVE_SSSE3 / HAVE_SSE4_1 / HAVE_SSE4_2 / HAVE_SSE4a
-#     HAVE_AVX / HAVE_AVX2
+#     COMPILER_SUPPORTS_SSE2 / COMPILER_SUPPORTS_SSE4_1
+#     COMPILER_SUPPORTS_AVX / COMPILER_SUPPORTS_AVX2
+#
+#   On ARM platforms, it calls:
+#
+#    AC_SUBST(NEON_FLAGS)
+#
+#   And defines:
+#
+#     COMPILER_SUPPORTS_NEON
 #
 # LICENSE
 #
 #   Copyright (c) 2007 Christophe Tournayre <turn3r@users.sourceforge.net>
 #   Copyright (c) 2013,2015 Michael Petch <mpetch@capp-sysware.com>
 #   Copyright (c) 2017 Rafael de Lucena Valle <rafaeldelucena@gmail.com>
+#   Copyright (c) 2022 Vincent Dorie <vdorie@gmail.com>
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice
@@ -3597,11 +3607,6 @@ ac_config_headers="$ac_config_headers src/include/misc/types.h"
 #   warranty.
 
 #serial 1
-
-
-
-
-
 
 
 
@@ -5946,13 +5951,13 @@ fi
 
 
 
-  SSE2_FLAG=""
-  SSE4_1_FLAG=""
-  AVX_FLAG=""
-  AVX2_FLAG=""
-
   case $host_cpu in
   i[3456]86*|x86_64*|amd64*)
+
+    SSE2_FLAG=""
+    SSE4_1_FLAG=""
+    AVX_FLAG=""
+    AVX2_FLAG=""
 
     case "$ax_cv_c_compiler_vendor" in
     sun)
@@ -5961,8 +5966,8 @@ ac_fn_c_check_header_compile "$LINENO" ""xmmintrin.h"" "$as_ac_Header" "$ac_incl
 if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
 
-        ax_cv_support_sse2_ext=yes
-        SSE2_FLAG="-xarch=sse2"
+        ax_compiler_supports_sse2_ext=yes
+        SSE2_FLAG=-xarch=sse2
 
 fi
 
@@ -5971,8 +5976,8 @@ ac_fn_c_check_header_compile "$LINENO" ""nmmintrin.h"" "$as_ac_Header" "$ac_incl
 if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
 
-        ax_cv_support_sse4_1_ext=yes
-        SSE4_1_FLAG="-xarch=sse4_1"
+        ax_compiler_supports_sse4_1_ext=yes
+        SSE4_1_FLAG=-xarch=sse4_1
 
 fi
 
@@ -5981,22 +5986,21 @@ ac_fn_c_check_header_compile "$LINENO" ""immintrin.h"" "$as_ac_Header" "$ac_incl
 if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
 
-        ax_cv_support_avx_ext=yes
-        AVX_FLAG="-xarch=avx"
+        ax_compiler_supports_avx_ext=yes
+        AVX_FLAG=-xarch=avx
 
 fi
 
-      if test x"$ax_cv_support_avx_ext" = x"yes"; then
-        as_CACHEVAR=`printf "%s\n" "ax_cv_check_cflags__"-xarch=avx2"" | $as_tr_sh`
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts \"-xarch=avx2\"" >&5
-printf %s "checking whether C compiler accepts \"-xarch=avx2\"... " >&6; }
-if eval test \${$as_CACHEVAR+y}
+      if test x"$ax_compiler_supports_avx_ext" = x"yes"; then
+        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -xarch=avx2" >&5
+printf %s "checking whether C compiler accepts -xarch=avx2... " >&6; }
+if test ${ax_cv_check_cflags___xarch_avx2+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
 
   ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  "-xarch=avx2""
+  CFLAGS="$CFLAGS  -xarch=avx2"
   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -6010,21 +6014,20 @@ main (void)
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"
 then :
-  eval "$as_CACHEVAR=yes"
+  ax_cv_check_cflags___xarch_avx2=yes
 else $as_nop
-  eval "$as_CACHEVAR=no"
+  ax_cv_check_cflags___xarch_avx2=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
   CFLAGS=$ax_check_save_flags
 fi
-eval ac_res=\$$as_CACHEVAR
-	       { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
-printf "%s\n" "$ac_res" >&6; }
-if eval test \"x\$"$as_CACHEVAR"\" = x"yes"
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___xarch_avx2" >&5
+printf "%s\n" "$ax_cv_check_cflags___xarch_avx2" >&6; }
+if test "x$ax_cv_check_cflags___xarch_avx2" = xyes
 then :
 
-          ax_cv_support_avx2_ext=yes
-          AVX2_FLAG="-xarch=avx2"
+          ax_compiler_supports_avx2_ext=yes
+          AVX2_FLAG=-xarch=avx2
 
 else $as_nop
   :
@@ -6068,7 +6071,7 @@ printf "%s\n" "$ax_cv_check_cflags___msse2" >&6; }
 if test "x$ax_cv_check_cflags___msse2" = xyes
 then :
 
-        ax_cv_support_sse2_ext=yes
+        ax_compiler_supports_sse2_ext=yes
         SSE2_FLAG=-msse2
 
 else $as_nop
@@ -6109,7 +6112,7 @@ printf "%s\n" "$ax_cv_check_cflags___msse4_1" >&6; }
 if test "x$ax_cv_check_cflags___msse4_1" = xyes
 then :
 
-        ax_cv_support_sse4_1_ext=yes
+        ax_compiler_supports_sse4_1_ext=yes
         SSE4_1_FLAG=-msse4.1
 
 else $as_nop
@@ -6150,7 +6153,7 @@ printf "%s\n" "$ax_cv_check_cflags___mavx" >&6; }
 if test "x$ax_cv_check_cflags___mavx" = xyes
 then :
 
-        ax_cv_support_avx_ext=yes
+        ax_compiler_supports_avx_ext=yes
         AVX_FLAG=-mavx
 
 else $as_nop
@@ -6192,7 +6195,7 @@ printf "%s\n" "$ax_cv_check_cflags___xcore_avx2" >&6; }
 if test "x$ax_cv_check_cflags___xcore_avx2" = xyes
 then :
 
-          ax_cv_support_avx2_ext=yes
+          ax_compiler_supports_avx2_ext=yes
           AVX2_FLAG=-xcore-avx2
 
 else $as_nop
@@ -6234,7 +6237,7 @@ printf "%s\n" "$ax_cv_check_cflags___mavx2" >&6; }
 if test "x$ax_cv_check_cflags___mavx2" = xyes
 then :
 
-          ax_cv_support_avx2_ext=yes
+          ax_compiler_supports_avx2_ext=yes
           AVX2_FLAG=-mavx2
 
 else $as_nop
@@ -6244,43 +6247,147 @@ fi
       fi
     ;;
     esac
+
+    if test x"$ax_compiler_supports_sse2_ext" = x"yes"; then
+
+printf "%s\n" "#define COMPILER_SUPPORTS_SSE2 1" >>confdefs.h
+
+    fi
+
+    if test x"$ax_compiler_supports_sse41_ext" = x"yes"; then
+
+printf "%s\n" "#define COMPILER_SUPPORTS_SSE4_1 1" >>confdefs.h
+
+    fi
+
+    if test x"$ax_compiler_supports_avx_ext" = x"yes"; then
+
+printf "%s\n" "#define COMPILER_SUPPORTS_AVX 1" >>confdefs.h
+
+    fi
+
+    if test x"$ax_compiler_supports_avx2_ext" = x"yes"; then
+
+printf "%s\n" "#define COMPILER_SUPPORTS_AVX2 1" >>confdefs.h
+
+    fi
+
+
+
+
+
+
+
+
+
+
+  ;;
+
+  aarch64)
+    NEON_FLAG=""
+
+    as_ac_Header=`printf "%s\n" "ac_cv_header_"arm_neon.h"" | $as_tr_sh`
+ac_fn_c_check_header_compile "$LINENO" ""arm_neon.h"" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"
+then :
+
+      ax_compiler_supports_neon_ext=yes
+
+fi
+
+    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mfloat-abi=softfp" >&5
+printf %s "checking whether C compiler accepts -mfloat-abi=softfp... " >&6; }
+if test ${ax_cv_check_cflags___mfloat_abi_softfp+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -mfloat-abi=softfp"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  ax_cv_check_cflags___mfloat_abi_softfp=yes
+else $as_nop
+  ax_cv_check_cflags___mfloat_abi_softfp=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mfloat_abi_softfp" >&5
+printf "%s\n" "$ax_cv_check_cflags___mfloat_abi_softfp" >&6; }
+if test "x$ax_cv_check_cflags___mfloat_abi_softfp" = xyes
+then :
+  ax_compiler_supports_neon_ext=yes
+else $as_nop
+  ax_compiler_supports_neon_ext=no
+
+fi
+
+      if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mfpu=neon" >&5
+printf %s "checking whether C compiler accepts -mfpu=neon... " >&6; }
+if test ${ax_cv_check_cflags___mfpu_neon+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+
+  ax_check_save_flags=$CFLAGS
+  CFLAGS="$CFLAGS  -mfpu=neon"
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main (void)
+{
+
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"
+then :
+  ax_cv_check_cflags___mfpu_neon=yes
+else $as_nop
+  ax_cv_check_cflags___mfpu_neon=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+  CFLAGS=$ax_check_save_flags
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mfpu_neon" >&5
+printf "%s\n" "$ax_cv_check_cflags___mfpu_neon" >&6; }
+if test "x$ax_cv_check_cflags___mfpu_neon" = xyes
+then :
+  ax_compiler_supports_neon_ext=yes
+else $as_nop
+  ax_compiler_supports_neon_ext=no
+
+fi
+
+      fi
+    fi
+    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+
+printf "%s\n" "#define COMPILER_SUPPORTS_NEON 1" >>confdefs.h
+
+    fi
+
+
+
+
   ;;
   esac
-
-  if test x"$ax_cv_support_sse2_ext" = x"yes"; then
-
-printf "%s\n" "#define HAVE_SSE2 1" >>confdefs.h
-
-  fi
-
-  if test x"$ax_cv_support_sse41_ext" = x"yes"; then
-
-printf "%s\n" "#define HAVE_SSE4_1 1" >>confdefs.h
-
-  fi
-
-  if test x"$ax_cv_support_avx_ext" = x"yes"; then
-
-printf "%s\n" "#define HAVE_AVX 1" >>confdefs.h
-
-  fi
-
-  if test x"$ax_cv_support_avx2_ext" = x"yes"; then
-
-printf "%s\n" "#define HAVE_AVX2 1" >>confdefs.h
-
-  fi
-
-
-
-
-
-
-
-
-
-
-
 
 
 # on SOLARIS, need to strip out some hardware flags from the library,
@@ -9027,7 +9134,6 @@ ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
 ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_c_compiler_gnu
-
 
 
 ac_config_files="$ac_config_files src/Makevars"

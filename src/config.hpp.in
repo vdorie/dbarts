@@ -6,6 +6,25 @@
 /* The normal alignment of `void*', in bytes. */
 #undef ALIGNOF_VOIDP
 
+/* Define to 1 if the compilter can issue Advanced Vector Extensions
+   instructions. */
+#undef COMPILER_SUPPORTS_AVX
+
+/* Define to 1 if the compilter can issue Advanced Vector Extensions 2
+   instructions. */
+#undef COMPILER_SUPPORTS_AVX2
+
+/* Define to 1 if the compilter can issue NEON instructions. */
+#undef COMPILER_SUPPORTS_NEON
+
+/* Define to 1 if the compiler can issue Streaming SIMD Extensions
+   instructions. */
+#undef COMPILER_SUPPORTS_SSE2
+
+/* Define to 1 if the compiler can issue Streaming SIMD Extensions 4.1
+   instructions. */
+#undef COMPILER_SUPPORTS_SSE4_1
+
 /* Define to 1 if using 'alloca.c'. */
 #undef C_ALLOCA
 

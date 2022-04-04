@@ -61,7 +61,7 @@ void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double
   
   size_t i = 0;
   for ( ; i < prefix; ++i)
-    y[i] += + alpha * x[i];
+    y[i] += alpha * x[i];
   
   size_t suffix = prefix + 6 * ((length - prefix) / 6);
   
@@ -92,7 +92,7 @@ void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   if (((uintptr_t) x) % sizeof(double) != 0) {
-    misc_addScalarToVectorInPlace_sse2(x, length, alpha);
+    misc_addScalarToVectorInPlace_c(x, length, alpha);
     return;
   }
   

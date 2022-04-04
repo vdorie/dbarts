@@ -15,7 +15,7 @@
 #include <misc/types.h>
 #include <misc/intrinsic.h>
 
-/* static const char* const simdNames[] = {
+/* static const char* const simdNames[] = { // for x86
   "none",
   "SSE",
   "SSE2",
@@ -31,11 +31,29 @@
   "invalid"
 }; */
 
+/* static const char* const simdNames[] = { // for arm
+  "none",
+  "neon",
+  "sve",
+  "sve2",
+  "invalid"
+}; */
+
 // if not on any x86 descendent, use pure C no matter what
 #if !defined(__i386) && !defined(_X86_) && !defined(__x86_64__) && !defined(_M_AMD64) && !defined (_M_X64)
+
+#  if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM)
+misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void) {
+  // NOTE THAT THIS IS OBVIOUSLY NOT IMPLEMENTED YET. OS specific calls
+  // are likely required, and it appears that SVE can be supported
+  // with different vector lengths.
+  return MISC_INST_NEON;
+}
+#  else
 misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void) {
   return MISC_INST_C;
 }
+#  endif
 #else
 
 #ifdef __GNUC__
@@ -202,12 +220,12 @@ extern void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, si
 
 
 /* implementing functions */
-#ifdef HAVE_AVX2
+#ifdef COMPILER_SUPPORTS_AVX2
 extern size_t misc_partitionRange_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_avx2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 #endif
 
-#ifdef HAVE_AVX
+#ifdef COMPILER_SUPPORTS_AVX
 extern void misc_addVectors_avx(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
 extern void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double alpha, double* restrict y);
 extern void misc_addScalarToVectorInPlace_avx(double* x, size_t length, double alpha);
@@ -215,12 +233,12 @@ extern void misc_setVectorToConstant_avx(double* x, size_t length, double alpha)
 extern void misc_transposeMatrix_avx(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 #endif
 
-#ifdef HAVE_SSE4_1
+#ifdef COMPILER_SUPPORTS_SSE4_1
 extern size_t misc_partitionRange_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_sse4_1(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 #endif
 
-#ifdef HAVE_SSE2
+#ifdef COMPILER_SUPPORTS_SSE2
 extern size_t misc_partitionRange_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern void misc_addVectors_sse2(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
@@ -228,6 +246,13 @@ extern void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length,
 extern void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha);
 extern void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha);
 extern void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
+#endif
+
+#ifdef COMPILER_SUPPORTS_NEON
+extern void misc_addVectors_neon(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
+extern void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double alpha, double* restrict y);
+extern void misc_addScalarToVectorInPlace_neon(double* restrict x, size_t length, double alpha);
+extern void misc_setVectorToConstant_neon(double* x, size_t length, double alpha);
 #endif
 
 // partition
@@ -263,19 +288,20 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   misc_simd_instructionSet i_max = misc_simd_getMaxSIMDInstructionSet();
   if (i > i_max) i = i_max;
   
-#ifdef HAVE_AVX2
+  // Integer
+#ifdef COMPILER_SUPPORTS_AVX2
   if (i >= MISC_INST_AVX2) {
     misc_partitionRange = &misc_partitionRange_avx2;
     misc_partitionIndices = &misc_partitionIndices_avx2;
   } else
 #endif
-#ifdef HAVE_SSE4_1
+#ifdef COMPILER_SUPPORTS_SSE4_1
   if (i >= MISC_INST_SSE4_1) {
     misc_partitionRange = &misc_partitionRange_sse4_1;
     misc_partitionIndices = &misc_partitionIndices_sse4_1;
   } else
 #endif
-#ifdef HAVE_SSE2
+#ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
     misc_partitionRange = &misc_partitionRange_sse2;
     misc_partitionIndices = &misc_partitionIndices_sse2;
@@ -286,7 +312,8 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
     misc_partitionIndices = &misc_partitionIndices_c;
   }
   
-#ifdef HAVE_AVX
+  // Float
+#ifdef COMPILER_SUPPORTS_AVX
   if (i >= MISC_INST_AVX) {
     misc_addVectors = &misc_addVectors_avx;
     misc_addVectorsInPlace = &misc_addVectorsInPlace_avx;
@@ -295,13 +322,22 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
     misc_transposeMatrix = &misc_transposeMatrix_avx;
   } else 
 #endif
-#ifdef HAVE_SSE2
+#ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
     misc_addVectors = &misc_addVectors_sse2;
     misc_addVectorsInPlace = &misc_addVectorsInPlace_sse2;
     misc_addScalarToVectorInPlace = &misc_addScalarToVectorInPlace_sse2;
     misc_setVectorToConstant = &misc_setVectorToConstant_sse2;
     misc_transposeMatrix = &misc_transposeMatrix_sse2;
+  } else
+#endif
+#ifdef COMPILER_SUPPORTS_NEON
+  if (i >= MISC_INST_NEON) {
+    misc_addVectors = &misc_addVectors_neon;
+    misc_addVectorsInPlace = &misc_addVectorsInPlace_neon;
+    misc_addScalarToVectorInPlace = &misc_addScalarToVectorInPlace_neon;
+    misc_setVectorToConstant = &misc_setVectorToConstant_neon;
+    misc_transposeMatrix = &misc_transposeMatrix_c;
   } else
 #endif
   {

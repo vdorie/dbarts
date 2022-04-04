@@ -1140,7 +1140,7 @@ static double computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_c(const d
 
 #include <misc/simd.h>
 
-#ifdef HAVE_SSE2
+#ifdef COMPILER_SUPPORTS_SSE2
 extern double misc_computeUnrolledMean_sse2(const double* x, size_t length);
 extern double misc_computeIndexedUnrolledMean_sse2(const double* restrict x, const size_t* restrict indices, size_t length);
 extern double misc_computeOnlineUnrolledMean_sse2(const double* x, size_t length);
@@ -1161,7 +1161,7 @@ extern double misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2
 
 void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
-#ifdef HAVE_SSE2
+#ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
     computeUnrolledMean = &misc_computeUnrolledMean_sse2;
     computeOnlineUnrolledMean = &misc_computeOnlineUnrolledMean_sse2;

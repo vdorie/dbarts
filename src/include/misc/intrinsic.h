@@ -1,21 +1,30 @@
 #ifndef MISC_INTRINSIC_H
 #define MISC_INTRINSIC_H
 
-#ifdef _MSC_VER
-#  include <intrin.h>
-#else 
-#  ifdef HAVE_SSE2
-#    ifdef __SUNPRO_C
-#      include <xmmintrin.h>
-#    else
-#      include <emmintrin.h> // SSE2 intrinsics
+// #include "config.h" // should be included by file
+
+// Find and include relevant headers
+#if defined(__arm__) || defined(__aarch64__) || defined(_ARM) || defined(_M_ARM)
+#  ifdef COMPILER_SUPPORTS_NEON
+#    include <arm_neon.h>
+#  endif
+#else
+#  ifdef _MSC_VER
+#    include <intrin.h>
+#  else 
+#    ifdef COMPILER_SUPPORTS_SSE2
+#      ifdef __SUNPRO_C
+#        include <xmmintrin.h>
+#      else
+#        include <emmintrin.h> // SSE2 intrinsics
+#      endif
 #    endif
-#  endif
-#  ifdef HAVE_SSE4_1
-#    include <smmintrin.h>
-#  endif
-#  ifdef HAVE_AVX
-#    include <immintrin.h>
+#    ifdef COMPILER_SUPPORTS_SSE4_1
+#      include <smmintrin.h>
+#    endif
+#    ifdef COMPILER_SUPPORTS_AVX
+#      include <immintrin.h>
+#    endif
 #  endif
 #endif
 
