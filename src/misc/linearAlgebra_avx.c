@@ -104,7 +104,7 @@ void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double 
   if (prefix > length) prefix = length;
     
   size_t i = 0;
-  size_t suffix = prefix + 12 * ((length - prefix) / 12);
+  size_t suffix = prefix + 4 * ((length - prefix) / 4);
 
   if (alpha == 1.0) {
     for ( ; i < prefix; ++i)
@@ -112,16 +112,12 @@ void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double 
 
     if (suffix > prefix) {
       if (y_offset == x_offset) {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_add_pd(_mm256_load_pd(y + i    ), _mm256_load_pd(x + i    )));
-          _mm256_stream_pd(y + i + 4, _mm256_add_pd(_mm256_load_pd(y + i + 4), _mm256_load_pd(x + i + 4)));
-          _mm256_stream_pd(y + i + 8, _mm256_add_pd(_mm256_load_pd(y + i + 8), _mm256_load_pd(x + i + 8)));
         }
       } else {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_add_pd(_mm256_load_pd(y + i    ), _mm256_loadu_pd(x + i    )));
-          _mm256_stream_pd(y + i + 4, _mm256_add_pd(_mm256_load_pd(y + i + 4), _mm256_loadu_pd(x + i + 4)));
-          _mm256_stream_pd(y + i + 8, _mm256_add_pd(_mm256_load_pd(y + i + 8), _mm256_loadu_pd(x + i + 8)));
         }
       }
     }
@@ -134,16 +130,12 @@ void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double 
 
     if (suffix > prefix) {
       if (y_offset == x_offset) {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_sub_pd(_mm256_load_pd(y + i    ), _mm256_load_pd(x + i    )));
-          _mm256_stream_pd(y + i + 4, _mm256_sub_pd(_mm256_load_pd(y + i + 4), _mm256_load_pd(x + i + 4)));
-          _mm256_stream_pd(y + i + 8, _mm256_sub_pd(_mm256_load_pd(y + i + 8), _mm256_load_pd(x + i + 8)));
         }
       } else {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_sub_pd(_mm256_load_pd(y + i    ), _mm256_loadu_pd(x + i    )));
-          _mm256_stream_pd(y + i + 4, _mm256_sub_pd(_mm256_load_pd(y + i + 4), _mm256_loadu_pd(x + i + 4)));
-          _mm256_stream_pd(y + i + 8, _mm256_sub_pd(_mm256_load_pd(y + i + 8), _mm256_loadu_pd(x + i + 8)));
         }
       }
     }
@@ -158,16 +150,12 @@ void misc_addVectorsInPlace_avx(const double* restrict x, size_t length, double 
       __m256d alpha_vec = _mm256_set_pd(alpha, alpha, alpha, alpha);
       
       if (y_offset == x_offset) {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_add_pd(_mm256_load_pd(y + i    ), _mm256_mul_pd(_mm256_load_pd(x + i    ), alpha_vec)));
-          _mm256_stream_pd(y + i + 4, _mm256_add_pd(_mm256_load_pd(y + i + 4), _mm256_mul_pd(_mm256_load_pd(x + i + 4), alpha_vec)));
-          _mm256_stream_pd(y + i + 8, _mm256_add_pd(_mm256_load_pd(y + i + 8), _mm256_mul_pd(_mm256_load_pd(x + i + 8), alpha_vec)));
         }
       } else {
-        for ( ; i < suffix; i += 12) {
+        for ( ; i < suffix; i += 4) {
           _mm256_stream_pd(y + i    , _mm256_add_pd(_mm256_load_pd(y + i    ), _mm256_mul_pd(_mm256_loadu_pd(x + i    ), alpha_vec)));
-          _mm256_stream_pd(y + i + 4, _mm256_add_pd(_mm256_load_pd(y + i + 4), _mm256_mul_pd(_mm256_loadu_pd(x + i + 4), alpha_vec)));
-          _mm256_stream_pd(y + i + 8, _mm256_add_pd(_mm256_load_pd(y + i + 8), _mm256_mul_pd(_mm256_loadu_pd(x + i + 8), alpha_vec)));
         }
       }
     }

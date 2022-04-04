@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <misc/stddef.h>
 
-// #include <external/linearAlgebra.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
