@@ -151,7 +151,7 @@ namespace dbarts {
     double s_sq = 0.0;
     double totalNumBottomNodes = 0.0;
     for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-      const double* treeFits = state.treeFits + treeNum * fit.treeFitsStride;
+      const double* treeFits = state.treeFits + treeNum * state.treeFitsStride;
       
       size_t numBottomNodes;
       double* nodeParameters = state.trees[treeNum].recoverParametersFromFits(fit, treeFits, &numBottomNodes);

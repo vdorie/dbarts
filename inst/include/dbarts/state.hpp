@@ -16,16 +16,20 @@ namespace dbarts {
     std::size_t* treeIndices; // numObs x numTrees
     Tree* trees;              // numTrees
     double* treeFits;         // numObs x numTrees; vals for tree <=> obsNum + treeNum * numObs
-    
-    SavedTree* savedTrees;              // numTrees x numSamples
+                              // numObs can be lengthed in order to align each tree's values
+                              // on boundaries for SIMD instructions
+    SavedTree* savedTrees;    // numTrees x numSamples
     
     double sigma;
     double k;
     
     ext_rng* rng;
     
-    State(const Control& control, const Data& data, size_t treeFitsStride, bool allocateTreeFitsAligned);
-    void invalidate(std::size_t numTrees, std::size_t numSamples, bool treeFitsWereAllocatedAligned);
+    std::size_t treeFitsStride;
+    unsigned int treeFitsAlignment;
+    
+    State(const Control& control, const Data& data);
+    void invalidate(std::size_t numTrees, std::size_t numSamples);
     
     // returns true if resize was necessary
     bool resize(const BARTFit& fit, const Control& newControl);

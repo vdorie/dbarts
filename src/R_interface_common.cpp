@@ -524,7 +524,7 @@ namespace dbarts {
       rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
         std::memcpy(REAL(slotExpr) + treeNum * data.numObservations,
-                    state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+                    state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride,
                     data.numObservations * sizeof(double));
       
       if (control.keepTrees) {
@@ -640,7 +640,7 @@ namespace dbarts {
       slotExpr = Rf_getAttrib(stateExpr_i, treeFitsSym);
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
         std::memcpy(REAL(slotExpr) + treeNum * data.numObservations,
-                    state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+                    state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride,
                     data.numObservations * sizeof(double));
       
       if (control.keepTrees) {
@@ -704,7 +704,7 @@ namespace dbarts {
       
       slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("treeFits"));
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        std::memcpy(state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+        std::memcpy(state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride,
                     const_cast<const double*>(REAL(slotExpr) + treeNum * data.numObservations),
                     data.numObservations * sizeof(double));
       

@@ -44,7 +44,7 @@ namespace {
 }
 
 namespace dbarts {
-  State::State(const Control& control, const Data& data, size_t treeFitsStride, bool allocateTreeFitsAligned)
+  State::State(const Control& control, const Data& data)
   {
     size_t totalNumTrees = control.numTrees;
     
@@ -54,11 +54,16 @@ namespace dbarts {
     for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
       new (trees + treeNum) Tree(treeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
     
-    if (allocateTreeFitsAligned) {
-      if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), misc_simd_alignment, treeFitsStride * totalNumTrees * sizeof(double)) != 0)
-        ext_throwError("error allocating aligned vector");
-    } else {
+    treeFitsAlignment = misc_simd_alignment;
+    if (treeFitsAlignment == 0) {
+      treeFitsStride = data.numObservations;
       treeFits = new double[treeFitsStride * totalNumTrees];
+    } else {
+      size_t remainder = data.numObservations % (treeFitsAlignment / sizeof(double));
+      treeFitsStride = data.numObservations + 
+        (remainder == 0 ? 0 : (treeFitsAlignment / sizeof(double) - remainder));
+     if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), treeFitsAlignment, treeFitsStride * totalNumTrees * sizeof(double)) != 0)
+        ext_throwError("error allocating aligned vector");
     }
     misc_setVectorToConstant(treeFits, treeFitsStride * totalNumTrees, 0.0);
     
@@ -75,17 +80,17 @@ namespace dbarts {
     rng = NULL;
   }
   
-  void State::invalidate(size_t numTrees, size_t numSamples, bool treeFitsWereAllocatedAligned) {
+  void State::invalidate(size_t numTrees, size_t numSamples) {
     if (savedTrees != NULL) {
       for (size_t treeNum = numTrees * numSamples; treeNum > 0; --treeNum)
         savedTrees[treeNum - 1].~SavedTree();
       ::operator delete (savedTrees);
     }
     
-    if (treeFitsWereAllocatedAligned) {
-      misc_alignedFree(treeFits);
-    } else {
+    if (treeFitsAlignment == 0) {
       delete [] treeFits;
+    } else {
+      misc_alignedFree(treeFits);
     }
     for (size_t treeNum = numTrees; treeNum > 0; --treeNum)
       trees[treeNum - 1].~Tree();
@@ -108,6 +113,8 @@ namespace {
     
     const TreeData& oldTreeData;
     TreeData& newTreeData;
+    
+    size_t treeFitsStride;
   };
   struct SavedResizeData {
     const Data& data;
@@ -119,7 +126,7 @@ namespace {
     SavedTree* newTrees;
   };
     
-  void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum, size_t treeFitsStride) {
+  void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum) {
     const Data& data(resizeData.data);
     
     const Control& oldControl(resizeData.oldControl);
@@ -154,16 +161,16 @@ namespace {
     size_t newSampleOffset = newSampleNum * data.numObservations * newControl.numTrees;
     std::memcpy(newTreeData.treeIndices + newSampleOffset, oldTreeData.treeIndices + oldSampleOffset, assignEnd * data.numObservations * sizeof(size_t));
     
-    oldSampleOffset = oldSampleNum * treeFitsStride * oldControl.numTrees;
-    newSampleOffset = newSampleNum * treeFitsStride * newControl.numTrees;
-    std::memcpy(newTreeData.treeFits + newSampleOffset, oldTreeData.treeFits + oldSampleOffset, assignEnd * data.numObservations * sizeof(double));
+    oldSampleOffset = oldSampleNum * resizeData.treeFitsStride * oldControl.numTrees;
+    newSampleOffset = newSampleNum * resizeData.treeFitsStride * newControl.numTrees;
+    std::memcpy(newTreeData.treeFits + newSampleOffset, oldTreeData.treeFits + oldSampleOffset, assignEnd * resizeData.treeFitsStride * sizeof(double));
     
     // if any new trees are required, create and initialize those
     for (size_t treeNum = assignEnd; treeNum < newControl.numTrees; ++treeNum) {
       size_t treeOffset = treeNum + newSampleNum * newControl.numTrees;
       new (newTreeData.trees + treeOffset)
         Tree(newTreeData.treeIndices + treeOffset * data.numObservations, data.numObservations, data.numPredictors);
-      misc_setVectorToConstant(newTreeData.treeFits + treeOffset * treeFitsStride, data.numObservations, 0.0);
+      misc_setVectorToConstant(newTreeData.treeFits + treeOffset * resizeData.treeFitsStride, resizeData.treeFitsStride, 0.0);
     }
     
     // if any extra trees exist, delete them
@@ -225,22 +232,22 @@ namespace dbarts {
     if (oldControl.numTrees != newControl.numTrees) {
       treeIndices = new size_t[data.numObservations * newControl.numTrees];
       trees       = static_cast<Tree*>(::operator new (newControl.numTrees * sizeof(Tree)));
-      if (fit.treeFitsWereAllocatedAligned) {
-        if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), misc_simd_alignment, fit.treeFitsStride * newControl.numTrees * sizeof(double)) != 0)
-          ext_throwError("error allocating aligned vector");
+      if (treeFitsAlignment == 0) {
+        treeFits = new double[treeFitsStride * newControl.numTrees];
       } else {
-        treeFits = new double[fit.treeFitsStride * newControl.numTrees];
+        if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), treeFitsAlignment, treeFitsStride * newControl.numTrees * sizeof(double)) != 0)
+          ext_throwError("error allocating aligned vector");
       }
       TreeData oldTrees = { oldState.treeIndices, oldState.trees, oldState.treeFits };
       TreeData newTrees = { treeIndices, trees, treeFits };
-      ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees };
+      ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees, treeFitsStride };
       
-      copyTreesForSample(resizeData, 0, 0, fit.treeFitsStride);
+      copyTreesForSample(resizeData, 0, 0);
       
-      if (fit.treeFitsWereAllocatedAligned) {
-        misc_alignedFree(oldState.treeFits);
-      } else {
+      if (treeFitsAlignment == 0) {
         delete [] oldState.treeFits;
+      } else {
+        misc_alignedFree(oldState.treeFits);
       }
       ::operator delete (oldState.trees);
       delete [] oldState.treeIndices;
