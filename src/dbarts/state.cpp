@@ -235,7 +235,10 @@ namespace dbarts {
       if (treeFitsAlignment == 0) {
         treeFits = new double[treeFitsStride * newControl.numTrees];
       } else {
-        if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), treeFitsAlignment, treeFitsStride * newControl.numTrees * sizeof(double)) != 0)
+        if (misc_alignedAllocate(
+              reinterpret_cast<void**>(&treeFits),
+              treeFitsAlignment,
+              treeFitsStride * newControl.numTrees * sizeof(double)) != 0)
           ext_throwError("error allocating aligned vector");
       }
       TreeData oldTrees = { oldState.treeIndices, oldState.trees, oldState.treeFits };

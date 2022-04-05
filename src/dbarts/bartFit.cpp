@@ -735,7 +735,7 @@ namespace dbarts {
           if (misc_alignedAllocate(
                 reinterpret_cast<void**>(&state[chainNum].treeFits),
                 state[chainNum].treeFitsAlignment,
-                control.numTrees * state[chainNum].treeFitsStride) != 0)
+                control.numTrees * state[chainNum].treeFitsStride * sizeof(double)) != 0)
             ext_throwError("error allocating aligned vector");
         }
       }
