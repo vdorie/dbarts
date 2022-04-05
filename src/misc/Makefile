@@ -108,9 +108,13 @@ linearAlgebra_avx.o : linearAlgebra_avx.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_avx.c -o linearAlgebra_avx.c
 	@$(compile.linearAlgebra_avx)
 
-linearAlgebra_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(NEON_FLAG) -c linearAlgebra_neon.c -o linearAlgebra_neon.o
+linearAlgebra_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_neon.c -o linearAlgebra_neon.o
 linearAlgebra_neon.false = touch linearAlgebra_neon.o
 compile.linearAlgebra_neon = $(linearAlgebra_neon.$(have.neon))
+
+linearAlgebra_neon.o : linearAlgebra_neon.c $(INCLUDE_DIR)/misc/linearAlgebra.h
+	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra_neon.c -o linearAlgebra_neon.c
+	@$(compile.linearAlgebra_neon)
 
 moments.o : moments.c $(INCLUDE_DIR)/misc/stats.h $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c moments.c -o moments.o
@@ -150,7 +154,7 @@ partition_avx2.o : partition_avx2.c $(INCLUDE_DIR)/misc/partition.h partition_bo
 	echo $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_avx2.c -o partition_avx2.o
 	@$(compile.partition_avx2)
 
-partition_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(NEON_FLAG) -c partition_neon.c -o partition_neon.o
+partition_neon.true = $(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c partition_neon.c -o partition_neon.o
 partition_neon.false = touch partition_neon.o
 compile.partition_neon = $(partition_neon.$(have.neon))
 

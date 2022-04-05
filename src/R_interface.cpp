@@ -218,6 +218,21 @@ extern "C" {
     
     return Rf_ScalarInteger(static_cast<int>(result));
   }
+}
+
+#include <misc/linearAlgebra.h>
+extern "C" {
+  
+  static SEXP transposeMatrix(SEXP x) {
+    int* dims = INTEGER(rc_getDims(x));
+    SEXP result = PROTECT(rc_setDims(rc_newReal(dims[0] * dims[1]), dims[1], dims[0], -1));
+
+    misc_transposeMatrix(REAL(x), dims[0], dims[1], REAL(result));
+
+    UNPROTECT(1);
+    
+    return result;
+  }
 
 /*
 }
@@ -379,6 +394,8 @@ extern "C" {
     // below: testing
     DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
     DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
+    
+    DEF_FUNC("dbarts_transposeMatrix", transposeMatrix, 1),
 
     DEF_FUNC("rbart_fitted", rbart_getFitted, 4),
     { NULL, NULL, 0 }

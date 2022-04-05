@@ -138,20 +138,21 @@ AC_DEFUN([AX_COMPILER_EXT],
     AC_CHECK_HEADER("arm_neon.h",[
       ax_compiler_supports_neon_ext=yes
     ])
-    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
-      AX_CHECK_COMPILE_FLAG(-mfloat-abi=softfp,
-        [ax_compiler_supports_neon_ext=yes],
-        [ax_compiler_supports_neon_ext=no]
-      )
-      if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
-        AX_CHECK_COMPILE_FLAG(-mfpu=neon,
-          [ax_compiler_supports_neon_ext=yes],
-          [ax_compiler_supports_neon_ext=no]
-        )
-      fi
-    fi
+    dnl if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+    dnl  AX_CHECK_COMPILE_FLAG(-mfloat-abi=softfp,
+    dnl    [ax_compiler_supports_neon_ext=yes],
+    dnl    [ax_compiler_supports_neon_ext=no]
+    dnl  )
+    dnl  if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+    dnl    AX_CHECK_COMPILE_FLAG(-mfpu=neon,
+    dnl      [ax_compiler_supports_neon_ext=yes],
+    dnl      [ax_compiler_supports_neon_ext=no]
+    dnl    )
+    dnl  fi
+    dnl fi
     if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
       AC_DEFINE(COMPILER_SUPPORTS_NEON,1,[Support NEON instructions])
+      NEON_FLAG="-mfloat-abi=softfp -mfpu=neon"
     fi
     
     AH_TEMPLATE([COMPILER_SUPPORTS_NEON],[Define to 1 if the compilter can issue NEON instructions.])

@@ -6295,92 +6295,11 @@ then :
 
 fi
 
-    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
-      { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mfloat-abi=softfp" >&5
-printf %s "checking whether C compiler accepts -mfloat-abi=softfp... " >&6; }
-if test ${ax_cv_check_cflags___mfloat_abi_softfp+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -mfloat-abi=softfp"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___mfloat_abi_softfp=yes
-else $as_nop
-  ax_cv_check_cflags___mfloat_abi_softfp=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mfloat_abi_softfp" >&5
-printf "%s\n" "$ax_cv_check_cflags___mfloat_abi_softfp" >&6; }
-if test "x$ax_cv_check_cflags___mfloat_abi_softfp" = xyes
-then :
-  ax_compiler_supports_neon_ext=yes
-else $as_nop
-  ax_compiler_supports_neon_ext=no
-
-fi
-
-      if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
-        { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -mfpu=neon" >&5
-printf %s "checking whether C compiler accepts -mfpu=neon... " >&6; }
-if test ${ax_cv_check_cflags___mfpu_neon+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -mfpu=neon"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___mfpu_neon=yes
-else $as_nop
-  ax_cv_check_cflags___mfpu_neon=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___mfpu_neon" >&5
-printf "%s\n" "$ax_cv_check_cflags___mfpu_neon" >&6; }
-if test "x$ax_cv_check_cflags___mfpu_neon" = xyes
-then :
-  ax_compiler_supports_neon_ext=yes
-else $as_nop
-  ax_compiler_supports_neon_ext=no
-
-fi
-
-      fi
-    fi
-    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
+                                                    if test x"$ax_compiler_supports_neon_ext" = x"yes"; then
 
 printf "%s\n" "#define COMPILER_SUPPORTS_NEON 1" >>confdefs.h
 
+      NEON_FLAG="-mfloat-abi=softfp -mfpu=neon"
     fi
 
 

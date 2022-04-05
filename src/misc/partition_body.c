@@ -99,21 +99,21 @@
 
 #  if PARTITION_RANGE == 1
 #    define loadLHComp(_X_) \
-       (values = ((uinptr_t) (x + _X_)) % (8 * sizeof(double)) == 0 ? \
+       (values = (((uintptr_t) (x + _X_)) % (8 * sizeof(double))) == 0 ? \
          vld1q_u16(x + _X_) : \
          vcombine_u16(vcreate_u16(*((uint64_t*) (x + _X_))), vcreate_u16(*(((uint64_t*) (x + _X_)) + 1))), \
          vcgtq_u16(values, cut_vec))
 #    define loadRHComp(_X_) \
-       (values = ((uinptr_t) (x + _X_ - 7)) % (8 * sizeof(double)) == 0 ? \
+       (values = (((uintptr_t) (x + _X_ - 7)) % (8 * sizeof(double))) == 0 ? \
          vld1q_u16(x + _X_ - 7) : \
-         vcombine_u16(*((uint64_t*) (x + _X_ - 7)), *((uint64_t*) (x + _X_ - 3))), \
+         vcombine_u16(vcreate_u16(*((uint64_t*) (x + _X_ - 7))), vcreate_u16(*((uint64_t*) (x + _X_ - 3)))), \
          vcleq_u16(values, cut_vec))
 #  else
 #    define vset_u16(_X0_, _X1_, _X2_, _X3_, _X4_, _X5_, _X6_, _X7_) \
        vcombine_u16( \
-         vcreate_u16(((uint64_t) _X0_) + (((uint64_t) _X1_) << 16) + (((uint64_t) _X2_) << 32) + (((uint64_t) _X3_) << 48), \
-         vcreate_u16(((uint64_t) _X4_) + (((uint64_t) _X5_) << 16) + (((uint64_t) _X6_) << 32) + (((uint64_t) _X7_) << 48))))
-#    define loadRHComp(_X_) \
+         vcreate_u16(((uint64_t) _X0_) + (((uint64_t) _X1_) << 16) + (((uint64_t) _X2_) << 32) + (((uint64_t) _X3_) << 48)), \
+         vcreate_u16(((uint64_t) _X4_) + (((uint64_t) _X5_) << 16) + (((uint64_t) _X6_) << 32) + (((uint64_t) _X7_) << 48)))
+#    define loadLHComp(_X_) \
        (values = vset_u16(getDataAt(_X_ + 7), \
                           getDataAt(_X_ + 6), \
                           getDataAt(_X_ + 5), \
