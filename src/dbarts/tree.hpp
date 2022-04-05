@@ -43,6 +43,7 @@ namespace dbarts {
     std::size_t getNumSwappableNodes() const;
     
     NodeVector getBottomNodes() const;
+    void fillBottomNodesVector(NodeVector& bottomNodes) const;
     NodeVector getNotBottomNodes() const;
     NodeVector getNodesWhoseChildrenAreAtBottom() const;
     NodeVector getSwappableNodes() const;
@@ -98,6 +99,7 @@ namespace dbarts {
   inline std::size_t Tree::getNumSwappableNodes() const { return top.getNumSwappableNodes(); }
   
   inline NodeVector Tree::getBottomNodes() const { return top.getBottomVector(); }
+  inline void Tree::fillBottomNodesVector(NodeVector& bottomNodes) const { return top.fillBottomVector(bottomNodes); }
   inline NodeVector Tree::getNotBottomNodes() const { return top.getNotBottomVector(); }
   inline NodeVector Tree::getNodesWhoseChildrenAreAtBottom() const { return top.getNoGrandVector(); }
   inline NodeVector Tree::getSwappableNodes() const { return top.getSwappableVector(); }

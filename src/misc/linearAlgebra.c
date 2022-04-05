@@ -15,8 +15,7 @@ void misc_addVectors(const double* restrict x, size_t length, const double* rest
   size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) z[i] = y[i] + x[i];
+  for ( ; i < lengthMod4; ++i) z[i] = y[i] + x[i];
   
   for ( ; i < length; i += 4) {
     z[i    ] = y[i    ] + x[i    ];
@@ -33,8 +32,7 @@ void misc_subtractVectors(const double* restrict x, size_t length, const double*
   size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) z[i] = y[i] - x[i];
+  for ( ; i < lengthMod4; ++i) z[i] = y[i] - x[i];
   
   for ( ; i < length; i += 4) {
     z[i    ] = y[i    ] - x[i    ];
@@ -51,8 +49,7 @@ void misc_addVectorsWithMultiplier(const double* restrict x, size_t length, doub
   size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) z[i] = y[i] + alpha * x[i];
+  for ( ; i < lengthMod4; ++i) z[i] = y[i] + alpha * x[i];
   
   for ( ; i < length; i += 4) {
     z[i    ] = y[i    ] + alpha * x[i    ];
@@ -69,8 +66,7 @@ void misc_addVectorsInPlace(const double* restrict x, size_t length, double* res
   size_t i = 0;
   size_t lengthMod4 = length % 4;
 
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) y[i] += x[i];
+  for ( ; i < lengthMod4; ++i) y[i] += x[i];
   
   for ( ; i < length; i += 4) {
     y[i    ] += x[i    ];
@@ -87,8 +83,7 @@ void misc_subtractVectorsInPlace(const double* restrict x, size_t length, double
   size_t i = 0;
   size_t lengthMod4 = length % 4;
 
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) y[i] -= x[i];
+  for ( ; i < lengthMod4; ++i) y[i] -= x[i];
   
   for ( ; i < length; i += 4) {
     y[i    ] -= x[i    ];
@@ -105,8 +100,7 @@ void misc_addVectorsInPlaceWithMultiplier(const double* restrict x, size_t lengt
   size_t i = 0;
   size_t lengthMod4 = length % 4;
 
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) y[i] += alpha * x[i];
+  for ( ; i < lengthMod4; ++i) y[i] += alpha * x[i];
   
   for ( ; i < length; i += 4) {
     y[i    ] += alpha * x[i    ];
@@ -124,8 +118,7 @@ void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha)
   size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) x[i] += alpha;
+  for ( ; i < lengthMod4; ++i) x[i] += alpha;
   
   for ( ; i < length; i += 4) {
     x[i    ] += alpha;
@@ -142,8 +135,7 @@ void misc_setVectorToConstant(double* x, size_t length, double alpha)
   size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for ( ; i < lengthMod4; ++i) x[i] = alpha;
+  for ( ; i < lengthMod4; ++i) x[i] = alpha;
   
   for ( ; i < length; i += 4) {
     x[i    ] = alpha;
@@ -169,12 +161,13 @@ void misc_setIndexedVectorToConstant(double* restrict x, const size_t* restrict 
 {
   if (length == 0) return;
   
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
+
+  for ( ; i < lengthMod4; ++i)
+    x[indices[i]] = alpha;
   
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) x[indices[i]] = alpha;
-  
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     x[indices[i    ]] = alpha;
     x[indices[i + 1]] = alpha;
     x[indices[i + 2]] = alpha;
@@ -186,12 +179,13 @@ void misc_scalarMultiplyVectorInPlace(double* x, size_t length, double alpha)
 {
   if (length == 0 || alpha == 1.0) return;
   
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
     
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) x[i] *= alpha;
+  for ( ; i < lengthMod4; ++i)
+    x[i] *= alpha;
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     x[i    ] *= alpha;
     x[i + 1] *= alpha;
     x[i + 2] *= alpha;
@@ -203,12 +197,13 @@ void misc_scalarMultiplyVector(const double* restrict x, size_t length, double a
 {
   if (length == 0) return;
   
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) y[i] = alpha * x[i];
+  for ( ; i < lengthMod4; ++i)
+    y[i] = alpha * x[i];
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     y[i    ] = alpha * x[i    ];
     y[i + 1] = alpha * x[i + 1];
     y[i + 2] = alpha * x[i + 2];
@@ -220,12 +215,13 @@ void misc_hadamardMultiplyVectors(const double* restrict x, size_t length, const
 {
   if (length == 0) return;
   
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) z[i] = y[i] * x[i];
+  for ( ; i < lengthMod4; ++i)
+    z[i] = y[i] * x[i];
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     z[i    ] = y[i    ] * x[i    ];
     z[i + 1] = y[i + 1] * x[i + 1];
     z[i + 2] = y[i + 2] * x[i + 2];
@@ -237,12 +233,13 @@ void misc_hadamardMultiplyVectorsInPlace(double* restrict x, size_t length, cons
 {
   if (length == 0) return;
   
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) x[i] *= y[i];
+  for ( ; i < lengthMod4; ++i)
+    x[i] *= y[i];
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     x[i    ] *= y[i    ];
     x[i + 1] *= y[i + 1];
     x[i + 2] *= y[i + 2];
@@ -255,12 +252,14 @@ double misc_sumVectorElements(const double* x, size_t length)
   if (length == 0) return 0.0;
   
   double result = 0.0;
+
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  if (lengthMod4 != 0)
-    for (size_t i = 0; i < lengthMod4; ++i) result += x[i];
+  for ( ; i < lengthMod4; ++i)
+    result += x[i];
   
-  for (size_t i = lengthMod4; i < length; i += 4) {
+  for ( ; i < length; i += 4) {
     result += x[i] + x[i + 1] + x[i + 2] + x[i + 3];
   }
   
@@ -272,11 +271,14 @@ double misc_sumIndexedVectorElements(const double* x, const size_t* indices, siz
   if (length == 0) return 0.0;
   
   double result = 0.0;
+
+  size_t i = 0;
   size_t lengthMod4 = length % 4;
   
-  size_t i;
-  for (i = 0; i < lengthMod4; ++i) result += x[indices[i]];
-  for (/* */; i < length; i += 4) {
+  for ( ; i < lengthMod4; ++i)
+    result += x[indices[i]];
+
+  for ( ; i < length; i += 4) {
     result += x[indices[i]] + x[indices[i + 1]] + x[indices[i + 2]] + x[indices[i + 3]];
   }
   

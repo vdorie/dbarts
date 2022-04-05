@@ -374,8 +374,13 @@ namespace dbarts {
   NodeVector Node::getBottomVector() const
   {
     NodeVector result;
-    fillBottomVector(*this, result);
+    ::fillBottomVector(*this, result);
     return result;
+  }
+
+  void Node::fillBottomVector(NodeVector& bottomNodes) const
+  {
+    ::fillBottomVector(*this, bottomNodes);
   }
   
   SavedNodeVector SavedNode::getBottomVector() const
@@ -395,8 +400,14 @@ namespace dbarts {
   {
     size_t index = 0;
     NodeVector result;
-    fillAndEnumerateBottomVector(*this, result, index);
+    ::fillAndEnumerateBottomVector(*this, result, index);
     return result;
+  }
+
+  void Node::fillAndEnumerateBottomVector(NodeVector& vector)
+  {
+    size_t index = 0;
+    ::fillAndEnumerateBottomVector(*this, vector, index);
   }
   
   NodeVector Node::getNoGrandVector() const

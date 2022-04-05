@@ -31,14 +31,14 @@ namespace {
 
 namespace dbarts {
   
-  Node* drawBirthableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
+  Node* drawBirthableNode(const BARTFit& fit, ChainScratch& scratch, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
   Node* drawChildrenKillableNode(ext_rng* rng, const Tree& tree, double* nodeSelectionProbability);
   
   double computeUnnormalizedNodeBirthProbability(const BARTFit& fit, const Node& node);
-  double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree); // same as below but that has a step cached
+  double computeProbabilityOfBirthStep(const BARTFit& fit, ChainScratch& scratch, const Tree& tree); // same as below but that has a step cached
   double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree, bool birthableNodeExists);
   double computeProbabilityOfSelectingNodeForDeath(const Tree& tree);
-  double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree);
+  double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, ChainScratch& scratch, const Tree& tree);
   
   // returns probability of jump
   double birthOrDeathNode(const BARTFit& fit, size_t chainNum, Tree& tree, const double* y, double sigma, bool* stepWasTaken, bool* stepWasBirth)
@@ -62,7 +62,7 @@ namespace dbarts {
     // it.
 
     double transitionProbabilityOfSelectingNodeForBirth;
-    Node* nodeToChangePtr = drawBirthableNode(fit, state.rng, tree, &transitionProbabilityOfSelectingNodeForBirth);
+    Node* nodeToChangePtr = drawBirthableNode(fit, fit.chainScratch[chainNum], state.rng, tree, &transitionProbabilityOfSelectingNodeForBirth);
     
     double transitionProbabilityOfBirthStep = computeProbabilityOfBirthStep(fit, tree, nodeToChangePtr != NULL);
     
@@ -92,7 +92,7 @@ namespace dbarts {
 
       double newLogLikelihood = computeLogLikelihoodForBranch(fit, chainNum, nodeToChange, y, sigma);
 
-      double transitionProbabilityOfDeathStep = 1.0 - computeProbabilityOfBirthStep(fit, tree);
+      double transitionProbabilityOfDeathStep = 1.0 - computeProbabilityOfBirthStep(fit, fit.chainScratch[chainNum], tree);
       double transitionProbabilityOfSelectingNodeForDeath = computeProbabilityOfSelectingNodeForDeath(tree);
       
       // compute ratios
@@ -141,7 +141,7 @@ namespace dbarts {
 #ifdef MATCH_BAYES_TREE
       ext_simulateContinuousUniform();
 #endif
-      double transitionProbabilityOfSelectingNodeForBirth = computeProbabilityOfSelectingNodeForBirth(fit, tree);
+      double transitionProbabilityOfSelectingNodeForBirth = computeProbabilityOfSelectingNodeForBirth(fit, fit.chainScratch[chainNum], tree);
       
       double oldPriorProbability = parentPriorGrowthProbability * (1.0 - leftPriorGrowthProbability) * (1.0 - rightPriorGrowthProbability);
       double newPriorProbability = 1.0 - parentPriorGrowthProbability;
@@ -173,9 +173,11 @@ namespace dbarts {
   }
   
   // transition mechanism
-  double computeProbabilityOfBirthStep(const BARTFit& fit, const Tree& tree)
+  double computeProbabilityOfBirthStep(const BARTFit& fit, ChainScratch& scratch, const Tree& tree)
   {
-    NodeVector bottomNodes(tree.getBottomNodes());
+    NodeVector& bottomNodes(scratch.nodeVector);
+    bottomNodes.clear();
+    tree.fillBottomNodesVector(bottomNodes);
     size_t numBottomNodes = bottomNodes.size();
     
     bool birthableNodeExists = false;
@@ -210,11 +212,13 @@ namespace dbarts {
     return 1.0 / static_cast<double>(numNodesWhoseChildrenAreBottom);
   }
                                                                                                       
-  double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, const Tree& tree)
+  double computeProbabilityOfSelectingNodeForBirth(const BARTFit& fit, ChainScratch& scratch, const Tree& tree)
   {
     if (tree.hasSingleNode()) return 1.0;
     
-    NodeVector bottomNodes(tree.getBottomNodes());
+    NodeVector& bottomNodes(scratch.nodeVector);
+    bottomNodes.clear();
+    tree.fillBottomNodesVector(bottomNodes);
     size_t numBottomNodes = bottomNodes.size();
     
     double totalProbability = 0.0;
@@ -228,7 +232,7 @@ namespace dbarts {
     return 1.0 / totalProbability;
   }
   
-  Node* drawBirthableNode(const BARTFit& fit, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
+  Node* drawBirthableNode(const BARTFit& fit, ChainScratch& scratch, ext_rng* rng, const Tree& tree, double* nodeSelectionProbability)
   {
     Node* result = NULL;
     
@@ -239,7 +243,10 @@ namespace dbarts {
     }
 #endif
     
-    NodeVector bottomNodes(tree.getBottomNodes());
+    NodeVector& bottomNodes(scratch.nodeVector);
+    bottomNodes.clear();
+
+    tree.fillBottomNodesVector(bottomNodes);
     size_t numBottomNodes = bottomNodes.size();
     
     double* nodeBirthProbabilities = misc_stackAllocate(numBottomNodes, double);

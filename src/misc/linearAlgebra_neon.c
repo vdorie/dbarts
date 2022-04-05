@@ -110,9 +110,9 @@ void misc_addAlignedVectorsInPlace_neon(const double* restrict x, size_t length,
 {
   if (length == 0) return;
 
-  size_t end = 8 * (length / 8);
+  size_t end = 16 * (length / 16);
   size_t i = 0;
-  for ( ; i < end; i += 8) {
+  for ( ; i < end; i += 16) {
     float64x2x4_t x_vec = vld1q_f64_x4(x + i);
     float64x2x4_t y_vec = vld1q_f64_x4(y + i);
     y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
@@ -120,6 +120,14 @@ void misc_addAlignedVectorsInPlace_neon(const double* restrict x, size_t length,
     y_vec.val[2] = vaddq_f64(y_vec.val[2], x_vec.val[2]);
     y_vec.val[3] = vaddq_f64(y_vec.val[3], x_vec.val[3]);
     vst1q_f64_x4(y + i, y_vec);
+    
+    x_vec = vld1q_f64_x4(x + i + 8);
+    y_vec = vld1q_f64_x4(y + i + 8);
+    y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
+    y_vec.val[1] = vaddq_f64(y_vec.val[1], x_vec.val[1]);
+    y_vec.val[2] = vaddq_f64(y_vec.val[2], x_vec.val[2]);
+    y_vec.val[3] = vaddq_f64(y_vec.val[3], x_vec.val[3]);
+    vst1q_f64_x4(y + i + 8, y_vec);
   }
 
   for (; i < length; ++i)
@@ -224,9 +232,9 @@ void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, size_t le
 {
   if (length == 0) return;
 
-  size_t end = 8 * (length / 8);
+  size_t end = 16 * (length / 16);
   size_t i = 0;
-  for ( ; i < end; i += 8) {
+  for ( ; i < end; i += 16) {
     float64x2x4_t x_vec = vld1q_f64_x4(x + i);
     float64x2x4_t y_vec = vld1q_f64_x4(y + i);
     y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
@@ -234,6 +242,14 @@ void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, size_t le
     y_vec.val[2] = vsubq_f64(y_vec.val[2], x_vec.val[2]);
     y_vec.val[3] = vsubq_f64(y_vec.val[3], x_vec.val[3]);
     vst1q_f64_x4(y + i, y_vec);
+
+    x_vec = vld1q_f64_x4(x + i + 8);
+    y_vec = vld1q_f64_x4(y + i + 8);
+    y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
+    y_vec.val[1] = vsubq_f64(y_vec.val[1], x_vec.val[1]);
+    y_vec.val[2] = vsubq_f64(y_vec.val[2], x_vec.val[2]);
+    y_vec.val[3] = vsubq_f64(y_vec.val[3], x_vec.val[3]);
+    vst1q_f64_x4(y + i + 8, y_vec);
   }
 
   for (; i < length; ++i)
@@ -263,7 +279,7 @@ void misc_addScalarToVectorInPlace_neon(double* x, size_t length, double alpha)
   
   if (suffix > prefix) {
     float64x2_t alpha_vec = vdupq_n_f64(alpha);
-    for ( ; i < suffix; i += 8) {
+    for ( ; i < suffix; i += 16) {
       float64x2x4_t x_vec = vld1q_f64_x4(x + i);
       x_vec.val[0] = vaddq_f64(x_vec.val[0], alpha_vec);
       x_vec.val[1] = vaddq_f64(x_vec.val[1], alpha_vec);

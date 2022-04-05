@@ -5,6 +5,8 @@
 #include <cstddef> // size_t
 #include <dbarts/types.hpp>
 
+#include <vector>
+
 namespace dbarts {
   struct ScaleFactor { double min, max, range; };
   
@@ -15,6 +17,7 @@ namespace dbarts {
     
     ScaleFactor dataScale;
   };
+  struct Node;
   struct ChainScratch {
     double* treeY;
     double* probitLatents;
@@ -25,6 +28,8 @@ namespace dbarts {
     std::size_t taskId;
 
     unsigned int alignment;
+
+    std::vector<Node*> nodeVector;
   };
 } // namespace dbarts
 
