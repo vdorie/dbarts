@@ -709,11 +709,30 @@ namespace dbarts {
       currTestFits[chainNum] = NULL;
       
       if (oldNumObservations != data.numObservations) {
-        delete [] chainScratch[chainNum].totalFits;
-        delete [] chainScratch[chainNum].treeY;
-      
-        chainScratch[chainNum].treeY     = new double[data.numObservations];
-        chainScratch[chainNum].totalFits = new double[data.numObservations];
+        if (chainScratch[chainNum].alignment != 0) {
+          misc_alignedFree(chainScratch[chainNum].totalFits);
+          misc_alignedFree(chainScratch[chainNum].treeY);
+        } else {
+          delete [] chainScratch[chainNum].totalFits;
+          delete [] chainScratch[chainNum].treeY;
+        }
+        
+        chainScratch[chainNum].alignment = misc_simd_alignment;
+        if (chainScratch[chainNum].alignment != 0) {
+          if (misc_alignedAllocate(
+                reinterpret_cast<void**>(&chainScratch[chainNum].treeY),
+                chainScratch[chainNum].alignment,
+                data.numObservations * sizeof(double)) != 0)
+            ext_throwError("error allocating treeY aligned");
+          if (misc_alignedAllocate(
+                reinterpret_cast<void**>(&chainScratch[chainNum].totalFits),
+                chainScratch[chainNum].alignment,
+                data.numObservations * sizeof(double)) != 0)
+            ext_throwError("error allocating totalFits aligned");
+        } else {
+          chainScratch[chainNum].treeY = new double[data.numObservations];
+          chainScratch[chainNum].totalFits = new double[data.numObservations];
+        }
         
         if (control.responseIsBinary) {
           delete [] chainScratch[chainNum].probitLatents;
@@ -1179,9 +1198,16 @@ namespace dbarts {
     delete [] sharedScratch.xt_test; sharedScratch.xt_test = NULL;
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       delete [] chainScratch[chainNum].totalTestFits; chainScratch[chainNum].totalTestFits = NULL;
-      delete [] chainScratch[chainNum].totalFits; chainScratch[chainNum].totalFits = NULL;
       delete [] chainScratch[chainNum].probitLatents; chainScratch[chainNum].probitLatents = NULL;
-      delete [] chainScratch[chainNum].treeY; chainScratch[chainNum].treeY = NULL;
+      if (chainScratch[chainNum].alignment != 0) {
+        misc_alignedFree(chainScratch[chainNum].totalFits);
+        misc_alignedFree(chainScratch[chainNum].treeY);
+      } else {
+        delete [] chainScratch[chainNum].totalFits;
+        delete [] chainScratch[chainNum].treeY;
+      }
+      chainScratch[chainNum].totalFits = NULL;
+      chainScratch[chainNum].treeY = NULL;
     }
     
     delete [] chainScratch;
@@ -1305,8 +1331,32 @@ extern "C" {
     StepType ignored;
     
     size_t numSamples = results.numSamples;
+
+    void (*addVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+    void (*subtractVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
     
-    double* currFits = new double[data.numObservations];
+    unsigned int alignment = 0;
+
+    if (chainScratch.alignment == state.treeFitsAlignment &&
+        chainScratch.alignment == misc_simd_alignment &&
+        chainScratch.alignment != 0)
+    {
+      alignment = chainScratch.alignment;
+    }
+
+    double* currFits;
+    if (alignment != 0) {
+      addVectorsInPlace = misc_addAlignedVectorsInPlace;
+      subtractVectorsInPlace = misc_subtractAlignedVectorsInPlace;
+
+      misc_alignedAllocate(reinterpret_cast<void**>(&currFits), alignment, data.numObservations * sizeof(double));
+    } else {
+      addVectorsInPlace = &misc_addVectorsInPlace;
+      subtractVectorsInPlace = &misc_subtractVectorsInPlace;
+      
+      currFits = new double[data.numObservations];
+    }
+    
     double* currTestFits = data.numTestObservations > 0 ? new double[data.numTestObservations] : NULL;
     
     uint32_t* variableCounts = misc_stackAllocate(data.numPredictors, uint32_t);
@@ -1327,7 +1377,7 @@ extern "C" {
       // const cast b/c yRescaled doesn't change, but probit version does
       y = const_cast<double*>(sharedScratch.yRescaled);
     }
-    
+
     for (size_t k = 0; k < totalNumIterations; ++k) {
       if (control.numThreads > 1 && control.numChains > 1)
         misc_htm_reserveThreadsForSubTask(fit.threadManager, taskId, k);
@@ -1354,8 +1404,8 @@ extern "C" {
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
         std::memcpy(chainScratch.treeY, y, data.numObservations * sizeof(double));
-        misc_subtractVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, chainScratch.treeY);
-        misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.treeY);
+        subtractVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, chainScratch.treeY);
+        addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.treeY);
         
         state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
@@ -1363,8 +1413,8 @@ extern "C" {
         state.trees[treeNum].sampleParametersAndSetFits(fit, chainNum, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
-        misc_subtractVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.totalFits);
-        misc_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, chainScratch.totalFits);
+        subtractVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.totalFits);
+        addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, chainScratch.totalFits);
         
         if (!isThinningIteration && data.numTestObservations > 0)
           misc_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, chainScratch.totalTestFits);
@@ -1413,7 +1463,11 @@ extern "C" {
     
     if (control.responseIsBinary) delete [] y;
     
-    delete [] currFits;
+    if (alignment != 0) {
+      misc_alignedFree(currFits);
+    } else {
+      delete [] currFits;
+    }
     if (data.numTestObservations > 0) delete [] currTestFits;
     misc_stackFree(variableCounts);
   }
@@ -1625,12 +1679,28 @@ namespace {
     
     // chain scratches
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      chainScratch[chainNum].treeY = new double[data.numObservations];
+      chainScratch[chainNum].alignment = misc_simd_alignment;
+      if (chainScratch[chainNum].alignment != 0) {
+        if (misc_alignedAllocate(
+              reinterpret_cast<void**>(&chainScratch[chainNum].treeY),
+              chainScratch[chainNum].alignment,
+              data.numObservations * sizeof(double)) != 0)
+          ext_throwError("error allocating treeY aligned");
+        if (misc_alignedAllocate(
+            reinterpret_cast<void**>(&chainScratch[chainNum].totalFits),
+            chainScratch[chainNum].alignment,
+            data.numObservations * sizeof(double)) != 0)
+          ext_throwError("error allocating totalFits aligned");
+      } else {
+        chainScratch[chainNum].treeY = new double[data.numObservations];
+        chainScratch[chainNum].totalFits = new double[data.numObservations];
+      }
       double* y = control.responseIsBinary ? chainScratch[chainNum].probitLatents : const_cast<double*>(sharedScratch.yRescaled);
       
-      for (size_t i = 0; i < data.numObservations; ++i) chainScratch[chainNum].treeY[i] = y[i];
+      std::memcpy(chainScratch[chainNum].treeY, const_cast<const double*>(y), data.numObservations * sizeof(double));
+      // for (size_t i = 0; i < data.numObservations; ++i) chainScratch[chainNum].treeY[i] = y[i];
       
-      chainScratch[chainNum].totalFits = new double[data.numObservations];
+      
       chainScratch[chainNum].totalTestFits = data.numTestObservations > 0 ? new double[data.numTestObservations] : NULL;
       
       chainScratch[chainNum].taskId = static_cast<size_t>(-1);

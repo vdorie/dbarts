@@ -23,6 +23,8 @@ namespace dbarts {
     double* totalTestFits; // numTestObs
     
     std::size_t taskId;
+
+    unsigned int alignment;
   };
 } // namespace dbarts
 

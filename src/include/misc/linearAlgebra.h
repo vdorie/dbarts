@@ -17,7 +17,8 @@ extern void misc_addVectorsWithMultiplier(const double* restrict x, size_t lengt
 extern void misc_addVectorsInPlace(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_subtractVectorsInPlace(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
-// extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+extern void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 
 // x := x + alpha
 extern void misc_addScalarToVectorInPlace(double* x, misc_size_t length, double alpha);

@@ -24,7 +24,7 @@ int vmovemask_u8(uint16x8_t input)
 }
 
 #define PARTITION_RANGE 1
-size_t misc_partitionRange_neon(misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
+size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
 {
 #include "partition_body.c"
 }
@@ -32,7 +32,7 @@ size_t misc_partitionRange_neon(misc_xint_t* restrict x, misc_xint_t cut, size_t
 #undef PARTITION_RANGE
 #define PARTITION_RANGE 0
 
-size_t misc_partitionIndices_neon(misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
+size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length)
 {
 #  include "partition_body.c"
 }

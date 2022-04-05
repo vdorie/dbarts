@@ -106,10 +106,25 @@ void misc_addVectors_neon(const double* restrict x, size_t length, double alpha,
   }
 }
 
-void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double alpha, double* restrict y)
+void misc_addAlignedVectorsInPlace_neon(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
 
+  size_t end = 8 * (length / 8);
+  size_t i = 0;
+  for ( ; i < end; i += 8) {
+    float64x2x4_t x_vec = vld1q_f64_x4(x + i);
+    float64x2x4_t y_vec = vld1q_f64_x4(y + i);
+    y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
+    y_vec.val[1] = vaddq_f64(y_vec.val[1], x_vec.val[1]);
+    y_vec.val[2] = vaddq_f64(y_vec.val[2], x_vec.val[2]);
+    y_vec.val[3] = vaddq_f64(y_vec.val[3], x_vec.val[3]);
+    vst1q_f64_x4(y + i, y_vec);
+  }
+
+  for (; i < length; ++i)
+    y[i] += x[i];
+  /*
   size_t y_offset = ((uintptr_t) y) % (8 * sizeof(double));
   size_t x_offset = ((uintptr_t) x) % (8 * sizeof(double));
   size_t prefix = y_offset == 0 ? 0 : (8 * sizeof(double) - y_offset) / sizeof(double);
@@ -202,7 +217,27 @@ void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double
     
     for ( ; i < length; ++i)
       y[i] += alpha * x[i];
+  } */
+}
+
+void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, size_t length, double* restrict y)
+{
+  if (length == 0) return;
+
+  size_t end = 8 * (length / 8);
+  size_t i = 0;
+  for ( ; i < end; i += 8) {
+    float64x2x4_t x_vec = vld1q_f64_x4(x + i);
+    float64x2x4_t y_vec = vld1q_f64_x4(y + i);
+    y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
+    y_vec.val[1] = vsubq_f64(y_vec.val[1], x_vec.val[1]);
+    y_vec.val[2] = vsubq_f64(y_vec.val[2], x_vec.val[2]);
+    y_vec.val[3] = vsubq_f64(y_vec.val[3], x_vec.val[3]);
+    vst1q_f64_x4(y + i, y_vec);
   }
+
+  for (; i < length; ++i)
+    y[i] -= x[i];
 }
 
 extern void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha);

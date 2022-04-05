@@ -220,20 +220,152 @@ extern "C" {
   }
 }
 
-#include <misc/linearAlgebra.h>
+#include <misc/types.h>
 extern "C" {
+extern size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length);
+extern size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length);
+extern size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length);
+extern size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, size_t* restrict indices, size_t length);
+}
+#include <misc/linearAlgebra.h>
+#include <arm_neon.h>
+
+#    define loadLHComp(_X_) \
+       (values = (((uintptr_t) (x + _X_)) % (8 * sizeof(double))) == 0 ? \
+         vld1q_u16(x + _X_) : \
+         vcombine_u16(vcreate_u16(*((uint64_t*) (x + _X_))), vcreate_u16(*(((uint64_t*) (x + _X_ + 4))))), \
+         vcgtq_u16(values, cut_vec))
+#    define loadRHComp(_X_) \
+       (values = (((uintptr_t) (x + _X_ - 7)) % (8 * sizeof(double))) == 0 ? \
+         vld1q_u16(x + _X_ - 7) : \
+         vrev64q_u16(vcombine_u16(vcreate_u16(*((uint64_t*) (x + _X_ - 3))), vcreate_u16(*((uint64_t*) (x + _X_ - 7))))), \
+         vcleq_u16(values, cut_vec))
+
+#    define vset_u16(_X7_, _X6_, _X5_, _X4_, _X3_, _X2_, _X1_, _X0_) \
+       vcombine_u16( \
+         vcreate_u16(((uint64_t) _X0_) + (((uint64_t) _X1_) << 16) + (((uint64_t) _X2_) << 32) + (((uint64_t) _X3_) << 48)), \
+         vcreate_u16(((uint64_t) _X4_) + (((uint64_t) _X5_) << 16) + (((uint64_t) _X6_) << 32) + (((uint64_t) _X7_) << 48)))
+#    define loadLHComp2(_X_) \
+       (values = vset_u16(getDataAt(_X_ + 7), \
+                          getDataAt(_X_ + 6), \
+                          getDataAt(_X_ + 5), \
+                          getDataAt(_X_ + 4), \
+                          getDataAt(_X_ + 3), \
+                          getDataAt(_X_ + 2), \
+                          getDataAt(_X_ + 1), \
+                          getDataAt(_X_    )), \
+        vcgtq_u16(values, cut_vec))
+
+# define getDataAt(_I_) x[_I_]
+#    define loadRHComp2(_X_) \
+       (values = vset_u16(getDataAt(_X_ - 7), \
+                          getDataAt(_X_ - 6), \
+                          getDataAt(_X_ - 5), \
+                          getDataAt(_X_ - 4), \
+                          getDataAt(_X_ - 3), \
+                          getDataAt(_X_ - 2), \
+                          getDataAt(_X_ - 1), \
+                          getDataAt(_X_    )), \
+        vcleq_u16(values, cut_vec))
+
+extern "C" {
+ static SEXP testPartition(SEXP xExpr, SEXP cutExpr, SEXP indicesExpr) {
+   std::size_t n = rc_getLength(xExpr);
+
+   uint16_t* x = new uint16_t[n];
+   for (std::size_t i = 0; i < n; ++i)
+     x[i] = static_cast<std::uint16_t>(INTEGER(xExpr)[i]);
+   uint16_t cut = static_cast<uint16_t>(INTEGER(cutExpr)[0]);
   
-  static SEXP transposeMatrix(SEXP x) {
-    int* dims = INTEGER(rc_getDims(x));
-    SEXP result = PROTECT(rc_setDims(rc_newReal(dims[0] * dims[1]), dims[1], dims[0], -1));
+   std::size_t* origIndices = new std::size_t[n]; 
+   std::size_t* indices = new std::size_t[n]; 
 
-    misc_transposeMatrix(REAL(x), dims[0], dims[1], REAL(result));
+   if (Rf_isNull(indicesExpr)) {
+     for (std::size_t i = 0; i < n; ++i) {
+       indices[i] = origIndices[i] = i;
+     }
+   } else {
+     for (std::size_t i = 0; i < n; ++i) {
+       indices[i] = origIndices[i] = static_cast<std::size_t>(INTEGER(indicesExpr)[i]);
+     }
+   }
+   
+   /* uint16x8_t setVal = vset_u16(x[indices[7]], x[indices[6]], x[indices[5]], x[indices[4]], x[indices[3]], x[indices[2]], x[indices[1]], x[indices[0]]);
+   uint16_t out[8];
+   vst1q_u16(out, setVal);
+   Rprintf("%hu %hu %hu %hu %hu %hu %hu %hu\n", out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]); */
+   uint16x8_t cut_vec = vdupq_n_u16(cut);
 
-    UNPROTECT(1);
-    
-    return result;
-  }
+   uint16_t out[8];
+   vst1q_u16(out, vld1q_u16(x));
+   Rprintf("load lh: %hu %hu %hu %hu %hu %hu %hu %hu\n", out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   uint16x8_t values = vcombine_u16(vcreate_u16(*((uint64_t*) (x))), vcreate_u16(*(((uint64_t*) (x + 4)))));
+   vst1q_u16(out, values);
+   Rprintf("create lh: %hu %hu %hu %hu %hu %hu %hu %hu\n", out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   for (size_t j = 0; j <= n - 8; ++j) {
+     loadLHComp(j);
+     vst1q_u16(out, values);
+     Rprintf("comp lh %lu: %hu %hu %hu %hu %hu %hu %hu %hu\n", j, out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+     loadLHComp2(j);
+     vst1q_u16(out, values);
+     Rprintf("comp lh2 %lu: %hu %hu %hu %hu %hu %hu %hu %hu\n", j, out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   }
 
+   size_t rh = 15;
+   vst1q_u16(out, vld1q_u16(x + rh - 7));
+   Rprintf("load rh: %hu %hu %hu %hu %hu %hu %hu %hu\n", out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   values = vcombine_u16(vcreate_u16(*((uint64_t*) (x + rh - 7))), vcreate_u16(*(((uint64_t*) (x + rh - 3)))));
+   vst1q_u16(out, values);
+   Rprintf("create rh: %hu %hu %hu %hu %hu %hu %hu %hu\n", out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   loadRHComp(rh);
+   vst1q_u16(out, values);
+   for (size_t j = 0; j <= n - 8; ++j) {
+     loadRHComp(j + 7);
+     vst1q_u16(out, values);
+     Rprintf("comp rh %lu: %hu %hu %hu %hu %hu %hu %hu %hu\n", j, out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+     loadRHComp2(j + 7);
+     vst1q_u16(out, values);
+     Rprintf("comp rh2 %lu: %hu %hu %hu %hu %hu %hu %hu %hu\n", j, out[7], out[6], out[5], out[4], out[3], out[2], out[1], out[0]);
+   }
+
+
+   SEXP resultExpr = PROTECT(rc_setDims(rc_newInteger((n + 1) * 4), static_cast<int>(n + 1), 4, -1));
+   int* result = INTEGER(resultExpr);
+
+   std::size_t nleft = misc_partitionRange_c(x, cut, indices, n);
+   for (std::size_t i = 0; i < n; ++i) {
+     *result++ = indices[i];
+     indices[i] = origIndices[i];
+   }
+   *result++ = static_cast<int>(nleft);
+
+   nleft = misc_partitionIndices_c(x, cut, indices, n);
+   for (std::size_t i = 0; i < n; ++i) {
+     *result++ = indices[i];
+     indices[i] = origIndices[i];
+   }
+   *result++ = static_cast<int>(nleft);
+
+   nleft = misc_partitionRange_neon(x, cut, indices, n);
+   for (std::size_t i = 0; i < n; ++i) {
+     *result++ = indices[i];
+     indices[i] = origIndices[i];
+   }
+   *result++ = static_cast<int>(nleft);
+
+   nleft = misc_partitionIndices_neon(x, cut, indices, n);
+   for (std::size_t i = 0; i < n; ++i) {
+     *result++ = indices[i];
+   }
+   *result++ = static_cast<int>(nleft);
+
+
+   delete [] indices;
+   delete [] origIndices;
+   delete [] x;
+   UNPROTECT(1);
+   return resultExpr;
+ }
 /*
 }
 
@@ -395,7 +527,7 @@ extern "C" {
     DEF_FUNC("dbarts_setSIMDInstructionSet", setSIMDInstructionSet, 1),
     DEF_FUNC("dbarts_getMaxSIMDInstructionSet", getMaxSIMDInstructionSet, 0),
     
-    DEF_FUNC("dbarts_transposeMatrix", transposeMatrix, 1),
+    DEF_FUNC("dbarts_testPartition", testPartition, 3),
 
     DEF_FUNC("rbart_fitted", rbart_getFitted, 4),
     { NULL, NULL, 0 }

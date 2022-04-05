@@ -214,7 +214,8 @@ misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
 extern size_t (*misc_partitionRange)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t (*misc_partitionIndices)(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 // linear algebra
-// extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+extern void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 extern void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 
 
@@ -225,7 +226,8 @@ extern size_t misc_partitionIndices_avx2(const misc_xint_t* restrict x, misc_xin
 #endif
 
 #ifdef COMPILER_SUPPORTS_AVX
-// extern void misc_addAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+// extern void misc_addAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_subtractAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_transposeMatrix_avx(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 #endif
 
@@ -237,14 +239,16 @@ extern size_t misc_partitionIndices_sse4_1(const misc_xint_t* restrict x, misc_x
 #ifdef COMPILER_SUPPORTS_SSE2
 extern size_t misc_partitionRange_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_sse2(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-// extern void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+// extern void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_subtractAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 #endif
 
 #ifdef COMPILER_SUPPORTS_NEON
 extern size_t misc_partitionRange_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_neon(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
-// extern void misc_addAlignedVectorsInPlace_neon(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+extern void misc_addAlignedVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
+extern void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 #endif
 
@@ -252,7 +256,8 @@ extern void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, 
 extern size_t misc_partitionRange_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 extern size_t misc_partitionIndices_c(const misc_xint_t* restrict x, misc_xint_t cut, misc_size_t* restrict indices, misc_size_t length);
 // linearAlgebra
-// extern void misc_addAlignedVectorsInPlace_c(const double* restrict x, size_t length, double alpha, double* restrict y);
+extern void misc_addVectorsInPlace(const double* restrict x, size_t length, double* restrict y);
+extern void misc_subtractVectorsInPlace(const double* restrict x, size_t length, double* restrict y);
 extern void misc_transposeMatrix_c(const double* restrict x, size_t numRows, size_t numCols, double* restrict y);
 
 void misc_simd_init(void) {
@@ -313,6 +318,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   if (i >= MISC_INST_AVX) {
     misc_simd_alignment = 32;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_avx;
+    // misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_avx;
     misc_transposeMatrix = &misc_transposeMatrix_avx;
   } else 
 #endif
@@ -320,19 +326,22 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   if (i >= MISC_INST_SSE2) {
     misc_simd_alignment = 16;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_sse2;
+    // misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_sse2;
     misc_transposeMatrix = &misc_transposeMatrix_sse2;
   } else
 #endif
 #ifdef COMPILER_SUPPORTS_NEON
   if (i >= MISC_INST_NEON) {
     misc_simd_alignment = 64;
-    // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_neon;
+    misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_neon;
+    misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_neon;
     misc_transposeMatrix = &misc_transposeMatrix_neon;
   } else
 #endif
   {
     misc_simd_alignment = 0;
-    // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_c;
+    misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace;
+    misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace;
     misc_transposeMatrix = &misc_transposeMatrix_c;
   }
   

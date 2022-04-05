@@ -3,7 +3,8 @@
 
 #include <stdbool.h>
 
-// void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double alpha, double* restrict y) = 0;
+void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y) = 0;
+void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y) = 0;
 void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt) = 0;
 
 
