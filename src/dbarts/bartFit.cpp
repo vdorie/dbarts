@@ -704,6 +704,8 @@ namespace dbarts {
       oldTreeIndices[chainNum]      = state[chainNum].treeIndices;
       oldTreeFits[chainNum]         = state[chainNum].treeFits;
       
+      oldTreeFitsStrides[chainNum] = state[chainNum].treeFitsStride;
+      
       currTestFits[chainNum] = NULL;
       
       if (oldNumObservations != data.numObservations) {
@@ -721,7 +723,6 @@ namespace dbarts {
         state[chainNum].treeIndices = new size_t[data.numObservations * control.numTrees];
         
         oldTreeFitsAlignments[chainNum] = state[chainNum].treeFitsAlignment;
-        oldTreeFitsStrides[chainNum] = state[chainNum].treeFitsStride;
         
         state[chainNum].treeFitsAlignment = misc_simd_alignment;
         if (state[chainNum].treeFitsAlignment == 0) {
