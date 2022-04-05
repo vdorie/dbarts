@@ -54,3 +54,5 @@
    such a type exists and the standard includes do not define it. */
 #undef uint64_t
 
+/* Define to 1 if `posix_memalign' works. */
+#undef HAVE_POSIX_MEMALIGN

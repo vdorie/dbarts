@@ -144,7 +144,6 @@ namespace dbarts {
   double ChiHyperprior::drawFromPosterior(const BARTFit& fit, size_t chainNum) const
   {
     const Control& control(fit.control);
-    const Data& data(fit.data);
     const Model& model(fit.model);
     
     const State& state(fit.state[chainNum]);
@@ -152,7 +151,7 @@ namespace dbarts {
     double s_sq = 0.0;
     double totalNumBottomNodes = 0.0;
     for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-      const double* treeFits = state.treeFits + treeNum * data.numObservations;
+      const double* treeFits = state.treeFits + treeNum * fit.treeFitsStride;
       
       size_t numBottomNodes;
       double* nodeParameters = state.trees[treeNum].recoverParametersFromFits(fit, treeFits, &numBottomNodes);

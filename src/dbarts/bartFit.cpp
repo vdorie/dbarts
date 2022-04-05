@@ -25,10 +25,11 @@
 
 #include <misc/alloca.h>
 #include <misc/linearAlgebra.h>
+#include <misc/memalign.h>
 #include <misc/stats.h>
+#include <misc/simd.h>
 
 #include <external/io.h>
-// #include <external/linearAlgebra.h>
 #include <external/random.h>
 #include <external/stats.h>
 
@@ -93,7 +94,7 @@ namespace dbarts {
       misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        misc_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * data.numObservations),
+        misc_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * treeFitsStride),
                                data.numObservations,
                                chainScratch[chainNum].totalFits);
       
@@ -104,7 +105,7 @@ namespace dbarts {
         misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+          double* treeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
         
           // next allocates memory
           double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
@@ -261,7 +262,7 @@ namespace dbarts {
         misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+          const double* treeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
           const double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
           
           state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, xt_test, numTestObservations, currTestFits);
@@ -300,7 +301,7 @@ namespace {
       misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        double* treeFits = const_cast<double*>(state[chainNum].treeFits + treeNum * data.numObservations);
+        double* treeFits = const_cast<double*>(state[chainNum].treeFits + treeNum * fit.treeFitsStride);
         
         // duplicate old node parameters
         double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(fit, treeFits);
@@ -335,7 +336,7 @@ namespace {
     for (size_t chainNum = 0; chainNum < control.numChains && allTreesAreValid; ++chainNum) {
       
       for (size_t treeNum = 0; treeNum < control.numTrees && allTreesAreValid; ++treeNum) {
-        const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        const double* treeFits = state[chainNum].treeFits + treeNum * fit.treeFitsStride;
         
         // next allocates memory
         treeParams[treeNum + chainNum * control.numTrees] = 
@@ -352,7 +353,7 @@ namespace {
     // go back across bottoms and set predictions to those mus for obs now in node
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        double* treeFits = state[chainNum].treeFits + treeNum * fit.treeFitsStride;
         const double* nodeParams = treeParams[treeNum + chainNum * control.numTrees];
         
         misc_subtractVectorsInPlace(treeFits, data.numObservations, chainScratch[chainNum].totalFits);
@@ -574,7 +575,7 @@ namespace {
       misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        const double* treeFits = state[chainNum].treeFits + treeNum * fit.treeFitsStride;
    
         const double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(fit, treeFits);
       
@@ -696,6 +697,19 @@ namespace dbarts {
     
     double** currTestFits = misc_stackAllocate(control.numChains, double*);
     
+    size_t oldTreeFitsStride = treeFitsStride;
+    bool oldTreeFitsWereAllocatedAligned = treeFitsWereAllocatedAligned;
+    
+    if (misc_simd_alignment == 0) {
+      treeFitsStride = data.numObservations;
+      treeFitsWereAllocatedAligned = false;
+    } else {
+      size_t remainder = data.numObservations % (misc_simd_alignment / sizeof(double));
+      treeFitsStride = data.numObservations + 
+        (remainder == 0 ? 0 : (misc_simd_alignment / sizeof(double) - remainder));
+      treeFitsWereAllocatedAligned = true;
+    }
+    
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       // extract from old data what we'll need to update
       oldTreeIndices[chainNum]      = state[chainNum].treeIndices;
@@ -716,7 +730,12 @@ namespace dbarts {
         }
         
         state[chainNum].treeIndices = new size_t[data.numObservations * control.numTrees];
-        state[chainNum].treeFits    = new double[data.numObservations * control.numTrees];
+        if (treeFitsWereAllocatedAligned) {
+          if (misc_alignedAllocate(reinterpret_cast<void**>(&state[chainNum].treeFits), misc_simd_alignment, control.numTrees * treeFitsStride) != 0)
+            ext_throwError("error allocating aligned vector");
+        } else {
+          state[chainNum].treeFits = new double[treeFitsStride * control.numTrees];
+        }
       }
     }
     
@@ -790,7 +809,7 @@ namespace dbarts {
     // now update the trees, which is a bit messy
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        const double* oldTreeFits_i = oldTreeFits[chainNum] + treeNum * oldNumObservations;
+        const double* oldTreeFits_i = oldTreeFits[chainNum] + treeNum * oldTreeFitsStride;
         
         // Use the bottom node enumeration to determine which fits to use.
         // The bottom nodes themselves keep an enumeration number, so that when prunned
@@ -813,7 +832,7 @@ namespace dbarts {
         for (int32_t i = 0; i < static_cast<int32_t>(data.numPredictors); ++i)
           updateVariablesAvailable(*this, state[chainNum].trees[treeNum].top, i);
         
-        double* currTreeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        double* currTreeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
         state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, currTreeFits, currTestFits[chainNum]);
         misc_addVectorsInPlace(currTreeFits, data.numObservations, chainScratch[chainNum].totalFits);
         
@@ -832,7 +851,11 @@ namespace dbarts {
     
     if (oldNumObservations != data.numObservations) {
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-        delete [] oldTreeFits[chainNum];
+        if (oldTreeFitsWereAllocatedAligned) {
+          misc_alignedFree(oldTreeFits[chainNum]);
+        } else {
+          delete [] oldTreeFits[chainNum];
+        }
         delete [] oldTreeIndices[chainNum];
       }
     }
@@ -845,13 +868,15 @@ namespace dbarts {
   
   void BARTFit::setControl(const Control& newControl)
   {
+    Control oldControl = control;
+    
     bool stateResized = false;
-    if (control.numChains == newControl.numChains) {
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
+    if (oldControl.numChains == newControl.numChains) {
+      for (size_t chainNum = 0; chainNum < oldControl.numChains; ++chainNum)
         stateResized |= state[chainNum].resize(*this, newControl);
     } else {
     
-      size_t resizeEnd = std::min(control.numChains, newControl.numChains);
+      size_t resizeEnd = std::min(oldControl.numChains, newControl.numChains);
       
       State* oldState = state;
       state = static_cast<State*>(::operator new (newControl.numChains * sizeof(State)));
@@ -862,30 +887,30 @@ namespace dbarts {
       }
       
       for (size_t chainNum = resizeEnd; chainNum < newControl.numChains; ++chainNum) {
-        new (state + chainNum) State(newControl, data);
+        new (state + chainNum) State(newControl, data, treeFitsStride, treeFitsWereAllocatedAligned);
         stateResized = true;
       }
       
-      for (size_t chainNum = control.numChains; chainNum > resizeEnd; --chainNum)
-        oldState[chainNum - 1].invalidate(control.numTrees, currentNumSamples);
+      for (size_t chainNum = oldControl.numChains; chainNum > resizeEnd; --chainNum)
+        oldState[chainNum - 1].invalidate(oldControl.numTrees, currentNumSamples, treeFitsWereAllocatedAligned);
       
       ::operator delete (oldState);
     }
     
-    if (control.numTrees != newControl.numTrees) {
+    if (oldControl.numTrees != newControl.numTrees) {
       NormalPrior& nodePrior(*static_cast<NormalPrior*>(model.muPrior));
       nodePrior.setScale(model.nodeScale / std::sqrt(static_cast<double>(newControl.numTrees)));
     }
     
-    rng_algorithm_t old_rng_algorithm = control.rng_algorithm;
-    rng_standardNormal_t old_rng_standardNormal = control.rng_standardNormal;
+    rng_algorithm_t old_rng_algorithm = oldControl.rng_algorithm;
+    rng_standardNormal_t old_rng_standardNormal = oldControl.rng_standardNormal;
     
-    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal)
+    if (old_rng_algorithm != oldControl.rng_algorithm || old_rng_standardNormal != oldControl.rng_standardNormal)
       destroyRNG(*this);
     
     control = newControl;
-    
-    if (old_rng_algorithm != control.rng_algorithm || old_rng_standardNormal != control.rng_standardNormal)
+    // looks redundant, but the assignment taking place between impacts the destroy/create
+    if (old_rng_algorithm != oldControl.rng_algorithm || old_rng_standardNormal != oldControl.rng_standardNormal)
       createRNG(*this);
     
     if (stateResized) {
@@ -918,7 +943,7 @@ namespace dbarts {
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
           
-          const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+          const double* treeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
           double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
           
           NodeVector bottomNodes(const_cast<Tree*>(&state[chainNum].trees[treeNum])->top.getBottomVector());
@@ -1069,7 +1094,7 @@ namespace dbarts {
           size_t treeNum = treeIndices[k];
           
           // get nodes to store averages
-          const double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+          const double* treeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
           double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
           
           NodeVector bottomNodes(const_cast<Tree*>(&state[chainNum].trees[treeNum])->top.getBottomVector());
@@ -1163,7 +1188,7 @@ namespace dbarts {
     delete [] cutPoints; cutPoints = NULL;
     
     for (size_t chainNum = control.numChains; chainNum > 0; --chainNum)
-      state[chainNum - 1].invalidate(control.numTrees, currentNumSamples);
+      state[chainNum - 1].invalidate(control.numTrees, currentNumSamples, treeFitsWereAllocatedAligned);
     
     ::operator delete (state);
     
@@ -1231,7 +1256,7 @@ namespace dbarts {
         misc_setVectorToConstant(chainScratch[chainNum].totalTestFits, data.numTestObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
+        double* treeFits = state[chainNum].treeFits + treeNum * treeFitsStride;
         
         state[chainNum].trees[treeNum].sampleParametersFromPrior(*this, chainNum, treeFits, testFits);
         
@@ -1319,7 +1344,7 @@ extern "C" {
         misc_setVectorToConstant(chainScratch.totalTestFits, data.numTestObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        double* oldTreeFits = state.treeFits + treeNum * data.numObservations;
+        double* oldTreeFits = state.treeFits + treeNum * fit.treeFitsStride;
         
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
@@ -1346,7 +1371,7 @@ extern "C" {
         size_t treeSampleNum = (fit.currentSampleNum + resultSampleNum) % fit.currentNumSamples;
         
         for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-          state.savedTrees[treeNum + treeSampleNum * control.numTrees].copyStructureFrom(fit, state.trees[treeNum], const_cast<const double*>(state.treeFits + treeNum * data.numObservations));
+          state.savedTrees[treeNum + treeSampleNum * control.numTrees].copyStructureFrom(fit, state.trees[treeNum], const_cast<const double*>(state.treeFits + treeNum * fit.treeFitsStride));
       }
       
       if (control.responseIsBinary) { 
@@ -1618,9 +1643,18 @@ namespace {
     for (size_t j = 0; j < data.numPredictors; ++j) cutPoints[j] = NULL;
     
     // states
+    if (misc_simd_alignment == 0) {
+      fit.treeFitsStride = data.numObservations;
+      fit.treeFitsWereAllocatedAligned = false;
+    } else {
+      size_t remainder = data.numObservations % (misc_simd_alignment / sizeof(double));
+      fit.treeFitsStride = data.numObservations + 
+        (remainder == 0 ? 0 : (misc_simd_alignment / sizeof(double) - remainder));
+      fit.treeFitsWereAllocatedAligned = true;
+    }
     fit.state = static_cast<State*>(::operator new (control.numChains * sizeof(State)));
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
-      new (fit.state + chainNum) State(control, data);
+      new (fit.state + chainNum) State(control, data, fit.treeFitsStride, fit.treeFitsWereAllocatedAligned);
     
     if (control.numThreads > 1 && misc_htm_create(&fit.threadManager, control.numThreads) != 0) {
       ext_printMessage("Unable to multi-thread, defaulting to single.");

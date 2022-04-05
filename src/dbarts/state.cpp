@@ -14,7 +14,10 @@ using std::snprintf;
 #endif
 
 #include <external/io.h>
+
 #include <misc/linearAlgebra.h>
+#include <misc/memalign.h>
+#include <misc/simd.h>
 
 #include <dbarts/bartFit.hpp>
 #include <dbarts/control.hpp>
@@ -41,7 +44,7 @@ namespace {
 }
 
 namespace dbarts {
-  State::State(const Control& control, const Data& data)
+  State::State(const Control& control, const Data& data, size_t treeFitsStride, bool allocateTreeFitsAligned)
   {
     size_t totalNumTrees = control.numTrees;
     
@@ -51,8 +54,13 @@ namespace dbarts {
     for (size_t treeNum = 0; treeNum < totalNumTrees; ++treeNum)
       new (trees + treeNum) Tree(treeIndices + treeNum * data.numObservations, data.numObservations, data.numPredictors);
     
-    treeFits = new double[data.numObservations * totalNumTrees];
-    misc_setVectorToConstant(treeFits, data.numObservations * totalNumTrees, 0.0);
+    if (allocateTreeFitsAligned) {
+      if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), misc_simd_alignment, treeFitsStride * totalNumTrees * sizeof(double)) != 0)
+        ext_throwError("error allocating aligned vector");
+    } else {
+      treeFits = new double[treeFitsStride * totalNumTrees];
+    }
+    misc_setVectorToConstant(treeFits, treeFitsStride * totalNumTrees, 0.0);
     
     if (control.keepTrees) {
       totalNumTrees *= control.defaultNumSamples;
@@ -67,14 +75,18 @@ namespace dbarts {
     rng = NULL;
   }
   
-  void State::invalidate(size_t numTrees, size_t numSamples) {
+  void State::invalidate(size_t numTrees, size_t numSamples, bool treeFitsWereAllocatedAligned) {
     if (savedTrees != NULL) {
       for (size_t treeNum = numTrees * numSamples; treeNum > 0; --treeNum)
         savedTrees[treeNum - 1].~SavedTree();
       ::operator delete (savedTrees);
     }
     
-    delete [] treeFits;
+    if (treeFitsWereAllocatedAligned) {
+      misc_alignedFree(treeFits);
+    } else {
+      delete [] treeFits;
+    }
     for (size_t treeNum = numTrees; treeNum > 0; --treeNum)
       trees[treeNum - 1].~Tree();
     ::operator delete (trees);
@@ -107,7 +119,7 @@ namespace {
     SavedTree* newTrees;
   };
     
-  void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum) {
+  void copyTreesForSample(ResizeData& resizeData, size_t oldSampleNum, size_t newSampleNum, size_t treeFitsStride) {
     const Data& data(resizeData.data);
     
     const Control& oldControl(resizeData.oldControl);
@@ -140,16 +152,18 @@ namespace {
     
     size_t oldSampleOffset = oldSampleNum * data.numObservations * oldControl.numTrees;
     size_t newSampleOffset = newSampleNum * data.numObservations * newControl.numTrees;
-    
     std::memcpy(newTreeData.treeIndices + newSampleOffset, oldTreeData.treeIndices + oldSampleOffset, assignEnd * data.numObservations * sizeof(size_t));
-    std::memcpy(newTreeData.treeFits    + newSampleOffset, oldTreeData.treeFits    + oldSampleOffset, assignEnd * data.numObservations * sizeof(double));
+    
+    oldSampleOffset = oldSampleNum * treeFitsStride * oldControl.numTrees;
+    newSampleOffset = newSampleNum * treeFitsStride * newControl.numTrees;
+    std::memcpy(newTreeData.treeFits + newSampleOffset, oldTreeData.treeFits + oldSampleOffset, assignEnd * data.numObservations * sizeof(double));
     
     // if any new trees are required, create and initialize those
     for (size_t treeNum = assignEnd; treeNum < newControl.numTrees; ++treeNum) {
       size_t treeOffset = treeNum + newSampleNum * newControl.numTrees;
       new (newTreeData.trees + treeOffset)
         Tree(newTreeData.treeIndices + treeOffset * data.numObservations, data.numObservations, data.numPredictors);
-      misc_setVectorToConstant(newTreeData.treeFits + treeOffset * data.numObservations, data.numObservations, 0.0);
+      misc_setVectorToConstant(newTreeData.treeFits + treeOffset * treeFitsStride, data.numObservations, 0.0);
     }
     
     // if any extra trees exist, delete them
@@ -211,15 +225,23 @@ namespace dbarts {
     if (oldControl.numTrees != newControl.numTrees) {
       treeIndices = new size_t[data.numObservations * newControl.numTrees];
       trees       = static_cast<Tree*>(::operator new (newControl.numTrees * sizeof(Tree)));
-      treeFits    = new double[data.numObservations * newControl.numTrees];
-      
+      if (fit.treeFitsWereAllocatedAligned) {
+        if (misc_alignedAllocate(reinterpret_cast<void**>(&treeFits), misc_simd_alignment, fit.treeFitsStride * newControl.numTrees * sizeof(double)) != 0)
+          ext_throwError("error allocating aligned vector");
+      } else {
+        treeFits = new double[fit.treeFitsStride * newControl.numTrees];
+      }
       TreeData oldTrees = { oldState.treeIndices, oldState.trees, oldState.treeFits };
       TreeData newTrees = { treeIndices, trees, treeFits };
       ResizeData resizeData = { fit.data, oldControl, newControl, oldTrees, newTrees };
       
-      copyTreesForSample(resizeData, 0, 0);
+      copyTreesForSample(resizeData, 0, 0, fit.treeFitsStride);
       
-      delete [] oldState.treeFits;
+      if (fit.treeFitsWereAllocatedAligned) {
+        misc_alignedFree(oldState.treeFits);
+      } else {
+        delete [] oldState.treeFits;
+      }
       ::operator delete (oldState.trees);
       delete [] oldState.treeIndices;
     }

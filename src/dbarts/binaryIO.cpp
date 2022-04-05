@@ -348,7 +348,7 @@ namespace {
 }
 
 namespace dbarts {
-  bool writeState(misc_binaryIO* bio, const State* state, const Control& control, const Data& data, size_t numSamples)
+  bool writeState(misc_binaryIO* bio, const State* state, const Control& control, const Data& data, size_t numSamples, size_t treeFitsStride)
   {
     int errorCode = 0;
     size_t treeNum;
@@ -359,8 +359,8 @@ namespace dbarts {
       if ((errorCode = misc_bio_writeNSizeTypes(bio, state[chainNum].treeIndices, data.numObservations * control.numTrees)) != 0) goto write_state_cleanup;
       for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         if ((errorCode = writeTree(bio, state[chainNum].trees[treeNum], data, state[chainNum].treeIndices + treeNum * data.numObservations)) != 0) goto write_state_cleanup;
+        if ((errorCode = misc_bio_writeNDoubles(bio, state[chainNum].treeFits + treeNum * treeFitsStride, control.numTrees)) != 0) goto write_state_cleanup;
       }
-      if ((errorCode = misc_bio_writeNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees)) != 0) goto write_state_cleanup;
       
       // saved trees
       if (control.keepTrees) {
@@ -397,7 +397,7 @@ write_state_cleanup:
     return errorCode == 0;
   }
   
-  bool readState(misc_binaryIO* bio, State* state, const Control& control, const Data& data, size_t numSamples, const Version& version)
+  bool readState(misc_binaryIO* bio, State* state, const Control& control, const Data& data, size_t numSamples, size_t treeFitsStride, const Version& version)
   {
     int errorCode = 0;
     size_t treeNum;
@@ -409,8 +409,8 @@ write_state_cleanup:
       
       for (treeNum = 0; treeNum < control.numTrees; ++treeNum) {
         if ((errorCode = readTree(bio, state[chainNum].trees[treeNum], data, state[chainNum].treeIndices + treeNum * data.numObservations)) != 0) goto read_state_cleanup;
+        if ((errorCode = misc_bio_readNDoubles(bio, state[chainNum].treeFits + treeNum * treeFitsStride, data.numObservations)) != 0) goto read_state_cleanup;
       }
-      if ((errorCode = misc_bio_readNDoubles(bio, state[chainNum].treeFits, data.numObservations * control.numTrees)) != 0) goto read_state_cleanup;
       
       if (control.keepTrees) {
         size_t totalNumTrees = numSamples * control.numTrees;

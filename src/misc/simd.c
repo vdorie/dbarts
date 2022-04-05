@@ -15,6 +15,8 @@
 #include <misc/types.h>
 #include <misc/intrinsic.h>
 
+int misc_simd_alignment = 0;
+
 /* static const char* const simdNames[] = { // for x86
   "none",
   "SSE",
@@ -309,23 +311,27 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   // Float
 #ifdef COMPILER_SUPPORTS_AVX
   if (i >= MISC_INST_AVX) {
+    misc_simd_alignment = 32;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_avx;
     misc_transposeMatrix = &misc_transposeMatrix_avx;
   } else 
 #endif
 #ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
+    misc_simd_alignment = 16;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_sse2;
     misc_transposeMatrix = &misc_transposeMatrix_sse2;
   } else
 #endif
 #ifdef COMPILER_SUPPORTS_NEON
   if (i >= MISC_INST_NEON) {
+    misc_simd_alignment = 64;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_neon;
     misc_transposeMatrix = &misc_transposeMatrix_neon;
   } else
 #endif
   {
+    misc_simd_alignment = 0;
     // misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_c;
     misc_transposeMatrix = &misc_transposeMatrix_c;
   }

@@ -522,7 +522,10 @@ namespace dbarts {
       
       rc_allocateInSlot2(slotExpr, result_i, treeFitsSym, REALSXP, rc_asRLength(data.numObservations * control.numTrees));
       rc_setDims(slotExpr, static_cast<int>(data.numObservations), static_cast<int>(control.numTrees), -1);
-      std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * sizeof(double));
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
+        std::memcpy(REAL(slotExpr) + treeNum * data.numObservations,
+                    state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+                    data.numObservations * sizeof(double));
       
       if (control.keepTrees) {
         treeStateLength = state[chainNum].getSerializedSavedTreesLength(fit) / sizeof(int);
@@ -635,7 +638,10 @@ namespace dbarts {
       state[chainNum].serializeTrees(fit, INTEGER(slotExpr));
            
       slotExpr = Rf_getAttrib(stateExpr_i, treeFitsSym);
-      std::memcpy(REAL(slotExpr), state[chainNum].treeFits, data.numObservations * control.numTrees * sizeof(double));
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
+        std::memcpy(REAL(slotExpr) + treeNum * data.numObservations,
+                    state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+                    data.numObservations * sizeof(double));
       
       if (control.keepTrees) {
         treeStateLength = state[chainNum].getSerializedSavedTreesLength(fit) / sizeof(int);
@@ -697,7 +703,10 @@ namespace dbarts {
       state[chainNum].deserializeTrees(fit, INTEGER(slotExpr));
       
       slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("treeFits"));
-      std::memcpy(state[chainNum].treeFits, const_cast<const double*>(REAL(slotExpr)), data.numObservations * control.numTrees * sizeof(double));
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
+        std::memcpy(state[chainNum].treeFits + treeNum * fit.treeFitsStride,
+                    const_cast<const double*>(REAL(slotExpr) + treeNum * data.numObservations),
+                    data.numObservations * sizeof(double));
       
       if (control.keepTrees) {
         slotExpr = Rf_getAttrib(stateExpr_i, Rf_install("savedTrees"));

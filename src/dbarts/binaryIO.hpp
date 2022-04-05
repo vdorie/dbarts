@@ -26,8 +26,8 @@ namespace dbarts {
   bool writeModel(misc_binaryIO* bio, const Model& model);
   bool readModel(misc_binaryIO* bio, Model& model);
   
-  bool writeState(misc_binaryIO* bio, const State* state, const Control& control, const Data& data, std::size_t numSamples);
-  bool readState(misc_binaryIO* bio, State* state, const Control& control, const Data& data, std::size_t numSamples, const Version& version);
+  bool writeState(misc_binaryIO* bio, const State* state, const Control& control, const Data& data, std::size_t numSamples, std::size_t treeFitsStride);
+  bool readState(misc_binaryIO* bio, State* state, const Control& control, const Data& data, std::size_t numSamples, std::size_t treeFitsStride, const Version& version);
   
   int readVersion(misc_binaryIO* bio, Version& version, char** versionStringPtr);
 }

@@ -39,6 +39,9 @@ namespace dbarts {
     const std::uint32_t* numCutsPerVariable;
     const double* const* cutPoints;
     
+    std::size_t treeFitsStride;
+    bool treeFitsWereAllocatedAligned;
+    
     BARTFit(Control control, Model model, Data data);
     ~BARTFit();
     

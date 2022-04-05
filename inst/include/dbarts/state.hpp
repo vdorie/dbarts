@@ -24,8 +24,8 @@ namespace dbarts {
     
     ext_rng* rng;
     
-    State(const Control& control, const Data& data);
-    void invalidate(std::size_t numTrees, std::size_t numSamples);
+    State(const Control& control, const Data& data, size_t treeFitsStride, bool allocateTreeFitsAligned);
+    void invalidate(std::size_t numTrees, std::size_t numSamples, bool treeFitsWereAllocatedAligned);
     
     // returns true if resize was necessary
     bool resize(const BARTFit& fit, const Control& newControl);
