@@ -178,13 +178,13 @@ void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double
   }
 }
 
-extern void misc_addScalarToVectorInPlace_c(double* x, size_t length, double alpha);
+extern void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha);
 
 void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   if (((uintptr_t) x) % sizeof(double) != 0) {
-    misc_addScalarToVectorInPlace_c(x, length, alpha);
+    misc_addScalarToVectorInPlace(x, length, alpha);
     return;
   }
   
@@ -212,13 +212,13 @@ void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha)
     x[i] += alpha;
 }
 
-extern void misc_setVectorToConstant_c(double* x, size_t length, double alpha);
+extern void misc_setVectorToConstant(double* x, size_t length, double alpha);
 
 void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   if (((uintptr_t) x) % sizeof(double) != 0) {
-    misc_setVectorToConstant_c(x, length, alpha);
+    misc_setVectorToConstant(x, length, alpha);
     return;
   }
   

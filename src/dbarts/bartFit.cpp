@@ -93,7 +93,7 @@ namespace dbarts {
       misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
       
       for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        misc_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * data.numObservations),
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(state[chainNum].treeFits + treeNum * data.numObservations),
                                data.numObservations, 1.0,
                                chainScratch[chainNum].totalFits);
       
@@ -111,7 +111,7 @@ namespace dbarts {
           
           state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, treeFits, testFits);
           
-          misc_addVectorsInPlace(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
           
           delete [] nodeParams;
         }
@@ -178,7 +178,7 @@ namespace dbarts {
           // offset update is in-place, don't have access to old value so recreate
           std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
       
-          misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, yRescaled);
+          misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0, yRescaled);
       
           misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
           misc_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
@@ -186,12 +186,12 @@ namespace dbarts {
         } else {
           // subtract old offset and add new one
           if (data.offset != NULL)
-            misc_addVectorsInPlace(data.offset, data.numObservations, 1.0 / sharedScratch.dataScale.range, yRescaled);
+            misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, 1.0 / sharedScratch.dataScale.range, yRescaled);
           
           data.offset = newOffset;
           
           if (data.offset != NULL)
-            misc_addVectorsInPlace(data.offset, data.numObservations, -1.0 / sharedScratch.dataScale.range, yRescaled);
+            misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0 / sharedScratch.dataScale.range, yRescaled);
         }
       }
     }
@@ -237,7 +237,7 @@ namespace dbarts {
             
             state[chainNum].savedTrees[treeOffset].getPredictions(*this, xt_test, numTestObservations, currTestFits);
             
-            misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
+            misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
           }
           
           double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
@@ -245,10 +245,10 @@ namespace dbarts {
             std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
           } else {
             misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-            misc_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+            misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
           }
           
-          if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
+          if (testOffset != NULL) misc_addVectorsInPlaceWithMultiplier(testOffset, numTestObservations, 1.0, result_i);
         }
       }
       delete [] xt_test;
@@ -266,7 +266,7 @@ namespace dbarts {
           
           state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, xt_test, numTestObservations, currTestFits);
           
-          misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(currTestFits), numTestObservations, 1.0, totalTestFits);
           
           delete [] nodeParams;
         }
@@ -276,10 +276,10 @@ namespace dbarts {
           std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
         } else {
           misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-          misc_addVectorsInPlace(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
         }
         
-        if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, 1.0, result_i);
+        if (testOffset != NULL) misc_addVectorsInPlaceWithMultiplier(testOffset, numTestObservations, 1.0, result_i);
       }
       delete [] xt_test;
     }
@@ -312,7 +312,7 @@ namespace {
           updateVariablesAvailable(fit, state[chainNum].trees[treeNum].top, j);
                 
         state[chainNum].trees[treeNum].setCurrentFitsFromParameters(fit, nodeParams, treeFits, NULL);
-        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlaceWithMultiplier(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
         
         delete [] nodeParams;
       }
@@ -355,13 +355,13 @@ namespace {
         double* treeFits = state[chainNum].treeFits + treeNum * data.numObservations;
         const double* nodeParams = treeParams[treeNum + chainNum * control.numTrees];
         
-        misc_addVectorsInPlace(treeFits, data.numObservations, -1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlaceWithMultiplier(treeFits, data.numObservations, -1.0, chainScratch[chainNum].totalFits);
         
         state[chainNum].trees[treeNum].setCurrentFitsFromParameters(fit, nodeParams, treeFits, NULL);
         for (int32_t j = 0; j < static_cast<int32_t>(data.numPredictors); ++j)
           updateVariablesAvailable(fit, state[chainNum].trees[treeNum].top, j);
         
-        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlaceWithMultiplier(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
       }
     }
         
@@ -580,7 +580,7 @@ namespace {
       
         state[chainNum].trees[treeNum].setCurrentFitsFromParameters(fit, nodeParams, NULL, currTestFits);
       
-        misc_addVectorsInPlace(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+        misc_addVectorsInPlaceWithMultiplier(currTestFits, data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
       
         delete [] nodeParams;
       }
@@ -815,10 +815,10 @@ namespace dbarts {
         
         double* currTreeFits = state[chainNum].treeFits + treeNum * data.numObservations;
         state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, currTreeFits, currTestFits[chainNum]);
-        misc_addVectorsInPlace(currTreeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlaceWithMultiplier(currTreeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
         
         if (data.numTestObservations > 0)
-          misc_addVectorsInPlace(currTestFits[chainNum], data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          misc_addVectorsInPlaceWithMultiplier(currTestFits[chainNum], data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
         
         delete [] nodeParams;
       }
@@ -1235,9 +1235,9 @@ namespace dbarts {
         
         state[chainNum].trees[treeNum].sampleParametersFromPrior(*this, chainNum, treeFits, testFits);
         
-        misc_addVectorsInPlace(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
+        misc_addVectorsInPlaceWithMultiplier(treeFits, data.numObservations, 1.0, chainScratch[chainNum].totalFits);
         if (data.numTestObservations > 0)
-          misc_addVectorsInPlace(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(testFits), data.numTestObservations, 1.0, chainScratch[chainNum].totalTestFits);
       }
     }
     
@@ -1292,7 +1292,7 @@ extern "C" {
       y = new double[data.numObservations];
       std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
       if (data.offset != NULL)
-        misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+        misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0, y);
     } else {
       // const cast b/c yRescaled doesn't change, but probit version does
       y = const_cast<double*>(sharedScratch.yRescaled);
@@ -1324,8 +1324,8 @@ extern "C" {
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
         std::memcpy(chainScratch.treeY, y, data.numObservations * sizeof(double));
-        misc_addVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
-        misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(chainScratch.totalFits), data.numObservations, -1.0, chainScratch.treeY);
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(oldTreeFits), data.numObservations, 1.0, chainScratch.treeY);
         
         state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
@@ -1333,11 +1333,11 @@ extern "C" {
         state.trees[treeNum].sampleParametersAndSetFits(fit, chainNum, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
-        misc_addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
-        misc_addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, 1.0, chainScratch.totalFits);
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(oldTreeFits), data.numObservations, -1.0, chainScratch.totalFits);
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(currFits), data.numObservations, 1.0, chainScratch.totalFits);
         
         if (!isThinningIteration && data.numTestObservations > 0)
-          misc_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, 1.0, chainScratch.totalTestFits);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(currTestFits), data.numTestObservations, 1.0, chainScratch.totalTestFits);
         
         std::memcpy(oldTreeFits, const_cast<const double*>(currFits), data.numObservations * sizeof(double));
       }
@@ -1353,7 +1353,7 @@ extern "C" {
         sampleProbitLatentVariables(fit, state, chainScratch.totalFits, chainScratch.probitLatents);
         std::memcpy(y, const_cast<const double*>(chainScratch.probitLatents), data.numObservations * sizeof(double));
         if (data.offset != NULL)
-          misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, y);
+          misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0, y);
       }
       
       if (!model.sigmaSqPrior->isFixed)
@@ -2027,13 +2027,13 @@ namespace {
     // z = 2.0 * y - 1.0 - offset; so -1 if y == 0 and 1 if y == 1 when offset == 0
 #ifndef MATCH_BAYES_TREE
     misc_setVectorToConstant(z, data.numObservations, -1.0);
-    // if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
-    misc_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    // if (data.offset != NULL) misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0, z);
+    misc_addVectorsInPlaceWithMultiplier(data.y, data.numObservations, 2.0, z);
 #else
     // BayesTree initialized the latents to be -2 and 0; was probably a bug
     misc_setVectorToConstant(z, data.numObservations, -2.0);
-    if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, -1.0, z);
-    misc_addVectorsInPlace(data.y, data.numObservations, 2.0, z);
+    if (data.offset != NULL) misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, -1.0, z);
+    misc_addVectorsInPlaceWithMultiplier(data.y, data.numObservations, 2.0, z);
 #endif
   }
   
@@ -2044,7 +2044,7 @@ namespace {
     double* yRescaled = const_cast<double*>(fit.sharedScratch.yRescaled);
     
     if (data.offset != NULL) {
-      misc_addVectors(data.offset, data.numObservations, -1.0, data.y, yRescaled);
+      misc_addVectorsWithMultiplier(data.offset, data.numObservations, -1.0, data.y, yRescaled);
     } else {
       std::memcpy(yRescaled, data.y, data.numObservations * sizeof(double));
     }
@@ -2112,13 +2112,13 @@ namespace {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
         std::memcpy(trainingSamples, trainingSample, data.numObservations * sizeof(double));
         
-        if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
+        if (data.offset != NULL) misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       if (data.numTestObservations > 0) {
         double* testSamples = results.testSamples + (simNum + chainStride) * data.numTestObservations;
         std::memcpy(testSamples, testSample, data.numTestObservations * sizeof(double));
-        if (data.testOffset != NULL) misc_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
+        if (data.testOffset != NULL) misc_addVectorsInPlaceWithMultiplier(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
       
       results.sigmaSamples[simNum + chainStride] = 1.0;
@@ -2127,15 +2127,15 @@ namespace {
         double* trainingSamples = results.trainingSamples + (simNum + chainStride) * data.numObservations;
         // set training to dataScale.range * (totalFits + 0.5) + dataScale.min + offset
         misc_setVectorToConstant(trainingSamples, data.numObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-        misc_addVectorsInPlace(trainingSample, data.numObservations, sharedScratch.dataScale.range, trainingSamples);
-        if (data.offset != NULL) misc_addVectorsInPlace(data.offset, data.numObservations, 1.0, trainingSamples);
+        misc_addVectorsInPlaceWithMultiplier(trainingSample, data.numObservations, sharedScratch.dataScale.range, trainingSamples);
+        if (data.offset != NULL) misc_addVectorsInPlaceWithMultiplier(data.offset, data.numObservations, 1.0, trainingSamples);
       }
       
       if (data.numTestObservations > 0) {
         double* testSamples = results.testSamples + (simNum + chainStride) * data.numTestObservations;
         misc_setVectorToConstant(testSamples, data.numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-        misc_addVectorsInPlace(testSample, data.numTestObservations, sharedScratch.dataScale.range, testSamples);
-        if (data.testOffset != NULL) misc_addVectorsInPlace(data.testOffset, data.numTestObservations, 1.0, testSamples);
+        misc_addVectorsInPlaceWithMultiplier(testSample, data.numTestObservations, sharedScratch.dataScale.range, testSamples);
+        if (data.testOffset != NULL) misc_addVectorsInPlaceWithMultiplier(data.testOffset, data.numTestObservations, 1.0, testSamples);
       }
        
       results.sigmaSamples[simNum + chainStride] = sigma * sharedScratch.dataScale.range;
