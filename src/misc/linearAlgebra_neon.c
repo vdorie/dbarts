@@ -34,8 +34,8 @@ void misc_addVectors_neon(const double* restrict x, size_t length, const double*
       y_vec.val[3] = vaddq_f64(y_vec.val[3], x_vec.val[3]);
       vst1q_f64_x4(z + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
       y_vec.val[1] = vaddq_f64(y_vec.val[1], x_vec.val[1]);
       y_vec.val[2] = vaddq_f64(y_vec.val[2], x_vec.val[2]);
@@ -60,7 +60,7 @@ void misc_addVectors_neon(const double* restrict x, size_t length, const double*
       vst1q_f64(z + i +  4, vaddq_f64(vld1q_f64(y + i +  4), vld1q_f64(x + i +  4)));
       vst1q_f64(z + i +  6, vaddq_f64(vld1q_f64(y + i +  6), vld1q_f64(x + i +  6)));
       
-      vst1q_f84(z + i +  8, vaddq_f64(vld1q_f84(y + i +  8), vld1q_f84(x + i +  8)));
+      vst1q_f64(z + i +  8, vaddq_f64(vld1q_f64(y + i +  8), vld1q_f64(x + i +  8)));
       vst1q_f64(z + i + 10, vaddq_f64(vld1q_f64(y + i + 10), vld1q_f64(x + i + 10)));
       vst1q_f64(z + i + 12, vaddq_f64(vld1q_f64(y + i + 12), vld1q_f64(x + i + 12)));
       vst1q_f64(z + i + 14, vaddq_f64(vld1q_f64(y + i + 14), vld1q_f64(x + i + 14)));
@@ -105,8 +105,8 @@ void misc_subtractVectors_neon(const double* restrict x, size_t length, const do
       y_vec.val[3] = vsubq_f64(y_vec.val[3], x_vec.val[3]);
       vst1q_f64_x4(z + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
       y_vec.val[1] = vsubq_f64(y_vec.val[1], x_vec.val[1]);
       y_vec.val[2] = vsubq_f64(y_vec.val[2], x_vec.val[2]);
@@ -131,7 +131,7 @@ void misc_subtractVectors_neon(const double* restrict x, size_t length, const do
       vst1q_f64(z + i +  4, vsubq_f64(vld1q_f64(y + i +  4), vld1q_f64(x + i +  4)));
       vst1q_f64(z + i +  6, vsubq_f64(vld1q_f64(y + i +  6), vld1q_f64(x + i +  6)));
       
-      vst1q_f84(z + i +  8, vsubq_f84(vld1q_f84(y + i +  8), vld1q_f84(x + i +  8)));
+      vst1q_f64(z + i +  8, vsubq_f64(vld1q_f64(y + i +  8), vld1q_f64(x + i +  8)));
       vst1q_f64(z + i + 10, vsubq_f64(vld1q_f64(y + i + 10), vld1q_f64(x + i + 10)));
       vst1q_f64(z + i + 12, vsubq_f64(vld1q_f64(y + i + 12), vld1q_f64(x + i + 12)));
       vst1q_f64(z + i + 14, vsubq_f64(vld1q_f64(y + i + 14), vld1q_f64(x + i + 14)));
@@ -177,8 +177,8 @@ void misc_addVectorsWithMultiplier_neon(const double* restrict x, size_t length,
       y_vec.val[3] = vaddq_f64(y_vec.val[3], vmulq_f64(x_vec.val[3], alpha_vec));
       vst1q_f64_x4(z + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], vmulq_f64(x_vec.val[0], alpha_vec));
       y_vec.val[1] = vaddq_f64(y_vec.val[1], vmulq_f64(x_vec.val[1], alpha_vec));
       y_vec.val[2] = vaddq_f64(y_vec.val[2], vmulq_f64(x_vec.val[2], alpha_vec));
@@ -189,7 +189,7 @@ void misc_addVectorsWithMultiplier_neon(const double* restrict x, size_t length,
     suffix = prefix + 4 * ((length - prefix) / 4);
     
     for ( ; i < suffix; i += 4) {
-      float64x2x2_t x_vec = vld1q_f64_x2(x + i)
+      float64x2x2_t x_vec = vld1q_f64_x2(x + i);
       float64x2x2_t y_vec = vld1q_f64_x2(y + i);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], vmulq_f64(x_vec.val[0], alpha_vec));
       y_vec.val[1] = vaddq_f64(y_vec.val[1], vmulq_f64(x_vec.val[1], alpha_vec));
@@ -246,8 +246,8 @@ void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double
       y_vec.val[3] = vaddq_f64(y_vec.val[3], x_vec.val[3]);
       vst1q_f64_x4(y + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
       y_vec.val[1] = vaddq_f64(y_vec.val[1], x_vec.val[1]);
       y_vec.val[2] = vaddq_f64(y_vec.val[2], x_vec.val[2]);
@@ -272,7 +272,7 @@ void misc_addVectorsInPlace_neon(const double* restrict x, size_t length, double
       vst1q_f64(y + i +  4, vaddq_f64(vld1q_f64(y + i +  4), vld1q_f64(x + i +  4)));
       vst1q_f64(y + i +  6, vaddq_f64(vld1q_f64(y + i +  6), vld1q_f64(x + i +  6)));
       
-      vst1q_f84(y + i +  8, vaddq_f64(vld1q_f84(y + i +  8), vld1q_f84(x + i +  8)));
+      vst1q_f64(y + i +  8, vaddq_f64(vld1q_f64(y + i +  8), vld1q_f64(x + i +  8)));
       vst1q_f64(y + i + 10, vaddq_f64(vld1q_f64(y + i + 10), vld1q_f64(x + i + 10)));
       vst1q_f64(y + i + 12, vaddq_f64(vld1q_f64(y + i + 12), vld1q_f64(x + i + 12)));
       vst1q_f64(y + i + 14, vaddq_f64(vld1q_f64(y + i + 14), vld1q_f64(x + i + 14)));
@@ -316,8 +316,8 @@ void misc_subtractVectorsInPlace_neon(const double* restrict x, size_t length, d
       y_vec.val[3] = vsubq_f64(y_vec.val[3], x_vec.val[3]);
       vst1q_f64_x4(y + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
       y_vec.val[1] = vsubq_f64(y_vec.val[1], x_vec.val[1]);
       y_vec.val[2] = vsubq_f64(y_vec.val[2], x_vec.val[2]);
@@ -342,7 +342,7 @@ void misc_subtractVectorsInPlace_neon(const double* restrict x, size_t length, d
       vst1q_f64(y + i +  4, vsubq_f64(vld1q_f64(y + i +  4), vld1q_f64(x + i +  4)));
       vst1q_f64(y + i +  6, vsubq_f64(vld1q_f64(y + i +  6), vld1q_f64(x + i +  6)));
       
-      vst1q_f84(y + i +  8, vsubq_f84(vld1q_f84(y + i +  8), vld1q_f84(x + i +  8)));
+      vst1q_f64(y + i +  8, vsubq_f64(vld1q_f64(y + i +  8), vld1q_f64(x + i +  8)));
       vst1q_f64(y + i + 10, vsubq_f64(vld1q_f64(y + i + 10), vld1q_f64(x + i + 10)));
       vst1q_f64(y + i + 12, vsubq_f64(vld1q_f64(y + i + 12), vld1q_f64(x + i + 12)));
       vst1q_f64(y + i + 14, vsubq_f64(vld1q_f64(y + i + 14), vld1q_f64(x + i + 14)));
@@ -387,8 +387,8 @@ void misc_addVectorsInPlaceWithMultiplier_neon(const double* restrict x, size_t 
       y_vec.val[3] = vaddq_f64(y_vec.val[3], vmulq_f64(x_vec.val[3], alpha_vec));
       vst1q_f64_x4(y + i, y_vec);
       
-      float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-      float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+      x_vec = vld1q_f64_x4(x + i + 8);
+      y_vec = vld1q_f64_x4(y + i + 8);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], vmulq_f64(x_vec.val[0], alpha_vec));
       y_vec.val[1] = vaddq_f64(y_vec.val[1], vmulq_f64(x_vec.val[1], alpha_vec));
       y_vec.val[2] = vaddq_f64(y_vec.val[2], vmulq_f64(x_vec.val[2], alpha_vec));
@@ -399,7 +399,7 @@ void misc_addVectorsInPlaceWithMultiplier_neon(const double* restrict x, size_t 
     suffix = prefix + 4 * ((length - prefix) / 4);
     
     for ( ; i < suffix; i += 4) {
-      float64x2x2_t x_vec = vld1q_f64_x2(x + i)
+      float64x2x2_t x_vec = vld1q_f64_x2(x + i);
       float64x2x2_t y_vec = vld1q_f64_x2(y + i);
       y_vec.val[0] = vaddq_f64(y_vec.val[0], vmulq_f64(x_vec.val[0], alpha_vec));
       y_vec.val[1] = vaddq_f64(y_vec.val[1], vmulq_f64(x_vec.val[1], alpha_vec));
@@ -458,7 +458,7 @@ void misc_addAlignedVectorsInPlace_neon(const double* restrict x, size_t length,
   suffix = 4 * (length / 4);
   
   for ( ; i < suffix; i += 4) {
-    float64x2x2_t x_vec = vld1q_f64_x2(x + i)
+    float64x2x2_t x_vec = vld1q_f64_x2(x + i);
     float64x2x2_t y_vec = vld1q_f64_x2(y + i);
     y_vec.val[0] = vaddq_f64(y_vec.val[0], x_vec.val[0]);
     y_vec.val[1] = vaddq_f64(y_vec.val[1], x_vec.val[1]);
@@ -494,10 +494,10 @@ void misc_subtractAlignedVectorsInPlace_neon(const double* restrict x, size_t le
     vst1q_f64_x4(y + i + 8, y_vec);
   }
   
-  suffix = 4 * (prefix / 4);
+  suffix = 4 * (length / 4);
   
   for ( ; i < suffix; i += 4) {
-    float64x2x2_t x_vec = vld1q_f64_x2(x + i)
+    float64x2x2_t x_vec = vld1q_f64_x2(x + i);
     float64x2x2_t y_vec = vld1q_f64_x2(y + i);
     y_vec.val[0] = vsubq_f64(y_vec.val[0], x_vec.val[0]);
     y_vec.val[1] = vsubq_f64(y_vec.val[1], x_vec.val[1]);
@@ -525,8 +525,8 @@ void misc_addAlignedVectorsInPlaceWithMultiplier_neon(const double* restrict x, 
     y_vec.val[3] = vaddq_f64(y_vec.val[3], vmulq_f64(x_vec.val[3], alpha_vec));
     vst1q_f64_x4(y + i, y_vec);
     
-    float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
-    float64x2x4_t y_vec = vld1q_f64_x4(y + i + 8);
+    x_vec = vld1q_f64_x4(x + i + 8);
+    y_vec = vld1q_f64_x4(y + i + 8);
     y_vec.val[0] = vaddq_f64(y_vec.val[0], vmulq_f64(x_vec.val[0], alpha_vec));
     y_vec.val[1] = vaddq_f64(y_vec.val[1], vmulq_f64(x_vec.val[1], alpha_vec));
     y_vec.val[2] = vaddq_f64(y_vec.val[2], vmulq_f64(x_vec.val[2], alpha_vec));
@@ -534,7 +534,7 @@ void misc_addAlignedVectorsInPlaceWithMultiplier_neon(const double* restrict x, 
     vst1q_f64_x4(y + i + 8, y_vec);
   }
   
-  suffix = prefix + 4 * (prefix / 4);
+  suffix = 4 * (length / 4);
   
   for ( ; i < suffix; i += 4) {
     float64x2x2_t x_vec = vld1q_f64_x2(x + i);
@@ -573,7 +573,7 @@ void misc_addScalarToVectorInPlace_neon(double* x, size_t length, double alpha)
 
     vst1q_f64_x4(x + i, x_vec);
     
-    float64x2x4_t x_vec = vld1q_f64_x4(x + i + 8);
+    x_vec = vld1q_f64_x4(x + i + 8);
     x_vec.val[0] = vaddq_f64(x_vec.val[0], alpha_vec);
     x_vec.val[1] = vaddq_f64(x_vec.val[1], alpha_vec);
     x_vec.val[2] = vaddq_f64(x_vec.val[2], alpha_vec);
@@ -582,7 +582,7 @@ void misc_addScalarToVectorInPlace_neon(double* x, size_t length, double alpha)
     vst1q_f64_x4(x + i + 8, x_vec);
   }
   
-  suffix = prefix + 4 * (prefix / 4);
+  suffix = prefix + 4 * ((length - prefix) / 4);
   
   for ( ; i < suffix; i += 4) {
     float64x2x2_t x_vec = vld1q_f64_x2(x + i);
@@ -621,7 +621,7 @@ void misc_setVectorToConstant_neon(double* x, size_t length, double alpha)
     vst1q_f64_x4(x + i + 8, alpha_vec_x4);
   }
   
-  suffix = prefix + 4 * (prefix / 4);
+  suffix = prefix + 4 * ((length - prefix) / 4);
   
   float64x2x2_t alpha_vec_x2;
   alpha_vec_x2.val[0] = vdupq_n_f64(alpha);

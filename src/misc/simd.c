@@ -353,6 +353,10 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   // Float
 #ifdef COMPILER_SUPPORTS_AVX
   if (i >= MISC_INST_AVX) {
+    // memory for vector double loads should be on a 32 byte boundary (4 doubles), but
+    // compiler seems to be generating load instructions without us needing to
+    // perform the alignment
+    // misc_simd_alignment = 32;
     misc_simd_alignment = 0;
     misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace_avx;
     misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace_avx;
@@ -368,6 +372,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 #endif
 #ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
+    // misc_simd_alignment = 16;
     misc_simd_alignment = 0;
     misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace_sse2;
     misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace_sse2;
