@@ -3,8 +3,16 @@
 
 #include <stdbool.h>
 
-void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y) = 0;
-void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y) = 0;
+void (*misc_addVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
+void (*misc_subtractVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
+void (*misc_addVectorsInPlaceWithMultiplier)(const double* restrict x, size_t length, double alpha, double* restrict y) = 0;
+
+void (*misc_addAlignedVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
+void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, size_t length, double* restrict y) = 0;
+
+void (*misc_addScalarToVectorInPlace)(double* x, size_t length, double alpha) = 0;
+void (*misc_setVectorToConstant)(double* x, size_t length, double alpha) = 0;
+
 void (*misc_transposeMatrix)(const double* restrict x, size_t numRows, size_t numCols, double* restrict xt) = 0;
 
 
@@ -59,7 +67,7 @@ void misc_addVectorsWithMultiplier(const double* restrict x, size_t length, doub
   }
 }
 
-void misc_addVectorsInPlace(const double* restrict x, size_t length, double* restrict y)
+void misc_addVectorsInPlace_c(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
 
@@ -76,7 +84,7 @@ void misc_addVectorsInPlace(const double* restrict x, size_t length, double* res
   }
 }
 
-void misc_subtractVectorsInPlace(const double* restrict x, size_t length, double* restrict y)
+void misc_subtractVectorsInPlace_c(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
 
@@ -93,7 +101,7 @@ void misc_subtractVectorsInPlace(const double* restrict x, size_t length, double
   }
 }
 
-void misc_addVectorsInPlaceWithMultiplier(const double* restrict x, size_t length, double alpha, double* restrict y)
+void misc_addVectorsInPlaceWithMultiplier_c(const double* restrict x, size_t length, double alpha, double* restrict y)
 {
   if (length == 0 || alpha == 0.0) return;
 
@@ -111,7 +119,7 @@ void misc_addVectorsInPlaceWithMultiplier(const double* restrict x, size_t lengt
 }
 
 
-void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha)
+void misc_addScalarToVectorInPlace_c(double* x, size_t length, double alpha)
 {
   if (length == 0 || alpha == 0.0) return;
   
@@ -128,7 +136,7 @@ void misc_addScalarToVectorInPlace(double* x, size_t length, double alpha)
   }
 }
 
-void misc_setVectorToConstant(double* x, size_t length, double alpha)
+void misc_setVectorToConstant_c(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   

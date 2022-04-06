@@ -9,24 +9,23 @@ extern "C" {
 #endif
 
 // z = alpha * x + y; z must be distinct from x and y
-extern void misc_addVectors(const double* restrict x, misc_size_t length, const double* restrict y, double* restrict z);
-extern void misc_subtractVectors(const double* restrict x, misc_size_t length, const double* restrict y, double* restrict z);
-extern void misc_addVectorsWithMultiplier(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
+void misc_addVectors(const double* restrict x, misc_size_t length, const double* restrict y, double* restrict z);
+void misc_subtractVectors(const double* restrict x, misc_size_t length, const double* restrict y, double* restrict z);
+void misc_addVectorsWithMultiplier(const double* restrict x, size_t length, double alpha, const double* restrict y, double* restrict z);
 
 // y := alpha * x + y
-extern void misc_addVectorsInPlace(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_subtractVectorsInPlace(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_addVectorsInPlaceWithMultiplier(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+extern void (*misc_addVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+extern void (*misc_subtractVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+extern void (*misc_addVectorsInPlaceWithMultiplier)(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 extern void (*misc_addAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 extern void (*misc_subtractAlignedVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
 
 // x := x + alpha
-extern void misc_addScalarToVectorInPlace(double* x, misc_size_t length, double alpha);
+extern void (*misc_addScalarToVectorInPlace)(double* x, misc_size_t length, double alpha);
  
 // x: = alpha
 bool misc_vectorIsConstant(const double* d, misc_size_t length);
-// void misc_setVectorToConstant(double* x, misc_size_t length, double alpha);
-extern void misc_setVectorToConstant(double* x, misc_size_t length, double alpha);
+extern void (*misc_setVectorToConstant)(double* x, misc_size_t length, double alpha);
 void misc_setIndexedVectorToConstant(double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double alpha);
   
 // x := alpha * x

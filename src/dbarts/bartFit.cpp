@@ -1632,8 +1632,8 @@ namespace {
       vec.addVectorsInPlace = misc_addAlignedVectorsInPlace;
       vec.subtractVectorsInPlace = misc_subtractAlignedVectorsInPlace;
     } else {
-      vec.addVectorsInPlace = &misc_addVectorsInPlace;
-      vec.subtractVectorsInPlace = &misc_subtractVectorsInPlace;
+      vec.addVectorsInPlace = misc_addVectorsInPlace;
+      vec.subtractVectorsInPlace = misc_subtractVectorsInPlace;
     }
     return alignment;
   }
