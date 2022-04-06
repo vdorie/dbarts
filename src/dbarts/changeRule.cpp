@@ -73,7 +73,9 @@ namespace dbarts {
     
     *stepTaken = false;
     
-    NodeVector notBottomNodes(tree.getNotBottomNodes());
+    NodeVector& notBottomNodes(fit.chainScratch[chainNum].nodeVector);
+    notBottomNodes.clear();
+    tree.fillNotBottomNodesVector(notBottomNodes);
     size_t numNotBottomNodes = notBottomNodes.size();
     
     // get list of nodes with rule = nodes which are not bottom
@@ -303,6 +305,8 @@ namespace dbarts {
     
     bool* sel1 = misc_stackAllocate(numCategories - 1, bool);
     
+    // One of these should use the chain scratch and the other should be allocated
+    // at the size of the number of elements, if this code is ever reactivated.
     NodeVector leftBottomVector(node.getLeftChild()->getBottomVector());
     size_t numLeftBottomNodes = leftBottomVector.size();
     bool* leftNodesAreReachable = misc_stackAllocate(numLeftBottomNodes, bool);

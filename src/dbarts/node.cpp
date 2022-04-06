@@ -378,9 +378,9 @@ namespace dbarts {
     return result;
   }
 
-  void Node::fillBottomVector(NodeVector& bottomNodes) const
+  void Node::fillBottomVector(NodeVector& nodeVector) const
   {
-    ::fillBottomVector(*this, bottomNodes);
+    ::fillBottomVector(*this, nodeVector);
   }
   
   SavedNodeVector SavedNode::getBottomVector() const
@@ -420,15 +420,25 @@ namespace dbarts {
   NodeVector Node::getNotBottomVector() const
   {
     NodeVector result;
-    fillNotBottomVector(*this, result);
+    ::fillNotBottomVector(*this, result);
     return result;
+  }
+
+  void Node::fillNotBottomVector(NodeVector& nodeVector) const
+  {
+    ::fillNotBottomVector(*this, nodeVector);
   }
   
   NodeVector Node::getSwappableVector() const
   {
     NodeVector result;
-    fillSwappableVector(*this, result);
+    ::fillSwappableVector(*this, result);
     return result;
+  }
+
+  void Node::fillSwappableVector(NodeVector& nodeVector) const
+  {
+    ::fillSwappableVector(*this, nodeVector);
   }
   
   Node* Node::findBottomNode(const BARTFit& fit, const xint_t* xt) const

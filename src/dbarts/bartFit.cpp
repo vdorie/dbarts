@@ -82,6 +82,12 @@ namespace {
 #else
   double subtractTimes(time_t end, time_t start);
 #endif
+
+  struct VectorFunctions {
+    void (*addVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+    void (*subtractVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+  };
+  unsigned int getVectorFunctionsAndAlignment(const BARTFit& fit, size_t chainNum, VectorFunctions& vec);
 }
 
 namespace dbarts {
@@ -89,15 +95,16 @@ namespace dbarts {
   
   void BARTFit::rebuildScratchFromState()
   {
+    VectorFunctions vec;
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
       
       misc_setVectorToConstant(chainScratch[chainNum].totalFits, data.numObservations, 0.0);
-      
-      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum)
-        misc_addVectorsInPlace(const_cast<const double*>(state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride),
-                               data.numObservations,
-                               chainScratch[chainNum].totalFits);
-      
+      getVectorFunctionsAndAlignment(*this, chainNum, vec);
+
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        const double* treeFits = state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride;
+        vec.addVectorsInPlace(treeFits, data.numObservations, chainScratch[chainNum].totalFits);
+      }
       
       if (data.numTestObservations > 0) {
         double* testFits = new double[data.numTestObservations];
@@ -181,9 +188,14 @@ namespace dbarts {
       
           misc_subtractVectorsInPlace(data.offset, data.numObservations, yRescaled);
       
-          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
+          // Y' = (y - min) / (max - min) - 0.5
+          //    = y / (max - min) - min / (max - min) - 0.5 * (max - min) / (max - min)
+          //    = y / (max - min) - 0.5 (max + min) / (max - min)
+          /* misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -sharedScratch.dataScale.min);
           misc_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
-          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5);
+          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5); */
+          misc_scalarMultiplyVectorInPlace(yRescaled, data.numObservations, 1.0 / sharedScratch.dataScale.range);
+          misc_addScalarToVectorInPlace(   yRescaled, data.numObservations, -0.5 * (sharedScratch.dataScale.max + sharedScratch.dataScale.min) / sharedScratch.dataScale.range);
         } else {
           // subtract old offset and add new one
           if (data.offset != NULL)
@@ -1332,28 +1344,13 @@ extern "C" {
     
     size_t numSamples = results.numSamples;
 
-    void (*addVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
-    void (*subtractVectorsInPlace)(const double* restrict x, misc_size_t length, double* restrict y);
+    VectorFunctions vec;
+    unsigned int alignment = getVectorFunctionsAndAlignment(fit, chainNum, vec);
     
-    unsigned int alignment = 0;
-
-    if (chainScratch.alignment == state.treeFitsAlignment &&
-        chainScratch.alignment == misc_simd_alignment &&
-        chainScratch.alignment != 0)
-    {
-      alignment = chainScratch.alignment;
-    }
-
     double* currFits;
     if (alignment != 0) {
-      addVectorsInPlace = misc_addAlignedVectorsInPlace;
-      subtractVectorsInPlace = misc_subtractAlignedVectorsInPlace;
-
       misc_alignedAllocate(reinterpret_cast<void**>(&currFits), alignment, data.numObservations * sizeof(double));
     } else {
-      addVectorsInPlace = &misc_addVectorsInPlace;
-      subtractVectorsInPlace = &misc_subtractVectorsInPlace;
-      
       currFits = new double[data.numObservations];
     }
     
@@ -1404,8 +1401,8 @@ extern "C" {
         // treeY = y - (totalFits - oldTreeFits)
         // is residual from every *other* tree, so what is left for this tree to do
         std::memcpy(chainScratch.treeY, y, data.numObservations * sizeof(double));
-        subtractVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, chainScratch.treeY);
-        addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.treeY);
+        vec.subtractVectorsInPlace(const_cast<const double*>(chainScratch.totalFits), data.numObservations, chainScratch.treeY);
+        vec.addVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.treeY);
         
         state.trees[treeNum].setNodeAverages(fit, chainNum, chainScratch.treeY);
         
@@ -1413,8 +1410,8 @@ extern "C" {
         state.trees[treeNum].sampleParametersAndSetFits(fit, chainNum, currFits, isThinningIteration ? NULL : currTestFits);
         
         // totalFits += currFits - treeFits
-        subtractVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.totalFits);
-        addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, chainScratch.totalFits);
+        vec.subtractVectorsInPlace(const_cast<const double*>(oldTreeFits), data.numObservations, chainScratch.totalFits);
+        vec.addVectorsInPlace(const_cast<const double*>(currFits), data.numObservations, chainScratch.totalFits);
         
         if (!isThinningIteration && data.numTestObservations > 0)
           misc_addVectorsInPlace(const_cast<const double*>(currTestFits), data.numTestObservations, chainScratch.totalTestFits);
@@ -1624,6 +1621,22 @@ namespace dbarts {
 
 namespace {
   using namespace dbarts;
+  
+  unsigned int getVectorFunctionsAndAlignment(const BARTFit& fit, size_t chainNum, VectorFunctions& vec) {
+    unsigned int alignment = 0;
+    if (fit.chainScratch[chainNum].alignment == fit.state[chainNum].treeFitsAlignment &&
+        fit.chainScratch[chainNum].alignment == misc_simd_alignment &&
+        misc_simd_alignment!= 0)
+    {
+      alignment = misc_simd_alignment;
+      vec.addVectorsInPlace = misc_addAlignedVectorsInPlace;
+      vec.subtractVectorsInPlace = misc_subtractAlignedVectorsInPlace;
+    } else {
+      vec.addVectorsInPlace = &misc_addVectorsInPlace;
+      vec.subtractVectorsInPlace = &misc_subtractVectorsInPlace;
+    }
+    return alignment;
+  }
   
   void printTerminalSummary(const BARTFit& fit) {
     ext_printf("total seconds in loop: %f\n", fit.runningTime);
