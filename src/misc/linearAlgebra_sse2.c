@@ -5,7 +5,7 @@
 
 #include <misc/intrinsic.h>
 
-void misc_addVectors_sse2(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
+/* void misc_addVectors_sse2(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
 {
   if (length == 0) return;
   
@@ -153,12 +153,24 @@ void misc_addVectorsWithMultiplier_sse2(const double* restrict x, size_t length,
   
   for ( ; i < length; ++i)
     z[i] = y[i] + alpha * x[i];
-}
+} */
 
 void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
+  
+  size_t i = 0;
+  size_t lengthMod4 = length % 4;
 
+  for ( ; i < lengthMod4; ++i) y[i] += x[i];
+  
+  for ( ; i < length; i += 4) {
+    y[i    ] += x[i    ];
+    y[i + 1] += x[i + 1];
+    y[i + 2] += x[i + 2];
+    y[i + 3] += x[i + 3];
+  }
+  /*
   size_t y_offset = ((uintptr_t) y) % (2 * sizeof(double));
   size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = y_offset == 0 ? 0 : (2 * sizeof(double) - y_offset) / sizeof(double);
@@ -200,13 +212,25 @@ void misc_addVectorsInPlace_sse2(const double* restrict x, size_t length, double
   }
   
   for ( ; i < length; ++i)
-    y[i] += x[i];
+    y[i] += x[i]; */
 }
 
 void misc_subtractVectorsInPlace_sse2(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
+  
+  size_t i = 0;
+  size_t lengthMod4 = length % 4;
 
+  for ( ; i < lengthMod4; ++i) y[i] -= x[i];
+  
+  for ( ; i < length; i += 4) {
+    y[i    ] -= x[i    ];
+    y[i + 1] -= x[i + 1];
+    y[i + 2] -= x[i + 2];
+    y[i + 3] -= x[i + 3];
+  }
+  /*
   size_t y_offset = ((uintptr_t) y) % (2 * sizeof(double));
   size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = y_offset == 0 ? 0 : (2 * sizeof(double) - y_offset) / sizeof(double);
@@ -248,13 +272,26 @@ void misc_subtractVectorsInPlace_sse2(const double* restrict x, size_t length, d
   }
   
   for ( ; i < length; ++i)
-    y[i] -= x[i];
+    y[i] -= x[i]; */
 }
 
 void misc_addVectorsInPlaceWithMultiplier_sse2(const double* restrict x, size_t length, double alpha, double* restrict y)
 {
   if (length == 0) return;
+  
+  size_t i = 0;
+  size_t lengthMod4 = length % 4;
 
+  for ( ; i < lengthMod4; ++i) y[i] += alpha * x[i];
+  
+  for ( ; i < length; i += 4) {
+    y[i    ] += alpha * x[i    ];
+    y[i + 1] += alpha * x[i + 1];
+    y[i + 2] += alpha * x[i + 2];
+    y[i + 3] += alpha * x[i + 3];
+  }
+  
+  /*
   size_t y_offset = ((uintptr_t) y) % (2 * sizeof(double));
   size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = y_offset == 0 ? 0 : (2 * sizeof(double) - y_offset) / sizeof(double);
@@ -297,10 +334,10 @@ void misc_addVectorsInPlaceWithMultiplier_sse2(const double* restrict x, size_t 
   }
   
   for ( ; i < length; ++i)
-    y[i] += alpha * x[i];
+    y[i] += alpha * x[i]; */
 }
 
-void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, size_t length, double* restrict y)
+/* void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, size_t length, double* restrict y)
 {
   if (length == 0) return;
   
@@ -371,12 +408,24 @@ void misc_addAlignedVectorsInPlaceWithMultiplier_sse2(const double* restrict x, 
     
   for ( ; i < length; ++i)
     y[i] += x[i];
-}
+} */
 
 void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   
+  size_t i = 0;
+  size_t lengthMod4 = length % 4;
+
+  for ( ; i < lengthMod4; ++i) x[i] += alpha;
+  
+  for ( ; i < length; i += 4) {
+    x[i    ] += alpha;
+    x[i + 1] += alpha;
+    x[i + 2] += alpha;
+    x[i + 3] += alpha;
+  }
+  /*
   size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double);
   
@@ -404,12 +453,25 @@ void misc_addScalarToVectorInPlace_sse2(double* x, size_t length, double alpha)
   
   for ( ; i < length; ++i)
     x[i] += alpha;
+  */
 }
 
 void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha)
 {
   if (length == 0) return;
   
+  size_t i = 0;
+  size_t lengthMod4 = length % 4;
+
+  for ( ; i < lengthMod4; ++i) x[i] = alpha;
+  
+  for ( ; i < length; i += 4) {
+    x[i    ] = alpha;
+    x[i + 1] = alpha;
+    x[i + 2] = alpha;
+    x[i + 3] = alpha;
+  }
+  /* 
   size_t offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = offset == 0 ? 0 : (2 * sizeof(double) - offset) / sizeof(double);
   
@@ -437,6 +499,7 @@ void misc_setVectorToConstant_sse2(double* x, size_t length, double alpha)
   
   for ( ; i < length; ++i)
     x[i] = alpha;
+  */
 }
 
 

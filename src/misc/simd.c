@@ -237,9 +237,9 @@ extern void misc_addVectorsInPlace_avx(const double* restrict x, misc_size_t len
 extern void misc_subtractVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 
-extern void misc_addAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_subtractAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_addAlignedVectorsInPlaceWithMultiplier_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
+// extern void misc_addAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_subtractAlignedVectorsInPlace_avx(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_addAlignedVectorsInPlaceWithMultiplier_avx(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 
 extern void misc_addScalarToVectorInPlace_avx(double* x, misc_size_t length, double alpha);
 extern void misc_setVectorToConstant_avx(double* x, misc_size_t length, double alpha);
@@ -259,8 +259,8 @@ extern void misc_addVectorsInPlace_sse2(const double* restrict x, misc_size_t le
 extern void misc_subtractVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 extern void misc_addVectorsInPlaceWithMultiplier_sse2(const double* restrict x, misc_size_t length, double alpha, double* restrict y);
 
-extern void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
-extern void misc_subtractAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_addAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
+// extern void misc_subtractAlignedVectorsInPlace_sse2(const double* restrict x, misc_size_t length, double* restrict y);
 
 extern void misc_addScalarToVectorInPlace_sse2(double* x, misc_size_t length, double alpha);
 extern void misc_setVectorToConstant_sse2(double* x, misc_size_t length, double alpha);
@@ -302,6 +302,8 @@ void misc_simd_init(void) {
 }
 
 extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i);
+
+#include <external/io.h>
 
 void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
@@ -351,30 +353,30 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
   // Float
 #ifdef COMPILER_SUPPORTS_AVX
   if (i >= MISC_INST_AVX) {
-    misc_simd_alignment = 32;
-    misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_avx;
-    misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_avx;
+    misc_simd_alignment = 0;
+    misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace_avx;
+    misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace_avx;
     
     misc_addVectorsInPlace = &misc_addVectorsInPlace_avx;
     misc_subtractVectorsInPlace = &misc_subtractVectorsInPlace_avx;
     misc_addVectorsInPlaceWithMultiplier = &misc_addVectorsInPlaceWithMultiplier_avx;
-    
-    misc_addScalarToVectorInPlace = & misc_addScalarToVectorInPlace_avx;
+   
+    misc_addScalarToVectorInPlace = &misc_addScalarToVectorInPlace_avx;
     misc_setVectorToConstant = &misc_setVectorToConstant_avx;
     misc_transposeMatrix = &misc_transposeMatrix_avx;
   } else 
 #endif
 #ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
-    misc_simd_alignment = 16;
-    misc_addAlignedVectorsInPlace = &misc_addAlignedVectorsInPlace_sse2;
-    misc_subtractAlignedVectorsInPlace = &misc_subtractAlignedVectorsInPlace_sse2;
+    misc_simd_alignment = 0;
+    misc_addAlignedVectorsInPlace = &misc_addVectorsInPlace_sse2;
+    misc_subtractAlignedVectorsInPlace = &misc_subtractVectorsInPlace_sse2;
     
     misc_addVectorsInPlace = &misc_addVectorsInPlace_sse2;
     misc_subtractVectorsInPlace = &misc_subtractVectorsInPlace_sse2;
     misc_addVectorsInPlaceWithMultiplier = &misc_addVectorsInPlaceWithMultiplier_sse2;
     
-    misc_addScalarToVectorInPlace = & misc_addScalarToVectorInPlace_sse2;
+    misc_addScalarToVectorInPlace = &misc_addScalarToVectorInPlace_sse2;
     misc_setVectorToConstant = & misc_setVectorToConstant_sse2;
     misc_transposeMatrix = &misc_transposeMatrix_sse2;
   } else

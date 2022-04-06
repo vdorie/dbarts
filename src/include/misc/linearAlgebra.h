@@ -52,8 +52,5 @@ void misc_multiplyMatrixIntoVector(const double* restrict matrix, misc_size_t nu
 }
 #endif
 
-#define misc_sumSquaresOfVectorElements ext_sumSquaresOfVectorElements
-
 #endif // define MISC_LINEAR_ALGEBRA_H
-
 

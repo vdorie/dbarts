@@ -1,6 +1,10 @@
 #ifndef MISC_MEMALIGN_H
 #define MISC_MEMALIGN_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <errno.h> // ENOMEM
 #if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_MALLOC_H)
 #  include <malloc.h>   // memalign, __mingw_aligned_malloc
@@ -26,6 +30,10 @@ static inline int misc_alignedAllocate(void** result, misc_size_t alignment, mis
 #  define misc_alignedFree free
 #else
 #  define misc_alignedFree __mingw_aligned_free
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif // MISC_MEMALIGN_H
