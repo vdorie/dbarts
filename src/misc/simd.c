@@ -15,7 +15,7 @@
 #include <misc/types.h>
 #include <misc/intrinsic.h>
 
-int misc_simd_alignment = 0;
+unsigned int misc_simd_alignment = 0;
 
 /* static const char* const simdNames[] = { // for x86
   "none",

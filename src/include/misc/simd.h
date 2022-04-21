@@ -45,7 +45,7 @@ void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i);
 
 misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void);
 
-extern int misc_simd_alignment;
+extern unsigned int misc_simd_alignment;
 
 #ifdef __cplusplus
 }

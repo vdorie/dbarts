@@ -21,6 +21,25 @@
 using std::size_t;
 
 namespace {
+  struct PrintData {
+    size_t threadId;
+    size_t cellIndex;
+    size_t numTrees;
+    double k;
+    double power;
+    double base;
+    unsigned int seed0;
+  };
+}
+extern "C" void printTask(void* v_data) {
+  PrintData& data(*static_cast<PrintData*>(v_data));
+  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
+             data.numTrees);
+  if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
+  ext_printf("power: %.2f, base: %.2f, seed0: %u\n", data.power, data.base, data.seed0);
+}
+
+namespace {
   using namespace dbarts;
   using namespace xval;
   
@@ -138,6 +157,8 @@ namespace dbarts { namespace xval {
     size_t numCells = numRepCells / numReps;
     CellParameters* cellParameters = new CellParameters[numCells];
     
+    ext_printf("%lu rep cells over %lu cells\n", numRepCells, numCells);
+    
     size_t cellNumber = 0;
     for (size_t nIndex = 0; nIndex < numNTrees; ++nIndex) {
       for (size_t kIndex = 0; kIndex < numKs; ++kIndex) {
@@ -160,6 +181,7 @@ namespace dbarts { namespace xval {
                               numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn,
                               testSampleSize,
                               lossFunctorDef, numReps, cellParameters };
+    
     ext_rng_algorithm_t rng_algorithm = static_cast<ext_rng_algorithm_t>(threadControl.rng_algorithm);
     ext_rng_standardNormal_t rng_standardNormal = static_cast<ext_rng_standardNormal_t>(threadControl.rng_standardNormal);
     std::uint_least32_t rng_seed = threadControl.rng_seed;
@@ -204,7 +226,7 @@ namespace dbarts { namespace xval {
       
       ThreadData* threadData = misc_stackAllocate(numThreads, ThreadData);
       void** threadDataPtrs  = misc_stackAllocate(numThreads, void*);
-      for (size_t i = 0; i < offByOneIndex; ++i) {
+      for (size_t i = 0; i < numThreads; ++i) {
         threadData[i].shared = &sharedData;
         threadData[i].rng = createMultiThreadedRNG(
           rng_algorithm,
@@ -224,42 +246,30 @@ namespace dbarts { namespace xval {
           delete [] cellParameters;
           ext_throwError("unable to ensure seed uniqueness");
         }
-        threadData[i].repCellOffset = i * numRepCellsPerThread;
-        threadData[i].numRepCells   = numRepCellsPerThread;
         threadData[i].threadId = i;
-        threadData[i].results = results + i * numRepCellsPerThread * lossFunctorDef.numResults;
-        threadDataPtrs[i] = threadData + i;
-      }
-      
-      for (size_t i = offByOneIndex; i < numThreads; ++i) {
-        threadData[i].shared = &sharedData;
-        threadData[i].rng = createMultiThreadedRNG(
-          rng_algorithm,
-          rng_standardNormal,
-          seedGenerator,
-          errorMessage);
-        if (threadData[i].rng == NULL) {
-          for (size_t j = i; j > 0; --j) ext_rng_destroy(threadData[j - 1].rng);
-          if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
-          delete [] cellParameters;
-          ext_throwError(errorMessage);
+        if (i < offByOneIndex) {
+          threadData[i].numRepCells   = numRepCellsPerThread;
+          threadData[i].repCellOffset = i * numRepCellsPerThread;
+          threadData[i].results = results + i * numRepCellsPerThread * lossFunctorDef.numResults;
+        } else {
+          threadData[i].numRepCells   = numRepCellsPerThread - 1;
+          threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
+          threadData[i].results = results + threadData[i].repCellOffset * lossFunctorDef.numResults;
         }
-        if (i > 0 && !ensureRNGSeedsAreUnique(threadData[i - 1].rng, threadData[i].rng, seedGenerator)) {
-          ext_rng_destroy(threadData[i].rng);
-          for (size_t j = i; j > 0; --j) ext_rng_destroy(threadData[j - 1].rng);
-          if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
-          delete [] cellParameters;
-          ext_throwError("unable to ensure seed uniqueness");
-        }
-        threadData[i].repCellOffset = offByOneIndex * numRepCellsPerThread + (i - offByOneIndex) * (numRepCellsPerThread - 1);
-        threadData[i].numRepCells   = numRepCellsPerThread - 1;
-        threadData[i].threadId = i;
-        threadData[i].results = results + threadData[i].repCellOffset * lossFunctorDef.numResults;
         threadDataPtrs[i] = threadData + i;
       }
       
       if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
       
+      for (size_t i = 0; i < numThreads; ++i ){
+        ext_printf("thread %lu: %lu rep cells, offset %lu, first row %lu, last row %lu, first col %lu, last col %lu\n", 
+                   i + 1, threadData[i].numRepCells, threadData[i].repCellOffset,
+                   threadData[i].repCellOffset / sharedData.numReps,
+                   (threadData[i].repCellOffset + threadData[i].numRepCells - 1) / sharedData.numReps,
+                   threadData[i].repCellOffset % sharedData.numReps,
+                   (threadData[i].repCellOffset + threadData[i].numRepCells - 1) % sharedData.numReps + 1);
+      }
+
       misc_btm_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
       
       for (size_t i = 0; i < numThreads; ++i)
@@ -412,7 +422,7 @@ extern "C" {
     allocateModelStorage(origModel, repModel);
     
     BARTFit* fit = new BARTFit(repControl, repModel, repData);
-    fit->state->rng = threadData.rng;
+    fit->state[0].rng = threadData.rng;
     
     CrossvalidationData xvalData = { *fit, origData, repData, 0 };
     
@@ -452,20 +462,36 @@ extern "C" {
     for (size_t i = 0; i < origData.numObservations; ++i) v_threadScratch->permutation[i] = i;
     
         
-    size_t firstCell    = threadData.repCellOffset / sharedData.numReps;
-    size_t firstCellRep = threadData.repCellOffset % sharedData.numReps;
-    size_t lastCell     = (threadData.repCellOffset + threadData.numRepCells) / sharedData.numReps;
-    size_t lastCellRep  = (threadData.repCellOffset + threadData.numRepCells) % sharedData.numReps;
-    
+    // each cell is handled completely by this thread
+    // cell-reps are partially handled by other threads; first is what we have to clean up from
+    // someone else, last is what we partially get into ourselves
+    //
+    // "Rows" are "cells", that is specific sets of hyperparameters
+    // "Cols" are the reps of each set of hyperpars
+    size_t firstCell = threadData.repCellOffset / sharedData.numReps; // start row
+    size_t firstCellRep = threadData.repCellOffset % sharedData.numReps; // start col
+    size_t lastCell = (threadData.repCellOffset + threadData.numRepCells - 1) / sharedData.numReps; // end row
+    size_t lastCellRep = (threadData.repCellOffset + threadData.numRepCells - 1) % sharedData.numReps + 1; // end col
+
     size_t resultIndex = 0;
     xvalData.numBurnIn = sharedData.numInitialBurnIn;
     
     // first and last cells are a bit of a mess, since there can be a lot of off-by-one stuff
+    // process the first incomplete row
     if (firstCellRep != 0) {
       updateFitForCell(*fit, repControl, repModel, sharedData.parameters[firstCell],
                        threadData.threadId, firstCell, sharedData.threadManager, verbose);
-      
-      for (size_t repIndex = firstCellRep; repIndex < sharedData.numReps; ++repIndex)
+      size_t repEnd;
+      if (firstCell == lastCell) {
+         // If all one row, handle it now and reset the end column
+         repEnd = lastCellRep;
+         lastCellRep = 0;
+      } else {
+         // Otherwise, handle next full row and whatever in next is necessary
+         repEnd = sharedData.numReps;
+         ++firstCell;
+      }
+      for (size_t repIndex = firstCellRep; repIndex < repEnd; ++repIndex)
       {
         crossvalidate(xvalData, samples, numSamples, threadData.results + resultIndex,
                       lfDef.calculateLoss, sharedData.threadManager, threadData.threadId, lossRequiresMutex, v_threadScratch);
@@ -474,9 +500,6 @@ extern "C" {
         
         xvalData.numBurnIn = sharedData.numRepBurnIn;
       }
-      
-      ++firstCell;
-      firstCellRep = 0;
       
       xvalData.numBurnIn = sharedData.numContextShiftBurnIn;
     }
@@ -858,23 +881,7 @@ namespace {
   }
 } */
 
-namespace {
-  struct PrintData {
-    size_t threadId;
-    size_t cellIndex;
-    size_t numTrees;
-    double k;
-    double power;
-    double base;
-  };
-}
-extern "C" void printTask(void* v_data) {
-  PrintData& data(*static_cast<PrintData*>(v_data));
-  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
-             data.numTrees);
-  if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
-  ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
-}
+
 namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
                         size_t threadId, size_t cellIndex, misc_btm_manager_t manager, bool verbose)
@@ -890,7 +897,8 @@ namespace {
         if (k > 0.0) ext_printf("k: %.2f, ", k);
         ext_printf("power: %.2f, base: %.2f\n", power, base);
       } else {
-        PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
+        unsigned int state0 = ext_rng_getState0(fit.state[0].rng);
+        PrintData printData = { threadId, cellIndex, numTrees, k, power, base, state0 };
         misc_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
       }
     }
@@ -1028,6 +1036,7 @@ namespace {
     
     if (seedGenerator != NULL) {
       std::uint_least32_t seed = static_cast<std::uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<std::uint_least32_t>(-1)));
+      Rprintf("  setting to generated seed %u\n", seed);
       if (ext_rng_setSeed(result, seed) != 0) {
         errorMessage = "could not seed rng";
         ext_rng_destroy(result);
