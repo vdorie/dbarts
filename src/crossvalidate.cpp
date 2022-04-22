@@ -28,7 +28,6 @@ namespace {
     double k;
     double power;
     double base;
-    unsigned int seed0;
   };
 }
 extern "C" void printTask(void* v_data) {
@@ -36,7 +35,7 @@ extern "C" void printTask(void* v_data) {
   ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
              data.numTrees);
   if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
-  ext_printf("power: %.2f, base: %.2f, seed0: %u\n", data.power, data.base, data.seed0);
+  ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
 }
 
 namespace {
@@ -157,8 +156,6 @@ namespace dbarts { namespace xval {
     size_t numCells = numRepCells / numReps;
     CellParameters* cellParameters = new CellParameters[numCells];
     
-    ext_printf("%lu rep cells over %lu cells\n", numRepCells, numCells);
-    
     size_t cellNumber = 0;
     for (size_t nIndex = 0; nIndex < numNTrees; ++nIndex) {
       for (size_t kIndex = 0; kIndex < numKs; ++kIndex) {
@@ -261,15 +258,6 @@ namespace dbarts { namespace xval {
       
       if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
       
-      for (size_t i = 0; i < numThreads; ++i ){
-        ext_printf("thread %lu: %lu rep cells, offset %lu, first row %lu, last row %lu, first col %lu, last col %lu\n", 
-                   i + 1, threadData[i].numRepCells, threadData[i].repCellOffset,
-                   threadData[i].repCellOffset / sharedData.numReps,
-                   (threadData[i].repCellOffset + threadData[i].numRepCells - 1) / sharedData.numReps,
-                   threadData[i].repCellOffset % sharedData.numReps,
-                   (threadData[i].repCellOffset + threadData[i].numRepCells - 1) % sharedData.numReps + 1);
-      }
-
       misc_btm_runTasks(threadManager, crossvalidationTask, threadDataPtrs, numThreads);
       
       for (size_t i = 0; i < numThreads; ++i)
@@ -898,7 +886,7 @@ namespace {
         ext_printf("power: %.2f, base: %.2f\n", power, base);
       } else {
         unsigned int state0 = ext_rng_getState0(fit.state[0].rng);
-        PrintData printData = { threadId, cellIndex, numTrees, k, power, base, state0 };
+        PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
         misc_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
       }
     }
@@ -1036,7 +1024,6 @@ namespace {
     
     if (seedGenerator != NULL) {
       std::uint_least32_t seed = static_cast<std::uint_least32_t>(ext_rng_simulateUnsignedIntegerUniformInRange(seedGenerator, 0, static_cast<std::uint_least32_t>(-1)));
-      Rprintf("  setting to generated seed %u\n", seed);
       if (ext_rng_setSeed(result, seed) != 0) {
         errorMessage = "could not seed rng";
         ext_rng_destroy(result);
