@@ -1,6 +1,20 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-23}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item No longer depends on gfortran.
+      \item Uses SIMD instructions on M1 Macs.
+    }
+  }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item Fixed a multithreaded issue leading to inconsistent results
+            with \code{xbart}.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-21}{
   \subsection{NEW FEATURES}{
     \itemize{
