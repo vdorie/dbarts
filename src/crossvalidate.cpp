@@ -21,24 +21,6 @@
 using std::size_t;
 
 namespace {
-  struct PrintData {
-    size_t threadId;
-    size_t cellIndex;
-    size_t numTrees;
-    double k;
-    double power;
-    double base;
-  };
-}
-extern "C" void printTask(void* v_data) {
-  PrintData& data(*static_cast<PrintData*>(v_data));
-  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
-             data.numTrees);
-  if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
-  ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
-}
-
-namespace {
   using namespace dbarts;
   using namespace xval;
   
@@ -869,6 +851,23 @@ namespace {
   }
 } */
 
+namespace {
+  struct PrintData {
+    size_t threadId;
+    size_t cellIndex;
+    size_t numTrees;
+    double k;
+    double power;
+    double base;
+  };
+}
+extern "C" void printTask(void* v_data) {
+  PrintData& data(*static_cast<PrintData*>(v_data));
+  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
+             data.numTrees);
+  if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
+  ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
+}
 
 namespace {
   void updateFitForCell(BARTFit& fit, Control& repControl, Model& repModel, const CellParameters& parameters,
