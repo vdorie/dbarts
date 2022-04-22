@@ -884,7 +884,6 @@ namespace {
         if (k > 0.0) ext_printf("k: %.2f, ", k);
         ext_printf("power: %.2f, base: %.2f\n", power, base);
       } else {
-        unsigned int state0 = ext_rng_getState0(fit.state[0].rng);
         PrintData printData = { threadId, cellIndex, numTrees, k, power, base };
         misc_btm_runTaskInParentThread(manager, threadId, &printTask, &printData);
       }
