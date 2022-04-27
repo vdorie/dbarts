@@ -44,7 +44,7 @@ test_that("rbart extracts trees correctly", {
   n.samples <- 4L
   n.chains <- 2L
   fit <- rbart_vi(y ~ ., df, group.by = g,
-                  n.threads = 1L, n.trees = n.trees, n.burn = 0L,
+                  n.threads = 1L, n.trees = n.trees, n.burn = 0L, n.thin = 1L,
                   n.chains = n.chains,
                   n.samples = n.samples, keepTrees = TRUE, verbose = FALSE)
   allTrees <- extract(fit, "trees")

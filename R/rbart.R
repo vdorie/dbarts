@@ -38,12 +38,17 @@ rbart_vi <- function(
   if (is.na(n.threads) || n.threads < 1L) stop("n.threads must be a non-negative integer")
   
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
+  missingDefaults <- names(formals(rbart_vi))[names(formals(rbart_vi)) %in% names(formals(dbartsControl))]
+  missingDefaults <- missingDefaults[missingDefaults %not_in% names(controlCall)]
+  controlCall[missingDefaults] <- formals(rbart_vi)[missingDefaults]
   control <- eval(controlCall, envir = callingEnv)
   
   control@call <- if (keepCall) matchedCall else call("NULL")
   control@n.burn     <- control@n.burn     %/% control@n.thin
   control@n.samples  <- control@n.samples  %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
+  if (control@n.samples == 0L)
+    stop("no posterior draws will be taken after thinning")
   control@n.chains <- 1L
   control@n.threads <- max(control@n.threads %/% n.chains, 1L)
   if (n.chains > 1L && n.threads > 1L) {

@@ -12,6 +12,7 @@
     \itemize{
       \item Fixed a multithreaded issue leading to inconsistent results
             with \code{xbart}.
+      \item \code{rbart_vi} should now correctly use default arguments.
     }
   }
 }
