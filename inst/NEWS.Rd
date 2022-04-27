@@ -13,6 +13,7 @@
       \item Fixed a multithreaded issue leading to inconsistent results
             with \code{xbart}.
       \item \code{rbart_vi} should now correctly use default arguments.
+      \item \code{rbart_vi} now works with \code{keepTrainingFits} as false.
     }
   }
 }

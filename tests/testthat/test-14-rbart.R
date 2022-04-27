@@ -268,6 +268,17 @@ test_that("rbart runs example", {
   expect_true(length(unique(rbartFit$ranef)) > 1L)
 })
 
+test_that("rbart works with keepTrainingFits = FALSE", {
+  rbartFit <- rbart_vi(y ~ x, testData, group.by = g,
+                       n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 2L,
+                       n.trees = 3L, n.threads = 1L,
+                       keepTrainingFits = FALSE,
+                       verbose = FALSE)
+  expect_is(rbartFit, "rbart")
+  expect_true(is.null(rbartFit$yhat.train))
+  expect_true(is.null(rbartFit$yhat.train.mean))
+})
+
 test_that("rbart passes regression test", {
   df <- as.data.frame(testData$x)
   colnames(df) <- paste0("x_", seq_len(ncol(testData$x)))
