@@ -220,7 +220,7 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
   kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
   posteriorClosure <- prior$posteriorClosure
   evalEnv <- prior$evalEnv
-
+  
   numObservations <- length(sampler$data@y)
   numTestObservations <- NROW(sampler$data@x.test)
   
@@ -266,7 +266,7 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     if (!is.null(samples$varcount))
       .Call(C_dbarts_assignInPlace, samples$varcount, i, dbarts_samples$varcount)
-    if (!is.null(samples$yhat.test) && rbartArgs$keepTestFits)
+    if (!is.null(samples$yhat.test) && numTestObserations > 0L && rbartArgs$keepTestFits)
       .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
       .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
