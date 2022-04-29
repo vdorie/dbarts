@@ -142,7 +142,7 @@ rbart_vi <- function(
     group.by.test <- NULL
   }
 
-  rbartArgs <- namedList(group.by, prior, keepTestFits, callback)
+  rbartArgs <- namedList(group.by, prior, keepTrainingFits, keepTestFits, callback)
     
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
                            sigma = as.numeric(sigest))
@@ -231,11 +231,9 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
     samples$k <- rep(NA_real_, n.samples)
   if (!isWarmup) {
     samples$ranef <- matrix(NA_real_, numRanef, n.samples)
-    if (control@keepTrainingFits)
-      samples$yhat.train <- matrix(NA_real_, numObservations, n.samples)
+    samples$yhat.train <- matrix(NA_real_, if (rbartArgs$keepTrainingFits) numObservations else 0L, n.samples)
+    samples$yhat.test <- matrix(NA_real_, if (rbartArgs$keepTestFits) numTestObservations else 0L, n.samples)
     samples$varcount <- matrix(NA_integer_, ncol(sampler$data@x), n.samples)
-    if (rbartArgs$keepTestFits)
-      samples$yhat.test <- matrix(NA_real_, numTestObservations, control@n.samples)
   }
   
   # order of update matters - need to store a ranef that goes with a prediction
@@ -264,11 +262,11 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
       .Call(C_dbarts_assignInPlace, samples$sigma, i, state$sigma)
     if (!is.null(samples$ranef))
       .Call(C_dbarts_assignInPlace, samples$ranef, i, ranef)
-    if (!is.null(samples$yhat.train) && control@keepTrainingFits)
+    if (!is.null(samples$yhat.train) && rbartArgs$keepTrainingFits)
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     if (!is.null(samples$varcount))
       .Call(C_dbarts_assignInPlace, samples$varcount, i, dbarts_samples$varcount)
-    if (!is.null(samples$yhat.test) && numTestObservations > 0L)
+    if (!is.null(samples$yhat.test) && rbartArgs$keepTestFits)
       .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
       .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
@@ -388,7 +386,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
   sigma <- run_result$samples$sigma
   ranef <- run_result$samples$ranef
   yhat.train <- run_result$samples$yhat.train
-  yhat.test <- run_result$samples$yhat.test
+  yhat.test  <- run_result$samples$yhat.test
   k <- run_result$samples$k
   callback <- run_result$samples$callback
   varcount <- run_result$samples$varcount
@@ -445,12 +443,22 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
       result$sigma       <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$sigma), n.chains, combineChains)
     }
     result$tau         <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$tau), n.chains, combineChains)
-    if (control@keepTrainingFits)
-      result$yhat.train  <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.train), c(dim(chainResults[[1L]]$yhat.train), n.chains)),
-                                                           n.chains, combineChains)
-    result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
-                            convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)),
-                                           n.chains, combineChains)
+    if (NROW(chainResults[[1L]]$yhat.train) <= 0L) {
+      result$yhat.train <- NULL
+    } else {
+      result$yhat.train  <- convertSamplesFromDbartsToBart(
+        array(sapply(chainResults, function(x) x$yhat.train),
+              c(dim(chainResults[[1L]]$yhat.train), n.chains)),
+        n.chains, combineChains)
+    }
+    if (NROW(chainResults[[1L]]$yhat.test) <= 0L) {
+      result$yhat.test <- NULL
+    } else {
+      result$yhat.test <- convertSamplesFromDbartsToBart(
+        array(sapply(chainResults, function(x) x$yhat.test),
+              c(dim(chainResults[[1L]]$yhat.test), n.chains)),
+        n.chains, combineChains)
+    }
     if (!is.null(chainResults[[1L]]$callback)) {
       result$callback <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$callback), c(dim(chainResults[[1L]]$callback), n.chains)))
       dimnames(result$callback) <- list(NULL, NULL, dimnames(chainResults[[1L]]$callback)[[1L]])
@@ -479,8 +487,7 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
       result$sigma       <- chainResults[[1L]]$sigma
     }
     result$tau         <- chainResults[[1L]]$tau
-    if (control@keepTrainingFits)
-      result$yhat.train  <- t(chainResults[[1L]]$yhat.train)
+    result$yhat.train  <- if (NROW(chainResults[[1L]]$yhat.train) <= 0L) NULL else t(chainResults[[1L]]$yhat.train)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
     result$varcount    <- chainResults[[1L]]$varcount
     if (!is.null(chainResults[[1L]]$firstK))
