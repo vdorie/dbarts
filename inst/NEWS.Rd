@@ -6,6 +6,8 @@
     \itemize{
       \item No longer depends on gfortran.
       \item Uses SIMD instructions on M1 Macs.
+      \item Added experimental \code{callback} functionality to
+            \code{rbart_vi}.
     }
   }
   \subsection{BUG FIXES}{

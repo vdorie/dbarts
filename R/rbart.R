@@ -18,6 +18,8 @@ rbart_vi <- function(
   keepTrees = TRUE, keepCall = TRUE,
   seed = NA_integer_,
   keepSampler = keepTrees,
+  keepTestFits = TRUE,
+  callback = NULL,
   ...)
 {
   matchedCall <- match.call()
@@ -139,6 +141,8 @@ rbart_vi <- function(
   } else {
     group.by.test <- NULL
   }
+
+  rbartArgs <- namedList(group.by, prior, keepTestFits, callback)
     
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
                            sigma = as.numeric(sigest))
@@ -173,7 +177,7 @@ rbart_vi <- function(
       clusterEvalQ(cluster, require(dbarts))
       
       tryResult <- tryCatch(
-        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), randomSeeds, MoreArgs = namedList(samplerArgs, group.by, prior)),
+        chainResults <- clusterMap(cluster, "rbart_vi_fit", seq_len(n.chains), randomSeeds, MoreArgs = namedList(samplerArgs, rbartArgs)),
         error = function(e) e)
       
       stopCluster(cluster)
@@ -195,7 +199,7 @@ rbart_vi <- function(
     }
     
     for (chainNum in seq_len(n.chains))
-      chainResults[[chainNum]] <- rbart_vi_fit(1L, NA_integer_, samplerArgs, group.by, prior)
+      chainResults[[chainNum]] <- rbart_vi_fit(1L, NA_integer_, samplerArgs, rbartArgs)
     
     if (exists("oldSeed"))
       .Random.seed <- oldSeed
@@ -203,7 +207,7 @@ rbart_vi <- function(
   packageRbartResults(control, data, group.by, group.by.test, chainResults, combineChains, seed, keepSampler)
 }
 
-rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarmup)
+rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarmup, rbartArgs)
 {
   control <- sampler$control
 
@@ -230,7 +234,8 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
     if (control@keepTrainingFits)
       samples$yhat.train <- matrix(NA_real_, numObservations, n.samples)
     samples$varcount <- matrix(NA_integer_, ncol(sampler$data@x), n.samples)
-    samples$yhat.test <- matrix(NA_real_, numTestObservations, control@n.samples)
+    if (rbartArgs$keepTestFits)
+      samples$yhat.test <- matrix(NA_real_, numTestObservations, control@n.samples)
   }
   
   # order of update matters - need to store a ranef that goes with a prediction
@@ -267,6 +272,18 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
       .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
       .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
+    if (!isWarmup && !is.null(rbartArgs$callback)) {
+      names(ranef) <- data$g.levels
+      if (is.null(samples$callback)) {
+        callback_i <- rbartArgs$callback(state$treeFit.train, dbarts_samples$test, ranef, state$sigma, state$tau)
+        samples$callback <- matrix(NA_real_, length(callback_i), control@n.samples,
+                                   dimnames = list(names(callback_i), NULL))
+        .Call(C_dbarts_assignInPlace, samples$callback, i, callback_i)
+        rm(callback_i)
+      } else {
+        .Call(C_dbarts_assignInPlace, samples$callback, i, rbartArgs$callback(state$treeFit.train, dbarts_samples$test, ranef, state$sigma, state$tau))
+      }
+    }
 
     if (verbose && i %% control@printEvery == 0L) cat("iter: ", i, "\n", sep = "")
   }
@@ -274,7 +291,7 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
   list(state = state, samples = samples)
 }
 
-rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior) 
+rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) 
 {
   chain.num <- "ignored"
   
@@ -295,14 +312,15 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
   y <- sampler$data@y
   rel.scale <- if (!control@binary) sd(y) else 0.5
   
-  g <- as.integer(group.by)
-  numRanef <- nlevels(group.by)
+  g <- as.integer(rbartArgs$group.by)
+  g.levels <- levels(rbartArgs$group.by)
+  numRanef <- nlevels(rbartArgs$group.by)
   g.sel <- lapply(seq_len(numRanef), function(j) g == j)
   n.g <- sapply(g.sel, sum)
   offset.orig <- sampler$data@offset
-  data <- namedList(n.g, numRanef, g.sel, g, offset.orig)
+  data <- namedList(n.g, numRanef, g.sel, g, g.levels, offset.orig)
   
-  evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef, prior = prior))
+  evalEnv <- list2env(list(rel.scale = rel.scale, q = numRanef, prior = rbartArgs$prior))
   b.sq <- NULL ## for R CMD check
   posteriorClosure <- function(x) {
     ifelse(x <= 0.0 | is.infinite(x),
@@ -342,7 +360,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
 
     state$treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
 
-    run_result <- rbart_vi_run(sampler, data, state, prior, FALSE, control@n.burn, TRUE)
+    run_result <- rbart_vi_run(sampler, data, state, prior, FALSE, control@n.burn, TRUE, rbartArgs)
     state <- run_result$state
     
     firstTau <- run_result$samples$tau
@@ -363,25 +381,26 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, group.by, prior)
     firstK <- NULL
   }
   
-  run_result <- rbart_vi_run(sampler, data, state, prior, verbose, control@n.samples, FALSE)
+  run_result <- rbart_vi_run(sampler, data, state, prior, verbose, control@n.samples, FALSE, rbartArgs)
   # state <- run_result$state
   
   tau <- run_result$samples$tau
   sigma <- run_result$samples$sigma
   ranef <- run_result$samples$ranef
   yhat.train <- run_result$samples$yhat.train
-  varcount <- run_result$samples$varcount
   yhat.test <- run_result$samples$yhat.test
   k <- run_result$samples$k
+  callback <- run_result$samples$callback
+  varcount <- run_result$samples$varcount
 
   sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
   
   control@updateState <- oldUpdateState
   sampler$setControl(control)
   
-  rownames(ranef) <- levels(group.by)
+  rownames(ranef) <- g.levels
   
-  result <- namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, varcount)
+  result <- namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, callback, varcount)
   if (kIsModeled) {
     result$firstK <- firstK
     result$k <- k
@@ -432,6 +451,10 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else
                             convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$yhat.test), c(dim(chainResults[[1L]]$yhat.test), n.chains)),
                                            n.chains, combineChains)
+    if (!is.null(chainResults[[1L]]$callback)) {
+      result$callback <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$callback), c(dim(chainResults[[1L]]$callback), n.chains)))
+      dimnames(result$callback) <- list(NULL, NULL, dimnames(chainResults[[1L]]$callback)[[1L]])
+    }
     result$varcount    <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)), n.chains, combineChains)
     if (!is.null(chainResults[[1L]]$firstK)) {
       result$first.k <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstK), n.chains, combineChains)

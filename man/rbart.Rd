@@ -26,6 +26,8 @@ rbart_vi(
     keepTrees = TRUE, keepCall = TRUE,
     seed = NA_integer_,
     keepSampler = keepTrees,
+    keepTestFits = TRUE,
+    callback = NULL,
     \dots)
 
 \S3method{plot}{rbart}(
@@ -64,6 +66,12 @@ rbart_vi(
   }
   \item{n.thin}{
     The number of tree jumps taken for every stored sample, but also the number of samples from the posterior of the standard deviation of the random effects before one is kept.
+  }
+  \item{keepTestFits}{
+    Logical where, if false, test fits are obtained while running but not returned. Useful with \code{callback}.
+  }
+  \item{callback}{
+    Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
   \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, \dots}{
     Same as in \code{\link{bart2}}.
@@ -116,6 +124,9 @@ For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_
   }
   \item{\code{first.tau}}{
     Burn-in draws of \code{tau}.
+  }
+  \item{\code{callback}}{
+    Optional results of \code{callback} function.
   }
 }
 \author{
