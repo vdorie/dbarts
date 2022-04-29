@@ -266,7 +266,7 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     if (!is.null(samples$varcount))
       .Call(C_dbarts_assignInPlace, samples$varcount, i, dbarts_samples$varcount)
-    if (!is.null(samples$yhat.test) && numTestObserations > 0L && rbartArgs$keepTestFits)
+    if (!is.null(samples$yhat.test) && numTestObservations > 0L && rbartArgs$keepTestFits)
       .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
       .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
