@@ -129,7 +129,7 @@ rbart_vi <- function(
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
    
   if (length(group.by) != length(data@y))
-    stop("'group.by' not of length equal to that of data; check for name collisions with `data` argument and calling environment")
+    stop("'group.by' not of length equal to that of data; check for NAs in original data, and for name collisions with `data` argument and calling environment")
   group.by <- droplevels(as.factor(group.by))
   if (!is.null(matchedCall[["group.by.test"]])) {
     if (length(group.by.test) != nrow(data@x.test))
