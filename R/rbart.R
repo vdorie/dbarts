@@ -141,7 +141,12 @@ rbart_vi <- function(
   } else {
     group.by.test <- NULL
   }
-
+  
+  if (!is.null(callback)) {
+    if (!is.function(callback)) stop("callback must be a function")
+    if (length(formals(callback)) != 5L) stop("callback function must take exactly 5 arguments")
+  }
+  
   rbartArgs <- namedList(group.by, prior, keepTrainingFits, keepTestFits, callback)
     
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
@@ -489,6 +494,7 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
     result$tau         <- chainResults[[1L]]$tau
     result$yhat.train  <- if (NROW(chainResults[[1L]]$yhat.train) <= 0L) NULL else t(chainResults[[1L]]$yhat.train)
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
+    if (!is.null(chainResults[[1L]]$callback)) result$callback <- t(chainResults[[1L]]$callback)
     result$varcount    <- chainResults[[1L]]$varcount
     if (!is.null(chainResults[[1L]]$firstK))
       result$first.k <- chainResults[[1L]]$firstK 
