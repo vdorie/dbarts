@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include <dbarts/bartFit.hpp>
 
+#include <cfloat>    // DBL_EPSILON 
 #include <cmath>     // sqrt
 #include <cstring>   // memcpy
 #include <cstddef>   // size_t
@@ -2187,10 +2188,19 @@ namespace {
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
       // Samples a truncated normal with mean (mean + offset) and lower bound of 0
+      double z_new;
       if (fit.data.y[i] > 0.0) {
-        z[i] = ext_rng_simulateLowerTruncatedNormalScale1(state.rng, mean + offset, 0.0);
+        z_new = ext_rng_simulateLowerTruncatedNormalScale1(state.rng, mean + offset, 0.0);
       } else {
-        z[i] = ext_rng_simulateUpperTruncatedNormalScale1(state.rng, mean + offset, 0.0);
+        z_new = ext_rng_simulateUpperTruncatedNormalScale1(state.rng, mean + offset, 0.0);
+      }
+      if (!std::isnan(z_new)) {
+        z[i] = z_new;
+      } else {
+        // unable to simulate a new Z - we're likely so far in the tail of a distribution
+        // that it's incredibly hard to obtain a valid value; as such, we use an epsilon
+        // amount above or below 0
+        z[i] = (fit.data.y[i] > 0.0 ? 1.0 : -1.0) * DBL_EPSILON;
       }
       #else
       double prob;
