@@ -269,6 +269,7 @@ namespace {
     size_t maxNumTestObservations;
     double* y_test;
     Results* samples;
+    double* weights;
     LossFunctor* lf;
     ext_rng* generator;
     size_t* permutation;
@@ -294,9 +295,11 @@ namespace {
                           misc_btm_manager_t manager, size_t threadId, bool lossRequiresMutex,
                           ThreadScratch* v_scratch);
   
-  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData,
+                                 double* restrict y_test, double* restrict weights,
                                  ext_rng* restrict generator, size_t* restrict permutation);
-  void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+  void kFoldDivideData(const Data& restrict origData, Data& restrict repData,
+                       double* restrict y_test, double* restrict weights,
                        size_t k, size_t maxNumFoldObservations, size_t numFullSizedFolds,
                        const size_t* restrict permutation);
 }
@@ -307,6 +310,7 @@ namespace {
     Method method;
     size_t maxNumTestObservations;
     size_t numSamples;
+    bool hasWeights;
     LossFunctor** result;
   };
   struct LossFunctorDestructorData {
@@ -317,7 +321,7 @@ namespace {
 
 extern "C" void lossFunctorCreatorTask(void* data) {
   LossFunctorCreatorData& lfcd(*static_cast<LossFunctorCreatorData*>(data));
-  *lfcd.result = lfcd.lfDef.createFunctor(lfcd.lfDef, lfcd.method, lfcd.maxNumTestObservations, lfcd.numSamples);
+  *lfcd.result = lfcd.lfDef.createFunctor(lfcd.lfDef, lfcd.method, lfcd.maxNumTestObservations, lfcd.numSamples, lfcd.hasWeights);
 }
 extern "C" void lossFunctorDestructorTask(void* data) {
   LossFunctorDestructorData& lfdd(*static_cast<LossFunctorDestructorData*>(data));
@@ -354,22 +358,32 @@ extern "C" {
         
     const LossFunctorDefinition& lfDef(sharedData.lossFunctorDef);
     bool lossRequiresMutex = lfDef.requiresMutex && !misc_btm_isNull(sharedData.threadManager);
+    bool hasWeights = origData.weights != NULL;
     
     LossFunctor* lf = NULL;
     if (lossRequiresMutex) {
-      LossFunctorCreatorData lfcd = { lfDef, sharedData.method, maxNumTestObservations, numSamples, &lf };
+      LossFunctorCreatorData lfcd = { lfDef, sharedData.method, maxNumTestObservations, numSamples, hasWeights, &lf };
       misc_btm_runTaskInParentThread(sharedData.threadManager, threadData.threadId, &lossFunctorCreatorTask, &lfcd);
     } else {
-      lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples);
+      lf = lfDef.createFunctor(lfDef, sharedData.method, maxNumTestObservations, numSamples, hasWeights);
     }
     
     double* suppliedY_test      = lfDef.y_testOffset      >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.y_testOffset) :
                                   NULL;
-    double* suppliedTestSamples = sharedData.lossFunctorDef.testSamplesOffset >= 0 ?
+    double* suppliedTestSamples = lfDef.testSamplesOffset >= 0 ?
                                   *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.testSamplesOffset) :
                                   NULL;
+    double* suppliedWeights = NULL;
+    if (hasWeights) {
+      suppliedWeights = lfDef.weightsOffset >= 0 ? 
+                        *reinterpret_cast<double**>(reinterpret_cast<char*>(lf) + lfDef.weightsOffset) :
+                        NULL;
+    }
     double* y_test = (suppliedY_test == NULL ? new double[maxNumTestObservations] : suppliedY_test);
+    double* weights = NULL;
+    if (hasWeights)
+      weights = (suppliedWeights == NULL ? new double[maxNumTestObservations] : suppliedWeights);
     
     Results* samples =
       suppliedTestSamples == NULL ?
@@ -425,6 +439,7 @@ extern "C" {
     v_threadScratch->maxNumTrainingObservations = maxNumTrainingObservations;
     v_threadScratch->maxNumTestObservations = maxNumTestObservations;
     v_threadScratch->y_test = y_test;
+    v_threadScratch->weights = weights;
     v_threadScratch->samples = samples;
     v_threadScratch->lf = lf;
     v_threadScratch->generator = threadData.rng;
@@ -514,6 +529,7 @@ extern "C" {
     }
     
     if (suppliedY_test == NULL) delete [] y_test;
+    if (hasWeights && suppliedWeights == NULL) delete [] weights;
     
     delete fit;
     
@@ -540,6 +556,7 @@ namespace {
     const double* y_test;
     size_t numTestObservations;
     const double* testSamples;
+    const double* weights;
     size_t numSamples;
     double* results;
   };
@@ -547,7 +564,7 @@ namespace {
 
 extern "C" void lossFunctorTask(void* data) {
   LossFunctorData& lfd(*static_cast<LossFunctorData*>(data));
-  lfd.calculateLoss(lfd.lf, lfd.y_test, lfd.numTestObservations, lfd.testSamples, lfd.numSamples, lfd.results);
+  lfd.calculateLoss(lfd.lf, lfd.y_test, lfd.numTestObservations, lfd.testSamples, lfd.numSamples, lfd.weights, lfd.results);
 }
 
 namespace {
@@ -558,17 +575,18 @@ namespace {
   {
     RandomSubsampleThreadScratch& threadScratch(*reinterpret_cast<RandomSubsampleThreadScratch *>(v_scratch));
     
-    randomSubsampleDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test,
+    randomSubsampleDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test, threadScratch.weights,
                               threadScratch.generator, threadScratch.permutation);
     xvalData.fit.setData(xvalData.repData);
 
     xvalData.fit.runSampler(xvalData.numBurnIn, samples);
     
     if (lossRequiresMutex) {
-      LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results };
+      LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, threadScratch.weights, samples->testSamples, numSamples, results };
       misc_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
     } else {
-      calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, samples->testSamples, numSamples, results);
+      calculateLoss(*threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations,
+                    samples->testSamples, numSamples, threadScratch.weights, results);
     }
   }
   
@@ -605,17 +623,17 @@ namespace {
       xvalData.repData.numObservations = numTrainingObservations;
       xvalData.repData.numTestObservations = numTestObservations;
       
-      kFoldDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test,
+      kFoldDivideData(xvalData.origData, xvalData.repData, threadScratch.y_test, threadScratch.weights,
                       k, threadScratch.maxNumTestObservations, threadScratch.numFullSizedFolds, threadScratch.permutation);
       xvalData.fit.setData(xvalData.repData);
       
       xvalData.fit.runSampler(xvalData.numBurnIn, samples);
     
       if (lossRequiresMutex) {
-        LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults };
+        LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, threadScratch.weights, numSamples, foldResults };
         misc_btm_runTaskInParentThread(manager, threadId, &lossFunctorTask, &ldf);
       } else {
-        calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, foldResults);
+        calculateLoss(*threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, numSamples, threadScratch.weights, foldResults);
       }
       
       for (size_t i = 0; i < threadScratch.numResults; ++i) results[i] += foldResults[i];
@@ -640,12 +658,14 @@ namespace {
     }
   }
   
-  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+  void randomSubsampleDivideData(const Data& restrict origData, Data& restrict repData,
+                                 double* restrict y_test, double* restrict weights,
                                  ext_rng* restrict generator, size_t* restrict permutation)
   {
     double* restrict y = const_cast<double* restrict>(repData.y);
     double* restrict x = const_cast<double* restrict>(repData.x);
     double* restrict x_test = const_cast<double* restrict>(repData.x_test);
+    double* restrict repWeights = const_cast<double* restrict>(repData.weights);
     
     size_t numTrainingObservations = repData.numObservations;
     size_t numTestObservations     = repData.numTestObservations;
@@ -660,6 +680,7 @@ namespace {
       for (size_t j = 0; j < origData.numPredictors; ++j) {
         x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
+      if (weights != NULL) weights[i] = origData.weights[obsIndex];
     }
     for (size_t i = 0; i < numTrainingObservations; ++i) {
       size_t obsIndex = *permutation++;
@@ -667,6 +688,7 @@ namespace {
       for (size_t j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
+      if (repWeights != NULL) repWeights[i] = origData.weights[obsIndex];
     }
     
     /* ext_printf("training data:\n");
@@ -686,7 +708,8 @@ namespace {
     ext_printf("\n"); */
   }
   
-  void kFoldDivideData(const Data& restrict origData, Data& restrict repData, double* restrict y_test,
+  void kFoldDivideData(const Data& restrict origData, Data& restrict repData,
+                       double* restrict y_test, double* restrict weights,
                        size_t k, size_t maxNumFoldObservations, size_t numFullSizedFolds,
                        const size_t* restrict permutation)
   {
@@ -694,6 +717,7 @@ namespace {
     double* restrict y = const_cast<double* restrict>(repData.y);
     double* restrict x = const_cast<double* restrict>(repData.x);
     double* restrict x_test = const_cast<double* restrict>(repData.x_test);
+    double* restrict repWeights = const_cast<double* restrict>(repData.weights);
     
     size_t numTrainingObservations = repData.numObservations;
     size_t numTestObservations     = repData.numTestObservations;
@@ -710,6 +734,8 @@ namespace {
       y_test[i] = origData.y[obsIndex];
       for (j = 0; j < origData.numPredictors; ++j)
         x_test[i + j * numTestObservations] = origData.x[obsIndex + j * origData.numObservations];
+      if (weights != NULL) weights[i] = origData.weights[obsIndex];
+
     }
     for (i = 0; i < foldStartIndex; ++i) {
       obsIndex = permutation[i];
@@ -717,6 +743,7 @@ namespace {
       for (j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
+      if (repWeights != NULL) repWeights[i] = origData.weights[obsIndex];
     }
     for ( /* */; i < numTrainingObservations; ++i) {
       obsIndex = permutation[i + numTestObservations];
@@ -724,6 +751,7 @@ namespace {
       for (j = 0; j < origData.numPredictors; ++j) {
         x[i + j * numTrainingObservations] = origData.x[obsIndex + j * origData.numObservations];
       }
+      if (repWeights != NULL) repWeights[i] = origData.weights[obsIndex];
     }
   }
   

@@ -49,7 +49,7 @@ xbart(
     Between one and three positive integers, specifying the 1) initial burn-in, 2) burn-in when moving from one parameter setting to another, and 3) the burn-in between each random subsample replication. The third parameter is also the burn in when moving between folds in \code{"k-fold"} crossvalidation.
   }
   \item{loss}{
-    Either a one of the pre-set loss functions as character-strings (\code{mcr} - missclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat)}, where \code{y.test} is the held out test subsample and \code{y.test.hat} is a matrix of dimension \code{length(y.test) * n.samples}. See examples.
+    Either a one of the pre-set loss functions as character-strings (\code{mcr} - missclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test) * n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
   }
   \item{n.threads}{
     Across different sets of parameters (\code{k} \eqn{\times}{*} \code{power} \eqn{\times}{*} \code{base} \eqn{\times}{*} \code{n.trees}) and \code{n.reps}, results are independent. For \code{n.threads > 1}, evaluations of the above are divided into approximately equal size evaluations chunks and executed in parallel. The default uses \code{link{guessNumCores}}, which should work across the most common operating system/hardware pairs. A value of \code{NA} is interpretted as 1.
@@ -112,8 +112,10 @@ x  <- matrix(runif(n * 10), n, 10)
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-mad <- function(y.train, y.train.hat) 
+mad <- function(y.train, y.train.hat, weights) {
+    # note, weights are ignored
     mean(abs(y.train - apply(y.train.hat, 1L, mean)))
+}
 
 
 

@@ -47,11 +47,11 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (is.null(matchedCall$loss)) {
     loss <- loss[if (!control@binary) 1L else 2L]
   } else if (is.function(loss)) {
-    if (length(formals(loss)) != 2L) stop("supplied loss function must take exactly two arguments")
+    if (length(formals(loss)) != 3L) stop("supplied loss function must take exactly three arguments")
     loss <- list(loss, evalEnv)
   } else if (is.list(loss)) {
     if (!is.function(loss[[1L]])) stop("first member of loss-list must be a function")
-    if (length(formals(loss[[1L]])) != 2L) stop("supplied loss function must take exactly two arguments")
+    if (length(formals(loss[[1L]])) != 3L) stop("supplied loss function must take exactly three arguments")
     if (!is.environment(loss[[2L]])) stop("second member of loss-list must be an environment")
   }
     

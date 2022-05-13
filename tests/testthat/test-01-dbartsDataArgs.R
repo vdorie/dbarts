@@ -114,8 +114,8 @@ test_that("test weights are created correctly", {
   testData <- trainData[1:20,]
   data <- dbartsData(modelFormula, trainData, test = testData, weights = weights)
   expect_is(data, "dbartsData")
-  expect_equal(data@weights, trainData$weigths)
-  expect_equal(data@weights.test, testData$weigths)
+  expect_equal(data@weights, trainData$weights)
+  expect_equal(data@weights.test, testData$weights)
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)

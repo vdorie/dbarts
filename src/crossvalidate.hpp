@@ -25,18 +25,20 @@ namespace dbarts {
     typedef void(*LossFunction)(LossFunctor& restrict instance,
                                 const double* restrict y_test, std::size_t numTestObservations,
                                 const double* restrict testSamples, std::size_t numSamples, // numTestObservations x numSamples
+                                const double* restrict weights,
                                 double* restrict results);
     
     struct LossFunctorDefinition {
       std::ptrdiff_t y_testOffset;         // offset into functor that points to y_test, or negative if not supplied
       std::ptrdiff_t testSamplesOffset;    // offset into functor that points to testSamples, or negative if not supplied
+      std::ptrdiff_t weightsOffset;        // offset into functor that points to weights, or negative if not supplied
       std::size_t numResults;              // how much to increment results pointer after calculation
       const char* displayString;
       bool requiresMutex;
       
       // member functions
       LossFunction calculateLoss;
-      LossFunctor* (*createFunctor)(const LossFunctorDefinition& def, Method method, std::size_t numTestObservations, std::size_t numSamples);
+      LossFunctor* (*createFunctor)(const LossFunctorDefinition& def, Method method, std::size_t numTestObservations, std::size_t numSamples, bool hasWeights);
       void (*deleteFunctor)(LossFunctor* instance);
       
       virtual ~LossFunctorDefinition() { }

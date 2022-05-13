@@ -10,6 +10,12 @@
             \code{rbart_vi}.
     }
   }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item Custom loss functiosn for \code{xbart} now require an additional
+            weights argument.
+    }
+  }
   \subsection{BUG FIXES}{
     \itemize{
       \item Fixed a multithreaded issue leading to inconsistent results
@@ -20,6 +26,8 @@
             correct distribution.
       \item Extracting the values from the posterior predictive distribution
             for models with weights now incorporates them into the variance.
+      \item Weighted values are considered in loss functions for
+            crossvalidation.
     }
   }
 }

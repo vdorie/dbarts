@@ -55,7 +55,7 @@ namespace {
   
   SEXP allocateResult(size_t numNTrees, size_t numKs, size_t numPowers, size_t numBases, size_t numReps, bool dropUnusedDims);
   LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType lossType, SEXP lossTypeExpr, size_t numTestObservations,
-                                                     size_t numSamples, SEXP scratch);
+                                                     size_t numSamples, bool hasWeights, SEXP scratch);
 }
 
 extern "C" {
@@ -133,6 +133,9 @@ extern "C" {
       maxNumTestObservations = numObservations -
         static_cast<size_t>(std::floor(static_cast<double>(numObservations) * testSampleSize.p + 0.5));
     }
+
+    SEXP weightsExpr = Rf_getAttrib(dataExpr, Rf_install("weights"));
+    bool hasWeights = weightsExpr != R_NilValue && Rf_isReal(weightsExpr) && rc_getLength(weightsExpr) != 0;
     
     LossFunctorType lossType = INVALID;
     if (Rf_isString(lossTypeExpr)) {
@@ -160,7 +163,7 @@ extern "C" {
     
     SEXP scratch = R_NilValue;
     if (lossType == CUSTOM) {
-      R_xlen_t scratchLength = rc_asRLength(numThreads * 3 * (method == K_FOLD ? 2 : 1));
+      R_xlen_t scratchLength = rc_asRLength(numThreads * (3 + (hasWeights ? 1 : 0)) * (method == K_FOLD ? 2 : 1));
       scratch = PROTECT(rc_newList(scratchLength));
       ++protectCount;
       for (R_xlen_t i = 0; i < scratchLength; ++i)
@@ -175,8 +178,9 @@ extern "C" {
     
     if (lossType == LOG && control.responseIsBinary == false) lossType = RMSE;
     
+
     LossFunctorDefinition* lossFunctionDef =
-      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, scratch);
+      createLossFunctorDefinition(lossType, lossTypeExpr, maxNumTestObservations, numSamples, hasWeights, scratch);
     
     initializeDataFromExpression(data, dataExpr);
     initializeModelFromExpression(model, modelExpr, control, data);
@@ -264,7 +268,9 @@ namespace {
     double* scratch;
   };
   
-  LossFunctor* createLogLoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createLogLoss(const LossFunctorDefinition& def, Method,
+                             std::size_t numTestObservations, std::size_t numSamples,
+                             bool)
   {
     (void) def; (void) numSamples; (void) numTestObservations;
     
@@ -280,27 +286,41 @@ namespace {
   }
   
   void calculateLogLoss(LossFunctor& restrict v_instance,
-                        const double* restrict y_test, size_t numTestObservations, const double* restrict testSamples, size_t numSamples,
+                        const double* restrict y_test, size_t numTestObservations,
+                        const double* restrict testSamples, size_t numSamples,
+                        const double* restrict weights,
                         double* restrict results)
   {
     LogLossFunctor& restrict instance(*static_cast<LogLossFunctor* restrict>(&v_instance));
     double* restrict probabilities = instance.scratch;
     results[0] = 0.0;
-    for (size_t i = 0; i < numTestObservations; ++i) {
-      for (size_t j = 0; j < numSamples; ++j) {
-        probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+    if (weights == NULL) {
+      for (size_t i = 0; i < numTestObservations; ++i) {
+        for (size_t j = 0; j < numSamples; ++j) {
+          probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+        }
+        double y_test_hat = misc_computeMean(probabilities, numSamples);
+        results[0] += -(y_test[i] > 0.0 ? std::log(y_test_hat) : log1p(-y_test_hat));
       }
-      double y_test_hat = misc_computeMean(probabilities, numSamples);
-      results[0] += -(y_test[i] > 0.0 ? std::log(y_test_hat) : log1p(-y_test_hat));
+      results[0] /= static_cast<double>(numTestObservations);
+    } else {
+      for (size_t i = 0; i < numTestObservations; ++i) {
+        for (size_t j = 0; j < numSamples; ++j) {
+          probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+        }
+        double y_test_hat = misc_computeMean(probabilities, numSamples);
+        results[0] += -weights[i] * (y_test[i] > 0.0 ? std::log(y_test_hat) : log1p(-y_test_hat));
+      }
+      results[0] /= misc_sumVectorElements(weights, numTestObservations);
     }
-    results[0] /= static_cast<double>(numTestObservations);
   }
   
   struct RMSELossFunctor : LossFunctor {
     double* scratch;
   };
   
-  LossFunctor* createRMSELoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createRMSELoss(const LossFunctorDefinition& def, Method,
+                              std::size_t numTestObservations, std::size_t numSamples, bool)
   {
     (void) def; (void) numSamples;
     
@@ -316,7 +336,9 @@ namespace {
   }
   
   void calculateRMSELoss(LossFunctor& restrict v_instance,
-                        const double* restrict y_test, size_t numTestObservations, const double* restrict testSamples, size_t numSamples,
+                        const double* restrict y_test, size_t numTestObservations,
+                        const double* restrict testSamples, size_t numSamples,
+                        const double* restrict weights,
                         double* restrict results)
   {
     RMSELossFunctor& restrict instance(*static_cast<RMSELossFunctor* restrict>(&v_instance));
@@ -328,7 +350,12 @@ namespace {
       y_test_hat[i] /= static_cast<double>(numSamples);
     }
     
-    results[0] = std::sqrt(misc_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
+    
+    if (weights == NULL) {
+      results[0] = std::sqrt(misc_computeSumOfSquaredResiduals(y_test, numTestObservations, y_test_hat) / static_cast<double>(numTestObservations));
+    } else {
+      results[0] = std::sqrt(misc_computeWeightedSumOfSquaredResiduals(y_test, numTestObservations, weights, y_test_hat)) / misc_sumVectorElements(weights, numTestObservations);
+    }
   }
 
   
@@ -336,7 +363,9 @@ namespace {
     double* scratch;
   };
   
-  LossFunctor* createMCRLoss(const LossFunctorDefinition& def, Method, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createMCRLoss(const LossFunctorDefinition& def, Method,
+                             std::size_t numTestObservations, std::size_t numSamples,
+                             bool)
   {
     (void) def; (void) numTestObservations;
     
@@ -352,24 +381,41 @@ namespace {
   }
 
   void calculateMCRLoss(LossFunctor& restrict v_instance,
-                        const double* restrict y_test, size_t numTestObservations, const double* restrict testSamples, size_t numSamples,
+                        const double* restrict y_test, size_t numTestObservations,
+                        const double* restrict testSamples, size_t numSamples,
+                        const double* restrict weights,
                         double* restrict results)
   {
     MCRLossFunctor& restrict instance(*static_cast<MCRLossFunctor* restrict>(&v_instance));
     
     double* restrict probabilities = instance.scratch;
-    size_t fp = 0, fn = 0;
-    for (size_t i = 0; i < numTestObservations; ++i) {
-      for (size_t j = 0; j < numSamples; ++j) {
-        probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+    if (weights == NULL) {
+      size_t fp = 0, fn = 0;
+      for (size_t i = 0; i < numTestObservations; ++i) {
+        for (size_t j = 0; j < numSamples; ++j) {
+          probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+        }
+        double y_test_hat = misc_computeMean(probabilities, numSamples) > 0.5 ? 1.0 : 0.0;
+        
+        if (y_test[i] != y_test_hat) {
+          if (y_test[i] == 1.0) ++fn; else ++fp;
+        }
       }
-      double y_test_hat = misc_computeMean(probabilities, numSamples) > 0.5 ? 1.0 : 0.0;
-      
-      if (y_test[i] != y_test_hat) {
-        if (y_test[i] == 1.0) ++fn; else ++fp;
+      results[0] = static_cast<double>(fp + fn) / static_cast<double>(numTestObservations);
+    } else {
+      double fp = 0, fn = 0;
+      for (size_t i = 0; i < numTestObservations; ++i) {
+        for (size_t j = 0; j < numSamples; ++j) {
+          probabilities[j] = ext_cumulativeProbabilityOfNormal(testSamples[i + j * numTestObservations], 0.0, 1.0);
+        }
+        double y_test_hat = misc_computeMean(probabilities, numSamples) > 0.5 ? 1.0 : 0.0;
+        
+        if (y_test[i] != y_test_hat) {
+          if (y_test[i] == 1.0) fn += weights[i]; else fp += weights[i];
+        }
       }
+      results[0] = (fp + fn) / misc_sumVectorElements(weights, numTestObservations);
     }
-    results[0] = static_cast<double>(fp + fn) / static_cast<double>(numTestObservations);
   }
   
   /*
@@ -392,17 +438,19 @@ namespace {
   struct CustomLossFunctor : LossFunctor {
     double* y_test;
     double* testSamples;
+    double* weights;
     size_t maxNumTestObservations;
     
     double* y_testNM1;
     double* testSamplesNM1;
+    double* weightsNM1;
     
     SEXP closure;
     SEXP closureNM1;
     SEXP environment;
   };
   
-  LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, Method method, std::size_t numTestObservations, std::size_t numSamples)
+  LossFunctor* createCustomLoss(const LossFunctorDefinition& v_def, Method method, std::size_t numTestObservations, std::size_t numSamples, bool hasWeights)
   {
     CustomLossFunctorDefinition& def(*const_cast<CustomLossFunctorDefinition*>(static_cast<const CustomLossFunctorDefinition*>(&v_def)));
     CustomLossFunctor* result = new CustomLossFunctor;
@@ -414,35 +462,48 @@ namespace {
     SEXP y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
     SEXP testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
     rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
+    SEXP weightsExpr = R_NilValue;
+    if (hasWeights)
+      weightsExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
             
     result->y_test      = REAL(y_testExpr);
     result->testSamples = REAL(testSamplesExpr);
     result->maxNumTestObservations = numTestObservations;
+    result->weights = hasWeights ? REAL(weightsExpr) : NULL;
+
     
-    result->closure     = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
+    result->closure     = PROTECT(Rf_lang4(def.function, y_testExpr, testSamplesExpr, weightsExpr));
     result->environment = def.environment;
     
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, y_testExpr);
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
+    if (hasWeights)
+      SET_VECTOR_ELT(def.scratch, assignmentIndex++, weightsExpr);
     SET_VECTOR_ELT(def.scratch, assignmentIndex++, result->closure);
     
-    UNPROTECT(3);
+    UNPROTECT(3 + (hasWeights ? 1 : 0));
     
     if (method == K_FOLD) {
       y_testExpr      = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
       testSamplesExpr = PROTECT(Rf_allocVector(REALSXP, (numTestObservations - 1) * numSamples));
       rc_setDims(testSamplesExpr, static_cast<int>(numTestObservations - 1), static_cast<int>(numSamples), -1);
+      weightsExpr = R_NilValue;
+      if (hasWeights)
+        weightsExpr = PROTECT(Rf_allocVector(REALSXP, numTestObservations - 1));
       
       result->y_testNM1      = REAL(y_testExpr);
       result->testSamplesNM1 = REAL(testSamplesExpr);
+      result->weightsNM1 = hasWeights ? REAL(weightsExpr) : NULL;
             
-      result->closureNM1 = PROTECT(Rf_lang3(def.function, y_testExpr, testSamplesExpr));
+      result->closureNM1 = PROTECT(Rf_lang4(def.function, y_testExpr, testSamplesExpr, weightsExpr));
       
       SET_VECTOR_ELT(def.scratch, assignmentIndex++, y_testExpr);
       SET_VECTOR_ELT(def.scratch, assignmentIndex++, testSamplesExpr);
+      if (hasWeights)
+        SET_VECTOR_ELT(def.scratch, assignmentIndex++, weightsExpr);
       SET_VECTOR_ELT(def.scratch, assignmentIndex, result->closureNM1);
       
-      UNPROTECT(3);
+      UNPROTECT(3 + (hasWeights ? 1 : 0));
     }
     
     return result;
@@ -454,7 +515,9 @@ namespace {
   }
   
   void calculateCustomLoss(LossFunctor& restrict v_instance,
-                           const double* restrict, size_t numTestObservations, const double* restrict, size_t numSamples,
+                           const double* restrict, size_t numTestObservations,
+                           const double* restrict, size_t numSamples,
+                           const double* restrict weights,
                            double* restrict results)
   {
     CustomLossFunctor& restrict instance(*static_cast<CustomLossFunctor* restrict>(&v_instance));
@@ -465,13 +528,16 @@ namespace {
     } else {
       std::memcpy(instance.y_testNM1, const_cast<const double*>(instance.y_test), numTestObservations * sizeof(double));
       std::memcpy(instance.testSamplesNM1, const_cast<const double*>(instance.testSamples), numTestObservations * numSamples * sizeof(double));
+      if (instance.weightsNM1 != NULL)
+        std::memcpy(instance.weightsNM1, const_cast<const double*>(instance.weights), numTestObservations * sizeof(double));
       customResult = Rf_eval(instance.closureNM1, instance.environment);
     }
     
     std::memcpy(results, const_cast<const double*>(REAL(customResult)), rc_getLength(customResult) * sizeof(double));
   }
   
-  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType type, SEXP lossTypeExpr, size_t numTestObservations, size_t numSamples,
+  LossFunctorDefinition* createLossFunctorDefinition(LossFunctorType type, SEXP lossTypeExpr,
+                                                     size_t numTestObservations, size_t numSamples, bool hasWeights,
                                                      SEXP scratch)
   {
     LossFunctorDefinition* result = NULL;
@@ -481,6 +547,7 @@ namespace {
       result = new LossFunctorDefinition;
       result->y_testOffset = -1;
       result->testSamplesOffset = -1;
+      result->weightsOffset = -1;
       result->numResults = 1;
       result->displayString = lossTypeNames[RMSE];
       result->requiresMutex = false;
@@ -492,6 +559,7 @@ namespace {
       result = new LossFunctorDefinition;
       result->y_testOffset = -1;
       result->testSamplesOffset = -1;
+      result->weightsOffset = -1;
       result->numResults = 1;
       result->displayString = lossTypeNames[LOG];
       result->requiresMutex = false;
@@ -503,6 +571,7 @@ namespace {
       result = new LossFunctorDefinition;
       result->y_testOffset = -1;
       result->testSamplesOffset = -1;
+      result->weightsOffset = -1;
       result->numResults = 1;
       result->displayString = lossTypeNames[MCR];
       result->requiresMutex = false;
@@ -519,21 +588,25 @@ namespace {
         result = c_result;
         result->y_testOffset = 0;
         result->testSamplesOffset = sizeof(double*);
+        result->weightsOffset     = hasWeights ? 2 * sizeof(double*) : -1;
         
         SEXP tempY_test      = PROTECT(Rf_allocVector(REALSXP, numTestObservations));
         SEXP tempTestSamples = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples));
         rc_setDims(tempTestSamples, static_cast<int>(numTestObservations), static_cast<int>(numSamples), -1);
+        SEXP tempWeights     = hasWeights ? PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples)) : R_NilValue;
         // set some values to not all be the same so that they have an SD != 0
         REAL(tempY_test)[0] = 1.0;
         misc_setVectorToConstant(REAL(tempY_test) + 1, numTestObservations - 1, 0.0);
         REAL(tempTestSamples)[0] = 0.0;
         misc_setVectorToConstant(REAL(tempTestSamples) + 1, numTestObservations - 1, 1.0);
         misc_setVectorToConstant(REAL(tempTestSamples) + numTestObservations, numTestObservations * (numSamples - 1), 0.0);
+        if (hasWeights)
+          misc_setVectorToConstant(REAL(tempWeights), numTestObservations, 1.0);
         
-        SEXP tempClosure = PROTECT(Rf_lang3(function, tempY_test, tempTestSamples));
+        SEXP tempClosure = PROTECT(Rf_lang4(function, tempY_test, tempTestSamples, tempWeights));
         
         result->numResults = rc_getLength(Rf_eval(tempClosure, environment));
-        UNPROTECT(3);
+        UNPROTECT(3 + (hasWeights ? 1 : 0));
         
         result->displayString = lossTypeNames[CUSTOM];
         result->requiresMutex = true;

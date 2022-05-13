@@ -72,6 +72,21 @@ test_that("k-fold runs correctly with one input", {
   expect_equal(length(xval), 3)
 })
 
+test_that("runs correctly with weighted input", {
+  x <- testData$x
+  y <- testData$y
+  weights <- rep(1, length(y))
+  
+  xval <- xbart(x, y, weights = weights,
+                n.samples = 6L, n.burn = c(5L, 3L, 1L),
+                n.reps = 3, n.test = 5,
+                k = 2,
+                n.threads = 2L)
+  
+  expect_equal(length(xval), 3)
+})
+
+
 test_that("k-fold and random subsample are reproducible, roughly similar", {
   x <- testData$x
   y <- testData$y
@@ -163,7 +178,7 @@ test_that("works with custom loss", {
   power   <- c(1.5, 2)
   base    <- c(0.75, 0.8, 0.95)
   
-  mad <- function(y.train, y.train.hat) 
+  mad <- function(y.train, y.train.hat, weights) 
     mean(abs(y.train - apply(y.train.hat, 1L, mean)))
 
   xval <- xbart(x, y, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
@@ -287,7 +302,6 @@ test_that("k-fold subdivides data correctly when data do not divide evenly by k"
   expect_is(xval, "array")
 })
 
-
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("runs with binary data and k hyperprior", {
@@ -309,4 +323,5 @@ test_that("runs with binary data and k hyperprior", {
     rep     = NULL,
     power   = as.character(power)))
 })
+
 
