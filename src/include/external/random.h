@@ -79,6 +79,8 @@ double ext_rng_simulateLowerTruncatedStandardNormal(ext_rng* generator, double l
 // use the previous to generate truncated normals with sd 1 and nonzero mean
 double ext_rng_simulateLowerTruncatedNormalScale1(ext_rng* generator, double mean, double bound);
 double ext_rng_simulateUpperTruncatedNormalScale1(ext_rng* generator, double mean, double bound);
+double ext_rng_simulateLowerTruncatedNormal(ext_rng* generator, double mean, double sd, double bound);
+double ext_rng_simulateUpperTruncatedNormal(ext_rng* generator, double mean, double sd, double bound);
 
 // subsequent in random.c
 double ext_rng_simulateExponential(ext_rng* generator, double scale);

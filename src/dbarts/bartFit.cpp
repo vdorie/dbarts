@@ -2187,12 +2187,13 @@ namespace {
       double offset = 0.0;
       if (fit.data.offset != NULL) offset = fit.data.offset[i];
       
-      // Samples a truncated normal with mean (mean + offset) and lower bound of 0
-      double z_new;
-      if (fit.data.y[i] > 0.0) {
-        z_new = ext_rng_simulateLowerTruncatedNormalScale1(state.rng, mean + offset, 0.0);
+      double z_new, sign;
+      sign = 2.0 * fit.data.y[i] - 1.0;
+      if (fit.data.weights == NULL) {
+        // Y_i ~ N(mu+offset, sigma^2)+;
+        z_new = sign * ext_rng_simulateLowerTruncatedNormalScale1(state.rng, sign * (mean + offset), 0.0);
       } else {
-        z_new = ext_rng_simulateUpperTruncatedNormalScale1(state.rng, mean + offset, 0.0);
+        z_new = sign * ext_rng_simulateLowerTruncatedNormal(state.rng, sign * (mean + offset), 1.0 / std::sqrt(fit.data.weights[i]), 0.0);
       }
       if (!std::isnan(z_new)) {
         z[i] = z_new;
@@ -2200,7 +2201,7 @@ namespace {
         // unable to simulate a new Z - we're likely so far in the tail of a distribution
         // that it's incredibly hard to obtain a valid value; as such, we use an epsilon
         // amount above or below 0
-        z[i] = (fit.data.y[i] > 0.0 ? 1.0 : -1.0) * DBL_EPSILON;
+        z[i] = sign * DBL_EPSILON;
       }
       #else
       double prob;

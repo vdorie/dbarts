@@ -335,6 +335,7 @@ uint64_t ext_rng_simulateUnsignedIntegerUniformInRange(ext_rng* generator, uint6
 }
 
 #define MAX_ITER 1000
+// X ~ N(0, 1) | X >= lb
 double ext_rng_simulateLowerTruncatedStandardNormal(ext_rng* generator, double lowerBound)
 {
   double x;
@@ -358,10 +359,20 @@ double ext_rng_simulateLowerTruncatedStandardNormal(ext_rng* generator, double l
   return x;
 }
 
+// X ~ mu + N(0, 1) | X >= lb - mean
+// X ~ N(mu, 1) | X >= lb
 double ext_rng_simulateLowerTruncatedNormalScale1(ext_rng* generator, double mean, double bound) {
   return mean + ext_rng_simulateLowerTruncatedStandardNormal(generator, bound - mean);
+}
+
+double ext_rng_simulateLowerTruncatedNormal(ext_rng* generator, double mean, double sd, double bound) {
+  return mean + sd * ext_rng_simulateLowerTruncatedStandardNormal(generator, (bound - mean) / sd);
 }
 
 double ext_rng_simulateUpperTruncatedNormalScale1(ext_rng* generator, double mean, double bound) {
   return mean - ext_rng_simulateLowerTruncatedStandardNormal(generator, mean - bound);
 }
+double ext_rng_simulateUpperTruncatedNormal(ext_rng* generator, double mean, double sd, double bound) {
+  return mean - sd * ext_rng_simulateLowerTruncatedStandardNormal(generator, (mean - bound) / sd);
+}
+

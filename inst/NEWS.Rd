@@ -16,6 +16,8 @@
             with \code{xbart}.
       \item \code{rbart_vi} should now correctly use default arguments.
       \item \code{rbart_vi} now works with \code{keepTrainingFits} as false.
+      \item Weighted binary responses sample latent variables from the
+            correct distribution.
     }
   }
 }
