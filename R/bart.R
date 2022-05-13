@@ -242,6 +242,12 @@ bart2 <- function(
   }
 
   result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combineChains, keepSampler)
+  # needed to extract ppd
+  if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
+    result$weights <- sampler$data@weights
+    if (!is.null(sampler$data@weights.test) && length(sampler$data@weights.test) > 0L)
+      result$weights.test <- sampler$data@weights.test
+  }
   
   result
 }

@@ -13,11 +13,14 @@ combineOrUncombineChains <- function(x, n.chains, combineChains)
   x
 }
 
-predict.bart <- function(object, newdata, offset,
+predict.bart <- function(object, newdata, offset, weights,
                          type = c("ev", "ppd", "bart"),
                          combineChains = TRUE,
                          ...)
 {
+  if (missing(offset)) offset <- NULL
+  if (missing(weights)) weights <- NULL
+
   if (is.null(object[["fit"]])) {
     if (as.character(object$call[[1L]]) == "bart2")
       stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
@@ -32,8 +35,6 @@ predict.bart <- function(object, newdata, offset,
   if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.bart)$type))
     stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
   type <- type[1L]
-
-  if (missing(offset)) offset <- NULL
   
   result <- object$fit$predict(newdata, offset)
   # result is n.obs x n.samples x n.chains
@@ -42,12 +43,12 @@ predict.bart <- function(object, newdata, offset,
   
   if (type == "bart")
     return(result)
-  
+
   if ((responseIsBinary <- is.null(object[["sigma"]])))
     result <- pnorm(result)
   
   if (type == "ppd")
-    result <- sampleFromPPD(result, object)
+    result <- sampleFromPPD(result, object, weights)
   
   result
 }
@@ -88,8 +89,9 @@ extract.bart <- function(object,
   
   if (sample == "test" && is.null(object[["yhat.test"]]))
     stop("cannot extract test sample predictions if no test data exists; use `predict` instead")  
-    
+  
   result <- if (sample == "train") object$yhat.train else object$yhat.test
+  weights <- if (sample == "train") object$weigths else object$weights.test
   
   n.chains  <- if (!is.null(object[["fit"]])) object$fit$control@n.chains else object$n.chains
   #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
@@ -104,7 +106,7 @@ extract.bart <- function(object,
     result <- pnorm(result)
   
   if (type == "ppd")
-    result <- sampleFromPPD(result, object)
+    result <- sampleFromPPD(result, object, weights)
   
   result
 }
@@ -252,7 +254,7 @@ predict.rbart <- function(object, newdata, group.by, offset,
   if (responseIsBinary) result <- pnorm(result)
   
   if (type == "ppd")
-    result <- sampleFromPPD(result, object)
+    result <- sampleFromPPD(result, object, NULL)
   
   if (exists("unmeasuredRanef", inherits = FALSE)) attr(result, "ranef") <- unmeasuredRanef
   
@@ -354,7 +356,7 @@ extract.rbart <- function(object,
   if (responseIsBinary) result <- pnorm(result)
   
   if (type == "ppd")
-    result <- sampleFromPPD(result, object)
+    result <- sampleFromPPD(result, object, NULL)
   
   result
 }
@@ -412,7 +414,7 @@ residuals.rbart <- function(object, ...) {
 #
 # for ev of dim n.chains x n.samples x n.obs (bart default),
 # each sigma needs to be repeated as below
-sampleFromPPD <- function(ev, object)
+sampleFromPPD <- function(ev, object, weights)
 {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
@@ -422,20 +424,32 @@ sampleFromPPD <- function(ev, object)
   
   responseIsBinary <- is.null(object$sigma)
   
-  if (responseIsBinary) {
-    if (length(dim(ev)) > 2L)
-      result <- array(rbinom(length(ev), 1L, ev), dim(ev), dimnames = dimnames(ev))
-    else
-      result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
+  if (is.null(weights)) {
+    if (responseIsBinary) {
+      if (length(dim(ev)) > 2L)
+        result <- array(rbinom(length(ev), 1L, ev), dim(ev), dimnames = dimnames(ev))
+      else
+        result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
+    } else {
+      n.obs <- dim(ev)[length(dim(ev))]
+      result <- ev + rnorm(n.obs * length(object$sigma), 0, rep_len(object$sigma, n.obs * length(object$sigma)))
+    }
   } else {
-    #if (inherits(object, "bart")) {
-    #  n.chains <- if (!is.null(object[["fit"]])) object$fit$control@n.chains else object$n.chains
-    #} else {
-    #  n.chains <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
-    #}
-    #n.samples <- if (length(dim(ev)) > 2L) dim(ev)[2L] else dim(ev)[1L] %/% n.chains
-    n.obs     <- dim(ev)[length(dim(ev))]
-    result <- ev + rnorm(n.obs * length(object$sigma), 0, rep_len(object$sigma, n.obs * length(object$sigma)))
+    if (responseIsBinary) {
+      if (length(dim(ev)) > 2L) {
+        result <- array(rbinom(length(ev), 1L, ev), dim(ev), dimnames = dimnames(ev))
+        # recycle weight vector by permuting observations to first dimension
+        result <- aperm(weights * aperm(result, c(3L, 1L, 2L)), c(2L, 3L, 1L))
+      } else {
+        result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
+        result <- t(weights * t(result))
+      }
+    } else {
+      n.obs <- dim(ev)[length(dim(ev))]
+      n.samples <- length(object$sigma)
+      sigma <- rep_len(object$sigma, n.obs * n.samples) * rep(sqrt(1 / weights), each = n.samples)
+      result <- ev + rnorm(n.obs * n.samples, 0, sigma)
+    }
   }
   if (!is.null(oldSeed))
     .GlobalEnv$.Random.seed <- oldSeed

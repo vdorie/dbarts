@@ -10,6 +10,7 @@ methods::setMethod("initialize", "dbartsData",
     .Object@varTypes <- rep.int(ORDINAL_VARIABLE, ncol(.Object@x))
     .Object@x.test <- modelMatrices$x.test
     .Object@weights <- modelMatrices$weights
+    .Object@weights.test <- modelMatrices$weights.test
     .Object@offset <- modelMatrices$offset
     .Object@offset.test <- modelMatrices$offset.test
 
@@ -192,7 +193,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       if (!is.null(offset)) {
         offsetGivenAsScalar <- length(offset) == 1
         if (offsetGivenAsScalar) modelFrameArgs <- c("formula", "data", "subset", "weights")
-      }      
+      } 
       originalOffset <- offset
     }    
     modelFrameCall <- matchedCall
@@ -332,7 +333,25 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   } else {
     if (testOffsetIsMissing) offset.test <- NULL
   }
+
+  weights.test <- NULL
+  if (!is.null(x.test) && !is.null(matchedCall$weights)) {
+    if (!is.formula(formula)) {
+      warning("'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data")
+    } else {
+      testFormula <- formula
+      lhs <- testFormula[[2L]]
+      remainder <- testFormula
+      remainder[[2L]] <- NULL
+      testFormula <- as.formula(paste0(deparse(remainder), " - ", deparse(lhs)))
+      environment(testFormula) <- environment(formula)
+      modelFrameCall$formula <- testFormula
+      modelFrameCall$data <- test
+      testFrame <- eval(modelFrameCall, parent.frame())
+      weights.test <- testFrame[["(weights)"]]
+    }
+  }
   
-  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
+  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, weights.test, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
 }
 

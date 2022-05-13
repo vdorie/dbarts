@@ -218,27 +218,29 @@ methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
 
 methods::setClass("dbartsData",
   slots =
-  list(y           = "numeric",
-       x           = "matrix",
-       varTypes    = "integer",
-       x.test      = "matrixOrNULL",
-       weights     = "numericOrNULL",
-       offset      = "numericOrNULL",
-       offset.test = "numericOrNULL",
-       n.cuts      = "integer",
-       sigma       = "numeric",
+  list(y            = "numeric",
+       x            = "matrix",
+       varTypes     = "integer",
+       x.test       = "matrixOrNULL",
+       weights      = "numericOrNULL",
+       weights.test = "numericOrNULL",
+       offset       = "numericOrNULL",
+       offset.test  = "numericOrNULL",
+       n.cuts       = "integer",
+       sigma        = "numeric",
 
        testUsesRegularOffset   = "logical"),
   prototype =
-  list(y           = numeric(0),
-       x           = matrix(0, 0, 0),
-       varTypes    = integer(0),
-       x.test      = NULL,
-       weights     = NULL,
-       offset      = NULL,
-       offset.test = NULL,
-       n.cuts      = integer(0),
-       sigma       = NA_real_,
+  list(y            = numeric(0),
+       x            = matrix(0, 0, 0),
+       varTypes     = integer(0),
+       x.test       = NULL,
+       weights      = NULL,
+       weights.test = NULL,
+       offset       = NULL,
+       offset.test  = NULL,
+       n.cuts       = integer(0),
+       sigma        = NA_real_,
 
        testUsesRegularOffset   = NA
        )
@@ -252,7 +254,6 @@ methods::setValidity("dbartsData",
         any(object@varTypes != ORDINAL_VARIABLE & object@varTypes != CATEGORICAL_VARIABLE))
       return("variable types must all be ordinal or categorical")
     
-    if (!is.null(object@x.test) && ncol(object@x.test) != ncol(object@x)) return("'x.test' must be null or have number of columns equal to 'x'")
     if (!is.null(object@weights)) {
       if (length(object@weights) != numObservations) return("'weights' must be null or have length equal to that of 'y'")
       if (anyNA(object@weights)) return("'weights' cannot be NA")
@@ -260,6 +261,13 @@ methods::setValidity("dbartsData",
       if (any(object@weights == 0.0)) warning("'weights' of 0 will be ignored but increase computation time")
     }
     if (!is.null(object@offset) && length(object@offset) != numObservations) return("'offset' must be null or have length equal to that of 'y'")
+    if (!is.null(object@x.test)) {
+      if (ncol(object@x.test) != ncol(object@x)) return("'x.test' must be null or have number of columns equal to 'x'")
+      if (!is.null(object@weights.test) && length(object@weights.test) != nrow(object@x.test))
+        return("'weights.test' must be null or have the same number of rows as 'x.test'")
+      if (!is.null(object@offset.test) && length(object@offset.test) != nrow(object@x.test))
+        return("'offset.test' must be null or have the same number of rows as 'x.test'")
+    }
     if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
     
     if (!is.na(object@sigma) && object@sigma <= 0.0) return("'sigma' must be positive")

@@ -18,6 +18,8 @@
       \item \code{rbart_vi} now works with \code{keepTrainingFits} as false.
       \item Weighted binary responses sample latent variables from the
             correct distribution.
+      \item Extracting the values from the posterior predictive distribution
+            for models with weights now incorporates them into the variance.
     }
   }
 }

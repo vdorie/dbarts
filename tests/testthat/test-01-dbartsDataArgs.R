@@ -29,17 +29,20 @@ test_that("compatibility specification raises errors", {
 })
 
 test_that("formula specification creates valid objects", {
-  testData <- as.data.frame(testData)
-  testData$weights <- runif(nrow(testData))
-  testData$offset  <- rnorm(nrow(testData))
+  trainData <- as.data.frame(testData)
+  trainData$weights <- runif(nrow(trainData))
+  trainData$offset  <- rnorm(nrow(trainData))
 
   modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
   
-  expect_is(dbartsData(modelFormula, testData), "dbartsData")
-  expect_is(dbartsData(modelFormula, testData, weights = weights), "dbartsData")
-  expect_is(dbartsData(modelFormula, testData, offset = offset), "dbartsData")
-  expect_is(dbartsData(modelFormula, testData, weights = weights, offset = offset), "dbartsData")
-  expect_is(dbartsData(modelFormula, testData, subset = 1:10, weights = weights, offset = offset), "dbartsData")
+  expect_is(dbartsData(modelFormula, trainData), "dbartsData")
+  expect_is(dbartsData(modelFormula, trainData, weights = weights), "dbartsData")
+  expect_is(dbartsData(modelFormula, trainData, offset = offset), "dbartsData")
+  expect_is(dbartsData(modelFormula, trainData, weights = weights, offset = offset), "dbartsData")
+  expect_is(dbartsData(modelFormula, trainData, subset = 1:10, weights = weights, offset = offset), "dbartsData")
+
+  testData <- trainData[1:20,]
+  expect_is(dbartsData(modelFormula, trainData, test = testData, weights = weights), "dbartsData")
 })
 
 test_that("compatibility specification creates valid objects", {
@@ -100,6 +103,19 @@ test_that("test argument creates valid objects", {
   testData$test <- NULL
   expect_is(dbartsData(y ~ x, testData, test), "dbartsData")
   expect_is(dbartsData(y ~ x, testData, testData$x[11:20,]), "dbartsData")
+})
+
+test_that("test weights are created correctly", {
+  trainData <- as.data.frame(testData)
+  trainData$weights <- runif(nrow(trainData))
+
+  modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
+  
+  testData <- trainData[1:20,]
+  data <- dbartsData(modelFormula, trainData, test = testData, weights = weights)
+  expect_is(data, "dbartsData")
+  expect_equal(data@weights, trainData$weigths)
+  expect_equal(data@weights.test, testData$weigths)
 })
 
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
