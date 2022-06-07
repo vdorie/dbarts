@@ -9,9 +9,9 @@ xbart(
     formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L, 50L),
-    loss = c("rmse", "log", "mcr"), n.threads = guessNumCores(), n.trees = 75L,
+    loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95, drop = TRUE,
-    resid.prior = chisq, control = dbartsControl(), sigma = NA_real_,
+    resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
     seed = NA_integer_)
 }
 \arguments{

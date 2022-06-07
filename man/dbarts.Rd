@@ -11,7 +11,7 @@ dbarts(
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-    control = dbartsControl(), sigma = NA_real_)}
+    control = dbarts::dbartsControl(), sigma = NA_real_)}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}.
