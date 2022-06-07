@@ -10,7 +10,7 @@ rbart_vi <- function(
   power = 2.0, base = 0.95,
   n.trees = 75L,
   n.samples = 1500L, n.burn = 1500L,
-  n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
+  n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains), combineChains = FALSE,
   n.cuts = 100L, useQuantiles = FALSE,
   n.thin = 5L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,

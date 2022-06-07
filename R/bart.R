@@ -139,7 +139,7 @@ bart2 <- function(
   power = 2.0, base = 0.95, split.probs = 1 / num.vars,
   n.trees = 75L,
   n.samples = 500L, n.burn = 500L,
-  n.chains = 4L, n.threads = min(guessNumCores(), n.chains), combineChains = FALSE,
+  n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains), combineChains = FALSE,
   n.cuts = 100L, useQuantiles = FALSE,
   n.thin = 1L, keepTrainingFits = TRUE,
   printEvery = 100L, printCutoffs = 0L,
