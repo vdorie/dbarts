@@ -22,10 +22,10 @@ testData$b <- b
 rm(g, b)
 
 test_that("rbart fails with invalid group.by", {
-  expect_error(rbart_vi(y ~ x, testData, group.by = NA))
-  expect_error(rbart_vi(y ~ x, testData, group.by = not_a_symbol))
-  expect_error(rbart_vi(y ~ x, testData, group.by = testData$g[-1L]))
-  expect_error(rbart_vi(y ~ x, testData, group.by = "not a factor"))
+  expect_error(rbart_vi(y ~ x, testData, group.by = NA, n.threads = 1L))
+  expect_error(rbart_vi(y ~ x, testData, group.by = not_a_symbol, n.threads = 1L))
+  expect_error(rbart_vi(y ~ x, testData, group.by = testData$g[-1L], n.threads = 1L))
+  expect_error(rbart_vi(y ~ x, testData, group.by = "not a factor", n.threads = 1L))
 })
 
 test_that("rbart finds group.by", {
