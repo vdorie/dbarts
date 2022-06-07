@@ -43,6 +43,8 @@ rbart_vi <- function(
   missingDefaults <- names(formals(rbart_vi))[names(formals(rbart_vi)) %in% names(formals(dbartsControl))]
   missingDefaults <- missingDefaults[missingDefaults %not_in% names(controlCall)]
   controlCall[missingDefaults] <- formals(rbart_vi)[missingDefaults]
+  if ("n.threads" %in% missingDefaults)
+    controlCall[["n.threads"]] <- eval(controlCall[["n.threads"]])
   control <- eval(controlCall, envir = callingEnv)
   
   control@call <- if (keepCall) matchedCall else call("NULL")
