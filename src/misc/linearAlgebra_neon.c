@@ -680,9 +680,9 @@ void misc_transposeMatrix_neon(const double* restrict x, size_t numRows, size_t 
   // the first row explicitly, if necessary.
   size_t x_offset = ((uintptr_t) x) % (8 * sizeof(double));
   size_t prefix = x_offset == 0 ? 0 : (8 * sizeof(double) - x_offset) / sizeof(double);
-  
+  prefix = prefix > numRows ? numRows : prefix;
+
   size_t row = 0;
-  
   for ( ; row < prefix; ++row) {
     for (size_t col = 0; col < numCols; ++col) {
       y[col + row * numCols] = x[row + col * numRows];

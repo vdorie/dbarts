@@ -547,6 +547,7 @@ void misc_transposeMatrix_sse2(const double* restrict x, size_t numRows, size_t 
   // the first row explicitly, if necessary.
   size_t x_offset = ((uintptr_t) x) % (2 * sizeof(double));
   size_t prefix = x_offset == 0 ? 0 : (2 * sizeof(double) - x_offset) / sizeof(double);
+  prefix = prefix > numRows ? numRows : prefix;
   
   size_t row = 0;
   
