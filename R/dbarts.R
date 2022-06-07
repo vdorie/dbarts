@@ -13,7 +13,7 @@ setMethod("initialize", "dbartsControl",
 dbartsControl <-
   function(verbose = FALSE, keepTrainingFits = TRUE, useQuantiles = FALSE, keepTrees = FALSE,
            n.samples = NA_integer_, n.cuts = 100L,
-           n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = guessNumCores(),
+           n.burn = 200L, n.trees = 75L, n.chains = 4L, n.threads = dbarts::guessNumCores(),
            n.thin = 1L, printEvery = 100L, printCutoffs = 0L,
            rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_, updateState = TRUE)
 {
