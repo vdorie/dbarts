@@ -70,7 +70,7 @@ misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void) {
 #  include <immintrin.h>
 #endif
 
-static inline uint64_t xgetbv() {
+static inline uint64_t xgetbv(void) {
 #if (defined(_MSC_VER) && _MSC_FULL_VER >= 160040000) || \
     (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 1200) || \
     (defined(__XSAVE__) && defined(__GNUC__) && (__GNUC__ > 8 || (__GNUC__ == 8 && __GNUC_MINOR__ >= 2)))

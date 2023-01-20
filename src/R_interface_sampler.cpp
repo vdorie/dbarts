@@ -5,7 +5,13 @@
 #include "R_interface_sampler.hpp"
 
 #include <cstddef>
-#include <cstdio>  // sprintf
+#ifdef HAVE_STD_SNPRINTF
+// snprintf in c++11, before that have to use C version
+#  include <cstdio>
+using std::snprintf;
+#else
+#  include <stdio.h>
+#endif
 #include <cstring> // strcmp, memcpy
 
 #include <misc/alloca.h>
@@ -893,12 +899,12 @@ extern "C" {
       value[i] = flattenedTrees.value[i];
 #if __cplusplus < 201112L
 #  if defined(_WIN64) || SIZEOF_SIZE_T == 8
-      std::sprintf(buffer, "%lu", static_cast<unsigned long>(i + 1));
+      snprintf(buffer, numDigits + 1, "%lu", static_cast<unsigned long>(i + 1));
 #  else
-      std::sprintf(buffer, "%u", static_cast<unsigned int>(i + 1));
+      snprintf(buffer, numDigits + 1, "%u", static_cast<unsigned int>(i + 1));
 #  endif
 #else
-      std::sprintf(buffer, "%zu", i + 1);
+      snprintf(buffer, numDigits + 1, "%zu", i + 1);
 #endif
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);

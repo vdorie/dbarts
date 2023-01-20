@@ -51,7 +51,7 @@ typedef struct {
 
 void misc_art_initialize(misc_art_tree* t);
 int misc_art_invalidate(misc_art_tree* t);
-misc_art_tree* misc_art_create();
+misc_art_tree* misc_art_create(void);
 int misc_art_destroy(misc_art_tree* t);
 
 

@@ -192,7 +192,7 @@ int misc_art_invalidate(Tree* t) {
   return result;
 }
 
-Tree* misc_art_create() {
+Tree* misc_art_create(void) {
   Tree* result = (Tree*) malloc(sizeof(Tree));
   if (result != NULL) misc_art_initialize(result);
   return result;

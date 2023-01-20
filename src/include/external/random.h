@@ -50,8 +50,8 @@ ext_rng* ext_rng_createDefault(bool useNative);
 int ext_rng_createAndSeed(ext_rng** result, ext_rng_algorithm_t algorithm, ext_rng_standardNormal_t standardNormalAlgorithm);
 
 // returns what will be used in createDefault, unless useNative is specified;
-ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType();
-ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType();
+ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void);
+ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void);
 const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm);
 
 bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2);

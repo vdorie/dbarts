@@ -321,7 +321,7 @@ Chipman, H., George, E., and McCulloch R. (2006)
    Scholkopf, Platt and Hoffman, Eds., MIT Press, Cambridge, MA, 265-272.
 
 both of the above at:
-\url{http://www.rob-mcculloch.org}
+\url{https://www.rob-mcculloch.org}
 
 Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
