@@ -347,8 +347,12 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       environment(testFormula) <- environment(formula)
       modelFrameCall$formula <- testFormula
       modelFrameCall$data <- test
-      testFrame <- eval(modelFrameCall, parent.frame())
-      weights.test <- testFrame[["(weights)"]]
+      try_result <- tryCatch(testFrame <- eval(modelFrameCall, parent.frame()), error = function(e) e)
+      if (inherits(try_result, "error")) {
+        warning("weights specified but not found in test data - ignoring")
+      } else {
+        weights.test <- testFrame[["(weights)"]]
+      }
     }
   }
   
