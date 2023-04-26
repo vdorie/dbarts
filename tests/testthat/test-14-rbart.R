@@ -365,3 +365,25 @@ test_that("rbart compares favorably to lmer for nonlinear models", {
   expect_true(dev.rbart < dev.glmer)
 })
 
+test_that("rbart issues a warning for weights only in training data", {
+  n.train <- 80L
+  data <- as.data.frame(testData)
+  trainData <- data[seq_len(n.train),]
+  testData <- data[seq.int(n.train + 1L, nrow(data)),]
+  
+  trainData$w <- 1 / nrow(trainData)
+
+  # check that predict works when we've fit with missing levels
+  expect_warning(rbartFit <- rbart_vi(
+    y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10,
+    data = trainData,
+    test = testData,
+    group.by = g,
+    group.by.test = g,
+    weights = w,
+    n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
+    n.trees = 25L, n.threads = 1L,
+    verbose = FALSE))
+  expect_is(rbartFit, "rbart")
+})
+
