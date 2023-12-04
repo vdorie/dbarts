@@ -1,6 +1,15 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-24}{
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item Issues a warning instead of failing when weights are present in
+            training data but not present in test. Suggestion thanks to
+            github user Pentaonia (Loubert).
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-23}{
   \subsection{NEW FEATURES}{
     \itemize{

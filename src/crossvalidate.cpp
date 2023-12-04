@@ -18,6 +18,16 @@
 
 #define INVALID_INDEX static_cast<size_t>(-1)
 
+#if __cplusplus < 201112L
+#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
+#    define SIZE_T_SPECIFIER "%lu"
+#  else
+#    define SIZE_T_SPECIFIER "%u"
+#  endif
+#else
+#  define SIZE_T_SPECIFIER "%zu"
+#endif
+
 using std::size_t;
 
 namespace {
@@ -115,17 +125,17 @@ namespace dbarts { namespace xval {
       if (method == RANDOM_SUBSAMPLE)
         ext_printf("%.2f%% test obs", 100.0 * testSampleSize.p);
       else
-        ext_printf("%lu folds", testSampleSize.n);
-      ext_printf(", %lu replications\n", numReps);
-      ext_printf("  %lu tree par(s), ", numNTrees);
+        ext_printf(SIZE_T_SPECIFIER " folds", testSampleSize.n);
+      ext_printf(", " SIZE_T_SPECIFIER " replications\n", numReps);
+      ext_printf("  " SIZE_T_SPECIFIER " tree par(s), ", numNTrees);
       if (k != NULL)
-        ext_printf("%lu k par(s), ", numKs);
+        ext_printf(SIZE_T_SPECIFIER " k par(s), ", numKs);
       else 
         ext_printf("k w/hyperprior, ");
-      ext_printf(" %lu power par(s), %lu base par(s)\n", numPowers, numBases);
-      ext_printf("  results of type: %s, %lu thread(s)\n", lossFunctorDef.displayString, numThreads);
-      ext_printf("  num samp: %lu, num reps: %lu\n", origControl.defaultNumSamples, numReps);
-      ext_printf("  burn in: %lu first, %lu shift, %lu rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
+      ext_printf(" " SIZE_T_SPECIFIER " power par(s), " SIZE_T_SPECIFIER " base par(s)\n", numPowers, numBases);
+      ext_printf("  results of type: %s, " SIZE_T_SPECIFIER " thread(s)\n", lossFunctorDef.displayString, numThreads);
+      ext_printf("  num samp: " SIZE_T_SPECIFIER ", num reps: " SIZE_T_SPECIFIER "\n", origControl.defaultNumSamples, numReps);
+      ext_printf("  burn in: " SIZE_T_SPECIFIER " first, " SIZE_T_SPECIFIER " shift, " SIZE_T_SPECIFIER " rep\n\n", numInitialBurnIn, numContextShiftBurnIn, numRepBurnIn);
 
       if (numThreads > 1)
         ext_printf("  parameters for [thread num, cell number]; some cells may be split across multiple threads:\n\n");
@@ -868,7 +878,7 @@ namespace {
       
       if (firstPrintCell <= lastPrintCell) {
         for (size_t j = firstPrintCell; j <= lastPrintCell; ++j) {
-          ext_printf("    [%lu, %lu] n.tree: %lu, k: %f, power: %f, base: %f\n",
+          ext_printf("    [" SIZE_T_SPECIFIER ", " SIZE_T_SPECIFIER "] n.tree: " SIZE_T_SPECIFIER ", k: %f, power: %f, base: %f\n",
                      i + 1, j + 1,
                      sharedData.parameters[j].numTrees, sharedData.parameters[j].k,
                      sharedData.parameters[j].power, sharedData.parameters[j].base);
@@ -891,7 +901,7 @@ namespace {
 }
 extern "C" void printTask(void* v_data) {
   PrintData& data(*static_cast<PrintData*>(v_data));
-  ext_printf("    [%lu, %lu] n.trees: %lu, ", data.threadId + 1, data.cellIndex + 1,
+  ext_printf("    [" SIZE_T_SPECIFIER ", " SIZE_T_SPECIFIER "] n.trees: " SIZE_T_SPECIFIER ", ", data.threadId + 1, data.cellIndex + 1,
              data.numTrees);
   if (data.k > 0.0) ext_printf("k: %.2f, ", data.k);
   ext_printf("power: %.2f, base: %.2f\n", data.power, data.base);
@@ -908,7 +918,7 @@ namespace {
       
     if (verbose) {
       if (misc_btm_isNull(manager)) {
-        ext_printf("    [%lu] n.trees: %lu, ", cellIndex, numTrees);
+        ext_printf("    [" SIZE_T_SPECIFIER "] n.trees: " SIZE_T_SPECIFIER ", ", cellIndex, numTrees);
         if (k > 0.0) ext_printf("k: %.2f, ", k);
         ext_printf("power: %.2f, base: %.2f\n", power, base);
       } else {

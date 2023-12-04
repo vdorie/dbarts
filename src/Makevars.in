@@ -38,6 +38,17 @@ PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
 # since there is no PKG_LDFLAGS, we include that here
 PKG_LIBS=@MAPFILE_FLAG@ dbarts.a external.a misc.a rc.a $(PTHREAD_LIBS)
 
+BOOL,true = true
+BOOL,false = false
+BOOL, = true
+arflags_set.test, = false
+arflags_set = $(BOOL,$(arflags_set.test,$(ARFLAGS)))
+
+arflags.true = $(ARFLAGS)
+arflags.false = -cr
+
+PKG_ARFLAGS = $(arflags.$(arflags_set))
+
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
 SUBDIRS = dbarts external misc rc
@@ -53,9 +64,11 @@ sublibs:
 	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
 	   DBARTS_FLAGS="$(MATCH_BAYES_TREE) $(THREAD_SAFE_UNLOAD)"  \
 	   SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
-	   NEON_FLAG="$(NEON_FLAG)" \
+           NEON_FLAG="$(NEON_FLAG)" \
 	   CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
-           CLINK_CPPFLAGS="$(CLINK_CPPFLAGS)" CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)") \
+           C_VISIBILITY="$(C_VISIBILITY)" \
+           CLINK_CPPFLAGS="$(CLINK_CPPFLAGS)" CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" \
+           RANLIB="$(RANLIB)") \
            || exit 1; \
 	done
 

@@ -132,7 +132,7 @@ int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topL
     return result;
   }
   
-  // ext_printf("running top %lu level tasks without output\n", numTasks);
+  // ext_printf("running top %z level tasks without output\n", numTasks);
   
   for (taskId = 0; taskId < numTasks; ++taskId) {
     while (stackIsEmpty(&manager->availableThreadStack))
@@ -225,7 +225,7 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   wakeTime.tv_nsec %= 1000000000;
   // ext_printf(", mod time: %ld.%.9ld\n", (long long int) wakeTime.tv_sec, (long long int) wakeTime.tv_nsec);
   
-  // ext_printf("running top %lu level tasks with output\n", numTasks);
+  // ext_printf("running top %z level tasks with output\n", numTasks);
   
   for (taskId = 0; taskId < numTasks; ++taskId) {
     // while (stackIsEmpty(&manager->availableThreadStack)) waitOnCondition(manager->taskDone, manager->mutex);
@@ -233,7 +233,7 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
       int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
       if (waitStatus == ETIMEDOUT) {
         if (manager->bufferPos != 0) {
-          ext_printf(manager->buffer);
+          ext_printf("%s", manager->buffer);
           ext_fflush_stdout();
           manager->bufferPos = 0;
         }
@@ -269,7 +269,7 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
     int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
     if (waitStatus == ETIMEDOUT) {
       if (manager->bufferPos != 0) {
-        ext_printf(manager->buffer);
+        ext_printf("%s", manager->buffer);
         ext_fflush_stdout();
         manager->bufferPos = 0;
       }
@@ -291,7 +291,7 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   manager->numTopLevelTasks = 0;
   
   if (manager->bufferPos != 0) {
-    ext_printf(manager->buffer);
+    ext_printf("%s", manager->buffer);
     ext_fflush_stdout();
     manager->bufferPos = 0;
   }
@@ -413,7 +413,7 @@ static void* threadLoop(void* _thread)
       taskStatus->progress = TASK_COMPLETE;
       taskStatus->thread = NULL;
       
-      // ext_printf("task %lu complete, popping %lu threads\n", thread->topLevelTaskId, taskStatus->numThreads - 1);
+      // ext_printf("task %z complete, popping %z threads\n", thread->topLevelTaskId, taskStatus->numThreads - 1);
       // printManagerStatus(manager);
       
       signalCondition(manager->taskDone);
@@ -454,12 +454,12 @@ misc_size_t misc_htm_reserveThreadsForSubTask(misc_htm_manager_t manager, size_t
   TopLevelTaskStatus* taskStatus = &manager->topLevelTaskStatus[taskId];
   
   if (newNumThreads == taskStatus->numThreads) {
-    // ext_printf("task id %lu: no change\n", taskId);
+    // ext_printf("task id %z: no change\n", taskId);
     unlockMutex(manager->mutex);
     return newNumThreads;
   }
   
-  // ext_printf("task id %lu: %lu -> %lu threads\n", taskId, taskStatus->numThreads, newNumThreads);
+  // ext_printf("task id %z: %z -> %z threads\n", taskId, taskStatus->numThreads, newNumThreads);
   
   if (newNumThreads > taskStatus->numThreads) {
     
@@ -782,7 +782,7 @@ void misc_htm_printf(misc_htm_manager_t manager, const char* format, ...)
     vsnprintf(buffer, BUFFER_LENGTH, format, argsPointer);
     va_end(argsPointer);
     
-    ext_printf(buffer);
+    ext_printf("%s", buffer);
     
     return;
   }
@@ -804,11 +804,11 @@ static void printThreadStack(ThreadStack* stack) {
     return;
   }
   
-  ext_printf("%lu", stack->first->threadId);
+  ext_printf("%z", stack->first->threadId);
   
   ThreadData* thread = stack->first->next;
   while (thread != NULL) {
-    ext_printf(", %lu", thread->threadId);
+    ext_printf(", %z", thread->threadId);
     thread = thread->next;
   }
 }
@@ -821,20 +821,20 @@ static void printManagerStatus(const misc_htm_manager_t manager)
     printThreadStack(&manager->availableThreadStack);
     ext_printf("\n\n");
   } else {
-    ext_printf("status: running %lu tasks, %lu in progress\n", manager->numTopLevelTasks, manager->numTopLevelTasksInProgress);
+    ext_printf("status: running %z tasks, %z in progress\n", manager->numTopLevelTasks, manager->numTopLevelTasksInProgress);
     for (size_t i = 0; i < manager->numTopLevelTasks; ++i) {
       TopLevelTaskStatus* taskStatus = &manager->topLevelTaskStatus[i];
       
-      ext_printf("  task %lu: ", i);
+      ext_printf("  task %z: ", i);
       printTaskProgress(taskStatus);
-      ext_printf(" progress, %lu subtasks, threads ", taskStatus->numSubTaskPiecesInProgress);
+      ext_printf(" progress, %z subtasks, threads ", taskStatus->numSubTaskPiecesInProgress);
       
       if (taskStatus->thread == NULL) ext_printf("none");
-      else ext_printf("%lu", taskStatus->thread->threadId);
+      else ext_printf("%z", taskStatus->thread->threadId);
       
       ThreadData* thread = taskStatus->threadStack.first;
       while (thread != NULL) {
-        ext_printf(" %lu", thread->threadId);
+        ext_printf(" %z", thread->threadId);
         thread = thread->next;
       }
       ext_printf("\n");
@@ -850,6 +850,6 @@ static void printTaskProgress(TopLevelTaskStatus* status)
 {
   if (status->progress == TASK_COMPLETE) ext_printf("complete");
   else if (status->progress == TASK_BEFORE_START) ext_printf("before start");
-  else ext_printf("%lu", status->progress);
+  else ext_printf("%z", status->progress);
 }
 

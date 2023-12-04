@@ -16,6 +16,16 @@
 #include <dbarts/scratch.hpp>
 #include "functions.hpp"
 
+#if __cplusplus < 201112L
+#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
+#    define SIZE_T_SPECIFIER "%lu"
+#  else
+#    define SIZE_T_SPECIFIER "%u"
+#  endif
+#else
+#  define SIZE_T_SPECIFIER "%zu"
+#endif
+
 using std::uint64_t;
 using std::size_t;
 
@@ -174,7 +184,7 @@ namespace dbarts {
         ext_throwError("num observations greater than data");
       for (size_t i = 0; i < numObservations; ++i)
         if (observationIndices[i] > fit.data.numObservations)
-          ext_throwError("observation index at %lu out of range (%lu)", i, observationIndices[i]);
+          ext_throwError("observation index at " SIZE_T_SPECIFIER " out of range (" SIZE_T_SPECIFIER ")", i, observationIndices[i]);
     }
     if (leftChild != NULL) {
       leftChild->checkIndices(fit, top);
@@ -201,7 +211,7 @@ namespace dbarts {
   
   void Node::print(const BARTFit& fit, size_t indentation) const
   {
-    ext_printf("%*s", indentation + getDepth(), "");
+    ext_printf("%*s", static_cast<int>(indentation + getDepth()), "");
     ext_printf("n: %lu ", getNumObservations());
     ext_printf("TBN: %u%u%u ", isTop(), isBottom(), childrenAreBottom());
     ext_printf("Avail: ");
@@ -230,7 +240,7 @@ namespace dbarts {
   
   void SavedNode::print(const BARTFit& fit, size_t indentation) const
   {
-    ext_printf("%*s", indentation + getDepth(), "");
+    ext_printf("%*s", static_cast<int>(indentation + getDepth()), "");
     ext_printf("TBN: %u%u%u ", isTop(), isBottom(), childrenAreBottom());
     
     if (!isBottom()) {

@@ -23,7 +23,7 @@ NORETURN void ext_throwError(const char* format, ...)
     }
   }
   
-  Rf_error(buffer);
+  Rf_error("%s", buffer);
 }
 
 void ext_printMessage(const char* format, ...)
@@ -41,7 +41,7 @@ void ext_printMessage(const char* format, ...)
     }
   }
   
-  Rprintf(buffer);
+  Rprintf("%s", buffer);
 }
 
 void ext_issueWarning(const char* format, ...)
@@ -59,6 +59,6 @@ void ext_issueWarning(const char* format, ...)
     }
   }
   
-  Rf_warning(buffer);
+  Rf_warning("%s", buffer);
 }
 

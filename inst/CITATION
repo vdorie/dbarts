@@ -1,20 +1,19 @@
-authors <- c(person("Vincent", "Dorie"))
+citation(auto = meta)
 
-title   <- "dbarts: Discrete Bayesian Additive Regression Trees Sampler"
-version <- paste("R package version", meta$Version)
-year    <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date)
-url     <- "https://CRAN.R-project.org/package=dbarts"
+authors <- person("Vincent", "Dorie")
+year <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date)
+title <- "dbarts: Discrete Bayesian Additive Regression Trees Sampler"
+url <- "https://CRAN.R-project.org/package=dbarts"
 
-text_version <- paste0(paste(authors, collapse = ", "), " (", year, "). ",
-                       title, ". ", version, ". ", url)
-
-citHeader("To cite the 'dbarts' in publications use:")
-
-citEntry(entry        = "Misc",
-         author       = authors,
-         title        = title,
-         year         = year,
-         note         = version,
-         url          = "https://CRAN.R-project.org/package=dbarts",
-         textVersion  = text_version)
+bibentry(
+  bibtype = "Manual",
+  author = authors,
+  title  = title,
+  year   = year,
+  note   = paste("R package version", meta$Version),
+  url    = url,
+  textVersion = paste0(paste(authors, collapse = ", "), " (", year, "). ",
+                       title, ". ", version, ". ", url),
+  head = "To cite the 'dbarts' in publications use:",
+)
 

@@ -38,6 +38,16 @@
 #include "functions.hpp"
 #include "tree.hpp"
 
+#if __cplusplus < 201112L
+#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
+#    define SIZE_T_SPECIFIER "%lu"
+#  else
+#    define SIZE_T_SPECIFIER "%u"
+#  endif
+#else
+#  define SIZE_T_SPECIFIER "%zu"
+#endif
+
 using std::size_t;
 using std::uint32_t;
 
@@ -968,12 +978,12 @@ namespace dbarts {
                            const size_t* sampleIndices, size_t numSampleIndices,
                            const size_t* treeIndices,   size_t numTreeIndices) const
   {
-    size_t indent = 0;
+    int indent = 0;
     
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
       if (numChainIndices > 1) {
-        ext_printf("chain %lu\n", chainNum + 1);
+        ext_printf("chain " SIZE_T_SPECIFIER "\n", chainNum + 1);
         indent += 2;
       }
       if (!control.keepTrees) {
@@ -993,7 +1003,7 @@ namespace dbarts {
       } else for (size_t j = 0; j < numSampleIndices; ++j) {
         size_t sampleNum = sampleIndices[j];
         if (numSampleIndices > 1) {
-          ext_printf("%*ssample %lu\n", indent, "", sampleNum + 1);
+          ext_printf("%*ssample " SIZE_T_SPECIFIER "\n", indent, "", sampleNum + 1);
           indent += 2;
         }
         for (size_t k = 0; k < numTreeIndices; ++k) {
@@ -1388,9 +1398,10 @@ extern "C" {
             
       if (control.verbose && !isThinningIteration && (majorIterationNum + 1) % control.printEvery == 0) {
         if (control.numChains > 1)
-          misc_htm_printf(fit.threadManager, "[%lu] iteration: %u (of %u)\n", chainNum + 1, k + 1, totalNumIterations);
+          misc_htm_printf(fit.threadManager, "[" SIZE_T_SPECIFIER "] iteration: " SIZE_T_SPECIFIER " (of " SIZE_T_SPECIFIER ")\n",
+                          chainNum + 1, k + 1, totalNumIterations);
         else
-          ext_printf("iteration: %u (of %u)\n", k + 1, totalNumIterations);
+          ext_printf("iteration: " SIZE_T_SPECIFIER " (of " SIZE_T_SPECIFIER ")\n", k + 1, totalNumIterations);
       }
       
       if (!isThinningIteration && data.numTestObservations > 0)
@@ -1546,8 +1557,8 @@ namespace dbarts {
     else
       ext_printf("\nRunning BART with numeric y\n\n");
     
-    ext_printf("number of trees: %lu\n", control.numTrees);
-    ext_printf("number of chains: %lu, number of threads %lu\n", control.numChains, control.numThreads);
+    ext_printf("number of trees: " SIZE_T_SPECIFIER "\n", control.numTrees);
+    ext_printf("number of chains: " SIZE_T_SPECIFIER ", number of threads " SIZE_T_SPECIFIER "\n", control.numChains, control.numThreads);
     ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
     
     ext_printf("Prior:\n");
@@ -1570,9 +1581,9 @@ namespace dbarts {
     ext_printf("\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f; birth %.2f\n",
       model.birthOrDeathProbability, model.swapProbability, model.changeProbability, model.birthProbability);
     ext_printf("data:\n");
-    ext_printf("\tnumber of training observations: %u\n", data.numObservations);
-    ext_printf("\tnumber of test observations: %u\n", data.numTestObservations);
-    ext_printf("\tnumber of explanatory variables: %u\n", data.numPredictors);
+    ext_printf("\tnumber of training observations: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numObservations));
+    ext_printf("\tnumber of test observations: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numTestObservations));
+    ext_printf("\tnumber of explanatory variables: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numPredictors));
     if (!control.responseIsBinary) ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate, state[0].sigma * sharedScratch.dataScale.range);
     if (data.weights != NULL) ext_printf("\tusing observation weights\n");
     ext_printf("\n");
@@ -1581,14 +1592,14 @@ namespace dbarts {
     ext_printf("Cutoff rules c in x<=c vs x>c\n");
     ext_printf("Number of cutoffs: (var: number of possible c):\n");
     for (size_t j = 0; j < data.numPredictors; ++j) {
-      ext_printf("(%u: %u) ", j + 1, numCutsPerVariable[j]);
+      ext_printf("(" SIZE_T_SPECIFIER ": %u) ", j + 1, numCutsPerVariable[j]);
       if ((j + 1) % 5 == 0) ext_printf("\n");
     }
     ext_printf("\n");
     if (control.printCutoffs > 0) {
       ext_printf("cutoffs:\n");
       for (size_t j = 0; j < data.numPredictors; ++j) {
-        ext_printf("x(%u) cutoffs: ", j + 1);
+        ext_printf("x(" SIZE_T_SPECIFIER ") cutoffs: ", j + 1);
         
         size_t k;
         for (k = 0; k < numCutsPerVariable[j] - 1 && k < control.printCutoffs - 1; ++k) {
@@ -1646,11 +1657,11 @@ namespace {
     for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum) {
       size_t linePrintCount = 0;
       if (fit.control.numChains > 0) {
-        ext_printf("[%u] ", chainNum + 1);
+        ext_printf("[" SIZE_T_SPECIFIER "] ", chainNum + 1);
         linePrintCount += 2;
       }
       for (size_t treeNum = 0; treeNum < fit.control.numTrees; ++treeNum) {
-        ext_printf("%u ", fit.state[chainNum].trees[treeNum].getNumBottomNodes());
+        ext_printf(SIZE_T_SPECIFIER " ", fit.state[chainNum].trees[treeNum].getNumBottomNodes());
         if ((linePrintCount++ + 1) % 20 == 0) ext_printf("\n");
       }
       if ((linePrintCount % 20) != 0) ext_printf("\n");
@@ -1664,7 +1675,7 @@ namespace {
     for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum)
       countVariableUses(fit, fit.state[chainNum], variableCounts);
     for (size_t j = 0; j < fit.data.numPredictors; ++j) {
-      ext_printf("(%lu: %u) ", static_cast<unsigned long int>(j + 1), variableCounts[j]);
+      ext_printf("(" SIZE_T_SPECIFIER ": %u) ", j + 1, variableCounts[j]);
       if ((j + 1) % 5 == 0) ext_printf("\n");
     }
     

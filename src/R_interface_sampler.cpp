@@ -39,6 +39,16 @@ using std::snprintf;
 #include "R_interface.hpp"
 #include "R_interface_common.hpp"
 
+#if __cplusplus < 201112L
+#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
+#    define SIZE_T_SPECIFIER "%lu"
+#  else
+#    define SIZE_T_SPECIFIER "%u"
+#  endif
+#else
+#  define SIZE_T_SPECIFIER "%zu"
+#endif
+
 using std::size_t;
 using namespace dbarts;
 
@@ -513,7 +523,7 @@ extern "C" {
     }
     
     if (rc_getLength(cutPointsExpr) != numCols)
-      Rf_error("length of cutPoints (%lu) must equal length of columns (%lu)", rc_getLength(cutPointsExpr), numCols);
+      Rf_error("length of cutPoints (" SIZE_T_SPECIFIER ") must equal length of columns (" SIZE_T_SPECIFIER ")", rc_getLength(cutPointsExpr), numCols);
     
     const double** cutPoints = misc_stackAllocate(numCols, const double*);
     uint32_t* numCutPoints = misc_stackAllocate(numCols, uint32_t);
@@ -733,11 +743,11 @@ extern "C" {
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
     if (numChainIndices > numChains)
-      Rf_error("%lu chains specified but only %lu in sampler", numChainIndices, numChains);
+      Rf_error(SIZE_T_SPECIFIER " chains specified but only " SIZE_T_SPECIFIER " in sampler", numChainIndices, numChains);
     if (numSampleIndices > numSamples)
-      Rf_error("%lu samples specified but only %lu in sampler", numSampleIndices, numSamples);
+      Rf_error(SIZE_T_SPECIFIER " samples specified but only " SIZE_T_SPECIFIER " in sampler", numSampleIndices, numSamples);
     if (numTreeIndices > numTrees)
-      Rf_error("%lu trees specified but only %lu in sampler", numTreeIndices, numTrees);    
+      Rf_error(SIZE_T_SPECIFIER " trees specified but only " SIZE_T_SPECIFIER " in sampler", numTreeIndices, numTrees);    
     
     size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
@@ -788,11 +798,11 @@ extern "C" {
     size_t numTreeIndices   = Rf_isNull(treeIndicesExpr)   ? numTrees   : rc_getLength(treeIndicesExpr);
     
     if (numChainIndices > numChains)
-      Rf_error("%lu chains specified but only %lu in sampler", numChainIndices, numChains);
+      Rf_error(SIZE_T_SPECIFIER " chains specified but only " SIZE_T_SPECIFIER " in sampler", numChainIndices, numChains);
     if (numSampleIndices > numSamples)
-      Rf_error("%lu samples specified but only %lu in sampler", numSampleIndices, numSamples);
+      Rf_error(SIZE_T_SPECIFIER " samples specified but only " SIZE_T_SPECIFIER " in sampler", numSampleIndices, numSamples);
     if (numTreeIndices > numTrees)
-      Rf_error("%lu trees specified but only %lu in sampler", numTreeIndices, numTrees);
+      Rf_error(SIZE_T_SPECIFIER " trees specified but only " SIZE_T_SPECIFIER " in sampler", numTreeIndices, numTrees);
     
     size_t* chainIndices  = misc_stackAllocate(numChainIndices, size_t);
     size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
@@ -897,15 +907,7 @@ extern "C" {
       int variable_i = static_cast<int>(flattenedTrees.variable[i]);
       variable[i] = variable_i >= 0 ? variable_i + 1 : variable_i;
       value[i] = flattenedTrees.value[i];
-#if __cplusplus < 201112L
-#  if defined(_WIN64) || SIZEOF_SIZE_T == 8
-      snprintf(buffer, numDigits + 1, "%lu", static_cast<unsigned long>(i + 1));
-#  else
-      snprintf(buffer, numDigits + 1, "%u", static_cast<unsigned int>(i + 1));
-#  endif
-#else
-      snprintf(buffer, numDigits + 1, "%zu", i + 1);
-#endif
+      snprintf(buffer, numDigits + 1, SIZE_T_SPECIFIER, i + 1);
       SET_STRING_ELT(resultRowNamesExpr, i, PROTECT(Rf_mkChar(buffer)));
       UNPROTECT(1);
     }
