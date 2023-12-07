@@ -14,6 +14,6 @@ bibentry(
   url    = url,
   textVersion = paste0(paste(authors, collapse = ", "), " (", year, "). ",
                        title, ". ", version, ". ", url),
-  head = "To cite the 'dbarts' in publications use:",
+  header = "To cite the 'dbarts' in publications use:",
 )
 
