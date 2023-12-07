@@ -1581,9 +1581,9 @@ namespace dbarts {
     ext_printf("\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f; birth %.2f\n",
       model.birthOrDeathProbability, model.swapProbability, model.changeProbability, model.birthProbability);
     ext_printf("data:\n");
-    ext_printf("\tnumber of training observations: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numObservations));
-    ext_printf("\tnumber of test observations: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numTestObservations));
-    ext_printf("\tnumber of explanatory variables: " SIZE_T_SPECIFIER "\n", static_cast<unsigned long>(data.numPredictors));
+    ext_printf("\tnumber of training observations: " SIZE_T_SPECIFIER "\n", data.numObservations);
+    ext_printf("\tnumber of test observations: " SIZE_T_SPECIFIER "\n", data.numTestObservations);
+    ext_printf("\tnumber of explanatory variables: " SIZE_T_SPECIFIER "\n", data.numPredictors);
     if (!control.responseIsBinary) ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate, state[0].sigma * sharedScratch.dataScale.range);
     if (data.weights != NULL) ext_printf("\tusing observation weights\n");
     ext_printf("\n");

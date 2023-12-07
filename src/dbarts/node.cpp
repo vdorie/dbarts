@@ -212,7 +212,7 @@ namespace dbarts {
   void Node::print(const BARTFit& fit, size_t indentation) const
   {
     ext_printf("%*s", static_cast<int>(indentation + getDepth()), "");
-    ext_printf("n: %lu ", getNumObservations());
+    ext_printf("n: " SIZE_T_SPECIFIER " ", getNumObservations());
     ext_printf("TBN: %u%u%u ", isTop(), isBottom(), childrenAreBottom());
     ext_printf("Avail: ");
     
