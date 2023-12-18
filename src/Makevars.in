@@ -45,7 +45,7 @@ arflags_set.test, = false
 arflags_set = $(BOOL,$(arflags_set.test,$(ARFLAGS)))
 
 arflags.true = $(ARFLAGS)
-arflags.false = -cr
+arflags.false = -crs
 
 PKG_ARFLAGS = $(arflags.$(arflags_set))
 
