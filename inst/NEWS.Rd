@@ -1,6 +1,14 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-27}{
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item Fixed an error in sampler when setting test offsets when there
+            was only a single test observation.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-24}{
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{

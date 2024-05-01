@@ -276,8 +276,8 @@ dbartsSampler <-
                     offset.test <- NA_real_
                   } else {
                     offset.test <- as.double(offset.test)
-                    if (length(offset.test) == 1)
-                      offset.test <- rep_len(offset, nrow(x.test))
+                    if (length(offset.test) == 1L) offset.test <- rep_len(offset.test, nrow(x.test))
+
                     if (!identical(length(offset.test), nrow(x.test)))
                       stop("length of test offset must be equal to number of rows in test matrix")
                   }
@@ -356,7 +356,7 @@ dbartsSampler <-
                   } else {
                     offset <- as.double(offset)
 
-                    if (length(offset) == 1) {
+                    if (length(offset) == 1L) {
                       if (identical(data@testUsesRegularOffset, TRUE)) {
                         if (!is.null(data@x.test)) {
                           offset.test <- rep_len(offset, nrow(data@x.test))
@@ -532,9 +532,7 @@ dbartsSampler <-
                     } else {
                       if (!is.null(offset.test)) {
                         offset.test <- as.double(offset.test)
-                        if (length(offset.test) == 1) {
-                          offset.test <- rep_len(offset, nrow(x.test))
-                        }
+                        if (length(offset.test) == 1L) offset.test <- rep_len(offset.test, nrow(x.test))
                         if (!identical(length(offset.test), nrow(x.test))) {
                           stop("length of test offset must be equal to number of rows in test matrix")
                         }
@@ -558,7 +556,7 @@ dbartsSampler <-
                   selfEnv$data@testUsesRegularOffset <- FALSE
                   if (!is.null(offset.test)) {
                     if (is.null(data@x.test)) stop("when test matrix is NULL, test offset must be as well")
-                    if (length(offset.test) == 1) offset.test <- rep_len(offset.test, nrow(data@x.test))
+                    if (length(offset.test) == 1L) offset.test <- rep_len(offset.test, nrow(data@x.test))
                     if (length(offset.test) != nrow(data@x.test))
                       stop("length of test offset must be equal to number of rows in test matrix")
                   }
