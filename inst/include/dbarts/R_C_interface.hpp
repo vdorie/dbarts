@@ -23,11 +23,17 @@ using std::FILE;
 #endif
 
 // prevents R_ext/Error.h from mapping Rf_error -> error and Rf_warning -> warning
-#define R_NO_REMAP
+#ifndef R_NO_REMAP
+#  define UNMAP_R_NO_REMAP
+#  define R_NO_REMAP
+#endif
 #include <Rinternals.h>
 
 #undef NO_C_HEADERS
-#undef R_NO_REMAP
+#ifdef UNMAP_R_NO_REMAP
+#  undef R_NO_REMAP
+#  undef UNMAP_R_NO_REMAP
+#endif
 #undef USE_FC_LEN_T
 
 namespace dbarts {

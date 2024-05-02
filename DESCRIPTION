@@ -1,5 +1,5 @@
 Package: dbarts
-Version: 0.9-27
+Version: 0.9-28
 Date: 2024-05-01
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Authors@R: c(
