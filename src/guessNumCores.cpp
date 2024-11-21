@@ -244,7 +244,7 @@ namespace {
     }
     close(fd);
     if (numBytesRead == -1) {
-#ifdef _GNU_SOURCE
+#ifdef STRERROR_R_CHAR_P
       char* errorMessage = strerror_r(errno, errorBuffer, ERROR_BUFFER_LENGTH);
       ext_issueWarning("unable to open /proc/cpuinfo: %s (%d)\n", errorMessage, errno);
 #else

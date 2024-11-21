@@ -7,6 +7,8 @@
       \item `dbarts` now works to initialize a sampler for binary outcomes when
             `resid.prior` is left at its default. Bug report thanks to github
             user LennMass.
+      \item Installs correctly on Alpine Linux. Bug report thanks to Sebastian
+            Meyer.
     }
   }
 }
