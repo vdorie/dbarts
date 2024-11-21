@@ -3,7 +3,7 @@
 /* Define if building universal (internal helper macro) */
 #undef AC_APPLE_UNIVERSAL_BUILD
 
-/* The normal alignment of `void*', in bytes. */
+/* The normal alignment of 'void*', in bytes. */
 #undef ALIGNOF_VOIDP
 
 /* Define to 1 if the compilter can issue Advanced Vector Extensions
@@ -56,26 +56,26 @@
 /* Define to 1 to support Bit Manipulation Instruction Set 2 */
 #undef HAVE_BMI2
 
-/* Define to 1 if you have the `clock_gettime' function. */
+/* Define to 1 if you have the 'clock_gettime' function. */
 #undef HAVE_CLOCK_GETTIME
 
 /* Define to 1 if you have the <cstdint> header file. */
 #undef HAVE_CSTDINT
 
-/* Define to 1 if you have the declaration of `strerror_r', and to 0 if you
+/* Define to 1 if you have the declaration of 'strerror_r', and to 0 if you
    don't. */
 #undef HAVE_DECL_STRERROR_R
 
-/* Define to 1 if you have the `ffs' function. */
+/* Define to 1 if you have the 'ffs' function. */
 #undef HAVE_FFS
 
-/* Define to 1 if you have the `gettimeofday' function. */
+/* Define to 1 if you have the 'gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the `log1p' function. */
+/* Define to 1 if you have the 'log1p' function. */
 #undef HAVE_LOG1P
 
 /* [define if log1p is in std::] */
@@ -105,7 +105,7 @@
 /* Define to 1 to support Digital Random Number Generator */
 #undef HAVE_RDRND
 
-/* Define to 1 if you have the `snprintf' function. */
+/* Define to 1 if you have the 'snprintf' function. */
 #undef HAVE_SNPRINTF
 
 /* [define if snprintf is in std::] */
@@ -141,7 +141,7 @@
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
 
-/* Define if you have `strerror_r'. */
+/* Define if you have 'strerror_r'. */
 #undef HAVE_STRERROR_R
 
 /* Define to 1 if you have the <strings.h> header file. */
@@ -187,7 +187,7 @@
    your system. */
 #undef PTHREAD_CREATE_JOINABLE
 
-/* The size of `size_t', as computed by sizeof. */
+/* The size of 'size_t', as computed by sizeof. */
 #undef SIZEOF_SIZE_T
 
 /* If using the C implementation of alloca, define if you know the
@@ -198,7 +198,7 @@
 	STACK_DIRECTION = 0 => direction of growth unknown */
 #undef STACK_DIRECTION
 
-/* Define to 1 if all of the C90 standard headers exist (not just the ones
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
@@ -245,7 +245,7 @@
 # define __restrict__
 #endif
 
-/* Define to `unsigned int' if <sys/types.h> does not define. */
+/* Define as 'unsigned int' if <stddef.h> doesn't define. */
 #undef size_t
 
 /* Define to the type of an unsigned integer type of width exactly 64 bits if
