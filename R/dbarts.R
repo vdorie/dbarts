@@ -128,11 +128,14 @@ dbarts <- function(formula, data, test, subset, weights, offset, offset.test = o
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
   parsePriorsCall$parentEnv <- evalEnv
+
   if (control@binary) {
-    if (any(names(parsePriorsCall) == "resid.prior"))
+    if (any(names(parsePriorsCall) == "resid.prior")) {
       parsePriorsCall[[which(names(parsePriorsCall) == "resid.prior")]] <- quote(fixed(1))
-    else 
-      parsePriorsCall[[which(names(formals(parsePriors)) == "resid.prior") + 1L]] <- quote(fixed(1))
+    } else {
+      parsePriorsCall[[length(parsePriorsCall) + 1L]] <- quote(fixed(1))
+      names(parsePriorsCall)[length(parsePriorsCall)] <- "resid.prior"
+    }
   }
   priors <- eval(parsePriorsCall)
 

@@ -119,7 +119,9 @@ setDefaultsFromFormals <- function(call, formals, ...)
 
   if (length(missingFormals) == 0L) return(call)
   
-  call[seq.int(length(missingFormals)) + length(call)] <- formals[missingFormals]
+  newFormalIndices <- seq.int(length(missingFormals)) + length(call)
+  call[newFormalIndices] <- formals[missingFormals]
+  names(call)[newFormalIndices] <- names(formals)[missingFormals]
   call
 }
 
