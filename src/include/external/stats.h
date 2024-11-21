@@ -3,7 +3,10 @@
 
 #ifndef R_NO_REMAP_RMATH
 #  define UNMAP_R_NO_REMAP_RMATH
-#  define R_NO_REMAP
+#  ifndef R_NO_REMAP
+#    define UNMAP_R_NO_REMAP
+#    define R_NO_REMAP
+#  endif
 #  define R_NO_REMAP_RMATH
 #endif
 
@@ -13,7 +16,6 @@
 #define USE_FC_LEN_T
 #endif
 
-#include <R.h>
 #include <Rmath.h> // used to pull in qchisq, et al
 
 #undef USE_FC_LEN_T
@@ -39,7 +41,10 @@ extern double Rf_qchisq(double, double, int, int);
 
 #ifdef UNMAP_R_NO_REMAP_RMATH
 #  undef R_NO_REMAP_RMATH
-#  undef R_NO_REMAP
+#  ifdef UNMAP_R_NO_REMAP
+#    undef R_NO_REMAP
+#    undef UNMAP_R_NO_REMAP
+#  endif
 #  undef UNMAP_R_NO_REMAP_RMATH
 #endif
 
