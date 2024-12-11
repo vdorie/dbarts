@@ -429,8 +429,11 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
       n.samples <- dim(chainResults[[1L]]$ranef)[2L]
       n.unmeasured <- sum(unmeasuredLevels)
       totalRanef <- sapply(seq_along(chainResults), function(k) {
-        unmeasuredRanef <- matrix(rnorm(n.unmeasured * n.samples, 0, rep(chainResults[[k]]$tau, rep_len(n.samples, n.unmeasured))),
-                                  n.unmeasured, n.samples, dimnames = list(levels(group.by.test)[unmeasuredLevels], NULL))
+        unmeasuredRanef <- matrix(
+          rnorm(n.unmeasured * n.samples, 0, rep(chainResults[[k]]$tau, each = n.unmeasured)),
+          n.unmeasured, n.samples,
+          dimnames = list(levels(group.by.test)[unmeasuredLevels], NULL)
+        )
         rbind(chainResults[[k]]$ranef, unmeasuredRanef)
       })
       ranefDim <- c(dim(chainResults[[1L]]$ranef)[1L] + n.unmeasured, n.samples, n.chains)

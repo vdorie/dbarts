@@ -1,6 +1,15 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-31}{
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item `rbart_vi` no longer fails when there are multiple out-of-sample
+            grouping factors in test data. Bug report thanks to github user
+            drcthal.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-29}{
   \subsection{BUG FIXES}{
     \itemize{

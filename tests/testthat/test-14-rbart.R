@@ -188,7 +188,7 @@ test_that("works with missing levels", {
   x.test <- testData$x[seq.int(n.train + 1L, nrow(testData$x)),]
   g.test <- factor(testData$g[seq.int(n.train + 1L, nrow(testData$x))], levels(g))
   levels(g.test)[5L] <- "6"
-  
+
   # check that predict works when we've fit with missing levels
   rbartFit <- suppressWarnings(rbart_vi(y ~ x, group.by = g, test = x.test, group.by.test = g.test,
                                         n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
@@ -235,6 +235,14 @@ test_that("works with missing levels", {
   expect_equal(as.numeric(ranef.pred[,as.character(1L:4L)]),
                as.numeric(rbartFit$ranef[,as.character(1L:4L)]))
   expect_true(cor(as.numeric(rbartFit$tau), as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))) > 0.90)
+
+  # check with more than one missing level
+  levels(g.test)[4L] <- "7"
+  rbartFit <- suppressWarnings(rbart_vi(y ~ x, group.by = g, test = x.test, group.by.test = g.test,
+                                        n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 4L,
+                                        n.trees = 25L, n.threads = 1L,
+                                        verbose = FALSE))
+  expect_is(rbartFit, "rbart")
 })
 
 test_that("rbart runs example", {
