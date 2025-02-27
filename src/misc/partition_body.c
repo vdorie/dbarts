@@ -1,3 +1,5 @@
+// Cut points are stored as uint16_t, so all vectors ops pack that
+
 #if defined(__USE_AVX2__)
 #  define __USE_SIMD__ 1
 
@@ -47,8 +49,10 @@
      _mm256_cmple_epu16(values, cut_vec))
 
 #  define movemask _mm256_movemask_epi8
-#  define cmp_width 16
+#  define num_values_per_comparison 16
 #  define cmp_t __m256i
+#  define increment_sub_by(_X_) ((uint_least8_t) (_X_) / 2)
+#  define mask_move_size 2
 
 #elif defined(__USE_SSE2__) || defined(__USE_SSE4_1__)
 #  define __USE_SIMD__ 1
@@ -91,8 +95,10 @@
      _mm_cmple_epu16(values, cut_vec))
 
 #  define movemask _mm_movemask_epi8
-#  define cmp_width 8
+#  define num_values_per_comparison 8
 #  define cmp_t __m128i
+#  define increment_sub_by(_X_) ((uint_least8_t) (_X_) / 2)
+#  define mask_move_size 2
 
 #elif defined(__USE_NEON__)
 #  define __USE_SIMD__ 1
@@ -144,9 +150,11 @@
 
 #  define set1(_X_) vdupq_n_u16((misc_xint_t) (_X_))
 
-#  define movemask(_X_) vmovemask_u8(vreinterpretq_u8_u16(_X_))
-#  define cmp_width 8
+#  define movemask(_X_) vmovemask_u16(_X_)
+#  define num_values_per_comparison 8
 #  define cmp_t uint16x8_t
+#  define increment_sub_by(_X_) ((uint_least8_t) (_X_))
+#  define mask_move_size 1
 
 #endif
 
@@ -162,7 +170,7 @@
 
 #  ifdef __USE_SIMD__
 
-  if (lh + 2 * cmp_width < rh) {
+  if (lh + 2 * num_values_per_comparison < rh) {
     
     cmp_t lh_comp, rh_comp, values, cut_vec;
     cut_vec = set1(cut);
@@ -175,38 +183,41 @@
     rh_mask = (unsigned int) movemask(rh_comp);
     
     while (true) {
-      while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
-        lh += cmp_width;
+      while (lh_mask == 0 && lh + 2 * num_values_per_comparison < rh) {
+        lh += num_values_per_comparison;
         lh_comp = loadLHComp(lh);
         lh_mask = (unsigned int) movemask(lh_comp);
         lh_sub = 0;
       }
-      while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
-        rh -= cmp_width;
+      while (rh_mask == 0 && lh + 2 * num_values_per_comparison < rh) {
+        rh -= num_values_per_comparison;
         rh_comp = loadRHComp(rh);
         rh_mask = (unsigned int) movemask(rh_comp);
         rh_sub = 0;
       }
-      if (lh + 2 * cmp_width >= rh) {
+      if (lh + 2 * num_values_per_comparison >= rh) {
         lh += lh_sub;
         rh -= rh_sub;
         break;
       }
       
       do {
-        unsigned int zeros = (unsigned int) countTrailingZeros(lh_mask);
-        lh_mask >>= zeros;
-        lh_sub += (uint_least8_t) zeros / 2;
+        // find the index of the first observation that failed the comparison
+        unsigned int numZeros = (unsigned int) countTrailingZeros(lh_mask);
+        lh_mask >>= numZeros;
+        // intel double counts zeros because the mask functions work on 8 bit types
+        // but we are using 16 bit
+        lh_sub += increment_sub_by(numZeros);
         
-        zeros = (unsigned int) countTrailingZeros(rh_mask);
-        rh_mask >>= zeros;
-        rh_sub += (uint_least8_t) zeros / 2;
+        numZeros = (unsigned int) countTrailingZeros(rh_mask);
+        rh_mask >>= numZeros;
+        rh_sub += increment_sub_by(numZeros);
         
         indices[rh - rh_sub] = lh + lh_sub;
         indices[lh + lh_sub] = rh - rh_sub;
                   
-        lh_mask >>= 2;
-        rh_mask >>= 2;
+        lh_mask >>= mask_move_size;
+        rh_mask >>= mask_move_size;
         ++lh_sub;
         ++rh_sub;
         
@@ -244,7 +255,7 @@
   size_t lh = 0, rh = length - 1;
   
 #  ifdef __USE_SIMD__
-  if (lh + 2 * cmp_width < rh) {
+  if (lh + 2 * num_values_per_comparison < rh) {
     
     cmp_t lh_comp, rh_comp, values, cut_vec;
     cut_vec = set1(cut);
@@ -257,39 +268,39 @@
     rh_mask = (unsigned int) movemask(rh_comp);
     
     while (true) {
-      while (lh_mask == 0 && lh + 2 * cmp_width < rh) {
-      lh += cmp_width;
+      while (lh_mask == 0 && lh + 2 * num_values_per_comparison < rh) {
+      lh += num_values_per_comparison;
         lh_comp = loadLHComp(lh);
         lh_mask = (unsigned int) movemask(lh_comp);
         lh_sub = 0;
       }
-      while (rh_mask == 0 && lh + 2 * cmp_width < rh) {
-        rh -= cmp_width;
+      while (rh_mask == 0 && lh + 2 * num_values_per_comparison < rh) {
+        rh -= num_values_per_comparison;
         rh_comp = loadRHComp(rh);
         rh_mask = (unsigned int) movemask(rh_comp);
         rh_sub = 0;
       }
-      if (lh + 2 * cmp_width >= rh) {
+      if (lh + 2 * num_values_per_comparison >= rh) {
         lh += lh_sub;
         rh -= rh_sub;
         break;
       }
       
       do {
-        unsigned int zeros = (unsigned int) countTrailingZeros(lh_mask);
-        lh_mask >>= zeros;
-        lh_sub += (uint_least8_t) zeros / 2;
+        unsigned int numZeros = (unsigned int) countTrailingZeros(lh_mask);
+        lh_mask >>= numZeros;
+        lh_sub += increment_sub_by(numZeros);
         
-        zeros = (unsigned int) countTrailingZeros(rh_mask);
-        rh_mask >>= zeros;
-        rh_sub += (uint_least8_t) zeros / 2;
+        numZeros = (unsigned int) countTrailingZeros(rh_mask);
+        rh_mask >>= numZeros;
+        rh_sub += increment_sub_by(numZeros);
         
         size_t temp = indices[rh - rh_sub];
         indices[rh - rh_sub] = indices[lh + lh_sub];
         indices[lh + lh_sub] = temp;
         
-        lh_mask >>= 2;
-        rh_mask >>= 2;
+        lh_mask >>= mask_move_size;
+        rh_mask >>= mask_move_size;
         ++lh_sub;
         ++rh_sub;
       } while (lh_mask != 0 && rh_mask != 0);
@@ -319,8 +330,10 @@
 
 #endif // PARTITION_RANGE
 
+#undef mask_move_size
+#undef increment_sub_by
 #undef cmp_type
-#undef cmp_width
+#undef num_values_per_comparison
 #undef movemask
 #undef getDataAt
 #undef loadRHComp

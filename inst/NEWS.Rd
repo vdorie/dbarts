@@ -8,6 +8,10 @@
             grouping factors in test data. Bug report thanks to github user
             drcthal.
     }
+    \itemize{
+      \item Should now correctly install on non-Mac OS arm64 systems. Bug
+            report thanks to Bob Dröge.
+    }
   }
 }
 \section{CHANGES IN VERSION 0.9-29}{
