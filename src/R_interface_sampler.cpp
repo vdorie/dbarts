@@ -309,7 +309,7 @@ extern "C" {
     return R_NilValue;
   }
   
-  SEXP predict(SEXP fitExpr, SEXP x_testExpr, SEXP offset_testExpr)
+  SEXP predict(SEXP fitExpr, SEXP x_testExpr, SEXP offset_testExpr, SEXP numThreadsExpr)
   {
     const BARTFit* fit = static_cast<const BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_predict called on NULL external pointer");
@@ -340,6 +340,16 @@ extern "C" {
       }
     }
     
+    size_t numThreads = static_cast<size_t>(
+      rc_getInt(
+        numThreadsExpr, "number of threads",
+        RC_LENGTH | RC_EQ, rc_asRLength(1),
+        RC_VALUE | RC_GEQ, 1,
+        RC_NA | RC_NO,
+        RC_END
+      )
+    );
+
     SEXP result = PROTECT(Rf_allocVector(REALSXP, numTestObservations * numSamples * control.numChains));
     if (control.keepTrees) {
       if (fit->control.numChains <= 1)
@@ -351,7 +361,7 @@ extern "C" {
         rc_setDims(result, static_cast<int>(numTestObservations), static_cast<int>(control.numChains), -1);
     }
     
-    fit->predict(REAL(x_testExpr), numTestObservations, testOffset, REAL(result));
+    fit->predict(REAL(x_testExpr), numTestObservations, testOffset, numThreads, REAL(result));
     
     UNPROTECT(1);
     

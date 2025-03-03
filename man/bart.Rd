@@ -60,7 +60,9 @@ bart2(
 \method{predict}{bart}(
     object, newdata, offset, weights,
     type = c("ev", "ppd", "bart"),
-    combineChains = TRUE, \dots)
+    combineChains = TRUE,
+    n.threads,
+    \dots)
 
 extract(object, \dots)
 \method{extract}{bart}(

@@ -347,7 +347,7 @@ extern "C" {
     DEF_FUNC("dbarts_sampleNodeParametersFromPrior", sampleNodeParametersFromPrior, 1),
     DEF_FUNC("dbarts_printTrees", printTrees, 4),
     DEF_FUNC("dbarts_getTrees", getTrees, 4),
-    DEF_FUNC("dbarts_predict", predict, 3),
+    DEF_FUNC("dbarts_predict", predict, 4),
     DEF_FUNC("dbarts_setResponse", setResponse, 2),
     DEF_FUNC("dbarts_setOffset", setOffset, 3),
     DEF_FUNC("dbarts_setSigma", setSigma, 2),

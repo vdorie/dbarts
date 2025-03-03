@@ -23,6 +23,10 @@ namespace dbarts {
     double* recoverParametersFromFits(const BARTFit& fit, const double* treeFits, std::size_t* numBottomNodes); // allocates result; are ordered as bottom nodes are
     void setCurrentFitsFromParameters(const BARTFit& fit, const double* nodeParams, double* trainingFits, double* testFits);
     void setCurrentFitsFromParameters(const BARTFit& fit, const double* nodeParams, const xint_t* xt, std::size_t numObservations, double* fits);
+    // doesn't cache any loops, but since we're going down to the bottom of a tree to find
+    // where a new data-point lives, uses observations in that node to index into tree fits for
+    // the prediction; use this because it is thread-safe
+    void getPredictions(const BARTFit& fit, const double* treeFits, const xint_t* xt, size_t numObservations, double* predictions) const;
     
     // deals largely if there are a different number of cut points, since a tree could then conceivably have
     // splits out of range

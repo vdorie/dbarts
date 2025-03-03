@@ -16,7 +16,7 @@ extern "C" {
   SEXP setControl(SEXP fit, SEXP control);
   SEXP setModel(SEXP fit, SEXP model);
   
-  SEXP predict(SEXP fit, SEXP x_test, SEXP offset_test);
+  SEXP predict(SEXP fit, SEXP x_test, SEXP offset_test, SEXP numThreads);
   SEXP setResponse(SEXP fit, SEXP y);
   SEXP setOffset(SEXP fit, SEXP offset, SEXP updateScale);
   SEXP setWeights(SEXP fit, SEXP weights);

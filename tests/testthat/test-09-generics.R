@@ -39,16 +39,26 @@ test_that("combine/uncombine chains and convert from/to bart style works correct
 
 test_that("predict fails if sampler not saved", {
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE)
-  expect_error(predict(bartFit, testData$x))
+  expect_error(predict(bartFit, testData$x, n.threads = 1L))
 })
 
 test_that("predict gives same result as x_train with linear data", {
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$x)
+  predictions <- predict(bartFit, testData$x, n.threads = 1L)
   expect_equal(predictions, bartFit$yhat.train)
   
   bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$x)
+  predictions <- predict(bartFit, testData$x, n.threads = 1L)
+  expect_equal(predictions, bartFit$yhat.train)
+})
+
+test_that("predict gives same result when single or multi-threaded", {
+  bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, verbose = FALSE, keeptrees = TRUE)
+  predictions <- predict(bartFit, testData$x, n.threads = 2L)
+  expect_equal(predictions, bartFit$yhat.train)
+  
+  bartFit <- bart(testData$x, testData$y, ndpost = 20, nskip = 5, ntree = 5L, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
+  predictions <- predict(bartFit, testData$x, n.threads = 2L)
   expect_equal(predictions, bartFit$yhat.train)
 })
 
@@ -130,11 +140,11 @@ source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 test_that("predict gives same result as x_train with binary data", {
   bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$X, type = "bart")
+  predictions <- predict(bartFit, testData$X, type = "bart", n.threads = 1L)
   expect_equal(predictions, bartFit$yhat.train)
   
   bartFit <- bart(y.train = testData$Z, x.train = testData$X, ndpost = 20, nskip = 5, ntree = 5L, k = 4.5, nchain = 4L, nthread = 1L, verbose = FALSE, keeptrees = TRUE)
-  predictions <- predict(bartFit, testData$X, type = "bart")
+  predictions <- predict(bartFit, testData$X, type = "bart", n.threads = 1L)
   expect_equal(predictions, bartFit$yhat.train)
 })
 

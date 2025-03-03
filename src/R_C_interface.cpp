@@ -133,6 +133,10 @@ extern "C" {
   void dbarts_predict(const BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) {
     fit->predict(x_test, numTestObservations, testOffset, result);
   }
+
+  void dbarts_predictMultithreaded(const BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, std::size_t numThreads, double* result) {
+    fit->predict(x_test, numTestObservations, testOffset, numThreads, result);
+  }
   
   void dbarts_setResponse(BARTFit* fit, const double* newResponse) {
     fit->setResponse(newResponse);

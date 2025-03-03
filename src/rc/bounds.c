@@ -79,7 +79,7 @@ static inline int vgetInt(SEXP x, const char* name, va_list argsPointer)
   rc_constraintType constraintType;
   int arg;
   _rc_naAllowableType naOK = _RC_NO;
-  int defaultValue;
+  int defaultValue = R_NaInt;
   bool defaultSpecified = false;
   
   if (x == R_NilValue || (length = XLENGTH(x)) == 0 || !Rf_isInteger(x)) {
@@ -295,7 +295,7 @@ static inline double vgetDouble(SEXP x, const char* name, va_list argsPointer)
   rc_constraintType constraintType;
   int arg;
   _rc_naAllowableType naOK = _RC_NO;
-  double defaultValue;
+  double defaultValue = R_NaReal;
   bool defaultSpecified = false;
   
   if (x == R_NilValue || (length = XLENGTH(x)) == 0 || !Rf_isReal(x)) {
@@ -511,7 +511,7 @@ bool vgetBool(SEXP x, const char* name, va_list argsPointer)
   rc_constraintType constraintType;
   int arg;
   _rc_naAllowableType naOK = _RC_NO;
-  int defaultValue;
+  int defaultValue = NA_LOGICAL;
   bool defaultSpecified = false;
   
   if (x == R_NilValue || (length = XLENGTH(x)) == 0 || !Rf_isLogical(x)) {

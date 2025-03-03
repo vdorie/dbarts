@@ -16,6 +16,7 @@ combineOrUncombineChains <- function(x, n.chains, combineChains)
 predict.bart <- function(object, newdata, offset, weights,
                          type = c("ev", "ppd", "bart"),
                          combineChains = TRUE,
+                         n.threads = object$fit$control@n.threads,
                          ...)
 {
   if (missing(offset)) offset <- NULL
@@ -35,8 +36,10 @@ predict.bart <- function(object, newdata, offset, weights,
   if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.bart)$type))
     stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
   type <- type[1L]
+
+  n.threads <- as.integer(n.threads)[1L]
   
-  result <- object$fit$predict(newdata, offset)
+  result <- object$fit$predict(newdata, offset, n.threads)
   # result is n.obs x n.samples x n.chains
   n.chains <- object$fit$control@n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)

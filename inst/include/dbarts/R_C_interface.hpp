@@ -100,6 +100,7 @@ extern "C" {
   void dbarts_sampleNodeParametersFromPrior(dbarts::BARTFit* fit);
   
   void dbarts_predict(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result);
+  void dbarts_predictMultiThreaded(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, std::size_t numThreads, double* result);
   // 'settors' simply replace local pointers to variables. dimensions much match
   // 'update' modifies the local copy (which may belong to someone else)
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);

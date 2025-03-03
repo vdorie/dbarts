@@ -2,13 +2,17 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 0.9-31}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item `predict` now accepts a `n.threads` argument and will use native
+            threads to parallelize across chains.
+    }
+  }
   \subsection{BUG FIXES}{
     \itemize{
       \item `rbart_vi` no longer fails when there are multiple out-of-sample
             grouping factors in test data. Bug report thanks to github user
             drcthal.
-    }
-    \itemize{
       \item Should now correctly install on non-Mac OS arm64 systems. Bug
             report thanks to Bob Dröge.
     }

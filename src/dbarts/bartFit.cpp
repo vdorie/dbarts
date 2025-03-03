@@ -241,7 +241,173 @@ namespace dbarts {
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       state[chainNum].k = newK[chainNum];
   }
+}
+
+extern "C" {
+  struct PredictThreadData {
+    const BARTFit* fit;
+    union {
+      double* xt_test_d;
+      xint_t* xt_test_i;
+    };
+    size_t numTestObservations;
+    const double* testOffset;
+
+    size_t chainNum;
+    size_t numThreads;
+    double* result;
+  };
   
+  void predictThreadFunction(std::size_t taskId, void* threadDataPtr) {
+    PredictThreadData &threadData(*reinterpret_cast<PredictThreadData *>(threadDataPtr));
+    
+    const BARTFit &fit(*threadData.fit);
+    size_t chainNum = threadData.chainNum;
+    size_t numThreads = threadData.numThreads;
+    size_t numTestObservations = threadData.numTestObservations;
+    const double* testOffset = threadData.testOffset;
+    double *result = threadData.result;
+
+    const Control &control(fit.control);
+    
+    const SharedScratch &sharedScratch(fit.sharedScratch);
+    ChainScratch &chainScratch(fit.chainScratch[chainNum]);
+    State &state(fit.state[chainNum]);
+    
+    chainScratch.taskId = taskId;
+
+    double *currTestFits = new double[numTestObservations];
+    double *totalTestFits = new double[numTestObservations];
+    
+    // reserve once at the start if possible
+    if (numThreads > 1 && control.numChains == 1)
+      misc_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
+
+    if (control.keepTrees) {
+      const double *xt_test = threadData.xt_test_d;
+
+      for (size_t sampleNum = 0; sampleNum < fit.currentNumSamples; ++sampleNum) {
+        if (numThreads > 1 && control.numChains > 1)
+          misc_htm_reserveThreadsForSubTask(fit.threadManager, taskId, sampleNum);
+        
+        misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
+        
+        for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+          size_t treeOffset = treeNum + sampleNum * control.numTrees;
+          
+          state.savedTrees[treeOffset].getPredictions(fit, xt_test, numTestObservations, currTestFits);
+          
+          misc_addVectorsInPlace(const_cast<const double *>(currTestFits), numTestObservations, totalTestFits);
+        }
+        
+        double* result_i = result + sampleNum * numTestObservations;
+        if (control.responseIsBinary) {
+          std::memcpy(result_i, const_cast<const double *>(totalTestFits), numTestObservations * sizeof(double));
+        } else {
+          misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+          misc_addVectorsInPlaceWithMultiplier(const_cast<const double *>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
+        }
+        
+        if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, result_i);
+      }
+    } else {
+      const xint_t *xt_test = threadData.xt_test_i;
+
+      misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
+      
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        const double* treeFits = state.treeFits + treeNum * state.treeFitsStride;
+
+        state.trees[treeNum].getPredictions(
+          fit,
+          treeFits,
+          xt_test,
+          numTestObservations,
+          currTestFits
+        );
+        
+        misc_addVectorsInPlace(const_cast<const double *>(currTestFits), numTestObservations, totalTestFits);
+      }
+      
+      if (control.responseIsBinary) {
+        std::memcpy(result, const_cast<const double *>(totalTestFits), numTestObservations * sizeof(double));
+      } else {
+        misc_setVectorToConstant(result, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
+        misc_addVectorsInPlaceWithMultiplier(const_cast<const double *>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result);
+      }
+      
+      if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, result);
+    }
+    
+    delete [] totalTestFits;
+    delete [] currTestFits;
+  }
+}
+
+namespace dbarts {
+
+  void BARTFit::predict(
+    const double* x_test,
+    size_t numTestObservations,
+    const double* testOffset,
+    size_t numThreads,
+    double* result
+  ) const
+  {
+    if (numThreads > 1 && threadManager == NULL && misc_htm_create(&const_cast<BARTFit*>(this)->threadManager, control.numThreads) != 0) {
+      ext_printMessage("Unable to multi-thread, defaulting to single.");
+      numThreads = 1;
+    }
+    
+    double* xt_test_d = NULL;
+    xint_t* xt_test_i = NULL;
+
+    if (control.keepTrees) {
+      xt_test_d = new double[numTestObservations * data.numPredictors];
+      misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test_d);
+    } else {
+      xt_test_i = new xint_t[numTestObservations * data.numPredictors];
+      setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test_i);
+    }
+
+    if (numThreads <= 1 || control.numChains <= 1) {
+      // run single threaded, chains in sequence
+      PredictThreadData threadData = { this, { NULL }, numTestObservations, testOffset, 0, 1, NULL };
+      if (control.keepTrees) threadData.xt_test_d = xt_test_d;
+      else threadData.xt_test_i = xt_test_i;
+      
+      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+        threadData.chainNum = chainNum;
+        threadData.result = result + chainNum * currentNumSamples * numTestObservations;
+        predictThreadFunction(static_cast<size_t>(-1), reinterpret_cast<void*>(&threadData));
+      }
+    } else {
+      PredictThreadData* threadData = new PredictThreadData[control.numChains];
+      void** threadDataPtr = new void*[control.numChains];
+      
+      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+        threadData[chainNum].fit = this;
+        if (control.keepTrees) threadData[chainNum].xt_test_d = xt_test_d;
+        else threadData[chainNum].xt_test_i = xt_test_i;
+        threadData[chainNum].numTestObservations = numTestObservations;
+        threadData[chainNum].testOffset = testOffset;
+        threadData[chainNum].chainNum = chainNum;
+        threadData[chainNum].numThreads = numThreads;
+        threadData[chainNum].result = result + chainNum * currentNumSamples * numTestObservations;
+        threadDataPtr[chainNum] = reinterpret_cast<void*>(&threadData[chainNum]);
+      }
+      misc_htm_runTopLevelTasks(threadManager, &predictThreadFunction, threadDataPtr, control.numChains);
+
+      delete [] threadDataPtr;
+      delete [] threadData;
+    }
+    if (control.keepTrees) {
+      delete [] xt_test_d;
+    } else {
+      delete [] xt_test_i;
+    }
+  }
+   
   void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
   {
     double* currTestFits = new double[numTestObservations];
@@ -1325,7 +1491,7 @@ namespace dbarts {
 }
 
 extern "C" {
-  struct ThreadData {
+  struct SamplerThreadData {
     BARTFit* fit;
     size_t chainNum;
     size_t numBurnIn;
@@ -1333,7 +1499,7 @@ extern "C" {
   };
   
   void samplerThreadFunction(std::size_t taskId, void* threadDataPtr) {
-    ThreadData* threadData(reinterpret_cast<ThreadData*>(threadDataPtr));
+    SamplerThreadData* threadData(reinterpret_cast<SamplerThreadData*>(threadDataPtr));
     
     BARTFit& fit(*threadData->fit);
     size_t chainNum = threadData->chainNum;
@@ -1507,13 +1673,13 @@ namespace dbarts {
     
     if (control.numThreads <= 1) {
       // run single threaded, chains in sequence
-      ThreadData threadData = { this, 0, numBurnIn, resultsPointer };
+      SamplerThreadData threadData = { this, 0, numBurnIn, resultsPointer };
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
         threadData.chainNum = chainNum;
         samplerThreadFunction(static_cast<size_t>(-1), reinterpret_cast<void*>(&threadData));
       }
     } else {
-      ThreadData* threadData = new ThreadData[control.numChains];
+      SamplerThreadData* threadData = new SamplerThreadData[control.numChains];
       void** threadDataPtr = new void*[control.numChains];
       
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {

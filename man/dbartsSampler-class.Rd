@@ -30,7 +30,7 @@
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
-\S4method{predict}{dbartsSampler}(x.test, offset.test)
+\S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
 \S4method{setControl}{dbartsSampler}(control)
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
@@ -86,6 +86,9 @@
   }
   \item{offset.test}{
     A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictors}.
+  }
+  \item{n.threads}{
+    If greater than one, chain predictions will take place in parallel.
   }
   \item{sigma}{
     Numeric vector of residual standard deviations, one for each chain.

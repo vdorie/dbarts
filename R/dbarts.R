@@ -265,7 +265,7 @@ dbartsSampler <-
                   
                   invisible(NULL)
                 },
-                predict = function(x.test, offset.test) {
+                predict = function(x.test, offset.test, n.threads = control@n.threads) {
                   'Using existing sampler to predict for new data without re-running.'
                   
                   selfEnv <- parent.env(environment())
@@ -285,7 +285,7 @@ dbartsSampler <-
                       stop("length of test offset must be equal to number of rows in test matrix")
                   }
                   
-                  .Call(C_dbarts_predict, ptr, x.test, offset.test)
+                  .Call(C_dbarts_predict, ptr, x.test, offset.test, n.threads)
                 },
                 setControl = function(newControl) {
                   'Sets the control object for the sampler to a new one. Preserves the call() slot.'

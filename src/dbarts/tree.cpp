@@ -182,6 +182,20 @@ namespace dbarts {
     for (size_t i = 0; i < numObservations; ++i) fits[i] = nodeParams[observationNodeMap[i]];
     delete [] observationNodeMap;
   }
+
+  void Tree::getPredictions(const BARTFit& fit, const double* treeFits, const xint_t* xt, size_t numObservations, double* predictions) const
+  {
+    for (size_t i = 0; i < numObservations; ++i) {
+      const Node &bottomNode(*top.findBottomNode(fit, xt + i * fit.data.numPredictors));
+      if (bottomNode.isTop()) {
+        predictions[i] = treeFits[0];
+      } else if (bottomNode.getNumObservations() > 0) {
+        predictions[i] = treeFits[bottomNode.observationIndices[0]];
+      } else {
+        predictions[i] = 0.0;
+      }
+    }
+  }
 }
 
 namespace {
