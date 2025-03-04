@@ -28,7 +28,7 @@ test_that("rng cooperates with native generator", {
   sampler <- dbarts(y ~ x, testData, control = control)
   sampler$storeState()
   origSeed <- .Call(dbarts:::C_dbarts_deepCopy, sampler$state[[1L]]@rng.state)
-  invisible(sampler$run(0L, 10L, TRUE))
+  invisible(sampler$run(0L, 10L, updateState = TRUE))
   oldSeed <- sampler$state[[1L]]@rng.state
   
   ## run twice for 5 iterations, writing out state and restoring from that
@@ -38,12 +38,12 @@ test_that("rng cooperates with native generator", {
   tempState[[1L]]@rng.state <- .Call(dbarts:::C_dbarts_deepCopy, origSeed)
   sampler$setState(tempState)
   
-  invisible(sampler$run(0L, 5L, TRUE))
+  invisible(sampler$run(0L, 5L, updateState = TRUE))
   tempState <- sampler$state
   
   sampler <- dbarts(y ~ x, testData, control = control)
   sampler$setState(tempState)
-  invisible(sampler$run(0L, 5L, TRUE))
+  invisible(sampler$run(0L, 5L, updateState = TRUE))
   
   expect_equal(sampler$state[[1L]]@rng.state, oldSeed)
 })

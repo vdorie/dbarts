@@ -94,16 +94,19 @@ extern "C" {
     return result;
   }
   
-  SEXP run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numSamplesExpr)
+  SEXP run(SEXP fitExpr, SEXP numBurnInExpr, SEXP numThreadsExpr, SEXP numSamplesExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
     if (fit == NULL) Rf_error("dbarts_run called on NULL external pointer");
     
     int i_temp;
-    size_t numBurnIn, numSamples;
+    size_t numBurnIn, numThreads, numSamples;
     
     i_temp = rc_getInt(numBurnInExpr, "number of burn-in steps", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);
     numBurnIn = i_temp == NA_INTEGER ? fit->control.defaultNumBurnIn : static_cast<size_t>(i_temp);
+
+    i_temp = rc_getInt(numThreadsExpr, "number of threads", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_YES, RC_END);
+    numThreads = i_temp == NA_INTEGER ? fit->control.numThreads : static_cast<size_t>(i_temp);
     
     i_temp = rc_getInt(numSamplesExpr, "number of samples", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES, RC_END);    
     numSamples = i_temp == NA_INTEGER ? fit->control.defaultNumSamples : static_cast<size_t>(i_temp);
@@ -126,7 +129,7 @@ extern "C" {
     
     GetRNGstate();
     
-    Results* bartResults = fit->runSampler(numBurnIn, numSamples);
+    Results* bartResults = fit->runSampler(numBurnIn, numThreads, numSamples);
     
     PutRNGstate();
     
@@ -707,6 +710,27 @@ extern "C" {
     }
     
     return resultExpr;
+  }
+
+  SEXP startThreads(SEXP fitExpr, SEXP numThreadsExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_startThreads called on NULL external pointer");
+
+    int i_temp = rc_getInt(numThreadsExpr, "number of threads", RC_LENGTH | RC_GEQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_NA | RC_YES, RC_END);
+    size_t numThreads = i_temp == NA_INTEGER ? fit->control.numThreads : static_cast<size_t>(i_temp);
+
+    return Rf_ScalarInteger(static_cast<int>(fit->startThreads(numThreads)));
+  }
+
+  SEXP stopThreads(SEXP fitExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_stopThreads called on NULL external pointer");
+
+    fit->stopThreads();
+
+    return R_NilValue;
   }
   
   SEXP createState(SEXP fitExpr)

@@ -115,11 +115,19 @@ extern "C" {
   }
   
   Results* dbarts_runSamplerForIterations(BARTFit* fit, size_t numBurnIn, size_t numSamples) {
-    return fit->runSampler(numBurnIn, numSamples);
+    return fit->runSampler(numBurnIn, fit->control.numThreads, numSamples);
   }
   
   void dbarts_runSamplerWithResults(BARTFit* fit, size_t numBurnIn, Results* results) {
-    fit->runSampler(numBurnIn, results);
+    fit->runSampler(numBurnIn, fit->control.numThreads, results);
+  }
+
+  Results* dbarts_runSamplerMultithreadedForIterations(BARTFit* fit, size_t numBurnIn, size_t numThreads, size_t numSamples) {
+    return fit->runSampler(numBurnIn, numThreads, numSamples);
+  }
+  
+  void dbarts_runSamplerMultithreadedWithResults(BARTFit* fit, size_t numBurnIn, size_t numThreads, Results* results) {
+    fit->runSampler(numBurnIn, numThreads, results);
   }
   
   void dbarts_sampleTreesFromPrior(BARTFit* fit) {
@@ -131,7 +139,7 @@ extern "C" {
   }
   
   void dbarts_predict(const BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) {
-    fit->predict(x_test, numTestObservations, testOffset, result);
+    fit->predict(x_test, numTestObservations, testOffset, fit->control.numThreads, result);
   }
 
   void dbarts_predictMultithreaded(const BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, std::size_t numThreads, double* result) {
@@ -191,6 +199,19 @@ extern "C" {
   void dbarts_storeLatents(const dbarts::BARTFit* fit, double* target)
   {
     fit->storeLatents(target);
+  }
+
+  std::size_t dbarts_startThreads(dbarts::BARTFit* fit)
+  {
+    return fit->startThreads();
+  }
+  std::size_t dbarts_startNumThreads(dbarts::BARTFit* fit, std::size_t numThreads)
+  {
+    return fit->startThreads(numThreads);
+  }
+  void dbarts_stopThreads(dbarts::BARTFit* fit)
+  {
+    fit->stopThreads();
   }
   
   CGMPrior* dbarts_createCGMPrior() {

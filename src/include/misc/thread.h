@@ -18,6 +18,7 @@ struct _misc_mt_manager_t;
 typedef struct _misc_mt_manager_t* misc_mt_manager_t;
 
 
+// on failure, sets manager to NULL and returns an error code
 int misc_mt_create(misc_mt_manager_t* manager, misc_size_t numThreads);
 int misc_mt_destroy(misc_mt_manager_t manager);
 
@@ -50,6 +51,8 @@ typedef void (*misc_htm_subTaskFunction_t)(void*);
 
 int misc_htm_create(misc_htm_manager_t* manager, misc_size_t numThreads);
 int misc_htm_destroy(misc_htm_manager_t manager);
+
+misc_size_t misc_htm_getNumThreads(const misc_htm_manager_t manager);
 
 int misc_htm_runTopLevelTasks(misc_htm_manager_t restrict manager, misc_htm_topLevelTaskFunction_t task,
                               void** restrict data, misc_size_t numTasks);

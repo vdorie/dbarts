@@ -224,8 +224,9 @@ bart2 <- function(
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
-
-    samples <- sampler$run(0L, control@n.burn, FALSE)
+    sampler$startThreads()
+    
+    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
     if (!is.null(samples$sigma)) burnInSigma <- samples$sigma
     if (!is.null(samples[["k"]])) burnInK <- samples[["k"]]
     
@@ -238,8 +239,10 @@ bart2 <- function(
 
     samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
+    sampler$startThreads()
     samples <- sampler$run(updateState = FALSE)
   }
+  sampler$stopThreads()
 
   result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combineChains, keepSampler)
   # needed to extract ppd
@@ -320,8 +323,9 @@ bart <- function(
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
+    sampler$startThreads()
     
-    samples <- sampler$run(0L, control@n.burn, FALSE)
+    samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
     if (!is.null(samples$sigma)) burnInSigma <- samples$sigma
     if (!is.null(samples[["k"]])) burnInK <- samples[["k"]]
     
@@ -333,8 +337,10 @@ bart <- function(
 
     samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
+    sampler$startThreads()
     samples <- sampler$run(updateState = FALSE)
   }
+  sampler$stopThreads()
 
   result <- packageBartResults(sampler, samples, burnInSigma, burnInK, combinechains, keepsampler)
   

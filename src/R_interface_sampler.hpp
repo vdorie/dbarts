@@ -8,7 +8,7 @@
 extern "C" {
   
   SEXP create(SEXP control, SEXP model, SEXP data);
-  SEXP run(SEXP fit, SEXP numBurnIn, SEXP numSamples);
+  SEXP run(SEXP fit, SEXP numBurnIn, SEXP numThreads, SEXP numSamples);
   SEXP sampleTreesFromPrior(SEXP fit);
   SEXP sampleNodeParametersFromPrior(SEXP fit);
   
@@ -28,6 +28,9 @@ extern "C" {
   SEXP setTestOffset(SEXP fit, SEXP offset_test);
   SEXP setTestPredictorAndOffset(SEXP fit, SEXP x_test, SEXP offset_test);
   SEXP storeLatents(SEXP fit, SEXP result);
+
+  SEXP startThreads(SEXP fit, SEXP numThreads);
+  SEXP stopThreads(SEXP fit);
   
   SEXP updateTestPredictor(SEXP fit, SEXP x_test, SEXP cols);
    
@@ -37,7 +40,6 @@ extern "C" {
   
   SEXP getTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
   SEXP printTrees(SEXP fit, SEXP chainIndices, SEXP sampleIndices, SEXP treeIndices);
-  
 }
 
 #endif

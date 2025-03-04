@@ -140,8 +140,8 @@ namespace dbarts {
     }
   }
   
-  void BARTFit::setResponse(const double* newY) {
-    
+  void BARTFit::setResponse(const double* newY)
+  {
     if (!control.responseIsBinary) {
       double* sigmaUnscaled = misc_stackAllocate(control.numChains, double);
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
@@ -168,7 +168,8 @@ namespace dbarts {
     }
   }
   
-  void BARTFit::setOffset(const double* newOffset, bool updateScale) {
+  void BARTFit::setOffset(const double* newOffset, bool updateScale)
+  {
     if (control.responseIsBinary) {
       // no scale concerns with binary outcomes
       data.offset = newOffset;
@@ -254,16 +255,15 @@ extern "C" {
     const double* testOffset;
 
     size_t chainNum;
-    size_t numThreads;
     double* result;
   };
   
-  void predictThreadFunction(std::size_t taskId, void* threadDataPtr) {
+  void predictThreadFunction(std::size_t taskId, void* threadDataPtr)
+  {
     PredictThreadData &threadData(*reinterpret_cast<PredictThreadData *>(threadDataPtr));
     
     const BARTFit &fit(*threadData.fit);
     size_t chainNum = threadData.chainNum;
-    size_t numThreads = threadData.numThreads;
     size_t numTestObservations = threadData.numTestObservations;
     const double* testOffset = threadData.testOffset;
     double *result = threadData.result;
@@ -278,11 +278,13 @@ extern "C" {
 
     double *currTestFits = new double[numTestObservations];
     double *totalTestFits = new double[numTestObservations];
+
+    size_t numThreads = fit.threadManager != NULL ? misc_htm_getNumThreads(fit.threadManager) : 1;
     
     // reserve once at the start if possible
     if (numThreads > 1 && control.numChains == 1)
       misc_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
-
+    
     if (control.keepTrees) {
       const double *xt_test = threadData.xt_test_d;
 
@@ -354,11 +356,14 @@ namespace dbarts {
     double* result
   ) const
   {
-    if (numThreads > 1 && threadManager == NULL && misc_htm_create(&const_cast<BARTFit*>(this)->threadManager, control.numThreads) != 0) {
-      ext_printMessage("Unable to multi-thread, defaulting to single.");
-      numThreads = 1;
+    misc_htm_manager_t originalThreadManager = const_cast<BARTFit*>(this)->threadManager;
+    if (
+      numThreads > 1
+      && (threadManager == NULL || misc_htm_getNumThreads(threadManager) != numThreads)
+    ) {
+      numThreads = const_cast<BARTFit*>(this)->startThreads(numThreads);
     }
-    
+
     double* xt_test_d = NULL;
     xint_t* xt_test_i = NULL;
 
@@ -370,9 +375,9 @@ namespace dbarts {
       setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test_i);
     }
 
-    if (numThreads <= 1 || control.numChains <= 1) {
-      // run single threaded, chains in sequence
-      PredictThreadData threadData = { this, { NULL }, numTestObservations, testOffset, 0, 1, NULL };
+    if (numThreads <= 1) {
+      // run single threaded across chains in sequence
+      PredictThreadData threadData = { this, { NULL }, numTestObservations, testOffset, 0, NULL };
       if (control.keepTrees) threadData.xt_test_d = xt_test_d;
       else threadData.xt_test_i = xt_test_i;
       
@@ -392,12 +397,11 @@ namespace dbarts {
         threadData[chainNum].numTestObservations = numTestObservations;
         threadData[chainNum].testOffset = testOffset;
         threadData[chainNum].chainNum = chainNum;
-        threadData[chainNum].numThreads = numThreads;
         threadData[chainNum].result = result + chainNum * currentNumSamples * numTestObservations;
         threadDataPtr[chainNum] = reinterpret_cast<void*>(&threadData[chainNum]);
       }
       misc_htm_runTopLevelTasks(threadManager, &predictThreadFunction, threadDataPtr, control.numChains);
-
+      
       delete [] threadDataPtr;
       delete [] threadData;
     }
@@ -406,81 +410,17 @@ namespace dbarts {
     } else {
       delete [] xt_test_i;
     }
-  }
-   
-  void BARTFit::predict(const double* x_test, size_t numTestObservations, const double* testOffset, double* result) const
-  {
-    double* currTestFits = new double[numTestObservations];
-    double* totalTestFits = new double[numTestObservations];
-    
-    if (control.keepTrees) {
-      double* xt_test = new double[numTestObservations * data.numPredictors];
-      misc_transposeMatrix(x_test, numTestObservations, data.numPredictors, xt_test);
-      
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-        for (size_t sampleNum = 0; sampleNum < currentNumSamples; ++sampleNum) {
-          
-          misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
-          
-          for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-            size_t treeOffset = treeNum + sampleNum * control.numTrees;
-            
-            state[chainNum].savedTrees[treeOffset].getPredictions(*this, xt_test, numTestObservations, currTestFits);
-            
-            misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, totalTestFits);
-          }
-          
-          double* result_i = result + (sampleNum + chainNum * currentNumSamples) * numTestObservations;
-          if (control.responseIsBinary) {
-            std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
-          } else {
-            misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-            misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
-          }
-          
-          if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, result_i);
-        }
-      }
-      delete [] xt_test;
-    } else {
-      xint_t* xt_test = new xint_t[numTestObservations * data.numPredictors];
-      setXTestIntegerCutMap(*this, x_test, numTestObservations, xt_test);
 
-      for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      
-        misc_setVectorToConstant(totalTestFits, numTestObservations, 0.0);
-        
-        for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-          const double* treeFits = state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride;
-          const double* nodeParams = state[chainNum].trees[treeNum].recoverParametersFromFits(*this, treeFits);
-          
-          state[chainNum].trees[treeNum].setCurrentFitsFromParameters(*this, nodeParams, xt_test, numTestObservations, currTestFits);
-          
-          misc_addVectorsInPlace(const_cast<const double*>(currTestFits), numTestObservations, totalTestFits);
-          
-          delete [] nodeParams;
-        }
-        
-        double* result_i = result + chainNum * numTestObservations;
-        if (control.responseIsBinary) {
-          std::memcpy(result_i, const_cast<const double*>(totalTestFits), numTestObservations * sizeof(double));
-        } else {
-          misc_setVectorToConstant(result_i, numTestObservations, sharedScratch.dataScale.range * 0.5 + sharedScratch.dataScale.min);
-          misc_addVectorsInPlaceWithMultiplier(const_cast<const double*>(totalTestFits), numTestObservations, sharedScratch.dataScale.range, result_i);
-        }
-        
-        if (testOffset != NULL) misc_addVectorsInPlace(testOffset, numTestObservations, result_i);
-      }
-      delete [] xt_test;
+    if (threadManager != originalThreadManager) {
+      const_cast<BARTFit*>(this)->stopThreads();
+      const_cast<BARTFit*>(this)->threadManager = originalThreadManager;
     }
-    
-    delete [] totalTestFits;
-    delete [] currTestFits;
   }
 }
 
 namespace {
-  void forceUpdateTrees(BARTFit& fit) {
+  void forceUpdateTrees(BARTFit& fit)
+  {
     const Control& control(fit.control);
     const Data& data(fit.data);
     State* state(fit.state);
@@ -637,7 +577,13 @@ namespace dbarts {
     return treesAreValid;
   }
   
-  bool BARTFit::updatePredictor(const double* newPredictor, const size_t* columns, size_t numColumns, bool forceUpdate, bool updateCutPoints)
+  bool BARTFit::updatePredictor(
+    const double* newPredictor,
+    const size_t* columns,
+    size_t numColumns,
+    bool forceUpdate,
+    bool updateCutPoints
+  )
   {
     // store current
     double* oldPredictor = NULL;
@@ -709,8 +655,12 @@ namespace dbarts {
     return treesAreValid;
   }
   
-  void BARTFit::setCutPoints(const double* const* newCutPoints, const uint32_t* numCutPoints,
-                             const size_t* columns, size_t numColumns)
+  void BARTFit::setCutPoints(
+    const double* const* newCutPoints,
+    const uint32_t* numCutPoints,
+    const size_t* columns,
+    size_t numColumns
+  )
   {
     for (size_t j = 0; j < numColumns; ++j) {
       if (numCutPoints[j] > static_cast<uint32_t>(((1 >> sizeof(xint_t)) - 1))) {
@@ -783,7 +733,12 @@ namespace {
 namespace dbarts {
   // setting testOffset to NULL is valid
   // an invalid pointer address for testOffset is the object itself; when invalid, it is not updated
-  void BARTFit::setTestPredictorAndOffset(const double* x_test, const double* testOffset, size_t numTestObservations) {
+  void BARTFit::setTestPredictorAndOffset(
+    const double* x_test,
+    const double* testOffset,
+    size_t numTestObservations
+  )
+  {
     if (numTestObservations == 0 || x_test == NULL) {
       if (sharedScratch.xt_test != NULL) { delete [] sharedScratch.xt_test; sharedScratch.xt_test = NULL; }
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
@@ -1269,9 +1224,14 @@ namespace dbarts {
     delete [] chainNumber;
   }
   
-  FlattenedTrees* BARTFit::getFlattenedTrees(const size_t* chainIndices, size_t numChainIndices,
-                                             const size_t* sampleIndices, size_t numSampleIndices,
-                                             const size_t* treeIndices, size_t numTreeIndices) const
+  FlattenedTrees* BARTFit::getFlattenedTrees(
+    const size_t* chainIndices,
+    size_t numChainIndices,
+    const size_t* sampleIndices,
+    size_t numSampleIndices,
+    const size_t* treeIndices,
+    size_t numTreeIndices
+  ) const
   {
     
     size_t totalNumNodes = 0;
@@ -1358,8 +1318,16 @@ namespace dbarts {
   }
   
   BARTFit::BARTFit(Control control, Model model, Data data) :
-    control(control), model(model), data(data), sharedScratch(), chainScratch(NULL), state(NULL),
-    runningTime(0.0), currentNumSamples(control.defaultNumSamples), currentSampleNum(0), threadManager(NULL)
+    control(control),
+    model(model),
+    data(data),
+    sharedScratch(),
+    chainScratch(NULL),
+    state(NULL),
+    runningTime(0.0),
+    currentNumSamples(control.defaultNumSamples),
+    currentSampleNum(0),
+    threadManager(NULL)
   {
     allocateMemory(*this);
     
@@ -1425,7 +1393,7 @@ namespace dbarts {
                                           !model.kPrior->isFixed);
     size_t numBurnIn = control.defaultNumBurnIn - (control.defaultNumSamples == 0 && control.defaultNumBurnIn > 0 ? 1 : 0);
     
-    runSampler(numBurnIn, resultsPointer);
+    runSampler(numBurnIn, control.numThreads, resultsPointer);
     
     if (control.defaultNumSamples == 0) {
       delete resultsPointer;
@@ -1435,7 +1403,11 @@ namespace dbarts {
     return resultsPointer;
   }
   
-  Results* BARTFit::runSampler(size_t numBurnIn, size_t numSamples)
+  Results* BARTFit::runSampler(
+    size_t numBurnIn,
+    size_t numThreads,
+    size_t numSamples
+  )
   {
     Results* resultsPointer = new Results(data.numObservations, data.numPredictors,
                                           data.numTestObservations,
@@ -1444,7 +1416,7 @@ namespace dbarts {
                                           !model.kPrior->isFixed);
     numBurnIn -= numSamples == 0 && numBurnIn > 0 ? 1 : 0;
     
-    runSampler(numBurnIn, resultsPointer);
+    runSampler(numBurnIn, numThreads, resultsPointer);
     
     if (numSamples == 0) {
       delete resultsPointer;
@@ -1536,9 +1508,11 @@ extern "C" {
     uint32_t* variableCounts = misc_stackAllocate(data.numPredictors, uint32_t);
     
     size_t totalNumIterations = (numBurnIn + numSamples) * control.treeThinningRate;
+
+    size_t numThreads = fit.threadManager != NULL ? misc_htm_getNumThreads(fit.threadManager) : 1;
     
     // reserve once at the start if possible
-    if (control.numThreads > 1 && control.numChains == 1)
+    if (numThreads > 1 && control.numChains == 1)
       misc_htm_reserveThreadsForSubTask(fit.threadManager, 0, 0);
     
     double* y = NULL;
@@ -1553,7 +1527,7 @@ extern "C" {
     }
 
     for (size_t k = 0; k < totalNumIterations; ++k) {
-      if (control.numThreads > 1 && control.numChains > 1)
+      if (numThreads > 1 && control.numChains > 1)
         misc_htm_reserveThreadsForSubTask(fit.threadManager, taskId, k);
       
       bool isThinningIteration = ((k + 1) % control.treeThinningRate != 0);
@@ -1650,8 +1624,21 @@ extern "C" {
 
 namespace dbarts {
   
-  void BARTFit::runSampler(size_t numBurnIn, Results* resultsPointer)
+  void BARTFit::runSampler(
+    size_t numBurnIn,
+    size_t numThreads,
+    Results* resultsPointer
+  )
   {
+    misc_htm_manager_t originalThreadManager = threadManager;
+    if (
+      numThreads > 1
+      && (threadManager == NULL || misc_htm_getNumThreads(threadManager) != numThreads)
+    )
+    {
+      startThreads(numThreads);
+    }
+
     if (control.verbose) ext_printf("Running mcmc loop:\n");
     
 #ifdef HAVE_SYS_TIME_H
@@ -1671,7 +1658,7 @@ namespace dbarts {
       currentSampleNum = 0;
     }
     
-    if (control.numThreads <= 1) {
+    if (numThreads <= 1) {
       // run single threaded, chains in sequence
       SamplerThreadData threadData = { this, 0, numBurnIn, resultsPointer };
       for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
@@ -1715,6 +1702,11 @@ namespace dbarts {
     runningTime += subtractTimes(endTime, startTime);
     
     if (control.verbose) printTerminalSummary(*this);
+
+    if (threadManager != originalThreadManager) {
+      stopThreads();
+      threadManager = originalThreadManager;
+    }
   }
   
   void BARTFit::printInitialSummary() const {
@@ -1724,7 +1716,7 @@ namespace dbarts {
       ext_printf("\nRunning BART with numeric y\n\n");
     
     ext_printf("number of trees: " SIZE_T_SPECIFIER "\n", control.numTrees);
-    ext_printf("number of chains: " SIZE_T_SPECIFIER ", number of threads " SIZE_T_SPECIFIER "\n", control.numChains, control.numThreads);
+    ext_printf("number of chains: " SIZE_T_SPECIFIER ", default number of threads " SIZE_T_SPECIFIER "\n", control.numChains, control.numThreads);
     ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
     
     ext_printf("Prior:\n");
@@ -1912,11 +1904,6 @@ namespace {
     fit.state = static_cast<State*>(::operator new (control.numChains * sizeof(State)));
     for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum)
       new (fit.state + chainNum) State(control, data);
-    
-    if (control.numThreads > 1 && misc_htm_create(&fit.threadManager, control.numThreads) != 0) {
-      ext_printMessage("Unable to multi-thread, defaulting to single.");
-      control.numThreads = 1;
-    }
   }
   
   void setPrior(BARTFit& fit) {
@@ -2141,7 +2128,8 @@ namespace {
     
     // if only one chain or one thread, can use environment's rng since randomization calls will all be
     // serial
-    bool useNativeRNG = control.numChains == 1 || control.numThreads == 1;
+    size_t numThreads = fit.threadManager != NULL ? misc_htm_getNumThreads(fit.threadManager) : control.numThreads;
+    bool useNativeRNG = control.numChains == 1 || numThreads == 1;
     
     size_t numSeedResets;
     const char* errorMessage = NULL;
@@ -2267,6 +2255,35 @@ namespace dbarts {
     }
   }
   
+  size_t BARTFit::startThreads() {
+    return startThreads(control.numThreads);
+  }
+
+  size_t BARTFit::startThreads(size_t numThreads) {
+    if (threadManager != NULL && misc_htm_getNumThreads(threadManager) != numThreads) {
+      misc_htm_destroy(threadManager);
+      threadManager = NULL;
+    }
+    
+    if (numThreads > 1 && misc_htm_create(&threadManager, numThreads) != 0) {
+      ext_issueWarning("Unable to create thread manager and start threads; reverting to single thread");
+      numThreads = 1;
+    }
+
+    if (numThreads > 1 && control.numChains > 1 && ext_rng_usesNativeRNG(state[0].rng)) {
+      // if running multithreaded and there is more than one chain,
+      // we need each chain to have its own RNG
+      destroyRNG(*this);
+      createRNG(*this);
+    }
+
+    return numThreads;
+  }
+
+  void BARTFit::stopThreads() {
+    misc_htm_destroy(threadManager);
+    threadManager = NULL;
+  }
 }
 
 namespace {

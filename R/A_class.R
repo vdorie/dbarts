@@ -63,45 +63,47 @@ methods::setValidity("dbartsFixedPrior",
   })
 
 methods::setClass("dbartsControl",
-  slots =
-  list(binary           = "logical",
-       verbose          = "logical",
-       keepTrainingFits = "logical",
-       useQuantiles     = "logical",
-       keepTrees        = "logical",
-       n.samples        = "integer",
-       n.burn           = "integer",
-       n.trees          = "integer",
-       n.chains         = "integer",
-       n.threads        = "integer",
-       n.thin           = "integer",
-       printEvery       = "integer",
-       printCutoffs     = "integer",
-       rngKind          = "character",
-       rngNormalKind    = "character",
-       rngSeed          = "integer",
-       updateState      = "logical",
-       call             = "language"),
-  prototype =
-  list(binary           = FALSE,
-       verbose          = FALSE,
-       keepTrainingFits = TRUE,
-       useQuantiles     = FALSE,
-       keepTrees        = FALSE,
-       n.samples        = NA_integer_,
-       n.burn           = 200L,
-       n.trees          = 75L,
-       n.chains         = 4L,
-       n.threads        = 1L,
-       n.thin           = 1L,
-       printEvery       = 100L,
-       printCutoffs     = 0L,
-       rngKind          = "default",
-       rngNormalKind    = "default",
-       rngSeed          = NA_integer_,
-       updateState      = TRUE,
-       call             = quote(call("NA")))
+  slots = list(
+    binary           = "logical",
+    verbose          = "logical",
+    keepTrainingFits = "logical",
+    useQuantiles     = "logical",
+    keepTrees        = "logical",
+    n.samples        = "integer",
+    n.burn           = "integer",
+    n.trees          = "integer",
+    n.chains         = "integer",
+    n.threads        = "integer",
+    n.thin           = "integer",
+    printEvery       = "integer",
+    printCutoffs     = "integer",
+    rngKind          = "character",
+    rngNormalKind    = "character",
+    rngSeed          = "integer",
+    updateState      = "logical",
+    call             = "language"
+  ),
+  prototype = list(
+    binary           = FALSE,
+    verbose          = FALSE,
+    keepTrainingFits = TRUE,
+    useQuantiles     = FALSE,
+    keepTrees        = FALSE,
+    n.samples        = NA_integer_,
+    n.burn           = 200L,
+    n.trees          = 75L,
+    n.chains         = 4L,
+    n.threads        = 1L,
+    n.thin           = 1L,
+    printEvery       = 100L,
+    printCutoffs     = 0L,
+    rngKind          = "default",
+    rngNormalKind    = "default",
+    rngSeed          = NA_integer_,
+    updateState      = TRUE,
+    call             = quote(call("NA"))
   )
+)
 
 methods::setValidity("dbartsControl",
   function(object) {
@@ -122,10 +124,10 @@ methods::setValidity("dbartsControl",
     
     if (length(object@rngSeed) != 1L) return("'rngSeed' must be of length 1")
     
-    if (is.na(object@verbose))          return("'verbose' must be TRUE/FALSE")
-    if (is.na(object@keepTrainingFits)) return("'keepTrainingFits' must be TRUE/FALSE")
-    if (is.na(object@useQuantiles))     return("'useQuantiles' must be TRUE/FALSE")
-    if (is.na(object@keepTrees))               return("'keepTrees' must be TRUE/FALSE")
+    if (is.na(object@verbose))            return("'verbose' must be TRUE/FALSE")
+    if (is.na(object@keepTrainingFits))   return("'keepTrainingFits' must be TRUE/FALSE")
+    if (is.na(object@useQuantiles))       return("'useQuantiles' must be TRUE/FALSE")
+    if (is.na(object@keepTrees))          return("'keepTrees' must be TRUE/FALSE")
     
     if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer")
     if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer")
@@ -177,36 +179,42 @@ methods::setValidity("dbartsControl",
 
 
 methods::setClass("dbartsModel",
-  slots =
-  list(p.birth_death = "numeric",
-       p.swap        = "numeric",
-       p.change      = "numeric",
-       
-       p.birth = "numeric",
-       
-       node.scale = "numeric",
-       
-       tree.prior       = "dbartsTreePrior",
-       node.prior       = "dbartsNodePrior",
-       node.hyperprior  = "dbartsNodeHyperprior",
-       resid.prior      = "dbartsResidPrior"),
-  prototype =
-  list(p.birth_death = 1.0,
-       p.swap        = 0.0,
-       p.change      = 0.0,
-       p.birth       = 0.5,
-       node.scale    = 0.5,
-       tree.prior    = new("dbartsCGMPrior"),
-       node.prior    = new("dbartsNormalPrior"),
-       node.hyperprior = new("dbartsFixedHyperprior"),
-       resid.prior   = new("dbartsChiSqPrior")))
+  slots = list(
+    p.birth_death = "numeric",
+    p.swap        = "numeric",
+    p.change      = "numeric",
+    
+    p.birth = "numeric",
+    
+    node.scale = "numeric",
+    
+    tree.prior       = "dbartsTreePrior",
+    node.prior       = "dbartsNodePrior",
+    node.hyperprior  = "dbartsNodeHyperprior",
+    resid.prior      = "dbartsResidPrior"
+  ),
+  prototype = list(
+    p.birth_death = 1.0,
+    p.swap        = 0.0,
+    p.change      = 0.0,
+    p.birth       = 0.5,
+    node.scale    = 0.5,
+    tree.prior    = new("dbartsCGMPrior"),
+    node.prior    = new("dbartsNormalPrior"),
+    node.hyperprior = new("dbartsFixedHyperprior"),
+    resid.prior   = new("dbartsChiSqPrior")
+  )
+)
 methods::setValidity("dbartsModel",
   function(object) {
     proposalProbs <- c(object@p.birth_death, object@p.swap, object@p.change)
-    if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0)) return("rule proposal probabilities must be in [0, 1]")
-    if (abs(sum(proposalProbs) - 1.0) >= 1e-10) return("rule proposal probabilities must sum to 1")
+    if (any(proposalProbs < 0.0) || any(proposalProbs > 1.0))
+      return("rule proposal probabilities must be in [0, 1]")
+    if (abs(sum(proposalProbs) - 1.0) >= 1e-10)
+      return("rule proposal probabilities must sum to 1")
     
-    if (object@p.birth <= 0.0 || object@p.birth >= 1.0) return("birth probability for birth/death step must be in (0, 1)")
+    if (object@p.birth <= 0.0 || object@p.birth >= 1.0)
+      return("birth probability for birth/death step must be in (0, 1)")
     
     if (object@node.scale <= 0.0) return("node.scale must be > 0")
     
@@ -217,70 +225,84 @@ methods::setClassUnion("matrixOrNULL", c("matrix", "NULL"))
 methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
 
 methods::setClass("dbartsData",
-  slots =
-  list(y            = "numeric",
-       x            = "matrix",
-       varTypes     = "integer",
-       x.test       = "matrixOrNULL",
-       weights      = "numericOrNULL",
-       weights.test = "numericOrNULL",
-       offset       = "numericOrNULL",
-       offset.test  = "numericOrNULL",
-       n.cuts       = "integer",
-       sigma        = "numeric",
+  slots = list(
+    y            = "numeric",
+    x            = "matrix",
+    varTypes     = "integer",
+    x.test       = "matrixOrNULL",
+    weights      = "numericOrNULL",
+    weights.test = "numericOrNULL",
+    offset       = "numericOrNULL",
+    offset.test  = "numericOrNULL",
+    n.cuts       = "integer",
+    sigma        = "numeric",
+    
+    testUsesRegularOffset   = "logical"
+  ),
+  prototype = list(
+    y            = numeric(0),
+    x            = matrix(0, 0, 0),
+    varTypes     = integer(0),
+    x.test       = NULL,
+    weights      = NULL,
+    weights.test = NULL,
+    offset       = NULL,
+    offset.test  = NULL,
+    n.cuts       = integer(0),
+    sigma        = NA_real_,
 
-       testUsesRegularOffset   = "logical"),
-  prototype =
-  list(y            = numeric(0),
-       x            = matrix(0, 0, 0),
-       varTypes     = integer(0),
-       x.test       = NULL,
-       weights      = NULL,
-       weights.test = NULL,
-       offset       = NULL,
-       offset.test  = NULL,
-       n.cuts       = integer(0),
-       sigma        = NA_real_,
-
-       testUsesRegularOffset   = NA
-       )
+    testUsesRegularOffset   = NA
   )
+)
 methods::setValidity("dbartsData",
   function(object) {
     numObservations <- length(object@y)
-    if (nrow(object@x) != numObservations) return("number of rows of 'x' must equal length of 'y'")
+    if (nrow(object@x) != numObservations)
+      return("number of rows of 'x' must equal length of 'y'")
     
     if (length(object@varTypes) > 0 &&
-        any(object@varTypes != ORDINAL_VARIABLE & object@varTypes != CATEGORICAL_VARIABLE))
+        any(object@varTypes != ORDINAL_VARIABLE & object@varTypes != CATEGORICAL_VARIABLE)) {
       return("variable types must all be ordinal or categorical")
+    }
     
     if (!is.null(object@weights)) {
-      if (length(object@weights) != numObservations) return("'weights' must be null or have length equal to that of 'y'")
-      if (anyNA(object@weights)) return("'weights' cannot be NA")
-      if (any(object@weights < 0.0)) return("'weights' must all be non-negative")
-      if (any(object@weights == 0.0)) warning("'weights' of 0 will be ignored but increase computation time")
+      if (length(object@weights) != numObservations)
+        return("'weights' must be null or have length equal to that of 'y'")
+      if (anyNA(object@weights))
+        return("'weights' cannot be NA")
+      if (any(object@weights < 0.0))
+        return("'weights' must all be non-negative")
+      if (any(object@weights == 0.0))
+        warning("'weights' of 0 will be ignored but increase computation time")
     }
-    if (!is.null(object@offset) && length(object@offset) != numObservations) return("'offset' must be null or have length equal to that of 'y'")
+    if (!is.null(object@offset) && length(object@offset) != numObservations)
+      return("'offset' must be null or have length equal to that of 'y'")
     if (!is.null(object@x.test)) {
-      if (ncol(object@x.test) != ncol(object@x)) return("'x.test' must be null or have number of columns equal to 'x'")
+      if (ncol(object@x.test) != ncol(object@x))
+        return("'x.test' must be null or have number of columns equal to 'x'")
       if (!is.null(object@weights.test) && length(object@weights.test) != nrow(object@x.test))
         return("'weights.test' must be null or have the same number of rows as 'x.test'")
       if (!is.null(object@offset.test) && length(object@offset.test) != nrow(object@x.test))
         return("'offset.test' must be null or have the same number of rows as 'x.test'")
     }
-    if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x)) return("length of 'n.cuts' must equal number of columns in 'x'")
+    if (!anyNA(object@n.cuts) && length(object@n.cuts) != ncol(object@x))
+      return("length of 'n.cuts' must equal number of columns in 'x'")
     
-    if (!is.na(object@sigma) && object@sigma <= 0.0) return("'sigma' must be positive")
+    if (!is.na(object@sigma) && object@sigma <= 0.0)
+      return("'sigma' must be positive")
     
     TRUE
   })
 
 ## this shouldn't ever get created, used, modified, whathaveyou
 methods::setClass("dbartsState",
-  slots = list(trees      = "integer",
-               treeFits   = "numeric",
-               savedTrees = "integer",
-               sigma      = "numeric",
-               k          = "numericOrNULL",
-               rng.state  = "integer"))
+  slots = list(
+    trees      = "integer",
+    treeFits   = "numeric",
+    savedTrees = "integer",
+    sigma      = "numeric",
+    k          = "numericOrNULL",
+    rng.state  = "integer"
+  )
+)
 

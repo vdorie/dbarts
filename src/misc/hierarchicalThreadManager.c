@@ -661,6 +661,10 @@ int misc_htm_destroy(misc_htm_manager_t manager)
   return result;
 }
 
+misc_size_t misc_htm_getNumThreads(const misc_htm_manager_t manager) {
+  return manager->numThreads;
+}
+
 static int initializeThreadData(misc_htm_manager_t manager, ThreadData* data, size_t threadId)
 {
   data->manager = manager;

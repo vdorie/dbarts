@@ -8,6 +8,18 @@
             threads to parallelize across chains.
     }
   }
+  \subsection{USER-VISIBLE CHANGES}{
+    \itemize{
+      \item When running with multiple threads, threads no longer persist after
+            `run`ing or `predict`ing and will be re-created on the next call.
+            Prior to this, threads were initialized at object creation and
+            would run in the background for the life-cycle of the sampler
+            object, waiting for work. To prevent frequent stopping/starting of
+            threads, new sampler-object functions `startThreads()` and
+            `stopThreads()` have been added that can bookend sampling or
+            prediction loops. 
+    }
+  }
   \subsection{BUG FIXES}{
     \itemize{
       \item `rbart_vi` no longer fails when there are multiple out-of-sample

@@ -162,6 +162,16 @@ void ext_rng_setState(ext_rng* generator, const void* v_state)
     memcpy(generator->state, v_state, stateLength);
 }
 
+
+bool ext_rng_usesNativeRNG(const ext_rng* generator) {
+  return
+    generator->algorithm == EXT_RNG_ALGORITHM_USER_UNIFORM
+    && ((ext_rng_userFunction*) generator->state)->f.stateless == &unif_rand
+    && generator->standardNormalAlgorithm == EXT_RNG_STANDARD_NORMAL_USER_NORM
+    && generator->normalState.simulateNormal.f.stateless == &norm_rand;
+}
+
+
 ext_rng* ext_rng_createDefault(bool useNative)
 {
   ext_rng* result;

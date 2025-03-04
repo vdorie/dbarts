@@ -109,7 +109,7 @@ namespace dbarts {
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrees"));
     if (rc_getLength(slotExpr) != 1) Rf_error("slot 'keepTrees' must be of length 1");
     control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_END);
-    
+
     slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.samples"));
     i_temp = rc_getInt(slotExpr, "number of samples", RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END);
     control.defaultNumSamples = static_cast<size_t>(i_temp);

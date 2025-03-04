@@ -45,8 +45,8 @@ namespace dbarts {
     void setRNGState(const void* const* uniformState, const void* const* normalState);
     
     Results* runSampler();
-    Results* runSampler(std::size_t numBurnIn, std::size_t numSamples);
-    void runSampler(std::size_t numBurnIn, Results* results);
+    Results* runSampler(std::size_t numBurnIn, std::size_t numThreads, std::size_t numSamples);
+    void runSampler(std::size_t numBurnIn, std::size_t numThreads, Results* results);
     
     
     void predict(const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result) const;
@@ -100,6 +100,11 @@ namespace dbarts {
     void updateTestPredictor(const double* newTestPredictor, std::size_t column);
     void updateTestPredictors(const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
     void storeLatents(double* target) const;
+
+    // returns the number of threads actually started
+    std::size_t startThreads();
+    std::size_t startThreads(std::size_t numThreads);
+    void stopThreads();
     
     void sampleTreesFromPrior();
     void sampleNodeParametersFromPrior();

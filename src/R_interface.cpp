@@ -342,7 +342,7 @@ extern "C" {
 
   static R_CallMethodDef R_callMethods[] = {
     DEF_FUNC("dbarts_create", create, 3),
-    DEF_FUNC("dbarts_run", run, 3),
+    DEF_FUNC("dbarts_run", run, 4),
     DEF_FUNC("dbarts_sampleTreesFromPrior", sampleTreesFromPrior, 1),
     DEF_FUNC("dbarts_sampleNodeParametersFromPrior", sampleNodeParametersFromPrior, 1),
     DEF_FUNC("dbarts_printTrees", printTrees, 4),
@@ -360,6 +360,10 @@ extern "C" {
     DEF_FUNC("dbarts_setTestPredictorAndOffset", setTestPredictorAndOffset, 3),
     DEF_FUNC("dbarts_updateTestPredictor", updateTestPredictor, 3),
     DEF_FUNC("dbarts_storeLatents", storeLatents, 2),
+    
+    DEF_FUNC("dbarts_startThreads", startThreads, 2),
+    DEF_FUNC("dbarts_stopThreads", stopThreads, 1),
+    
     DEF_FUNC("dbarts_setData", setData, 2),
     DEF_FUNC("dbarts_setControl", setControl, 2),
     DEF_FUNC("dbarts_setModel", setModel, 2),
@@ -470,6 +474,10 @@ extern "C" {
     DEF_FUNC("updateTestPredictor", dbarts_updateTestPredictor),
     DEF_FUNC("updateTestPredictors", dbarts_updateTestPredictors),
     DEF_FUNC("storeLatents", dbarts_storeLatents),
+
+    DEF_FUNC("startThreads", dbarts_startThreads),
+    DEF_FUNC("startNumThreads", dbarts_startNumThreads),
+    DEF_FUNC("stopThreads", dbarts_stopThreads),
     
     { NULL, 0 }
   };

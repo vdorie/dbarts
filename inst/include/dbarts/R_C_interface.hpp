@@ -96,11 +96,14 @@ extern "C" {
   dbarts::Results* dbarts_runSampler(dbarts::BARTFit* fit);
   dbarts::Results* dbarts_runSamplerForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numSamples);
   void dbarts_runSamplerWithResults(dbarts::BARTFit* fit, std::size_t numBurnIn, dbarts::Results* results);
+  dbarts::Results* dbarts_runSamplerMultithreadedForIterations(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numThreads, std::size_t numSamples);
+  void dbarts_runSamplerMultithreadedWithResults(dbarts::BARTFit* fit, std::size_t numBurnIn, std::size_t numThreads, dbarts::Results* results);
+
   void dbarts_sampleTreesFromPrior(dbarts::BARTFit* fit);
   void dbarts_sampleNodeParametersFromPrior(dbarts::BARTFit* fit);
   
   void dbarts_predict(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, double* result);
-  void dbarts_predictMultiThreaded(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, std::size_t numThreads, double* result);
+  void dbarts_predictMultithreaded(const dbarts::BARTFit* fit, const double* x_test, std::size_t numTestObservations, const double* testOffset, std::size_t numThreads, double* result);
   // 'settors' simply replace local pointers to variables. dimensions much match
   // 'update' modifies the local copy (which may belong to someone else)
   void dbarts_setResponse(dbarts::BARTFit* fit, const double* newResponse);
@@ -127,7 +130,11 @@ extern "C" {
   void dbarts_updateTestPredictors(dbarts::BARTFit* fit, const double* newTestPredictor, const std::size_t* columns, std::size_t numColumns);
   
   void dbarts_storeLatents(const dbarts::BARTFit* fit, double* target);
-    
+
+  std::size_t dbarts_startThreads(dbarts::BARTFit* fit);
+  std::size_t dbarts_startNumThreads(dbarts::BARTFit* fit, std::size_t numThreads);
+  void dbarts_stopThreads(dbarts::BARTFit* fit);
+
   dbarts::CGMPrior* dbarts_createCGMPrior();
   dbarts::CGMPrior* dbarts_createCGMPriorFromOptions(double base, double power, const double* splitProbabilities);
   void dbarts_destroyCGMPrior(dbarts::CGMPrior* prior);

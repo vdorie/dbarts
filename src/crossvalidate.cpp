@@ -589,7 +589,7 @@ namespace {
                               threadScratch.generator, threadScratch.permutation);
     xvalData.fit.setData(xvalData.repData);
 
-    xvalData.fit.runSampler(xvalData.numBurnIn, samples);
+    xvalData.fit.runSampler(xvalData.numBurnIn, 1, samples);
     
     if (lossRequiresMutex) {
       LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, threadScratch.maxNumTestObservations, threadScratch.weights, samples->testSamples, numSamples, results };
@@ -637,7 +637,7 @@ namespace {
                       k, threadScratch.maxNumTestObservations, threadScratch.numFullSizedFolds, threadScratch.permutation);
       xvalData.fit.setData(xvalData.repData);
       
-      xvalData.fit.runSampler(xvalData.numBurnIn, samples);
+      xvalData.fit.runSampler(xvalData.numBurnIn, 1, samples);
     
       if (lossRequiresMutex) {
         LossFunctorData ldf = { calculateLoss, *threadScratch.lf, threadScratch.y_test, numTestObservations, samples->testSamples, threadScratch.weights, numSamples, foldResults };

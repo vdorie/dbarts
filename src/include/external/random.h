@@ -71,6 +71,8 @@ misc_size_t ext_rng_getSerializedStateLength(const ext_rng* generator);
 void ext_rng_writeSerializedState(const ext_rng* generator, void* state);
 void ext_rng_readSerializedState(ext_rng* generator, const void* state);
 
+bool ext_rng_usesNativeRNG(const ext_rng* generator);
+
 double ext_rng_simulateContinuousUniform(ext_rng* generator); // randomBase.c
 double ext_rng_simulateStandardNormal(ext_rng* generator);    // randomNorm.c
 
