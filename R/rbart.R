@@ -67,7 +67,7 @@ rbart_vi <- function(
 
   if (!is.null(matchedCall[["k"]])) {
     node.prior <- quote(normal(k))
-    node.prior[[2L]] <- matchedCall[["k"]]
+    node.prior[[2L]] <- k
   } else {
     node.prior <- NULL
   }
@@ -356,8 +356,6 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
     evalEnv = evalEnv
   )
 
-  sampler$startThreads()
-
   if (control@n.burn > 0L) {
     oldKeepTrees <- control@keepTrees
     control@keepTrees <- FALSE
@@ -390,8 +388,6 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
   
   run_result <- rbart_vi_run(sampler, data, state, prior, verbose, control@n.samples, FALSE, rbartArgs)
   # state <- run_result$state
-  
-  sampler$stopThreads()
   
   tau <- run_result$samples$tau
   sigma <- run_result$samples$sigma
