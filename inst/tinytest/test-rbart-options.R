@@ -33,5 +33,23 @@ expect_true(is.null(rbartFit$yhat.train.mean))
 
 rm(rbartFit)
 
+# test that rbart works with k as a variable
+# test thanks to Bruno Tancredi
+
+k <- 1.8
+expect_inherits(
+  dbarts::rbart_vi(
+    y ~ x, testData, group.by = g,
+    n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 2L,
+    n.trees = 3L, n.threads = 1L,
+    k = k,
+    keepTrainingFits = FALSE,
+    verbose = FALSE
+  ),
+  "rbart"
+)
+rm(k)
+
+
 rm(testData)
 

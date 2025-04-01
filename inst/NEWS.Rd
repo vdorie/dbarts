@@ -27,6 +27,8 @@
             drcthal.
       \item Should now correctly install on non-Mac OS arm64 systems. Bug
             report thanks to Bob Dröge.
+      \item `rbart_vi` now works when `k` is a variable. Bug report thanks
+            to Bruno Tancredi.
     }
   }
 }
