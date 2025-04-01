@@ -67,7 +67,7 @@ rbart_vi <- function(
 
   if (!is.null(matchedCall[["k"]])) {
     node.prior <- quote(normal(k))
-    node.prior[[2L]] <- matchedCall[["k"]]
+    node.prior[[2L]] <- k
   } else {
     node.prior <- NULL
   }
