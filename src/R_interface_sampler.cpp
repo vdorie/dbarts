@@ -449,7 +449,7 @@ extern "C" {
     bool forceUpdate     = rc_getBool(forceUpdateExpr,         "forceUpdate", RC_NA | RC_NO, RC_END);
     bool updateCutPoints = rc_getBool(updateCutPointsExpr, "updateCutPoints", RC_NA | RC_NO, RC_END);
     
-    rc_assertDimConstraints(xExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
+    rc_assertDimConstraints(xExpr, "dimension of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
                             RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
                             RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
                             RC_END);
@@ -471,7 +471,7 @@ extern "C" {
     
     bool result;
     if (Rf_isNull(colsExpr)) {
-      rc_assertDimConstraints(xExpr, "dimensions of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
+      rc_assertDimConstraints(xExpr, "dimension of x", RC_LENGTH | RC_EQ, rc_asRLength(2),
                               RC_VALUE | RC_EQ, static_cast<int>(fit->data.numObservations),
                               RC_VALUE | RC_EQ, static_cast<int>(fit->data.numPredictors),
                               RC_END);
@@ -507,7 +507,7 @@ extern "C" {
         cols[i] = static_cast<size_t>(colsInt[i] - 1);
         if (cols[i] >= fit->data.numPredictors) {
           misc_stackFree(cols);
-          Rf_error("column '%d' is out of range", colsInt[i] + 1);
+          Rf_error("column '%d' is out of range", colsInt[i]);
         }
       }
       

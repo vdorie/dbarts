@@ -50,7 +50,7 @@ dbartsControl <- function(
   )
 
   n.cuts <- coerceOrError(n.cuts, "integer")
-  if (n.cuts <= 0L) stop("'n.cuts' must be a positive integer")
+  if (anyNA(n.cuts) || any(n.cuts <= 0L)) stop("'n.cuts' must contain only positive integers")
   attr(result, "n.cuts") <- n.cuts 
 
   result
@@ -136,8 +136,14 @@ dbarts <- function(
   uniqueResponses <- unique(data@y)
   if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
   
-  if (is.na(data@sigma) && !control@binary)
-    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
+  if (is.na(data@sigma) && !control@binary) {
+    tryResult <- tryCatch(
+      data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma,
+      error = function(e) e
+    )
+    if (inherits(tryResult, "error"))
+      stop("unable to obtain a starting estimate of sigma; provide one instead")
+  }
   
   ## bart will passthrough with offset == something no matter what, which we can NULL out
   if (!control@binary && !is.null(data@offset) && all(data@offset == 0.0)) {
@@ -341,8 +347,17 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
       
+      oldModel <- model
       selfEnv$model <- newModel
-      .Call(C_dbarts_setModel, ptr, model)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setModel, ptr, selfEnv$model),
+        error = function(e) {
+          selfEnv$model <- oldModel
+          e$call <- quote(.Call(C_dbarts_setModel, ptr, selfEnv$model))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult) 
       
       invisible(NULL)
     },
@@ -357,8 +372,17 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
       
+      oldData <- data
       selfEnv$data <- newData
-      .Call(C_dbarts_setData, ptr, data)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setData, ptr, selfEnv$data),
+        error = function(e) {
+          selfEnv$data <- oldData
+          e$call <- quote(.Call(C_dbarts_setData, ptr, selfEnv$data))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
       
       if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
         storeState(ptr)
@@ -370,9 +394,18 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
       
+      oldY <- data@y
       selfEnv$data@y <- as.double(y)
-      .Call(C_dbarts_setResponse, ptr, data@y)
-
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setResponse, ptr, data@y),
+        error = function(e) {
+          selfEnv$data@y <- oldY
+          e$call <- quote(.Call(C_dbarts_setResponse, ptr, data@y))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
+      
       if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
         storeState(ptr)
 
@@ -411,11 +444,30 @@ dbartsSampler <- setRefClass(
         }
       }
 
+      oldOffset <- data@offset
       selfEnv$data@offset <- offset
-      .Call(C_dbarts_setOffset, ptr, data@offset, updateScale)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setOffset, ptr, data@offset, updateScale),
+        error = function(e) {
+          selfEnv$data@offset <- oldOffset
+          e$call <- quote(.Call(C_dbarts_setOffset, ptr, data@offset, updateScale))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
+      
       if (!identical(offset.test, NA)) {
+        oldOffset.test <- data@offset.test
         selfEnv$data@offset.test <- offset.test
-        .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
+        tryResult <- tryCatch(
+          .Call(C_dbarts_setTestOffset, ptr, data@offset.test),
+          error = function(e) {
+            selfEnv$data@offset.test <- oldOffset.test
+            e$call <- quote(.Call(C_dbarts_setTestOffset, ptr, data@offset.test))
+            e
+          }
+        )
+        if (inherits(tryResult, "error")) stop(tryResult)
       }
 
       if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
@@ -428,8 +480,17 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
       
+      oldWeights <- data@weights
       selfEnv$data@weights <- as.double(weights)
-      .Call(C_dbarts_setWeights, ptr, data@weights)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setWeights, ptr, data@weights),
+        error = function(e) {
+          selfEnv$data@weights <- oldWeights
+          e$call <- quote(.Call(C_dbarts_setWeights, ptr, data@weights))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
 
       if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
         storeState(ptr)
@@ -482,7 +543,15 @@ dbartsSampler <- setRefClass(
       if (columnIsMissing) {
         x.old <- selfEnv$data@x
         selfEnv$data@x <- x
-        updateSuccessful <- .Call(C_dbarts_setPredictor, ptr, data@x, forceUpdate, updateCutPoints)
+        tryResult <- tryCatch(
+          updateSuccessful <- .Call(C_dbarts_setPredictor, ptr, data@x, forceUpdate, updateCutPoints),
+          error = function(e) {
+            selfEnv$data@x <- x.old
+            e$call <- quote(.Call(C_dbarts_setPredictor, ptr, data@x, forceUpdate, updateCutPoints))
+            e
+          }
+        )
+        if (inherits(tryResult, "error")) stop(tryResult)
         if (!forceUpdate && !updateSuccessful) selfEnv$data@x <- x.old
       } else {
         updateSuccessful <- .Call(C_dbarts_updatePredictor, ptr, x, as.integer(column), forceUpdate, updateCutPoints)
@@ -543,8 +612,17 @@ dbartsSampler <- setRefClass(
       selfEnv <- parent.env(environment())
       
       if (columnIsMissing) {
+        oldX.test <- data@x.test
         selfEnv$data@x.test <- validateXTest(x.test, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
-        .Call(C_dbarts_setTestPredictor, ptr, data@x.test)
+        tryResult <- tryCatch(
+          .Call(C_dbarts_setTestPredictor, ptr, data@x.test),
+          error = function(e) {
+            selfEnv$data@x.test <- oldX.test
+            e$call <- quote(.Call(C_dbarts_setTestPredictor, ptr, data@x.test))
+            e
+          }
+        )
+        if (inherits(tryResult, "error")) stop(tryResult)
       } else {
         x.test <- if (is.matrix(x.test)) matrix(as.double(x.test), nrow(x.test)) else as.double(x.test)
         .Call(C_dbarts_updateTestPredictor, ptr, x.test, as.integer(column))
@@ -571,10 +649,25 @@ dbartsSampler <- setRefClass(
             }
           }
         }
+        oldTestUsesRegularOffset <- data@testUsesRegularOffset
+        oldX.test <- data@x.test
+        oldOffset.test <- data@offset.test
+
         selfEnv$data@testUsesRegularOffset <- FALSE
         selfEnv$data@x.test <- x.test
         selfEnv$data@offset.test <- offset.test
-        .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test)
+        tryResult <- tryCatch(
+          .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test),
+          error = function(e) {
+            selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
+            selfEnv$data@x.test <- oldX.test
+            selfEnv$data@offset.test <- oldOffset.test
+
+            e$call <- quote(.Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, data@offset.test))
+            e
+          }
+        )
+        if (inherits(tryResult, "error")) stop(tryResult)
       } else {
         selfEnv$data@x.test <- x.test
         .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
@@ -593,8 +686,17 @@ dbartsSampler <- setRefClass(
         if (length(offset.test) != nrow(data@x.test))
           stop("length of test offset must be equal to number of rows in test matrix")
       }
+      oldOffset.test <- data@offset.test
       selfEnv$data@offset.test <- offset.test
-      .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
+      tryResult <- tryCatch(
+        .Call(C_dbarts_setTestOffset, ptr, data@offset.test),
+        error = function(e) {
+          selfEnv$data@offset.test <- offset.test
+          e$call <- quote(.Call(C_dbarts_setTestOffset, ptr, data@offset.test))
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
       
       invisible(NULL)
     },

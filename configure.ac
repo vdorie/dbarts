@@ -155,7 +155,7 @@ AC_LANG_PUSH(C++)
 AC_CHECK_HEADERS([cstdint])
 AC_LANG_POP(C++)
 
-if test "$ac_cv_header_cstdint" == no; then
+if test "$ac_cv_header_cstdint" = no; then
   AC_CHECK_HEADER([stdint.h])
 fi
 

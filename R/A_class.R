@@ -129,14 +129,21 @@ methods::setValidity("dbartsControl",
     if (is.na(object@useQuantiles))       return("'useQuantiles' must be TRUE/FALSE")
     if (is.na(object@keepTrees))          return("'keepTrees' must be TRUE/FALSE")
     
-    if (object@n.burn    <  0L) return("'n.burn' must be a non-negative integer")
-    if (object@n.trees   <= 0L) return("'n.trees' must be a positive integer")
-    if (object@n.chains  <= 0L) return("'n.chains' must be a positive integer")
-    if (object@n.threads <= 0L) return("'n.threads' must be a positive integer")
-    if (object@n.thin    <  0L) return("'n.thin' must be a non-negative integer")
+    if (is.na(object@n.burn) || object@n.burn < 0L)
+      return("'n.burn' must be a non-negative integer")
+    if (is.na(object@n.trees) || object@n.trees <= 0L)
+      return("'n.trees' must be a positive integer")
+    if (is.na(object@n.chains) || object@n.chains  <= 0L)
+      return("'n.chains' must be a positive integer")
+    if (is.na(object@n.threads) || object@n.threads <= 0L)
+      return("'n.threads' must be a positive integer")
+    if (is.na(object@n.thin) || object@n.thin < 0L)
+      return("'n.thin' must be a non-negative integer")
     
-    if (object@printEvery   < 0L) return("'printEvery' must be a non-negative integer")
-    if (object@printCutoffs < 0L) return("'printCutoffs' must be a non-negative integer")
+    if (is.na(object@printEvery) || object@printEvery < 0L)
+      return("'printEvery' must be a non-negative integer")
+    if (is.na(object@printCutoffs) || object@printCutoffs < 0L)
+      return("'printCutoffs' must be a non-negative integer")
     
     ## try to extract rng kinds from function text
     rngKind <- parse(text = deparse(RNGkind)[-1L])[[1L]]

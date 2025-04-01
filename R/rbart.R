@@ -154,7 +154,6 @@ rbart_vi <- function(
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
                            sigma = as.numeric(sigest))
   if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
-
   chainResults <- vector("list", n.chains)
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
   if (!runSingleThreaded) {

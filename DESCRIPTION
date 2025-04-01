@@ -1,6 +1,6 @@
 Package: dbarts
 Version: 0.9-31
-Date: 2025-03-04
+Date: 2025-04-01
 Title: Discrete Bayesian Additive Regression Trees Sampler
 Authors@R: c(
   person("Vincent", "Dorie", role = c("aut", "cre"), email = "vdorie@gmail.com", comment = c(ORCID = "0000-0002-9576-3064")),
@@ -20,17 +20,17 @@ Authors@R: c(
   person("Luc", "Maisonobe", role = "ctb", comment = "ax_cxx_namespace_std.m4"),
   person("Scott", "Pakin", role = "ctb", comment = c("ax_func_posix_memalign.m4", ORCID = "0000-0002-5220-1985")),
   person("Daniel", "Richard G.", role = "ctb", comment = "ax_pthread.m4"))
-Depends:
+Depends: 
   R (>= 3.1-0)
-Imports:
+Imports: 
   stats,
   methods,
   graphics,
   parallel
-Suggests:
-  testthat (>= 0.9-0),
+Suggests: 
   knitr,
-  rmarkdown
+  rmarkdown,
+  tinytest
 VignetteBuilder: knitr, rmarkdown
 Description: Fits Bayesian additive regression trees (BART; Chipman, George, and McCulloch (2010) <doi:10.1214/09-AOAS285>) while allowing the updating of predictors or response so that BART can be incorporated as a conditional model in a Gibbs/Metropolis-Hastings sampler. Also serves as a drop-in replacement for package 'BayesTree'.
 License: GPL (>= 2)

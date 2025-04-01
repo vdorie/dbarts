@@ -10,6 +10,7 @@ massign <- structure(NA, class = "lval")
   
   valueNames <- names(value)
   # length(value) <- length(args)
+  if (isS4(value) && !is.list(value)) value <- list(value)
   if (length(value) < length(args)) {
     value <- rep_len(value, length(args))
     if (!is.null(valueNames)) names(value) <- rep_len(valueNames, length(args))
