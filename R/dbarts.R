@@ -207,7 +207,7 @@ dbartsSampler <- setRefClass(
       
       callSuper(...)
     },
-    run = function(numBurnIn, numSamples, numThreads = control@n.threads, updateState = NA) {
+    run = function(numBurnIn, numSamples, updateState = NA, numThreads = control@n.threads) {
       'Runs the posterior sampler for numBurnIn + numSamples iterations and
        returns a list with the results.'
       if (missing(numBurnIn))  numBurnIn  <- NA_integer_

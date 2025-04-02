@@ -27,7 +27,9 @@
   A reference class object that contains a Bayesian Additive Regression Trees sampler in such a way that it can be modified, stopped, and started all while maintaining its own state.
 }
 \usage{
-\S4method{run}{dbartsSampler}(numBurnIn, numSamples, n.threads = control@n.threads, updateState = NA)
+\S4method{run}{dbartsSampler}(
+  numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads
+)
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
@@ -45,9 +47,10 @@
 \S4method{setTestOffset}{dbartsSampler}(offset.test, updateState = NA)
 \S4method{printTrees}{dbartsSampler}(treeNums)
 \S4method{plotTree}{dbartsSampler}(
-    treeNum, treePlotPars = c(
-        nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
-    ...)
+  treeNum, treePlotPars = c(
+    nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
+  ...
+)
 \S4method{startThreads}{dbartsSampler}(n.threads = control@n.threads)
 \S4method{stopThreads}{dbartsSampler}()
 }
