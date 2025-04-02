@@ -3,4 +3,4 @@
 \.github$
 ^README\.md$
 devlog
-actions
+check-r-package
