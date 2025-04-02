@@ -49,7 +49,7 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: check-r-package
+      - uses: ./.github/actions/check-r-package
         with:
           upload-snapshots: true
           build_args: 'c("--no-manual","--no-build-vignettes")'
