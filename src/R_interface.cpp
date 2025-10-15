@@ -360,6 +360,8 @@ extern "C" {
     DEF_FUNC("dbarts_setTestPredictorAndOffset", setTestPredictorAndOffset, 3),
     DEF_FUNC("dbarts_updateTestPredictor", updateTestPredictor, 3),
     DEF_FUNC("dbarts_storeLatents", storeLatents, 2),
+    DEF_FUNC("dbarts_getSigmas", getSigmas, 1),
+    DEF_FUNC("dbarts_getSumsOfSquaredResiduals", getSumsOfSquaredResiduals, 1),
     
     DEF_FUNC("dbarts_startThreads", startThreads, 2),
     DEF_FUNC("dbarts_stopThreads", stopThreads, 1),

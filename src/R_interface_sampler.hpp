@@ -33,6 +33,9 @@ extern "C" {
   SEXP stopThreads(SEXP fit);
   
   SEXP updateTestPredictor(SEXP fit, SEXP x_test, SEXP cols);
+
+  SEXP getSigmas(SEXP fit);
+  SEXP getSumsOfSquaredResiduals(SEXP fit);
    
   SEXP createState(SEXP fit);
   SEXP storeState(SEXP fit, SEXP state);

@@ -708,6 +708,20 @@ dbartsSampler <- setRefClass(
       
       .Call(C_dbarts_storeLatents, ptr, if (resultIsMissing) NULL else result)
     },
+    getSigmas = function(result) {
+      'Return current residual error term on original, standard deviation scale.'
+
+      ptr <- getPointer()
+
+      .Call(C_dbarts_getSigmas, ptr)
+    },
+    getSumsOfSquaredResiduals = function(result) {
+      'Return sum( (y - y.hat)^2 ) on original scale.'
+
+      ptr <- getPointer()
+
+      .Call(C_dbarts_getSumsOfSquaredResiduals, ptr)
+    },
     getPointer = function() {
       'Returns the underlying reference pointer, checking for consistency first.'
       selfEnv <- parent.env(environment())

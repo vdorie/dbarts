@@ -27,6 +27,8 @@ using std::snprintf;
 
 #undef USE_FC_LEN_T
 
+#include <misc/stats.h>
+
 #include <rc/bounds.h>
 #include <rc/util.h>
 
@@ -709,6 +711,49 @@ extern "C" {
       fit->storeLatents(REAL(resultExpr));
     }
     
+    return resultExpr;
+  }
+
+  SEXP getSigmas(SEXP fitExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_getSigmas called on NULL external pointer");
+    
+    if (fit->control.responseIsBinary)
+      Rf_error("dbarts_getSigmas called on sampler with binary response");
+
+    SEXP resultExpr = PROTECT(rc_newReal(fit->control.numChains));
+    double *result = REAL(resultExpr);
+
+    for (size_t chainNum = 0; chainNum < fit->control.numChains; ++chainNum) {
+      result[chainNum] = fit->sharedScratch.dataScale.range * fit->state[chainNum].sigma;
+    }
+
+    UNPROTECT(1);
+
+    return resultExpr;
+  }
+
+  SEXP getSumsOfSquaredResiduals(SEXP fitExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_getSumsOfSquaredResiduals called on NULL external pointer");
+
+    SEXP resultExpr = PROTECT(rc_newReal(fit->control.numChains));
+    double *result = REAL(resultExpr);
+
+    for (size_t chainNum = 0; chainNum < fit->control.numChains; ++chainNum) {
+      result[chainNum] =
+        fit->sharedScratch.dataScale.range *
+        misc_computeSumOfSquaredResiduals(
+          fit->sharedScratch.yRescaled,
+          fit->data.numObservations,
+          fit->chainScratch[chainNum].totalFits
+        );
+    }
+
+    UNPROTECT(1);
+
     return resultExpr;
   }
 
