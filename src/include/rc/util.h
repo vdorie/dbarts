@@ -58,5 +58,11 @@ int rc_getRuntimeVersion(int* major, int* minor, int* revision);
 }
 #endif
 
+#if R_VERSION >= R_Version(4, 5, 0)
+#  define rc_getVariableInEnvironment(__ENV__, __SYM__) R_getVar(__SYM__, __ENV__, FALSE)
+#else
+#  define rc_getVariableInEnvironment(__ENV__, __SYM__) Rf_findVarInFrame(__ENV__, __SYM__)
+#endif
+
 #endif // RC_UTIL_H
 

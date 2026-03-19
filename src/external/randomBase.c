@@ -191,12 +191,12 @@ ext_rng* ext_rng_createDefault(bool useNative)
   }
   
   // if not useNative, we at least seed from native and match its type
-  SEXP seedsExpr = PROTECT(Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol));
+  SEXP seedsExpr = PROTECT(rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol));
   if (seedsExpr == R_UnboundValue) {
     UNPROTECT(1);
     GetRNGstate();
     PutRNGstate();
-    seedsExpr = PROTECT(Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol));
+    seedsExpr = PROTECT(rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol));
   }
   if (TYPEOF(seedsExpr) == PROMSXP) {
     UNPROTECT(1);
@@ -372,11 +372,11 @@ bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2){
 
 ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
 {
-  SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  SEXP seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   if (seedsExpr == R_UnboundValue) {
     GetRNGstate();
     PutRNGstate();
-    seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
   
@@ -390,11 +390,11 @@ ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
 
 ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void)
 {
-  SEXP seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+  SEXP seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   if (seedsExpr == R_UnboundValue) {
     GetRNGstate();
     PutRNGstate();
-    seedsExpr = Rf_findVarInFrame(R_GlobalEnv, R_SeedsSymbol);
+    seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
   
@@ -541,7 +541,7 @@ int ext_rng_setSeed(ext_rng* generator, uint_least32_t seed)
         SEXP seedExpr = PROTECT(rc_newInteger(1));
         INTEGER(seedExpr)[0] = (int) orig_seed;
         
-        SEXP closure = PROTECT(Rf_lang2(Rf_findVarInFrame(R_BaseEnv, Rf_install("set.seed")), seedExpr));
+        SEXP closure = PROTECT(Rf_lang2(rc_getVariableInEnvironment(R_BaseEnv, Rf_install("set.seed")), seedExpr));
         
         Rf_eval(closure, R_GlobalEnv);
         UNPROTECT(2);
