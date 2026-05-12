@@ -123,8 +123,8 @@ AC_DEFUN([AX_COMPILER_EXT],
     
     AH_TEMPLATE([COMPILER_SUPPORTS_SSE2],[Define to 1 if the compiler can issue Streaming SIMD Extensions instructions.])
     AH_TEMPLATE([COMPILER_SUPPORTS_SSE4_1],[Define to 1 if the compiler can issue Streaming SIMD Extensions 4.1 instructions.])
-    AH_TEMPLATE([COMPILER_SUPPORTS_AVX],[Define to 1 if the compilter can issue Advanced Vector Extensions instructions.])
-    AH_TEMPLATE([COMPILER_SUPPORTS_AVX2],[Define to 1 if the compilter can issue Advanced Vector Extensions 2 instructions.])
+    AH_TEMPLATE([COMPILER_SUPPORTS_AVX],[Define to 1 if the compiler can issue Advanced Vector Extensions instructions.])
+    AH_TEMPLATE([COMPILER_SUPPORTS_AVX2],[Define to 1 if the compiler can issue Advanced Vector Extensions 2 instructions.])
     
     AC_SUBST(SSE2_FLAG)
     AC_SUBST(SSE4_1_FLAG)
@@ -155,7 +155,7 @@ AC_DEFUN([AX_COMPILER_EXT],
       NEON_FLAG="-mfloat-abi=softfp -mfpu=neon"
     fi
     
-    AH_TEMPLATE([COMPILER_SUPPORTS_NEON],[Define to 1 if the compilter can issue NEON instructions.])
+    AH_TEMPLATE([COMPILER_SUPPORTS_NEON],[Define to 1 if the compiler can issue NEON instructions.])
     
     AC_SUBST(NEON_FLAG)
   ;;
