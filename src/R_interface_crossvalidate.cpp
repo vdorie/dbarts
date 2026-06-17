@@ -517,7 +517,7 @@ namespace {
   void calculateCustomLoss(LossFunctor& restrict v_instance,
                            const double* restrict, size_t numTestObservations,
                            const double* restrict, size_t numSamples,
-                           const double* restrict weights,
+                           const double* restrict,
                            double* restrict results)
   {
     CustomLossFunctor& restrict instance(*static_cast<CustomLossFunctor* restrict>(&v_instance));

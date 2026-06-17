@@ -4,6 +4,7 @@
 *.a
 *.dll
 *.swp
+*.local*
 a.out.dSYM
 src/Makevars
 config.log
@@ -15,3 +16,4 @@ src/external/config.h
 src/misc/config.h
 src/include/misc/types.h
 inst/include/dbarts/types.hpp
+scratch

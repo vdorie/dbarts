@@ -87,7 +87,7 @@ static char* rc_strdup(const char* c) {
 int rc_getRuntimeVersion(int* major, int* minor, int* revision)
 {
   *major = -1, *minor = -1, *revision = -1;
-  SEXP versionFunction = PROTECT(Rf_findVarInFrame(R_BaseNamespace, Rf_install("R.Version")));
+  SEXP versionFunction = PROTECT(rc_getVariableInEnvironment(R_BaseNamespace, Rf_install("R.Version")));
   if (versionFunction == R_UnboundValue) {
     UNPROTECT(1);
     return ENXIO;

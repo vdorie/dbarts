@@ -16,6 +16,7 @@
 \alias{\S4method{setOffset}{dbartsSampler}}
 \alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
+\alias{\S4method{setCutPoints}{dbartsSampler}}
 \alias{\S4method{setTestPredictor}{dbartsSampler}}
 \alias{\S4method{setTestPredictorAndOffset}{dbartsSampler}}
 \alias{\S4method{setTestOffset}{dbartsSampler}}
@@ -42,6 +43,7 @@
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, updateState = NA)
+\S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
 \S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NA)
 \S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
 \S4method{setTestOffset}{dbartsSampler}(offset.test, updateState = NA)
@@ -100,8 +102,14 @@
   \item{sigma}{
     Numeric vector of residual standard deviations, one for each chain.
   }
+  \item{cuts}{
+    Vector of cut points for use with \code{setCutPoints}.
+  }
   \item{column}{
-    An integer or character string vector specifying which column/columns of the predictor matrix is to be replaced. If missing, the entire matrix is substituted.
+    An integer or character string vector specifying which column/columns of
+    the predictor matrix is to be replaced or for which cuts should be used.
+    When updating predictors, it can be missing and the entire matrix will be
+    substituted.
   }
   \item{treeNums}{
     An integer vector listing the indices of the trees to print.
