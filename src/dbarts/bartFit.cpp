@@ -58,6 +58,9 @@ namespace {
   void createRNG(BARTFit& fit);
   void destroyRNG(BARTFit& fit);
   void setInitialCutPoints(BARTFit& fit);
+  // smallest integer cut index k such that value <= cutPoints[col][k]; equals numCutsPerVariable[col]
+  // (out of range) when value is to the right of every cut point
+  xint_t findIntegerCut(const BARTFit& fit, std::size_t col, double value);
   void setXIntegerCutMap(BARTFit& fit);
   void setXIntegerCutMap(BARTFit& fit, const size_t* columns, size_t numColumns);
   void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test);
@@ -651,10 +654,138 @@ namespace dbarts {
       delete [] oldCutPoints;
     }
     delete [] oldPredictor;
-    
+
     return treesAreValid;
   }
-  
+
+  void BARTFit::updatePredictorInPlace(const double* newColumn, size_t column, bool* installed)
+  {
+    const size_t numObservations = data.numObservations;
+    const size_t numPredictors   = data.numPredictors;
+    const size_t totalNumTrees   = control.numTrees * control.numChains;
+
+    double* x  = const_cast<double*>(data.x);
+    xint_t* xi = const_cast<xint_t*>(sharedScratch.x);
+
+    // 1. Proposed integer cut-map value for each observation in the changed column.
+    xint_t* newColumnInt = new xint_t[numObservations];
+    for (size_t i = 0; i < numObservations; ++i)
+      newColumnInt[i] = findIntegerCut(*this, column, newColumn[i]);
+
+    // 2. Lightweight per-(chain, tree) bookkeeping: each observation's current leaf (by
+    //    enumeration index) and each leaf's occupancy. These let us test and commit a single
+    //    observation's move in O(depth) without disturbing the real observation partitions,
+    //    which must stay intact (so we can recover leaf parameters) until the final commit. We
+    //    derive the bookkeeping by routing each observation ourselves rather than reading the
+    //    node partitions, so it is correct regardless of how the trees were last left (e.g. on
+    //    a freshly copied sampler whose node observation indices are not yet populated).
+    size_t** observationLeaf = new size_t*[totalNumTrees]; // [t][observation] -> leaf enumeration index
+    size_t** leafCounts      = new size_t*[totalNumTrees]; // [t][leaf]        -> number of observations
+
+    xint_t* observationRow = new xint_t[numPredictors];
+
+    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
+      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
+        size_t t = treeNum + chainNum * control.numTrees;
+        Node& top(state[chainNum].trees[treeNum].top);
+
+        size_t numBottomNodes = top.getAndEnumerateBottomVector().size(); // sets enumerationIndex on each leaf
+
+        leafCounts[t]      = new size_t[numBottomNodes];
+        observationLeaf[t] = new size_t[numObservations];
+        for (size_t e = 0; e < numBottomNodes; ++e) leafCounts[t][e] = 0;
+
+        for (size_t i = 0; i < numObservations; ++i) {
+          for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[i + p * numObservations];
+          size_t leaf = top.findBottomNode(*this, observationRow)->enumerationIndex;
+          observationLeaf[t][i] = leaf;
+          ++leafCounts[t][leaf];
+        }
+      }
+    }
+
+    // 3. Randomized scan order, drawn from the first chain's generator. Both fixed and random
+    //    orders are valid; randomizing avoids systematic bias in which member of a coupled pair
+    //    of observations gets rejected.
+    size_t* scanOrder = new size_t[numObservations];
+    for (size_t i = 0; i < numObservations; ++i) scanOrder[i] = i;
+    if (numObservations > 1) {
+      ext_rng* rng = state[0].rng;
+      for (size_t i = 0; i < numObservations - 1; ++i) {
+        size_t swapPos = static_cast<size_t>(ext_rng_simulateUnsignedIntegerUniformInRange(rng, i, numObservations));
+        size_t temp = scanOrder[i]; scanOrder[i] = scanOrder[swapPos]; scanOrder[swapPos] = temp;
+      }
+    }
+
+    // scratch for staging the leaf moves of an accepted observation (observationRow is reused)
+    bool*   pendingMove    = new bool[totalNumTrees];
+    size_t* pendingOldLeaf = new size_t[totalNumTrees];
+    size_t* pendingNewLeaf = new size_t[totalNumTrees];
+
+    // 4. Sequential sweep: test each observation against the running state and commit it unless
+    //    its move would empty a leaf in some tree of some chain. Routing of an observation depends
+    //    only on its own predictor row, so the new leaf is fixed; only the emptiness test (via
+    //    leafCounts) depends on which earlier observations have already been committed.
+    for (size_t s = 0; s < numObservations; ++s) {
+      size_t j = scanOrder[s];
+
+      // build observation j's integer predictor row, substituting the proposed value in the changed column
+      for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[j + p * numObservations];
+      observationRow[column] = newColumnInt[j];
+
+      bool valid = true;
+      for (size_t t = 0; t < totalNumTrees && valid; ++t) {
+        size_t chainNum = t / control.numTrees;
+        size_t treeNum  = t % control.numTrees;
+        const Node& top(state[chainNum].trees[treeNum].top);
+
+        size_t oldLeaf = observationLeaf[t][j];
+        size_t newLeaf = top.findBottomNode(*this, observationRow)->enumerationIndex;
+
+        if (newLeaf == oldLeaf) {
+          pendingMove[t] = false;
+        } else if (leafCounts[t][oldLeaf] == 1) {
+          valid = false; // observation j is the last occupant of its old leaf; moving it would empty the leaf
+        } else {
+          pendingMove[t]    = true;
+          pendingOldLeaf[t] = oldLeaf;
+          pendingNewLeaf[t] = newLeaf;
+        }
+      }
+
+      installed[j] = valid;
+      if (valid) {
+        x[j + column * numObservations]  = newColumn[j];
+        xi[j + column * numObservations] = newColumnInt[j];
+        for (size_t t = 0; t < totalNumTrees; ++t) {
+          if (pendingMove[t]) {
+            --leafCounts[t][pendingOldLeaf[t]];
+            ++leafCounts[t][pendingNewLeaf[t]];
+            observationLeaf[t][j] = pendingNewLeaf[t];
+          }
+        }
+      }
+    }
+
+    // 5. Rebuild the real observation partitions and tree fits from the final committed column.
+    //    By construction no committed move ever empties a leaf, so every tree remains valid and
+    //    this re-route succeeds.
+    updateTreesWithNewPredictor(*this);
+
+    delete [] pendingNewLeaf;
+    delete [] pendingOldLeaf;
+    delete [] pendingMove;
+    delete [] observationRow;
+    delete [] scanOrder;
+    for (size_t t = totalNumTrees; t > 0; --t) {
+      delete [] observationLeaf[t - 1];
+      delete [] leafCounts[t - 1];
+    }
+    delete [] observationLeaf;
+    delete [] leafCounts;
+    delete [] newColumnInt;
+  }
+
   void BARTFit::setCutPoints(
     const double* const* newCutPoints,
     const uint32_t* numCutPoints,
@@ -783,12 +914,9 @@ namespace dbarts {
       size_t col = columns[j];
       std::memcpy(x_test + col * data.numTestObservations, newTestPredictor + j * data.numTestObservations, data.numTestObservations * sizeof(double));
       
-      for (size_t i = 0; i < data.numTestObservations; ++i) {
-        xint_t k = 0;
-        while (k < numCutsPerVariable[col] &&
-               x_test[i + col * data.numTestObservations] > cutPoints[col][k]) ++k;
-        xt_test[i * data.numPredictors + col] = k;
-      }
+      for (size_t i = 0; i < data.numTestObservations; ++i)
+        xt_test[i * data.numPredictors + col] =
+          findIntegerCut(*this, col, x_test[i + col * data.numTestObservations]);
     }
     
     updateTestFitsWithNewPredictor(*this, chainScratch);
@@ -1946,76 +2074,56 @@ namespace {
     misc_stackFree(columns);
   }
   
+  xint_t findIntegerCut(const BARTFit& fit, size_t col, double value)
+  {
+    // min cut such that value <= c_col,k; can possibly be out of range if value is to the far right
+    xint_t k = 0;
+    while (k < fit.numCutsPerVariable[col] && value > fit.cutPoints[col][k]) ++k;
+    return k;
+  }
+
   void setXIntegerCutMap(BARTFit& fit)
   {
     const Data& data(fit.data);
-    
+
     xint_t* x = const_cast<xint_t*>(fit.sharedScratch.x);
-    
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      for (size_t i = 0; i < data.numObservations; ++i) {
-        
-        xint_t k = 0;
-        
-        // min cut such that x_ij <= c_jk; can possibly be out of range if variable is on the far right
-        while (k < fit.numCutsPerVariable[j] &&
-               data.x[i + j * data.numObservations] > fit.cutPoints[j][k]) ++k;
-        
-        x[i + j * data.numObservations] = k;
-      }
-    }
+
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      for (size_t i = 0; i < data.numObservations; ++i)
+        x[i + j * data.numObservations] = findIntegerCut(fit, j, data.x[i + j * data.numObservations]);
   }
-  
+
   void setXIntegerCutMap(BARTFit& fit, const size_t* columns, size_t numColumns)
   {
     const Data& data(fit.data);
-    
+
     xint_t* x = const_cast<xint_t*>(fit.sharedScratch.x);
-    
+
     for (size_t j = 0; j < numColumns; ++j) {
       size_t col = columns[j];
-      for (size_t i = 0; i < data.numObservations; ++i) {
-        xint_t k = 0;
-        while (k < fit.numCutsPerVariable[col] &&
-               data.x[i + col * data.numObservations] > fit.cutPoints[col][k]) ++k;
-        
-        x[i + col * data.numObservations] = k;
-      }
+      for (size_t i = 0; i < data.numObservations; ++i)
+        x[i + col * data.numObservations] = findIntegerCut(fit, col, data.x[i + col * data.numObservations]);
     }
   }
-  
+
   void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations, xint_t* xt_test)
   {
     const Data& data(fit.data);
-    
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      for (size_t i = 0; i < numTestObservations; ++i) {
-        xint_t k = 0;
-        
-        while (k < fit.numCutsPerVariable[j] &&
-               x_test[i + j * numTestObservations] > fit.cutPoints[j][k]) ++k;
-      
-        xt_test[i * data.numPredictors + j] = k;
-      }
-    }
+
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      for (size_t i = 0; i < numTestObservations; ++i)
+        xt_test[i * data.numPredictors + j] = findIntegerCut(fit, j, x_test[i + j * numTestObservations]);
   }
-  
+
   void setXTestIntegerCutMap(const BARTFit& fit, const double* x_test, size_t numTestObservations,
                              xint_t* xt_test, const size_t* columns, size_t numColumns)
   {
     const Data& data(fit.data);
-    
+
     for (size_t j = 0; j < numColumns; ++j) {
-      for (size_t i = 0; i < numTestObservations; ++i) {
-        size_t col = columns[j];
-        
-        xint_t k = 0;
-        
-        while (k < fit.numCutsPerVariable[col] &&
-               x_test[i + col * numTestObservations] > fit.cutPoints[col][k]) ++k;
-      
-        xt_test[i * data.numPredictors + col] = k;
-      }
+      size_t col = columns[j];
+      for (size_t i = 0; i < numTestObservations; ++i)
+        xt_test[i * data.numPredictors + col] = findIntegerCut(fit, col, x_test[i + col * numTestObservations]);
     }
   }
   

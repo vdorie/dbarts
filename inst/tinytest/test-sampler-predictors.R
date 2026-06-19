@@ -72,6 +72,42 @@ expect_equal(sampler$data@x, deepCopy$data@x)
 rm(deepCopy, n, sampler)
 
 
+# a deep copy of a sampler with a stored state preserves the fitted trees and is
+# fully independent of the source (regression: copy() referenced removed state slots)
+stateControl <- dbarts::dbartsControl(
+  n.burn = 0L, n.samples = 1L, n.thin = 5L,
+  n.chains = 2L, n.threads = 1L,
+  updateState = TRUE, verbose = FALSE
+)
+sampler <- dbarts::dbarts(y ~ x + z, train, control = stateControl)
+invisible(sampler$run(10L, 1L))
+
+stateCopy <- sampler$copy(shallow = FALSE)
+expect_equal(sampler$getTrees(), stateCopy$getTrees())          # trees carried over
+
+treesBefore <- sampler$getTrees()
+invisible(stateCopy$run(10L, 1L))                                # mutate only the copy
+expect_equal(sampler$getTrees(), treesBefore)                    # source unaffected
+expect_false(isTRUE(all.equal(stateCopy$getTrees(), treesBefore)))  # copy diverged
+
+rm(stateControl, sampler, stateCopy, treesBefore)
+
+
+# the same, with keepTrees = TRUE, to exercise the savedTrees deep-copy branch
+keepControl <- dbarts::dbartsControl(
+  n.burn = 0L, n.samples = 3L, n.thin = 1L,
+  n.chains = 1L, n.threads = 1L,
+  keepTrees = TRUE, updateState = TRUE, verbose = FALSE
+)
+sampler <- dbarts::dbarts(y ~ x + z, train, control = keepControl)
+invisible(sampler$run(5L, 3L))
+
+keepCopy <- sampler$copy(shallow = FALSE)
+expect_equal(sampler$getTrees(), keepCopy$getTrees())           # saved trees carried over
+
+rm(keepControl, sampler, keepCopy)
+
+
 rm(test, train)
 
 

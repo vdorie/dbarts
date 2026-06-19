@@ -170,7 +170,15 @@ extern "C" {
   {
     return fit->updatePredictor(newPredictor, columns, numColumns, forceUpdate, updateCutPoints);
   }
-  
+
+  void dbarts_updatePredictorInPlace(BARTFit* fit, const double* newColumn, size_t column, int* installed)
+  {
+    bool* installedBool = new bool[fit->data.numObservations];
+    fit->updatePredictorInPlace(newColumn, column, installedBool);
+    for (size_t i = 0; i < fit->data.numObservations; ++i) installed[i] = installedBool[i] ? 1 : 0;
+    delete [] installedBool;
+  }
+
   void dbarts_setTestPredictor(BARTFit* fit, const double* newTestPredictor, size_t numTestObservations)
   {
     fit->setTestPredictor(newTestPredictor, numTestObservations);

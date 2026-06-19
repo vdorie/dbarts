@@ -1,6 +1,20 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
+\section{CHANGES IN VERSION 0.9-34}{
+  \subsection{NEW FEATURES}{
+    \itemize{
+      \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
+            one observation at a time and rolling back only those that would empty
+            a node.
+    }
+  }
+  \subsection{BUG FIXES}{
+    \itemize{
+      \item `copy` now works for samplers with a stored state.
+    }
+  }
+}
 \section{CHANGES IN VERSION 0.9-31}{
   \subsection{NEW FEATURES}{
     \itemize{

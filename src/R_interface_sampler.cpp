@@ -514,13 +514,38 @@ extern "C" {
       }
       
       result = fit->updatePredictor(REAL(xExpr), cols, numCols, forceUpdate, updateCutPoints);
-      
+
       misc_stackFree(cols);
     }
-    
+
     return Rf_ScalarLogical(result);
   }
-  
+
+  SEXP updatePredictorInPlace(SEXP fitExpr, SEXP xExpr, SEXP colExpr)
+  {
+    BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
+    if (fit == NULL) Rf_error("dbarts_updatePredictorInPlace called on NULL external pointer");
+
+    if (!Rf_isReal(xExpr)) Rf_error("x must be of type real");
+    if (rc_getLength(xExpr) != fit->data.numObservations) Rf_error("length of new x does not match y");
+
+    if (!Rf_isInteger(colExpr) || rc_getLength(colExpr) != 1) Rf_error("column must be a single integer");
+    int colInt = INTEGER(colExpr)[0];
+    size_t col = static_cast<size_t>(colInt - 1);
+    if (colInt < 1 || col >= fit->data.numPredictors) Rf_error("column '%d' is out of range", colInt);
+
+    SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(fit->data.numObservations)));
+    int* result = LOGICAL(resultExpr);
+
+    bool* installed = new bool[fit->data.numObservations];
+    fit->updatePredictorInPlace(REAL(xExpr), col, installed);
+    for (size_t i = 0; i < fit->data.numObservations; ++i) result[i] = installed[i] ? TRUE : FALSE;
+    delete [] installed;
+
+    UNPROTECT(1);
+    return resultExpr;
+  }
+
   SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

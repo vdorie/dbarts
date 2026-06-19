@@ -121,6 +121,10 @@ extern "C" {
   int dbarts_setPredictor(dbarts::BARTFit* fit, const double* newPredictor, int forceUpdate, int updateCutPoints);
   int dbarts_updatePredictor(dbarts::BARTFit* fit, const double* newPredictor, std::size_t column, int forceUpdate, int updateCutPoints);
   int dbarts_updatePredictors(dbarts::BARTFit* fit, const double* newPredictor, const std::size_t* columns, std::size_t numColumns, int forceUpdate, int updateCutPoints);
+  // Per-observation rollback for a single column. 'installed' must point to space for
+  // numObservations ints; on return each is 1 if that observation's new value was installed
+  // and 0 if it was rolled back to its previous value (because installing it would empty a leaf).
+  void dbarts_updatePredictorInPlace(dbarts::BARTFit* fit, const double* newColumn, std::size_t column, int* installed);
   
   void dbarts_setTestPredictor(dbarts::BARTFit* fit, const double* newTestPredictor, std::size_t numTestObservations);
   void dbarts_setTestOffset(dbarts::BARTFit* fit, const double* newTestOffset);

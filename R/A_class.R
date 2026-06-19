@@ -305,7 +305,7 @@ methods::setValidity("dbartsData",
 methods::setClass("dbartsState",
   slots = list(
     trees      = "integer",
-    treeFits   = "numeric",
+    treeFits   = "matrix",
     savedTrees = "integer",
     sigma      = "numeric",
     k          = "numericOrNULL",

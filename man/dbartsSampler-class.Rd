@@ -42,7 +42,7 @@
 \S4method{setResponse}{dbartsSampler}(y, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
-\S4method{setPredictor}{dbartsSampler}(x, column, updateState = NA)
+\S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate = NA, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
 \S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NA)
 \S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
@@ -111,6 +111,17 @@
     When updating predictors, it can be missing and the entire matrix will be
     substituted.
   }
+  \item{forceUpdate}{
+    For \code{setPredictor}, controls how the trees respond to a new predictor
+    that would leave a tree with an empty leaf-node. \code{FALSE} rolls the whole
+    update back and leaves the sampler unchanged (rejection sampling); \code{TRUE}
+    forces the change, collapsing any empty nodes; the string \code{"partial"}
+    installs each observation's new value individually and rolls back only those
+    observations whose value would empty a leaf, returning a per-observation
+    logical of what was installed. \code{"partial"} requires a single \code{column}
+    and cannot be combined with \code{updateCutPoints}. When missing, defaults to
+    \code{TRUE} if the whole matrix is replaced and \code{FALSE} otherwise.
+  }
   \item{treeNums}{
     An integer vector listing the indices of the trees to print.
   }
@@ -134,7 +145,7 @@
 \value{
   For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}.
 
-  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state.
+  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
 
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is \code{TRUE}, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to \code{setPredictor} if the step is accepted.
 }

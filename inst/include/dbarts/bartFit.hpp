@@ -89,7 +89,14 @@ namespace dbarts {
      */
     // updateCutPoints == true uses the default rule and max number of cut points set elsewhere
     bool setPredictor(const double* newPredictor, bool forceUpdate, bool updateCutPoints);
-    bool updatePredictor(const double* newPredictor, const std::size_t* columns, std::size_t numColumns, bool forceUpdate, bool updateCutPoints); 
+    bool updatePredictor(const double* newPredictor, const std::size_t* columns, std::size_t numColumns, bool forceUpdate, bool updateCutPoints);
+    // Per-observation rollback for a single column: installs each observation's new value
+    // individually, rejecting (rolling back to its old value) only those whose installation
+    // would empty a leaf in any tree of any chain. Observations are visited in a random order
+    // drawn from the first chain's generator and committed against the running state, so the
+    // sweep is a systematic-scan Metropolis-within-Gibbs over the empty-leaf constraint. Writes
+    // a length-numObservations mask of which observations were installed into 'installed'.
+    void updatePredictorInPlace(const double* newColumn, std::size_t column, bool* installed);
     void setCutPoints(const double* const* cutPoints, const std::uint32_t* numCutPoints, const std::size_t* columns, std::size_t numColumns);
     void setData(const Data& data);
     

@@ -273,14 +273,13 @@ dbartsSampler <- setRefClass(
         attr(newState, "currentNumSamples") <- .Call(C_dbarts_deepCopy, attr(state, "currentNumSamples"))
         attr(newState, "currentSampleNum") <- .Call(C_dbarts_deepCopy, attr(state, "currentSampleNum"))
         for (chainNum in seq_len(control@n.chains)) {
-          newState[[chainNum]]@fit.tree <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.tree)
-          newState[[chainNum]]@fit.total <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.total)
-          if (!is.null(data@x.test)) {
-            newState[[chainNum]]@fit.test <- .Call(C_dbarts_deepCopy, state[[chainNum]]@fit.test)
-          }
-          newState[[chainNum]]@sigma <- .Call(C_dbarts_deepCopy, state[[chainNum]]@sigma)
-          newState[[chainNum]]@trees <- .Call(C_dbarts_deepCopy, state[[chainNum]]@trees)
-          
+          newState[[chainNum]]@trees     <- .Call(C_dbarts_deepCopy, state[[chainNum]]@trees)
+          newState[[chainNum]]@treeFits  <- .Call(C_dbarts_deepCopy, state[[chainNum]]@treeFits)
+          newState[[chainNum]]@sigma     <- .Call(C_dbarts_deepCopy, state[[chainNum]]@sigma)
+          newState[[chainNum]]@rng.state <- .Call(C_dbarts_deepCopy, state[[chainNum]]@rng.state)
+          if (!is.null(state[[chainNum]]@k))
+            newState[[chainNum]]@k       <- .Call(C_dbarts_deepCopy, state[[chainNum]]@k)
+
           if (control@keepTrees)
             newState[[chainNum]]@savedTrees <- .Call(C_dbarts_deepCopy, state[[chainNum]]@savedTrees)
         }
@@ -508,11 +507,11 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setPredictor = function(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA) {
-      'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. Can force the trees to update, or roll back for rejection sampling.'
-      
+      'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. forceUpdate can be TRUE/FALSE to force the trees to update or roll the whole update back for rejection sampling, or the string "partial" to install each observation individually and roll back only those whose new value would empty a leaf (returning a per-observation logical of what was installed).'
+
       selfEnv <- parent.env(environment())
-      
-      if (control@keepTrees && updateCutPoints &&
+
+      if (control@keepTrees && isTRUE(updateCutPoints) &&
           (is.null(selfEnv$keepTreesWarnOnce) || self$keepTreesWarnOnce == FALSE)) {
         warning("changing cut points does not update saved trees")
         selfEnv$keepTreesWarnOnce <- TRUE
@@ -521,15 +520,37 @@ dbartsSampler <- setRefClass(
       columnIsMissing <- missing(column)
       forceUpdateIsMissing <- missing(forceUpdate)
 
+      partialUpdate <- !forceUpdateIsMissing && is.character(forceUpdate) &&
+        length(forceUpdate) == 1L && !is.na(forceUpdate) && forceUpdate == "partial"
+
       if (!columnIsMissing && is.character(column)) {
         if (is.null(colnames(data@x))) stop("column names not specified at initialization, so cannot be replaced by name")
-        
+
         column <- match(column, colnames(data@x))
         if (is.na(column)) stop("column name not found in names of current X")
       }
-      
+
+      if (partialUpdate) {
+        if (columnIsMissing)
+          stop("partial updates require a single 'column' to be specified")
+        if (length(column) != 1L)
+          stop("partial updates can only be applied to a single column")
+        if (isTRUE(coerceOrError(updateCutPoints, "logical")))
+          stop("partial updates cannot also update cut points")
+
+        x <- as.double(x)
+
+        ptr <- getPointer()
+        installed <- .Call(C_dbarts_updatePredictorInPlace, ptr, x, as.integer(column))
+
+        if ((is.na(updateState) && control@updateState == TRUE) || identical(updateState, TRUE))
+          storeState(ptr)
+
+        return(installed)
+      }
+
       x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
-       
+
       forceUpdate <-
         if (forceUpdateIsMissing) {
           columnIsMissing
