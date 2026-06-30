@@ -1,0 +1,12 @@
+# Starter static-analysis set. clang-tidy needs a compile_commands.json to know
+# how each file is built; generate one with:
+#   brew install bear
+#   bear -- R CMD INSTALL --preclean .
+# HeaderFilterRegex restricts warnings to this package's own headers (not R's).
+Checks: >
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  -bugprone-easily-swappable-parameters
+WarningsAsErrors: ''
+HeaderFilterRegex: '(inst/include|src)/'

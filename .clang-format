@@ -1,0 +1,23 @@
+# C/C++ formatting for dbarts, tuned to match the existing house style rather
+# than impose LLVM's defaults. ColumnLimit: 80 wraps both code and comments
+# (clang-format uses one limit for both) -- so long declarations wrap too.
+BasedOnStyle: LLVM
+IndentWidth: 2
+ColumnLimit: 80
+PointerAlignment: Left          # dbarts::Control* x  (not  Control *x)
+NamespaceIndentation: All       # indent the body of `namespace dbarts { ... }`
+IndentPPDirectives: AfterHash   # `#  define` inside nested #if blocks
+SortUsingDeclarations: Never    # keep the author's using-declaration order
+
+# When a prototype/call is too long, break after '(', put one argument per
+# line, and place the closing ')' on its own line:
+#   foo(
+#     arg1,
+#     arg2
+#   );
+AlignAfterOpenBracket: BlockIndent
+BinPackParameters: false
+BinPackArguments: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+ContinuationIndentWidth: 2

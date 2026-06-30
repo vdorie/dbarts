@@ -3,3 +3,13 @@
 \.github$
 ^README\.md$
 ^scratch$
+^\.vscode$
+^\.clangd$
+^\.clang-format$
+^\.clang-tidy$
+^\.lintr$
+^air\.toml$
+^compile_commands\.json$
+^\.cache$
+^Brewfile$
+\.local

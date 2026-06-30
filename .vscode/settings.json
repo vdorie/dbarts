@@ -1,0 +1,21 @@
+{
+  // --- C/C++: clangd (reads .clangd for include paths, .clang-format for formatting) ---
+  // The Microsoft C/C++ extension (ms-vscode.cpptools) is installed; disable its
+  // IntelliSense so it does not post diagnostics competing with clangd's. Its
+  // debugger is unaffected by this.
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "[cpp]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true
+  },
+  "[c]": {
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true
+  },
+
+  // --- R: Air formats, lintr lints via the R language server (reads .lintr) ---
+  "[r]": {
+    "editor.defaultFormatter": "Posit.air-vscode",
+    "editor.formatOnSave": true
+  }
+}

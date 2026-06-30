@@ -17,3 +17,8 @@ src/misc/config.h
 src/include/misc/types.h
 inst/include/dbarts/types.hpp
 scratch
+
+# clangd: machine-specific paths / local index (regenerate per machine)
+.clangd
+compile_commands.json
+.cache/
