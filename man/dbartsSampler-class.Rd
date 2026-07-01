@@ -42,7 +42,7 @@
 \S4method{setResponse}{dbartsSampler}(y, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
-\S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate = NA, updateState = NA)
+\S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
 \S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NA)
 \S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
@@ -120,7 +120,14 @@
     observations whose value would empty a leaf, returning a per-observation
     logical of what was installed. \code{"partial"} requires a single \code{column}
     and cannot be combined with \code{updateCutPoints}. When missing, defaults to
-    \code{TRUE} if the whole matrix is replaced and \code{FALSE} otherwise.
+    \code{TRUE} if the replacement predictor is a matrix and \code{FALSE}
+    otherwise.
+  }
+  \item{updateCutPoints}{
+    For \code{setPredictor}, a logical; when \code{TRUE} the cut points (split
+    candidate locations) for the replaced column(s) are recomputed from the new
+    values, otherwise the existing cut points are kept. Defaults to \code{FALSE}
+    and cannot be combined with \code{forceUpdate = "partial"}.
   }
   \item{treeNums}{
     An integer vector listing the indices of the trees to print.

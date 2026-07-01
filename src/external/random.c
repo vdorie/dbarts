@@ -28,8 +28,10 @@
 #include <math.h> // exp, log, expm1, fabs, nan
 #include <stdbool.h>
 
-#if (defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 7))) || \
-    (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
+#if (defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 &&    \
+                                                    __clang_minor__ >= 7))) || \
+  (defined(__GNUC__) &&                                                        \
+   (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
 #  define SUPPRESS_DIAGNOSTIC 1
 #endif
 
@@ -38,7 +40,7 @@ struct ext_rng {
   ext_rng_algorithm_t algorithm;
   ext_rng_standardNormal_t standardNormalAlgorithm;
   void* state;
-  
+
   union {
     double nextNormal; // used in BOX_MULLER
     ext_rng_userFunction simulateNormal;
@@ -48,17 +50,15 @@ struct ext_rng {
 
 static double simulateStandardExponential(ext_rng* generator);
 
-double ext_rng_simulateExponential(ext_rng* generator, double scale)
-{
+double ext_rng_simulateExponential(ext_rng* generator, double scale) {
   if (!isfinite(scale) || scale <= 0.0) {
     return (scale == 0.0) ? 0.0 : NAN;
   }
-  
+
   return simulateStandardExponential(generator) * scale;
 }
 
-double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
-{
+double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
   static const double sqrt32 = 5.656854;
   static const double exp_m1 = 0.36787944117144232159; /* exp(-1) = 1/e */
 
@@ -84,21 +84,22 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
 
 #define oldShape (generator->gammaState[0])
 #define oldShape2 (generator->gammaState[1])
-#define s   (generator->gammaState[2]) // no. 1 (step 1)
-#define s2  (generator->gammaState[3]) //
-#define d   (generator->gammaState[4]) //
-#define q0  (generator->gammaState[5]) // no. 2 (step 4) */
-#define b   (generator->gammaState[6]) //
-#define si  (generator->gammaState[7]) //
-#define c   (generator->gammaState[8]) //
-  
+#define s (generator->gammaState[2])  // no. 1 (step 1)
+#define s2 (generator->gammaState[3]) //
+#define d (generator->gammaState[4])  //
+#define q0 (generator->gammaState[5]) // no. 2 (step 4) */
+#define b (generator->gammaState[6])  //
+#define si (generator->gammaState[7]) //
+#define c (generator->gammaState[8])  //
+
   double e, p, q, r, t, u, v, w, x, ret_val;
 
   if (!isfinite(shape) || !isfinite(scale) || shape < 0.0 || scale <= 0.0)
     return (scale == 0.0) ? 0.0 : NAN;
-  
+
   if (shape < 1.0) { /* GS algorithm for parameters a < 1 */
-    if (shape == 0.0) return 0.0;
+    if (shape == 0.0)
+      return 0.0;
     e = 1.0 + exp_m1 * shape;
     do {
       p = e * ext_rng_simulateContinuousUniform(generator);
@@ -112,12 +113,12 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
           break;
       }
     } while (true);
-    
+
     return scale * x;
   }
 
   /* --- a >= 1 : GD algorithm --- */
-  
+
   /* Step 1: Recalculations of s2, s, d if a has changed */
 #ifdef SUPPRESS_DIAGNOSTIC
 #  ifdef __clang__
@@ -148,11 +149,13 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
   t = ext_rng_simulateStandardNormal(generator);
   x = s + 0.5 * t;
   ret_val = x * x;
-  if (t >= 0.0) return scale * ret_val;
+  if (t >= 0.0)
+    return scale * ret_val;
 
   /* Step 3: u = 0,1 - uniform sample. squeeze acceptance (s) */
   u = ext_rng_simulateContinuousUniform(generator);
-  if (d * u <= t * t * t) return scale * ret_val;
+  if (d * u <= t * t * t)
+    return scale * ret_val;
 
   /* Step 4: recalculations of q0, b, si, c if necessary */
 #ifdef SUPPRESS_DIAGNOSTIC
@@ -165,13 +168,13 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
 #endif
     oldShape2 = shape;
     r = 1.0 / shape;
-    q0 = ((((((q7 * r + q6) * r + q5) * r + q4) * r + q3) * r
-	         + q2) * r + q1) * r;
+    q0 =
+      ((((((q7 * r + q6) * r + q5) * r + q4) * r + q3) * r + q2) * r + q1) * r;
 
     /* Approximation depending on size of parameter a */
     /* The constants in the expressions for b, si and c */
     /* were established by numerical experiments */
-    
+
     if (shape <= 3.686) {
       b = 0.463 + s + 0.178 * s2;
       si = 1.235;
@@ -186,21 +189,24 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
       c = 0.1515 / s;
     }
   }
-  
+
   /* Step 5: no quotient test if x not positive */
   if (x > 0.0) {
-    
+
     /* Step 6: calculation of v and quotient q */
     v = t / (s + s);
     if (fabs(v) <= 0.25)
-      q = q0 + 0.5 * t * t * ((((((a7 * v + a6) * v + a5) * v + a4) * v
-                                + a3) * v + a2) * v + a1) * v;
+      q =
+        q0 +
+        0.5 * t * t *
+          ((((((a7 * v + a6) * v + a5) * v + a4) * v + a3) * v + a2) * v + a1) *
+          v;
     else
       q = q0 - s * t + 0.25 * t * t + (s2 + s2) * log(1.0 + v);
-    
-    
+
     /* Step 7: quotient acceptance (q) */
-    if (log(1.0 - u) <= q) return scale * ret_val;
+    if (log(1.0 - u) <= q)
+      return scale * ret_val;
   }
 
   do {
@@ -210,14 +216,20 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
     e = simulateStandardExponential(generator);
     u = ext_rng_simulateContinuousUniform(generator);
     u = u + u - 1.0;
-    if (u < 0.0) t = b - si * e;
-    else t = b + si * e;
+    if (u < 0.0)
+      t = b - si * e;
+    else
+      t = b + si * e;
     /* Step	 9:  rejection if t < tau(1) = -0.71874483771719 */
     if (t >= -0.71874483771719) {
       /* Step 10:	 calculation of v and quotient q */
       v = t / (s + s);
       if (fabs(v) <= 0.25)
-        q = q0 + 0.5 * t * t * ((((((a7 * v + a6) * v + a5) * v + a4) * v + a3) * v + a2) * v + a1) * v;
+        q = q0 +
+            0.5 * t * t *
+              ((((((a7 * v + a6) * v + a5) * v + a4) * v + a3) * v + a2) * v +
+               a1) *
+              v;
       else
         q = q0 - s * t + 0.25 * t * t + (s2 + s2) * log(1.0 + v);
       /* Step 11:	 hat acceptance (h) */
@@ -245,9 +257,7 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale)
 #undef si
 #undef c
 
-
-static double simulateStandardExponential(ext_rng* generator)
-{ 
+static double simulateStandardExponential(ext_rng* generator) {
   /*  REFERENCE
    *
    *    Ahrens, J.H. and Dieter, U. (1972).
@@ -255,69 +265,100 @@ static double simulateStandardExponential(ext_rng* generator)
    *    normal distributions.
    *    Comm. ACM, 15, 873-882.
    */
-  
-    /* q[k-1] = sum(log(2)^k / k!)  k=1,..,n, */
-    /* The highest n (here 16) is determined by q[n-1] = 1.0 */
-    /* within standard precision */
+
+  /* q[k-1] = sum(log(2)^k / k!)  k=1,..,n, */
+  /* The highest n (here 16) is determined by q[n-1] = 1.0 */
+  /* within standard precision */
   static const double q[] = {
-    0.6931471805599453, 0.9333736875190459, 0.9888777961838675, 0.9984959252914960,
-    0.9998292811061389, 0.9999833164100727, 0.9999985691438767, 0.9999998906925558,
-    0.9999999924734159, 0.9999999995283275, 0.9999999999728814, 0.9999999999985598,
-    0.9999999999999289, 0.9999999999999968, 0.9999999999999999, 1.0000000000000000 };
+    0.6931471805599453,
+    0.9333736875190459,
+    0.9888777961838675,
+    0.9984959252914960,
+    0.9998292811061389,
+    0.9999833164100727,
+    0.9999985691438767,
+    0.9999998906925558,
+    0.9999999924734159,
+    0.9999999995283275,
+    0.9999999999728814,
+    0.9999999999985598,
+    0.9999999999999289,
+    0.9999999999999968,
+    0.9999999999999999,
+    1.0000000000000000
+  };
 
   double a = 0.;
-  double u = ext_rng_simulateContinuousUniform(generator); /* precaution if u = 0 is ever returned */
-  while (u <= 0.0 || u >= 1.0) u = ext_rng_simulateContinuousUniform(generator);
+  double u = ext_rng_simulateContinuousUniform(
+    generator
+  ); /* precaution if u = 0 is ever returned */
+  while (u <= 0.0 || u >= 1.0)
+    u = ext_rng_simulateContinuousUniform(generator);
   do {
     u += u;
-    if (u > 1.0) break;
+    if (u > 1.0)
+      break;
     a += q[0];
   } while (true);
   u -= 1.0;
 
-  if (u <= q[0]) return a + u;
+  if (u <= q[0])
+    return a + u;
 
   int_least32_t i = 0;
   double ustar = ext_rng_simulateContinuousUniform(generator);
   double umin = ustar;
   do {
     ustar = ext_rng_simulateContinuousUniform(generator);
-    if (umin > ustar) umin = ustar;
+    if (umin > ustar)
+      umin = ustar;
     ++i;
   } while (u > q[i]);
-    
+
   return a + umin * q[0];
 }
 
-size_t ext_rng_drawFromDiscreteDistribution(ext_rng* generator, const double* probabilities, size_t length)
-{
-  if (length == 0) return EXT_DISCRETE_DRAW_FAILURE;
-  
+size_t ext_rng_drawFromDiscreteDistribution(
+  ext_rng* generator,
+  const double* probabilities,
+  size_t length
+) {
+  if (length == 0)
+    return EXT_DISCRETE_DRAW_FAILURE;
+
   double u = ext_rng_simulateContinuousUniform(generator);
-  
+
   size_t result = 0;
   double sum = probabilities[0];
-  
+
   while (sum < u && result < length - 1) {
     sum += probabilities[++result];
   }
-  
-  if (result == length - 1 && sum < u) return EXT_DISCRETE_DRAW_FAILURE;
+
+  if (result == length - 1 && sum < u)
+    return EXT_DISCRETE_DRAW_FAILURE;
   return result;
 }
 
-int64_t ext_rng_simulateIntegerUniformInRange(ext_rng* generator, int64_t min_inclusive, int64_t max_exclusive)
-{
-  double range = fabs((double) (max_exclusive - min_inclusive));
-  int64_t actualMin = (min_inclusive < max_exclusive ? min_inclusive : max_exclusive);
-  
+int64_t ext_rng_simulateIntegerUniformInRange(
+  ext_rng* generator,
+  int64_t min_inclusive,
+  int64_t max_exclusive
+) {
+  double range = fabs((double)(max_exclusive - min_inclusive));
+  int64_t actualMin =
+    (min_inclusive < max_exclusive ? min_inclusive : max_exclusive);
+
   double u = ext_rng_simulateContinuousUniform(generator);
-  
-  return actualMin + (int64_t) (u * range);
+
+  return actualMin + (int64_t)(u * range);
 }
 
-uint64_t ext_rng_simulateUnsignedIntegerUniformInRange(ext_rng* generator, uint64_t min_inclusive, uint64_t max_exclusive)
-{
+uint64_t ext_rng_simulateUnsignedIntegerUniformInRange(
+  ext_rng* generator,
+  uint64_t min_inclusive,
+  uint64_t max_exclusive
+) {
   uint64_t actualMin, actualMax;
   if (min_inclusive < max_exclusive) {
     actualMin = min_inclusive;
@@ -326,53 +367,95 @@ uint64_t ext_rng_simulateUnsignedIntegerUniformInRange(ext_rng* generator, uint6
     actualMin = max_exclusive;
     actualMax = min_inclusive;
   }
-  
-  double range = (double) (actualMax - actualMin);
-  
+
+  double range = (double)(actualMax - actualMin);
+
   double u = ext_rng_simulateContinuousUniform(generator);
-  
-  return actualMin + (uint64_t) (u * range);
+
+  return actualMin + (uint64_t)(u * range);
+}
+
+void ext_rng_drawPermutation(ext_rng* generator, size_t* x, size_t length) {
+  for (size_t i = 0; i < length; ++i)
+    x[i] = i;
+  for (size_t i = 0; i + 1 < length; ++i) {
+    size_t swapPos = (size_t)
+      ext_rng_simulateUnsignedIntegerUniformInRange(generator, i, length);
+    size_t temp = x[i];
+    x[i] = x[swapPos];
+    x[swapPos] = temp;
+  }
 }
 
 #define MAX_ITER 1000
 // X ~ N(0, 1) | X >= lb
-double ext_rng_simulateLowerTruncatedStandardNormal(ext_rng* generator, double lowerBound)
-{
+double ext_rng_simulateLowerTruncatedStandardNormal(
+  ext_rng* generator,
+  double lowerBound
+) {
   double x;
   int iter = 0;
   if (lowerBound < 0.0) {
     x = ext_rng_simulateStandardNormal(generator);
-    while (x < lowerBound && iter++ < MAX_ITER) x = ext_rng_simulateStandardNormal(generator);
-    if (iter == MAX_ITER && x >= lowerBound) return nan("");
+    while (x < lowerBound && iter++ < MAX_ITER)
+      x = ext_rng_simulateStandardNormal(generator);
+    if (iter == MAX_ITER && x >= lowerBound)
+      return nan("");
   } else {
     double a = 0.5 * (lowerBound + sqrt(lowerBound * lowerBound + 4.0));
     double u, r;
-    
+
     do {
       x = ext_rng_simulateExponential(generator, 1.0 / a) + lowerBound;
       u = ext_rng_simulateContinuousUniform(generator);
       double diff = x - a;
       r = exp(-0.5 * diff * diff);
     } while (u > r && iter++ < MAX_ITER);
-    if (iter == MAX_ITER && u <= r) return nan("");
+    if (iter == MAX_ITER && u <= r)
+      return nan("");
   }
   return x;
 }
 
 // X ~ mu + N(0, 1) | X >= lb - mean
 // X ~ N(mu, 1) | X >= lb
-double ext_rng_simulateLowerTruncatedNormalScale1(ext_rng* generator, double mean, double bound) {
-  return mean + ext_rng_simulateLowerTruncatedStandardNormal(generator, bound - mean);
+double ext_rng_simulateLowerTruncatedNormalScale1(
+  ext_rng* generator,
+  double mean,
+  double bound
+) {
+  return mean +
+         ext_rng_simulateLowerTruncatedStandardNormal(generator, bound - mean);
 }
 
-double ext_rng_simulateLowerTruncatedNormal(ext_rng* generator, double mean, double sd, double bound) {
-  return mean + sd * ext_rng_simulateLowerTruncatedStandardNormal(generator, (bound - mean) / sd);
+double ext_rng_simulateLowerTruncatedNormal(
+  ext_rng* generator,
+  double mean,
+  double sd,
+  double bound
+) {
+  return mean + sd * ext_rng_simulateLowerTruncatedStandardNormal(
+                       generator,
+                       (bound - mean) / sd
+                     );
 }
 
-double ext_rng_simulateUpperTruncatedNormalScale1(ext_rng* generator, double mean, double bound) {
-  return mean - ext_rng_simulateLowerTruncatedStandardNormal(generator, mean - bound);
+double ext_rng_simulateUpperTruncatedNormalScale1(
+  ext_rng* generator,
+  double mean,
+  double bound
+) {
+  return mean -
+         ext_rng_simulateLowerTruncatedStandardNormal(generator, mean - bound);
 }
-double ext_rng_simulateUpperTruncatedNormal(ext_rng* generator, double mean, double sd, double bound) {
-  return mean - sd * ext_rng_simulateLowerTruncatedStandardNormal(generator, (mean - bound) / sd);
+double ext_rng_simulateUpperTruncatedNormal(
+  ext_rng* generator,
+  double mean,
+  double sd,
+  double bound
+) {
+  return mean - sd * ext_rng_simulateLowerTruncatedStandardNormal(
+                       generator,
+                       (mean - bound) / sd
+                     );
 }
-

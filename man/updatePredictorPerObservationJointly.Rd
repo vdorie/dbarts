@@ -1,6 +1,6 @@
 \name{updatePredictorPerObservationJointly}
 \alias{updatePredictorPerObservationJointly}
-\title{Jointly Update a Shared Predictor Across Samplers}
+\title{Jointly Update a Shared Predictor per Observation Across Samplers}
 \description{
   Applies a \dQuote{partial} (per-observation) update of a single shared column to several
   \code{\linkS4class{dbartsSampler}} objects at once, installing an observation's new value only when
@@ -36,7 +36,7 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
   observation in every sampler at once, and only if its new value keeps every leaf non-empty in every
   tree of every chain of every sampler; otherwise that observation is rolled back to its previous
   value in all of them. Like the single-sampler partial mode, the update never changes tree structure
-  --- it only re-routes observations.
+  -- it only re-routes observations.
 
   This supports embedding several BART components that condition on a common latent predictor (for
   example, a shared ability or trait in an item-response model) within a larger Gibbs/Metropolis
@@ -44,9 +44,10 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NA)
 }
 \value{
   A logical vector of length equal to the number of observations, \code{TRUE} where the observation's
-  new value was installed and \code{FALSE} where it was rolled back to its previous value to keep
-  every tree valid. The returned vector is identical for every sampler, and after the call all
-  samplers hold the same values in the shared column.
+  new value was installed and \code{FALSE} where it was rolled back to keep every tree valid. The
+  same accept/reject decision is applied to every sampler, so an installed observation takes the new
+  value in all of them; a rejected observation reverts to each sampler's own previous value. When the
+  samplers agreed on the shared column before the call, they therefore continue to agree afterward.
 }
 \seealso{
   \code{\link{dbarts}}, \code{\linkS4class{dbartsSampler}}
