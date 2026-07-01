@@ -507,7 +507,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setPredictor = function(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA) {
-      'Changes a single column of the predictor matrix, or the entire matrix itself if the column argument is missing. forceUpdate can be TRUE/FALSE to force the trees to update or roll the whole update back for rejection sampling, or the string "partial" to install each observation individually and roll back only those whose new value would empty a leaf (returning a per-observation logical of what was installed).'
+      'Changes a single column of the predictor matrix, or the entire matrix if column is missing. See the forceUpdate argument in ?`dbartsSampler-class` for the in-place, rollback, and "partial" semantics.'
 
       selfEnv <- parent.env(environment())
 
@@ -890,4 +890,3 @@ dbartsSampler <- setRefClass(
     }
   )
 )
-

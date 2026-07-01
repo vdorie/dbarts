@@ -506,10 +506,164 @@ updateTreesWithNewPredictor_cleanup:
     
     return allTreesAreValid;
   }
+
+  // Fisher-Yates shuffle of 0..n-1 in place using the given generator (a no-op when n <= 1). Used
+  // to draw the per-observation scan order; both fixed and random orders are valid MCMC, but a
+  // random order avoids any systematic bias in which member of a coupled pair of observations is
+  // rejected when only one of them can move.
+  void drawScanOrder(ext_rng* rng, size_t* scanOrder, size_t n) {
+    for (size_t i = 0; i < n; ++i) scanOrder[i] = i;
+    for (size_t i = 0; i + 1 < n; ++i) {
+      size_t swapPos = static_cast<size_t>(ext_rng_simulateUnsignedIntegerUniformInRange(rng, i, n));
+      size_t temp = scanOrder[i]; scanOrder[i] = scanOrder[swapPos]; scanOrder[swapPos] = temp;
+    }
+  }
+
+  // Per-fit bookkeeping and staging for an in-place, per-observation predictor update of a single
+  // column. Tracks each observation's current leaf (by enumeration index) and each leaf's occupancy
+  // in every (chain, tree), so a single observation's move can be TESTED (would it empty a leaf?)
+  // and COMMITTED in O(numTrees * depth) without disturbing the real observation partitions -- those
+  // must stay intact so leaf parameters can be recovered until the final commit. The bookkeeping is
+  // built by routing each observation through the split structure rather than by reading the node
+  // partitions, so it is correct regardless of how the trees were last left (e.g. on a freshly
+  // copied sampler whose node observation indices are not yet populated). This is the single-fit
+  // building block shared by both updatePredictorInPlace (one fit) and updatePredictorPerObservationJointly
+  // (a sweep that commits an observation only if every participating fit stays valid).
+  struct InPlacePredictorUpdater {
+    BARTFit& fit;
+    size_t column;
+    const double* newColumn;     // proposed new values for the changed column, length numObservations
+
+    size_t numObservations;
+    size_t numPredictors;
+    size_t totalNumTrees;
+
+    xint_t* newColumnInt;        // [observation] -> proposed integer cut-map value in the changed column
+    size_t** observationLeaf;    // [t][observation] -> leaf enumeration index
+    size_t** leafCounts;         // [t][leaf]        -> number of observations currently routed there
+    xint_t* observationRow;      // scratch integer predictor row
+    bool*   pendingMove;         // [t] staged by wouldRemainValid: does the observation move leaves in tree t?
+    size_t* pendingOldLeaf;      // [t]
+    size_t* pendingNewLeaf;      // [t]
+
+    InPlacePredictorUpdater(BARTFit& fit, const double* newColumn, size_t column) :
+      fit(fit), column(column), newColumn(newColumn),
+      numObservations(fit.data.numObservations),
+      numPredictors(fit.data.numPredictors),
+      totalNumTrees(fit.control.numTrees * fit.control.numChains)
+    {
+      const xint_t* xi = fit.sharedScratch.x;
+
+      // 1. Proposed integer cut-map value for each observation in the changed column.
+      newColumnInt = new xint_t[numObservations];
+      for (size_t i = 0; i < numObservations; ++i)
+        newColumnInt[i] = findIntegerCut(fit, column, newColumn[i]);
+
+      // 2. Per-(chain, tree) leaf membership and occupancy, derived by self-routing.
+      observationLeaf = new size_t*[totalNumTrees];
+      leafCounts      = new size_t*[totalNumTrees];
+      observationRow  = new xint_t[numPredictors];
+
+      for (size_t chainNum = 0; chainNum < fit.control.numChains; ++chainNum) {
+        for (size_t treeNum = 0; treeNum < fit.control.numTrees; ++treeNum) {
+          size_t t = treeNum + chainNum * fit.control.numTrees;
+          Node& top(fit.state[chainNum].trees[treeNum].top);
+
+          size_t numBottomNodes = top.getAndEnumerateBottomVector().size(); // sets enumerationIndex on each leaf
+
+          leafCounts[t]      = new size_t[numBottomNodes];
+          observationLeaf[t] = new size_t[numObservations];
+          for (size_t e = 0; e < numBottomNodes; ++e) leafCounts[t][e] = 0;
+
+          for (size_t i = 0; i < numObservations; ++i) {
+            for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[i + p * numObservations];
+            size_t leaf = top.findBottomNode(fit, observationRow)->enumerationIndex;
+            observationLeaf[t][i] = leaf;
+            ++leafCounts[t][leaf];
+          }
+        }
+      }
+
+      pendingMove    = new bool[totalNumTrees];
+      pendingOldLeaf = new size_t[totalNumTrees];
+      pendingNewLeaf = new size_t[totalNumTrees];
+    }
+
+    ~InPlacePredictorUpdater() {
+      delete [] pendingNewLeaf;
+      delete [] pendingOldLeaf;
+      delete [] pendingMove;
+      delete [] observationRow;
+      for (size_t t = totalNumTrees; t > 0; --t) {
+        delete [] observationLeaf[t - 1];
+        delete [] leafCounts[t - 1];
+      }
+      delete [] observationLeaf;
+      delete [] leafCounts;
+      delete [] newColumnInt;
+    }
+
+    // Would installing observation j (against the running, already-committed state) keep every leaf
+    // non-empty in every tree of every chain? Stages the per-tree leaf moves so a subsequent commit(j)
+    // can apply them; changes no state. Routing depends only on j's own predictor row, so the new leaf
+    // is fixed; only the emptiness test (via leafCounts) depends on which earlier observations have
+    // already been committed -- which is why the sweep must be sequential.
+    bool wouldRemainValid(size_t j) {
+      const xint_t* xi = fit.sharedScratch.x;
+      for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[j + p * numObservations];
+      observationRow[column] = newColumnInt[j];
+
+      bool valid = true;
+      for (size_t t = 0; t < totalNumTrees && valid; ++t) {
+        size_t chainNum = t / fit.control.numTrees;
+        size_t treeNum  = t % fit.control.numTrees;
+        const Node& top(fit.state[chainNum].trees[treeNum].top);
+
+        size_t oldLeaf = observationLeaf[t][j];
+        size_t newLeaf = top.findBottomNode(fit, observationRow)->enumerationIndex;
+
+        if (newLeaf == oldLeaf) {
+          pendingMove[t] = false;
+        } else if (leafCounts[t][oldLeaf] == 1) {
+          valid = false; // j is the last occupant of its old leaf; moving it would empty the leaf
+        } else {
+          pendingMove[t]    = true;
+          pendingOldLeaf[t] = oldLeaf;
+          pendingNewLeaf[t] = newLeaf;
+        }
+      }
+      return valid;
+    }
+
+    // Apply the move staged by the immediately preceding wouldRemainValid(j) call: install j's new
+    // value into the predictor and integer cut map, and update the leaf bookkeeping. Must be called
+    // only when that wouldRemainValid(j) returned true, with no intervening wouldRemainValid call on
+    // this updater (which would overwrite the staged moves).
+    void commit(size_t j) {
+      double* x  = const_cast<double*>(fit.data.x);
+      xint_t* xi = const_cast<xint_t*>(fit.sharedScratch.x);
+      x[j + column * numObservations]  = newColumn[j];
+      xi[j + column * numObservations] = newColumnInt[j];
+      for (size_t t = 0; t < totalNumTrees; ++t) {
+        if (pendingMove[t]) {
+          --leafCounts[t][pendingOldLeaf[t]];
+          ++leafCounts[t][pendingNewLeaf[t]];
+          observationLeaf[t][j] = pendingNewLeaf[t];
+        }
+      }
+    }
+
+    // Rebuild the real observation partitions and tree fits from the final committed column. By
+    // construction no committed move ever empties a leaf, so every tree remains valid and this
+    // re-route succeeds.
+    void finalize() {
+      updateTreesWithNewPredictor(fit);
+    }
+  };
 }
 
 namespace dbarts {
-  
+
   bool BARTFit::setPredictor(const double* newPredictor, bool forceUpdate, bool updateCutPoints)
   {
     const double* oldPredictor = data.x;
@@ -661,129 +815,65 @@ namespace dbarts {
   void BARTFit::updatePredictorInPlace(const double* newColumn, size_t column, bool* installed)
   {
     const size_t numObservations = data.numObservations;
-    const size_t numPredictors   = data.numPredictors;
-    const size_t totalNumTrees   = control.numTrees * control.numChains;
 
-    double* x  = const_cast<double*>(data.x);
-    xint_t* xi = const_cast<xint_t*>(sharedScratch.x);
+    InPlacePredictorUpdater updater(*this, newColumn, column);
 
-    // 1. Proposed integer cut-map value for each observation in the changed column.
-    xint_t* newColumnInt = new xint_t[numObservations];
-    for (size_t i = 0; i < numObservations; ++i)
-      newColumnInt[i] = findIntegerCut(*this, column, newColumn[i]);
-
-    // 2. Lightweight per-(chain, tree) bookkeeping: each observation's current leaf (by
-    //    enumeration index) and each leaf's occupancy. These let us test and commit a single
-    //    observation's move in O(depth) without disturbing the real observation partitions,
-    //    which must stay intact (so we can recover leaf parameters) until the final commit. We
-    //    derive the bookkeeping by routing each observation ourselves rather than reading the
-    //    node partitions, so it is correct regardless of how the trees were last left (e.g. on
-    //    a freshly copied sampler whose node observation indices are not yet populated).
-    size_t** observationLeaf = new size_t*[totalNumTrees]; // [t][observation] -> leaf enumeration index
-    size_t** leafCounts      = new size_t*[totalNumTrees]; // [t][leaf]        -> number of observations
-
-    xint_t* observationRow = new xint_t[numPredictors];
-
-    for (size_t chainNum = 0; chainNum < control.numChains; ++chainNum) {
-      for (size_t treeNum = 0; treeNum < control.numTrees; ++treeNum) {
-        size_t t = treeNum + chainNum * control.numTrees;
-        Node& top(state[chainNum].trees[treeNum].top);
-
-        size_t numBottomNodes = top.getAndEnumerateBottomVector().size(); // sets enumerationIndex on each leaf
-
-        leafCounts[t]      = new size_t[numBottomNodes];
-        observationLeaf[t] = new size_t[numObservations];
-        for (size_t e = 0; e < numBottomNodes; ++e) leafCounts[t][e] = 0;
-
-        for (size_t i = 0; i < numObservations; ++i) {
-          for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[i + p * numObservations];
-          size_t leaf = top.findBottomNode(*this, observationRow)->enumerationIndex;
-          observationLeaf[t][i] = leaf;
-          ++leafCounts[t][leaf];
-        }
-      }
-    }
-
-    // 3. Randomized scan order, drawn from the first chain's generator. Both fixed and random
-    //    orders are valid; randomizing avoids systematic bias in which member of a coupled pair
-    //    of observations gets rejected.
+    // Randomized scan order, drawn from the first chain's generator.
     size_t* scanOrder = new size_t[numObservations];
-    for (size_t i = 0; i < numObservations; ++i) scanOrder[i] = i;
-    if (numObservations > 1) {
-      ext_rng* rng = state[0].rng;
-      for (size_t i = 0; i < numObservations - 1; ++i) {
-        size_t swapPos = static_cast<size_t>(ext_rng_simulateUnsignedIntegerUniformInRange(rng, i, numObservations));
-        size_t temp = scanOrder[i]; scanOrder[i] = scanOrder[swapPos]; scanOrder[swapPos] = temp;
-      }
-    }
+    drawScanOrder(state[0].rng, scanOrder, numObservations);
 
-    // scratch for staging the leaf moves of an accepted observation (observationRow is reused)
-    bool*   pendingMove    = new bool[totalNumTrees];
-    size_t* pendingOldLeaf = new size_t[totalNumTrees];
-    size_t* pendingNewLeaf = new size_t[totalNumTrees];
-
-    // 4. Sequential sweep: test each observation against the running state and commit it unless
-    //    its move would empty a leaf in some tree of some chain. Routing of an observation depends
-    //    only on its own predictor row, so the new leaf is fixed; only the emptiness test (via
-    //    leafCounts) depends on which earlier observations have already been committed.
+    // Sequential sweep: test each observation against the running state and commit it unless its
+    // move would empty a leaf in some tree of some chain.
     for (size_t s = 0; s < numObservations; ++s) {
       size_t j = scanOrder[s];
-
-      // build observation j's integer predictor row, substituting the proposed value in the changed column
-      for (size_t p = 0; p < numPredictors; ++p) observationRow[p] = xi[j + p * numObservations];
-      observationRow[column] = newColumnInt[j];
-
-      bool valid = true;
-      for (size_t t = 0; t < totalNumTrees && valid; ++t) {
-        size_t chainNum = t / control.numTrees;
-        size_t treeNum  = t % control.numTrees;
-        const Node& top(state[chainNum].trees[treeNum].top);
-
-        size_t oldLeaf = observationLeaf[t][j];
-        size_t newLeaf = top.findBottomNode(*this, observationRow)->enumerationIndex;
-
-        if (newLeaf == oldLeaf) {
-          pendingMove[t] = false;
-        } else if (leafCounts[t][oldLeaf] == 1) {
-          valid = false; // observation j is the last occupant of its old leaf; moving it would empty the leaf
-        } else {
-          pendingMove[t]    = true;
-          pendingOldLeaf[t] = oldLeaf;
-          pendingNewLeaf[t] = newLeaf;
-        }
-      }
-
+      bool valid = updater.wouldRemainValid(j);
       installed[j] = valid;
-      if (valid) {
-        x[j + column * numObservations]  = newColumn[j];
-        xi[j + column * numObservations] = newColumnInt[j];
-        for (size_t t = 0; t < totalNumTrees; ++t) {
-          if (pendingMove[t]) {
-            --leafCounts[t][pendingOldLeaf[t]];
-            ++leafCounts[t][pendingNewLeaf[t]];
-            observationLeaf[t][j] = pendingNewLeaf[t];
-          }
-        }
-      }
+      if (valid) updater.commit(j);
     }
 
-    // 5. Rebuild the real observation partitions and tree fits from the final committed column.
-    //    By construction no committed move ever empties a leaf, so every tree remains valid and
-    //    this re-route succeeds.
-    updateTreesWithNewPredictor(*this);
+    updater.finalize();
 
-    delete [] pendingNewLeaf;
-    delete [] pendingOldLeaf;
-    delete [] pendingMove;
-    delete [] observationRow;
     delete [] scanOrder;
-    for (size_t t = totalNumTrees; t > 0; --t) {
-      delete [] observationLeaf[t - 1];
-      delete [] leafCounts[t - 1];
+  }
+
+  void BARTFit::updatePredictorPerObservationJointly(BARTFit** fits, size_t numFits, const double* newColumn,
+                                            const size_t* columns, bool* installed)
+  {
+    if (numFits == 0) return;
+
+    const size_t numObservations = fits[0]->data.numObservations;
+
+    // One single-fit updater per participating fit; each holds its own leaf bookkeeping and proposed
+    // integer cut values (cut points may differ between fits even for the same shared column).
+    InPlacePredictorUpdater** updaters = new InPlacePredictorUpdater*[numFits];
+    for (size_t f = 0; f < numFits; ++f)
+      updaters[f] = new InPlacePredictorUpdater(*fits[f], newColumn, columns[f]);
+
+    // A single shared scan order -- observations are aligned by index across fits -- drawn from the
+    // first fit's first-chain generator, matching the single-fit sweep's source of randomness.
+    size_t* scanOrder = new size_t[numObservations];
+    drawScanOrder(fits[0]->state[0].rng, scanOrder, numObservations);
+
+    // Sequential joint sweep: commit observation j in ALL fits iff its move keeps every leaf
+    // non-empty in every tree of every chain of EVERY fit, tested against the running (already-
+    // committed) state. Because each observation is committed-or-not in all fits at once, the fits
+    // can never disagree -- so this single deterministic pass needs no reconciliation. wouldRemainValid
+    // only stages (never mutates leafCounts), so a fit tested before the short-circuit is left clean.
+    for (size_t s = 0; s < numObservations; ++s) {
+      size_t j = scanOrder[s];
+      bool valid = true;
+      for (size_t f = 0; f < numFits && valid; ++f)
+        valid = updaters[f]->wouldRemainValid(j);
+      installed[j] = valid;
+      if (valid)
+        for (size_t f = 0; f < numFits; ++f) updaters[f]->commit(j);
     }
-    delete [] observationLeaf;
-    delete [] leafCounts;
-    delete [] newColumnInt;
+
+    for (size_t f = 0; f < numFits; ++f) updaters[f]->finalize();
+
+    delete [] scanOrder;
+    for (size_t f = numFits; f > 0; --f) delete updaters[f - 1];
+    delete [] updaters;
   }
 
   void BARTFit::setCutPoints(

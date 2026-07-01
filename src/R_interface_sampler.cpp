@@ -546,6 +546,65 @@ extern "C" {
     return resultExpr;
   }
 
+  SEXP updatePredictorPerObservationJointly(SEXP fitsExpr, SEXP xExpr, SEXP colsExpr)
+  {
+    if (!Rf_isNewList(fitsExpr)) Rf_error("fits must be a list of dbarts samplers");
+    size_t numFits = rc_getLength(fitsExpr);
+    if (numFits == 0) Rf_error("fits must contain at least one sampler");
+
+    if (!Rf_isReal(xExpr)) Rf_error("x must be of type real");
+    if (!Rf_isInteger(colsExpr)) Rf_error("columns must be of type integer");
+    if (rc_getLength(colsExpr) != numFits) Rf_error("length of columns must equal number of fits");
+
+    BARTFit** fits = misc_stackAllocate(numFits, BARTFit*);
+    size_t* cols   = misc_stackAllocate(numFits, size_t);
+    int* colsInt   = INTEGER(colsExpr);
+
+    size_t numObservations = 0;
+    for (size_t f = 0; f < numFits; ++f) {
+      BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(VECTOR_ELT(fitsExpr, f)));
+      if (fit == NULL) {
+        misc_stackFree(cols); misc_stackFree(fits);
+        Rf_error("dbarts_updatePredictorPerObservationJointly called on NULL external pointer");
+      }
+      fits[f] = fit;
+
+      if (f == 0) {
+        numObservations = fit->data.numObservations;
+      } else if (fit->data.numObservations != numObservations) {
+        misc_stackFree(cols); misc_stackFree(fits);
+        Rf_error("all fits must have the same number of observations");
+      }
+
+      size_t col = static_cast<size_t>(colsInt[f] - 1);
+      if (colsInt[f] < 1 || col >= fit->data.numPredictors) {
+        int badCol = colsInt[f];
+        misc_stackFree(cols); misc_stackFree(fits);
+        Rf_error("column '%d' is out of range", badCol);
+      }
+      cols[f] = col;
+    }
+
+    if (rc_getLength(xExpr) != numObservations) {
+      misc_stackFree(cols); misc_stackFree(fits);
+      Rf_error("length of new x does not match the number of observations");
+    }
+
+    SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
+    int* result = LOGICAL(resultExpr);
+
+    bool* installed = new bool[numObservations];
+    BARTFit::updatePredictorPerObservationJointly(fits, numFits, REAL(xExpr), cols, installed);
+    for (size_t i = 0; i < numObservations; ++i) result[i] = installed[i] ? TRUE : FALSE;
+    delete [] installed;
+
+    misc_stackFree(cols);
+    misc_stackFree(fits);
+
+    UNPROTECT(1);
+    return resultExpr;
+  }
+
   SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr)
   {
     BARTFit* fit = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));

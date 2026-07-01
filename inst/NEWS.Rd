@@ -7,6 +7,9 @@
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.
+      \item `updatePredictorPerObservationJointly` applies a `"partial"`-style update across several
+            samplers at once, installing an observation only when it keeps every
+            sampler's nodes non-empty.
     }
   }
   \subsection{BUG FIXES}{

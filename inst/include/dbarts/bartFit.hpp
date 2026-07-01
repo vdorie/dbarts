@@ -97,6 +97,15 @@ namespace dbarts {
     // sweep is a systematic-scan Metropolis-within-Gibbs over the empty-leaf constraint. Writes
     // a length-numObservations mask of which observations were installed into 'installed'.
     void updatePredictorInPlace(const double* newColumn, std::size_t column, bool* installed);
+    // Joint per-observation rollback across several fits that share the same (index-aligned)
+    // observations: a single sequential sweep installs observation j in EVERY fit simultaneously,
+    // and only if j's new value keeps every leaf non-empty in every tree of every chain of every
+    // fit (tested against the running state). 'columns[f]' is the column to replace in fit f (they
+    // may differ across fits for the same conceptual variable). The scan order is drawn from the
+    // first fit's first-chain generator. Because each observation is committed in all fits or none,
+    // the fits never disagree; writes the length-numObservations install mask into 'installed'.
+    static void updatePredictorPerObservationJointly(BARTFit** fits, std::size_t numFits, const double* newColumn,
+                                            const std::size_t* columns, bool* installed);
     void setCutPoints(const double* const* cutPoints, const std::uint32_t* numCutPoints, const std::size_t* columns, std::size_t numColumns);
     void setData(const Data& data);
     

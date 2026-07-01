@@ -24,6 +24,7 @@ extern "C" {
   SEXP setPredictor(SEXP fit, SEXP x, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP updatePredictor(SEXP fit, SEXP x, SEXP cols, SEXP forceUpdate, SEXP updateCutPoints);
   SEXP updatePredictorInPlace(SEXP fit, SEXP x, SEXP col);
+  SEXP updatePredictorPerObservationJointly(SEXP fits, SEXP x, SEXP cols);
   SEXP setCutPoints(SEXP fitExpr, SEXP cutPointsExpr, SEXP colsExpr);
   SEXP setTestPredictor(SEXP fit, SEXP x_test);
   SEXP setTestOffset(SEXP fit, SEXP offset_test);

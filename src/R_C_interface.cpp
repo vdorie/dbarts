@@ -179,6 +179,16 @@ extern "C" {
     delete [] installedBool;
   }
 
+  void dbarts_updatePredictorPerObservationJointly(BARTFit** fits, size_t numFits, const double* newColumn, const size_t* columns, int* installed)
+  {
+    if (numFits == 0) return;
+    size_t numObservations = fits[0]->data.numObservations;
+    bool* installedBool = new bool[numObservations];
+    BARTFit::updatePredictorPerObservationJointly(fits, numFits, newColumn, columns, installedBool);
+    for (size_t i = 0; i < numObservations; ++i) installed[i] = installedBool[i] ? 1 : 0;
+    delete [] installedBool;
+  }
+
   void dbarts_setTestPredictor(BARTFit* fit, const double* newTestPredictor, size_t numTestObservations)
   {
     fit->setTestPredictor(newTestPredictor, numTestObservations);

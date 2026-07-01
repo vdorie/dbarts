@@ -125,7 +125,12 @@ extern "C" {
   // numObservations ints; on return each is 1 if that observation's new value was installed
   // and 0 if it was rolled back to its previous value (because installing it would empty a leaf).
   void dbarts_updatePredictorInPlace(dbarts::BARTFit* fit, const double* newColumn, std::size_t column, int* installed);
-  
+  // Joint per-observation rollback across several index-aligned fits: a single sweep installs each
+  // observation in EVERY fit or in none, keeping every fit valid (no empty leaf) at once. 'columns[f]'
+  // is the column to replace in fit f; 'newColumn' is the shared length-numObservations proposal;
+  // 'installed' (length numObservations) receives 1/0 per observation, identical across all fits.
+  void dbarts_updatePredictorPerObservationJointly(dbarts::BARTFit** fits, std::size_t numFits, const double* newColumn, const std::size_t* columns, int* installed);
+
   void dbarts_setTestPredictor(dbarts::BARTFit* fit, const double* newTestPredictor, std::size_t numTestObservations);
   void dbarts_setTestOffset(dbarts::BARTFit* fit, const double* newTestOffset);
   void dbarts_setTestPredictorAndOffset(dbarts::BARTFit* fit, const double* newTestPredictor, const double* newTestOffset, std::size_t numTestObservations);
