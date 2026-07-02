@@ -13,3 +13,6 @@
 ^\.cache$
 ^Brewfile$
 \.local
+^docs$
+^benchmarks$
+^tests$

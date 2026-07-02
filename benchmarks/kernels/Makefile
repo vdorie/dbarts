@@ -1,0 +1,20 @@
+# Requires an in-place package build first (R CMD INSTALL . leaves src/misc.a).
+
+CC ?= cc
+OPT ?= -O2 -g
+CPPFLAGS += -I../../src/include
+
+MISC_LIB := ../../src/misc.a
+
+all: bench
+
+bench: bench.c $(MISC_LIB)
+	$(CC) $(OPT) $(CPPFLAGS) -o $@ bench.c $(MISC_LIB) -lpthread -lm
+
+$(MISC_LIB):
+	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
+
+clean:
+	rm -f bench
+
+.PHONY: all clean
