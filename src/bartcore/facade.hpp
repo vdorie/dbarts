@@ -41,9 +41,10 @@ public:
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
   virtual ext_rng* rng() const = 0;
-  virtual const double* latents() const = 0;
-  virtual double sigma() const = 0;
+  virtual const double* latents(std::size_t chainNum) const = 0;
+  virtual double sigma(std::size_t chainNum) const = 0;
   virtual bool kIsSampled() const = 0;
+  virtual std::size_t numChains() const = 0;
   virtual std::size_t numObservations() const = 0;
   virtual std::size_t numPredictors() const = 0;
   virtual std::size_t numTestObservations() const = 0;
@@ -98,9 +99,14 @@ public:
     return impl_.beginPredictorUpdate(newColumn, column);
   }
   ext_rng* rng() const override { return impl_.rng(); }
-  const double* latents() const override { return impl_.latents(); }
-  double sigma() const override { return impl_.sigma(); }
+  const double* latents(std::size_t chainNum) const override {
+    return impl_.latents(chainNum);
+  }
+  double sigma(std::size_t chainNum) const override {
+    return impl_.sigma(chainNum);
+  }
   bool kIsSampled() const override { return impl_.kIsSampled(); }
+  std::size_t numChains() const override { return impl_.numChains(); }
   std::size_t numObservations() const override { return impl_.numObservations(); }
   std::size_t numPredictors() const override { return impl_.numPredictors(); }
   std::size_t numTestObservations() const override {
@@ -150,15 +156,16 @@ inline bool updatePredictorPerObservationJointly(
   return allValid;
 }
 
-/// The instantiation matrix, phase 2: one leaf model.
+/// The instantiation matrix, phase 2: one leaf model. rngs supplies one
+/// generator per chain (options.numChains of them).
 inline std::unique_ptr<SamplerBase> createClassicSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
   bool responseIsBinary, double sigmaEstimate, double sigmaDf,
-  double sigmaRawScale, const SamplerOptions& options, ext_rng* rng) {
+  double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, responseIsBinary,
-    sigmaEstimate, sigmaDf, sigmaRawScale, options, rng);
+    sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
 
 }  // namespace bartcore

@@ -150,3 +150,36 @@ expect_true(all(is.finite(result.cuts$yhat.train)))
 expect_error(
   dbarts:::bartcoreSetCutPoints(bcSampler.mut, list(c(0.5, 0.5)), 1L),
   pattern = "strictly increasing")
+
+# multiple chains: per-chain slabs with a trailing chain dimension, run on
+# worker threads; each chain gets its own generator seeded from R's stream
+control.chains <- dbartsControl(n.chains = 2L, n.threads = 2L, n.trees = 50L,
+                                updateState = FALSE)
+sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
+bcSampler.chains <- dbarts:::bartcoreSampler(sampler.chains)
+result.chains <- dbarts:::bartcoreRun(bcSampler.chains, 100L, 60L)
+expect_equal(dim(result.chains$sigma), c(60L, 2L))
+expect_equal(dim(result.chains$yhat.train), c(n, 60L, 2L))
+expect_equal(dim(result.chains$yhat.test), c(10L, 60L, 2L))
+expect_equal(dim(result.chains$varcount), c(p, 60L, 2L))
+expect_true(all(result.chains$sigma > 0))
+expect_false(identical(result.chains$sigma[, 1L], result.chains$sigma[, 2L]))
+fitMean.chains <- rowMeans(result.chains$yhat.train, dims = 1L)
+expect_true(mean((fitMean.chains - f)^2) < 0.25 * mean((mean(y) - f)^2))
+
+# transactions span chains; the sampler stays runnable afterward
+expect_false(dbarts:::bartcoreSetPredictor(bcSampler.chains,
+                                           matrix(0.5, n, p)))
+installed.chains <- dbarts:::bartcoreUpdatePredictorPerObservation(
+  bcSampler.chains, rep(10, n), 1L)
+expect_true(any(installed.chains) && any(!installed.chains))
+expect_true(all(is.finite(
+  dbarts:::bartcoreRun(bcSampler.chains, 0L, 2L)$yhat.train)))
+
+# multi-chain binary: latents and k gain the chain dimension
+sampler.chains.binary <- dbarts(x + 0, y.binary, control = control.chains)
+bcSampler.chains.binary <- dbarts:::bartcoreSampler(sampler.chains.binary)
+result.chains.binary <- dbarts:::bartcoreRun(bcSampler.chains.binary, 50L, 10L)
+expect_equal(dim(result.chains.binary$k), c(10L, 2L))
+latents.chains <- dbarts:::bartcoreGetLatents(bcSampler.chains.binary)
+expect_equal(dim(latents.chains), c(n, 2L))

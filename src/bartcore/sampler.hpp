@@ -5,42 +5,16 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <thread>
 #include <vector>
 
 #include <external/random.h>
-#include <misc/linearAlgebra.h>
 
+#include "chain.hpp"
 #include "data.hpp"
 #include "model.hpp"
-#include "moves.hpp"
-#include "tree.hpp"
 
 namespace bartcore {
-
-struct SamplerOptions {
-  size_t numTrees = 200;
-  double k = 2.0;
-  double nodeScale = 0.5;  // 3.0 for binary responses
-  double base = 0.95, power = 2.0;
-  double birthOrDeathProbability = 0.5;
-  double swapProbability = 0.1;
-  double changeProbability = 0.4;
-  double birthProbability = 0.5;
-  std::uint32_t maxNumCuts = 100;
-  // borrowed per-column override of maxNumCuts; copied during construction
-  const std::uint32_t* maxNumCutsPerVariable = nullptr;
-  bool useQuantiles = false;
-
-  // split-variable selection: fixed weights (borrowed; normalized over
-  // available variables at each node) or DART; both null/false = uniform
-  const double* splitProbabilities = nullptr;
-  bool useDart = false;
-  DartPrior dart;
-
-  // k is fixed at .k unless updateK, in which case .k is the starting value
-  bool updateK = false;
-  ChiKHyperprior kHyperprior;
-};
 
 /// Outcome of a transactional predictor change. invalidCutPoints reports a
 /// quantile-mode cut refresh whose new column would induce fewer cuts than
@@ -65,25 +39,22 @@ public:
   virtual bool finalize() = 0;
 };
 
-/// Posterior draws on the original response scale; caller-owned storage.
-struct Results {
-  double* sigma = nullptr;          // numSamples
-  double* trainingFits = nullptr;   // numObservations x numSamples, or null
-  double* testFits = nullptr;       // numTestObservations x numSamples, or null
-  std::uint32_t* variableCounts = nullptr;  // numPredictors x numSamples, or null
-  double* k = nullptr;              // numSamples, or null; only when k sampled
-};
-
-/// Single-chain conjugate backfitting sampler; a faithful port of the classic
-/// engine's Gibbs iteration generic over the (integrable) leaf model.
+/// The sampler proper: a shared column store and one or more chains over it.
+/// Chains run independently (optionally on worker threads) and hold all
+/// per-chain state; the sampler owns the data and orchestrates transactions,
+/// which are all-or-none across every tree of every chain, exactly as the
+/// classic engine's were.
 template <IntegrableLeafModel L>
 class Sampler {
 public:
+  /// rngs supplies one generator per chain (options.numChains of them). With
+  /// numThreads > 1 no rng may call into R (or otherwise share state).
   Sampler(const double* x, const double* y, size_t numObservations,
           size_t numPredictors, const double* weights, const double* offset,
           bool responseIsBinary, double sigmaEstimate, double sigmaDf,
-          double sigmaRawScale, const SamplerOptions& options, ext_rng* rng)
-    : options_(options), weights_(weights), rng_(rng) {
+          double sigmaRawScale, const SamplerOptions& options,
+          ext_rng* const* rngs)
+    : options_(options) {
     if (options.maxNumCutsPerVariable != nullptr) {
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles);
@@ -93,146 +64,82 @@ public:
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
 
-    if (responseIsBinary) {
-      response_ = std::make_unique<ProbitResponse>(y, offset, weights,
-                                                   numObservations);
-    } else {
-      response_ = std::make_unique<GaussianResponse>(
-        y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
-        sigmaRawScale);
-    }
-
-    leaf_.scale =
-      options.nodeScale / std::sqrt(static_cast<double>(options.numTrees));
-    treePrior_.base = options.base;
-    treePrior_.power = options.power;
-    sigmaIsFixed_ = responseIsBinary;
-
-    if (options.useDart) {
-      dart_ = options.dart;
-      dart_.initialize(numPredictors);
-      treePrior_.splitProbabilities = dart_.probabilities.data();
-      splitCounts_.resize(numPredictors);
-    } else if (options.splitProbabilities != nullptr) {
-      fixedSplitProbabilities_.assign(options.splitProbabilities,
-                                      options.splitProbabilities + numPredictors);
-      treePrior_.splitProbabilities = fixedSplitProbabilities_.data();
-    }
-
-    sigma_ = response_->initialSigma();
-    k_ = options.k;
-
-    indexBuffer_.resize(numObservations * options.numTrees);
-    trees_.resize(options.numTrees);
-    for (size_t t = 0; t < options.numTrees; ++t)
-      trees_[t].initialize(indexBuffer_.data() + t * numObservations,
-                           numObservations);
-
-    treeFits_.assign(numObservations * options.numTrees, 0.0);
-    totalFits_.assign(numObservations, 0.0);
-    treeY_.resize(numObservations);
-    currFits_.resize(numObservations);
-    paramByNode_.clear();
+    chains_.reserve(options.numChains);
+    for (size_t c = 0; c < options.numChains; ++c)
+      chains_.push_back(std::make_unique<Chain<L>>(
+        data_, y, weights, offset, responseIsBinary, sigmaEstimate, sigmaDf,
+        sigmaRawScale, options_, rngs[c]));
   }
+
+  // chains reference the store member, so the sampler's address is pinned
+  Sampler(const Sampler&) = delete;
+  Sampler& operator=(const Sampler&) = delete;
 
   void setTestPredictors(const double* x_test, size_t numTestObservations) {
     data_.buildTest(x_test, numTestObservations);
-    totalTestFits_.assign(numTestObservations, 0.0);
-    currTestFits_.resize(numTestObservations);
+    for (auto& chain : chains_) chain->resizeTestStorage();
   }
 
-  /// One thinning-free run; results slots may be null to skip recording.
+  /// Runs every chain numBurnIn + numSamples iterations, filling per-chain
+  /// slabs of the (chain-major) results arrays; see Results. Chains execute
+  /// on up to min(numThreads, numChains) worker threads.
   void run(size_t numBurnIn, size_t numSamples, Results& results) {
-    size_t n = data_.numObservations;
-    double* y = response_->workingResponse();
-
-    for (size_t iteration = 0; iteration < numBurnIn + numSamples; ++iteration) {
-      bool record = iteration >= numBurnIn;
-
-      MoveContext ctx{data_,
-                      treePrior_,
-                      options_.birthOrDeathProbability,
-                      options_.swapProbability,
-                      options_.changeProbability,
-                      options_.birthProbability,
-                      weights_,
-                      k_,
-                      scratch_};
-
-      kSumSquaredParams_ = 0.0;
-      kNumLeaves_ = 0.0;
-
-      if (record && data_.numTestObservations > 0)
-        misc_setVectorToConstant(totalTestFits_.data(),
-                                 data_.numTestObservations, 0.0);
-
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        double* oldTreeFits = treeFits_.data() + t * n;
-
-        // treeY = y - (totalFits - oldTreeFits): the residual this tree owns
-        std::memcpy(treeY_.data(), y, n * sizeof(double));
-        misc_subtractVectorsInPlace(totalFits_.data(), n, treeY_.data());
-        misc_addVectorsInPlace(oldTreeFits, n, treeY_.data());
-
-        trees_[t].setNodeAverages(treeY_.data(), weights_);
-
-        bool stepTaken;
-        StepType stepType;
-        metropolisJumpForTree(ctx, leaf_, rng_, trees_[t], treeY_.data(), sigma_,
-                              &stepTaken, &stepType);
-
-        sampleParametersAndSetFits(trees_[t], record);
-
-        misc_subtractVectorsInPlace(oldTreeFits, n, totalFits_.data());
-        misc_addVectorsInPlace(currFits_.data(), n, totalFits_.data());
-        if (record && data_.numTestObservations > 0)
-          misc_addVectorsInPlace(currTestFits_.data(), data_.numTestObservations,
-                                 totalTestFits_.data());
-
-        std::memcpy(oldTreeFits, currFits_.data(), n * sizeof(double));
-      }
-
-      response_->refreshLatents(rng_, totalFits_.data());
-      y = response_->workingResponse();
-
-      if (!sigmaIsFixed_)
-        sigma_ = response_->drawSigma(rng_, totalFits_.data(), sigma_);
-
-      if (options_.updateK)
-        k_ = options_.kHyperprior.draw(rng_, kSumSquaredParams_, kNumLeaves_,
-                                       leaf_.scale);
-
-      if (options_.useDart) {
-        std::memset(splitCounts_.data(), 0,
-                    splitCounts_.size() * sizeof(std::uint32_t));
-        for (size_t t = 0; t < options_.numTrees; ++t)
-          trees_[t].countVariableUses(splitCounts_.data());
-        dart_.update(rng_, splitCounts_.data());
-      }
-
-      if (record) {
-        size_t sampleNum = iteration - numBurnIn;
-        storeSample(results, sampleNum);
-      }
+    size_t numChains = chains_.size();
+    std::vector<Results> chainResults(numChains);
+    for (size_t c = 0; c < numChains; ++c) {
+      Results& r(chainResults[c]);
+      if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
+      if (results.k != nullptr) r.k = results.k + c * numSamples;
+      if (results.trainingFits != nullptr)
+        r.trainingFits =
+          results.trainingFits + c * numSamples * data_.numObservations;
+      if (results.testFits != nullptr)
+        r.testFits =
+          results.testFits + c * numSamples * data_.numTestObservations;
+      if (results.variableCounts != nullptr)
+        r.variableCounts =
+          results.variableCounts + c * numSamples * data_.numPredictors;
     }
+
+    size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
+                                                        : numChains;
+    if (numWorkers <= 1) {
+      for (size_t c = 0; c < numChains; ++c)
+        chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
+      return;
+    }
+
+    std::vector<std::thread> workers;
+    workers.reserve(numWorkers);
+    for (size_t w = 0; w < numWorkers; ++w) {
+      workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
+                            numSamples, &chainResults]() {
+        for (size_t c = w; c < numChains; c += numWorkers)
+          chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
+      });
+    }
+    for (std::thread& worker : workers) worker.join();
   }
 
-  // Between-sample mutation; new-vector lifetimes are the caller's problem.
+  // Between-sample mutation, fanned out to every chain; new-vector lifetimes
+  // are the caller's problem.
   void setOffset(const double* offset, bool updateScale) {
-    response_->setOffset(offset, updateScale, &sigma_);
+    for (auto& chain : chains_) chain->setOffset(offset, updateScale);
   }
   void setResponse(const double* y) {
-    response_->setResponse(y, rng_, totalFits_.data(), &sigma_);
+    for (auto& chain : chains_) chain->setResponse(y);
   }
   void setSigma(double sigmaOriginalScale) {
-    sigma_ = sigmaOriginalScale / response_->sigmaScale();
+    for (auto& chain : chains_) chain->setSigma(sigmaOriginalScale);
   }
-  const double* latents() const { return response_->latents(); }
+  const double* latents(size_t chainNum = 0) const {
+    return chains_[chainNum]->latents();
+  }
 
   /// Replace the predictor matrix (borrowed, column-major; the old pointer is
-  /// kept on failure). Unless forceUpdate, a leaf that would empty rolls the
-  /// whole change back; forceUpdate instead collapses emptied leaves into
-  /// their parents.
+  /// kept on failure). Unless forceUpdate, a leaf that would empty in any
+  /// tree of any chain rolls the whole change back; forceUpdate instead
+  /// collapses emptied leaves into their parents.
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) {
     size_t n = data_.numObservations;
@@ -252,19 +159,18 @@ public:
     data_.setPredictors(newX, updateCutPoints);
 
     if (forceUpdate) {
-      forceRefreshTrees();
+      for (auto& chain : chains_) chain->forceRefreshTrees();
       if (updateCutPoints && data_.numTestObservations > 0)
         for (size_t j = 0; j < data_.numPredictors; ++j)
           data_.quantizeTestColumn(j);
       return PredictorUpdateResult::accepted;
     }
 
-    if (!revalidateTreesAndRebuildFits()) {
+    if (!revalidateAllChains()) {
       data_.x = oldX;
       data_.codes = std::move(oldCodes);
       if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        trees_[t].repartitionSubtree(data_, 0);
+      for (auto& chain : chains_) chain->repartitionTrees();
       return PredictorUpdateResult::rolledBack;
     }
 
@@ -306,14 +212,14 @@ public:
     data_.setColumns(newColumns, columns, numColumns, updateCutPoints);
 
     if (forceUpdate) {
-      forceRefreshTrees();
+      for (auto& chain : chains_) chain->forceRefreshTrees();
       if (updateCutPoints && data_.numTestObservations > 0)
         for (size_t k = 0; k < numColumns; ++k)
           data_.quantizeTestColumn(columns[k]);
       return PredictorUpdateResult::accepted;
     }
 
-    if (!revalidateTreesAndRebuildFits()) {
+    if (!revalidateAllChains()) {
       double* x_mutable = const_cast<double*>(data_.x);
       for (size_t k = 0; k < numColumns; ++k) {
         size_t j = columns[k];
@@ -323,8 +229,7 @@ public:
                     n * sizeof(xint_t));
         if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
       }
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        trees_[t].repartitionSubtree(data_, 0);
+      for (auto& chain : chains_) chain->repartitionTrees();
       return PredictorUpdateResult::rolledBack;
     }
 
@@ -344,20 +249,21 @@ public:
     for (size_t k = 0; k < numColumns; ++k)
       data_.setCutPointsForColumn(columns[k], newCutPoints[k],
                                   numCutPoints[k]);
-    forceRefreshTrees();
+    for (auto& chain : chains_) chain->forceRefreshTrees();
   }
 
   /// Install one column's new values observation-by-observation in random
-  /// scan order, rolling back exactly those whose move would empty a leaf;
-  /// installed must have room for a flag per observation. Returns finalize()
-  /// validity, which the guard makes true by construction.
+  /// scan order, rolling back exactly those whose move would empty a leaf in
+  /// any tree of any chain; installed must have room for a flag per
+  /// observation. Returns finalize() validity, which the guard makes true by
+  /// construction.
   bool updatePredictorPerObservation(const double* newColumn, size_t column,
                                      bool* installed) {
     size_t n = data_.numObservations;
     UpdateSessionImpl session(*this, newColumn, column);
 
     std::vector<size_t> scanOrder(n);
-    ext_rng_drawPermutation(rng_, scanOrder.data(), n);
+    ext_rng_drawPermutation(chains_[0]->rng(), scanOrder.data(), n);
 
     for (size_t i = 0; i < n; ++i) {
       size_t j = scanOrder[i];
@@ -373,119 +279,59 @@ public:
     return std::make_unique<UpdateSessionImpl>(*this, newColumn, column);
   }
 
-  ext_rng* rng() const { return rng_; }
+  ext_rng* rng() const { return chains_[0]->rng(); }
 
-  double sigma() const { return sigma_; }
-  double k() const { return k_; }
+  double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
+  double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
   bool kIsSampled() const { return options_.updateK; }
   const ColumnStore& data() const { return data_; }
-  const Tree& tree(size_t t) const { return trees_[t]; }
-  const std::vector<double>& treeFits() const { return treeFits_; }
-  const std::vector<double>& totalFits() const { return totalFits_; }
+  const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
+  size_t numChains() const { return chains_.size(); }
   size_t numObservations() const { return data_.numObservations; }
   size_t numPredictors() const { return data_.numPredictors; }
   size_t numTestObservations() const { return data_.numTestObservations; }
 
 private:
-  /// Leaf parameters recovered from a tree's fits, indexed by arena node id;
-  /// fits are constant within a leaf, so any member observation's fit is the
-  /// parameter. Must run against partitions consistent with the fits, i.e.
-  /// before any re-route.
-  void recoverParametersFromFits(size_t t, std::vector<double>& paramByNode) {
-    Tree& tree(trees_[t]);
-    const double* treeFits = treeFits_.data() + t * data_.numObservations;
-
-    paramByNode.assign(tree.nodes.size(), 0.0);
-    tree.bottomScratch.clear();
-    tree.fillBottom(0, tree.bottomScratch);
-    for (int32_t i : tree.bottomScratch) {
-      const Node& node(tree.at(i));
-      if (node.numObservations() > 0)
-        paramByNode[static_cast<size_t>(i)] = treeFits[tree.indices[node.begin]];
-    }
-  }
-
-  void setTreeFitsFromParameters(size_t t, const std::vector<double>& paramByNode) {
-    Tree& tree(trees_[t]);
-    double* treeFits = treeFits_.data() + t * data_.numObservations;
-
-    tree.bottomScratch.clear();
-    tree.fillBottom(0, tree.bottomScratch);
-    for (int32_t i : tree.bottomScratch) {
-      const Node& node(tree.at(i));
-      double param = paramByNode[static_cast<size_t>(i)];
-      if (node.parent == invalidNode) {
-        misc_setVectorToConstant(treeFits, node.numObservations(), param);
-      } else {
-        misc_setIndexedVectorToConstant(treeFits, tree.indices + node.begin,
-                                        node.numObservations(), param);
-      }
-    }
-  }
-
-  /// After a predictor change: re-route every tree, failing without fits
-  /// changes if any leaf empties (the caller rolls the data back and
-  /// repartitions); on success rewrite tree fits from the preserved leaf
-  /// parameters. Node averages are left stale; run() recomputes them from
-  /// the current residuals before any use.
-  bool revalidateTreesAndRebuildFits() {
-    size_t n = data_.numObservations;
-    std::vector<std::vector<double>> paramsByTree(options_.numTrees);
+  /// Two-phase transaction over every chain: validate all trees of all
+  /// chains first, then rebuild fits only if everything holds, so a failure
+  /// in a late chain never leaves an early chain's fits overwritten.
+  bool revalidateAllChains() {
+    size_t numChains = chains_.size();
+    std::vector<typename Chain<L>::TreeParameters> params(numChains);
 
     bool allValid = true;
-    for (size_t t = 0; t < options_.numTrees && allValid; ++t) {
-      recoverParametersFromFits(t, paramsByTree[t]);
-      trees_[t].repartitionSubtree(data_, 0);
-      allValid = trees_[t].bottomNodesAreOccupied();
-    }
+    for (size_t c = 0; c < numChains && allValid; ++c)
+      allValid = chains_[c]->revalidateTrees(params[c]);
     if (!allValid) return false;
 
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      double* treeFits = treeFits_.data() + t * n;
-      misc_subtractVectorsInPlace(treeFits, n, totalFits_.data());
-      setTreeFitsFromParameters(t, paramsByTree[t]);
-      misc_addVectorsInPlace(treeFits, n, totalFits_.data());
-    }
+    for (size_t c = 0; c < numChains; ++c)
+      chains_[c]->rebuildFitsFromParameters(params[c]);
     return true;
   }
 
-  /// Unconditional refresh: re-route and collapse any node an empty leaf
-  /// leaves behind, merging leaf parameters into the collapsed node.
-  void forceRefreshTrees() {
-    size_t n = data_.numObservations;
-    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
-
-    std::vector<double> paramByNode;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      recoverParametersFromFits(t, paramByNode);
-      trees_[t].repartitionSubtree(data_, 0);
-      trees_[t].collapseEmptyNodes(weights_, paramByNode);
-      setTreeFitsFromParameters(t, paramByNode);
-      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-    }
-  }
-
   /// Port of the classic engine's InPlacePredictorUpdater: caches each
-  /// observation's leaf and per-leaf occupancy by routing codes through the
-  /// split structure, so staging a move is two descents and a count check.
+  /// observation's leaf and per-leaf occupancy for every tree of every
+  /// chain by routing codes through the split structure, so staging a move
+  /// is a descent and a count check per tree.
   class UpdateSessionImpl final : public PredictorUpdateSession {
   public:
     UpdateSessionImpl(Sampler& sampler, const double* newColumn, size_t column)
       : sampler_(sampler), column_(column), newColumn_(newColumn) {
       size_t n = sampler_.data_.numObservations;
-      size_t numTrees = sampler_.options_.numTrees;
+      size_t totalNumTrees =
+        sampler_.options_.numTrees * sampler_.chains_.size();
 
       newCodes_.resize(n);
       for (size_t i = 0; i < n; ++i)
         newCodes_[i] = sampler_.data_.codeFor(column_, newColumn_[i]);
 
-      observationLeaf_.resize(numTrees * n);
-      leafCounts_.resize(numTrees);
-      pendingNewLeaf_.assign(numTrees, invalidNode);
-      pendingOldLeaf_.resize(numTrees);
+      observationLeaf_.resize(totalNumTrees * n);
+      leafCounts_.resize(totalNumTrees);
+      pendingNewLeaf_.assign(totalNumTrees, invalidNode);
+      pendingOldLeaf_.resize(totalNumTrees);
 
-      for (size_t t = 0; t < numTrees; ++t) {
-        const Tree& tree(sampler_.trees_[t]);
+      for (size_t t = 0; t < totalNumTrees; ++t) {
+        const Tree& tree(treeAt(t));
         leafCounts_[t].assign(tree.nodes.size(), 0);
         for (size_t i = 0; i < n; ++i) {
           int32_t leaf = tree.findBottomNodeForObservation(sampler_.data_, i);
@@ -498,8 +344,8 @@ private:
     bool observationWouldRemainValid(size_t i) override {
       size_t n = sampler_.data_.numObservations;
       bool valid = true;
-      for (size_t t = 0; t < sampler_.options_.numTrees && valid; ++t) {
-        const Tree& tree(sampler_.trees_[t]);
+      for (size_t t = 0; t < leafCounts_.size() && valid; ++t) {
+        const Tree& tree(treeAt(t));
         int32_t oldLeaf = observationLeaf_[t * n + i];
         int32_t newLeaf = tree.findBottomNodeForObservation(
           sampler_.data_, i, static_cast<int32_t>(column_), newCodes_[i]);
@@ -521,7 +367,7 @@ private:
       size_t n = data.numObservations;
       const_cast<double*>(data.x)[i + column_ * n] = newColumn_[i];
       data.codes[i + column_ * n] = newCodes_[i];
-      for (size_t t = 0; t < sampler_.options_.numTrees; ++t) {
+      for (size_t t = 0; t < leafCounts_.size(); ++t) {
         if (pendingNewLeaf_[t] != invalidNode) {
           --leafCounts_[t][static_cast<size_t>(pendingOldLeaf_[t])];
           ++leafCounts_[t][static_cast<size_t>(pendingNewLeaf_[t])];
@@ -529,110 +375,27 @@ private:
       }
     }
 
-    bool finalize() override { return sampler_.revalidateTreesAndRebuildFits(); }
+    bool finalize() override { return sampler_.revalidateAllChains(); }
 
   private:
+    const Tree& treeAt(size_t t) const {
+      size_t numTrees = sampler_.options_.numTrees;
+      return sampler_.chains_[t / numTrees]->tree(t % numTrees);
+    }
+
     Sampler& sampler_;
     size_t column_;
     const double* newColumn_;
     std::vector<xint_t> newCodes_;
-    std::vector<int32_t> observationLeaf_;  // numTrees x numObservations
+    std::vector<int32_t> observationLeaf_;  // totalNumTrees x numObservations
     std::vector<std::vector<std::uint32_t>> leafCounts_;  // arena-id indexed
     std::vector<int32_t> pendingNewLeaf_;  // invalidNode when no move staged
     std::vector<int32_t> pendingOldLeaf_;
   };
 
-  void sampleParametersAndSetFits(Tree& tree, bool updateTestFits) {
-    std::vector<int32_t>& bottoms(tree.bottomScratch);
-    bottoms.clear();
-    tree.fillBottom(0, bottoms);
-
-    paramByNode_.assign(tree.nodes.size(), 0.0);
-    for (int32_t i : bottoms) {
-      const Node& node(tree.at(i));
-      double param = node.numObservations() == 0
-        ? 0.0
-        : leaf_.drawFromPosterior(rng_, k_, node.average,
-                                  node.numEffectiveObservations, sigma_ * sigma_);
-      paramByNode_[static_cast<size_t>(i)] = param;
-
-      if (options_.updateK) {
-        kSumSquaredParams_ += param * param;
-        kNumLeaves_ += 1.0;
-      }
-
-      if (node.parent == invalidNode) {
-        misc_setVectorToConstant(currFits_.data(), node.numObservations(), param);
-      } else {
-        misc_setIndexedVectorToConstant(currFits_.data(),
-                                        tree.indices + node.begin,
-                                        node.numObservations(), param);
-      }
-    }
-
-    if (updateTestFits && data_.numTestObservations > 0) {
-      for (size_t i = 0; i < data_.numTestObservations; ++i) {
-        int32_t leafIndex = tree.findBottomNodeForRow(data_.testRow(i));
-        currTestFits_[i] = paramByNode_[static_cast<size_t>(leafIndex)];
-      }
-    }
-  }
-
-  void storeSample(Results& results, size_t sampleNum) {
-    size_t n = data_.numObservations;
-    double scale = response_->fitScale();
-    double shift = response_->fitShift();
-
-    if (results.sigma != nullptr)
-      results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
-
-    if (results.k != nullptr) results.k[sampleNum] = k_;
-
-    if (results.trainingFits != nullptr) {
-      double* out = results.trainingFits + sampleNum * n;
-      for (size_t i = 0; i < n; ++i) out[i] = scale * totalFits_[i] + shift;
-      // caller adds any offset back; the engine never sees original-scale y
-    }
-
-    if (results.testFits != nullptr && data_.numTestObservations > 0) {
-      double* out = results.testFits + sampleNum * data_.numTestObservations;
-      for (size_t i = 0; i < data_.numTestObservations; ++i)
-        out[i] = scale * totalTestFits_[i] + shift;
-    }
-
-    if (results.variableCounts != nullptr) {
-      std::uint32_t* out =
-        results.variableCounts + sampleNum * data_.numPredictors;
-      std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        trees_[t].countVariableUses(out);
-    }
-  }
-
   SamplerOptions options_;
   ColumnStore data_;
-  const double* weights_;
-  ext_rng* rng_;
-
-  L leaf_;
-  CGMTreePrior treePrior_;
-  DartPrior dart_;
-  std::vector<double> fixedSplitProbabilities_;
-  std::vector<std::uint32_t> splitCounts_;
-  std::unique_ptr<ResponseModel> response_;
-  bool sigmaIsFixed_ = false;
-  double sigma_ = 1.0;
-  double k_ = 2.0;
-  double kSumSquaredParams_ = 0.0;
-  double kNumLeaves_ = 0.0;
-
-  std::vector<Tree> trees_;
-  std::vector<size_t> indexBuffer_;
-  std::vector<double> treeFits_;
-  std::vector<double> totalFits_, totalTestFits_;
-  std::vector<double> treeY_, currFits_, currTestFits_;
-  std::vector<double> paramByNode_;
-  MoveScratch scratch_;
+  std::vector<std::unique_ptr<Chain<L>>> chains_;
 };
 
 using ClassicSampler = Sampler<ConstantGaussianLeaf>;

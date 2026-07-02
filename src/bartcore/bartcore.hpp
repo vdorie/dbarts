@@ -9,6 +9,7 @@
 #include "tree.hpp"
 #include "model.hpp"
 #include "moves.hpp"
+#include "chain.hpp"
 #include "sampler.hpp"
 #include "facade.hpp"
 // IWYU pragma: end_exports
