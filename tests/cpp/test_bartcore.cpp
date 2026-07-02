@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdarg>
+#include <memory>
 #include <vector>
 
 #include <misc/simd.h>
@@ -424,6 +425,319 @@ static void testChiKHyperprior(ext_rng* rng) {
   printf("ok: chi-k hyperprior\n");
 }
 
+static void testColumnStoreMutation() {
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p);
+  for (double& v : x) v = runif01();
+
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+  std::vector<xint_t> originalCodes(store.codes);
+  std::vector<double> originalCuts0(store.cutPoints[0]);
+
+  // column overwrite with cut refresh: column 0 codes untouched, column 1
+  // re-quantized against cuts spanning the new range
+  std::vector<double> newColumn(n);
+  for (double& v : newColumn) v = 2.0 + 3.0 * runif01();
+  size_t columnIndex = 1;
+  store.setColumns(newColumn.data(), &columnIndex, 1, true);
+
+  bool codesMatch = true;
+  for (size_t i = 0; i < n; ++i) {
+    codesMatch &= store.codes[i] == originalCodes[i];
+    codesMatch &= x[i + n] == newColumn[i];
+    codesMatch &= store.codes[i + n] == store.codeFor(1, newColumn[i]);
+  }
+  check(codesMatch, "setColumns re-quantizes only the target column");
+  check(store.cutPoints[1].front() > 2.0 && store.cutPoints[1].back() < 5.0,
+        "setColumns recomputes cuts over the new range");
+  check(store.cutPoints[0] == originalCuts0, "setColumns leaves other cuts");
+
+  // single-cell overwrite against existing cuts
+  xint_t before = store.codes[7];
+  store.setCell(7, 0, x[8]);
+  check(store.codes[7] == originalCodes[8] && x[7] == x[8],
+        "setCell re-quantizes one cell");
+  check(before == originalCodes[7], "");  // silence unused warning
+
+  // whole-matrix pointer swap without cut refresh: quantized on old cuts
+  std::vector<double> x2(n * p);
+  for (double& v : x2) v = runif01();
+  store.setPredictors(x2.data(), false);
+  check(store.x == x2.data(), "setPredictors swaps the pointer");
+  codesMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    codesMatch &= store.codes[i] == store.codeFor(0, x2[i]);
+  check(codesMatch, "setPredictors re-quantizes against existing cuts");
+
+  printf("ok: column store mutation\n");
+}
+
+// A burned-in sampler for mutation tests: strong signal in both columns so
+// trees certainly split.
+static ClassicSampler makeBurnedInSampler(std::vector<double>& x,
+                                          std::vector<double>& y, size_t n,
+                                          ext_rng* rng) {
+  SamplerOptions options;
+  options.numTrees = 25;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                         1.0, 3.0, 0.37804942330213542, options, rng);
+  Results empty;
+  sampler.run(100, 0, empty);
+  return sampler;
+}
+
+static void makeMutationData(std::vector<double>& x, std::vector<double>& y,
+                             size_t n) {
+  x.resize(n * 2);
+  y.resize(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) *
+                    std::cos(6.283185307179586 * u2);
+    y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n] + 0.2 * normal;
+  }
+}
+
+static void testSetPredictorTransaction(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<double> treeFitsBefore(sampler.treeFits());
+
+  // identity swap: new buffer, same values; must accept and preserve fits
+  std::vector<double> xCopy(x);
+  check(sampler.setPredictor(xCopy.data(), false, false),
+        "identity setPredictor accepted");
+  check(sampler.data().x == xCopy.data(), "accepted swap installs pointer");
+  check(sampler.data().codes == codesBefore, "identity swap preserves codes");
+  check(sampler.treeFits() == treeFitsBefore, "identity swap preserves fits");
+
+  // constant predictors empty one side of every split: must reject and
+  // roll back completely
+  std::vector<double> xConstant(n * 2, 0.5);
+  check(!sampler.setPredictor(xConstant.data(), false, false),
+        "degenerate setPredictor rejected");
+  check(sampler.data().x == xCopy.data(), "rejected swap keeps old pointer");
+  check(sampler.data().codes == codesBefore, "rollback restores codes");
+  check(sampler.treeFits() == treeFitsBefore, "rollback leaves fits untouched");
+  for (size_t t = 0; t < 25; ++t)
+    if (!sampler.tree(t).bottomNodesAreOccupied()) {
+      check(false, "rollback leaves a partition empty");
+      break;
+    }
+
+  // rejected with updateCutPoints: cuts must be restored too
+  std::vector<double> cuts0Before(sampler.data().cutPoints[0]);
+  check(!sampler.setPredictor(xConstant.data(), false, true),
+        "degenerate setPredictor with new cuts rejected");
+  check(sampler.data().cutPoints[0] == cuts0Before, "rollback restores cuts");
+
+  // the sampler remains usable
+  std::vector<double> sigmaDraws(10);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 10, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after rollback");
+
+  printf("ok: setPredictor transaction\n");
+}
+
+static void testSetPredictorForced(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+
+  // force-install degenerate predictors: every split empties a side, so all
+  // trees collapse to their roots with merged parameters
+  std::vector<double> xConstant(n * 2, 0.5);
+  check(sampler.setPredictor(xConstant.data(), true, true),
+        "forced setPredictor accepted");
+
+  bool allCollapsed = true, occupied = true;
+  for (size_t t = 0; t < 25; ++t) {
+    allCollapsed &= sampler.tree(t).hasSingleNode();
+    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+  }
+  check(allCollapsed, "forced degenerate update collapses trees");
+  check(occupied, "collapsed trees keep observations");
+
+  // fits stay consistent: totalFits == sum of constant tree fits
+  double fitSum = 0.0;
+  for (size_t t = 0; t < 25; ++t) fitSum += sampler.treeFits()[t * n];
+  checkNear(sampler.totalFits()[0], fitSum, 1e-10,
+            "forced update keeps fit identity");
+
+  std::vector<double> sigmaDraws(10);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 10, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after forced update");
+
+  printf("ok: forced setPredictor\n");
+}
+
+static void testUpdatePredictorColumns(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+
+  // jittered column: usually accepted; either way the sampler must stay
+  // consistent, and rejection must restore the column bitwise
+  std::vector<double> column0Before(x.begin(), x.begin() + n);
+  std::vector<double> jittered(column0Before);
+  for (double& v : jittered) v += 0.001 * (runif01() - 0.5);
+  size_t columnIndex = 0;
+  bool accepted = sampler.updatePredictor(jittered.data(), &columnIndex, 1,
+                                          false, false);
+  bool columnMatches = true;
+  for (size_t i = 0; i < n; ++i) {
+    double expected = accepted ? jittered[i] : column0Before[i];
+    columnMatches &= sampler.data().x[i] == expected;
+    columnMatches &= sampler.data().codes[i] ==
+      (accepted ? sampler.data().codeFor(0, jittered[i]) : codesBefore[i]);
+  }
+  check(columnMatches, "updatePredictor installs or restores the column");
+
+  // degenerate single column: rejected, second column untouched
+  std::vector<double> constantColumn(n, 0.25);
+  check(!sampler.updatePredictor(constantColumn.data(), &columnIndex, 1,
+                                 false, false),
+        "degenerate column update rejected");
+  bool otherUntouched = true;
+  for (size_t i = 0; i < n; ++i)
+    otherUntouched &= sampler.data().codes[i + n] == codesBefore[i + n];
+  check(otherUntouched, "rejected column update leaves other columns");
+
+  printf("ok: updatePredictor columns\n");
+}
+
+static void testPerObservationUpdate(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+
+  // identity: every observation trivially remains in its leaf
+  std::vector<double> identity(x.begin(), x.begin() + n);
+  std::unique_ptr<bool[]> installed(new bool[n]);
+  check(sampler.updatePredictorPerObservation(identity.data(), 0,
+                                              installed.get()),
+        "identity per-observation update finalizes");
+  bool allInstalled = true;
+  for (size_t i = 0; i < n; ++i) allInstalled &= installed[i];
+  check(allInstalled, "identity per-observation update installs all");
+
+  // push everything far right: last occupants of left leaves must roll back
+  std::vector<double> extreme(n, 10.0);
+  check(sampler.updatePredictorPerObservation(extreme.data(), 0,
+                                              installed.get()),
+        "aggressive per-observation update finalizes");
+
+  size_t numInstalled = 0;
+  bool valuesConsistent = true;
+  for (size_t i = 0; i < n; ++i) {
+    if (installed[i]) {
+      ++numInstalled;
+      valuesConsistent &= sampler.data().x[i] == 10.0;
+    } else {
+      valuesConsistent &= sampler.data().x[i] == identity[i];
+    }
+  }
+  check(numInstalled > 0 && numInstalled < n,
+        "aggressive update installs some, rolls back last occupants");
+  check(valuesConsistent, "per-observation rollback is per-cell");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+  check(occupied, "per-observation update keeps every leaf occupied");
+
+  printf("ok: per-observation update (%zu/%zu installed)\n", numInstalled, n);
+}
+
+static void testJointPerObservationUpdate() {
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 17) != 0 ||
+      ext_rng_setSeed(rngB, 31) != 0) {
+    check(false, "joint update rng creation");
+    return;
+  }
+
+  const size_t n = 200;
+  std::vector<double> xA, yA, xB, yB;
+  makeMutationData(xA, yA, n);
+  // second sampler shares column 0 but has its own response and second column
+  xB = xA;
+  yB.resize(n);
+  for (size_t i = 0; i < n; ++i) {
+    xB[i + n] = runif01();
+    yB[i] = -3.0 * (xB[i] - 0.5) + xB[i + n] + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  SamplerFacade<ConstantGaussianLeaf> samplerA(
+    xA.data(), yA.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    0.37804942330213542, options, rngA);
+  SamplerFacade<ConstantGaussianLeaf> samplerB(
+    xB.data(), yB.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    0.37804942330213542, options, rngB);
+  Results empty;
+  samplerA.run(100, 0, empty);
+  samplerB.run(100, 0, empty);
+
+  std::vector<double> extreme(n, 10.0);
+  std::unique_ptr<bool[]> installed(new bool[n]);
+  SamplerBase* samplers[] = {&samplerA, &samplerB};
+  size_t columns[] = {0, 0};
+  check(updatePredictorPerObservationJointly(samplers, 2, extreme.data(),
+                                             columns, installed.get()),
+        "joint per-observation update finalizes");
+
+  // all-or-none: the shared column stays identical across samplers
+  bool columnsAgree = true, valuesConsistent = true;
+  size_t numInstalled = 0;
+  for (size_t i = 0; i < n; ++i) {
+    columnsAgree &= samplerA.impl().data().x[i] == samplerB.impl().data().x[i];
+    if (installed[i]) {
+      ++numInstalled;
+      valuesConsistent &= samplerA.impl().data().x[i] == 10.0;
+    } else {
+      valuesConsistent &= samplerA.impl().data().x[i] == xB[i];
+    }
+  }
+  check(columnsAgree, "joint update keeps shared column identical");
+  check(valuesConsistent, "joint update installs all-or-none per observation");
+  check(numInstalled > 0 && numInstalled < n,
+        "joint aggressive update is partial");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= samplerA.impl().tree(t).bottomNodesAreOccupied() &&
+                samplerB.impl().tree(t).bottomNodesAreOccupied();
+  check(occupied, "joint update keeps every leaf occupied in both samplers");
+
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+
+  printf("ok: joint per-observation update (%zu/%zu installed)\n",
+         numInstalled, n);
+}
+
 int main() {
   misc_simd_init();
 
@@ -443,6 +757,12 @@ int main() {
   testDartUpdate(rng);
   testDartSparsityRecovery(rng);
   testChiKHyperprior(rng);
+  testColumnStoreMutation();
+  testSetPredictorTransaction(rng);
+  testSetPredictorForced(rng);
+  testUpdatePredictorColumns(rng);
+  testPerObservationUpdate(rng);
+  testJointPerObservationUpdate();
 
   ext_rng_destroy(rng);
 

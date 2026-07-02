@@ -242,8 +242,9 @@ partitioning entirely; a different library sharing only the tree structure).
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
    Not yet ported (phase 2+): multiple chains/threads, thinning, keepTrees,
-   the k hyperprior (ChiHyperprior), quantile-based cut points, sampler
-   mutation API (setPredictor and friends), callbacks, MATCH_BAYES_TREE.
+   quantile-based cut points, callbacks, MATCH_BAYES_TREE. (The k
+   hyperprior and the sampler mutation API were ported later in phase 2;
+   see below.)
    Availability is recomputed from ancestor walks instead of cached
    per-node flags; Forest is not yet split out of Sampler (do this when the
    facade lands in phase 2).
@@ -270,10 +271,30 @@ partitioning entirely; a different library sharing only the tree structure).
    leaf parameters accumulated during the parameter sweep; the default
    binary specification now runs on bartcore, run results include k
    samples, and a sampler-API equivalence scenario gates it cross-engine.
-   Remaining for phase 2: predictor mutation (setPredictor and friends,
-   incl. per-observation rollback) on the new engine, quantile-based cut
-   points, multiple chains/threads, and the user-facing dbartsSampler
-   opt-in flag once those reach parity.
+   Predictor mutation (DONE 2026-07-02): full setPredictor family ported
+   with the classic transaction semantics. ColumnStore gains in-place
+   mutation (setPredictors pointer swap, setColumns, setCell); the sampler
+   snapshots x/codes/cuts, re-routes every tree, and rolls everything back
+   if any leaf would empty (validate-or-rollback), or with forceUpdate
+   collapses emptied splits into their parents with
+   effective-observation-weighted parameter merges (collapseEmptyNodes
+   port). Per-observation updates use a session object (occupancy counts +
+   cached leaf assignments, randomized scan order, sequential commit) and a
+   type-erased PredictorUpdateSession on the facade supports the joint
+   all-or-none sweep across samplers sharing an index-aligned column
+   (updatePredictorPerObservationJointly). Internal bridge + tinytests
+   cover the whole surface.
+   Port bug found by the mutation tests and fixed: the branch likelihood
+   was missing the classic engine's empty-leaf veto (-1e7 for any branch
+   containing an empty leaf), so bartcore chains could accept and carry
+   empty leaves. With the veto restored, DART needed the established
+   activation delay (the BART package starts DART halfway through burn-in);
+   DartPrior.updateDelay holds s uniform for that many updates, restoring
+   reliable sparsity recovery (10/10 seeds >= 0.997 signal mass, vs 3/10
+   when updating from a cold forest).
+   Remaining for phase 2: quantile-based cut points, multiple
+   chains/threads, and the user-facing dbartsSampler opt-in flag once
+   those reach parity.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,

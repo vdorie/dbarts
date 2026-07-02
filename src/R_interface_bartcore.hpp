@@ -14,6 +14,13 @@ SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
+SEXP bartcore_setPredictor(SEXP ptr, SEXP x, SEXP forceUpdate,
+                           SEXP updateCutPoints);
+SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,
+                              SEXP updateCutPoints);
+SEXP bartcore_updatePredictorPerObservation(SEXP ptr, SEXP x, SEXP column);
+SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
+                                                   SEXP columns);
 SEXP bartcore_getLatents(SEXP ptr);
 
 }
