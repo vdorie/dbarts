@@ -252,6 +252,137 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   return R_NilValue;
 }
 
+// Predictor mutation. The sampler borrows a full replacement matrix
+// (R/bartcore.R retains it on success); column and per-observation updates
+// write in place into the matrix the sampler currently borrows, aliasing the
+// R-side data like the classic engine does.
+
+SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
+                           SEXP updateCutPointsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
+  if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
+      static_cast<size_t>(INTEGER(dims)[0]) != holder.sampler->numObservations() ||
+      static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
+    Rf_error("bartcore_setPredictor requires a matrix with matching dimensions");
+
+  bool result = holder.sampler->setPredictor(
+    REAL(xExpr), Rf_asLogical(forceUpdateExpr) == TRUE,
+    Rf_asLogical(updateCutPointsExpr) == TRUE);
+  return Rf_ScalarLogical(result ? TRUE : FALSE);
+}
+
+SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
+                              SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numObservations = holder.sampler->numObservations();
+  size_t numPredictors = holder.sampler->numPredictors();
+
+  size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
+  if (numColumns == 0 ||
+      static_cast<size_t>(Rf_xlength(xExpr)) != numObservations * numColumns)
+    Rf_error("bartcore_updatePredictor requires numObservations values per column");
+
+  std::vector<size_t> columns(numColumns);
+  for (size_t k = 0; k < numColumns; ++k) {
+    int column = INTEGER(columnsExpr)[k];
+    if (column < 1 || static_cast<size_t>(column) > numPredictors)
+      Rf_error("bartcore_updatePredictor column out of range");
+    columns[k] = static_cast<size_t>(column - 1);
+  }
+
+  bool result = holder.sampler->updatePredictor(
+    REAL(xExpr), columns.data(), numColumns,
+    Rf_asLogical(forceUpdateExpr) == TRUE,
+    Rf_asLogical(updateCutPointsExpr) == TRUE);
+  return Rf_ScalarLogical(result ? TRUE : FALSE);
+}
+
+SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
+                                            SEXP columnExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numObservations = holder.sampler->numObservations();
+
+  if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
+    Rf_error("bartcore_updatePredictorPerObservation requires one value per "
+             "observation");
+  int column = Rf_asInteger(columnExpr);
+  if (column < 1 ||
+      static_cast<size_t>(column) > holder.sampler->numPredictors())
+    Rf_error("bartcore_updatePredictorPerObservation column out of range");
+
+  std::unique_ptr<bool[]> installed(new bool[numObservations]);
+
+  GetRNGstate();  // scan-order permutation
+  bool treesAreValid = holder.sampler->updatePredictorPerObservation(
+    REAL(xExpr), static_cast<size_t>(column - 1), installed.get());
+  PutRNGstate();
+
+  // The sequential guard admits no empty leaves, so an invalid rebuild is an
+  // internal invariant violation; fail loudly rather than leave the sampler
+  // in an invalid state.
+  if (!treesAreValid)
+    Rf_error("bartcore updatePredictorPerObservation produced a tree with an "
+             "empty leaf");
+
+  SEXP result = PROTECT(
+    Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
+  for (size_t i = 0; i < numObservations; ++i)
+    LOGICAL(result)[i] = installed[i] ? TRUE : FALSE;
+  UNPROTECT(1);
+  return result;
+}
+
+SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
+                                                   SEXP columnsExpr) {
+  size_t numSamplers = static_cast<size_t>(Rf_xlength(ptrsExpr));
+  if (numSamplers == 0 ||
+      static_cast<size_t>(Rf_xlength(columnsExpr)) != numSamplers)
+    Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
+             "column per sampler");
+
+  std::vector<bartcore::SamplerBase*> samplers(numSamplers);
+  std::vector<size_t> columns(numSamplers);
+  for (size_t k = 0; k < numSamplers; ++k) {
+    BartcoreHolder& holder(
+      holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
+    samplers[k] = holder.sampler.get();
+    int column = INTEGER(columnsExpr)[k];
+    if (column < 1 ||
+        static_cast<size_t>(column) > samplers[k]->numPredictors())
+      Rf_error("bartcore_updatePredictorPerObservationJointly column out of "
+               "range");
+    columns[k] = static_cast<size_t>(column - 1);
+  }
+
+  size_t numObservations = samplers[0]->numObservations();
+  for (size_t k = 1; k < numSamplers; ++k)
+    if (samplers[k]->numObservations() != numObservations)
+      Rf_error("bartcore_updatePredictorPerObservationJointly requires "
+               "index-aligned samplers");
+  if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
+    Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
+             "value per observation");
+
+  std::unique_ptr<bool[]> installed(new bool[numObservations]);
+
+  GetRNGstate();  // scan-order permutation
+  bool treesAreValid = bartcore::updatePredictorPerObservationJointly(
+    samplers.data(), numSamplers, REAL(xExpr), columns.data(), installed.get());
+  PutRNGstate();
+
+  if (!treesAreValid)
+    Rf_error("bartcore updatePredictorPerObservationJointly produced a tree "
+             "with an empty leaf");
+
+  SEXP result = PROTECT(
+    Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
+  for (size_t i = 0; i < numObservations; ++i)
+    LOGICAL(result)[i] = installed[i] ? TRUE : FALSE;
+  UNPROTECT(1);
+  return result;
+}
+
 SEXP bartcore_getLatents(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   const double* latents = holder.sampler->latents();

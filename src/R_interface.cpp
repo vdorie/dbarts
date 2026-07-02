@@ -353,6 +353,12 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setResponse", bartcore_setResponse, 2),
   DEF_FUNC("dbarts_bartcore_setSigma", bartcore_setSigma, 2),
   DEF_FUNC("dbarts_bartcore_setTestPredictor", bartcore_setTestPredictor, 2),
+  DEF_FUNC("dbarts_bartcore_setPredictor", bartcore_setPredictor, 4),
+  DEF_FUNC("dbarts_bartcore_updatePredictor", bartcore_updatePredictor, 5),
+  DEF_FUNC("dbarts_bartcore_updatePredictorPerObservation",
+           bartcore_updatePredictorPerObservation, 3),
+  DEF_FUNC("dbarts_bartcore_updatePredictorPerObservationJointly",
+           bartcore_updatePredictorPerObservationJointly, 3),
   DEF_FUNC("dbarts_bartcore_getLatents", bartcore_getLatents, 1),
   DEF_FUNC("dbarts_sampleTreesFromPrior", sampleTreesFromPrior, 1),
   DEF_FUNC(

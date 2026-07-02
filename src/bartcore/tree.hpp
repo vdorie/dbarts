@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <misc/stats.h>
+#include <misc/linearAlgebra.h>
 #include <misc/partition.h>
 
 #include "data.hpp"
@@ -243,6 +244,21 @@ public:
     right.end = node.end;
   }
 
+  /// Structure-only re-route of a subtree's observations, for predictor
+  /// mutation; leaf stats are left stale and refreshed by the next run().
+  void repartitionSubtree(const ColumnStore& data, int32_t nodeIndex) {
+    if (at(nodeIndex).isBottom()) return;
+    partitionChildren(data, nodeIndex);
+    repartitionSubtree(data, at(nodeIndex).leftChild);
+    repartitionSubtree(data, at(nodeIndex).leftChild + 1);
+  }
+
+  /// The classic engine's validity criterion after a predictor change: no
+  /// bottom node may be left without observations.
+  bool bottomNodesAreOccupied() const {
+    return bottomNodesAreOccupiedBelow(0);
+  }
+
   /// Repartition a subtree after its rule changed, recomputing leaf stats.
   void refreshSubtree(const ColumnStore& data, int32_t nodeIndex, const double* y,
                       const double* weights) {
@@ -344,6 +360,31 @@ public:
     return current;
   }
 
+  /// Descend by a training observation's column-major codes, independently of
+  /// the current partitions, optionally overriding one variable's code.
+  int32_t findBottomNodeForObservation(const ColumnStore& data, size_t i,
+                                       int32_t overrideVariable = invalidVariable,
+                                       xint_t overrideCode = 0) const {
+    int32_t current = 0;
+    while (!at(current).isBottom()) {
+      const Rule& rule(at(current).rule);
+      xint_t code = rule.variableIndex == overrideVariable
+        ? overrideCode
+        : data.column(static_cast<size_t>(rule.variableIndex))[i];
+      current = code > rule.splitIndex ? at(current).leftChild + 1
+                                       : at(current).leftChild;
+    }
+    return current;
+  }
+
+  /// Collapse any node with an unoccupied child into a leaf whose parameter
+  /// is the effective-observation-weighted mean of its subtree's leaf
+  /// parameters, for forced predictor updates. paramByNode is indexed by
+  /// arena id; a subtree with no observations at all gets the plain mean.
+  void collapseEmptyNodes(const double* weights, std::vector<double>& paramByNode) {
+    collapseEmptyNodesBelow(0, weights, paramByNode);
+  }
+
   void countVariableUses(std::uint32_t* counts) const {
     countVariableUsesBelow(0, counts);
   }
@@ -356,6 +397,53 @@ private:
     ++counts[at(i).rule.variableIndex];
     countVariableUsesBelow(at(i).leftChild, counts);
     countVariableUsesBelow(at(i).leftChild + 1, counts);
+  }
+
+  bool bottomNodesAreOccupiedBelow(int32_t i) const {
+    if (at(i).isBottom()) return at(i).numObservations() > 0;
+    return bottomNodesAreOccupiedBelow(at(i).leftChild) &&
+           bottomNodesAreOccupiedBelow(at(i).leftChild + 1);
+  }
+
+  void collapseSubtreeToLeaf(int32_t nodeIndex) {
+    Node& node(at(nodeIndex));
+    if (node.isBottom()) return;
+    collapseSubtreeToLeaf(node.leftChild);
+    collapseSubtreeToLeaf(node.leftChild + 1);
+    releasePair(node.leftChild);
+    node.leftChild = invalidNode;
+    node.rule = Rule();
+  }
+
+  void collapseEmptyNodesBelow(int32_t nodeIndex, const double* weights,
+                               std::vector<double>& paramByNode) {
+    if (at(nodeIndex).isBottom()) return;
+
+    if (at(at(nodeIndex).leftChild).numObservations() == 0 ||
+        at(at(nodeIndex).leftChild + 1).numObservations() == 0) {
+      std::vector<int32_t> bottoms;
+      fillBottom(nodeIndex, bottoms);
+
+      double weightTotal = 0.0, paramTotal = 0.0, paramSum = 0.0;
+      for (int32_t i : bottoms) {
+        const Node& leaf(at(i));
+        double weight = weights == nullptr
+          ? static_cast<double>(leaf.numObservations())
+          : misc_sumIndexedVectorElements(weights, indices + leaf.begin,
+                                          leaf.numObservations());
+        weightTotal += weight;
+        paramTotal += weight * paramByNode[static_cast<size_t>(i)];
+        paramSum += paramByNode[static_cast<size_t>(i)];
+      }
+      paramByNode[static_cast<size_t>(nodeIndex)] = weightTotal > 0.0
+        ? paramTotal / weightTotal
+        : paramSum / static_cast<double>(bottoms.size());
+
+      collapseSubtreeToLeaf(nodeIndex);
+    } else {
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild, weights, paramByNode);
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, weights, paramByNode);
+    }
   }
 
   std::vector<int32_t> freePairs;

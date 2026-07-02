@@ -41,5 +41,33 @@ bartcoreSetTestPredictor <- function(bcSampler, x.test) {
   invisible(.Call(C_dbarts_bartcore_setTestPredictor, bcSampler$ptr, x.test))
 }
 
+bartcoreSetPredictor <- function(bcSampler, x, forceUpdate = FALSE,
+                                 updateCutPoints = FALSE) {
+  x <- as.matrix(x)
+  storage.mode(x) <- "double"
+  updated <- .Call(C_dbarts_bartcore_setPredictor, bcSampler$ptr, x,
+                   as.logical(forceUpdate), as.logical(updateCutPoints))
+  # a pointer swap: pin the new matrix only if it was installed
+  if (updated) bcSampler$retained$x <- x
+  updated
+}
+
+# In-place overwrite of columns in the matrix the sampler borrows, visible
+# through the originating data object, exactly like the classic engine.
+bartcoreUpdatePredictor <- function(bcSampler, x, columns, forceUpdate = FALSE,
+                                    updateCutPoints = FALSE)
+  .Call(C_dbarts_bartcore_updatePredictor, bcSampler$ptr, as.double(x),
+        as.integer(columns), as.logical(forceUpdate),
+        as.logical(updateCutPoints))
+
+bartcoreUpdatePredictorPerObservation <- function(bcSampler, x, column)
+  .Call(C_dbarts_bartcore_updatePredictorPerObservation, bcSampler$ptr,
+        as.double(x), as.integer(column))
+
+bartcoreUpdatePredictorPerObservationJointly <- function(bcSamplers, x, columns)
+  .Call(C_dbarts_bartcore_updatePredictorPerObservationJointly,
+        lapply(bcSamplers, function(s) s$ptr), as.double(x),
+        as.integer(columns))
+
 bartcoreGetLatents <- function(bcSampler)
   .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr)

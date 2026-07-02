@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 #include "sampler.hpp"
 
@@ -22,6 +23,18 @@ public:
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
                                  std::size_t numTestObservations) = 0;
+  virtual bool setPredictor(const double* newX, bool forceUpdate,
+                            bool updateCutPoints) = 0;
+  virtual bool updatePredictor(const double* newColumns,
+                               const std::size_t* columns,
+                               std::size_t numColumns, bool forceUpdate,
+                               bool updateCutPoints) = 0;
+  virtual bool updatePredictorPerObservation(const double* newColumn,
+                                             std::size_t column,
+                                             bool* installed) = 0;
+  virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
+    const double* newColumn, std::size_t column) = 0;
+  virtual ext_rng* rng() const = 0;
   virtual const double* latents() const = 0;
   virtual double sigma() const = 0;
   virtual bool kIsSampled() const = 0;
@@ -51,6 +64,26 @@ public:
                          std::size_t numTestObservations) override {
     impl_.setTestPredictors(x_test, numTestObservations);
   }
+  bool setPredictor(const double* newX, bool forceUpdate,
+                    bool updateCutPoints) override {
+    return impl_.setPredictor(newX, forceUpdate, updateCutPoints);
+  }
+  bool updatePredictor(const double* newColumns, const std::size_t* columns,
+                       std::size_t numColumns, bool forceUpdate,
+                       bool updateCutPoints) override {
+    return impl_.updatePredictor(newColumns, columns, numColumns, forceUpdate,
+                                 updateCutPoints);
+  }
+  bool updatePredictorPerObservation(const double* newColumn,
+                                     std::size_t column,
+                                     bool* installed) override {
+    return impl_.updatePredictorPerObservation(newColumn, column, installed);
+  }
+  std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
+    const double* newColumn, std::size_t column) override {
+    return impl_.beginPredictorUpdate(newColumn, column);
+  }
+  ext_rng* rng() const override { return impl_.rng(); }
   const double* latents() const override { return impl_.latents(); }
   double sigma() const override { return impl_.sigma(); }
   bool kIsSampled() const override { return impl_.kIsSampled(); }
@@ -65,6 +98,43 @@ public:
 private:
   Sampler<L> impl_;
 };
+
+/// One sequential sweep over samplers sharing an index-aligned predictor
+/// column: each observation is installed in every sampler or in none, so the
+/// fits never diverge. installed receives one flag per observation. Returns
+/// the conjunction of the finalize() validities, true by construction of the
+/// guard.
+inline bool updatePredictorPerObservationJointly(
+  SamplerBase* const* samplers, std::size_t numSamplers,
+  const double* newColumn, const std::size_t* columns, bool* installed) {
+  if (numSamplers == 0) return true;
+
+  std::size_t numObservations = samplers[0]->numObservations();
+
+  std::vector<std::unique_ptr<PredictorUpdateSession>> sessions;
+  sessions.reserve(numSamplers);
+  for (std::size_t k = 0; k < numSamplers; ++k)
+    sessions.push_back(samplers[k]->beginPredictorUpdate(newColumn, columns[k]));
+
+  std::vector<std::size_t> scanOrder(numObservations);
+  ext_rng_drawPermutation(samplers[0]->rng(), scanOrder.data(), numObservations);
+
+  for (std::size_t i = 0; i < numObservations; ++i) {
+    std::size_t j = scanOrder[i];
+    bool valid = true;
+    for (std::size_t k = 0; k < numSamplers && valid; ++k)
+      valid = sessions[k]->observationWouldRemainValid(j);
+    installed[j] = valid;
+    if (valid)
+      for (std::size_t k = 0; k < numSamplers; ++k)
+        sessions[k]->commitObservation(j);
+  }
+
+  bool allValid = true;
+  for (std::size_t k = 0; k < numSamplers; ++k)
+    allValid &= sessions[k]->finalize();
+  return allValid;
+}
 
 /// The instantiation matrix, phase 2: one leaf model.
 inline std::unique_ptr<SamplerBase> createClassicSampler(
