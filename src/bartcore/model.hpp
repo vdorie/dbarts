@@ -167,6 +167,11 @@ struct DartPrior {
   double alpha = 1.0;
   bool updateAlpha = true;
   double betaA = 0.5, betaB = 1.0, rho = 0.0;  // rho <= 0 means numPredictors
+  // Iterations to hold s uniform before updates begin, so the forest is
+  // likelihood-informed when counts first enter the Dirichlet; starting cold
+  // can lock s away from the signal variables. The BART package convention
+  // is half of burn-in.
+  std::size_t updateDelay = 0;
   std::vector<double> probabilities;
 
   void initialize(std::size_t numPredictors) {
@@ -189,6 +194,11 @@ struct DartPrior {
   }
 
   void update(ext_rng* rng, const std::uint32_t* splitCounts) {
+    if (numUpdatesSkipped_ < updateDelay) {
+      ++numUpdatesSkipped_;
+      return;
+    }
+
     std::size_t numPredictors = probabilities.size();
     double p = static_cast<double>(numPredictors);
 
@@ -227,6 +237,7 @@ struct DartPrior {
 
 private:
   std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
+  std::size_t numUpdatesSkipped_ = 0;
 };
 
 /// Chi hyperprior on the end-node precision parameter k. The posterior of
