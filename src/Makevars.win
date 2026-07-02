@@ -15,6 +15,10 @@ INST_DIR=../inst
 PTHREAD_CPPFLAGS=$(SHLIB_PTHREAD_FLAGS)
 PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
 
+# the generalized core (bartcore/) requires C++20; see
+# docs/design/core-generalization.md
+CXX_STD = CXX20
+
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
 PKG_LIBS= dbarts.a external.a misc.a rc.a $(PTHREAD_LIBS)
 
