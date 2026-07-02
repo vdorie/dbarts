@@ -243,7 +243,7 @@ static void testEndToEndGaussian(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = 75;
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, false,
+  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
                          ySd, 3.0, 0.37804942330213542 /* qchisq(0.1, 3)/3 */,
                          options, &rng);
 
@@ -290,7 +290,7 @@ static void testEndToEndProbit(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, true,
+  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::probit,
                          1.0, 3.0, 1.0, options, &rng);
 
   const size_t numBurnIn = 150, numSamples = 200;
@@ -312,6 +312,151 @@ static void testEndToEndProbit(ext_rng* rng) {
         "end-to-end probit: monotone signal recovered");
 
   printf("ok: end-to-end probit\n");
+}
+
+static void testPolyaGamma(ext_rng* rng) {
+  // moments of PG(1, c): mean tanh(c / 2) / (2 c), variance
+  // (sinh(c) - c) sech^2(c / 2) / (4 c^3); the limits at 0 are 1/4 and 1/24.
+  // psi values cover both proposal branches, the sign fold, and the tail.
+  const double psis[] = {0.0, 1.5, -3.0, 8.0};
+  const int numDraws = 50000;
+
+  for (double psi : psis) {
+    double c = std::fabs(psi);
+    double expectedMean = c == 0.0 ? 0.25 : std::tanh(0.5 * c) / (2.0 * c);
+    double expectedVariance = c == 0.0
+      ? 1.0 / 24.0
+      : (std::sinh(c) - c) / (4.0 * c * c * c * std::cosh(0.5 * c) *
+                              std::cosh(0.5 * c));
+
+    double sum = 0.0, sumSq = 0.0;
+    for (int i = 0; i < numDraws; ++i) {
+      double draw = ext_rng_simulatePolyaGamma(rng, psi);
+      if (!(draw > 0.0)) {
+        check(false, "polya-gamma draw not positive");
+        return;
+      }
+      sum += draw;
+      sumSq += draw * draw;
+    }
+    double mean = sum / numDraws;
+    double variance = sumSq / numDraws - mean * mean;
+
+    double meanSe = std::sqrt(expectedVariance / (double) numDraws);
+    checkNear(mean, expectedMean, 5.0 * meanSe, "polya-gamma mean");
+    checkNear(variance, expectedVariance, 0.05 * expectedVariance,
+              "polya-gamma variance");
+  }
+
+  printf("ok: polya-gamma sampler\n");
+}
+
+static void testEndToEndLogistic(ext_rng* rng) {
+  const size_t n = 800, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = 4.0 * (x[i] - 0.5);
+    double probability = 1.0 / (1.0 + std::exp(-eta));
+    y[i] = runif01() < probability ? 1.0 : 0.0;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.nodeScale = 3.0;
+  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                         ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
+                         &rng);
+
+  const size_t numBurnIn = 150, numSamples = 200;
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  // monotone signal in x1 on the log-odds scale
+  double lowSum = 0.0, highSum = 0.0;
+  size_t lowCount = 0, highCount = 0;
+  for (size_t s = 0; s < numSamples; ++s) {
+    for (size_t i = 0; i < n; ++i) {
+      if (x[i] < 0.25) { lowSum += trainingFits[i + s * n]; ++lowCount; }
+      if (x[i] > 0.75) { highSum += trainingFits[i + s * n]; ++highCount; }
+    }
+  }
+  double lowFit = lowSum / (double) lowCount;
+  double highFit = highSum / (double) highCount;
+  check(highFit > lowFit + 0.5, "end-to-end logistic: monotone signal recovered");
+
+  // the fits should be calibrated to the quartiles' empirical log odds
+  double lowRate = 0.0, highRate = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    if (x[i] < 0.25) lowRate += y[i] / ((double) lowCount / numSamples);
+    if (x[i] > 0.75) highRate += y[i] / ((double) highCount / numSamples);
+  }
+  double lowProbability = 1.0 / (1.0 + std::exp(-lowFit));
+  double highProbability = 1.0 / (1.0 + std::exp(-highFit));
+  checkNear(lowProbability, lowRate, 0.1, "logistic low-quartile calibration");
+  checkNear(highProbability, highRate, 0.1, "logistic high-quartile calibration");
+
+  // omega latents are exposed and positive
+  const double* omega = sampler.latents(0);
+  bool omegaValid = omega != nullptr;
+  for (size_t i = 0; i < n && omegaValid; ++i)
+    omegaValid = omega[i] > 0.0 && std::isfinite(omega[i]);
+  check(omegaValid, "logistic latents expose positive omega draws");
+
+  printf("ok: end-to-end logistic\n");
+}
+
+static void makeMutationData(std::vector<double>& x, std::vector<double>& y,
+                             size_t n);
+
+static void testLogisticMutation(ext_rng* rng) {
+  const size_t n = 200, n2 = 260;
+  std::vector<double> x, f;
+  makeMutationData(x, f, n);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i)
+    y[i] = runif01() < 1.0 / (1.0 + std::exp(-f[i])) ? 1.0 : 0.0;
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.nodeScale = 3.0;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
+                         &rng);
+  Results empty;
+  sampler.run(50, 0, empty);
+
+  // transactional predictor swap under per-iteration weights
+  std::vector<double> xCopy(x);
+  check(sampler.setPredictor(xCopy.data(), false, false) ==
+          PredictorUpdateResult::accepted,
+        "logistic identity setPredictor accepted");
+
+  // whole-data replacement with a resize
+  std::vector<double> x2, f2;
+  makeMutationData(x2, f2, n2);
+  std::vector<double> y2(n2);
+  for (size_t i = 0; i < n2; ++i)
+    y2[i] = runif01() < 1.0 / (1.0 + std::exp(-f2[i])) ? 1.0 : 0.0;
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.numObservations() == n2, "logistic setData resizes");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "logistic setData leaves no empty leaves");
+
+  std::vector<double> trainingFits(n2 * 5);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(0, 5, results);
+  bool finite = true;
+  for (double v : trainingFits) finite &= std::isfinite(v);
+  check(finite, "logistic sampler runs after mutation");
+
+  printf("ok: logistic mutation\n");
 }
 
 static void testDartUpdate(ext_rng* rng) {
@@ -367,7 +512,7 @@ static void testDartSparsityRecovery(ext_rng* rng) {
     options.numTrees = 50;
     options.useDart = useDart;
     options.dart.updateDelay = 100;  // half of burn-in, BART-package style
-    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, false,
+    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
                            1.0, 3.0, 0.37804942330213542, options, &rng);
     const size_t numSamples = 300;
     std::vector<uint32_t> varcount(p * numSamples);
@@ -480,7 +625,7 @@ static std::unique_ptr<ClassicSampler> makeBurnedInSampler(
   SamplerOptions options;
   options.numTrees = 25;
   auto sampler = std::make_unique<ClassicSampler>(
-    x.data(), y.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    x.data(), y.data(), n, size_t(2), nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
     0.37804942330213542, options, &rng);
   Results empty;
   sampler->run(100, 0, empty);
@@ -701,10 +846,10 @@ static void testJointPerObservationUpdate() {
   SamplerOptions options;
   options.numTrees = 25;
   SamplerFacade<ConstantGaussianLeaf> samplerA(
-    xA.data(), yA.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    xA.data(), yA.data(), n, size_t(2), nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
     0.37804942330213542, options, &rngA);
   SamplerFacade<ConstantGaussianLeaf> samplerB(
-    xB.data(), yB.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    xB.data(), yB.data(), n, size_t(2), nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
     0.37804942330213542, options, &rngB);
   Results empty;
   samplerA.run(100, 0, empty);
@@ -810,7 +955,7 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.useQuantiles = true;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(100, 0, empty);
@@ -912,7 +1057,7 @@ static void testMultiChain() {
     options.numTrees = 25;
     options.numChains = numChains;
     options.numThreads = numThreads;
-    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                            1.0, 3.0, 0.37804942330213542, options,
                            rngs.data());
 
@@ -980,7 +1125,7 @@ static void testMultiChainMutation() {
   SamplerOptions options;
   options.numTrees = 25;
   options.numChains = numChains;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, rngs.data());
   Results empty;
   sampler.run(100, 0, empty);
@@ -1203,7 +1348,7 @@ static void testSetDataQuantileShrink(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.useQuantiles = true;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(100, 0, empty);
@@ -1245,7 +1390,7 @@ static void testSetDataProbit(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, true,
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::probit,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(50, 0, empty);
@@ -1288,7 +1433,7 @@ static void testMultiChainSetData() {
   SamplerOptions options;
   options.numTrees = 25;
   options.numChains = numChains;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, rngs.data());
   Results empty;
   sampler.run(100, 0, empty);
@@ -1352,6 +1497,9 @@ int main() {
   testSetDataQuantileShrink(rng);
   testSetDataProbit(rng);
   testMultiChainSetData();
+  testPolyaGamma(rng);
+  testEndToEndLogistic(rng);
+  testLogisticMutation(rng);
 
   ext_rng_destroy(rng);
 

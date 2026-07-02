@@ -459,3 +459,97 @@ double ext_rng_simulateUpperTruncatedNormal(
                        (mean - bound) / sd
                      );
 }
+
+// Polya-Gamma PG(1, psi) via Devroye (2009) as given in Polson, Scott, and
+// Windle (2013): PG(1, psi) = J*(1, psi / 2) / 4, where J* is sampled by
+// accept/reject from a two-piece proposal (truncated inverse-Gaussian below
+// the truncation point, exponential above), with the alternating-series
+// bound deciding acceptance.
+
+// declared in external/stats.h, but including that pulls all of Rmath in
+extern double Rf_pnorm5(double, double, double, int, int);
+
+static const double pgTruncationPoint = 0.64;
+
+// nth coefficient of the alternating-series density representation of J*
+static double pgSeriesCoefficient(size_t n, double x) {
+  double nPlusHalf = (double) n + 0.5;
+  return x <= pgTruncationPoint
+    ? M_PI * nPlusHalf * pow(2.0 / (M_PI * x), 1.5) *
+        exp(-2.0 * nPlusHalf * nPlusHalf / x)
+    : M_PI * nPlusHalf * exp(-0.5 * nPlusHalf * nPlusHalf * M_PI * M_PI * x);
+}
+
+// probability that the proposal comes from the exponential tail piece
+static double pgTailProbability(double z) {
+  double t = pgTruncationPoint;
+  double rate = 0.125 * M_PI * M_PI + 0.5 * z * z;
+  double b = sqrt(1.0 / t) * (t * z - 1.0);
+  double a = -sqrt(1.0 / t) * (t * z + 1.0);
+  double logMass = log(rate) + rate * t;
+  double logTailB = logMass - z + Rf_pnorm5(b, 0.0, 1.0, 1, 1);
+  double logTailA = logMass + z + Rf_pnorm5(a, 0.0, 1.0, 1, 1);
+  double headToTailRatio = (4.0 / M_PI) * (exp(logTailB) + exp(logTailA));
+  return 1.0 / (1.0 + headToTailRatio);
+}
+
+// inverse-Gaussian(1 / z, 1) truncated to (0, pgTruncationPoint]
+static double simulateTruncatedInverseGaussian(ext_rng* generator, double z) {
+  double t = pgTruncationPoint;
+  double result;
+  if (z < 1.0 / t) {
+    // mean exceeds the truncation point: one-sided chi-square style
+    // rejection (Devroye), thinned by the mean term
+    for ( ; ; ) {
+      double e1, e2;
+      do {
+        e1 = simulateStandardExponential(generator);
+        e2 = simulateStandardExponential(generator);
+      } while (e1 * e1 > 2.0 * e2 / t);
+      result = t / ((1.0 + t * e1) * (1.0 + t * e1));
+      if (ext_rng_simulateContinuousUniform(generator) <=
+          exp(-0.5 * z * z * result))
+        break;
+    }
+  } else {
+    // standard Michael-Schucany-Haas draws until one lands below t
+    double mean = 1.0 / z;
+    do {
+      double y = ext_rng_simulateStandardNormal(generator);
+      y *= y;
+      double meanY = mean * y;
+      result = mean + 0.5 * mean * meanY -
+               0.5 * mean * sqrt(4.0 * meanY + meanY * meanY);
+      if (ext_rng_simulateContinuousUniform(generator) >
+          mean / (mean + result))
+        result = mean * mean / result;
+    } while (result > t);
+  }
+  return result;
+}
+
+double ext_rng_simulatePolyaGamma(ext_rng* generator, double psi) {
+  double z = 0.5 * fabs(psi);
+  double rate = 0.125 * M_PI * M_PI + 0.5 * z * z;
+  double tailProbability = pgTailProbability(z);
+
+  for ( ; ; ) {
+    double x = ext_rng_simulateContinuousUniform(generator) < tailProbability
+      ? pgTruncationPoint + simulateStandardExponential(generator) / rate
+      : simulateTruncatedInverseGaussian(generator, z);
+
+    // squeeze on the partial sums: odd partial sums bound the density from
+    // below (accept), even ones from above (reject and redraw)
+    double bound = pgSeriesCoefficient(0, x);
+    double u = ext_rng_simulateContinuousUniform(generator) * bound;
+    for (size_t n = 1; ; ++n) {
+      if (n % 2 == 1) {
+        bound -= pgSeriesCoefficient(n, x);
+        if (u <= bound) return 0.25 * x;
+      } else {
+        bound += pgSeriesCoefficient(n, x);
+        if (u > bound) break;
+      }
+    }
+  }
+}

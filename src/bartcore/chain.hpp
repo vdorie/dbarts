@@ -69,27 +69,33 @@ template <IntegrableLeafModel L>
 class Chain {
 public:
   Chain(const ColumnStore& data, const double* y, const double* weights,
-        const double* offset, bool responseIsBinary, double sigmaEstimate,
+        const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
         ext_rng* rng)
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     size_t numObservations = data.numObservations;
     options_.maxNumCutsPerVariable = nullptr;  // consumed by the store build
 
-    if (responseIsBinary) {
-      response_ = std::make_unique<ProbitResponse>(y, offset, weights,
-                                                   numObservations);
-    } else {
+    switch (family) {
+    case ResponseFamily::probit:
+      response_ = std::make_unique<ProbitResponse>(y, offset, numObservations);
+      break;
+    case ResponseFamily::logistic:
+      response_ =
+        std::make_unique<LogisticResponse>(y, offset, numObservations);
+      break;
+    case ResponseFamily::gaussian:
       response_ = std::make_unique<GaussianResponse>(
         y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
         sigmaRawScale);
+      break;
     }
 
     leaf_.scale =
       options.nodeScale / std::sqrt(static_cast<double>(options.numTrees));
     treePrior_.base = options.base;
     treePrior_.power = options.power;
-    sigmaIsFixed_ = responseIsBinary;
+    sigmaIsFixed_ = family != ResponseFamily::gaussian;
 
     if (options.useDart) {
       dart_ = options.dart;
@@ -133,6 +139,9 @@ public:
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
+    // per-iteration precisions: user weights for gaussian, the current
+    // Polya-Gamma draws for logistic (refreshed with the latents)
+    const double* weights = response_->workingWeights();
 
     size_t totalIterations = (numBurnIn + numSamples) * numThin;
     for (size_t iteration = 0; iteration < totalIterations; ++iteration) {
@@ -145,7 +154,7 @@ public:
                       options_.swapProbability,
                       options_.changeProbability,
                       options_.birthProbability,
-                      weights_,
+                      weights,
                       k_,
                       scratch_};
 
@@ -164,7 +173,7 @@ public:
         misc_subtractVectorsInPlace(totalFits_.data(), n, treeY_.data());
         misc_addVectorsInPlace(oldTreeFits, n, treeY_.data());
 
-        trees_[t].setNodeAverages(treeY_.data(), weights_);
+        trees_[t].setNodeAverages(treeY_.data(), weights);
 
         bool stepTaken;
         StepType stepType;
@@ -184,6 +193,7 @@ public:
 
       response_->refreshLatents(rng_, totalFits_.data());
       y = response_->workingResponse();
+      weights = response_->workingWeights();
 
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, totalFits_.data(), sigma_);
@@ -296,7 +306,7 @@ public:
       if (numObservationsChanged)
         trees_[t].resetObservations(indexBuffer_.data() + t * n, n);
       trees_[t].repartitionSubtree(data_, 0);
-      trees_[t].collapseEmptyNodes(weights_, params[t]);
+      trees_[t].collapseEmptyNodes(response_->workingWeights(), params[t]);
       setTreeFitsFromParameters(t, params[t]);
       misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
     }
@@ -314,7 +324,7 @@ public:
     for (size_t t = 0; t < options_.numTrees; ++t) {
       recoverParametersFromFits(t, paramByNode);
       trees_[t].repartitionSubtree(data_, 0);
-      trees_[t].collapseEmptyNodes(weights_, paramByNode);
+      trees_[t].collapseEmptyNodes(response_->workingWeights(), paramByNode);
       setTreeFitsFromParameters(t, paramByNode);
       misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
     }
@@ -435,6 +445,8 @@ private:
 
   SamplerOptions options_;
   const ColumnStore& data_;
+  // user weights, held only to forward to the response model; the engine's
+  // per-iteration precisions come from response_->workingWeights()
   const double* weights_;
   ext_rng* rng_;
 

@@ -8,7 +8,7 @@
 
 extern "C" {
 
-SEXP bartcore_create(SEXP control, SEXP model, SEXP data);
+SEXP bartcore_create(SEXP control, SEXP model, SEXP data, SEXP family);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y);

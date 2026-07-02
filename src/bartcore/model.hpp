@@ -282,6 +282,10 @@ struct ChiSquaredScalePrior {
   }
 };
 
+/// Response families the sampler can run; gaussian fits the response
+/// directly, the binary families fit a latent working response.
+enum class ResponseFamily { gaussian, probit, logistic };
+
 /// Response models own the working response the backfitting engine sees and
 /// any per-iteration latent refresh; concrete classes own their O(n) loops.
 /// Response/offset pointers are borrowed: the caller keeps them alive.
@@ -292,6 +296,12 @@ public:
   /// The engine's working response; contents may change across iterations
   /// for latent-variable models.
   virtual double* workingResponse() = 0;
+
+  /// Per-observation precisions the engine weights tree updates by: the
+  /// fixed user weights for gaussian, the current Polya-Gamma draws for
+  /// logistic, null (unit weights) for probit. Refreshed alongside the
+  /// working response.
+  virtual const double* workingWeights() const = 0;
 
   /// Called once per iteration after all trees update.
   virtual void refreshLatents(ext_rng* rng, const double* totalFits) = 0;
@@ -342,6 +352,7 @@ public:
   }
 
   double* workingResponse() override { return yRescaled_.data(); }
+  const double* workingWeights() const override { return weights_; }
   void refreshLatents(ext_rng*, const double*) override {}
 
   double drawSigma(ext_rng* rng, const double* totalFits, double) override {
@@ -441,12 +452,15 @@ private:
   ChiSquaredScalePrior sigmaSqPrior_;
 };
 
+/// Weights are deliberately unsupported: the reference engine scales the
+/// latent draws by 1 / sqrt(w), which does not correspond to a coherent
+/// weighted-likelihood model, so the behavior was stripped rather than
+/// ported.
 class ProbitResponse final : public ResponseModel {
 public:
-  ProbitResponse(const double* y, const double* offset, const double* weights,
+  ProbitResponse(const double* y, const double* offset,
                  std::size_t numObservations)
-    : y_(y), offset_(offset), weights_(weights),
-      numObservations_(numObservations) {
+    : y_(y), offset_(offset), numObservations_(numObservations) {
     latents_.resize(numObservations);
     working_.resize(numObservations);
     // z = 2 y - 1: -1 for failures, 1 for successes.
@@ -457,15 +471,14 @@ public:
   }
 
   double* workingResponse() override { return working_.data(); }
+  const double* workingWeights() const override { return nullptr; }
 
   void refreshLatents(ext_rng* rng, const double* totalFits) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double sign = 2.0 * y_[i] - 1.0;
-      double z = weights_ == nullptr
-        ? sign * ext_rng_simulateLowerTruncatedNormalScale1(rng, sign * mean, 0.0)
-        : sign * ext_rng_simulateLowerTruncatedNormal(
-                   rng, sign * mean, 1.0 / std::sqrt(weights_[i]), 0.0);
+      double z =
+        sign * ext_rng_simulateLowerTruncatedNormalScale1(rng, sign * mean, 0.0);
       latents_[i] = !std::isnan(z) ? z : sign * DBL_EPSILON;
     }
     rebuildWorking();
@@ -486,11 +499,10 @@ public:
     rebuildWorking();
   }
 
-  void setData(const double* y, const double* offset, const double* weights,
+  void setData(const double* y, const double* offset, const double*,
                std::size_t numObservations, double*) override {
     y_ = y;
     offset_ = offset;
-    weights_ = weights;
     numObservations_ = numObservations;
     latents_.resize(numObservations);
     working_.resize(numObservations);
@@ -518,9 +530,93 @@ private:
 
   const double* y_;
   const double* offset_;
-  const double* weights_;
   std::size_t numObservations_;
   std::vector<double> latents_;
+  std::vector<double> working_;
+};
+
+/// Logistic via Polya-Gamma augmentation (Polson, Scott & Windle 2013):
+/// given the fit eta_i = f(x_i) + offset_i, omega_i ~ PG(1, eta_i), and
+/// kappa_i / omega_i with kappa_i = y_i - 0.5 is conditionally
+/// N(eta_i, 1 / omega_i). The backfitting engine therefore sees working
+/// response kappa_i / omega_i - offset_i under per-iteration precision
+/// weights omega_i, running the same weighted conjugate updates as a
+/// weighted gaussian with sigma fixed at 1. Case weights are unsupported.
+/// latents() exposes the omega draws.
+class LogisticResponse final : public ResponseModel {
+public:
+  LogisticResponse(const double* y, const double* offset,
+                   std::size_t numObservations)
+    : y_(y), offset_(offset), numObservations_(numObservations) {
+    omega_.resize(numObservations);
+    working_.resize(numObservations);
+    coldStart();
+  }
+
+  double* workingResponse() override { return working_.data(); }
+  const double* workingWeights() const override { return omega_.data(); }
+
+  void refreshLatents(ext_rng* rng, const double* totalFits) override {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double offset = offset_ != nullptr ? offset_[i] : 0.0;
+      omega_[i] = ext_rng_simulatePolyaGamma(rng, totalFits[i] + offset);
+      working_[i] = (y_[i] - 0.5) / omega_[i] - offset;
+    }
+  }
+
+  double drawSigma(ext_rng*, const double*, double sigma) override {
+    return sigma;
+  }
+
+  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
+                   double*) override {
+    y_ = y;
+    refreshLatents(rng, totalFits);
+  }
+
+  void setOffset(const double* offset, bool, double*) override {
+    // omega and kappa / omega stand; only the shift into the working
+    // response moves
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double unshifted = working_[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      working_[i] = unshifted - (offset != nullptr ? offset[i] : 0.0);
+    }
+    offset_ = offset;
+  }
+
+  void setData(const double* y, const double* offset, const double*,
+               std::size_t numObservations, double*) override {
+    y_ = y;
+    offset_ = offset;
+    numObservations_ = numObservations;
+    omega_.resize(numObservations);
+    working_.resize(numObservations);
+    coldStart();
+  }
+
+  const double* latents() const override { return omega_.data(); }
+
+  double initialSigma() const override { return 1.0; }
+  double fitScale() const override { return 1.0; }
+  double fitShift() const override { return 0.0; }
+  double sigmaScale() const override { return 1.0; }
+
+private:
+  /// Deterministic cold start, the analogue of probit's z = 2 y - 1:
+  /// omega at its PG(1, 0) mean of 1/4, so the working response starts at
+  /// 4 kappa = +/- 2; real draws replace it after the first tree sweep.
+  void coldStart() {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      omega_[i] = 0.25;
+      working_[i] =
+        4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
+    }
+  }
+
+  const double* y_;
+  const double* offset_;
+  std::size_t numObservations_;
+  std::vector<double> omega_;
   std::vector<double> working_;
 };
 

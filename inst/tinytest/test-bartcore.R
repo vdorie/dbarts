@@ -319,3 +319,31 @@ y2.binary <- rbinom(n2, 1L, 0.5)
 sampler.setdata.binary$setData(dbartsData(x2, y2.binary))
 expect_equal(length(sampler.setdata.binary$getLatents()), n2)
 expect_true(all(is.finite(sampler.setdata.binary$run(0L, 2L)$train)))
+
+# logistic via Polya-Gamma, reached through the internal helper's family
+# argument; latents are the omega draws
+sampler.logit.host <- dbarts(x, y.binary, control = control)
+bcSampler.logit <- dbarts:::bartcoreSampler(sampler.logit.host,
+                                            family = "logistic")
+result.logit <- dbarts:::bartcoreRun(bcSampler.logit, 100L, 100L)
+expect_equal(dim(result.logit$train), c(n, 100L))
+expect_true(all(is.finite(result.logit$train)))
+# log-odds fits classify well above the base rate
+phat.logit <- plogis(rowMeans(result.logit$train))
+expect_true(mean((phat.logit > 0.5) == (y.binary == 1L)) > 0.7)
+omega <- dbarts:::bartcoreGetLatents(bcSampler.logit)
+expect_equal(length(omega), n)
+expect_true(all(omega > 0))
+
+# family validation
+expect_error(dbarts:::bartcoreSampler(sampler.logit.host, family = "cauchit"),
+             pattern = "unrecognized response family")
+expect_error(dbarts:::bartcoreSampler(sampler, family = "logistic"),
+             pattern = "binary response")
+
+# binary weights are rejected rather than run with the reference engine's
+# incorrect latent scaling
+sampler.wbin <- dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
+                       control = control)
+expect_error(dbarts:::bartcoreSampler(sampler.wbin),
+             pattern = "weights for binary")

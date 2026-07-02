@@ -49,12 +49,13 @@ class Sampler {
 public:
   /// rngs supplies one generator per chain (options.numChains of them). With
   /// numThreads > 1 no rng may call into R (or otherwise share state).
+  /// weights apply only to the gaussian family.
   Sampler(const double* x, const double* y, size_t numObservations,
           size_t numPredictors, const double* weights, const double* offset,
-          bool responseIsBinary, double sigmaEstimate, double sigmaDf,
+          ResponseFamily family, double sigmaEstimate, double sigmaDf,
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
-    : options_(options) {
+    : options_(options), family_(family) {
     if (options.maxNumCutsPerVariable != nullptr) {
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles);
@@ -67,7 +68,7 @@ public:
     chains_.reserve(options.numChains);
     for (size_t c = 0; c < options.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L>>(
-        data_, y, weights, offset, responseIsBinary, sigmaEstimate, sigmaDf,
+        data_, y, weights, offset, family, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
   }
 
@@ -309,6 +310,7 @@ public:
 
   ext_rng* rng() const { return chains_[0]->rng(); }
 
+  ResponseFamily family() const { return family_; }
   double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
   double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
   bool kIsSampled() const { return options_.updateK; }
@@ -422,6 +424,7 @@ private:
   };
 
   SamplerOptions options_;
+  ResponseFamily family_;
   ColumnStore data_;
   std::vector<std::unique_ptr<Chain<L>>> chains_;
 };

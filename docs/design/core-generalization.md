@@ -359,8 +359,27 @@ partitioning entirely; a different library sharing only the tree structure).
    internal scale). The R5 setData delegates with classic semantics
    (n.cuts/sigma slot preservation, data-slot rollback on error);
    phase 2 is complete.
-3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
-   hooks and the weighted path.
+3. **Logistic (Polya-Gamma)** (DONE 2026-07-02): ext_rng_simulatePolyaGamma
+   in external.a draws PG(1, psi) exactly with Devroye's alternating-series
+   method (component-tested against closed-form moments on both proposal
+   branches). LogisticResponse rides the weighted conjugate path: given
+   eta_i = f(x_i) + offset_i, omega_i ~ PG(1, eta_i) and the engine sees
+   working response (y_i - 0.5) / omega_i - offset_i under per-iteration
+   precision weights omega_i, with sigma fixed at 1; the cold start sets
+   omega to its PG(1, 0) mean of 1/4. To support weights that change every
+   iteration, the engine's precisions now come from
+   ResponseModel::workingWeights() (user weights for gaussian, the omega
+   draws for logistic) instead of a fixed chain member. The ctor bool
+   became ResponseFamily {gaussian, probit, logistic}; the bridge takes a
+   family argument, reachable via dbarts:::bartcoreSampler(sampler,
+   family = "logistic") until the new public surface lands; latents()
+   exposes the omega draws. Alongside, the classic engine's weighted
+   probit was STRIPPED rather than ported (scaling the latent draws by
+   1 / sqrt(w) is not a coherent weighted-likelihood model - Vincent);
+   bartcore rejects weights with binary responses at creation and setData.
+   No classic reference exists for a cross-engine gate; validated by exact
+   PG moment tests, end-to-end log-odds recovery and calibration, and
+   mutation smoke tests, as DART was.
 4. **Data generalization**: BartData container, data.frame ingestion,
    categorical rules enabled (> 32 levels), sparse columns, new kernels,
    per-column-type mutation semantics, standalone R data handle.
