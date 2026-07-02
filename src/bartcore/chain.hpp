@@ -258,6 +258,52 @@ public:
       trees_[t].repartitionSubtree(data_, 0);
   }
 
+  /// First phase of a whole-data replacement: recover every tree's leaf
+  /// parameters against the current fits and partitions, before the store or
+  /// any per-observation storage moves.
+  void recoverTreeParameters(TreeParameters& params) {
+    params.resize(options_.numTrees);
+    for (size_t t = 0; t < options_.numTrees; ++t)
+      recoverParametersFromFits(t, params[t]);
+  }
+
+  /// Second phase, after the shared store holds the new predictors and
+  /// freshly rebuilt cuts: swap the response state (sigma is preserved on
+  /// the original scale), resize per-observation storage, remap split
+  /// indices onto the new cut grid, re-route, and collapse anything left
+  /// invalid or empty. Node averages are left stale; run() recomputes them.
+  void applyNewData(const double* y, const double* weights,
+                    const double* offset,
+                    const std::vector<std::vector<double>>& oldCutPoints,
+                    TreeParameters& params) {
+    size_t n = data_.numObservations;
+    bool numObservationsChanged = n * options_.numTrees != indexBuffer_.size();
+
+    weights_ = weights;
+    response_->setData(y, offset, weights, n, &sigma_);
+
+    if (numObservationsChanged) {
+      indexBuffer_.resize(n * options_.numTrees);
+      treeFits_.resize(n * options_.numTrees);
+      totalFits_.resize(n);
+      treeY_.resize(n);
+      currFits_.resize(n);
+    }
+    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
+
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      trees_[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t]);
+      if (numObservationsChanged)
+        trees_[t].resetObservations(indexBuffer_.data() + t * n, n);
+      trees_[t].repartitionSubtree(data_, 0);
+      trees_[t].collapseEmptyNodes(weights_, params[t]);
+      setTreeFitsFromParameters(t, params[t]);
+      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+    }
+
+    resizeTestStorage();
+  }
+
   /// Unconditional refresh: re-route and collapse any node an empty leaf
   /// leaves behind, merging leaf parameters into the collapsed node.
   void forceRefreshTrees() {
@@ -275,7 +321,8 @@ public:
   }
 
   ext_rng* rng() const { return rng_; }
-  double sigma() const { return sigma_; }
+  /// On the original response scale, symmetric with setSigma.
+  double sigma() const { return sigma_ * response_->sigmaScale(); }
   double k() const { return k_; }
   size_t numTrees() const { return options_.numTrees; }
   const Tree& tree(size_t t) const { return trees_[t]; }

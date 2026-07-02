@@ -96,6 +96,19 @@ makeScenarios <- function() {
     samplerApi = TRUE, nChains = 2L
   )
 
+  # whole-data replacement mid-chain: burn in on one draw of the process,
+  # setData to a larger draw (cuts rebuild, splits remap, arrays resize),
+  # then re-burn only briefly so the carried-over tree state matters
+  set.seed(5108L)
+  x <- matrix(runif(400L * 10L), 400L)
+  x2 <- matrix(runif(500L * 10L), 500L)
+  result$setdata <- list(
+    x = x, y = friedman(x) + rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE,
+    setData = list(x = x2, y = friedman(x2) + rnorm(500L))
+  )
+
   # quantile cut points over a mix of continuous columns (thinned to numcut)
   # and discrete ones (columns 4-5 and 8-10 on an 11-level grid, inducing
   # 10 unique-midpoint cuts each)
@@ -126,7 +139,14 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   poolChains <- function(a) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
   }
-  r <- sampler$run(nskip, ndpost)
+  r <- if (!is.null(scenario$setData)) {
+    sampler$run(nskip, 0L)
+    sampler$setData(dbartsData(scenario$setData$x, scenario$setData$y,
+                               test = scenario$x.test))
+    sampler$run(ceiling(nskip / 4), ndpost)
+  } else {
+    sampler$run(nskip, ndpost)
+  }
   list(yhat.test = poolChains(r$test), varcount = poolChains(r$varcount),
        sigma = as.vector(r$sigma), k = if (!is.null(r$k)) as.vector(r$k))
 }

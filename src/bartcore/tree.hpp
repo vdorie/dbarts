@@ -385,6 +385,32 @@ public:
     collapseEmptyNodesBelow(0, weights, paramByNode);
   }
 
+  /// Point the tree at a new observation buffer (whole-data replacement,
+  /// possibly of a different size): identity indices under the root, all
+  /// partitions stale until repartitionSubtree.
+  void resetObservations(size_t* indexBuffer, size_t numObservations) {
+    indices = indexBuffer;
+    at(0).begin = 0;
+    at(0).end = numObservations;
+    for (size_t i = 0; i < numObservations; ++i) indices[i] = i;
+  }
+
+  /// After a from-scratch cut rebuild, remap every rule's splitIndex onto the
+  /// new cut whose value is nearest the old cut, restricted to the ancestor-
+  /// constrained interval; a subtree whose interval empties collapses to a
+  /// leaf with the plain mean of its leaf parameters (the reference engine's
+  /// mapOldCutPointsOntoNew). paramByNode is indexed by arena id.
+  void mapOldCutPointsOntoNew(const ColumnStore& data,
+                              const std::vector<std::vector<double>>& oldCutPoints,
+                              std::vector<double>& paramByNode) {
+    std::vector<int32_t> minIndices(data.numPredictors, 0);
+    std::vector<int32_t> maxIndices(data.numPredictors);
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      maxIndices[j] = static_cast<int32_t>(data.numCuts[j]);
+    mapCutPointsBelow(0, data, oldCutPoints, paramByNode, minIndices.data(),
+                      maxIndices.data());
+  }
+
   void countVariableUses(std::uint32_t* counts) const {
     countVariableUsesBelow(0, counts);
   }
@@ -413,6 +439,67 @@ private:
     releasePair(node.leftChild);
     node.leftChild = invalidNode;
     node.rule = Rule();
+  }
+
+  /// minIndices are inclusive, maxIndices exclusive; both are saved and
+  /// restored around the recursion, exactly as the reference walker does.
+  void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
+                         const std::vector<std::vector<double>>& oldCutPoints,
+                         std::vector<double>& paramByNode,
+                         int32_t* minIndices, int32_t* maxIndices) {
+    if (at(nodeIndex).isBottom()) return;
+
+    int32_t varIndex = at(nodeIndex).rule.variableIndex;
+    int32_t minIndex = minIndices[varIndex];
+    int32_t maxIndex = maxIndices[varIndex];
+
+    if (minIndex > maxIndex - 1) {
+      // no split of this variable remains below the ancestors: the node is
+      // fundamentally invalid, so its subtree's parameters carry little
+      // information and the merge is a plain mean
+      std::vector<int32_t> bottoms;
+      fillBottom(nodeIndex, bottoms);
+      double param = 0.0;
+      for (int32_t i : bottoms) param += paramByNode[static_cast<size_t>(i)];
+      paramByNode[static_cast<size_t>(nodeIndex)] =
+        param / static_cast<double>(bottoms.size());
+      collapseSubtreeToLeaf(nodeIndex);
+      return;
+    }
+
+    double oldCut =
+      oldCutPoints[static_cast<size_t>(varIndex)]
+                  [static_cast<size_t>(at(nodeIndex).rule.splitIndex)];
+    const double* cuts = data.cutPoints[static_cast<size_t>(varIndex)].data();
+
+    // the first new cut below the old cut's value, then the nearer neighbor
+    int32_t firstLessThan = at(nodeIndex).rule.splitIndex < maxIndex
+      ? at(nodeIndex).rule.splitIndex
+      : maxIndex - 1;
+    while (firstLessThan < maxIndex && cuts[firstLessThan] < oldCut)
+      ++firstLessThan;
+    if (firstLessThan < maxIndex)
+      while (firstLessThan >= minIndex && cuts[firstLessThan] >= oldCut)
+        --firstLessThan;
+
+    int32_t newIndex;
+    if (firstLessThan >= maxIndex - 1) newIndex = maxIndex - 1;
+    else if (firstLessThan < minIndex) newIndex = minIndex;
+    else if (oldCut - cuts[firstLessThan] < cuts[firstLessThan + 1] - oldCut)
+      newIndex = firstLessThan;
+    else newIndex = firstLessThan + 1;  // includes an exact value match
+
+    at(nodeIndex).rule.splitIndex = newIndex;
+
+    maxIndices[varIndex] = newIndex;
+    mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints, paramByNode,
+                      minIndices, maxIndices);
+    maxIndices[varIndex] = maxIndex;
+
+    minIndices[varIndex] = newIndex + 1;
+    mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
+                      paramByNode, minIndices, maxIndices);
+    minIndices[varIndex] = minIndex;
   }
 
   void collapseEmptyNodesBelow(int32_t nodeIndex, const double* weights,

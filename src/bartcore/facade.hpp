@@ -23,6 +23,10 @@ public:
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
                                  std::size_t numTestObservations) = 0;
+  virtual void setData(const double* x, const double* y,
+                       std::size_t numObservations, const double* weights,
+                       const double* offset, const double* x_test,
+                       std::size_t numTestObservations) = 0;
   virtual PredictorUpdateResult setPredictor(const double* newX,
                                              bool forceUpdate,
                                              bool updateCutPoints) = 0;
@@ -70,6 +74,12 @@ public:
   void setTestPredictors(const double* x_test,
                          std::size_t numTestObservations) override {
     impl_.setTestPredictors(x_test, numTestObservations);
+  }
+  void setData(const double* x, const double* y, std::size_t numObservations,
+               const double* weights, const double* offset,
+               const double* x_test, std::size_t numTestObservations) override {
+    impl_.setData(x, y, numObservations, weights, offset, x_test,
+                  numTestObservations);
   }
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) override {

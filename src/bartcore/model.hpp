@@ -308,6 +308,13 @@ public:
   virtual void setOffset(const double* offset, bool updateScale,
                          double* sigmaInOut) = 0;
 
+  /// Whole-data replacement, possibly changing the number of observations;
+  /// latent states are cold-initialized since the fits they condition on are
+  /// stale. Models that rescale keep sigmaInOut fixed on the original scale.
+  virtual void setData(const double* y, const double* offset,
+                       const double* weights, std::size_t numObservations,
+                       double* sigmaInOut) = 0;
+
   virtual const double* latents() const { return nullptr; }
 
   virtual double initialSigma() const = 0;
@@ -349,6 +356,23 @@ public:
     double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
 
     y_ = y;
+    rescale();
+
+    sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
+    *sigmaInOut = sigmaUnscaled / range_;
+  }
+
+  void setData(const double* y, const double* offset, const double* weights,
+               std::size_t numObservations, double* sigmaInOut) override {
+    // sigma and the variance prior stay fixed on the original scale
+    double sigmaUnscaled = *sigmaInOut * range_;
+    double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
+
+    y_ = y;
+    offset_ = offset;
+    weights_ = weights;
+    numObservations_ = numObservations;
+    yRescaled_.resize(numObservations);
     rescale();
 
     sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
@@ -459,6 +483,21 @@ public:
 
   void setOffset(const double* offset, bool, double*) override {
     offset_ = offset;
+    rebuildWorking();
+  }
+
+  void setData(const double* y, const double* offset, const double* weights,
+               std::size_t numObservations, double*) override {
+    y_ = y;
+    offset_ = offset;
+    weights_ = weights;
+    numObservations_ = numObservations;
+    latents_.resize(numObservations);
+    working_.resize(numObservations);
+    // cold init, z = 2 y - 1, as the reference engine's initializeLatents
+    misc_setVectorToConstant(latents_.data(), numObservations, -1.0);
+    misc_addVectorsInPlaceWithMultiplier(y, numObservations, 2.0,
+                                         latents_.data());
     rebuildWorking();
   }
 
