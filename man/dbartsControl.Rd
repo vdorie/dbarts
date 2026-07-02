@@ -12,7 +12,7 @@ dbartsControl(
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
     rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_,
-    updateState = TRUE)
+    updateState = TRUE, engine = c("classic", "bartcore"))
 }
 \arguments{
    \item{verbose}{
@@ -66,6 +66,13 @@ dbartsControl(
    \item{updateState}{
      Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.
    }
+  \item{engine}{
+    Which sampler implementation runs underneath the \code{dbartsSampler}
+    interface. \code{"classic"} is the established engine.
+    \code{"bartcore"} is its in-development replacement; it does not yet
+    support saving/loading sampler state, \code{keepTrees} and tree
+    extraction, test offsets, \code{setData}, or \code{setWeights}.
+  }
 }
 \value{
   An object of class \code{dbartControl}.

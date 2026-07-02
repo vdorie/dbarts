@@ -113,28 +113,22 @@ makeScenarios <- function() {
   result
 }
 
+# both engines run through the public dbartsSampler surface; the new one is
+# selected with the control's engine flag
 fitViaSamplerApi <- function(scenario, engineIsNew) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
-                           n.trees = ntree, updateState = FALSE)
+                           n.trees = ntree, updateState = FALSE,
+                           engine = if (engineIsNew) "bartcore" else "classic")
   sampler <- dbarts(scenario$x, scenario$y, test = scenario$x.test,
                     control = control)
   # [d, S] or [d, S, C] -> (S * C) x d, pooling chains
   poolChains <- function(a) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
   }
-  if (engineIsNew) {
-    bcSampler <- dbarts:::bartcoreSampler(sampler)
-    r <- dbarts:::bartcoreRun(bcSampler, nskip, ndpost)
-    list(yhat.test = poolChains(r$yhat.test),
-         varcount = poolChains(r$varcount), sigma = as.vector(r$sigma),
-         k = if (!is.null(r$k)) as.vector(r$k))
-  } else {
-    r <- sampler$run(nskip, ndpost)
-    list(yhat.test = poolChains(r$test), varcount = poolChains(r$varcount),
-         sigma = as.vector(r$sigma),
-         k = if (!is.null(r$k)) as.vector(r$k))
-  }
+  r <- sampler$run(nskip, ndpost)
+  list(yhat.test = poolChains(r$test), varcount = poolChains(r$varcount),
+       sigma = as.vector(r$sigma), k = if (!is.null(r$k)) as.vector(r$k))
 }
 
 fitSummaries <- function(scenario, seed) {

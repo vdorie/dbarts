@@ -22,6 +22,8 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptr, SEXP x, SEXP column);
 SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
                                                    SEXP columns);
 SEXP bartcore_setCutPoints(SEXP ptr, SEXP cutPoints, SEXP columns);
+SEXP bartcore_getSigmas(SEXP ptr);
+SEXP bartcore_isValidPointer(SEXP ptr);
 SEXP bartcore_getLatents(SEXP ptr);
 
 }

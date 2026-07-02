@@ -16,23 +16,23 @@ bcSampler <- dbarts:::bartcoreSampler(sampler)
 
 result <- dbarts:::bartcoreRun(bcSampler, 100L, 200L)
 
-expect_equal(dim(result$yhat.train), c(n, 200L))
-expect_equal(dim(result$yhat.test), c(10L, 200L))
+expect_equal(dim(result$train), c(n, 200L))
+expect_equal(dim(result$test), c(10L, 200L))
 expect_equal(dim(result$varcount), c(p, 200L))
 expect_true(all(result$sigma > 0))
 
 # the fit should explain most of the signal
-fitMean <- rowMeans(result$yhat.train)
+fitMean <- rowMeans(result$train)
 expect_true(mean((fitMean - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # embedded-Gibbs pattern: mutate offset between single draws
 dbarts:::bartcoreSetOffset(bcSampler, rep(0.5, n))
 result.offset <- dbarts:::bartcoreRun(bcSampler, 0L, 1L)
-expect_equal(dim(result.offset$yhat.train), c(n, 1L))
+expect_equal(dim(result.offset$train), c(n, 1L))
 
 dbarts:::bartcoreSetResponse(bcSampler, y + 1)
 result.response <- dbarts:::bartcoreRun(bcSampler, 0L, 1L)
-expect_true(mean(result.response$yhat.train) > mean(result.offset$yhat.train))
+expect_true(mean(result.response$train) > mean(result.offset$train))
 
 # no latents for a continuous response
 expect_null(dbarts:::bartcoreGetLatents(bcSampler))
@@ -75,7 +75,7 @@ expect_false(dbarts:::bartcoreSetPredictor(bcSampler.mut, x.degenerate))
 expect_false(dbarts:::bartcoreSetPredictor(bcSampler.mut, x.degenerate,
                                            updateCutPoints = TRUE))
 result.mut <- dbarts:::bartcoreRun(bcSampler.mut, 0L, 5L)
-expect_true(all(is.finite(result.mut$yhat.train)))
+expect_true(all(is.finite(result.mut$train)))
 
 # column-subset update: tiny jitter is accepted, degenerate column rejected
 x.jitter <- x.mut[, 2L] + rnorm(n, 0, 1e-4)
@@ -91,14 +91,14 @@ installed <- dbarts:::bartcoreUpdatePredictorPerObservation(bcSampler.mut,
 expect_equal(length(installed), n)
 expect_true(any(installed) && any(!installed))
 result.perobs <- dbarts:::bartcoreRun(bcSampler.mut, 0L, 5L)
-expect_true(all(is.finite(result.perobs$yhat.train)))
+expect_true(all(is.finite(result.perobs$train)))
 
 # forced degenerate update collapses emptied splits instead of rolling back
 expect_true(dbarts:::bartcoreSetPredictor(bcSampler.mut, x.degenerate,
                                           forceUpdate = TRUE,
                                           updateCutPoints = TRUE))
 result.forced <- dbarts:::bartcoreRun(bcSampler.mut, 0L, 2L)
-expect_true(all(is.finite(result.forced$yhat.train)))
+expect_true(all(is.finite(result.forced$train)))
 
 # joint per-observation update: one mask, all-or-none across samplers that
 # share an index-aligned column
@@ -118,9 +118,9 @@ installed.joint <- dbarts:::bartcoreUpdatePredictorPerObservationJointly(
 expect_equal(length(installed.joint), n)
 expect_true(any(installed.joint) && any(!installed.joint))
 expect_true(all(is.finite(
-  dbarts:::bartcoreRun(bcSampler.jointA, 0L, 1L)$yhat.train)))
+  dbarts:::bartcoreRun(bcSampler.jointA, 0L, 1L)$train)))
 expect_true(all(is.finite(
-  dbarts:::bartcoreRun(bcSampler.jointB, 0L, 1L)$yhat.train)))
+  dbarts:::bartcoreRun(bcSampler.jointB, 0L, 1L)$train)))
 
 # quantile cut points and heterogeneous n.cuts
 x.quants <- x + 0
@@ -132,8 +132,8 @@ control.quants <- dbartsControl(n.chains = 1L, n.threads = 1L,
 sampler.quants <- dbarts(x.quants, y, control = control.quants)
 bcSampler.quants <- dbarts:::bartcoreSampler(sampler.quants)
 result.quants <- dbarts:::bartcoreRun(bcSampler.quants, 100L, 100L)
-expect_equal(dim(result.quants$yhat.train), c(n, 100L))
-fitMean.quants <- rowMeans(result.quants$yhat.train)
+expect_equal(dim(result.quants$train), c(n, 100L))
+fitMean.quants <- rowMeans(result.quants$train)
 expect_true(mean((fitMean.quants - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # a coarser column cannot refresh quantile cuts: refused before any change
@@ -146,7 +146,7 @@ expect_error(
 # explicit cut points: installing a coarse grid collapses orphaned splits
 dbarts:::bartcoreSetCutPoints(bcSampler.mut, list(c(0.25, 0.5, 0.75)), 1L)
 result.cuts <- dbarts:::bartcoreRun(bcSampler.mut, 0L, 2L)
-expect_true(all(is.finite(result.cuts$yhat.train)))
+expect_true(all(is.finite(result.cuts$train)))
 expect_error(
   dbarts:::bartcoreSetCutPoints(bcSampler.mut, list(c(0.5, 0.5)), 1L),
   pattern = "strictly increasing")
@@ -159,12 +159,12 @@ sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
 bcSampler.chains <- dbarts:::bartcoreSampler(sampler.chains)
 result.chains <- dbarts:::bartcoreRun(bcSampler.chains, 100L, 60L)
 expect_equal(dim(result.chains$sigma), c(60L, 2L))
-expect_equal(dim(result.chains$yhat.train), c(n, 60L, 2L))
-expect_equal(dim(result.chains$yhat.test), c(10L, 60L, 2L))
+expect_equal(dim(result.chains$train), c(n, 60L, 2L))
+expect_equal(dim(result.chains$test), c(10L, 60L, 2L))
 expect_equal(dim(result.chains$varcount), c(p, 60L, 2L))
 expect_true(all(result.chains$sigma > 0))
 expect_false(identical(result.chains$sigma[, 1L], result.chains$sigma[, 2L]))
-fitMean.chains <- rowMeans(result.chains$yhat.train, dims = 1L)
+fitMean.chains <- rowMeans(result.chains$train, dims = 1L)
 expect_true(mean((fitMean.chains - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
 # transactions span chains; the sampler stays runnable afterward
@@ -174,7 +174,7 @@ installed.chains <- dbarts:::bartcoreUpdatePredictorPerObservation(
   bcSampler.chains, rep(10, n), 1L)
 expect_true(any(installed.chains) && any(!installed.chains))
 expect_true(all(is.finite(
-  dbarts:::bartcoreRun(bcSampler.chains, 0L, 2L)$yhat.train)))
+  dbarts:::bartcoreRun(bcSampler.chains, 0L, 2L)$train)))
 
 # multi-chain binary: latents and k gain the chain dimension
 sampler.chains.binary <- dbarts(x + 0, y.binary, control = control.chains)
@@ -183,3 +183,98 @@ result.chains.binary <- dbarts:::bartcoreRun(bcSampler.chains.binary, 50L, 10L)
 expect_equal(dim(result.chains.binary$k), c(10L, 2L))
 latents.chains <- dbarts:::bartcoreGetLatents(bcSampler.chains.binary)
 expect_equal(dim(latents.chains), c(n, 2L))
+
+# the engine flag: dbartsControl(engine = "bartcore") makes the standard
+# dbartsSampler surface run on the new engine
+control.engine <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                                n.threads = 1L, n.trees = 50L,
+                                n.burn = 100L, n.samples = 100L)
+x.engine <- x + 0
+colnames(x.engine) <- paste0("x", seq_len(p))
+sampler.engine <- dbarts(x.engine, y, test = x.test,
+                         control = control.engine)
+r.engine <- sampler.engine$run()
+expect_equal(dim(r.engine$train), c(n, 100L))
+expect_equal(dim(r.engine$test), c(10L, 100L))
+expect_true(all(r.engine$sigma > 0))
+expect_true(mean((rowMeans(r.engine$train) - f)^2) <
+              0.25 * mean((mean(y) - f)^2))
+
+# standard mutation methods route to the new engine
+sampler.engine$setOffset(rep(0.5, n))
+r.offset.engine <- sampler.engine$run(0L, 1L)
+expect_equal(dim(r.offset.engine$train), c(n, 1L))
+sampler.engine$setResponse(y + 1)
+sampler.engine$setSigma(1.0)
+expect_equal(length(sampler.engine$getSigmas()), 1L)
+
+# column updates default to the transaction and resolve names
+expect_true(sampler.engine$setPredictor(
+  sampler.engine$data@x[, 2L] + rnorm(n, 0, 1e-4), "x2"))
+# full-matrix setPredictor defaults to forceUpdate = TRUE and returns
+# nothing; like the classic engine it replaces data@x wholesale
+expect_null(sampler.engine$setPredictor(matrix(runif(n * p), n, p)))
+expect_true(all(is.finite(sampler.engine$run(0L, 2L)$train)))
+# a degenerate matrix rolls back when not forced, and data@x is untouched
+x.before <- sampler.engine$data@x
+expect_false(sampler.engine$setPredictor(matrix(0.5, n, p),
+                                         forceUpdate = FALSE))
+expect_identical(sampler.engine$data@x, x.before)
+# partial updates return the per-observation mask
+installed.engine <- sampler.engine$setPredictor(rep(10, n), 1L,
+                                                forceUpdate = "partial")
+expect_equal(length(installed.engine), n)
+
+sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1L)
+sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
+sampler.engine$setTestPredictor(runif(10L), 2L)
+expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
+
+# unsupported methods refuse loudly rather than corrupt the sampler
+expect_error(sampler.engine$getTrees(1L), pattern = "not supported")
+expect_error(sampler.engine$storeState(), pattern = "not supported")
+expect_error(sampler.engine$predict(x.test), pattern = "not supported")
+expect_error(sampler.engine$setWeights(rep(1, n)), pattern = "not supported")
+expect_error(sampler.engine$setTestOffset(rep(0, 10L)),
+             pattern = "not supported")
+
+# test offsets are rejected at creation
+expect_error(dbarts(x.engine, y, test = x.test, offset = 0.5,
+                    control = control.engine),
+             pattern = "test offset")
+
+# thinning counts burn-in and samples at the kept rate
+control.thin <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                              n.threads = 1L, n.trees = 25L, n.thin = 2L)
+sampler.thin <- dbarts(x + 0, y, control = control.thin)
+r.thin <- sampler.thin$run(50L, 20L)
+expect_equal(dim(r.thin$train), c(n, 20L))
+
+# multiple chains through the flag: chain-dimensioned results and latents
+control.engine2 <- dbartsControl(engine = "bartcore", n.chains = 2L,
+                                 n.threads = 2L, n.trees = 50L)
+sampler.engine2 <- dbarts(x + 0, y.binary, control = control.engine2)
+r.engine2 <- sampler.engine2$run(50L, 10L)
+expect_equal(dim(r.engine2$k), c(10L, 2L))
+expect_equal(dim(sampler.engine2$getLatents()), c(n, 2L))
+expect_equal(length(sampler.engine2$getSigmas()), 2L)
+
+# the package-level joint updater routes whole-engine groups, and refuses
+# mixed ones
+x.jointC <- x + 0
+colnames(x.jointC) <- paste0("x", seq_len(p))
+sampler.jointC <- dbarts(x.jointC, y, control = control.engine)
+sampler.jointD <- dbarts(x.jointC + 0, y, control = control.engine)
+invisible(sampler.jointC$run(50L, 1L))
+invisible(sampler.jointD$run(50L, 1L))
+installed.engine.joint <- updatePredictorPerObservationJointly(
+  list(sampler.jointC, sampler.jointD), rep(10, n), "x1")
+expect_equal(length(installed.engine.joint), n)
+sampler.classic <- dbarts(x.jointC + 0, y,
+                          control = dbartsControl(n.chains = 1L,
+                                                  n.threads = 1L,
+                                                  n.trees = 50L,
+                                                  updateState = FALSE))
+expect_error(updatePredictorPerObservationJointly(
+  list(sampler.jointC, sampler.classic), rep(10, n), "x1"),
+  pattern = "different engines")

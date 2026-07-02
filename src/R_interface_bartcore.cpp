@@ -29,12 +29,28 @@ namespace {
 struct BartcoreHolder {
   std::unique_ptr<bartcore::SamplerBase> sampler;
   std::vector<ext_rng*> rngs;  // one per chain
+  bool keepTrainingFits;
 
   ~BartcoreHolder() {
     for (size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
   }
 };
+
+// The external pointer's protection slot pins the vectors the sampler
+// borrows, one fixed slot per borrowable so replacements do not accumulate.
+enum {
+  PROT_DATA = 0,
+  PROT_RESPONSE,
+  PROT_OFFSET,
+  PROT_PREDICTORS,
+  PROT_TEST_PREDICTORS,
+  PROT_COUNT
+};
+
+void retain(SEXP ptrExpr, int slot, SEXP value) {
+  SET_VECTOR_ELT(R_ExternalPtrProtected(ptrExpr), slot, value);
+}
 
 void holderFinalizer(SEXP ptrExpr) {
   BartcoreHolder* holder =
@@ -56,9 +72,9 @@ BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
 
 extern "C" {
 
-// The data expression is stashed in the external pointer's protection slot,
-// as the sampler borrows its vectors. Vectors passed to setters later are
-// the R caller's to keep alive (R/bartcore.R retains them).
+// The external pointer's protection slot pins everything the sampler
+// borrows: the data expression at creation, and any replacement vectors the
+// setters install later.
 SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   Control control;
   Data data;
@@ -79,6 +95,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   if (errorMessage == NULL && !control.responseIsBinary &&
       model.sigmaSqPrior->isFixed)
     errorMessage = "bartcore does not support fixed sigma for continuous responses";
+  if (errorMessage == NULL && data.testOffset != NULL)
+    errorMessage = "bartcore does not support test offsets";
 
   double k = 2.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
   bool updateK = !model.kPrior->isFixed;
@@ -125,6 +143,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   options.kHyperprior.scale = kScale;
   options.numChains = control.numChains;
   options.numThreads = control.numThreads;
+  options.numThin = control.treeThinningRate;
 
   // A single chain draws through R's generator; several chains each get a
   // Mersenne twister seeded from R's stream, so results do not depend on the
@@ -163,12 +182,16 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   invalidateModel(model);
   invalidateData(data);
 
-  BartcoreHolder* holder = new BartcoreHolder{std::move(sampler), std::move(rngs)};
+  BartcoreHolder* holder = new BartcoreHolder{std::move(sampler),
+                                              std::move(rngs),
+                                              control.keepTrainingFits};
 
-  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, dataExpr));
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
 
-  UNPROTECT(1);
+  UNPROTECT(2);
   return result;
 }
 
@@ -200,11 +223,17 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SEXP sigmaExpr = numChains == 1
     ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
     : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP trainExpr = numChains == 1
-    ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
-                             numSamplesInt))
-    : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
-                              numSamplesInt, numChainsInt));
+  SEXP trainExpr;
+  if (!holder.keepTrainingFits) {
+    trainExpr = PROTECT(R_NilValue);
+  } else if (numChains == 1) {
+    trainExpr = PROTECT(Rf_allocMatrix(
+      REALSXP, static_cast<int>(numObservations), numSamplesInt));
+  } else {
+    trainExpr = PROTECT(Rf_alloc3DArray(
+      REALSXP, static_cast<int>(numObservations), numSamplesInt,
+      numChainsInt));
+  }
   SEXP testExpr;
   if (numTestObservations > 0) {
     testExpr = numChains == 1
@@ -235,7 +264,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 
   bartcore::Results results;
   results.sigma = REAL(sigmaExpr);
-  results.trainingFits = REAL(trainExpr);
+  results.trainingFits = holder.keepTrainingFits ? REAL(trainExpr) : NULL;
   results.testFits = numTestObservations > 0 ? REAL(testExpr) : NULL;
   results.variableCounts = variableCounts.data();
   results.k = sampler.kIsSampled() ? REAL(kExpr) : NULL;
@@ -254,10 +283,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_VECTOR_ELT(resultExpr, 3, varcountExpr);
   SET_VECTOR_ELT(resultExpr, 4, kExpr);
 
+  // named as the classic engine's run results are, so the engines are
+  // drop-in replacements for each other
   SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 5));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
-  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("yhat.train"));
-  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("yhat.test"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
   SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
   SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
@@ -270,6 +301,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
   holder.sampler->setOffset(offset, Rf_asLogical(updateScaleExpr) == TRUE);
+  retain(ptrExpr, PROT_OFFSET, offsetExpr);
   return R_NilValue;
 }
 
@@ -278,6 +310,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr) {
   GetRNGstate(); // probit latent redraw
   holder.sampler->setResponse(REAL(yExpr));
   PutRNGstate();
+  retain(ptrExpr, PROT_RESPONSE, yExpr);
   return R_NilValue;
 }
 
@@ -295,7 +328,23 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     Rf_error("bartcore_setTestPredictor requires a matrix with matching columns");
   holder.sampler->setTestPredictors(
     REAL(xTestExpr), static_cast<size_t>(INTEGER(dims)[0]));
+  retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
   return R_NilValue;
+}
+
+SEXP bartcore_isValidPointer(SEXP ptrExpr) {
+  return Rf_ScalarLogical(R_ExternalPtrAddr(ptrExpr) != NULL ? TRUE : FALSE);
+}
+
+SEXP bartcore_getSigmas(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numChains = holder.sampler->numChains();
+  SEXP result =
+    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    REAL(result)[c] = holder.sampler->sigma(c);
+  UNPROTECT(1);
+  return result;
 }
 
 // Predictor mutation. The sampler borrows a full replacement matrix
@@ -318,6 +367,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
   if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
     Rf_error("number of induced cut points in new predictor less than "
              "previous: old splits would be invalid");
+  if (result == bartcore::PredictorUpdateResult::accepted)
+    retain(ptrExpr, PROT_PREDICTORS, xExpr);  // installed by pointer swap
   return Rf_ScalarLogical(
     result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
 }

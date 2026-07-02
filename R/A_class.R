@@ -65,6 +65,7 @@ methods::setValidity("dbartsFixedPrior",
 methods::setClass("dbartsControl",
   slots = list(
     binary           = "logical",
+    engine           = "character",
     verbose          = "logical",
     keepTrainingFits = "logical",
     useQuantiles     = "logical",
@@ -85,6 +86,7 @@ methods::setClass("dbartsControl",
   ),
   prototype = list(
     binary           = FALSE,
+    engine           = "classic",
     verbose          = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles     = FALSE,
@@ -107,6 +109,9 @@ methods::setClass("dbartsControl",
 
 methods::setValidity("dbartsControl",
   function(object) {
+    if (length(object@engine) != 1L || is.na(object@engine) ||
+        !(object@engine %in% c("classic", "bartcore")))
+      return("'engine' must be \"classic\" or \"bartcore\"")
     if (length(object@verbose)          != 1L) return("'verbose' must be of length 1")
     if (length(object@keepTrainingFits) != 1L) return("'keepTrainingFits' must be of length 1")
     if (length(object@useQuantiles)     != 1L) return("'useQuantiles' must be of length 1")

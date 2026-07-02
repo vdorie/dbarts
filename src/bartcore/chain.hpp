@@ -23,6 +23,9 @@ struct SamplerOptions {
   // worker threads for running chains concurrently; only min(numThreads,
   // numChains) are used, and every chain needs its own non-R rng when > 1
   size_t numThreads = 1;
+  // every numThin-th iteration is kept; numBurnIn and numSamples count at
+  // the kept rate, as in the classic engine
+  size_t numThin = 1;
   double k = 2.0;
   double nodeScale = 0.5;  // 3.0 for binary responses
   double base = 0.95, power = 2.0;
@@ -128,10 +131,13 @@ public:
   /// concurrently as long as each has its own rng that never calls into R.
   void run(size_t numBurnIn, size_t numSamples, Results& results) {
     size_t n = data_.numObservations;
+    size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
 
-    for (size_t iteration = 0; iteration < numBurnIn + numSamples; ++iteration) {
-      bool record = iteration >= numBurnIn;
+    size_t totalIterations = (numBurnIn + numSamples) * numThin;
+    for (size_t iteration = 0; iteration < totalIterations; ++iteration) {
+      bool record = (iteration + 1) % numThin == 0 &&
+                    iteration / numThin >= numBurnIn;
 
       MoveContext ctx{data_,
                       treePrior_,
@@ -195,7 +201,7 @@ public:
       }
 
       if (record) {
-        size_t sampleNum = iteration - numBurnIn;
+        size_t sampleNum = iteration / numThin - numBurnIn;
         storeSample(results, sampleNum);
       }
     }
