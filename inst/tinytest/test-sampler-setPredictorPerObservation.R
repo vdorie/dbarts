@@ -209,6 +209,51 @@ rm(sampler, x, y, n, ctrl, before, xnew, inst, after, trees, anyRolledBack)
 
 
 ## ---------------------------------------------------------------------------
+## interleaving partial updates with run() (multi-chain): run() reshapes the
+## trees each iteration, growing small leaves that split on the updated column
+## -- the realistic outer-sampler regime. An installed observation must never
+## empty a leaf, so the LIVE trees stay valid throughout. keepTrees = FALSE, so
+## getTrees() reports the working trees (saved snapshots re-counted against a
+## changed predictor can legitimately show empty leaves and are not the live
+## state). Locks the finalize() empty-leaf invariant across every chain.
+## ---------------------------------------------------------------------------
+set.seed(321L)
+n <- 80L
+x <- rnorm(n)
+y <- x + rnorm(n)
+ctrl <- dbarts::dbartsControl(
+  n.chains = 2L,
+  n.trees = 40L,
+  n.samples = 1L,
+  n.burn = 0L,
+  updateState = FALSE,
+  keepTrees = FALSE,
+  verbose = FALSE,
+  rngSeed = 22L
+)
+sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+invisible(sampler$run(50L, 1L))
+
+cur <- as.numeric(sampler$data@x[, 1L])
+anyRolledBack <- FALSE
+for (trial in 1:30) {
+  xnew <- cur + rnorm(n, sd = 1.5) # aggressive proposal exercises rollback
+  inst <- sampler$setPredictor(xnew, 1L, forceUpdate = "partial")
+  cur[inst] <- xnew[inst]
+
+  trees <- sampler$getTrees() # live trees, all chains
+  expect_false(any(trees$var == -1 & trees$n == 0)) # no empty leaf, any chain
+
+  if (any(!inst)) anyRolledBack <- TRUE
+
+  invisible(sampler$run(0L, 1L)) # reshape trees before the next update
+}
+expect_true(anyRolledBack) # the rollback path was actually exercised
+
+rm(sampler, x, y, n, ctrl, cur, xnew, inst, trees, anyRolledBack, trial)
+
+
+## ---------------------------------------------------------------------------
 ## coupled observations (single tree): emptying a leaf is the only constraint,
 ## so moving every observation out of one leaf installs all but one of them (a
 ## sequential sweep keeps the last occupant) regardless of the randomized scan

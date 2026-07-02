@@ -860,8 +860,9 @@ namespace {
     }
 
     // Rebuild the real observation partitions and tree fits from the final
-    // committed column
-    void finalize() { updateTreesWithNewPredictor(fit); }
+    // committed column. Returns false if the rebuild leaves any empty leaf,
+    // which the sequential guard is constructed to prevent.
+    bool finalize() { return updateTreesWithNewPredictor(fit); }
   };
 } // namespace
 
@@ -1079,24 +1080,36 @@ namespace dbarts {
   ) {
     const size_t numObservations = data.numObservations;
 
-    InPlacePredictorUpdater updater(*this, newColumn, column);
+    bool treesAreValid;
+    {
+      InPlacePredictorUpdater updater(*this, newColumn, column);
 
-    size_t* scanOrder = new size_t[numObservations];
-    ext_rng_drawPermutation(state[0].rng, scanOrder, numObservations);
+      size_t* scanOrder = new size_t[numObservations];
+      ext_rng_drawPermutation(state[0].rng, scanOrder, numObservations);
 
-    // Sequential sweep: test each observation against the running state and
-    // commit it unless its move would empty a leaf in some tree of some chain.
-    for (size_t i = 0; i < numObservations; ++i) {
-      size_t j = scanOrder[i];
-      bool valid = updater.observationWouldRemainValidIfPredictorUpdated(j);
-      installed[j] = valid;
-      if (valid)
-        updater.commitToPredictorUpdateForObservation(j);
+      // Sequential sweep: test each observation against the running state and
+      // commit it unless its move would empty a leaf in some tree of some chain.
+      for (size_t i = 0; i < numObservations; ++i) {
+        size_t j = scanOrder[i];
+        bool valid = updater.observationWouldRemainValidIfPredictorUpdated(j);
+        installed[j] = valid;
+        if (valid)
+          updater.commitToPredictorUpdateForObservation(j);
+      }
+
+      treesAreValid = updater.finalize();
+
+      delete[] scanOrder;
     }
 
-    updater.finalize();
-
-    delete[] scanOrder;
+    // The sequential guard commits a move only when it keeps every leaf
+    // non-empty, so finalize() should always rebuild a valid partition. A false
+    // result means the guard and the rebuild disagree; fail loudly rather than
+    // leave the sampler in an invalid state.
+    if (!treesAreValid)
+      ext_throwError(
+        "updatePredictorPerObservation produced a tree with an empty leaf"
+      );
   }
 
   void BARTFit::updatePredictorPerObservationJointly(
@@ -1131,13 +1144,21 @@ namespace dbarts {
           updaters[k]->commitToPredictorUpdateForObservation(j);
     }
 
+    bool treesAreValid = true;
     for (size_t k = 0; k < numFits; ++k)
-      updaters[k]->finalize();
+      treesAreValid &= updaters[k]->finalize();
 
     delete[] scanOrder;
     for (size_t k = numFits; k > 0; --k)
       delete updaters[k - 1];
     delete[] updaters;
+
+    // As in the single-fit case, the guard should guarantee validity; a false
+    // result is an internal invariant violation, so fail loudly.
+    if (!treesAreValid)
+      ext_throwError(
+        "updatePredictorPerObservationJointly produced a tree with an empty leaf"
+      );
   }
 
   void BARTFit::setCutPoints(

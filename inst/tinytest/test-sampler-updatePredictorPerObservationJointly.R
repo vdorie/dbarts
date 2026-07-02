@@ -312,4 +312,63 @@ invisible(D$run(5L, 1L))
 expect_error(updatePredictorPerObservationJointly(list(A, D), xnew, "theta")) # observation count mismatch
 
 rm(A, B, C, D, x, w, v, n, ctrl, xnew, inst, inst2)
+
+
+## ---------------------------------------------------------------------------
+## interleaving joint updates with run() (multi-chain): run() reshapes each
+## sampler's trees between updates -- the realistic outer-sampler regime. An
+## installed observation must keep every leaf non-empty in BOTH samplers across
+## every chain, so the live trees stay valid and the two shared columns stay
+## identical throughout. keepTrees = FALSE, so getTrees() reports the working
+## trees. Locks the finalize() empty-leaf invariant on the joint path.
+## ---------------------------------------------------------------------------
+set.seed(654L)
+nr <- 80L
+xr <- rnorm(nr)
+rctrl <- dbarts::dbartsControl(
+  n.chains = 2L,
+  n.trees = 40L,
+  n.samples = 1L,
+  n.burn = 0L,
+  updateState = FALSE,
+  keepTrees = FALSE,
+  verbose = FALSE,
+  rngSeed = 44L
+)
+RA <- dbarts::dbarts(
+  y ~ theta,
+  data.frame(theta = xr, y = xr + rnorm(nr)),
+  control = rctrl
+)
+RB <- dbarts::dbarts(
+  y ~ theta,
+  data.frame(theta = xr, y = -xr + rnorm(nr)),
+  control = rctrl
+)
+invisible(RA$run(50L, 1L))
+invisible(RB$run(50L, 1L))
+
+cur <- as.numeric(RA$data@x[, "theta"])
+anyRolledBack <- FALSE
+for (trial in 1:30) {
+  prop <- cur + rnorm(nr, sd = 1.5) # aggressive proposal exercises rollback
+  mask <- updatePredictorPerObservationJointly(list(RA, RB), prop, "theta")
+  cur[mask] <- prop[mask]
+
+  expect_true(noEmptyLeaf(RA)) # live trees valid, all chains
+  expect_true(noEmptyLeaf(RB))
+  expect_equal(
+    as.numeric(RA$data@x[, "theta"]),
+    as.numeric(RB$data@x[, "theta"])
+  ) # shared column stays in sync
+
+  if (any(!mask)) anyRolledBack <- TRUE
+
+  invisible(RA$run(0L, 1L))
+  invisible(RB$run(0L, 1L))
+}
+expect_true(anyRolledBack) # the rollback path was actually exercised
+
+rm(RA, RB, nr, xr, rctrl, cur, prop, mask, anyRolledBack, trial)
+
 rm(parseLeaves, leafOfObservations, makeSampler, noEmptyLeaf)
