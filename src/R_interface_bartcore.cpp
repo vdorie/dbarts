@@ -28,10 +28,11 @@ namespace {
 
 struct BartcoreHolder {
   std::unique_ptr<bartcore::SamplerBase> sampler;
-  ext_rng* rng;
+  std::vector<ext_rng*> rngs;  // one per chain
 
   ~BartcoreHolder() {
-    if (rng != NULL) ext_rng_destroy(rng);
+    for (size_t c = rngs.size(); c > 0; --c)
+      if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
   }
 };
 
@@ -122,9 +123,30 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   options.updateK = updateK;
   options.kHyperprior.degreesOfFreedom = kDf;
   options.kHyperprior.scale = kScale;
+  options.numChains = control.numChains;
+  options.numThreads = control.numThreads;
 
-  ext_rng* rng = ext_rng_createDefault(true);
-  if (rng == NULL) {
+  // A single chain draws through R's generator; several chains each get a
+  // Mersenne twister seeded from R's stream, so results do not depend on the
+  // thread count and worker threads never touch the R API.
+  std::vector<ext_rng*> rngs(options.numChains, static_cast<ext_rng*>(NULL));
+  bool rngFailed = false;
+  if (options.numChains == 1) {
+    rngs[0] = ext_rng_createDefault(true);
+    rngFailed = rngs[0] == NULL;
+  } else {
+    GetRNGstate();
+    for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      rngFailed = rngs[c] == NULL ||
+        ext_rng_setSeed(rngs[c], static_cast<std::uint_least32_t>(
+                                   unif_rand() * 4294967295.0)) != 0;
+    }
+    PutRNGstate();
+  }
+  if (rngFailed) {
+    for (size_t c = rngs.size(); c > 0; --c)
+      if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
     invalidateModel(model);
     invalidateData(data);
     Rf_error("could not allocate rng");
@@ -133,7 +155,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createClassicSampler(
     data.x, data.y, data.numObservations, data.numPredictors, data.weights,
     data.offset, control.responseIsBinary, data.sigmaEstimate, sigmaDf,
-    sigmaRawScale, options, rng);
+    sigmaRawScale, options, rngs.data());
 
   if (data.numTestObservations > 0)
     sampler->setTestPredictors(data.x_test, data.numTestObservations);
@@ -141,7 +163,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   invalidateModel(model);
   invalidateData(data);
 
-  BartcoreHolder* holder = new BartcoreHolder{std::move(sampler), rng};
+  BartcoreHolder* holder = new BartcoreHolder{std::move(sampler), std::move(rngs)};
 
   SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, dataExpr));
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
@@ -160,6 +182,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   size_t numObservations = sampler.numObservations();
   size_t numPredictors = sampler.numPredictors();
   size_t numTestObservations = sampler.numTestObservations();
+  size_t numChains = sampler.numChains();
+  int numSamplesInt = static_cast<int>(numSamples);
+  int numChainsInt = static_cast<int>(numChains);
 
   if (numSamples == 0) {
     bartcore::Results empty;
@@ -169,22 +194,44 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     return R_NilValue;
   }
 
+  // several chains add a trailing chain dimension, as the classic engine's
+  // results do
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 5));
-  SEXP sigmaExpr =
-    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)));
-  SEXP trainExpr = PROTECT(Rf_allocMatrix(
-    REALSXP, static_cast<int>(numObservations), static_cast<int>(numSamples)));
-  SEXP testExpr = numTestObservations > 0
-    ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
-                             static_cast<int>(numSamples)))
-    : PROTECT(R_NilValue);
-  SEXP varcountExpr = PROTECT(Rf_allocMatrix(
-    INTSXP, static_cast<int>(numPredictors), static_cast<int>(numSamples)));
-  SEXP kExpr = sampler.kIsSampled()
+  SEXP sigmaExpr = numChains == 1
     ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
-    : PROTECT(R_NilValue);
+    : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+  SEXP trainExpr = numChains == 1
+    ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                             numSamplesInt))
+    : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
+                              numSamplesInt, numChainsInt));
+  SEXP testExpr;
+  if (numTestObservations > 0) {
+    testExpr = numChains == 1
+      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
+                               numSamplesInt))
+      : PROTECT(Rf_alloc3DArray(REALSXP,
+                                static_cast<int>(numTestObservations),
+                                numSamplesInt, numChainsInt));
+  } else {
+    testExpr = PROTECT(R_NilValue);
+  }
+  SEXP varcountExpr = numChains == 1
+    ? PROTECT(Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors),
+                             numSamplesInt))
+    : PROTECT(Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
+                              numSamplesInt, numChainsInt));
+  SEXP kExpr;
+  if (sampler.kIsSampled()) {
+    kExpr = numChains == 1
+      ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
+      : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+  } else {
+    kExpr = PROTECT(R_NilValue);
+  }
 
-  std::vector<std::uint32_t> variableCounts(numPredictors * numSamples);
+  std::vector<std::uint32_t> variableCounts(numPredictors * numSamples *
+                                            numChains);
 
   bartcore::Results results;
   results.sigma = REAL(sigmaExpr);
@@ -198,7 +245,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   PutRNGstate();
 
   int* varcountOut = INTEGER(varcountExpr);
-  for (size_t i = 0; i < numPredictors * numSamples; ++i)
+  for (size_t i = 0; i < numPredictors * numSamples * numChains; ++i)
     varcountOut[i] = static_cast<int>(variableCounts[i]);
 
   SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
@@ -428,13 +475,22 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 
 SEXP bartcore_getLatents(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  const double* latents = holder.sampler->latents();
-  if (latents == NULL) return R_NilValue;
+  if (holder.sampler->latents(0) == NULL) return R_NilValue;
 
   size_t numObservations = holder.sampler->numObservations();
-  SEXP result =
-    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numObservations)));
-  std::memcpy(REAL(result), latents, numObservations * sizeof(double));
+  size_t numChains = holder.sampler->numChains();
+
+  SEXP result;
+  if (numChains == 1) {
+    result =
+      PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numObservations)));
+  } else {
+    result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                                    static_cast<int>(numChains)));
+  }
+  for (size_t c = 0; c < numChains; ++c)
+    std::memcpy(REAL(result) + c * numObservations,
+                holder.sampler->latents(c), numObservations * sizeof(double));
   UNPROTECT(1);
   return result;
 }

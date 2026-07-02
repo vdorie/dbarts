@@ -86,6 +86,16 @@ makeScenarios <- function() {
     samplerApi = TRUE
   )
 
+  # two chains pooled, driven through the sampler API of both engines; each
+  # chain has its own generator seeded from R's stream
+  set.seed(5107L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$chains <- list(
+    x = x, y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE, nChains = 2L
+  )
+
   # quantile cut points over a mix of continuous columns (thinned to numcut)
   # and discrete ones (columns 4-5 and 8-10 on an 11-level grid, inducing
   # 10 unique-midpoint cuts each)
@@ -104,19 +114,26 @@ makeScenarios <- function() {
 }
 
 fitViaSamplerApi <- function(scenario, engineIsNew) {
-  control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = ntree,
-                           updateState = FALSE)
+  n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
+  control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
+                           n.trees = ntree, updateState = FALSE)
   sampler <- dbarts(scenario$x, scenario$y, test = scenario$x.test,
                     control = control)
+  # [d, S] or [d, S, C] -> (S * C) x d, pooling chains
+  poolChains <- function(a) {
+    if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
+  }
   if (engineIsNew) {
     bcSampler <- dbarts:::bartcoreSampler(sampler)
     r <- dbarts:::bartcoreRun(bcSampler, nskip, ndpost)
-    list(yhat.test = t(r$yhat.test), varcount = t(r$varcount),
-         sigma = r$sigma, k = r$k)
+    list(yhat.test = poolChains(r$yhat.test),
+         varcount = poolChains(r$varcount), sigma = as.vector(r$sigma),
+         k = if (!is.null(r$k)) as.vector(r$k))
   } else {
     r <- sampler$run(nskip, ndpost)
-    list(yhat.test = t(r$test), varcount = t(r$varcount),
-         sigma = r$sigma, k = r$k)
+    list(yhat.test = poolChains(r$test), varcount = poolChains(r$varcount),
+         sigma = as.vector(r$sigma),
+         k = if (!is.null(r$k)) as.vector(r$k))
   }
 }
 

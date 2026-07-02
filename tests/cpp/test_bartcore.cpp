@@ -245,7 +245,7 @@ static void testEndToEndGaussian(ext_rng* rng) {
   options.numTrees = 75;
   ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, false,
                          ySd, 3.0, 0.37804942330213542 /* qchisq(0.1, 3)/3 */,
-                         options, rng);
+                         options, &rng);
 
   const size_t numBurnIn = 200, numSamples = 300;
   std::vector<double> sigmaDraws(numSamples);
@@ -291,7 +291,7 @@ static void testEndToEndProbit(ext_rng* rng) {
   options.numTrees = 50;
   options.nodeScale = 3.0;
   ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, true,
-                         1.0, 3.0, 1.0, options, rng);
+                         1.0, 3.0, 1.0, options, &rng);
 
   const size_t numBurnIn = 150, numSamples = 200;
   std::vector<double> trainingFits(n * numSamples);
@@ -368,7 +368,7 @@ static void testDartSparsityRecovery(ext_rng* rng) {
     options.useDart = useDart;
     options.dart.updateDelay = 100;  // half of burn-in, BART-package style
     ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, false,
-                           1.0, 3.0, 0.37804942330213542, options, rng);
+                           1.0, 3.0, 0.37804942330213542, options, &rng);
     const size_t numSamples = 300;
     std::vector<uint32_t> varcount(p * numSamples);
     Results results;
@@ -475,15 +475,15 @@ static void testColumnStoreMutation() {
 
 // A burned-in sampler for mutation tests: strong signal in both columns so
 // trees certainly split.
-static ClassicSampler makeBurnedInSampler(std::vector<double>& x,
-                                          std::vector<double>& y, size_t n,
-                                          ext_rng* rng) {
+static std::unique_ptr<ClassicSampler> makeBurnedInSampler(
+  std::vector<double>& x, std::vector<double>& y, size_t n, ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
-                         1.0, 3.0, 0.37804942330213542, options, rng);
+  auto sampler = std::make_unique<ClassicSampler>(
+    x.data(), y.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
+    0.37804942330213542, options, &rng);
   Results empty;
-  sampler.run(100, 0, empty);
+  sampler->run(100, 0, empty);
   return sampler;
 }
 
@@ -504,10 +504,11 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
 
   std::vector<xint_t> codesBefore(sampler.data().codes);
-  std::vector<double> treeFitsBefore(sampler.treeFits());
+  std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
 
   // identity swap: new buffer, same values; must accept and preserve fits
   std::vector<double> xCopy(x);
@@ -516,7 +517,7 @@ static void testSetPredictorTransaction(ext_rng* rng) {
         "identity setPredictor accepted");
   check(sampler.data().x == xCopy.data(), "accepted swap installs pointer");
   check(sampler.data().codes == codesBefore, "identity swap preserves codes");
-  check(sampler.treeFits() == treeFitsBefore, "identity swap preserves fits");
+  check(sampler.chain(0).treeFits() == treeFitsBefore, "identity swap preserves fits");
 
   // constant predictors empty one side of every split: must reject and
   // roll back completely
@@ -526,9 +527,9 @@ static void testSetPredictorTransaction(ext_rng* rng) {
         "degenerate setPredictor rejected");
   check(sampler.data().x == xCopy.data(), "rejected swap keeps old pointer");
   check(sampler.data().codes == codesBefore, "rollback restores codes");
-  check(sampler.treeFits() == treeFitsBefore, "rollback leaves fits untouched");
+  check(sampler.chain(0).treeFits() == treeFitsBefore, "rollback leaves fits untouched");
   for (size_t t = 0; t < 25; ++t)
-    if (!sampler.tree(t).bottomNodesAreOccupied()) {
+    if (!sampler.chain(0).tree(t).bottomNodesAreOccupied()) {
       check(false, "rollback leaves a partition empty");
       break;
     }
@@ -556,7 +557,8 @@ static void testSetPredictorForced(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
 
   // force-install degenerate predictors: every split empties a side, so all
   // trees collapse to their roots with merged parameters
@@ -567,16 +569,16 @@ static void testSetPredictorForced(ext_rng* rng) {
 
   bool allCollapsed = true, occupied = true;
   for (size_t t = 0; t < 25; ++t) {
-    allCollapsed &= sampler.tree(t).hasSingleNode();
-    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+    allCollapsed &= sampler.chain(0).tree(t).hasSingleNode();
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
   }
   check(allCollapsed, "forced degenerate update collapses trees");
   check(occupied, "collapsed trees keep observations");
 
   // fits stay consistent: totalFits == sum of constant tree fits
   double fitSum = 0.0;
-  for (size_t t = 0; t < 25; ++t) fitSum += sampler.treeFits()[t * n];
-  checkNear(sampler.totalFits()[0], fitSum, 1e-10,
+  for (size_t t = 0; t < 25; ++t) fitSum += sampler.chain(0).treeFits()[t * n];
+  checkNear(sampler.chain(0).totalFits()[0], fitSum, 1e-10,
             "forced update keeps fit identity");
 
   std::vector<double> sigmaDraws(10);
@@ -594,7 +596,8 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
 
   std::vector<xint_t> codesBefore(sampler.data().codes);
 
@@ -634,7 +637,8 @@ static void testPerObservationUpdate(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
 
   // identity: every observation trivially remains in its leaf
   std::vector<double> identity(x.begin(), x.begin() + n);
@@ -668,7 +672,7 @@ static void testPerObservationUpdate(ext_rng* rng) {
 
   bool occupied = true;
   for (size_t t = 0; t < 25; ++t)
-    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
   check(occupied, "per-observation update keeps every leaf occupied");
 
   printf("ok: per-observation update (%zu/%zu installed)\n", numInstalled, n);
@@ -698,10 +702,10 @@ static void testJointPerObservationUpdate() {
   options.numTrees = 25;
   SamplerFacade<ConstantGaussianLeaf> samplerA(
     xA.data(), yA.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
-    0.37804942330213542, options, rngA);
+    0.37804942330213542, options, &rngA);
   SamplerFacade<ConstantGaussianLeaf> samplerB(
     xB.data(), yB.data(), n, size_t(2), nullptr, nullptr, false, 1.0, 3.0,
-    0.37804942330213542, options, rngB);
+    0.37804942330213542, options, &rngB);
   Results empty;
   samplerA.run(100, 0, empty);
   samplerB.run(100, 0, empty);
@@ -733,8 +737,8 @@ static void testJointPerObservationUpdate() {
 
   bool occupied = true;
   for (size_t t = 0; t < 25; ++t)
-    occupied &= samplerA.impl().tree(t).bottomNodesAreOccupied() &&
-                samplerB.impl().tree(t).bottomNodesAreOccupied();
+    occupied &= samplerA.impl().chain(0).tree(t).bottomNodesAreOccupied() &&
+                samplerB.impl().chain(0).tree(t).bottomNodesAreOccupied();
   check(occupied, "joint update keeps every leaf occupied in both samplers");
 
   ext_rng_destroy(rngB);
@@ -807,7 +811,7 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
   options.numTrees = 25;
   options.useQuantiles = true;
   ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
-                         1.0, 3.0, 0.37804942330213542, options, rng);
+                         1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(100, 0, empty);
 
@@ -846,7 +850,8 @@ static void testSetCutPoints(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
 
   // shrink column 0 to three cuts: codes re-quantize, out-of-range splits
   // collapse, and the fit identity holds
@@ -864,14 +869,14 @@ static void testSetCutPoints(ext_rng* rng) {
 
   bool occupied = true;
   for (size_t t = 0; t < 25; ++t)
-    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
   check(occupied, "setCutPoints leaves no empty leaves");
 
   bool fitIdentity = true;
   for (size_t i = 0; i < n && fitIdentity; i += 37) {
     double total = 0.0;
-    for (size_t t = 0; t < 25; ++t) total += sampler.treeFits()[t * n + i];
-    fitIdentity = std::fabs(total - sampler.totalFits()[i]) < 1e-10;
+    for (size_t t = 0; t < 25; ++t) total += sampler.chain(0).treeFits()[t * n + i];
+    fitIdentity = std::fabs(total - sampler.chain(0).totalFits()[i]) < 1e-10;
   }
   check(fitIdentity, "setCutPoints keeps the fit identity");
 
@@ -884,6 +889,149 @@ static void testSetCutPoints(ext_rng* rng) {
   check(sigmaFinite, "sampler runs after setCutPoints");
 
   printf("ok: explicit setCutPoints\n");
+}
+
+static void testMultiChain() {
+  const size_t n = 300, numChains = 3, numSamples = 50;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], 1000 + static_cast<uint_least32_t>(c));
+    }
+  };
+
+  auto runSampler = [&](size_t numThreads, std::vector<double>& sigma,
+                        std::vector<double>& fits) {
+    std::vector<ext_rng*> rngs(numChains);
+    makeRngs(rngs);
+
+    SamplerOptions options;
+    options.numTrees = 25;
+    options.numChains = numChains;
+    options.numThreads = numThreads;
+    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                           1.0, 3.0, 0.37804942330213542, options,
+                           rngs.data());
+
+    sigma.assign(numSamples * numChains, 0.0);
+    fits.assign(n * numSamples * numChains, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+    sampler.run(100, numSamples, results);
+
+    for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+  };
+
+  std::vector<double> sigmaSerial, fitsSerial, sigmaThreaded, fitsThreaded;
+  runSampler(1, sigmaSerial, fitsSerial);
+  runSampler(numChains, sigmaThreaded, fitsThreaded);
+
+  // results depend only on the chain rngs, never on the thread count
+  check(sigmaSerial == sigmaThreaded, "thread count does not change sigma");
+  check(fitsSerial == fitsThreaded, "thread count does not change fits");
+
+  bool sigmaSane = true;
+  for (double s : sigmaSerial) sigmaSane &= std::isfinite(s) && s > 0.0;
+  check(sigmaSane, "every chain draws finite positive sigma");
+
+  // chains use distinct rngs, so their draws differ
+  bool chainsIdentical = true;
+  for (size_t s = 0; s < numSamples; ++s)
+    chainsIdentical &= sigmaSerial[s] == sigmaSerial[s + numSamples];
+  check(!chainsIdentical, "chains draw distinct samples");
+
+  // every chain's posterior mean fit explains the signal
+  for (size_t c = 0; c < numChains; ++c) {
+    double sse = 0.0, sseMean = 0.0;
+    double yMean = 0.0;
+    for (size_t i = 0; i < n; ++i) yMean += y[i] / static_cast<double>(n);
+    for (size_t i = 0; i < n; ++i) {
+      double fitMean = 0.0;
+      for (size_t s = 0; s < numSamples; ++s)
+        fitMean += fitsSerial[i + (c * numSamples + s) * n] /
+                   static_cast<double>(numSamples);
+      sse += (fitMean - y[i]) * (fitMean - y[i]);
+      sseMean += (yMean - y[i]) * (yMean - y[i]);
+    }
+    if (sse >= 0.5 * sseMean) {
+      check(false, "multi-chain fit explains most signal");
+      break;
+    }
+  }
+
+  printf("ok: multi-chain run\n");
+}
+
+static void testMultiChainMutation() {
+  const size_t n = 200, numChains = 2;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 2000 + static_cast<uint_least32_t>(c));
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numChains = numChains;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                         1.0, 3.0, 0.37804942330213542, options, rngs.data());
+  Results empty;
+  sampler.run(100, 0, empty);
+
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<double> fitsBefore[numChains] = {sampler.chain(0).treeFits(),
+                                               sampler.chain(1).treeFits()};
+
+  // the transaction spans chains: degenerate predictors roll back everywhere
+  std::vector<double> xConstant(n * 2, 0.5);
+  check(sampler.setPredictor(xConstant.data(), false, false) ==
+          PredictorUpdateResult::rolledBack,
+        "multi-chain degenerate setPredictor rejected");
+  check(sampler.data().codes == codesBefore,
+        "multi-chain rollback restores codes");
+  bool fitsUntouched = true, occupied = true;
+  for (size_t c = 0; c < numChains; ++c) {
+    fitsUntouched &= sampler.chain(c).treeFits() == fitsBefore[c];
+    for (size_t t = 0; t < 25; ++t)
+      occupied &= sampler.chain(c).tree(t).bottomNodesAreOccupied();
+  }
+  check(fitsUntouched, "multi-chain rollback leaves every chain's fits");
+  check(occupied, "multi-chain rollback leaves valid partitions");
+
+  // per-observation guard consults every chain's occupancy
+  std::vector<double> extreme(n, 10.0);
+  std::unique_ptr<bool[]> installed(new bool[n]);
+  check(sampler.updatePredictorPerObservation(extreme.data(), 0,
+                                              installed.get()),
+        "multi-chain per-observation update finalizes");
+  size_t numInstalled = 0;
+  for (size_t i = 0; i < n; ++i) numInstalled += installed[i] ? 1 : 0;
+  check(numInstalled > 0 && numInstalled < n,
+        "multi-chain per-observation update is partial");
+  occupied = true;
+  for (size_t c = 0; c < numChains; ++c)
+    for (size_t t = 0; t < 25; ++t)
+      occupied &= sampler.chain(c).tree(t).bottomNodesAreOccupied();
+  check(occupied, "multi-chain per-observation update keeps leaves occupied");
+
+  std::vector<double> sigmaDraws(5 * numChains);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "multi-chain sampler runs after mutation");
+
+  for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+
+  printf("ok: multi-chain mutation (%zu/%zu installed)\n", numInstalled, n);
 }
 
 int main() {
@@ -914,6 +1062,8 @@ int main() {
   testQuantileCutPoints();
   testQuantilePredictorUpdate(rng);
   testSetCutPoints(rng);
+  testMultiChain();
+  testMultiChainMutation();
 
   ext_rng_destroy(rng);
 

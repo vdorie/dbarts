@@ -306,10 +306,25 @@ partitioning entirely; a different library sharing only the tree structure).
    point installs externally chosen (strictly increasing) cuts per column,
    re-quantizes train and test codes, and force-refreshes trees so
    orphaned splits collapse.
-   Remaining for phase 2: multiple chains/threads, the user-facing
-   dbartsSampler opt-in flag, and whole-data replacement (setData with
-   mapOldCutPointsOntoNew, possibly resizing numObservations), which is
-   the last mutation entry point.
+   Multiple chains and threads (DONE 2026-07-02): the engine splits into
+   Chain (bartcore/chain.hpp: trees, fits, response state, chain
+   parameters, and its own rng over a shared read-only ColumnStore) and
+   the Sampler coordinator (owns the store and the chains, fans mutation
+   out, and runs chains on up to min(numThreads, numChains) std::thread
+   workers -- chains never touch the store, the R API, or each other, so
+   results are identical for any thread count, which a component test
+   asserts bitwise). Data transactions are all-or-none across every tree
+   of every chain like the classic engine's: validation runs over all
+   chains before any chain's fits are rebuilt. Results arrays gain a
+   trailing chain dimension (chain-major slabs), matching the classic
+   run() shapes. The bridge honors control n.chains/n.threads; a single
+   chain still draws through R's generator, while several chains each get
+   a Mersenne twister seeded from R's stream. Within-chain (htm) kernel
+   threading remains unported and is likely superseded by chain-level
+   parallelism.
+   Remaining for phase 2: the user-facing dbartsSampler opt-in flag, and
+   whole-data replacement (setData with mapOldCutPointsOntoNew, possibly
+   resizing numObservations), which is the last mutation entry point.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,

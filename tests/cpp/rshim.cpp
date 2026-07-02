@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <vector>
 
+// R's remapped api (length, error, ...) collides with the standard library
+// headers bartcore pulls in
+#define R_NO_REMAP
 #include <R.h>
 #include <Rinternals.h>
 #include <R_ext/Random.h>
@@ -84,7 +87,7 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
   bartcore::ClassicSampler sampler(
     REAL(xExpr), REAL(yExpr), n, p, optionalReal(weightsExpr),
     optionalReal(offsetExpr), binary, Rf_asReal(sigestExpr),
-    Rf_asReal(sigdfExpr), Rf_asReal(sigScaleExpr), options, rng);
+    Rf_asReal(sigdfExpr), Rf_asReal(sigScaleExpr), options, &rng);
   if (numTest > 0) sampler.setTestPredictors(xTest, numTest);
 
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
