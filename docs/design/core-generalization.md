@@ -322,9 +322,27 @@ partitioning entirely; a different library sharing only the tree structure).
    a Mersenne twister seeded from R's stream. Within-chain (htm) kernel
    threading remains unported and is likely superseded by chain-level
    parallelism.
-   Remaining for phase 2: the user-facing dbartsSampler opt-in flag, and
-   whole-data replacement (setData with mapOldCutPointsOntoNew, possibly
-   resizing numObservations), which is the last mutation entry point.
+   Opt-in engine flag (DONE 2026-07-02): dbartsControl(engine =
+   "bartcore") runs the standard dbartsSampler surface on the new engine.
+   Supported methods delegate one line into R/bartcore.R helpers that
+   mirror the classic semantics (run resolves control defaults and
+   returns classic-named, chain-dimensioned results; setPredictor keeps
+   the full/column/partial forms, forceUpdate defaults, data@x swap on
+   success, and mask returns; setCutPoints, setTestPredictor(AndOffset),
+   setResponse, setOffset with rescale, setSigma, getLatents, getSigmas).
+   Unsupported methods (state serialization, keepTrees/tree extraction,
+   predict, setData, setWeights, test offsets, prior sampling) refuse
+   loudly instead of passing a bartcore pointer to classic entry points.
+   The engine gained classic-parity thinning (numThin: burn-in and
+   samples count at the kept rate); the bridge honors keepTrainingFits
+   and pins borrowed vectors in fixed slots of the external pointer's
+   protection object so repeated setters do not accumulate. The
+   equivalence harness drives both engines through the public sampler
+   surface via the flag; flag-path results are RNG-identical to the
+   internal bridge's.
+   Remaining for phase 2: whole-data replacement (setData with
+   mapOldCutPointsOntoNew, possibly resizing numObservations), the last
+   mutation entry point.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,

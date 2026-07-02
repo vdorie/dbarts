@@ -4,6 +4,11 @@
 \section{CHANGES IN VERSION 0.9-34}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item `dbartsControl` accepts `engine = "bartcore"`, running the sampler
+            on the in-development replacement engine behind the standard
+            `dbartsSampler` interface. Not yet supported there: saving/loading
+            sampler state, `keepTrees` and tree extraction, test offsets,
+            `setData`, and `setWeights`.
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.

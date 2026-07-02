@@ -73,13 +73,27 @@ updatePredictorPerObservationJointly <- function(
 
   x <- as.double(x)
 
+  engines <- vapply(samplers, function(sampler) sampler$control@engine, "")
+  if (any(engines == "bartcore") && !all(engines == "bartcore")) {
+    stop("cannot jointly update samplers running different engines")
+  }
+
   ptrs <- lapply(samplers, function(sampler) sampler$getPointer())
-  installed <- .Call(
-    C_dbarts_updatePredictorPerObservationJointly,
-    ptrs,
-    x,
-    as.integer(columnIndices)
-  )
+  installed <- if (all(engines == "bartcore")) {
+    .Call(
+      C_dbarts_bartcore_updatePredictorPerObservationJointly,
+      ptrs,
+      x,
+      as.integer(columnIndices)
+    )
+  } else {
+    .Call(
+      C_dbarts_updatePredictorPerObservationJointly,
+      ptrs,
+      x,
+      as.integer(columnIndices)
+    )
+  }
 
   for (sampler in samplers) {
     if (
