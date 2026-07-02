@@ -365,6 +365,7 @@ static void testDartSparsityRecovery(ext_rng* rng) {
     SamplerOptions options;
     options.numTrees = 50;
     options.useDart = useDart;
+    options.dart.updateDelay = 100;  // half of burn-in, BART-package style
     ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, false,
                            1.0, 3.0, 0.37804942330213542, options, rng);
     const size_t numSamples = 300;

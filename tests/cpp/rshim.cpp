@@ -69,6 +69,7 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
     options.dart.betaA = dartParams[2];
     options.dart.betaB = dartParams[3];
     options.dart.rho = dartParams[4];
+    options.dart.updateDelay = nskip / 2;  // BART-package startdart convention
   }
 
   GetRNGstate();
