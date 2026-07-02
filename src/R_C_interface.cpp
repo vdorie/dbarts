@@ -129,7 +129,8 @@ FlattenedTrees* dbarts_getTrees(
     sampleIndices,
     numSampleIndices,
     treeIndices,
-    numTreeIndices
+    numTreeIndices,
+    false
   );
 }
 

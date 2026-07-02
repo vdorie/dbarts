@@ -1162,21 +1162,31 @@ dbartsSampler <- setRefClass(
         as.integer(treeNums)
       ))
     },
-    getTrees = function(treeNums, chainNums, sampleNums) {
-      'Returns a data.frame containing the internal state of the trees.'
+    getTrees = function(treeNums, chainNums, sampleNums, current = FALSE) {
+      "Returns a data.frame containing the internal state of the trees."
       matchedCall <- match.call()
+      current <- isTRUE(current)
+      # live working trees have no sample dimension, so treat a current request
+      # like a non-keepTrees sampler for sample handling
+      useSaved <- control@keepTrees && !current
       if (is.null(matchedCall$chainNums)) {
         chainNums <- seq_len(control@n.chains)
       }
       if (is.null(matchedCall$sampleNums)) {
-        sampleNums <- if (control@keepTrees) {
+        sampleNums <- if (useSaved) {
           seq_len(control@n.samples)
         } else {
           NULL
         }
       } else {
-        if (!control@keepTrees) {
-          warning("sampleNums ignored if keepTrees is FALSE")
+        if (!useSaved) {
+          warning(
+            if (current) {
+              "sampleNums ignored if current is TRUE"
+            } else {
+              "sampleNums ignored if keepTrees is FALSE"
+            }
+          )
           sampleNums <- NULL
         } else {
           sampleNums <- as.integer(sampleNums)
@@ -1193,7 +1203,7 @@ dbartsSampler <- setRefClass(
         stop("chainNums must be in [1, ", control@n.chains, "]")
       }
       if (
-        control@keepTrees &&
+        useSaved &&
           any(sampleNums <= 0 | sampleNums > control@n.samples)
       ) {
         stop("sampleNums must be in [1, ", control@n.samples, "]")
@@ -1203,7 +1213,7 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
-      .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums)
+      .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums, current)
     },
     plotTree = function(
       treeNum,

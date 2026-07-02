@@ -10,11 +10,16 @@
       \item `updatePredictorPerObservationJointly` applies a `"partial"`-style update across several
             samplers at once, installing an observation only when it keeps every
             sampler's nodes non-empty.
+      \item The `getTrees` method of a sampler accepts `current = TRUE` to return
+            the live working trees (the current sampler position) even when
+            `keepTrees` is `TRUE`, rather than the saved samples.
     }
   }
   \subsection{BUG FIXES}{
     \itemize{
       \item `copy` now works for samplers with a stored state.
+      \item Fixed reading a saved tree back from binary IO, which recursed with
+            the writing routine instead of the reading one.
     }
   }
 }

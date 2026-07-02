@@ -212,13 +212,16 @@ namespace dbarts {
       const std::size_t* treeIndices,
       std::size_t numTreeIndices
     ) const;
+    // When useLiveTrees is true, returns the current working trees even for a
+    // keepTrees sampler; sampleIndices are then ignored.
     FlattenedTrees* getFlattenedTrees(
       const std::size_t* chainIndices,
       std::size_t numChainIndices,
       const std::size_t* sampleIndices,
       std::size_t numSampleIndices,
       const std::size_t* treeIndices,
-      std::size_t numTreeIndices
+      std::size_t numTreeIndices,
+      bool useLiveTrees
     ) const;
 
     /// \warning The new control must have the same number of chains as the old,

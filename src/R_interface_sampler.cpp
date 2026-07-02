@@ -1346,15 +1346,21 @@ SEXP getTrees(
   SEXP fitExpr,
   SEXP chainIndicesExpr,
   SEXP sampleIndicesExpr,
-  SEXP treeIndicesExpr
+  SEXP treeIndicesExpr,
+  SEXP currentExpr
 ) {
   BARTFit* fitPtr = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
   if (fitPtr == NULL)
     Rf_error("dbarts_getTrees called on NULL external pointer");
   BARTFit& fit(*fitPtr);
 
+  // when currentExpr is true, return the live working trees even for a
+  // keepTrees sampler; there is then no sample dimension
+  bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
+  bool treatAsSaved = fit.control.keepTrees && !useLiveTrees;
+
   size_t numChains = fit.control.numChains;
-  size_t numSamples = fit.control.keepTrees ? fit.currentNumSamples : 0;
+  size_t numSamples = treatAsSaved ? fit.currentNumSamples : 0;
   size_t numTrees = fit.control.numTrees;
 
   size_t numChainIndices =
@@ -1387,7 +1393,7 @@ SEXP getTrees(
     );
 
   size_t* chainIndices = misc_stackAllocate(numChainIndices, size_t);
-  size_t* sampleIndices = fit.control.keepTrees ? new size_t[numSamples] : NULL;
+  size_t* sampleIndices = treatAsSaved ? new size_t[numSamples] : NULL;
   size_t* treeIndices = new size_t[numTreeIndices];
 
   if (Rf_isNull(chainIndicesExpr)) {
@@ -1423,7 +1429,8 @@ SEXP getTrees(
     sampleIndices,
     numSampleIndices,
     treeIndices,
-    numTreeIndices
+    numTreeIndices,
+    useLiveTrees
   );
   FlattenedTrees& flattenedTrees(*flattenedTreesPtr);
 
@@ -1432,7 +1439,7 @@ SEXP getTrees(
   misc_stackFree(chainIndices);
 
   R_xlen_t numCols =
-    4 + (numChains > 1 ? 1 : 0) + (fit.control.keepTrees ? 1 : 0);
+    4 + (numChains > 1 ? 1 : 0) + (treatAsSaved ? 1 : 0);
   SEXP resultExpr = PROTECT(rc_newList(numCols));
 
   SEXP classExpr = PROTECT(rc_newCharacter(1));
@@ -1475,7 +1482,7 @@ SEXP getTrees(
     chainNumber = INTEGER(VECTOR_ELT(resultExpr, colNum));
     ++colNum;
   }
-  if (fit.control.keepTrees) {
+  if (treatAsSaved) {
     SET_VECTOR_ELT(
       resultExpr,
       colNum,

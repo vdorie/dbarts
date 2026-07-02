@@ -53,7 +53,8 @@ SEXP getTrees(
   SEXP fit,
   SEXP chainIndices,
   SEXP sampleIndices,
-  SEXP treeIndices
+  SEXP treeIndices,
+  SEXP current
 );
 SEXP printTrees(
   SEXP fit,

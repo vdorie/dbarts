@@ -666,10 +666,10 @@ read_node_cleanup:
     if (nodeFlags & NODE_HAS_CHILDREN) {
       node.leftChild = new dbarts::SavedNode();
       node.leftChild->parent = &node;
-      if ((errorCode = writeNode(bio, *node.getLeftChild()))) goto read_saved_node_cleanup;
+      if ((errorCode = readNode(bio, *node.getLeftChild()))) goto read_saved_node_cleanup;
       node.rightChild = new dbarts::SavedNode();
       node.rightChild->parent = &node;
-      if ((errorCode = writeNode(bio, *node.getRightChild()))) goto read_saved_node_cleanup;
+      if ((errorCode = readNode(bio, *node.getRightChild()))) goto read_saved_node_cleanup;
     }
     
 read_saved_node_cleanup:

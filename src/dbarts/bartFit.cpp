@@ -1943,7 +1943,8 @@ namespace dbarts {
     const size_t* sampleIndices,
     size_t numSampleIndices,
     const size_t* treeIndices,
-    size_t numTreeIndices
+    size_t numTreeIndices,
+    bool useLiveTrees
   ) const {
 
     size_t totalNumNodes = 0;
@@ -1952,7 +1953,7 @@ namespace dbarts {
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
 
-      if (!control.keepTrees) {
+      if (useLiveTrees || !control.keepTrees) {
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
           totalNumNodes +=
@@ -1977,7 +1978,7 @@ namespace dbarts {
     for (size_t i = 0; i < numChainIndices; ++i) {
       size_t chainNum = chainIndices[i];
 
-      if (!control.keepTrees) {
+      if (useLiveTrees || !control.keepTrees) {
         for (size_t k = 0; k < numTreeIndices; ++k) {
           size_t treeNum = treeIndices[k];
 

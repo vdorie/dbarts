@@ -84,5 +84,55 @@ expect_equal(allTrees, individualSamples)
 rm(individualSamples, combinations, allTrees, fit)
 rm(n.chains, n.samples, n.trees)
 
+
+## ---------------------------------------------------------------------------
+## getTrees(current = TRUE) returns the live working trees even for a keepTrees
+## sampler: no sample dimension, identical to what a keepTrees = FALSE sampler
+## reports, and a valid live oracle after a partial update (unlike the saved
+## snapshots, whose n replays the current predictor through frozen structure).
+## ---------------------------------------------------------------------------
+set.seed(7L)
+n <- 50L
+x <- rnorm(n)
+y <- x + rnorm(n)
+makeSampler <- function(keepTrees) {
+  ctrl <- dbarts::dbartsControl(
+    n.chains = 1L,
+    n.trees = 10L,
+    n.samples = 5L,
+    n.burn = 0L,
+    updateState = TRUE,
+    keepTrees = keepTrees,
+    verbose = FALSE,
+    rngSeed = 9L
+  )
+  sampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+  invisible(sampler$run(30L, 5L))
+  sampler
+}
+keptSampler <- makeSampler(TRUE)
+liveSampler <- makeSampler(FALSE)
+
+saved <- keptSampler$getTrees() # snapshots
+current <- keptSampler$getTrees(current = TRUE) # live working trees
+
+expect_true("sample" %in% names(saved)) # snapshots carry a sample dimension
+expect_false("sample" %in% names(current)) # live trees do not
+# the live trees are exactly what an otherwise-identical keepTrees = FALSE
+# sampler reports
+expect_equal(current, liveSampler$getTrees())
+# current = TRUE is ignored (harmlessly) when there are no saved trees
+expect_equal(liveSampler$getTrees(current = TRUE), liveSampler$getTrees())
+
+# a partial update keeps the live trees valid; getTrees(current = TRUE) sees it
+inst <- keptSampler$setPredictor(x + rnorm(n, sd = 0.5), "x", forceUpdate = "partial")
+liveTrees <- keptSampler$getTrees(current = TRUE)
+expect_false(any(liveTrees$var == -1L & liveTrees$n == 0L))
+expect_true(length(inst) == n)
+
+rm(keptSampler, liveSampler, makeSampler, saved, current, liveTrees, inst)
+rm(x, y, n)
+
+
 rm(df, testData)
 
