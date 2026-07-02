@@ -49,3 +49,13 @@ invisible(dbarts:::bartcoreRun(bcSampler.binary, 50L, 1L))
 latents <- dbarts:::bartcoreGetLatents(bcSampler.binary)
 expect_equal(length(latents), n)
 expect_true(all(latents[y.binary == 1L] > 0) && all(latents[y.binary == 0L] < 0))
+
+# fixed-k runs return no k samples
+expect_null(result$k)
+
+# the default binary spec uses the chi hyperprior on k
+sampler.chik <- dbarts(x, y.binary, control = control)
+bcSampler.chik <- dbarts:::bartcoreSampler(sampler.chik)
+result.chik <- dbarts:::bartcoreRun(bcSampler.chik, 50L, 30L)
+expect_equal(length(result.chik$k), 30L)
+expect_true(all(result.chik$k > 0) && sd(result.chik$k) > 0)

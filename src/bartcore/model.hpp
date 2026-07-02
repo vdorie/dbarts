@@ -229,6 +229,24 @@ private:
   std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
 };
 
+/// Chi hyperprior on the end-node precision parameter k. The posterior of
+/// k^2 is gamma in the sum of squared leaf parameters across the forest;
+/// a finite prior scale adds 0.5 / scale^2 to the rate (classic
+/// ChiHyperprior::drawFromPosterior).
+struct ChiKHyperprior {
+  double degreesOfFreedom = 1.25;
+  double scale = HUGE_VAL;  // infinite = flat in the rate term
+
+  double draw(ext_rng* rng, double sumSquaredParams, double totalNumLeaves,
+              double leafScale) const {
+    double shape = 0.5 * (totalNumLeaves + 2.0 * degreesOfFreedom - 1.0);
+    // classic form: numTrees * s_sq / nodeScale^2 == s_sq / leafScale^2
+    double rate = 0.5 * sumSquaredParams / (leafScale * leafScale);
+    if (std::fabs(scale) <= DBL_MAX) rate += 0.5 / (scale * scale);
+    return std::sqrt(ext_rng_simulateGamma(rng, shape, 1.0 / rate));
+  }
+};
+
 /// Conjugate chi-squared residual variance prior; scale arrives already
 /// derived (qchisq(1 - quantile, df) / df, then multiplied by the initial
 /// sigma^2 estimate at initialization, as in the classic engine).
