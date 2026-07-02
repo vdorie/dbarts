@@ -320,6 +320,48 @@ SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
   return R_NilValue;
 }
 
+SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  if (!Rf_inherits(dataExpr, "dbartsData"))
+    Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
+
+  Data data;
+  initializeDataFromExpression(data, dataExpr);
+
+  // Rf_error longjmps past destructors, so collect the reason, clean up,
+  // and error at the end.
+  const char* errorMessage = NULL;
+  if (data.numPredictors != sampler.numPredictors())
+    errorMessage = "bartcore setData requires the same predictors";
+  for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
+    if (data.variableTypes[j] != ORDINAL)
+      errorMessage = "bartcore supports only ordinal predictors so far";
+  }
+  if (errorMessage == NULL && data.testOffset != NULL)
+    errorMessage = "bartcore does not support test offsets";
+
+  if (errorMessage != NULL) {
+    invalidateData(data);
+    Rf_error("%s", errorMessage);
+  }
+
+  sampler.setData(data.x, data.y, data.numObservations, data.weights,
+                  data.offset, data.x_test, data.numTestObservations);
+
+  invalidateData(data);
+
+  // everything the sampler borrows now comes from the new data object
+  retain(ptrExpr, PROT_DATA, dataExpr);
+  retain(ptrExpr, PROT_RESPONSE, R_NilValue);
+  retain(ptrExpr, PROT_OFFSET, R_NilValue);
+  retain(ptrExpr, PROT_PREDICTORS, R_NilValue);
+  retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
+
+  return R_NilValue;
+}
+
 SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);

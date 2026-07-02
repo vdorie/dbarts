@@ -554,7 +554,9 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
-      assertClassicEngine(control, "setData")
+      if (control@engine == "bartcore") {
+        return(bartcoreSamplerSetData(.self, newData))
+      }
 
       if (!inherits(newData, "dbartsData")) {
         stop("'data' must inherit from dbartsData")

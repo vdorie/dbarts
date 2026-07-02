@@ -3,7 +3,7 @@
 # functions below, which mirror the classic methods' semantics; the C side
 # borrows vectors and pins them in the external pointer's protection slot.
 #
-# Not yet supported (methods error): setData, setWeights, test offsets,
+# Not yet supported (methods error): setWeights, test offsets,
 # keepTrees/predict/getTrees/plotTree/printTrees, state serialization
 # (storeState/setState; samplers cannot be restored after save/load), and
 # sampling from the prior.
@@ -129,6 +129,33 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   invisible(NULL)
 }
 
+bartcoreSamplerSetData <- function(sampler, newData) {
+  if (!inherits(newData, "dbartsData")) {
+    stop("'data' must inherit from dbartsData")
+  }
+  if (ncol(newData@x) != ncol(sampler$data@x)) {
+    stop("bartcore setData requires the same predictors")
+  }
+
+  newData@n.cuts <- sampler$data@n.cuts
+  newData@sigma <- sampler$data@sigma
+
+  ptr <- sampler$getPointer()
+
+  oldData <- sampler$data
+  sampler$data <- newData
+  tryResult <- tryCatch(
+    .Call(C_dbarts_bartcore_setData, ptr, sampler$data),
+    error = function(e) {
+      sampler$data <- oldData
+      e
+    }
+  )
+  if (inherits(tryResult, "error")) stop(tryResult)
+
+  invisible(NULL)
+}
+
 bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
   if (!is.null(column) && is.character(column)) {
     if (is.null(colnames(sampler$data@x))) {
@@ -210,6 +237,9 @@ bartcoreSetResponse <- function(bcSampler, y)
 
 bartcoreSetSigma <- function(bcSampler, sigma)
   invisible(.Call(C_dbarts_bartcore_setSigma, bcSampler$ptr, as.double(sigma)))
+
+bartcoreSetData <- function(bcSampler, data)
+  invisible(.Call(C_dbarts_bartcore_setData, bcSampler$ptr, data))
 
 bartcoreSetTestPredictor <- function(bcSampler, x.test) {
   x.test <- as.matrix(x.test)

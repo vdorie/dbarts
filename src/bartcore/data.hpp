@@ -217,6 +217,26 @@ struct ColumnStore {
     codes[i + j * numObservations] = codeFor(j, value);
   }
 
+  /// Whole-data replacement: new values for the same predictors, possibly a
+  /// new number of observations. Cuts are rebuilt from scratch, so unlike
+  /// refreshCutsForColumn a quantile-mode count may shrink; the caller remaps
+  /// existing splits onto the new grid.
+  void setData(const double* x_, size_t n) {
+    x = x_;
+    numObservations = n;
+    codes.resize(n * numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) {
+      buildCutsForColumn(j);
+      quantizeColumn(j);
+    }
+  }
+
+  void clearTest() {
+    x_test = nullptr;
+    numTestObservations = 0;
+    testCodes.clear();
+  }
+
   const xint_t* column(size_t variable) const {
     return codes.data() + variable * numObservations;
   }

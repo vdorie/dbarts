@@ -331,7 +331,7 @@ partitioning entirely; a different library sharing only the tree structure).
    success, and mask returns; setCutPoints, setTestPredictor(AndOffset),
    setResponse, setOffset with rescale, setSigma, getLatents, getSigmas).
    Unsupported methods (state serialization, keepTrees/tree extraction,
-   predict, setData, setWeights, test offsets, prior sampling) refuse
+   predict, setWeights, test offsets, prior sampling) refuse
    loudly instead of passing a bartcore pointer to classic entry points.
    The engine gained classic-parity thinning (numThin: burn-in and
    samples count at the kept rate); the bridge honors keepTrainingFits
@@ -340,9 +340,25 @@ partitioning entirely; a different library sharing only the tree structure).
    equivalence harness drives both engines through the public sampler
    surface via the flag; flag-path results are RNG-identical to the
    internal bridge's.
-   Remaining for phase 2: whole-data replacement (setData with
-   mapOldCutPointsOntoNew, possibly resizing numObservations), the last
-   mutation entry point.
+   Whole-data replacement (DONE 2026-07-02): Sampler::setData swaps
+   predictors, response, weights, offset, and test predictors at once,
+   possibly resizing numObservations (the predictor count is fixed).
+   Two phases: every chain recovers its leaf parameters against the old
+   fits and partitions, then the store rebuilds cut points from scratch
+   (quantile counts may shrink here, unlike the transactional updates)
+   and each chain remaps split indices onto the value-nearest new cut
+   within the ancestor-constrained interval
+   (Tree::mapOldCutPointsOntoNew; interval-starved subtrees collapse
+   with plain-mean parameter merges), re-routes, collapses anything left
+   empty, and rebuilds fits. ResponseModel::setData re-borrows and
+   resizes response state: Gaussian keeps sigma and the variance prior
+   fixed on the original scale across the rescale, probit
+   cold-initializes latents to 2y - 1, both as the reference engine
+   does. The public sigma accessors were also brought onto the original
+   scale, symmetric with setSigma (getSigmas previously leaked the
+   internal scale). The R5 setData delegates with classic semantics
+   (n.cuts/sigma slot preservation, data-slot rollback on error);
+   phase 2 is complete.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,

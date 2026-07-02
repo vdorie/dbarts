@@ -1034,6 +1034,288 @@ static void testMultiChainMutation() {
   printf("ok: multi-chain mutation (%zu/%zu installed)\n", numInstalled, n);
 }
 
+static void testMapOldCutPointsOntoNew() {
+  // quantile grids over 1..8 give cuts {1.5, ..., 7.5}; hand-check the remap
+  const size_t n = 8;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i + 1);
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, 7, true);
+  std::vector<std::vector<double>> oldCuts(store.cutPoints);
+
+  // root splits at index 3 (cut 4.5), its left child at index 1 (cut 2.5)
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rootRule;  rootRule.variableIndex = 0;  rootRule.splitIndex = 3;
+  tree.birth(store, 0, rootRule, y.data(), nullptr);
+  Rule leftRule;  leftRule.variableIndex = 0;  leftRule.splitIndex = 1;
+  tree.birth(store, tree.at(0).leftChild, leftRule, y.data(), nullptr);
+  int32_t leftChild = tree.at(0).leftChild;
+
+  // new values 2..16 by twos: cuts {3, 5, ..., 15}; 4.5 is nearest 5 (index
+  // 1), and 2.5 clamps into the left child's shrunken interval [0, 1)
+  std::vector<double> x2(n);
+  for (size_t i = 0; i < n; ++i) x2[i] = 2.0 * static_cast<double>(i + 1);
+  store.setData(x2.data(), n);
+
+  std::vector<double> params(tree.nodes.size(), 0.0);
+  tree.mapOldCutPointsOntoNew(store, oldCuts, params);
+  check(tree.at(0).rule.splitIndex == 1, "root split remaps to nearest cut");
+  check(tree.at(leftChild).rule.splitIndex == 0,
+        "child split clamps into the ancestor-constrained interval");
+
+  // shift the grid entirely above the old cuts: the root clamps to index 0,
+  // leaving the left child no interval, so it collapses with plain-mean param
+  std::vector<double> x3(n);
+  for (size_t i = 0; i < n; ++i) x3[i] = 20.0 + 2.0 * static_cast<double>(i);
+  oldCuts = store.cutPoints;
+  int32_t oldRootIndex = tree.at(0).rule.splitIndex;
+  check(oldRootIndex == 1, "");  // silence unused in release
+  store.setData(x3.data(), n);
+
+  params.assign(tree.nodes.size(), 0.0);
+  std::vector<int32_t> bottoms;
+  tree.fillBottom(leftChild, bottoms);
+  for (size_t k = 0; k < bottoms.size(); ++k)
+    params[static_cast<size_t>(bottoms[k])] = static_cast<double>(k + 1);
+  tree.mapOldCutPointsOntoNew(store, oldCuts, params);
+  check(tree.at(0).rule.splitIndex == 0, "root split clamps to the low end");
+  check(tree.at(leftChild).isBottom(), "interval-starved subtree collapses");
+  checkNear(params[static_cast<size_t>(leftChild)], 1.5, 1e-15,
+            "collapsed subtree takes the plain mean of its leaf parameters");
+
+  printf("ok: mapOldCutPointsOntoNew\n");
+}
+
+static void testSetData(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
+
+  double sigmaBefore = sampler.sigma(0);
+  std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+
+  // identity replacement: same values in new buffers; the rebuilt cuts equal
+  // the old ones, every split remaps onto itself, and fits are recovered
+  // exactly
+  std::vector<double> xCopy(x), yCopy(y);
+  sampler.setData(xCopy.data(), yCopy.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.data().x == xCopy.data(), "setData installs the new pointer");
+  check(sampler.data().codes == codesBefore, "identity setData preserves codes");
+  check(sampler.chain(0).treeFits() == treeFitsBefore,
+        "identity setData preserves fits");
+  check(sampler.sigma(0) == sigmaBefore, "identity setData preserves sigma");
+
+  // a linear response transform doubles the data range and so halves the
+  // internal sigma; on the original scale it must not move
+  std::vector<double> yScaled(n);
+  for (size_t i = 0; i < n; ++i) yScaled[i] = 2.0 * y[i] + 3.0;
+  sampler.setData(xCopy.data(), yScaled.data(), n, nullptr, nullptr, nullptr, 0);
+  checkNear(sampler.sigma(0), sigmaBefore, 1e-12 * sigmaBefore,
+            "setData preserves sigma on the original scale");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "setData leaves no empty leaves");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after setData");
+
+  printf("ok: setData\n");
+}
+
+static void testSetDataResize(ext_rng* rng) {
+  const size_t n = 200, n2 = 320, nTest = 50, nTest2 = 30;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
+
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = runif01();
+  sampler.setTestPredictors(xTest.data(), nTest);
+
+  // replace everything at once: more observations, a smaller test set, and a
+  // shifted predictor range so cut points genuinely move
+  std::vector<double> x2, y2;
+  makeMutationData(x2, y2, n2);
+  for (double& v : x2) v = 2.0 * v + 1.0;
+  std::vector<double> xTest2(nTest2 * 2);
+  for (double& v : xTest2) v = 2.0 * runif01() + 1.0;
+
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, xTest2.data(),
+                  nTest2);
+  check(sampler.numObservations() == n2, "setData resizes observations");
+  check(sampler.numTestObservations() == nTest2, "setData resizes test set");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "resized setData leaves no empty leaves");
+
+  bool fitIdentity = true;
+  for (size_t i = 0; i < n2 && fitIdentity; i += 41) {
+    double total = 0.0;
+    for (size_t t = 0; t < 25; ++t)
+      total += sampler.chain(0).treeFits()[t * n2 + i];
+    fitIdentity = std::fabs(total - sampler.chain(0).totalFits()[i]) < 1e-10;
+  }
+  check(fitIdentity, "resized setData keeps the fit identity");
+
+  std::vector<double> sigmaDraws(5), testFits(nTest2 * 5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  results.testFits = testFits.data();
+  sampler.run(0, 5, results);
+  bool finite = true;
+  for (double s : sigmaDraws) finite &= std::isfinite(s) && s > 0.0;
+  for (double f : testFits) finite &= std::isfinite(f);
+  check(finite, "sampler runs after resized setData");
+
+  // dropping the test set entirely
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.numTestObservations() == 0, "setData clears the test set");
+
+  printf("ok: setData resize\n");
+}
+
+static void testSetDataQuantileShrink(ext_rng* rng) {
+  const size_t n = 200;
+  // 10 discrete levels induce 9 quantile cuts
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 10);
+    x[i + n] = runif01();
+    y[i] = 0.5 * x[i] + 2.0 * x[i + n] + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.useQuantiles = true;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                         1.0, 3.0, 0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(100, 0, empty);
+  check(sampler.data().numCuts[0] == 9, "quantile sampler starts with 9 cuts");
+
+  // a coarser column is refused by updatePredictor but legal here: the cut
+  // count shrinks and out-of-range splits remap or collapse
+  std::vector<double> x2(x);
+  for (size_t i = 0; i < n; ++i) x2[i] = static_cast<double>(i % 4);
+  sampler.setData(x2.data(), y.data(), n, nullptr, nullptr, nullptr, 0);
+  check(sampler.data().numCuts[0] == 3, "setData shrinks quantile cut counts");
+
+  bool occupied = true, codesInRange = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  for (size_t i = 0; i < n; ++i)
+    codesInRange &= sampler.data().codes[i] <= 3;
+  check(occupied, "quantile shrink leaves no empty leaves");
+  check(codesInRange, "quantile shrink re-quantizes codes");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after quantile shrink");
+
+  printf("ok: setData quantile shrink\n");
+}
+
+static void testSetDataProbit(ext_rng* rng) {
+  const size_t n = 200, n2 = 150;
+  std::vector<double> x, yContinuous;
+  makeMutationData(x, yContinuous, n);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i) y[i] = yContinuous[i] > 0.0 ? 1.0 : 0.0;
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.nodeScale = 3.0;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, true,
+                         1.0, 3.0, 0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(50, 0, empty);
+
+  std::vector<double> x2, y2Continuous;
+  makeMutationData(x2, y2Continuous, n2);
+  std::vector<double> y2(n2);
+  for (size_t i = 0; i < n2; ++i) y2[i] = y2Continuous[i] > 0.0 ? 1.0 : 0.0;
+
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.numObservations() == n2, "probit setData resizes");
+
+  // latents cold-initialize to 2 y - 1, as the reference engine does
+  bool latentsMatch = true;
+  for (size_t i = 0; i < n2; ++i)
+    latentsMatch &= sampler.latents(0)[i] == 2.0 * y2[i] - 1.0;
+  check(latentsMatch, "probit setData cold-initializes latents");
+
+  Results results;
+  sampler.run(0, 5, results);
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "probit sampler runs after setData");
+
+  printf("ok: setData probit\n");
+}
+
+static void testMultiChainSetData() {
+  const size_t n = 200, n2 = 260, numChains = 2;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 3000 + static_cast<uint_least32_t>(c));
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numChains = numChains;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                         1.0, 3.0, 0.37804942330213542, options, rngs.data());
+  Results empty;
+  sampler.run(100, 0, empty);
+
+  std::vector<double> x2, y2;
+  makeMutationData(x2, y2, n2);
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+
+  bool occupied = true;
+  for (size_t c = 0; c < numChains; ++c)
+    for (size_t t = 0; t < 25; ++t)
+      occupied &= sampler.chain(c).tree(t).bottomNodesAreOccupied();
+  check(occupied, "multi-chain setData leaves every chain valid");
+
+  std::vector<double> sigmaDraws(5 * numChains);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "multi-chain sampler runs after setData");
+
+  for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+
+  printf("ok: multi-chain setData\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -1064,6 +1346,12 @@ int main() {
   testSetCutPoints(rng);
   testMultiChain();
   testMultiChainMutation();
+  testMapOldCutPointsOntoNew();
+  testSetData(rng);
+  testSetDataResize(rng);
+  testSetDataQuantileShrink(rng);
+  testSetDataProbit(rng);
+  testMultiChainSetData();
 
   ext_rng_destroy(rng);
 

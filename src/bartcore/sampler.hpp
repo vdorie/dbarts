@@ -136,6 +136,34 @@ public:
     return chains_[chainNum]->latents();
   }
 
+  /// Replace the entire data set: predictors, response, and optionally
+  /// weights, offset, and test predictors, with a possibly different number
+  /// of observations (all borrowed; the predictor count is fixed). Not
+  /// transactional: cut points are rebuilt from scratch, existing splits are
+  /// remapped onto the value-nearest new cuts, and any subtree left invalid
+  /// or empty collapses, as in the classic engine. Gaussian chains keep
+  /// sigma and the variance prior fixed on the original scale.
+  void setData(const double* x, const double* y, size_t numObservations,
+               const double* weights, const double* offset,
+               const double* x_test, size_t numTestObservations) {
+    // recover parameters against the old fits and partitions before anything
+    // moves; the old cut values drive the split remap
+    std::vector<typename Chain<L>::TreeParameters> params(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->recoverTreeParameters(params[c]);
+
+    std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
+
+    data_.setData(x, numObservations);
+    if (x_test != nullptr && numTestObservations > 0)
+      data_.buildTest(x_test, numTestObservations);
+    else
+      data_.clearTest();
+
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c]);
+  }
+
   /// Replace the predictor matrix (borrowed, column-major; the old pointer is
   /// kept on failure). Unless forceUpdate, a leaf that would empty in any
   /// tree of any chain rolls the whole change back; forceUpdate instead

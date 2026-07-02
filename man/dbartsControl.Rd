@@ -71,7 +71,7 @@ dbartsControl(
     interface. \code{"classic"} is the established engine.
     \code{"bartcore"} is its in-development replacement; it does not yet
     support saving/loading sampler state, \code{keepTrees} and tree
-    extraction, test offsets, \code{setData}, or \code{setWeights}.
+    extraction, test offsets, or \code{setWeights}.
   }
 }
 \value{

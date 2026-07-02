@@ -278,3 +278,44 @@ sampler.classic <- dbarts(x.jointC + 0, y,
 expect_error(updatePredictorPerObservationJointly(
   list(sampler.jointC, sampler.classic), rep(10, n), "x1"),
   pattern = "different engines")
+
+# whole-data replacement: cut points rebuild, splits remap, observation
+# counts may change, and sigma holds on the original scale
+control.setdata <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                                 n.threads = 1L, n.trees = 50L)
+sampler.setdata <- dbarts(x + 0, y, control = control.setdata)
+invisible(sampler.setdata$run(100L, 1L))
+
+sigma.before <- sampler.setdata$getSigmas()
+sampler.setdata$setData(dbartsData(x + 0, y))
+expect_equal(sampler.setdata$getSigmas(), sigma.before)
+sampler.setdata$setData(dbartsData(x + 0, 2 * y + 3))
+expect_equal(sampler.setdata$getSigmas(), sigma.before, tolerance = 1e-10)
+
+n2 <- 150L
+x2 <- matrix(runif(n2 * p), n2, p)
+y2 <- 10 * sin(pi * x2[, 1L] * x2[, 2L]) + 5 * x2[, 4L] + rnorm(n2)
+w2 <- runif(n2, 0.5, 1.5)
+sampler.setdata$setData(dbartsData(x2, y2, test = x.test, weights = w2))
+r.setdata <- sampler.setdata$run(0L, 5L)
+expect_equal(dim(r.setdata$train), c(n2, 5L))
+expect_equal(dim(r.setdata$test), c(10L, 5L))
+expect_true(all(is.finite(r.setdata$train)))
+
+# invalid replacements error and roll the data slot back
+y.saved <- sampler.setdata$data@y
+expect_error(sampler.setdata$setData(dbartsData(x2[, 1:2], y2)),
+             pattern = "same predictors")
+expect_error(sampler.setdata$setData(
+  dbartsData(x2, y2, test = x.test, offset = 0.5)),
+  pattern = "test offset")
+expect_identical(sampler.setdata$data@y, y.saved)
+expect_true(all(is.finite(sampler.setdata$run(0L, 1L)$train)))
+
+# binary samplers resize their latents with the data
+sampler.setdata.binary <- dbarts(x + 0, y.binary, control = control.setdata)
+invisible(sampler.setdata.binary$run(50L, 1L))
+y2.binary <- rbinom(n2, 1L, 0.5)
+sampler.setdata.binary$setData(dbartsData(x2, y2.binary))
+expect_equal(length(sampler.setdata.binary$getLatents()), n2)
+expect_true(all(is.finite(sampler.setdata.binary$run(0L, 2L)$train)))
