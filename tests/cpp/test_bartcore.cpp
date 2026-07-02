@@ -511,7 +511,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
 
   // identity swap: new buffer, same values; must accept and preserve fits
   std::vector<double> xCopy(x);
-  check(sampler.setPredictor(xCopy.data(), false, false),
+  check(sampler.setPredictor(xCopy.data(), false, false) ==
+          PredictorUpdateResult::accepted,
         "identity setPredictor accepted");
   check(sampler.data().x == xCopy.data(), "accepted swap installs pointer");
   check(sampler.data().codes == codesBefore, "identity swap preserves codes");
@@ -520,7 +521,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   // constant predictors empty one side of every split: must reject and
   // roll back completely
   std::vector<double> xConstant(n * 2, 0.5);
-  check(!sampler.setPredictor(xConstant.data(), false, false),
+  check(sampler.setPredictor(xConstant.data(), false, false) ==
+          PredictorUpdateResult::rolledBack,
         "degenerate setPredictor rejected");
   check(sampler.data().x == xCopy.data(), "rejected swap keeps old pointer");
   check(sampler.data().codes == codesBefore, "rollback restores codes");
@@ -533,7 +535,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
 
   // rejected with updateCutPoints: cuts must be restored too
   std::vector<double> cuts0Before(sampler.data().cutPoints[0]);
-  check(!sampler.setPredictor(xConstant.data(), false, true),
+  check(sampler.setPredictor(xConstant.data(), false, true) ==
+          PredictorUpdateResult::rolledBack,
         "degenerate setPredictor with new cuts rejected");
   check(sampler.data().cutPoints[0] == cuts0Before, "rollback restores cuts");
 
@@ -558,7 +561,8 @@ static void testSetPredictorForced(ext_rng* rng) {
   // force-install degenerate predictors: every split empties a side, so all
   // trees collapse to their roots with merged parameters
   std::vector<double> xConstant(n * 2, 0.5);
-  check(sampler.setPredictor(xConstant.data(), true, true),
+  check(sampler.setPredictor(xConstant.data(), true, true) ==
+          PredictorUpdateResult::accepted,
         "forced setPredictor accepted");
 
   bool allCollapsed = true, occupied = true;
@@ -601,7 +605,8 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   for (double& v : jittered) v += 0.001 * (runif01() - 0.5);
   size_t columnIndex = 0;
   bool accepted = sampler.updatePredictor(jittered.data(), &columnIndex, 1,
-                                          false, false);
+                                          false, false) ==
+                  PredictorUpdateResult::accepted;
   bool columnMatches = true;
   for (size_t i = 0; i < n; ++i) {
     double expected = accepted ? jittered[i] : column0Before[i];
@@ -613,8 +618,9 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
 
   // degenerate single column: rejected, second column untouched
   std::vector<double> constantColumn(n, 0.25);
-  check(!sampler.updatePredictor(constantColumn.data(), &columnIndex, 1,
-                                 false, false),
+  check(sampler.updatePredictor(constantColumn.data(), &columnIndex, 1,
+                                false, false) ==
+          PredictorUpdateResult::rolledBack,
         "degenerate column update rejected");
   bool otherUntouched = true;
   for (size_t i = 0; i < n; ++i)
@@ -738,6 +744,148 @@ static void testJointPerObservationUpdate() {
          numInstalled, n);
 }
 
+static void testQuantileCutPoints() {
+  const size_t n = 200;
+  // column 0: continuous with more uniques than cuts; column 1: 10 discrete
+  // levels, so quantile mode induces exactly 9 midpoint cuts
+  std::vector<double> x(n * 2);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = static_cast<double>(i % 10);
+  }
+
+  ColumnStore store;
+  store.build(x.data(), n, 2, 20, true);
+
+  check(store.numCuts[0] == 20, "quantile cuts capped at maxNumCuts");
+  check(store.numCuts[1] == 9, "few uniques induce numUnique - 1 cuts");
+  bool discreteCutsMatch = true;
+  for (std::uint32_t k = 0; k < 9; ++k)
+    discreteCutsMatch &= store.cutPoints[1][k] == static_cast<double>(k) + 0.5;
+  check(discreteCutsMatch, "discrete quantile cuts are unique-value midpoints");
+  bool discreteCodesMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    discreteCodesMatch &= store.codes[i + n] == static_cast<xint_t>(i % 10);
+  check(discreteCodesMatch, "discrete quantile codes are value ranks");
+
+  // continuous column: reference the thinning directly
+  std::vector<double> sorted(x.begin(), x.begin() + n);
+  std::sort(sorted.begin(), sorted.end());
+  size_t step = n / 20, offset = step / 2;
+  bool continuousCutsMatch = true;
+  for (std::uint32_t k = 0; k < 20; ++k) {
+    size_t index = std::min(static_cast<size_t>(k) * step + offset, n - 2);
+    continuousCutsMatch &=
+      store.cutPoints[0][k] == 0.5 * (sorted[index] + sorted[index + 1]);
+  }
+  check(continuousCutsMatch, "continuous quantile cuts thin sorted uniques");
+
+  // refresh feasibility: fewer uniques than existing cuts is invalid
+  std::vector<double> coarse(n);
+  for (size_t i = 0; i < n; ++i) coarse[i] = static_cast<double>(i % 4);
+  check(!store.cutsWouldRemainValid(1, coarse.data()),
+        "coarser column fails the quantile feasibility check");
+  std::vector<double> finer(n);
+  for (size_t i = 0; i < n; ++i) finer[i] = static_cast<double>(i % 25);
+  check(store.cutsWouldRemainValid(1, finer.data()),
+        "finer column passes the quantile feasibility check");
+
+  printf("ok: quantile cut points\n");
+}
+
+static void testQuantilePredictorUpdate(ext_rng* rng) {
+  const size_t n = 200;
+  // discrete predictors so quantile cut counts are small and controllable
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 10);
+    x[i + n] = runif01();
+    y[i] = 0.5 * x[i] + 2.0 * x[i + n] + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.useQuantiles = true;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, false,
+                         1.0, 3.0, 0.37804942330213542, options, rng);
+  Results empty;
+  sampler.run(100, 0, empty);
+
+  check(sampler.data().numCuts[0] == 9, "sampler builds quantile cuts");
+
+  // a coarser column with updateCutPoints must be refused without mutating
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<double> coarse(n);
+  for (size_t i = 0; i < n; ++i) coarse[i] = static_cast<double>(i % 4);
+  size_t columnIndex = 0;
+  check(sampler.updatePredictor(coarse.data(), &columnIndex, 1, false, true) ==
+          PredictorUpdateResult::invalidCutPoints,
+        "coarser quantile column update refused");
+  check(sampler.data().codes == codesBefore,
+        "refused quantile update mutates nothing");
+
+  // same column without cut refresh follows normal transaction semantics
+  PredictorUpdateResult result =
+    sampler.updatePredictor(coarse.data(), &columnIndex, 1, false, false);
+  check(result == PredictorUpdateResult::accepted ||
+          result == PredictorUpdateResult::rolledBack,
+        "coarser column without cut refresh is transactional");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after quantile updates");
+
+  printf("ok: quantile predictor updates\n");
+}
+
+static void testSetCutPoints(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ClassicSampler sampler = makeBurnedInSampler(x, y, n, rng);
+
+  // shrink column 0 to three cuts: codes re-quantize, out-of-range splits
+  // collapse, and the fit identity holds
+  double newCuts[] = {0.25, 0.5, 0.75};
+  std::uint32_t numNewCuts = 3;
+  const double* cutsByColumn[] = {newCuts};
+  size_t columnIndex = 0;
+  sampler.setCutPoints(cutsByColumn, &numNewCuts, &columnIndex, 1);
+
+  check(sampler.data().numCuts[0] == 3, "setCutPoints installs the new count");
+  bool codesMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    codesMatch &= sampler.data().codes[i] == sampler.data().codeFor(0, x[i]);
+  check(codesMatch, "setCutPoints re-quantizes the column");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.tree(t).bottomNodesAreOccupied();
+  check(occupied, "setCutPoints leaves no empty leaves");
+
+  bool fitIdentity = true;
+  for (size_t i = 0; i < n && fitIdentity; i += 37) {
+    double total = 0.0;
+    for (size_t t = 0; t < 25; ++t) total += sampler.treeFits()[t * n + i];
+    fitIdentity = std::fabs(total - sampler.totalFits()[i]) < 1e-10;
+  }
+  check(fitIdentity, "setCutPoints keeps the fit identity");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after setCutPoints");
+
+  printf("ok: explicit setCutPoints\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -763,6 +911,9 @@ int main() {
   testUpdatePredictorColumns(rng);
   testPerObservationUpdate(rng);
   testJointPerObservationUpdate();
+  testQuantileCutPoints();
+  testQuantilePredictorUpdate(rng);
+  testSetCutPoints(rng);
 
   ext_rng_destroy(rng);
 

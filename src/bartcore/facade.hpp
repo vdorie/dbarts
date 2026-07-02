@@ -23,12 +23,18 @@ public:
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
                                  std::size_t numTestObservations) = 0;
-  virtual bool setPredictor(const double* newX, bool forceUpdate,
-                            bool updateCutPoints) = 0;
-  virtual bool updatePredictor(const double* newColumns,
-                               const std::size_t* columns,
-                               std::size_t numColumns, bool forceUpdate,
-                               bool updateCutPoints) = 0;
+  virtual PredictorUpdateResult setPredictor(const double* newX,
+                                             bool forceUpdate,
+                                             bool updateCutPoints) = 0;
+  virtual PredictorUpdateResult updatePredictor(const double* newColumns,
+                                                const std::size_t* columns,
+                                                std::size_t numColumns,
+                                                bool forceUpdate,
+                                                bool updateCutPoints) = 0;
+  virtual void setCutPoints(const double* const* newCutPoints,
+                            const std::uint32_t* numCutPoints,
+                            const std::size_t* columns,
+                            std::size_t numColumns) = 0;
   virtual bool updatePredictorPerObservation(const double* newColumn,
                                              std::size_t column,
                                              bool* installed) = 0;
@@ -64,15 +70,23 @@ public:
                          std::size_t numTestObservations) override {
     impl_.setTestPredictors(x_test, numTestObservations);
   }
-  bool setPredictor(const double* newX, bool forceUpdate,
-                    bool updateCutPoints) override {
+  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
+                                     bool updateCutPoints) override {
     return impl_.setPredictor(newX, forceUpdate, updateCutPoints);
   }
-  bool updatePredictor(const double* newColumns, const std::size_t* columns,
-                       std::size_t numColumns, bool forceUpdate,
-                       bool updateCutPoints) override {
+  PredictorUpdateResult updatePredictor(const double* newColumns,
+                                        const std::size_t* columns,
+                                        std::size_t numColumns,
+                                        bool forceUpdate,
+                                        bool updateCutPoints) override {
     return impl_.updatePredictor(newColumns, columns, numColumns, forceUpdate,
                                  updateCutPoints);
+  }
+  void setCutPoints(const double* const* newCutPoints,
+                    const std::uint32_t* numCutPoints,
+                    const std::size_t* columns,
+                    std::size_t numColumns) override {
+    impl_.setCutPoints(newCutPoints, numCutPoints, columns, numColumns);
   }
   bool updatePredictorPerObservation(const double* newColumn,
                                      std::size_t column,

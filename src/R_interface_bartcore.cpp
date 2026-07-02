@@ -74,8 +74,6 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
     if (data.variableTypes[j] != ORDINAL)
       errorMessage = "bartcore supports only ordinal predictors so far";
-    if (data.maxNumCuts[j] != data.maxNumCuts[0])
-      errorMessage = "bartcore requires a single n.cuts for all predictors";
   }
   if (errorMessage == NULL && !control.responseIsBinary &&
       model.sigmaSqPrior->isFixed)
@@ -118,7 +116,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   options.swapProbability = model.swapProbability;
   options.changeProbability = model.changeProbability;
   options.birthProbability = model.birthProbability;
-  options.maxNumCuts = data.maxNumCuts[0];
+  options.maxNumCutsPerVariable = data.maxNumCuts; // copied during build
+  options.useQuantiles = control.useQuantiles;
   options.splitProbabilities = treePrior.splitProbabilities; // copied by ctor
   options.updateK = updateK;
   options.kHyperprior.degreesOfFreedom = kDf;
@@ -266,10 +265,14 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
     Rf_error("bartcore_setPredictor requires a matrix with matching dimensions");
 
-  bool result = holder.sampler->setPredictor(
+  bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
     REAL(xExpr), Rf_asLogical(forceUpdateExpr) == TRUE,
     Rf_asLogical(updateCutPointsExpr) == TRUE);
-  return Rf_ScalarLogical(result ? TRUE : FALSE);
+  if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
+    Rf_error("number of induced cut points in new predictor less than "
+             "previous: old splits would be invalid");
+  return Rf_ScalarLogical(
+    result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
 }
 
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
@@ -291,11 +294,51 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     columns[k] = static_cast<size_t>(column - 1);
   }
 
-  bool result = holder.sampler->updatePredictor(
+  bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
     REAL(xExpr), columns.data(), numColumns,
     Rf_asLogical(forceUpdateExpr) == TRUE,
     Rf_asLogical(updateCutPointsExpr) == TRUE);
-  return Rf_ScalarLogical(result ? TRUE : FALSE);
+  if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
+    Rf_error("number of induced cut points in new predictor less than "
+             "previous: old splits would be invalid");
+  return Rf_ScalarLogical(
+    result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+}
+
+SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr, SEXP columnsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numPredictors = holder.sampler->numPredictors();
+
+  size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
+  if (numColumns == 0 ||
+      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numColumns)
+    Rf_error("bartcore_setCutPoints requires one cut point vector per column");
+
+  std::vector<const double*> cutPoints(numColumns);
+  std::vector<std::uint32_t> numCutPoints(numColumns);
+  std::vector<size_t> columns(numColumns);
+  for (size_t k = 0; k < numColumns; ++k) {
+    int column = INTEGER(columnsExpr)[k];
+    if (column < 1 || static_cast<size_t>(column) > numPredictors)
+      Rf_error("bartcore_setCutPoints column out of range");
+    columns[k] = static_cast<size_t>(column - 1);
+
+    SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
+    R_xlen_t numCuts = Rf_xlength(cutsExpr);
+    if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
+      Rf_error("bartcore_setCutPoints cut point vector too long");
+    const double* cuts = REAL(cutsExpr);
+    for (R_xlen_t i = 1; i < numCuts; ++i)
+      if (cuts[i] <= cuts[i - 1])
+        Rf_error("bartcore_setCutPoints requires strictly increasing cut "
+                 "points");
+    cutPoints[k] = cuts;
+    numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
+  }
+
+  holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
+                               columns.data(), numColumns);
+  return R_NilValue;
 }
 
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
