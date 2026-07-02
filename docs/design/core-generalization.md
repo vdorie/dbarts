@@ -266,10 +266,14 @@ partitioning entirely; a different library sharing only the tree structure).
    from a dbartsSampler's validated control/model/data; tinytest
    inst/tinytest/test-bartcore.R covers the surface. Full existing suite
    (1724 results) passes under C++20 -- the classic engine is unchanged.
+   Chi hyperprior on k (DONE 2026-07-02): ported with the sum of squared
+   leaf parameters accumulated during the parameter sweep; the default
+   binary specification now runs on bartcore, run results include k
+   samples, and a sampler-API equivalence scenario gates it cross-engine.
    Remaining for phase 2: predictor mutation (setPredictor and friends,
-   incl. per-observation rollback) on the new engine, the chi hyperprior
-   on k, quantile-based cut points, multiple chains/threads, and the
-   user-facing dbartsSampler opt-in flag once those reach parity.
+   incl. per-observation rollback) on the new engine, quantile-based cut
+   points, multiple chains/threads, and the user-facing dbartsSampler
+   opt-in flag once those reach parity.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,
