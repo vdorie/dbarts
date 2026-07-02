@@ -27,6 +27,9 @@ struct SamplerOptions {
   double changeProbability = 0.4;
   double birthProbability = 0.5;
   std::uint32_t maxNumCuts = 100;
+  // borrowed per-column override of maxNumCuts; copied during construction
+  const std::uint32_t* maxNumCutsPerVariable = nullptr;
+  bool useQuantiles = false;
 
   // split-variable selection: fixed weights (borrowed; normalized over
   // available variables at each node) or DART; both null/false = uniform
@@ -38,6 +41,12 @@ struct SamplerOptions {
   bool updateK = false;
   ChiKHyperprior kHyperprior;
 };
+
+/// Outcome of a transactional predictor change. invalidCutPoints reports a
+/// quantile-mode cut refresh whose new column would induce fewer cuts than
+/// existing splits require; unlike the reference engine, which errors midway
+/// through installation, nothing has been modified.
+enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
@@ -75,7 +84,14 @@ public:
           bool responseIsBinary, double sigmaEstimate, double sigmaDf,
           double sigmaRawScale, const SamplerOptions& options, ext_rng* rng)
     : options_(options), weights_(weights), rng_(rng) {
-    data_.build(x, numObservations, numPredictors, options.maxNumCuts);
+    if (options.maxNumCutsPerVariable != nullptr) {
+      data_.build(x, numObservations, numPredictors,
+                  options.maxNumCutsPerVariable, options.useQuantiles);
+    } else {
+      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
+                  options.useQuantiles);
+    }
+    options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
 
     if (responseIsBinary) {
       response_ = std::make_unique<ProbitResponse>(y, offset, weights,
@@ -215,9 +231,16 @@ public:
 
   /// Replace the predictor matrix (borrowed, column-major; the old pointer is
   /// kept on failure). Unless forceUpdate, a leaf that would empty rolls the
-  /// whole change back and returns false; forceUpdate instead collapses
-  /// emptied leaves into their parents.
-  bool setPredictor(const double* newX, bool forceUpdate, bool updateCutPoints) {
+  /// whole change back; forceUpdate instead collapses emptied leaves into
+  /// their parents.
+  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
+                                     bool updateCutPoints) {
+    size_t n = data_.numObservations;
+    if (updateCutPoints)
+      for (size_t j = 0; j < data_.numPredictors; ++j)
+        if (!data_.cutsWouldRemainValid(j, newX + j * n))
+          return PredictorUpdateResult::invalidCutPoints;
+
     const double* oldX = data_.x;
     std::vector<xint_t> oldCodes;
     std::vector<std::vector<double>> oldCuts;
@@ -233,7 +256,7 @@ public:
       if (updateCutPoints && data_.numTestObservations > 0)
         for (size_t j = 0; j < data_.numPredictors; ++j)
           data_.quantizeTestColumn(j);
-      return true;
+      return PredictorUpdateResult::accepted;
     }
 
     if (!revalidateTreesAndRebuildFits()) {
@@ -242,22 +265,28 @@ public:
       if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
       for (size_t t = 0; t < options_.numTrees; ++t)
         trees_[t].repartitionSubtree(data_, 0);
-      return false;
+      return PredictorUpdateResult::rolledBack;
     }
 
     if (updateCutPoints && data_.numTestObservations > 0)
       for (size_t j = 0; j < data_.numPredictors; ++j)
         data_.quantizeTestColumn(j);
-    return true;
+    return PredictorUpdateResult::accepted;
   }
 
   /// Overwrite a subset of columns in place; newColumns is column-major,
   /// numObservations x numColumns. Same transaction semantics as
   /// setPredictor.
-  bool updatePredictor(const double* newColumns, const size_t* columns,
-                       size_t numColumns, bool forceUpdate,
-                       bool updateCutPoints) {
+  PredictorUpdateResult updatePredictor(const double* newColumns,
+                                        const size_t* columns,
+                                        size_t numColumns, bool forceUpdate,
+                                        bool updateCutPoints) {
     size_t n = data_.numObservations;
+    if (updateCutPoints)
+      for (size_t k = 0; k < numColumns; ++k)
+        if (!data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
+          return PredictorUpdateResult::invalidCutPoints;
+
     std::vector<double> oldValues;
     std::vector<xint_t> oldCodes;
     std::vector<std::vector<double>> oldCuts;
@@ -281,7 +310,7 @@ public:
       if (updateCutPoints && data_.numTestObservations > 0)
         for (size_t k = 0; k < numColumns; ++k)
           data_.quantizeTestColumn(columns[k]);
-      return true;
+      return PredictorUpdateResult::accepted;
     }
 
     if (!revalidateTreesAndRebuildFits()) {
@@ -296,13 +325,26 @@ public:
       }
       for (size_t t = 0; t < options_.numTrees; ++t)
         trees_[t].repartitionSubtree(data_, 0);
-      return false;
+      return PredictorUpdateResult::rolledBack;
     }
 
     if (updateCutPoints && data_.numTestObservations > 0)
       for (size_t k = 0; k < numColumns; ++k)
         data_.quantizeTestColumn(columns[k]);
-    return true;
+    return PredictorUpdateResult::accepted;
+  }
+
+  /// Install externally chosen cut points (ascending) for a subset of
+  /// columns and unconditionally refresh the trees: splits that fall out of
+  /// range or lose their observations collapse into their parents, exactly
+  /// as a forced predictor update does.
+  void setCutPoints(const double* const* newCutPoints,
+                    const std::uint32_t* numCutPoints, const size_t* columns,
+                    size_t numColumns) {
+    for (size_t k = 0; k < numColumns; ++k)
+      data_.setCutPointsForColumn(columns[k], newCutPoints[k],
+                                  numCutPoints[k]);
+    forceRefreshTrees();
   }
 
   /// Install one column's new values observation-by-observation in random

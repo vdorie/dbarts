@@ -29,7 +29,8 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
                              SEXP weightsExpr, SEXP offsetExpr, SEXP binaryExpr,
                              SEXP sigestExpr, SEXP sigdfExpr, SEXP sigScaleExpr,
                              SEXP ntreeExpr, SEXP kExpr, SEXP nodeScaleExpr,
-                             SEXP numcutExpr, SEXP ndpostExpr, SEXP nskipExpr,
+                             SEXP numcutExpr, SEXP usequantsExpr,
+                             SEXP ndpostExpr, SEXP nskipExpr,
                              SEXP splitprobsExpr, SEXP dartExpr) {
   static bool simdInitialized = false;
   if (!simdInitialized) {
@@ -59,6 +60,7 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
   options.k = Rf_asReal(kExpr);
   options.nodeScale = Rf_asReal(nodeScaleExpr);
   options.maxNumCuts = static_cast<std::uint32_t>(Rf_asInteger(numcutExpr));
+  options.useQuantiles = Rf_asLogical(usequantsExpr) == TRUE;
   options.splitProbabilities = optionalReal(splitprobsExpr);
   if (!Rf_isNull(dartExpr)) {
     // dartExpr: numeric c(alpha, updateAlpha, a, b, rho)

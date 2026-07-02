@@ -121,3 +121,32 @@ expect_true(all(is.finite(
   dbarts:::bartcoreRun(bcSampler.jointA, 0L, 1L)$yhat.train)))
 expect_true(all(is.finite(
   dbarts:::bartcoreRun(bcSampler.jointB, 0L, 1L)$yhat.train)))
+
+# quantile cut points and heterogeneous n.cuts
+x.quants <- x + 0
+x.quants[, 3L] <- round(x.quants[, 3L], 1L)  # 11 levels -> 10 quantile cuts
+control.quants <- dbartsControl(n.chains = 1L, n.threads = 1L,
+                                n.trees = 50L, updateState = FALSE,
+                                useQuantiles = TRUE,
+                                n.cuts = c(100L, 50L, 100L, 100L, 25L))
+sampler.quants <- dbarts(x.quants, y, control = control.quants)
+bcSampler.quants <- dbarts:::bartcoreSampler(sampler.quants)
+result.quants <- dbarts:::bartcoreRun(bcSampler.quants, 100L, 100L)
+expect_equal(dim(result.quants$yhat.train), c(n, 100L))
+fitMean.quants <- rowMeans(result.quants$yhat.train)
+expect_true(mean((fitMean.quants - f)^2) < 0.25 * mean((mean(y) - f)^2))
+
+# a coarser column cannot refresh quantile cuts: refused before any change
+expect_error(
+  dbarts:::bartcoreUpdatePredictor(bcSampler.quants,
+                                   round(x.quants[, 3L] * 2) / 2, 3L,
+                                   updateCutPoints = TRUE),
+  pattern = "induced cut points")
+
+# explicit cut points: installing a coarse grid collapses orphaned splits
+dbarts:::bartcoreSetCutPoints(bcSampler.mut, list(c(0.25, 0.5, 0.75)), 1L)
+result.cuts <- dbarts:::bartcoreRun(bcSampler.mut, 0L, 2L)
+expect_true(all(is.finite(result.cuts$yhat.train)))
+expect_error(
+  dbarts:::bartcoreSetCutPoints(bcSampler.mut, list(c(0.5, 0.5)), 1L),
+  pattern = "strictly increasing")

@@ -86,6 +86,20 @@ makeScenarios <- function() {
     samplerApi = TRUE
   )
 
+  # quantile cut points over a mix of continuous columns (thinned to numcut)
+  # and discrete ones (columns 4-5 and 8-10 on an 11-level grid, inducing
+  # 10 unique-midpoint cuts each)
+  set.seed(5106L)
+  x <- matrix(runif(500L * 10L), 500L)
+  x.test <- matrix(runif(n.test * 10L), n.test)
+  discrete <- c(4L, 5L, 8L, 9L, 10L)
+  x[, discrete] <- round(x[, discrete], 1L)
+  x.test[, discrete] <- round(x.test[, discrete], 1L)
+  result$quants <- list(
+    x = x, y = friedman(x) + rnorm(500L),
+    x.test = x.test, binary = FALSE, usequants = TRUE
+  )
+
   result
 }
 
@@ -117,12 +131,14 @@ fitSummaries <- function(scenario, seed) {
     bartcore_bart(
       scenario$x, scenario$y, x.test = scenario$x.test,
       weights = scenario$weights, splitprobs = splitprobs,
+      usequants = isTRUE(scenario$usequants),
       ntree = ntree, ndpost = ndpost, nskip = nskip
     )
   } else if (!is.null(splitprobs)) withCallingHandlers(
     bart(
       scenario$x, scenario$y, x.test = scenario$x.test,
       weights = scenario$weights, splitprobs = splitprobs,
+      usequants = isTRUE(scenario$usequants),
       ntree = ntree, ndpost = ndpost, nskip = nskip,
       nchain = 1L, nthread = 1L, verbose = FALSE
     ),
@@ -134,6 +150,7 @@ fitSummaries <- function(scenario, seed) {
     bart(
       scenario$x, scenario$y, x.test = scenario$x.test,
       weights = scenario$weights,
+      usequants = isTRUE(scenario$usequants),
       ntree = ntree, ndpost = ndpost, nskip = nskip,
       nchain = 1L, nthread = 1L, verbose = FALSE
     ),

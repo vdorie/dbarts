@@ -69,5 +69,14 @@ bartcoreUpdatePredictorPerObservationJointly <- function(bcSamplers, x, columns)
         lapply(bcSamplers, function(s) s$ptr), as.double(x),
         as.integer(columns))
 
+# cutPoints is a list of strictly increasing numeric vectors, one per column;
+# trees are refreshed unconditionally, collapsing splits the new cuts orphan
+bartcoreSetCutPoints <- function(bcSampler, cutPoints, columns) {
+  if (!is.list(cutPoints)) cutPoints <- list(cutPoints)
+  cutPoints <- lapply(cutPoints, as.double)
+  invisible(.Call(C_dbarts_bartcore_setCutPoints, bcSampler$ptr, cutPoints,
+                  as.integer(columns)))
+}
+
 bartcoreGetLatents <- function(bcSampler)
   .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr)

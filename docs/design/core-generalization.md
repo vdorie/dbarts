@@ -292,9 +292,24 @@ partitioning entirely; a different library sharing only the tree structure).
    DartPrior.updateDelay holds s uniform for that many updates, restoring
    reliable sparsity recovery (10/10 seeds >= 0.997 signal mass, vs 3/10
    when updating from a cold forest).
-   Remaining for phase 2: quantile-based cut points, multiple
-   chains/threads, and the user-facing dbartsSampler opt-in flag once
-   those reach parity.
+   Cut-point generalization (DONE 2026-07-02): ColumnStore carries
+   per-column cut counts and caps (heterogeneous n.cuts now accepted by the
+   bridge) and a quantile mode (control.useQuantiles): cuts at sorted
+   unique-value midpoints, thinned to the per-column cap with the reference
+   engine's step/offset rule, counts fixed after construction. Predictor
+   updates that refresh cuts pre-check quantile feasibility (a column
+   inducing fewer cuts than existing splits require returns
+   invalidCutPoints without mutating anything -- an improvement on the
+   reference engine, which errors midway through installation); the
+   transactional entry points now return
+   accepted/rolledBack/invalidCutPoints. The explicit setCutPoints entry
+   point installs externally chosen (strictly increasing) cuts per column,
+   re-quantizes train and test codes, and force-refreshes trees so
+   orphaned splits collapse.
+   Remaining for phase 2: multiple chains/threads, the user-facing
+   dbartsSampler opt-in flag, and whole-data replacement (setData with
+   mapOldCutPointsOntoNew, possibly resizing numObservations), which is
+   the last mutation entry point.
 3. **Logistic (Polya-Gamma)**: PG sampler in external.a; exercises latent
    hooks and the weighted path.
 4. **Data generalization**: BartData container, data.frame ingestion,

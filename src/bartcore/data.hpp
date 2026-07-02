@@ -1,6 +1,7 @@
 #ifndef BARTCORE_DATA_HPP
 #define BARTCORE_DATA_HPP
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -15,15 +16,20 @@ using std::size_t;
 using xint_t = std::uint16_t;
 
 /// Classic dense column store: borrowed column-major doubles quantized once
-/// into per-column integer codes against uniformly spaced cut points.
+/// into per-column integer codes against per-column cut points, either
+/// uniformly spaced over the column's range or at unique-value midpoints
+/// (quantile mode). numCuts is fixed once built; recomputing cuts for new
+/// values keeps the count so existing split indices stay in range.
 struct ColumnStore {
   size_t numObservations = 0;
   size_t numPredictors = 0;
   const double* x = nullptr;  // borrowed, column-major
+  bool useQuantiles = false;
 
   std::vector<xint_t> codes;  // column-major, numObservations x numPredictors
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
+  std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
 
   size_t numTestObservations = 0;
   const double* x_test = nullptr;  // borrowed, column-major
@@ -38,18 +44,100 @@ struct ColumnStore {
     return static_cast<xint_t>(k);
   }
 
-  void updateCutsForColumn(size_t j) {
+  /// Quantile-mode support: sorted unique values of a column and the
+  /// stepping that thins their midpoints to at most maxNumCuts[j] cuts.
+  struct QuantileGrid {
+    std::vector<double> sortedUnique;
+    std::uint32_t inducedNumCuts = 0;
+    size_t step = 1, offset = 0;
+  };
+
+  QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
+    QuantileGrid grid;
+    grid.sortedUnique.assign(values, values + numObservations);
+    std::sort(grid.sortedUnique.begin(), grid.sortedUnique.end());
+    grid.sortedUnique.erase(
+      std::unique(grid.sortedUnique.begin(), grid.sortedUnique.end()),
+      grid.sortedUnique.end());
+
+    size_t numUnique = grid.sortedUnique.size();
+    if (numUnique <= static_cast<size_t>(maxNumCuts[j]) + 1) {
+      grid.inducedNumCuts = static_cast<std::uint32_t>(numUnique - 1);
+    } else {
+      grid.inducedNumCuts = maxNumCuts[j];
+      grid.step = numUnique / grid.inducedNumCuts;
+      grid.offset = grid.step / 2;
+    }
+    return grid;
+  }
+
+  void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
+    cutPoints[j].resize(numCuts[j]);
+    for (std::uint32_t k = 0; k < numCuts[j]; ++k) {
+      size_t index = std::min(static_cast<size_t>(k) * grid.step + grid.offset,
+                              grid.sortedUnique.size() - 2);
+      cutPoints[j][k] =
+        0.5 * (grid.sortedUnique[index] + grid.sortedUnique[index + 1]);
+    }
+  }
+
+  void fillCutsUniformly(size_t j) {
     const double* column = x + j * numObservations;
     double xMin = column[0], xMax = column[0];
     for (size_t i = 1; i < numObservations; ++i) {
       if (column[i] < xMin) xMin = column[i];
       if (column[i] > xMax) xMax = column[i];
     }
-    std::uint32_t maxNumCuts = numCuts[j];
-    cutPoints[j].resize(maxNumCuts);
-    double increment = (xMax - xMin) / static_cast<double>(maxNumCuts + 1);
-    for (std::uint32_t k = 0; k < maxNumCuts; ++k)
+    cutPoints[j].resize(numCuts[j]);
+    double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
+    for (std::uint32_t k = 0; k < numCuts[j]; ++k)
       cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
+  }
+
+  /// Initial cut construction; sets numCuts[j].
+  void buildCutsForColumn(size_t j) {
+    if (useQuantiles) {
+      QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
+      numCuts[j] = grid.inducedNumCuts;
+      fillCutsFromQuantileGrid(j, grid);
+    } else {
+      numCuts[j] = maxNumCuts[j];
+      fillCutsUniformly(j);
+    }
+  }
+
+  /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
+  /// In quantile mode fewer induced cuts than existing would leave splits
+  /// invalid: returns false, having changed nothing (extra induced cuts are
+  /// silently thinned, as in the reference engine).
+  bool refreshCutsForColumn(size_t j) {
+    if (useQuantiles) {
+      QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
+      if (grid.inducedNumCuts < numCuts[j]) return false;
+      fillCutsFromQuantileGrid(j, grid);
+    } else {
+      fillCutsUniformly(j);
+    }
+    return true;
+  }
+
+  /// Non-mutating feasibility check of refreshCutsForColumn for values not
+  /// yet installed.
+  bool cutsWouldRemainValid(size_t j, const double* values) const {
+    if (!useQuantiles) return true;
+    return quantileGridForColumn(j, values).inducedNumCuts >= numCuts[j];
+  }
+
+  /// Install externally chosen cut points (ascending) for a column; the cut
+  /// count may shrink or grow, and existing splits beyond the new range are
+  /// the caller's problem (the sampler collapses them).
+  void setCutPointsForColumn(size_t j, const double* cuts,
+                             std::uint32_t numCutPoints) {
+    cutPoints[j].assign(cuts, cuts + numCutPoints);
+    numCuts[j] = numCutPoints;
+    if (maxNumCuts[j] < numCutPoints) maxNumCuts[j] = numCutPoints;
+    quantizeColumn(j);
+    if (numTestObservations > 0) quantizeTestColumn(j);
   }
 
   void quantizeColumn(size_t j) {
@@ -64,18 +152,27 @@ struct ColumnStore {
         codeFor(j, x_test[i + j * numTestObservations]);
   }
 
-  void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts) {
+  void build(const double* x_, size_t n, size_t p,
+             const std::uint32_t* maxNumCuts_, bool useQuantiles_) {
     x = x_;
     numObservations = n;
     numPredictors = p;
+    useQuantiles = useQuantiles_;
     cutPoints.resize(p);
-    numCuts.assign(p, maxNumCuts);
+    numCuts.resize(p);
+    maxNumCuts.assign(maxNumCuts_, maxNumCuts_ + p);
     codes.resize(n * p);
 
     for (size_t j = 0; j < p; ++j) {
-      updateCutsForColumn(j);
+      buildCutsForColumn(j);
       quantizeColumn(j);
     }
+  }
+
+  void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
+             bool useQuantiles_ = false) {
+    std::vector<std::uint32_t> maxPerColumn(p, maxNumCuts_);
+    build(x_, n, p, maxPerColumn.data(), useQuantiles_);
   }
 
   void buildTest(const double* x_test_, size_t numTest) {
@@ -86,13 +183,15 @@ struct ColumnStore {
   }
 
   // Mutation. Snapshot/rollback of x, cutPoints, and codes is the caller's
-  // (the sampler's) responsibility; these only install new values.
+  // (the sampler's) responsibility; these only install new values. Cut
+  // refreshes assume the caller pre-checked quantile feasibility with
+  // cutsWouldRemainValid.
 
   /// Replace the whole predictor matrix by pointer swap.
   void setPredictors(const double* newX, bool updateCuts) {
     x = newX;
     for (size_t j = 0; j < numPredictors; ++j) {
-      if (updateCuts) updateCutsForColumn(j);
+      if (updateCuts) refreshCutsForColumn(j);
       quantizeColumn(j);
     }
   }
@@ -107,7 +206,7 @@ struct ColumnStore {
       std::memcpy(x_mutable + j * numObservations,
                   newColumns + k * numObservations,
                   numObservations * sizeof(double));
-      if (updateCuts) updateCutsForColumn(j);
+      if (updateCuts) refreshCutsForColumn(j);
       quantizeColumn(j);
     }
   }

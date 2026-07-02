@@ -40,7 +40,8 @@ loadBartcoreShim <- function() {
 # dart: FALSE, or a list overriding any of alpha, update.alpha, a, b, rho.
 bartcore_bart <- function(x.train, y.train, x.test = NULL, weights = NULL,
                           ntree = 200L, ndpost = 1000L, nskip = 100L,
-                          k = 2.0, numcut = 100L, sigdf = 3.0, sigquant = 0.90,
+                          k = 2.0, numcut = 100L, usequants = FALSE,
+                          sigdf = 3.0, sigquant = 0.90,
                           splitprobs = NULL, dart = FALSE) {
   binary <- length(unique(y.train)) == 2L
 
@@ -67,7 +68,7 @@ bartcore_bart <- function(x.train, y.train, x.test = NULL, weights = NULL,
                   if (is.null(weights)) NULL else as.double(weights), NULL,
                   binary, sigest, sigdf, sigScale,
                   as.integer(ntree), k, nodeScale, as.integer(numcut),
-                  as.integer(ndpost), as.integer(nskip),
+                  as.logical(usequants), as.integer(ndpost), as.integer(nskip),
                   if (is.null(splitprobs)) NULL else as.double(splitprobs),
                   dartParams)
 
