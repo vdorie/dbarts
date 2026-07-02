@@ -391,6 +391,38 @@ static void testDartSparsityRecovery(ext_rng* rng) {
          uniformMass, dartMass);
 }
 
+static void testChiKHyperprior(ext_rng* rng) {
+  ChiKHyperprior prior;
+  prior.degreesOfFreedom = 1.25;
+
+  double sumSquaredParams = 3.7, numLeaves = 320.0;
+  double leafScale = 0.5 / std::sqrt(200.0);
+
+  // k = sqrt(X), X ~ Gamma(shape, 1/rate): E[k] = rate^-1/2 G(a+1/2)/G(a)
+  double shape = 0.5 * (numLeaves + 2.0 * prior.degreesOfFreedom - 1.0);
+  double rate = 0.5 * sumSquaredParams / (leafScale * leafScale);
+  auto expectedMean = [shape](double r) {
+    return std::sqrt(1.0 / r) * std::exp(std::lgamma(shape + 0.5) - std::lgamma(shape));
+  };
+  auto drawMean = [&](int numDraws) {
+    double sum = 0.0;
+    for (int i = 0; i < numDraws; ++i)
+      sum += prior.draw(rng, sumSquaredParams, numLeaves, leafScale);
+    return sum / numDraws;
+  };
+
+  checkNear(drawMean(100000), expectedMean(rate), 0.005 * expectedMean(rate),
+            "chi-k posterior draw mean, infinite prior scale");
+
+  prior.scale = 5.0;  // finite prior scale enters the rate
+  double rateFinite = rate + 0.5 / (prior.scale * prior.scale);
+  checkNear(drawMean(100000), expectedMean(rateFinite),
+            0.005 * expectedMean(rateFinite),
+            "chi-k posterior draw mean, finite prior scale");
+
+  printf("ok: chi-k hyperprior\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -409,6 +441,7 @@ int main() {
   testEndToEndProbit(rng);
   testDartUpdate(rng);
   testDartSparsityRecovery(rng);
+  testChiKHyperprior(rng);
 
   ext_rng_destroy(rng);
 

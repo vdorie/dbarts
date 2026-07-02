@@ -75,7 +75,35 @@ makeScenarios <- function() {
     splitprobs = c(rep(0.15, 5L), rep(0.05, 5L))
   )
 
+  # binary with the default chi hyperprior on k; driven through the sampler
+  # API (old engine) and the package's bartcore bridge (new engine), since
+  # bart() cannot express an adaptive k
+  set.seed(5105L)
+  x <- matrix(runif(600L * 10L), 600L)
+  result$chik <- list(
+    x = x, y = rbinom(600L, 1L, pnorm(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
+    samplerApi = TRUE
+  )
+
   result
+}
+
+fitViaSamplerApi <- function(scenario, engineIsNew) {
+  control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = ntree,
+                           updateState = FALSE)
+  sampler <- dbarts(scenario$x, scenario$y, test = scenario$x.test,
+                    control = control)
+  if (engineIsNew) {
+    bcSampler <- dbarts:::bartcoreSampler(sampler)
+    r <- dbarts:::bartcoreRun(bcSampler, nskip, ndpost)
+    list(yhat.test = t(r$yhat.test), varcount = t(r$varcount),
+         sigma = r$sigma, k = r$k)
+  } else {
+    r <- sampler$run(nskip, ndpost)
+    list(yhat.test = t(r$test), varcount = t(r$varcount),
+         sigma = r$sigma, k = r$k)
+  }
 }
 
 fitSummaries <- function(scenario, seed) {
@@ -83,7 +111,9 @@ fitSummaries <- function(scenario, seed) {
   # Test-data weights are irrelevant here (no posterior-predictive use);
   # muffle only that warning so real ones stay visible.
   splitprobs <- scenario$splitprobs
-  fit <- if (useNewEngine) {
+  fit <- if (!is.null(scenario$samplerApi)) {
+    fitViaSamplerApi(scenario, useNewEngine)
+  } else if (useNewEngine) {
     bartcore_bart(
       scenario$x, scenario$y, x.test = scenario$x.test,
       weights = scenario$weights, splitprobs = splitprobs,
@@ -119,6 +149,8 @@ fitSummaries <- function(scenario, seed) {
   )
   if (!scenario$binary)
     result <- c(result, sigma.mean = mean(fit$sigma), sigma.sd = sd(fit$sigma))
+  if (!is.null(fit$k))
+    result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
   result
 }
 

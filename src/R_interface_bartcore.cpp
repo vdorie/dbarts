@@ -77,15 +77,21 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
     if (data.maxNumCuts[j] != data.maxNumCuts[0])
       errorMessage = "bartcore requires a single n.cuts for all predictors";
   }
-  if (errorMessage == NULL && !model.kPrior->isFixed)
-    errorMessage = "bartcore supports only fixed k so far";
   if (errorMessage == NULL && !control.responseIsBinary &&
       model.sigmaSqPrior->isFixed)
     errorMessage = "bartcore does not support fixed sigma for continuous responses";
 
-  double k = 0.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
+  double k = 2.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
+  bool updateK = !model.kPrior->isFixed;
+  double kDf = 1.25, kScale = HUGE_VAL;
   if (errorMessage == NULL) {
-    k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
+    if (updateK) {
+      const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
+      kDf = kPrior.degreesOfFreedom;
+      kScale = kPrior.scale;
+    } else {
+      k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
+    }
     if (!control.responseIsBinary) {
       const ChiSquaredPrior& sigmaSqPrior(
         *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
@@ -114,6 +120,9 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   options.birthProbability = model.birthProbability;
   options.maxNumCuts = data.maxNumCuts[0];
   options.splitProbabilities = treePrior.splitProbabilities; // copied by ctor
+  options.updateK = updateK;
+  options.kHyperprior.degreesOfFreedom = kDf;
+  options.kHyperprior.scale = kScale;
 
   ext_rng* rng = ext_rng_createDefault(true);
   if (rng == NULL) {
@@ -161,7 +170,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     return R_NilValue;
   }
 
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 5));
   SEXP sigmaExpr =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)));
   SEXP trainExpr = PROTECT(Rf_allocMatrix(
@@ -172,6 +181,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     : PROTECT(R_NilValue);
   SEXP varcountExpr = PROTECT(Rf_allocMatrix(
     INTSXP, static_cast<int>(numPredictors), static_cast<int>(numSamples)));
+  SEXP kExpr = sampler.kIsSampled()
+    ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
+    : PROTECT(R_NilValue);
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numSamples);
 
@@ -180,6 +192,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.trainingFits = REAL(trainExpr);
   results.testFits = numTestObservations > 0 ? REAL(testExpr) : NULL;
   results.variableCounts = variableCounts.data();
+  results.k = sampler.kIsSampled() ? REAL(kExpr) : NULL;
 
   GetRNGstate();
   sampler.run(numBurnIn, numSamples, results);
@@ -193,15 +206,17 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_VECTOR_ELT(resultExpr, 1, trainExpr);
   SET_VECTOR_ELT(resultExpr, 2, testExpr);
   SET_VECTOR_ELT(resultExpr, 3, varcountExpr);
+  SET_VECTOR_ELT(resultExpr, 4, kExpr);
 
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 4));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 5));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("yhat.train"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("yhat.test"));
   SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
+  SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
-  UNPROTECT(6);
+  UNPROTECT(7);
   return resultExpr;
 }
 

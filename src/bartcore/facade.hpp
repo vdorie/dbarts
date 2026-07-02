@@ -24,6 +24,7 @@ public:
                                  std::size_t numTestObservations) = 0;
   virtual const double* latents() const = 0;
   virtual double sigma() const = 0;
+  virtual bool kIsSampled() const = 0;
   virtual std::size_t numObservations() const = 0;
   virtual std::size_t numPredictors() const = 0;
   virtual std::size_t numTestObservations() const = 0;
@@ -52,6 +53,7 @@ public:
   }
   const double* latents() const override { return impl_.latents(); }
   double sigma() const override { return impl_.sigma(); }
+  bool kIsSampled() const override { return impl_.kIsSampled(); }
   std::size_t numObservations() const override { return impl_.numObservations(); }
   std::size_t numPredictors() const override { return impl_.numPredictors(); }
   std::size_t numTestObservations() const override {

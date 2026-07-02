@@ -33,6 +33,10 @@ struct SamplerOptions {
   const double* splitProbabilities = nullptr;
   bool useDart = false;
   DartPrior dart;
+
+  // k is fixed at .k unless updateK, in which case .k is the starting value
+  bool updateK = false;
+  ChiKHyperprior kHyperprior;
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -41,6 +45,7 @@ struct Results {
   double* trainingFits = nullptr;   // numObservations x numSamples, or null
   double* testFits = nullptr;       // numTestObservations x numSamples, or null
   std::uint32_t* variableCounts = nullptr;  // numPredictors x numSamples, or null
+  double* k = nullptr;              // numSamples, or null; only when k sampled
 };
 
 /// Single-chain conjugate backfitting sampler; a faithful port of the classic
@@ -82,6 +87,7 @@ public:
     }
 
     sigma_ = response_->initialSigma();
+    k_ = options.k;
 
     indexBuffer_.resize(numObservations * options.numTrees);
     trees_.resize(options.numTrees);
@@ -105,20 +111,23 @@ public:
   /// One thinning-free run; results slots may be null to skip recording.
   void run(size_t numBurnIn, size_t numSamples, Results& results) {
     size_t n = data_.numObservations;
-    MoveContext ctx{data_,
-                    treePrior_,
-                    options_.birthOrDeathProbability,
-                    options_.swapProbability,
-                    options_.changeProbability,
-                    options_.birthProbability,
-                    weights_,
-                    options_.k,
-                    scratch_};
-
     double* y = response_->workingResponse();
 
     for (size_t iteration = 0; iteration < numBurnIn + numSamples; ++iteration) {
       bool record = iteration >= numBurnIn;
+
+      MoveContext ctx{data_,
+                      treePrior_,
+                      options_.birthOrDeathProbability,
+                      options_.swapProbability,
+                      options_.changeProbability,
+                      options_.birthProbability,
+                      weights_,
+                      k_,
+                      scratch_};
+
+      kSumSquaredParams_ = 0.0;
+      kNumLeaves_ = 0.0;
 
       if (record && data_.numTestObservations > 0)
         misc_setVectorToConstant(totalTestFits_.data(),
@@ -156,6 +165,10 @@ public:
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, totalFits_.data(), sigma_);
 
+      if (options_.updateK)
+        k_ = options_.kHyperprior.draw(rng_, kSumSquaredParams_, kNumLeaves_,
+                                       leaf_.scale);
+
       if (options_.useDart) {
         std::memset(splitCounts_.data(), 0,
                     splitCounts_.size() * sizeof(std::uint32_t));
@@ -184,6 +197,8 @@ public:
   const double* latents() const { return response_->latents(); }
 
   double sigma() const { return sigma_; }
+  double k() const { return k_; }
+  bool kIsSampled() const { return options_.updateK; }
   const std::vector<double>& totalFits() const { return totalFits_; }
   size_t numObservations() const { return data_.numObservations; }
   size_t numPredictors() const { return data_.numPredictors; }
@@ -200,9 +215,14 @@ private:
       const Node& node(tree.at(i));
       double param = node.numObservations() == 0
         ? 0.0
-        : leaf_.drawFromPosterior(rng_, options_.k, node.average,
+        : leaf_.drawFromPosterior(rng_, k_, node.average,
                                   node.numEffectiveObservations, sigma_ * sigma_);
       paramByNode_[static_cast<size_t>(i)] = param;
+
+      if (options_.updateK) {
+        kSumSquaredParams_ += param * param;
+        kNumLeaves_ += 1.0;
+      }
 
       if (node.parent == invalidNode) {
         misc_setVectorToConstant(currFits_.data(), node.numObservations(), param);
@@ -228,6 +248,8 @@ private:
 
     if (results.sigma != nullptr)
       results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
+
+    if (results.k != nullptr) results.k[sampleNum] = k_;
 
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n;
@@ -263,6 +285,9 @@ private:
   std::unique_ptr<ResponseModel> response_;
   bool sigmaIsFixed_ = false;
   double sigma_ = 1.0;
+  double k_ = 2.0;
+  double kSumSquaredParams_ = 0.0;
+  double kNumLeaves_ = 0.0;
 
   std::vector<Tree> trees_;
   std::vector<size_t> indexBuffer_;
