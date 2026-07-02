@@ -291,7 +291,8 @@ dbartsSampler <- setRefClass(
           C_dbarts_bartcore_create,
           .self$control,
           .self$model,
-          .self$data
+          .self$data,
+          ""
         )
         # bartcore has no state serialization
         .self$state <- NULL

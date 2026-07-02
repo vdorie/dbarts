@@ -302,7 +302,7 @@ extern "C" {
 static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_create", create, 3),
   DEF_FUNC("dbarts_run", run, 4),
-  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 3),
+  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 4),
   DEF_FUNC("dbarts_bartcore_run", bartcore_run, 3),
   DEF_FUNC("dbarts_bartcore_setOffset", bartcore_setOffset, 3),
   DEF_FUNC("dbarts_bartcore_setResponse", bartcore_setResponse, 2),

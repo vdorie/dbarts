@@ -122,6 +122,10 @@ double ext_rng_simulateUpperTruncatedNormal(
 double ext_rng_simulateExponential(ext_rng* generator, double scale);
 double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale);
 
+// Polya-Gamma PG(1, psi), using the exact alternating-series method of
+// Devroye (2009) as adapted by Polson, Scott, and Windle (2013)
+double ext_rng_simulatePolyaGamma(ext_rng* generator, double psi);
+
 #define ext_rng_simulateChiSquared(_GENERATOR_, _DF_)                          \
   ext_rng_simulateGamma(_GENERATOR_, (_DF_) / 2.0, 2.0)
 #define ext_rng_simulateBernoulli(_GENERATOR_, _P_)                            \

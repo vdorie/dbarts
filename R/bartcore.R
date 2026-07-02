@@ -3,10 +3,11 @@
 # functions below, which mirror the classic methods' semantics; the C side
 # borrows vectors and pins them in the external pointer's protection slot.
 #
-# Not yet supported (methods error): setWeights, test offsets,
-# keepTrees/predict/getTrees/plotTree/printTrees, state serialization
-# (storeState/setState; samplers cannot be restored after save/load), and
-# sampling from the prior.
+# Not yet supported (methods error): setWeights, test offsets, weights with
+# binary responses (the classic engine's probit weighting is incorrect and
+# was stripped rather than ported), keepTrees/predict/getTrees/plotTree/
+# printTrees, state serialization (storeState/setState; samplers cannot be
+# restored after save/load), and sampling from the prior.
 
 assertClassicEngine <- function(control, methodName) {
   if (control@engine != "classic") {
@@ -213,12 +214,15 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 
 # Internal interface used by the tests and the equivalence harness; a
 # bartcore handle is constructed from the validated control/model/data of an
-# existing dbartsSampler regardless of that sampler's own engine.
+# existing dbartsSampler regardless of that sampler's own engine. family
+# selects the response model for binary responses ("probit", the default,
+# or "logistic"); it is the only access to the logistic sampler until the
+# new public surface lands.
 
-bartcoreSampler <- function(sampler) {
+bartcoreSampler <- function(sampler, family = "") {
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(C_dbarts_bartcore_create, sampler$control, sampler$model,
-                      sampler$data)
+                      sampler$data, as.character(family))
   result
 }
 

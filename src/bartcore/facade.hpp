@@ -45,6 +45,7 @@ public:
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
   virtual ext_rng* rng() const = 0;
+  virtual ResponseFamily family() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
   virtual bool kIsSampled() const = 0;
@@ -109,6 +110,7 @@ public:
     return impl_.beginPredictorUpdate(newColumn, column);
   }
   ext_rng* rng() const override { return impl_.rng(); }
+  ResponseFamily family() const override { return impl_.family(); }
   const double* latents(std::size_t chainNum) const override {
     return impl_.latents(chainNum);
   }
@@ -166,15 +168,16 @@ inline bool updatePredictorPerObservationJointly(
   return allValid;
 }
 
-/// The instantiation matrix, phase 2: one leaf model. rngs supplies one
-/// generator per chain (options.numChains of them).
+/// The instantiation matrix, phase 3: one leaf model over the response
+/// families. rngs supplies one generator per chain (options.numChains of
+/// them).
 inline std::unique_ptr<SamplerBase> createClassicSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
-  bool responseIsBinary, double sigmaEstimate, double sigmaDf,
+  ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
-    x, y, numObservations, numPredictors, weights, offset, responseIsBinary,
+    x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
 

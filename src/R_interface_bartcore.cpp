@@ -75,7 +75,12 @@ extern "C" {
 // The external pointer's protection slot pins everything the sampler
 // borrows: the data expression at creation, and any replacement vectors the
 // setters install later.
-SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
+//
+// family selects the response model for binary responses: "" or "probit"
+// give the classic probit latents, "logistic" the Polya-Gamma sampler.
+// Continuous responses are gaussian and accept only "".
+SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                     SEXP familyExpr) {
   Control control;
   Data data;
   Model model;
@@ -84,9 +89,28 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
   initializeDataFromExpression(data, dataExpr);
   initializeModelFromExpression(model, modelExpr, control, data);
 
+  const char* familyName =
+    Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
+
   // Rf_error longjmps past destructors, so collect the reason, clean up,
   // and error at the end.
   const char* errorMessage = NULL;
+
+  bartcore::ResponseFamily family = bartcore::ResponseFamily::gaussian;
+  if (control.responseIsBinary) {
+    if (std::strcmp(familyName, "logistic") == 0) {
+      family = bartcore::ResponseFamily::logistic;
+    } else if (familyName[0] == '\0' ||
+               std::strcmp(familyName, "probit") == 0) {
+      family = bartcore::ResponseFamily::probit;
+    } else {
+      errorMessage = "unrecognized response family for a binary response";
+    }
+  } else if (familyName[0] != '\0' &&
+             std::strcmp(familyName, "gaussian") != 0) {
+    errorMessage = "response families other than gaussian require a binary "
+                   "response";
+  }
 
   for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
     if (data.variableTypes[j] != ORDINAL)
@@ -97,6 +121,9 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
     errorMessage = "bartcore does not support fixed sigma for continuous responses";
   if (errorMessage == NULL && data.testOffset != NULL)
     errorMessage = "bartcore does not support test offsets";
+  if (errorMessage == NULL && control.responseIsBinary &&
+      data.weights != NULL)
+    errorMessage = "bartcore does not support weights for binary responses";
 
   double k = 2.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
   bool updateK = !model.kPrior->isFixed;
@@ -173,8 +200,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr) {
 
   std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createClassicSampler(
     data.x, data.y, data.numObservations, data.numPredictors, data.weights,
-    data.offset, control.responseIsBinary, data.sigmaEstimate, sigmaDf,
-    sigmaRawScale, options, rngs.data());
+    data.offset, family, data.sigmaEstimate, sigmaDf, sigmaRawScale, options,
+    rngs.data());
 
   if (data.numTestObservations > 0)
     sampler->setTestPredictors(data.x_test, data.numTestObservations);
@@ -341,6 +368,10 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   }
   if (errorMessage == NULL && data.testOffset != NULL)
     errorMessage = "bartcore does not support test offsets";
+  if (errorMessage == NULL &&
+      sampler.family() != bartcore::ResponseFamily::gaussian &&
+      data.weights != NULL)
+    errorMessage = "bartcore does not support weights for binary responses";
 
   if (errorMessage != NULL) {
     invalidateData(data);

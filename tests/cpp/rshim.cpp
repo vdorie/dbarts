@@ -86,8 +86,11 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
 
   bartcore::ClassicSampler sampler(
     REAL(xExpr), REAL(yExpr), n, p, optionalReal(weightsExpr),
-    optionalReal(offsetExpr), binary, Rf_asReal(sigestExpr),
-    Rf_asReal(sigdfExpr), Rf_asReal(sigScaleExpr), options, &rng);
+    optionalReal(offsetExpr),
+    binary ? bartcore::ResponseFamily::probit
+           : bartcore::ResponseFamily::gaussian,
+    Rf_asReal(sigestExpr), Rf_asReal(sigdfExpr), Rf_asReal(sigScaleExpr),
+    options, &rng);
   if (numTest > 0) sampler.setTestPredictors(xTest, numTest);
 
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
