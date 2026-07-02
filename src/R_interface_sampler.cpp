@@ -1347,7 +1347,8 @@ SEXP getTrees(
   SEXP chainIndicesExpr,
   SEXP sampleIndicesExpr,
   SEXP treeIndicesExpr,
-  SEXP currentExpr
+  SEXP currentExpr,
+  SEXP newdataExpr
 ) {
   BARTFit* fitPtr = static_cast<BARTFit*>(R_ExternalPtrAddr(fitExpr));
   if (fitPtr == NULL)
@@ -1358,6 +1359,22 @@ SEXP getTrees(
   // keepTrees sampler; there is then no sample dimension
   bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
   bool treatAsSaved = fit.control.keepTrees && !useLiveTrees;
+
+  // when newdata is supplied it is routed through each tree so the counts
+  // reflect that data; R passes a column-major matrix in training coding
+  const double* x_test = NULL;
+  size_t numTestObservations = 0;
+  if (!Rf_isNull(newdataExpr)) {
+    if (static_cast<size_t>(Rf_ncols(newdataExpr)) != fit.data.numPredictors)
+      Rf_error(
+        "newdata has " SIZE_T_SPECIFIER
+        " columns but sampler has " SIZE_T_SPECIFIER " predictors",
+        static_cast<size_t>(Rf_ncols(newdataExpr)),
+        fit.data.numPredictors
+      );
+    x_test = REAL(newdataExpr);
+    numTestObservations = static_cast<size_t>(Rf_nrows(newdataExpr));
+  }
 
   size_t numChains = fit.control.numChains;
   size_t numSamples = treatAsSaved ? fit.currentNumSamples : 0;
@@ -1423,15 +1440,27 @@ SEXP getTrees(
       treeIndices[i] = static_cast<size_t>(i_treeIndices[i] - 1);
   }
 
-  FlattenedTrees* flattenedTreesPtr = fit.getFlattenedTrees(
-    chainIndices,
-    numChainIndices,
-    sampleIndices,
-    numSampleIndices,
-    treeIndices,
-    numTreeIndices,
-    useLiveTrees
-  );
+  FlattenedTrees* flattenedTreesPtr = x_test != NULL
+    ? fit.getFlattenedTreesCountingData(
+        chainIndices,
+        numChainIndices,
+        sampleIndices,
+        numSampleIndices,
+        treeIndices,
+        numTreeIndices,
+        useLiveTrees,
+        x_test,
+        numTestObservations
+      )
+    : fit.getFlattenedTrees(
+        chainIndices,
+        numChainIndices,
+        sampleIndices,
+        numSampleIndices,
+        treeIndices,
+        numTreeIndices,
+        useLiveTrees
+      );
   FlattenedTrees& flattenedTrees(*flattenedTreesPtr);
 
   delete[] treeIndices;

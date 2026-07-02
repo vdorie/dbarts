@@ -21,6 +21,7 @@
 \alias{\S4method{setTestPredictorAndOffset}{dbartsSampler}}
 \alias{\S4method{setTestOffset}{dbartsSampler}}
 \alias{\S4method{printTrees}{dbartsSampler}}
+\alias{\S4method{getTrees}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
 \alias{\S4method{startThreads}{dbartsSampler}}
 \alias{\S4method{stopThreads}{dbartsSampler}}
@@ -48,6 +49,9 @@
 \S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
 \S4method{setTestOffset}{dbartsSampler}(offset.test, updateState = NA)
 \S4method{printTrees}{dbartsSampler}(treeNums)
+\S4method{getTrees}{dbartsSampler}(
+  treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
+)
 \S4method{plotTree}{dbartsSampler}(
   treeNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
@@ -130,7 +134,28 @@
     and cannot be combined with \code{forceUpdate = "partial"}.
   }
   \item{treeNums}{
-    An integer vector listing the indices of the trees to print.
+    An integer vector listing the indices of the trees to print or return.
+  }
+  \item{chainNums}{
+    An integer vector listing the chains to return from \code{getTrees}. When
+    missing, all chains are returned.
+  }
+  \item{sampleNums}{
+    An integer vector listing the saved samples to return from \code{getTrees}.
+    Applies only when \code{keepTrees} is \code{TRUE} and \code{current} is
+    \code{FALSE}; otherwise the live working trees have no sample dimension and
+    it is ignored.
+  }
+  \item{current}{
+    For \code{getTrees}, a logical; when \code{TRUE} the live working trees (the
+    current sampler position) are returned even if \code{keepTrees} is
+    \code{TRUE}, rather than the saved samples.
+  }
+  \item{newdata}{
+    For \code{getTrees}, an optional matrix of predictors (in the form accepted
+    by \code{predict}). When supplied, its observations are routed through each
+    tree so the \code{n} column counts them instead of the training data; the
+    tree structure, splits, and leaf values are unchanged.
   }
   \item{treeNum}{
     An integer listing the indices of the tree to plot.
@@ -155,6 +180,8 @@
   For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
 
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is \code{TRUE}, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to \code{setPredictor} if the step is accepted.
+
+  For \code{getTrees}, a \code{data.frame} with one row per tree node in depth-first, left-hand-side pre-order, with columns \code{chain}, \code{sample} (present only for saved samples), \code{tree}, \code{n} (the number of observations in the node), \code{var} (the splitting variable, or -1 at a leaf), and \code{value} (the split value, or the leaf prediction).
 }
 \seealso{
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.

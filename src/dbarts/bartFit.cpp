@@ -1861,59 +1861,273 @@ namespace {
     return numNodes;
   }
 
-  size_t storeFlattenedTree(
+  // Accessors that let one replay routine walk either a live Node or a frozen
+  // SavedNode. A live node's split is the real cut point behind its integer
+  // index; a saved node stores the cut point directly.
+  int32_t replayVariable(const Node& node) {
+    return node.p.rule.variableIndex;
+  }
+  int32_t replayVariable(const SavedNode& node) { return node.variableIndex; }
+
+  double replaySplit(const BARTFit& fit, const Node& node) {
+    return fit.cutPoints[node.p.rule.variableIndex][node.p.rule.splitIndex];
+  }
+  double replaySplit(const BARTFit&, const SavedNode& node) {
+    return node.split;
+  }
+
+  double replayPrediction(const Node& node) { return node.m.average; }
+  double replayPrediction(const SavedNode& node) { return node.prediction; }
+
+  // Partitions indices[lo, hi) in place so observations going left
+  // (x[obs, variable] <= split) precede those going right, returning the
+  // boundary. \c x is column-major with \p numRows rows, matching \c data.x
+  // and the ordinal predicate in \c SavedNode::findBottomNode.
+  size_t partitionReplayIndices(
+    size_t* indices,
+    size_t lo,
+    size_t hi,
+    const double* x,
+    size_t numRows,
+    size_t variable,
+    double split
+  ) {
+    size_t mid = lo;
+    for (size_t k = lo; k < hi; ++k) {
+      if (x[indices[k] + variable * numRows] <= split) {
+        size_t temp = indices[mid];
+        indices[mid] = indices[k];
+        indices[k] = temp;
+        ++mid;
+      }
+    }
+    return mid;
+  }
+
+  // Routes the observations indices[lo, hi) of \p x through the subtree at
+  // \p node, writing pre-order (numObservations, variable, value) for every
+  // node and returning the node count. Each node's numObservations is the
+  // number of routed observations that reach it. Shared by live and saved
+  // trees via the replay* accessors; \p indices is scrambled in place.
+  // \note Splits are treated ordinally (x <= split). Categorical predictors are
+  //   currently vestigial; if re-enabled, live-tree routing here would need the
+  //   categoryGoesRight logic that Node::findBottomNode uses.
+  template <typename NodeType>
+  size_t storeReplayedTree(
     const BARTFit& fit,
-    const SavedNode& node,
-    std::set<size_t>& indexSet,
+    const NodeType& node,
+    const double* x,
+    size_t numRows,
+    size_t* indices,
+    size_t lo,
+    size_t hi,
     size_t* numObservations,
     int32_t* variable,
     double* value
   ) {
+    *numObservations = hi - lo;
     if (node.isBottom()) {
-      *numObservations = indexSet.size();
       *variable = DBARTS_INVALID_RULE_VARIABLE;
-      *value = node.prediction;
+      *value = replayPrediction(node);
       return 1;
     }
 
-    *numObservations = indexSet.size();
-    *variable = node.variableIndex;
-    *value = node.split;
+    int32_t nodeVariable = replayVariable(node);
+    double nodeSplit = replaySplit(fit, node);
+    *variable = nodeVariable;
+    *value = nodeSplit;
 
-    std::set<size_t> leftIndexSet;
-    std::set<size_t> rightIndexSet;
-
-    for (std::set<size_t>::iterator it = indexSet.begin(); it != indexSet.end();
-         ++it) {
-      size_t i = *it;
-
-      if (fit.data.x[i + fit.data.numObservations * node.variableIndex] <=
-          node.prediction) {
-        leftIndexSet.insert(i);
-      } else {
-        rightIndexSet.insert(i);
-      }
-    }
+    size_t mid = partitionReplayIndices(
+      indices,
+      lo,
+      hi,
+      x,
+      numRows,
+      static_cast<size_t>(nodeVariable),
+      nodeSplit
+    );
 
     size_t numNodes = 1;
-    numNodes += storeFlattenedTree(
+    numNodes += storeReplayedTree(
       fit,
       *node.getLeftChild(),
-      leftIndexSet,
+      x,
+      numRows,
+      indices,
+      lo,
+      mid,
       numObservations + numNodes,
       variable + numNodes,
       value + numNodes
     );
-    numNodes += storeFlattenedTree(
+    numNodes += storeReplayedTree(
       fit,
       *node.getRightChild(),
-      rightIndexSet,
+      x,
+      numRows,
+      indices,
+      mid,
+      hi,
       numObservations + numNodes,
       variable + numNodes,
       value + numNodes
     );
 
     return numNodes;
+  }
+
+  // Shared implementation behind BARTFit::getFlattenedTrees (x_test == NULL) and
+  // getFlattenedTreesCountingData (x_test supplied). When x_test is non-null its
+  // numTestObservations rows are routed through each tree so numObservations
+  // counts that data; otherwise saved trees replay the current predictors and
+  // live trees report their own counts.
+  FlattenedTrees* flattenTrees(
+    const BARTFit& fit,
+    const size_t* chainIndices,
+    size_t numChainIndices,
+    const size_t* sampleIndices,
+    size_t numSampleIndices,
+    const size_t* treeIndices,
+    size_t numTreeIndices,
+    bool useLiveTrees,
+    const double* x_test,
+    size_t numTestObservations
+  ) {
+    // Saved snapshots have a sample dimension; live working trees don't.
+    bool useSaved = fit.control.keepTrees && !useLiveTrees;
+    // A supplied x_test is routed through the (live or saved) trees; otherwise
+    // the saved path replays the current training predictors and the live path
+    // reports its own observation counts directly.
+    bool replay = x_test != NULL;
+    const double* replayData = replay ? x_test : fit.data.x;
+    size_t replayNumRows = replay ? numTestObservations : fit.data.numObservations;
+
+    size_t totalNumNodes = 0;
+
+    // count how many nodes we're getting
+    for (size_t i = 0; i < numChainIndices; ++i) {
+      size_t chainNum = chainIndices[i];
+
+      if (!useSaved) {
+        for (size_t k = 0; k < numTreeIndices; ++k) {
+          size_t treeNum = treeIndices[k];
+          totalNumNodes +=
+            1 + fit.state[chainNum].trees[treeNum].top.getNumNodesBelow();
+        }
+      } else
+        for (size_t j = 0; j < numSampleIndices; ++j) {
+          size_t sampleNum = sampleIndices[j];
+          for (size_t k = 0; k < numTreeIndices; ++k) {
+            size_t treeNum = treeIndices[k];
+            size_t treeOffset = treeNum + sampleNum * fit.control.numTrees;
+            totalNumNodes +=
+              1 +
+              fit.state[chainNum].savedTrees[treeOffset].top.getNumNodesBelow();
+          }
+        }
+    }
+
+    FlattenedTrees* resultPtr = new FlattenedTrees(totalNumNodes);
+    FlattenedTrees& result(*resultPtr);
+
+    // scratch observation indices, partitioned in place per tree when routing
+    size_t* indices =
+      (useSaved || replay) ? new size_t[replayNumRows] : NULL;
+
+    size_t offset = 0;
+    for (size_t i = 0; i < numChainIndices; ++i) {
+      size_t chainNum = chainIndices[i];
+
+      if (!useSaved) {
+        for (size_t k = 0; k < numTreeIndices; ++k) {
+          size_t treeNum = treeIndices[k];
+
+          // get nodes to store averages
+          const double* treeFits = fit.state[chainNum].treeFits +
+            treeNum * fit.state[chainNum].treeFitsStride;
+          double* nodeParams =
+            fit.state[chainNum].trees[treeNum].recoverParametersFromFits(
+              fit,
+              treeFits
+            );
+
+          NodeVector bottomNodes(
+            const_cast<Tree*>(&fit.state[chainNum].trees[treeNum])
+              ->top.getBottomVector()
+          );
+          size_t numBottomNodes = bottomNodes.size();
+          for (size_t k = 0; k < numBottomNodes; ++k)
+            bottomNodes[k]->setAverage(nodeParams[k]);
+          delete[] nodeParams;
+
+          size_t numNodesInTree;
+          if (replay) {
+            for (size_t l = 0; l < replayNumRows; ++l)
+              indices[l] = l;
+            numNodesInTree = storeReplayedTree(
+              fit,
+              fit.state[chainNum].trees[treeNum].top,
+              replayData,
+              replayNumRows,
+              indices,
+              0,
+              replayNumRows,
+              result.numObservations + offset,
+              result.variable + offset,
+              result.value + offset
+            );
+          } else {
+            numNodesInTree = storeFlattenedTree(
+              fit,
+              fit.state[chainNum].trees[treeNum].top,
+              result.numObservations + offset,
+              result.variable + offset,
+              result.value + offset
+            );
+          }
+
+          for (size_t l = 0; l < numNodesInTree; ++l) {
+            result.chainNumber[offset + l] = chainNum;
+            result.sampleNumber[offset + l] = 0;
+            result.treeNumber[offset + l] = treeNum;
+          }
+          offset += numNodesInTree;
+        }
+      } else {
+        for (size_t j = 0; j < numSampleIndices; ++j) {
+          size_t sampleNum = sampleIndices[j];
+          for (size_t k = 0; k < numTreeIndices; ++k) {
+            size_t treeNum = treeIndices[k];
+            size_t treeOffset = treeNum + sampleNum * fit.control.numTrees;
+
+            for (size_t l = 0; l < replayNumRows; ++l)
+              indices[l] = l;
+            size_t numNodesInTree = storeReplayedTree(
+              fit,
+              fit.state[chainNum].savedTrees[treeOffset].top,
+              replayData,
+              replayNumRows,
+              indices,
+              0,
+              replayNumRows,
+              result.numObservations + offset,
+              result.variable + offset,
+              result.value + offset
+            );
+            for (size_t l = 0; l < numNodesInTree; ++l) {
+              result.chainNumber[offset + l] = chainNum;
+              result.sampleNumber[offset + l] = sampleNum;
+              result.treeNumber[offset + l] = treeNum;
+            }
+            offset += numNodesInTree;
+          }
+        }
+      }
+    }
+
+    delete[] indices;
+
+    return resultPtr;
   }
 } // namespace
 
@@ -1946,106 +2160,43 @@ namespace dbarts {
     size_t numTreeIndices,
     bool useLiveTrees
   ) const {
+    return flattenTrees(
+      *this,
+      chainIndices,
+      numChainIndices,
+      sampleIndices,
+      numSampleIndices,
+      treeIndices,
+      numTreeIndices,
+      useLiveTrees,
+      NULL,
+      0
+    );
+  }
 
-    size_t totalNumNodes = 0;
-
-    // count how many nodes we're getting
-    for (size_t i = 0; i < numChainIndices; ++i) {
-      size_t chainNum = chainIndices[i];
-
-      if (useLiveTrees || !control.keepTrees) {
-        for (size_t k = 0; k < numTreeIndices; ++k) {
-          size_t treeNum = treeIndices[k];
-          totalNumNodes +=
-            1 + state[chainNum].trees[treeNum].top.getNumNodesBelow();
-        }
-      } else
-        for (size_t j = 0; j < numSampleIndices; ++j) {
-          size_t sampleNum = sampleIndices[j];
-          for (size_t k = 0; k < numTreeIndices; ++k) {
-            size_t treeNum = treeIndices[k];
-            size_t treeOffset = treeNum + sampleNum * control.numTrees;
-            totalNumNodes +=
-              1 + state[chainNum].savedTrees[treeOffset].top.getNumNodesBelow();
-          }
-        }
-    }
-
-    FlattenedTrees* resultPtr = new FlattenedTrees(totalNumNodes);
-    FlattenedTrees& result(*resultPtr);
-
-    size_t offset = 0;
-    for (size_t i = 0; i < numChainIndices; ++i) {
-      size_t chainNum = chainIndices[i];
-
-      if (useLiveTrees || !control.keepTrees) {
-        for (size_t k = 0; k < numTreeIndices; ++k) {
-          size_t treeNum = treeIndices[k];
-
-          // get nodes to store averages
-          const double* treeFits =
-            state[chainNum].treeFits + treeNum * state[chainNum].treeFitsStride;
-          double* nodeParams =
-            state[chainNum].trees[treeNum].recoverParametersFromFits(
-              *this,
-              treeFits
-            );
-
-          NodeVector bottomNodes(
-            const_cast<Tree*>(&state[chainNum].trees[treeNum])
-              ->top.getBottomVector()
-          );
-          size_t numBottomNodes = bottomNodes.size();
-          for (size_t k = 0; k < numBottomNodes; ++k)
-            bottomNodes[k]->setAverage(nodeParams[k]);
-          delete[] nodeParams;
-
-          size_t numNodesInTree = storeFlattenedTree(
-            *this,
-            state[chainNum].trees[treeNum].top,
-            result.numObservations + offset,
-            result.variable + offset,
-            result.value + offset
-          );
-
-          for (size_t l = 0; l < numNodesInTree; ++l) {
-            result.chainNumber[offset + l] = chainNum;
-            result.sampleNumber[offset + l] = 0;
-            result.treeNumber[offset + l] = treeNum;
-          }
-          offset += numNodesInTree;
-        }
-      } else {
-        std::set<size_t> indexSet;
-        for (size_t i = 0; i < data.numObservations; ++i)
-          indexSet.insert(i);
-
-        for (size_t j = 0; j < numSampleIndices; ++j) {
-          size_t sampleNum = sampleIndices[j];
-          for (size_t k = 0; k < numTreeIndices; ++k) {
-            size_t treeNum = treeIndices[k];
-            size_t treeOffset = treeNum + sampleNum * control.numTrees;
-
-            size_t numNodesInTree = storeFlattenedTree(
-              *this,
-              state[chainNum].savedTrees[treeOffset].top,
-              indexSet,
-              result.numObservations + offset,
-              result.variable + offset,
-              result.value + offset
-            );
-            for (size_t l = 0; l < numNodesInTree; ++l) {
-              result.chainNumber[offset + l] = chainNum;
-              result.sampleNumber[offset + l] = sampleNum;
-              result.treeNumber[offset + l] = treeNum;
-            }
-            offset += numNodesInTree;
-          }
-        }
-      }
-    }
-
-    return resultPtr;
+  FlattenedTrees* BARTFit::getFlattenedTreesCountingData(
+    const size_t* chainIndices,
+    size_t numChainIndices,
+    const size_t* sampleIndices,
+    size_t numSampleIndices,
+    const size_t* treeIndices,
+    size_t numTreeIndices,
+    bool useLiveTrees,
+    const double* x_test,
+    size_t numTestObservations
+  ) const {
+    return flattenTrees(
+      *this,
+      chainIndices,
+      numChainIndices,
+      sampleIndices,
+      numSampleIndices,
+      treeIndices,
+      numTreeIndices,
+      useLiveTrees,
+      x_test,
+      numTestObservations
+    );
   }
 
   BARTFit::BARTFit(Control control, Model model, Data data)

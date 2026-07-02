@@ -134,5 +134,94 @@ rm(keptSampler, liveSampler, makeSampler, saved, current, liveTrees, inst)
 rm(x, y, n)
 
 
+## ---------------------------------------------------------------------------
+## getTrees(newdata = X) routes X through each tree so 'n' counts that data.
+## Routing the training design matrix reproduces the default counts on every
+## path (saved snapshots, live-from-keepTrees, live), and an independent R-side
+## descent reproduces the counts for arbitrary data.
+## ---------------------------------------------------------------------------
+set.seed(11L)
+n <- 60L
+x <- rnorm(n)
+y <- x + rnorm(n)
+ctrl <- dbarts::dbartsControl(
+  n.chains = 1L, n.trees = 10L, n.samples = 5L, n.burn = 0L,
+  updateState = TRUE, keepTrees = TRUE, verbose = FALSE, rngSeed = 3L
+)
+keptSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+invisible(keptSampler$run(30L, 5L))
+
+ctrl@keepTrees <- FALSE
+liveSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
+invisible(liveSampler$run(30L, 5L))
+
+trainX <- keptSampler$data@x
+
+# routing the training predictors reproduces the default n on every path
+expect_equal(keptSampler$getTrees(newdata = trainX), keptSampler$getTrees())
+expect_equal(
+  keptSampler$getTrees(current = TRUE, newdata = trainX),
+  keptSampler$getTrees(current = TRUE)
+)
+expect_equal(liveSampler$getTrees(newdata = trainX), liveSampler$getTrees())
+
+# independent descent of a flattened tree, counting observations per node
+countByDescent <- function(tree, x) {
+  counts <- integer(nrow(tree))
+  recurse <- function(rows, indices) {
+    pos <- rows[1L]
+    counts[pos] <<- length(indices)
+    if (tree$var[pos] == -1L) return(1L)
+    goesLeft <- x[indices, tree$var[pos]] <= tree$value[pos]
+    nLeft <- recurse(rows[-1L], indices[goesLeft])
+    nRight <- recurse(rows[seq.int(2L + nLeft, length(rows))], indices[!goesLeft])
+    1L + nLeft + nRight
+  }
+  recurse(seq_len(nrow(tree)), seq_len(nrow(x)))
+  counts
+}
+
+set.seed(21L)
+newX <- matrix(rnorm(40L), ncol = 1L)
+
+# live trees: every observation lands in exactly one leaf, counts match descent
+replayed <- liveSampler$getTrees(newdata = newX)
+leafSums <- with(replayed[replayed$var == -1L, ], tapply(n, tree, sum))
+expect_true(all(leafSums == nrow(newX)))
+for (t in unique(replayed$tree)) {
+  sub <- replayed[replayed$tree == t, ]
+  expect_equal(sub$n, countByDescent(sub, newX))
+}
+
+# saved trees route the same way
+replayedSaved <- keptSampler$getTrees(newdata = newX, sampleNums = 1L)
+for (t in unique(replayedSaved$tree)) {
+  sub <- replayedSaved[replayedSaved$tree == t, ]
+  expect_equal(sub$n, countByDescent(sub, newX))
+}
+
+# a mismatched column count is rejected
+expect_error(liveSampler$getTrees(newdata = matrix(rnorm(20L), ncol = 2L)))
+
+# exact ties: an observation equal to a split value routes left (x <= split), a
+# boundary random continuous newdata never exercises. Take a tree whose root
+# splits and feed values straddling and equal to that split.
+liveTrees <- liveSampler$getTrees()
+roots <- liveTrees[!duplicated(liveTrees$tree), ]
+splitTree <- roots$tree[roots$var != -1L][1L]
+expect_false(is.na(splitTree))
+s <- liveTrees$value[liveTrees$tree == splitTree][1L]
+tieX <- matrix(c(s - 1, s, s, s + 1), ncol = 1L) # 3 of 4 are <= s
+tied <- liveSampler$getTrees(newdata = tieX)
+tieBlock <- tied[tied$tree == splitTree, ]
+expect_equal(tieBlock$n[1L], nrow(tieX)) # root sees all observations
+expect_equal(tieBlock$n[2L], sum(tieX[, 1L] <= s)) # left child gets the ties
+
+rm(keptSampler, liveSampler, ctrl, trainX, countByDescent, newX)
+rm(replayed, leafSums, replayedSaved, sub, t)
+rm(liveTrees, roots, splitTree, s, tieX, tied, tieBlock)
+rm(x, y, n)
+
+
 rm(df, testData)
 

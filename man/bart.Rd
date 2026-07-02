@@ -252,12 +252,12 @@ extract(object, \dots)
   }
 
   \subsection{Extracting Trees}{
-    When a model is fit with \code{keeptrees} (\code{bart}) or \code{keepTrees} (\code{bart2}) equal to \code{TRUE}, the generic \code{extract} can be used to retrieve a data frame containing the tree fit information. In this case, \code{extract} will accept the additional, optional arguments: \code{chainNums}, \code{sampleNums}, and \code{treeNums}. Each should be an integer vector detailing the desired trees to be returned.
+    When a model is fit with \code{keeptrees} (\code{bart}) or \code{keepTrees} (\code{bart2}) equal to \code{TRUE}, the generic \code{extract} can be used to retrieve a data frame containing the tree fit information. In this case, \code{extract} will accept the additional, optional arguments: \code{chainNums}, \code{sampleNums}, and \code{treeNums}. Each should be an integer vector detailing the desired trees to be returned. A further optional argument \code{newdata} routes a new set of predictors (in the same form accepted by \code{predict}) through the frozen trees so that the \code{n} column counts those observations instead of the training data.
 
     The result of \code{extract} will be a data frame with columns:
     \itemize{
       \item \code{sample}, \code{chain}, \code{tree} - index variables
-      \item \code{n} - number of observations in node
+      \item \code{n} - number of observations in node, drawn from the training data or from \code{newdata} when supplied
       \item \code{var} - either the index of the variable used for splitting or -1 if the node is a leaf
       \item \code{value} - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node
     }

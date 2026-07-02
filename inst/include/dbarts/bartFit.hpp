@@ -223,6 +223,20 @@ namespace dbarts {
       std::size_t numTreeIndices,
       bool useLiveTrees
     ) const;
+    // Similar to getFlattenedTrees, but routes the supplied x_test through each
+    // tree so numObservations counts that data instead of the training
+    // predictors.
+    FlattenedTrees* getFlattenedTreesCountingData(
+      const std::size_t* chainIndices,
+      std::size_t numChainIndices,
+      const std::size_t* sampleIndices,
+      std::size_t numSampleIndices,
+      const std::size_t* treeIndices,
+      std::size_t numTreeIndices,
+      bool useLiveTrees,
+      const double* x_test,
+      std::size_t numTestObservations
+    ) const;
 
     /// \warning The new control must have the same number of chains as the old,
     ///   or it may segfault.

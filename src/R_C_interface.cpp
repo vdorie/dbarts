@@ -121,7 +121,8 @@ FlattenedTrees* dbarts_getTrees(
   const std::size_t* sampleIndices,
   std::size_t numSampleIndices,
   const std::size_t* treeIndices,
-  std::size_t numTreeIndices
+  std::size_t numTreeIndices,
+  bool useLiveTrees
 ) {
   return fit->getFlattenedTrees(
     chainIndices,
@@ -130,7 +131,32 @@ FlattenedTrees* dbarts_getTrees(
     numSampleIndices,
     treeIndices,
     numTreeIndices,
-    false
+    useLiveTrees
+  );
+}
+
+FlattenedTrees* dbarts_getTreesCountingData(
+  const dbarts::BARTFit* fit,
+  const std::size_t* chainIndices,
+  std::size_t numChainIndices,
+  const std::size_t* sampleIndices,
+  std::size_t numSampleIndices,
+  const std::size_t* treeIndices,
+  std::size_t numTreeIndices,
+  bool useLiveTrees,
+  const double* x_test,
+  std::size_t numTestObservations
+) {
+  return fit->getFlattenedTreesCountingData(
+    chainIndices,
+    numChainIndices,
+    sampleIndices,
+    numSampleIndices,
+    treeIndices,
+    numTreeIndices,
+    useLiveTrees,
+    x_test,
+    numTestObservations
   );
 }
 

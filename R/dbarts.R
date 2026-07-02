@@ -1162,7 +1162,13 @@ dbartsSampler <- setRefClass(
         as.integer(treeNums)
       ))
     },
-    getTrees = function(treeNums, chainNums, sampleNums, current = FALSE) {
+    getTrees = function(
+      treeNums,
+      chainNums,
+      sampleNums,
+      current = FALSE,
+      newdata = NULL
+    ) {
       "Returns a data.frame containing the internal state of the trees."
       matchedCall <- match.call()
       current <- isTRUE(current)
@@ -1212,8 +1218,28 @@ dbartsSampler <- setRefClass(
         stop("treeNums must be in [1, ", control@n.trees, "]")
       }
 
+      # route new data through the trees so 'n' counts that data instead of the
+      # training predictors; validated and coded as for predict
+      if (!is.null(newdata)) {
+        newdata <- validateXTest(
+          newdata,
+          attr(data@x, "term.labels"),
+          ncol(data@x),
+          colnames(data@x),
+          attr(data@x, "drop")
+        )
+      }
+
       ptr <- getPointer()
-      .Call(C_dbarts_getTrees, ptr, chainNums, sampleNums, treeNums, current)
+      .Call(
+        C_dbarts_getTrees,
+        ptr,
+        chainNums,
+        sampleNums,
+        treeNums,
+        current,
+        newdata
+      )
     },
     plotTree = function(
       treeNum,

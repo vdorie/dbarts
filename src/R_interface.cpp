@@ -353,7 +353,7 @@ static R_CallMethodDef R_callMethods[] = {
     1
   ),
   DEF_FUNC("dbarts_printTrees", printTrees, 4),
-  DEF_FUNC("dbarts_getTrees", getTrees, 5),
+  DEF_FUNC("dbarts_getTrees", getTrees, 6),
   DEF_FUNC("dbarts_predict", predict, 4),
   DEF_FUNC("dbarts_setResponse", setResponse, 2),
   DEF_FUNC("dbarts_setOffset", setOffset, 3),
@@ -502,6 +502,7 @@ static C_CallMethodDef C_callMethods[] = {
   DEF_FUNC("printInitialSummary", dbarts_printInitialSummary),
   DEF_FUNC("printTrees", dbarts_printTrees),
   DEF_FUNC("getTrees", dbarts_getTrees),
+  DEF_FUNC("getTreesCountingData", dbarts_getTreesCountingData),
   DEF_FUNC("setRNGState", dbarts_setRNGState),
 
   DEF_FUNC("runSampler", dbarts_runSampler),

@@ -77,7 +77,7 @@ print(head(trees, n = 10))
 The columns refer to:
 
 * `chain`, `sample`, `tree` - index variables
-* `n` - number of observations in node
+* `n` - number of observations in node (from the training data, or from `newdata` when it is supplied; see "Counts for New Data" below)
 * `var` - either the index of the variable used for splitting or -1 if the node is a leaf
 * `value` - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node
 
@@ -190,6 +190,16 @@ getPredictionsForTree(treeOfInterest, bartFit$fit$data@x[1:5,])
 ```
 
 A `by` statement can be used to obtain all predictions for all trees.
+
+## Counts for New Data
+
+The recursion above routes new data through the trees by hand. To simply count how a new dataset distributes across the (frozen) partition, pass `newdata` to `extract`: the tree structure, split rules, and leaf predictions are unchanged, and only the `n` column is recomputed by routing that data through each tree. The predictors are supplied in the same form as for `predict`.
+
+```{r countsForNewData}
+newData <- x[1:5,]
+newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
+print(subset(newTrees, chain == 1))
+```
 
 ## Advanced Traversal
 

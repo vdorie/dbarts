@@ -13,6 +13,17 @@
       \item The `getTrees` method of a sampler accepts `current = TRUE` to return
             the live working trees (the current sampler position) even when
             `keepTrees` is `TRUE`, rather than the saved samples.
+      \item `getTrees` and `extract(., "trees")` accept a `newdata` matrix, routing
+            those observations through each tree so the `n` column counts them
+            instead of the training data.
+    }
+  }
+  \subsection{C API}{
+    \itemize{
+      \item Added `dbarts_getTreesCountingData`, which routes a supplied matrix
+            through the trees for the `newdata` feature above.
+      \item `dbarts_getTrees` gained a trailing `useLiveTrees` argument (for the
+            `current = TRUE` feature); callers linking to dbarts must update.
     }
   }
   \subsection{BUG FIXES}{
