@@ -29,7 +29,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
 SEXP bartcore_setCutPoints(SEXP ptr, SEXP cutPoints, SEXP columns);
 SEXP bartcore_getSigmas(SEXP ptr);
 SEXP bartcore_isValidPointer(SEXP ptr);
-SEXP bartcore_getLatents(SEXP ptr);
+SEXP bartcore_getLatents(SEXP ptr, SEXP result);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata);

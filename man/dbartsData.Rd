@@ -8,7 +8,7 @@
 dbartsData(
     formula, data, test, subset, weights,
     offset, offset.test = offset,
-    factors = c("indicators", "categorical"))
+    factors = c("categorical", "indicators"))
 }
 \arguments{
    \item{formula, data, test, subset, weights, offset, offset.test, factors}{

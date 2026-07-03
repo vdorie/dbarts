@@ -42,6 +42,21 @@ DECIDED: break freely now and patch at the end; xbart may be redesigned
 around the new data layer rather than accommodated, or shelved and
 completed later - it does not gate the rest.
 
+Landed 2026-07-03 (step 2, the flip): `dbartsControl` defaults to
+`engine = "bartcore"` and `factors` defaults to `"categorical"` on
+`dbarts`/`dbartsData`/`bart2`/`xbart` (which gained the argument); `bart`
+stays the frozen shim (indicators, probit, but the new engine). The flip
+flushed out and fixed real parity gaps the R5 harness missed: recorded
+training fits omitted the offset (diverging rbart's ranef Gibbs),
+`rngSeed` was ignored, test data could not be removed (bart2's burn-in
+dance), `getLatents` refused preallocated results (rbart's in-place
+contract), `setResponse`/`setOffset` skipped length validation
+(segfault), `copy()` walked classic state slots, and the state was not
+lazily materialized for saveRDS. Fixed residual priors now work on
+bartcore with the documented variance semantics. rngKind/rngNormalKind
+are refused (classic-only). RNG-locked snapshots regenerated; classic
+mechanics tests pin `engine = "classic"` until step 3 removes them.
+
 ## 2. Data ingestion: factors as categorical columns
 
 Current behavior: data.frame and formula inputs pass through

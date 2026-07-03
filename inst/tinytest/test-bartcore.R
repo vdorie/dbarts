@@ -9,8 +9,8 @@ f <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 5 * x[, 4L]
 y <- f + rnorm(n)
 x.test <- matrix(runif(10L * p), 10L, p)
 
-control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L,
-                         updateState = FALSE)
+control <- dbartsControl(engine = "classic", n.chains = 1L, n.threads = 1L,
+                         n.trees = 50L, updateState = FALSE)
 sampler <- dbarts(x, y, test = x.test, control = control)
 bcSampler <- dbarts:::bartcoreSampler(sampler)
 
@@ -125,7 +125,8 @@ expect_true(all(is.finite(
 # quantile cut points and heterogeneous n.cuts
 x.quants <- x + 0
 x.quants[, 3L] <- round(x.quants[, 3L], 1L)  # 11 levels -> 10 quantile cuts
-control.quants <- dbartsControl(n.chains = 1L, n.threads = 1L,
+control.quants <- dbartsControl(engine = "classic", n.chains = 1L,
+                                n.threads = 1L,
                                 n.trees = 50L, updateState = FALSE,
                                 useQuantiles = TRUE,
                                 n.cuts = c(100L, 50L, 100L, 100L, 25L))
@@ -153,7 +154,8 @@ expect_error(
 
 # multiple chains: per-chain slabs with a trailing chain dimension, run on
 # worker threads; each chain gets its own generator seeded from R's stream
-control.chains <- dbartsControl(n.chains = 2L, n.threads = 2L, n.trees = 50L,
+control.chains <- dbartsControl(engine = "classic", n.chains = 2L,
+                                n.threads = 2L, n.trees = 50L,
                                 updateState = FALSE)
 sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
 bcSampler.chains <- dbarts:::bartcoreSampler(sampler.chains)
@@ -228,6 +230,14 @@ expect_equal(length(installed.engine), n)
 sampler.engine$setCutPoints(list(c(0.25, 0.5, 0.75)), 1L)
 sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
 sampler.engine$setTestPredictor(runif(10L), 2L)
+expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
+
+# test data can be removed (bart2's burn-in does this) and later restored
+sampler.engine$setTestPredictorAndOffset(NULL, NULL)
+expect_null(sampler.engine$data@x.test)
+expect_null(sampler.engine$run(0L, 2L)$test)
+sampler.engine$setTestPredictorAndOffset(x.test, rep(0.25, 10L))
+expect_equal(sampler.engine$data@offset.test, rep(0.25, 10L))
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
 # printTrees dumps the live trees in the classic engine's format, one line
@@ -313,7 +323,8 @@ installed.engine.joint <- updatePredictorPerObservationJointly(
   list(sampler.jointC, sampler.jointD), rep(10, n), "x1")
 expect_equal(length(installed.engine.joint), n)
 sampler.classic <- dbarts(x.jointC + 0, y,
-                          control = dbartsControl(n.chains = 1L,
+                          control = dbartsControl(engine = "classic",
+                                                  n.chains = 1L,
                                                   n.threads = 1L,
                                                   n.trees = 50L,
                                                   updateState = FALSE))
@@ -595,7 +606,8 @@ expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
 # prior sampling: both engines draw tree structures and leaf parameters from
 # the same prior; with fixed seeds the comparison is deterministic
-control.prior <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L,
+control.prior <- dbartsControl(engine = "classic", n.chains = 1L,
+                               n.threads = 1L, n.trees = 50L,
                                updateState = FALSE)
 control.prior.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
                                   n.threads = 1L, n.trees = 50L,
@@ -705,11 +717,16 @@ set.seed(43)
 r.sm2 <- sampler.sm2$run(20L, 5L)
 expect_identical(r.sm1, r.sm2)
 
-# a model the engine rejects rolls the slot back
+# a fixed residual prior holds sigma at sqrt(value), the documented
+# variance semantics, at creation and through setModel alike
+sampler.fix <- dbarts(x, y, resid.prior = fixed(4), control = control.sm)
+r.fix <- sampler.fix$run(10L, 3L)
+expect_equal(unique(r.fix$sigma), 2)
 model.fixed <- sampler.sm1$model
-model.fixed@resid.prior <- methods::new("dbartsFixedPrior", value = 1)
-expect_error(sampler.sm1$setModel(model.fixed), pattern = "fixed sigma")
-expect_identical(sampler.sm1$model, model.new)
+model.fixed@resid.prior <- methods::new("dbartsFixedPrior", value = 9)
+sampler.sm1$setModel(model.fixed)
+expect_equal(unique(sampler.sm1$run(5L, 3L)$sigma), 3)
+expect_equal(sampler.sm1$getSigmas(), 3)
 
 # sums of squared residuals report on the original scale against the current
 # (last recorded) fits

@@ -76,7 +76,8 @@ expect_equal(prior.dart@a, 0.75)
 expect_error(dbartsPriors$dart(a = -1), pattern = "'a' must be positive")
 expect_error(dbartsPriors$dart(alpha = 0), pattern = "'alpha' must be positive")
 
-expect_error(dbarts(y ~ a + b, df, tree.prior = dart(), control = control),
+expect_error(dbarts(y ~ a + b, df, tree.prior = dart(),
+                    control = dbartsControl(engine = "classic")),
              pattern = "DART tree prior requires")
 
 # a left-unset update delay resolves to half the control burn-in

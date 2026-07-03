@@ -480,6 +480,47 @@ partitioning entirely; a different library sharing only the tree structure).
    supplied; the driver draws splits through R's generator, so its
    reproducibility test pins sample.kind against leakage from other
    test files.
+   THE FLIP (DONE 2026-07-03): dbartsControl defaults to engine =
+   "bartcore" (class prototype included) and factors defaults to
+   "categorical" on dbarts/dbartsData/bart2/xbart (xbart gained the
+   argument and threads it to dbartsData); bart stays the frozen
+   BayesTree shim - indicators and probit, explicitly requested - but
+   runs the new engine. Running the whole wrapper surface on bartcore
+   flushed out parity gaps the R5 harness never saw because it compares
+   test fits, not training fits, and never exercised some paths:
+   (1) recorded training fits omitted the offset while the classic
+   engine includes it - rbart's ranef Gibbs reads train - ranef, so the
+   ranef re-entered the residual and diverged geometrically (the
+   "hang"); fixed engine-side (ResponseModel::offset(), added back in
+   storeSample, symmetric with test fits). (2) control@rngSeed was
+   ignored: now a single chain seeds R's generator with it (classic
+   convention) and several chains draw their MT seeds from a dedicated
+   generator, leaving R's stream untouched; seeded results are
+   thread-count independent (classic's were not; its unseeded
+   multichain clock-seeding is NOT replicated - unseeded chains seed
+   from R's stream so set.seed suffices). rngKind/rngNormalKind are
+   refused on bartcore. (3) test data could not be removed - bart2/bart
+   null out test predictors for burn-in; buildTest(NULL, 0) transitions
+   to the supported no-test state, offset cleared. (4) getLatents
+   refused preallocated results, which rbart fills in place; the bridge
+   now honors the classic storeLatents contract. (5) setResponse and
+   setOffset skipped length validation (numeric(0) segfaulted).
+   (6) copy() walked classic dbartsState slots; the bartcore branch
+   installs the opaque state object in the duplicate (never mutated in
+   place, so sharing is safe). (7) the state slot is now a delayedAssign
+   like classic's, so forcing it before saveRDS captures the sampler.
+   (8) fixed residual priors work on bartcore with the DOCUMENTED
+   variance semantics (sigma = sqrt(value)) at create and setModel
+   alike; classic ignored the value at create and installed it as an sd
+   in setModel - not replicated. Mutation-error messages align with
+   classic's wording. RNG-locked snapshots regenerated
+   (binary/continuous regression, rbart, xbart); classic-mechanics
+   tests (customMCMC's state cutPoints, rng kind semantics) pin
+   engine = "classic" until removal; a knife-edge statistical bound
+   (flat-hyperprior median k < 3; cross-seed medians 2.5-69 on BOTH
+   engines) was replaced with a robust check. Suite 1975; equivalence
+   reproduces all nine baseline z-stats exactly; exact-posterior gates
+   pass.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by

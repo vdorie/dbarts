@@ -4,6 +4,34 @@
 \section{CHANGES IN VERSION 0.9-34}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item The bartcore engine is now the default: every fitting
+            function runs on it unless `engine = "classic"` is requested
+            through `dbartsControl`. Fits are statistically equivalent to
+            the classic engine's but not draw-for-draw identical, so
+            seeded results change. `bart` keeps its historical behavior
+            apart from the engine (indicator expansion of factors, probit
+            for binary responses). The classic engine is scheduled for
+            removal.
+      \item On the bartcore engine, `rngSeed` makes results reproducible
+            for any number of chains without touching R's stream, and
+            seeded results no longer depend on the thread count. Without
+            a seed, multi-chain samplers seed their generators from R's
+            stream, so `set.seed` alone suffices for reproducibility
+            (the classic engine seeded such chains from the clock).
+            `rngKind`/`rngNormalKind` remain classic-only and the
+            bartcore engine refuses them.
+      \item `resid.prior = fixed(value)` now follows its documentation on
+            the bartcore engine: the residual standard deviation holds at
+            `sqrt(value)`, at creation and through `setModel` alike. The
+            classic engine ignored the value at creation (holding sigma
+            at its starting estimate) and installed it as a standard
+            deviation in `setModel`.
+      \item Factor columns in data frames now default to
+            `factors = "categorical"` in `dbarts`, `dbartsData`, `bart2`,
+            and `xbart` (which gains the argument): each unordered factor
+            stays a single predictor with subset splits instead of
+            expanding into indicator columns. Pass
+            `factors = "indicators"` for the previous behavior.
       \item Prior specifications are ordinary objects built by the
             constructors in the new exported list `dbartsPriors` (`cgm`,
             `dart`, `normal`, `chi`, `chisq`, `fixed`), usable
@@ -47,22 +75,18 @@
             `extract`, `fitted`, and `plot` transform latent draws
             through that family's link; fits saved by earlier versions
             lack the element and are treated as probit.
-      \item `dbarts` and `dbartsData` accept `factors = "categorical"`,
-            keeping each unordered factor in a data frame as a single
-            predictor whose splits send a subset of its levels (at most 53)
-            down each branch instead of expanding it into indicator columns;
-            ordered factors are coded as ordinal. Level tables are retained
-            so test data are coded identically, with unseen levels an error.
-            Requires `engine = "bartcore"`; the default `"indicators"` is
-            unchanged.
-      \item `dbartsControl` accepts `engine = "bartcore"`, running the sampler
-            on the in-development replacement engine behind the standard
-            `dbartsSampler` interface: every `dbartsSampler` method works,
-            including `keepTrees`, `getTrees`, `predict`, `plotTree`,
-            `setWeights`, test offsets, `printTrees`, sampling from the
-            prior, `setControl`, `setModel`, verbose progress output, and
-            saving/loading sampler state (a restored sampler continues
-            bitwise identically; the stored state is engine-specific). Not
+      \item Under `factors = "categorical"`, splits send a subset of a
+            factor's levels (at most 53) down each branch; ordered factors
+            are coded as ordinal. Level tables are retained so test data
+            are coded identically, with unseen levels an error. Requires
+            `engine = "bartcore"`.
+      \item The bartcore engine implements the full `dbartsSampler`
+            interface: every method works, including `keepTrees`,
+            `getTrees`, `predict`, `plotTree`, `setWeights`, test offsets,
+            `printTrees`, sampling from the prior, `setControl`,
+            `setModel`, verbose progress output, and saving/loading
+            sampler state (a restored sampler continues bitwise
+            identically; the stored state is engine-specific). Not
             supported there: weights with binary responses, and
             `setControl` changes to settings fixed at creation (chain/tree
             counts, generators, the cut grid).

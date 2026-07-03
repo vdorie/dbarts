@@ -28,7 +28,8 @@ expect_true(all(is.finite(samples.gauss$sigma)) &&
 # binary families need a 0/1 response; logistic needs the bartcore engine
 expect_error(dbarts(y.continuous ~ x, family = "probit", control = control),
              pattern = "requires a response coded 0/1")
-expect_error(dbarts(y.binary ~ x, family = "logistic", control = control),
+expect_error(dbarts(y.binary ~ x, family = "logistic",
+                    control = dbartsControl(engine = "classic")),
              pattern = "requires engine")
 
 control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,

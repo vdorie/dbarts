@@ -26,7 +26,7 @@ dbartsControl <- function(
   rngNormalKind = "default",
   rngSeed = NA_integer_,
   updateState = TRUE,
-  engine = c("classic", "bartcore")
+  engine = c("bartcore", "classic")
 ) {
   result <- new(
     "dbartsControl",
@@ -135,7 +135,7 @@ dbarts <- function(
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
-  factors = c("indicators", "categorical"),
+  factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic")
 ) {
   matchedCall <- match.call()
@@ -304,6 +304,13 @@ dbartsSampler <- setRefClass(
           is(model@tree.prior, "dbartsDartPrior")) {
         stop("a DART tree prior requires engine = \"bartcore\"")
       }
+      # a single chain draws through R's generator and several chains use
+      # Mersenne twisters (seeded from rngSeed when given, R's stream
+      # otherwise); there is no explicit-kind machinery to configure
+      if (control@engine == "bartcore" &&
+          (control@rngKind != "default" || control@rngNormalKind != "default")) {
+        stop("the bartcore engine does not support 'rngKind' or 'rngNormalKind'")
+      }
 
       .self$control <- control
       .self$model <- model
@@ -318,8 +325,21 @@ dbartsSampler <- setRefClass(
           .self$data,
           if (control@family == "auto") "" else control@family
         )
-        # engine-specific state, populated by storeState / updateState runs
-        .self$state <- NULL
+        # engine-specific state; like the classic engine's, materialized
+        # lazily on first access (forcing it before saveRDS captures the
+        # sampler), or eagerly by storeState / updateState runs
+        delayedAssign(
+          "state",
+          {
+            if (control@updateState) {
+              .Call(C_dbarts_bartcore_storeState, pointer)
+            } else {
+              NULL
+            }
+          },
+          eval.env = as.environment(.self),
+          assign.env = as.environment(.self)
+        )
 
         callSuper(...)
         return(invisible(NULL))
@@ -447,6 +467,15 @@ dbartsSampler <- setRefClass(
           }
           dbartsSampler$new(control, model, newData)
         }
+
+      if (control@engine == "bartcore") {
+        # the stored state is opaque and never mutated in place (storeState
+        # replaces it whole), so the copy can install the same object
+        if (!is.null(state)) {
+          dupe$setState(state)
+        }
+        return(dupe)
+      }
 
       if (!is.null(state)) {
         newState <- state
@@ -1100,11 +1129,8 @@ dbartsSampler <- setRefClass(
         }
 
         x.test <- validateXTest(x.test, data@x)
-        if (is.null(x.test)) {
-          if (!is.null(offset.test)) {
-            stop("when test matrix is NULL, test offset must be as well")
-          }
-          stop("removing test data is not supported by the bartcore engine")
+        if (is.null(x.test) && !is.null(offset.test)) {
+          stop("when test matrix is NULL, test offset must be as well")
         }
         if (!is.null(offset.test)) {
           offset.test <- as.double(offset.test)
@@ -1246,12 +1272,11 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
 
       if (control@engine == "bartcore") {
-        if (!resultIsMissing) {
-          stop(
-            "preallocated results are not supported by the bartcore engine"
-          )
-        }
-        return(.Call(C_dbarts_bartcore_getLatents, ptr))
+        return(.Call(
+          C_dbarts_bartcore_getLatents,
+          ptr,
+          if (resultIsMissing) NULL else result
+        ))
       }
 
       .Call(C_dbarts_storeLatents, ptr, if (resultIsMissing) NULL else result)

@@ -12,7 +12,7 @@ dbartsControl(
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
     rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_,
-    updateState = TRUE, engine = c("classic", "bartcore"))
+    updateState = TRUE, engine = c("bartcore", "classic"))
 }
 \arguments{
    \item{verbose}{
@@ -68,12 +68,14 @@ dbartsControl(
    }
   \item{engine}{
     Which sampler implementation runs underneath the \code{dbartsSampler}
-    interface. \code{"classic"} is the established engine.
-    \code{"bartcore"} is its in-development replacement; it does not
-    support weights with binary responses, and \code{setControl} cannot
-    change settings fixed at creation (chain and tree counts, random
-    number generators, and the cut grid). Its saved sampler state is
-    engine-specific and cannot be exchanged with \code{"classic"}.
+    interface. The default \code{"bartcore"} is the current engine and
+    the only one supporting categorical predictors, the logistic family,
+    and DART; it does not support weights with binary responses, and
+    \code{setControl} cannot change settings fixed at creation (chain and
+    tree counts, random number generators, and the cut grid).
+    \code{"classic"} is the previous engine, statistically equivalent on
+    the features both support and scheduled for removal. Saved sampler
+    states are engine-specific and cannot be exchanged.
   }
 }
 \value{

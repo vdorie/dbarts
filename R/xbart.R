@@ -4,7 +4,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   n.threads = dbarts::guessNumCores(),
                   n.trees = 75L, k = NULL, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
-                  seed = NA_integer_)
+                  seed = NA_integer_,
+                  factors = c("categorical", "indicators"))
 {
   matchedCall <- match.call()
 
@@ -24,7 +25,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@updateState <- FALSE
   control@verbose <- FALSE
 
-  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset)
+  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset, factors)
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma

@@ -140,17 +140,23 @@ void printInitialSummary(const Control& control, const Model& model,
                kPrior.degreesOfFreedom, kPrior.scale);
   }
   if (!control.responseIsBinary) {
-    const ChiSquaredPrior& sigmaSqPrior(
-      *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
-    ext_printf("\tdegrees of freedom in sigma prior: %f\n",
-               sigmaSqPrior.degreesOfFreedom);
-    double quantile = 1.0 - ext_percentileOfChiSquared(
-      sigmaSqPrior.scale * sigmaSqPrior.degreesOfFreedom,
-      sigmaSqPrior.degreesOfFreedom);
-    ext_printf("\tquantile in sigma prior: %f\n", quantile);
-    double sigmaInternal = data.sigmaEstimate / sampler.fitScale();
-    ext_printf("\tscale in sigma prior: %f\n",
-               sigmaInternal * sigmaInternal * sigmaSqPrior.scale);
+    if (model.sigmaSqPrior->isFixed) {
+      // the classic engine's FixedPrior::print
+      ext_printf("\tresidual variance prior fixed to %f\n",
+                 static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
+    } else {
+      const ChiSquaredPrior& sigmaSqPrior(
+        *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
+      ext_printf("\tdegrees of freedom in sigma prior: %f\n",
+                 sigmaSqPrior.degreesOfFreedom);
+      double quantile = 1.0 - ext_percentileOfChiSquared(
+        sigmaSqPrior.scale * sigmaSqPrior.degreesOfFreedom,
+        sigmaSqPrior.degreesOfFreedom);
+      ext_printf("\tquantile in sigma prior: %f\n", quantile);
+      double sigmaInternal = data.sigmaEstimate / sampler.fitScale();
+      ext_printf("\tscale in sigma prior: %f\n",
+                 sigmaInternal * sigmaInternal * sigmaSqPrior.scale);
+    }
   }
 
   const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
@@ -317,9 +323,13 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       }
     }
   }
-  if (errorMessage == NULL && !control.responseIsBinary &&
-      model.sigmaSqPrior->isFixed)
-    errorMessage = "bartcore does not support fixed sigma for continuous responses";
+  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaSqPrior->isFixed;
+  if (sigmaIsFixed) {
+    // documented semantics: fixed(value) holds the residual variance at
+    // value, so sigma enters as sqrt(value) and is never drawn
+    data.sigmaEstimate =
+      std::sqrt(static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
+  }
   if (errorMessage == NULL && control.responseIsBinary &&
       data.weights != NULL)
     errorMessage = "binary response families do not support weights: the "
@@ -337,7 +347,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     } else {
       k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
     }
-    if (!control.responseIsBinary) {
+    if (!control.responseIsBinary && !sigmaIsFixed) {
       const ChiSquaredPrior& sigmaSqPrior(
         *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
       sigmaDf = sigmaSqPrior.degreesOfFreedom;
@@ -355,6 +365,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
   bartcore::SamplerOptions options;
   options.numTrees = control.numTrees;
+  options.sigmaIsFixed = sigmaIsFixed;
   options.k = k;
   options.nodeScale = model.nodeScale;
   options.base = treePrior.base;
@@ -404,12 +415,30 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
   // A single chain draws through R's generator; several chains each get a
   // Mersenne twister seeded from R's stream, so results do not depend on the
-  // thread count and worker threads never touch the R API.
+  // thread count and worker threads never touch the R API. A control rngSeed
+  // makes results reproducible without R's stream: it seeds R's generator
+  // directly for a single chain (the classic convention) and otherwise seeds
+  // a dedicated generator that hands each chain its seed.
+  bool haveSeed = control.rng_seed != DBARTS_CONTROL_INVALID_SEED;
   std::vector<ext_rng*> rngs(options.numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
   if (options.numChains == 1) {
     rngs[0] = ext_rng_createDefault(true);
-    rngFailed = rngs[0] == NULL;
+    rngFailed = rngs[0] == NULL ||
+      (haveSeed && ext_rng_setSeed(rngs[0], control.rng_seed) != 0);
+  } else if (haveSeed) {
+    ext_rng* seedGenerator =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    rngFailed = seedGenerator == NULL ||
+      ext_rng_setSeed(seedGenerator, control.rng_seed) != 0;
+    for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      rngFailed = rngs[c] == NULL ||
+        ext_rng_setSeed(rngs[c], static_cast<std::uint_least32_t>(
+          ext_rng_simulateUnsignedIntegerUniformInRange(
+            seedGenerator, 0, static_cast<std::uint_least32_t>(-1)))) != 0;
+    }
+    if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
   } else {
     GetRNGstate();
     for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
@@ -589,6 +618,11 @@ SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
 
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (!Rf_isNull(offsetExpr) &&
+      (!Rf_isReal(offsetExpr) ||
+       static_cast<size_t>(Rf_xlength(offsetExpr)) !=
+         holder.sampler->numObservations()))
+    Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
   holder.sampler->setOffset(offset, Rf_asLogical(updateScaleExpr) == TRUE);
   retain(ptrExpr, PROT_OFFSET, offsetExpr);
@@ -597,6 +631,11 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (!Rf_isReal(yExpr) ||
+      static_cast<size_t>(Rf_xlength(yExpr)) !=
+        holder.sampler->numObservations())
+    Rf_error("y must be of length equal to %lu",
+             static_cast<unsigned long>(holder.sampler->numObservations()));
   GetRNGstate(); // probit latent redraw
   holder.sampler->setResponse(REAL(yExpr));
   PutRNGstate();
@@ -677,6 +716,14 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
 SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (Rf_isNull(xTestExpr)) {
+    // removal: back to the no-test-data state, offset included
+    holder.sampler->setTestPredictors(NULL, 0);
+    holder.sampler->setTestOffset(NULL);
+    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
+    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
+    return R_NilValue;
+  }
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
@@ -715,10 +762,20 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
 }
 
 // The combined form the row count may change through; offsetExpr null
-// clears the offset alongside the new predictors.
+// clears the offset alongside the new predictors. A null test matrix
+// removes the test data (its offset must be null as well).
 SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
                                         SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (Rf_isNull(xTestExpr)) {
+    if (!Rf_isNull(offsetExpr))
+      Rf_error("when test matrix is NULL, test offset must be as well");
+    holder.sampler->setTestPredictors(NULL, 0);
+    holder.sampler->setTestOffset(NULL);
+    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
+    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
+    return R_NilValue;
+  }
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
@@ -813,12 +870,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
   initializeModelFromExpression(model, modelExpr, control, data);
 
   bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
-  const char* errorMessage = NULL;
-  if (isGaussian && model.sigmaSqPrior->isFixed)
-    errorMessage =
-      "bartcore does not support fixed sigma for continuous responses";
-
-  if (errorMessage == NULL) {
+  {
     const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
 
     bartcore::ModelParameters parameters;
@@ -839,11 +891,18 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
       parameters.k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
     }
     if (isGaussian) {
-      const ChiSquaredPrior& sigmaSqPrior(
-        *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
-      parameters.sigmaEstimate = data.sigmaEstimate;
-      parameters.sigmaDf = sigmaSqPrior.degreesOfFreedom;
-      parameters.sigmaRawScale = sigmaSqPrior.scale;
+      if (model.sigmaSqPrior->isFixed) {
+        // documented semantics: fixed(value) holds the residual variance
+        parameters.sigmaIsFixed = true;
+        parameters.sigmaEstimate = std::sqrt(
+          static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
+      } else {
+        const ChiSquaredPrior& sigmaSqPrior(
+          *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
+        parameters.sigmaEstimate = data.sigmaEstimate;
+        parameters.sigmaDf = sigmaSqPrior.degreesOfFreedom;
+        parameters.sigmaRawScale = sigmaSqPrior.scale;
+      }
     }
 
     // split probabilities are copied per chain before the model goes away
@@ -852,7 +911,6 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
 
   invalidateModel(model);
   invalidateData(data);
-  if (errorMessage != NULL) Rf_error("%s", errorMessage);
 
   return R_NilValue;
 }
@@ -1677,7 +1735,9 @@ SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
   return R_NilValue;
 }
 
-SEXP bartcore_getLatents(SEXP ptrExpr) {
+// resultExpr, when non-null, is a preallocated numeric filled in place (the
+// classic engine's storeLatents contract, which rbart_vi relies on).
+SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->latents(0) == NULL) return R_NilValue;
 
@@ -1685,7 +1745,14 @@ SEXP bartcore_getLatents(SEXP ptrExpr) {
   size_t numChains = holder.sampler->numChains();
 
   SEXP result;
-  if (numChains == 1) {
+  if (!Rf_isNull(resultExpr)) {
+    if (!Rf_isReal(resultExpr) ||
+        static_cast<size_t>(Rf_xlength(resultExpr)) !=
+          numObservations * numChains)
+      Rf_error("preallocated latents must be a numeric of length equal to "
+               "the number of observations times the number of chains");
+    result = PROTECT(resultExpr);
+  } else if (numChains == 1) {
     result =
       PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numObservations)));
   } else {

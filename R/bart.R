@@ -179,7 +179,7 @@ bart2 <- function(
   seed = NA_integer_,
   proposal.probs = NULL,
   keepSampler = keepTrees,
-  factors = c("indicators", "categorical"),
+  factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
   ...
 )
@@ -345,10 +345,12 @@ bart <- function(
   resid.prior <- quote(chisq(sigdf, sigquant))
   resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
   
+  # the frozen BayesTree-compatibility shim keeps dummy expansion
   args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = weights,
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
                tree.prior = tree.prior, node.prior = node.prior, resid.prior = resid.prior,
-               proposal.probs = proposalprobs, control = control, sigma = as.numeric(sigest))
+               proposal.probs = proposalprobs, control = control, sigma = as.numeric(sigest),
+               factors = "indicators")
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
   
   if (sampleronly) return(sampler)

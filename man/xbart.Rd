@@ -12,7 +12,8 @@ xbart(
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, power = 2, base = 0.95, drop = TRUE,
     resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
-    seed = NA_integer_)
+    seed = NA_integer_,
+    factors = c("categorical", "indicators"))
 }
 \arguments{
   \item{formula}{
@@ -80,6 +81,9 @@ xbart(
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Results are reproducible for a fixed pair of \code{seed} and \code{n.threads}; the caller's random stream is left untouched when a seed is given. Without one, \code{\link{set.seed}} beforehand suffices.
+   }
+   \item{factors}{
+     How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.
    }
 }
 \details{

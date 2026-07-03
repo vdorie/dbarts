@@ -27,8 +27,10 @@ expect_equal(attr(data.cat@x, "factor.levels")[[1L]],
 expect_equal(attr(data.cat@x, "factor.levels")[[5L]], c("cat", "dog"))
 expect_null(attr(data.cat@x, "factor.levels")[[3L]])
 
-# the default expands indicators exactly as before
-data.ind <- dbartsData(y ~ g + o + z + b + s, df)
+# categorical is the default; "indicators" expands as previous versions did
+data.def <- dbartsData(y ~ g + o + z + b + s, df)
+expect_equal(data.def@varTypes, data.cat@varTypes)
+data.ind <- dbartsData(y ~ g + o + z + b + s, df, factors = "indicators")
 expect_true(ncol(data.ind@x) > 5L)
 expect_true(all(data.ind@varTypes == 0L))
 
@@ -57,7 +59,8 @@ expect_error(dbartsData(y ~ g + o + z + b + s, df, test = df.bad,
              pattern = "levels not present")
 
 # the classic engine has no subset splits
-expect_error(dbarts(y ~ g + o + z + b + s, df, factors = "categorical"),
+expect_error(dbarts(y ~ g + o + z + b + s, df, factors = "categorical",
+                    control = dbartsControl(engine = "classic")),
              pattern = "categorical predictors require")
 
 # end to end on the bartcore engine: group means recovered through subset

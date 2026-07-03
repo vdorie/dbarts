@@ -2535,7 +2535,8 @@ static void testSetControlAndModel() {
 
   double manual = 0.0;
   for (size_t i = 0; i < n; ++i) {
-    double residual = y[i] - offset[i] - train[i];
+    // recorded training fits include the offset (original-scale convention)
+    double residual = y[i] - train[i];
     manual += residual * residual;
   }
   double reported = samplerG.sumOfSquaredResiduals(0);

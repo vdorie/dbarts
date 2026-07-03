@@ -75,6 +75,16 @@ bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
   if (is.null(column)) {
+    if (is.matrix(x)) {
+      if (ncol(x) != ncol(sampler$data@x)) {
+        stop("dimension of x must be equal to ", ncol(sampler$data@x))
+      }
+      if (nrow(x) != nrow(sampler$data@x)) {
+        stop("dimension of x must be equal to ", nrow(sampler$data@x))
+      }
+    } else if (length(x) != length(sampler$data@x)) {
+      stop("length of new x does not match old")
+    }
     # a pointer swap: the engine borrows data@x, so install there first and
     # revert if the transaction rolls back
     x <- if (is.matrix(x)) {
@@ -95,10 +105,21 @@ bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
     if (inherits(tryResult, "error")) stop(tryResult)
     if (!forceUpdate && !updateSuccessful) sampler$data@x <- x.old
   } else {
+    column <- as.integer(column)
+    if (any(column < 1L | column > ncol(sampler$data@x))) {
+      stop("column '", column[which(column < 1L | column > ncol(sampler$data@x))[1L]],
+           "' is out of range")
+    }
+    if (is.matrix(x) && ncol(x) != length(column)) {
+      stop("number of columns of new x does not match length of columns to replace")
+    }
+    if (length(x) != nrow(sampler$data@x) * length(column)) {
+      stop("length of new x does not match y")
+    }
     # written in place through the matrix the engine borrows, so data@x
     # already reflects the change
     updateSuccessful <- .Call(C_dbarts_bartcore_updatePredictor, ptr,
-                              as.double(x), as.integer(column), forceUpdate,
+                              as.double(x), column, forceUpdate,
                               updateCutPoints)
   }
 
@@ -230,11 +251,18 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   if (is.null(column)) {
+    # NULL removes the test data; the bridge clears any test offset with it
     x.test <- validateXTest(x.test, sampler$data@x)
-    if (is.null(x.test)) {
-      stop("removing test data is not supported by the bartcore engine")
-    }
   } else {
+    column <- as.integer(column)
+    if (any(column < 1L | column > ncol(sampler$data@x.test))) {
+      stop("column '",
+           column[which(column < 1L | column > ncol(sampler$data@x.test))[1L]],
+           "' is out of range")
+    }
+    if (length(x.test) != nrow(sampler$data@x.test) * length(column)) {
+      stop("length of new x does not match old x.test")
+    }
     # the engine replaces the whole matrix; column updates copy-modify it
     new.x.test <- sampler$data@x.test
     new.x.test[, column] <- as.double(x.test)
@@ -242,6 +270,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   sampler$data@x.test <- x.test
+  if (is.null(x.test)) sampler$data@offset.test <- NULL
   .Call(C_dbarts_bartcore_setTestPredictor, sampler$getPointer(),
         sampler$data@x.test)
   invisible(NULL)
@@ -333,7 +362,7 @@ bartcoreSetCutPoints <- function(bcSampler, cutPoints, columns) {
 }
 
 bartcoreGetLatents <- function(bcSampler)
-  .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr)
+  .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr, NULL)
 
 bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
   x.test <- as.matrix(x.test)
