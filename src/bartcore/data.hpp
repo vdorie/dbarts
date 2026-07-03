@@ -18,11 +18,14 @@ using xint_t = std::uint16_t;
 /// Column types the store distinguishes. Ordinal columns quantize against
 /// cut points and split by threshold; categorical columns hold integer
 /// category codes 0..numCategories-1 directly and split by subset. Category
-/// direction masks are 32 bits wide for now, capping categorical columns at
-/// 32 levels; wider masks come with the per-column code-width work.
+/// direction masks are 64 bits wide but capped at 53 levels: the flattened
+/// tree format stores a mask as a double, and 2^53 - 1 is the widest mask
+/// whose every value round-trips exactly. Uncapped categories need pooled
+/// mask storage and a wide-mask reporting format (see
+/// docs/design/public-surface.md).
 enum class ColumnType : std::uint8_t { ordinal, categorical };
 
-constexpr std::uint32_t maxCategories = 32;
+constexpr std::uint32_t maxCategories = 53;
 
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either

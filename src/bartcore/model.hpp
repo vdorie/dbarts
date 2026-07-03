@@ -157,18 +157,34 @@ struct CGMTreePrior {
   /// Build a categorical direction mask from a pattern whose bit k gives
   /// the side of the k-th reachable category (ascending); unreachable
   /// categories stay zero (left), the canonical gauge.
-  static std::uint32_t categoryDirectionsForPattern(std::uint32_t reachable,
+  static std::uint64_t categoryDirectionsForPattern(std::uint64_t reachable,
                                                     std::uint64_t pattern) {
-    std::uint32_t directions = 0;
+    std::uint64_t directions = 0;
     int bit = 0;
     while (reachable != 0) {
       std::uint32_t category = static_cast<std::uint32_t>(
         std::countr_zero(reachable));
-      if ((pattern >> bit) & 1u) directions |= 1u << category;
+      if ((pattern >> bit) & 1u) directions |= 1ull << category;
       reachable &= reachable - 1;
       ++bit;
     }
     return directions;
+  }
+
+  /// Uniform over the direction patterns of numReachable categories that
+  /// leave neither side empty, drawn bit by bit with the two all-same
+  /// patterns rejected: a single range draw of u * (2^R - 2) has only the
+  /// generator's granularity, which for wide masks pins the low pattern
+  /// bits to functions of the high ones.
+  static std::uint64_t drawCategoryPattern(ext_rng* rng, int numReachable) {
+    std::uint64_t allRight = (1ull << numReachable) - 1ull;
+    std::uint64_t pattern;
+    do {
+      pattern = 0;
+      for (int bit = 0; bit < numReachable; ++bit)
+        if (ext_rng_simulateBernoulli(rng, 0.5) == 1) pattern |= 1ull << bit;
+    } while (pattern == 0 || pattern == allRight);
+    return pattern;
   }
 
   Rule drawRuleForVariable(const Tree& tree, const ColumnStore& data,
@@ -179,12 +195,10 @@ struct CGMTreePrior {
 
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
-      std::uint32_t reachable =
+      std::uint64_t reachable =
         tree.reachableCategories(data, nodeIndex, variableIndex);
       int numReachable = std::popcount(reachable);
-      // uniform over patterns excluding all-left (0) and all-right
-      std::uint64_t pattern = ext_rng_simulateUnsignedIntegerUniformInRange(
-        rng, 1, (1ull << numReachable) - 1);
+      std::uint64_t pattern = drawCategoryPattern(rng, numReachable);
       result.categoryDirections = categoryDirectionsForPattern(reachable, pattern);
       return result;
     }

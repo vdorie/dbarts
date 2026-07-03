@@ -1760,6 +1760,139 @@ static void testCategoricalMutation(ext_rng* rng) {
   printf("ok: categorical mutation\n");
 }
 
+static void testWideCategorical(ext_rng* rng) {
+  // masks are 64 bits wide, capped at 53 categories by the flattened
+  // format's double encoding; exercise bit positions past 31 throughout
+  const size_t K = 53;
+  const size_t n = 8 * K;
+  std::vector<double> x(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = i % K;
+    x[i] = static_cast<double>(category);
+    y[i] = (category >= 27 ? 2.0 : 0.0) + 0.3 * (runif01() - 0.5);
+  }
+
+  ColumnType types[] = {ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 1, 10, false, types);
+  check(store.numCuts[0] == K, "wide categorical column counts its categories");
+  check(store.categoricalValueIsValid(0, 52.0) &&
+          !store.categoricalValueIsValid(0, 53.0),
+        "wide categorical value validity");
+
+  // partition and reachability with direction bits past 31
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.categoryDirections = (1ull << 1) | (1ull << 40) | (1ull << 52);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  const Node& left(tree.at(tree.at(0).leftChild));
+  const Node& right(tree.at(tree.at(0).leftChild + 1));
+  check(right.numObservations() == 8 * 3 &&
+          left.numObservations() == n - 8 * 3,
+        "wide mask partitions by high bits");
+  bool sidesMatch = true;
+  for (size_t i = right.begin; i < right.end; ++i) {
+    size_t category = tree.indices[i] % K;
+    sidesMatch &= category == 1 || category == 40 || category == 52;
+  }
+  check(sidesMatch, "right side holds only right-bound categories");
+  check(tree.reachableCategories(store, 0, 0) == (1ull << K) - 1ull,
+        "root reaches all 53 categories");
+  check(tree.reachableCategories(store, tree.at(0).leftChild + 1, 0) ==
+          rule.categoryDirections,
+        "right child reaches the mask's categories");
+
+  // equals must compare the full mask width (the swap move's same-rule
+  // test); ordinal rules zero the high word at construction
+  Rule wideA, wideB;
+  wideA.variableIndex = wideB.variableIndex = 0;
+  wideA.categoryDirections = 1ull | (1ull << 40);
+  wideB.categoryDirections = 1ull;
+  check(!wideA.equals(wideB), "equals sees high mask bits");
+  Rule ordinalA, ordinalB;
+  ordinalA.variableIndex = ordinalB.variableIndex = 1;
+  ordinalA.splitIndex = 5;
+  ordinalB.splitIndex = 5;
+  check(ordinalA.equals(ordinalB), "fresh ordinal rules compare equal");
+
+  // each pattern bit is marginally exactly 1/2 under the uniform prior on
+  // nonempty assignments; the single range draw this replaced pinned low
+  // pattern bits for wide masks
+  Tree drawTree;
+  drawTree.initialize(indices.data(), n);
+  CGMTreePrior prior;
+  const int numDraws = 20000;
+  std::vector<int> bitCounts(K, 0);
+  for (int d = 0; d < numDraws; ++d) {
+    Rule drawn = prior.drawRuleForVariable(drawTree, store, rng, 0, 0);
+    check(drawn.categoryDirections > 0 &&
+            drawn.categoryDirections < (1ull << K) - 1ull,
+          "wide draw leaves neither side empty");
+    for (size_t bit = 0; bit < K; ++bit)
+      bitCounts[bit] +=
+        static_cast<int>((drawn.categoryDirections >> bit) & 1);
+  }
+  bool marginsMatch = true;
+  double tolerance = 5.0 * std::sqrt(0.25 * numDraws);
+  for (size_t bit = 0; bit < K; ++bit)
+    marginsMatch &=
+      std::fabs(bitCounts[bit] - 0.5 * numDraws) < tolerance;
+  check(marginsMatch, "wide draw direction bits are marginally uniform");
+  checkNear(prior.ruleForVariableLogProbability(tree, store, 0),
+            -std::log(std::pow(2.0, 53.0) - 2.0), 1e-13,
+            "wide rule probability");
+
+  // the widest valid mask round-trips through the double-valued flat format
+  std::vector<FlatNode> flat;
+  std::vector<double> paramByNode(tree.nodes.size(), 0.0);
+  tree.flatten(store, paramByNode.data(), flat);
+  check(flat[0].value == static_cast<double>(rule.categoryDirections),
+        "wide mask flattens exactly");
+  flat[0].value = static_cast<double>(((1ull << K) - 1ull) & ~1ull);
+  check(flatTreeIsWellFormed(store, flat.data(), flat.size()),
+        "all-but-one mask is well formed");
+  Tree rebuilt;
+  std::vector<size_t> rebuiltIndices(n);
+  rebuilt.initialize(rebuiltIndices.data(), n);
+  std::vector<double> rebuiltParams;
+  check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams),
+        "wide mask rebuilds from flat");
+  check(rebuilt.at(0).rule.categoryDirections == (((1ull << K) - 1ull) & ~1ull),
+        "wide mask round-trips exactly");
+  flat[0].value = 9007199254740992.0;  // 2^53: past the exact-integer bound
+  check(!flatTreeIsWellFormed(store, flat.data(), flat.size()),
+        "mask past the double-exact bound is rejected");
+
+  // end to end: category codes carry no order, so recovering the two
+  // groups requires subset splits over high codes
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.columnTypes = types;
+  ClassicSampler sampler(x.data(), y.data(), n, 1, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  const size_t numSamples = 100;
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(100, numSamples, results);
+  double lowSum = 0.0, highSum = 0.0;
+  size_t lowCount = 0, highCount = 0;
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i) {
+      if (i % K >= 27) { highSum += trainingFits[i + s * n]; ++highCount; }
+      else             { lowSum += trainingFits[i + s * n]; ++lowCount; }
+    }
+  check(std::fabs(highSum / static_cast<double>(highCount) - 2.0) < 0.2 &&
+          std::fabs(lowSum / static_cast<double>(lowCount)) < 0.2,
+        "splits over wide categories recover group means");
+
+  printf("ok: wide categorical\n");
+}
+
 static void testFlattenRoundTrip() {
   // one categorical column (codes 0..3) and one ordinal, a hand-built tree
   // with one rule of each kind
@@ -2520,6 +2653,7 @@ int main() {
   testCategoricalPriorMath(rng);
   testEndToEndCategorical(rng);
   testCategoricalMutation(rng);
+  testWideCategorical(rng);
   testFlattenRoundTrip();
   testKeepTrees(rng);
   testPredictCurrentTrees(rng);

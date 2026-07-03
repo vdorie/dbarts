@@ -30,10 +30,13 @@ struct Rule {
   int32_t variableIndex = invalidVariable;
   union {
     int32_t splitIndex;
-    std::uint32_t categoryDirections;
+    std::uint64_t categoryDirections;
   };
 
-  Rule() : splitIndex(0) {}
+  // zero the full union so an ordinal rule's high bits stay zero: splitIndex
+  // writes only touch the low word, and rules change type only by whole-Rule
+  // assignment, so equals can compare the wide member for both kinds
+  Rule() : categoryDirections(0) {}
 
   bool categoryGoesRight(xint_t code) const {
     return ((categoryDirections >> code) & 1u) != 0;
@@ -46,7 +49,8 @@ struct Rule {
   }
 
   bool equals(const Rule& other) const {
-    return variableIndex == other.variableIndex && splitIndex == other.splitIndex;
+    return variableIndex == other.variableIndex &&
+           categoryDirections == other.categoryDirections;
   }
 };
 
@@ -175,13 +179,13 @@ public:
   /// The categories of a categorical variable that can reach a node, as a
   /// bitmask: every ancestor rule on the variable filters by the side the
   /// path descends.
-  std::uint32_t reachableCategories(const ColumnStore& data, int32_t nodeIndex,
+  std::uint64_t reachableCategories(const ColumnStore& data, int32_t nodeIndex,
                                     int32_t variableIndex) const {
     std::uint32_t numCategories =
       data.numCuts[static_cast<size_t>(variableIndex)];
-    std::uint32_t mask = numCategories >= 32
-      ? 0xffffffffu
-      : (1u << numCategories) - 1u;
+    std::uint64_t mask = numCategories >= 64
+      ? ~0ull
+      : (1ull << numCategories) - 1ull;
 
     int32_t current = nodeIndex;
     while (at(current).parent != invalidNode) {
@@ -286,7 +290,7 @@ public:
   /// Two-pointer in-place partition by category mask: bit-clear codes go
   /// left. The mask analogue of misc_partitionIndices, sans SIMD.
   static size_t partitionIndicesByMask(const xint_t* column,
-                                       std::uint32_t directions,
+                                       std::uint64_t directions,
                                        size_t* indices, size_t length) {
     size_t lo = 0, hi = length;
     // invariant: [0, lo) is left-bound, [hi, length) is right-bound
@@ -559,7 +563,8 @@ public:
       if (data.types[variableIndex] == ColumnType::categorical) {
         ext_printf("CATRule: ");
         for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
-          ext_printf(" %u", (node.rule.categoryDirections >> i) & 1);
+          ext_printf(" %u", static_cast<unsigned int>(
+                              (node.rule.categoryDirections >> i) & 1));
       } else {
         ext_printf("ORDRule: (%d)=%f", node.rule.splitIndex,
                    data.cutPoints[variableIndex]
@@ -782,10 +787,12 @@ private:
     rule.variableIndex = flat.variable;
     if (data.types[static_cast<size_t>(flat.variable)] ==
         ColumnType::categorical) {
-      if (!(flat.value >= 1.0) || flat.value > 4294967295.0) return false;
-      std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+      // masks are at most 2^53 - 1, the widest double-exact value
+      if (!(flat.value >= 1.0) || flat.value > 9007199254740991.0)
+        return false;
+      std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
       if (static_cast<double>(directions) != flat.value) return false;
-      std::uint32_t reachable =
+      std::uint64_t reachable =
         reachableCategories(data, nodeIndex, flat.variable);
       // canonical gauge: bits confined to reachable, neither side empty
       if ((directions & ~reachable) != 0 || directions == reachable)
@@ -830,7 +837,7 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types
   const double* column = x + static_cast<size_t>(flat.variable) * numRows;
   size_t mid = lo;
   if (types[flat.variable] == ColumnType::categorical) {
-    std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+    std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
     for (size_t k = lo; k < hi; ++k) {
       if (((directions >> static_cast<std::uint32_t>(column[indices[k]])) & 1u)
           == 0) {
@@ -913,8 +920,8 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
     return 0;
   if (data.types[static_cast<size_t>(flat.variable)] ==
       ColumnType::categorical) {
-    if (!(flat.value >= 1.0) || flat.value > 4294967295.0 ||
-        static_cast<double>(static_cast<std::uint32_t>(flat.value)) !=
+    if (!(flat.value >= 1.0) || flat.value > 9007199254740991.0 ||
+        static_cast<double>(static_cast<std::uint64_t>(flat.value)) !=
           flat.value)
       return 0;
   }
@@ -964,11 +971,11 @@ inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
     ext_printf(" var: %d ", flat.variable);
     if (data.types[static_cast<size_t>(flat.variable)] ==
         ColumnType::categorical) {
-      std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+      std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
       ext_printf("CATRule: ");
       for (std::uint32_t i = 0;
            i < data.numCuts[static_cast<size_t>(flat.variable)]; ++i)
-        ext_printf(" %u", (directions >> i) & 1);
+        ext_printf(" %u", static_cast<unsigned int>((directions >> i) & 1));
     } else {
       ext_printf("ORDRule: %f", flat.value);
     }
