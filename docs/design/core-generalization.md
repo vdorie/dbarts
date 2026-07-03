@@ -241,6 +241,20 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
+   Re-measured at full R5 parity (d31c0f8, 2026-07-03) with
+   bench-sampler.R engine=new, after multiple chains, the facade,
+   categorical branches in the hot loops, keepTrees, and the progress
+   plumbing all landed: the zero-regression cutover bar HOLDS. Sampling
+   throughput 6-12% faster than classic (continuous n in {1000, 10000},
+   trees in {75, 200}; binary 6-9% faster); embedded-Gibbs
+   (setOffset + run(0, 1)) and both setPredictor paths at par (accept
+   1.01, reject 0.98, interleaved A/B medians). The harness's original
+   random-replacement setPredictor metric conflated the engines'
+   accept/reject mixes (acceptance depends on the chain state - one
+   single-observation leaf rejects most candidate columns); it now times
+   the accept path (identity swap) and reject path (degenerate column)
+   separately. Same caveat as above: this is the user-facing cutover
+   gate, not a generics claim.
    Not yet ported (phase 2+): callbacks deliberately wait for the new
    public C surface (see phase 4 notes). MATCH_BAYES_TREE is not preserved
    (old-engine-only until cutover; see Risks). (Multiple chains/threads,

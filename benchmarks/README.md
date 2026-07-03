@@ -22,7 +22,9 @@ host's maximum.
 
 Times sampler throughput (continuous/binary, several sizes), the
 embedded-Gibbs pattern (setOffset + run(0, 1)), and single-column
-setPredictor updates.
+setPredictor updates (accept and reject paths timed separately with
+deterministic workloads, since the accept rate of random replacements
+depends on the chain state).
 
     Rscript benchmarks/R/bench-sampler.R record baseline-sampler.csv
     # ... install candidate build ...
@@ -30,6 +32,11 @@ setPredictor updates.
 
 `compare` exits nonzero if any metric is more than 5% slower. Record and
 compare on the same quiet machine; append `quick` only for smoke tests.
+Passing `engine=new` runs the timed side on the bartcore engine, so
+recording under classic and comparing under `engine=new` measures the
+cross-engine gap on one build. Sub-millisecond metrics drift a few percent
+between invocations on a laptop; confirm a marginal flag by re-running or
+by interleaving the engines by hand before chasing it.
 
 ## R/equivalence.R - statistical equivalence
 
