@@ -5,9 +5,13 @@
 #
 # Not yet supported (methods error): setWeights, test offsets, weights with
 # binary responses (the classic engine's probit weighting is incorrect and
-# was stripped rather than ported), keepTrees/predict/getTrees/plotTree/
-# printTrees, state serialization (storeState/setState; samplers cannot be
-# restored after save/load), and sampling from the prior.
+# was stripped rather than ported), printTrees, and sampling from the prior.
+#
+# keepTrees/getTrees/predict follow the classic formats. State serialization
+# (storeState/setState, or runs with updateState) produces an engine-specific
+# opaque object; restoring it into a sampler over the same data - including
+# the transparent re-creation getPointer performs after save/load - continues
+# the chains bitwise identically.
 
 assertClassicEngine <- function(control, methodName) {
   if (control@engine != "classic") {
@@ -290,3 +294,27 @@ bartcoreSetCutPoints <- function(bcSampler, cutPoints, columns) {
 
 bartcoreGetLatents <- function(bcSampler)
   .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr)
+
+bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
+  x.test <- as.matrix(x.test)
+  storage.mode(x.test) <- "double"
+  if (!is.null(offset.test)) offset.test <- as.double(offset.test)
+  .Call(C_dbarts_bartcore_predict, bcSampler$ptr, x.test, offset.test)
+}
+
+bartcoreGetTrees <- function(bcSampler, chainNums, sampleNums = NULL,
+                             treeNums, current = FALSE, newdata = NULL) {
+  if (!is.null(newdata)) {
+    newdata <- as.matrix(newdata)
+    storage.mode(newdata) <- "double"
+  }
+  .Call(C_dbarts_bartcore_getTrees, bcSampler$ptr, as.integer(chainNums),
+        if (is.null(sampleNums)) NULL else as.integer(sampleNums),
+        as.integer(treeNums), as.logical(current), newdata)
+}
+
+bartcoreStoreState <- function(bcSampler)
+  .Call(C_dbarts_bartcore_storeState, bcSampler$ptr)
+
+bartcoreSetState <- function(bcSampler, state)
+  invisible(.Call(C_dbarts_bartcore_setState, bcSampler$ptr, state))

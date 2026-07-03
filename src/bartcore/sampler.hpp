@@ -22,6 +22,15 @@ namespace bartcore {
 /// through installation, nothing has been modified.
 enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 
+/// A whole sampler's serializable state: per-chain states, the store's cut
+/// points (setCutPoints may have replaced the ones creation induces), and
+/// the saved-tree write position.
+struct SamplerStateData {
+  std::vector<ChainStateData> chains;
+  std::vector<std::vector<double>> cutPoints;  // empty vector per categorical column
+  size_t currentSampleNum = 0;
+};
+
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
 /// fits rebuild at the end. Type-erased so several samplers sharing an
@@ -72,6 +81,12 @@ public:
       chains_.push_back(std::make_unique<Chain<L>>(
         data_, y, weights, offset, family, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
+
+    if (options_.keepTrees) {
+      size_t capacity =
+        options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
+      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    }
   }
 
   // chains reference the store member, so the sampler's address is pinned
@@ -88,6 +103,7 @@ public:
   /// on up to min(numThreads, numChains) worker threads.
   void run(size_t numBurnIn, size_t numSamples, Results& results) {
     size_t numChains = chains_.size();
+    for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
@@ -109,19 +125,121 @@ public:
     if (numWorkers <= 1) {
       for (size_t c = 0; c < numChains; ++c)
         chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
-      return;
+    } else {
+      std::vector<std::thread> workers;
+      workers.reserve(numWorkers);
+      for (size_t w = 0; w < numWorkers; ++w) {
+        workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
+                              numSamples, &chainResults]() {
+          for (size_t c = w; c < numChains; c += numWorkers)
+            chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
+        });
+      }
+      for (std::thread& worker : workers) worker.join();
     }
 
-    std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-    for (size_t w = 0; w < numWorkers; ++w) {
-      workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
-                            numSamples, &chainResults]() {
-        for (size_t c = w; c < numChains; c += numWorkers)
-          chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
-      });
+    size_t capacity = savedTreeCapacity();
+    if (capacity > 0 && numSamples > 0)
+      currentSampleNum_ = (currentSampleNum_ + numSamples) % capacity;
+  }
+
+  // Saved trees (keepTrees) and prediction.
+
+  size_t savedTreeCapacity() const {
+    return chains_[0]->savedTreeCapacity();
+  }
+  size_t currentSampleNum() const { return currentSampleNum_; }
+  void setCurrentSampleNum(size_t sampleNum) { currentSampleNum_ = sampleNum; }
+
+  const std::vector<FlatNode>& savedTree(size_t chainNum, size_t slot,
+                                         size_t treeNum) const {
+    return chains_[chainNum]->savedTree(slot, treeNum);
+  }
+  void flattenTree(size_t chainNum, size_t treeNum,
+                   std::vector<FlatNode>& nodes,
+                   std::vector<std::uint32_t>& counts) {
+    chains_[chainNum]->flattenTree(treeNum, nodes, counts);
+  }
+
+  /// Fits for raw column-major test rows, on the original response scale
+  /// (offsets are the caller's problem). With saved trees, out is
+  /// numTestObservations x savedTreeCapacity x numChains, chain-major like
+  /// Results; without, one slab per chain from the live trees.
+  void predict(const double* x_test, size_t numTestObservations, double* out) {
+    size_t capacity = savedTreeCapacity();
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      if (capacity > 0) {
+        for (size_t slot = 0; slot < capacity; ++slot)
+          chains_[c]->predictFromSavedSample(
+            slot, x_test, numTestObservations,
+            out + (c * capacity + slot) * numTestObservations);
+      } else {
+        chains_[c]->predictFromCurrentTrees(x_test, numTestObservations,
+                                            out + c * numTestObservations);
+      }
     }
-    for (std::thread& worker : workers) worker.join();
+  }
+
+  // State serialization: getState captures everything needed to reconstruct
+  // the sampler's posterior state in a fresh instance over the same data;
+  // setState validates every chain against the state's cut points before
+  // touching anything, so failure leaves the sampler unchanged.
+
+  void getState(SamplerStateData& state) {
+    state.chains.resize(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->getState(state.chains[c]);
+    state.cutPoints = data_.cutPoints;
+    state.currentSampleNum = currentSampleNum_;
+  }
+
+  bool setState(const SamplerStateData& state) {
+    if (state.chains.size() != chains_.size()) return false;
+    if (state.cutPoints.size() != data_.numPredictors) return false;
+    for (size_t j = 0; j < data_.numPredictors; ++j) {
+      if (data_.types[j] == ColumnType::categorical) {
+        if (!state.cutPoints[j].empty()) return false;
+      } else if (state.cutPoints[j].empty() ||
+                 state.cutPoints[j].size() > 65535) {
+        return false;
+      } else {
+        for (size_t k = 1; k < state.cutPoints[j].size(); ++k)
+          if (state.cutPoints[j][k] <= state.cutPoints[j][k - 1]) return false;
+      }
+    }
+
+    // install the state's cuts, snapshotting for rollback: tree validity is
+    // defined against them
+    std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
+    std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
+    std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
+    std::vector<xint_t> oldCodes(data_.codes);
+    std::vector<xint_t> oldTestCodes(data_.testCodes);
+    for (size_t j = 0; j < data_.numPredictors; ++j) {
+      if (data_.types[j] == ColumnType::categorical) continue;
+      data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
+                                  static_cast<std::uint32_t>(
+                                    state.cutPoints[j].size()));
+    }
+
+    bool allValid = true;
+    for (size_t c = 0; c < chains_.size() && allValid; ++c)
+      allValid = chains_[c]->stateIsValid(state.chains[c]);
+
+    if (!allValid) {
+      data_.cutPoints = std::move(oldCutPoints);
+      data_.numCuts = std::move(oldNumCuts);
+      data_.maxNumCuts = std::move(oldMaxNumCuts);
+      data_.codes = std::move(oldCodes);
+      data_.testCodes = std::move(oldTestCodes);
+      return false;
+    }
+
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (!chains_[c]->setState(state.chains[c])) return false;
+    size_t capacity = savedTreeCapacity();
+    currentSampleNum_ = capacity > 0 ? state.currentSampleNum % capacity : 0;
+    return true;
   }
 
   // Between-sample mutation, fanned out to every chain; new-vector lifetimes
@@ -323,6 +441,7 @@ public:
   const ColumnStore& data() const { return data_; }
   const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }
+  size_t numTrees() const { return options_.numTrees; }
   size_t numObservations() const { return data_.numObservations; }
   size_t numPredictors() const { return data_.numPredictors; }
   size_t numTestObservations() const { return data_.numTestObservations; }
@@ -433,6 +552,7 @@ private:
   ResponseFamily family_;
   ColumnStore data_;
   std::vector<std::unique_ptr<Chain<L>>> chains_;
+  size_t currentSampleNum_ = 0;  // next saved-tree slot, wrapping circularly
 };
 
 using ClassicSampler = Sampler<ConstantGaussianLeaf>;

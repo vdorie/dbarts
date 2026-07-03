@@ -6,9 +6,11 @@
     \itemize{
       \item `dbartsControl` accepts `engine = "bartcore"`, running the sampler
             on the in-development replacement engine behind the standard
-            `dbartsSampler` interface. Not yet supported there: saving/loading
-            sampler state, `keepTrees` and tree extraction, test offsets,
-            `setWeights`, and weights with binary responses.
+            `dbartsSampler` interface, including `keepTrees`, `getTrees`,
+            `predict`, `plotTree`, and saving/loading sampler state (a
+            restored sampler continues bitwise identically; the stored state
+            is engine-specific). Not yet supported there: test offsets,
+            `setWeights`, weights with binary responses, and `printTrees`.
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.

@@ -49,6 +49,19 @@ struct Rule {
   }
 };
 
+/// One node of a value-encoded flattened tree, in pre-order (parent, left
+/// subtree, right subtree). Internal nodes store the split as data values -
+/// the cut point for an ordinal rule, the direction mask for a categorical
+/// one - so a flattened tree can be replayed against raw predictors without
+/// the store that quantized them; leaves store their parameter. The same
+/// format serves saved-tree storage, external reporting, and state
+/// serialization: a cut value maps back to its index exactly because cut
+/// points are unique and stored as the doubles they were computed as.
+struct FlatNode {
+  int32_t variable = invalidVariable;  // invalidVariable for a leaf
+  double value = 0.0;
+};
+
 /// Flat-arena node. Children are allocated as adjacent pairs, so
 /// rightChild == leftChild + 1 always. Observation indices live in the tree's
 /// external buffer; a node's subtree owns exactly [begin, end).
@@ -320,6 +333,36 @@ public:
     right.end = node.end;
   }
 
+  /// For state restore: indices already hold each node's segment as a left
+  /// block followed by a right block; set the children's ranges accordingly
+  /// without disturbing the stored order, whose floating-point accumulation
+  /// history a bitwise-exact continuation depends on. Returns false when a
+  /// segment is not actually partitioned by its node's rule.
+  bool setPartitionsFromOrderedIndices(const ColumnStore& data,
+                                       int32_t nodeIndex) {
+    Node& node(at(nodeIndex));
+    if (node.isBottom()) return true;
+
+    const xint_t* column =
+      data.column(static_cast<size_t>(node.rule.variableIndex));
+    size_t numOnLeft = 0;
+    while (numOnLeft < node.numObservations() &&
+           !node.rule.sendsRight(data, column[indices[node.begin + numOnLeft]]))
+      ++numOnLeft;
+    for (size_t k = numOnLeft; k < node.numObservations(); ++k)
+      if (!node.rule.sendsRight(data, column[indices[node.begin + k]]))
+        return false;
+
+    Node& left(at(node.leftChild));
+    Node& right(at(node.leftChild + 1));
+    left.begin = node.begin;
+    left.end = node.begin + numOnLeft;
+    right.begin = left.end;
+    right.end = node.end;
+    return setPartitionsFromOrderedIndices(data, node.leftChild) &&
+           setPartitionsFromOrderedIndices(data, node.leftChild + 1);
+  }
+
   /// Structure-only re-route of a subtree's observations, for predictor
   /// mutation; leaf stats are left stale and refreshed by the next run().
   void repartitionSubtree(const ColumnStore& data, int32_t nodeIndex) {
@@ -491,6 +534,37 @@ public:
     countVariableUsesBelow(0, counts);
   }
 
+  /// Flatten to pre-order value-encoded records, splits resolved against the
+  /// store's cuts and leaf parameters taken from paramByNode (indexed by
+  /// arena id). counts, when non-null, receives each node's current
+  /// observation count in the same order.
+  void flatten(const ColumnStore& data, const double* paramByNode,
+               std::vector<FlatNode>& nodes,
+               std::vector<std::uint32_t>* counts = nullptr) const {
+    nodes.clear();
+    if (counts != nullptr) counts->clear();
+    flattenBelow(0, data, paramByNode, nodes, counts);
+  }
+
+  /// Rebuild structure from a flattened form into a freshly initialized
+  /// (single-root) tree. Split values map back onto rules exactly: an
+  /// ordinal value must equal one of its variable's cuts, a categorical mask
+  /// must be a canonical-gauge assignment of the categories reachable at its
+  /// node. Partitions are left stale (repartitionSubtree) and paramByNode
+  /// receives leaf parameters by arena id. Returns false - possibly
+  /// half-built - on a malformed input; validate on a scratch tree before
+  /// building into live state.
+  bool buildFromFlat(const ColumnStore& data, const FlatNode* flatNodes,
+                     size_t numNodes, std::vector<double>& paramByNode) {
+    paramByNode.clear();
+    size_t pos = 0;
+    if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode))
+      return false;
+    if (pos != numNodes) return false;
+    paramByNode.resize(nodes.size(), 0.0);
+    return true;
+  }
+
   std::vector<int32_t> bottomScratch;  // reused across iterations
 
 private:
@@ -620,8 +694,202 @@ private:
     }
   }
 
+  void flattenBelow(int32_t nodeIndex, const ColumnStore& data,
+                    const double* paramByNode, std::vector<FlatNode>& out,
+                    std::vector<std::uint32_t>* counts) const {
+    const Node& node(at(nodeIndex));
+    if (counts != nullptr)
+      counts->push_back(static_cast<std::uint32_t>(node.numObservations()));
+
+    FlatNode flat;
+    if (node.isBottom()) {
+      flat.value = paramByNode[static_cast<size_t>(nodeIndex)];
+      out.push_back(flat);
+      return;
+    }
+
+    flat.variable = node.rule.variableIndex;
+    flat.value =
+      data.types[static_cast<size_t>(flat.variable)] == ColumnType::categorical
+        ? static_cast<double>(node.rule.categoryDirections)
+        : data.cutPoints[static_cast<size_t>(flat.variable)]
+                        [static_cast<size_t>(node.rule.splitIndex)];
+    out.push_back(flat);
+    flattenBelow(node.leftChild, data, paramByNode, out, counts);
+    flattenBelow(node.leftChild + 1, data, paramByNode, out, counts);
+  }
+
+  bool buildFromFlatBelow(int32_t nodeIndex, const ColumnStore& data,
+                          const FlatNode* flatNodes, size_t numNodes,
+                          size_t& pos, std::vector<double>& paramByNode) {
+    if (pos >= numNodes) return false;
+    const FlatNode& flat(flatNodes[pos++]);
+
+    if (flat.variable == invalidVariable) {
+      size_t i = static_cast<size_t>(nodeIndex);
+      if (paramByNode.size() <= i) paramByNode.resize(i + 1, 0.0);
+      paramByNode[i] = flat.value;
+      return true;
+    }
+
+    if (flat.variable < 0 ||
+        static_cast<size_t>(flat.variable) >= data.numPredictors)
+      return false;
+
+    Rule rule;
+    rule.variableIndex = flat.variable;
+    if (data.types[static_cast<size_t>(flat.variable)] ==
+        ColumnType::categorical) {
+      if (!(flat.value >= 1.0) || flat.value > 4294967295.0) return false;
+      std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+      if (static_cast<double>(directions) != flat.value) return false;
+      std::uint32_t reachable =
+        reachableCategories(data, nodeIndex, flat.variable);
+      // canonical gauge: bits confined to reachable, neither side empty
+      if ((directions & ~reachable) != 0 || directions == reachable)
+        return false;
+      rule.categoryDirections = directions;
+    } else {
+      const std::vector<double>& cuts(
+        data.cutPoints[static_cast<size_t>(flat.variable)]);
+      std::uint32_t numCuts = data.numCuts[static_cast<size_t>(flat.variable)];
+      std::uint32_t k = 0;
+      while (k < numCuts && cuts[k] < flat.value) ++k;
+      if (k >= numCuts || cuts[k] != flat.value) return false;
+      rule.splitIndex = static_cast<int32_t>(k);
+    }
+
+    int32_t pair = acquirePair();
+    Node& node(at(nodeIndex));  // acquirePair may reallocate; reference after
+    node.rule = rule;
+    node.leftChild = pair;
+    at(pair).parent = nodeIndex;
+    at(pair).leftChild = invalidNode;
+    at(pair + 1).parent = nodeIndex;
+    at(pair + 1).leftChild = invalidNode;
+
+    return buildFromFlatBelow(pair, data, flatNodes, numNodes, pos,
+                              paramByNode) &&
+           buildFromFlatBelow(pair + 1, data, flatNodes, numNodes, pos,
+                              paramByNode);
+  }
+
   std::vector<int32_t> freePairs;
 };
+
+/// Partition indices[lo, hi) of raw column-major predictors around a
+/// flattened split so left-bound rows precede right-bound ones, returning
+/// the boundary: ordinal rows go left when x <= value, categorical rows when
+/// the mask's direction bit for their code is clear. Order within the halves
+/// is not preserved (nor needed; replays only count or accumulate).
+inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types,
+                                   const double* x, size_t numRows,
+                                   size_t* indices, size_t lo, size_t hi) {
+  const double* column = x + static_cast<size_t>(flat.variable) * numRows;
+  size_t mid = lo;
+  if (types[flat.variable] == ColumnType::categorical) {
+    std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+    for (size_t k = lo; k < hi; ++k) {
+      if (((directions >> static_cast<std::uint32_t>(column[indices[k]])) & 1u)
+          == 0) {
+        size_t temp = indices[mid];
+        indices[mid] = indices[k];
+        indices[k] = temp;
+        ++mid;
+      }
+    }
+  } else {
+    for (size_t k = lo; k < hi; ++k) {
+      if (column[indices[k]] <= flat.value) {
+        size_t temp = indices[mid];
+        indices[mid] = indices[k];
+        indices[k] = temp;
+        ++mid;
+      }
+    }
+  }
+  return mid;
+}
+
+/// Route indices[lo, hi) of a raw column-major matrix through a flattened
+/// subtree, writing each node's routed count in pre-order; indices is
+/// scrambled. Returns the number of flattened nodes consumed.
+inline size_t countFlatObservationsBelow(const FlatNode* flatNodes,
+                                         const ColumnType* types,
+                                         const double* x, size_t numRows,
+                                         size_t* indices, size_t lo, size_t hi,
+                                         std::uint32_t* counts) {
+  counts[0] = static_cast<std::uint32_t>(hi - lo);
+  if (flatNodes[0].variable == invalidVariable) return 1;
+
+  size_t mid =
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+  size_t numNodes = 1;
+  numNodes += countFlatObservationsBelow(flatNodes + numNodes, types, x,
+                                         numRows, indices, lo, mid,
+                                         counts + numNodes);
+  numNodes += countFlatObservationsBelow(flatNodes + numNodes, types, x,
+                                         numRows, indices, mid, hi,
+                                         counts + numNodes);
+  return numNodes;
+}
+
+/// Add each routed row's leaf parameter into fits (one slot per row).
+/// Returns the number of flattened nodes consumed.
+inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
+                                      const ColumnType* types, const double* x,
+                                      size_t numRows, size_t* indices,
+                                      size_t lo, size_t hi, double* fits) {
+  if (flatNodes[0].variable == invalidVariable) {
+    for (size_t k = lo; k < hi; ++k) fits[indices[k]] += flatNodes[0].value;
+    return 1;
+  }
+
+  size_t mid =
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+  size_t numNodes = 1;
+  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, types, x, numRows,
+                                      indices, lo, mid, fits);
+  numNodes += addFlatPredictionsBelow(flatNodes + numNodes, types, x, numRows,
+                                      indices, mid, hi, fits);
+  return numNodes;
+}
+
+/// Structural well-formedness of a flattened subtree - complete pre-order,
+/// variables in range, categorical masks integral and nonzero - without the
+/// cut-correspondence and gauge conditions live restoration demands (saved
+/// trees replay against raw values, so any split value routes). Returns the
+/// number of nodes consumed, 0 when malformed.
+inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
+                                      const FlatNode* flatNodes,
+                                      size_t numNodes, size_t pos) {
+  if (pos >= numNodes) return 0;
+  const FlatNode& flat(flatNodes[pos]);
+  if (flat.variable == invalidVariable) return 1;
+  if (flat.variable < 0 ||
+      static_cast<size_t>(flat.variable) >= data.numPredictors)
+    return 0;
+  if (data.types[static_cast<size_t>(flat.variable)] ==
+      ColumnType::categorical) {
+    if (!(flat.value >= 1.0) || flat.value > 4294967295.0 ||
+        static_cast<double>(static_cast<std::uint32_t>(flat.value)) !=
+          flat.value)
+      return 0;
+  }
+  size_t numOnLeft =
+    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1);
+  if (numOnLeft == 0) return 0;
+  size_t numOnRight =
+    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1 + numOnLeft);
+  if (numOnRight == 0) return 0;
+  return 1 + numOnLeft + numOnRight;
+}
+
+inline bool flatTreeIsWellFormed(const ColumnStore& data,
+                                 const FlatNode* flatNodes, size_t numNodes) {
+  return numNodes > 0 &&
+         flatSubtreeIsWellFormed(data, flatNodes, numNodes, 0) == numNodes;
+}
 
 }  // namespace bartcore
 

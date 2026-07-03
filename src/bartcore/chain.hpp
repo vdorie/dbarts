@@ -51,6 +51,12 @@ struct SamplerOptions {
   // k is fixed at .k unless updateK, in which case .k is the starting value
   bool updateK = false;
   ChiKHyperprior kHyperprior;
+
+  // when set, every kept sample's trees are flattened into a circular buffer
+  // of numSamplesToStore slots (at least 1) per chain, for prediction and
+  // reporting after the run; the classic engine's keepTrees
+  bool keepTrees = false;
+  size_t numSamplesToStore = 0;
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -63,6 +69,30 @@ struct Results {
   double* testFits = nullptr;       // numTestObservations x numSamples, or null
   std::uint32_t* variableCounts = nullptr;  // numPredictors x numSamples, or null
   double* k = nullptr;              // numSamples, or null; only when k sampled
+};
+
+/// Everything a chain's posterior state comprises, in host-exchangeable
+/// form: value-encoded flattened trees, the saved-tree buffer, sigma, k,
+/// response latents, DART state, and the serialized rng. Three fields exist
+/// so a restored chain continues bitwise identically rather than merely
+/// equivalently: sigma is on the engine's internal scale (the original-scale
+/// round trip can drop a bit), totalFits carries the running total's
+/// floating-point accumulation history, and indices carries each tree's
+/// observation ordering, whose within-leaf order the sufficient-statistic
+/// sums depend on. totalFits and indices may be left empty; restoration then
+/// recomputes them canonically, exact only as far as the last ulp.
+struct ChainStateData {
+  std::vector<std::vector<FlatNode>> trees;
+  std::vector<std::vector<FlatNode>> savedTrees;  // slot-major; empty unless kept
+  std::vector<double> totalFits;      // numObservations, or empty
+  std::vector<size_t> indices;        // numObservations x numTrees, or empty
+  double sigma = 1.0;
+  double k = 2.0;
+  std::vector<double> latents;            // empty for gaussian
+  std::vector<double> dartProbabilities;  // empty when DART is off
+  double dartAlpha = 1.0;
+  size_t dartNumUpdatesSkipped = 0;
+  std::vector<unsigned char> rngState;
 };
 
 /// One MCMC chain of the conjugate backfitting sampler: trees, fits, chain
@@ -152,6 +182,7 @@ public:
     for (size_t iteration = 0; iteration < totalIterations; ++iteration) {
       bool record = (iteration + 1) % numThin == 0 &&
                     iteration / numThin >= numBurnIn;
+      size_t sampleNum = record ? iteration / numThin - numBurnIn : 0;
 
       MoveContext ctx{data_,
                       treePrior_,
@@ -187,6 +218,13 @@ public:
 
         sampleParametersAndSetFits(trees_[t], record);
 
+        // flatten while the freshly drawn parameters are live in paramByNode_
+        if (record && savedTreeCapacity_ > 0) {
+          size_t slot = (savedSlotBase_ + sampleNum) % savedTreeCapacity_;
+          trees_[t].flatten(data_, paramByNode_.data(),
+                            savedTrees_[slot * options_.numTrees + t]);
+        }
+
         misc_subtractVectorsInPlace(oldTreeFits, n, totalFits_.data());
         misc_addVectorsInPlace(currFits_.data(), n, totalFits_.data());
         if (record && data_.numTestObservations > 0)
@@ -215,10 +253,7 @@ public:
         dart_.update(rng_, splitCounts_.data());
       }
 
-      if (record) {
-        size_t sampleNum = iteration / numThin - numBurnIn;
-        storeSample(results, sampleNum);
-      }
+      if (record) storeSample(results, sampleNum);
     }
   }
 
@@ -333,6 +368,199 @@ public:
       setTreeFitsFromParameters(t, paramByNode);
       misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
     }
+  }
+
+  // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
+  // each one kept sample's forest in flattened form. The slot base is set by
+  // the sampler before every run so chains write consistent slots without
+  // sharing mutable state.
+
+  void initializeSavedTrees(size_t capacity) {
+    savedTreeCapacity_ = capacity;
+    savedTrees_.assign(capacity * options_.numTrees,
+                       std::vector<FlatNode>(1));
+  }
+  void setSavedSlotBase(size_t base) { savedSlotBase_ = base; }
+  size_t savedTreeCapacity() const { return savedTreeCapacity_; }
+  const std::vector<FlatNode>& savedTree(size_t slot, size_t t) const {
+    return savedTrees_[slot * options_.numTrees + t];
+  }
+
+  /// Flatten live tree t with parameters recovered from the current fits;
+  /// counts receive the current partition sizes.
+  void flattenTree(size_t t, std::vector<FlatNode>& nodes,
+                   std::vector<std::uint32_t>& counts) {
+    std::vector<double> params;
+    recoverParametersFromFits(t, params);
+    trees_[t].flatten(data_, params.data(), nodes, &counts);
+  }
+
+  /// Fits for raw column-major test rows from one saved sample's trees, on
+  /// the original response scale; offsets are the caller's problem.
+  void predictFromSavedSample(size_t slot, const double* x_test,
+                              size_t numTestObservations, double* out) const {
+    std::vector<size_t> indices(numTestObservations);
+    misc_setVectorToConstant(out, numTestObservations, 0.0);
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      const std::vector<FlatNode>& flat(
+        savedTrees_[slot * options_.numTrees + t]);
+      for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
+      addFlatPredictionsBelow(flat.data(), data_.types.data(), x_test,
+                              numTestObservations, indices.data(), 0,
+                              numTestObservations, out);
+    }
+    double scale = response_->fitScale();
+    double shift = response_->fitShift();
+    for (size_t i = 0; i < numTestObservations; ++i)
+      out[i] = scale * out[i] + shift;
+  }
+
+  /// The same from the live trees, parameters recovered from current fits.
+  void predictFromCurrentTrees(const double* x_test,
+                               size_t numTestObservations, double* out) {
+    std::vector<size_t> indices(numTestObservations);
+    std::vector<double> params;
+    std::vector<FlatNode> flat;
+    misc_setVectorToConstant(out, numTestObservations, 0.0);
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      recoverParametersFromFits(t, params);
+      trees_[t].flatten(data_, params.data(), flat);
+      for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
+      addFlatPredictionsBelow(flat.data(), data_.types.data(), x_test,
+                              numTestObservations, indices.data(), 0,
+                              numTestObservations, out);
+    }
+    double scale = response_->fitScale();
+    double shift = response_->fitShift();
+    for (size_t i = 0; i < numTestObservations; ++i)
+      out[i] = scale * out[i] + shift;
+  }
+
+  // Chain state serialization. getState captures everything the posterior
+  // state comprises; stateIsValid checks a candidate against the store's
+  // current cuts without mutating anything, so a multi-chain restore can be
+  // all-or-none; setState trusts that check.
+
+  void getState(ChainStateData& state) {
+    state.trees.resize(options_.numTrees);
+    std::vector<double> params;
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      recoverParametersFromFits(t, params);
+      trees_[t].flatten(data_, params.data(), state.trees[t]);
+    }
+    state.savedTrees = savedTrees_;
+    state.totalFits = totalFits_;
+    state.indices = indexBuffer_;
+    state.sigma = sigma_;
+    state.k = k_;
+    if (response_->latents() != nullptr) {
+      state.latents.assign(response_->latents(),
+                           response_->latents() + data_.numObservations);
+    } else {
+      state.latents.clear();
+    }
+    if (options_.useDart) {
+      state.dartProbabilities = dart_.probabilities;
+      state.dartAlpha = dart_.alpha;
+      state.dartNumUpdatesSkipped = dart_.numUpdatesSkipped();
+    } else {
+      state.dartProbabilities.clear();
+    }
+    state.rngState.resize(ext_rng_getSerializedStateLength(rng_));
+    if (!state.rngState.empty())
+      ext_rng_writeSerializedState(rng_, state.rngState.data());
+  }
+
+  bool stateIsValid(const ChainStateData& state) const {
+    if (state.trees.size() != options_.numTrees) return false;
+    if (!state.savedTrees.empty() &&
+        state.savedTrees.size() != savedTrees_.size())
+      return false;
+    for (const std::vector<FlatNode>& saved : state.savedTrees)
+      if (!flatTreeIsWellFormed(data_, saved.data(), saved.size()))
+        return false;
+    size_t n = data_.numObservations;
+    if (!state.totalFits.empty() && state.totalFits.size() != n) return false;
+    if (!state.indices.empty() &&
+        state.indices.size() != n * options_.numTrees)
+      return false;
+    if (!state.latents.empty() &&
+        (response_->latents() == nullptr || state.latents.size() != n))
+      return false;
+    if (options_.useDart && !state.dartProbabilities.empty() &&
+        state.dartProbabilities.size() != data_.numPredictors)
+      return false;
+    if (!state.rngState.empty() &&
+        state.rngState.size() != ext_rng_getSerializedStateLength(rng_))
+      return false;
+
+    Tree scratch;
+    std::vector<size_t> scratchIndices(n);
+    std::vector<bool> seen(n);
+    std::vector<double> params;
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      scratch.initialize(scratchIndices.data(), n);
+      if (!scratch.buildFromFlat(data_, state.trees[t].data(),
+                                 state.trees[t].size(), params))
+        return false;
+      if (state.indices.empty()) {
+        scratch.repartitionSubtree(data_, 0);
+      } else {
+        // the stored ordering must permute the observations and respect
+        // every node's rule
+        const size_t* treeIndices = state.indices.data() + t * n;
+        seen.assign(n, false);
+        for (size_t i = 0; i < n; ++i) {
+          if (treeIndices[i] >= n || seen[treeIndices[i]]) return false;
+          seen[treeIndices[i]] = true;
+        }
+        std::memcpy(scratchIndices.data(), treeIndices, n * sizeof(size_t));
+        if (!scratch.setPartitionsFromOrderedIndices(data_, 0)) return false;
+      }
+      if (!scratch.bottomNodesAreOccupied()) return false;
+    }
+    return true;
+  }
+
+  /// Installs a state stateIsValid accepted; false only on the invariant
+  /// violation of a validated tree failing to rebuild.
+  bool setState(const ChainStateData& state) {
+    size_t n = data_.numObservations;
+    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
+    std::vector<double> params;
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      trees_[t].initialize(indexBuffer_.data() + t * n, n);
+      if (!trees_[t].buildFromFlat(data_, state.trees[t].data(),
+                                   state.trees[t].size(), params))
+        return false;
+      if (state.indices.empty()) {
+        trees_[t].repartitionSubtree(data_, 0);
+      } else {
+        std::memcpy(indexBuffer_.data() + t * n, state.indices.data() + t * n,
+                    n * sizeof(size_t));
+        if (!trees_[t].setPartitionsFromOrderedIndices(data_, 0)) return false;
+      }
+      setTreeFitsFromParameters(t, params);
+      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+    }
+    if (!state.totalFits.empty())
+      std::memcpy(totalFits_.data(), state.totalFits.data(),
+                  n * sizeof(double));
+    if (!state.savedTrees.empty()) savedTrees_ = state.savedTrees;
+    sigma_ = state.sigma;
+    k_ = state.k;
+    if (!state.latents.empty())
+      response_->restoreLatents(state.latents.data());
+    if (options_.useDart && !state.dartProbabilities.empty()) {
+      // the tree prior points at this vector's storage; overwrite in place
+      std::memcpy(dart_.probabilities.data(), state.dartProbabilities.data(),
+                  state.dartProbabilities.size() * sizeof(double));
+      dart_.alpha = state.dartAlpha;
+      dart_.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
+    }
+    if (!state.rngState.empty())
+      ext_rng_readSerializedState(rng_, state.rngState.data());
+    return true;
   }
 
   ext_rng* rng() const { return rng_; }
@@ -468,6 +696,9 @@ private:
   double kNumLeaves_ = 0.0;
 
   std::vector<Tree> trees_;
+  std::vector<std::vector<FlatNode>> savedTrees_;  // slot-major, capacity x numTrees
+  size_t savedTreeCapacity_ = 0;
+  size_t savedSlotBase_ = 0;
   std::vector<size_t> indexBuffer_;
   std::vector<double> treeFits_;
   std::vector<double> totalFits_, totalTestFits_;

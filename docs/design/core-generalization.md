@@ -241,10 +241,10 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
-   Not yet ported (phase 2+): multiple chains/threads, thinning, keepTrees,
-   quantile-based cut points, callbacks, MATCH_BAYES_TREE. (The k
-   hyperprior and the sampler mutation API were ported later in phase 2;
-   see below.)
+   Not yet ported (phase 2+): callbacks, MATCH_BAYES_TREE. (Multiple
+   chains/threads, thinning, quantile-based cut points, the k hyperprior,
+   the sampler mutation API, and keepTrees/serialization were all ported
+   later; see below.)
    Availability is recomputed from ancestor walks instead of cached
    per-node flags; Forest is not yet split out of Sampler (do this when the
    facade lands in phase 2).
@@ -426,6 +426,40 @@ partitioning entirely; a different library sharing only the tree structure).
    prior math, recovery, and mutation surface. Not yet exposed publicly:
    dbartsData still types every column ordinal, so tests flip varTypes by
    hand; factor ingestion without dummy expansion is public-surface work.
+
+   Tree storage + serialization (DONE 2026-07-02; cutover-parity work for
+   phase 7): one flattened representation serves everything - pre-order
+   FlatNode records {variable, value} with splits value-encoded (an
+   ordinal rule's cut point, a categorical rule's direction mask) and
+   leaves holding their parameter. Cut values map back to split indices
+   exactly (cuts are unique doubles), so the same format serves keepTrees
+   storage, getTrees, predict, and state serialization; replay against
+   raw predictors (x <= cut goes left, mask bit sends right) reproduces
+   the engine's code-based routing exactly. keepTrees mirrors the classic
+   circular buffer: capacity = n.samples at creation, trees flattened
+   inside the tree loop while the freshly drawn parameters are live,
+   currentSampleNum advancing per run. getTrees/predict are drop-in
+   classic formats (pre-order n/var/value rows, var 1-based with -1
+   leaves, internal-scale leaf values; predictions numTest x samples x
+   chains with keepTrees, else per-chain live-tree fits; saved trees
+   replay training data or newdata for the counts). State serialization
+   (Sampler::get/setState through an opaque bartcoreState R object)
+   restores BITWISE-exact continuation, which took three fields beyond
+   the obvious ones: sigma on the internal scale (the original-scale
+   round trip can drop a bit), the accumulated totalFits (its
+   floating-point accumulation history differs from a fresh tree-order
+   sum), and each tree's observation index buffer (within-leaf segment
+   order feeds the suffstat sums; restored partitions are set by an
+   order-preserving walk, Tree::setPartitionsFromOrderedIndices).
+   setState validates every chain against the state's own cut points on
+   scratch trees before touching anything, so a bad state rejects with
+   nothing changed. The R5 surface honors updateState for bartcore, and
+   getPointer transparently re-creates a save/load-ed sampler from its
+   stored state, matching classic workflows; component tests gate the
+   round trips (gaussian multi-chain + keepTrees, logistic latents +
+   DART) bitwise. Also fixed in passing: bartcore_setData retained a
+   leftover ordinal-only check that made its categorical validation
+   unreachable.
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
    (retiring the rbart_vi R loop).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
