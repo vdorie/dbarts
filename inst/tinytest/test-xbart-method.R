@@ -112,3 +112,14 @@ expect_inherits(xval, "array")
 
 rm(testData)
 
+
+# the driver runs on the engine the control selects
+xval <- dbarts::xbart(
+  x, y, n.samples = 6L, n.burn = c(5L, 3L), method = "k-fold", n.test = 5,
+  n.reps = 2L, k = c(1, 4), n.threads = 1L,
+  control = dbarts::dbartsControl(engine = "bartcore")
+)
+expect_equal(dim(xval), c(2L, 2L))
+expect_true(all(is.finite(xval)))
+
+rm(xval, k, y, x)

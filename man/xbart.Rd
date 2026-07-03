@@ -46,13 +46,13 @@ xbart(
     A positive integer setting the number of cross validation steps that will be taken. For \code{"k-fold"}, each replication corresponds to fitting each of the \eqn{K} folds in turn, while for \code{"random subsample"} a replication is a single fit.
   }
   \item{n.burn}{
-    Between one and three positive integers, specifying the 1) initial burn-in, 2) burn-in when moving from one parameter setting to another, and 3) the burn-in between each random subsample replication. The third parameter is also the burn in when moving between folds in \code{"k-fold"} crossvalidation.
+    Between one and three non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen. A third element is accepted for backwards compatibility and ignored.
   }
   \item{loss}{
     Either a one of the pre-set loss functions as character-strings (\code{mcr} - missclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test) * n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
   }
   \item{n.threads}{
-    Across different sets of parameters (\code{k} \eqn{\times}{*} \code{power} \eqn{\times}{*} \code{base} \eqn{\times}{*} \code{n.trees}) and \code{n.reps}, results are independent. For \code{n.threads > 1}, evaluations of the above are divided into approximately equal size evaluations chunks and executed in parallel. The default uses \code{link{guessNumCores}}, which should work across the most common operating system/hardware pairs. A value of \code{NA} is interpretted as 1.
+    Replications are independent, and for \code{n.threads > 1} they are divided into approximately equal chunks and executed on that many parallel workers (a \code{\link[parallel]{makeCluster}} cluster). The default uses \code{\link{guessNumCores}}, which should work across the most common operating system/hardware pairs.
    }
    \item{n.trees}{
      A vector of positive integers setting the BART hyperparameter for the number of trees in the sum-of-trees formulation. See \code{\link{bart}}.
@@ -79,13 +79,15 @@ xbart(
      A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one.
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. It should not be needed when running single-threaded - \code{\link{set.seed}}  will suffice, and can be used to obtain reproducible results when multi-threaded. See Reproducibility section of \code{\link{bart}}.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Results are reproducible for a fixed pair of \code{seed} and \code{n.threads}; the caller's random stream is left untouched when a seed is given. Without one, \code{\link{set.seed}} beforehand suffices.
    }
 }
 \details{
   Crossvalidates \code{n.reps} replications against the crossproduct of given hyperparameter vectors \code{n.trees} \eqn{\times}{*} \code{k} \eqn{\times}{*} \code{power} \eqn{\times}{*} \code{base}. For each fit, either one fold is withheld as test data and \code{n.test - 1} folds are used as training data or \code{n * n.test} observations are withheld as test data and \code{n * (1 - n.test)} used as training. A replication corresponds to fitting all \eqn{K} folds in \code{"k-fold"} crossvalidation or a single fit with \code{"random subsample"}. The training data is used to fit a model and make predictions on the test data which are used together with the test data itself to evaluate the \code{loss} function.
 
-  \code{loss} functions are either the default of average negative log-loss for binary outcomes and root-mean-squared error for continuous outcomes, missclassification rates for binary outcomes, or a \code{function} with arguments \code{y.test} and \code{y.test.hat}. \code{y.test.hat} is of dimensions equal to \code{length(y.test)} \eqn{\times}{*} \code{n.samples}. A third option is to pass a list of \code{list(function, evaluationEnvironment)}, so as to provide default bindings. RMSE is a monotonic transformation of the average log-loss for continuous outcomes, so specifying log-loss in that case calculates RMSE instead.
+  \code{loss} functions are either the default of average negative log-loss for binary outcomes and root-mean-squared error for continuous outcomes, missclassification rates for binary outcomes, or a \code{function} with arguments \code{y.test} and \code{y.test.hat}. \code{y.test.hat} is of dimensions equal to \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, on the latent scale for binary outcomes. A third option is to pass a list of \code{list(function, evaluationEnvironment)}, so as to provide default bindings. The binary losses \code{"log"} and \code{"mcr"} cannot apply to continuous responses.
+
+  The crossvalidation runs on the engine selected by \code{control}, so all of that engine's response and prior features apply.
 }
 \value{
   An array of dimensions \code{n.reps} \eqn{\times}{*} \code{length(n.trees)} \eqn{\times}{*} \code{length(k)} \eqn{\times}{*} \code{length(power)} \eqn{\times}{*} \code{length(base)}. If \code{drop} is \code{TRUE}, dimensions of length 1 are omitted. If all hyperparameters are of length 1, then the result will be a vector of length \code{n.reps}. When the result is an array, the \code{dimnames} of the result shall be set to the corresponding hyperparameters.

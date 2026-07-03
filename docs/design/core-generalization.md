@@ -450,6 +450,28 @@ partitioning entirely; a different library sharing only the tree structure).
    the bridge's family argument including pointer re-creation after
    save/load, and setControl preserves it like `binary`. The wrappers'
    probit-only pnorm sites remain for the cutover flip.
+   xbart backend (DONE 2026-07-03): the C++ crossvalidation monolith
+   (crossvalidate.cpp, R_interface_crossvalidate.cpp) is deleted and
+   xbart is an R-level driver over the dbartsSampler mutation API
+   (setData for splits, setModel for cells), so it runs on either
+   engine and inherits every engine feature; parallelism is a
+   `parallel` cluster over replications. FINDING, fixed rather than
+   replicated: the old driver warm-started chains ACROSS data splits.
+   The held-out rows of a fold were training rows of the previous one,
+   and slowly-mixing settings (a 2-tree ensemble's deep trees) never
+   forgot them within the rep burn-in - measured 0.11 rmse of optimism
+   at 400 burn-in iterations, enough to reverse a 2-versus-75-tree
+   comparison. Warm starts now happen only across parameter cells over
+   an unchanged split, which leaks nothing; every split starts a fresh
+   chain with the full n.burn[1], and n.burn[3] is defunct. Also fixed:
+   weighted rmse was sqrt(WSSR)/sum(w) (wrong units), binary losses on
+   continuous responses silently became rmse, the multi-grid result
+   array's dimension labels did not match its fill order, and per-fold
+   offsets were dropped. The reproducibility contract is (seed,
+   n.threads), with the caller's RNG stream restored when a seed is
+   supplied; the driver draws splits through R's generator, so its
+   reproducibility test pins sample.kind against leakage from other
+   test files.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by
