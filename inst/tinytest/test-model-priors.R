@@ -93,11 +93,43 @@ sampler.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
 expect_equal(sampler.dart$model@tree.prior@update.delay, 250)
 
 # split probabilities concentrate on the signal variables
-invisible(sampler.dart$run(500L, 500L))
+samples.dart <- sampler.dart$run(500L, 500L)
 probs <- sampler.dart$state[[1L]][["dart.probabilities"]]
 expect_equal(length(probs), 10L)
 expect_true(sum(probs[1:2]) > 0.9)
 
+# each kept sample records the probabilities; non-DART runs return none
+expect_equal(dim(samples.dart$varprobs), c(10L, 500L))
+expect_true(all(samples.dart$varprobs >= 0 & samples.dart$varprobs <= 1))
+expect_equal(unname(colSums(samples.dart$varprobs)), rep(1, 500L))
+expect_true(mean(colSums(samples.dart$varprobs[1:2, ])) > 0.9)
+expect_null(dbarts(y.dart ~ x.dart, control = control.bc)$run(0L, 5L)$varprobs)
+
 # the Dirichlet machinery is fixed at creation
 expect_error(sampler.dart$setModel(sampler.dart$model),
              pattern = "cannot change a DART tree prior")
+
+# bart2 exposes DART through the dart flag and packages varprobs
+fit.dart <- bart2(y.dart ~ x.dart, engine = "bartcore", dart = TRUE,
+                  n.samples = 25L, n.burn = 50L, n.trees = 25L,
+                  n.chains = 2L, n.threads = 1L, verbose = FALSE)
+expect_equal(dim(fit.dart$varprobs), c(2L, 25L, 10L))
+expect_equal(unname(apply(fit.dart$varprobs, c(1L, 2L), sum)),
+             matrix(1, 2L, 25L))
+expect_error(bart2(y.dart ~ x.dart, engine = "bartcore", dart = TRUE,
+                   split.probs = rep(0.1, 10L)),
+             pattern = "cannot be combined")
+expect_error(bart2(y.dart ~ x.dart, engine = "bartcore", dart = 2),
+             pattern = "must be TRUE, FALSE")
+expect_null(bart2(y.dart ~ x.dart, engine = "bartcore", n.samples = 5L,
+                  n.burn = 5L, n.trees = 5L, n.chains = 1L, n.threads = 1L,
+                  verbose = FALSE)$varprobs)
+
+# a full spec object overrides power/base with its own settings
+fit.spec <- bart2(y.dart ~ x.dart, engine = "bartcore",
+                  dart = dbartsPriors$dart(a = 0.75, update.delay = 5),
+                  n.samples = 5L, n.burn = 10L, n.trees = 10L,
+                  n.chains = 1L, n.threads = 1L, verbose = FALSE,
+                  keepSampler = TRUE)
+expect_equal(fit.spec$fit$model@tree.prior@a, 0.75)
+expect_equal(fit.spec$fit$model@tree.prior@update.delay, 5)

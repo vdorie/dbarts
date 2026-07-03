@@ -94,6 +94,13 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
   varcount <- convertSamplesFromDbartsToBart(samples$varcount, n.chains, combineChains)
   if (!is.null(colnames(fit$data@x)) && !is.null(dim(varcount)))
    dimnames(varcount) <- if (length(dim(varcount)) > 2L) list(NULL, NULL, colnames(fit$data@x)) else list(NULL, colnames(fit$data@x))
+
+  varprobs <- NULL
+  if (!is.null(samples[["varprobs"]])) {
+    varprobs <- convertSamplesFromDbartsToBart(samples$varprobs, n.chains, combineChains)
+    if (!is.null(colnames(fit$data@x)) && !is.null(dim(varprobs)))
+      dimnames(varprobs) <- if (length(dim(varprobs)) > 2L) list(NULL, NULL, colnames(fit$data@x)) else list(NULL, colnames(fit$data@x))
+  }
   
   if (!is.null(burnInSigma)) burnInSigma <- convertSamplesFromDbartsToBart(burnInSigma, n.chains, combineChains)
   if (responseIsBinary) {
@@ -118,6 +125,9 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
       varcount = varcount,
       y = fit$data@y)
   }
+
+  if (!is.null(varprobs))
+    result$varprobs <- varprobs
 
   if (keepSampler)
     result$fit <- fit
@@ -149,6 +159,7 @@ bart2 <- function(
   power = 2.0,
   base = 0.95,
   split.probs = 1 / num.vars,
+  dart = FALSE,
   n.trees = 75L,
   n.samples = 500L,
   n.burn = 500L,
@@ -200,13 +211,25 @@ bart2 <- function(
   if (control@n.burn == 0L && keepTrees == TRUE) control@keepTrees <- TRUE
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   
-  tree.prior <- quote(cgm(power, base, split.probs))
-  tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-  if ("split.probs" %in% names(matchedCall))
-    tree.prior[[4L]] <- matchedCall$split.probs
-  else
-    tree.prior[[4L]] <- formals(dbarts::bart2)[["split.probs"]]
-  
+  if (inherits(dart, "dbartsDartPrior")) {
+    # a full spec overrides the power/base arguments with its own
+    tree.prior <- dart
+  } else if (isTRUE(dart)) {
+    if ("split.probs" %in% names(matchedCall))
+      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
+    tree.prior <- quote(dart(power, base))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  } else if (!isFALSE(dart)) {
+    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
+  } else {
+    tree.prior <- quote(cgm(power, base, split.probs))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+    if ("split.probs" %in% names(matchedCall))
+      tree.prior[[4L]] <- matchedCall$split.probs
+    else
+      tree.prior[[4L]] <- formals(dbarts::bart2)[["split.probs"]]
+  }
+
   if (!is.null(matchedCall[["k"]])) {
     node.prior <- quote(normal(k))
     node.prior[[2L]] <- matchedCall[["k"]]

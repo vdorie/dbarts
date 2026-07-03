@@ -107,6 +107,8 @@ struct Results {
   double* testFits = nullptr;       // numTestObservations x numSamples, or null
   std::uint32_t* variableCounts = nullptr;  // numPredictors x numSamples, or null
   double* k = nullptr;              // numSamples, or null; only when k sampled
+  // numPredictors x numSamples, or null; filled only under DART
+  double* splitProbabilities = nullptr;
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable
@@ -867,6 +869,13 @@ private:
       std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
       for (size_t t = 0; t < options_.numTrees; ++t)
         trees_[t].countVariableUses(out);
+    }
+
+    if (results.splitProbabilities != nullptr && options_.useDart) {
+      double* out =
+        results.splitProbabilities + sampleNum * data_.numPredictors;
+      std::memcpy(out, dart_.probabilities.data(),
+                  data_.numPredictors * sizeof(double));
     }
   }
 

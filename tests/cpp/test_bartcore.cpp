@@ -518,9 +518,32 @@ static void testDartSparsityRecovery(ext_rng* rng) {
                            1.0, 3.0, 0.37804942330213542, options, &rng);
     const size_t numSamples = 300;
     std::vector<uint32_t> varcount(p * numSamples);
+    std::vector<double> splitProbs(p * numSamples, -1.0);
     Results results;
     results.variableCounts = varcount.data();
+    results.splitProbabilities = splitProbs.data();
     sampler.run(200, numSamples, results);
+
+    if (useDart) {
+      // every recorded sample is a simplex over the predictors
+      bool inRange = true, sumsToOne = true;
+      for (size_t s = 0; s < numSamples; ++s) {
+        double sum = 0.0;
+        for (size_t j = 0; j < p; ++j) {
+          double prob = splitProbs[j + s * p];
+          inRange &= prob >= 0.0 && prob <= 1.0;
+          sum += prob;
+        }
+        sumsToOne &= std::fabs(sum - 1.0) < 1.0e-10;
+      }
+      check(inRange, "dart varprobs in [0, 1]");
+      check(sumsToOne, "dart varprobs sum to one");
+    } else {
+      // recording is dart-only; without it the buffer is left untouched
+      bool untouched = true;
+      for (double prob : splitProbs) untouched &= prob == -1.0;
+      check(untouched, "varprobs untouched without dart");
+    }
 
     double signal = 0.0, total = 0.0;
     for (size_t s = 0; s < numSamples; ++s)
