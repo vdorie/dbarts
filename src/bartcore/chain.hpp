@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -57,6 +58,19 @@ struct SamplerOptions {
   // reporting after the run; the classic engine's keepTrees
   bool keepTrees = false;
   size_t numSamplesToStore = 0;
+
+  // progress reporting during runs, in the classic engine's format: one
+  // "iteration: k (of N)" line every printEvery kept iterations
+  bool verbose = false;
+  std::uint32_t printEvery = 100;
+};
+
+/// Receives chains' formatted progress lines during a run. Runs on worker
+/// threads hand lines to a queue the main thread flushes (workers must never
+/// call into R); inline runs print directly.
+struct ProgressSink {
+  virtual ~ProgressSink() = default;
+  virtual void report(const char* line) = 0;
 };
 
 /// A between-run prior replacement, the classic engine's setModel: every
@@ -194,7 +208,10 @@ public:
   /// One thinning-free run; results slots may be null to skip recording.
   /// Touches only chain state and the read-only store: safe to run chains
   /// concurrently as long as each has its own rng that never calls into R.
-  void run(size_t numBurnIn, size_t numSamples, Results& results) {
+  /// progress, when non-null under verbose, receives one formatted line per
+  /// printEvery kept iterations.
+  void run(size_t numBurnIn, size_t numSamples, Results& results,
+           ProgressSink* progress = nullptr, size_t chainIndex = 0) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
@@ -207,6 +224,24 @@ public:
       bool record = (iteration + 1) % numThin == 0 &&
                     iteration / numThin >= numBurnIn;
       size_t sampleNum = record ? iteration / numThin - numBurnIn : 0;
+
+      if (options_.verbose && progress != nullptr &&
+          (iteration + 1) % numThin == 0 &&
+          (iteration / numThin + 1) % options_.printEvery == 0) {
+        char line[128];
+        if (options_.numChains > 1) {
+          std::snprintf(line, sizeof(line),
+                        "[%lu] iteration: %lu (of %lu)\n",
+                        static_cast<unsigned long>(chainIndex + 1),
+                        static_cast<unsigned long>(iteration + 1),
+                        static_cast<unsigned long>(totalIterations));
+        } else {
+          std::snprintf(line, sizeof(line), "iteration: %lu (of %lu)\n",
+                        static_cast<unsigned long>(iteration + 1),
+                        static_cast<unsigned long>(totalIterations));
+        }
+        progress->report(line);
+      }
 
       MoveContext ctx{data_,
                       treePrior_,
@@ -298,6 +333,13 @@ public:
   const double* latents() const { return response_->latents(); }
 
   void setNumThin(size_t numThin) { options_.numThin = numThin; }
+  void setVerbose(bool verbose, std::uint32_t printEvery) {
+    options_.verbose = verbose;
+    options_.printEvery = printEvery;
+  }
+  /// The multiplier taking internal-scale fits to the original response
+  /// scale: the response range for gaussian, 1 for the binary families.
+  double fitScale() const { return response_->fitScale(); }
 
   /// Install a replacement prior (the classic engine's setModel); see
   /// ModelParameters for the semantics.

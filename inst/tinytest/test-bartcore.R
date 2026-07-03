@@ -697,3 +697,47 @@ sampler.ssr <- dbarts(x, y, control = control.sm)
 r.ssr <- sampler.ssr$run(20L, 1L)
 expect_equal(sampler.ssr$getSumsOfSquaredResiduals(),
              sum((y - r.ssr$train[, 1L])^2))
+
+# verbose mirrors the classic engine: creation summaries are byte-identical
+# across engines over the same data, and runs print the loop header, the
+# iteration counter, and the terminal summary
+mkVerboseControl <- function(engine) {
+  dbartsControl(engine = engine, n.chains = 1L, n.threads = 1L,
+                n.trees = 10L, n.samples = 5L, verbose = TRUE,
+                printEvery = 2L, updateState = FALSE)
+}
+out.create.classic <- capture.output(
+  sampler.vc <- dbarts(x, y, test = x.test, offset = 0.5,
+                       control = mkVerboseControl("classic")))
+out.create.bc <- capture.output(
+  sampler.vb <- dbarts(x, y, test = x.test, offset = 0.5,
+                       control = mkVerboseControl("bartcore")))
+expect_identical(out.create.bc, out.create.classic)
+
+run.classic <- capture.output(invisible(sampler.vc$run(2L, 4L)))
+run.bc <- capture.output(invisible(sampler.vb$run(2L, 4L)))
+iterationLines <- function(lines) grep("^iteration: ", lines, value = TRUE)
+expect_identical(iterationLines(run.bc), iterationLines(run.classic))
+expect_identical(run.bc[1L], "Running mcmc loop:")
+expect_true(any(grepl("^total seconds in loop: ", run.bc)))
+expect_true(any(run.bc == "Tree sizes, last iteration:"))
+expect_true(any(run.bc == "DONE BART"))
+
+# verbose toggles off through setControl
+control.quiet <- mkVerboseControl("bartcore")
+control.quiet@verbose <- FALSE
+sampler.vb$setControl(control.quiet)
+expect_identical(capture.output(invisible(sampler.vb$run(0L, 2L))),
+                 character(0))
+
+# worker threads relay chain-prefixed progress through the main thread
+control.threaded <- dbartsControl(engine = "bartcore", n.chains = 2L,
+                                  n.threads = 2L, n.trees = 10L,
+                                  n.samples = 5L, verbose = TRUE,
+                                  printEvery = 25L, updateState = FALSE)
+out.threaded <- capture.output({
+  sampler.vt <- dbarts(x, y, control = control.threaded)
+  invisible(sampler.vt$run(25L, 25L))
+})
+expect_true(any(grepl("^\\[1\\] iteration: ", out.threaded)))
+expect_true(any(grepl("^\\[2\\] iteration: ", out.threaded)))

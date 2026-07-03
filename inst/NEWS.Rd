@@ -9,12 +9,12 @@
             `dbartsSampler` interface: every `dbartsSampler` method works,
             including `keepTrees`, `getTrees`, `predict`, `plotTree`,
             `setWeights`, test offsets, `printTrees`, sampling from the
-            prior, `setControl`, `setModel`, and saving/loading sampler
-            state (a restored sampler continues bitwise identically; the
-            stored state is engine-specific). Not supported there: weights
-            with binary responses, and `setControl` changes to settings
-            fixed at creation (chain/tree counts, generators, the cut
-            grid).
+            prior, `setControl`, `setModel`, verbose progress output, and
+            saving/loading sampler state (a restored sampler continues
+            bitwise identically; the stored state is engine-specific). Not
+            supported there: weights with binary responses, and
+            `setControl` changes to settings fixed at creation (chain/tree
+            counts, generators, the cut grid).
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.
