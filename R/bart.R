@@ -166,6 +166,8 @@ bart2 <- function(
   seed = NA_integer_,
   proposal.probs = NULL,
   keepSampler = keepTrees,
+  factors = c("indicators", "categorical"),
+  family = c("auto", "gaussian", "probit", "logistic"),
   ...
 )
 {

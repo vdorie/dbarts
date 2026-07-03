@@ -12,7 +12,8 @@ dbarts(
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_,
-    factors = c("indicators", "categorical"))}
+    factors = c("indicators", "categorical"),
+    family = c("auto", "gaussian", "probit", "logistic"))}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}.
@@ -58,6 +59,9 @@ dbarts(
   }
   \item{factors}{
     How factor columns in a data frame enter the model. \code{"indicators"} expands each factor into binary indicator columns as always. \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels (at most 53) down each branch, and codes ordered factors as ordinal; it requires \code{engine = "bartcore"} in \code{control} and level tables are retained so that test data are coded identically.
+  }
+  \item{family}{
+    The response model. \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, as always. \code{"gaussian"} forces a continuous fit even for a 0/1 response; \code{"probit"} and \code{"logistic"} require a 0/1 response and fit latent-variable models, with fits and predictions on the latent scale. \code{"logistic"} uses Polya-Gamma augmentation, requires \code{engine = "bartcore"}, and does not support \code{weights}.
   }
 }
 \details{
