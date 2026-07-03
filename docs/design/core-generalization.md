@@ -449,7 +449,12 @@ partitioning entirely; a different library sharing only the tree structure).
    the bartcore engine with node.scale = pi * sqrt(3)); the slot drives
    the bridge's family argument including pointer re-creation after
    save/load, and setControl preserves it like `binary`. The wrappers'
-   probit-only pnorm sites remain for the cutover flip.
+   probability transforms are link-aware (2026-07-03): packaged bart and
+   rbart results carry a `family` element, and
+   predict/extract/fitted/plot transform latents through it
+   (probabilityFromLatents in generics.R; missing element = probit, so
+   old saved fits keep their meaning). rbart remains probit-only by
+   construction - its ranef update is a normal-conjugate step.
    xbart backend (DONE 2026-07-03): the C++ crossvalidation monolith
    (crossvalidate.cpp, R_interface_crossvalidate.cpp) is deleted and
    xbart is an R-level driver over the dbartsSampler mutation API

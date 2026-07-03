@@ -32,7 +32,7 @@ plot.bart <- function(
        lines(rep(x$y[i],2),c(ql[i],qu[i]),col=cols[1])
      abline(0,1,lty=2,col=cols[2])
   } else {
-     pdrs = pnorm(x$yhat.train) #draws of p(Y=1 | x)
+     pdrs = probabilityFromLatents(x$yhat.train, x) #draws of p(Y=1 | x)
      ql <- apply(pdrs, length(dim(pdrs)), quantile,probs=plquants[1])
      qm <- apply(pdrs, length(dim(pdrs)), quantile,probs=.5)
      qu <- apply(pdrs, length(dim(pdrs)), quantile,probs=plquants[2])
@@ -80,7 +80,7 @@ plot.rbart <- function(x, plquants = c(0.05, 0.95), cols = c('blue','black'), ..
     abline(0, 1, lty = 2L, col = cols[2L])
   } else {
     ## shouldn't happen for now
-    pdrs <- pnorm(yhat.train) #draws of p(Y=1 | x)
+    pdrs <- probabilityFromLatents(yhat.train, x) #draws of p(Y=1 | x)
     ql <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[1L])
     qm <- apply(pdrs, length(dim(pdrs)), quantile, probs = .5)
     qu <- apply(pdrs, length(dim(pdrs)), quantile, probs = plquants[2L])

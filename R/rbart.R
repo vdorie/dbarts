@@ -422,7 +422,8 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
   
   responseIsBinary <- chainResults[[1L]]$sampler$control@binary
   
-  result <- list(call = control@call, y = data@y, group.by = group.by)
+  result <- list(call = control@call, y = data@y, group.by = group.by,
+                 family = chainResults[[1L]]$sampler$control@family)
   if (!responseIsBinary) result$sigest <- chainResults[[1L]]$sampler$data@sigma
   if (!is.null(group.by.test)) result[["group.by.test"]] <- group.by.test
   

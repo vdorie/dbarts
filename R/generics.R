@@ -2,6 +2,12 @@
 
 extract <- function(object, ...) UseMethod("extract")
 
+# latent-scale draws to probabilities for a binary fit; fits saved before
+# the family element existed are all probit
+probabilityFromLatents <- function(latents, object) {
+  if (identical(object[["family"]], "logistic")) plogis(latents) else pnorm(latents)
+}
+
 combineOrUncombineChains <- function(x, n.chains, combineChains)
 {
   if (n.chains > 1L) {
@@ -48,15 +54,15 @@ predict.bart <- function(object, newdata, offset, weights,
     return(result)
 
   if ((responseIsBinary <- is.null(object[["sigma"]])))
-    result <- pnorm(result)
-  
+    result <- probabilityFromLatents(result, object)
+
   if (type == "ppd")
     result <- sampleFromPPD(result, object, weights)
-  
+
   result
 }
 
-extract.bart <- function(object, 
+extract.bart <- function(object,
                          type = c("ev", "ppd", "bart", "trees"),
                          sample = c("train", "test"),
                          combineChains = TRUE,
@@ -106,11 +112,11 @@ extract.bart <- function(object,
     return(result)
   
   if ((responseIsBinary <- is.null(object[["sigma"]])))
-    result <- pnorm(result)
-  
+    result <- probabilityFromLatents(result, object)
+
   if (type == "ppd")
     result <- sampleFromPPD(result, object, weights)
-  
+
   result
 }
 
@@ -254,11 +260,11 @@ predict.rbart <- function(object, newdata, group.by, offset,
   result <- nonParametricPart + ranef
   
   responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) result <- pnorm(result)
-  
+  if (responseIsBinary) result <- probabilityFromLatents(result, object)
+
   if (type == "ppd")
     result <- sampleFromPPD(result, object, NULL)
-  
+
   if (exists("unmeasuredRanef", inherits = FALSE)) attr(result, "ranef") <- unmeasuredRanef
   
   result
@@ -356,11 +362,11 @@ extract.rbart <- function(object,
   result <- result + ranef
   
   responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) result <- pnorm(result)
-  
+  if (responseIsBinary) result <- probabilityFromLatents(result, object)
+
   if (type == "ppd")
     result <- sampleFromPPD(result, object, NULL)
-  
+
   result
 }
 

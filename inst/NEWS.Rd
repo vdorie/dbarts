@@ -39,6 +39,11 @@
             Polya-Gamma augmentation on the bartcore engine. Binary
             families do not support weights (the weighted probit the
             classic engine fits is incorrect and is not carried forward).
+            Fits returned by `bart`, `bart2`, and `rbart_vi` record the
+            resolved family in a `family` element, and `predict`,
+            `extract`, `fitted`, and `plot` transform latent draws
+            through that family's link; fits saved by earlier versions
+            lack the element and are treated as probit.
       \item `dbarts` and `dbartsData` accept `factors = "categorical"`,
             keeping each unordered factor in a data frame as a single
             predictor whose splits send a subset of its levels (at most 53)
