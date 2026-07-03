@@ -20,13 +20,16 @@ public:
                    Results& results) = 0;
   virtual void setOffset(const double* offset, bool updateScale) = 0;
   virtual void setResponse(const double* y) = 0;
+  virtual void setWeights(const double* weights) = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
                                  std::size_t numTestObservations) = 0;
+  virtual void setTestOffset(const double* testOffset) = 0;
   virtual void setData(const double* x, const double* y,
                        std::size_t numObservations, const double* weights,
                        const double* offset, const double* x_test,
-                       std::size_t numTestObservations) = 0;
+                       std::size_t numTestObservations,
+                       const double* testOffset) = 0;
   virtual PredictorUpdateResult setPredictor(const double* newX,
                                              bool forceUpdate,
                                              bool updateCutPoints) = 0;
@@ -85,6 +88,9 @@ public:
     impl_.setOffset(offset, updateScale);
   }
   void setResponse(const double* y) override { impl_.setResponse(y); }
+  void setWeights(const double* weights) override {
+    impl_.setWeights(weights);
+  }
   void setSigma(double sigmaOriginalScale) override {
     impl_.setSigma(sigmaOriginalScale);
   }
@@ -92,11 +98,15 @@ public:
                          std::size_t numTestObservations) override {
     impl_.setTestPredictors(x_test, numTestObservations);
   }
+  void setTestOffset(const double* testOffset) override {
+    impl_.setTestOffset(testOffset);
+  }
   void setData(const double* x, const double* y, std::size_t numObservations,
                const double* weights, const double* offset,
-               const double* x_test, std::size_t numTestObservations) override {
+               const double* x_test, std::size_t numTestObservations,
+               const double* testOffset) override {
     impl_.setData(x, y, numObservations, weights, offset, x_test,
-                  numTestObservations);
+                  numTestObservations, testOffset);
   }
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) override {

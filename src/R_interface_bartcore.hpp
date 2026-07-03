@@ -15,6 +15,10 @@ SEXP bartcore_setResponse(SEXP ptr, SEXP y);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
 SEXP bartcore_setData(SEXP ptr, SEXP data);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
+SEXP bartcore_setTestOffset(SEXP ptr, SEXP offset_test);
+SEXP bartcore_setTestPredictorAndOffset(SEXP ptr, SEXP x_test,
+                                        SEXP offset_test);
+SEXP bartcore_setWeights(SEXP ptr, SEXP weights);
 SEXP bartcore_setPredictor(SEXP ptr, SEXP x, SEXP forceUpdate,
                            SEXP updateCutPoints);
 SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,

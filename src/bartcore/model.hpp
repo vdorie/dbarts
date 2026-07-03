@@ -371,6 +371,12 @@ public:
                        const double* weights, std::size_t numObservations,
                        double* sigmaInOut) = 0;
 
+  /// Replace the case weights (borrowed). Like the classic engine's, a bare
+  /// pointer swap: nothing rescales, and the weighted residuals enter the
+  /// next iteration's node statistics and sigma draw. Only gaussian
+  /// responses carry weights; elsewhere a no-op (the host rejects earlier).
+  virtual void setWeights(const double*) {}
+
   virtual const double* latents() const { return nullptr; }
 
   /// State restoration: overwrite the latent state with previously stored
@@ -440,6 +446,8 @@ public:
     sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
     *sigmaInOut = sigmaUnscaled / range_;
   }
+
+  void setWeights(const double* weights) override { weights_ = weights; }
 
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {

@@ -232,14 +232,53 @@ expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
 # unsupported methods refuse loudly rather than corrupt the sampler
 expect_error(sampler.engine$printTrees(1L), pattern = "not supported")
-expect_error(sampler.engine$setWeights(rep(1, n)), pattern = "not supported")
-expect_error(sampler.engine$setTestOffset(rep(0, 10L)),
-             pattern = "not supported")
 
-# test offsets are rejected at creation
-expect_error(dbarts(x.engine, y, test = x.test, offset = 0.5,
-                    control = control.engine),
-             pattern = "test offset")
+# weights swap like the classic engine's: a pointer swap reflected in the
+# data slot, nothing else touched
+w.engine <- runif(n, 0.5, 1.5)
+sampler.engine$setWeights(w.engine)
+expect_equal(sampler.engine$data@weights, w.engine)
+expect_true(all(is.finite(sampler.engine$run(0L, 2L)$train)))
+expect_error(sampler.engine$setWeights(rep(-1, n)),
+             pattern = "non-negative")
+
+# test offsets: created from a scalar offset the test offset stays synced
+# with the regular one; setTestOffset breaks the sync
+sampler.offset <- dbarts(x.engine + 0, y, test = x.test, offset = 0.5,
+                         control = control.engine)
+expect_equal(sampler.offset$data@offset.test, rep(0.5, 10L))
+invisible(sampler.offset$run(20L, 1L))
+sampler.offset$setOffset(1.5)
+expect_equal(sampler.offset$data@offset.test, rep(1.5, 10L))
+offset.explicit <- seq_len(10L) / 10
+sampler.offset$setTestOffset(offset.explicit)
+expect_identical(sampler.offset$data@testUsesRegularOffset, FALSE)
+expect_equal(sampler.offset$data@offset.test, offset.explicit)
+expect_error(sampler.offset$setTestOffset(rep(0, 3L)), pattern = "length")
+
+# recorded test fits carry exactly the test offset: the same seed with and
+# without an offset differs by it alone
+sampler.to1 <- dbarts(x.engine + 0, y, test = x.test,
+                      control = control.engine)
+sampler.to2 <- dbarts(x.engine + 0, y, test = x.test,
+                      control = control.engine)
+sampler.to2$setTestOffset(rep(2, 10L))
+set.seed(11)
+r.to1 <- sampler.to1$run(20L, 3L)
+set.seed(11)
+r.to2 <- sampler.to2$run(20L, 3L)
+expect_identical(r.to1$train, r.to2$train)
+expect_identical(r.to1$test + 2, r.to2$test)
+
+# replacing test predictors alone keeps the offset only when the row count
+# still matches; the combined setter changes both
+expect_silent(sampler.to2$setTestPredictor(matrix(runif(10L * p), 10L, p)))
+expect_error(sampler.to2$setTestPredictor(matrix(runif(5L * p), 5L, p)),
+             pattern = "together")
+sampler.to2$setTestPredictorAndOffset(matrix(runif(5L * p), 5L, p),
+                                      rep(1, 5L))
+expect_equal(sampler.to2$data@offset.test, rep(1, 5L))
+expect_equal(dim(sampler.to2$run(0L, 2L)$test), c(5L, 2L))
 
 # thinning counts burn-in and samples at the kept rate
 control.thin <- dbartsControl(engine = "bartcore", n.chains = 1L,
@@ -304,11 +343,14 @@ expect_true(all(is.finite(r.setdata$train)))
 y.saved <- sampler.setdata$data@y
 expect_error(sampler.setdata$setData(dbartsData(x2[, 1:2], y2)),
              pattern = "same predictors")
-expect_error(sampler.setdata$setData(
-  dbartsData(x2, y2, test = x.test, offset = 0.5)),
-  pattern = "test offset")
 expect_identical(sampler.setdata$data@y, y.saved)
 expect_true(all(is.finite(sampler.setdata$run(0L, 1L)$train)))
+
+# whole-data replacement carries a test offset into the recorded test fits
+sampler.setdata$setData(dbartsData(x2, y2 + 0.5, test = x.test,
+                                   offset = 0.5))
+expect_equal(sampler.setdata$data@offset.test, rep(0.5, 10L))
+expect_true(all(is.finite(sampler.setdata$run(0L, 1L)$test)))
 
 # binary samplers resize their latents with the data
 sampler.setdata.binary <- dbarts(x + 0, y.binary, control = control.setdata)
