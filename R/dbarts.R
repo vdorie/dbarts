@@ -368,10 +368,12 @@ dbartsSampler <- setRefClass(
     },
     sampleTreesFromPrior = function(updateState = NA) {
       "Draws tree structure from prior"
-      assertClassicEngine(control, "sampleTreesFromPrior")
-
       ptr <- getPointer()
-      .Call(C_dbarts_sampleTreesFromPrior, ptr)
+      if (control@engine == "bartcore") {
+        .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
+      } else {
+        .Call(C_dbarts_sampleTreesFromPrior, ptr)
+      }
 
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
@@ -384,10 +386,12 @@ dbartsSampler <- setRefClass(
     },
     sampleNodeParametersFromPrior = function(updateState = NA) {
       "Draws end node parameters from prior; does not update tree structure."
-      assertClassicEngine(control, "sampleNodeParametersFromPrior")
-
       ptr <- getPointer()
-      .Call(C_dbarts_sampleNodeParametersFromPrior, ptr)
+      if (control@engine == "bartcore") {
+        .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
+      } else {
+        .Call(C_dbarts_sampleNodeParametersFromPrior, ptr)
+      }
 
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
@@ -1336,7 +1340,6 @@ dbartsSampler <- setRefClass(
     },
     printTrees = function(treeNums, chainNums, sampleNums) {
       'Produces an info dump of the internal state of the trees.'
-      assertClassicEngine(control, "printTrees")
       matchedCall <- match.call()
       if (is.null(matchedCall$chainNums)) {
         chainNums <- seq_len(control@n.chains)
@@ -1360,6 +1363,15 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
+      if (control@engine == "bartcore") {
+        return(invisible(.Call(
+          C_dbarts_bartcore_printTrees,
+          ptr,
+          as.integer(chainNums),
+          sampleNums,
+          as.integer(treeNums)
+        )))
+      }
       invisible(.Call(
         C_dbarts_printTrees,
         ptr,

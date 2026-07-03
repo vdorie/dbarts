@@ -27,6 +27,7 @@ concept IntegrableLeafModel = requires(const L leaf, ext_rng* rng, double d,
                                        std::size_t n) {
   { leaf.logIntegratedLikelihood(d, d, d, d, d, n) } -> std::same_as<double>;
   { leaf.drawFromPosterior(rng, d, d, d, d) } -> std::same_as<double>;
+  { leaf.drawFromPrior(rng, d) } -> std::same_as<double>;
 };
 
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
@@ -59,6 +60,10 @@ struct ConstantGaussianLeaf {
       posteriorPrecision * average / (priorPrecision + posteriorPrecision);
     double posteriorSd = 1.0 / std::sqrt(priorPrecision + posteriorPrecision);
     return posteriorMean + posteriorSd * ext_rng_simulateStandardNormal(rng);
+  }
+
+  double drawFromPrior(ext_rng* rng, double k) const {
+    return (scale / k) * ext_rng_simulateStandardNormal(rng);
   }
 };
 

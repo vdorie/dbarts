@@ -398,6 +398,22 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return resultExpr;
 }
 
+SEXP bartcore_sampleTreesFromPrior(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  GetRNGstate();
+  holder.sampler->sampleTreesFromPrior();
+  PutRNGstate();
+  return R_NilValue;
+}
+
+SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  GetRNGstate();
+  holder.sampler->sampleNodeParametersFromPrior();
+  PutRNGstate();
+  return R_NilValue;
+}
+
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
@@ -1330,6 +1346,54 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
 
   UNPROTECT(4);
   return resultExpr;
+}
+
+SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
+                         SEXP treeNumsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  size_t capacity = sampler.savedTreeCapacity();
+
+  std::vector<size_t> chainIndices, sampleIndices, treeIndices;
+  if (Rf_isNull(chainNumsExpr)) {
+    for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
+  } else {
+    for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
+      int chainNum = INTEGER(chainNumsExpr)[i];
+      if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
+        Rf_error("bartcore_printTrees chain number out of range");
+      chainIndices.push_back(static_cast<size_t>(chainNum - 1));
+    }
+  }
+  if (capacity > 0) {
+    if (Rf_isNull(sampleNumsExpr)) {
+      for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
+    } else {
+      for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
+        int sampleNum = INTEGER(sampleNumsExpr)[i];
+        if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
+          Rf_error("bartcore_printTrees sample number out of range");
+        sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
+      }
+    }
+  }
+  if (Rf_isNull(treeNumsExpr)) {
+    for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
+  } else {
+    for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
+      int treeNum = INTEGER(treeNumsExpr)[i];
+      if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
+        Rf_error("bartcore_printTrees tree number out of range");
+      treeIndices.push_back(static_cast<size_t>(treeNum - 1));
+    }
+  }
+
+  sampler.printTrees(chainIndices.data(), chainIndices.size(),
+                     sampleIndices.data(), sampleIndices.size(),
+                     treeIndices.data(), treeIndices.size());
+
+  return R_NilValue;
 }
 
 SEXP bartcore_getLatents(SEXP ptrExpr) {

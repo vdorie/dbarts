@@ -60,6 +60,14 @@ public:
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
   virtual bool setState(const SamplerStateData& state) = 0;
+  virtual void sampleTreesFromPrior() = 0;
+  virtual void sampleNodeParametersFromPrior() = 0;
+  virtual void printTrees(const std::size_t* chainIndices,
+                          std::size_t numChainIndices,
+                          const std::size_t* sampleIndices,
+                          std::size_t numSampleIndices,
+                          const std::size_t* treeIndices,
+                          std::size_t numTreeIndices) = 0;
 
   virtual ext_rng* rng() const = 0;
   virtual ResponseFamily family() const = 0;
@@ -158,6 +166,18 @@ public:
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state) override {
     return impl_.setState(state);
+  }
+  void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
+  void sampleNodeParametersFromPrior() override {
+    impl_.sampleNodeParametersFromPrior();
+  }
+  void printTrees(const std::size_t* chainIndices,
+                  std::size_t numChainIndices,
+                  const std::size_t* sampleIndices,
+                  std::size_t numSampleIndices, const std::size_t* treeIndices,
+                  std::size_t numTreeIndices) override {
+    impl_.printTrees(chainIndices, numChainIndices, sampleIndices,
+                     numSampleIndices, treeIndices, numTreeIndices);
   }
 
   ext_rng* rng() const override { return impl_.rng(); }

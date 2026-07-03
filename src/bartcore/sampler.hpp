@@ -275,6 +275,50 @@ public:
     return chains_[chainNum]->latents();
   }
 
+  /// Prior draws, every chain from its own generator: tree structures alone
+  /// (fits left stale), or leaf parameters with the fits rebuilt to match.
+  void sampleTreesFromPrior() {
+    for (auto& chain : chains_) chain->sampleTreesFromPrior();
+  }
+  void sampleNodeParametersFromPrior() {
+    for (auto& chain : chains_) chain->sampleNodeParametersFromPrior();
+  }
+
+  /// Info dump matching the reference engine's BARTFit::printTrees: without
+  /// keepTrees the live trees print and sample indices are ignored; with it,
+  /// the requested saved slots print in the saved-tree format.
+  void printTrees(const size_t* chainIndices, size_t numChainIndices,
+                  const size_t* sampleIndices, size_t numSampleIndices,
+                  const size_t* treeIndices, size_t numTreeIndices) {
+    int indent = 0;
+    for (size_t i = 0; i < numChainIndices; ++i) {
+      size_t chainNum = chainIndices[i];
+      if (numChainIndices > 1) {
+        ext_printf("chain %lu\n", static_cast<unsigned long>(chainNum + 1));
+        indent += 2;
+      }
+      if (!options_.keepTrees) {
+        for (size_t k = 0; k < numTreeIndices; ++k)
+          chains_[chainNum]->printTree(treeIndices[k], indent);
+      } else {
+        for (size_t j = 0; j < numSampleIndices; ++j) {
+          size_t sampleNum = sampleIndices[j];
+          if (numSampleIndices > 1) {
+            ext_printf("%*ssample %lu\n", indent, "",
+                       static_cast<unsigned long>(sampleNum + 1));
+            indent += 2;
+          }
+          for (size_t k = 0; k < numTreeIndices; ++k)
+            chains_[chainNum]->printSavedTree(sampleNum, treeIndices[k], indent);
+          if (numSampleIndices > 1)
+            indent -= 2;
+        }
+      }
+      if (numChainIndices > 1)
+        indent -= 2;
+    }
+  }
+
   /// Replace the entire data set: predictors, response, and optionally
   /// weights, offset, and test predictors, with a possibly different number
   /// of observations (all borrowed; the predictor count is fixed). Not
