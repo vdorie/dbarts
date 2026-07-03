@@ -82,6 +82,7 @@ public:
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
   virtual bool kIsSampled() const = 0;
+  virtual bool usesDart() const = 0;
   virtual std::size_t numChains() const = 0;
   virtual std::size_t numTrees() const = 0;
   virtual std::size_t numObservations() const = 0;
@@ -214,6 +215,7 @@ public:
     return impl_.sigma(chainNum);
   }
   bool kIsSampled() const override { return impl_.kIsSampled(); }
+  bool usesDart() const override { return impl_.usesDart(); }
   std::size_t numChains() const override { return impl_.numChains(); }
   std::size_t numTrees() const override { return impl_.numTrees(); }
   std::size_t numObservations() const override { return impl_.numObservations(); }

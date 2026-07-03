@@ -160,6 +160,9 @@ public:
       if (results.variableCounts != nullptr)
         r.variableCounts =
           results.variableCounts + c * numSamples * data_.numPredictors;
+      if (results.splitProbabilities != nullptr)
+        r.splitProbabilities =
+          results.splitProbabilities + c * numSamples * data_.numPredictors;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -636,6 +639,7 @@ public:
   double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
   double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
   bool kIsSampled() const { return options_.updateK; }
+  bool usesDart() const { return options_.useDart; }
   const ColumnStore& data() const { return data_; }
   const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }

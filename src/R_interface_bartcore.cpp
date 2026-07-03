@@ -480,7 +480,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 
   // several chains add a trailing chain dimension, as the classic engine's
   // results do
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 5));
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 6));
   SEXP sigmaExpr = numChains == 1
     ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
     : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
@@ -519,6 +519,16 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   } else {
     kExpr = PROTECT(R_NilValue);
   }
+  SEXP varprobsExpr;
+  if (sampler.usesDart()) {
+    varprobsExpr = numChains == 1
+      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numPredictors),
+                               numSamplesInt))
+      : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numPredictors),
+                                numSamplesInt, numChainsInt));
+  } else {
+    varprobsExpr = PROTECT(R_NilValue);
+  }
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numSamples *
                                             numChains);
@@ -529,6 +539,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.testFits = numTestObservations > 0 ? REAL(testExpr) : NULL;
   results.variableCounts = variableCounts.data();
   results.k = sampler.kIsSampled() ? REAL(kExpr) : NULL;
+  results.splitProbabilities = sampler.usesDart() ? REAL(varprobsExpr) : NULL;
 
   GetRNGstate();
   sampler.run(numBurnIn, numSamples, results);
@@ -543,18 +554,20 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_VECTOR_ELT(resultExpr, 2, testExpr);
   SET_VECTOR_ELT(resultExpr, 3, varcountExpr);
   SET_VECTOR_ELT(resultExpr, 4, kExpr);
+  SET_VECTOR_ELT(resultExpr, 5, varprobsExpr);
 
   // named as the classic engine's run results are, so the engines are
-  // drop-in replacements for each other
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 5));
+  // drop-in replacements for each other; varprobs is a bartcore extension
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 6));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
   SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
   SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
+  SET_STRING_ELT(namesExpr, 5, Rf_mkChar("varprobs"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
-  UNPROTECT(7);
+  UNPROTECT(8);
   return resultExpr;
 }
 

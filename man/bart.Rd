@@ -38,6 +38,7 @@ bart2(
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = NULL,
     power = 2.0, base = 0.95, split.probs = 1 / num.vars,
+    dart = FALSE,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -111,6 +112,9 @@ extract(object, \dots)
    }
    \item{splitprobs, split.probs}{
      Prior and transition probabilities of variables used to generate splits. Can be missing/empty/\code{NULL} for equiprobability, a numeric vector of length equal to the number variables, or a named numeric vector with only a subset of the variables specified and a \code{.default} named value. Values given for factor variables are replicated for each resulting column in the generated model matrix. \code{numvars} and \code{num.vars} symbols will be rebound before execution to the number of columns in the model matrix.
+   }
+   \item{dart}{
+     \code{TRUE} places a DART prior (a Dirichlet prior over the split-variable probabilities, inducing variable selection; Linero 2018) on the trees with default settings, using \code{power} and \code{base} for the growth probabilities; a prior created by \code{\link[=dbartsPriors]{dbartsPriors$dart}} supplies its own settings, overriding \code{power} and \code{base}. Requires \code{engine = "bartcore"} and cannot be combined with \code{split.probs}. Per-sample probabilities are returned in the \code{varprobs} element of the fit.
    }
    \item{binaryOffset}{
      Used for binary \eqn{y}. When present, the model is \eqn{P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})}{P(Y = 1 | x) = \Phi(f(x) + binaryOffset)}, allowing fits with probabilities shrunk towards values other than \eqn{0.5}.
@@ -293,6 +297,9 @@ extract(object, \dots)
   \item{\code{varcount}}{
     A matrix with number of rows equal to the number of kept draws and each column corresponding to a training variable. Contains the total count of the number of times that variable is used in a tree decision rule (over all trees).
   }
+  \item{\code{varprobs}}{
+    Present only under a DART prior: the sampled split-variable probabilities, in the same layout as \code{varcount}. Each draw sums to one across variables.
+  }
   \item{\code{sigest}}{
     The rough error standard deviation (\eqn{\sigma}) used in the prior.
   }
@@ -336,6 +343,10 @@ both of the above at:
 Friedman, J.H. (1991)
    Multivariate adaptive regression splines.
         \emph{The Annals of Statistics}, \bold{19}, 1--67.
+
+Linero, A.R. (2018)
+   Bayesian regression trees for high-dimensional prediction and variable selection.
+        \emph{Journal of the American Statistical Association}, \bold{113}(522), 626--636.
 }
 \author{
 Hugh Chipman: \email{hugh.chipman@gmail.com},

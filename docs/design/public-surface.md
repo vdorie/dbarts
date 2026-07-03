@@ -178,8 +178,12 @@ flag mapping to the spec with defaults.
 
 Landed 2026-07-03: `tree.prior = dart(...)` on `dbarts()` (bartcore engine
 only; the classic engine and `setModel` refuse it; the sampled
-probabilities appear in the stored state). Remaining: per-sample
-`varprobs` output and the bart2 flag, which follow the wrapper flip.
+probabilities appear in the stored state). Also landed same day:
+per-sample probabilities come back as `varprobs` in run results (engine
+Results member, filled only under DART) and on packaged bart2 fits next
+to `varcount`; bart2 takes `dart = TRUE` (defaults, with its `power` and
+`base`) or a full `dbartsPriors$dart(...)` spec, refusing `split.probs`
+alongside it.
 
 ## 5. Standalone data handle and CV views
 

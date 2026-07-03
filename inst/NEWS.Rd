@@ -16,8 +16,11 @@
       \item `tree.prior = dart(...)` runs DART (Linero 2018), a Dirichlet
             prior over the split-variable probabilities inducing variable
             selection, with optional sampling of the concentration.
-            Requires `engine = "bartcore"`; the sampled probabilities
-            appear in the stored sampler state.
+            Requires `engine = "bartcore"`. `bart2` exposes it through a
+            `dart` argument taking `TRUE` or a full prior specification.
+            Runs return the per-sample probabilities alongside the
+            variable counts, as `varprobs` in the sampler's results and
+            on `bart2` fits.
       \item `xbart` is reimplemented as an R-level driver over the sampler
             interface and runs on the engine its `control` selects, gaining
             every engine feature. Chains now warm-start only across

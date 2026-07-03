@@ -442,7 +442,10 @@ partitioning entirely; a different library sharing only the tree structure).
    the binary k default, and dart's update delay (half of n.burn, the
    startdart convention). `tree.prior = dart(...)` wires
    SamplerOptions::useDart through the bartcore bridge; the classic
-   engine and setModel refuse DART.
+   engine and setModel refuse DART. Per-sample varprobs landed
+   2026-07-03: Results::splitProbabilities (filled only under DART),
+   returned as "varprobs" from runs and packaged onto bart2 fits next
+   to varcount; bart2 takes dart = TRUE or a full spec object.
    family exposure (DONE 2026-07-03): `family` on `dbarts()`/bart2
    resolves into `dbartsControl@family` ("auto" keeps the old dispatch;
    "gaussian" on 0/1 responses fits continuous; logistic is public on
