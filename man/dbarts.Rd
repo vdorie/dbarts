@@ -42,13 +42,13 @@ dbarts(
     A positive integer setting the default number of posterior samples to be returned for each run of the sampler. Can be overriden at run-time. See \code{\link{dbartsControl}}.
   }
   \item{tree.prior}{
-    An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} setting the tree prior used in fitting.
+    An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} setting the tree prior used in fitting, or a prior object built with \code{\link{dbartsPriors}}.
   }
   \item{node.prior}{
-    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes.
+    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes, or a prior object built with \code{\link{dbartsPriors}}.
   }
   \item{resid.prior}{
-    An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance.
+    An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance, or a prior object built with \code{\link{dbartsPriors}}.
   }
   \item{proposal.probs}{
     Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step.

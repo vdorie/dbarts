@@ -10,6 +10,7 @@ export(rbart_vi)
 export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
+export(dbartsPriors)
 
 exportClasses(dbartsSampler)
 export(extract)
@@ -29,7 +30,7 @@ S3method(residuals, rbart)
 S3method(print, bart)
 S3method(print, rbart)
 
-importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod)
+importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)
 importFrom(stats, lm, pnorm, quantile)

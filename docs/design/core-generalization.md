@@ -432,6 +432,17 @@ partitioning entirely; a different library sharing only the tree structure).
    refuses categorical columns at sampler creation (its categorical
    machinery is unreachable, untested code). The default flips at
    cutover per the public-surface plan.
+   Priors as objects + DART exposure (DONE 2026-07-03, per the
+   public-surface review): the cgm/normal/chisq/fixed/chi constructors
+   are pure standard-evaluation functions returning validated S4 specs,
+   exported only through the `dbartsPriors` container; parsePriors
+   layers that vocabulary over the caller's environment (bare names keep
+   working, immune to attach-order masking) and resolves the
+   data/control-dependent parts at fit time - named split probabilities,
+   the binary k default, and dart's update delay (half of n.burn, the
+   startdart convention). `tree.prior = dart(...)` wires
+   SamplerOptions::useDart through the bartcore bridge; the classic
+   engine and setModel refuse DART.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by

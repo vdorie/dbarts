@@ -81,8 +81,10 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   node.prior <- quote(normal(k))
   node.prior[[1L]] <- quoteInNamespace(normal)
   node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
-  node.hyperprior <- NULL
-  massign[node.prior, node.hyperprior] <- eval(node.prior)
+  node.prior <- eval(node.prior)
+  # xbart cells always run a fixed k (the default 2, not the binary
+  # hyperprior), as before the priors became objects
+  node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
   
   resid.prior <-
     if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {

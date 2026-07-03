@@ -31,7 +31,7 @@ expect_error(
 # test that prior model arguments raise errors
 expect_error(
   dbarts::dbarts(y ~ x, testData, tree.prior = normal),
-  "is\\(value, \"dbartsTreePrior\"\\) is not TRUE"
+  "'tree.prior' must be a tree prior specification"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, tree.prior = cgm(0, 0)),
@@ -52,15 +52,15 @@ expect_error(
 
 expect_error(
   dbarts::dbarts(y ~ x, testData, node.prior = cgm),
-  "is\\(value, \"dbartsNodePrior\"\\) is not TRUE"
+  "'node.prior' must be a node prior specification"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, node.prior = normal(0)),
-  "'k' must be positive"
+  "'k' must be a positive scalar"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, node.prior = normal(normal)),
-  "is\\(value, \"dbartsNodeHyperprior\"\\) is not TRUE"
+  "'k' must be a positive scalar"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, node.prior = normal(chi(scale = -1))),
@@ -73,7 +73,7 @@ expect_error(
 
 expect_error(
   dbarts::dbarts(y ~ x, testData, resid.prior = binomial),
-  "is\\(value, \"dbartsResidPrior\"\\) is not TRUE"
+  "'resid.prior' must be a residual prior specification"
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, resid.prior = chisq(0, 0)),

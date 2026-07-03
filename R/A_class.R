@@ -7,8 +7,13 @@ methods::setClass(
   slots = list(
     power = "numeric",
     base = "numeric",
-    splitProbabilities = "numeric"
-  )
+    splitProbabilities = "numeric",
+    # the raw user specification (possibly named, referencing columns);
+    # resolved against the data into splitProbabilities when a sampler is
+    # built, and NULL thereafter
+    splitProbabilitiesSpec = "ANY"
+  ),
+  prototype = list(splitProbabilitiesSpec = NULL)
 )
 methods::setValidity("dbartsCGMPrior",
   function(object) {
@@ -18,6 +23,38 @@ methods::setValidity("dbartsCGMPrior",
         (any(object@splitProbabilities < 0.0) ||
          abs(sum(object@splitProbabilities) - 1.0) > 1.0e-10))
       return("'splitProbabilities' must form a simplex")
+    TRUE
+  })
+
+# DART (Linero 2018): a Dirichlet prior over the split-variable
+# probabilities on top of the CGM structure prior; only the bartcore engine
+# runs it. rho of NA means the number of predictors; update.delay of NA
+# resolves to half the control's burn-in when a sampler is built.
+methods::setClass(
+  "dbartsDartPrior",
+  contains = "dbartsCGMPrior",
+  slots = list(
+    a = "numeric",
+    b = "numeric",
+    rho = "numeric",
+    alpha = "numeric",
+    update.alpha = "logical",
+    update.delay = "numeric"
+  ),
+  prototype = list(a = 0.5, b = 1.0, rho = NA_real_, alpha = 1.0,
+                   update.alpha = TRUE, update.delay = NA_real_)
+)
+methods::setValidity("dbartsDartPrior",
+  function(object) {
+    if (object@a <= 0.0) return("'a' must be positive")
+    if (object@b <= 0.0) return("'b' must be positive")
+    if (!is.na(object@rho) && object@rho <= 0.0) return("'rho' must be positive")
+    if (object@alpha <= 0.0) return("'alpha' must be positive")
+    if (!is.na(object@update.delay) && object@update.delay < 0.0)
+      return("'update.delay' must be non-negative")
+    if (length(object@splitProbabilities) > 0L ||
+        !is.null(object@splitProbabilitiesSpec))
+      return("a DART prior samples its split probabilities and cannot fix them")
     TRUE
   })
 
@@ -42,7 +79,12 @@ methods::setValidity("dbartsFixedHyperprior",
 
 
 methods::setClass("dbartsNodePrior")
-methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior")
+# k holds the raw user specification (positive scalar, hyperprior object, or
+# NULL for the family-dependent default); it becomes the model's separate
+# node.hyperprior when a sampler is built
+methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior",
+                  slots = list(k = "ANY"),
+                  prototype = list(k = NULL))
 
 
 methods::setClass("dbartsResidPrior")

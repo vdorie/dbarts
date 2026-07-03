@@ -282,6 +282,10 @@ dbartsSampler <- setRefClass(
           any(data@varTypes == CATEGORICAL_VARIABLE)) {
         stop("categorical predictors require engine = \"bartcore\"")
       }
+      if (control@engine != "bartcore" &&
+          is(model@tree.prior, "dbartsDartPrior")) {
+        stop("a DART tree prior requires engine = \"bartcore\"")
+      }
 
       .self$control <- control
       .self$model <- model
@@ -569,6 +573,12 @@ dbartsSampler <- setRefClass(
       'Sets the model object for the sampler to a new one.'
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
+      }
+      # the Dirichlet machinery is fixed at creation: the classic engine
+      # never has it and a bartcore sampler cannot gain or reconfigure it
+      if (is(newModel@tree.prior, "dbartsDartPrior") ||
+          is(model@tree.prior, "dbartsDartPrior")) {
+        stop("setModel cannot change a DART tree prior; recreate the sampler")
       }
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
