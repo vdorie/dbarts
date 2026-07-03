@@ -275,6 +275,39 @@ public:
     return chains_[chainNum]->latents();
   }
 
+  /// Between-run reconfiguration (the classic engine's setControl). Chain
+  /// count, tree count, generators, and the cut grid are fixed at creation;
+  /// the host refuses changes to those.
+  void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
+  void setNumThin(size_t numThin) {
+    options_.numThin = numThin;
+    for (auto& chain : chains_) chain->setNumThin(numThin);
+  }
+
+  /// Reconfigure saved-tree storage: toggling keepTrees or changing the
+  /// capacity reallocates every chain's slots and resets the write position;
+  /// a no-op when nothing changes, preserving stored samples.
+  void setTreeStorage(bool keepTrees, size_t numSamplesToStore) {
+    size_t capacity =
+      keepTrees ? (numSamplesToStore > 0 ? numSamplesToStore : 1) : 0;
+    if (keepTrees == options_.keepTrees && capacity == savedTreeCapacity())
+      return;
+    options_.keepTrees = keepTrees;
+    options_.numSamplesToStore = numSamplesToStore;
+    for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    currentSampleNum_ = 0;
+  }
+
+  /// Install a replacement prior on every chain (the classic engine's
+  /// setModel); see ModelParameters.
+  void setModel(const ModelParameters& model) {
+    for (auto& chain : chains_) chain->setModel(model);
+  }
+
+  double sumOfSquaredResiduals(size_t chainNum) {
+    return chains_[chainNum]->sumOfSquaredResiduals();
+  }
+
   /// Prior draws, every chain from its own generator: tree structures alone
   /// (fits left stale), or leaf parameters with the fits rebuilt to match.
   void sampleTreesFromPrior() {

@@ -70,9 +70,10 @@ dbartsControl(
     Which sampler implementation runs underneath the \code{dbartsSampler}
     interface. \code{"classic"} is the established engine.
     \code{"bartcore"} is its in-development replacement; it does not
-    support weights with binary responses, \code{setControl}, or
-    \code{setModel}. Its saved sampler state is engine-specific and cannot
-    be exchanged with \code{"classic"}.
+    support weights with binary responses, and \code{setControl} cannot
+    change settings fixed at creation (chain and tree counts, random
+    number generators, and the cut grid). Its saved sampler state is
+    engine-specific and cannot be exchanged with \code{"classic"}.
   }
 }
 \value{

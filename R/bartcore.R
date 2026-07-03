@@ -5,22 +5,17 @@
 #
 # Not supported (methods error): weights with binary responses (the classic
 # engine's probit weighting is incorrect and was stripped rather than
-# ported). The classic Control::callback has no equivalent here: it is
-# reachable only through the C ABI, which serves the classic engine until
-# cutover; a bartcore callback belongs to the new public surface.
+# ported), and setControl changes to anything fixed at creation (the engine,
+# chain/tree counts, generators, and the cut grid). The classic
+# Control::callback has no equivalent here: it is reachable only through the
+# C ABI, which serves the classic engine until cutover; a bartcore callback
+# belongs to the new public surface.
 #
 # keepTrees/getTrees/predict follow the classic formats. State serialization
 # (storeState/setState, or runs with updateState) produces an engine-specific
 # opaque object; restoring it into a sampler over the same data - including
 # the transparent re-creation getPointer performs after save/load - continues
 # the chains bitwise identically.
-
-assertClassicEngine <- function(control, methodName) {
-  if (control@engine != "classic") {
-    stop("'", methodName, "' is not supported by the bartcore engine")
-  }
-  invisible(NULL)
-}
 
 bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   control <- sampler$control

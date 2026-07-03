@@ -59,6 +59,30 @@ struct SamplerOptions {
   size_t numSamplesToStore = 0;
 };
 
+/// A between-run prior replacement, the classic engine's setModel: every
+/// field is applied unconditionally except that DART samplers keep their
+/// Dirichlet split machinery (a dbartsModel cannot express DART) and the
+/// fixed-sigma binary families ignore the variance prior. Installing a model
+/// before any run matches creating with it.
+struct ModelParameters {
+  double base = 0.95, power = 2.0;
+  double birthOrDeathProbability = 0.5;
+  double swapProbability = 0.1;
+  double changeProbability = 0.4;
+  double birthProbability = 0.5;
+  double nodeScale = 0.5;
+  // k is fixed at .k unless updateK, matching SamplerOptions
+  double k = 2.0;
+  bool updateK = false;
+  ChiKHyperprior kHyperprior;
+  // variance prior, anchored to the original-scale sigma estimate exactly
+  // as construction is; rawScale is qchisq(1 - quantile, df) / df
+  double sigmaEstimate = 1.0;
+  double sigmaDf = 3.0;
+  double sigmaRawScale = 1.0;
+  const double* splitProbabilities = nullptr;  // borrowed; copied on install
+};
+
 /// Posterior draws on the original response scale; caller-owned storage.
 /// With several chains the arrays hold one slab per chain, chain-major:
 /// sigma and k are numSamples x numChains, fits and counts add their leading
@@ -272,6 +296,54 @@ public:
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
   }
   const double* latents() const { return response_->latents(); }
+
+  void setNumThin(size_t numThin) { options_.numThin = numThin; }
+
+  /// Install a replacement prior (the classic engine's setModel); see
+  /// ModelParameters for the semantics.
+  void setModel(const ModelParameters& model) {
+    treePrior_.base = model.base;
+    treePrior_.power = model.power;
+    options_.birthOrDeathProbability = model.birthOrDeathProbability;
+    options_.swapProbability = model.swapProbability;
+    options_.changeProbability = model.changeProbability;
+    options_.birthProbability = model.birthProbability;
+    leaf_.scale =
+      model.nodeScale / std::sqrt(static_cast<double>(options_.numTrees));
+
+    options_.updateK = model.updateK;
+    if (model.updateK) {
+      options_.kHyperprior = model.kHyperprior;
+    } else {
+      k_ = model.k;
+    }
+
+    response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
+                             model.sigmaRawScale);
+
+    if (!options_.useDart) {
+      if (model.splitProbabilities == nullptr) {
+        fixedSplitProbabilities_.clear();
+        treePrior_.splitProbabilities = nullptr;
+      } else {
+        fixedSplitProbabilities_.assign(
+          model.splitProbabilities,
+          model.splitProbabilities + data_.numPredictors);
+        treePrior_.splitProbabilities = fixedSplitProbabilities_.data();
+      }
+    }
+  }
+
+  /// Sum of squared working residuals, descaled to the original response
+  /// scale (binary families report on the latent scale). The classic
+  /// engine's version descales by one factor of the range instead of two - a
+  /// units slip with no consumers, not mirrored.
+  double sumOfSquaredResiduals() {
+    double result = misc_htm_computeSumOfSquaredResiduals(
+      nullptr, 0, response_->workingResponse(), data_.numObservations,
+      totalFits_.data());
+    return result * response_->sigmaScale() * response_->sigmaScale();
+  }
 
   /// Replace every tree's structure with a draw from the tree prior over the
   /// current cut grid, empty leaves collapsed, exactly as the reference

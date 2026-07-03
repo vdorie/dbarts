@@ -524,8 +524,6 @@ dbartsSampler <- setRefClass(
     },
     setControl = function(newControl) {
       'Sets the control object for the sampler to a new one. Preserves the call() slot.'
-      assertClassicEngine(control, "setControl")
-
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -534,6 +532,30 @@ dbartsSampler <- setRefClass(
 
       newControl@binary <- control@binary
       newControl@call <- control@call
+
+      if (control@engine == "bartcore") {
+        # settings fixed at creation: the engine itself, the generators,
+        # and anything shaping the cut grid
+        for (slotName in c(
+          "engine", "n.trees", "n.chains", "useQuantiles",
+          "rngKind", "rngNormalKind", "rngSeed"
+        )) {
+          if (!identical(slot(newControl, slotName), slot(control, slotName))) {
+            stop(
+              "the bartcore engine cannot change '", slotName,
+              "' on an existing sampler"
+            )
+          }
+        }
+        if (newControl@keepTrees && is.na(newControl@n.samples)) {
+          stop("keepTrees requires 'n.samples' to be specified")
+        }
+
+        ptr <- getPointer()
+        selfEnv$control <- newControl
+        .Call(C_dbarts_bartcore_setControl, ptr, control)
+        return(invisible(NULL))
+      }
 
       ptr <- getPointer()
 
@@ -544,8 +566,6 @@ dbartsSampler <- setRefClass(
     },
     setModel = function(newModel) {
       'Sets the model object for the sampler to a new one.'
-      assertClassicEngine(control, "setModel")
-
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
@@ -555,7 +575,11 @@ dbartsSampler <- setRefClass(
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
-        .Call(C_dbarts_setModel, ptr, selfEnv$model),
+        if (control@engine == "bartcore") {
+          .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data)
+        } else {
+          .Call(C_dbarts_setModel, ptr, selfEnv$model)
+        },
         error = function(e) {
           selfEnv$model <- oldModel
           e$call <- quote(.Call(C_dbarts_setModel, ptr, selfEnv$model))
@@ -1229,9 +1253,11 @@ dbartsSampler <- setRefClass(
     },
     getSumsOfSquaredResiduals = function(result) {
       'Return sum( (y - y.hat)^2 ) on original scale.'
-      assertClassicEngine(control, "getSumsOfSquaredResiduals")
-
       ptr <- getPointer()
+
+      if (control@engine == "bartcore") {
+        return(.Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr))
+      }
 
       .Call(C_dbarts_getSumsOfSquaredResiduals, ptr)
     },

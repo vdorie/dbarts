@@ -382,6 +382,13 @@ public:
   /// responses carry weights; elsewhere a no-op (the host rejects earlier).
   virtual void setWeights(const double*) {}
 
+  /// Replace the residual-variance prior (the classic engine's setModel):
+  /// re-anchors to the supplied original-scale sigma estimate exactly as
+  /// construction does, so a swap before any run matches creating with the
+  /// new prior. A no-op for the fixed-sigma binary families.
+  virtual void setSigmaPrior(double /*sigmaEstimate*/, double /*degreesOfFreedom*/,
+                             double /*rawScale*/) {}
+
   virtual const double* latents() const { return nullptr; }
 
   /// State restoration: overwrite the latent state with previously stored
@@ -453,6 +460,13 @@ public:
   }
 
   void setWeights(const double* weights) override { weights_ = weights; }
+
+  void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
+                     double rawScale) override {
+    double sigmaInternal = sigmaEstimate / range_;
+    sigmaSqPrior_.degreesOfFreedom = degreesOfFreedom;
+    sigmaSqPrior_.scale = sigmaInternal * sigmaInternal * rawScale;
+  }
 
   void setOffset(const double* offset, bool updateScale,
                  double* sigmaInOut) override {

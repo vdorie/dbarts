@@ -2212,6 +2212,190 @@ static void testSetWeightsAndTestOffset() {
   printf("ok: setWeights and test offsets\n");
 }
 
+static void testSetControlAndModel() {
+  const size_t n = 200, nTest = 20;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = runif01();
+
+  auto makeSeededRng = []() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 271828);
+    return rng;
+  };
+
+  // setModel before any run is indistinguishable from creating with the new
+  // model: fixed-k full swap
+  double splitProbabilities[2] = {0.7, 0.3};
+  SamplerOptions optionsA;
+  optionsA.numTrees = 25;
+  optionsA.k = 3.0;
+  optionsA.nodeScale = 0.7;
+  optionsA.base = 0.8;
+  optionsA.power = 1.5;
+  optionsA.birthOrDeathProbability = 0.6;
+  optionsA.swapProbability = 0.1;
+  optionsA.changeProbability = 0.3;
+  optionsA.birthProbability = 0.4;
+  optionsA.splitProbabilities = splitProbabilities;
+  ext_rng* rngA = makeSeededRng();
+  ClassicSampler samplerA(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 5.0, 0.9, optionsA,
+                          &rngA);
+
+  SamplerOptions optionsB;
+  optionsB.numTrees = 25;
+  ext_rng* rngB = makeSeededRng();
+  ClassicSampler samplerB(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsB, &rngB);
+  ModelParameters model;
+  model.base = 0.8;
+  model.power = 1.5;
+  model.birthOrDeathProbability = 0.6;
+  model.swapProbability = 0.1;
+  model.changeProbability = 0.3;
+  model.birthProbability = 0.4;
+  model.nodeScale = 0.7;
+  model.k = 3.0;
+  model.sigmaEstimate = 1.0;
+  model.sigmaDf = 5.0;
+  model.sigmaRawScale = 0.9;
+  model.splitProbabilities = splitProbabilities;
+  samplerB.setModel(model);
+
+  std::vector<double> sigmaA(5), sigmaB(5), trainA(n * 5), trainB(n * 5);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  samplerA.run(30, 5, resultsA);
+  samplerB.run(30, 5, resultsB);
+  check(sigmaA == sigmaB && trainA == trainB,
+        "setModel equals creation with the new model");
+
+  // the same when swapping in the chi hyperprior on k
+  SamplerOptions optionsC;
+  optionsC.numTrees = 25;
+  optionsC.updateK = true;
+  optionsC.kHyperprior.degreesOfFreedom = 2.0;
+  optionsC.kHyperprior.scale = 5.0;
+  ext_rng* rngC = makeSeededRng();
+  ClassicSampler samplerC(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsC, &rngC);
+
+  ext_rng* rngD = makeSeededRng();
+  ClassicSampler samplerD(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsB, &rngD);
+  ModelParameters modelK;
+  modelK.sigmaEstimate = 1.0;
+  modelK.sigmaDf = 3.0;
+  modelK.sigmaRawScale = 0.37804942330213542;
+  modelK.updateK = true;
+  modelK.kHyperprior.degreesOfFreedom = 2.0;
+  modelK.kHyperprior.scale = 5.0;
+  samplerD.setModel(modelK);
+
+  std::vector<double> kC(5), kD(5);
+  Results resultsC, resultsD;
+  resultsC.sigma = sigmaA.data();
+  resultsC.k = kC.data();
+  resultsD.sigma = sigmaB.data();
+  resultsD.k = kD.data();
+  samplerC.run(30, 5, resultsC);
+  samplerD.run(30, 5, resultsD);
+  check(sigmaA == sigmaB && kC == kD,
+        "setModel swaps in the k hyperprior");
+
+  // tree storage toggles on and off between runs, the classic setControl's
+  // keepTrees flip: saved predictions reproduce the recorded test fits
+  samplerB.setTestPredictors(xTest.data(), nTest);
+  check(samplerB.savedTreeCapacity() == 0, "storage starts off");
+  samplerB.setTreeStorage(true, 4);
+  check(samplerB.savedTreeCapacity() == 4 && samplerB.currentSampleNum() == 0,
+        "enabling storage allocates the slots");
+
+  std::vector<double> testFits(nTest * 4);
+  Results keepResults;
+  keepResults.testFits = testFits.data();
+  samplerB.run(0, 4, keepResults);
+  std::vector<double> predicted(nTest * 4);
+  samplerB.predict(xTest.data(), nTest, predicted.data());
+  check(predicted == testFits,
+        "post-toggle saved predictions equal the recorded test fits");
+
+  samplerB.setTreeStorage(true, 4);
+  check(samplerB.savedTreeCapacity() == 4,
+        "an unchanged toggle preserves the storage");
+  samplerB.setTreeStorage(false, 0);
+  check(samplerB.savedTreeCapacity() == 0, "disabling storage frees it");
+  std::vector<double> livePredictions(nTest);
+  samplerB.predict(xTest.data(), nTest, livePredictions.data());
+  bool liveFinite = true;
+  for (double v : livePredictions) liveFinite &= std::isfinite(v);
+  check(liveFinite, "live predictions work after disabling storage");
+
+  // setNumThin matches creating with the thinning rate
+  SamplerOptions optionsE;
+  optionsE.numTrees = 25;
+  optionsE.numThin = 3;
+  ext_rng* rngE = makeSeededRng();
+  ClassicSampler samplerE(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsE, &rngE);
+  ext_rng* rngF = makeSeededRng();
+  ClassicSampler samplerF(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsB, &rngF);
+  samplerF.setNumThin(3);
+  samplerF.setNumThreads(4);  // min(numThreads, numChains) still runs inline
+
+  std::vector<double> sigmaE(3), sigmaF(3);
+  Results resultsE, resultsF;
+  resultsE.sigma = sigmaE.data();
+  resultsF.sigma = sigmaF.data();
+  samplerE.run(2, 3, resultsE);
+  samplerF.run(2, 3, resultsF);
+  check(sigmaE == sigmaF, "setNumThin equals creation with the rate");
+
+  // sums of squared residuals descale exactly: the last recorded sample's
+  // fits are the current state
+  std::vector<double> offset(n);
+  for (size_t i = 0; i < n; ++i) offset[i] = 0.5 + 0.01 * static_cast<double>(i);
+  SamplerOptions optionsG;
+  optionsG.numTrees = 25;
+  ext_rng* rngG = makeSeededRng();
+  ClassicSampler samplerG(x.data(), y.data(), n, 2, nullptr, offset.data(),
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, optionsG, &rngG);
+  std::vector<double> train(n);
+  Results resultsG;
+  resultsG.trainingFits = train.data();
+  samplerG.run(10, 1, resultsG);
+
+  double manual = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double residual = y[i] - offset[i] - train[i];
+    manual += residual * residual;
+  }
+  double reported = samplerG.sumOfSquaredResiduals(0);
+  check(std::fabs(reported - manual) <= 1.0e-8 * manual,
+        "sums of squared residuals descale to the original scale");
+
+  ext_rng_destroy(rngG);
+  ext_rng_destroy(rngF);
+  ext_rng_destroy(rngE);
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngC);
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: setControl and setModel\n");
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -2344,6 +2528,7 @@ int main() {
   testStateValidation(rng);
   testSetWeightsAndTestOffset();
   testSampleFromPrior(rng);
+  testSetControlAndModel();
 
   ext_rng_destroy(rng);
 

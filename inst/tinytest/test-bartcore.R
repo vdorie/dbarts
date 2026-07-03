@@ -612,3 +612,88 @@ expect_true(abs(sd(prior.bc$values) - prior.sd) < 0.15 * prior.sd)
 
 # a sampler keeps running from a prior-drawn state
 expect_true(all(is.finite(sampler.prior.bc$run(0L, 2L)$train)))
+
+# setControl reconfigures a live sampler like the classic engine: the bart()
+# dance of burning without training fits or stored trees, then flipping
+# keepTrees on for the real samples
+control.sc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                            n.threads = 1L, n.trees = 20L, n.samples = 8L,
+                            n.burn = 50L, updateState = FALSE)
+sampler.sc <- dbarts(x, y, test = x.test, control = control.sc)
+control.burn <- control.sc
+control.burn@keepTrainingFits <- FALSE
+sampler.sc$setControl(control.burn)
+r.burn <- sampler.sc$run(0L, 50L)
+expect_null(r.burn$train)
+expect_equal(length(r.burn$sigma), 50L)
+
+control.keep <- control.sc
+control.keep@keepTrees <- TRUE
+sampler.sc$setControl(control.keep)
+r.keep <- sampler.sc$run(0L, 8L)
+expect_equal(dim(r.keep$train), c(n, 8L))
+predictions.sc <- sampler.sc$predict(x.test)
+expect_equal(dim(predictions.sc), c(10L, 8L))
+expect_identical(predictions.sc, unname(r.keep$test))
+expect_true(all(c("sample", "tree") %in% names(sampler.sc$getTrees())))
+
+# turning storage back off frees it; predictions come from the live trees
+sampler.sc$setControl(control.sc)
+expect_equal(length(sampler.sc$predict(x.test)), 10L)
+
+# settings fixed at creation refuse
+control.bad <- control.sc
+control.bad@n.trees <- 30L
+expect_error(sampler.sc$setControl(control.bad), pattern = "n.trees")
+control.bad <- control.sc
+control.bad@n.chains <- 2L
+expect_error(sampler.sc$setControl(control.bad), pattern = "n.chains")
+control.bad <- control.sc
+control.bad@rngKind <- "Mersenne-Twister"
+expect_error(sampler.sc$setControl(control.bad), pattern = "rngKind")
+
+# thinning through setControl matches creating with the rate
+control.thin <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                              n.threads = 1L, n.trees = 20L, n.samples = 5L,
+                              n.thin = 3L, updateState = FALSE)
+sampler.thin1 <- dbarts(x, y, control = control.thin)
+control.nothin <- control.thin
+control.nothin@n.thin <- 1L
+sampler.thin2 <- dbarts(x, y, control = control.nothin)
+sampler.thin2$setControl(control.thin)
+set.seed(31)
+r.thin1 <- sampler.thin1$run(5L, 5L)
+set.seed(31)
+r.thin2 <- sampler.thin2$run(5L, 5L)
+expect_identical(r.thin1, r.thin2)
+
+# setModel before running is indistinguishable from creating with the model
+control.sm <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                            n.threads = 1L, n.trees = 20L, n.samples = 5L,
+                            updateState = FALSE)
+sampler.sm1 <- dbarts(x, y, control = control.sm)
+model.new <- sampler.sm1$model
+model.new@tree.prior@power <- 1.5
+model.new@tree.prior@base <- 0.8
+model.new@node.hyperprior@k <- 3
+sampler.sm1$setModel(model.new)
+sampler.sm2 <- dbarts(x, y, control = control.sm,
+                      tree.prior = cgm(1.5, 0.8), node.prior = normal(3))
+set.seed(43)
+r.sm1 <- sampler.sm1$run(20L, 5L)
+set.seed(43)
+r.sm2 <- sampler.sm2$run(20L, 5L)
+expect_identical(r.sm1, r.sm2)
+
+# a model the engine rejects rolls the slot back
+model.fixed <- sampler.sm1$model
+model.fixed@resid.prior <- methods::new("dbartsFixedPrior", value = 1)
+expect_error(sampler.sm1$setModel(model.fixed), pattern = "fixed sigma")
+expect_identical(sampler.sm1$model, model.new)
+
+# sums of squared residuals report on the original scale against the current
+# (last recorded) fits
+sampler.ssr <- dbarts(x, y, control = control.sm)
+r.ssr <- sampler.ssr$run(20L, 1L)
+expect_equal(sampler.ssr$getSumsOfSquaredResiduals(),
+             sum((y - r.ssr$train[, 1L])^2))

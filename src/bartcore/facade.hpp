@@ -62,6 +62,11 @@ public:
   virtual bool setState(const SamplerStateData& state) = 0;
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
+  virtual void setNumThreads(std::size_t numThreads) = 0;
+  virtual void setNumThin(std::size_t numThin) = 0;
+  virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
+  virtual void setModel(const ModelParameters& model) = 0;
+  virtual double sumOfSquaredResiduals(std::size_t chainNum) = 0;
   virtual void printTrees(const std::size_t* chainIndices,
                           std::size_t numChainIndices,
                           const std::size_t* sampleIndices,
@@ -170,6 +175,19 @@ public:
   void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
   void sampleNodeParametersFromPrior() override {
     impl_.sampleNodeParametersFromPrior();
+  }
+  void setNumThreads(std::size_t numThreads) override {
+    impl_.setNumThreads(numThreads);
+  }
+  void setNumThin(std::size_t numThin) override { impl_.setNumThin(numThin); }
+  void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) override {
+    impl_.setTreeStorage(keepTrees, numSamplesToStore);
+  }
+  void setModel(const ModelParameters& model) override {
+    impl_.setModel(model);
+  }
+  double sumOfSquaredResiduals(std::size_t chainNum) override {
+    return impl_.sumOfSquaredResiduals(chainNum);
   }
   void printTrees(const std::size_t* chainIndices,
                   std::size_t numChainIndices,

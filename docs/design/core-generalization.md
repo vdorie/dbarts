@@ -241,9 +241,8 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
-   Not yet ported (phase 2+): setControl/setModel/getSumsOfSquaredResiduals;
-   callbacks deliberately wait for the new public C surface (see phase 4
-   notes). MATCH_BAYES_TREE is not preserved
+   Not yet ported (phase 2+): callbacks deliberately wait for the new
+   public C surface (see phase 4 notes). MATCH_BAYES_TREE is not preserved
    (old-engine-only until cutover; see Risks). (Multiple chains/threads,
    thinning, quantile-based cut points, the k hyperprior, the sampler
    mutation API, and keepTrees/serialization were all ported later; see
@@ -507,10 +506,28 @@ partitioning entirely; a different library sharing only the tree structure).
    no possible consumer today. Design one with the new public C surface
    instead.
 
-   Remaining unsupported surface: weights + binary (by design), plus the
-   engine-reconfiguration methods setControl/setModel and the
-   getSumsOfSquaredResiduals diagnostic (needed by bart/rbart/pdbart
-   internals; a later parity slice).
+   setControl + setModel + getSumsOfSquaredResiduals (DONE 2026-07-02,
+   final R5 parity slice; every dbartsSampler method now runs on the
+   flag). setControl covers what the bart/rbart/pdbart wrappers change
+   mid-flight - keepTrainingFits, keepTrees flips (saved-tree storage
+   reallocates and the write position resets; a no-op reconfiguration
+   preserves stored samples), n.threads, n.thin, and the R-side-only
+   verbose/updateState/n.burn/n.samples - and refuses what creation fixed
+   (engine, chain and tree counts, generators, cut-grid settings), where
+   the classic engine instead resizes chain state nobody resizes. setModel
+   maps a dbartsModel onto a ModelParameters install fanned to every
+   chain: tree prior base/power, move probabilities, node scale, k or its
+   chi hyperprior, fixed split probabilities (DART samplers keep their
+   Dirichlet machinery - a dbartsModel cannot express DART), and the
+   variance prior re-anchored to the original-scale sigma estimate exactly
+   as construction, so installing before any run is bitwise identical to
+   creating with the model (component-gated, fixed-k and chi-k variants).
+   getSumsOfSquaredResiduals descales by range squared; the classic
+   version multiplies the internal SSR by one factor of the range - a
+   units slip with no consumers, left alone there and not mirrored.
+
+   Remaining unsupported surface: weights + binary (by design) and
+   setControl changes to creation-fixed settings.
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
    (retiring the rbart_vi R loop).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.

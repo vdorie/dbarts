@@ -377,6 +377,10 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_sampleNodeParametersFromPrior",
            bartcore_sampleNodeParametersFromPrior, 1),
   DEF_FUNC("dbarts_bartcore_printTrees", bartcore_printTrees, 4),
+  DEF_FUNC("dbarts_bartcore_setControl", bartcore_setControl, 2),
+  DEF_FUNC("dbarts_bartcore_setModel", bartcore_setModel, 4),
+  DEF_FUNC("dbarts_bartcore_getSumsOfSquaredResiduals",
+           bartcore_getSumsOfSquaredResiduals, 1),
   DEF_FUNC("dbarts_sampleTreesFromPrior", sampleTreesFromPrior, 1),
   DEF_FUNC(
     "dbarts_sampleNodeParametersFromPrior",
