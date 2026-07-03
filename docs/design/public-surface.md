@@ -50,7 +50,8 @@ types every column ordinal. The engine's categorical rules (canonical-gauge
 subset splits, up to 53 levels) are reachable only by flipping
 `data@varTypes` by hand.
 
-Proposed:
+Proposed (landed 2026-07-03 behind `factors = "categorical"` on `dbarts` and
+`dbartsData`; the default remains `"indicators"` until cutover flips it):
 
 - Unordered factor columns ingest as categorical: codes 0..K-1 in the column,
   `varTypes` set, level names retained on the data object for reporting.

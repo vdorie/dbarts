@@ -152,6 +152,81 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   result
 }
 
+## Turns a data.frame into a numeric matrix without expanding factors:
+## unordered factors become categorical columns holding codes 0..K-1,
+## ordered factors become ordinal codes, and matrix columns (e.g. from
+## poly()) splice in as ordinal. Attaches "varTypes" (integer per column)
+## and "factor.levels" (list per column, NULL for non-factors) for the
+## sampler and for test-data mapping; only the bartcore engine accepts
+## categorical columns.
+makeCategoricalModelMatrix <- function(x) {
+  if (!is.data.frame(x)) stop("x is not a dataframe")
+
+  characterCols <- sapply(x, typeof) == "character"
+  if (any(characterCols)) x[characterCols] <- lapply(x[characterCols], as.factor)
+
+  columns      <- vector("list", length(x))
+  columnTypes  <- vector("list", length(x))
+  columnLevels <- vector("list", length(x))
+  columnNames  <- vector("list", length(x))
+  for (j in seq_along(x)) {
+    column <- x[[j]]
+    name <- names(x)[j]
+    if (is.factor(column)) {
+      if (!is.ordered(column) && nlevels(column) > 53L)
+        stop("factor '", name, "' has more than 53 levels, the most a ",
+             "categorical predictor supports")
+      columns[[j]] <- matrix(as.double(as.integer(column) - 1L), ncol = 1L)
+      columnTypes[[j]] <- if (is.ordered(column)) ORDINAL_VARIABLE else CATEGORICAL_VARIABLE
+      columnLevels[[j]] <- list(levels(column))
+      columnNames[[j]] <- name
+    } else if (is.matrix(column)) {
+      columns[[j]] <- matrix(as.double(column), nrow(column))
+      columnTypes[[j]] <- rep.int(ORDINAL_VARIABLE, ncol(column))
+      columnLevels[[j]] <- rep.int(list(NULL), ncol(column))
+      columnNames[[j]] <- paste(
+        name,
+        if (!is.null(colnames(column))) colnames(column) else seq_len(ncol(column)),
+        sep = "."
+      )
+    } else if (is.numeric(column) || is.logical(column)) {
+      columns[[j]] <- matrix(as.double(column), ncol = 1L)
+      columnTypes[[j]] <- ORDINAL_VARIABLE
+      columnLevels[[j]] <- list(NULL)
+      columnNames[[j]] <- name
+    } else {
+      stop("column '", name, "' cannot be converted to a predictor")
+    }
+  }
+  result <- do.call(cbind, columns)
+  colnames(result) <- unlist(columnNames)
+  attr(result, "term.labels") <- names(x)
+  attr(result, "varTypes") <- unlist(columnTypes)
+  # c() keeps NULL elements where unlist would drop them, so the list stays
+  # aligned with the columns
+  attr(result, "factor.levels") <- do.call(c, columnLevels)
+  result
+}
+
+## Recode a test data.frame's factor and character columns against the
+## training data's level tables (aligned with the training columns by
+## name), so codes agree across the two; a level unseen in training has no
+## code and errors.
+mapFactorColumnsToTrainingLevels <- function(x.test, predictorNames, factorLevels) {
+  for (name in names(x.test)) {
+    j <- match(name, predictorNames)
+    if (is.na(j) || is.null(factorLevels[[j]])) next
+    column <- x.test[[name]]
+    if (!is.factor(column) && !is.character(column)) next
+    refactored <- factor(as.character(column), levels = factorLevels[[j]])
+    if (anyNA(refactored) && !anyNA(column))
+      stop("test data factor '", name, "' has levels not present in the ",
+           "training data")
+    x.test[[name]] <- refactored
+  }
+  x.test
+}
+
 ## use this to produce calls of the form
 ##  dbarts:::functionName
 ## so that we can evaluate non-exported functions in
