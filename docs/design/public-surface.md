@@ -1,10 +1,10 @@
 # Public surface for the major version
 
-Status: PROPOSAL, 2026-07-03, awaiting review. Companion to
-core-generalization.md: the engine reached cutover readiness (full R5 parity,
-statistical equivalence, and the zero-regression speed bar all gated at
-209c09b), so what remains is deciding what the major version exposes. Each
-section states a recommendation and its open questions; mark up freely.
+Status: reviewed 2026-07-03; decisions from that review are recorded inline
+as DECIDED. Companion to core-generalization.md: the engine reached cutover
+readiness (full R5 parity, statistical equivalence, and the zero-regression
+speed bar all gated at 209c09b), so what remains is what the major version
+exposes.
 
 Standing decisions this builds on: the next release is a major version with
 no backwards-compatibility requirement on internal surfaces; the classic
@@ -38,6 +38,10 @@ Proposed sequence:
 Open: whether any external `LinkingTo` consumers beyond stan4bart exist and
 need a transition release with both ABIs.
 
+DECIDED: break freely now and patch at the end; xbart may be redesigned
+around the new data layer rather than accommodated, or shelved and
+completed later - it does not gate the rest.
+
 ## 2. Data ingestion: factors as categorical columns
 
 Current behavior: data.frame and formula inputs pass through
@@ -67,6 +71,17 @@ Proposed:
   missing-direction-bit design (MIA) remains future work and gets its own
   proposal when it lands.
 
+DECIDED: users supply a data.frame and dbarts builds its own internal
+representation (DMatrix-style); whether that representation is visible in
+R is an implementation choice, so the handle starts internal. NAs stay
+rejected in this pass, but nothing may make handling them hard later:
+per-column cut counts cap one below the code type's maximum so a reserved
+NA code always fits, and the missing-direction bit already has a home -
+the 53-category cap leaves mask bits 53-63 unused and ordinal rules'
+high union word is invariantly zero. The flat tree format may grow a
+flags field when MIA lands; state objects are opaque, so that is not a
+compatibility break.
+
 Open: reporting format for categorical rules in `getTrees`/`plotTree`. The
 flat format stores the direction mask as a double; proposal is to keep the
 raw mask in the `value` column and add a decoded convenience (per-level
@@ -95,6 +110,38 @@ Proposed:
 
 Open: whether `family` also belongs on `xbart` (its losses already branch on
 binary responses; logistic would want log-loss by default).
+
+DECIDED: `family` as proposed; probit stays the binary default.
+
+## 3a. Prior specification
+
+The quoted-prior DSL (`tree.prior = cgm(power, base)`, `node.prior =
+normal(chi(1.25))`) is re-evaluated in a namespace environment - which is
+also why it never polluted the search path: `normal`, `chisq`, `chi`, and
+`fixed` are too generic to export (rstanarm exports `normal`; masking bugs
+by attach order become support requests).
+
+DECIDED: evolve in place, keeping that no-pollution property.
+
+- Prior specifications become first-class classed objects built by ordinary
+  standard-evaluation constructors, validated at construction. `dart()`
+  joins `cgm()`; hyperprior nesting (`normal(k = chi(1.25))`) is plain
+  composition; family-aware defaults live on NULL arguments resolved at fit
+  time.
+- Exactly one new symbol is exported: a container (working name
+  `dbartsPriors`) holding the constructors, e.g.
+  `dbartsPriors$normal(k = dbartsPriors$chi(1.25))`. No generic names
+  enter the search path.
+- The bare-name sugar keeps working: fitting functions evaluate their
+  prior arguments with the constructor vocabulary layered over the
+  caller's environment, so `node.prior = normal(chi(1.25))` resolves
+  against dbarts' vocabulary inside those arguments regardless of what is
+  attached. A value that is already a prior object passes through, so the
+  sugar and the programmatic path compose. NSE-only tricks
+  (`split.probs = 1 / numvars`) get documented replacements (NULL means
+  uniform over available variables).
+- No new front end: `dbarts()` and `bart2` keep their names and signatures;
+  `bart` stays the frozen BayesTree-compatibility shim.
 
 ## 4. DART exposure
 
@@ -135,10 +182,9 @@ Proposed:
   as read-only. Mutable-predictor workflows keep the current path (each
   sampler owns its store).
 
-Open: whether the handle is public API in the first major release or an
-internal capability behind xbart until the multi-forest work needs it
-publicly. Recommendation: internal first; naming and serialization contracts
-are cheaper to change before exposure.
+DECIDED: internal first; naming and serialization contracts are cheaper to
+change before exposure. Exposure waits until multi-forest or user demand
+needs it.
 
 ## 6. C API and callbacks
 
