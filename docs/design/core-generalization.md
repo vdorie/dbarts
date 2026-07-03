@@ -522,9 +522,12 @@ partitioning entirely; a different library sharing only the tree structure).
    variance prior re-anchored to the original-scale sigma estimate exactly
    as construction, so installing before any run is bitwise identical to
    creating with the model (component-gated, fixed-k and chi-k variants).
-   getSumsOfSquaredResiduals descales by range squared; the classic
-   version multiplies the internal SSR by one factor of the range - a
-   units slip with no consumers, left alone there and not mirrored.
+   getSumsOfSquaredResiduals descales by range squared for continuous
+   responses and reports binary responses on the latent scale; the
+   classic version multiplied the internal SSR by one factor of the range
+   (and by the binary placeholder range of 2), a units slip with no
+   consumers - fixed there too (Vincent, 2026-07-02), so the engines
+   agree.
 
    Remaining unsupported surface: weights + binary (by design) and
    setControl changes to creation-fixed settings.

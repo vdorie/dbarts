@@ -1178,8 +1178,13 @@ SEXP getSumsOfSquaredResiduals(SEXP fitExpr) {
   SEXP resultExpr = PROTECT(rc_newReal(fit->control.numChains));
   double* result = REAL(resultExpr);
 
+  // residuals live on the internal scale: rescaled by the range for
+  // continuous responses, the latents' own scale for binary ones
+  double scale =
+    fit->control.responseIsBinary ? 1.0 : fit->sharedScratch.dataScale.range;
+
   for (size_t chainNum = 0; chainNum < fit->control.numChains; ++chainNum) {
-    result[chainNum] = fit->sharedScratch.dataScale.range *
+    result[chainNum] = scale * scale *
                        misc_computeSumOfSquaredResiduals(
                          fit->sharedScratch.yRescaled,
                          fit->data.numObservations,

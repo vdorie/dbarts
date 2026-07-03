@@ -335,9 +335,7 @@ public:
   }
 
   /// Sum of squared working residuals, descaled to the original response
-  /// scale (binary families report on the latent scale). The classic
-  /// engine's version descales by one factor of the range instead of two - a
-  /// units slip with no consumers, not mirrored.
+  /// scale (binary families report on the latent scale).
   double sumOfSquaredResiduals() {
     double result = misc_htm_computeSumOfSquaredResiduals(
       nullptr, 0, response_->workingResponse(), data_.numObservations,

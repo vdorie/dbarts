@@ -42,6 +42,11 @@
       \item `copy` now works for samplers with a stored state.
       \item Fixed reading a saved tree back from binary IO, which recursed with
             the writing routine instead of the reading one.
+      \item The sampler's `getSumsOfSquaredResiduals` method now returns
+            residual sums of squares on the original response scale as
+            documented; it previously descaled by a single factor of the
+            data range instead of its square. Binary responses report on
+            the latent scale.
     }
   }
 }
