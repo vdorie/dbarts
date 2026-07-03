@@ -13,6 +13,7 @@
 #include <R_ext/Random.h> // GetRNGstate, PutRNGstate
 
 #include <external/random.h>
+#include <external/stats.h> // ext_percentileOfChiSquared
 
 #include <dbarts/control.hpp>
 #include <dbarts/data.hpp>
@@ -105,6 +106,132 @@ SEXP getListElement(SEXP listExpr, const char* name) {
     if (std::strcmp(CHAR(STRING_ELT(namesExpr, i)), name) == 0)
       return VECTOR_ELT(listExpr, i);
   return R_NilValue;
+}
+
+// The classic engine's BARTFit::printInitialSummary, line for line, printed
+// at creation under verbose; the classic version's quantile and scale lines
+// reduce at creation to expressions over the raw prior scale and the
+// response range, used here directly.
+void printInitialSummary(const Control& control, const Model& model,
+                         const Data& data,
+                         const bartcore::SamplerBase& sampler) {
+  if (control.responseIsBinary)
+    ext_printf("\nRunning BART with binary y\n\n");
+  else
+    ext_printf("\nRunning BART with numeric y\n\n");
+
+  ext_printf("number of trees: %lu\n",
+             static_cast<unsigned long>(control.numTrees));
+  ext_printf("number of chains: %lu, default number of threads %lu\n",
+             static_cast<unsigned long>(control.numChains),
+             static_cast<unsigned long>(control.numThreads));
+  ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
+
+  ext_printf("Prior:\n");
+  if (model.kPrior->isFixed) {
+    ext_printf("\tk prior fixed to %f\n",
+               static_cast<FixedHyperprior*>(model.kPrior)->getK());
+  } else {
+    const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
+    ext_printf("\tprior on k: chi with %f degrees of freedom and %f scale\n",
+               kPrior.degreesOfFreedom, kPrior.scale);
+  }
+  if (!control.responseIsBinary) {
+    const ChiSquaredPrior& sigmaSqPrior(
+      *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
+    ext_printf("\tdegrees of freedom in sigma prior: %f\n",
+               sigmaSqPrior.degreesOfFreedom);
+    double quantile = 1.0 - ext_percentileOfChiSquared(
+      sigmaSqPrior.scale * sigmaSqPrior.degreesOfFreedom,
+      sigmaSqPrior.degreesOfFreedom);
+    ext_printf("\tquantile in sigma prior: %f\n", quantile);
+    double sigmaInternal = data.sigmaEstimate / sampler.fitScale();
+    ext_printf("\tscale in sigma prior: %f\n",
+               sigmaInternal * sigmaInternal * sigmaSqPrior.scale);
+  }
+
+  const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
+  ext_printf("\tpower and base for tree prior: %f %f\n", treePrior.power,
+             treePrior.base);
+  if (treePrior.splitProbabilities != NULL) {
+    ext_printf("\ttree split probabilities: %f",
+               treePrior.splitProbabilities[0]);
+    size_t printLength = 5 < data.numPredictors ? 5 : data.numPredictors;
+    for (size_t i = 1; i < printLength; ++i)
+      ext_printf(", %f", treePrior.splitProbabilities[i]);
+    ext_printf("\n");
+  }
+  ext_printf("\tuse quantiles for rule cut points: %s\n",
+             control.useQuantiles ? "true" : "false");
+  ext_printf(
+    "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f; "
+    "birth %.2f\n",
+    model.birthOrDeathProbability, model.swapProbability,
+    model.changeProbability, model.birthProbability);
+
+  ext_printf("data:\n");
+  ext_printf("\tnumber of training observations: %lu\n",
+             static_cast<unsigned long>(data.numObservations));
+  ext_printf("\tnumber of test observations: %lu\n",
+             static_cast<unsigned long>(data.numTestObservations));
+  ext_printf("\tnumber of explanatory variables: %lu\n",
+             static_cast<unsigned long>(data.numPredictors));
+  if (!control.responseIsBinary)
+    ext_printf("\tinit sigma: %f, curr sigma: %f\n", data.sigmaEstimate,
+               sampler.sigma(0));
+  if (data.weights != NULL) ext_printf("\tusing observation weights\n");
+  ext_printf("\n");
+
+  const bartcore::ColumnStore& store(sampler.data());
+  ext_printf("Cutoff rules c in x<=c vs x>c\n");
+  ext_printf("Number of cutoffs: (var: number of possible c):\n");
+  for (size_t j = 0; j < store.numPredictors; ++j) {
+    ext_printf("(%lu: %u) ", static_cast<unsigned long>(j + 1),
+               store.numCuts[j]);
+    if ((j + 1) % 5 == 0) ext_printf("\n");
+  }
+  ext_printf("\n");
+  if (control.printCutoffs > 0) {
+    ext_printf("cutoffs:\n");
+    for (size_t j = 0; j < store.numPredictors; ++j) {
+      if (store.types[j] == bartcore::ColumnType::categorical) continue;
+      ext_printf("x(%lu) cutoffs: ", static_cast<unsigned long>(j + 1));
+
+      size_t k;
+      for (k = 0;
+           k < store.numCuts[j] - 1 && k < control.printCutoffs - 1;
+           ++k) {
+        ext_printf("%f", store.cutPoints[j][k]);
+        if ((k + 1) % 5 == 0) ext_printf("\n\t");
+      }
+      if (k > 2 && k == control.printCutoffs && k < store.numCuts[j] - 1)
+        ext_printf("...");
+
+      ext_printf("%f", store.cutPoints[j][store.numCuts[j] - 1]);
+      ext_printf("\n");
+    }
+  }
+
+  if (data.offset != NULL ||
+      (data.numTestObservations > 0 && data.testOffset != NULL)) {
+    ext_printf("offsets:\n");
+
+    if (data.offset != NULL) {
+      ext_printf("\treg : %.2f", data.offset[0]);
+      for (size_t i = 1;
+           i < (5 < data.numObservations ? 5 : data.numObservations); ++i)
+        ext_printf(" %.2f", data.offset[i]);
+      ext_printf("\n");
+    }
+    if (data.numTestObservations > 0 && data.testOffset != NULL) {
+      ext_printf("\ttest: %.2f", data.testOffset[0]);
+      for (size_t i = 1;
+           i < (5 < data.numTestObservations ? 5 : data.numTestObservations);
+           ++i)
+        ext_printf(" %.2f", data.testOffset[i]);
+      ext_printf("\n");
+    }
+  }
 }
 
 } // namespace
@@ -243,6 +370,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   options.numThin = control.treeThinningRate;
   options.keepTrees = control.keepTrees;
   options.numSamplesToStore = control.defaultNumSamples;
+  options.verbose = control.verbose;
+  options.printEvery = control.printEvery;
 
   // A single chain draws through R's generator; several chains each get a
   // Mersenne twister seeded from R's stream, so results do not depend on the
@@ -279,6 +408,8 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     sampler->setTestPredictors(data.x_test, data.numTestObservations);
     sampler->setTestOffset(data.testOffset);
   }
+
+  if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
   invalidateModel(model);
   invalidateData(data);
@@ -611,6 +742,7 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
   holder.keepTrainingFits = control.keepTrainingFits;
   sampler.setNumThreads(control.numThreads);
   sampler.setNumThin(control.treeThinningRate);
+  sampler.setVerbose(control.verbose, control.printEvery);
   sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
 
   return R_NilValue;

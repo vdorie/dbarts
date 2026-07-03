@@ -64,6 +64,8 @@ public:
   virtual void sampleNodeParametersFromPrior() = 0;
   virtual void setNumThreads(std::size_t numThreads) = 0;
   virtual void setNumThin(std::size_t numThin) = 0;
+  virtual void setVerbose(bool verbose, std::uint32_t printEvery) = 0;
+  virtual double fitScale() const = 0;
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
   virtual double sumOfSquaredResiduals(std::size_t chainNum) = 0;
@@ -180,6 +182,10 @@ public:
     impl_.setNumThreads(numThreads);
   }
   void setNumThin(std::size_t numThin) override { impl_.setNumThin(numThin); }
+  void setVerbose(bool verbose, std::uint32_t printEvery) override {
+    impl_.setVerbose(verbose, printEvery);
+  }
+  double fitScale() const override { return impl_.fitScale(); }
   void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) override {
     impl_.setTreeStorage(keepTrees, numSamplesToStore);
   }

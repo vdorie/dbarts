@@ -1,10 +1,14 @@
 #ifndef BARTCORE_SAMPLER_HPP
 #define BARTCORE_SAMPLER_HPP
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -15,6 +19,32 @@
 #include "model.hpp"
 
 namespace bartcore {
+
+/// Prints progress lines as they arrive; only safe on the main thread.
+struct DirectProgressSink final : ProgressSink {
+  void report(const char* line) override { ext_printf("%s", line); }
+};
+
+/// Buffers progress lines from worker threads for the main thread to flush;
+/// workers must never call into R.
+struct QueuedProgressSink final : ProgressSink {
+  void report(const char* line) override {
+    std::lock_guard<std::mutex> lock(mutex_);
+    lines_.push_back(line);
+  }
+  void flush() {
+    std::vector<std::string> pending;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      pending.swap(lines_);
+    }
+    for (const std::string& line : pending) ext_printf("%s", line.c_str());
+  }
+
+private:
+  std::mutex mutex_;
+  std::vector<std::string> lines_;
+};
 
 /// Outcome of a transactional predictor change. invalidCutPoints reports a
 /// quantile-mode cut refresh whose new column would induce fewer cuts than
@@ -132,27 +162,89 @@ public:
           results.variableCounts + c * numSamples * data_.numPredictors;
     }
 
+    if (options_.verbose) ext_printf("Running mcmc loop:\n");
+    std::chrono::steady_clock::time_point startTime =
+      std::chrono::steady_clock::now();
+
     size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
                                                         : numChains;
     if (numWorkers <= 1) {
+      // chains run on the main thread, so progress prints directly
+      DirectProgressSink progress;
       for (size_t c = 0; c < numChains; ++c)
-        chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
+        chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress, c);
     } else {
+      // workers never call into R: progress lines queue and the main thread
+      // flushes them every 0.1 seconds, as the classic engine does
+      QueuedProgressSink progress;
+      std::atomic<size_t> numChainsRunning(numChains);
       std::vector<std::thread> workers;
       workers.reserve(numWorkers);
       for (size_t w = 0; w < numWorkers; ++w) {
         workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
-                              numSamples, &chainResults]() {
-          for (size_t c = w; c < numChains; c += numWorkers)
-            chains_[c]->run(numBurnIn, numSamples, chainResults[c]);
+                              numSamples, &chainResults, &progress,
+                              &numChainsRunning]() {
+          for (size_t c = w; c < numChains; c += numWorkers) {
+            chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress,
+                            c);
+            numChainsRunning.fetch_sub(1);
+          }
         });
       }
+      if (options_.verbose) {
+        while (numChainsRunning.load() > 0) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          progress.flush();
+        }
+      }
       for (std::thread& worker : workers) worker.join();
+      progress.flush();
     }
+
+    runningTime_ += std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - startTime).count();
 
     size_t capacity = savedTreeCapacity();
     if (capacity > 0 && numSamples > 0)
       currentSampleNum_ = (currentSampleNum_ + numSamples) % capacity;
+
+    if (options_.verbose) printTerminalSummary();
+  }
+
+  /// The classic engine's end-of-run report: accumulated loop time, leaf
+  /// counts per tree, and split-variable usage, all from the current state.
+  void printTerminalSummary() const {
+    ext_printf("total seconds in loop: %f\n", runningTime_);
+
+    ext_printf("\nTree sizes, last iteration:\n");
+    std::vector<int32_t> bottoms;
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      size_t linePrintCount = 0;
+      // the classic engine prefixes unconditionally; mirrored
+      ext_printf("[%lu] ", static_cast<unsigned long>(c + 1));
+      linePrintCount += 2;
+      for (size_t t = 0; t < options_.numTrees; ++t) {
+        bottoms.clear();
+        chains_[c]->tree(t).fillBottom(0, bottoms);
+        ext_printf("%lu ", static_cast<unsigned long>(bottoms.size()));
+        if ((linePrintCount++ + 1) % 20 == 0) ext_printf("\n");
+      }
+      if ((linePrintCount % 20) != 0) ext_printf("\n");
+    }
+    ext_printf("\n");
+
+    ext_printf("Variable Usage, last iteration (var:count):\n");
+    std::vector<std::uint32_t> variableCounts(data_.numPredictors, 0);
+    for (size_t c = 0; c < chains_.size(); ++c)
+      for (size_t t = 0; t < options_.numTrees; ++t)
+        chains_[c]->tree(t).countVariableUses(variableCounts.data());
+    for (size_t j = 0; j < data_.numPredictors; ++j) {
+      ext_printf("(%lu: %u) ", static_cast<unsigned long>(j + 1),
+                 variableCounts[j]);
+      if ((j + 1) % 5 == 0) ext_printf("\n");
+    }
+
+    ext_printf("\nDONE BART\n\n");
   }
 
   // Saved trees (keepTrees) and prediction.
@@ -283,6 +375,14 @@ public:
     options_.numThin = numThin;
     for (auto& chain : chains_) chain->setNumThin(numThin);
   }
+  void setVerbose(bool verbose, std::uint32_t printEvery) {
+    options_.verbose = verbose;
+    options_.printEvery = printEvery;
+    for (auto& chain : chains_) chain->setVerbose(verbose, printEvery);
+  }
+  /// The multiplier taking internal-scale fits to the original response
+  /// scale: the response range for gaussian, 1 for the binary families.
+  double fitScale() const { return chains_[0]->fitScale(); }
 
   /// Reconfigure saved-tree storage: toggling keepTrees or changing the
   /// capacity reallocates every chain's slots and resets the write position;
@@ -651,6 +751,7 @@ private:
   ColumnStore data_;
   std::vector<std::unique_ptr<Chain<L>>> chains_;
   size_t currentSampleNum_ = 0;  // next saved-tree slot, wrapping circularly
+  double runningTime_ = 0.0;     // seconds accumulated across runs
 };
 
 using ClassicSampler = Sampler<ConstantGaussianLeaf>;

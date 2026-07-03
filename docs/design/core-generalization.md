@@ -529,6 +529,21 @@ partitioning entirely; a different library sharing only the tree structure).
    consumers - fixed there too (Vincent, 2026-07-02), so the engines
    agree.
 
+   Verbose output (DONE 2026-07-02): full classic parity. The creation
+   summary (BARTFit::printInitialSummary) is reproduced in the bridge
+   from the same Control/Model/Data structures and is byte-identical
+   across engines over the same inputs (tinytest-gated); the quantile
+   and internal-scale lines reduce at creation to expressions over the
+   raw prior scale and the response range (a new fitScale facade
+   accessor). Runs print the loop header, "iteration: k (of N)" every
+   printEvery kept iterations ("[c] "-prefixed under multiple chains),
+   and the terminal summary (accumulated loop seconds, leaf counts, and
+   variable usage). Chains hand formatted lines to a ProgressSink:
+   inline runs print directly; worker threads queue lines behind a mutex
+   and the main thread flushes every 0.1 seconds, since workers must
+   never call into R (the classic engine's htm-buffered scheme, without
+   the thread manager). setControl toggles verbose/printEvery live.
+
    Remaining unsupported surface: weights + binary (by design) and
    setControl changes to creation-fixed settings.
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
