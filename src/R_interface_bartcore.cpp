@@ -291,7 +291,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
           value >= static_cast<double>(bartcore::maxCategories) ||
           value != std::floor(value))
         errorMessage = "categorical predictors must hold integer category "
-                       "codes in [0, 32)";
+                       "codes in [0, 53)";
     }
   }
   if (errorMessage == NULL && anyCategorical &&

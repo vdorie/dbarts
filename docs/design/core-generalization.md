@@ -410,6 +410,19 @@ partitioning entirely; a different library sharing only the tree structure).
 4. **Data generalization**: BartData container, data.frame ingestion,
    categorical rules enabled (> 32 levels), sparse columns, new kernels,
    per-column-type mutation semantics, standalone R data handle.
+   Wide categorical masks (DONE 2026-07-03): direction masks are 64 bits,
+   with the category cap raised from 32 to 53 - the widest mask whose every
+   value the flattened format's double encoding represents exactly.
+   Assignment patterns are now drawn bit by bit with the two all-same
+   patterns rejected, exactly uniform for any width; the single range draw
+   this replaced had only the generator's granularity, which for wide masks
+   pinned low pattern bits to functions of the high ones (and shifted the
+   categorical RNG stream in the process; ordinal paths are bit-identical,
+   which the equivalence gate's exact reproduction confirms). The union
+   with the ordinal split index zero-initializes at full width so rule
+   equality can compare the wide member for both kinds. Uncapped categories
+   need pooled mask storage and a wide-mask reporting format; deferred to
+   the public-surface proposal (docs/design/public-surface.md).
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by
@@ -417,7 +430,7 @@ partitioning entirely; a different library sharing only the tree structure).
    so there is no cross-engine reference and no compatibility to keep.
    bartcore's design is clean-room: ColumnStore carries per-column
    ColumnType; categorical columns hold integer category codes 0..K-1
-   directly (K <= 32 for now, fixed at build), Rule holds a
+   directly (K <= 53, fixed at build), Rule holds a
    splitIndex/categoryDirections union, and observations route by bit
    test, one type dispatch per node operation. Rules live in a canonical
    gauge - direction bits confined to the categories reachable at the

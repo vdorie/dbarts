@@ -297,7 +297,7 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
 
 inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
                                       int32_t variableIndex,
-                                      std::uint32_t reachable);
+                                      std::uint64_t reachable);
 
 template <IntegrableLeafModel L>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
@@ -321,7 +321,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
 
   if (ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
       ColumnType::categorical) {
-    std::uint32_t reachable =
+    std::uint64_t reachable =
       tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
     int numReachable = std::popcount(reachable);
     // Rejection-sample an assignment that keeps the descendant splits on
@@ -331,9 +331,9 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     // exhausted draw backs the move out symmetrically.
     bool found = false;
     for (int attempt = 0; attempt < 64 && !found; ++attempt) {
-      std::uint64_t pattern = ext_rng_simulateUnsignedIntegerUniformInRange(
-        rng, 1, (1ull << numReachable) - 1);
-      std::uint32_t directions =
+      std::uint64_t pattern =
+        CGMTreePrior::drawCategoryPattern(rng, numReachable);
+      std::uint64_t directions =
         CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
       if (categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild,
                                     newVariableIndex, reachable & ~directions) &&
@@ -405,12 +405,12 @@ inline bool ordinalRuleIsValid(const Tree& tree, int32_t nodeIndex,
 /// side; reachable is the mask entering the subtree.
 inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
                                       int32_t variableIndex,
-                                      std::uint32_t reachable) {
+                                      std::uint64_t reachable) {
   const Node& node(tree.at(nodeIndex));
   if (node.isBottom()) return true;
 
   if (node.rule.variableIndex == variableIndex) {
-    std::uint32_t directions = node.rule.categoryDirections;
+    std::uint64_t directions = node.rule.categoryDirections;
     if ((directions & ~reachable) != 0 || directions == 0 ||
         directions == reachable)
       return false;
