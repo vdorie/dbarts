@@ -58,12 +58,14 @@ public:
     : options_(options), family_(family) {
     if (options.maxNumCutsPerVariable != nullptr) {
       data_.build(x, numObservations, numPredictors,
-                  options.maxNumCutsPerVariable, options.useQuantiles);
+                  options.maxNumCutsPerVariable, options.useQuantiles,
+                  options.columnTypes);
     } else {
       data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles);
+                  options.useQuantiles, options.columnTypes);
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
+    options_.columnTypes = nullptr;
 
     chains_.reserve(options.numChains);
     for (size_t c = 0; c < options.numChains; ++c)
@@ -172,10 +174,13 @@ public:
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) {
     size_t n = data_.numObservations;
-    if (updateCutPoints)
-      for (size_t j = 0; j < data_.numPredictors; ++j)
-        if (!data_.cutsWouldRemainValid(j, newX + j * n))
-          return PredictorUpdateResult::invalidCutPoints;
+    // categorical columns must hold representable codes whether or not cut
+    // points refresh
+    for (size_t j = 0; j < data_.numPredictors; ++j)
+      if ((updateCutPoints ||
+           data_.types[j] == ColumnType::categorical) &&
+          !data_.cutsWouldRemainValid(j, newX + j * n))
+        return PredictorUpdateResult::invalidCutPoints;
 
     const double* oldX = data_.x;
     std::vector<xint_t> oldCodes;
@@ -217,10 +222,11 @@ public:
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
     size_t n = data_.numObservations;
-    if (updateCutPoints)
-      for (size_t k = 0; k < numColumns; ++k)
-        if (!data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
-          return PredictorUpdateResult::invalidCutPoints;
+    for (size_t k = 0; k < numColumns; ++k)
+      if ((updateCutPoints ||
+           data_.types[columns[k]] == ColumnType::categorical) &&
+          !data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
+        return PredictorUpdateResult::invalidCutPoints;
 
     std::vector<double> oldValues;
     std::vector<xint_t> oldCodes;

@@ -46,6 +46,7 @@ public:
     const double* newColumn, std::size_t column) = 0;
   virtual ext_rng* rng() const = 0;
   virtual ResponseFamily family() const = 0;
+  virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
   virtual bool kIsSampled() const = 0;
@@ -111,6 +112,7 @@ public:
   }
   ext_rng* rng() const override { return impl_.rng(); }
   ResponseFamily family() const override { return impl_.family(); }
+  const ColumnStore& data() const override { return impl_.data(); }
   const double* latents(std::size_t chainNum) const override {
     return impl_.latents(chainNum);
   }

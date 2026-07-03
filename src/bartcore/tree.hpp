@@ -1,6 +1,7 @@
 #ifndef BARTCORE_TREE_HPP
 #define BARTCORE_TREE_HPP
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -20,10 +21,28 @@ using std::size_t;
 constexpr int32_t invalidVariable = -1;
 constexpr int32_t invalidNode = -1;
 
-/// Ordinal split; the rule vocabulary grows in later phases.
+/// A split rule: ordinal columns split by cut-point threshold (code >
+/// splitIndex goes right), categorical columns by category subset (bit c of
+/// categoryDirections set sends category c right). Which member is live is
+/// determined by the column type of variableIndex.
 struct Rule {
   int32_t variableIndex = invalidVariable;
-  int32_t splitIndex = 0;
+  union {
+    int32_t splitIndex;
+    std::uint32_t categoryDirections;
+  };
+
+  Rule() : splitIndex(0) {}
+
+  bool categoryGoesRight(xint_t code) const {
+    return ((categoryDirections >> code) & 1u) != 0;
+  }
+  bool sendsRight(const ColumnStore& data, xint_t code) const {
+    return data.types[static_cast<size_t>(variableIndex)] ==
+             ColumnType::categorical
+      ? categoryGoesRight(code)
+      : static_cast<int32_t>(code) > splitIndex;
+  }
 
   bool equals(const Rule& other) const {
     return variableIndex == other.variableIndex && splitIndex == other.splitIndex;
@@ -113,8 +132,9 @@ public:
     fillSubtree(at(i).leftChild + 1, out);
   }
 
-  /// Ancestor-constrained cut interval for a variable at a node; the split
-  /// nearest the node on each side wins, exactly as setSplitInterval does.
+  /// Ancestor-constrained cut interval for an ordinal variable at a node;
+  /// the split nearest the node on each side wins, exactly as
+  /// setSplitInterval does.
   void splitInterval(const ColumnStore& data, int32_t nodeIndex,
                      int32_t variableIndex, int32_t* left, int32_t* right) const {
     *left = 0;
@@ -138,8 +158,35 @@ public:
     }
   }
 
+  /// The categories of a categorical variable that can reach a node, as a
+  /// bitmask: every ancestor rule on the variable filters by the side the
+  /// path descends.
+  std::uint32_t reachableCategories(const ColumnStore& data, int32_t nodeIndex,
+                                    int32_t variableIndex) const {
+    std::uint32_t numCategories =
+      data.numCuts[static_cast<size_t>(variableIndex)];
+    std::uint32_t mask = numCategories >= 32
+      ? 0xffffffffu
+      : (1u << numCategories) - 1u;
+
+    int32_t current = nodeIndex;
+    while (at(current).parent != invalidNode) {
+      bool isRightChild = current == at(at(current).parent).leftChild + 1;
+      current = at(current).parent;
+      if (at(current).rule.variableIndex == variableIndex) {
+        mask &= isRightChild ? at(current).rule.categoryDirections
+                             : ~at(current).rule.categoryDirections;
+      }
+    }
+    return mask;
+  }
+
   bool variableAvailable(const ColumnStore& data, int32_t nodeIndex,
                          int32_t variableIndex) const {
+    if (data.types[static_cast<size_t>(variableIndex)] ==
+        ColumnType::categorical)
+      return std::popcount(reachableCategories(data, nodeIndex,
+                                               variableIndex)) >= 2;
     int32_t left, right;
     splitInterval(data, nodeIndex, variableIndex, &left, &right);
     return right >= left;
@@ -222,6 +269,27 @@ public:
     for (int32_t i : bottomScratch) computeLeafStats(i, y, weights);
   }
 
+  /// Two-pointer in-place partition by category mask: bit-clear codes go
+  /// left. The mask analogue of misc_partitionIndices, sans SIMD.
+  static size_t partitionIndicesByMask(const xint_t* column,
+                                       std::uint32_t directions,
+                                       size_t* indices, size_t length) {
+    size_t lo = 0, hi = length;
+    // invariant: [0, lo) is left-bound, [hi, length) is right-bound
+    while (true) {
+      while (lo < hi && ((directions >> column[indices[lo]]) & 1u) == 0) ++lo;
+      while (lo < hi && ((directions >> column[indices[hi - 1]]) & 1u) != 0)
+        --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
   /// Partition a node's observations between its children by its rule.
   void partitionChildren(const ColumnStore& data, int32_t nodeIndex) {
     Node& node(at(nodeIndex));
@@ -231,12 +299,20 @@ public:
     size_t numOnLeft = 0;
     if (node.numObservations() > 0) {
       const xint_t* column = data.column(static_cast<size_t>(node.rule.variableIndex));
-      bool isRoot = node.parent == invalidNode;
-      numOnLeft = isRoot
-        ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex),
-                              indices + node.begin, node.numObservations())
-        : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex),
-                                indices + node.begin, node.numObservations());
+      if (data.types[static_cast<size_t>(node.rule.variableIndex)] ==
+          ColumnType::categorical) {
+        numOnLeft = partitionIndicesByMask(column,
+                                           node.rule.categoryDirections,
+                                           indices + node.begin,
+                                           node.numObservations());
+      } else {
+        bool isRoot = node.parent == invalidNode;
+        numOnLeft = isRoot
+          ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex),
+                                indices + node.begin, node.numObservations())
+          : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex),
+                                  indices + node.begin, node.numObservations());
+      }
     }
     left.begin = node.begin;
     left.end = node.begin + numOnLeft;
@@ -349,11 +425,11 @@ public:
   }
 
   /// Descend by row-major codes (test prediction).
-  int32_t findBottomNodeForRow(const xint_t* xt) const {
+  int32_t findBottomNodeForRow(const ColumnStore& data, const xint_t* xt) const {
     int32_t current = 0;
     while (!at(current).isBottom()) {
       const Rule& rule(at(current).rule);
-      current = xt[rule.variableIndex] > rule.splitIndex
+      current = rule.sendsRight(data, xt[rule.variableIndex])
                   ? at(current).leftChild + 1
                   : at(current).leftChild;
     }
@@ -371,8 +447,8 @@ public:
       xint_t code = rule.variableIndex == overrideVariable
         ? overrideCode
         : data.column(static_cast<size_t>(rule.variableIndex))[i];
-      current = code > rule.splitIndex ? at(current).leftChild + 1
-                                       : at(current).leftChild;
+      current = rule.sendsRight(data, code) ? at(current).leftChild + 1
+                                            : at(current).leftChild;
     }
     return current;
   }
@@ -443,6 +519,8 @@ private:
 
   /// minIndices are inclusive, maxIndices exclusive; both are saved and
   /// restored around the recursion, exactly as the reference walker does.
+  /// Categorical rules have nothing to remap (category counts are fixed
+  /// across data replacement) and pass through to their children.
   void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
                          const std::vector<std::vector<double>>& oldCutPoints,
                          std::vector<double>& paramByNode,
@@ -450,6 +528,15 @@ private:
     if (at(nodeIndex).isBottom()) return;
 
     int32_t varIndex = at(nodeIndex).rule.variableIndex;
+
+    if (data.types[static_cast<size_t>(varIndex)] == ColumnType::categorical) {
+      mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints,
+                        paramByNode, minIndices, maxIndices);
+      mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
+                        paramByNode, minIndices, maxIndices);
+      return;
+    }
+
     int32_t minIndex = minIndices[varIndex];
     int32_t maxIndex = maxIndices[varIndex];
 

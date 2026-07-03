@@ -207,7 +207,9 @@ static void testTreePriorMath() {
   checkNear(prior.growthProbability(tree, store, 0), 0.95, 1e-15,
             "root growth probability");
 
-  Rule rule{0, 49};
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.splitIndex = 49;
   tree.birth(store, 0, rule, y.data(), nullptr);
   int32_t left = tree.at(0).leftChild;
 
@@ -1461,6 +1463,303 @@ static void testMultiChainSetData() {
   printf("ok: multi-chain setData\n");
 }
 
+static void testCategoricalMechanics() {
+  const size_t n = 120;
+  // column 0: categorical with 4 levels; column 1: continuous
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 4);
+    x[i + n] = runif01();
+    y[i] = static_cast<double>(i % 4);
+  }
+
+  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  ColumnStore store;
+  store.build(x.data(), n, 2, 10, false, types);
+
+  check(store.numCuts[0] == 4, "categorical column counts its categories");
+  check(store.cutPoints[0].empty(), "categorical column keeps no cut points");
+  bool codesMatch = true;
+  for (size_t i = 0; i < n; ++i)
+    codesMatch &= store.codes[i] == static_cast<xint_t>(i % 4);
+  check(codesMatch, "categorical codes are the values");
+  check(store.categoricalValueIsValid(0, 3.0) &&
+          !store.categoricalValueIsValid(0, 4.0) &&
+          !store.categoricalValueIsValid(0, 1.5),
+        "categorical value validity");
+
+  // rule sending {1, 3} right partitions by bit test
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.categoryDirections = (1u << 1) | (1u << 3);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+
+  const Node& left(tree.at(tree.at(0).leftChild));
+  const Node& right(tree.at(tree.at(0).leftChild + 1));
+  check(left.numObservations() == n / 2 && right.numObservations() == n / 2,
+        "categorical partition splits by mask");
+  bool sidesMatch = true;
+  for (size_t i = left.begin; i < left.end; ++i) {
+    size_t category = tree.indices[i] % 4;
+    sidesMatch &= category == 0 || category == 2;
+  }
+  check(sidesMatch, "left side holds only left-bound categories");
+  checkNear(left.average, (0.0 + 2.0) / 2.0, 1e-12, "left average by category");
+
+  // reachability filters through nested rules
+  check(tree.reachableCategories(store, 0, 0) == 0xfu,
+        "root reaches all categories");
+  check(tree.reachableCategories(store, tree.at(0).leftChild, 0) ==
+          ((1u << 0) | (1u << 2)),
+        "left child reaches left-bound categories");
+  check(tree.reachableCategories(store, tree.at(0).leftChild + 1, 0) ==
+          ((1u << 1) | (1u << 3)),
+        "right child reaches right-bound categories");
+  check(tree.variableAvailable(store, tree.at(0).leftChild, 0),
+        "two reachable categories keep the variable available");
+
+  // a second split below exhausts one side
+  Rule childRule;
+  childRule.variableIndex = 0;
+  childRule.categoryDirections = 1u << 2;
+  tree.birth(store, tree.at(0).leftChild, childRule, y.data(), nullptr);
+  int32_t grandLeft = tree.at(tree.at(0).leftChild).leftChild;
+  check(tree.reachableCategories(store, grandLeft, 0) == (1u << 0),
+        "grandchild reaches a single category");
+  check(!tree.variableAvailable(store, grandLeft, 0),
+        "one reachable category exhausts the variable");
+
+  // routing agrees with the partitions, including a code override
+  bool routesMatch = true;
+  for (size_t i = 0; i < n; i += 7) {
+    int32_t leaf = tree.findBottomNodeForObservation(store, i);
+    size_t inLeaf = 0;
+    for (size_t k = tree.at(leaf).begin; k < tree.at(leaf).end; ++k)
+      inLeaf += tree.indices[k] == i ? 1 : 0;
+    routesMatch &= inLeaf == 1;
+  }
+  check(routesMatch, "categorical routing matches partitions");
+  int32_t overridden = tree.findBottomNodeForObservation(
+    store, 0, 0, static_cast<xint_t>(3));
+  check(overridden == tree.at(0).leftChild + 1,
+        "code override routes to the right side");
+
+  printf("ok: categorical mechanics\n");
+}
+
+static void testCategoricalPriorMath(ext_rng* rng) {
+  const size_t n = 120;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % 5);
+
+  ColumnType types[] = {ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 1, 10, false, types);
+
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+
+  CGMTreePrior prior;
+
+  // R = 5 reachable: 2^5 - 2 = 30 valid assignments, drawn uniformly with
+  // unreachable bits (none here) zero and neither side empty
+  const int numDraws = 60000;
+  std::vector<int> patternCounts(1u << 5, 0);
+  for (int i = 0; i < numDraws; ++i) {
+    Rule rule = prior.drawRuleForVariable(tree, store, rng, 0, 0);
+    check(rule.categoryDirections > 0 && rule.categoryDirections < 31u + 1u &&
+            rule.categoryDirections != 31u,
+          "categorical draw leaves neither side empty");
+    ++patternCounts[rule.categoryDirections];
+  }
+  bool uniform = patternCounts[0] == 0 && patternCounts[31] == 0;
+  double expected = static_cast<double>(numDraws) / 30.0;
+  for (std::uint32_t pattern = 1; pattern < 31; ++pattern)
+    uniform = uniform &&
+      std::fabs(patternCounts[pattern] - expected) < 5.0 * std::sqrt(expected);
+  check(uniform, "categorical rule draw is uniform over valid assignments");
+
+  Rule rootRule;
+  rootRule.variableIndex = 0;
+  rootRule.categoryDirections = (1u << 3) | (1u << 4);
+  tree.birth(store, 0, rootRule, y.data(), nullptr);
+  checkNear(prior.ruleForVariableLogProbability(tree, store, 0),
+            -std::log(30.0), 1e-13, "root categorical rule probability");
+
+  // left child reaches {0, 1, 2}: R = 3 gives 2^3 - 2 = 6
+  Rule childRule;
+  childRule.variableIndex = 0;
+  childRule.categoryDirections = 1u << 1;
+  tree.birth(store, tree.at(0).leftChild, childRule, y.data(), nullptr);
+  checkNear(prior.ruleForVariableLogProbability(tree, store, tree.at(0).leftChild),
+            -std::log(6.0), 1e-13, "child categorical rule probability");
+
+  // full tree log probability: root splits (g0), children of root: left
+  // splits (g1), right leaf (1 - g1'); right of root reaches {3,4} so g1'
+  // uses availability; grandchildren reach single categories, forced leaves
+  double g0 = prior.growthProbability(tree, store, 0);
+  double g1 = prior.growthProbability(tree, store, tree.at(0).leftChild);
+  double gRight = prior.growthProbability(tree, store, tree.at(0).leftChild + 1);
+  int32_t leftChild = tree.at(0).leftChild;
+  double gGrandLeft = prior.growthProbability(tree, store, tree.at(leftChild).leftChild);
+  double gGrandRight = prior.growthProbability(tree, store, tree.at(leftChild).leftChild + 1);
+  // the left child's rule sends category 1 right: its left grandchild
+  // reaches {0, 2} and can grow, the right reaches only {1} and cannot
+  check(gGrandLeft != 0.0, "two-category node can grow");
+  check(gGrandRight == 0.0, "single-category node cannot grow");
+  double expectedLogProbability =
+    std::log(g0) - std::log(30.0) +
+    std::log(g1) - std::log(6.0) +
+    std::log(1.0 - gRight) +
+    std::log(1.0 - gGrandLeft) + std::log(1.0 - gGrandRight);
+  checkNear(prior.treeLogProbability(tree, store), expectedLogProbability,
+            1e-12, "categorical tree log probability");
+
+  printf("ok: categorical prior math\n");
+}
+
+static void testEndToEndCategorical(ext_rng* rng) {
+  const size_t n = 400;
+  // column 0: 4 categories with distinct means that are NOT ordered in
+  // category-code order, so ordinal splits could not represent them
+  // cheaply; column 1: continuous noise dimension
+  std::vector<double> x(n * 2), y(n);
+  const double categoryMeans[] = {2.0, -1.0, 3.0, 0.0};
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = i % 4;
+    x[i] = static_cast<double>(category);
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) *
+                    std::cos(6.283185307179586 * u2);
+    y[i] = categoryMeans[category] + 0.3 * normal;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.columnTypes = nullptr;  // set via ctor path below
+  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  options.columnTypes = types;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+
+  const size_t numBurnIn = 150, numSamples = 200;
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  bool meansRecovered = true;
+  for (size_t category = 0; category < 4; ++category) {
+    double sum = 0.0;
+    size_t count = 0;
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t i = category; i < n; i += 4) {
+        sum += trainingFits[i + s * n];
+        ++count;
+      }
+    meansRecovered &=
+      std::fabs(sum / static_cast<double>(count) - categoryMeans[category]) < 0.2;
+  }
+  check(meansRecovered, "categorical splits recover category means");
+
+  printf("ok: end-to-end categorical\n");
+}
+
+static void testCategoricalMutation(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x(n * 2), y(n);
+  const double categoryMeans[] = {2.0, -1.0, 3.0, 0.0};
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = i % 4;
+    x[i] = static_cast<double>(category);
+    x[i + n] = runif01();
+    y[i] = categoryMeans[category] + 2.0 * x[i + n] +
+           0.3 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
+  options.columnTypes = types;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(100, 0, empty);
+
+  // identity swap accepted; out-of-range category codes refused untouched
+  std::vector<double> xCopy(x);
+  check(sampler.setPredictor(xCopy.data(), false, false) ==
+          PredictorUpdateResult::accepted,
+        "categorical identity setPredictor accepted");
+  std::vector<double> xBad(x);
+  xBad[3] = 9.0;
+  std::vector<xint_t> codesBefore(sampler.data().codes);
+  check(sampler.setPredictor(xBad.data(), false, false) ==
+          PredictorUpdateResult::invalidCutPoints,
+        "out-of-range category code refused");
+  check(sampler.data().codes == codesBefore, "refusal mutates nothing");
+
+  // permuting the categories of some observations is transactional
+  std::vector<double> permuted(xCopy.begin(), xCopy.begin() + n);
+  for (size_t i = 0; i < n; i += 3)
+    permuted[i] = static_cast<double>((static_cast<size_t>(permuted[i]) + 1) % 4);
+  size_t columnIndex = 0;
+  PredictorUpdateResult result =
+    sampler.updatePredictor(permuted.data(), &columnIndex, 1, false, false);
+  check(result == PredictorUpdateResult::accepted ||
+          result == PredictorUpdateResult::rolledBack,
+        "categorical column update is transactional");
+
+  // per-observation updates route through the mask logic
+  std::vector<double> newColumn(n);
+  for (size_t i = 0; i < n; ++i)
+    newColumn[i] = static_cast<double>((i + 1) % 4);
+  std::unique_ptr<bool[]> installed(new bool[n]);
+  check(sampler.updatePredictorPerObservation(newColumn.data(), 0,
+                                              installed.get()),
+        "categorical per-observation update finalizes");
+
+  bool occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "categorical mutation keeps leaves occupied");
+
+  // whole-data replacement with a resize keeps category counts fixed
+  const size_t n2 = 260;
+  std::vector<double> x2(n2 * 2), y2(n2);
+  for (size_t i = 0; i < n2; ++i) {
+    size_t category = i % 4;
+    x2[i] = static_cast<double>(category);
+    x2[i + n2] = runif01();
+    y2[i] = categoryMeans[category] + 2.0 * x2[i + n2] +
+            0.3 * (runif01() - 0.5);
+  }
+  sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
+  check(sampler.numObservations() == n2 && sampler.data().numCuts[0] == 4,
+        "categorical setData resizes and keeps categories");
+  occupied = true;
+  for (size_t t = 0; t < 25; ++t)
+    occupied &= sampler.chain(0).tree(t).bottomNodesAreOccupied();
+  check(occupied, "categorical setData leaves no empty leaves");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs after categorical mutation");
+
+  printf("ok: categorical mutation\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -1500,6 +1799,10 @@ int main() {
   testPolyaGamma(rng);
   testEndToEndLogistic(rng);
   testLogisticMutation(rng);
+  testCategoricalMechanics();
+  testCategoricalPriorMath(rng);
+  testEndToEndCategorical(rng);
+  testCategoricalMutation(rng);
 
   ext_rng_destroy(rng);
 

@@ -2,8 +2,10 @@
 #define BARTCORE_MOVES_HPP
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 #include <external/random.h>
@@ -293,6 +295,10 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
   *upper = std::min(rightIndex, rightMin - 1);
 }
 
+inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
+                                      int32_t variableIndex,
+                                      std::uint32_t reachable);
+
 template <IntegrableLeafModel L>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
                   const double* y, double sigma, bool* stepTaken) {
@@ -310,20 +316,49 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   int32_t newVariableIndex =
     ctx.treePrior.drawSplitVariable(tree, ctx.data, rng, nodeToChange);
 
-  int32_t lower, upper;
-  findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
-  if (upper - lower + 1 <= 0) return -1.0;
+  Rule newRule;
+  newRule.variableIndex = newVariableIndex;
 
-  int32_t newRuleIndex =
-    static_cast<int32_t>(ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1));
+  if (ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
+      ColumnType::categorical) {
+    std::uint32_t reachable =
+      tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
+    int numReachable = std::popcount(reachable);
+    // Rejection-sample an assignment that keeps the descendant splits on
+    // this variable satisfiable: uniform over that good set, which depends
+    // only on the tree above and below the node, so the forward and reverse
+    // proposals cancel; the abort probability is likewise invariant, so an
+    // exhausted draw backs the move out symmetrically.
+    bool found = false;
+    for (int attempt = 0; attempt < 64 && !found; ++attempt) {
+      std::uint64_t pattern = ext_rng_simulateUnsignedIntegerUniformInRange(
+        rng, 1, (1ull << numReachable) - 1);
+      std::uint32_t directions =
+        CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
+      if (categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild,
+                                    newVariableIndex, reachable & ~directions) &&
+          categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild + 1,
+                                    newVariableIndex, directions)) {
+        newRule.categoryDirections = directions;
+        found = true;
+      }
+    }
+    if (!found) return -1.0;
+  } else {
+    int32_t lower, upper;
+    findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
+    if (upper - lower + 1 <= 0) return -1.0;
+
+    newRule.splitIndex = static_cast<int32_t>(
+      ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1));
+  }
 
   double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
   double xLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
 
-  tree.at(nodeToChange).rule.variableIndex = newVariableIndex;
-  tree.at(nodeToChange).rule.splitIndex = newRuleIndex;
+  tree.at(nodeToChange).rule = newRule;
   tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
 
   double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
@@ -364,8 +399,41 @@ inline bool ordinalRuleIsValid(const Tree& tree, int32_t nodeIndex,
                             rightIndex);
 }
 
+/// categoricalSubtreeIsValid: every split on variableIndex in the subtree
+/// must stay in the canonical gauge (its directions confined to the
+/// categories reaching it) and keep at least one reachable category on each
+/// side; reachable is the mask entering the subtree.
+inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
+                                      int32_t variableIndex,
+                                      std::uint32_t reachable) {
+  const Node& node(tree.at(nodeIndex));
+  if (node.isBottom()) return true;
+
+  if (node.rule.variableIndex == variableIndex) {
+    std::uint32_t directions = node.rule.categoryDirections;
+    if ((directions & ~reachable) != 0 || directions == 0 ||
+        directions == reachable)
+      return false;
+    return categoricalSubtreeIsValid(tree, node.leftChild, variableIndex,
+                                     reachable & ~directions) &&
+           categoricalSubtreeIsValid(tree, node.leftChild + 1, variableIndex,
+                                     directions);
+  }
+
+  return categoricalSubtreeIsValid(tree, node.leftChild, variableIndex,
+                                   reachable) &&
+         categoricalSubtreeIsValid(tree, node.leftChild + 1, variableIndex,
+                                   reachable);
+}
+
 inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIndex,
                         int32_t variableIndex) {
+  if (ctx.data.types[static_cast<size_t>(variableIndex)] ==
+      ColumnType::categorical)
+    return categoricalSubtreeIsValid(
+      tree, nodeIndex, variableIndex,
+      tree.reachableCategories(ctx.data, nodeIndex, variableIndex));
+
   int32_t leftIndex, rightIndex;
   tree.splitInterval(ctx.data, nodeIndex, variableIndex, &leftIndex, &rightIndex);
   return ordinalRuleIsValid(tree, nodeIndex, variableIndex, leftIndex, rightIndex);

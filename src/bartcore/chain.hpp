@@ -37,6 +37,10 @@ struct SamplerOptions {
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
   bool useQuantiles = false;
+  // borrowed per-column types, null for all-ordinal; copied during
+  // construction. Categorical columns must hold integer codes 0..K-1 with
+  // K <= maxCategories; the caller validates.
+  const ColumnType* columnTypes = nullptr;
 
   // split-variable selection: fixed weights (borrowed; normalized over
   // available variables at each node) or DART; both null/false = uniform
@@ -75,6 +79,7 @@ public:
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     size_t numObservations = data.numObservations;
     options_.maxNumCutsPerVariable = nullptr;  // consumed by the store build
+    options_.columnTypes = nullptr;
 
     switch (family) {
     case ResponseFamily::probit:
@@ -406,7 +411,7 @@ private:
 
     if (updateTestFits && data_.numTestObservations > 0) {
       for (size_t i = 0; i < data_.numTestObservations; ++i) {
-        int32_t leafIndex = tree.findBottomNodeForRow(data_.testRow(i));
+        int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
         currTestFits_[i] = paramByNode_[static_cast<size_t>(leafIndex)];
       }
     }

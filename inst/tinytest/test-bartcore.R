@@ -347,3 +347,42 @@ sampler.wbin <- dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
                        control = control)
 expect_error(dbarts:::bartcoreSampler(sampler.wbin),
              pattern = "weights for binary")
+
+# categorical predictors, a bartcore-only capability (the classic engine's
+# categorical rules are unreachable from R); no public surface marks
+# columns categorical yet, so the type is flipped on the data by hand
+x.cat <- cbind(as.double(rep(0:3, length.out = n)), runif(n))
+mu.cat <- c(2, -1, 3, 0)[x.cat[, 1L] + 1L]
+y.cat <- mu.cat + 2 * x.cat[, 2L] + rnorm(n, 0, 0.5)
+sampler.cat.host <- dbarts(x.cat, y.cat, control = control)
+sampler.cat.host$data@varTypes[1L] <- 1L
+bcSampler.cat <- dbarts:::bartcoreSampler(sampler.cat.host)
+result.cat <- dbarts:::bartcoreRun(bcSampler.cat, 100L, 100L)
+expect_true(all(is.finite(result.cat$train)))
+# category means recovered after removing the known continuous effect
+residual.means <- tapply(rowMeans(result.cat$train) - 2 * x.cat[, 2L],
+                         x.cat[, 1L], mean)
+expect_true(max(abs(residual.means - c(2, -1, 3, 0))) < 0.5)
+
+# category codes outside the existing set are refused everywhere
+expect_error(dbarts:::bartcoreUpdatePredictor(bcSampler.cat, rep(9, n), 1L),
+             pattern = "existing category codes")
+expect_error(dbarts:::bartcoreSetTestPredictor(
+  bcSampler.cat, cbind(rep(7, 5L), runif(5L))),
+  pattern = "existing category codes")
+expect_error(dbarts:::bartcoreSetCutPoints(bcSampler.cat, list(0.5), 1L),
+             pattern = "categorical predictor")
+
+# valid categorical mutation routes through the mask logic
+installed.cat <- dbarts:::bartcoreUpdatePredictorPerObservation(
+  bcSampler.cat, as.double((x.cat[, 1L] + 1) %% 4), 1L)
+expect_equal(length(installed.cat), n)
+expect_true(all(is.finite(dbarts:::bartcoreRun(bcSampler.cat, 0L, 2L)$train)))
+
+# non-integer codes are rejected at creation
+x.cat.bad <- x.cat
+x.cat.bad[1L, 1L] <- 0.5
+sampler.cat.bad <- dbarts(x.cat.bad, y.cat, control = control)
+sampler.cat.bad$data@varTypes[1L] <- 1L
+expect_error(dbarts:::bartcoreSampler(sampler.cat.bad),
+             pattern = "integer category codes")

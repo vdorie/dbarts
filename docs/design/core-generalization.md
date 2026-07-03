@@ -394,6 +394,38 @@ partitioning entirely; a different library sharing only the tree structure).
 4. **Data generalization**: BartData container, data.frame ingestion,
    categorical rules enabled (> 32 levels), sparse columns, new kernels,
    per-column-type mutation semantics, standalone R data handle.
+   Categorical splits (DONE 2026-07-02, engine-side): a finding first -
+   the classic engine's categorical machinery is DEAD CODE from R (nothing
+   ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by
+   makeModelMatrix, and the classic cut-map code never branches on type),
+   so there is no cross-engine reference and no compatibility to keep.
+   bartcore's design is clean-room: ColumnStore carries per-column
+   ColumnType; categorical columns hold integer category codes 0..K-1
+   directly (K <= 32 for now, fixed at build), Rule holds a
+   splitIndex/categoryDirections union, and observations route by bit
+   test, one type dispatch per node operation. Rules live in a canonical
+   gauge - direction bits confined to the categories reachable at the
+   node (an ancestor-filtered bitmask), neither side empty - with the
+   prior uniform over the 2^R - 2 such assignments, both orientations
+   counted. Every kernel is closed on that space: birth/change draw in
+   gauge, the swap validity walk checks gauge and nonemptiness for the
+   swapped variables, and collapse/setData only enlarge reachability,
+   which preserves gauge. The change move rejection-samples assignments
+   whose descendant splits stay satisfiable (the good set depends only on
+   the tree above and below the node, so proposals cancel and an
+   exhausted draw aborts symmetrically, mirroring the ordinal
+   findGoodOrdinalRules flow). Deviations from the classic design, all in
+   unreachable code: the classic randomized unreachable categories'
+   directions, pinned the first reachable category right, drew from half
+   the assignment space while weighting rules by a positively-signed
+   normalization in the tree prior, and never remapped rules below
+   categorical nodes in setData. Gated by
+   benchmarks/R/categorical-exact.R (tree-space enumeration + quadrature
+   under the probit link; the sampler matches the exact posterior
+   predictive to MC error) plus component tests over the mechanics,
+   prior math, recovery, and mutation surface. Not yet exposed publicly:
+   dbartsData still types every column ordinal, so tests flip varTypes by
+   hand; factor ingestion without dummy expansion is public-surface work.
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
    (retiring the rbart_vi R loop).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
