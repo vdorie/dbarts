@@ -70,3 +70,25 @@ fit.bart2 <- bart2(y.binary ~ x, family = "gaussian", n.samples = 30L,
                    n.burn = 30L, n.trees = 25L, n.chains = 1L,
                    n.threads = 1L, verbose = FALSE)
 expect_true(!is.null(fit.bart2$sigma))
+
+# the wrappers record the family and transform through its link
+fit.probit <- bart2(y.binary ~ x, n.samples = 40L, n.burn = 40L,
+                    n.trees = 25L, n.chains = 1L, n.threads = 1L,
+                    verbose = FALSE, keepTrees = TRUE)
+expect_equal(fit.probit$family, "probit")
+expect_equal(extract(fit.probit, "ev"), pnorm(extract(fit.probit, "bart")))
+
+fit.logit <- bart2(y.binary ~ x, family = "logistic", engine = "bartcore",
+                   n.samples = 40L, n.burn = 40L, n.trees = 25L,
+                   n.chains = 1L, n.threads = 1L, verbose = FALSE,
+                   keepTrees = TRUE)
+expect_equal(fit.logit$family, "logistic")
+latents <- extract(fit.logit, "bart")
+expect_equal(extract(fit.logit, "ev"), plogis(latents))
+expect_equal(predict(fit.logit, x, type = "ev"),
+             plogis(predict(fit.logit, x, type = "bart")))
+expect_equal(fitted(fit.logit),
+             apply(plogis(latents), length(dim(latents)), mean))
+
+# fits saved before the family element existed fall back to probit
+expect_equal(dbarts:::probabilityFromLatents(0.5, list()), pnorm(0.5))

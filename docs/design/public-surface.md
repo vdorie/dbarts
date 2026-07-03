@@ -118,9 +118,12 @@ on `dbarts()` and bart2, resolved against the response into a new
 `dbartsControl@family` slot (which also drives pointer re-creation after
 save/load). `"gaussian"` on a 0/1 response fits a continuous model;
 logistic requires the bartcore engine, with node.scale = pi * sqrt(3) -
-probit's 3.0 widened by the logistic latent sd. The wrappers' pnorm
-sites (generics.R, plot.R, bart.R) still assume probit and join the flip
-checklist; the R5 surface reports binary fits on the latent scale.
+probit's 3.0 widened by the logistic latent sd. The R5 surface reports
+binary fits on the latent scale. The wrappers' probability transforms
+(predict/extract/fitted/plot) went link-aware 2026-07-03: packaged fits
+carry a `family` element and transform through it (fits saved without
+one are probit). rbart stays probit-only - its ranef Gibbs step assumes
+normal latents and `rbart_vi` rejects a `family` argument.
 
 ## 3a. Prior specification
 

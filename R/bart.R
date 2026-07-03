@@ -99,6 +99,7 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
+      family = fit$control@family,
       yhat.train = yhat.train,
       yhat.test = yhat.test,
       varcount = varcount,
@@ -106,6 +107,7 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
   } else {
     result <- list(
       call = fit$control@call,
+      family = fit$control@family,
       first.sigma = burnInSigma,
       sigma = sigma,
       sigest = fit$data@sigma,
@@ -116,7 +118,7 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
       varcount = varcount,
       y = fit$data@y)
   }
-  
+
   if (keepSampler)
     result$fit <- fit
   else
