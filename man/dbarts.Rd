@@ -11,7 +11,8 @@ dbarts(
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-    control = dbarts::dbartsControl(), sigma = NA_real_)}
+    control = dbarts::dbartsControl(), sigma = NA_real_,
+    factors = c("indicators", "categorical"))}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}.
@@ -54,6 +55,9 @@ dbarts(
   }
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.} \item{sigma}{A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one.
+  }
+  \item{factors}{
+    How factor columns in a data frame enter the model. \code{"indicators"} expands each factor into binary indicator columns as always. \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels (at most 53) down each branch, and codes ordered factors as ordinal; it requires \code{engine = "bartcore"} in \code{control} and level tables are retained so that test data are coded identically.
   }
 }
 \details{

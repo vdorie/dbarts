@@ -134,7 +134,8 @@ dbarts <- function(
   resid.prior = chisq,
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   control = dbarts::dbartsControl(),
-  sigma = NA_real_
+  sigma = NA_real_,
+  factors = c("indicators", "categorical")
 ) {
   matchedCall <- match.call()
 
@@ -274,6 +275,12 @@ dbartsSampler <- setRefClass(
       }
       if (!inherits(data, "dbartsData")) {
         stop("'data' must inherit from dbartsData")
+      }
+      # the classic engine's categorical machinery is unreachable, untested
+      # code; only bartcore runs subset splits
+      if (control@engine != "bartcore" &&
+          any(data@varTypes == CATEGORICAL_VARIABLE)) {
+        stop("categorical predictors require engine = \"bartcore\"")
       }
 
       .self$control <- control
@@ -485,13 +492,7 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
 
-      x.test <- validateXTest(
-        x.test,
-        attr(data@x, "term.labels"),
-        ncol(data@x),
-        colnames(data@x),
-        attr(data@x, "drop")
-      )
+      x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")
       }
@@ -600,6 +601,9 @@ dbartsSampler <- setRefClass(
 
       if (!inherits(newData, "dbartsData")) {
         stop("'data' must inherit from dbartsData")
+      }
+      if (any(newData@varTypes == CATEGORICAL_VARIABLE)) {
+        stop("categorical predictors require engine = \"bartcore\"")
       }
 
       newData@n.cuts <- data@n.cuts
@@ -1035,13 +1039,7 @@ dbartsSampler <- setRefClass(
 
       if (columnIsMissing) {
         oldX.test <- data@x.test
-        selfEnv$data@x.test <- validateXTest(
-          x.test,
-          attr(data@x, "term.labels"),
-          ncol(data@x),
-          colnames(data@x),
-          attr(data@x, "drop")
-        )
+        selfEnv$data@x.test <- validateXTest(x.test, data@x)
         tryResult <- tryCatch(
           .Call(C_dbarts_setTestPredictor, ptr, data@x.test),
           error = function(e) {
@@ -1071,13 +1069,7 @@ dbartsSampler <- setRefClass(
           return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
         }
 
-        x.test <- validateXTest(
-          x.test,
-          attr(data@x, "term.labels"),
-          ncol(data@x),
-          colnames(data@x),
-          attr(data@x, "drop")
-        )
+        x.test <- validateXTest(x.test, data@x)
         if (is.null(x.test)) {
           if (!is.null(offset.test)) {
             stop("when test matrix is NULL, test offset must be as well")
@@ -1124,13 +1116,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
-      x.test <- validateXTest(
-        x.test,
-        attr(data@x, "term.labels"),
-        ncol(data@x),
-        colnames(data@x),
-        attr(data@x, "drop")
-      )
+      x.test <- validateXTest(x.test, data@x)
 
       if (!missing(offset.test)) {
         if (is.null(x.test)) {
@@ -1465,13 +1451,7 @@ dbartsSampler <- setRefClass(
       # route new data through the trees so 'n' counts that data instead of the
       # training predictors; validated and coded as for predict
       if (!is.null(newdata)) {
-        newdata <- validateXTest(
-          newdata,
-          attr(data@x, "term.labels"),
-          ncol(data@x),
-          colnames(data@x),
-          attr(data@x, "drop")
-        )
+        newdata <- validateXTest(newdata, data@x)
       }
 
       ptr <- getPointer()

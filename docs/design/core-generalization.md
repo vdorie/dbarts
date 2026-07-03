@@ -423,6 +423,15 @@ partitioning entirely; a different library sharing only the tree structure).
    equality can compare the wide member for both kinds. Uncapped categories
    need pooled mask storage and a wide-mask reporting format; deferred to
    the public-surface proposal (docs/design/public-surface.md).
+   Data.frame ingestion (DONE 2026-07-03): `dbarts` and `dbartsData` take
+   `factors = "categorical"`, coding unordered factors as single
+   categorical columns (codes 0..K-1, K <= 53), ordered factors as
+   ordinal, with per-column level tables retained on the model matrix so
+   test data recode against the training levels (unseen levels error).
+   The default `"indicators"` path is unchanged, and the classic engine
+   refuses categorical columns at sampler creation (its categorical
+   machinery is unreachable, untested code). The default flips at
+   cutover per the public-surface plan.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by

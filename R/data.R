@@ -7,7 +7,11 @@ methods::setMethod("initialize", "dbartsData",
   if (!missing(modelMatrices)) {
     .Object@y <- modelMatrices$y
     .Object@x <- modelMatrices$x
-    .Object@varTypes <- rep.int(ORDINAL_VARIABLE, ncol(.Object@x))
+    # makeCategoricalModelMatrix types its columns; everything else is ordinal
+    .Object@varTypes <- if (!is.null(attr(.Object@x, "varTypes")))
+      as.integer(attr(.Object@x, "varTypes"))
+    else
+      rep.int(ORDINAL_VARIABLE, ncol(.Object@x))
     .Object@x.test <- modelMatrices$x.test
     .Object@weights <- modelMatrices$weights
     .Object@weights.test <- modelMatrices$weights.test
@@ -25,18 +29,30 @@ methods::setMethod("initialize", "dbartsData",
 })
 
 makeTestModelMatrix <- function(data, newdata) {
-  validateXTest(newdata, attr(data@x, "term.labels"), ncol(data@x), colnames(data@x), attr(data@x, "drop"))
+  validateXTest(newdata, data@x)
 }
 
-validateXTest <- function(x.test, termLabels, numPredictors, predictorNames, drop)
+validateXTest <- function(x.test, x.train)
 {
+  termLabels     <- attr(x.train, "term.labels")
+  numPredictors  <- ncol(x.train)
+  predictorNames <- colnames(x.train)
+  drop           <- attr(x.train, "drop")
+  factorLevels   <- attr(x.train, "factor.levels")
+
   if (is.null(x.test)) return(x.test)
   if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) x.test <- matrix(x.test, ncol = length(x.test))
   if (is.numeric(x.test) && NCOL(x.test) == 0L) return(NULL)
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels))
       x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test)
-    x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
+    if (!is.null(factorLevels)) {
+      # trained with factors unexpanded: code against the training levels
+      x.test <- mapFactorColumnsToTrainingLevels(x.test, predictorNames, factorLevels)
+      x.test <- makeCategoricalModelMatrix(x.test)
+    } else {
+      x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
+    }
   }
   if (!is.matrix(x.test)) x.test <- as.matrix(x.test)
 
@@ -154,13 +170,23 @@ getTestOffset <- quote({
   stop("cannot construct test offset")
 })
 
-dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset)
+dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset,
+                       factors = c("indicators", "categorical"))
 {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
   testOffsetIsMissing <- missing(offset.test)
   matchedCall <- match.call()
+
+  # "indicators" dummy-expands factor columns as always; "categorical" keeps
+  # them as single columns split by category subset, which only the bartcore
+  # engine runs
+  factors <- match.arg(factors)
+  makeModelMatrix <- if (factors == "categorical")
+    makeCategoricalModelMatrix
+  else
+    makeModelMatrixFromDataFrame
   
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
@@ -236,7 +262,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
     
     
-    x <- makeModelMatrixFromDataFrame(modelFrame[termLabels])
+    x <- makeModelMatrix(modelFrame[termLabels])
     
     if (!testIsMissing) {
       testCall <- matchedCall
@@ -264,7 +290,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (missing(subset) || is.null(subset)) subset <- seq.int(length(y))
     y <- y[subset]
 
-    if (is.data.frame(formula)) formula <- makeModelMatrixFromDataFrame(formula)
+    if (is.data.frame(formula)) formula <- makeModelMatrix(formula)
     x <- if (!is.matrix(formula)) formula[subset] else formula[subset,,drop=FALSE]
     
     if (missing(weights)) weights <- NULL
@@ -303,11 +329,11 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   }
   
   if (is.vector(x)) x <- as.matrix(x)
-  if (is.data.frame(x)) x <- makeModelMatrixFromDataFrame(x)
-  
+  if (is.data.frame(x)) x <- makeModelMatrix(x)
+
   x.test <- NULL
   if (!testIsMissing && !is.null(test))
-    x.test <- validateXTest(test, attr(x, "term.labels"), ncol(x), colnames(x), attr(x, "drop"))
+    x.test <- validateXTest(test, x)
   
   if (!is.null(x.test)) {
     if (testOffsetIsMissing) {

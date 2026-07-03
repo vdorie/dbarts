@@ -230,9 +230,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   if (is.null(column)) {
-    x.test <- validateXTest(x.test, attr(sampler$data@x, "term.labels"),
-                            ncol(sampler$data@x), colnames(sampler$data@x),
-                            attr(sampler$data@x, "drop"))
+    x.test <- validateXTest(x.test, sampler$data@x)
     if (is.null(x.test)) {
       stop("removing test data is not supported by the bartcore engine")
     }

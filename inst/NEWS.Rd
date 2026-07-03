@@ -4,6 +4,14 @@
 \section{CHANGES IN VERSION 0.9-34}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item `dbarts` and `dbartsData` accept `factors = "categorical"`,
+            keeping each unordered factor in a data frame as a single
+            predictor whose splits send a subset of its levels (at most 53)
+            down each branch instead of expanding it into indicator columns;
+            ordered factors are coded as ordinal. Level tables are retained
+            so test data are coded identically, with unseen levels an error.
+            Requires `engine = "bartcore"`; the default `"indicators"` is
+            unchanged.
       \item `dbartsControl` accepts `engine = "bartcore"`, running the sampler
             on the in-development replacement engine behind the standard
             `dbartsSampler` interface: every `dbartsSampler` method works,
