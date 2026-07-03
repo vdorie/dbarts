@@ -15,6 +15,9 @@
 #include <external/random.h>
 #include <external/stats.h> // ext_percentileOfChiSquared
 
+#include <rc/bounds.h>
+#include <rc/util.h>
+
 #include <dbarts/control.hpp>
 #include <dbarts/data.hpp>
 #include <dbarts/model.hpp>
@@ -362,6 +365,30 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   options.useQuantiles = control.useQuantiles;
   options.columnTypes = anyCategorical ? columnTypes.data() : NULL;
   options.splitProbabilities = treePrior.splitProbabilities; // copied by ctor
+
+  // the generic slot parse above reads the CGM structure a DART prior
+  // contains; the Dirichlet configuration comes off the R object directly
+  SEXP treePriorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
+  if (Rf_inherits(treePriorExpr, "dbartsDartPrior")) {
+    options.useDart = true;
+    options.dart.betaA = rc_getDouble(
+      Rf_getAttrib(treePriorExpr, Rf_install("a")), "dart a",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    options.dart.betaB = rc_getDouble(
+      Rf_getAttrib(treePriorExpr, Rf_install("b")), "dart b",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    double rho = REAL(Rf_getAttrib(treePriorExpr, Rf_install("rho")))[0];
+    options.dart.rho = ISNAN(rho) ? 0.0 : rho;  // <= 0 means numPredictors
+    options.dart.alpha = rc_getDouble(
+      Rf_getAttrib(treePriorExpr, Rf_install("alpha")), "dart alpha",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+    options.dart.updateAlpha = rc_getBool(
+      Rf_getAttrib(treePriorExpr, Rf_install("update.alpha")), "dart update.alpha",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_NO, RC_END);
+    options.dart.updateDelay = static_cast<size_t>(rc_getDouble(
+      Rf_getAttrib(treePriorExpr, Rf_install("update.delay")), "dart update.delay",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_END));
+  }
   options.updateK = updateK;
   options.kHyperprior.degreesOfFreedom = kDf;
   options.kHyperprior.scale = kScale;

@@ -4,6 +4,20 @@
 \section{CHANGES IN VERSION 0.9-34}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Prior specifications are ordinary objects built by the
+            constructors in the new exported list `dbartsPriors` (`cgm`,
+            `dart`, `normal`, `chi`, `chisq`, `fixed`), usable
+            programmatically and passable to the
+            `tree.prior`/`node.prior`/`resid.prior` arguments. The
+            bare-name forms (`node.prior = normal(chi(1.25))`) keep working
+            and now resolve against dbarts' own vocabulary inside those
+            arguments, so attaching packages that export `normal` or
+            similar cannot change their meaning.
+      \item `tree.prior = dart(...)` runs DART (Linero 2018), a Dirichlet
+            prior over the split-variable probabilities inducing variable
+            selection, with optional sampling of the concentration.
+            Requires `engine = "bartcore"`; the sampled probabilities
+            appear in the stored sampler state.
       \item `dbarts` and `dbartsData` accept `factors = "categorical"`,
             keeping each unordered factor in a data frame as a single
             predictor whose splits send a subset of its levels (at most 53)

@@ -4,6 +4,10 @@ setMethod("initialize", "dbartsModel",
                                       birth = 0.5),
                    node.scale = 0.5)
 {
+  if (!missing(tree.prior) && is(tree.prior, "dbartsCGMPrior") &&
+      !is.null(tree.prior@splitProbabilitiesSpec))
+    stop("tree prior split probabilities must be resolved against data; ",
+         "pass the prior to a fitting function instead")
   if (!missing(tree.prior)) .Object@tree.prior  <- tree.prior
   if (!missing(node.prior)) .Object@node.prior  <- node.prior
   if (!missing(node.hyperprior)) .Object@node.hyperprior  <- node.hyperprior
@@ -40,46 +44,55 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
 {
   matchedCall <- match.call()
 
+  # the prior vocabulary shadows the caller's environment inside these
+  # arguments only: bare names like normal(chi(1.25)) resolve here no matter
+  # what packages are attached, and nothing is exported under generic names
   evalEnv <- new.env(parent = parentEnv)
+  for (name in names(dbartsPriors))
+    assign(name, dbartsPriors[[name]], envir = evalEnv)
   evalEnv$control <- control
   evalEnv$data <- data
-  evalEnv$cgm <- cgm
-  evalEnv$normal <- normal
-  evalEnv$chisq <- chisq
-  evalEnv$fixed <- fixed
-  
-  # sub in a different default for node prior if data are binary
-  if (control@binary)
-    formals(evalEnv$normal)[["k"]] <- quote(chi(1.25, Inf))
+  evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
 
-  if (is.symbol(matchedCall$tree.prior))
-    matchedCall$tree.prior  <- call(as.character(matchedCall$tree.prior))
-  if (is.symbol(matchedCall$resid.prior))
-    matchedCall$resid.prior <- call(as.character(matchedCall$resid.prior))
-  if (is.symbol(matchedCall$node.prior))
-    matchedCall$node.prior  <- call(as.character(matchedCall$node.prior))
-  
-  tree.prior  <- eval(matchedCall$tree.prior, evalEnv)
-  resid.prior <- eval(matchedCall$resid.prior, evalEnv)
-  
-  node.prior <- node.hyperprior <- NULL
-  massign[node.prior, node.hyperprior] <- eval(matchedCall$node.prior, evalEnv)
-  
+  # a bare constructor name (tree.prior = cgm) means its defaults; a value
+  # that is already a prior object passes through
+  resolveSpec <- function(expr) {
+    result <- eval(expr, evalEnv)
+    if (is.function(result)) result <- result()
+    result
+  }
+
+  tree.prior <- resolveSpec(matchedCall$tree.prior)
+  if (!is(tree.prior, "dbartsTreePrior"))
+    stop("'tree.prior' must be a tree prior specification; see ?dbartsPriors")
+  tree.prior <- resolveSplitProbabilities(tree.prior, data)
+  # BART package startdart convention: hold the Dirichlet updates until the
+  # forest is likelihood-informed
+  if (is(tree.prior, "dbartsDartPrior") && is.na(tree.prior@update.delay))
+    tree.prior@update.delay <- as.numeric(control@n.burn %/% 2L)
+
+  resid.prior <- resolveSpec(matchedCall$resid.prior)
+  if (!is(resid.prior, "dbartsResidPrior"))
+    stop("'resid.prior' must be a residual prior specification; see ?dbartsPriors")
+
+  node.prior <- resolveSpec(matchedCall$node.prior)
+  if (!is(node.prior, "dbartsNodePrior"))
+    stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
+  node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
+
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }
 
-num.vars <- numvars <- NULL # R CMD check
-cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
+## Turn a cgm-family prior's raw split.probs specification into normalized
+## per-column probabilities: NULL or a scalar is uniform, a named vector
+## assigns by column or term name with an optional ".default", an unnamed
+## vector assigns by position.
+resolveSplitProbabilities <- function(prior, data)
 {
-  matchedCall <- match.call()
-  if (is.null(matchedCall$split.probs))
-    matchedCall$split.probs <- formals()$split.probs
-  split.probs.expr <- subTermInLanguage(matchedCall$split.probs, quote(num.vars), quote(ncol(data@x)))
-  split.probs.expr <- subTermInLanguage(split.probs.expr, quote(numvars), quote(ncol(data@x)))
-  split.probs <- eval(split.probs.expr, parent.frame())
-  data <- parent.frame()$data
-  
-  if (is.null(split.probs) || length(split.probs) == 1L) {
+  split.probs <- prior@splitProbabilitiesSpec
+  if (is.null(split.probs)) return(prior)
+
+  if (length(split.probs) == 1L) {
     # if length 1, we can ignore it
     split.probs <- numeric()
   } else if (!is.null(names(split.probs))) {
@@ -93,19 +106,19 @@ cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
       split.probs <- split.probs[!defaultMatch]
       split.names <- names(split.probs)
     }
-    
+
     result <- rep(default, ncol(data@x))
     names(result) <- colnames(data@x)
 
     if (is.null(names(result)) && length(split.names) > 0L)
       stop("cannot assign split probabilities: model matrix has no column names")
-    
+
     namesMatch <- match(split.names, names(result))
     result[namesMatch[!is.na(namesMatch)]] <- split.probs[!is.na(namesMatch)]
 
     split.probs <- split.probs[is.na(namesMatch)]
     split.names <- names(split.probs)
-    
+
     for (i in seq_along(split.probs)) {
       if (split.names[i] %not_in% attr(data@x, "term.labels"))
         stop("cannot assign split probabilities: unrecognized variable name '", split.names[i], "'")
@@ -120,7 +133,7 @@ cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
       stop("cannot assign split probabilities: length of input (", length(split.probs),
            ") does not equal number of columns in model matrix (", ncol(data@x), ")")
   }
-  
+
   if (length(split.probs) > 0L) {
     if (anyNA(split.probs)) {
       if (!is.null(names(split.probs))) {
@@ -131,64 +144,108 @@ cgm <- function(power = 2, base = 0.95, split.probs = 1 / num.vars)
              paste0(which(is.na(split.probs)), collapse = ", "))
       }
     }
-    
+
     split.probs <- split.probs / sum(split.probs)
     if (all(split.probs == split.probs[1L]))
       split.probs <- numeric()
   }
 
-
-  new("dbartsCGMPrior",
-      power = power,
-      base = base,
-      splitProbabilities = split.probs)
+  prior@splitProbabilities <- split.probs
+  prior@splitProbabilitiesSpec <- NULL
+  validObject(prior)
+  prior
 }
 
-normal <- function(k = 2.0)
+## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
+## family default (2 for continuous responses, chi(1.25, Inf) for binary),
+## a positive scalar is fixed, and a hyperprior object passes through.
+resolveNodeHyperprior <- function(k, binary)
 {
-  matchedCall <- match.call()
-  evalEnv <- new.env(parent = parent.frame())
-  evalEnv$chi <- function(degreesOfFreedom = 1.25, scale = Inf)
-    new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
+  if (is.null(k))
+    k <- if (binary) chi(1.25, Inf) else 2.0
+  if (is.numeric(k))
+    return(new("dbartsFixedHyperprior", k = k))
+  if (is(k, "dbartsNodeHyperprior"))
+    return(k)
+  stop("'k' must be a positive scalar or a hyperprior specification")
+}
 
-  if (!is.null(matchedCall[["k"]])) {
-    kExpr <- matchedCall[["k"]]
-    for (i in seq_len(2L)) {
-      if (is.numeric(kExpr) || inherits(kExpr, "dbartsNodeHyperprior")) break
-      
-      if (is.character(kExpr)) {
-        if (startsWith(kExpr, "chi")) {
-          kExpr <- parse(text = kExpr)[[1L]]
-          if (!is.call(kExpr))
-            kExpr <- call(as.character(kExpr))
-        }
-        else kExpr <- coerceOrError(kExpr, "numeric")
-      }
-      if (is.symbol(kExpr) && !is.call(kExpr) && startsWith(as.character(kExpr), "chi"))
-        kExpr <- call(as.character(kExpr))
-      
-      # the below evaluation might only lead to a lookup, in which case we have to do an
-      # additional level of casting/eval
-      kExpr <- eval(kExpr, evalEnv)
+num.vars <- numvars <- NULL # R CMD check
+cgm <- function(power = 2, base = 0.95, split.probs = NULL)
+{
+  result <- new("dbartsCGMPrior",
+                power = power,
+                base = base,
+                splitProbabilities = numeric(),
+                splitProbabilitiesSpec = NULL)
+  if (length(split.probs) > 0L && !is.numeric(split.probs))
+    stop("'split.probs' must be numeric")
+  result@splitProbabilitiesSpec <- split.probs
+  result
+}
+
+normal <- function(k = NULL)
+{
+  if (is.character(k)) {
+    # compatibility with string specifications like "chi(1.25)" or "2"
+    if (startsWith(k, "chi")) {
+      kExpr <- parse(text = k)[[1L]]
+      if (!is.call(kExpr)) kExpr <- call(as.character(kExpr))
+      k <- eval(kExpr, list2env(list(chi = chi), parent = baseenv()))
+    } else {
+      k <- coerceOrError(k, "numeric")
     }
-    kHyperprior <- kExpr
-  } else {
-    kHyperprior <- eval(formals()[["k"]], evalEnv)
   }
-  
-  if (is.numeric(kHyperprior))
-    kHyperprior <- new("dbartsFixedHyperprior", k = kHyperprior)
-  
-  namedList(node.prior = new("dbartsNormalPrior"), node.hyperprior = kHyperprior)
+  if (is.function(k)) k <- k()  # normal(chi)
+  if (!is.null(k) && !is(k, "dbartsNodeHyperprior") &&
+      (!is.numeric(k) || length(k) != 1L || is.na(k) || k <= 0.0))
+    stop("'k' must be a positive scalar or a hyperprior specification")
+  new("dbartsNormalPrior", k = k)
 }
 
 chisq <- function(df = 3, quant = 0.9)
 {
   new("dbartsChiSqPrior", df = df, quantile = quant)
 }
-    
+
 fixed <- function(value = 1.0)
 {
   new("dbartsFixedPrior", value = value)
 }
+
+chi <- function(degreesOfFreedom = 1.25, scale = Inf)
+{
+  new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
+}
+
+dart <- function(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL,
+                 alpha = 1, update.alpha = TRUE, update.delay = NULL)
+{
+  new("dbartsDartPrior",
+      power = power,
+      base = base,
+      splitProbabilities = numeric(),
+      splitProbabilitiesSpec = NULL,
+      a = a,
+      b = b,
+      rho = if (is.null(rho)) NA_real_ else rho,
+      alpha = alpha,
+      update.alpha = update.alpha,
+      update.delay = if (is.null(update.delay)) NA_real_
+                     else as.numeric(update.delay))
+}
+
+## The exported face of the prior constructors: one object, so that no
+## generic name (normal, chisq, fixed, chi) enters the search path to be
+## masked by or to mask another package by attach order. Inside the
+## tree.prior/node.prior/resid.prior arguments of the fitting functions the
+## same constructors are available by bare name.
+dbartsPriors <- list(
+  cgm    = cgm,
+  dart   = dart,
+  normal = normal,
+  chisq  = chisq,
+  fixed  = fixed,
+  chi    = chi
+)
 

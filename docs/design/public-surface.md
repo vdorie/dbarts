@@ -123,6 +123,10 @@ also why it never polluted the search path: `normal`, `chisq`, `chi`, and
 by attach order become support requests).
 
 DECIDED: evolve in place, keeping that no-pollution property.
+Landed 2026-07-03: `dbartsPriors` exports the constructors (including
+`dart`); the bare-name sugar evaluates against the vocabulary layered over
+the caller's environment; specs resolve against data/control at fit time
+(named split probabilities, the binary k default, the DART update delay).
 
 - Prior specifications become first-class classed objects built by ordinary
   standard-evaluation constructors, validated at construction. `dart()`
@@ -160,6 +164,11 @@ startdart convention; a cold forest under sampled alpha is bistable without
 it). The fit exposes split-probability samples (`varprobs`, chains x samples
 x predictors) next to `varcount`. bart2 gains a `dart = FALSE` convenience
 flag mapping to the spec with defaults.
+
+Landed 2026-07-03: `tree.prior = dart(...)` on `dbarts()` (bartcore engine
+only; the classic engine and `setModel` refuse it; the sampled
+probabilities appear in the stored state). Remaining: per-sample
+`varprobs` output and the bart2 flag, which follow the wrapper flip.
 
 ## 5. Standalone data handle and CV views
 
