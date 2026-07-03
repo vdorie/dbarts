@@ -587,6 +587,98 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   return R_NilValue;
 }
 
+// Between-run reconfiguration, the classic engine's setControl. The R side
+// refuses changes to the engine, rng, and cut settings; chain and tree
+// counts shape live storage, so they are re-checked here.
+SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  if (!Rf_inherits(controlExpr, "dbartsControl"))
+    Rf_error("'control' argument to bartcore_setControl not of class "
+             "'dbartsControl'");
+
+  Control control;
+  initializeControlFromExpression(control, controlExpr);
+
+  if (control.numChains != sampler.numChains())
+    Rf_error("the bartcore engine cannot change the number of chains of an "
+             "existing sampler");
+  if (control.numTrees != sampler.numTrees())
+    Rf_error("the bartcore engine cannot change the number of trees of an "
+             "existing sampler");
+
+  holder.keepTrainingFits = control.keepTrainingFits;
+  sampler.setNumThreads(control.numThreads);
+  sampler.setNumThin(control.treeThinningRate);
+  sampler.setTreeStorage(control.keepTrees, control.defaultNumSamples);
+
+  return R_NilValue;
+}
+
+/// Prior replacement, the classic engine's setModel; installing a model
+/// before any run matches creating with it.
+SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
+                       SEXP dataExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  if (!Rf_inherits(modelExpr, "dbartsModel"))
+    Rf_error("'model' argument to bartcore_setModel not of class "
+             "'dbartsModel'");
+
+  Control control;
+  Data data;
+  Model model;
+  initializeControlFromExpression(control, controlExpr);
+  initializeDataFromExpression(data, dataExpr);
+  initializeModelFromExpression(model, modelExpr, control, data);
+
+  bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
+  const char* errorMessage = NULL;
+  if (isGaussian && model.sigmaSqPrior->isFixed)
+    errorMessage =
+      "bartcore does not support fixed sigma for continuous responses";
+
+  if (errorMessage == NULL) {
+    const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
+
+    bartcore::ModelParameters parameters;
+    parameters.base = treePrior.base;
+    parameters.power = treePrior.power;
+    parameters.splitProbabilities = treePrior.splitProbabilities;
+    parameters.birthOrDeathProbability = model.birthOrDeathProbability;
+    parameters.swapProbability = model.swapProbability;
+    parameters.changeProbability = model.changeProbability;
+    parameters.birthProbability = model.birthProbability;
+    parameters.nodeScale = model.nodeScale;
+    parameters.updateK = !model.kPrior->isFixed;
+    if (parameters.updateK) {
+      const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
+      parameters.kHyperprior.degreesOfFreedom = kPrior.degreesOfFreedom;
+      parameters.kHyperprior.scale = kPrior.scale;
+    } else {
+      parameters.k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
+    }
+    if (isGaussian) {
+      const ChiSquaredPrior& sigmaSqPrior(
+        *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
+      parameters.sigmaEstimate = data.sigmaEstimate;
+      parameters.sigmaDf = sigmaSqPrior.degreesOfFreedom;
+      parameters.sigmaRawScale = sigmaSqPrior.scale;
+    }
+
+    // split probabilities are copied per chain before the model goes away
+    sampler.setModel(parameters);
+  }
+
+  invalidateModel(model);
+  invalidateData(data);
+  if (errorMessage != NULL) Rf_error("%s", errorMessage);
+
+  return R_NilValue;
+}
+
 SEXP bartcore_isValidPointer(SEXP ptrExpr) {
   return Rf_ScalarLogical(R_ExternalPtrAddr(ptrExpr) != NULL ? TRUE : FALSE);
 }
@@ -598,6 +690,17 @@ SEXP bartcore_getSigmas(SEXP ptrExpr) {
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
   for (size_t c = 0; c < numChains; ++c)
     REAL(result)[c] = holder.sampler->sigma(c);
+  UNPROTECT(1);
+  return result;
+}
+
+SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numChains = holder.sampler->numChains();
+  SEXP result =
+    PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    REAL(result)[c] = holder.sampler->sumOfSquaredResiduals(c);
   UNPROTECT(1);
   return result;
 }
