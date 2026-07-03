@@ -2119,6 +2119,99 @@ static void testStateValidation(ext_rng* rng) {
   printf("ok: state validation\n");
 }
 
+static void testSetWeightsAndTestOffset() {
+  const size_t n = 200, nTest = 20;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = runif01();
+  std::vector<double> w1(n), w2(n);
+  for (double& v : w1) v = 0.5 + runif01();
+  for (double& v : w2) v = 0.5 + runif01();
+  std::vector<double> testOffset(nTest);
+  for (size_t i = 0; i < nTest; ++i)
+    testOffset[i] = static_cast<double>(i) - 10.0;
+
+  SamplerOptions options;
+  options.numTrees = 25;
+
+  auto makeSeededRng = []() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 314);
+    return rng;
+  };
+
+  // setWeights before any run is indistinguishable from creating with the
+  // new weights: a bare pointer swap, nothing rescales
+  ext_rng* rngA = makeSeededRng();
+  ClassicSampler samplerA(x.data(), y.data(), n, 2, w2.data(), nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngA);
+  ext_rng* rngB = makeSeededRng();
+  ClassicSampler samplerB(x.data(), y.data(), n, 2, w1.data(), nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngB);
+  samplerB.setWeights(w2.data());
+
+  std::vector<double> sigmaA(5), sigmaB(5), trainA(n * 5), trainB(n * 5);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  samplerA.run(30, 5, resultsA);
+  samplerB.run(30, 5, resultsB);
+  check(sigmaA == sigmaB && trainA == trainB,
+        "setWeights equals creation with the new weights");
+
+  // a test offset shifts recorded test fits by exactly itself and leaves
+  // everything else alone
+  ext_rng* rngC = makeSeededRng();
+  ClassicSampler samplerC(x.data(), y.data(), n, 2, w2.data(), nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngC);
+  samplerC.setTestPredictors(xTest.data(), nTest);
+  samplerC.setTestOffset(testOffset.data());
+
+  ext_rng* rngD = makeSeededRng();
+  ClassicSampler samplerD(x.data(), y.data(), n, 2, w2.data(), nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngD);
+  samplerD.setTestPredictors(xTest.data(), nTest);
+
+  std::vector<double> trainC(n * 5), trainD(n * 5);
+  std::vector<double> testC(nTest * 5), testD(nTest * 5);
+  Results resultsC, resultsD;
+  resultsC.trainingFits = trainC.data();
+  resultsC.testFits = testC.data();
+  resultsD.trainingFits = trainD.data();
+  resultsD.testFits = testD.data();
+  samplerC.run(30, 5, resultsC);
+  samplerD.run(30, 5, resultsD);
+
+  check(trainC == trainD, "a test offset leaves training fits alone");
+  bool shifted = true;
+  for (size_t s = 0; s < 5; ++s)
+    for (size_t i = 0; i < nTest; ++i)
+      shifted &= testC[s * nTest + i] == testD[s * nTest + i] + testOffset[i];
+  check(shifted, "a test offset shifts recorded test fits by itself");
+
+  // clearing restores the unshifted fits, and the offset survives a
+  // same-length predictor replacement
+  samplerC.setTestOffset(nullptr);
+  check(samplerC.data().testOffset == nullptr, "a null test offset clears");
+  samplerC.setTestOffset(testOffset.data());
+  samplerC.setTestPredictors(xTest.data(), nTest);
+  check(samplerC.data().testOffset == testOffset.data(),
+        "the test offset survives a predictor replacement");
+
+  ext_rng_destroy(rngD);
+  ext_rng_destroy(rngC);
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: setWeights and test offsets\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -2168,6 +2261,7 @@ int main() {
   testStateRoundTrip();
   testStateRoundTripLatents(rng);
   testStateValidation(rng);
+  testSetWeightsAndTestOffset();
 
   ext_rng_destroy(rng);
 

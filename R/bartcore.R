@@ -3,9 +3,9 @@
 # functions below, which mirror the classic methods' semantics; the C side
 # borrows vectors and pins them in the external pointer's protection slot.
 #
-# Not yet supported (methods error): setWeights, test offsets, weights with
-# binary responses (the classic engine's probit weighting is incorrect and
-# was stripped rather than ported), printTrees, and sampling from the prior.
+# Not yet supported (methods error): weights with binary responses (the
+# classic engine's probit weighting is incorrect and was stripped rather
+# than ported), printTrees, and sampling from the prior.
 #
 # keepTrees/getTrees/predict follow the classic formats. State serialization
 # (storeState/setState, or runs with updateState) produces an engine-specific
@@ -115,22 +115,58 @@ bartcoreSamplerSetResponse <- function(sampler, y) {
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
-  if (!is.null(offset)) {
+  # a synced test offset follows the regular one, as in the classic method;
+  # NA marks "leave the test offset alone"
+  offset.test <- NA
+  if (is.null(offset)) {
+    if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
+      offset.test <- NULL
+    }
+  } else {
     offset <- as.double(offset)
     if (length(offset) == 1L) {
+      if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
+        offset.test <- if (!is.null(sampler$data@x.test)) {
+          rep_len(offset, nrow(sampler$data@x.test))
+        } else {
+          NULL
+        }
+      }
       offset <- rep_len(offset, length(sampler$data@y))
-    } else if (length(offset) != length(sampler$data@y)) {
-      stop("length of replacement offset is not equal to number of observations")
-    }
-    if (identical(sampler$data@testUsesRegularOffset, TRUE) &&
-        !is.null(sampler$data@x.test)) {
-      stop("test offsets are not supported by the bartcore engine")
+    } else {
+      if (length(offset) != length(sampler$data@y)) {
+        stop("length of replacement offset is not equal to number of observations")
+      }
+      if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
+        offset.test <- if (!is.null(sampler$data@x.test) &&
+                           length(offset) == nrow(sampler$data@x.test)) {
+          offset
+        } else {
+          NULL
+        }
+      }
     }
   }
 
+  ptr <- sampler$getPointer()
+
   sampler$data@offset <- offset
-  .Call(C_dbarts_bartcore_setOffset, sampler$getPointer(),
-        sampler$data@offset, as.logical(updateScale))
+  .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset,
+        as.logical(updateScale))
+
+  if (!identical(offset.test, NA)) {
+    oldOffset.test <- sampler$data@offset.test
+    sampler$data@offset.test <- offset.test
+    tryResult <- tryCatch(
+      .Call(C_dbarts_bartcore_setTestOffset, ptr, sampler$data@offset.test),
+      error = function(e) {
+        sampler$data@offset.test <- oldOffset.test
+        e
+      }
+    )
+    if (inherits(tryResult, "error")) stop(tryResult)
+  }
+
   invisible(NULL)
 }
 
@@ -245,6 +281,15 @@ bartcoreSetOffset <- function(bcSampler, offset, updateScale = FALSE) {
 
 bartcoreSetResponse <- function(bcSampler, y)
   invisible(.Call(C_dbarts_bartcore_setResponse, bcSampler$ptr, as.double(y)))
+
+bartcoreSetWeights <- function(bcSampler, weights)
+  invisible(.Call(C_dbarts_bartcore_setWeights, bcSampler$ptr,
+                  as.double(weights)))
+
+bartcoreSetTestOffset <- function(bcSampler, offset.test) {
+  if (!is.null(offset.test)) offset.test <- as.double(offset.test)
+  invisible(.Call(C_dbarts_bartcore_setTestOffset, bcSampler$ptr, offset.test))
+}
 
 bartcoreSetSigma <- function(bcSampler, sigma)
   invisible(.Call(C_dbarts_bartcore_setSigma, bcSampler$ptr, as.double(sigma)))

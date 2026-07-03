@@ -46,6 +46,9 @@ struct ColumnStore {
   size_t numTestObservations = 0;
   const double* x_test = nullptr;  // borrowed, column-major
   std::vector<xint_t> testCodes;  // row-major, numTestObservations x numPredictors
+  // borrowed; added to recorded test fits. buildTest leaves it alone (the
+  // caller keeps the lengths consistent), clearTest clears it.
+  const double* testOffset = nullptr;
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
   // with value > all cuts mapping to numCuts (always right of any split);
@@ -283,6 +286,7 @@ struct ColumnStore {
     x_test = nullptr;
     numTestObservations = 0;
     testCodes.clear();
+    testOffset = nullptr;
   }
 
   const xint_t* column(size_t variable) const {

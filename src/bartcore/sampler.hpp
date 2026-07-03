@@ -93,9 +93,21 @@ public:
   Sampler(const Sampler&) = delete;
   Sampler& operator=(const Sampler&) = delete;
 
+  /// Replace the test predictors, keeping any test offset: the caller
+  /// guarantees the row count still matches it (the bridge refuses
+  /// otherwise). Passing a new offset too goes through setTestOffset.
   void setTestPredictors(const double* x_test, size_t numTestObservations) {
+    const double* testOffset = data_.testOffset;
     data_.buildTest(x_test, numTestObservations);
+    data_.testOffset = testOffset;
     for (auto& chain : chains_) chain->resizeTestStorage();
+  }
+
+  /// Borrowed, length numTestObservations (the caller validates); null
+  /// clears. Added to recorded test fits, exactly as the classic engine
+  /// does; predictions take their offset as an argument instead.
+  void setTestOffset(const double* testOffset) {
+    data_.testOffset = testOffset;
   }
 
   /// Runs every chain numBurnIn + numSamples iterations, filling per-chain
@@ -250,6 +262,12 @@ public:
   void setResponse(const double* y) {
     for (auto& chain : chains_) chain->setResponse(y);
   }
+  /// Case weights, gaussian only (the host rejects binary families): a bare
+  /// pointer swap like the classic engine's, entering the next iteration's
+  /// node statistics and sigma draw with nothing rescaled.
+  void setWeights(const double* weights) {
+    for (auto& chain : chains_) chain->setWeights(weights);
+  }
   void setSigma(double sigmaOriginalScale) {
     for (auto& chain : chains_) chain->setSigma(sigmaOriginalScale);
   }
@@ -266,7 +284,8 @@ public:
   /// sigma and the variance prior fixed on the original scale.
   void setData(const double* x, const double* y, size_t numObservations,
                const double* weights, const double* offset,
-               const double* x_test, size_t numTestObservations) {
+               const double* x_test, size_t numTestObservations,
+               const double* testOffset = nullptr) {
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap
     std::vector<typename Chain<L>::TreeParameters> params(chains_.size());
@@ -276,10 +295,12 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
 
     data_.setData(x, numObservations);
-    if (x_test != nullptr && numTestObservations > 0)
+    if (x_test != nullptr && numTestObservations > 0) {
       data_.buildTest(x_test, numTestObservations);
-    else
+      data_.testOffset = testOffset;
+    } else {
       data_.clearTest();
+    }
 
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c]);

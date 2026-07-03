@@ -241,10 +241,11 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
-   Not yet ported (phase 2+): callbacks, MATCH_BAYES_TREE. (Multiple
-   chains/threads, thinning, quantile-based cut points, the k hyperprior,
-   the sampler mutation API, and keepTrees/serialization were all ported
-   later; see below.)
+   Not yet ported (phase 2+): callbacks. MATCH_BAYES_TREE is not preserved
+   (old-engine-only until cutover; see Risks). (Multiple chains/threads,
+   thinning, quantile-based cut points, the k hyperprior, the sampler
+   mutation API, and keepTrees/serialization were all ported later; see
+   below.)
    Availability is recomputed from ancestor walks instead of cached
    per-node flags; Forest is not yet split out of Sampler (do this when the
    facade lands in phase 2).
@@ -460,6 +461,27 @@ partitioning entirely; a different library sharing only the tree structure).
    DART) bitwise. Also fixed in passing: bartcore_setData retained a
    leftover ordinal-only check that made its categorical validation
    unreachable.
+
+   setWeights + test offsets (DONE 2026-07-02, cutover-parity cleanup):
+   both mirror the classic engine exactly. setWeights is a bare pointer
+   swap fanned to every chain's response model (gaussian only; the binary
+   families reject, their reference weighting having been stripped) -
+   nothing rescales, and the weighted residuals enter the next iteration's
+   node statistics and sigma draw, so installing weights before any run is
+   bitwise identical to creating with them. Test offsets live on the
+   ColumnStore beside the test predictors and are added to recorded test
+   fits in storeSample (predictions instead take an offset argument, as
+   classic predict's NA sentinel never falls back to the stored offset).
+   The R5 surface gets the full classic offset plumbing:
+   testUsesRegularOffset sync in setOffset, setTestOffset breaking the
+   sync, and setTestPredictorAndOffset for row-count changes; a lone
+   setTestPredictor that would orphan the offset's length refuses (the
+   classic engine silently keeps the stale pointer). Gated by exact
+   component tests (offset shifts recorded fits by itself; setWeights
+   equals creation with the new weights) and a ninth equivalence scenario
+   (wtoffset) swapping weights and installing a test offset mid-chain.
+   Remaining unsupported surface: printTrees, prior sampling, callbacks,
+   and weights + binary (by design).
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
    (retiring the rbart_vi R loop).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
@@ -476,5 +498,5 @@ partitioning entirely; a different library sharing only the tree structure).
   logistic; choose sampler variant by benchmark.
 - setPredictor/rollback semantics for factors and sparse patterns need
   careful per-column-type definitions (phase 4).
-- MATCH_BAYES_TREE and similar compat flags: decide in phase 1 whether the
-  new core carries them or they remain old-engine-only until cutover.
+- MATCH_BAYES_TREE and similar compat flags: DECIDED (Vincent, 2026-07-02)
+  - not preserved; they remain old-engine-only and die at cutover.

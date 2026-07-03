@@ -261,6 +261,10 @@ public:
   void setOffset(const double* offset, bool updateScale) {
     response_->setOffset(offset, updateScale, &sigma_);
   }
+  void setWeights(const double* weights) {
+    weights_ = weights;
+    response_->setWeights(weights);
+  }
   void setResponse(const double* y) {
     response_->setResponse(y, rng_, totalFits_.data(), &sigma_);
   }
@@ -665,6 +669,9 @@ private:
       double* out = results.testFits + sampleNum * data_.numTestObservations;
       for (size_t i = 0; i < data_.numTestObservations; ++i)
         out[i] = scale * totalTestFits_[i] + shift;
+      if (data_.testOffset != nullptr)
+        misc_addVectorsInPlace(data_.testOffset, data_.numTestObservations,
+                               out);
     }
 
     if (results.variableCounts != nullptr) {

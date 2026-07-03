@@ -721,22 +721,27 @@ dbartsSampler <- setRefClass(
     },
     setWeights = function(weights, updateState = NA) {
       'Changes the weights with which the sampler is fitted.'
-      assertClassicEngine(control, "setWeights")
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
       oldWeights <- data@weights
       selfEnv$data@weights <- as.double(weights)
       tryResult <- tryCatch(
-        .Call(C_dbarts_setWeights, ptr, data@weights),
+        if (control@engine == "bartcore") {
+          .Call(C_dbarts_bartcore_setWeights, ptr, data@weights)
+        } else {
+          .Call(C_dbarts_setWeights, ptr, data@weights)
+        },
         error = function(e) {
           selfEnv$data@weights <- oldWeights
-          e$call <- quote(.Call(C_dbarts_setWeights, ptr, data@weights))
           e
         }
       )
       if (inherits(tryResult, "error")) {
         stop(tryResult)
+      }
+      if (control@engine == "bartcore") {
+        return(invisible(NULL))
       }
 
       if (
@@ -1032,10 +1037,61 @@ dbartsSampler <- setRefClass(
     setTestPredictorAndOffset = function(x.test, offset.test) {
       'Changes the test predictor matrix, and optionally the test offset.'
       if (control@engine == "bartcore") {
-        if (!missing(offset.test) && !is.null(offset.test)) {
-          stop("test offsets are not supported by the bartcore engine")
+        if (missing(offset.test)) {
+          # predictors only; the engine keeps the current offset and the
+          # bridge refuses if the row count would orphan its length
+          return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
         }
-        return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
+
+        x.test <- validateXTest(
+          x.test,
+          attr(data@x, "term.labels"),
+          ncol(data@x),
+          colnames(data@x),
+          attr(data@x, "drop")
+        )
+        if (is.null(x.test)) {
+          if (!is.null(offset.test)) {
+            stop("when test matrix is NULL, test offset must be as well")
+          }
+          stop("removing test data is not supported by the bartcore engine")
+        }
+        if (!is.null(offset.test)) {
+          offset.test <- as.double(offset.test)
+          if (length(offset.test) == 1L) {
+            offset.test <- rep_len(offset.test, nrow(x.test))
+          }
+          if (!identical(length(offset.test), nrow(x.test))) {
+            stop(
+              "length of test offset must be equal to number of rows in test matrix"
+            )
+          }
+        }
+
+        selfEnv <- parent.env(environment())
+        oldTestUsesRegularOffset <- data@testUsesRegularOffset
+        oldX.test <- data@x.test
+        oldOffset.test <- data@offset.test
+
+        selfEnv$data@testUsesRegularOffset <- FALSE
+        selfEnv$data@x.test <- x.test
+        selfEnv$data@offset.test <- offset.test
+        tryResult <- tryCatch(
+          .Call(
+            C_dbarts_bartcore_setTestPredictorAndOffset,
+            getPointer(),
+            data@x.test,
+            data@offset.test
+          ),
+          error = function(e) {
+            selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
+            selfEnv$data@x.test <- oldX.test
+            selfEnv$data@offset.test <- oldOffset.test
+            e
+          }
+        )
+        if (inherits(tryResult, "error")) stop(tryResult)
+        return(invisible(NULL))
       }
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
@@ -1103,7 +1159,6 @@ dbartsSampler <- setRefClass(
     },
     setTestOffset = function(offset.test) {
       'Changes the test offset.'
-      assertClassicEngine(control, "setTestOffset")
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -1124,10 +1179,13 @@ dbartsSampler <- setRefClass(
       oldOffset.test <- data@offset.test
       selfEnv$data@offset.test <- offset.test
       tryResult <- tryCatch(
-        .Call(C_dbarts_setTestOffset, ptr, data@offset.test),
+        if (control@engine == "bartcore") {
+          .Call(C_dbarts_bartcore_setTestOffset, ptr, data@offset.test)
+        } else {
+          .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
+        },
         error = function(e) {
-          selfEnv$data@offset.test <- offset.test
-          e$call <- quote(.Call(C_dbarts_setTestOffset, ptr, data@offset.test))
+          selfEnv$data@offset.test <- oldOffset.test
           e
         }
       )

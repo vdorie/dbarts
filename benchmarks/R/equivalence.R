@@ -109,6 +109,22 @@ makeScenarios <- function() {
     setData = list(x = x2, y = friedman(x2) + rnorm(500L))
   )
 
+  # weights swapped and a test offset installed mid-chain: exercises the
+  # setWeights pointer swap (weighted node statistics and sigma draws) and
+  # the test-offset addition to recorded test fits; created with a scalar
+  # offset so the auto-synced test offset path runs too
+  set.seed(5109L)
+  x <- matrix(runif(500L * 10L), 500L)
+  weights <- runif(500L, 0.5, 2)
+  result$wtoffset <- list(
+    x = x, y = friedman(x) + 0.4 + rnorm(500L) / sqrt(weights),
+    weights = weights, offset = 0.4,
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE,
+    mutate = list(weights = runif(500L, 0.5, 2),
+                  offset.test = seq(-1, 1, length.out = n.test))
+  )
+
   # quantile cut points over a mix of continuous columns (thinned to numcut)
   # and discrete ones (columns 4-5 and 8-10 on an 11-level grid, inducing
   # 10 unique-midpoint cuts each)
@@ -133,8 +149,13 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
                            n.trees = ntree, updateState = FALSE,
                            engine = if (engineIsNew) "bartcore" else "classic")
-  sampler <- dbarts(scenario$x, scenario$y, test = scenario$x.test,
-                    control = control)
+  sampler <- if (!is.null(scenario$weights) || !is.null(scenario$offset)) {
+    dbarts(scenario$x, scenario$y, test = scenario$x.test,
+           weights = scenario$weights, offset = scenario$offset,
+           control = control)
+  } else {
+    dbarts(scenario$x, scenario$y, test = scenario$x.test, control = control)
+  }
   # [d, S] or [d, S, C] -> (S * C) x d, pooling chains
   poolChains <- function(a) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
@@ -143,6 +164,13 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
     sampler$run(nskip, 0L)
     sampler$setData(dbartsData(scenario$setData$x, scenario$setData$y,
                                test = scenario$x.test))
+    sampler$run(ceiling(nskip / 4), ndpost)
+  } else if (!is.null(scenario$mutate)) {
+    sampler$run(nskip, 0L)
+    if (!is.null(scenario$mutate$weights))
+      sampler$setWeights(scenario$mutate$weights)
+    if (!is.null(scenario$mutate$offset.test))
+      sampler$setTestOffset(scenario$mutate$offset.test)
     sampler$run(ceiling(nskip / 4), ndpost)
   } else {
     sampler$run(nskip, ndpost)

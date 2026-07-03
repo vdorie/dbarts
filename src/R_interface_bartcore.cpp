@@ -47,6 +47,8 @@ enum {
   PROT_OFFSET,
   PROT_PREDICTORS,
   PROT_TEST_PREDICTORS,
+  PROT_TEST_OFFSET,
+  PROT_WEIGHTS,
   PROT_COUNT
 };
 
@@ -188,8 +190,6 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   if (errorMessage == NULL && !control.responseIsBinary &&
       model.sigmaSqPrior->isFixed)
     errorMessage = "bartcore does not support fixed sigma for continuous responses";
-  if (errorMessage == NULL && data.testOffset != NULL)
-    errorMessage = "bartcore does not support test offsets";
   if (errorMessage == NULL && control.responseIsBinary &&
       data.weights != NULL)
     errorMessage = "bartcore does not support weights for binary responses";
@@ -275,8 +275,10 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     data.offset, family, data.sigmaEstimate, sigmaDf, sigmaRawScale, options,
     rngs.data());
 
-  if (data.numTestObservations > 0)
+  if (data.numTestObservations > 0) {
     sampler->setTestPredictors(data.x_test, data.numTestObservations);
+    sampler->setTestOffset(data.testOffset);
+  }
 
   invalidateModel(model);
   invalidateData(data);
@@ -434,8 +436,6 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   const char* errorMessage = NULL;
   if (data.numPredictors != sampler.numPredictors())
     errorMessage = "bartcore setData requires the same predictors";
-  if (errorMessage == NULL && data.testOffset != NULL)
-    errorMessage = "bartcore does not support test offsets";
   if (errorMessage == NULL &&
       sampler.family() != bartcore::ResponseFamily::gaussian &&
       data.weights != NULL)
@@ -469,7 +469,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   }
 
   sampler.setData(data.x, data.y, data.numObservations, data.weights,
-                  data.offset, data.x_test, data.numTestObservations);
+                  data.offset, data.x_test, data.numTestObservations,
+                  data.testOffset);
 
   invalidateData(data);
 
@@ -490,12 +491,83 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
     Rf_error("bartcore_setTestPredictor requires a matrix with matching columns");
   size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
+  if (holder.sampler->data().testOffset != NULL &&
+      numTestObservations != holder.sampler->numTestObservations())
+    Rf_error("test offset length would no longer match; set the predictors "
+             "and offset together");
   for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
     validateColumnValues(holder.sampler->data(), j,
                          REAL(xTestExpr) + j * numTestObservations,
                          numTestObservations);
   holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
   retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
+  return R_NilValue;
+}
+
+// offsetExpr may be null (clear); length must match the current test data.
+SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (Rf_isNull(offsetExpr)) {
+    holder.sampler->setTestOffset(NULL);
+    retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
+    return R_NilValue;
+  }
+  if (holder.sampler->numTestObservations() == 0)
+    Rf_error("cannot set a test offset without test predictors");
+  if (!Rf_isReal(offsetExpr) ||
+      static_cast<size_t>(Rf_xlength(offsetExpr)) !=
+        holder.sampler->numTestObservations())
+    Rf_error("length of test offset must equal number of test observations");
+  holder.sampler->setTestOffset(REAL(offsetExpr));
+  retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
+  return R_NilValue;
+}
+
+// The combined form the row count may change through; offsetExpr null
+// clears the offset alongside the new predictors.
+SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
+                                        SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
+  if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
+      static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
+    Rf_error("bartcore_setTestPredictorAndOffset requires a matrix with "
+             "matching columns");
+  size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
+  if (!Rf_isNull(offsetExpr) &&
+      (!Rf_isReal(offsetExpr) ||
+       static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations))
+    Rf_error("length of test offset must equal number of rows in test matrix");
+  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+    validateColumnValues(holder.sampler->data(), j,
+                         REAL(xTestExpr) + j * numTestObservations,
+                         numTestObservations);
+
+  holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
+  holder.sampler->setTestOffset(Rf_isNull(offsetExpr) ? NULL
+                                                      : REAL(offsetExpr));
+  retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
+  retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
+  return R_NilValue;
+}
+
+// Case weights, like the classic engine's setWeights: a pointer swap with
+// nothing rescaled; refused for binary responses, whose reference-engine
+// weighting was incorrect and was stripped rather than ported.
+SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (holder.sampler->family() != bartcore::ResponseFamily::gaussian)
+    Rf_error("bartcore does not support weights for binary responses");
+  if (!Rf_isReal(weightsExpr) ||
+      static_cast<size_t>(Rf_xlength(weightsExpr)) !=
+        holder.sampler->numObservations())
+    Rf_error("length of weights must equal number of observations");
+  const double* weights = REAL(weightsExpr);
+  for (size_t i = 0; i < holder.sampler->numObservations(); ++i)
+    if (!(weights[i] >= 0.0))
+      Rf_error("weights must be non-negative");
+  holder.sampler->setWeights(weights);
+  retain(ptrExpr, PROT_WEIGHTS, weightsExpr);
   return R_NilValue;
 }
 
