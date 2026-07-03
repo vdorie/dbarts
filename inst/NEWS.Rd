@@ -66,6 +66,11 @@
       \item Slot and attribute temporaries in the \code{.Call} interface are now
             protected across the calls that can allocate, as reported by
             \code{rchk}'s static analysis of the protection stack.
+      \item The sampler's `getSumsOfSquaredResiduals` method now returns
+            residual sums of squares on the original response scale as
+            documented; it previously descaled by a single factor of the
+            data range instead of its square. Binary responses report on
+            the latent scale.
     }
   }
 }
