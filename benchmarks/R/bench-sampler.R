@@ -16,6 +16,11 @@ suppressPackageStartupMessages(library(dbarts))
 args  <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args  <- setdiff(args, "quick")
+# engine=new times the bartcore engine, so recording under classic and
+# comparing under engine=new measures the cross-engine gap on one build
+useNewEngine <- "engine=new" %in% args
+args  <- setdiff(args, "engine=new")
+engine <- if (useNewEngine) "bartcore" else "classic"
 mode  <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
@@ -28,7 +33,7 @@ genFriedman <- function(n, p = 10L) {
 newSampler <- function(x, y, n.trees) {
   control <- dbartsControl(
     verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
-    updateState = FALSE
+    updateState = FALSE, engine = engine
   )
   dbarts(x, y, control = control)
 }
@@ -80,7 +85,9 @@ runBenchmarks <- function(quick) {
   sampler <- newSampler(data$x, data$y, 75L)
   invisible(sampler$run(200L, 1L))
   offsets <- matrix(rnorm(1000L * 20L, sd = 0.1), 1000L)
-  n.gibbs <- if (quick) 20L else 100L
+  # long enough that system.time's millisecond granularity stays well under
+  # the 5% regression threshold
+  n.gibbs <- if (quick) 20L else 250L
   elapsed <- timeMedian(function() {
     for (i in seq_len(n.gibbs)) {
       sampler$setOffset(offsets[, 1L + i %% 20L])
@@ -89,18 +96,30 @@ runBenchmarks <- function(quick) {
   }, reps)
   addRow("embedded-offset-run1-n1000-t75", "ms_per_gibbs_step", 1000 * elapsed / n.gibbs)
 
-  # Single-column predictor replacement with tree validation/rollback.
+  # Single-column predictor replacement with tree validation/rollback. The
+  # accept/reject mix of random replacements depends on the chain state (one
+  # tiny leaf rejects most candidates), so time the two paths separately with
+  # deterministic workloads: an identity swap always accepts (full
+  # revalidation + fits rebuild) and a degenerate column always rejects
+  # (early exit + rollback).
   set.seed(4004L)
   data <- genFriedman(1000L)
   sampler <- newSampler(data$x, data$y, 75L)
   invisible(sampler$run(200L, 1L))
-  columns <- matrix(runif(1000L * 20L), 1000L)
-  n.updates <- if (quick) 40L else 200L
+  n.updates <- if (quick) 40L else 500L
+  x2 <- data$x[, 2L]
   elapsed <- timeMedian(function() {
     for (i in seq_len(n.updates))
-      invisible(sampler$setPredictor(columns[, 1L + i %% 20L], column = 2L, forceUpdate = FALSE))
+      invisible(sampler$setPredictor(x2, column = 2L, forceUpdate = FALSE))
   }, reps)
-  addRow("setPredictor-column-n1000-t75", "ms_per_update", 1000 * elapsed / n.updates)
+  addRow("setPredictor-accept-n1000-t75", "ms_per_update", 1000 * elapsed / n.updates)
+
+  x2.degenerate <- rep(0.5, 1000L)
+  elapsed <- timeMedian(function() {
+    for (i in seq_len(n.updates))
+      invisible(sampler$setPredictor(x2.degenerate, column = 2L, forceUpdate = FALSE))
+  }, reps)
+  addRow("setPredictor-reject-n1000-t75", "ms_per_update", 1000 * elapsed / n.updates)
 
   rows$value <- round(rows$value, 4L)
   rows$rev   <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
