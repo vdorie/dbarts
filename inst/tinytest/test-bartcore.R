@@ -230,8 +230,13 @@ sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
 sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
-# unsupported methods refuse loudly rather than corrupt the sampler
-expect_error(sampler.engine$printTrees(1L), pattern = "not supported")
+# printTrees dumps the live trees in the classic engine's format, one line
+# per node
+print.live <- capture.output(sampler.engine$printTrees(1L))
+expect_equal(length(print.live),
+             nrow(sampler.engine$getTrees(treeNums = 1L)))
+expect_true(all(grepl(
+  "^ *n: [0-9]+ TBN: [01]{3} Avail: [01]+ (var: [0-9]+ |ave: )", print.live)))
 
 # weights swap like the classic engine's: a pointer swap reflected in the
 # data slot, nothing else touched
@@ -476,6 +481,15 @@ pdf(NULL)
 expect_silent(sampler.keep$plotTree(1L))
 dev.off()
 
+# printTrees on a keepTrees sampler dumps the requested saved slots in the
+# classic engine's saved-tree format
+print.saved <- capture.output(
+  sampler.keep$printTrees(treeNums = 1L, sampleNums = 1L))
+expect_equal(length(print.saved),
+             nrow(sampler.keep$getTrees(treeNums = 1L, sampleNums = 1L)))
+expect_true(all(grepl(
+  "^ *TBN: [01]{3}  (var: [0-9]+ ORDRule: |pred: )", print.saved)))
+
 # prediction without keepTrees comes from the live trees, one set per chain
 control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
                             n.threads = 1L, n.trees = 20L,
@@ -499,6 +513,12 @@ expect_equal(dim(sampler.keep2$predict(x.test)), c(10L, 5L, 2L))
 trees.keep2 <- sampler.keep2$getTrees()
 expect_equal(names(trees.keep2),
              c("chain", "sample", "tree", "n", "var", "value"))
+
+# multiple chains and samples get their header lines in the print dump
+print.keep2 <- capture.output(
+  sampler.keep2$printTrees(treeNums = 1L, sampleNums = 1:2))
+expect_true(any(grepl("^chain [12]$", print.keep2)))
+expect_true(any(grepl("sample [12]$", print.keep2)))
 
 # state serialization: a restored sampler continues bitwise identically;
 # multiple chains run on their own generators, so no seed sync is needed
@@ -552,3 +572,43 @@ expect_true(length(internal.nodes) > 0L)
 state.bad[[1L]]$tree.values[internal.nodes[1L]] <-
   state.bad[[1L]]$tree.values[internal.nodes[1L]] + 1e-3
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
+
+# prior sampling: both engines draw tree structures and leaf parameters from
+# the same prior; with fixed seeds the comparison is deterministic
+control.prior <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L,
+                               updateState = FALSE)
+control.prior.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                                  n.threads = 1L, n.trees = 50L,
+                                  updateState = FALSE)
+samplePrior <- function(sampler, numReplications) {
+  leafCounts <- integer(0)
+  leafValues <- numeric(0)
+  for (r in seq_len(numReplications)) {
+    sampler$sampleTreesFromPrior()
+    sampler$sampleNodeParametersFromPrior()
+    trees <- sampler$getTrees()
+    leaves <- trees$var == -1L
+    leafCounts <- c(leafCounts, tabulate(trees$tree[leaves], 50L))
+    leafValues <- c(leafValues, trees$value[leaves])
+  }
+  list(counts = leafCounts, values = leafValues)
+}
+sampler.prior <- dbarts(x, y, control = control.prior)
+sampler.prior.bc <- dbarts(x, y, control = control.prior.bc)
+set.seed(20)
+prior.classic <- samplePrior(sampler.prior, 10L)
+set.seed(20)
+prior.bc <- samplePrior(sampler.prior.bc, 10L)
+
+# structures: same leaf-count distribution
+expect_true(abs(mean(prior.classic$counts) - mean(prior.bc$counts)) < 0.3)
+ks.counts <- suppressWarnings(ks.test(prior.classic$counts, prior.bc$counts))
+expect_true(ks.counts$p.value > 0.001)
+
+# parameters: leaf values match the node prior's spread on both engines
+prior.sd <- 0.5 / (2 * sqrt(50))
+expect_true(abs(sd(prior.classic$values) - prior.sd) < 0.15 * prior.sd)
+expect_true(abs(sd(prior.bc$values) - prior.sd) < 0.15 * prior.sd)
+
+# a sampler keeps running from a prior-drawn state
+expect_true(all(is.finite(sampler.prior.bc$run(0L, 2L)$train)))

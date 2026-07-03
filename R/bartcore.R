@@ -3,9 +3,11 @@
 # functions below, which mirror the classic methods' semantics; the C side
 # borrows vectors and pins them in the external pointer's protection slot.
 #
-# Not yet supported (methods error): weights with binary responses (the
-# classic engine's probit weighting is incorrect and was stripped rather
-# than ported), printTrees, and sampling from the prior.
+# Not supported (methods error): weights with binary responses (the classic
+# engine's probit weighting is incorrect and was stripped rather than
+# ported). The classic Control::callback has no equivalent here: it is
+# reachable only through the C ABI, which serves the classic engine until
+# cutover; a bartcore callback belongs to the new public surface.
 #
 # keepTrees/getTrees/predict follow the classic formats. State serialization
 # (storeState/setState, or runs with updateState) produces an engine-specific
@@ -363,3 +365,18 @@ bartcoreStoreState <- function(bcSampler)
 
 bartcoreSetState <- function(bcSampler, state)
   invisible(.Call(C_dbarts_bartcore_setState, bcSampler$ptr, state))
+
+bartcoreSampleTreesFromPrior <- function(bcSampler)
+  invisible(.Call(C_dbarts_bartcore_sampleTreesFromPrior, bcSampler$ptr))
+
+bartcoreSampleNodeParametersFromPrior <- function(bcSampler)
+  invisible(.Call(C_dbarts_bartcore_sampleNodeParametersFromPrior,
+                  bcSampler$ptr))
+
+bartcorePrintTrees <- function(bcSampler, chainNums = NULL, sampleNums = NULL,
+                               treeNums = NULL) {
+  invisible(.Call(C_dbarts_bartcore_printTrees, bcSampler$ptr,
+                  if (is.null(chainNums)) NULL else as.integer(chainNums),
+                  if (is.null(sampleNums)) NULL else as.integer(sampleNums),
+                  if (is.null(treeNums)) NULL else as.integer(treeNums)))
+}

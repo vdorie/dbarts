@@ -7,6 +7,7 @@
 #include <cstring>
 #include <vector>
 
+#include <external/io.h>
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 #include <misc/partition.h>
@@ -534,6 +535,47 @@ public:
     countVariableUsesBelow(0, counts);
   }
 
+  /// Info dump in the reference engine's Node::print format: one line per
+  /// node in pre-order, indented by depth, with occupancy, top/bottom flags,
+  /// per-variable availability, and the rule or the leaf parameter (taken
+  /// from paramByNode, indexed by arena id, on the internal scale).
+  void print(const ColumnStore& data, const double* paramByNode,
+             int indentation, int32_t nodeIndex = 0) const {
+    const Node& node(at(nodeIndex));
+    ext_printf("%*s", indentation + static_cast<int>(depthOf(nodeIndex)), "");
+    ext_printf("n: %lu ", static_cast<unsigned long>(node.numObservations()));
+    ext_printf("TBN: %u%u%u ", node.parent == invalidNode ? 1u : 0u,
+               node.isBottom() ? 1u : 0u,
+               childrenAreBottom(nodeIndex) ? 1u : 0u);
+    ext_printf("Avail: ");
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      ext_printf("%u",
+                 variableAvailable(data, nodeIndex, static_cast<int32_t>(j))
+                   ? 1u : 0u);
+
+    if (!node.isBottom()) {
+      ext_printf(" var: %d ", node.rule.variableIndex);
+      size_t variableIndex = static_cast<size_t>(node.rule.variableIndex);
+      if (data.types[variableIndex] == ColumnType::categorical) {
+        ext_printf("CATRule: ");
+        for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
+          ext_printf(" %u", (node.rule.categoryDirections >> i) & 1);
+      } else {
+        ext_printf("ORDRule: (%d)=%f", node.rule.splitIndex,
+                   data.cutPoints[variableIndex]
+                                 [static_cast<size_t>(node.rule.splitIndex)]);
+      }
+    } else {
+      ext_printf(" ave: %f", paramByNode[static_cast<size_t>(nodeIndex)]);
+    }
+    ext_printf("\n");
+
+    if (!node.isBottom()) {
+      print(data, paramByNode, indentation, node.leftChild);
+      print(data, paramByNode, indentation, node.leftChild + 1);
+    }
+  }
+
   /// Flatten to pre-order value-encoded records, splits resolved against the
   /// store's cuts and leaf parameters taken from paramByNode (indexed by
   /// arena id). counts, when non-null, receives each node's current
@@ -889,6 +931,54 @@ inline bool flatTreeIsWellFormed(const ColumnStore& data,
                                  const FlatNode* flatNodes, size_t numNodes) {
   return numNodes > 0 &&
          flatSubtreeIsWellFormed(data, flatNodes, numNodes, 0) == numNodes;
+}
+
+/// Number of records a well-formed flattened subtree occupies.
+inline size_t flatSubtreeLength(const FlatNode* flatNodes) {
+  if (flatNodes[0].variable == invalidVariable) return 1;
+  size_t numOnLeft = flatSubtreeLength(flatNodes + 1);
+  return 1 + numOnLeft + flatSubtreeLength(flatNodes + 1 + numOnLeft);
+}
+
+/// Info dump of a flattened (saved) tree in the reference engine's
+/// SavedNode::print format: no occupancy or availability, ordinal splits by
+/// value, leaf predictions on the internal scale.
+inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
+                             int indentation, size_t depth = 0) {
+  const FlatNode& flat(flatNodes[0]);
+  bool isBottom = flat.variable == invalidVariable;
+
+  size_t numOnLeft = 0;
+  bool childrenAreBottom = false;
+  if (!isBottom) {
+    numOnLeft = flatSubtreeLength(flatNodes + 1);
+    childrenAreBottom =
+      flatNodes[1].variable == invalidVariable &&
+      flatNodes[1 + numOnLeft].variable == invalidVariable;
+  }
+
+  ext_printf("%*s", indentation + static_cast<int>(depth), "");
+  ext_printf("TBN: %u%u%u ", depth == 0 ? 1u : 0u, isBottom ? 1u : 0u,
+             childrenAreBottom ? 1u : 0u);
+  if (!isBottom) {
+    ext_printf(" var: %d ", flat.variable);
+    if (data.types[static_cast<size_t>(flat.variable)] ==
+        ColumnType::categorical) {
+      std::uint32_t directions = static_cast<std::uint32_t>(flat.value);
+      ext_printf("CATRule: ");
+      for (std::uint32_t i = 0;
+           i < data.numCuts[static_cast<size_t>(flat.variable)]; ++i)
+        ext_printf(" %u", (directions >> i) & 1);
+    } else {
+      ext_printf("ORDRule: %f", flat.value);
+    }
+    ext_printf("\n");
+    printFlatSubtree(data, flatNodes + 1, indentation, depth + 1);
+    printFlatSubtree(data, flatNodes + 1 + numOnLeft, indentation, depth + 1);
+  } else {
+    ext_printf(" pred: %f", flat.value);
+    ext_printf("\n");
+  }
 }
 
 }  // namespace bartcore

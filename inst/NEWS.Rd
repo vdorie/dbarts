@@ -7,11 +7,11 @@
       \item `dbartsControl` accepts `engine = "bartcore"`, running the sampler
             on the in-development replacement engine behind the standard
             `dbartsSampler` interface, including `keepTrees`, `getTrees`,
-            `predict`, `plotTree`, `setWeights`, test offsets, and
-            saving/loading sampler state (a restored sampler continues
-            bitwise identically; the stored state is engine-specific). Not
-            yet supported there: weights with binary responses, `printTrees`,
-            and sampling from the prior.
+            `predict`, `plotTree`, `setWeights`, test offsets, `printTrees`,
+            sampling from the prior, and saving/loading sampler state (a
+            restored sampler continues bitwise identically; the stored state
+            is engine-specific). Not supported there: weights with binary
+            responses, `setControl`, and `setModel`.
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.

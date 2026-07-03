@@ -273,6 +273,49 @@ public:
   }
   const double* latents() const { return response_->latents(); }
 
+  /// Replace every tree's structure with a draw from the tree prior over the
+  /// current cut grid, empty leaves collapsed, exactly as the reference
+  /// engine: fits are left stale, which run() tolerates because totalFits
+  /// still sums the per-tree fits.
+  void sampleTreesFromPrior() {
+    size_t n = data_.numObservations;
+    const double* y = response_->workingResponse();
+    const double* weights = response_->workingWeights();
+    std::vector<double> paramByNode;
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      trees_[t].initialize(indexBuffer_.data() + t * n, n);
+      growSubtreeFromPrior(trees_[t], 0, y, weights);
+      paramByNode.assign(trees_[t].nodes.size(), 0.0);
+      trees_[t].collapseEmptyNodes(weights, paramByNode);
+    }
+  }
+
+  /// Replace every leaf parameter with a draw from the node prior and
+  /// rebuild the tree, total, and test fits to match.
+  void sampleNodeParametersFromPrior() {
+    size_t n = data_.numObservations;
+    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
+    if (data_.numTestObservations > 0)
+      misc_setVectorToConstant(totalTestFits_.data(),
+                               data_.numTestObservations, 0.0);
+
+    for (size_t t = 0; t < options_.numTrees; ++t) {
+      Tree& tree(trees_[t]);
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      paramByNode_.assign(tree.nodes.size(), 0.0);
+      for (int32_t i : tree.bottomScratch)
+        paramByNode_[static_cast<size_t>(i)] = leaf_.drawFromPrior(rng_, k_);
+
+      setTreeFitsFromParameters(t, paramByNode_);
+      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+      for (size_t i = 0; i < data_.numTestObservations; ++i) {
+        int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+        totalTestFits_[i] += paramByNode_[static_cast<size_t>(leafIndex)];
+      }
+    }
+  }
+
   // Tree refreshes after the shared store changed, driven by the sampler.
   // The validate and rebuild phases are split so a transaction can check
   // every chain before any chain's fits are overwritten.
@@ -397,6 +440,19 @@ public:
     std::vector<double> params;
     recoverParametersFromFits(t, params);
     trees_[t].flatten(data_, params.data(), nodes, &counts);
+  }
+
+  /// Info dump of live tree t, parameters recovered from the current fits.
+  void printTree(size_t t, int indentation) {
+    std::vector<double> params;
+    recoverParametersFromFits(t, params);
+    trees_[t].print(data_, params.data(), indentation);
+  }
+
+  /// The same for one saved tree, in the reference engine's saved format.
+  void printSavedTree(size_t slot, size_t t, int indentation) const {
+    const std::vector<FlatNode>& flat(savedTrees_[slot * options_.numTrees + t]);
+    printFlatSubtree(data_, flat.data(), indentation);
   }
 
   /// Fits for raw column-major test rows from one saved sample's trees, on
@@ -577,6 +633,25 @@ public:
   const std::vector<double>& totalFits() const { return totalFits_; }
 
 private:
+  /// The reference engine's recursion: growth is Bernoulli in the
+  /// depth-decayed prior probability, rules come from the prior, and empty
+  /// children keep growing (availability is rule-based) until the caller
+  /// collapses them.
+  void growSubtreeFromPrior(Tree& tree, int32_t nodeIndex, const double* y,
+                            const double* weights) {
+    double growthProbability =
+      treePrior_.growthProbability(tree, data_, nodeIndex);
+    if (growthProbability <= 0.0 ||
+        ext_rng_simulateBernoulli(rng_, growthProbability) == 0)
+      return;
+
+    Rule rule = treePrior_.drawRuleAndVariable(tree, data_, rng_, nodeIndex);
+    tree.birth(data_, nodeIndex, rule, y, weights);
+    int32_t leftChild = tree.at(nodeIndex).leftChild;
+    growSubtreeFromPrior(tree, leftChild, y, weights);
+    growSubtreeFromPrior(tree, leftChild + 1, y, weights);
+  }
+
   /// Leaf parameters recovered from a tree's fits, indexed by arena node id;
   /// fits are constant within a leaf, so any member observation's fit is the
   /// parameter. Must run against partitions consistent with the fits, i.e.

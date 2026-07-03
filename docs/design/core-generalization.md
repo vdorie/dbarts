@@ -241,7 +241,9 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
-   Not yet ported (phase 2+): callbacks. MATCH_BAYES_TREE is not preserved
+   Not yet ported (phase 2+): setControl/setModel/getSumsOfSquaredResiduals;
+   callbacks deliberately wait for the new public C surface (see phase 4
+   notes). MATCH_BAYES_TREE is not preserved
    (old-engine-only until cutover; see Risks). (Multiple chains/threads,
    thinning, quantile-based cut points, the k hyperprior, the sampler
    mutation API, and keepTrees/serialization were all ported later; see
@@ -480,8 +482,35 @@ partitioning entirely; a different library sharing only the tree structure).
    component tests (offset shifts recorded fits by itself; setWeights
    equals creation with the new weights) and a ninth equivalence scenario
    (wtoffset) swapping weights and installing a test offset mid-chain.
-   Remaining unsupported surface: printTrees, prior sampling, callbacks,
-   and weights + binary (by design).
+
+   Prior sampling + printTrees (DONE 2026-07-02, cutover-parity cleanup):
+   sampleTreesFromPrior replaces every tree's structure with the classic
+   recursion (depth-decayed Bernoulli growth, rules from the tree prior,
+   empty children keep growing until a final collapse; fits left stale,
+   which run() tolerates since totalFits still sums the per-tree fits);
+   sampleNodeParametersFromPrior draws every leaf from the node prior and
+   rebuilds tree/total/test fits. printTrees reproduces both classic
+   formats: Node::print for live trees (occupancy, TBN flags, per-variable
+   availability recomputed from rule intervals, rules by index=value) and
+   SavedNode::print for saved slots (values only), with the classic
+   chain/sample headers and indent bookkeeping; categorical rules print
+   their direction bits (the classic categorical print branch never
+   terminates, being dead code). Gated by a component test (growth
+   frequencies at depth 0/1 match base/(1+d)^power, leaf-parameter moments
+   match N(0, (scale/k)^2), occupied well-formed trees, run continues from
+   a prior-drawn state) and cross-engine tinytests (leaf-count KS and
+   node-prior spread, classic vs bartcore).
+
+   Callbacks (DECIDED 2026-07-02): not ported. Control::callback is
+   reachable only through the C ABI - the R bridge never sets it - and the
+   old engine serves that ABI until cutover, so a bartcore equivalent has
+   no possible consumer today. Design one with the new public C surface
+   instead.
+
+   Remaining unsupported surface: weights + binary (by design), plus the
+   engine-reconfiguration methods setControl/setModel and the
+   getSumsOfSquaredResiduals diagnostic (needed by bart/rbart/pdbart
+   internals; a later parity slice).
 5. **Wave 2 models**: linear leaves; in-core grouped random effects
    (retiring the rbart_vi R loop).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.

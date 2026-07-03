@@ -2,7 +2,9 @@
 
 CXX ?= c++
 OPT ?= -O2 -g
-CPPFLAGS += -I../../src/include -I../../src
+# external/io.h (ext_printf) pulls in R's print headers
+R_CPPFLAGS := $(shell R CMD config --cppflags)
+CPPFLAGS += -I../../src/include -I../../src $(R_CPPFLAGS)
 CXXFLAGS += -std=gnu++20 -Wall -Wextra
 
 LIBS := ../../src/misc.a ../../src/external.a ../../src/rc.a

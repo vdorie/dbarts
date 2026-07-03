@@ -2212,6 +2212,87 @@ static void testSetWeightsAndTestOffset() {
   printf("ok: setWeights and test offsets\n");
 }
 
+static void testSampleFromPrior(ext_rng* rng) {
+  const size_t n = 200, numTrees = 50, numReplications = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  SamplerOptions options;
+  options.numTrees = numTrees;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  const ColumnStore& store(sampler.data());
+
+  // structure draws: every tree well-formed with occupied leaves, and the
+  // growth frequencies match the depth-decayed prior probabilities (root
+  // children of a single ordinal split are never empty, so the root split
+  // rate is exactly base; deeper nodes lose a little to empty-leaf collapse)
+  size_t numRoots = 0, numRootSplits = 0;
+  size_t numDepth1Nodes = 0, numDepth1Splits = 0;
+  bool allWellFormed = true, allOccupied = true;
+
+  // parameter draws: with fits rebuilt from the drawn parameters, the leaf
+  // values recovered by flattening are the draws themselves
+  double paramSum = 0.0, paramSumOfSquares = 0.0;
+  size_t numParams = 0;
+
+  std::vector<FlatNode> flat;
+  std::vector<std::uint32_t> counts;
+  for (size_t r = 0; r < numReplications; ++r) {
+    sampler.sampleTreesFromPrior();
+    sampler.sampleNodeParametersFromPrior();
+    for (size_t t = 0; t < numTrees; ++t) {
+      sampler.flattenTree(0, t, flat, counts);
+      allWellFormed &= flatTreeIsWellFormed(store, flat.data(), flat.size());
+      for (size_t l = 0; l < flat.size(); ++l) {
+        if (flat[l].variable != invalidVariable) continue;
+        allOccupied &= counts[l] > 0;
+        paramSum += flat[l].value;
+        paramSumOfSquares += flat[l].value * flat[l].value;
+        ++numParams;
+      }
+
+      ++numRoots;
+      if (flat[0].variable == invalidVariable) continue;
+      ++numRootSplits;
+      size_t numOnLeft = flatSubtreeLength(flat.data() + 1);
+      numDepth1Nodes += 2;
+      numDepth1Splits += (flat[1].variable != invalidVariable ? 1 : 0) +
+                         (flat[1 + numOnLeft].variable != invalidVariable ? 1 : 0);
+    }
+  }
+
+  check(allWellFormed, "prior-drawn trees are well-formed");
+  check(allOccupied, "prior-drawn trees have occupied leaves");
+  checkNear(static_cast<double>(numRootSplits) / static_cast<double>(numRoots),
+            0.95, 0.015, "root splits at the prior rate");
+  checkNear(
+    static_cast<double>(numDepth1Splits) / static_cast<double>(numDepth1Nodes),
+    0.95 / 4.0, 0.03, "depth-1 splits near the prior rate");
+
+  double paramMean = paramSum / static_cast<double>(numParams);
+  double paramSd = std::sqrt(
+    paramSumOfSquares / static_cast<double>(numParams) - paramMean * paramMean);
+  double priorSd = (0.5 / std::sqrt(static_cast<double>(numTrees))) / 2.0;
+  checkNear(paramMean, 0.0, 0.001, "prior leaf parameters center at zero");
+  checkNear(paramSd, priorSd, 0.002,
+            "prior leaf parameters have the prior spread");
+
+  // the sampler keeps running from a prior-drawn state
+  std::vector<double> sigma(2), trainingFits(n * 2);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = trainingFits.data();
+  sampler.run(0, 2, results);
+  bool finite = true;
+  for (double v : sigma) finite &= std::isfinite(v);
+  for (double v : trainingFits) finite &= std::isfinite(v);
+  check(finite, "a run continues from a prior-drawn state");
+
+  printf("ok: sample from prior\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -2262,6 +2343,7 @@ int main() {
   testStateRoundTripLatents(rng);
   testStateValidation(rng);
   testSetWeightsAndTestOffset();
+  testSampleFromPrior(rng);
 
   ext_rng_destroy(rng);
 
