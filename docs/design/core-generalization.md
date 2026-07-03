@@ -379,7 +379,18 @@ partitioning entirely; a different library sharing only the tree structure).
    bartcore rejects weights with binary responses at creation and setData.
    No classic reference exists for a cross-engine gate; validated by exact
    PG moment tests, end-to-end log-odds recovery and calibration, and
-   mutation smoke tests, as DART was.
+   mutation smoke tests, plus an exact-posterior gate
+   (benchmarks/R/logistic-reference.R): a single-tree, one-predictor,
+   3-cut problem admits brute-force tree enumeration and quadrature leaf
+   marginals, and both binary families match the exact posterior
+   predictive to MC error (logistic within 0.001). The same script
+   compares against the BART package under exactly matched priors, which
+   surfaced a finding worth keeping: BART::lbart itself deviates from the
+   exact posterior by ~0.03 in the anti-shrinkage direction on the tiny
+   problem, and shows the same systematic ~0.02 probability gap
+   (attenuation-signed, stable in chain length) on a 200-tree problem, so
+   the lbart comparison is informational rather than a gate; pbart agrees
+   with bartcore probit to ~0.005.
 4. **Data generalization**: BartData container, data.frame ingestion,
    categorical rules enabled (> 32 levels), sparse columns, new kernels,
    per-column-type mutation semantics, standalone R data handle.
