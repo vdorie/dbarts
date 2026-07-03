@@ -65,9 +65,18 @@ expect_identical(dim(fit$yhat.train), c(2L, 120L, nrow(testData$x)))
 expect_true(
   mean(abs(fit$yhat.train[1L,,] - fit$yhat.train[2L,,])) > 1.0e-6
 )
-expect_equal(oldSeed, .Random.seed)
+# chains seed from R's stream, so the fit advances it and set.seed alone
+# makes multithreaded results reproducible
+expect_false(identical(oldSeed, .Random.seed))
+set.seed(99L)
+fit2 <- dbarts::bart(
+  testData$x, testData$y,
+  ndpost = 120L, nskip = 100L, ntree = 50L, nthread = 2L, nchain = 2L,
+  combinechains = FALSE, verbose = FALSE
+)
+expect_equal(fit$yhat.train, fit2$yhat.train)
 
-rm(fit, oldSeed)
+rm(fit2, fit, oldSeed)
 
 rm(testData)
 

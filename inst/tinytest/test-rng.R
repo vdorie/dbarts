@@ -13,8 +13,19 @@ sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 invisible(sampler$run(0L, 5L))
 expect_true(any(.Random.seed != oldSeed))
 
+# explicit generator kinds are a classic-engine feature; bartcore refuses them
+expect_error(
+  dbarts::dbarts(y ~ x, testData, control = dbarts::dbartsControl(
+    n.trees = n.trees, n.chains = 1L, n.threads = 1L,
+    verbose = FALSE, updateState = FALSE,
+    rngKind = "Mersenne-Twister", rngNormalKind = "Inversion"
+  )),
+  pattern = "does not support"
+)
+
 oldSeed <- .Random.seed
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = n.trees, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngKind = "Mersenne-Twister", rngNormalKind = "Inversion"
@@ -25,6 +36,7 @@ expect_equal(.Random.seed, oldSeed)
 
 ## run once for 10 iterations
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = n.trees, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngKind = "Mersenne-Twister", rngNormalKind = "Inversion"
@@ -71,7 +83,21 @@ control <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 seedOnlyResults <- sampler$run(0L, 5L)
 
+expect_equal(builtInResults$train, seedOnlyResults$train)
+
+# the same equivalence for the classic engine, whose explicit-kind
+# generators replicate R's
+set.seed(1234L, kind = "Mersenne-Twister", normal.kind = "Inversion")
 control <- dbarts::dbartsControl(
+  engine = "classic",
+  n.trees = 5L, n.chains = 1L, n.threads = 1L,
+  verbose = FALSE, updateState = FALSE
+)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control)
+builtInClassicResults <- sampler$run(0L, 5L)
+
+control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
@@ -80,15 +106,16 @@ control <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 allRngResults <- sampler$run(0L, 5L)
 
-expect_equal(builtInResults$train, seedOnlyResults$train)
-expect_equal(builtInResults$train, allRngResults$train)
+expect_equal(builtInClassicResults$train, allRngResults$train)
 
-rm(allRngResults, sampler, control, seedOnlyResults, builtInResults)
+rm(allRngResults, builtInClassicResults, sampler, control, seedOnlyResults,
+   builtInResults)
 
 
 # test that rng with fixed seed matches native, two chains, one threads
 set.seed(1234L, kind = "Mersenne-Twister", normal.kind = "Inversion")
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 2L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE
 )
@@ -96,6 +123,7 @@ sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 builtInResults <- sampler$run(0L, 5L)
 
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngSeed = 1234L
@@ -104,6 +132,7 @@ sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 sequentialResults_1 <- sampler$run(0L, 5L)
 
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE
 )
@@ -120,6 +149,7 @@ rm(sequentialResults_2, sampler, control, sequentialResults_1, builtInResults)
 
 # test that rng with fixed seed matches native, two chains, one threads
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 2L, n.threads = 2L,
   verbose = FALSE, updateState = FALSE,
   rngSeed = 1234L
@@ -140,6 +170,7 @@ to_unsigned_int <- function(unif) {
 }
 
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
@@ -148,6 +179,7 @@ control <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 sequentialResults_1 <- sampler$run(0L, 5L)
 control <- dbarts::dbartsControl(
+  engine = "classic",
   n.trees = 5L, n.chains = 1L, n.threads = 1L,
   verbose = FALSE, updateState = FALSE,
   rngKind = "Mersenne-Twister", rngNormalKind = "Inversion",
@@ -192,7 +224,9 @@ fit4 <- dbarts::bart(
 
 expect_equal(fit3$yhat.train, fit4$yhat.train)
 
-expect_true(any(fit1$yhat.train != fit3$yhat.train))
+# chain generators are seeded identically regardless of the thread count,
+# so seeded results are thread-count independent
+expect_equal(fit1$yhat.train, fit3$yhat.train)
 
 rm(fit4, fit3, fit2, fit1)
 

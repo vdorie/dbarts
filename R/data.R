@@ -171,7 +171,7 @@ getTestOffset <- quote({
 })
 
 dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset,
-                       factors = c("indicators", "categorical"))
+                       factors = c("categorical", "indicators"))
 {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)

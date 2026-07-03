@@ -405,6 +405,11 @@ public:
 
   virtual const double* latents() const { return nullptr; }
 
+  /// The current training offset (borrowed), or null. Recorded training
+  /// fits add it back, matching the classic engine's original-scale
+  /// convention.
+  virtual const double* offset() const = 0;
+
   /// State restoration: overwrite the latent state with previously stored
   /// latents() values and rebuild the working response from them. A no-op
   /// for models without latents.
@@ -436,6 +441,7 @@ public:
 
   double* workingResponse() override { return yRescaled_.data(); }
   const double* workingWeights() const override { return weights_; }
+  const double* offset() const override { return offset_; }
   void refreshLatents(ext_rng*, const double*) override {}
 
   double drawSigma(ext_rng* rng, const double* totalFits, double) override {
@@ -564,6 +570,7 @@ public:
 
   double* workingResponse() override { return working_.data(); }
   const double* workingWeights() const override { return nullptr; }
+  const double* offset() const override { return offset_; }
 
   void refreshLatents(ext_rng* rng, const double* totalFits) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
@@ -652,6 +659,7 @@ public:
 
   double* workingResponse() override { return working_.data(); }
   const double* workingWeights() const override { return omega_.data(); }
+  const double* offset() const override { return offset_; }
 
   void refreshLatents(ext_rng* rng, const double* totalFits) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {

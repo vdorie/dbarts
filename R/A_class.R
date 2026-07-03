@@ -131,7 +131,7 @@ methods::setClass("dbartsControl",
   prototype = list(
     binary           = FALSE,
     family           = "auto",
-    engine           = "classic",
+    engine           = "bartcore",
     verbose          = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles     = FALSE,

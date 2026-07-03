@@ -4,7 +4,11 @@ fitTinyModel <- function(testData, n.samples) {
   train <- data.frame(y = testData$y, x = testData$x, z = testData$z)
   test <- data.frame(x = testData$x, z = 1 - testData$z)
   
+  # pinned to the classic engine: the snapshots and the tree-shape relations
+  # below encode its RNG stream, and the cut-point blocks read cutPoints off
+  # its stored state; the same behaviors run on bartcore in test-bartcore.R
   control <- dbarts::dbartsControl(
+    engine = "classic",
     n.burn = 0L, n.samples = 1L, n.thin = 5L,
     n.chains = 1L, n.threads = 1L, n.trees = 5L,
     updateState = FALSE, verbose = FALSE

@@ -53,6 +53,11 @@ struct SamplerOptions {
   bool updateK = false;
   ChiKHyperprior kHyperprior;
 
+  // gaussian responses only: sigma holds at the constructor's sigmaEstimate
+  // and is never drawn (the R-level fixed() residual prior); binary families
+  // are always sigma-fixed
+  bool sigmaIsFixed = false;
+
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
   // reporting after the run; the classic engine's keepTrees
@@ -90,7 +95,10 @@ struct ModelParameters {
   bool updateK = false;
   ChiKHyperprior kHyperprior;
   // variance prior, anchored to the original-scale sigma estimate exactly
-  // as construction is; rawScale is qchisq(1 - quantile, df) / df
+  // as construction is; rawScale is qchisq(1 - quantile, df) / df. With
+  // sigmaIsFixed, sigmaEstimate is instead the fixed original-scale sd and
+  // sigma is set to it and never drawn again
+  bool sigmaIsFixed = false;
   double sigmaEstimate = 1.0;
   double sigmaDf = 3.0;
   double sigmaRawScale = 1.0;
@@ -170,7 +178,8 @@ public:
       options.nodeScale / std::sqrt(static_cast<double>(options.numTrees));
     treePrior_.base = options.base;
     treePrior_.power = options.power;
-    sigmaIsFixed_ = family != ResponseFamily::gaussian;
+    family_ = family;
+    sigmaIsFixed_ = family != ResponseFamily::gaussian || options.sigmaIsFixed;
 
     if (options.useDart) {
       dart_ = options.dart;
@@ -362,8 +371,14 @@ public:
       k_ = model.k;
     }
 
-    response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
-                             model.sigmaRawScale);
+    if (family_ == ResponseFamily::gaussian) {
+      sigmaIsFixed_ = model.sigmaIsFixed;
+      if (model.sigmaIsFixed)
+        setSigma(model.sigmaEstimate);
+      else
+        response_->setSigmaPrior(model.sigmaEstimate, model.sigmaDf,
+                                 model.sigmaRawScale);
+    }
 
     if (!options_.useDart) {
       if (model.splitProbabilities == nullptr) {
@@ -851,7 +866,10 @@ private:
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n;
       for (size_t i = 0; i < n; ++i) out[i] = scale * totalFits_[i] + shift;
-      // caller adds any offset back; the engine never sees original-scale y
+      // original-scale convention, matching the classic engine and the
+      // recorded test fits: any offset is part of the fit
+      const double* offset = response_->offset();
+      if (offset != nullptr) misc_addVectorsInPlace(offset, n, out);
     }
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
@@ -892,6 +910,7 @@ private:
   std::vector<double> fixedSplitProbabilities_;
   std::vector<std::uint32_t> splitCounts_;
   std::unique_ptr<ResponseModel> response_;
+  ResponseFamily family_ = ResponseFamily::gaussian;
   bool sigmaIsFixed_ = false;
   double sigma_ = 1.0;
   double k_ = 2.0;
