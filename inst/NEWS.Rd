@@ -18,6 +18,20 @@
             selection, with optional sampling of the concentration.
             Requires `engine = "bartcore"`; the sampled probabilities
             appear in the stored sampler state.
+      \item `xbart` is reimplemented as an R-level driver over the sampler
+            interface and runs on the engine its `control` selects, gaining
+            every engine feature. Chains now warm-start only across
+            parameter settings over the same data split, never across
+            folds or replications: the retired implementation carried
+            chains between splits whose held-out rows the previous
+            training set contained, letting slowly-mixing settings (small
+            ensembles especially) score against data they had effectively
+            seen. The third element of `n.burn` is accordingly ignored.
+            Parallelism uses a `parallel` cluster over replications;
+            results are reproducible for a fixed `seed` and `n.threads`.
+            Also fixed: the weighted RMSE loss was not on the scale of the
+            response, and `loss = "log"` on a continuous response now
+            errors instead of silently computing RMSE.
       \item `dbarts` and `bart2` accept `family`: `"auto"` keeps the
             existing dispatch (gaussian for continuous responses, probit
             for 0/1), `"gaussian"` forces a continuous fit even for a 0/1

@@ -20,7 +20,6 @@
 
 #include "R_interface_bartcore.hpp"
 #include "R_interface_common.hpp"
-#include "R_interface_crossvalidate.hpp"
 #include "R_interface_rbart.hpp"
 #include "R_interface_sampler.hpp"
 
@@ -389,7 +388,6 @@ static R_CallMethodDef R_callMethods[] = {
     dbarts_makeModelMatrixFromDataFrame,
     2
   ),
-  DEF_FUNC("dbarts_xbart", xbart, 14),
   DEF_FUNC("dbarts_guessNumCores", ::guessNumCores, 0),
   // experimental
   DEF_FUNC("dbarts_assignInPlace", assignInPlace, 3),
