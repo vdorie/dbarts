@@ -217,7 +217,10 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 # existing dbartsSampler regardless of that sampler's own engine. family
 # selects the response model for binary responses ("probit", the default,
 # or "logistic"); it is the only access to the logistic sampler until the
-# new public surface lands.
+# new public surface lands. Likewise, columns marked CATEGORICAL (1L) in
+# data@varTypes split by category subset rather than by threshold - a
+# bartcore-only capability with no public ingestion path yet, so callers
+# flip the type by hand; values must be integer codes 0..K-1, K <= 32.
 
 bartcoreSampler <- function(sampler, family = "") {
   result <- new.env(parent = emptyenv())

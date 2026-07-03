@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "R_interface_bartcore.hpp"
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -68,6 +69,17 @@ BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
   return *holder;
 }
 
+// errors unless every replacement value for a categorical column is an
+// existing category code; ordinal columns pass through
+void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
+                          const double* values, size_t numValues) {
+  if (store.types[column] != bartcore::ColumnType::categorical) return;
+  for (size_t i = 0; i < numValues; ++i) {
+    if (!store.categoricalValueIsValid(column, values[i]))
+      Rf_error("categorical predictor values must be existing category codes");
+  }
+}
+
 } // namespace
 
 extern "C" {
@@ -112,9 +124,41 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                    "response";
   }
 
+  std::vector<bartcore::ColumnType> columnTypes(
+    data.numPredictors, bartcore::ColumnType::ordinal);
+  bool anyCategorical = false;
   for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
-    if (data.variableTypes[j] != ORDINAL)
-      errorMessage = "bartcore supports only ordinal predictors so far";
+    if (data.variableTypes[j] != CATEGORICAL) continue;
+    columnTypes[j] = bartcore::ColumnType::categorical;
+    anyCategorical = true;
+    for (size_t i = 0; i < data.numObservations && errorMessage == NULL; ++i) {
+      double value = data.x[i + j * data.numObservations];
+      if (value < 0.0 ||
+          value >= static_cast<double>(bartcore::maxCategories) ||
+          value != std::floor(value))
+        errorMessage = "categorical predictors must hold integer category "
+                       "codes in [0, 32)";
+    }
+  }
+  if (errorMessage == NULL && anyCategorical &&
+      data.numTestObservations > 0) {
+    // test codes must also be representable; category counts come from the
+    // training columns
+    for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
+      if (columnTypes[j] != bartcore::ColumnType::categorical) continue;
+      double maxValue = 0.0;
+      for (size_t i = 0; i < data.numObservations; ++i) {
+        double value = data.x[i + j * data.numObservations];
+        if (value > maxValue) maxValue = value;
+      }
+      for (size_t i = 0;
+           i < data.numTestObservations && errorMessage == NULL; ++i) {
+        double value = data.x_test[i + j * data.numTestObservations];
+        if (value < 0.0 || value > maxValue || value != std::floor(value))
+          errorMessage = "categorical test predictors must hold existing "
+                         "category codes";
+      }
+    }
   }
   if (errorMessage == NULL && !control.responseIsBinary &&
       model.sigmaSqPrior->isFixed)
@@ -164,6 +208,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts; // copied during build
   options.useQuantiles = control.useQuantiles;
+  options.columnTypes = anyCategorical ? columnTypes.data() : NULL;
   options.splitProbabilities = treePrior.splitProbabilities; // copied by ctor
   options.updateK = updateK;
   options.kHyperprior.degreesOfFreedom = kDf;
@@ -372,6 +417,28 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
       sampler.family() != bartcore::ResponseFamily::gaussian &&
       data.weights != NULL)
     errorMessage = "bartcore does not support weights for binary responses";
+  for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
+    bool wasCategorical = sampler.data().types[j] ==
+                          bartcore::ColumnType::categorical;
+    if ((data.variableTypes[j] == CATEGORICAL) != wasCategorical) {
+      errorMessage = "bartcore setData requires the same predictor types";
+      break;
+    }
+    if (!wasCategorical) continue;
+    // category counts are fixed at creation; new values must be existing
+    // codes, in the training and test data both
+    for (size_t i = 0; i < data.numObservations && errorMessage == NULL; ++i)
+      if (!sampler.data().categoricalValueIsValid(
+            j, data.x[i + j * data.numObservations]))
+        errorMessage = "categorical predictor values must be existing "
+                       "category codes";
+    for (size_t i = 0;
+         i < data.numTestObservations && errorMessage == NULL; ++i)
+      if (!sampler.data().categoricalValueIsValid(
+            j, data.x_test[i + j * data.numTestObservations]))
+        errorMessage = "categorical predictor values must be existing "
+                       "category codes";
+  }
 
   if (errorMessage != NULL) {
     invalidateData(data);
@@ -399,8 +466,12 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
     Rf_error("bartcore_setTestPredictor requires a matrix with matching columns");
-  holder.sampler->setTestPredictors(
-    REAL(xTestExpr), static_cast<size_t>(INTEGER(dims)[0]));
+  size_t numTestObservations = static_cast<size_t>(INTEGER(dims)[0]);
+  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+    validateColumnValues(holder.sampler->data(), j,
+                         REAL(xTestExpr) + j * numTestObservations,
+                         numTestObservations);
+  holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
   retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
   return R_NilValue;
 }
@@ -434,6 +505,11 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
     Rf_error("bartcore_setPredictor requires a matrix with matching dimensions");
 
+  for (size_t j = 0; j < holder.sampler->numPredictors(); ++j)
+    validateColumnValues(holder.sampler->data(), j,
+                         REAL(xExpr) + j * holder.sampler->numObservations(),
+                         holder.sampler->numObservations());
+
   bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
     REAL(xExpr), Rf_asLogical(forceUpdateExpr) == TRUE,
     Rf_asLogical(updateCutPointsExpr) == TRUE);
@@ -465,6 +541,10 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     columns[k] = static_cast<size_t>(column - 1);
   }
 
+  for (size_t k = 0; k < numColumns; ++k)
+    validateColumnValues(holder.sampler->data(), columns[k],
+                         REAL(xExpr) + k * numObservations, numObservations);
+
   bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
     REAL(xExpr), columns.data(), numColumns,
     Rf_asLogical(forceUpdateExpr) == TRUE,
@@ -493,6 +573,9 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr, SEXP columnsExpr) {
     if (column < 1 || static_cast<size_t>(column) > numPredictors)
       Rf_error("bartcore_setCutPoints column out of range");
     columns[k] = static_cast<size_t>(column - 1);
+    if (holder.sampler->data().types[columns[k]] ==
+        bartcore::ColumnType::categorical)
+      Rf_error("cannot set cut points for a categorical predictor");
 
     SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
     R_xlen_t numCuts = Rf_xlength(cutsExpr);
@@ -524,6 +607,9 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   if (column < 1 ||
       static_cast<size_t>(column) > holder.sampler->numPredictors())
     Rf_error("bartcore_updatePredictorPerObservation column out of range");
+  validateColumnValues(holder.sampler->data(),
+                       static_cast<size_t>(column - 1), REAL(xExpr),
+                       numObservations);
 
   std::unique_ptr<bool[]> installed(new bool[numObservations]);
 
@@ -577,6 +663,9 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
   if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
     Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
              "value per observation");
+  for (size_t k = 0; k < numSamplers; ++k)
+    validateColumnValues(samplers[k]->data(), columns[k], REAL(xExpr),
+                         numObservations);
 
   std::unique_ptr<bool[]> installed(new bool[numObservations]);
 

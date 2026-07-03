@@ -1,6 +1,7 @@
 #ifndef BARTCORE_MODEL_HPP
 #define BARTCORE_MODEL_HPP
 
+#include <bit>
 #include <cmath>
 #include <concepts>
 #include <cstddef>
@@ -92,11 +93,21 @@ struct CGMTreePrior {
       splitProbabilities[tree.at(nodeIndex).rule.variableIndex] / totalProbability);
   }
 
+  /// Categorical rules are uniform over the direction assignments of the
+  /// categories reachable at the node that leave neither side empty, both
+  /// orientations counted: 2^R - 2 of them. Unreachable categories carry no
+  /// probability (their direction bits are pinned to zero by the moves).
   double ruleForVariableLogProbability(const Tree& tree, const ColumnStore& data,
                                        int32_t nodeIndex) const {
+    int32_t variableIndex = tree.at(nodeIndex).rule.variableIndex;
+    if (data.types[static_cast<size_t>(variableIndex)] ==
+        ColumnType::categorical) {
+      int numReachable = std::popcount(
+        tree.reachableCategories(data, nodeIndex, variableIndex));
+      return -std::log(std::pow(2.0, static_cast<double>(numReachable)) - 2.0);
+    }
     int32_t left, right;
-    tree.splitInterval(data, nodeIndex, tree.at(nodeIndex).rule.variableIndex,
-                       &left, &right);
+    tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
     return -std::log(static_cast<double>(right - left + 1));
   }
 
@@ -138,13 +149,43 @@ struct CGMTreePrior {
     return invalidVariable;  // unreachable with valid probabilities
   }
 
+  /// Build a categorical direction mask from a pattern whose bit k gives
+  /// the side of the k-th reachable category (ascending); unreachable
+  /// categories stay zero (left), the canonical gauge.
+  static std::uint32_t categoryDirectionsForPattern(std::uint32_t reachable,
+                                                    std::uint64_t pattern) {
+    std::uint32_t directions = 0;
+    int bit = 0;
+    while (reachable != 0) {
+      std::uint32_t category = static_cast<std::uint32_t>(
+        std::countr_zero(reachable));
+      if ((pattern >> bit) & 1u) directions |= 1u << category;
+      reachable &= reachable - 1;
+      ++bit;
+    }
+    return directions;
+  }
+
   Rule drawRuleForVariable(const Tree& tree, const ColumnStore& data,
                            ext_rng* rng, int32_t nodeIndex,
                            int32_t variableIndex) const {
-    int32_t left, right;
-    tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
     Rule result;
     result.variableIndex = variableIndex;
+
+    if (data.types[static_cast<size_t>(variableIndex)] ==
+        ColumnType::categorical) {
+      std::uint32_t reachable =
+        tree.reachableCategories(data, nodeIndex, variableIndex);
+      int numReachable = std::popcount(reachable);
+      // uniform over patterns excluding all-left (0) and all-right
+      std::uint64_t pattern = ext_rng_simulateUnsignedIntegerUniformInRange(
+        rng, 1, (1ull << numReachable) - 1);
+      result.categoryDirections = categoryDirectionsForPattern(reachable, pattern);
+      return result;
+    }
+
+    int32_t left, right;
+    tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
     result.splitIndex = static_cast<int32_t>(
       ext_rng_simulateIntegerUniformInRange(rng, left, right + 1));
     return result;

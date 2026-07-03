@@ -15,17 +15,29 @@ using std::size_t;
 /// docs/design/core-generalization.md), uint16_t matches the classic engine.
 using xint_t = std::uint16_t;
 
+/// Column types the store distinguishes. Ordinal columns quantize against
+/// cut points and split by threshold; categorical columns hold integer
+/// category codes 0..numCategories-1 directly and split by subset. Category
+/// direction masks are 32 bits wide for now, capping categorical columns at
+/// 32 levels; wider masks come with the per-column code-width work.
+enum class ColumnType : std::uint8_t { ordinal, categorical };
+
+constexpr std::uint32_t maxCategories = 32;
+
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
 /// uniformly spaced over the column's range or at unique-value midpoints
 /// (quantile mode). numCuts is fixed once built; recomputing cuts for new
-/// values keeps the count so existing split indices stay in range.
+/// values keeps the count so existing split indices stay in range. For
+/// categorical columns numCuts holds the (fixed) category count, cutPoints
+/// stays empty, and codes are the values themselves.
 struct ColumnStore {
   size_t numObservations = 0;
   size_t numPredictors = 0;
   const double* x = nullptr;  // borrowed, column-major
   bool useQuantiles = false;
 
+  std::vector<ColumnType> types;
   std::vector<xint_t> codes;  // column-major, numObservations x numPredictors
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
@@ -35,13 +47,23 @@ struct ColumnStore {
   const double* x_test = nullptr;  // borrowed, column-major
   std::vector<xint_t> testCodes;  // row-major, numTestObservations x numPredictors
 
-  // Codes are k such that cutPoints[k - 1] < value <= cutPoints[k], with
-  // value > all cuts mapping to numCuts (always right of any split).
+  // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
+  // with value > all cuts mapping to numCuts (always right of any split);
+  // categorical codes are the values themselves.
   xint_t codeFor(size_t variable, double value) const {
+    if (types[variable] == ColumnType::categorical)
+      return static_cast<xint_t>(value);
     const std::vector<double>& cuts = cutPoints[variable];
     std::uint32_t k = 0;
     while (k < numCuts[variable] && value > cuts[k]) ++k;
     return static_cast<xint_t>(k);
+  }
+
+  /// A categorical value is representable when it is an integral code of an
+  /// existing category; the category count is fixed once built.
+  bool categoricalValueIsValid(size_t variable, double value) const {
+    return value >= 0.0 && value < static_cast<double>(numCuts[variable]) &&
+           value == static_cast<double>(static_cast<xint_t>(value));
   }
 
   /// Quantile-mode support: sorted unique values of a column and the
@@ -94,9 +116,17 @@ struct ColumnStore {
       cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
   }
 
-  /// Initial cut construction; sets numCuts[j].
+  /// Initial cut construction; sets numCuts[j]. A categorical column takes
+  /// its (fixed) category count from its largest value and keeps no cuts.
   void buildCutsForColumn(size_t j) {
-    if (useQuantiles) {
+    if (types[j] == ColumnType::categorical) {
+      const double* column = x + j * numObservations;
+      double maxValue = column[0];
+      for (size_t i = 1; i < numObservations; ++i)
+        if (column[i] > maxValue) maxValue = column[i];
+      numCuts[j] = static_cast<std::uint32_t>(maxValue) + 1;
+      cutPoints[j].clear();
+    } else if (useQuantiles) {
       QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
@@ -109,8 +139,10 @@ struct ColumnStore {
   /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
   /// In quantile mode fewer induced cuts than existing would leave splits
   /// invalid: returns false, having changed nothing (extra induced cuts are
-  /// silently thinned, as in the reference engine).
+  /// silently thinned, as in the reference engine). Categorical columns have
+  /// nothing to refresh; the caller pre-checked value validity.
   bool refreshCutsForColumn(size_t j) {
+    if (types[j] == ColumnType::categorical) return true;
     if (useQuantiles) {
       QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
       if (grid.inducedNumCuts < numCuts[j]) return false;
@@ -121,9 +153,15 @@ struct ColumnStore {
     return true;
   }
 
-  /// Non-mutating feasibility check of refreshCutsForColumn for values not
-  /// yet installed.
+  /// Non-mutating feasibility check for values not yet installed: quantile
+  /// refresh feasibility for ordinal columns, category-code validity for
+  /// categorical ones.
   bool cutsWouldRemainValid(size_t j, const double* values) const {
+    if (types[j] == ColumnType::categorical) {
+      for (size_t i = 0; i < numObservations; ++i)
+        if (!categoricalValueIsValid(j, values[i])) return false;
+      return true;
+    }
     if (!useQuantiles) return true;
     return quantileGridForColumn(j, values).inducedNumCuts >= numCuts[j];
   }
@@ -152,12 +190,20 @@ struct ColumnStore {
         codeFor(j, x_test[i + j * numTestObservations]);
   }
 
+  /// columnTypes may be null for all-ordinal. Categorical columns must hold
+  /// integral values 0..K-1 with K <= maxCategories; the caller validates.
   void build(const double* x_, size_t n, size_t p,
-             const std::uint32_t* maxNumCuts_, bool useQuantiles_) {
+             const std::uint32_t* maxNumCuts_, bool useQuantiles_,
+             const ColumnType* columnTypes = nullptr) {
     x = x_;
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
+    if (columnTypes != nullptr) {
+      types.assign(columnTypes, columnTypes + p);
+    } else {
+      types.assign(p, ColumnType::ordinal);
+    }
     cutPoints.resize(p);
     numCuts.resize(p);
     maxNumCuts.assign(maxNumCuts_, maxNumCuts_ + p);
@@ -170,9 +216,10 @@ struct ColumnStore {
   }
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
-             bool useQuantiles_ = false) {
+             bool useQuantiles_ = false,
+             const ColumnType* columnTypes = nullptr) {
     std::vector<std::uint32_t> maxPerColumn(p, maxNumCuts_);
-    build(x_, n, p, maxPerColumn.data(), useQuantiles_);
+    build(x_, n, p, maxPerColumn.data(), useQuantiles_, columnTypes);
   }
 
   void buildTest(const double* x_test_, size_t numTest) {
@@ -218,15 +265,16 @@ struct ColumnStore {
   }
 
   /// Whole-data replacement: new values for the same predictors, possibly a
-  /// new number of observations. Cuts are rebuilt from scratch, so unlike
-  /// refreshCutsForColumn a quantile-mode count may shrink; the caller remaps
-  /// existing splits onto the new grid.
+  /// new number of observations. Ordinal cuts are rebuilt from scratch, so
+  /// unlike refreshCutsForColumn a quantile-mode count may shrink and the
+  /// caller remaps existing splits onto the new grid; categorical category
+  /// counts stay fixed (the caller validates the new values).
   void setData(const double* x_, size_t n) {
     x = x_;
     numObservations = n;
     codes.resize(n * numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) {
-      buildCutsForColumn(j);
+      if (types[j] != ColumnType::categorical) buildCutsForColumn(j);
       quantizeColumn(j);
     }
   }
