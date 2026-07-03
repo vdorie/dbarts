@@ -322,7 +322,9 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     errorMessage = "bartcore does not support fixed sigma for continuous responses";
   if (errorMessage == NULL && control.responseIsBinary &&
       data.weights != NULL)
-    errorMessage = "bartcore does not support weights for binary responses";
+    errorMessage = "binary response families do not support weights: the "
+                   "weighted probit the classic engine fit was incorrect; "
+                   "replicate rows or model the latents instead";
 
   double k = 2.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
   bool updateK = !model.kPrior->isFixed;
@@ -613,7 +615,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   if (errorMessage == NULL &&
       sampler.family() != bartcore::ResponseFamily::gaussian &&
       data.weights != NULL)
-    errorMessage = "bartcore does not support weights for binary responses";
+    errorMessage = "binary response families do not support weights: the "
+                   "weighted probit the classic engine fit was incorrect; "
+                   "replicate rows or model the latents instead";
   for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
     bool wasCategorical = sampler.data().types[j] ==
                           bartcore::ColumnType::categorical;
@@ -731,7 +735,9 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->family() != bartcore::ResponseFamily::gaussian)
-    Rf_error("bartcore does not support weights for binary responses");
+    Rf_error("binary response families do not support weights: the "
+             "weighted probit the classic engine fit was incorrect; "
+             "replicate rows or model the latents instead");
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) !=
         holder.sampler->numObservations())

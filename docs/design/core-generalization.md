@@ -443,6 +443,13 @@ partitioning entirely; a different library sharing only the tree structure).
    startdart convention). `tree.prior = dart(...)` wires
    SamplerOptions::useDart through the bartcore bridge; the classic
    engine and setModel refuse DART.
+   family exposure (DONE 2026-07-03): `family` on `dbarts()`/bart2
+   resolves into `dbartsControl@family` ("auto" keeps the old dispatch;
+   "gaussian" on 0/1 responses fits continuous; logistic is public on
+   the bartcore engine with node.scale = pi * sqrt(3)); the slot drives
+   the bridge's family argument including pointer re-creation after
+   save/load, and setControl preserves it like `binary`. The wrappers'
+   probit-only pnorm sites remain for the cutover flip.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by

@@ -107,6 +107,8 @@ methods::setValidity("dbartsFixedPrior",
 methods::setClass("dbartsControl",
   slots = list(
     binary           = "logical",
+    # "auto" until a fitting function resolves it against the response
+    family           = "character",
     engine           = "character",
     verbose          = "logical",
     keepTrainingFits = "logical",
@@ -128,6 +130,7 @@ methods::setClass("dbartsControl",
   ),
   prototype = list(
     binary           = FALSE,
+    family           = "auto",
     engine           = "classic",
     verbose          = FALSE,
     keepTrainingFits = TRUE,
@@ -154,6 +157,9 @@ methods::setValidity("dbartsControl",
     if (length(object@engine) != 1L || is.na(object@engine) ||
         !(object@engine %in% c("classic", "bartcore")))
       return("'engine' must be \"classic\" or \"bartcore\"")
+    if (length(object@family) != 1L || is.na(object@family) ||
+        !(object@family %in% c("auto", "gaussian", "probit", "logistic")))
+      return("'family' must be \"auto\", \"gaussian\", \"probit\", or \"logistic\"")
     if (length(object@verbose)          != 1L) return("'verbose' must be of length 1")
     if (length(object@keepTrainingFits) != 1L) return("'keepTrainingFits' must be of length 1")
     if (length(object@useQuantiles)     != 1L) return("'useQuantiles' must be of length 1")

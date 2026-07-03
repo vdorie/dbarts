@@ -113,6 +113,14 @@ Open: whether `family` also belongs on `xbart` (its losses already branch on
 binary responses; logistic would want log-loss by default).
 
 DECIDED: `family` as proposed; probit stays the binary default.
+Landed 2026-07-03: `family = c("auto", "gaussian", "probit", "logistic")`
+on `dbarts()` and bart2, resolved against the response into a new
+`dbartsControl@family` slot (which also drives pointer re-creation after
+save/load). `"gaussian"` on a 0/1 response fits a continuous model;
+logistic requires the bartcore engine, with node.scale = pi * sqrt(3) -
+probit's 3.0 widened by the logistic latent sd. The wrappers' pnorm
+sites (generics.R, plot.R, bart.R) still assume probit and join the flip
+checklist; the R5 surface reports binary fits on the latent scale.
 
 ## 3a. Prior specification
 

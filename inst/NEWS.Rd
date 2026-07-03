@@ -18,6 +18,13 @@
             selection, with optional sampling of the concentration.
             Requires `engine = "bartcore"`; the sampled probabilities
             appear in the stored sampler state.
+      \item `dbarts` and `bart2` accept `family`: `"auto"` keeps the
+            existing dispatch (gaussian for continuous responses, probit
+            for 0/1), `"gaussian"` forces a continuous fit even for a 0/1
+            response, and `"logistic"` fits a logistic latent model via
+            Polya-Gamma augmentation on the bartcore engine. Binary
+            families do not support weights (the weighted probit the
+            classic engine fits is incorrect and is not carried forward).
       \item `dbarts` and `dbartsData` accept `factors = "categorical"`,
             keeping each unordered factor in a data frame as a single
             predictor whose splits send a subset of its levels (at most 53)

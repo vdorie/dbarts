@@ -135,7 +135,8 @@ dbarts <- function(
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
-  factors = c("indicators", "categorical")
+  factors = c("indicators", "categorical"),
+  family = c("auto", "gaussian", "probit", "logistic")
 ) {
   matchedCall <- match.call()
 
@@ -167,10 +168,22 @@ dbarts <- function(
   data@sigma <- sigma
   attr(control, "n.cuts") <- NULL
 
+  family <- match.arg(family)
   uniqueResponses <- unique(data@y)
-  if (length(uniqueResponses) == 2 && all(sort(uniqueResponses) == c(0, 1))) {
-    control@binary <- TRUE
+  responseIsBinary <- length(uniqueResponses) == 2 &&
+    all(sort(uniqueResponses) == c(0, 1))
+  if (family == "auto") {
+    family <- if (responseIsBinary) "probit" else "gaussian"
+  } else if (family != "gaussian" && !responseIsBinary) {
+    # gaussian on a 0/1 response is a legitimate request; the binary
+    # families need latent-variable coding
+    stop("family \"", family, "\" requires a response coded 0/1")
   }
+  if (family == "logistic" && control@engine != "bartcore") {
+    stop("family \"logistic\" requires engine = \"bartcore\"")
+  }
+  control@family <- family
+  control@binary <- family != "gaussian"
 
   if (is.na(data@sigma) && !control@binary) {
     tryResult <- tryCatch(
@@ -236,7 +249,12 @@ dbarts <- function(
     priors$node.hyperprior,
     priors$resid.prior,
     proposal.probs = proposal.probs,
-    node.scale = if (control@binary) 3.0 else 0.5
+    # the logistic scale is probit's default widened by the logistic
+    # latent's standard deviation, pi / sqrt(3)
+    node.scale = switch(control@family,
+                        gaussian = 0.5,
+                        probit   = 3.0,
+                        logistic = pi * sqrt(3.0))
   )
 
   result <- new("dbartsSampler", control, model, data)
@@ -292,12 +310,13 @@ dbartsSampler <- setRefClass(
       .self$data <- data
 
       if (control@engine == "bartcore") {
+        # "auto" (a hand-built control) keeps the bridge's own dispatch
         .self$pointer <- .Call(
           C_dbarts_bartcore_create,
           .self$control,
           .self$model,
           .self$data,
-          ""
+          if (control@family == "auto") "" else control@family
         )
         # engine-specific state, populated by storeState / updateState runs
         .self$state <- NULL
@@ -536,6 +555,7 @@ dbartsSampler <- setRefClass(
       selfEnv <- parent.env(environment())
 
       newControl@binary <- control@binary
+      newControl@family <- control@family
       newControl@call <- control@call
 
       if (control@engine == "bartcore") {
@@ -1274,7 +1294,7 @@ dbartsSampler <- setRefClass(
             control,
             model,
             data,
-            ""
+            if (control@family == "auto") "" else control@family
           )
           .Call(C_dbarts_bartcore_setState, pointer, state)
         }
@@ -1309,7 +1329,7 @@ dbartsSampler <- setRefClass(
             control,
             model,
             data,
-            ""
+            if (control@family == "auto") "" else control@family
           )
         }
         .Call(C_dbarts_bartcore_setState, pointer, newState)

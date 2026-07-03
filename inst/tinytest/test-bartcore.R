@@ -391,7 +391,7 @@ expect_error(dbarts:::bartcoreSampler(sampler, family = "logistic"),
 sampler.wbin <- dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
                        control = control)
 expect_error(dbarts:::bartcoreSampler(sampler.wbin),
-             pattern = "weights for binary")
+             pattern = "binary response families do not support weights")
 
 # categorical predictors, a bartcore-only capability (the classic engine's
 # categorical rules are unreachable from R); no public surface marks
