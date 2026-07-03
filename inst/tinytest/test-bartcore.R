@@ -231,9 +231,7 @@ sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
 # unsupported methods refuse loudly rather than corrupt the sampler
-expect_error(sampler.engine$getTrees(1L), pattern = "not supported")
-expect_error(sampler.engine$storeState(), pattern = "not supported")
-expect_error(sampler.engine$predict(x.test), pattern = "not supported")
+expect_error(sampler.engine$printTrees(1L), pattern = "not supported")
 expect_error(sampler.engine$setWeights(rep(1, n)), pattern = "not supported")
 expect_error(sampler.engine$setTestOffset(rep(0, 10L)),
              pattern = "not supported")
@@ -386,3 +384,129 @@ sampler.cat.bad <- dbarts(x.cat.bad, y.cat, control = control)
 sampler.cat.bad$data@varTypes[1L] <- 1L
 expect_error(dbarts:::bartcoreSampler(sampler.cat.bad),
              pattern = "integer category codes")
+
+# setData accepts categorical predictors (regression: a leftover ordinal-only
+# check refused them) and refuses invalid codes; the internal handle skips
+# the R5 slot fixups, so the type flip and cut counts carry over by hand
+x.cat2 <- cbind(as.double(rep(c(1, 3, 0, 2), length.out = n)), runif(n))
+data.cat2 <- dbartsData(x.cat2, mu.cat + 2 * x.cat2[, 2L])
+data.cat2@n.cuts <- sampler.cat.host$data@n.cuts
+data.cat2@sigma <- sampler.cat.host$data@sigma
+data.cat2@varTypes[1L] <- 1L
+dbarts:::bartcoreSetData(bcSampler.cat, data.cat2)
+expect_true(all(is.finite(dbarts:::bartcoreRun(bcSampler.cat, 0L, 2L)$train)))
+data.cat2@x[1L, 1L] <- 11
+expect_error(dbarts:::bartcoreSetData(bcSampler.cat, data.cat2),
+             pattern = "existing category codes")
+
+# keepTrees through the flag: predictions from the saved trees reproduce the
+# run's recorded test fits exactly
+control.keep <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                              n.threads = 1L, n.trees = 20L,
+                              n.samples = 25L, n.burn = 50L,
+                              keepTrees = TRUE, updateState = FALSE)
+sampler.keep <- dbarts(x, y, test = x.test, control = control.keep)
+result.keep <- sampler.keep$run()
+predictions.keep <- sampler.keep$predict(x.test)
+expect_equal(dim(predictions.keep), c(10L, 25L))
+expect_identical(predictions.keep, unname(result.keep$test))
+
+# getTrees: saved trees carry a sample dimension in the classic format
+trees.saved <- sampler.keep$getTrees()
+expect_equal(names(trees.saved), c("sample", "tree", "n", "var", "value"))
+tree.first <- trees.saved[trees.saved$sample == 1L & trees.saved$tree == 1L, ]
+expect_equal(tree.first$n[1L], n)
+expect_equal(sum(tree.first$n[tree.first$var == -1L]), n)
+expect_true(all(trees.saved$var == -1L |
+                  (trees.saved$var >= 1L & trees.saved$var <= p)))
+
+# live working trees have no sample dimension
+trees.live <- sampler.keep$getTrees(current = TRUE)
+expect_equal(names(trees.live), c("tree", "n", "var", "value"))
+
+# newdata replays its rows through the trees for the counts
+trees.newdata <- sampler.keep$getTrees(treeNums = 1L, sampleNums = 1L,
+                                       newdata = x.test)
+expect_equal(trees.newdata$n[1L], 10L)
+
+# plotTree runs off the getTrees output
+pdf(NULL)
+expect_silent(sampler.keep$plotTree(1L))
+dev.off()
+
+# prediction without keepTrees comes from the live trees, one set per chain
+control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+                            n.threads = 1L, n.trees = 20L,
+                            updateState = FALSE)
+sampler.livepred <- dbarts(x, y, control = control.bc)
+invisible(sampler.livepred$run(50L, 1L))
+predictions.live <- sampler.livepred$predict(x.test)
+expect_equal(length(predictions.live), 10L)
+expect_equal(sampler.livepred$predict(x.test, offset.test = 2),
+             predictions.live + 2)
+
+# multiple chains add their dimension to predictions and a chain column to
+# the trees
+control.keep2 <- dbartsControl(engine = "bartcore", n.chains = 2L,
+                               n.threads = 1L, n.trees = 10L,
+                               n.samples = 5L, keepTrees = TRUE,
+                               updateState = FALSE)
+sampler.keep2 <- dbarts(x, y, control = control.keep2)
+invisible(sampler.keep2$run(30L, 5L))
+expect_equal(dim(sampler.keep2$predict(x.test)), c(10L, 5L, 2L))
+trees.keep2 <- sampler.keep2$getTrees()
+expect_equal(names(trees.keep2),
+             c("chain", "sample", "tree", "n", "var", "value"))
+
+# state serialization: a restored sampler continues bitwise identically;
+# multiple chains run on their own generators, so no seed sync is needed
+control.state <- dbartsControl(engine = "bartcore", n.chains = 2L,
+                               n.threads = 1L, n.trees = 10L,
+                               n.samples = 5L, updateState = FALSE)
+sampler.state <- dbarts(x, y, control = control.state)
+invisible(sampler.state$run(30L, 2L))
+sampler.state$storeState()
+state <- sampler.state$state
+expect_inherits(state, "bartcoreState")
+
+sampler.restored <- dbarts(x, y, control = control.state)
+sampler.restored$setState(state)
+expect_identical(sampler.state$run(0L, 3L), sampler.restored$run(0L, 3L))
+
+# a single chain draws through R's generator, so continuation additionally
+# synchronizes the seed
+sampler.state1 <- dbarts(x, y, control = control.bc)
+invisible(sampler.state1$run(30L, 1L))
+sampler.state1$storeState()
+state1 <- sampler.state1$state
+sampler.restored1 <- dbarts(x, y, control = control.bc)
+sampler.restored1$setState(state1)
+set.seed(7)
+result.a <- sampler.state1$run(0L, 2L)
+set.seed(7)
+result.b <- sampler.restored1$run(0L, 2L)
+expect_identical(result.a, result.b)
+
+# save/load: runs store state by default (updateState), and getPointer
+# transparently re-creates the sampler from it after deserialization
+control.us <- dbartsControl(engine = "bartcore", n.chains = 2L,
+                            n.threads = 1L, n.trees = 10L, n.samples = 5L)
+sampler.us <- dbarts(x, y, control = control.us)
+invisible(sampler.us$run(20L, 2L))
+expect_inherits(sampler.us$state, "bartcoreState")
+serialized <- tempfile(fileext = ".rds")
+saveRDS(sampler.us, serialized)
+result.a <- sampler.us$run(0L, 2L, updateState = FALSE)
+sampler.loaded <- readRDS(serialized)
+result.b <- sampler.loaded$run(0L, 2L, updateState = FALSE)
+expect_identical(result.a, result.b)
+unlink(serialized)
+
+# malformed and inconsistent states are refused
+expect_error(sampler.us$setState(list()), pattern = "bartcoreState")
+state.bad <- sampler.us$state
+internal.nodes <- which(state.bad[[1L]]$tree.vars > 0L)
+expect_true(length(internal.nodes) > 0L)
+state.bad[[1L]]$tree.values[internal.nodes[1L]] <-
+  state.bad[[1L]]$tree.values[internal.nodes[1L]] + 1e-3
+expect_error(sampler.us$setState(state.bad), pattern = "not consistent")

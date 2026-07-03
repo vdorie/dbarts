@@ -276,6 +276,11 @@ struct DartPrior {
 
   static constexpr std::size_t gridSize = 1000;
 
+  // State serialization: the delay counter is the only hidden mutable state
+  // (alpha and probabilities are public members).
+  std::size_t numUpdatesSkipped() const { return numUpdatesSkipped_; }
+  void setNumUpdatesSkipped(std::size_t value) { numUpdatesSkipped_ = value; }
+
 private:
   std::vector<double> gridAlpha_, gridConstant_, gridWeight_;
   std::size_t numUpdatesSkipped_ = 0;
@@ -367,6 +372,11 @@ public:
                        double* sigmaInOut) = 0;
 
   virtual const double* latents() const { return nullptr; }
+
+  /// State restoration: overwrite the latent state with previously stored
+  /// latents() values and rebuild the working response from them. A no-op
+  /// for models without latents.
+  virtual void restoreLatents(const double*) {}
 
   virtual double initialSigma() const = 0;
 
@@ -556,6 +566,11 @@ public:
 
   const double* latents() const override { return latents_.data(); }
 
+  void restoreLatents(const double* latents) override {
+    std::memcpy(latents_.data(), latents, numObservations_ * sizeof(double));
+    rebuildWorking();
+  }
+
   double initialSigma() const override { return 1.0; }
   double fitScale() const override { return 1.0; }
   double fitShift() const override { return 0.0; }
@@ -636,6 +651,13 @@ public:
   }
 
   const double* latents() const override { return omega_.data(); }
+
+  void restoreLatents(const double* latents) override {
+    std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      working_[i] = (y_[i] - 0.5) / omega_[i] -
+                    (offset_ != nullptr ? offset_[i] : 0.0);
+  }
 
   double initialSigma() const override { return 1.0; }
   double fitScale() const override { return 1.0; }

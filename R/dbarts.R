@@ -238,9 +238,6 @@ dbarts <- function(
     node.scale = if (control@binary) 3.0 else 0.5
   )
 
-  # bartcore has no state serialization
-  if (control@engine == "bartcore") control@updateState <- FALSE
-
   result <- new("dbartsSampler", control, model, data)
   # cat(
   #   "x address after creating sampler: ",
@@ -284,9 +281,6 @@ dbartsSampler <- setRefClass(
       .self$data <- data
 
       if (control@engine == "bartcore") {
-        if (control@keepTrees) {
-          stop("'keepTrees' is not supported by the bartcore engine")
-        }
         .self$pointer <- .Call(
           C_dbarts_bartcore_create,
           .self$control,
@@ -294,7 +288,7 @@ dbartsSampler <- setRefClass(
           .self$data,
           ""
         )
-        # bartcore has no state serialization
+        # engine-specific state, populated by storeState / updateState runs
         .self$state <- NULL
 
         callSuper(...)
@@ -337,7 +331,17 @@ dbartsSampler <- setRefClass(
       }
 
       if (control@engine == "bartcore") {
-        return(bartcoreSamplerRun(.self, numBurnIn, numSamples))
+        samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples)
+        if (
+          (is.na(updateState) && control@updateState == TRUE) ||
+            identical(updateState, TRUE)
+        ) {
+          storeState()
+        }
+        if (is.null(samples)) {
+          return(invisible(NULL))
+        }
+        return(samples)
       }
 
       ptr <- getPointer()
@@ -473,8 +477,6 @@ dbartsSampler <- setRefClass(
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
       'Using existing sampler to predict for new data without re-running.'
-      assertClassicEngine(control, "predict")
-
       selfEnv <- parent.env(environment())
 
       ptr <- getPointer()
@@ -503,6 +505,15 @@ dbartsSampler <- setRefClass(
             "length of test offset must be equal to number of rows in test matrix"
           )
         }
+      }
+
+      if (control@engine == "bartcore") {
+        # the engine runs prediction serially; a missing offset is passed
+        # as NULL rather than the classic NA sentinel
+        if (length(offset.test) == 1L && is.na(offset.test)) {
+          offset.test <- NULL
+        }
+        return(.Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test))
       }
 
       .Call(C_dbarts_predict, ptr, x.test, offset.test, n.threads)
@@ -1168,10 +1179,20 @@ dbartsSampler <- setRefClass(
 
       if (control@engine == "bartcore") {
         if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-          stop(
-            "bartcore engine samplers cannot be re-created from a ",
-            "serialized state"
+          if (is.null(state)) {
+            stop(
+              "bartcore engine samplers cannot be re-created without a ",
+              "stored state; call storeState() before serializing"
+            )
+          }
+          selfEnv$pointer <- .Call(
+            C_dbarts_bartcore_create,
+            control,
+            model,
+            data,
+            ""
           )
+          .Call(C_dbarts_bartcore_setState, pointer, state)
         }
         return(pointer)
       }
@@ -1193,7 +1214,24 @@ dbartsSampler <- setRefClass(
     },
     setState = function(newState) {
       'Sets the internal state from a cache.'
-      assertClassicEngine(control, "setState")
+      if (control@engine == "bartcore") {
+        if (!inherits(newState, "bartcoreState")) {
+          stop("'state' must inherit from bartcoreState")
+        }
+        selfEnv <- parent.env(environment())
+        if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
+          selfEnv$pointer <- .Call(
+            C_dbarts_bartcore_create,
+            control,
+            model,
+            data,
+            ""
+          )
+        }
+        .Call(C_dbarts_bartcore_setState, pointer, newState)
+        selfEnv$state <- newState
+        return(invisible(NULL))
+      }
 
       if (!is.list(newState)) {
         stop("'state' must be a list of dbartsState objects")
@@ -1225,8 +1263,11 @@ dbartsSampler <- setRefClass(
     },
     storeState = function(ptr = getPointer()) {
       'Updates the cached internal state used for saving/loading.'
-      assertClassicEngine(control, "storeState")
       selfEnv <- parent.env(environment())
+      if (control@engine == "bartcore") {
+        selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
+        return(invisible(NULL))
+      }
       if (is.null(state)) {
         selfEnv$state <- .Call(C_dbarts_createState, ptr)
       } else {
@@ -1276,7 +1317,6 @@ dbartsSampler <- setRefClass(
       current = FALSE,
       newdata = NULL
     ) {
-      assertClassicEngine(control, "getTrees")
       "Returns a data.frame containing the internal state of the trees."
       matchedCall <- match.call()
       current <- isTRUE(current)
@@ -1339,6 +1379,17 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
+      if (control@engine == "bartcore") {
+        return(.Call(
+          C_dbarts_bartcore_getTrees,
+          ptr,
+          chainNums,
+          sampleNums,
+          treeNums,
+          current,
+          newdata
+        ))
+      }
       .Call(
         C_dbarts_getTrees,
         ptr,
@@ -1356,7 +1407,6 @@ dbartsSampler <- setRefClass(
       treePlotPars = c(nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
       ...
     ) {
-      assertClassicEngine(control, "plotTree")
       'Minimialist visualization of tree branching and contents.'
 
       matchedCall <- match.call()

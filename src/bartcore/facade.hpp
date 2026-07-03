@@ -44,6 +44,20 @@ public:
                                              bool* installed) = 0;
   virtual std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, std::size_t column) = 0;
+  // Saved trees, prediction, and state serialization.
+  virtual std::size_t savedTreeCapacity() const = 0;
+  virtual std::size_t currentSampleNum() const = 0;
+  virtual const std::vector<FlatNode>& savedTree(std::size_t chainNum,
+                                                 std::size_t slot,
+                                                 std::size_t treeNum) const = 0;
+  virtual void flattenTree(std::size_t chainNum, std::size_t treeNum,
+                           std::vector<FlatNode>& nodes,
+                           std::vector<std::uint32_t>& counts) = 0;
+  virtual void predict(const double* x_test,
+                       std::size_t numTestObservations, double* out) = 0;
+  virtual void getState(SamplerStateData& state) = 0;
+  virtual bool setState(const SamplerStateData& state) = 0;
+
   virtual ext_rng* rng() const = 0;
   virtual ResponseFamily family() const = 0;
   virtual const ColumnStore& data() const = 0;
@@ -51,6 +65,7 @@ public:
   virtual double sigma(std::size_t chainNum) const = 0;
   virtual bool kIsSampled() const = 0;
   virtual std::size_t numChains() const = 0;
+  virtual std::size_t numTrees() const = 0;
   virtual std::size_t numObservations() const = 0;
   virtual std::size_t numPredictors() const = 0;
   virtual std::size_t numTestObservations() const = 0;
@@ -110,6 +125,31 @@ public:
     const double* newColumn, std::size_t column) override {
     return impl_.beginPredictorUpdate(newColumn, column);
   }
+  std::size_t savedTreeCapacity() const override {
+    return impl_.savedTreeCapacity();
+  }
+  std::size_t currentSampleNum() const override {
+    return impl_.currentSampleNum();
+  }
+  const std::vector<FlatNode>& savedTree(std::size_t chainNum,
+                                         std::size_t slot,
+                                         std::size_t treeNum) const override {
+    return impl_.savedTree(chainNum, slot, treeNum);
+  }
+  void flattenTree(std::size_t chainNum, std::size_t treeNum,
+                   std::vector<FlatNode>& nodes,
+                   std::vector<std::uint32_t>& counts) override {
+    impl_.flattenTree(chainNum, treeNum, nodes, counts);
+  }
+  void predict(const double* x_test, std::size_t numTestObservations,
+               double* out) override {
+    impl_.predict(x_test, numTestObservations, out);
+  }
+  void getState(SamplerStateData& state) override { impl_.getState(state); }
+  bool setState(const SamplerStateData& state) override {
+    return impl_.setState(state);
+  }
+
   ext_rng* rng() const override { return impl_.rng(); }
   ResponseFamily family() const override { return impl_.family(); }
   const ColumnStore& data() const override { return impl_.data(); }
@@ -121,6 +161,7 @@ public:
   }
   bool kIsSampled() const override { return impl_.kIsSampled(); }
   std::size_t numChains() const override { return impl_.numChains(); }
+  std::size_t numTrees() const override { return impl_.numTrees(); }
   std::size_t numObservations() const override { return impl_.numObservations(); }
   std::size_t numPredictors() const override { return impl_.numPredictors(); }
   std::size_t numTestObservations() const override {
