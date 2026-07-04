@@ -16,6 +16,8 @@ rbart_vi(
     sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
     k = 2.0,
     power = 2.0, base = 0.95,
+    split.probs = 1 / num.vars,
+    dart = FALSE,
     n.trees = 75L,
     n.samples = 1500L, n.burn = 1500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
@@ -75,8 +77,8 @@ rbart_vi(
   \item{callback}{
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
-  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, \dots}{
-    Same as in \code{\link{bart2}}.
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, \dots}{
+    Same as in \code{\link{bart2}}. With \code{dart}, split probability samples appear as \code{varprobs} on the fit.
   }
   \item{object}{
     A fitted \code{rbart} model.

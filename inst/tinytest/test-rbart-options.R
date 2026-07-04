@@ -79,5 +79,29 @@ expect_true(ncol(fit.ind$fit[[1L]]$data@x) > 3L)
 
 rm(fit.cat, fit.ind, df)
 
+# dart runs inside the Gibbs sampler and reports its split probabilities
+fit.dart <- dbarts::rbart_vi(
+  y ~ x, testData, group.by = g,
+  n.samples = 4L, n.burn = 2L, n.thin = 1L, n.chains = 1L,
+  n.trees = 3L, n.threads = 1L,
+  verbose = FALSE,
+  dart = TRUE
+)
+expect_equal(dim(fit.dart$varprobs), c(ncol(testData$x), 4L))
+expect_equivalent(colSums(fit.dart$varprobs), rep(1, 4L))
+
+expect_error(
+  dbarts::rbart_vi(
+    y ~ x, testData, group.by = g,
+    n.samples = 2L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+    n.trees = 3L, n.threads = 1L,
+    verbose = FALSE,
+    dart = TRUE, split.probs = c(0.5, 0.5)
+  ),
+  pattern = "cannot be combined"
+)
+
+rm(fit.dart)
+
 rm(testData)
 

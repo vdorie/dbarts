@@ -8,6 +8,8 @@ rbart_vi <- function(
   sigest = NA_real_, sigdf = 3.0, sigquant = 0.90,
   k = 2.0,
   power = 2.0, base = 0.95,
+  split.probs = 1 / num.vars,
+  dart = FALSE,
   n.trees = 75L,
   n.samples = 1500L, n.burn = 1500L,
   n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains), combineChains = FALSE,
@@ -63,8 +65,24 @@ rbart_vi <- function(
 
   keepSampler <- keepSampler || control@keepTrees
   
-  tree.prior <- quote(cgm(power, base))
-  tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  if (inherits(dart, "dbartsDartPrior")) {
+    # a full spec overrides the power/base arguments with its own
+    tree.prior <- dart
+  } else if (isTRUE(dart)) {
+    if ("split.probs" %in% names(matchedCall))
+      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
+    tree.prior <- quote(dart(power, base))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  } else if (!isFALSE(dart)) {
+    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
+  } else {
+    tree.prior <- quote(cgm(power, base, split.probs))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+    if ("split.probs" %in% names(matchedCall))
+      tree.prior[[4L]] <- matchedCall$split.probs
+    else
+      tree.prior[[4L]] <- formals(dbarts::rbart_vi)[["split.probs"]]
+  }
 
   if (!is.null(matchedCall[["k"]])) {
     node.prior <- quote(normal(k))
@@ -241,6 +259,8 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
     samples$yhat.train <- matrix(NA_real_, if (rbartArgs$keepTrainingFits) numObservations else 0L, n.samples)
     samples$yhat.test <- matrix(NA_real_, if (rbartArgs$keepTestFits) numTestObservations else 0L, n.samples)
     samples$varcount <- matrix(NA_integer_, ncol(sampler$data@x), n.samples)
+    if (inherits(sampler$model@tree.prior, "dbartsDartPrior"))
+      samples$varprobs <- matrix(NA_real_, ncol(sampler$data@x), n.samples)
   }
   
   # order of update matters - need to store a ranef that goes with a prediction
@@ -273,6 +293,8 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     if (!is.null(samples$varcount))
       .Call(C_dbarts_assignInPlace, samples$varcount, i, dbarts_samples$varcount)
+    if (!is.null(samples$varprobs))
+      .Call(C_dbarts_assignInPlace, samples$varprobs, i, dbarts_samples$varprobs)
     if (!is.null(samples$yhat.test) && numTestObservations > 0L && rbartArgs$keepTestFits)
       .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
     if (!is.null(samples$k))
@@ -401,6 +423,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
   k <- run_result$samples$k
   callback <- run_result$samples$callback
   varcount <- run_result$samples$varcount
+  varprobs <- run_result$samples$varprobs
 
   sampler$setOffset(if (!is.null(offset.orig)) offset.orig else NULL, FALSE)
   
@@ -410,6 +433,7 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
   rownames(ranef) <- g.levels
   
   result <- namedList(sampler, ranef, firstTau, firstSigma, tau, sigma, yhat.train, yhat.test, callback, varcount)
+  if (!is.null(varprobs)) result$varprobs <- varprobs
   if (kIsModeled) {
     result$firstK <- firstK
     result$k <- k
@@ -479,6 +503,8 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
       dimnames(result$callback) <- list(NULL, NULL, dimnames(chainResults[[1L]]$callback)[[1L]])
     }
     result$varcount    <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$varcount), c(dim(chainResults[[1L]]$varcount), n.chains)), n.chains, combineChains)
+    if (!is.null(chainResults[[1L]]$varprobs))
+      result$varprobs  <- convertSamplesFromDbartsToBart(array(sapply(chainResults, function(x) x$varprobs), c(dim(chainResults[[1L]]$varprobs), n.chains)), n.chains, combineChains)
     if (!is.null(chainResults[[1L]]$firstK)) {
       result$first.k <- convertSamplesFromDbartsToBart(sapply(chainResults, function(x) x$firstK), n.chains, combineChains)
     }
@@ -506,6 +532,8 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
     result$yhat.test   <- if (NROW(chainResults[[1L]]$yhat.test) <= 0L) NULL else t(chainResults[[1L]]$yhat.test)
     if (!is.null(chainResults[[1L]]$callback)) result$callback <- t(chainResults[[1L]]$callback)
     result$varcount    <- chainResults[[1L]]$varcount
+    if (!is.null(chainResults[[1L]]$varprobs))
+      result$varprobs  <- chainResults[[1L]]$varprobs
     if (!is.null(chainResults[[1L]]$firstK))
       result$first.k <- chainResults[[1L]]$firstK 
     if (!is.null(chainResults[[1L]]$k))
