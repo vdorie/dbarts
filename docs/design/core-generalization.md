@@ -410,6 +410,22 @@ partitioning entirely; a different library sharing only the tree structure).
 4. **Data generalization**: BartData container, data.frame ingestion,
    categorical rules enabled (> 32 levels), sparse columns, new kernels,
    per-column-type mutation semantics, standalone R data handle.
+   Standalone data handle + CV views (DONE 2026-07-04, internal):
+   ColumnStore::buildFromParent gathers a row-subset view that copies the
+   parent's cut grid, so folds bin identically to the full data; a view is
+   self-contained after construction (no lifetime coupling to the handle)
+   and holds no raw predictor values, which refuses the raw-x mutation
+   surface (setPredictor and friends, setData, setCutPoints, setState)
+   while response-side mutation, setTestPredictors, and predict keep
+   working off the copied grid. Exposed to R as an external-pointer handle
+   (bartcore_createDataHandle) plus view-sampler creation
+   (bartcore_createFromHandle slices y/weights/offset by row C-side into
+   holder-owned vectors, test offset from offset[testRows]); R helpers
+   bartcoreDataHandle/bartcoreSamplerFromHandle in R/bartcore.R. xbart
+   builds one handle per worker chunk and each fold's sampler is a view
+   over it - no per-fold re-quantization, and xbart's hardcoded regression
+   values were regenerated for the grid change. Serialization and public
+   exposure stay open per public-surface.md section 5.
    Wide categorical masks (DONE 2026-07-03): direction masks are 64 bits,
    with the category cap raised from 32 to 53 - the widest mask whose every
    value the flattened format's double encoding represents exactly.

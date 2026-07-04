@@ -28,8 +28,8 @@ xval.rs <- dbarts::xbart(
 
 res.kf <- apply(xval.kf, 2L, mean)
 res.rs <- apply(xval.rs, 2L, mean)
-expect_equal(unname(res.kf), c(2.35948439747039, 4.49712308329138))
-expect_equal(unname(res.rs), c(2.33689619233538, 4.60217247936324))
+expect_equal(unname(res.kf), c(2.44859519763217, 4.47658199096464))
+expect_equal(unname(res.rs), c(2.57155532634942, 4.80638138742988))
 
 # the methods estimate the same quantity; at these tiny run lengths the
 # Monte Carlo error leaves them agreeing only loosely

@@ -21,6 +21,11 @@ struct BartcoreHolder {
   std::vector<ext_rng*> rngs; // one per chain
   bool keepTrainingFits;
 
+  // a sampler created over a data handle owns its row-sliced vectors; the
+  // usual creation path leaves these empty and borrows from R instead
+  std::vector<double> ownedResponse, ownedWeights, ownedOffset,
+                      ownedTestOffset;
+
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);

@@ -235,6 +235,41 @@ struct ColumnStore {
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
   }
 
+  /// A row-subset view of a built parent store: copies the parent's cut
+  /// structure and gathers the subset's codes, so the view bins identically
+  /// to the parent by construction; testRows also index the parent's
+  /// observations. Views hold no raw values (x and x_test stay null), which
+  /// rules out every raw-x path here (quantizeColumn and the mutation
+  /// surface); callers enforce that. The view is self-contained: nothing
+  /// references the parent after this returns.
+  void buildFromParent(const ColumnStore& parent, const size_t* rows,
+                       size_t numRows, const size_t* testRows,
+                       size_t numTestRows) {
+    x = nullptr;
+    numObservations = numRows;
+    numPredictors = parent.numPredictors;
+    useQuantiles = parent.useQuantiles;
+    types = parent.types;
+    cutPoints = parent.cutPoints;
+    numCuts = parent.numCuts;
+    maxNumCuts = parent.maxNumCuts;
+    codes.resize(numRows * numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) {
+      const xint_t* parentColumn =
+        parent.codes.data() + j * parent.numObservations;
+      xint_t* column = codes.data() + j * numRows;
+      for (size_t i = 0; i < numRows; ++i) column[i] = parentColumn[rows[i]];
+    }
+    x_test = nullptr;
+    numTestObservations = numTestRows;
+    testCodes.resize(numTestRows * numPredictors);
+    for (size_t i = 0; i < numTestRows; ++i)
+      for (size_t j = 0; j < numPredictors; ++j)
+        testCodes[i * numPredictors + j] =
+          parent.codes[testRows[i] + j * parent.numObservations];
+    testOffset = nullptr;
+  }
+
   // Mutation. Snapshot/rollback of x, cutPoints, and codes is the caller's
   // (the sampler's) responsibility; these only install new values. Cut
   // refreshes assume the caller pre-checked quantile feasibility with

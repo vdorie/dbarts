@@ -533,48 +533,25 @@ void printInitialSummary(const ParsedControl& control,
   }
 }
 
-} // namespace
-
-namespace bartcore_bridge {
-
-void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
-                          const double* values, size_t numValues) {
-  if (store.types[column] != bartcore::ColumnType::categorical) return;
-  for (size_t i = 0; i < numValues; ++i) {
-    if (!store.categoricalValueIsValid(column, values[i]))
-      Rf_error("categorical predictor values must be existing category codes");
-  }
-}
-
 // family selects the response model for binary responses: "" or "probit"
 // give the classic probit latents, "logistic" the Polya-Gamma sampler.
 // Continuous responses are gaussian and accept only "" or "gaussian".
-BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                             const char* familyName) {
-  ParsedControl control;
-  ParsedData data;
-  ParsedModel model;
-
-  parseControl(control, controlExpr);
-  parseData(data, dataExpr);
-  parseModel(model, modelExpr, data.numPredictors);
-
-  bartcore::ResponseFamily family = bartcore::ResponseFamily::gaussian;
+bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
+                                       const char* familyName) {
   if (control.responseIsBinary) {
-    if (std::strcmp(familyName, "logistic") == 0) {
-      family = bartcore::ResponseFamily::logistic;
-    } else if (familyName[0] == '\0' ||
-               std::strcmp(familyName, "probit") == 0) {
-      family = bartcore::ResponseFamily::probit;
-    } else {
-      Rf_error("unrecognized response family for a binary response");
-    }
-  } else if (familyName[0] != '\0' &&
-             std::strcmp(familyName, "gaussian") != 0) {
+    if (std::strcmp(familyName, "logistic") == 0)
+      return bartcore::ResponseFamily::logistic;
+    if (familyName[0] == '\0' || std::strcmp(familyName, "probit") == 0)
+      return bartcore::ResponseFamily::probit;
+    Rf_error("unrecognized response family for a binary response");
+  }
+  if (familyName[0] != '\0' && std::strcmp(familyName, "gaussian") != 0)
     Rf_error("response families other than gaussian require a binary "
              "response");
-  }
+  return bartcore::ResponseFamily::gaussian;
+}
 
+void validateCategoricalPredictors(const ParsedData& data) {
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
     for (size_t i = 0; i < data.numObservations; ++i) {
@@ -604,17 +581,12 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       }
     }
   }
-  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
-  if (sigmaIsFixed) {
-    // documented semantics: fixed(value) holds the residual variance at
-    // value, so sigma enters as sqrt(value) and is never drawn
-    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
-  }
-  if (control.responseIsBinary && data.weights != NULL)
-    Rf_error("binary response families do not support weights: the "
-             "weighted probit the classic engine fit was incorrect; "
-             "replicate rows or model the latents instead");
+}
 
+bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
+                                           const ParsedModel& model,
+                                           const ParsedData& data,
+                                           SEXP modelExpr, bool sigmaIsFixed) {
   bartcore::SamplerOptions options;
   options.numTrees = control.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
@@ -666,16 +638,21 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   options.verbose = control.verbose;
   options.printEvery = control.printEvery;
 
-  // A single chain draws through R's generator; several chains each get a
-  // Mersenne twister seeded from R's stream, so results do not depend on the
-  // thread count and worker threads never touch the R API. A control rngSeed
-  // makes results reproducible without R's stream: it seeds R's generator
-  // directly for a single chain (the classic convention) and otherwise seeds
-  // a dedicated generator that hands each chain its seed.
+  return options;
+}
+
+// A single chain draws through R's generator; several chains each get a
+// Mersenne twister seeded from R's stream, so results do not depend on the
+// thread count and worker threads never touch the R API. A control rngSeed
+// makes results reproducible without R's stream: it seeds R's generator
+// directly for a single chain (the classic convention) and otherwise seeds
+// a dedicated generator that hands each chain its seed.
+std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
+                                      size_t numChains) {
   bool haveSeed = control.haveRngSeed;
-  std::vector<ext_rng*> rngs(options.numChains, static_cast<ext_rng*>(NULL));
+  std::vector<ext_rng*> rngs(numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
-  if (options.numChains == 1) {
+  if (numChains == 1) {
     rngs[0] = ext_rng_createDefault(true);
     rngFailed = rngs[0] == NULL ||
       (haveSeed && ext_rng_setSeed(rngs[0], control.rngSeed) != 0);
@@ -684,7 +661,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     rngFailed = seedGenerator == NULL ||
       ext_rng_setSeed(seedGenerator, control.rngSeed) != 0;
-    for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
+    for (size_t c = 0; c < numChains && !rngFailed; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
       rngFailed = rngs[c] == NULL ||
         ext_rng_setSeed(rngs[c], static_cast<std::uint_least32_t>(
@@ -694,7 +671,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
   } else {
     GetRNGstate();
-    for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
+    for (size_t c = 0; c < numChains && !rngFailed; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
       rngFailed = rngs[c] == NULL ||
         ext_rng_setSeed(rngs[c], static_cast<std::uint_least32_t>(
@@ -707,6 +684,82 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
     Rf_error("could not allocate rng");
   }
+  return rngs;
+}
+
+// A sampler created over a data handle holds no raw predictor values, so
+// the raw-x mutation surface has nothing to work from.
+void refuseViewSampler(const bartcore::SamplerBase& sampler,
+                       const char* caller) {
+  if (sampler.data().x == NULL)
+    Rf_error("%s requires a sampler that owns its predictors; data-handle "
+             "views hold none", caller);
+}
+
+// A built column store (cuts + codes) shared by row-subset view samplers
+// (public-surface.md section 5; internal). The external pointer's
+// protection slot pins the data expression whose x the store borrows.
+struct DataHandle {
+  bartcore::ColumnStore store;
+};
+
+void dataHandleFinalizer(SEXP ptrExpr) {
+  DataHandle* handle = static_cast<DataHandle*>(R_ExternalPtrAddr(ptrExpr));
+  if (handle == NULL) return;
+  delete handle;
+  R_ClearExternalPtr(ptrExpr);
+}
+
+DataHandle& dataHandleFromExpression(SEXP ptrExpr) {
+  DataHandle* handle = static_cast<DataHandle*>(R_ExternalPtrAddr(ptrExpr));
+  if (handle == NULL)
+    Rf_error("data handle function called on NULL external pointer");
+  return *handle;
+}
+
+} // namespace
+
+namespace bartcore_bridge {
+
+void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
+                          const double* values, size_t numValues) {
+  if (store.types[column] != bartcore::ColumnType::categorical) return;
+  for (size_t i = 0; i < numValues; ++i) {
+    if (!store.categoricalValueIsValid(column, values[i]))
+      Rf_error("categorical predictor values must be existing category codes");
+  }
+}
+
+// family selects the response model for binary responses: "" or "probit"
+// give the classic probit latents, "logistic" the Polya-Gamma sampler.
+// Continuous responses are gaussian and accept only "" or "gaussian".
+BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                             const char* familyName) {
+  ParsedControl control;
+  ParsedData data;
+  ParsedModel model;
+
+  parseControl(control, controlExpr);
+  parseData(data, dataExpr);
+  parseModel(model, modelExpr, data.numPredictors);
+
+  bartcore::ResponseFamily family = resolveFamily(control, familyName);
+  validateCategoricalPredictors(data);
+  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
+  if (sigmaIsFixed) {
+    // documented semantics: fixed(value) holds the residual variance at
+    // value, so sigma enters as sqrt(value) and is never drawn
+    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+  }
+  if (control.responseIsBinary && data.weights != NULL)
+    Rf_error("binary response families do not support weights: the "
+             "weighted probit the classic engine fit was incorrect; "
+             "replicate rows or model the latents instead");
+
+  bartcore::SamplerOptions options =
+    optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+
+  std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
 
   std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createClassicSampler(
     data.x, data.y, data.numObservations, data.numPredictors, data.weights,
@@ -721,7 +774,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
   return new BartcoreHolder{std::move(sampler), std::move(rngs),
-                            control.keepTrainingFits};
+                            control.keepTrainingFits, {}, {}, {}, {}};
 }
 
 } // namespace bartcore_bridge
@@ -742,6 +795,150 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
   SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
   R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
+
+  UNPROTECT(2);
+  return result;
+}
+
+// Builds the two-layer store (cuts + codes) once for sharing across
+// row-subset samplers: control contributes useQuantiles, data contributes
+// x, the column types, and n.cuts. Internal, with no serialization;
+// see public-surface.md section 5.
+SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
+  ParsedControl control;
+  ParsedData data;
+  parseControl(control, controlExpr);
+  parseData(data, dataExpr);
+  validateCategoricalPredictors(data);
+
+  DataHandle* handle = new DataHandle;
+  handle->store.build(data.x, data.numObservations, data.numPredictors,
+                      data.maxNumCuts.data(), control.useQuantiles,
+                      data.anyCategorical ? data.columnTypes.data() : NULL);
+
+  SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
+  R_RegisterCFinalizerEx(result, dataHandleFinalizer,
+                         static_cast<Rboolean>(FALSE));
+  UNPROTECT(1);
+  return result;
+}
+
+// A sampler over a row-subset view of a data handle: the view copies the
+// handle's cut grid and gathers the subset's codes, so folds bin
+// identically to the full data. dataExpr is the full data object the
+// handle was built from; the response vectors are sliced here by the
+// 1-based trainRows and owned by the holder, and a test offset is gathered
+// from the regular offset at testRows (xbart's fold semantics). The result
+// refuses the raw-x mutation surface (setPredictor and friends, setData,
+// setCutPoints, setState).
+SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
+                               SEXP dataExpr, SEXP handleExpr,
+                               SEXP trainRowsExpr, SEXP testRowsExpr,
+                               SEXP familyExpr) {
+  const bartcore::ColumnStore& parent =
+    dataHandleFromExpression(handleExpr).store;
+  const char* familyName =
+    Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
+
+  ParsedControl control;
+  ParsedData data;
+  ParsedModel model;
+  parseControl(control, controlExpr);
+  parseData(data, dataExpr);
+  parseModel(model, modelExpr, data.numPredictors);
+
+  if (data.numObservations != parent.numObservations ||
+      data.numPredictors != parent.numPredictors)
+    Rf_error("data does not match the shape the handle was built from");
+
+  bartcore::ResponseFamily family = resolveFamily(control, familyName);
+
+  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
+  if (sigmaIsFixed) {
+    // documented semantics: fixed(value) holds the residual variance at
+    // value, so sigma enters as sqrt(value) and is never drawn
+    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+  }
+  if (control.responseIsBinary && data.weights != NULL)
+    Rf_error("binary response families do not support weights: the "
+             "weighted probit the classic engine fit was incorrect; "
+             "replicate rows or model the latents instead");
+
+  if (!Rf_isInteger(trainRowsExpr) || Rf_xlength(trainRowsExpr) == 0)
+    Rf_error("trainRows must be a non-empty integer vector");
+  if (!Rf_isNull(testRowsExpr) && !Rf_isInteger(testRowsExpr))
+    Rf_error("testRows must be an integer vector or NULL");
+  size_t numTrainRows = static_cast<size_t>(Rf_xlength(trainRowsExpr));
+  size_t numTestRows = Rf_isNull(testRowsExpr)
+    ? 0 : static_cast<size_t>(Rf_xlength(testRowsExpr));
+
+  std::vector<size_t> trainRows(numTrainRows), testRows(numTestRows);
+  const int* i_trainRows = INTEGER(trainRowsExpr);
+  for (size_t i = 0; i < numTrainRows; ++i) {
+    if (i_trainRows[i] < 1 ||
+        static_cast<size_t>(i_trainRows[i]) > parent.numObservations)
+      Rf_error("train row out of range");
+    trainRows[i] = static_cast<size_t>(i_trainRows[i] - 1);
+  }
+  for (size_t i = 0; i < numTestRows; ++i) {
+    int row = INTEGER(testRowsExpr)[i];
+    if (row < 1 || static_cast<size_t>(row) > parent.numObservations)
+      Rf_error("test row out of range");
+    testRows[i] = static_cast<size_t>(row - 1);
+  }
+
+  std::vector<double> response(numTrainRows);
+  for (size_t i = 0; i < numTrainRows; ++i)
+    response[i] = data.y[trainRows[i]];
+  std::vector<double> weights, offset, testOffset;
+  if (data.weights != NULL) {
+    weights.resize(numTrainRows);
+    for (size_t i = 0; i < numTrainRows; ++i)
+      weights[i] = data.weights[trainRows[i]];
+  }
+  if (data.offset != NULL) {
+    offset.resize(numTrainRows);
+    for (size_t i = 0; i < numTrainRows; ++i)
+      offset[i] = data.offset[trainRows[i]];
+    if (numTestRows > 0) {
+      testOffset.resize(numTestRows);
+      for (size_t i = 0; i < numTestRows; ++i)
+        testOffset[i] = data.offset[testRows[i]];
+    }
+  }
+
+  bartcore::ColumnStore store;
+  store.buildFromParent(parent, trainRows.data(), numTrainRows,
+                        testRows.data(), numTestRows);
+
+  bartcore::SamplerOptions options =
+    optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+  std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
+
+  std::unique_ptr<bartcore::SamplerBase> sampler =
+    bartcore::createSamplerOverStore(
+      std::move(store), response.data(),
+      data.weights != NULL ? weights.data() : NULL,
+      data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
+      model.sigmaDf, model.sigmaRawScale, options, rngs.data());
+
+  BartcoreHolder* holder = new BartcoreHolder{
+    std::move(sampler), std::move(rngs), control.keepTrainingFits,
+    {}, {}, {}, {}};
+  // moving the vectors keeps their buffers, so the chains' borrowed
+  // pointers stay valid for the holder's lifetime
+  holder->ownedResponse = std::move(response);
+  holder->ownedWeights = std::move(weights);
+  holder->ownedOffset = std::move(offset);
+  holder->ownedTestOffset = std::move(testOffset);
+  if (!holder->ownedTestOffset.empty())
+    holder->sampler->setTestOffset(holder->ownedTestOffset.data());
+
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
+  R_RegisterCFinalizerEx(result, holderFinalizer,
+                         static_cast<Rboolean>(FALSE));
 
   UNPROTECT(2);
   return result;
@@ -914,6 +1111,7 @@ SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+  refuseViewSampler(sampler, "bartcore_setData");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
@@ -1190,6 +1388,7 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseViewSampler(*holder.sampler, "bartcore_setPredictor");
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[0]) != holder.sampler->numObservations() ||
@@ -1216,6 +1415,7 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseViewSampler(*holder.sampler, "bartcore_updatePredictor");
   size_t numObservations = holder.sampler->numObservations();
   size_t numPredictors = holder.sampler->numPredictors();
 
@@ -1249,6 +1449,7 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
 
 SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr, SEXP columnsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseViewSampler(*holder.sampler, "bartcore_setCutPoints");
   size_t numPredictors = holder.sampler->numPredictors();
 
   size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
@@ -1289,6 +1490,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr, SEXP columnsExpr) {
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseViewSampler(*holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = holder.sampler->numObservations();
 
   if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
@@ -1337,6 +1539,8 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
   for (size_t k = 0; k < numSamplers; ++k) {
     BartcoreHolder& holder(
       holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
+    refuseViewSampler(*holder.sampler,
+                      "bartcore_updatePredictorPerObservationJointly");
     samplers[k] = holder.sampler.get();
     int column = INTEGER(columnsExpr)[k];
     if (column < 1 ||
@@ -1466,6 +1670,8 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  // restoring cut points re-quantizes from raw values, which views lack
+  refuseViewSampler(*holder.sampler, "bartcore_setState");
   bartcore_bridge::setState(*holder.sampler, stateExpr);
   return R_NilValue;
 }

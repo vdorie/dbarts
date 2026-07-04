@@ -106,17 +106,29 @@ public:
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     options_.columnTypes = nullptr;
 
-    chains_.reserve(options.numChains);
-    for (size_t c = 0; c < options.numChains; ++c)
-      chains_.push_back(std::make_unique<Chain<L>>(
-        data_, y, weights, offset, family, sigmaEstimate, sigmaDf,
-        sigmaRawScale, options_, rngs[c]));
+    initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
+                     sigmaRawScale, rngs);
+  }
 
-    if (options_.keepTrees) {
-      size_t capacity =
-        options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
-      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
-    }
+  /// A sampler over a pre-built store (ColumnStore::buildFromParent): a
+  /// row-subset view carrying the parent's cut grid, so folds bin
+  /// identically to the full data. y/weights/offset are the subset's
+  /// vectors, kept alive by the caller. Views hold no raw predictor values,
+  /// so the raw-x mutation surface (setPredictor, updatePredictor and the
+  /// per-observation sessions, setData, setCutPoints, setState) must not be
+  /// called on one; the bridge refuses beforehand.
+  Sampler(ColumnStore&& store, const double* y, const double* weights,
+          const double* offset, ResponseFamily family, double sigmaEstimate,
+          double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
+          ext_rng* const* rngs)
+    : options_(options), family_(family) {
+    data_ = std::move(store);
+    options_.maxNumCutsPerVariable = nullptr;
+    options_.columnTypes = nullptr;
+    options_.useQuantiles = data_.useQuantiles;
+
+    initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
+                     sigmaRawScale, rngs);
   }
 
   // chains reference the store member, so the sampler's address is pinned
@@ -649,6 +661,25 @@ public:
   size_t numTestObservations() const { return data_.numTestObservations; }
 
 private:
+  /// Shared constructor tail: one chain per rng over the built store, plus
+  /// saved-tree storage under keepTrees.
+  void initializeChains(const double* y, const double* weights,
+                        const double* offset, double sigmaEstimate,
+                        double sigmaDf, double sigmaRawScale,
+                        ext_rng* const* rngs) {
+    chains_.reserve(options_.numChains);
+    for (size_t c = 0; c < options_.numChains; ++c)
+      chains_.push_back(std::make_unique<Chain<L>>(
+        data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
+        sigmaRawScale, options_, rngs[c]));
+
+    if (options_.keepTrees) {
+      size_t capacity =
+        options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
+      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    }
+  }
+
   /// Two-phase transaction over every chain: validate all trees of all
   /// chains first, then rebuild fits only if everything holds, so a failure
   /// in a late chain never leaves an early chain's fits overwritten.

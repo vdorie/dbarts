@@ -263,6 +263,19 @@ DECIDED: internal first; naming and serialization contracts are cheaper to
 change before exposure. Exposure waits until multi-forest or user demand
 needs it.
 
+Landed (2026-07-04, internal): `ColumnStore::buildFromParent` +
+`Sampler`/facade view construction; bridge entry points
+`bartcore_createDataHandle` (external-pointer handle over a built store)
+and `bartcore_createFromHandle` (view sampler; slices y/weights/offset by
+trainRows C-side, test offset from offset[testRows]); R helpers
+`bartcoreDataHandle`/`bartcoreSamplerFromHandle`. Views are self-contained
+copies (no lifetime coupling to the handle) and refuse the raw-x mutation
+surface, including setState (restoring cut points re-quantizes from raw
+values); setTestPredictors and predict work off the copied grid. xbart
+builds one handle per worker chunk, so folds bin on the full data's grid -
+its hardcoded regression values were regenerated. Still open, as decided:
+serialization and any public exposure.
+
 ## 6. C API and callbacks
 
 `inst/include/dbarts/R_C_interface.hpp` exposes C++ classes (Control, Data,

@@ -270,9 +270,12 @@ xbartLossFunction <- function(loss, control)
     })
 }
 
-## One worker's share of the replications. Per data split, every tree count
-## gets a fresh sampler burned n.burn[1] iterations; the remaining parameter
-## cells sweep warm off it with n.burn[2] iterations each, sound because the
+## One worker's share of the replications. The predictor store (cuts +
+## codes) is built once per chunk; each fold's sampler is a row-subset view
+## over it, so every fold bins on the full data's cut grid and no fold
+## re-quantizes the predictors. Per data split, every tree count gets a
+## fresh sampler burned n.burn[1] iterations; the remaining parameter cells
+## sweep warm off it with n.burn[2] iterations each, sound because the
 ## training data is unchanged. Chains never carry over between splits, whose
 ## held-out rows the previous training set contained; n.burn[3] is unused.
 ## Returns a (reps x cells) x numResults matrix, cells in spec$cells order.
@@ -285,7 +288,9 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
   numCells <- nrow(cells)
   numObservations <- length(data@y)
   hasWeights <- !is.null(data@weights)
-  hasOffset <- !is.null(data@offset)
+  family <- if (spec$control@family == "auto") "" else spec$control@family
+
+  handle <- bartcoreDataHandle(spec$control, data)
 
   cellModel <- function(cell) {
     result <- spec$model
@@ -297,46 +302,36 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
     result
   }
 
-  sliceData <- function(testRows) {
-    result <- data
-    result@x <- data@x[-testRows, , drop = FALSE]
-    result@y <- data@y[-testRows]
-    if (hasWeights) result@weights <- data@weights[-testRows]
-    if (hasOffset) {
-      result@offset <- data@offset[-testRows]
-      result@offset.test <- data@offset[testRows]
-      result@testUsesRegularOffset <- TRUE
-    }
-    result@x.test <- data@x[testRows, , drop = FALSE]
-    result
-  }
-
   numLossResults <- NULL
 
   # fit every cell against one split, fresh per tree count, warm across the
   # rest; cells are grouped by iTrees, so a single pass reuses each sampler
-  # maximally
+  # maximally. The view slices y/weights/offset by row and takes its test
+  # offset from offset[testRows], as the retired data-slicing path did.
   sweepCells <- function(testRows) {
-    foldData <- sliceData(testRows)
+    trainRows <- seq_len(numObservations)[-testRows]
     y.test <- data@y[testRows]
     weights.test <- if (hasWeights) data@weights[testRows] else NULL
 
     lossValues <- NULL
     sampler <- NULL
+    cellControl <- NULL
     currentTrees <- NA_integer_
     for (cell in seq_len(numCells)) {
       if (is.null(sampler) || spec$n.trees[cells$iTrees[cell]] != currentTrees) {
         cellControl <- spec$control
         cellControl@n.trees <- spec$n.trees[cells$iTrees[cell]]
-        sampler <- new("dbartsSampler", cellControl, cellModel(cell), foldData)
+        sampler <- bartcoreSamplerFromHandle(handle, cellControl,
+                                             cellModel(cell), data,
+                                             trainRows, testRows, family)
         currentTrees <- spec$n.trees[cells$iTrees[cell]]
         numBurnIn <- spec$n.burn[1L]
       } else {
-        sampler$setModel(cellModel(cell))
+        bartcoreSetModel(sampler, cellModel(cell), cellControl, data)
         numBurnIn <- spec$n.burn[2L]
       }
 
-      samples <- sampler$run(numBurnIn, spec$n.samples, updateState = FALSE)
+      samples <- bartcoreRun(sampler, numBurnIn, spec$n.samples)
       lossValue <- spec$lossFunction(y.test, samples$test, weights.test)
 
       if (!is.numeric(lossValue) || length(lossValue) == 0L || anyNA(lossValue))

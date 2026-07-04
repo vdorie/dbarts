@@ -289,6 +289,38 @@ bartcoreSampler <- function(sampler, family = "") {
   result
 }
 
+# A built predictor store (cuts + codes) shared across row-subset samplers;
+# public-surface.md section 5, internal and unserializable. control
+# contributes useQuantiles; data contributes x, the column types, and
+# n.cuts.
+bartcoreDataHandle <- function(control, data) {
+  result <- new.env(parent = emptyenv())
+  result$ptr <- .Call(C_dbarts_bartcore_createDataHandle, control, data)
+  result
+}
+
+# A sampler over a row subset of a handle: it copies the handle's cut grid
+# and gathers its rows' codes, so folds bin identically to the full data.
+# data is the full data object the handle was built from; trainRows and
+# testRows index its rows, y/weights/offset are sliced by trainRows, and a
+# test offset comes from offset[testRows] (xbart's fold semantics). The
+# result refuses raw-predictor mutation (setPredictor and friends, setData,
+# setCutPoints, setState); family is as bartcoreSampler's.
+bartcoreSamplerFromHandle <- function(handle, control, model, data,
+                                      trainRows, testRows = NULL,
+                                      family = "") {
+  result <- new.env(parent = emptyenv())
+  result$ptr <- .Call(C_dbarts_bartcore_createFromHandle, control, model,
+                      data, handle$ptr, as.integer(trainRows),
+                      if (!is.null(testRows)) as.integer(testRows),
+                      as.character(family))
+  result
+}
+
+bartcoreSetModel <- function(bcSampler, model, control, data)
+  invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, control,
+                  data))
+
 bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L)
   .Call(C_dbarts_bartcore_run, bcSampler$ptr, as.integer(numBurnIn),
         as.integer(numSamples))
