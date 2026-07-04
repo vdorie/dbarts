@@ -18,17 +18,22 @@
 
 namespace bartcore {
 
-/// Leaf models the conjugate engine can run must be integrable: they expose a
-/// closed-form log marginal over their parameter. The suffstat shape is fixed
-/// to (average, effective count, variance) for the constant leaf; the concept
-/// widens when non-constant leaves land.
+/// Leaf models the conjugate engine can run must be integrable: they expose
+/// a closed-form log marginal over their parameters. The engine scores and
+/// draws through node context - (tree, working response, weights, node) -
+/// so models with richer sufficient statistics than the constant leaf's
+/// cached (average, effective count) can slot in without the moves or the
+/// chain knowing their shape.
 template <typename L>
-concept IntegrableLeafModel = requires(const L leaf, ext_rng* rng, double d,
-                                       std::size_t n) {
-  { leaf.logIntegratedLikelihood(d, d, d, d, d, n) } -> std::same_as<double>;
-  { leaf.drawFromPosterior(rng, d, d, d, d) } -> std::same_as<double>;
-  { leaf.drawFromPrior(rng, d) } -> std::same_as<double>;
-};
+concept IntegrableLeafModel =
+  requires(const L leaf, ext_rng* rng, const Tree& tree, const double* v,
+           double d, std::int32_t node) {
+    { leaf.logIntegratedLikelihoodForNode(tree, v, v, d, d, node) }
+      -> std::same_as<double>;
+    { leaf.drawFromPosteriorForNode(rng, tree, d, d, node) }
+      -> std::same_as<double>;
+    { leaf.drawFromPrior(rng, d) } -> std::same_as<double>;
+  };
 
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
@@ -64,6 +69,27 @@ struct ConstantGaussianLeaf {
 
   double drawFromPrior(ext_rng* rng, double k) const {
     return (scale / k) * ext_rng_simulateStandardNormal(rng);
+  }
+
+  // The node-context interface the engine drives; delegates to the scalar
+  // math above against the node's cached statistics.
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
+                                        const double* weights, double k,
+                                        double residualVariance,
+                                        int32_t nodeIndex) const {
+    const Node& node(tree.at(nodeIndex));
+    double variance = tree.computeVariance(nodeIndex, y, weights);
+    return logIntegratedLikelihood(k, residualVariance, node.average,
+                                   node.numEffectiveObservations, variance,
+                                   node.numObservations());
+  }
+
+  double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree, double k,
+                                  double residualVariance,
+                                  int32_t nodeIndex) const {
+    const Node& node(tree.at(nodeIndex));
+    return drawFromPosterior(rng, k, node.average,
+                             node.numEffectiveObservations, residualVariance);
   }
 };
 
