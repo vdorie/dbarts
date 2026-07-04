@@ -788,3 +788,39 @@ expect_identical(run.sc2$train, run.sc$train)
 pred.sc <- dbarts:::bartcorePredict(bc.sc, x[1:5, , drop = FALSE])
 pred.sc2 <- dbarts:::bartcorePredict(bc.sc2, x[1:5, , drop = FALSE])
 expect_identical(pred.sc2, pred.sc)
+
+# single-chain states gather into a multi-chain restore (the stan4bart
+# pattern: fit chains separately, splice their states into one sampler for
+# prediction); the R-stream-backed single-chain generators cannot restore
+# into the dedicated multi-chain generators and are skipped
+states.g <- lapply(1:3, function(i) {
+  control.g <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 11L,
+                             keepTrees = TRUE, n.samples = 6L,
+                             updateState = FALSE)
+  bc.g <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g,
+                                          sigma = 1))
+  invisible(dbarts:::bartcoreRun(bc.g, 7L, 6L))
+  dbarts:::bartcoreStoreState(bc.g)
+})
+control.g3 <- dbartsControl(n.chains = 3L, n.threads = 1L, n.trees = 11L,
+                            keepTrees = TRUE, n.samples = 6L,
+                            updateState = FALSE)
+bc.g3 <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g3,
+                                         sigma = 1))
+state.g <- states.g[[1L]]
+state.g[[2L]] <- states.g[[2L]][[1L]]
+state.g[[3L]] <- states.g[[3L]][[1L]]
+expect_silent(dbarts:::bartcoreSetState(bc.g3, state.g))
+pred.g <- dbarts:::bartcorePredict(bc.g3, x[1:4, , drop = FALSE])
+expect_equal(dim(pred.g), c(4L, 6L, 3L))
+# each restored chain predicts what its source sampler predicts
+for (i in 1:3) {
+  control.g1 <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 11L,
+                              keepTrees = TRUE, n.samples = 6L,
+                              updateState = FALSE)
+  bc.g1 <- dbarts:::bartcoreSampler(dbarts(x, y, control = control.g1,
+                                           sigma = 1))
+  dbarts:::bartcoreSetState(bc.g1, states.g[[i]])
+  expect_equal(dbarts:::bartcorePredict(bc.g1, x[1:4, , drop = FALSE]),
+               pred.g[, , i, drop = FALSE][, , 1L])
+}
