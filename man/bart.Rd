@@ -53,6 +53,7 @@ bart2(
     keepSampler = keepTrees,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
+    missing = c("incorporate", "error"),
     \dots)
 
 \method{plot}{bart}(
@@ -176,8 +177,8 @@ extract(object, \dots)
    \item{keepsampler, keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.
    }
-   \item{factors, family}{
-     As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors expand into indicator columns and binary responses are probit.
+   \item{factors, family, missing}{
+     As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors expand into indicator columns, binary responses are probit, and missing data are rejected.
    }
    \item{formula}{
      The same as \code{x.train}, the name reflecting that a formula object can be used instead.
