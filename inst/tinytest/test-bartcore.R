@@ -755,3 +755,36 @@ out.threaded <- capture.output({
 })
 expect_true(any(grepl("^\\[1\\] iteration: ", out.threaded)))
 expect_true(any(grepl("^\\[2\\] iteration: ", out.threaded)))
+
+# the state stores the response transform: an offset installed with
+# updateScale moves it after creation, and a sampler restored over the same
+# data must continue bitwise anyway (single-chain samplers share R's
+# generator, so runs are seed-bracketed)
+control.sc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+                            updateState = FALSE)
+sampler.sc <- dbarts(x, y, control = control.sc, sigma = 1)
+bc.sc <- dbarts:::bartcoreSampler(sampler.sc)
+set.seed(31)
+invisible(dbarts:::bartcoreRun(bc.sc, 20L, 0L))
+offset.sc <- 2 * sin(0.1 * seq_len(n))
+dbarts:::bartcoreSetOffset(bc.sc, offset.sc, updateScale = TRUE)
+invisible(dbarts:::bartcoreRun(bc.sc, 20L, 0L))
+state.sc <- dbarts:::bartcoreStoreState(bc.sc)
+
+# the same specification: an explicit sigma keeps the creation-time lm from
+# folding the offset into a different variance prior
+sampler.sc2 <- dbarts(x, y, offset = offset.sc, control = control.sc,
+                      sigma = 1)
+bc.sc2 <- dbarts:::bartcoreSampler(sampler.sc2)
+dbarts:::bartcoreSetState(bc.sc2, state.sc)
+
+set.seed(37)
+run.sc <- dbarts:::bartcoreRun(bc.sc, 0L, 10L)
+set.seed(37)
+run.sc2 <- dbarts:::bartcoreRun(bc.sc2, 0L, 10L)
+expect_identical(run.sc2$sigma, run.sc$sigma)
+expect_identical(run.sc2$train, run.sc$train)
+
+pred.sc <- dbarts:::bartcorePredict(bc.sc, x[1:5, , drop = FALSE])
+pred.sc2 <- dbarts:::bartcorePredict(bc.sc2, x[1:5, , drop = FALSE])
+expect_identical(pred.sc2, pred.sc)
