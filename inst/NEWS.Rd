@@ -1,7 +1,7 @@
 \name{NEWS}
 \title{dbarts News}
 \encoding{UTF-8}
-\section{CHANGES IN VERSION 0.9-34}{
+\section{CHANGES IN VERSION 1.0-0}{
   \subsection{NEW FEATURES}{
     \itemize{
       \item The bartcore engine replaces the classic engine: every
