@@ -32,6 +32,7 @@ rbart_vi(
     keepTestFits = TRUE,
     callback = NULL,
     factors = c("categorical", "indicators"),
+    missing = c("incorporate", "error"),
     \dots)
 
 \S3method{plot}{rbart}(
@@ -77,7 +78,7 @@ rbart_vi(
   \item{callback}{
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
-  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, \dots}{
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
     Same as in \code{\link{bart2}}. With \code{dart}, split probability samples appear as \code{varprobs} on the fit.
   }
   \item{object}{

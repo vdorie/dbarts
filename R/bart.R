@@ -181,6 +181,7 @@ bart2 <- function(
   keepSampler = keepTrees,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
+  missing = c("incorporate", "error"),
   ...
 )
 {
@@ -350,7 +351,7 @@ bart <- function(
                offset = binaryOffset, verbose = as.logical(verbose), n.samples = as.integer(ndpost),
                tree.prior = tree.prior, node.prior = node.prior, resid.prior = resid.prior,
                proposal.probs = proposalprobs, control = control, sigma = as.numeric(sigest),
-               factors = "indicators")
+               factors = "indicators", missing = "error")
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
   
   if (sampleronly) return(sampler)

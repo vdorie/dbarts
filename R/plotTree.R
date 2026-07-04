@@ -107,6 +107,16 @@ plotNode <- function(node, sampler, plotPars)
       }
       expr1[[1]][[3]] <- signif(node$value[1L], 3)
     }
+    naRoute <- if (!is.null(node$missing)) node$missing[1L] else NA_character_
+    if (!is.na(naRoute)) {
+      # the rule also routes missing values; the label becomes plain text
+      if (is.expression(expr1))
+        expr1 <- paste0(
+          if (!is.null(varName)) varName else paste0("x[", node$var[1L], "]"),
+          " <= ", signif(node$value[1L], 3)
+        )
+      expr1 <- paste0(expr1, ", NA->", naRoute)
+    }
   } else {
     expr1 <- expression(mu == b)
     expr1[[1]][[3]] <- signif(node$value[1L], 3)

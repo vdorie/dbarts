@@ -271,7 +271,7 @@ static void testTreeMechanics() {
   // split at the median cut
   Rule rule;
   rule.variableIndex = 0;
-  rule.splitIndex = 49;
+  rule.setSplitIndex(49);
   tree.birth(store, 0, rule, y.data(), nullptr);
 
   const Node& left(tree.at(tree.at(0).leftChild));
@@ -332,7 +332,7 @@ static void testTreePriorMath() {
 
   Rule rule;
   rule.variableIndex = 0;
-  rule.splitIndex = 49;
+  rule.setSplitIndex(49);
   tree.birth(store, 0, rule, y.data(), nullptr);
   int32_t left = tree.at(0).leftChild;
 
@@ -1341,9 +1341,9 @@ static void testMapOldCutPointsOntoNew() {
   std::vector<size_t> indices(n);
   Tree tree;
   tree.initialize(indices.data(), n);
-  Rule rootRule;  rootRule.variableIndex = 0;  rootRule.splitIndex = 3;
+  Rule rootRule;  rootRule.variableIndex = 0;  rootRule.setSplitIndex(3);
   tree.birth(store, 0, rootRule, y.data(), nullptr);
-  Rule leftRule;  leftRule.variableIndex = 0;  leftRule.splitIndex = 1;
+  Rule leftRule;  leftRule.variableIndex = 0;  leftRule.setSplitIndex(1);
   tree.birth(store, tree.at(0).leftChild, leftRule, y.data(), nullptr);
   int32_t leftChild = tree.at(0).leftChild;
 
@@ -1355,8 +1355,8 @@ static void testMapOldCutPointsOntoNew() {
 
   std::vector<double> params(tree.nodes.size(), 0.0);
   tree.mapOldCutPointsOntoNew(store, oldCuts, params);
-  check(tree.at(0).rule.splitIndex == 1, "root split remaps to nearest cut");
-  check(tree.at(leftChild).rule.splitIndex == 0,
+  check(tree.at(0).rule.splitIndex() == 1, "root split remaps to nearest cut");
+  check(tree.at(leftChild).rule.splitIndex() == 0,
         "child split clamps into the ancestor-constrained interval");
 
   // shift the grid entirely above the old cuts: the root clamps to index 0,
@@ -1364,7 +1364,7 @@ static void testMapOldCutPointsOntoNew() {
   std::vector<double> x3(n);
   for (size_t i = 0; i < n; ++i) x3[i] = 20.0 + 2.0 * static_cast<double>(i);
   oldCuts = store.cutPoints;
-  int32_t oldRootIndex = tree.at(0).rule.splitIndex;
+  int32_t oldRootIndex = tree.at(0).rule.splitIndex();
   check(oldRootIndex == 1, "");  // silence unused in release
   store.setData(x3.data(), n);
 
@@ -1374,7 +1374,7 @@ static void testMapOldCutPointsOntoNew() {
   for (size_t k = 0; k < bottoms.size(); ++k)
     params[static_cast<size_t>(bottoms[k])] = static_cast<double>(k + 1);
   tree.mapOldCutPointsOntoNew(store, oldCuts, params);
-  check(tree.at(0).rule.splitIndex == 0, "root split clamps to the low end");
+  check(tree.at(0).rule.splitIndex() == 0, "root split clamps to the low end");
   check(tree.at(leftChild).isBottom(), "interval-starved subtree collapses");
   checkNear(params[static_cast<size_t>(leftChild)], 1.5, 1e-15,
             "collapsed subtree takes the plain mean of its leaf parameters");
@@ -1640,7 +1640,7 @@ static void testCategoricalMechanics() {
   tree.initialize(indices.data(), n);
   Rule rule;
   rule.variableIndex = 0;
-  rule.categoryDirections = (1u << 1) | (1u << 3);
+  rule.setCategoryDirections((1u << 1) | (1u << 3));
   tree.birth(store, 0, rule, y.data(), nullptr);
 
   const Node& left(tree.at(tree.at(0).leftChild));
@@ -1670,7 +1670,7 @@ static void testCategoricalMechanics() {
   // a second split below exhausts one side
   Rule childRule;
   childRule.variableIndex = 0;
-  childRule.categoryDirections = 1u << 2;
+  childRule.setCategoryDirections(1u << 2);
   tree.birth(store, tree.at(0).leftChild, childRule, y.data(), nullptr);
   int32_t grandLeft = tree.at(tree.at(0).leftChild).leftChild;
   check(tree.reachableCategories(store, grandLeft, 0) == (1u << 0),
@@ -1717,10 +1717,10 @@ static void testCategoricalPriorMath(ext_rng* rng) {
   std::vector<int> patternCounts(1u << 5, 0);
   for (int i = 0; i < numDraws; ++i) {
     Rule rule = prior.drawRuleForVariable(tree, store, rng, 0, 0);
-    check(rule.categoryDirections > 0 && rule.categoryDirections < 31u + 1u &&
-            rule.categoryDirections != 31u,
+    check(rule.categoryDirections() > 0 && rule.categoryDirections() < 31u + 1u &&
+            rule.categoryDirections() != 31u,
           "categorical draw leaves neither side empty");
-    ++patternCounts[rule.categoryDirections];
+    ++patternCounts[rule.categoryDirections()];
   }
   bool uniform = patternCounts[0] == 0 && patternCounts[31] == 0;
   double expected = static_cast<double>(numDraws) / 30.0;
@@ -1731,7 +1731,7 @@ static void testCategoricalPriorMath(ext_rng* rng) {
 
   Rule rootRule;
   rootRule.variableIndex = 0;
-  rootRule.categoryDirections = (1u << 3) | (1u << 4);
+  rootRule.setCategoryDirections((1u << 3) | (1u << 4));
   tree.birth(store, 0, rootRule, y.data(), nullptr);
   checkNear(prior.ruleForVariableLogProbability(tree, store, 0),
             -std::log(30.0), 1e-13, "root categorical rule probability");
@@ -1739,7 +1739,7 @@ static void testCategoricalPriorMath(ext_rng* rng) {
   // left child reaches {0, 1, 2}: R = 3 gives 2^3 - 2 = 6
   Rule childRule;
   childRule.variableIndex = 0;
-  childRule.categoryDirections = 1u << 1;
+  childRule.setCategoryDirections(1u << 1);
   tree.birth(store, tree.at(0).leftChild, childRule, y.data(), nullptr);
   checkNear(prior.ruleForVariableLogProbability(tree, store, tree.at(0).leftChild),
             -std::log(6.0), 1e-13, "child categorical rule probability");
@@ -1932,7 +1932,7 @@ static void testWideCategorical(ext_rng* rng) {
   tree.initialize(indices.data(), n);
   Rule rule;
   rule.variableIndex = 0;
-  rule.categoryDirections = (1ull << 1) | (1ull << 40) | (1ull << 52);
+  rule.setCategoryDirections((1ull << 1) | (1ull << 40) | (1ull << 52));
   tree.birth(store, 0, rule, y.data(), nullptr);
   const Node& left(tree.at(tree.at(0).leftChild));
   const Node& right(tree.at(tree.at(0).leftChild + 1));
@@ -1948,20 +1948,20 @@ static void testWideCategorical(ext_rng* rng) {
   check(tree.reachableCategories(store, 0, 0) == (1ull << K) - 1ull,
         "root reaches all 53 categories");
   check(tree.reachableCategories(store, tree.at(0).leftChild + 1, 0) ==
-          rule.categoryDirections,
+          rule.categoryDirections(),
         "right child reaches the mask's categories");
 
   // equals must compare the full mask width (the swap move's same-rule
   // test); ordinal rules zero the high word at construction
   Rule wideA, wideB;
   wideA.variableIndex = wideB.variableIndex = 0;
-  wideA.categoryDirections = 1ull | (1ull << 40);
-  wideB.categoryDirections = 1ull;
+  wideA.setCategoryDirections(1ull | (1ull << 40));
+  wideB.setCategoryDirections(1ull);
   check(!wideA.equals(wideB), "equals sees high mask bits");
   Rule ordinalA, ordinalB;
   ordinalA.variableIndex = ordinalB.variableIndex = 1;
-  ordinalA.splitIndex = 5;
-  ordinalB.splitIndex = 5;
+  ordinalA.setSplitIndex(5);
+  ordinalB.setSplitIndex(5);
   check(ordinalA.equals(ordinalB), "fresh ordinal rules compare equal");
 
   // each pattern bit is marginally exactly 1/2 under the uniform prior on
@@ -1974,12 +1974,12 @@ static void testWideCategorical(ext_rng* rng) {
   std::vector<int> bitCounts(K, 0);
   for (int d = 0; d < numDraws; ++d) {
     Rule drawn = prior.drawRuleForVariable(drawTree, store, rng, 0, 0);
-    check(drawn.categoryDirections > 0 &&
-            drawn.categoryDirections < (1ull << K) - 1ull,
+    check(drawn.categoryDirections() > 0 &&
+            drawn.categoryDirections() < (1ull << K) - 1ull,
           "wide draw leaves neither side empty");
     for (size_t bit = 0; bit < K; ++bit)
       bitCounts[bit] +=
-        static_cast<int>((drawn.categoryDirections >> bit) & 1);
+        static_cast<int>((drawn.categoryDirections() >> bit) & 1);
   }
   bool marginsMatch = true;
   double tolerance = 5.0 * std::sqrt(0.25 * numDraws);
@@ -1995,7 +1995,7 @@ static void testWideCategorical(ext_rng* rng) {
   std::vector<FlatNode> flat;
   std::vector<double> paramByNode(tree.nodes.size(), 0.0);
   tree.flatten(store, paramByNode.data(), flat);
-  check(flat[0].value == static_cast<double>(rule.categoryDirections),
+  check(flat[0].value == static_cast<double>(rule.categoryDirections()),
         "wide mask flattens exactly");
   flat[0].value = static_cast<double>(((1ull << K) - 1ull) & ~1ull);
   check(flatTreeIsWellFormed(store, flat.data(), flat.size()),
@@ -2006,7 +2006,7 @@ static void testWideCategorical(ext_rng* rng) {
   std::vector<double> rebuiltParams;
   check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams),
         "wide mask rebuilds from flat");
-  check(rebuilt.at(0).rule.categoryDirections == (((1ull << K) - 1ull) & ~1ull),
+  check(rebuilt.at(0).rule.categoryDirections() == (((1ull << K) - 1ull) & ~1ull),
         "wide mask round-trips exactly");
   flat[0].value = 9007199254740992.0;  // 2^53: past the exact-integer bound
   check(!flatTreeIsWellFormed(store, flat.data(), flat.size()),
@@ -2056,11 +2056,11 @@ static void testFlattenRoundTrip() {
   tree.initialize(indices.data(), n);
   Rule rootRule;
   rootRule.variableIndex = 0;
-  rootRule.categoryDirections = 0x6;  // categories 1, 2 right
+  rootRule.setCategoryDirections(0x6);  // categories 1, 2 right
   tree.birth(store, 0, rootRule, y.data(), nullptr);
   Rule leftRule;
   leftRule.variableIndex = 1;
-  leftRule.splitIndex = 4;
+  leftRule.setSplitIndex(4);
   tree.birth(store, tree.at(0).leftChild, leftRule, y.data(), nullptr);
 
   std::vector<double> params(tree.nodes.size(), 0.0);
@@ -2115,9 +2115,9 @@ static void testFlattenRoundTrip() {
   check(tree2.buildFromFlat(store, flat.data(), flat.size(), params2),
         "buildFromFlat accepts its own flatten");
   check(tree2.at(0).rule.variableIndex == 0 &&
-        tree2.at(0).rule.categoryDirections == 0x6,
+        tree2.at(0).rule.categoryDirections() == 0x6,
         "buildFromFlat recovers the categorical mask");
-  check(tree2.at(tree2.at(0).leftChild).rule.splitIndex == 4,
+  check(tree2.at(tree2.at(0).leftChild).rule.splitIndex() == 4,
         "buildFromFlat recovers the ordinal split index exactly");
   tree2.repartitionSubtree(store, 0);
   bool partitionsMatch = true;
@@ -2829,6 +2829,271 @@ static void testSampleFromPrior(ext_rng* rng) {
   printf("ok: sample from prior\n");
 }
 
+
+static void testMissingIngestion() {
+  const size_t n = 100;
+  double na = std::nan("");
+  // column 0: ordinal with NAs; column 1: categorical with NAs; column 2:
+  // complete ordinal
+  std::vector<double> x(n * 3);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = i % 10 == 0 ? na : runif01();
+    x[i + n] = i % 7 == 0 ? na : static_cast<double>(i % 4);
+    x[i + 2 * n] = runif01();
+  }
+
+  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical,
+                        ColumnType::ordinal};
+  ColumnStore store;
+  store.build(x.data(), n, 3, 10, false, types);
+
+  check(store.hasMissing[0] == 1 && store.hasMissing[1] == 1 &&
+          store.hasMissing[2] == 0,
+        "hasMissing marks exactly the columns with NAs");
+  check(store.numCuts[1] == 4,
+        "categorical categories are counted over observed values");
+
+  bool codesRight = true;
+  for (size_t i = 0; i < n; ++i) {
+    codesRight &= (store.codes[i] == naCode) == (i % 10 == 0);
+    codesRight &=
+      (store.codes[i + n] == static_cast<xint_t>(naCategory)) == (i % 7 == 0);
+  }
+  check(codesRight, "missing values take the reserved codes");
+
+  double loObserved = 2.0, hiObserved = -1.0;
+  for (size_t i = 0; i < n; ++i) {
+    if (i % 10 == 0) continue;
+    if (x[i] < loObserved) loObserved = x[i];
+    if (x[i] > hiObserved) hiObserved = x[i];
+  }
+  check(store.cutPoints[0].front() > loObserved &&
+          store.cutPoints[0].back() < hiObserved,
+        "uniform cuts span the observed range only");
+
+  ColumnStore quantileStore;
+  quantileStore.build(x.data(), n, 3, 10, true, types);
+  check(quantileStore.numCuts[0] == 10 && quantileStore.hasMissing[0] == 1,
+        "quantile grids skip NaN and keep the requested count");
+
+  check(store.categoricalValueIsValid(1, na),
+        "a missing categorical value is representable");
+  printf("ok: missing ingestion\n");
+}
+
+static void testMissingMechanics() {
+  const size_t n = 90;
+  double na = std::nan("");
+  std::vector<double> x(n * 2), y(n);
+  size_t numMissingOrdinal = 0, numMissingCategorical = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (i % 3 == 0) { x[i] = na; ++numMissingOrdinal; }
+    else x[i] = runif01();
+    if (i % 5 == 0) { x[i + n] = na; ++numMissingCategorical; }
+    else x[i + n] = static_cast<double>(i % 4);
+    y[i] = runif01();
+  }
+  ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 2, 10, false, types);
+
+  // an ordinal rule routes the reserved code by its missing direction
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(4);
+  rule.setMissingGoesRight(true);
+  check(rule.splitIndex() == 4 && rule.missingGoesRight(),
+        "rule accessors pack the split index and missing direction");
+  tree.birth(store, 0, rule, y.data(), nullptr);
+
+  const Node& right(tree.at(tree.at(0).leftChild + 1));
+  size_t missingOnRight = 0;
+  for (size_t i = right.begin; i < right.end; ++i)
+    if (store.codes[tree.indices[i]] == naCode) ++missingOnRight;
+  const Node& left(tree.at(tree.at(0).leftChild));
+  size_t missingOnLeft = 0;
+  for (size_t i = left.begin; i < left.end; ++i)
+    if (store.codes[tree.indices[i]] == naCode) ++missingOnLeft;
+  check(missingOnRight == numMissingOrdinal && missingOnLeft == 0,
+        "missing ordinal rows all route by the rule's direction");
+
+  std::vector<size_t> indices2(n);
+  Tree treeLeft;
+  treeLeft.initialize(indices2.data(), n);
+  Rule ruleLeft;
+  ruleLeft.variableIndex = 0;
+  ruleLeft.setSplitIndex(4);
+  treeLeft.birth(store, 0, ruleLeft, y.data(), nullptr);
+  const Node& leftLeft(treeLeft.at(treeLeft.at(0).leftChild));
+  size_t missingOnLeft2 = 0;
+  for (size_t i = leftLeft.begin; i < leftLeft.end; ++i)
+    if (store.codes[treeLeft.indices[i]] == naCode) ++missingOnLeft2;
+  check(missingOnLeft2 == numMissingOrdinal,
+        "the canonical zero direction sends missing rows left");
+
+  // a categorical rule treats missing as one more category: the reachable
+  // mask seeds it and a rule can isolate it
+  std::vector<size_t> indices3(n);
+  Tree catTree;
+  catTree.initialize(indices3.data(), n);
+  check(catTree.reachableCategories(store, 0, 1) ==
+          (0xfull | Rule::missingDirectionBit),
+        "the reachable mask includes the missing category");
+  Rule catRule;
+  catRule.variableIndex = 1;
+  catRule.setCategoryDirections(Rule::missingDirectionBit);
+  catTree.birth(store, 0, catRule, y.data(), nullptr);
+  const Node& catRight(catTree.at(catTree.at(0).leftChild + 1));
+  check(catRight.numObservations() == numMissingCategorical,
+        "a mask can send exactly the missing rows down one side");
+  check(catTree.reachableCategories(store, catTree.at(0).leftChild, 1) ==
+          0xfull &&
+        catTree.reachableCategories(store, catTree.at(0).leftChild + 1, 1) ==
+          Rule::missingDirectionBit,
+        "children inherit the filtered missing category");
+
+  // the flat format moves the missing direction out of the value
+  std::vector<double> params(tree.nodes.size(), 0.0);
+  std::vector<FlatNode> flat;
+  tree.flatten(store, params.data(), flat);
+  check(flat[0].flags == flatMissingGoesRight &&
+          flat[0].value == store.cutPoints[0][4],
+        "an ordinal flat node carries its missing direction in flags");
+
+  std::vector<double> catParams(catTree.nodes.size(), 0.0);
+  std::vector<FlatNode> catFlat;
+  catTree.flatten(store, catParams.data(), catFlat);
+  check(catFlat[0].value == 0.0 && catFlat[0].flags == flatMissingGoesRight,
+        "a missing-only mask flattens to value zero plus the flag");
+  check(flatTreeIsWellFormed(store, catFlat.data(), catFlat.size()),
+        "the missing-only mask is well formed");
+
+  std::vector<size_t> indices4(n);
+  Tree rebuilt;
+  rebuilt.initialize(indices4.data(), n);
+  std::vector<double> rebuiltParams;
+  check(rebuilt.buildFromFlat(store, catFlat.data(), catFlat.size(),
+                              rebuiltParams),
+        "a flat tree with a missing direction rebuilds");
+  check(rebuilt.at(0).rule.categoryDirections() == Rule::missingDirectionBit,
+        "the rebuilt rule recovers the missing direction");
+
+  // raw-value replay routes NaN by the flag
+  std::vector<std::uint32_t> counts(flat.size());
+  std::vector<size_t> replayIndices(n);
+  for (size_t i = 0; i < n; ++i) replayIndices[i] = i;
+  countFlatObservationsBelow(flat.data(), store.types.data(), x.data(), n,
+                             replayIndices.data(), 0, n, counts.data());
+  size_t expectedRight = 0;
+  for (size_t i = 0; i < n; ++i)
+    if (isNA(x[i]) || x[i] > store.cutPoints[0][4]) ++expectedRight;
+  check(counts[2] == expectedRight,
+        "replay against raw values routes NaN by the stored direction");
+
+  FlatNode bad = catFlat[0];
+  bad.flags = 0x2;
+  std::vector<FlatNode> badTree(catFlat);
+  badTree[0] = bad;
+  check(!flatTreeIsWellFormed(store, badTree.data(), badTree.size()),
+        "unknown flag bits are malformed");
+  std::vector<FlatNode> badLeaf(catFlat);
+  badLeaf[1].flags = flatMissingGoesRight;
+  check(!flatTreeIsWellFormed(store, badLeaf.data(), badLeaf.size()),
+        "a flagged leaf is malformed");
+  printf("ok: missing mechanics\n");
+}
+
+static void testMissingEndToEnd() {
+  // a fit on data with NAs learns a signal carried by missingness, routes
+  // NaN test rows, and its state round-trips bitwise
+  const size_t n = 300, numSamples = 4;
+  double na = std::nan("");
+  std::vector<double> x(n * 2), y(n);
+  std::vector<bool> missing(n);
+  for (size_t i = 0; i < n; ++i) {
+    missing[i] = runif01() < 0.3;
+    x[i] = missing[i] ? na : runif01();
+    x[i + n] = runif01();
+    y[i] = (missing[i] ? 2.0 : 0.0) + 0.25 * x[i + n] +
+           0.1 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.numChains = 1;
+  options.keepTrees = true;
+  options.numSamplesToStore = numSamples;
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 5150);
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  std::vector<double> sigma(numSamples), train(n * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = train.data();
+  sampler.run(150, numSamples, results);
+
+  double missingMean = 0.0, observedMean = 0.0;
+  size_t numMissing = 0;
+  const double* lastFits = train.data() + n * (numSamples - 1);
+  for (size_t i = 0; i < n; ++i) {
+    if (missing[i]) { missingMean += lastFits[i]; ++numMissing; }
+    else observedMean += lastFits[i];
+  }
+  missingMean /= static_cast<double>(numMissing);
+  observedMean /= static_cast<double>(n - numMissing);
+  check(missingMean - observedMean > 1.0,
+        "the fit recovers a signal carried by missingness");
+
+  // saved-tree prediction routes NaN rows to the missing side
+  double xTest[] = {na, 0.5, 0.5, 0.5};  // column-major, two rows
+  size_t capacity = sampler.savedTreeCapacity();
+  std::vector<double> predictions(2 * capacity);
+  sampler.predict(xTest, 2, predictions.data());
+  double missingFit = 0.0, observedFit = 0.0;
+  for (size_t k = 0; k < capacity; ++k) {
+    missingFit += predictions[2 * k];
+    observedFit += predictions[2 * k + 1];
+  }
+  check(missingFit / static_cast<double>(capacity) -
+          observedFit / static_cast<double>(capacity) > 1.0,
+        "prediction routes NaN rows by the learned directions");
+
+  // bitwise state round trip carries the missing directions along
+  SamplerStateData state;
+  sampler.getState(state);
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng2, 999);
+  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rng2);
+  check(restored.setState(state), "a state with missing directions restores");
+
+  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  sampler.run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  restored.run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB && trainA == trainB,
+        "restored chains continue bitwise with missing data");
+
+  ext_rng_destroy(rng);
+  ext_rng_destroy(rng2);
+  printf("ok: missing end to end\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -2885,6 +3150,9 @@ int main() {
   testSetWeightsAndTestOffset();
   testSampleFromPrior(rng);
   testSetControlAndModel();
+  testMissingIngestion();
+  testMissingMechanics();
+  testMissingEndToEnd();
 
   ext_rng_destroy(rng);
 

@@ -23,6 +23,7 @@ rbart_vi <- function(
   keepTestFits = TRUE,
   callback = NULL,
   factors = c("categorical", "indicators"),
+  missing = c("incorporate", "error"),
   ...)
 {
   matchedCall <- match.call()

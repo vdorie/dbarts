@@ -1,11 +1,25 @@
 # MIA missingness
 
-Proposal (2026-07-04, not yet implemented). Follows public-surface.md
-section 2, whose DECIDED paragraph reserved the representation room this
-design now spends: per-column cut counts cap one below the code type's
-maximum so a reserved NA code always fits, and mask bits 53-63 are unused
-(the categorical cap is 53 and ordinal rules' high union word is
-invariantly zero).
+LANDED 2026-07-04, as proposed. Deltas discovered while landing: the
+Rule union became a single uint64 with accessors outright (the moves and
+tests read through splitIndex()/categoryDirections()); validateXTest's
+model.frame needed na.pass like ingestion's (test data.frames were
+silently na.omit-dropping rows); the starting sigma estimate mean-imputes
+NAs for its linear model only (complete cases are scarce under scattered
+missingness); all-NA predictor columns are rejected at ingestion (no
+observed values to split on); and a nonexistent row-name subset now
+surfaces as "response contains missing values" (na.pass keeps the all-NA
+rows the old na.omit swallowed). Gates: component tests (ingestion,
+mechanics, end-to-end signal recovery + bitwise state round trip),
+tinytest test-data-missing.R, equivalence identical draws on all nine
+complete-data scenarios, speed within noise.
+
+Original proposal follows. It builds on public-surface.md section 2,
+whose DECIDED paragraph reserved the representation room this design
+spends: per-column cut counts cap one below the code type's maximum so a
+reserved NA code always fits, and mask bits 53-63 are unused (the
+categorical cap is 53 and ordinal rules' high union word is invariantly
+zero).
 
 ## Model
 

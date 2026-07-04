@@ -208,6 +208,24 @@ makeCategoricalModelMatrix <- function(x) {
   result
 }
 
+## Starting sigma estimate from a linear fit. NAs in the predictors are
+## mean-imputed for this estimate only: complete cases can be scarce when
+## missingness is scattered, and the estimate just anchors the residual
+## variance prior.
+estimateSigmaFromLinearModel <- function(data) {
+  x <- data@x
+  if (anyNA(x)) {
+    for (j in seq_len(ncol(x))) {
+      column <- x[, j]
+      if (anyNA(column)) {
+        column[is.na(column)] <- mean(column, na.rm = TRUE)
+        x[, j] <- column
+      }
+    }
+  }
+  summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma
+}
+
 ## Recode a test data.frame's factor and character columns against the
 ## training data's level tables (aligned with the training columns by
 ## name), so codes agree across the two; a level unseen in training has no

@@ -24,33 +24,47 @@ constexpr int32_t invalidNode = -1;
 
 /// A split rule: ordinal columns split by cut-point threshold (code >
 /// splitIndex goes right), categorical columns by category subset (bit c of
-/// categoryDirections set sends category c right). Which member is live is
-/// determined by the column type of variableIndex.
+/// categoryDirections set sends category c right); which is live is
+/// determined by the column type of variableIndex. Both kinds share one
+/// wide word - a categorical rule's full mask, an ordinal rule's split
+/// index in the low half - so bit 63 (naCategory's position) holds the
+/// missing direction for either kind: part of the mask arithmetic for
+/// categorical rules, read explicitly for ordinal ones. Accessors keep the
+/// packing endianness-independent, and equals() comparing the word makes
+/// the missing direction part of rule identity.
 struct Rule {
   int32_t variableIndex = invalidVariable;
-  union {
-    int32_t splitIndex;
-    std::uint64_t categoryDirections;
-  };
+  std::uint64_t bits = 0;
 
-  // zero the full union so an ordinal rule's high bits stay zero: splitIndex
-  // writes only touch the low word, and rules change type only by whole-Rule
-  // assignment, so equals can compare the wide member for both kinds
-  Rule() : categoryDirections(0) {}
+  static constexpr std::uint64_t missingDirectionBit = 1ull << naCategory;
+
+  int32_t splitIndex() const {
+    return static_cast<int32_t>(static_cast<std::uint32_t>(bits));
+  }
+  void setSplitIndex(int32_t index) {
+    bits = (bits & missingDirectionBit) | static_cast<std::uint32_t>(index);
+  }
+  bool missingGoesRight() const { return (bits & missingDirectionBit) != 0; }
+  void setMissingGoesRight(bool goesRight) {
+    bits = goesRight ? (bits | missingDirectionBit)
+                     : (bits & ~missingDirectionBit);
+  }
+  std::uint64_t categoryDirections() const { return bits; }
+  void setCategoryDirections(std::uint64_t directions) { bits = directions; }
 
   bool categoryGoesRight(xint_t code) const {
-    return ((categoryDirections >> code) & 1u) != 0;
+    return ((bits >> code) & 1u) != 0;
   }
   bool sendsRight(const ColumnStore& data, xint_t code) const {
-    return data.types[static_cast<size_t>(variableIndex)] ==
-             ColumnType::categorical
-      ? categoryGoesRight(code)
-      : static_cast<int32_t>(code) > splitIndex;
+    if (data.types[static_cast<size_t>(variableIndex)] ==
+        ColumnType::categorical)
+      return categoryGoesRight(code);
+    if (code == naCode) return missingGoesRight();
+    return static_cast<int32_t>(code) > splitIndex();
   }
 
   bool equals(const Rule& other) const {
-    return variableIndex == other.variableIndex &&
-           categoryDirections == other.categoryDirections;
+    return variableIndex == other.variableIndex && bits == other.bits;
   }
 };
 
@@ -65,7 +79,12 @@ struct Rule {
 struct FlatNode {
   int32_t variable = invalidVariable;  // invalidVariable for a leaf
   double value = 0.0;
+  // bit 0: the rule sends missing values right; kept out of value so a
+  // categorical mask stays within the 53 double-exact bits
+  std::uint8_t flags = 0;
 };
+
+constexpr std::uint8_t flatMissingGoesRight = 0x1u;
 
 /// Flat-arena node. Children are allocated as adjacent pairs, so
 /// rightChild == leftChild + 1 always. Observation indices live in the tree's
@@ -166,11 +185,11 @@ public:
       if (at(current).rule.variableIndex == variableIndex) {
         if (isRightChild && !leftFound) {
           leftFound = true;
-          *left = at(current).rule.splitIndex + 1;
+          *left = at(current).rule.splitIndex() + 1;
         }
         if (!isRightChild && !rightFound) {
           rightFound = true;
-          *right = at(current).rule.splitIndex - 1;
+          *right = at(current).rule.splitIndex() - 1;
         }
       }
     }
@@ -186,14 +205,17 @@ public:
     std::uint64_t mask = numCategories >= 64
       ? ~0ull
       : (1ull << numCategories) - 1ull;
+    // a missing value is one more category the ancestor rules filter
+    if (data.hasMissing[static_cast<size_t>(variableIndex)])
+      mask |= Rule::missingDirectionBit;
 
     int32_t current = nodeIndex;
     while (at(current).parent != invalidNode) {
       bool isRightChild = current == at(at(current).parent).leftChild + 1;
       current = at(current).parent;
       if (at(current).rule.variableIndex == variableIndex) {
-        mask &= isRightChild ? at(current).rule.categoryDirections
-                             : ~at(current).rule.categoryDirections;
+        mask &= isRightChild ? at(current).rule.categoryDirections()
+                             : ~at(current).rule.categoryDirections();
       }
     }
     return mask;
@@ -308,6 +330,31 @@ public:
     return lo;
   }
 
+  /// Two-pointer ordinal partition aware of the reserved missing code:
+  /// codes at or below the split go left, missing codes go by the rule's
+  /// direction. The scalar fallback for columns containing NAs.
+  static size_t partitionIndicesMIA(const xint_t* column, const Rule& rule,
+                                    size_t* indices, size_t length) {
+    int32_t splitIndex = rule.splitIndex();
+    bool missingGoesRight = rule.missingGoesRight();
+    auto goesRight = [=](xint_t code) {
+      return code == naCode ? missingGoesRight
+                            : static_cast<int32_t>(code) > splitIndex;
+    };
+    size_t lo = 0, hi = length;
+    while (true) {
+      while (lo < hi && !goesRight(column[indices[lo]])) ++lo;
+      while (lo < hi && goesRight(column[indices[hi - 1]])) --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
   /// Partition a node's observations between its children by its rule.
   void partitionChildren(const ColumnStore& data, int32_t nodeIndex) {
     Node& node(at(nodeIndex));
@@ -320,16 +367,22 @@ public:
       if (data.types[static_cast<size_t>(node.rule.variableIndex)] ==
           ColumnType::categorical) {
         numOnLeft = partitionIndicesByMask(column,
-                                           node.rule.categoryDirections,
+                                           node.rule.categoryDirections(),
                                            indices + node.begin,
                                            node.numObservations());
       } else {
         bool isRoot = node.parent == invalidNode;
-        numOnLeft = isRoot
-          ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex),
-                                indices + node.begin, node.numObservations())
-          : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex),
-                                  indices + node.begin, node.numObservations());
+        if (data.hasMissing[static_cast<size_t>(node.rule.variableIndex)]) {
+          numOnLeft = partitionIndicesMIA(column, node.rule,
+                                          indices + node.begin,
+                                          node.numObservations());
+        } else {
+          numOnLeft = isRoot
+            ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
+                                  indices + node.begin, node.numObservations())
+            : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
+                                    indices + node.begin, node.numObservations());
+        }
       }
     }
     left.begin = node.begin;
@@ -564,12 +617,14 @@ public:
         ext_printf("CATRule: ");
         for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
           ext_printf(" %u", static_cast<unsigned int>(
-                              (node.rule.categoryDirections >> i) & 1));
+                              (node.rule.categoryDirections() >> i) & 1));
       } else {
-        ext_printf("ORDRule: (%d)=%f", node.rule.splitIndex,
+        ext_printf("ORDRule: (%d)=%f", node.rule.splitIndex(),
                    data.cutPoints[variableIndex]
-                                 [static_cast<size_t>(node.rule.splitIndex)]);
+                                 [static_cast<size_t>(node.rule.splitIndex())]);
       }
+      if (data.hasMissing[variableIndex])
+        ext_printf(" NA: %c", node.rule.missingGoesRight() ? 'R' : 'L');
     } else {
       ext_printf(" ave: %f", paramByNode[static_cast<size_t>(nodeIndex)]);
     }
@@ -677,12 +732,12 @@ private:
 
     double oldCut =
       oldCutPoints[static_cast<size_t>(varIndex)]
-                  [static_cast<size_t>(at(nodeIndex).rule.splitIndex)];
+                  [static_cast<size_t>(at(nodeIndex).rule.splitIndex())];
     const double* cuts = data.cutPoints[static_cast<size_t>(varIndex)].data();
 
     // the first new cut below the old cut's value, then the nearer neighbor
-    int32_t firstLessThan = at(nodeIndex).rule.splitIndex < maxIndex
-      ? at(nodeIndex).rule.splitIndex
+    int32_t firstLessThan = at(nodeIndex).rule.splitIndex() < maxIndex
+      ? at(nodeIndex).rule.splitIndex()
       : maxIndex - 1;
     while (firstLessThan < maxIndex && cuts[firstLessThan] < oldCut)
       ++firstLessThan;
@@ -697,7 +752,7 @@ private:
       newIndex = firstLessThan;
     else newIndex = firstLessThan + 1;  // includes an exact value match
 
-    at(nodeIndex).rule.splitIndex = newIndex;
+    at(nodeIndex).rule.setSplitIndex(newIndex);
 
     maxIndices[varIndex] = newIndex;
     mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints, paramByNode,
@@ -758,9 +813,11 @@ private:
     flat.variable = node.rule.variableIndex;
     flat.value =
       data.types[static_cast<size_t>(flat.variable)] == ColumnType::categorical
-        ? static_cast<double>(node.rule.categoryDirections)
+        ? static_cast<double>(node.rule.categoryDirections() &
+                              ~Rule::missingDirectionBit)
         : data.cutPoints[static_cast<size_t>(flat.variable)]
-                        [static_cast<size_t>(node.rule.splitIndex)];
+                        [static_cast<size_t>(node.rule.splitIndex())];
+    flat.flags = node.rule.missingGoesRight() ? flatMissingGoesRight : 0;
     out.push_back(flat);
     flattenBelow(node.leftChild, data, paramByNode, out, counts);
     flattenBelow(node.leftChild + 1, data, paramByNode, out, counts);
@@ -773,6 +830,7 @@ private:
     const FlatNode& flat(flatNodes[pos++]);
 
     if (flat.variable == invalidVariable) {
+      if (flat.flags != 0) return false;
       size_t i = static_cast<size_t>(nodeIndex);
       if (paramByNode.size() <= i) paramByNode.resize(i + 1, 0.0);
       paramByNode[i] = flat.value;
@@ -780,24 +838,29 @@ private:
     }
 
     if (flat.variable < 0 ||
-        static_cast<size_t>(flat.variable) >= data.numPredictors)
+        static_cast<size_t>(flat.variable) >= data.numPredictors ||
+        (flat.flags & ~flatMissingGoesRight) != 0)
       return false;
 
     Rule rule;
     rule.variableIndex = flat.variable;
     if (data.types[static_cast<size_t>(flat.variable)] ==
         ColumnType::categorical) {
-      // masks are at most 2^53 - 1, the widest double-exact value
-      if (!(flat.value >= 1.0) || flat.value > 9007199254740991.0)
+      // stored masks cover the observed categories, at most 2^53 - 1 (the
+      // widest double-exact value); the missing direction arrives in flags
+      if (flat.value < 0.0 || flat.value > 9007199254740991.0)
         return false;
       std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
       if (static_cast<double>(directions) != flat.value) return false;
+      if ((flat.flags & flatMissingGoesRight) != 0)
+        directions |= Rule::missingDirectionBit;
       std::uint64_t reachable =
         reachableCategories(data, nodeIndex, flat.variable);
       // canonical gauge: bits confined to reachable, neither side empty
-      if ((directions & ~reachable) != 0 || directions == reachable)
+      if (directions == 0 || (directions & ~reachable) != 0 ||
+          directions == reachable)
         return false;
-      rule.categoryDirections = directions;
+      rule.setCategoryDirections(directions);
     } else {
       const std::vector<double>& cuts(
         data.cutPoints[static_cast<size_t>(flat.variable)]);
@@ -805,7 +868,11 @@ private:
       std::uint32_t k = 0;
       while (k < numCuts && cuts[k] < flat.value) ++k;
       if (k >= numCuts || cuts[k] != flat.value) return false;
-      rule.splitIndex = static_cast<int32_t>(k);
+      rule.setSplitIndex(static_cast<int32_t>(k));
+      if ((flat.flags & flatMissingGoesRight) != 0) {
+        if (!data.hasMissing[static_cast<size_t>(flat.variable)]) return false;
+        rule.setMissingGoesRight(true);
+      }
     }
 
     int32_t pair = acquirePair();
@@ -836,11 +903,15 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types
                                    size_t* indices, size_t lo, size_t hi) {
   const double* column = x + static_cast<size_t>(flat.variable) * numRows;
   size_t mid = lo;
+  bool missingGoesLeft = (flat.flags & flatMissingGoesRight) == 0;
   if (types[flat.variable] == ColumnType::categorical) {
     std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
     for (size_t k = lo; k < hi; ++k) {
-      if (((directions >> static_cast<std::uint32_t>(column[indices[k]])) & 1u)
-          == 0) {
+      double value = column[indices[k]];
+      bool goesLeft = isNA(value)
+        ? missingGoesLeft
+        : ((directions >> static_cast<std::uint32_t>(value)) & 1u) == 0;
+      if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
         indices[k] = temp;
@@ -849,7 +920,10 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types
     }
   } else {
     for (size_t k = lo; k < hi; ++k) {
-      if (column[indices[k]] <= flat.value) {
+      double value = column[indices[k]];
+      // a NaN comparison is false, which would silently send it right
+      bool goesLeft = isNA(value) ? missingGoesLeft : value <= flat.value;
+      if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
         indices[k] = temp;
@@ -914,15 +988,19 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
                                       size_t numNodes, size_t pos) {
   if (pos >= numNodes) return 0;
   const FlatNode& flat(flatNodes[pos]);
-  if (flat.variable == invalidVariable) return 1;
+  if (flat.variable == invalidVariable) return flat.flags == 0 ? 1 : 0;
   if (flat.variable < 0 ||
-      static_cast<size_t>(flat.variable) >= data.numPredictors)
+      static_cast<size_t>(flat.variable) >= data.numPredictors ||
+      (flat.flags & ~flatMissingGoesRight) != 0)
     return 0;
   if (data.types[static_cast<size_t>(flat.variable)] ==
       ColumnType::categorical) {
-    if (!(flat.value >= 1.0) || flat.value > 9007199254740991.0 ||
+    // the mask over observed categories plus the missing direction must
+    // send something right
+    if (flat.value < 0.0 || flat.value > 9007199254740991.0 ||
         static_cast<double>(static_cast<std::uint64_t>(flat.value)) !=
-          flat.value)
+          flat.value ||
+        (flat.value == 0.0 && (flat.flags & flatMissingGoesRight) == 0))
       return 0;
   }
   size_t numOnLeft =
@@ -979,6 +1057,9 @@ inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
     } else {
       ext_printf("ORDRule: %f", flat.value);
     }
+    if (data.hasMissing[static_cast<size_t>(flat.variable)])
+      ext_printf(" NA: %c",
+                 (flat.flags & flatMissingGoesRight) != 0 ? 'R' : 'L');
     ext_printf("\n");
     printFlatSubtree(data, flatNodes + 1, indentation, depth + 1);
     printFlatSubtree(data, flatNodes + 1 + numOnLeft, indentation, depth + 1);

@@ -122,7 +122,8 @@ Proposed (landed 2026-07-03 behind `factors = "categorical"` on `dbarts` and
   flat tree format; see section 7.
 - Missing values: still rejected at ingestion. The reserved-NA-code +
   missing-direction-bit design (MIA) remains future work and gets its own
-  proposal when it lands.
+  proposal when it lands. (LANDED 2026-07-04 as designed - see
+  mia-missingness.md and section 7.)
 
 DECIDED: users supply a data.frame and dbarts builds its own internal
 representation (DMatrix-style); whether that representation is visible in
@@ -400,10 +401,9 @@ classic engine.
   change.
 - Sparse columns: kernel design plus an ingestion story; prototype after the
   handle exists.
-- MIA missingness: reserved NA code + rule direction bit; interacts with
-  ingestion defaults, so it follows section 2 landing. Proposal written
-  (mia-missingness.md, 2026-07-04); the surface is
-  missing = c("incorporate", "error"), name and default decided.
+- MIA missingness: LANDED 2026-07-04 (design and landing notes in
+  mia-missingness.md; surface is missing = c("incorporate", "error"),
+  incorporate the default).
 - Wave-2 models (linear leaves, in-core grouped random effects retiring the
   rbart_vi R loop): engine work, independent of this document except that
   rbart_vi's public signature would eventually gain the in-core option.

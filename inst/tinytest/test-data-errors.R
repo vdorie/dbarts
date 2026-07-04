@@ -27,9 +27,11 @@ testData_df$offset  <- rnorm(nrow(testData_df))
 
 modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
 
+# a nonexistent row-name subset selects all-NA rows, which na.pass keeps
+# and the response completeness check rejects
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, subset = "not-a-number"),
-  "empty 'subset' specified"
+  "response contains missing values"
 )
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, weights = "not-a-number"),
