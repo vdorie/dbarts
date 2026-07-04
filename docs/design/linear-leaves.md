@@ -7,7 +7,39 @@ regression, so a forest fits smoothly-varying coefficients
 of Bayesian Causal Forests when the leaf covariate is a treatment
 indicator).
 
-STAGES 1-2 LANDED 2026-07-04 (engine; formats and the R surface remain).
+STAGES 1-3 LANDED 2026-07-04 (engine and formats; the R surface, bridge
+state slots, getTrees beta columns, and view support remain - stage 4).
+Stage-3 deltas:
+
+- Each live tree persists its parameter blocks (Chain::paramsByTree_,
+  arena-indexed, stride numParams) - the source of truth for flatten,
+  state, prediction, and the mutation flows, replacing recovery from
+  fits. Draws land there directly; sampleTreesFromPrior zeroes them.
+- FlatNode stays {variable, value, flags} with the intercept in value;
+  slopes ride side arrays, numParams - 1 doubles per leaf in pre-order:
+  Tree::flatten/buildFromFlat/collapseEmptyNodes/mapOldCutPointsOntoNew
+  and the print helpers take a defaulted paramStride (and slope array),
+  so every scalar call site compiles the identical arithmetic (verified:
+  equivalence identical draws). ChainStateData gains treeParams and
+  savedTreeParams; stateIsValid requires (m + 1) / 2 slope blocks for an
+  m-record tree.
+- Prediction replays flat trees through addFlatLinearPredictionsBelow,
+  standardizing designated columns on the fly with the training
+  constants - bit-identical to the engine's own uTest math, so saved-
+  tree predictions match recorded test fits.
+- Mutation semantics: in-place predictor changes (setPredictor,
+  updatePredictor, per-observation sweeps, setCutPoints) regather the
+  covariates under the EXISTING standardization constants (calibration
+  is sticky, like refreshCutsForColumn keeping the cut count); rollback
+  regathers the restored values exactly. Whole-data setData
+  re-initializes constants the way it rebuilds the cut grid, carrying
+  the persisted parameters across as the same approximate continuation
+  the split remap embodies. Collapse merges average per coordinate.
+- Every stage-2 refusal is lifted; xbart views remain the stage-4 item
+  (ColumnStore views hold no raw covariates yet), and the bridge still
+  instantiates only the constant leaf.
+
+Stage-2 notes follow.
 The leaf concept split into LeafModelCore plus Scalar/VectorLeafModel
 shapes: the moves see only logIntegratedLikelihoodForNode, the constant
 leaf keeps its scalar draw interface and code paths textually unchanged

@@ -78,17 +78,6 @@ public:
   virtual bool finalize() = 0;
 };
 
-/// The session vector-parameter samplers hand out while their mutation
-/// surface is refused (see the stage notes in docs/design/linear-leaves.md):
-/// every observation reports invalid, nothing commits, and the joint sweep's
-/// all-or-none guard skips each row cleanly.
-class RefusingPredictorUpdateSession final : public PredictorUpdateSession {
-public:
-  bool observationWouldRemainValid(size_t) override { return false; }
-  void commitObservation(size_t) override {}
-  bool finalize() override { return true; }
-};
-
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
@@ -285,10 +274,17 @@ public:
                                          size_t treeNum) const {
     return chains_[chainNum]->savedTree(slot, treeNum);
   }
+  const std::vector<double>& savedTreeSlopes(size_t chainNum, size_t slot,
+                                             size_t treeNum) const {
+    return chains_[chainNum]->savedTreeSlopes(slot, treeNum);
+  }
+  /// slopes, when non-null, receives a vector-parameter tree's slopes
+  /// (numParams - 1 per leaf, pre-order); cleared for scalar leaf models.
   void flattenTree(size_t chainNum, size_t treeNum,
                    std::vector<FlatNode>& nodes,
-                   std::vector<std::uint32_t>& counts) {
-    chains_[chainNum]->flattenTree(treeNum, nodes, counts);
+                   std::vector<std::uint32_t>& counts,
+                   std::vector<double>* slopes = nullptr) {
+    chains_[chainNum]->flattenTree(treeNum, nodes, counts, slopes);
   }
 
   /// Fits for raw column-major test rows, on the original response scale
@@ -414,9 +410,6 @@ public:
   /// capacity reallocates every chain's slots and resets the write position;
   /// a no-op when nothing changes, preserving stored samples.
   void setTreeStorage(bool keepTrees, size_t numSamplesToStore) {
-    // REFUSED for vector-parameter leaves until the stage-3 formats land:
-    // flat trees cannot carry the slope parameters yet
-    if constexpr (L::hasVectorParams) return;
     size_t capacity =
       keepTrees ? (numSamplesToStore > 0 ? numSamplesToStore : 1) : 0;
     if (keepTrees == options_.keepTrees && capacity == savedTreeCapacity())
@@ -492,10 +485,6 @@ public:
                const double* weights, const double* offset,
                const double* x_test, size_t numTestObservations,
                const double* testOffset = nullptr) {
-    // REFUSED for vector-parameter leaves until the stage-3 formats land:
-    // the split remap merges leaf parameters recovered from fits, which are
-    // no longer constant per leaf. The host refuses before routing here.
-    if constexpr (L::hasVectorParams) return;
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap
     std::vector<typename Chain<L>::TreeParameters> params(chains_.size());
@@ -522,9 +511,6 @@ public:
   /// collapses emptied leaves into their parents.
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) {
-    // REFUSED for vector-parameter leaves until stage 3: rebuilding fits
-    // after a re-route needs the persisted-parameter flows
-    if constexpr (L::hasVectorParams) return PredictorUpdateResult::rolledBack;
     size_t n = data_.numObservations;
     // categorical columns must hold representable codes whether or not cut
     // points refresh
@@ -573,8 +559,6 @@ public:
                                         const size_t* columns,
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
-    // REFUSED for vector-parameter leaves until stage 3, like setPredictor
-    if constexpr (L::hasVectorParams) return PredictorUpdateResult::rolledBack;
     size_t n = data_.numObservations;
     for (size_t k = 0; k < numColumns; ++k)
       if ((updateCutPoints ||
@@ -635,9 +619,6 @@ public:
   void setCutPoints(const double* const* newCutPoints,
                     const std::uint32_t* numCutPoints, const size_t* columns,
                     size_t numColumns) {
-    // REFUSED for vector-parameter leaves until stage 3 (the forced refresh
-    // recovers parameters from fits); the host refuses before routing here
-    if constexpr (L::hasVectorParams) return;
     for (size_t k = 0; k < numColumns; ++k)
       data_.setCutPointsForColumn(columns[k], newCutPoints[k],
                                   numCutPoints[k]);
@@ -652,12 +633,6 @@ public:
   bool updatePredictorPerObservation(const double* newColumn, size_t column,
                                      bool* installed) {
     size_t n = data_.numObservations;
-    // REFUSED for vector-parameter leaves until stage 3: no observation
-    // installs, leaving the sampler untouched and consistent
-    if constexpr (L::hasVectorParams) {
-      for (size_t i = 0; i < n; ++i) installed[i] = false;
-      return true;
-    }
     UpdateSessionImpl session(*this, newColumn, column);
 
     std::vector<size_t> scanOrder(n);
@@ -674,10 +649,7 @@ public:
 
   std::unique_ptr<PredictorUpdateSession> beginPredictorUpdate(
     const double* newColumn, size_t column) {
-    if constexpr (L::hasVectorParams)
-      return std::make_unique<RefusingPredictorUpdateSession>();
-    else
-      return std::make_unique<UpdateSessionImpl>(*this, newColumn, column);
+    return std::make_unique<UpdateSessionImpl>(*this, newColumn, column);
   }
 
   ext_rng* rng() const { return chains_[0]->rng(); }
@@ -708,10 +680,7 @@ private:
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
 
-    // keepTrees is refused for vector-parameter leaves until stage 3
-    if constexpr (L::hasVectorParams) {
-      options_.keepTrees = false;
-    } else if (options_.keepTrees) {
+    if (options_.keepTrees) {
       size_t capacity =
         options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
       for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
