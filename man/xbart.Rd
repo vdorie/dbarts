@@ -13,7 +13,8 @@ xbart(
     k = NULL, power = 2, base = 0.95, drop = TRUE,
     resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
     seed = NA_integer_,
-    factors = c("categorical", "indicators"))
+    factors = c("categorical", "indicators"),
+    family = c("auto", "gaussian", "probit", "logistic"))
 }
 \arguments{
   \item{formula}{
@@ -84,6 +85,9 @@ xbart(
    }
    \item{factors}{
      How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.
+   }
+   \item{family}{
+     The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. The built-in binary losses transform test predictions through the family's link.
    }
 }
 \details{

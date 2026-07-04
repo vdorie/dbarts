@@ -38,9 +38,9 @@
             deviation in `setModel`.
       \item Factor columns in data frames now default to
             `factors = "categorical"` in `dbarts`, `dbartsData`, `bart2`,
-            and `xbart` (which gains the argument): each unordered factor
-            stays a single predictor with subset splits instead of
-            expanding into indicator columns. Pass
+            `xbart`, and `rbart_vi` (the latter two gain the argument):
+            each unordered factor stays a single predictor with subset
+            splits instead of expanding into indicator columns. Pass
             `factors = "indicators"` for the previous behavior.
       \item Prior specifications are ordinary objects built by the
             constructors in the new exported list `dbartsPriors` (`cgm`,
@@ -78,11 +78,13 @@
             fold bins the predictors identically to a fit on all of the
             data and creation does not re-quantize per fold; numeric
             results shift accordingly.
-      \item `dbarts` and `bart2` accept `family`: `"auto"` keeps the
-            existing dispatch (gaussian for continuous responses, probit
+      \item `dbarts`, `bart2`, and `xbart` accept `family`: `"auto"` keeps
+            the existing dispatch (gaussian for continuous responses, probit
             for 0/1), `"gaussian"` forces a continuous fit even for a 0/1
             response, and `"logistic"` fits a logistic latent model via
-            Polya-Gamma augmentation. Binary
+            Polya-Gamma augmentation. `xbart`'s built-in binary losses
+            transform test predictions through the resolved family's link.
+            Binary
             families do not support weights (the weighted probit the
             classic engine fit was incorrect and is not carried forward).
             Fits returned by `bart`, `bart2`, and `rbart_vi` record the

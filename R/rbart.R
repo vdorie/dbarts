@@ -20,6 +20,7 @@ rbart_vi <- function(
   keepSampler = keepTrees,
   keepTestFits = TRUE,
   callback = NULL,
+  factors = c("categorical", "indicators"),
   ...)
 {
   matchedCall <- match.call()
