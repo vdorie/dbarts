@@ -49,6 +49,18 @@ struct SamplerOptions {
   const std::size_t* leafCovariateColumns = nullptr;
   std::size_t numLeafCovariates = 0;
 
+  // grouped random intercepts (rbart_vi's Gibbs blocks in-core): one group
+  // index 0..numGroups-1 per training observation (borrowed; consumed during
+  // construction). numGroups == 0 leaves the response ungrouped.
+  // tauPriorScale is the original-scale relative scale (sd(y) continuous,
+  // 0.5 binary); tauSliceSteps is the per-update slice-step count, the R
+  // loop's n.thin coupling.
+  const std::uint32_t* groupIndices = nullptr;
+  std::size_t numGroups = 0;
+  TauPriorKind tauPriorKind = TauPriorKind::cauchy;
+  double tauPriorScale = 1.0;
+  std::size_t tauSliceSteps = 1;
+
   // split-variable selection: fixed weights (borrowed; normalized over
   // available variables at each node) or DART; both null/false = uniform
   const double* splitProbabilities = nullptr;
@@ -123,6 +135,10 @@ struct Results {
   double* k = nullptr;              // numSamples, or null; only when k sampled
   // numPredictors x numSamples, or null; filled only under DART
   double* splitProbabilities = nullptr;
+  // grouped samplers only, both on the original response scale:
+  // tau is numSamples, groupEffects numGroups x numSamples
+  double* tau = nullptr;
+  double* groupEffects = nullptr;
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable
@@ -158,6 +174,9 @@ struct ChainStateData {
   // bit, so a restore installs this exactly. Negative when not applicable.
   double sigmaPriorScale = -1.0;
   std::vector<double> latents;            // empty for gaussian
+  // grouped samplers only, internal scale so restores are exact
+  std::vector<double> groupEffects;
+  double groupTau = 0.0;
   std::vector<double> dartProbabilities;  // empty when DART is off
   double dartAlpha = 1.0;
   size_t dartNumUpdatesSkipped = 0;
@@ -199,6 +218,14 @@ public:
         sigmaRawScale);
       break;
     }
+    // grouped random intercepts decorate the base family; initialization
+    // draws b from its prior through this chain's generator
+    if (options.numGroups > 0)
+      response_ = std::make_unique<GroupedResponse>(
+        std::move(response_), numObservations, options.groupIndices,
+        options.numGroups, options.tauPriorKind, options.tauPriorScale,
+        options.tauSliceSteps, rng);
+    options_.groupIndices = nullptr;  // consumed above
 
     leaf_.scale =
       options.nodeScale / std::sqrt(static_cast<double>(options.numTrees));
@@ -349,7 +376,7 @@ public:
         std::memcpy(oldTreeFits, currFits_.data(), n * sizeof(double));
       }
 
-      response_->refreshLatents(rng_, totalFits_.data());
+      response_->refreshLatents(rng_, totalFits_.data(), sigma_);
       y = response_->workingResponse();
       weights = response_->workingWeights();
 
@@ -864,6 +891,15 @@ public:
     } else {
       state.latents.clear();
     }
+    if (response_->numGroupEffects() > 0) {
+      state.groupEffects.assign(
+        response_->groupEffects(),
+        response_->groupEffects() + response_->numGroupEffects());
+      state.groupTau = response_->groupTau();
+    } else {
+      state.groupEffects.clear();
+      state.groupTau = 0.0;
+    }
     if (options_.useDart) {
       state.dartProbabilities = dart_.probabilities;
       state.dartAlpha = dart_.alpha;
@@ -924,6 +960,10 @@ public:
       return false;
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
+      return false;
+    // grouped states must carry a full effects vector for the chain's
+    // groups; ungrouped states and chains both hold zero of them
+    if (state.groupEffects.size() != response_->numGroupEffects())
       return false;
     if (options_.useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
@@ -1028,6 +1068,9 @@ public:
     k_ = state.k;
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
+    if (!state.groupEffects.empty())
+      response_->restoreGroupEffects(state.groupEffects.data(),
+                                     state.groupTau);
     if (options_.useDart && !state.dartProbabilities.empty()) {
       // the tree prior points at this vector's storage; overwrite in place
       std::memcpy(dart_.probabilities.data(), state.dartProbabilities.data(),
@@ -1252,6 +1295,19 @@ private:
         results.splitProbabilities + sampleNum * data_.numPredictors;
       std::memcpy(out, dart_.probabilities.data(),
                   data_.numPredictors * sizeof(double));
+    }
+
+    // grouped channels de-scale like sigma: b is a deviation, so no shift
+    if (results.tau != nullptr)
+      results.tau[sampleNum] = response_->groupTau() * response_->sigmaScale();
+
+    if (results.groupEffects != nullptr) {
+      std::size_t numGroups = response_->numGroupEffects();
+      double* out = results.groupEffects + sampleNum * numGroups;
+      const double* effects = response_->groupEffects();
+      double sigmaScale = response_->sigmaScale();
+      for (std::size_t j = 0; j < numGroups; ++j)
+        out[j] = effects[j] * sigmaScale;
     }
   }
 

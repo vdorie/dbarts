@@ -57,12 +57,6 @@ rbart_vi <- function(
   control@printEvery <- control@printEvery %/% control@n.thin
   if (control@n.samples == 0L)
     stop("no posterior draws will be taken after thinning")
-  control@n.chains <- 1L
-  control@n.threads <- max(control@n.threads %/% n.chains, 1L)
-  if (n.chains > 1L && n.threads > 1L) {
-    if (control@verbose) warning("verbose output disabled for multiple threads")
-    control@verbose <- FALSE
-  }
 
   keepSampler <- keepSampler || control@keepTrees
   
@@ -144,7 +138,9 @@ rbart_vi <- function(
   }
   
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
-  
+
+  builtinTauPrior <- (is.symbol(matchedCall$prior) || is.character(matchedCall$prior)) &&
+    any(names(rbart.priors) == as.character(matchedCall$prior))
   if (is.symbol(matchedCall$prior) || is.character(matchedCall$prior) && any(names(rbart.priors) == matchedCall$prior))
     prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
   
@@ -170,7 +166,43 @@ rbart_vi <- function(
   }
   
   rbartArgs <- namedList(group.by, prior, keepTrainingFits, keepTestFits, callback)
-    
+
+  # in-core fast path: the built-in tau priors run rbart_vi's Gibbs blocks
+  # inside the engine (one sampler, chains on worker threads, no
+  # per-iteration R); custom prior functions and callbacks keep the R loop
+  if (builtinTauPrior && is.null(callback)) {
+    control@n.chains <- n.chains
+    control@n.threads <- n.threads
+    rel.scale <- if (!control@binary) sd(data@y) else 0.5
+    attr(control, "bartcore.groups") <- list(
+      indices = as.integer(group.by),
+      n.groups = nlevels(group.by),
+      prior = as.character(matchedCall$prior),
+      rel.scale = rel.scale,
+      n.steps = control@n.thin)
+
+    samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
+                             sigma = as.numeric(sigest))
+    if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
+
+    fitResult <- rbart_vi_fit_bartcore(samplerArgs, rbartArgs, levels(group.by), seed)
+
+    result <- packageRbartResults(control, data, group.by, group.by.test,
+                                  fitResult$chainResults, combineChains, seed,
+                                  keepSampler = FALSE)
+    # one multi-chain sampler stands in for the per-chain fits; n.chains
+    # stays on the object so the generics need not infer it from the list
+    if (keepSampler) result$fit <- list(fitResult$sampler)
+    return(result)
+  }
+
+  control@n.chains <- 1L
+  control@n.threads <- max(control@n.threads %/% n.chains, 1L)
+  if (n.chains > 1L && n.threads > 1L) {
+    if (control@verbose) warning("verbose output disabled for multiple threads")
+    control@verbose <- FALSE
+  }
+
   samplerArgs <- namedList(formula = data, control, tree.prior, node.prior, resid.prior,
                            sigma = as.numeric(sigest))
   if (is.null(node.prior)) samplerArgs[["node.prior"]] <- NULL
@@ -319,7 +351,84 @@ rbart_vi_run <- function(sampler, data, state, prior, verbose, n.samples, isWarm
   list(state = state, samples = samples)
 }
 
-rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) 
+# The in-core counterpart of rbart_vi_fit: the grouping rides an internal
+# attribute on the control object, so the sampler runs every Gibbs block -
+# including the random intercepts and tau - inside the engine. One
+# multi-chain sampler runs warmup and sampling in two calls (warmup
+# supplies first.tau/first.sigma with trees and training fits not kept),
+# and the results split into the per-chain shapes rbart_vi_fit produces so
+# the packaging is shared.
+rbart_vi_fit_bartcore <- function(samplerArgs, rbartArgs, groupLevels, seed)
+{
+  if (!is.na(seed)) {
+    oldSeed <- .GlobalEnv[[".Random.seed"]]
+    # a single chain draws through R's generator; several chains seed their
+    # own generators from R's stream at creation - reproducible either way
+    set.seed(seed)
+  }
+
+  sampler <- do.call(dbarts::dbarts, samplerArgs)
+  sampler$control@call <- samplerArgs$control@call
+
+  control <- sampler$control
+  kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+
+  sampler$sampleTreesFromPrior(updateState = FALSE)
+
+  firstTau <- firstSigma <- firstK <- NULL
+  if (control@n.burn > 0L) {
+    warmupControl <- control
+    warmupControl@keepTrees <- FALSE
+    warmupControl@keepTrainingFits <- FALSE
+    sampler$setControl(warmupControl)
+    warmupSamples <- sampler$run(0L, control@n.burn, updateState = FALSE)
+    firstTau <- warmupSamples$tau
+    if (!control@binary) firstSigma <- warmupSamples$sigma
+    if (kIsModeled) firstK <- warmupSamples$k
+    sampler$setControl(control)
+  }
+
+  samples <- sampler$run(0L, control@n.samples)
+
+  if (!is.na(seed) && !is.null(oldSeed))
+    .GlobalEnv$.Random.seed <- oldSeed
+
+  # per-chain slices in the shapes rbart_vi_fit produces
+  chainMatrix <- function(x, i)
+    if (is.null(x)) NULL else if (length(dim(x)) > 2L) array(x[, , i], dim(x)[1L:2L]) else x
+  chainVector <- function(x, i)
+    if (is.null(x)) NULL else if (is.matrix(x)) x[, i] else x
+
+  n.chains <- control@n.chains
+  chainResults <- vector("list", n.chains)
+  for (i in seq_len(n.chains)) {
+    ranef <- chainMatrix(samples$ranef, i)
+    rownames(ranef) <- groupLevels
+    result_i <- list(
+      sampler = sampler,
+      ranef = ranef,
+      firstTau = chainVector(firstTau, i),
+      firstSigma = if (!control@binary) chainVector(firstSigma, i),
+      tau = chainVector(samples$tau, i),
+      sigma = if (!control@binary) chainVector(samples$sigma, i),
+      yhat.train = if (rbartArgs$keepTrainingFits) chainMatrix(samples$train, i),
+      yhat.test = if (rbartArgs$keepTestFits) chainMatrix(samples$test, i),
+      callback = NULL,
+      varcount = chainMatrix(samples$varcount, i)
+    )
+    if (!is.null(samples$varprobs))
+      result_i$varprobs <- chainMatrix(samples$varprobs, i)
+    if (kIsModeled) {
+      result_i$firstK <- chainVector(firstK, i)
+      result_i$k <- chainVector(samples$k, i)
+    }
+    chainResults[[i]] <- result_i
+  }
+
+  namedList(sampler, chainResults)
+}
+
+rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs)
 {
   chain.num <- "ignored"
   

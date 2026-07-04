@@ -2,8 +2,11 @@
 
 Wave-2 item, the last one (core-generalization.md section "Wave 2
 models"): move rbart_vi's random-intercept Gibbs loop from R into the
-engine, composing with any response family. Proposal only; nothing is
-implemented.
+engine, composing with any response family.
+
+LANDED 2026-07-04, as proposed with the open decisions per their
+recommendations; deltas from this proposal are collected in "Landing
+notes" at the end.
 
 ## Model
 
@@ -167,3 +170,58 @@ bridge. Public exposure (a group.by on dbartsData) waits for demand.
    loop's coupling) or a dedicated option with default equal to it.
 4. Exposure beyond rbart_vi (dbartsData group.by, dbarts.h entry
    points): deferred here; any preference on naming reserves it.
+
+## Landing notes (2026-07-04)
+
+All four open decisions implemented per their recommendations. Deltas
+and specifics:
+
+- Creation plumbing: grouping reaches the bridge through an internal
+  attribute on the control object ("bartcore.groups": 1-based indices,
+  n.groups, prior name, rel.scale, n.steps) rather than new C entry
+  points. dbarts()'s surface is untouched, and because the attribute
+  rides the stored control, getPointer()'s re-creation from state
+  rebuilds grouped samplers transparently - save/load of rbart fits
+  works with no extra machinery. Only full creation reads the
+  attribute; setControl ignores it.
+- rbart_vi's in-core path keeps ONE multi-chain sampler in result$fit
+  (a list of length one) and records n.chains on the object;
+  predict.rbart and extract.rbart learned the single-fit shape (a
+  multi-chain sampler's predictions already carry the chain dimension,
+  and tree extraction routes chainNums through the one sampler).
+  packageRbartResults is shared: the run results split into the
+  per-chain shapes rbart_vi_fit produces.
+- ResponseModel::refreshLatents gained the chain's current sigma as a
+  parameter (the previous draw, exactly what the R loop's b update
+  conditions on); the ungrouped families ignore it.
+- Under thinning the decorator updates b and tau every raw tree sweep
+  (refreshLatents sits below the thinning loop), not once per kept
+  draw as the R loop does - a valid Gibbs kernel with more refreshes.
+  tauSliceSteps still takes n.thin slice steps per update.
+- first.tau/first.sigma/first.k come from a separate warmup run(0,
+  n.burn) with keepTrees and keepTrainingFits toggled off; the
+  sampling run follows with the user's settings.
+- The slice sampler steps out with a fixed width (the internal-scale
+  prior scale) and no mode finding; component tests check its moments
+  against R quadrature and the tau posterior pointwise against the R
+  closure. drawGroupEffects and logTauPosterior are free functions.
+- Gates: ungrouped paths bitwise unchanged (full suite, equivalence
+  identical draws on all nine scenarios, speed at baseline).
+  Statistical equivalence in-core vs the R loop (forced via a custom
+  prior with the same cauchy density), replicate z-tests on posterior
+  means: probit max |z| 0.61; gaussian tau/ranef/fits within |z| <=
+  2.1 at long warmup. sigma sits ~1.4 percent lower in-core -
+  the anticipated fixed-anchoring difference (the R loop's warmup
+  re-anchoring shrinks the response range by the ranef, narrowing the
+  effective leaf prior); a b = 0 control shows z = 0.9, confirming
+  the attribution.
+- Component tests: testGroupedMath (priors/posterior vs R constants,
+  weighted + unweighted conjugate moments, slice moments under both
+  priors), testGroupedEndToEnd (gaussian recovery incl. f-only
+  recorded fits), testGroupedBinary (probit + PG logistic),
+  testGroupedStateRoundTrip (bitwise continuation, mismatch refusal).
+- One rediscovery while regenerating snapshots: last-ulp arithmetic
+  depends on heap layout (SIMD reduction split points), so seeded
+  results are reproducible only for a fixed process history -
+  regenerate hardcoded test values by replaying the whole test file,
+  not just the seeded block.

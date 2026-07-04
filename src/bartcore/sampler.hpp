@@ -175,6 +175,10 @@ public:
       if (results.splitProbabilities != nullptr)
         r.splitProbabilities =
           results.splitProbabilities + c * numSamples * data_.numPredictors;
+      if (results.tau != nullptr) r.tau = results.tau + c * numSamples;
+      if (results.groupEffects != nullptr)
+        r.groupEffects =
+          results.groupEffects + c * numSamples * options_.numGroups;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -676,6 +680,8 @@ public:
   }
 
   ResponseFamily family() const { return family_; }
+  /// Grouped random intercepts: the group count, 0 when ungrouped.
+  size_t numGroups() const { return options_.numGroups; }
   double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
   double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
   bool kIsSampled() const { return options_.updateK; }
@@ -700,6 +706,7 @@ private:
       chains_.push_back(std::make_unique<Chain<L>>(
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
+    options_.groupIndices = nullptr;  // borrowed; consumed by the chains
 
     if (options_.keepTrees) {
       size_t capacity =

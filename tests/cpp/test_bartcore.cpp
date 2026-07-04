@@ -4079,6 +4079,365 @@ static void testLinearLeafViews() {
   printf("ok: linear leaf views\n");
 }
 
+static void testGroupedMath(ext_rng* rng) {
+  // built-in tau priors and the tau posterior against R constants
+  // (scratchpad grouped_reference.R): dcauchy/dgamma at scale 0.55, then
+  // the R loop's posterior closure at J = 5, b.sq = 0.8
+  checkNear(logTauPrior(TauPriorKind::cauchy, 0.55, 0.05),
+            -0.55512338423029517, 1.0e-12, "cauchy tau prior at 0.05");
+  checkNear(logTauPrior(TauPriorKind::cauchy, 0.55, 0.30),
+            -0.80734814484534678, 1.0e-12, "cauchy tau prior at 0.30");
+  checkNear(logTauPrior(TauPriorKind::cauchy, 0.55, 1.10),
+            -2.1563307975278803, 1.0e-12, "cauchy tau prior at 1.10");
+  checkNear(logTauPrior(TauPriorKind::gamma, 0.55, 0.05),
+            -3.3745978698239458, 1.0e-12, "gamma tau prior at 0.05");
+  checkNear(logTauPrior(TauPriorKind::gamma, 0.55, 0.30),
+            -1.1415041205273175, 1.0e-12, "gamma tau prior at 0.30");
+  checkNear(logTauPrior(TauPriorKind::gamma, 0.55, 1.10),
+            -0.64712509887738068, 1.0e-12, "gamma tau prior at 1.10");
+  checkNear(logTauPosterior(0.20, 5.0, 0.8, TauPriorKind::cauchy, 0.55),
+            -2.6238937031546601, 1.0e-12, "tau posterior at 0.20");
+  checkNear(logTauPosterior(0.45, 5.0, 0.8, TauPriorKind::cauchy, 0.55),
+            0.9578598022153062, 1.0e-12, "tau posterior at 0.45");
+  checkNear(logTauPosterior(0.90, 5.0, 0.8, TauPriorKind::cauchy, 0.55),
+            -1.8162012038679745, 1.0e-12, "tau posterior at 0.90");
+  check(logTauPosterior(0.0, 5.0, 0.8, TauPriorKind::cauchy, 0.55) ==
+        -HUGE_VAL, "tau posterior refuses the boundary");
+
+  // conjugate b update: empirical moments of drawGroupEffects against the
+  // per-group posterior computed in R, weighted and unweighted
+  const double z[] = {0.61, -0.32, 0.85, 0.10, -0.44, 0.92,
+                      0.33, -0.15, 0.58, -0.71, 0.05, 0.40};
+  const double w[] = {1.0, 0.5, 2.0, 1.5, 1.0, 0.25,
+                      3.0, 1.0, 0.75, 1.25, 2.5, 1.0};
+  const double fits[] = {0.20, -0.10, 0.40, 0.05, -0.30, 0.55,
+                         0.25, -0.05, 0.35, -0.50, 0.10, 0.15};
+  const std::uint32_t groups[] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2};
+  const double sigma = 0.7, tau = 0.4;
+  const double weightedMean[] = {0.15813953488372096, 0.011127819548872186,
+                                 0.0040875912408759162};
+  const double weightedSd[] = {0.24652625377117468, 0.24279079146675359,
+                               0.23922014416069304};
+  const double unweightedMean[] = {0.097699115044247775,
+                                   0.029734513274336287,
+                                   0.031150442477876111};
+  const double unweightedSd = 0.26340184314740722;
+
+  const size_t numDraws = 100000;
+  double effects[3], scratch[3];
+  double sum[3], sumSq[3];
+  for (int pass = 0; pass < 2; ++pass) {
+    const double* weights = pass == 0 ? w : nullptr;
+    for (size_t j = 0; j < 3; ++j) sum[j] = sumSq[j] = 0.0;
+    for (size_t r = 0; r < numDraws; ++r) {
+      drawGroupEffects(rng, z, weights, fits, groups, 12, 3, sigma, tau,
+                       effects, scratch);
+      for (size_t j = 0; j < 3; ++j) {
+        sum[j] += effects[j];
+        sumSq[j] += effects[j] * effects[j];
+      }
+    }
+    for (size_t j = 0; j < 3; ++j) {
+      double mean = sum[j] / static_cast<double>(numDraws);
+      double sd = std::sqrt(sumSq[j] / static_cast<double>(numDraws) -
+                            mean * mean);
+      double expectedMean = pass == 0 ? weightedMean[j] : unweightedMean[j];
+      double expectedSd = pass == 0 ? weightedSd[j] : unweightedSd;
+      checkNear(mean, expectedMean, 4.0 * expectedSd / std::sqrt(100000.0),
+                pass == 0 ? "weighted b posterior mean"
+                          : "unweighted b posterior mean");
+      checkNear(sd, expectedSd, 0.02 * expectedSd,
+                pass == 0 ? "weighted b posterior sd"
+                          : "unweighted b posterior sd");
+    }
+  }
+
+  // the slice sampler recovers the tau posterior's moments (quadrature
+  // reference from R) under both built-in priors
+  const double sliceMean[] = {0.47739017758490643, 0.57907089567288195};
+  const double sliceSd[] = {0.1836338997856671, 0.24745727859830713};
+  for (int pass = 0; pass < 2; ++pass) {
+    TauPriorKind kind = pass == 0 ? TauPriorKind::cauchy
+                                  : TauPriorKind::gamma;
+    auto logDensity = [kind](double t) {
+      return logTauPosterior(t, 5.0, 0.8, kind, 0.55);
+    };
+    double x = 0.45, total = 0.0, totalSq = 0.0;
+    for (size_t r = 0; r < numDraws; ++r) {
+      x = sliceSampleOnce(rng, logDensity, x, 0.55, 0.0, HUGE_VAL);
+      total += x;
+      totalSq += x * x;
+    }
+    double mean = total / static_cast<double>(numDraws);
+    double sd =
+      std::sqrt(totalSq / static_cast<double>(numDraws) - mean * mean);
+    checkNear(mean, sliceMean[pass], 0.01, "slice-sampled tau mean");
+    checkNear(sd, sliceSd[pass], 0.01, "slice-sampled tau sd");
+  }
+
+  printf("ok: grouped math\n");
+}
+
+static void testGroupedEndToEnd(ext_rng* rng) {
+  // gaussian grouped recovery: y = f(x) + b_g + eps; the sampler must
+  // recover b (per-group posterior means), tau, sigma, and record fits
+  // that exclude the random intercepts
+  const size_t n = 800, numGroups = 20, numSamples = 300;
+  std::vector<double> x(n * 2), y(n), f(n), b(numGroups);
+  std::vector<std::uint32_t> groups(n);
+  const double tauTrue = 0.8, sigmaTrue = 0.5;
+  for (size_t j = 0; j < numGroups; ++j)
+    b[j] = tauTrue * ext_rng_simulateStandardNormal(rng);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    groups[i] = static_cast<std::uint32_t>(i % numGroups);
+    f[i] = x[i] < 0.5 ? -1.0 : (x[i + n] < 0.5 ? 0.5 : 2.0);
+    y[i] = f[i] + b[groups[i]] +
+           sigmaTrue * ext_rng_simulateStandardNormal(rng);
+  }
+  double yMean = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= static_cast<double>(n);
+  double ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / static_cast<double>(n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.groupIndices = groups.data();
+  options.numGroups = numGroups;
+  options.tauPriorKind = TauPriorKind::cauchy;
+  options.tauPriorScale = ySd;
+  options.tauSliceSteps = 5;
+
+  ext_rng* chainRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                     NULL);
+  ext_rng_setSeed(chainRng, 2026);
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, ySd, 3.0,
+                         0.37804942330213542, options, &chainRng);
+
+  std::vector<double> sigmaSamples(numSamples), tauSamples(numSamples);
+  std::vector<double> effectSamples(numGroups * numSamples);
+  std::vector<double> trainSamples(n * numSamples);
+  Results results;
+  results.sigma = sigmaSamples.data();
+  results.tau = tauSamples.data();
+  results.groupEffects = effectSamples.data();
+  results.trainingFits = trainSamples.data();
+  sampler.run(200, numSamples, results);
+
+  double tauMean = 0.0, sigmaMean = 0.0;
+  for (size_t s = 0; s < numSamples; ++s) {
+    tauMean += tauSamples[s];
+    sigmaMean += sigmaSamples[s];
+  }
+  tauMean /= static_cast<double>(numSamples);
+  sigmaMean /= static_cast<double>(numSamples);
+  checkNear(tauMean, tauTrue, 0.35, "grouped tau recovery");
+  checkNear(sigmaMean, sigmaTrue, 0.1, "grouped sigma recovery");
+
+  std::vector<double> bHat(numGroups, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t j = 0; j < numGroups; ++j)
+      bHat[j] += effectSamples[j + s * numGroups];
+  for (size_t j = 0; j < numGroups; ++j)
+    bHat[j] /= static_cast<double>(numSamples);
+  double bCor;
+  {
+    double mx = 0.0, my = 0.0;
+    for (size_t j = 0; j < numGroups; ++j) { mx += b[j]; my += bHat[j]; }
+    mx /= numGroups; my /= numGroups;
+    double sxy = 0.0, sxx = 0.0, syy = 0.0;
+    for (size_t j = 0; j < numGroups; ++j) {
+      sxy += (b[j] - mx) * (bHat[j] - my);
+      sxx += (b[j] - mx) * (b[j] - mx);
+      syy += (bHat[j] - my) * (bHat[j] - my);
+    }
+    bCor = sxy / std::sqrt(sxx * syy);
+  }
+  check(bCor > 0.9, "grouped b recovery");
+
+  // recorded fits are f(x)-only: adding the ranef posterior means back must
+  // shrink the residuals
+  std::vector<double> fitMean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i) fitMean[i] += trainSamples[i + s * n];
+  double sseWithout = 0.0, sseWith = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    fitMean[i] /= static_cast<double>(numSamples);
+    double residual = y[i] - fitMean[i];
+    sseWithout += residual * residual;
+    residual -= bHat[groups[i]];
+    sseWith += residual * residual;
+  }
+  check(sseWith < sseWithout, "recorded fits exclude the random intercepts");
+
+  ext_rng_destroy(chainRng);
+  printf("ok: grouped end to end (tau %.2f, sigma %.2f, b cor %.3f)\n",
+         tauMean, sigmaMean, bCor);
+}
+
+static void testGroupedBinary(ext_rng* rng) {
+  // probit and logistic compose with the decorator: the working weights
+  // (unit / Polya-Gamma) enter the conjugate b update, rel.scale is the
+  // binary 0.5, and the group intercepts are recovered on the latent scale
+  const size_t n = 1200, numGroups = 8, numSamples = 250;
+  std::vector<double> x(n * 2), b(numGroups);
+  const double tauTrue = 0.9;
+  for (size_t j = 0; j < numGroups; ++j)
+    b[j] = tauTrue * ext_rng_simulateStandardNormal(rng);
+
+  for (int pass = 0; pass < 2; ++pass) {
+    ResponseFamily family = pass == 0 ? ResponseFamily::probit
+                                      : ResponseFamily::logistic;
+    std::vector<double> y(n);
+    std::vector<std::uint32_t> groups(n);
+    for (double& v : x) v = runif01();
+    for (size_t i = 0; i < n; ++i) {
+      groups[i] = static_cast<std::uint32_t>(i % numGroups);
+      double eta = (x[i] < 0.5 ? -0.75 : 0.75) + b[groups[i]];
+      if (pass == 0) {
+        y[i] = eta + ext_rng_simulateStandardNormal(rng) > 0.0 ? 1.0 : 0.0;
+      } else {
+        y[i] = runif01() < 1.0 / (1.0 + std::exp(-eta)) ? 1.0 : 0.0;
+      }
+    }
+
+    SamplerOptions options;
+    options.numTrees = 25;
+    // the R-side per-family node scales: probit 3, logistic pi sqrt(3)
+    options.nodeScale = pass == 0 ? 3.0
+                                  : 3.14159265358979324 * std::sqrt(3.0);
+    options.groupIndices = groups.data();
+    options.numGroups = numGroups;
+    options.tauPriorKind = TauPriorKind::cauchy;
+    options.tauPriorScale = 0.5;
+    options.tauSliceSteps = 5;
+
+    ext_rng* chainRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
+                                       NULL);
+    ext_rng_setSeed(chainRng, 3000 + pass);
+    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                           family, 1.0, 3.0, 1.0, options, &chainRng);
+
+    std::vector<double> tauSamples(numSamples);
+    std::vector<double> effectSamples(numGroups * numSamples);
+    Results results;
+    results.tau = tauSamples.data();
+    results.groupEffects = effectSamples.data();
+    sampler.run(150, numSamples, results);
+
+    std::vector<double> bHat(numGroups, 0.0);
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t j = 0; j < numGroups; ++j)
+        bHat[j] += effectSamples[j + s * numGroups];
+    double mx = 0.0, my = 0.0;
+    for (size_t j = 0; j < numGroups; ++j) {
+      bHat[j] /= static_cast<double>(numSamples);
+      mx += b[j]; my += bHat[j];
+    }
+    mx /= numGroups; my /= numGroups;
+    double sxy = 0.0, sxx = 0.0, syy = 0.0;
+    for (size_t j = 0; j < numGroups; ++j) {
+      sxy += (b[j] - mx) * (bHat[j] - my);
+      sxx += (b[j] - mx) * (b[j] - mx);
+      syy += (bHat[j] - my) * (bHat[j] - my);
+    }
+    double bCor = sxy / std::sqrt(sxx * syy);
+    check(bCor > 0.85, pass == 0 ? "grouped probit b recovery"
+                                 : "grouped logistic b recovery");
+    for (double t : tauSamples)
+      check(t > 0.0 && std::isfinite(t), "grouped binary tau draws valid");
+
+    ext_rng_destroy(chainRng);
+  }
+  printf("ok: grouped binary families\n");
+}
+
+static void testGroupedStateRoundTrip() {
+  // grouped state (b, tau) rides the chain state: a restored sampler
+  // continues bitwise identically, and mismatched effect vectors are
+  // refused
+  const size_t n = 200, numGroups = 6, numChains = 2, numSamples = 5;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<std::uint32_t> groups(n);
+  for (size_t i = 0; i < n; ++i)
+    groups[i] = static_cast<std::uint32_t>(i % numGroups);
+
+  SamplerOptions options;
+  options.numTrees = 15;
+  options.numChains = numChains;
+  options.groupIndices = groups.data();
+  options.numGroups = numGroups;
+  options.tauPriorScale = 1.0;
+  options.tauSliceSteps = 3;
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t seed) {
+    for (size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], seed + static_cast<std::uint32_t>(c));
+    }
+  };
+
+  std::vector<ext_rng*> rngs(numChains, nullptr);
+  makeRngs(rngs, 4242);
+  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs.data());
+  Results empty;
+  original.run(40, 0, empty);
+
+  SamplerStateData state;
+  original.getState(state);
+  check(state.chains[0].groupEffects.size() == numGroups,
+        "grouped state carries the effects");
+  check(state.chains[0].groupTau > 0.0, "grouped state carries tau");
+
+  std::vector<ext_rng*> rngs2(numChains, nullptr);
+  makeRngs(rngs2, 1111);
+  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs2.data());
+  check(restored.setState(state), "a grouped state restores");
+
+  std::vector<double> sigmaA(numSamples * numChains);
+  std::vector<double> tauA(numSamples * numChains);
+  std::vector<double> trainA(n * numSamples * numChains);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.tau = tauA.data();
+  resultsA.trainingFits = trainA.data();
+  original.run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples * numChains);
+  std::vector<double> tauB(numSamples * numChains);
+  std::vector<double> trainB(n * numSamples * numChains);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.tau = tauB.data();
+  resultsB.trainingFits = trainB.data();
+  restored.run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB, "restored grouped chains draw identical sigmas");
+  check(tauA == tauB, "restored grouped chains draw identical taus");
+  check(trainA == trainB, "restored grouped chains draw identical fits");
+
+  // an effects vector of the wrong length must be refused before anything
+  // is overwritten
+  SamplerStateData badState(state);
+  badState.chains[0].groupEffects.resize(numGroups - 1);
+  check(!restored.setState(badState),
+        "a mismatched grouped state is refused");
+
+  for (size_t c = 0; c < numChains; ++c) {
+    ext_rng_destroy(rngs[c]);
+    ext_rng_destroy(rngs2[c]);
+  }
+  printf("ok: grouped state round trip\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -4146,6 +4505,10 @@ int main() {
   testLinearLeafFormats(rng);
   testLinearLeafMutation(rng);
   testLinearLeafViews();
+  testGroupedMath(rng);
+  testGroupedEndToEnd(rng);
+  testGroupedBinary(rng);
+  testGroupedStateRoundTrip();
 
   ext_rng_destroy(rng);
 

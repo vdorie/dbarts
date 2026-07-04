@@ -67,7 +67,7 @@ rbart_vi(
     Grouping factor for test data, of the same type as \code{group.by}. Can be missing.
   }
   \item{prior}{
-    A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, \code{x} - the standard deviation, and \code{rel.scale} - the standard deviation of the response variable before random effects are fit. Built in priors are \code{cauchy} with a scale of 2.5 times the relative scale and \code{gamma} with a shape of 2.5 and scale of 2.5 times the relative scale.
+    A function or symbolic reference to built-in priors. Determines the prior over the standard deviation of the random effects. Supplied functions take two arguments, \code{x} - the standard deviation, and \code{rel.scale} - the standard deviation of the response variable before random effects are fit. Built in priors are \code{cauchy} with a scale of 2.5 times the relative scale and \code{gamma} with a shape of 2.5 and scale of 2.5 times the relative scale. With a built-in prior and no \code{callback}, the whole Gibbs sampler runs inside the engine on one multi-chain sampler; a custom prior function runs the random effect updates in R instead.
   }
   \item{n.thin}{
     The number of tree jumps taken for every stored sample, but also the number of samples from the posterior of the standard deviation of the random effects before one is kept.
@@ -105,7 +105,7 @@ rbart_vi(
   \item \eqn{\alpha_j \sim N(0, \tau^2)}{\alpha_j ~ N(0, \tau^2)}.
 }
 
-For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts. Draws from the posterior of \eqn{tau} are made using a slice sampler, with a width dynamically determined by assessing the curvature of the posterior distribution at its mode.
+For binary outcomes the response model is changed to \eqn{P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})}. \eqn{i} indexes observations, \eqn{g[i]} is the group index of observation \eqn{i}, \eqn{f(x)} and \eqn{\sigma_y} come from a BART model, and \eqn{\alpha_j} are the independent and identically distributed random intercepts. Draws from the posterior of \eqn{tau} are made using a slice sampler; the in-engine sampler for built-in priors steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.
 
 \subsection{Out Of Sample Groups}{
   Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \eqn{p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\alpha}. For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to \code{predict}, they cannot and may change for subsequent calls.

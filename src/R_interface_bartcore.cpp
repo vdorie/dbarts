@@ -716,6 +716,63 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
   return rngs;
 }
 
+// rbart_vi's in-core Gibbs path passes its grouping through an internal
+// attribute on the control object: 1-based per-observation group indices,
+// the group count, the built-in tau prior's name and original-scale
+// relative scale, and the slice-step count. Public surfaces never set the
+// attribute, and only full creation reads it (setControl ignores it; the
+// group structure is fixed at creation). groupIndices outlives the options
+// borrow: the chains copy it during construction.
+void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
+                         bartcore::SamplerOptions& options,
+                         std::vector<std::uint32_t>& groupIndices) {
+  SEXP groupsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.groups"));
+  if (Rf_isNull(groupsExpr)) return;
+
+  SEXP indicesExpr = getListElement(groupsExpr, "indices");
+  SEXP numGroupsExpr = getListElement(groupsExpr, "n.groups");
+  SEXP priorExpr = getListElement(groupsExpr, "prior");
+  SEXP scaleExpr = getListElement(groupsExpr, "rel.scale");
+  SEXP stepsExpr = getListElement(groupsExpr, "n.steps");
+  if (!Rf_isInteger(indicesExpr) ||
+      static_cast<size_t>(Rf_xlength(indicesExpr)) != numObservations ||
+      !Rf_isInteger(numGroupsExpr) || Rf_xlength(numGroupsExpr) != 1 ||
+      !Rf_isString(priorExpr) || Rf_xlength(priorExpr) != 1 ||
+      !Rf_isReal(scaleExpr) || Rf_xlength(scaleExpr) != 1 ||
+      !Rf_isInteger(stepsExpr) || Rf_xlength(stepsExpr) != 1)
+    Rf_error("malformed grouped random effects specification");
+
+  int numGroups = INTEGER(numGroupsExpr)[0];
+  if (numGroups < 1)
+    Rf_error("grouped random effects require at least one group");
+  groupIndices.resize(numObservations);
+  for (size_t i = 0; i < numObservations; ++i) {
+    int index = INTEGER(indicesExpr)[i];
+    if (index < 1 || index > numGroups)
+      Rf_error("group indices must be in [1, number of groups]");
+    groupIndices[i] = static_cast<std::uint32_t>(index - 1);
+  }
+
+  const char* priorName = CHAR(STRING_ELT(priorExpr, 0));
+  if (std::strcmp(priorName, "cauchy") == 0) {
+    options.tauPriorKind = bartcore::TauPriorKind::cauchy;
+  } else if (std::strcmp(priorName, "gamma") == 0) {
+    options.tauPriorKind = bartcore::TauPriorKind::gamma;
+  } else {
+    Rf_error("unrecognized tau prior for grouped random effects");
+  }
+
+  double relScale = REAL(scaleExpr)[0];
+  if (!(relScale > 0.0)) Rf_error("tau prior scale must be positive");
+  int numSteps = INTEGER(stepsExpr)[0];
+  if (numSteps < 1) Rf_error("tau slice steps must be at least 1");
+
+  options.groupIndices = groupIndices.data();
+  options.numGroups = static_cast<size_t>(numGroups);
+  options.tauPriorScale = relScale;
+  options.tauSliceSteps = static_cast<size_t>(numSteps);
+}
+
 // A sampler created over a data handle holds no raw predictor values, so
 // the raw-x mutation surface has nothing to work from.
 void refuseViewSampler(const bartcore::SamplerBase& sampler,
@@ -787,6 +844,12 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+
+  // grouped random intercepts (rbart_vi's in-core path) arrive on an
+  // internal control attribute; the chains copy the indices at construction
+  std::vector<std::uint32_t> groupIndices;
+  applyGroupAttribute(controlExpr, data.numObservations, options,
+                      groupIndices);
 
   std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
 
@@ -1015,7 +1078,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 
   // several chains add a trailing chain dimension, as the classic engine's
   // results do
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 8));
   SEXP sigmaExpr = numChains == 1
     ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
     : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
@@ -1064,6 +1127,21 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   } else {
     varprobsExpr = PROTECT(R_NilValue);
   }
+  size_t numGroups = sampler.numGroups();
+  SEXP tauExpr, ranefExpr;
+  if (numGroups > 0) {
+    tauExpr = numChains == 1
+      ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
+      : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+    ranefExpr = numChains == 1
+      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numGroups),
+                               numSamplesInt))
+      : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
+                                numSamplesInt, numChainsInt));
+  } else {
+    tauExpr = PROTECT(R_NilValue);
+    ranefExpr = PROTECT(R_NilValue);
+  }
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numSamples *
                                             numChains);
@@ -1075,6 +1153,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.variableCounts = variableCounts.data();
   results.k = sampler.kIsSampled() ? REAL(kExpr) : NULL;
   results.splitProbabilities = sampler.usesDart() ? REAL(varprobsExpr) : NULL;
+  results.tau = numGroups > 0 ? REAL(tauExpr) : NULL;
+  results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
 
   GetRNGstate();
   sampler.run(numBurnIn, numSamples, results);
@@ -1090,19 +1170,24 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_VECTOR_ELT(resultExpr, 3, varcountExpr);
   SET_VECTOR_ELT(resultExpr, 4, kExpr);
   SET_VECTOR_ELT(resultExpr, 5, varprobsExpr);
+  SET_VECTOR_ELT(resultExpr, 6, tauExpr);
+  SET_VECTOR_ELT(resultExpr, 7, ranefExpr);
 
   // named as the classic engine's run results are, so the engines are
-  // drop-in replacements for each other; varprobs is a bartcore extension
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 6));
+  // drop-in replacements for each other; varprobs, tau, and ranef are
+  // bartcore extensions
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 8));
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
   SET_STRING_ELT(namesExpr, 3, Rf_mkChar("varcount"));
   SET_STRING_ELT(namesExpr, 4, Rf_mkChar("k"));
   SET_STRING_ELT(namesExpr, 5, Rf_mkChar("varprobs"));
+  SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
+  SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
-  UNPROTECT(8);
+  UNPROTECT(10);
   return resultExpr;
 }
 
@@ -1137,6 +1222,9 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (holder.sampler->numGroups() > 0)
+    Rf_error("grouped random effects fix the response at creation; make a "
+             "new sampler instead");
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) !=
         holder.sampler->numObservations())
@@ -1159,6 +1247,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   refuseViewSampler(sampler, "bartcore_setData");
+  if (sampler.numGroups() > 0)
+    Rf_error("grouped random effects fix the data at creation; make a new "
+             "sampler instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
@@ -2055,6 +2146,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_SAVED_MASKS,
     SLOT_TOTAL_FITS, SLOT_INDICES,
     SLOT_SIGMA, SLOT_K, SLOT_FIT_SCALE, SLOT_LATENTS,
+    SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
     SLOT_RNG_STATE, SLOT_COUNT
   };
@@ -2065,7 +2157,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "saved.masks",
     "total.fits", "indices",
     "sigma", "k", "fit.scale",
-    "latents", "dart.probabilities", "dart.alpha", "dart.updates.skipped",
+    "latents", "ranef", "tau",
+    "dart.probabilities", "dart.alpha", "dart.updates.skipped",
     "rng.state"
   };
 
@@ -2130,6 +2223,17 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_LATENTS)),
                   chainState.latents.data(),
                   numObservations * sizeof(double));
+    }
+
+    if (!chainState.groupEffects.empty()) {
+      SET_VECTOR_ELT(chainExpr, SLOT_RANEF,
+                     Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
+                                      chainState.groupEffects.size())));
+      std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_RANEF)),
+                  chainState.groupEffects.data(),
+                  chainState.groupEffects.size() * sizeof(double));
+      SET_VECTOR_ELT(chainExpr, SLOT_TAU,
+                     Rf_ScalarReal(chainState.groupTau));
     }
 
     if (!chainState.dartProbabilities.empty()) {
@@ -2324,6 +2428,19 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
       }
       chainState.latents.assign(
         REAL(latentsExpr), REAL(latentsExpr) + Rf_xlength(latentsExpr));
+    }
+
+    SEXP ranefExpr = getListElement(chainExpr, "ranef");
+    if (!Rf_isNull(ranefExpr)) {
+      SEXP tauExpr = getListElement(chainExpr, "tau");
+      if (!Rf_isReal(ranefExpr) || !Rf_isReal(tauExpr) ||
+          Rf_xlength(tauExpr) != 1) {
+        errorMessage = "malformed grouped effects in bartcore state";
+        break;
+      }
+      chainState.groupEffects.assign(
+        REAL(ranefExpr), REAL(ranefExpr) + Rf_xlength(ranefExpr));
+      chainState.groupTau = REAL(tauExpr)[0];
     }
 
     SEXP dartProbabilitiesExpr =
