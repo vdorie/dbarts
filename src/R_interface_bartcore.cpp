@@ -943,15 +943,18 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     }
   }
 
+  // a linear node prior's designated columns have the view gather their raw
+  // values, with standardization constants from the handle's full data - the
+  // same calibration inheritance as the copied cut grid
   bartcore::ColumnStore store;
   store.buildFromParent(parent, trainRows.data(), numTrainRows,
-                        testRows.data(), numTestRows);
+                        testRows.data(), numTestRows,
+                        model.leafCovariateColumns.empty()
+                          ? NULL : model.leafCovariateColumns.data(),
+                        model.leafCovariateColumns.size());
 
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
-  if (options.numLeafCovariates > 0)
-    Rf_error("linear node priors are unavailable over data handles: views "
-             "hold no raw covariate values");
   std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
 
   std::unique_ptr<bartcore::SamplerBase> sampler =
@@ -960,6 +963,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       data.weights != NULL ? weights.data() : NULL,
       data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
       model.sigmaDf, model.sigmaRawScale, options, rngs.data());
+  if (sampler == NULL) {
+    // R-side resolution validates first, so only an invariant breach lands
+    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+    Rf_error("invalid leaf covariate designation");
+  }
 
   BartcoreHolder* holder = new BartcoreHolder{
     std::move(sampler), std::move(rngs), control.keepTrainingFits,

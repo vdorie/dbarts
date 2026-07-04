@@ -345,19 +345,35 @@ inline std::unique_ptr<SamplerBase> createSampler(
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
 
-/// As createClassicSampler, but over a pre-built store - typically a
-/// row-subset view (ColumnStore::buildFromParent) sharing a parent's cut
-/// grid. y/weights/offset match the store's observations and stay alive for
-/// the sampler's lifetime; the raw-x mutation surface must not be called on
-/// the result when the store holds no raw values. Views hold no raw values
-/// at all, so this path stays constant-leaf until stage 3 teaches views to
-/// gather leaf covariates.
+/// As createSampler, but over a pre-built store - typically a row-subset
+/// view (ColumnStore::buildFromParent) sharing a parent's cut grid.
+/// y/weights/offset match the store's observations and stay alive for the
+/// sampler's lifetime; the raw-x mutation surface must not be called on the
+/// result when the store holds no raw values. Designated leaf covariates
+/// select the linear-leaf instantiation exactly as createSampler does, with
+/// one extra requirement: the store must serve raw values for every
+/// designated column (a view gathers them when built with the designation).
+/// Returns null on an invalid designation.
 inline std::unique_ptr<SamplerBase> createSamplerOverStore(
   ColumnStore&& store, const double* y, const double* weights,
   const double* offset, ResponseFamily family, double sigmaEstimate,
   double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
   ext_rng* const* rngs) {
-  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+  if (options.numLeafCovariates == 0)
+    return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+      std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
+      sigmaRawScale, options, rngs);
+
+  if (options.leafCovariateColumns == nullptr ||
+      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
+    return nullptr;
+  for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
+    std::size_t j = options.leafCovariateColumns[k];
+    if (j >= store.numPredictors) return nullptr;
+    if (store.types[j] == ColumnType::categorical) return nullptr;
+    if (store.rawColumn(j) == nullptr) return nullptr;
+  }
+  return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
     std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
     sigmaRawScale, options, rngs);
 }

@@ -283,7 +283,11 @@ copies (no lifetime coupling to the handle) and refuse the raw-x mutation
 surface, including setState (restoring cut points re-quantizes from raw
 values); setTestPredictors and predict work off the copied grid. xbart
 builds one handle per worker chunk, so folds bin on the full data's grid -
-its hardcoded regression values were regenerated. Still open, as decided:
+its hardcoded regression values were regenerated. Update 2026-07-04:
+views compose with linear leaves - buildFromParent gathers the designated
+columns' raw values with standardization constants from the parent's full
+data (the same calibration inheritance as the copied cut grid), and xbart
+gained a node.prior argument (linear-leaves.md). Still open, as decided:
 serialization and any public exposure.
 
 ## 6. C API and callbacks
@@ -412,7 +416,7 @@ classic engine.
 - Wave-2 models (linear leaves, in-core grouped random effects retiring the
   rbart_vi R loop): engine work, independent of this document except that
   rbart_vi's public signature would eventually gain the in-core option.
-  Linear leaves have a proposal (linear-leaves.md, 2026-07-04): a
+  Linear leaves are LANDED in full (linear-leaves.md, 2026-07-04): a
   designated column set per leaf regression via node.prior =
-  linear(columns, k), conjugate and integrable, with four open decisions
-  listed at its end.
+  linear(columns, k) on dbarts() and xbart(), including data-handle views
+  (section 5 update).

@@ -7,11 +7,12 @@ regression, so a forest fits smoothly-varying coefficients
 of Bayesian Causal Forests when the leaf covariate is a treatment
 indicator).
 
-ALL FOUR STAGES LANDED 2026-07-04; xbart view support remains the one
-deliberate deferral. The four open decisions at the end of this doc were
-implemented per their recommendations (explicit column designation, slope
-sd = intercept sd, chi-k over all coordinates, beta.<name> reporting) -
-any can be revisited before release. Stage-4 (R surface) notes:
+ALL FOUR STAGES LANDED 2026-07-04, and the one deliberate deferral -
+xbart/view support - landed the same day (stage 5 below). The four open
+decisions at the end of this doc were implemented per their
+recommendations (explicit column designation, slope sd = intercept sd,
+chi-k over all coordinates, beta.<name> reporting) - any can be revisited
+before release. Stage-4 (R surface) notes:
 
 - node.prior = linear(columns, k) on dbarts(): a dbartsLinearPrior
   whose raw designation (names or indices) resolves against the model
@@ -20,8 +21,8 @@ any can be revisited before release. Stage-4 (R surface) notes:
   data@varTypes, at most 8). An unresolved designation cannot enter
   dbartsModel directly, mirroring the split.probs guard. bart2 and
   rbart_vi construct node.prior = normal(k) internally and do not
-  reach linear; xbart has no node.prior at all, and the data-handle
-  creation path refuses designations outright.
+  reach linear; xbart had no node.prior and the data-handle creation
+  path refused designations outright (both lifted by stage 5).
 - The bridge dispatches through bartcore::createSampler (both
   instantiations now ship; speed compare stayed at-or-below baseline,
   .so 442 -> 529KB total including the format code). parseModel reads
@@ -42,6 +43,33 @@ any can be revisited before release. Stage-4 (R surface) notes:
   fixed-designation refusal, forced predictor mutation, probit
   smoke); full suite 2209/60; equivalence identical draws; speed
   clean; R CMD check --as-cran.
+
+Stage-5 (views/xbart) notes:
+
+- ColumnStore::buildFromParent takes the designated columns and gathers
+  their raw values by row (training and test), so views serve leaf models
+  while staying self-contained. Standardization constants come from the
+  PARENT's full data - the same calibration inheritance as the copied cut
+  grid, so every fold runs the prior a full-data fit would (and a
+  full-rows view is bitwise identical to the raw-data path; component
+  test). One helper, standardizationMomentsForColumn (data.hpp), defines
+  the moments for both the gather and LinearGaussianLeaf.
+- The leaf model reads raw values through ColumnStore::rawColumn /
+  rawTestColumn (the borrowed matrix normally, the gathered copies on
+  views; a borrowed x_test installed by setTestPredictors supersedes the
+  gathered fold values) and takes supplied constants via
+  suppliedStandardization. Non-view paths compile the same arithmetic
+  (gates: equivalence identical draws, suite green).
+- createSamplerOverStore dispatches on the designation exactly as
+  createSampler, plus requires the store to serve raw values for every
+  designated column; a view built without the gather returns null. The
+  bridge's refusal is gone; views still refuse the raw-x mutation surface
+  (setPredictor and friends, setData, setCutPoints, setState).
+- xbart gained node.prior (default NULL = normal(k), today's behavior):
+  linear(columns, k) resolves its columns against the model matrix
+  (factor columns rejected), a k inside the supplied prior stands in for
+  a missing k argument, and the k grid argument overrides per cell as
+  always (cells always run fixed k).
 
 Stage-3 deltas:
 

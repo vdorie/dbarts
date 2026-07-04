@@ -2,6 +2,7 @@
 #define BARTCORE_DATA_HPP
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -40,6 +41,34 @@ constexpr xint_t missingCategoryCode(std::uint32_t numCategories) {
 }
 
 inline bool isNA(double value) { return value != value; }
+
+/// Mean and sample sd of the observed (non-missing) values of a raw column:
+/// the leaf-covariate standardization constants. A constant (or all-missing)
+/// column keeps sd 1. One definition shared by LinearGaussianLeaf and the
+/// view gather in buildFromParent, so a full-rows view standardizes
+/// bit-identically to a sampler over the raw data.
+inline void standardizationMomentsForColumn(const double* column, size_t n,
+                                            double* mean_, double* sd_) {
+  double total = 0.0;
+  size_t numObserved = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (isNA(column[i])) continue;
+    total += column[i];
+    ++numObserved;
+  }
+  double mean = numObserved > 0 ? total / static_cast<double>(numObserved)
+                                : 0.0;
+  double sumOfSquares = 0.0;
+  for (size_t i = 0; i < n; ++i)
+    if (!isNA(column[i]))
+      sumOfSquares += (column[i] - mean) * (column[i] - mean);
+  double sd = numObserved > 1
+    ? std::sqrt(sumOfSquares / static_cast<double>(numObserved - 1))
+    : 0.0;
+  if (!(sd > 0.0)) sd = 1.0;
+  *mean_ = mean;
+  *sd_ = sd;
+}
 
 /// Column types the store distinguishes. Ordinal columns quantize against
 /// cut points and split by threshold; categorical columns hold integer
@@ -110,6 +139,50 @@ struct ColumnStore {
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
   // caller keeps the lengths consistent), clearTest clears it.
   const double* testOffset = nullptr;
+
+  // Raw values of designated columns, gathered by buildFromParent so a view
+  // can serve a leaf model that reads raw predictors despite holding no x.
+  // The standardization constants come from the parent's full training data:
+  // the same calibration inheritance as the copied cut grid, so every fold
+  // runs the prior a full-data fit would. Owned, so views stay
+  // self-contained.
+  std::vector<size_t> gatheredRawColumns;
+  std::vector<double> gatheredRawValues;      // column-major, numObservations x q
+  std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x q
+  std::vector<double> gatheredMeans;
+  std::vector<double> gatheredSds;
+
+  /// Raw training values of column j: the borrowed matrix when the store has
+  /// one, a gathered copy on views, null when neither serves it.
+  const double* rawColumn(size_t j) const {
+    if (x != nullptr) return x + j * numObservations;
+    for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
+      if (gatheredRawColumns[k] == j)
+        return gatheredRawValues.data() + k * numObservations;
+    return nullptr;
+  }
+
+  /// Raw test values of column j; a borrowed x_test (setTestPredictors)
+  /// supersedes the values gathered at view construction.
+  const double* rawTestColumn(size_t j) const {
+    if (x_test != nullptr) return x_test + j * numTestObservations;
+    for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
+      if (gatheredRawColumns[k] == j)
+        return gatheredRawTestValues.data() + k * numTestObservations;
+    return nullptr;
+  }
+
+  /// Parent-derived standardization constants for column j, when the store
+  /// is a view that gathered them; false tells the caller to compute its own.
+  bool suppliedStandardization(size_t j, double* mean, double* sd) const {
+    for (size_t k = 0; k < gatheredRawColumns.size(); ++k) {
+      if (gatheredRawColumns[k] != j) continue;
+      *mean = gatheredMeans[k];
+      *sd = gatheredSds[k];
+      return true;
+    }
+    return false;
+  }
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
   // with value > all cuts mapping to numCuts (always right of any split);
@@ -299,6 +372,11 @@ struct ColumnStore {
         maxNumCuts[j] = maxNumCutsRepresentable;
     codes.resize(n * p);
     hasMissing.assign(p, 0);
+    gatheredRawColumns.clear();
+    gatheredRawValues.clear();
+    gatheredRawTestValues.clear();
+    gatheredMeans.clear();
+    gatheredSds.clear();
 
     for (size_t j = 0; j < p; ++j) {
       buildCutsForColumn(j);
@@ -326,11 +404,16 @@ struct ColumnStore {
   /// to the parent by construction; testRows also index the parent's
   /// observations. Views hold no raw values (x and x_test stay null), which
   /// rules out every raw-x path here (quantizeColumn and the mutation
-  /// surface); callers enforce that. The view is self-contained: nothing
+  /// surface); callers enforce that. rawColumnsToGather names columns whose
+  /// raw values a leaf model reads (linear leaves): their subset values and
+  /// parent-derived standardization constants are copied so rawColumn and
+  /// suppliedStandardization serve them. The view is self-contained: nothing
   /// references the parent after this returns.
   void buildFromParent(const ColumnStore& parent, const size_t* rows,
                        size_t numRows, const size_t* testRows,
-                       size_t numTestRows) {
+                       size_t numTestRows,
+                       const size_t* rawColumnsToGather = nullptr,
+                       size_t numRawColumnsToGather = 0) {
     x = nullptr;
     numObservations = numRows;
     numPredictors = parent.numPredictors;
@@ -342,6 +425,33 @@ struct ColumnStore {
     codes.resize(numRows * numPredictors);
     hasMissing.assign(numPredictors, 0);
     refreshCategoricalTiers();
+
+    gatheredRawColumns.clear();
+    gatheredRawValues.clear();
+    gatheredRawTestValues.clear();
+    gatheredMeans.clear();
+    gatheredSds.clear();
+    if (parent.x != nullptr && numRawColumnsToGather > 0) {
+      gatheredRawColumns.assign(rawColumnsToGather,
+                                rawColumnsToGather + numRawColumnsToGather);
+      gatheredRawValues.resize(numRows * numRawColumnsToGather);
+      gatheredRawTestValues.resize(numTestRows * numRawColumnsToGather);
+      gatheredMeans.resize(numRawColumnsToGather);
+      gatheredSds.resize(numRawColumnsToGather);
+      for (size_t k = 0; k < numRawColumnsToGather; ++k) {
+        const double* parentColumn =
+          parent.x + rawColumnsToGather[k] * parent.numObservations;
+        double* values = gatheredRawValues.data() + k * numRows;
+        for (size_t i = 0; i < numRows; ++i)
+          values[i] = parentColumn[rows[i]];
+        double* testValues = gatheredRawTestValues.data() + k * numTestRows;
+        for (size_t i = 0; i < numTestRows; ++i)
+          testValues[i] = parentColumn[testRows[i]];
+        standardizationMomentsForColumn(parentColumn, parent.numObservations,
+                                        gatheredMeans.data() + k,
+                                        gatheredSds.data() + k);
+      }
+    }
     for (size_t j = 0; j < numPredictors; ++j) {
       const xint_t* parentColumn =
         parent.codes.data() + j * parent.numObservations;
