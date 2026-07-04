@@ -15,6 +15,18 @@ using std::size_t;
 /// docs/design/core-generalization.md), uint16_t matches the classic engine.
 using xint_t = std::uint16_t;
 
+/// Reserved code for a missing ordinal value; cut counts cap below it so
+/// real codes (which reach numCuts) never collide.
+constexpr xint_t naCode = 0xFFFFu;
+constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFEu - 1u;
+
+/// Missing categorical values take the fixed category position 63 - above
+/// the 53-category cap - so the reachable-mask machinery routes them like
+/// any other category and the missing direction is bit 63 of a rule.
+constexpr std::uint32_t naCategory = 63;
+
+inline bool isNA(double value) { return value != value; }
+
 /// Column types the store distinguishes. Ordinal columns quantize against
 /// cut points and split by threshold; categorical columns hold integer
 /// category codes 0..numCategories-1 directly and split by subset. Category
@@ -45,6 +57,10 @@ struct ColumnStore {
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
   std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
+  // per column, whether any training value is missing; gates the extra
+  // missing-direction draw in rules and the NA-aware partition kernel, so
+  // NA-free columns keep today's draws and code paths exactly
+  std::vector<std::uint8_t> hasMissing;
 
   size_t numTestObservations = 0;
   const double* x_test = nullptr;  // borrowed, column-major
@@ -55,10 +71,13 @@ struct ColumnStore {
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
   // with value > all cuts mapping to numCuts (always right of any split);
-  // categorical codes are the values themselves.
+  // categorical codes are the values themselves. Missing values take the
+  // reserved codes.
   xint_t codeFor(size_t variable, double value) const {
     if (types[variable] == ColumnType::categorical)
-      return static_cast<xint_t>(value);
+      return isNA(value) ? static_cast<xint_t>(naCategory)
+                         : static_cast<xint_t>(value);
+    if (isNA(value)) return naCode;
     const std::vector<double>& cuts = cutPoints[variable];
     std::uint32_t k = 0;
     while (k < numCuts[variable] && value > cuts[k]) ++k;
@@ -66,8 +85,9 @@ struct ColumnStore {
   }
 
   /// A categorical value is representable when it is an integral code of an
-  /// existing category; the category count is fixed once built.
+  /// existing category or missing; the category count is fixed once built.
   bool categoricalValueIsValid(size_t variable, double value) const {
+    if (isNA(value)) return true;
     return value >= 0.0 && value < static_cast<double>(numCuts[variable]) &&
            value == static_cast<double>(static_cast<xint_t>(value));
   }
@@ -82,14 +102,19 @@ struct ColumnStore {
 
   QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
     QuantileGrid grid;
-    grid.sortedUnique.assign(values, values + numObservations);
+    grid.sortedUnique.reserve(numObservations);
+    // NaN would break the sort's ordering; the grid is over observed values
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i]);
     std::sort(grid.sortedUnique.begin(), grid.sortedUnique.end());
     grid.sortedUnique.erase(
       std::unique(grid.sortedUnique.begin(), grid.sortedUnique.end()),
       grid.sortedUnique.end());
 
     size_t numUnique = grid.sortedUnique.size();
-    if (numUnique <= static_cast<size_t>(maxNumCuts[j]) + 1) {
+    if (numUnique <= 1) {  // constant or fully missing column
+      grid.inducedNumCuts = 0;
+    } else if (numUnique <= static_cast<size_t>(maxNumCuts[j]) + 1) {
       grid.inducedNumCuts = static_cast<std::uint32_t>(numUnique - 1);
     } else {
       grid.inducedNumCuts = maxNumCuts[j];
@@ -111,10 +136,17 @@ struct ColumnStore {
 
   void fillCutsUniformly(size_t j) {
     const double* column = x + j * numObservations;
-    double xMin = column[0], xMax = column[0];
-    for (size_t i = 1; i < numObservations; ++i) {
-      if (column[i] < xMin) xMin = column[i];
-      if (column[i] > xMax) xMax = column[i];
+    // the range is over observed values; NaN never satisfies a comparison,
+    // so only the seed needs the explicit skip
+    double xMin = 0.0, xMax = 0.0;
+    size_t i = 0;
+    while (i < numObservations && isNA(column[i])) ++i;
+    if (i < numObservations) {
+      xMin = xMax = column[i];
+      for (++i; i < numObservations; ++i) {
+        if (column[i] < xMin) xMin = column[i];
+        if (column[i] > xMax) xMax = column[i];
+      }
     }
     cutPoints[j].resize(numCuts[j]);
     double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
@@ -127,10 +159,11 @@ struct ColumnStore {
   void buildCutsForColumn(size_t j) {
     if (types[j] == ColumnType::categorical) {
       const double* column = x + j * numObservations;
-      double maxValue = column[0];
-      for (size_t i = 1; i < numObservations; ++i)
-        if (column[i] > maxValue) maxValue = column[i];
-      numCuts[j] = static_cast<std::uint32_t>(maxValue) + 1;
+      double maxValue = -1.0;
+      for (size_t i = 0; i < numObservations; ++i)
+        if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
+      numCuts[j] = maxValue < 0.0
+        ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
       cutPoints[j].clear();
     } else if (useQuantiles) {
       QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
@@ -186,8 +219,13 @@ struct ColumnStore {
 
   void quantizeColumn(size_t j) {
     const double* column = x + j * numObservations;
-    for (size_t i = 0; i < numObservations; ++i)
-      codes[i + j * numObservations] = codeFor(j, column[i]);
+    std::uint8_t anyMissing = 0;
+    for (size_t i = 0; i < numObservations; ++i) {
+      xint_t code = codeFor(j, column[i]);
+      if (isNA(column[i])) anyMissing = 1;
+      codes[i + j * numObservations] = code;
+    }
+    hasMissing[j] = anyMissing;
   }
 
   void quantizeTestColumn(size_t j) {
@@ -213,7 +251,12 @@ struct ColumnStore {
     cutPoints.resize(p);
     numCuts.resize(p);
     maxNumCuts.assign(maxNumCuts_, maxNumCuts_ + p);
+    // keep the reserved missing code out of the real code range
+    for (size_t j = 0; j < p; ++j)
+      if (maxNumCuts[j] > maxNumCutsRepresentable)
+        maxNumCuts[j] = maxNumCutsRepresentable;
     codes.resize(n * p);
+    hasMissing.assign(p, 0);
 
     for (size_t j = 0; j < p; ++j) {
       buildCutsForColumn(j);
@@ -254,11 +297,17 @@ struct ColumnStore {
     numCuts = parent.numCuts;
     maxNumCuts = parent.maxNumCuts;
     codes.resize(numRows * numPredictors);
+    hasMissing.assign(numPredictors, 0);
     for (size_t j = 0; j < numPredictors; ++j) {
       const xint_t* parentColumn =
         parent.codes.data() + j * parent.numObservations;
+      xint_t missingCode = types[j] == ColumnType::categorical
+        ? static_cast<xint_t>(naCategory) : naCode;
       xint_t* column = codes.data() + j * numRows;
-      for (size_t i = 0; i < numRows; ++i) column[i] = parentColumn[rows[i]];
+      for (size_t i = 0; i < numRows; ++i) {
+        column[i] = parentColumn[rows[i]];
+        if (column[i] == missingCode) hasMissing[j] = 1;
+      }
     }
     x_test = nullptr;
     numTestObservations = numTestRows;
@@ -300,9 +349,13 @@ struct ColumnStore {
   }
 
   /// Overwrite a single cell in place, re-quantizing against existing cuts.
+  /// A missing value marks the column; the flag only clears on a full
+  /// column re-quantize (conservative but never wrong - the NA-aware
+  /// partition handles columns without missing values too).
   void setCell(size_t i, size_t j, double value) {
     const_cast<double*>(x)[i + j * numObservations] = value;
     codes[i + j * numObservations] = codeFor(j, value);
+    if (isNA(value)) hasMissing[j] = 1;
   }
 
   /// Whole-data replacement: new values for the same predictors, possibly a

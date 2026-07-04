@@ -6,7 +6,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
                   seed = NA_integer_,
                   factors = c("categorical", "indicators"),
-                  family = c("auto", "gaussian", "probit", "logistic"))
+                  family = c("auto", "gaussian", "probit", "logistic"),
+                  missing = c("incorporate", "error"))
 {
   matchedCall <- match.call()
 
@@ -26,7 +27,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@updateState <- FALSE
   control@verbose <- FALSE
 
-  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset, factors)
+  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset, factors, missing)
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
   data@sigma  <- sigma
@@ -47,7 +48,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@binary <- family != "gaussian"
 
   if (is.na(data@sigma) && !control@binary)
-    data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
+    data@sigma <- estimateSigmaFromLinearModel(data)
 
   if (control@binary && is.null(matchedCall[["resid.prior"]]))
     matchedCall[["resid.prior"]] <- quote(fixed(1))

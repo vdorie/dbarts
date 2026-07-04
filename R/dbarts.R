@@ -130,7 +130,8 @@ dbarts <- function(
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic")
+  family = c("auto", "gaussian", "probit", "logistic"),
+  missing = c("incorporate", "error")
 ) {
   matchedCall <- match.call()
 
@@ -178,11 +179,7 @@ dbarts <- function(
 
   if (is.na(data@sigma) && !control@binary) {
     tryResult <- tryCatch(
-      data@sigma <- summary(lm(
-        data@y ~ data@x,
-        weights = data@weights,
-        offset = data@offset
-      ))$sigma,
+      data@sigma <- estimateSigmaFromLinearModel(data),
       error = function(e) e
     )
     if (inherits(tryResult, "error")) {
@@ -502,6 +499,10 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
+      if (data@missing == "error" &&
+          (anyNA(newData@x) ||
+           (!is.null(newData@x.test) && anyNA(newData@x.test))))
+        stop("new predictors contain missing values and the sampler was built with missing = \"error\"")
       bartcoreSamplerSetData(.self, newData)
     },
     setResponse = function(y, updateState = NA) {
@@ -547,6 +548,8 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing."
 
+      if (data@missing == "error" && anyNA(x))
+        stop("new predictors contain missing values and the sampler was built with missing = \"error\"")
       bartcoreSamplerSetPredictor(
         .self,
         x,
@@ -567,6 +570,8 @@ dbartsSampler <- setRefClass(
     setTestPredictor = function(x.test, column) {
       'Changes a single column of the test predictor matrix.'
 
+      if (data@missing == "error" && anyNA(x.test))
+        stop("new test predictors contain missing values and the sampler was built with missing = \"error\"")
       bartcoreSamplerSetTestPredictor(
         .self,
         x.test,
@@ -575,6 +580,8 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       'Changes the test predictor matrix, and optionally the test offset.'
+      if (data@missing == "error" && !is.null(x.test) && anyNA(x.test))
+        stop("new test predictors contain missing values and the sampler was built with missing = \"error\"")
       if (missing(offset.test)) {
         # predictors only; the engine keeps the current offset and the
         # bridge refuses if the row count would orphan its length
@@ -835,6 +842,9 @@ dbartsSampler <- setRefClass(
       # column can hold one, decode the masks into per-level L/R strings
       if (any(data@varTypes == CATEGORICAL_VARIABLE))
         trees <- decodeCategoricalSplits(trees, data@x, data@varTypes)
+      # rules on columns with missing values report their NA route
+      if (!is.null(trees$missing))
+        trees$missing <- c("L", "R")[trees$missing + 1L]
       trees
     },
     plotTree = function(

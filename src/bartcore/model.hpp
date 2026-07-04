@@ -113,7 +113,13 @@ struct CGMTreePrior {
     }
     int32_t left, right;
     tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
-    return -std::log(static_cast<double>(right - left + 1));
+    double logNumRules = std::log(static_cast<double>(right - left + 1));
+    // a column with missing values widens every rule by its two-way
+    // missing direction (the categorical count absorbs the missing
+    // category through the reachable mask instead)
+    if (data.hasMissing[static_cast<size_t>(variableIndex)])
+      logNumRules += std::log(2.0);
+    return -logNumRules;
   }
 
   double treeLogProbability(const Tree& tree, const ColumnStore& data,
@@ -199,14 +205,20 @@ struct CGMTreePrior {
         tree.reachableCategories(data, nodeIndex, variableIndex);
       int numReachable = std::popcount(reachable);
       std::uint64_t pattern = drawCategoryPattern(rng, numReachable);
-      result.categoryDirections = categoryDirectionsForPattern(reachable, pattern);
+      result.setCategoryDirections(
+        categoryDirectionsForPattern(reachable, pattern));
       return result;
     }
 
     int32_t left, right;
     tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
-    result.splitIndex = static_cast<int32_t>(
-      ext_rng_simulateIntegerUniformInRange(rng, left, right + 1));
+    result.setSplitIndex(static_cast<int32_t>(
+      ext_rng_simulateIntegerUniformInRange(rng, left, right + 1)));
+    // the missing direction is part of the rule, a symmetric coin drawn
+    // only when the column can route a missing value - NA-free data spends
+    // no extra generator draws
+    if (data.hasMissing[static_cast<size_t>(variableIndex)])
+      result.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
     return result;
   }
 

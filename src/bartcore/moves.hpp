@@ -274,8 +274,8 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
       const Node& node(tree.at(i));
       if (node.isBottom()) return;
       if (node.rule.variableIndex == variableIndex) {
-        if (node.rule.splitIndex < *min) *min = node.rule.splitIndex;
-        if (node.rule.splitIndex > *max) *max = node.rule.splitIndex;
+        if (node.rule.splitIndex() < *min) *min = node.rule.splitIndex();
+        if (node.rule.splitIndex() > *max) *max = node.rule.splitIndex();
       }
       minMax(tree, node.leftChild, variableIndex, min, max);
       minMax(tree, node.leftChild + 1, variableIndex, min, max);
@@ -339,7 +339,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
                                     newVariableIndex, reachable & ~directions) &&
           categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild + 1,
                                     newVariableIndex, directions)) {
-        newRule.categoryDirections = directions;
+        newRule.setCategoryDirections(directions);
         found = true;
       }
     }
@@ -349,8 +349,12 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
     if (upper - lower + 1 <= 0) return -1.0;
 
-    newRule.splitIndex = static_cast<int32_t>(
-      ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1));
+    newRule.setSplitIndex(static_cast<int32_t>(
+      ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1)));
+    // like the birth draw: the missing direction is a fresh symmetric coin
+    // whenever the column can route a missing value
+    if (ctx.data.hasMissing[static_cast<size_t>(newVariableIndex)])
+      newRule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
   }
 
   double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
@@ -385,7 +389,7 @@ inline bool ordinalRuleIsValid(const Tree& tree, int32_t nodeIndex,
   if (node.isBottom()) return true;
 
   if (node.rule.variableIndex == variableIndex) {
-    int32_t splitIndex = node.rule.splitIndex;
+    int32_t splitIndex = node.rule.splitIndex();
     if (splitIndex < leftIndex || splitIndex > rightIndex) return false;
     return ordinalRuleIsValid(tree, node.leftChild, variableIndex, leftIndex,
                               splitIndex - 1) &&
@@ -410,7 +414,7 @@ inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
   if (node.isBottom()) return true;
 
   if (node.rule.variableIndex == variableIndex) {
-    std::uint64_t directions = node.rule.categoryDirections;
+    std::uint64_t directions = node.rule.categoryDirections();
     if ((directions & ~reachable) != 0 || directions == 0 ||
         directions == reachable)
       return false;

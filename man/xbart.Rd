@@ -14,7 +14,8 @@ xbart(
     resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"))
+    family = c("auto", "gaussian", "probit", "logistic"),
+    missing = c("incorporate", "error"))
 }
 \arguments{
   \item{formula}{
@@ -88,6 +89,9 @@ xbart(
    }
    \item{family}{
      The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. The built-in binary losses transform test predictions through the family's link.
+   }
+   \item{missing}{
+     How missing values in the predictors enter the model; as in \code{\link{dbarts}}.
    }
 }
 \details{

@@ -556,6 +556,7 @@ void validateCategoricalPredictors(const ParsedData& data) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
     for (size_t i = 0; i < data.numObservations; ++i) {
       double value = data.x[i + j * data.numObservations];
+      if (bartcore::isNA(value)) continue;  // the reserved missing category
       if (value < 0.0 ||
           value >= static_cast<double>(bartcore::maxCategories) ||
           value != std::floor(value))
@@ -571,10 +572,11 @@ void validateCategoricalPredictors(const ParsedData& data) {
       double maxValue = 0.0;
       for (size_t i = 0; i < data.numObservations; ++i) {
         double value = data.x[i + j * data.numObservations];
-        if (value > maxValue) maxValue = value;
+        if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
       }
       for (size_t i = 0; i < data.numTestObservations; ++i) {
         double value = data.x_test[i + j * data.numTestObservations];
+        if (bartcore::isNA(value)) continue;
         if (value < 0.0 || value > maxValue || value != std::floor(value))
           Rf_error("categorical test predictors must hold existing category "
                    "codes");
@@ -1594,7 +1596,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 // flattened trees as three parallel R vectors: concatenated 1-based-with-(-1)
 // variables, values, and per-tree node counts
 static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
-                           int sizesSlot,
+                           int sizesSlot, int flagsSlot,
                            const std::vector<std::vector<bartcore::FlatNode>>& trees) {
   R_xlen_t totalNumNodes = 0;
   for (const std::vector<bartcore::FlatNode>& tree : trees)
@@ -1605,10 +1607,12 @@ static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
   SET_VECTOR_ELT(chainExpr, valuesSlot, Rf_allocVector(REALSXP, totalNumNodes));
   SET_VECTOR_ELT(chainExpr, sizesSlot,
                  Rf_allocVector(INTSXP, static_cast<R_xlen_t>(trees.size())));
+  SET_VECTOR_ELT(chainExpr, flagsSlot, Rf_allocVector(RAWSXP, totalNumNodes));
 
   int* variables = INTEGER(VECTOR_ELT(chainExpr, variablesSlot));
   double* values = REAL(VECTOR_ELT(chainExpr, valuesSlot));
   int* sizes = INTEGER(VECTOR_ELT(chainExpr, sizesSlot));
+  Rbyte* flags = RAW(VECTOR_ELT(chainExpr, flagsSlot));
   R_xlen_t offset = 0;
   for (size_t t = 0; t < trees.size(); ++t) {
     sizes[t] = static_cast<int>(trees[t].size());
@@ -1616,6 +1620,7 @@ static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
       variables[offset] = node.variable >= 0 ? node.variable + 1
                                              : node.variable;
       values[offset] = node.value;
+      flags[offset] = node.flags;
       ++offset;
     }
   }
@@ -1624,14 +1629,19 @@ static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
 // the inverse; errorMessage is set instead of erroring so callers can clean
 // up C++ state first
 static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
+                          SEXP flagsExpr,
                           std::vector<std::vector<bartcore::FlatNode>>& trees,
                           const char** errorMessage) {
   if (!Rf_isInteger(variablesExpr) || !Rf_isReal(valuesExpr) ||
       !Rf_isInteger(sizesExpr) ||
-      Rf_xlength(variablesExpr) != Rf_xlength(valuesExpr)) {
+      Rf_xlength(variablesExpr) != Rf_xlength(valuesExpr) ||
+      (!Rf_isNull(flagsExpr) &&
+       (TYPEOF(flagsExpr) != RAWSXP ||
+        Rf_xlength(flagsExpr) != Rf_xlength(variablesExpr)))) {
     *errorMessage = "malformed trees in bartcore state";
     return false;
   }
+  const Rbyte* flags = Rf_isNull(flagsExpr) ? NULL : RAW(flagsExpr);
   R_xlen_t numTrees = Rf_xlength(sizesExpr);
   const int* variables = INTEGER(variablesExpr);
   const double* values = REAL(valuesExpr);
@@ -1660,6 +1670,7 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
       int variable = variables[offset];
       node.variable = variable >= 1 ? variable - 1 : bartcore::invalidVariable;
       node.value = values[offset];
+      node.flags = flags != NULL ? static_cast<std::uint8_t>(flags[offset]) : 0;
       ++offset;
     }
   }
@@ -1873,15 +1884,18 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   size_t numObservations = sampler.numObservations();
 
   enum {
-    SLOT_TREE_VARS = 0, SLOT_TREE_VALUES, SLOT_TREE_SIZES, SLOT_SAVED_VARS,
-    SLOT_SAVED_VALUES, SLOT_SAVED_SIZES, SLOT_TOTAL_FITS, SLOT_INDICES,
+    SLOT_TREE_VARS = 0, SLOT_TREE_VALUES, SLOT_TREE_SIZES, SLOT_TREE_FLAGS,
+    SLOT_SAVED_VARS,
+    SLOT_SAVED_VALUES, SLOT_SAVED_SIZES, SLOT_SAVED_FLAGS, SLOT_TOTAL_FITS,
+    SLOT_INDICES,
     SLOT_SIGMA, SLOT_K, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
     SLOT_RNG_STATE, SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
-    "tree.vars", "tree.values", "tree.sizes", "saved.vars", "saved.values",
-    "saved.sizes", "total.fits", "indices", "sigma", "k", "fit.scale",
+    "tree.vars", "tree.values", "tree.sizes", "tree.flags", "saved.vars",
+    "saved.values", "saved.sizes", "saved.flags", "total.fits", "indices",
+    "sigma", "k", "fit.scale",
     "latents", "dart.probabilities", "dart.alpha", "dart.updates.skipped",
     "rng.state"
   };
@@ -1898,10 +1912,11 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     Rf_setAttrib(chainExpr, R_NamesSymbol, slotNamesExpr);
 
     storeFlatTrees(chainExpr, SLOT_TREE_VARS, SLOT_TREE_VALUES,
-                   SLOT_TREE_SIZES, chainState.trees);
+                   SLOT_TREE_SIZES, SLOT_TREE_FLAGS, chainState.trees);
     if (!chainState.savedTrees.empty())
       storeFlatTrees(chainExpr, SLOT_SAVED_VARS, SLOT_SAVED_VALUES,
-                     SLOT_SAVED_SIZES, chainState.savedTrees);
+                     SLOT_SAVED_SIZES, SLOT_SAVED_FLAGS,
+                     chainState.savedTrees);
 
     SET_VECTOR_ELT(chainExpr, SLOT_TOTAL_FITS,
                    Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
@@ -2026,13 +2041,16 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     if (!readFlatTrees(getListElement(chainExpr, "tree.vars"),
                        getListElement(chainExpr, "tree.values"),
                        getListElement(chainExpr, "tree.sizes"),
+                       getListElement(chainExpr, "tree.flags"),
                        chainState.trees, &errorMessage))
       break;
     SEXP savedSizesExpr = getListElement(chainExpr, "saved.sizes");
     if (!Rf_isNull(savedSizesExpr) &&
         !readFlatTrees(getListElement(chainExpr, "saved.vars"),
                        getListElement(chainExpr, "saved.values"),
-                       savedSizesExpr, chainState.savedTrees, &errorMessage))
+                       savedSizesExpr,
+                       getListElement(chainExpr, "saved.flags"),
+                       chainState.savedTrees, &errorMessage))
       break;
 
     SEXP totalFitsExpr = getListElement(chainExpr, "total.fits");
@@ -2138,9 +2156,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
 // A data.frame of tree structure in the classic engine's format: pre-order
 // rows of ([chain,] [sample,] tree, n, var, value), var 1-based with -1
 // marking leaves, split values as data values (an ordinal rule's cut point,
-// a categorical rule's direction mask), leaf values on the engine's internal
-// response scale. Saved trees replay the training predictors for n unless
-// newdata is supplied; live trees report their own counts.
+// a categorical rule's mask over observed categories), leaf values on the
+// engine's internal response scale. When any predictor contains missing
+// values a 'missing' integer column reports each rule's missing direction
+// (0 left, 1 right; NA on leaves and on columns without missing values).
+// Saved trees replay the training predictors for n unless newdata is
+// supplied; live trees report their own counts.
 SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t numChainIndices, const size_t* sampleIndices,
               size_t numSampleIndices, const size_t* treeIndices,
@@ -2175,8 +2196,12 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     replay = true;
   }
 
+  bool anyMissing = false;
+  for (size_t j = 0; j < store.numPredictors; ++j)
+    if (store.hasMissing[j]) { anyMissing = true; break; }
+
   std::vector<int> chainColumn, sampleColumn, treeColumn, countColumn,
-    variableColumn;
+    variableColumn, missingColumn;
   std::vector<double> valueColumn;
   std::vector<bartcore::FlatNode> liveNodes;
   std::vector<std::uint32_t> counts;
@@ -2213,6 +2238,12 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
           variableColumn.push_back(
             node.variable >= 0 ? node.variable + 1 : node.variable);
           valueColumn.push_back(node.value);
+          if (anyMissing)
+            missingColumn.push_back(
+              node.variable >= 0 &&
+                  store.hasMissing[static_cast<size_t>(node.variable)]
+                ? static_cast<int>(node.flags & bartcore::flatMissingGoesRight)
+                : NA_INTEGER);
         }
       }
     }
@@ -2220,7 +2251,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
 
   R_xlen_t totalNumNodes = static_cast<R_xlen_t>(valueColumn.size());
   R_xlen_t numColumns = 4 + (sampler.numChains() > 1 ? 1 : 0) +
-                        (useSaved ? 1 : 0);
+                        (useSaved ? 1 : 0) + (anyMissing ? 1 : 0);
 
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numColumns));
   SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, numColumns));
@@ -2261,6 +2292,14 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("value"));
   std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)), valueColumn.data(),
               valueColumn.size() * sizeof(double));
+  if (anyMissing) {
+    ++columnNum;
+    SET_VECTOR_ELT(resultExpr, columnNum,
+                   Rf_allocVector(INTSXP, totalNumNodes));
+    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("missing"));
+    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)),
+                missingColumn.data(), missingColumn.size() * sizeof(int));
+  }
 
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 

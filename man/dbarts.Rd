@@ -13,7 +13,8 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"))}
+    family = c("auto", "gaussian", "probit", "logistic"),
+    missing = c("incorporate", "error"))}
 \arguments{
   \item{formula}{
     An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}.
@@ -62,6 +63,9 @@ dbarts(
   }
   \item{family}{
     The response model. \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, as always. \code{"gaussian"} forces a continuous fit even for a 0/1 response; \code{"probit"} and \code{"logistic"} require a 0/1 response and fit latent-variable models, with fits and predictions on the latent scale. \code{"logistic"} uses Polya-Gamma augmentation and does not support \code{weights}.
+  }
+  \item{missing}{
+    How missing values in the predictors enter the model. The default \code{"incorporate"} keeps them: every split rule learns a direction for missing values on its variable, so an observation whose split value is \code{NA} follows that rule's chosen branch (\dQuote{Missingness Incorporated in Attributes}, Twala et al. 2008), in training and test data alike. \code{"error"} rejects predictors containing \code{NA}. The response, \code{weights}, and \code{offset} must always be complete; note that previous versions silently dropped incomplete rows for formula inputs.
   }
 }
 \details{

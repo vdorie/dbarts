@@ -102,6 +102,21 @@
             a `directions` column decoding each rule into one "L"/"R"
             character per level. `plotTree` labels categorical rules with
             the levels sent down the left branch.
+      \item Missing values in the predictors are supported. Under
+            `missing = "incorporate"`, the default on `dbarts`,
+            `dbartsData`, `bart2`, `xbart`, and `rbart_vi`, every split
+            rule learns a direction for missing values of its variable,
+            so an NA observation follows that rule's chosen branch in
+            training and test data alike (Missingness Incorporated in
+            Attributes; Twala et al. 2008). `missing = "error"` rejects
+            incomplete predictors. The response, weights, and offset must
+            be complete, and predictor columns cannot be entirely
+            missing; formula inputs previously na.omit-dropped incomplete
+            rows silently, and matrix inputs silently mis-coded NAs.
+            `getTrees` reports each rule's missing route in a `missing`
+            column and `plotTree` appends it to rule labels. `bart` keeps
+            rejecting missing data. Fits on complete data are unchanged,
+            drawing the same random stream as before.
       \item The bartcore engine implements the full `dbartsSampler`
             interface: every method works, including `keepTrees`,
             `getTrees`, `predict`, `plotTree`, `setWeights`, test offsets,

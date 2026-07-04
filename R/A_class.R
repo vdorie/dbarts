@@ -257,6 +257,7 @@ methods::setClass("dbartsData",
     offset.test  = "numericOrNULL",
     n.cuts       = "integer",
     sigma        = "numeric",
+    missing      = "character",
     
     testUsesRegularOffset   = "logical"
   ),
@@ -271,6 +272,7 @@ methods::setClass("dbartsData",
     offset.test  = NULL,
     n.cuts       = integer(0),
     sigma        = NA_real_,
+    missing      = "incorporate",
 
     testUsesRegularOffset   = NA
   )
@@ -311,6 +313,9 @@ methods::setValidity("dbartsData",
     
     if (!is.na(object@sigma) && object@sigma <= 0.0)
       return("'sigma' must be positive")
+    if (length(object@missing) != 1L ||
+        !(object@missing %in% c("incorporate", "error")))
+      return("'missing' must be \"incorporate\" or \"error\"")
 
     TRUE
   })

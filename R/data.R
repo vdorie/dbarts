@@ -45,7 +45,8 @@ validateXTest <- function(x.test, x.train)
   if (is.numeric(x.test) && NCOL(x.test) == 0L) return(NULL)
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels))
-      x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test)
+      x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test,
+                            na.action = stats::na.pass)
     if (!is.null(factorLevels)) {
       # trained with factors unexpanded: code against the training levels
       x.test <- mapFactorColumnsToTrainingLevels(x.test, predictorNames, factorLevels)
@@ -171,7 +172,8 @@ getTestOffset <- quote({
 })
 
 dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset,
-                       factors = c("categorical", "indicators"))
+                       factors = c("categorical", "indicators"),
+                       missing = c("incorporate", "error"))
 {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
@@ -187,6 +189,9 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     makeCategoricalModelMatrix
   else
     makeModelMatrixFromDataFrame
+  # "incorporate" keeps NAs in the predictors - the trees route them by
+  # learned per-rule directions; "error" rejects them
+  missing <- match.arg(missing)
   
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
@@ -225,7 +230,9 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     modelFrameCall <- matchedCall
     modelFrameCall <- modelFrameCall[c(1L, match(modelFrameArgs, names(modelFrameCall), nomatch = 0L))]
     modelFrameCall$drop.unused.levels <- FALSE
-    modelFrameCall$na.action <- stats::na.omit
+    # incomplete predictor rows stay; completeness is validated below
+    # (previous versions silently na.omit-dropped them)
+    modelFrameCall$na.action <- stats::na.pass
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
     if (identical(offsetGivenAsScalar, FALSE)) modelFrameCall$offset <- offset
@@ -382,6 +389,22 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     }
   }
   
-  methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, weights.test, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
+  # missingness is a predictor-only feature: rules route NAs in x, but the
+  # response side must be complete
+  if (anyNA(y)) stop("response contains missing values")
+  if (anyNA(x) && any(colSums(!is.na(x)) == 0L))
+    stop("predictor columns cannot be entirely missing")
+  if (!is.null(offset) && anyNA(offset)) stop("'offset' contains missing values")
+  if (!is.null(offset.test) && anyNA(offset.test)) stop("'offset.test' contains missing values")
+  if (missing == "error") {
+    if (anyNA(x))
+      stop("predictors contain missing values; use missing = \"incorporate\" to model them")
+    if (!is.null(x.test) && anyNA(x.test))
+      stop("test predictors contain missing values; use missing = \"incorporate\" to model them")
+  }
+
+  result <- methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, weights.test, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
+  result@missing <- missing
+  result
 }
 
