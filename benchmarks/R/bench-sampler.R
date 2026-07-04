@@ -16,11 +16,10 @@ suppressPackageStartupMessages(library(dbarts))
 args  <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 args  <- setdiff(args, "quick")
-# engine=new times the bartcore engine, so recording under classic and
-# comparing under engine=new measures the cross-engine gap on one build
-useNewEngine <- "engine=new" %in% args
+# engine=new is accepted for compatibility with old invocations; the
+# installed package always runs the bartcore engine now (compare against
+# classic recordings made before its removal)
 args  <- setdiff(args, "engine=new")
-engine <- if (useNewEngine) "bartcore" else "classic"
 mode  <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
@@ -33,7 +32,7 @@ genFriedman <- function(n, p = 10L) {
 newSampler <- function(x, y, n.trees) {
   control <- dbartsControl(
     verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
-    updateState = FALSE, engine = engine
+    updateState = FALSE
   )
   dbarts(x, y, control = control)
 }

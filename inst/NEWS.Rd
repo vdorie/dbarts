@@ -4,14 +4,16 @@
 \section{CHANGES IN VERSION 0.9-34}{
   \subsection{NEW FEATURES}{
     \itemize{
-      \item The bartcore engine is now the default: every fitting
-            function runs on it unless `engine = "classic"` is requested
-            through `dbartsControl`. Fits are statistically equivalent to
-            the classic engine's but not draw-for-draw identical, so
-            seeded results change. `bart` keeps its historical behavior
-            apart from the engine (indicator expansion of factors, probit
-            for binary responses). The classic engine is scheduled for
-            removal.
+      \item The bartcore engine replaces the classic engine: every
+            fitting function runs on it. Fits are statistically
+            equivalent to the classic engine's but not draw-for-draw
+            identical, so seeded results change. `bart` keeps its
+            historical behavior apart from the engine (indicator
+            expansion of factors, probit for binary responses).
+            `dbartsControl` loses the `engine`, `rngKind`, and
+            `rngNormalKind` arguments; explicit generator kinds were a
+            classic-engine feature. Saved sampler states from previous
+            versions cannot be restored.
       \item A flat C interface for packages compiling against dbarts,
             `dbarts/dbarts.h`: an opaque sampler handle over the bartcore
             engine, created from the R specification objects, with entry
@@ -20,19 +22,17 @@
             data), latents, prediction, tree storage and introspection,
             and state save and restore. Entry points are reached through
             `R_GetCCallable` and versioned by `DBARTS_C_API_VERSION`.
-            The C++ interface in `dbarts/R_C_interface.hpp` still works
-            and is scheduled for removal with the classic engine.
-      \item On the bartcore engine, `rngSeed` makes results reproducible
-            for any number of chains without touching R's stream, and
-            seeded results no longer depend on the thread count. Without
-            a seed, multi-chain samplers seed their generators from R's
-            stream, so `set.seed` alone suffices for reproducibility
-            (the classic engine seeded such chains from the clock).
-            `rngKind`/`rngNormalKind` remain classic-only and the
-            bartcore engine refuses them.
-      \item `resid.prior = fixed(value)` now follows its documentation on
-            the bartcore engine: the residual standard deviation holds at
-            `sqrt(value)`, at creation and through `setModel` alike. The
+            It replaces the C++ interface in `dbarts/R_C_interface.hpp`,
+            which is scheduled for removal.
+      \item `rngSeed` makes results reproducible for any number of
+            chains without touching R's stream, and seeded results no
+            longer depend on the thread count. Without a seed,
+            multi-chain samplers seed their generators from R's stream,
+            so `set.seed` alone suffices for reproducibility (the
+            classic engine seeded such chains from the clock).
+      \item `resid.prior = fixed(value)` now follows its documentation:
+            the residual standard deviation holds at `sqrt(value)`, at
+            creation and through `setModel` alike. The
             classic engine ignored the value at creation (holding sigma
             at its starting estimate) and installed it as a standard
             deviation in `setModel`.
@@ -54,14 +54,14 @@
       \item `tree.prior = dart(...)` runs DART (Linero 2018), a Dirichlet
             prior over the split-variable probabilities inducing variable
             selection, with optional sampling of the concentration.
-            Requires `engine = "bartcore"`. `bart2` exposes it through a
+            `bart2` exposes it through a
             `dart` argument taking `TRUE` or a full prior specification.
             Runs return the per-sample probabilities alongside the
             variable counts, as `varprobs` in the sampler's results and
             on `bart2` fits.
       \item `xbart` is reimplemented as an R-level driver over the sampler
-            interface and runs on the engine its `control` selects, gaining
-            every engine feature. Chains now warm-start only across
+            interface, gaining every sampler feature. Chains now warm-start
+            only across
             parameter settings over the same data split, never across
             folds or replications: the retired implementation carried
             chains between splits whose held-out rows the previous
@@ -77,9 +77,9 @@
             existing dispatch (gaussian for continuous responses, probit
             for 0/1), `"gaussian"` forces a continuous fit even for a 0/1
             response, and `"logistic"` fits a logistic latent model via
-            Polya-Gamma augmentation on the bartcore engine. Binary
+            Polya-Gamma augmentation. Binary
             families do not support weights (the weighted probit the
-            classic engine fits is incorrect and is not carried forward).
+            classic engine fit was incorrect and is not carried forward).
             Fits returned by `bart`, `bart2`, and `rbart_vi` record the
             resolved family in a `family` element, and `predict`,
             `extract`, `fitted`, and `plot` transform latent draws
@@ -88,18 +88,18 @@
       \item Under `factors = "categorical"`, splits send a subset of a
             factor's levels (at most 53) down each branch; ordered factors
             are coded as ordinal. Level tables are retained so test data
-            are coded identically, with unseen levels an error. Requires
-            `engine = "bartcore"`.
+            are coded identically, with unseen levels an error.
       \item The bartcore engine implements the full `dbartsSampler`
             interface: every method works, including `keepTrees`,
             `getTrees`, `predict`, `plotTree`, `setWeights`, test offsets,
             `printTrees`, sampling from the prior, `setControl`,
             `setModel`, verbose progress output, and saving/loading
             sampler state (a restored sampler continues bitwise
-            identically; the stored state is engine-specific). Not
-            supported there: weights with binary responses, and
-            `setControl` changes to settings fixed at creation (chain/tree
-            counts, generators, the cut grid).
+            identically; the stored state is opaque and incompatible with
+            states saved by previous versions). Not supported: weights
+            with binary responses, and `setControl` changes to settings
+            fixed at creation (chain/tree counts, generators, the cut
+            grid).
       \item `setPredictor` accepts `forceUpdate = "partial"`, installing a column
             one observation at a time and rolling back only those that would empty
             a node.

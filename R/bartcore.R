@@ -1,15 +1,11 @@
-# The bartcore engine behind dbartsSampler(control = dbartsControl(engine =
-# "bartcore")). The dbartsSampler methods delegate to the bartcoreSampler*
-# functions below, which mirror the classic methods' semantics; the C side
-# borrows vectors and pins them in the external pointer's protection slot.
+# The bartcore engine behind dbartsSampler. The dbartsSampler methods
+# delegate to the bartcoreSampler* functions below; the C side borrows
+# vectors and pins them in the external pointer's protection slot.
 #
 # Not supported (methods error): weights with binary responses (the classic
-# engine's probit weighting is incorrect and was stripped rather than
-# ported), and setControl changes to anything fixed at creation (the engine,
-# chain/tree counts, generators, and the cut grid). The classic
-# Control::callback has no equivalent here: it is reachable only through the
-# C ABI, which serves the classic engine until cutover; a bartcore callback
-# belongs to the new public surface.
+# engine's probit weighting was incorrect and was stripped rather than
+# ported), and setControl changes to anything fixed at creation (chain/tree
+# counts, generators, and the cut grid).
 #
 # keepTrees/getTrees/predict follow the classic formats. State serialization
 # (storeState/setState, or runs with updateState) produces an engine-specific

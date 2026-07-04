@@ -10,9 +10,7 @@ dbartsControl(
     keepTrees = FALSE, n.samples = NA_integer_,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
     n.threads = dbarts::guessNumCores(), n.thin = 1L, printEvery = 100L,
-    printCutoffs = 0L,
-    rngKind = "default", rngNormalKind = "default", rngSeed = NA_integer_,
-    updateState = TRUE, engine = c("bartcore", "classic"))
+    printCutoffs = 0L, rngSeed = NA_integer_, updateState = TRUE)
 }
 \arguments{
    \item{verbose}{
@@ -54,29 +52,12 @@ dbartsControl(
    \item{printCutoffs}{
      A non-negative integer specifying how many of the decision rules for a variable are printed in verbose mode.
    }
-   \item{rngKind}{
-     Random number generator kind, as used in \code{\link[=Random]{set.seed}}. For type \code{"default"}, the built-in generator will be used if possible. Otherwise, will attempt to match the built-in generator's type. Success depends on the number of threads.
-   }
-   \item{rngNormalKind}{
-     Random number generator normal kind, as used in \code{\link[=Random]{set.seed}}. For type \code{"default"}, the built-in generator will be used if possible. Otherwise, will attempt to match the built-in generator's type. Success depends on the number of threads and the \code{rngKind}.
-   }
    \item{rngSeed}{
-     Random number generator seed, as used in \code{\link[=Random]{set.seed}}. If the sampler is running single-threaded or has one chain, the behavior will be as any other sequential algorithm. If the sampler is multithreaded, the seed will be used to create an additional pRNG object, which in turn will be used sequentially seed the thread-specific pRNGs. If equal to \code{NA}, the clock will be used to seed pRNGs when applicable.
+     Random number generator seed. With one chain, seeds R's generator exactly as \code{\link[=Random]{set.seed}} does. With several chains, seeds a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched; seeded results do not depend on the thread count. If equal to \code{NA}, a single chain draws through R's generator and several chains seed their generators from R's stream, so \code{set.seed} alone suffices for reproducibility.
    }
    \item{updateState}{
      Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.
    }
-  \item{engine}{
-    Which sampler implementation runs underneath the \code{dbartsSampler}
-    interface. The default \code{"bartcore"} is the current engine and
-    the only one supporting categorical predictors, the logistic family,
-    and DART; it does not support weights with binary responses, and
-    \code{setControl} cannot change settings fixed at creation (chain and
-    tree counts, random number generators, and the cut grid).
-    \code{"classic"} is the previous engine, statistically equivalent on
-    the features both support and scheduled for removal. Saved sampler
-    states are engine-specific and cannot be exchanged.
-  }
 }
 \value{
   An object of class \code{dbartControl}.

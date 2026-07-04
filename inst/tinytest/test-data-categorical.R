@@ -1,5 +1,5 @@
 # factors = "categorical": data frame ingestion without dummy expansion,
-# split by category subset on the bartcore engine
+# split by category subset
 
 set.seed(99)
 n <- 400L
@@ -58,14 +58,9 @@ expect_error(dbartsData(y ~ g + o + z + b + s, df, test = df.bad,
                         factors = "categorical"),
              pattern = "levels not present")
 
-# the classic engine has no subset splits
-expect_error(dbarts(y ~ g + o + z + b + s, df, factors = "categorical",
-                    control = dbartsControl(engine = "classic")),
-             pattern = "categorical predictors require")
-
-# end to end on the bartcore engine: group means recovered through subset
-# splits, and factor test data route through the same coding
-control <- dbartsControl(engine = "bartcore", n.chains = 1L, n.threads = 1L,
+# end to end: group means recovered through subset splits, and factor test
+# data route through the same coding
+control <- dbartsControl(n.chains = 1L, n.threads = 1L,
                          n.trees = 75L, updateState = FALSE)
 sampler <- dbarts(y ~ g + o + z + b + s, df, test = df.test,
                   control = control, factors = "categorical")

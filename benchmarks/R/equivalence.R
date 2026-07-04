@@ -142,13 +142,12 @@ makeScenarios <- function() {
   result
 }
 
-# both engines run through the public dbartsSampler surface; the new one is
-# selected with the control's engine flag
+# runs through the public dbartsSampler surface on the installed package's
+# engine (the control's engine flag retired with the classic engine)
 fitViaSamplerApi <- function(scenario, engineIsNew) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
-                           n.trees = ntree, updateState = FALSE,
-                           engine = if (engineIsNew) "bartcore" else "classic")
+                           n.trees = ntree, updateState = FALSE)
   sampler <- if (!is.null(scenario$weights) || !is.null(scenario$offset)) {
     dbarts(scenario$x, scenario$y, test = scenario$x.test,
            weights = scenario$weights, offset = scenario$offset,

@@ -29,8 +29,7 @@
       on \code{alpha / (alpha + rho)}; \code{rho} defaults to the number of
       predictors. Updates hold until \code{update.delay} iterations have
       passed (default: half the control's burn-in), so the forest is
-      likelihood-informed when counts first enter the Dirichlet. Requires
-      \code{engine = "bartcore"}.
+      likelihood-informed when counts first enter the Dirichlet.
     }
     \item{\code{normal(k = NULL)}}{
       Normal prior on the node means. \code{k} scales the standard

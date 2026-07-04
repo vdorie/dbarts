@@ -151,11 +151,7 @@ expect_error(
 )
 
 expect_error(
-  dbarts::dbartsControl(rngKind = "not-an-rng"),
-  "unrecognized rng kind 'not-an-rng"
-)
-expect_error(
-  dbarts::dbartsControl(rngNormalKind = "not-an-rng"),
-  "unrecognized rng normal kind 'not-an-rng'"
+  dbarts::dbartsControl(rngKind = "default"),
+  "unused argument"
 )
 

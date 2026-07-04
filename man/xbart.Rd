@@ -91,7 +91,6 @@ xbart(
 
   \code{loss} functions are either the default of average negative log-loss for binary outcomes and root-mean-squared error for continuous outcomes, missclassification rates for binary outcomes, or a \code{function} with arguments \code{y.test} and \code{y.test.hat}. \code{y.test.hat} is of dimensions equal to \code{length(y.test)} \eqn{\times}{*} \code{n.samples}, on the latent scale for binary outcomes. A third option is to pass a list of \code{list(function, evaluationEnvironment)}, so as to provide default bindings. The binary losses \code{"log"} and \code{"mcr"} cannot apply to continuous responses.
 
-  The crossvalidation runs on the engine selected by \code{control}, so all of that engine's response and prior features apply.
 }
 \value{
   An array of dimensions \code{n.reps} \eqn{\times}{*} \code{length(n.trees)} \eqn{\times}{*} \code{length(k)} \eqn{\times}{*} \code{length(power)} \eqn{\times}{*} \code{length(base)}. If \code{drop} is \code{TRUE}, dimensions of length 1 are omitted. If all hyperparameters are of length 1, then the result will be a vector of length \code{n.reps}. When the result is an array, the \code{dimnames} of the result shall be set to the corresponding hyperparameters.
