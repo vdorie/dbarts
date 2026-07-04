@@ -557,9 +557,11 @@ public:
   /// Collapse any node with an unoccupied child into a leaf whose parameter
   /// is the effective-observation-weighted mean of its subtree's leaf
   /// parameters, for forced predictor updates. paramByNode is indexed by
-  /// arena id; a subtree with no observations at all gets the plain mean.
-  void collapseEmptyNodes(const double* weights, std::vector<double>& paramByNode) {
-    collapseEmptyNodesBelow(0, weights, paramByNode);
+  /// arena id, paramStride doubles per node, merged per coordinate; a
+  /// subtree with no observations at all gets the plain mean.
+  void collapseEmptyNodes(const double* weights, std::vector<double>& paramByNode,
+                          size_t paramStride = 1) {
+    collapseEmptyNodesBelow(0, weights, paramByNode, paramStride);
   }
 
   /// Point the tree at a new observation buffer (whole-data replacement,
@@ -576,16 +578,18 @@ public:
   /// new cut whose value is nearest the old cut, restricted to the ancestor-
   /// constrained interval; a subtree whose interval empties collapses to a
   /// leaf with the plain mean of its leaf parameters (the reference engine's
-  /// mapOldCutPointsOntoNew). paramByNode is indexed by arena id.
+  /// mapOldCutPointsOntoNew). paramByNode is indexed by arena id,
+  /// paramStride doubles per node, merged per coordinate.
   void mapOldCutPointsOntoNew(const ColumnStore& data,
                               const std::vector<std::vector<double>>& oldCutPoints,
-                              std::vector<double>& paramByNode) {
+                              std::vector<double>& paramByNode,
+                              size_t paramStride = 1) {
     std::vector<int32_t> minIndices(data.numPredictors, 0);
     std::vector<int32_t> maxIndices(data.numPredictors);
     for (size_t j = 0; j < data.numPredictors; ++j)
       maxIndices[j] = static_cast<int32_t>(data.numCuts[j]);
     mapCutPointsBelow(0, data, oldCutPoints, paramByNode, minIndices.data(),
-                      maxIndices.data());
+                      maxIndices.data(), paramStride);
   }
 
   void countVariableUses(std::uint32_t* counts) const {
@@ -595,9 +599,12 @@ public:
   /// Info dump in the reference engine's Node::print format: one line per
   /// node in pre-order, indented by depth, with occupancy, top/bottom flags,
   /// per-variable availability, and the rule or the leaf parameter (taken
-  /// from paramByNode, indexed by arena id, on the internal scale).
+  /// from paramByNode, indexed by arena id with paramStride doubles per
+  /// node, on the internal scale); vector-parameter leaves append their
+  /// slopes after the intercept.
   void print(const ColumnStore& data, const double* paramByNode,
-             int indentation, int32_t nodeIndex = 0) const {
+             int indentation, int32_t nodeIndex = 0,
+             size_t paramStride = 1) const {
     const Node& node(at(nodeIndex));
     ext_printf("%*s", indentation + static_cast<int>(depthOf(nodeIndex)), "");
     ext_printf("n: %lu ", static_cast<unsigned long>(node.numObservations()));
@@ -626,26 +633,38 @@ public:
       if (data.hasMissing[variableIndex])
         ext_printf(" NA: %c", node.rule.missingGoesRight() ? 'R' : 'L');
     } else {
-      ext_printf(" ave: %f", paramByNode[static_cast<size_t>(nodeIndex)]);
+      const double* params =
+        paramByNode + static_cast<size_t>(nodeIndex) * paramStride;
+      ext_printf(" ave: %f", params[0]);
+      if (paramStride > 1) {
+        ext_printf(" b:");
+        for (size_t j = 1; j < paramStride; ++j) ext_printf(" %f", params[j]);
+      }
     }
     ext_printf("\n");
 
     if (!node.isBottom()) {
-      print(data, paramByNode, indentation, node.leftChild);
-      print(data, paramByNode, indentation, node.leftChild + 1);
+      print(data, paramByNode, indentation, node.leftChild, paramStride);
+      print(data, paramByNode, indentation, node.leftChild + 1, paramStride);
     }
   }
 
   /// Flatten to pre-order value-encoded records, splits resolved against the
   /// store's cuts and leaf parameters taken from paramByNode (indexed by
-  /// arena id). counts, when non-null, receives each node's current
-  /// observation count in the same order.
+  /// arena id, paramStride doubles per node). counts, when non-null,
+  /// receives each node's current observation count in the same order. For
+  /// vector-parameter leaves a leaf's record keeps its leading coordinate
+  /// (the intercept) in value and appends the remaining paramStride - 1
+  /// slopes per leaf, in pre-order, to slopes.
   void flatten(const ColumnStore& data, const double* paramByNode,
                std::vector<FlatNode>& nodes,
-               std::vector<std::uint32_t>* counts = nullptr) const {
+               std::vector<std::uint32_t>* counts = nullptr,
+               size_t paramStride = 1,
+               std::vector<double>* slopes = nullptr) const {
     nodes.clear();
     if (counts != nullptr) counts->clear();
-    flattenBelow(0, data, paramByNode, nodes, counts);
+    if (slopes != nullptr) slopes->clear();
+    flattenBelow(0, data, paramByNode, nodes, counts, paramStride, slopes);
   }
 
   /// Rebuild structure from a flattened form into a freshly initialized
@@ -653,17 +672,21 @@ public:
   /// ordinal value must equal one of its variable's cuts, a categorical mask
   /// must be a canonical-gauge assignment of the categories reachable at its
   /// node. Partitions are left stale (repartitionSubtree) and paramByNode
-  /// receives leaf parameters by arena id. Returns false - possibly
-  /// half-built - on a malformed input; validate on a scratch tree before
-  /// building into live state.
+  /// receives leaf parameters by arena id, paramStride doubles per node -
+  /// the record's value leading, then that leaf's paramStride - 1 entries of
+  /// slopes (pre-order by leaf; the caller validates its length). Returns
+  /// false - possibly half-built - on a malformed input; validate on a
+  /// scratch tree before building into live state.
   bool buildFromFlat(const ColumnStore& data, const FlatNode* flatNodes,
-                     size_t numNodes, std::vector<double>& paramByNode) {
+                     size_t numNodes, std::vector<double>& paramByNode,
+                     size_t paramStride = 1, const double* slopes = nullptr) {
     paramByNode.clear();
-    size_t pos = 0;
-    if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode))
+    size_t pos = 0, leafPos = 0;
+    if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode,
+                            paramStride, slopes, leafPos))
       return false;
     if (pos != numNodes) return false;
-    paramByNode.resize(nodes.size(), 0.0);
+    paramByNode.resize(nodes.size() * paramStride, 0.0);
     return true;
   }
 
@@ -700,16 +723,17 @@ private:
   void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
                          const std::vector<std::vector<double>>& oldCutPoints,
                          std::vector<double>& paramByNode,
-                         int32_t* minIndices, int32_t* maxIndices) {
+                         int32_t* minIndices, int32_t* maxIndices,
+                         size_t paramStride) {
     if (at(nodeIndex).isBottom()) return;
 
     int32_t varIndex = at(nodeIndex).rule.variableIndex;
 
     if (data.types[static_cast<size_t>(varIndex)] == ColumnType::categorical) {
       mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints,
-                        paramByNode, minIndices, maxIndices);
+                        paramByNode, minIndices, maxIndices, paramStride);
       mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
-                        paramByNode, minIndices, maxIndices);
+                        paramByNode, minIndices, maxIndices, paramStride);
       return;
     }
 
@@ -719,13 +743,16 @@ private:
     if (minIndex > maxIndex - 1) {
       // no split of this variable remains below the ancestors: the node is
       // fundamentally invalid, so its subtree's parameters carry little
-      // information and the merge is a plain mean
+      // information and the merge is a plain mean, per coordinate
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
-      double param = 0.0;
-      for (int32_t i : bottoms) param += paramByNode[static_cast<size_t>(i)];
-      paramByNode[static_cast<size_t>(nodeIndex)] =
-        param / static_cast<double>(bottoms.size());
+      std::vector<double> paramSums(paramStride, 0.0);
+      for (int32_t i : bottoms)
+        for (size_t j = 0; j < paramStride; ++j)
+          paramSums[j] += paramByNode[static_cast<size_t>(i) * paramStride + j];
+      for (size_t j = 0; j < paramStride; ++j)
+        paramByNode[static_cast<size_t>(nodeIndex) * paramStride + j] =
+          paramSums[j] / static_cast<double>(bottoms.size());
       collapseSubtreeToLeaf(nodeIndex);
       return;
     }
@@ -756,17 +783,18 @@ private:
 
     maxIndices[varIndex] = newIndex;
     mapCutPointsBelow(at(nodeIndex).leftChild, data, oldCutPoints, paramByNode,
-                      minIndices, maxIndices);
+                      minIndices, maxIndices, paramStride);
     maxIndices[varIndex] = maxIndex;
 
     minIndices[varIndex] = newIndex + 1;
     mapCutPointsBelow(at(nodeIndex).leftChild + 1, data, oldCutPoints,
-                      paramByNode, minIndices, maxIndices);
+                      paramByNode, minIndices, maxIndices, paramStride);
     minIndices[varIndex] = minIndex;
   }
 
   void collapseEmptyNodesBelow(int32_t nodeIndex, const double* weights,
-                               std::vector<double>& paramByNode) {
+                               std::vector<double>& paramByNode,
+                               size_t paramStride) {
     if (at(nodeIndex).isBottom()) return;
 
     if (at(at(nodeIndex).leftChild).numObservations() == 0 ||
@@ -774,7 +802,9 @@ private:
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
 
-      double weightTotal = 0.0, paramTotal = 0.0, paramSum = 0.0;
+      double weightTotal = 0.0;
+      std::vector<double> paramTotals(paramStride, 0.0);
+      std::vector<double> paramSums(paramStride, 0.0);
       for (int32_t i : bottoms) {
         const Node& leaf(at(i));
         double weight = weights == nullptr
@@ -782,30 +812,44 @@ private:
           : misc_sumIndexedVectorElements(weights, indices + leaf.begin,
                                           leaf.numObservations());
         weightTotal += weight;
-        paramTotal += weight * paramByNode[static_cast<size_t>(i)];
-        paramSum += paramByNode[static_cast<size_t>(i)];
+        const double* params =
+          paramByNode.data() + static_cast<size_t>(i) * paramStride;
+        for (size_t j = 0; j < paramStride; ++j) {
+          paramTotals[j] += weight * params[j];
+          paramSums[j] += params[j];
+        }
       }
-      paramByNode[static_cast<size_t>(nodeIndex)] = weightTotal > 0.0
-        ? paramTotal / weightTotal
-        : paramSum / static_cast<double>(bottoms.size());
+      double* merged =
+        paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride;
+      for (size_t j = 0; j < paramStride; ++j)
+        merged[j] = weightTotal > 0.0
+          ? paramTotals[j] / weightTotal
+          : paramSums[j] / static_cast<double>(bottoms.size());
 
       collapseSubtreeToLeaf(nodeIndex);
     } else {
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild, weights, paramByNode);
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, weights, paramByNode);
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild, weights, paramByNode,
+                              paramStride);
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, weights,
+                              paramByNode, paramStride);
     }
   }
 
   void flattenBelow(int32_t nodeIndex, const ColumnStore& data,
                     const double* paramByNode, std::vector<FlatNode>& out,
-                    std::vector<std::uint32_t>* counts) const {
+                    std::vector<std::uint32_t>* counts, size_t paramStride,
+                    std::vector<double>* slopes) const {
     const Node& node(at(nodeIndex));
     if (counts != nullptr)
       counts->push_back(static_cast<std::uint32_t>(node.numObservations()));
 
     FlatNode flat;
     if (node.isBottom()) {
-      flat.value = paramByNode[static_cast<size_t>(nodeIndex)];
+      const double* params =
+        paramByNode + static_cast<size_t>(nodeIndex) * paramStride;
+      flat.value = params[0];
+      if (slopes != nullptr)
+        for (size_t j = 1; j < paramStride; ++j) slopes->push_back(params[j]);
       out.push_back(flat);
       return;
     }
@@ -819,21 +863,31 @@ private:
                         [static_cast<size_t>(node.rule.splitIndex())];
     flat.flags = node.rule.missingGoesRight() ? flatMissingGoesRight : 0;
     out.push_back(flat);
-    flattenBelow(node.leftChild, data, paramByNode, out, counts);
-    flattenBelow(node.leftChild + 1, data, paramByNode, out, counts);
+    flattenBelow(node.leftChild, data, paramByNode, out, counts, paramStride,
+                 slopes);
+    flattenBelow(node.leftChild + 1, data, paramByNode, out, counts,
+                 paramStride, slopes);
   }
 
   bool buildFromFlatBelow(int32_t nodeIndex, const ColumnStore& data,
                           const FlatNode* flatNodes, size_t numNodes,
-                          size_t& pos, std::vector<double>& paramByNode) {
+                          size_t& pos, std::vector<double>& paramByNode,
+                          size_t paramStride, const double* slopes,
+                          size_t& leafPos) {
     if (pos >= numNodes) return false;
     const FlatNode& flat(flatNodes[pos++]);
 
     if (flat.variable == invalidVariable) {
       if (flat.flags != 0) return false;
       size_t i = static_cast<size_t>(nodeIndex);
-      if (paramByNode.size() <= i) paramByNode.resize(i + 1, 0.0);
-      paramByNode[i] = flat.value;
+      if (paramByNode.size() <= (i + 1) * paramStride - 1)
+        paramByNode.resize((i + 1) * paramStride, 0.0);
+      paramByNode[i * paramStride] = flat.value;
+      if (slopes != nullptr)
+        for (size_t j = 1; j < paramStride; ++j)
+          paramByNode[i * paramStride + j] =
+            slopes[leafPos * (paramStride - 1) + (j - 1)];
+      ++leafPos;
       return true;
     }
 
@@ -885,9 +939,9 @@ private:
     at(pair + 1).leftChild = invalidNode;
 
     return buildFromFlatBelow(pair, data, flatNodes, numNodes, pos,
-                              paramByNode) &&
+                              paramByNode, paramStride, slopes, leafPos) &&
            buildFromFlatBelow(pair + 1, data, flatNodes, numNodes, pos,
-                              paramByNode);
+                              paramByNode, paramStride, slopes, leafPos);
   }
 
   std::vector<int32_t> freePairs;
@@ -978,6 +1032,45 @@ inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
   return numNodes;
 }
 
+/// The linear-leaf analogue of addFlatPredictionsBelow: a routed row's fit
+/// is the leaf's intercept (its record's value) plus its slopes dotted with
+/// the row's designated columns, standardized on the fly by the training
+/// constants (missing values enter at the standardized mean, zero). slopes
+/// holds numSlopes doubles per leaf in pre-order; leafOffset counts the
+/// leaves consumed before this subtree. Returns the number of flattened
+/// nodes consumed.
+inline size_t addFlatLinearPredictionsBelow(
+    const FlatNode* flatNodes, const ColumnType* types, const double* x,
+    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const size_t* columns, const double* means, const double* sds,
+    size_t numSlopes, const double* slopes, size_t leafOffset = 0) {
+  if (flatNodes[0].variable == invalidVariable) {
+    const double* leafSlopes = slopes + leafOffset * numSlopes;
+    for (size_t k = lo; k < hi; ++k) {
+      size_t row = indices[k];
+      double fit = flatNodes[0].value;
+      for (size_t j = 0; j < numSlopes; ++j) {
+        double value = x[columns[j] * numRows + row];
+        fit += leafSlopes[j] *
+               (isNA(value) ? 0.0 : (value - means[j]) / sds[j]);
+      }
+      fits[row] += fit;
+    }
+    return 1;
+  }
+
+  size_t mid =
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+  size_t numOnLeft = addFlatLinearPredictionsBelow(
+    flatNodes + 1, types, x, numRows, indices, lo, mid, fits, columns, means,
+    sds, numSlopes, slopes, leafOffset);
+  size_t numNodes = 1 + numOnLeft;
+  numNodes += addFlatLinearPredictionsBelow(
+    flatNodes + numNodes, types, x, numRows, indices, mid, hi, fits, columns,
+    means, sds, numSlopes, slopes, leafOffset + (numOnLeft + 1) / 2);
+  return numNodes;
+}
+
 /// Structural well-formedness of a flattened subtree - complete pre-order,
 /// variables in range, categorical masks integral and nonzero - without the
 /// cut-correspondence and gauge conditions live restoration demands (saved
@@ -1027,9 +1120,13 @@ inline size_t flatSubtreeLength(const FlatNode* flatNodes) {
 
 /// Info dump of a flattened (saved) tree in the reference engine's
 /// SavedNode::print format: no occupancy or availability, ordinal splits by
-/// value, leaf predictions on the internal scale.
+/// value, leaf predictions on the internal scale. slopes, when non-null,
+/// holds numSlopes per leaf in pre-order (vector-parameter leaves);
+/// leafOffset counts the leaves consumed before this subtree.
 inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
-                             int indentation, size_t depth = 0) {
+                             int indentation, size_t depth = 0,
+                             const double* slopes = nullptr,
+                             size_t numSlopes = 0, size_t leafOffset = 0) {
   const FlatNode& flat(flatNodes[0]);
   bool isBottom = flat.variable == invalidVariable;
 
@@ -1061,10 +1158,17 @@ inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
       ext_printf(" NA: %c",
                  (flat.flags & flatMissingGoesRight) != 0 ? 'R' : 'L');
     ext_printf("\n");
-    printFlatSubtree(data, flatNodes + 1, indentation, depth + 1);
-    printFlatSubtree(data, flatNodes + 1 + numOnLeft, indentation, depth + 1);
+    printFlatSubtree(data, flatNodes + 1, indentation, depth + 1, slopes,
+                     numSlopes, leafOffset);
+    printFlatSubtree(data, flatNodes + 1 + numOnLeft, indentation, depth + 1,
+                     slopes, numSlopes, leafOffset + (numOnLeft + 1) / 2);
   } else {
     ext_printf(" pred: %f", flat.value);
+    if (slopes != nullptr && numSlopes > 0) {
+      ext_printf(" b:");
+      for (size_t j = 0; j < numSlopes; ++j)
+        ext_printf(" %f", slopes[leafOffset * numSlopes + j]);
+    }
     ext_printf("\n");
   }
 }

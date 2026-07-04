@@ -53,9 +53,16 @@ public:
   virtual const std::vector<FlatNode>& savedTree(std::size_t chainNum,
                                                  std::size_t slot,
                                                  std::size_t treeNum) const = 0;
+  /// Slopes of one saved tree, parallel to savedTree's pre-order leaves;
+  /// meaningful only for vector-parameter leaf models.
+  virtual const std::vector<double>& savedTreeSlopes(
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum) const = 0;
+  /// slopes, when non-null, receives a vector-parameter tree's slopes
+  /// (one block per leaf in pre-order); cleared for scalar leaf models.
   virtual void flattenTree(std::size_t chainNum, std::size_t treeNum,
                            std::vector<FlatNode>& nodes,
-                           std::vector<std::uint32_t>& counts) = 0;
+                           std::vector<std::uint32_t>& counts,
+                           std::vector<double>* slopes = nullptr) = 0;
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
@@ -162,10 +169,16 @@ public:
                                          std::size_t treeNum) const override {
     return impl_.savedTree(chainNum, slot, treeNum);
   }
+  const std::vector<double>& savedTreeSlopes(
+    std::size_t chainNum, std::size_t slot,
+    std::size_t treeNum) const override {
+    return impl_.savedTreeSlopes(chainNum, slot, treeNum);
+  }
   void flattenTree(std::size_t chainNum, std::size_t treeNum,
                    std::vector<FlatNode>& nodes,
-                   std::vector<std::uint32_t>& counts) override {
-    impl_.flattenTree(chainNum, treeNum, nodes, counts);
+                   std::vector<std::uint32_t>& counts,
+                   std::vector<double>* slopes) override {
+    impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes);
   }
   void predict(const double* x_test, std::size_t numTestObservations,
                double* out) override {

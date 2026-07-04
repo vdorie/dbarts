@@ -3345,14 +3345,15 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
   check(std::fabs(slope[0]) < 0.25, "flat side has near-zero slope");
   check(slope[1] > 0.75 && slope[1] < 1.25, "steep side recovers unit slope");
 
-  // the stage-3 surfaces refuse cleanly rather than misbehave
+  // the format-dependent surfaces work post-stage 3: an identical
+  // predictor matrix revalidates, and a state round-trips into itself
   check(sampler->setPredictor(x.data(), false, true) ==
-          PredictorUpdateResult::rolledBack,
-        "linear leaves refuse setPredictor");
+          PredictorUpdateResult::accepted,
+        "reinstalling identical predictors is accepted");
   SamplerStateData state;
   sampler->getState(state);
-  check(!sampler->setState(state), "linear leaves refuse state restoration");
-  check(sampler->savedTreeCapacity() == 0, "linear leaves store no trees");
+  check(sampler->setState(state), "a state restores into its own sampler");
+  check(sampler->savedTreeCapacity() == 0, "keepTrees stays off by default");
 
   // a short run with the k hyperprior exercises the all-coordinate
   // accumulation
@@ -3376,6 +3377,212 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
   printf("ok: linear leaf end to end (sse ratio %.3f, sigma %.3f, "
          "slopes %.2f/%.2f)\n",
          sseFit / sseMean, sigmaPosteriorMean, slope[0], slope[1]);
+}
+
+static void testLinearLeafFormats(ext_rng* rng) {
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = (x[i] > 0.5 ? x[i + n] : 0.0) + 0.2 * normal;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.keepTrees = true;
+  options.numSamplesToStore = 25;
+  size_t covariates[] = {1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+
+  std::unique_ptr<SamplerBase> sampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng);
+
+  const size_t numTest = 6;
+  std::vector<double> xTest(numTest * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      xTest[i + j * numTest] = x[i + j * n];
+  sampler->setTestPredictors(xTest.data(), numTest);
+
+  const size_t numBurnIn = 100, numSamples = 25;
+  std::vector<double> trainingFits(n * numSamples), testFits(numTest * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  results.testFits = testFits.data();
+  sampler->run(numBurnIn, numSamples, results);
+
+  // saved-tree replay reproduces the test fits recorded during the run
+  check(sampler->savedTreeCapacity() == numSamples, "saved-tree capacity");
+  std::vector<double> predictions(numTest * numSamples);
+  sampler->predict(xTest.data(), numTest, predictions.data());
+  bool replayMatches = true;
+  for (size_t s = 0; s < numSamples && replayMatches; ++s)
+    for (size_t i = 0; i < numTest && replayMatches; ++i)
+      replayMatches = std::fabs(predictions[i + s * numTest] -
+                                testFits[i + s * numTest]) < 1e-10;
+  check(replayMatches, "saved-tree replay matches recorded test fits");
+
+  // flattened trees carry one slope per leaf, and the saved slopes agree
+  std::vector<FlatNode> nodes;
+  std::vector<uint32_t> counts;
+  std::vector<double> slopes;
+  sampler->flattenTree(0, 0, nodes, counts, &slopes);
+  check(slopes.size() == (nodes.size() + 1) / 2,
+        "flattened tree carries one slope per leaf");
+  const std::vector<FlatNode>& saved(sampler->savedTree(0, numSamples - 1, 0));
+  const std::vector<double>& savedSlopes(
+    sampler->savedTreeSlopes(0, numSamples - 1, 0));
+  check(savedSlopes.size() == (saved.size() + 1) / 2,
+        "saved tree carries one slope per leaf");
+
+  // bitwise state round trip through the flat + slopes format
+  SamplerStateData state;
+  sampler->getState(state);
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng2, 4321);
+  std::unique_ptr<SamplerBase> restored = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng2);
+  check(restored->setState(state), "a linear-leaf state restores");
+  restored->setTestPredictors(xTest.data(), numTest);
+
+  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  sampler->run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  restored->run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB && trainA == trainB,
+        "restored linear-leaf chains continue bitwise");
+
+  // a state with mismatched slope shapes is refused
+  SamplerStateData malformed = state;
+  malformed.chains[0].treeParams[0].push_back(0.0);
+  check(!sampler->setState(malformed),
+        "a state with mismatched slopes is refused");
+
+  ext_rng_destroy(rng2);
+  printf("ok: linear leaf formats\n");
+}
+
+static void testLinearLeafMutation(ext_rng* rng) {
+  const size_t n = 200, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    x[i + 2 * n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = (x[i] > 0.5 ? x[i + n] : 0.0) + 0.2 * normal;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  size_t covariates[] = {1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+
+  std::unique_ptr<SamplerBase> sampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng);
+  Results warmup;
+  sampler->run(150, 0, warmup);
+
+  // a constant split column empties a child of every tree that uses it:
+  // the transaction rolls back and sampling continues
+  std::vector<double> badX(x);
+  for (size_t i = 0; i < n; ++i) badX[i] = 0.5;
+  check(sampler->setPredictor(badX.data(), false, false) ==
+          PredictorUpdateResult::rolledBack,
+        "a degenerate split column rolls back");
+
+  // jittering the leaf covariate leaves every partition intact (codes are
+  // driven by the unchanged split columns' cuts only when the jitter stays
+  // within bins; force-update to be deterministic) and the fits pick up the
+  // regathered covariates
+  std::vector<double> newX(x);
+  for (size_t i = 0; i < n; ++i) newX[i + n] = x[i + n] * 1.1;
+  check(sampler->setPredictor(newX.data(), true, true) ==
+          PredictorUpdateResult::accepted,
+        "a forced covariate update installs");
+
+  const size_t numSamples = 100;
+  std::vector<double> trainingFits(n * numSamples);
+  Results results;
+  results.trainingFits = trainingFits.data();
+  sampler->run(50, numSamples, results);
+  bool allFinite = true;
+  for (double fit : trainingFits) allFinite = allFinite && std::isfinite(fit);
+  check(allFinite, "fits stay finite through predictor mutation");
+
+  // per-observation updates sweep the covariate column through the real
+  // session machinery
+  std::vector<double> newColumn(n);
+  for (size_t i = 0; i < n; ++i) newColumn[i] = newX[i + n] + 0.01;
+  std::vector<unsigned char> installedBytes(n);
+  bool* installed = reinterpret_cast<bool*>(installedBytes.data());
+  check(sampler->updatePredictorPerObservation(newColumn.data(), 1, installed),
+        "per-observation update finalizes");
+
+  // whole-data replacement re-standardizes and continues: the new data
+  // doubles the varying slope, which the continued chain recovers
+  const size_t n2 = 150;
+  std::vector<double> x2(n2 * p), y2(n2), f2(n2);
+  for (size_t i = 0; i < n2; ++i) {
+    x2[i] = runif01();
+    x2[i + n2] = 4.0 * runif01() - 2.0;
+    x2[i + 2 * n2] = runif01();
+    f2[i] = x2[i] > 0.5 ? 2.0 * x2[i + n2] : 0.0;
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y2[i] = f2[i] + 0.2 * normal;
+  }
+  sampler->setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0,
+                   nullptr);
+
+  std::vector<double> fits2(n2 * numSamples);
+  Results results2;
+  results2.trainingFits = fits2.data();
+  sampler->run(150, numSamples, results2);
+
+  std::vector<double> posteriorMean(n2, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n2; ++i)
+      posteriorMean[i] += fits2[i + s * n2] / (double) numSamples;
+  double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0, count = 0.0;
+  for (size_t i = 0; i < n2; ++i) {
+    if (x2[i] <= 0.5) continue;
+    sx += x2[i + n2];
+    sy += posteriorMean[i];
+    sxx += x2[i + n2] * x2[i + n2];
+    sxy += x2[i + n2] * posteriorMean[i];
+    count += 1.0;
+  }
+  double slope = (sxy - sx * sy / count) / (sxx - sx * sx / count);
+  check(slope > 1.5 && slope < 2.5, "setData recovers the doubled slope");
+
+  // prediction from the live trees agrees with the recorded fits
+  std::vector<double> livePredictions(n2);
+  sampler->predict(x2.data(), n2, livePredictions.data());
+  const double* lastFits = fits2.data() + (numSamples - 1) * n2;
+  bool liveMatches = true;
+  for (size_t i = 0; i < n2 && liveMatches; ++i)
+    liveMatches = std::fabs(livePredictions[i] - lastFits[i]) < 1e-8;
+  check(liveMatches, "live-tree prediction matches the last recorded fits");
+
+  printf("ok: linear leaf mutation (post-setData slope %.2f)\n", slope);
 }
 
 int main() {
@@ -3440,6 +3647,8 @@ int main() {
   testLinearLeafMarginal();
   testLinearLeafDraw(rng);
   testLinearLeafEndToEnd(rng);
+  testLinearLeafFormats(rng);
+  testLinearLeafMutation(rng);
 
   ext_rng_destroy(rng);
 

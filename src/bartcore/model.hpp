@@ -154,6 +154,14 @@ struct LinearGaussianLeaf {
                   std::size_t numColumns) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
+    reinitialize(data);
+  }
+
+  /// Re-derive the standardization constants and covariates for the stored
+  /// designation, for whole-data replacement (possibly a new number of
+  /// observations): the analogue of setData rebuilding the cut grid.
+  void reinitialize(const ColumnStore& data) {
+    std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
     sds_.assign(numColumns, 1.0);
@@ -184,6 +192,21 @@ struct LinearGaussianLeaf {
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
     }
     rebuildTestCovariates(data);
+  }
+
+  /// Regather the training covariates under the existing standardization
+  /// constants, for the predictor-mutation surface (including rollback,
+  /// which restores the old raw values): the prior's calibration is sticky
+  /// across in-place value changes, the way refreshCutsForColumn keeps the
+  /// cut count. Whole-data replacement re-initializes instead, refreshing
+  /// the constants the way setData rebuilds the cut grid.
+  void regatherTrainingCovariates(const ColumnStore& data) {
+    for (std::size_t j = 0; j < numCovariates_; ++j) {
+      const double* column = data.x + columns_[j] * numObservations_;
+      double* u = u_.data() + j * numObservations_;
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
+    }
   }
 
   /// Regather the test covariates under the training standardization; called
