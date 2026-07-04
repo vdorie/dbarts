@@ -57,12 +57,18 @@ public:
   /// meaningful only for vector-parameter leaf models.
   virtual const std::vector<double>& savedTreeSlopes(
     std::size_t chainNum, std::size_t slot, std::size_t treeNum) const = 0;
+  /// Flattened mask words of one saved tree; meaningful only when the store
+  /// has wide categorical columns.
+  virtual const std::vector<std::uint64_t>& savedTreeMasks(
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum) const = 0;
   /// slopes, when non-null, receives a vector-parameter tree's slopes
   /// (one block per leaf in pre-order); cleared for scalar leaf models.
+  /// masks, when non-null, receives the wide categorical side channel.
   virtual void flattenTree(std::size_t chainNum, std::size_t treeNum,
                            std::vector<FlatNode>& nodes,
                            std::vector<std::uint32_t>& counts,
-                           std::vector<double>* slopes = nullptr) = 0;
+                           std::vector<double>* slopes = nullptr,
+                           std::vector<std::uint64_t>* masks = nullptr) = 0;
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
@@ -177,11 +183,17 @@ public:
     std::size_t treeNum) const override {
     return impl_.savedTreeSlopes(chainNum, slot, treeNum);
   }
+  const std::vector<std::uint64_t>& savedTreeMasks(
+    std::size_t chainNum, std::size_t slot,
+    std::size_t treeNum) const override {
+    return impl_.savedTreeMasks(chainNum, slot, treeNum);
+  }
   void flattenTree(std::size_t chainNum, std::size_t treeNum,
                    std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
-                   std::vector<double>* slopes) override {
-    impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes);
+                   std::vector<double>* slopes,
+                   std::vector<std::uint64_t>* masks) override {
+    impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes, masks);
   }
   void predict(const double* x_test, std::size_t numTestObservations,
                double* out) override {

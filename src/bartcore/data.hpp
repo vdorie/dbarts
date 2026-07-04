@@ -20,24 +20,42 @@ using xint_t = std::uint16_t;
 constexpr xint_t naCode = 0xFFFFu;
 constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFEu - 1u;
 
-/// Missing categorical values take the fixed category position 63 - above
-/// the 53-category cap - so the reachable-mask machinery routes them like
-/// any other category and the missing direction is bit 63 of a rule.
+/// Missing categorical values take a category position above the real ones
+/// so the reachable-mask machinery routes them like any other category: the
+/// fixed position 63 (the top of the rule word) for columns whose mask is
+/// inline, position K for pooled columns of K > 63 categories.
 constexpr std::uint32_t naCategory = 63;
+
+/// Words a categorical mask occupies: category bits 0..K-1 plus the
+/// missing-direction position (63 inline, K pooled), ceil((K + 1) / 64).
+constexpr size_t maskWordsForCount(std::uint32_t numCategories) {
+  return (static_cast<size_t>(numCategories) + 64) / 64;
+}
+
+/// The reserved code a missing value takes in a categorical column.
+constexpr xint_t missingCategoryCode(std::uint32_t numCategories) {
+  return maskWordsForCount(numCategories) > 1
+    ? static_cast<xint_t>(numCategories)
+    : static_cast<xint_t>(naCategory);
+}
 
 inline bool isNA(double value) { return value != value; }
 
 /// Column types the store distinguishes. Ordinal columns quantize against
 /// cut points and split by threshold; categorical columns hold integer
-/// category codes 0..numCategories-1 directly and split by subset. Category
-/// direction masks are 64 bits wide but capped at 53 levels: the flattened
-/// tree format stores a mask as a double, and 2^53 - 1 is the widest mask
-/// whose every value round-trips exactly. Uncapped categories need pooled
-/// mask storage and a wide-mask reporting format (see
-/// docs/design/public-surface.md).
+/// category codes 0..numCategories-1 directly and split by subset. Masks of
+/// up to 63 categories live inline in the rule word; wider columns pool
+/// their mask words per tree, and the flattened format moves masks past 53
+/// categories (the double-exactness bound) into a side channel (see
+/// docs/design/pooled-masks.md). Codes must fit xint_t, including the
+/// reserved missing code K of a pooled column.
 enum class ColumnType : std::uint8_t { ordinal, categorical };
 
-constexpr std::uint32_t maxCategories = 53;
+constexpr std::uint32_t maxCategories = 0xFFFFu;
+
+/// The widest category count whose full direction mask a double represents
+/// exactly; the flattened format's value-encoding boundary.
+constexpr std::uint32_t maxValueEncodableCategories = 53;
 
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
@@ -61,6 +79,30 @@ struct ColumnStore {
   // missing-direction draw in rules and the NA-aware partition kernel, so
   // NA-free columns keep today's draws and code paths exactly
   std::vector<std::uint8_t> hasMissing;
+  // categorical tier flags, fixed once category counts are (they never
+  // change after build): wide columns (> 53 levels) need the flattened
+  // format's mask side channel, pooled ones (> 63) the per-tree mask pool
+  bool hasWideCategorical = false;
+  bool hasPooledCategorical = false;
+
+  /// Whether column j's flattened masks move to the side channel.
+  bool columnHasWideMask(size_t j) const {
+    return types[j] == ColumnType::categorical &&
+           numCuts[j] > maxValueEncodableCategories;
+  }
+  /// Whether column j's rules store pool offsets instead of inline masks.
+  bool columnIsPooled(size_t j) const {
+    return types[j] == ColumnType::categorical &&
+           maskWordsForCount(numCuts[j]) > 1;
+  }
+
+  void refreshCategoricalTiers() {
+    hasWideCategorical = hasPooledCategorical = false;
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (columnHasWideMask(j)) hasWideCategorical = true;
+      if (columnIsPooled(j)) hasPooledCategorical = true;
+    }
+  }
 
   size_t numTestObservations = 0;
   const double* x_test = nullptr;  // borrowed, column-major
@@ -75,7 +117,7 @@ struct ColumnStore {
   // reserved codes.
   xint_t codeFor(size_t variable, double value) const {
     if (types[variable] == ColumnType::categorical)
-      return isNA(value) ? static_cast<xint_t>(naCategory)
+      return isNA(value) ? missingCategoryCode(numCuts[variable])
                          : static_cast<xint_t>(value);
     if (isNA(value)) return naCode;
     const std::vector<double>& cuts = cutPoints[variable];
@@ -262,6 +304,7 @@ struct ColumnStore {
       buildCutsForColumn(j);
       quantizeColumn(j);
     }
+    refreshCategoricalTiers();
   }
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
@@ -298,11 +341,12 @@ struct ColumnStore {
     maxNumCuts = parent.maxNumCuts;
     codes.resize(numRows * numPredictors);
     hasMissing.assign(numPredictors, 0);
+    refreshCategoricalTiers();
     for (size_t j = 0; j < numPredictors; ++j) {
       const xint_t* parentColumn =
         parent.codes.data() + j * parent.numObservations;
       xint_t missingCode = types[j] == ColumnType::categorical
-        ? static_cast<xint_t>(naCategory) : naCode;
+        ? missingCategoryCode(numCuts[j]) : naCode;
       xint_t* column = codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
         column[i] = parentColumn[rows[i]];

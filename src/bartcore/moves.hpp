@@ -26,6 +26,11 @@ struct MoveScratch {
   std::vector<int32_t> nodeScratch;
   std::vector<double> probabilityScratch;
   Tree::SubtreeSnapshot snapshot;
+  // pooled categorical masks: the changed node's reachable set, the pattern
+  // draw, and a depth-indexed arena for the validity walk's left-side masks
+  std::vector<std::uint64_t> reachableWords;
+  std::vector<std::uint64_t> patternWords;
+  std::vector<std::uint64_t> maskArena;
 };
 
 struct MoveContext {
@@ -156,6 +161,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     // The proposal rule is drawn from the prior, so its density cancels with
     // the prior's in the acceptance ratio.
     Node oldNode = tree.at(nodeToChange);
+    size_t maskPoolMark = tree.maskPoolMark();
     Rule newRule = ctx.treePrior.drawRuleAndVariable(tree, ctx.data, rng, nodeToChange);
     tree.birth(ctx.data, nodeToChange, newRule, y, ctx.weights);
 
@@ -187,8 +193,10 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       *stepTaken = true;
     } else {
       // Reference behavior: the index segment stays permuted; only structure
-      // and cached leaf stats are restored.
+      // and cached leaf stats are restored. A rejected pooled draw is the
+      // last pool allocation, so the mark reclaims it.
       tree.undoBirth(nodeToChange);
+      tree.truncateMaskPool(maskPoolMark);
       tree.at(nodeToChange).average = oldNode.average;
       tree.at(nodeToChange).numEffectiveObservations =
         oldNode.numEffectiveObservations;
@@ -295,6 +303,11 @@ inline void findGoodOrdinalRules(const MoveContext& ctx, const Tree& tree,
 inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
                                       int32_t variableIndex,
                                       std::uint64_t reachable);
+inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
+                                          int32_t variableIndex,
+                                          const std::uint64_t* reachable,
+                                          size_t numWords,
+                                          std::uint64_t* arena, size_t depth);
 
 template <IntegrableLeafModel L>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
@@ -315,32 +328,73 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
 
   Rule newRule;
   newRule.variableIndex = newVariableIndex;
+  // covers every exit: a pooled proposal's words are the last allocation,
+  // so aborts and MH rejections truncate back; acceptance keeps them (the
+  // replaced rule's words become garbage the chain compacts later)
+  size_t maskPoolMark = tree.maskPoolMark();
 
   if (ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
       ColumnType::categorical) {
-    std::uint64_t reachable =
-      tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
-    int numReachable = std::popcount(reachable);
     // Rejection-sample an assignment that keeps the descendant splits on
     // this variable satisfiable: uniform over that good set, which depends
     // only on the tree above and below the node, so the forward and reverse
     // proposals cancel; the abort probability is likewise invariant, so an
     // exhausted draw backs the move out symmetrically.
     bool found = false;
-    for (int attempt = 0; attempt < 64 && !found; ++attempt) {
-      std::uint64_t pattern =
-        CGMTreePrior::drawCategoryPattern(rng, numReachable);
-      std::uint64_t directions =
-        CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
-      if (categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild,
-                                    newVariableIndex, reachable & ~directions) &&
-          categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild + 1,
-                                    newVariableIndex, directions)) {
-        newRule.setCategoryDirections(directions);
-        found = true;
+    if (ctx.data.columnIsPooled(static_cast<size_t>(newVariableIndex))) {
+      size_t numWords = maskWordsForCount(
+        ctx.data.numCuts[static_cast<size_t>(newVariableIndex)]);
+      std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
+      reachable.resize(numWords);
+      tree.reachableCategoriesWide(ctx.data, nodeToChange, newVariableIndex,
+                                   reachable.data());
+      size_t numReachable = maskPopcount(reachable.data(), numWords);
+      ctx.scratch.patternWords.resize(numWords);
+      // slot 0 holds the proposal's left-side mask; deeper slots serve the
+      // validity walk (one per matching-rule level, bounded by the arena)
+      ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
+      size_t offset = tree.allocateMask(numWords);
+      for (int attempt = 0; attempt < 64 && !found; ++attempt) {
+        CGMTreePrior::drawCategoryPatternWide(
+          rng, numReachable, ctx.scratch.patternWords.data(), numWords);
+        std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
+        CGMTreePrior::categoryDirectionsForPatternWide(
+          reachable.data(), ctx.scratch.patternWords.data(), directions,
+          numWords);
+        std::uint64_t* leftReachable = ctx.scratch.maskArena.data();
+        maskAndNot(reachable.data(), directions, leftReachable, numWords);
+        if (categoricalSubtreeIsValidWide(
+              tree, tree.at(nodeToChange).leftChild, newVariableIndex,
+              leftReachable, numWords, ctx.scratch.maskArena.data(), 1) &&
+            categoricalSubtreeIsValidWide(
+              tree, tree.at(nodeToChange).leftChild + 1, newVariableIndex,
+              directions, numWords, ctx.scratch.maskArena.data(), 1)) {
+          newRule.setMaskOffset(offset);
+          found = true;
+        }
+      }
+    } else {
+      std::uint64_t reachable =
+        tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
+      int numReachable = std::popcount(reachable);
+      for (int attempt = 0; attempt < 64 && !found; ++attempt) {
+        std::uint64_t pattern =
+          CGMTreePrior::drawCategoryPattern(rng, numReachable);
+        std::uint64_t directions =
+          CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
+        if (categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild,
+                                      newVariableIndex, reachable & ~directions) &&
+            categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild + 1,
+                                      newVariableIndex, directions)) {
+          newRule.setCategoryDirections(directions);
+          found = true;
+        }
       }
     }
-    if (!found) return -1.0;
+    if (!found) {
+      tree.truncateMaskPool(maskPoolMark);
+      return -1.0;
+    }
   } else {
     int32_t lower, upper;
     findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
@@ -372,6 +426,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     *stepTaken = true;
   } else {
     tree.restoreSubtree(ctx.scratch.snapshot);
+    tree.truncateMaskPool(maskPoolMark);
   }
 
   return alpha;
@@ -427,13 +482,60 @@ inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
                                    reachable);
 }
 
+/// The pooled-column analogue: reachable spans numWords words, the left
+/// branch's filtered set lives in the arena's slot at depth (deeper matching
+/// rules use higher slots, so a frame's mask survives its subtree), and the
+/// right branch reads the rule's own immutable pool words.
+inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
+                                          int32_t variableIndex,
+                                          const std::uint64_t* reachable,
+                                          size_t numWords,
+                                          std::uint64_t* arena, size_t depth) {
+  const Node& node(tree.at(nodeIndex));
+  if (node.isBottom()) return true;
+
+  if (node.rule.variableIndex == variableIndex) {
+    const std::uint64_t* directions = tree.maskWordsFor(node.rule);
+    if (!maskIsSubsetOf(directions, reachable, numWords) ||
+        maskIsZero(directions, numWords) ||
+        maskEquals(directions, reachable, numWords))
+      return false;
+    std::uint64_t* leftReachable = arena + depth * numWords;
+    maskAndNot(reachable, directions, leftReachable, numWords);
+    return categoricalSubtreeIsValidWide(tree, node.leftChild, variableIndex,
+                                         leftReachable, numWords, arena,
+                                         depth + 1) &&
+           categoricalSubtreeIsValidWide(tree, node.leftChild + 1,
+                                         variableIndex, directions, numWords,
+                                         arena, depth + 1);
+  }
+
+  return categoricalSubtreeIsValidWide(tree, node.leftChild, variableIndex,
+                                       reachable, numWords, arena, depth) &&
+         categoricalSubtreeIsValidWide(tree, node.leftChild + 1, variableIndex,
+                                       reachable, numWords, arena, depth);
+}
+
 inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIndex,
                         int32_t variableIndex) {
   if (ctx.data.types[static_cast<size_t>(variableIndex)] ==
-      ColumnType::categorical)
+      ColumnType::categorical) {
+    size_t j = static_cast<size_t>(variableIndex);
+    if (ctx.data.columnIsPooled(j)) {
+      size_t numWords = maskWordsForCount(ctx.data.numCuts[j]);
+      std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
+      reachable.resize(numWords);
+      tree.reachableCategoriesWide(ctx.data, nodeIndex, variableIndex,
+                                   reachable.data());
+      ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
+      return categoricalSubtreeIsValidWide(tree, nodeIndex, variableIndex,
+                                           reachable.data(), numWords,
+                                           ctx.scratch.maskArena.data(), 0);
+    }
     return categoricalSubtreeIsValid(
       tree, nodeIndex, variableIndex,
       tree.reachableCategories(ctx.data, nodeIndex, variableIndex));
+  }
 
   int32_t leftIndex, rightIndex;
   tree.splitInterval(ctx.data, nodeIndex, variableIndex, &leftIndex, &rightIndex);
@@ -459,7 +561,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   bool leftHasRule = !tree.at(leftChild).isBottom();
   bool rightHasRule = !tree.at(rightChild).isBottom();
   bool childrenHaveSameRule = leftHasRule && rightHasRule &&
-    tree.at(leftChild).rule.equals(tree.at(rightChild).rule);
+    tree.rulesAreEqual(ctx.data, tree.at(leftChild).rule,
+                       tree.at(rightChild).rule);
 
   double alpha;
 

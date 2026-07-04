@@ -278,13 +278,20 @@ public:
                                              size_t treeNum) const {
     return chains_[chainNum]->savedTreeSlopes(slot, treeNum);
   }
+  const std::vector<std::uint64_t>& savedTreeMasks(size_t chainNum,
+                                                   size_t slot,
+                                                   size_t treeNum) const {
+    return chains_[chainNum]->savedTreeMasks(slot, treeNum);
+  }
   /// slopes, when non-null, receives a vector-parameter tree's slopes
   /// (numParams - 1 per leaf, pre-order); cleared for scalar leaf models.
+  /// masks, when non-null, receives the wide categorical side channel.
   void flattenTree(size_t chainNum, size_t treeNum,
                    std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
-                   std::vector<double>* slopes = nullptr) {
-    chains_[chainNum]->flattenTree(treeNum, nodes, counts, slopes);
+                   std::vector<double>* slopes = nullptr,
+                   std::vector<std::uint64_t>* masks = nullptr) {
+    chains_[chainNum]->flattenTree(treeNum, nodes, counts, slopes, masks);
   }
 
   /// Fits for raw column-major test rows, on the original response scale

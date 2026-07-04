@@ -143,12 +143,20 @@ struct ChainStateData {
   // savedTreeParams parallels savedTrees. Empty for scalar leaf models.
   std::vector<std::vector<double>> treeParams;
   std::vector<std::vector<double>> savedTreeParams;
+  // wide categorical columns only: each flat tree's mask side channel,
+  // parallel to trees/savedTrees. Empty otherwise.
+  std::vector<std::vector<std::uint64_t>> treeMasks;
+  std::vector<std::vector<std::uint64_t>> savedTreeMasks;
   std::vector<double> totalFits;      // numObservations, or empty
   std::vector<size_t> indices;        // numObservations x numTrees, or empty
   double sigma = 1.0;
   double k = 2.0;
   // the gaussian response transform at capture; max <= min marks scale-free
   double fitMin = 0.0, fitMax = 0.0;
+  // the variance prior's internal-scale value; re-anchoring it through the
+  // transform is a multiply-divide round trip that can perturb the last
+  // bit, so a restore installs this exactly. Negative when not applicable.
+  double sigmaPriorScale = -1.0;
   std::vector<double> latents;            // empty for gaussian
   std::vector<double> dartProbabilities;  // empty when DART is off
   double dartAlpha = 1.0;
@@ -307,20 +315,28 @@ public:
         StepType stepType;
         metropolisJumpForTree(ctx, leaf_, rng_, trees_[t], treeY_.data(), sigma_,
                               &stepTaken, &stepType);
+        // accepted changes and deaths strand pooled mask words; no rule
+        // copies are live here, so this is a safe point to reclaim them
+        if (data_.hasPooledCategorical)
+          trees_[t].compactMaskPoolIfNeeded(data_);
 
         sampleParametersAndSetFits(t, record);
 
         // flatten while the freshly drawn parameters are live
         if (record && savedTreeCapacity_ > 0) {
           size_t slot = (savedSlotBase_ + sampleNum) % savedTreeCapacity_;
+          std::vector<std::uint64_t>* masks = data_.hasWideCategorical
+            ? &savedTreeMasks_[slot * options_.numTrees + t] : nullptr;
           if constexpr (!L::hasVectorParams) {
             trees_[t].flatten(data_, paramByNode_.data(),
-                              savedTrees_[slot * options_.numTrees + t]);
+                              savedTrees_[slot * options_.numTrees + t],
+                              nullptr, 1, nullptr, masks);
           } else {
             trees_[t].flatten(data_, paramsByTree_[t].data(),
                               savedTrees_[slot * options_.numTrees + t],
                               nullptr, leaf_.numParams(),
-                              &savedTreeParams_[slot * options_.numTrees + t]);
+                              &savedTreeParams_[slot * options_.numTrees + t],
+                              masks);
           }
         }
 
@@ -656,6 +672,9 @@ public:
       savedTreeParams_.assign(
         capacity * options_.numTrees,
         std::vector<double>(leaf_.numParams() - 1, 0.0));
+    if (data_.hasWideCategorical)
+      savedTreeMasks_.assign(capacity * options_.numTrees,
+                             std::vector<std::uint64_t>());
   }
   void setSavedSlotBase(size_t base) { savedSlotBase_ = base; }
   size_t savedTreeCapacity() const { return savedTreeCapacity_; }
@@ -667,6 +686,11 @@ public:
   const std::vector<double>& savedTreeSlopes(size_t slot, size_t t) const {
     return savedTreeParams_[slot * options_.numTrees + t];
   }
+  /// Flattened mask words of one saved tree (wide categorical columns).
+  const std::vector<std::uint64_t>& savedTreeMasks(size_t slot,
+                                                   size_t t) const {
+    return savedTreeMasks_[slot * options_.numTrees + t];
+  }
 
   /// Flatten live tree t; counts receive the current partition sizes.
   /// Scalar leaves recover parameters from the fits; vector leaves emit
@@ -674,15 +698,17 @@ public:
   /// into slopes when non-null.
   void flattenTree(size_t t, std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
-                   std::vector<double>* slopes = nullptr) {
+                   std::vector<double>* slopes = nullptr,
+                   std::vector<std::uint64_t>* masks = nullptr) {
     if constexpr (!L::hasVectorParams) {
       if (slopes != nullptr) slopes->clear();
       std::vector<double> params;
       recoverParametersFromFits(t, params);
-      trees_[t].flatten(data_, params.data(), nodes, &counts);
+      trees_[t].flatten(data_, params.data(), nodes, &counts, 1, nullptr,
+                        masks);
     } else {
       trees_[t].flatten(data_, paramsByTree_[t].data(), nodes, &counts,
-                        leaf_.numParams(), slopes);
+                        leaf_.numParams(), slopes, masks);
     }
   }
 
@@ -701,13 +727,16 @@ public:
   /// The same for one saved tree, in the reference engine's saved format.
   void printSavedTree(size_t slot, size_t t, int indentation) const {
     const std::vector<FlatNode>& flat(savedTrees_[slot * options_.numTrees + t]);
+    const std::uint64_t* masks = data_.hasWideCategorical
+      ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
     if constexpr (!L::hasVectorParams) {
-      printFlatSubtree(data_, flat.data(), indentation);
+      printFlatSubtree(data_, flat.data(), indentation, 0, nullptr, 0, 0,
+                       masks);
     } else {
       const std::vector<double>& slopes(
         savedTreeParams_[slot * options_.numTrees + t]);
       printFlatSubtree(data_, flat.data(), indentation, 0, slopes.data(),
-                       leaf_.numParams() - 1);
+                       leaf_.numParams() - 1, 0, masks);
     }
   }
 
@@ -717,14 +746,19 @@ public:
                               size_t numTestObservations, double* out) const {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
     std::vector<size_t> indices(numTestObservations);
+    const std::uint32_t* numCategories =
+      data_.hasWideCategorical ? data_.numCuts.data() : nullptr;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       const std::vector<FlatNode>& flat(
         savedTrees_[slot * options_.numTrees + t]);
+      const std::uint64_t* masks = data_.hasWideCategorical
+        ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
       for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
       if constexpr (!L::hasVectorParams) {
         addFlatPredictionsBelow(flat.data(), data_.types.data(), x_test,
                                 numTestObservations, indices.data(), 0,
-                                numTestObservations, out);
+                                numTestObservations, out, numCategories,
+                                masks);
       } else {
         const std::vector<double>& slopes(
           savedTreeParams_[slot * options_.numTrees + t]);
@@ -732,7 +766,8 @@ public:
           flat.data(), data_.types.data(), x_test, numTestObservations,
           indices.data(), 0, numTestObservations, out,
           leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
-          leaf_.covariateSds().data(), leaf_.numParams() - 1, slopes.data());
+          leaf_.covariateSds().data(), leaf_.numParams() - 1, slopes.data(),
+          0, numCategories, masks);
       }
     }
     double scale = response_->fitScale();
@@ -749,22 +784,30 @@ public:
     std::vector<size_t> indices(numTestObservations);
     std::vector<double> params, slopes;
     std::vector<FlatNode> flat;
+    std::vector<std::uint64_t> maskBuffer;
+    const std::uint32_t* numCategories =
+      data_.hasWideCategorical ? data_.numCuts.data() : nullptr;
+    std::vector<std::uint64_t>* masks =
+      data_.hasWideCategorical ? &maskBuffer : nullptr;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
       if constexpr (!L::hasVectorParams) {
         recoverParametersFromFits(t, params);
-        trees_[t].flatten(data_, params.data(), flat);
+        trees_[t].flatten(data_, params.data(), flat, nullptr, 1, nullptr,
+                          masks);
         addFlatPredictionsBelow(flat.data(), data_.types.data(), x_test,
                                 numTestObservations, indices.data(), 0,
-                                numTestObservations, out);
+                                numTestObservations, out, numCategories,
+                                maskBuffer.data());
       } else {
         trees_[t].flatten(data_, paramsByTree_[t].data(), flat, nullptr,
-                          leaf_.numParams(), &slopes);
+                          leaf_.numParams(), &slopes, masks);
         addFlatLinearPredictionsBelow(
           flat.data(), data_.types.data(), x_test, numTestObservations,
           indices.data(), 0, numTestObservations, out,
           leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
-          leaf_.covariateSds().data(), leaf_.numParams() - 1, slopes.data());
+          leaf_.covariateSds().data(), leaf_.numParams() - 1, slopes.data(),
+          0, numCategories, maskBuffer.data());
       }
     }
     double scale = response_->fitScale();
@@ -781,11 +824,21 @@ public:
 
   void getState(ChainStateData& state) {
     state.trees.resize(options_.numTrees);
+    if (data_.hasWideCategorical) {
+      state.treeMasks.resize(options_.numTrees);
+      state.savedTreeMasks = savedTreeMasks_;
+    } else {
+      state.treeMasks.clear();
+      state.savedTreeMasks.clear();
+    }
     if constexpr (!L::hasVectorParams) {
       std::vector<double> params;
       for (size_t t = 0; t < options_.numTrees; ++t) {
         recoverParametersFromFits(t, params);
-        trees_[t].flatten(data_, params.data(), state.trees[t]);
+        trees_[t].flatten(data_, params.data(), state.trees[t], nullptr, 1,
+                          nullptr,
+                          data_.hasWideCategorical ? &state.treeMasks[t]
+                                                   : nullptr);
       }
       state.treeParams.clear();
       state.savedTreeParams.clear();
@@ -793,7 +846,9 @@ public:
       state.treeParams.resize(options_.numTrees);
       for (size_t t = 0; t < options_.numTrees; ++t)
         trees_[t].flatten(data_, paramsByTree_[t].data(), state.trees[t],
-                          nullptr, leaf_.numParams(), &state.treeParams[t]);
+                          nullptr, leaf_.numParams(), &state.treeParams[t],
+                          data_.hasWideCategorical ? &state.treeMasks[t]
+                                                   : nullptr);
       state.savedTreeParams = savedTreeParams_;
     }
     state.savedTrees = savedTrees_;
@@ -802,6 +857,7 @@ public:
     state.sigma = sigma_;
     state.k = k_;
     response_->getScale(state.fitMin, state.fitMax);
+    state.sigmaPriorScale = response_->sigmaPriorScaleInternal();
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
                            response_->latents() + data_.numObservations);
@@ -825,6 +881,14 @@ public:
     if (!state.savedTrees.empty() &&
         state.savedTrees.size() != savedTrees_.size())
       return false;
+    // mask channels pair with their flat trees when present; trees holding
+    // wide rules without a channel fail the rebuild below
+    if (!state.treeMasks.empty() &&
+        state.treeMasks.size() != options_.numTrees)
+      return false;
+    if (!state.savedTreeMasks.empty() &&
+        state.savedTreeMasks.size() != state.savedTrees.size())
+      return false;
     if constexpr (L::hasVectorParams) {
       // the slope arrays must pair one-to-one with each flat tree's leaves
       // (a well-formed flat tree of m records has (m + 1) / 2 of them)
@@ -843,9 +907,16 @@ public:
             return false;
       }
     }
-    for (const std::vector<FlatNode>& saved : state.savedTrees)
-      if (!flatTreeIsWellFormed(data_, saved.data(), saved.size()))
+    for (size_t s = 0; s < state.savedTrees.size(); ++s) {
+      const std::vector<FlatNode>& saved(state.savedTrees[s]);
+      const std::uint64_t* masks = state.savedTreeMasks.empty()
+        ? nullptr : state.savedTreeMasks[s].data();
+      size_t numMaskWords =
+        state.savedTreeMasks.empty() ? 0 : state.savedTreeMasks[s].size();
+      if (!flatTreeIsWellFormed(data_, saved.data(), saved.size(), masks,
+                                numMaskWords))
         return false;
+    }
     size_t n = data_.numObservations;
     if (!state.totalFits.empty() && state.totalFits.size() != n) return false;
     if (!state.indices.empty() &&
@@ -865,8 +936,13 @@ public:
     std::vector<double> params;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       scratch.initialize(scratchIndices.data(), n);
+      const std::uint64_t* masks =
+        state.treeMasks.empty() ? nullptr : state.treeMasks[t].data();
+      size_t numMaskWords =
+        state.treeMasks.empty() ? 0 : state.treeMasks[t].size();
       if (!scratch.buildFromFlat(data_, state.trees[t].data(),
-                                 state.trees[t].size(), params))
+                                 state.trees[t].size(), params, 1, nullptr,
+                                 masks, numMaskWords))
         return false;
       if (state.indices.empty()) {
         scratch.repartitionSubtree(data_, 0);
@@ -895,19 +971,27 @@ public:
     // recorded under this transform; scale-free states leave creation's
     if (state.fitMax > state.fitMin)
       response_->restoreScale(state.fitMin, state.fitMax);
+    if (state.sigmaPriorScale >= 0.0)
+      response_->restoreSigmaPriorScaleInternal(state.sigmaPriorScale);
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
     std::vector<double> params;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       trees_[t].initialize(indexBuffer_.data() + t * n, n);
+      const std::uint64_t* masks =
+        state.treeMasks.empty() ? nullptr : state.treeMasks[t].data();
+      size_t numMaskWords =
+        state.treeMasks.empty() ? 0 : state.treeMasks[t].size();
       if constexpr (!L::hasVectorParams) {
         if (!trees_[t].buildFromFlat(data_, state.trees[t].data(),
-                                     state.trees[t].size(), params))
+                                     state.trees[t].size(), params, 1,
+                                     nullptr, masks, numMaskWords))
           return false;
       } else {
         if (!trees_[t].buildFromFlat(data_, state.trees[t].data(),
                                      state.trees[t].size(), params,
                                      leaf_.numParams(),
-                                     state.treeParams[t].data()))
+                                     state.treeParams[t].data(), masks,
+                                     numMaskWords))
           return false;
       }
       if (state.indices.empty()) {
@@ -932,6 +1016,13 @@ public:
       savedTrees_ = state.savedTrees;
       if constexpr (L::hasVectorParams)
         savedTreeParams_ = state.savedTreeParams;
+      if (data_.hasWideCategorical) {
+        if (state.savedTreeMasks.empty())
+          savedTreeMasks_.assign(savedTrees_.size(),
+                                 std::vector<std::uint64_t>());
+        else
+          savedTreeMasks_ = state.savedTreeMasks;
+      }
     }
     sigma_ = state.sigma;
     k_ = state.k;
@@ -1194,6 +1285,9 @@ private:
   // for scalar leaf models.
   std::vector<std::vector<double>> paramsByTree_;
   std::vector<std::vector<double>> savedTreeParams_;
+  // wide categorical columns (> 53 levels): each saved tree's flattened
+  // mask words, parallel to savedTrees_; empty otherwise
+  std::vector<std::vector<std::uint64_t>> savedTreeMasks_;
   size_t savedTreeCapacity_ = 0;
   size_t savedSlotBase_ = 0;
   std::vector<size_t> indexBuffer_;

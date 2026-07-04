@@ -7,6 +7,32 @@ directions column). After this, categorical predictors support up to
 columns of 53 or fewer levels: those paths stay textually identical and
 the equivalence gate must keep reporting identical draws.
 
+LANDED 2026-07-04, as proposed. Deltas and notes:
+
+- Building the wide component tests surfaced a pre-existing bitwise-restore
+  fragility unrelated to masks: restoreScale re-anchors the variance
+  prior's internal scale through a multiply-divide round trip
+  (scale * range^2 / range^2), which is not a floating-point identity, so
+  a restored gaussian chain's sigma draws could drift one ulp from the
+  original's for data-dependent values. The state now carries the prior's
+  internal scale exactly (ChainStateData.sigmaPriorScale, the third
+  element of the R state's fit.scale slot; two-element slots from older
+  states still restore, with the old last-ulp caveat).
+- The R state slots are tree.masks/saved.masks as proposed; restore
+  splits the concatenated words by walking each tree's vars against the
+  store's category counts (maskWordsForFlatTree).
+- The changeMove proposal reuses one scratch pool allocation across its
+  64 rejection-sampling attempts and takes its pool mark before the draw
+  so every exit path (abort, MH reject) truncates uniformly; the ordinal
+  branch's truncate is a no-op.
+- Component tests: testPooledMaskMechanics (partition across words,
+  reachability, draw-margin uniformity, closed-form rule probability,
+  compaction, flat round trip and its malformed rejections, NA-code
+  composition) and testPooledMaskSampler (recovery over K = 70 pooled
+  plus K = 60 inline-band columns, saved replay equal to recorded test
+  fits, bitwise state round trip, live prediction). tinytest
+  test-data-categorical-wide.R covers the R surface end to end.
+
 ## Two tiers
 
 The 53 cap conflated two limits: the rule word holds 64 direction bits

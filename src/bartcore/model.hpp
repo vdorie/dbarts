@@ -404,6 +404,11 @@ struct CGMTreePrior {
   double base = 0.95;
   double power = 2.0;
   const double* splitProbabilities = nullptr;  // length numPredictors, or null
+  // pooled-column scratch (reachable set, pattern draw); mutable because
+  // rule scoring and drawing are logically const, and safe because a prior
+  // instance belongs to a single chain
+  mutable std::vector<std::uint64_t> reachableScratch_;
+  mutable std::vector<std::uint64_t> patternScratch_;
 
   double growthProbability(const Tree& tree, const ColumnStore& data,
                            int32_t nodeIndex) const {
@@ -433,8 +438,24 @@ struct CGMTreePrior {
     int32_t variableIndex = tree.at(nodeIndex).rule.variableIndex;
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
-      int numReachable = std::popcount(
-        tree.reachableCategories(data, nodeIndex, variableIndex));
+      size_t j = static_cast<size_t>(variableIndex);
+      size_t numReachable;
+      if (data.columnIsPooled(j)) {
+        size_t numWords = maskWordsForCount(data.numCuts[j]);
+        reachableScratch_.resize(numWords);
+        tree.reachableCategoriesWide(data, nodeIndex, variableIndex,
+                                     reachableScratch_.data());
+        numReachable = maskPopcount(reachableScratch_.data(), numWords);
+      } else {
+        numReachable = static_cast<size_t>(std::popcount(
+          tree.reachableCategories(data, nodeIndex, variableIndex)));
+      }
+      // past 54 reachable pow(2, R) - 2 is no longer exact; the closed form
+      // is a deterministic function of R, so MH ratios stay consistent
+      if (numReachable > 54)
+        return -(static_cast<double>(numReachable) * std::log(2.0) +
+                 std::log1p(-std::pow(2.0, 1.0 -
+                                             static_cast<double>(numReachable))));
       return -std::log(std::pow(2.0, static_cast<double>(numReachable)) - 2.0);
     }
     int32_t left, right;
@@ -509,7 +530,9 @@ struct CGMTreePrior {
   /// generator's granularity, which for wide masks pins the low pattern
   /// bits to functions of the high ones.
   static std::uint64_t drawCategoryPattern(ext_rng* rng, int numReachable) {
-    std::uint64_t allRight = (1ull << numReachable) - 1ull;
+    // 63 categories plus the missing pseudo-category can fill the word
+    std::uint64_t allRight =
+      numReachable >= 64 ? ~0ull : (1ull << numReachable) - 1ull;
     std::uint64_t pattern;
     do {
       pattern = 0;
@@ -519,7 +542,47 @@ struct CGMTreePrior {
     return pattern;
   }
 
-  Rule drawRuleForVariable(const Tree& tree, const ColumnStore& data,
+  /// The pooled-column extension of drawCategoryPattern: the identical
+  /// bit-by-bit scheme, one draw per reachable position ascending, the two
+  /// all-same patterns rejected.
+  static void drawCategoryPatternWide(ext_rng* rng, size_t numReachable,
+                                      std::uint64_t* pattern,
+                                      size_t numWords) {
+    bool degenerate = true;
+    while (degenerate) {
+      for (size_t w = 0; w < numWords; ++w) pattern[w] = 0;
+      for (size_t bit = 0; bit < numReachable; ++bit)
+        if (ext_rng_simulateBernoulli(rng, 0.5) == 1)
+          pattern[bit >> 6] |= 1ull << (bit & 63u);
+      degenerate = maskIsZero(pattern, numWords) ||
+                   maskPopcount(pattern, numWords) == numReachable;
+    }
+  }
+
+  /// The pooled-column extension of categoryDirectionsForPattern.
+  static void categoryDirectionsForPatternWide(const std::uint64_t* reachable,
+                                               const std::uint64_t* pattern,
+                                               std::uint64_t* directions,
+                                               size_t numWords) {
+    for (size_t w = 0; w < numWords; ++w) directions[w] = 0;
+    size_t bit = 0;
+    for (size_t w = 0; w < numWords; ++w) {
+      std::uint64_t remaining = reachable[w];
+      while (remaining != 0) {
+        std::uint32_t category =
+          static_cast<std::uint32_t>(std::countr_zero(remaining)) +
+          64u * static_cast<std::uint32_t>(w);
+        if (((pattern[bit >> 6] >> (bit & 63u)) & 1u) != 0)
+          maskSetBit(directions, category);
+        remaining &= remaining - 1;
+        ++bit;
+      }
+    }
+  }
+
+  /// The tree is non-const because a pooled categorical draw allocates its
+  /// mask in the tree's pool; the caller truncates back on rejection.
+  Rule drawRuleForVariable(Tree& tree, const ColumnStore& data,
                            ext_rng* rng, int32_t nodeIndex,
                            int32_t variableIndex) const {
     Rule result;
@@ -527,6 +590,25 @@ struct CGMTreePrior {
 
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
+      size_t j = static_cast<size_t>(variableIndex);
+      if (data.columnIsPooled(j)) {
+        size_t numWords = maskWordsForCount(data.numCuts[j]);
+        reachableScratch_.resize(numWords);
+        tree.reachableCategoriesWide(data, nodeIndex, variableIndex,
+                                     reachableScratch_.data());
+        size_t numReachable =
+          maskPopcount(reachableScratch_.data(), numWords);
+        patternScratch_.resize(numWords);
+        drawCategoryPatternWide(rng, numReachable, patternScratch_.data(),
+                                numWords);
+        size_t offset = tree.allocateMask(numWords);
+        categoryDirectionsForPatternWide(reachableScratch_.data(),
+                                         patternScratch_.data(),
+                                         tree.mutableMaskWordsFor(offset),
+                                         numWords);
+        result.setMaskOffset(offset);
+        return result;
+      }
       std::uint64_t reachable =
         tree.reachableCategories(data, nodeIndex, variableIndex);
       int numReachable = std::popcount(reachable);
@@ -548,7 +630,7 @@ struct CGMTreePrior {
     return result;
   }
 
-  Rule drawRuleAndVariable(const Tree& tree, const ColumnStore& data,
+  Rule drawRuleAndVariable(Tree& tree, const ColumnStore& data,
                            ext_rng* rng, int32_t nodeIndex) const {
     int32_t variableIndex = drawSplitVariable(tree, data, rng, nodeIndex);
     return drawRuleForVariable(tree, data, rng, nodeIndex, variableIndex);
@@ -759,6 +841,12 @@ public:
   /// (0, 0) and ignore restoration.
   virtual void getScale(double& min, double& max) const { min = max = 0.0; }
   virtual void restoreScale(double /*min*/, double /*max*/) {}
+  /// The variance prior's internal-scale value, for exact state carry:
+  /// re-anchoring the prior through the transform (restoreScale) is a
+  /// multiply-divide round trip that can perturb the last bit, so restores
+  /// install the recorded value directly. Negative when not applicable.
+  virtual double sigmaPriorScaleInternal() const { return -1.0; }
+  virtual void restoreSigmaPriorScaleInternal(double /*scale*/) {}
 
   virtual double initialSigma() const = 0;
 
@@ -889,6 +977,13 @@ public:
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
 
     sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
+  }
+
+  double sigmaPriorScaleInternal() const override {
+    return sigmaSqPrior_.scale;
+  }
+  void restoreSigmaPriorScaleInternal(double scale) override {
+    sigmaSqPrior_.scale = scale;
   }
 
 private:

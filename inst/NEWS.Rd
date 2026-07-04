@@ -4,6 +4,13 @@
 \section{CHANGES IN VERSION 1.0-0}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Categorical predictors support up to 65535 levels, up from
+            53: rules on wider factors pool their direction masks per
+            tree. In `getTrees` such a rule's `value` is `NA` (its mask
+            is not exactly representable in a double) and the
+            `directions` column carries the decode as before. Everything
+            else composes unchanged, including missing values, saved
+            trees with `predict`, and state serialization.
       \item Linear leaves: `node.prior = linear(columns, k)` in `dbarts`
             fits each bottom node with an intercept plus a linear term
             in the designated continuous predictor columns (standardized

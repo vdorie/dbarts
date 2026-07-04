@@ -22,6 +22,43 @@ using std::size_t;
 constexpr int32_t invalidVariable = -1;
 constexpr int32_t invalidNode = -1;
 
+// Multi-word mask helpers for pooled categorical rules: position b lives at
+// bit b % 64 of word b / 64.
+inline bool maskTestBit(const std::uint64_t* words, std::uint32_t bit) {
+  return ((words[bit >> 6] >> (bit & 63u)) & 1u) != 0;
+}
+inline void maskSetBit(std::uint64_t* words, std::uint32_t bit) {
+  words[bit >> 6] |= 1ull << (bit & 63u);
+}
+inline size_t maskPopcount(const std::uint64_t* words, size_t numWords) {
+  size_t result = 0;
+  for (size_t w = 0; w < numWords; ++w)
+    result += static_cast<size_t>(std::popcount(words[w]));
+  return result;
+}
+inline bool maskIsZero(const std::uint64_t* words, size_t numWords) {
+  for (size_t w = 0; w < numWords; ++w)
+    if (words[w] != 0) return false;
+  return true;
+}
+inline bool maskEquals(const std::uint64_t* a, const std::uint64_t* b,
+                       size_t numWords) {
+  for (size_t w = 0; w < numWords; ++w)
+    if (a[w] != b[w]) return false;
+  return true;
+}
+inline bool maskIsSubsetOf(const std::uint64_t* a, const std::uint64_t* b,
+                           size_t numWords) {
+  for (size_t w = 0; w < numWords; ++w)
+    if ((a[w] & ~b[w]) != 0) return false;
+  return true;
+}
+/// out = a & ~b, the left-branch reachable set below a rule.
+inline void maskAndNot(const std::uint64_t* a, const std::uint64_t* b,
+                       std::uint64_t* out, size_t numWords) {
+  for (size_t w = 0; w < numWords; ++w) out[w] = a[w] & ~b[w];
+}
+
 /// A split rule: ordinal columns split by cut-point threshold (code >
 /// splitIndex goes right), categorical columns by category subset (bit c of
 /// categoryDirections set sends category c right); which is live is
@@ -52,6 +89,14 @@ struct Rule {
   std::uint64_t categoryDirections() const { return bits; }
   void setCategoryDirections(std::uint64_t directions) { bits = directions; }
 
+  // pooled categorical rules (a column of more than 63 categories) store an
+  // offset into their tree's mask pool in place of the mask itself; the
+  // word-based accessors and the missing bit are meaningless for them
+  size_t maskOffset() const { return static_cast<size_t>(bits); }
+  void setMaskOffset(size_t offset) {
+    bits = static_cast<std::uint64_t>(offset);
+  }
+
   bool categoryGoesRight(xint_t code) const {
     return ((bits >> code) & 1u) != 0;
   }
@@ -75,7 +120,10 @@ struct Rule {
 /// the store that quantized them; leaves store their parameter. The same
 /// format serves saved-tree storage, external reporting, and state
 /// serialization: a cut value maps back to its index exactly because cut
-/// points are unique and stored as the doubles they were computed as.
+/// points are unique and stored as the doubles they were computed as. A
+/// rule on a wide categorical column (more than 53 levels, past double
+/// exactness) instead stores in value its word offset into a side channel
+/// of mask words holding the category bits, pre-order sequential.
 struct FlatNode {
   int32_t variable = invalidVariable;  // invalidVariable for a leaf
   double value = 0.0;
@@ -101,20 +149,82 @@ struct Node {
   size_t numObservations() const { return end - begin; }
 };
 
+constexpr size_t minMaskPoolCompactionSize = 256;
+
 class Tree {
 public:
   std::vector<Node> nodes;
   size_t* indices = nullptr;  // external buffer, length numObservations
+  // Pooled categorical masks: rules on columns of more than 63 categories
+  // store offsets into this pool. Entries are immutable once a rule
+  // references them, so rule copies (snapshots, node restores) alias
+  // freely; moves truncate to a mark on rejection and the chain compacts
+  // between moves (docs/design/pooled-masks.md).
+  std::vector<std::uint64_t> maskPool;
 
   void initialize(size_t* indexBuffer, size_t numObservations) {
     indices = indexBuffer;
     nodes.clear();
     freePairs.clear();
+    maskPool.clear();
+    maskPoolHighWater_ = minMaskPoolCompactionSize;
     Node root;
     root.begin = 0;
     root.end = numObservations;
     nodes.push_back(root);
     for (size_t i = 0; i < numObservations; ++i) indices[i] = i;
+  }
+
+  size_t maskPoolMark() const { return maskPool.size(); }
+  void truncateMaskPool(size_t mark) { maskPool.resize(mark); }
+  size_t allocateMask(size_t numWords) {
+    size_t offset = maskPool.size();
+    maskPool.resize(offset + numWords, 0);
+    return offset;
+  }
+  const std::uint64_t* maskWordsFor(const Rule& rule) const {
+    return maskPool.data() + rule.maskOffset();
+  }
+  std::uint64_t* mutableMaskWordsFor(size_t offset) {
+    return maskPool.data() + offset;
+  }
+
+  /// Copy live pooled masks into a fresh pool once garbage from accepted
+  /// changes and deaths accumulates past the high-water mark. Safe whenever
+  /// no rule copies are held outside the tree (between moves); involves no
+  /// generator, so draws are unaffected.
+  void compactMaskPoolIfNeeded(const ColumnStore& data) {
+    if (maskPool.size() <= maskPoolHighWater_) return;
+    compactScratch_.clear();
+    compactMaskPoolBelow(0, data, compactScratch_);
+    maskPool.swap(compactScratch_);
+    maskPoolHighWater_ = 4 * maskPool.size() > minMaskPoolCompactionSize
+      ? 4 * maskPool.size() : minMaskPoolCompactionSize;
+  }
+
+  /// Rule dispatch for pooled columns; equality compares pool words (two
+  /// offsets can hold equal masks).
+  bool ruleSendsRight(const ColumnStore& data, const Rule& rule,
+                      xint_t code) const {
+    if (data.columnIsPooled(static_cast<size_t>(rule.variableIndex)))
+      return maskTestBit(maskWordsFor(rule), code);
+    return rule.sendsRight(data, code);
+  }
+  bool ruleMissingGoesRight(const ColumnStore& data, const Rule& rule) const {
+    size_t j = static_cast<size_t>(rule.variableIndex);
+    if (data.columnIsPooled(j))
+      return maskTestBit(maskWordsFor(rule), data.numCuts[j]);
+    return rule.missingGoesRight();
+  }
+  bool rulesAreEqual(const ColumnStore& data, const Rule& a,
+                     const Rule& b) const {
+    if (a.variableIndex != b.variableIndex) return false;
+    if (a.variableIndex != invalidVariable &&
+        data.columnIsPooled(static_cast<size_t>(a.variableIndex)))
+      return maskEquals(
+        maskWordsFor(a), maskWordsFor(b),
+        maskWordsForCount(data.numCuts[static_cast<size_t>(a.variableIndex)]));
+    return a.bits == b.bits;
   }
 
   Node& at(int32_t i) { return nodes[static_cast<size_t>(i)]; }
@@ -221,12 +331,52 @@ public:
     return mask;
   }
 
+  /// The pooled-column analogue of reachableCategories, writing
+  /// maskWordsForCount(K) words into out: ones over the K category bits,
+  /// the missing position K when the column can route one, then each
+  /// ancestor rule's filter by the side the path descends.
+  void reachableCategoriesWide(const ColumnStore& data, int32_t nodeIndex,
+                               int32_t variableIndex,
+                               std::uint64_t* out) const {
+    size_t j = static_cast<size_t>(variableIndex);
+    std::uint32_t numCategories = data.numCuts[j];
+    size_t numWords = maskWordsForCount(numCategories);
+    for (size_t w = 0; w < numWords; ++w) out[w] = ~0ull;
+    for (std::uint32_t bit = numCategories;
+         bit < static_cast<std::uint32_t>(64 * numWords); ++bit)
+      out[bit >> 6] &= ~(1ull << (bit & 63u));
+    if (data.hasMissing[j]) maskSetBit(out, numCategories);
+
+    int32_t current = nodeIndex;
+    while (at(current).parent != invalidNode) {
+      bool isRightChild = current == at(at(current).parent).leftChild + 1;
+      current = at(current).parent;
+      if (at(current).rule.variableIndex == variableIndex) {
+        const std::uint64_t* directions = maskWordsFor(at(current).rule);
+        if (isRightChild) {
+          for (size_t w = 0; w < numWords; ++w) out[w] &= directions[w];
+        } else {
+          for (size_t w = 0; w < numWords; ++w) out[w] &= ~directions[w];
+        }
+      }
+    }
+  }
+
   bool variableAvailable(const ColumnStore& data, int32_t nodeIndex,
                          int32_t variableIndex) const {
     if (data.types[static_cast<size_t>(variableIndex)] ==
-        ColumnType::categorical)
+        ColumnType::categorical) {
+      size_t j = static_cast<size_t>(variableIndex);
+      if (data.columnIsPooled(j)) {
+        size_t numWords = maskWordsForCount(data.numCuts[j]);
+        reachableScratch_.resize(numWords);
+        reachableCategoriesWide(data, nodeIndex, variableIndex,
+                                reachableScratch_.data());
+        return maskPopcount(reachableScratch_.data(), numWords) >= 2;
+      }
       return std::popcount(reachableCategories(data, nodeIndex,
                                                variableIndex)) >= 2;
+    }
     int32_t left, right;
     splitInterval(data, nodeIndex, variableIndex, &left, &right);
     return right >= left;
@@ -330,6 +480,26 @@ public:
     return lo;
   }
 
+  /// The pooled-mask sibling of partitionIndicesByMask: the direction bit
+  /// for a code lives in the rule's pool words.
+  static size_t partitionIndicesByWideMask(const xint_t* column,
+                                           const std::uint64_t* directions,
+                                           size_t* indices, size_t length) {
+    size_t lo = 0, hi = length;
+    while (true) {
+      while (lo < hi && !maskTestBit(directions, column[indices[lo]])) ++lo;
+      while (lo < hi && maskTestBit(directions, column[indices[hi - 1]]))
+        --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
   /// Two-pointer ordinal partition aware of the reserved missing code:
   /// codes at or below the split go left, missing codes go by the rule's
   /// direction. The scalar fallback for columns containing NAs.
@@ -366,10 +536,17 @@ public:
       const xint_t* column = data.column(static_cast<size_t>(node.rule.variableIndex));
       if (data.types[static_cast<size_t>(node.rule.variableIndex)] ==
           ColumnType::categorical) {
-        numOnLeft = partitionIndicesByMask(column,
-                                           node.rule.categoryDirections(),
-                                           indices + node.begin,
-                                           node.numObservations());
+        if (data.columnIsPooled(static_cast<size_t>(node.rule.variableIndex))) {
+          numOnLeft = partitionIndicesByWideMask(column,
+                                                 maskWordsFor(node.rule),
+                                                 indices + node.begin,
+                                                 node.numObservations());
+        } else {
+          numOnLeft = partitionIndicesByMask(column,
+                                             node.rule.categoryDirections(),
+                                             indices + node.begin,
+                                             node.numObservations());
+        }
       } else {
         bool isRoot = node.parent == invalidNode;
         if (data.hasMissing[static_cast<size_t>(node.rule.variableIndex)]) {
@@ -405,10 +582,11 @@ public:
       data.column(static_cast<size_t>(node.rule.variableIndex));
     size_t numOnLeft = 0;
     while (numOnLeft < node.numObservations() &&
-           !node.rule.sendsRight(data, column[indices[node.begin + numOnLeft]]))
+           !ruleSendsRight(data, node.rule,
+                           column[indices[node.begin + numOnLeft]]))
       ++numOnLeft;
     for (size_t k = numOnLeft; k < node.numObservations(); ++k)
-      if (!node.rule.sendsRight(data, column[indices[node.begin + k]]))
+      if (!ruleSendsRight(data, node.rule, column[indices[node.begin + k]]))
         return false;
 
     Node& left(at(node.leftChild));
@@ -530,7 +708,7 @@ public:
     int32_t current = 0;
     while (!at(current).isBottom()) {
       const Rule& rule(at(current).rule);
-      current = rule.sendsRight(data, xt[rule.variableIndex])
+      current = ruleSendsRight(data, rule, xt[rule.variableIndex])
                   ? at(current).leftChild + 1
                   : at(current).leftChild;
     }
@@ -548,8 +726,8 @@ public:
       xint_t code = rule.variableIndex == overrideVariable
         ? overrideCode
         : data.column(static_cast<size_t>(rule.variableIndex))[i];
-      current = rule.sendsRight(data, code) ? at(current).leftChild + 1
-                                            : at(current).leftChild;
+      current = ruleSendsRight(data, rule, code) ? at(current).leftChild + 1
+                                                 : at(current).leftChild;
     }
     return current;
   }
@@ -622,16 +800,22 @@ public:
       size_t variableIndex = static_cast<size_t>(node.rule.variableIndex);
       if (data.types[variableIndex] == ColumnType::categorical) {
         ext_printf("CATRule: ");
-        for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
-          ext_printf(" %u", static_cast<unsigned int>(
-                              (node.rule.categoryDirections() >> i) & 1));
+        if (data.columnIsPooled(variableIndex)) {
+          const std::uint64_t* directions = maskWordsFor(node.rule);
+          for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
+            ext_printf(" %u", maskTestBit(directions, i) ? 1u : 0u);
+        } else {
+          for (std::uint32_t i = 0; i < data.numCuts[variableIndex]; ++i)
+            ext_printf(" %u", static_cast<unsigned int>(
+                                (node.rule.categoryDirections() >> i) & 1));
+        }
       } else {
         ext_printf("ORDRule: (%d)=%f", node.rule.splitIndex(),
                    data.cutPoints[variableIndex]
                                  [static_cast<size_t>(node.rule.splitIndex())]);
       }
       if (data.hasMissing[variableIndex])
-        ext_printf(" NA: %c", node.rule.missingGoesRight() ? 'R' : 'L');
+        ext_printf(" NA: %c", ruleMissingGoesRight(data, node.rule) ? 'R' : 'L');
     } else {
       const double* params =
         paramByNode + static_cast<size_t>(nodeIndex) * paramStride;
@@ -655,16 +839,21 @@ public:
   /// receives each node's current observation count in the same order. For
   /// vector-parameter leaves a leaf's record keeps its leading coordinate
   /// (the intercept) in value and appends the remaining paramStride - 1
-  /// slopes per leaf, in pre-order, to slopes.
+  /// slopes per leaf, in pre-order, to slopes. masks receives wide
+  /// categorical rules' words (see FlatNode) and must be non-null when the
+  /// store has any wide categorical column.
   void flatten(const ColumnStore& data, const double* paramByNode,
                std::vector<FlatNode>& nodes,
                std::vector<std::uint32_t>* counts = nullptr,
                size_t paramStride = 1,
-               std::vector<double>* slopes = nullptr) const {
+               std::vector<double>* slopes = nullptr,
+               std::vector<std::uint64_t>* masks = nullptr) const {
     nodes.clear();
     if (counts != nullptr) counts->clear();
     if (slopes != nullptr) slopes->clear();
-    flattenBelow(0, data, paramByNode, nodes, counts, paramStride, slopes);
+    if (masks != nullptr) masks->clear();
+    flattenBelow(0, data, paramByNode, nodes, counts, paramStride, slopes,
+                 masks);
   }
 
   /// Rebuild structure from a flattened form into a freshly initialized
@@ -674,18 +863,24 @@ public:
   /// node. Partitions are left stale (repartitionSubtree) and paramByNode
   /// receives leaf parameters by arena id, paramStride doubles per node -
   /// the record's value leading, then that leaf's paramStride - 1 entries of
-  /// slopes (pre-order by leaf; the caller validates its length). Returns
-  /// false - possibly half-built - on a malformed input; validate on a
-  /// scratch tree before building into live state.
+  /// slopes (pre-order by leaf; the caller validates its length). masks is
+  /// the wide categorical side channel, whose offsets must be pre-order
+  /// sequential and fully consumed. Returns false - possibly half-built -
+  /// on a malformed input; validate on a scratch tree before building into
+  /// live state.
   bool buildFromFlat(const ColumnStore& data, const FlatNode* flatNodes,
                      size_t numNodes, std::vector<double>& paramByNode,
-                     size_t paramStride = 1, const double* slopes = nullptr) {
+                     size_t paramStride = 1, const double* slopes = nullptr,
+                     const std::uint64_t* masks = nullptr,
+                     size_t numMaskWords = 0) {
     paramByNode.clear();
-    size_t pos = 0, leafPos = 0;
+    size_t pos = 0, leafPos = 0, maskPos = 0;
     if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode,
-                            paramStride, slopes, leafPos))
+                            paramStride, slopes, leafPos, masks, numMaskWords,
+                            maskPos))
       return false;
     if (pos != numNodes) return false;
+    if (maskPos != numMaskWords) return false;
     paramByNode.resize(nodes.size() * paramStride, 0.0);
     return true;
   }
@@ -838,7 +1033,8 @@ private:
   void flattenBelow(int32_t nodeIndex, const ColumnStore& data,
                     const double* paramByNode, std::vector<FlatNode>& out,
                     std::vector<std::uint32_t>* counts, size_t paramStride,
-                    std::vector<double>* slopes) const {
+                    std::vector<double>* slopes,
+                    std::vector<std::uint64_t>* masks) const {
     const Node& node(at(nodeIndex));
     if (counts != nullptr)
       counts->push_back(static_cast<std::uint32_t>(node.numObservations()));
@@ -855,25 +1051,46 @@ private:
     }
 
     flat.variable = node.rule.variableIndex;
-    flat.value =
-      data.types[static_cast<size_t>(flat.variable)] == ColumnType::categorical
-        ? static_cast<double>(node.rule.categoryDirections() &
-                              ~Rule::missingDirectionBit)
-        : data.cutPoints[static_cast<size_t>(flat.variable)]
-                        [static_cast<size_t>(node.rule.splitIndex())];
-    flat.flags = node.rule.missingGoesRight() ? flatMissingGoesRight : 0;
+    size_t j = static_cast<size_t>(flat.variable);
+    if (data.types[j] != ColumnType::categorical) {
+      flat.value = data.cutPoints[j]
+                                 [static_cast<size_t>(node.rule.splitIndex())];
+    } else if (data.columnHasWideMask(j)) {
+      // side-channel encoding: value holds the rule's word offset, the
+      // words carry category bits only - the missing direction stays in
+      // flags for every rule kind
+      std::uint32_t numCategories = data.numCuts[j];
+      size_t numWords = maskWordsForCount(numCategories);
+      size_t offset = masks->size();
+      flat.value = static_cast<double>(offset);
+      masks->resize(offset + numWords, 0);
+      std::uint64_t* words = masks->data() + offset;
+      if (data.columnIsPooled(j)) {
+        const std::uint64_t* pooled = maskWordsFor(node.rule);
+        for (size_t w = 0; w < numWords; ++w) words[w] = pooled[w];
+        words[numCategories >> 6] &= ~(1ull << (numCategories & 63u));
+      } else {
+        words[0] = node.rule.categoryDirections() & ~Rule::missingDirectionBit;
+      }
+    } else {
+      flat.value = static_cast<double>(node.rule.categoryDirections() &
+                                       ~Rule::missingDirectionBit);
+    }
+    flat.flags = ruleMissingGoesRight(data, node.rule) ? flatMissingGoesRight
+                                                       : 0;
     out.push_back(flat);
     flattenBelow(node.leftChild, data, paramByNode, out, counts, paramStride,
-                 slopes);
+                 slopes, masks);
     flattenBelow(node.leftChild + 1, data, paramByNode, out, counts,
-                 paramStride, slopes);
+                 paramStride, slopes, masks);
   }
 
   bool buildFromFlatBelow(int32_t nodeIndex, const ColumnStore& data,
                           const FlatNode* flatNodes, size_t numNodes,
                           size_t& pos, std::vector<double>& paramByNode,
                           size_t paramStride, const double* slopes,
-                          size_t& leafPos) {
+                          size_t& leafPos, const std::uint64_t* masks,
+                          size_t numMaskWords, size_t& maskPos) {
     if (pos >= numNodes) return false;
     const FlatNode& flat(flatNodes[pos++]);
 
@@ -898,8 +1115,49 @@ private:
 
     Rule rule;
     rule.variableIndex = flat.variable;
-    if (data.types[static_cast<size_t>(flat.variable)] ==
-        ColumnType::categorical) {
+    size_t variable = static_cast<size_t>(flat.variable);
+    if (data.types[variable] == ColumnType::categorical &&
+        data.columnHasWideMask(variable)) {
+      // side-channel masks: the value must be the running pre-order word
+      // cursor, the words category bits only, and the assembled mask a
+      // canonical-gauge assignment like the narrow path's
+      std::uint32_t numCategories = data.numCuts[variable];
+      size_t numWords = maskWordsForCount(numCategories);
+      if (masks == nullptr || flat.value != static_cast<double>(maskPos) ||
+          maskPos + numWords > numMaskWords)
+        return false;
+      const std::uint64_t* words = masks + maskPos;
+      maskPos += numWords;
+      for (std::uint32_t bit = numCategories;
+           bit < static_cast<std::uint32_t>(64 * numWords); ++bit)
+        if (maskTestBit(words, bit)) return false;
+      if (data.columnIsPooled(variable)) {
+        size_t offset = allocateMask(numWords);
+        std::uint64_t* directions = mutableMaskWordsFor(offset);
+        std::memcpy(directions, words, numWords * sizeof(std::uint64_t));
+        if ((flat.flags & flatMissingGoesRight) != 0)
+          maskSetBit(directions, numCategories);
+        reachableScratch_.resize(numWords);
+        reachableCategoriesWide(data, nodeIndex, flat.variable,
+                                reachableScratch_.data());
+        if (maskIsZero(directions, numWords) ||
+            !maskIsSubsetOf(directions, reachableScratch_.data(), numWords) ||
+            maskEquals(directions, reachableScratch_.data(), numWords))
+          return false;
+        rule.setMaskOffset(offset);
+      } else {
+        // the inline band: 54..63 categories in one word
+        std::uint64_t directions = words[0];
+        if ((flat.flags & flatMissingGoesRight) != 0)
+          directions |= Rule::missingDirectionBit;
+        std::uint64_t reachable =
+          reachableCategories(data, nodeIndex, flat.variable);
+        if (directions == 0 || (directions & ~reachable) != 0 ||
+            directions == reachable)
+          return false;
+        rule.setCategoryDirections(directions);
+      }
+    } else if (data.types[variable] == ColumnType::categorical) {
       // stored masks cover the observed categories, at most 2^53 - 1 (the
       // widest double-exact value); the missing direction arrives in flags
       if (flat.value < 0.0 || flat.value > 9007199254740991.0)
@@ -939,12 +1197,36 @@ private:
     at(pair + 1).leftChild = invalidNode;
 
     return buildFromFlatBelow(pair, data, flatNodes, numNodes, pos,
-                              paramByNode, paramStride, slopes, leafPos) &&
+                              paramByNode, paramStride, slopes, leafPos,
+                              masks, numMaskWords, maskPos) &&
            buildFromFlatBelow(pair + 1, data, flatNodes, numNodes, pos,
-                              paramByNode, paramStride, slopes, leafPos);
+                              paramByNode, paramStride, slopes, leafPos,
+                              masks, numMaskWords, maskPos);
+  }
+
+  void compactMaskPoolBelow(int32_t nodeIndex, const ColumnStore& data,
+                            std::vector<std::uint64_t>& fresh) {
+    Node& node(at(nodeIndex));
+    if (node.isBottom()) return;
+    size_t j = static_cast<size_t>(node.rule.variableIndex);
+    if (data.columnIsPooled(j)) {
+      size_t numWords = maskWordsForCount(data.numCuts[j]);
+      const std::uint64_t* words = maskWordsFor(node.rule);
+      size_t offset = fresh.size();
+      fresh.insert(fresh.end(), words, words + numWords);
+      node.rule.setMaskOffset(offset);
+    }
+    compactMaskPoolBelow(node.leftChild, data, fresh);
+    compactMaskPoolBelow(node.leftChild + 1, data, fresh);
   }
 
   std::vector<int32_t> freePairs;
+  size_t maskPoolHighWater_ = minMaskPoolCompactionSize;
+  std::vector<std::uint64_t> compactScratch_;
+  // wide-reachable scratch for the compute-check-discard call sites
+  // (variableAvailable, buildFromFlat's gauge check); mutable because
+  // availability queries are logically const
+  mutable std::vector<std::uint64_t> reachableScratch_;
 };
 
 /// Partition indices[lo, hi) of raw column-major predictors around a
@@ -952,13 +1234,35 @@ private:
 /// the boundary: ordinal rows go left when x <= value, categorical rows when
 /// the mask's direction bit for their code is clear. Order within the halves
 /// is not preserved (nor needed; replays only count or accumulate).
+/// numCategories/maskWords resolve wide categorical rules (side-channel
+/// masks indexed by the record's value); both may be null for stores
+/// without wide columns.
 inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types,
                                    const double* x, size_t numRows,
-                                   size_t* indices, size_t lo, size_t hi) {
+                                   size_t* indices, size_t lo, size_t hi,
+                                   const std::uint32_t* numCategories = nullptr,
+                                   const std::uint64_t* maskWords = nullptr) {
   const double* column = x + static_cast<size_t>(flat.variable) * numRows;
   size_t mid = lo;
   bool missingGoesLeft = (flat.flags & flatMissingGoesRight) == 0;
-  if (types[flat.variable] == ColumnType::categorical) {
+  if (types[flat.variable] == ColumnType::categorical &&
+      numCategories != nullptr &&
+      numCategories[flat.variable] > maxValueEncodableCategories) {
+    const std::uint64_t* directions =
+      maskWords + static_cast<size_t>(flat.value);
+    for (size_t k = lo; k < hi; ++k) {
+      double value = column[indices[k]];
+      bool goesLeft = isNA(value)
+        ? missingGoesLeft
+        : !maskTestBit(directions, static_cast<std::uint32_t>(value));
+      if (goesLeft) {
+        size_t temp = indices[mid];
+        indices[mid] = indices[k];
+        indices[k] = temp;
+        ++mid;
+      }
+    }
+  } else if (types[flat.variable] == ColumnType::categorical) {
     std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
     for (size_t k = lo; k < hi; ++k) {
       double value = column[indices[k]];
@@ -995,19 +1299,24 @@ inline size_t countFlatObservationsBelow(const FlatNode* flatNodes,
                                          const ColumnType* types,
                                          const double* x, size_t numRows,
                                          size_t* indices, size_t lo, size_t hi,
-                                         std::uint32_t* counts) {
+                                         std::uint32_t* counts,
+                                         const std::uint32_t* numCategories = nullptr,
+                                         const std::uint64_t* maskWords = nullptr) {
   counts[0] = static_cast<std::uint32_t>(hi - lo);
   if (flatNodes[0].variable == invalidVariable) return 1;
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi,
+                         numCategories, maskWords);
   size_t numNodes = 1;
   numNodes += countFlatObservationsBelow(flatNodes + numNodes, types, x,
                                          numRows, indices, lo, mid,
-                                         counts + numNodes);
+                                         counts + numNodes, numCategories,
+                                         maskWords);
   numNodes += countFlatObservationsBelow(flatNodes + numNodes, types, x,
                                          numRows, indices, mid, hi,
-                                         counts + numNodes);
+                                         counts + numNodes, numCategories,
+                                         maskWords);
   return numNodes;
 }
 
@@ -1016,19 +1325,24 @@ inline size_t countFlatObservationsBelow(const FlatNode* flatNodes,
 inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
                                       const ColumnType* types, const double* x,
                                       size_t numRows, size_t* indices,
-                                      size_t lo, size_t hi, double* fits) {
+                                      size_t lo, size_t hi, double* fits,
+                                      const std::uint32_t* numCategories = nullptr,
+                                      const std::uint64_t* maskWords = nullptr) {
   if (flatNodes[0].variable == invalidVariable) {
     for (size_t k = lo; k < hi; ++k) fits[indices[k]] += flatNodes[0].value;
     return 1;
   }
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi,
+                         numCategories, maskWords);
   size_t numNodes = 1;
   numNodes += addFlatPredictionsBelow(flatNodes + numNodes, types, x, numRows,
-                                      indices, lo, mid, fits);
+                                      indices, lo, mid, fits, numCategories,
+                                      maskWords);
   numNodes += addFlatPredictionsBelow(flatNodes + numNodes, types, x, numRows,
-                                      indices, mid, hi, fits);
+                                      indices, mid, hi, fits, numCategories,
+                                      maskWords);
   return numNodes;
 }
 
@@ -1043,7 +1357,9 @@ inline size_t addFlatLinearPredictionsBelow(
     const FlatNode* flatNodes, const ColumnType* types, const double* x,
     size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
     const size_t* columns, const double* means, const double* sds,
-    size_t numSlopes, const double* slopes, size_t leafOffset = 0) {
+    size_t numSlopes, const double* slopes, size_t leafOffset = 0,
+    const std::uint32_t* numCategories = nullptr,
+    const std::uint64_t* maskWords = nullptr) {
   if (flatNodes[0].variable == invalidVariable) {
     const double* leafSlopes = slopes + leafOffset * numSlopes;
     for (size_t k = lo; k < hi; ++k) {
@@ -1060,25 +1376,31 @@ inline size_t addFlatLinearPredictionsBelow(
   }
 
   size_t mid =
-    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi);
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi,
+                         numCategories, maskWords);
   size_t numOnLeft = addFlatLinearPredictionsBelow(
     flatNodes + 1, types, x, numRows, indices, lo, mid, fits, columns, means,
-    sds, numSlopes, slopes, leafOffset);
+    sds, numSlopes, slopes, leafOffset, numCategories, maskWords);
   size_t numNodes = 1 + numOnLeft;
   numNodes += addFlatLinearPredictionsBelow(
     flatNodes + numNodes, types, x, numRows, indices, mid, hi, fits, columns,
-    means, sds, numSlopes, slopes, leafOffset + (numOnLeft + 1) / 2);
+    means, sds, numSlopes, slopes, leafOffset + (numOnLeft + 1) / 2,
+    numCategories, maskWords);
   return numNodes;
 }
 
 /// Structural well-formedness of a flattened subtree - complete pre-order,
-/// variables in range, categorical masks integral and nonzero - without the
+/// variables in range, categorical masks integral and nonzero, wide masks'
+/// offsets pre-order sequential within their channel - without the
 /// cut-correspondence and gauge conditions live restoration demands (saved
 /// trees replay against raw values, so any split value routes). Returns the
 /// number of nodes consumed, 0 when malformed.
 inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
                                       const FlatNode* flatNodes,
-                                      size_t numNodes, size_t pos) {
+                                      size_t numNodes, size_t pos,
+                                      const std::uint64_t* masks = nullptr,
+                                      size_t numMaskWords = 0,
+                                      size_t* maskCursor = nullptr) {
   if (pos >= numNodes) return 0;
   const FlatNode& flat(flatNodes[pos]);
   if (flat.variable == invalidVariable) return flat.flags == 0 ? 1 : 0;
@@ -1086,8 +1408,20 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
       static_cast<size_t>(flat.variable) >= data.numPredictors ||
       (flat.flags & ~flatMissingGoesRight) != 0)
     return 0;
-  if (data.types[static_cast<size_t>(flat.variable)] ==
-      ColumnType::categorical) {
+  size_t variable = static_cast<size_t>(flat.variable);
+  if (data.types[variable] == ColumnType::categorical &&
+      data.columnHasWideMask(variable)) {
+    size_t numWords = maskWordsForCount(data.numCuts[variable]);
+    if (masks == nullptr || maskCursor == nullptr ||
+        flat.value != static_cast<double>(*maskCursor) ||
+        *maskCursor + numWords > numMaskWords)
+      return 0;
+    // the mask plus the missing direction must send something right
+    if (maskIsZero(masks + *maskCursor, numWords) &&
+        (flat.flags & flatMissingGoesRight) == 0)
+      return 0;
+    *maskCursor += numWords;
+  } else if (data.types[variable] == ColumnType::categorical) {
     // the mask over observed categories plus the missing direction must
     // send something right
     if (flat.value < 0.0 || flat.value > 9007199254740991.0 ||
@@ -1097,18 +1431,25 @@ inline size_t flatSubtreeIsWellFormed(const ColumnStore& data,
       return 0;
   }
   size_t numOnLeft =
-    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1);
+    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1, masks,
+                            numMaskWords, maskCursor);
   if (numOnLeft == 0) return 0;
   size_t numOnRight =
-    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1 + numOnLeft);
+    flatSubtreeIsWellFormed(data, flatNodes, numNodes, pos + 1 + numOnLeft,
+                            masks, numMaskWords, maskCursor);
   if (numOnRight == 0) return 0;
   return 1 + numOnLeft + numOnRight;
 }
 
 inline bool flatTreeIsWellFormed(const ColumnStore& data,
-                                 const FlatNode* flatNodes, size_t numNodes) {
+                                 const FlatNode* flatNodes, size_t numNodes,
+                                 const std::uint64_t* masks = nullptr,
+                                 size_t numMaskWords = 0) {
+  size_t maskCursor = 0;
   return numNodes > 0 &&
-         flatSubtreeIsWellFormed(data, flatNodes, numNodes, 0) == numNodes;
+         flatSubtreeIsWellFormed(data, flatNodes, numNodes, 0, masks,
+                                 numMaskWords, &maskCursor) == numNodes &&
+         maskCursor == numMaskWords;
 }
 
 /// Number of records a well-formed flattened subtree occupies.
@@ -1126,7 +1467,8 @@ inline size_t flatSubtreeLength(const FlatNode* flatNodes) {
 inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
                              int indentation, size_t depth = 0,
                              const double* slopes = nullptr,
-                             size_t numSlopes = 0, size_t leafOffset = 0) {
+                             size_t numSlopes = 0, size_t leafOffset = 0,
+                             const std::uint64_t* masks = nullptr) {
   const FlatNode& flat(flatNodes[0]);
   bool isBottom = flat.variable == invalidVariable;
 
@@ -1146,11 +1488,19 @@ inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
     ext_printf(" var: %d ", flat.variable);
     if (data.types[static_cast<size_t>(flat.variable)] ==
         ColumnType::categorical) {
-      std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
       ext_printf("CATRule: ");
-      for (std::uint32_t i = 0;
-           i < data.numCuts[static_cast<size_t>(flat.variable)]; ++i)
-        ext_printf(" %u", static_cast<unsigned int>((directions >> i) & 1));
+      if (data.columnHasWideMask(static_cast<size_t>(flat.variable))) {
+        const std::uint64_t* directions =
+          masks + static_cast<size_t>(flat.value);
+        for (std::uint32_t i = 0;
+             i < data.numCuts[static_cast<size_t>(flat.variable)]; ++i)
+          ext_printf(" %u", maskTestBit(directions, i) ? 1u : 0u);
+      } else {
+        std::uint64_t directions = static_cast<std::uint64_t>(flat.value);
+        for (std::uint32_t i = 0;
+             i < data.numCuts[static_cast<size_t>(flat.variable)]; ++i)
+          ext_printf(" %u", static_cast<unsigned int>((directions >> i) & 1));
+      }
     } else {
       ext_printf("ORDRule: %f", flat.value);
     }
@@ -1159,9 +1509,10 @@ inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
                  (flat.flags & flatMissingGoesRight) != 0 ? 'R' : 'L');
     ext_printf("\n");
     printFlatSubtree(data, flatNodes + 1, indentation, depth + 1, slopes,
-                     numSlopes, leafOffset);
+                     numSlopes, leafOffset, masks);
     printFlatSubtree(data, flatNodes + 1 + numOnLeft, indentation, depth + 1,
-                     slopes, numSlopes, leafOffset + (numOnLeft + 1) / 2);
+                     slopes, numSlopes, leafOffset + (numOnLeft + 1) / 2,
+                     masks);
   } else {
     ext_printf(" pred: %f", flat.value);
     if (slopes != nullptr && numSlopes > 0) {

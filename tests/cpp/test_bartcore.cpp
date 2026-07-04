@@ -2039,6 +2039,299 @@ static void testWideCategorical(ext_rng* rng) {
   printf("ok: wide categorical\n");
 }
 
+static void testPooledMaskMechanics(ext_rng* rng) {
+  // columns past 63 categories store per-tree pooled mask words; exercise
+  // the partition kernel, reachability, draws, the pool's compaction, and
+  // the flattened side channel (docs/design/pooled-masks.md)
+  const size_t K = 70;  // ceil(71 / 64) = 2 words
+  const size_t n = 10 * K;
+  std::vector<double> x(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = (i * 37) % K;
+    x[i] = static_cast<double>(category);
+    y[i] = (category % 3 == 0 ? 2.0 : 0.0) + 0.3 * (runif01() - 0.5);
+  }
+
+  ColumnType types[] = {ColumnType::categorical};
+  ColumnStore store;
+  store.build(x.data(), n, 1, 10, false, types);
+  check(store.numCuts[0] == K, "pooled column counts its categories");
+  check(store.columnIsPooled(0) && store.columnHasWideMask(0) &&
+          store.hasPooledCategorical && store.hasWideCategorical,
+        "pooled tier predicates");
+  check(maskWordsForCount(K) == 2, "70 categories need two words");
+  check(missingCategoryCode(K) == 70 &&
+          store.codeFor(0, std::nan("")) == 70,
+        "a pooled column's missing code is K");
+
+  // a hand-built rule whose direction bits straddle both words
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  size_t offset = tree.allocateMask(2);
+  {
+    std::uint64_t* words = tree.mutableMaskWordsFor(offset);
+    maskSetBit(words, 1);
+    maskSetBit(words, 40);
+    maskSetBit(words, 64);
+    maskSetBit(words, 69);
+  }
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setMaskOffset(offset);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  const Node& left(tree.at(tree.at(0).leftChild));
+  const Node& right(tree.at(tree.at(0).leftChild + 1));
+  size_t expectedRight = 0;
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = (i * 37) % K;
+    if (category == 1 || category == 40 || category == 64 || category == 69)
+      ++expectedRight;
+  }
+  check(right.numObservations() == expectedRight &&
+          left.numObservations() == n - expectedRight,
+        "pooled mask partitions across words");
+  bool sidesMatch = true;
+  for (size_t i = right.begin; i < right.end; ++i) {
+    size_t category = (tree.indices[i] * 37) % K;
+    sidesMatch &= category == 1 || category == 40 || category == 64 ||
+                  category == 69;
+  }
+  check(sidesMatch, "right side holds only right-bound categories");
+
+  std::uint64_t reachable[2];
+  tree.reachableCategoriesWide(store, tree.at(0).leftChild + 1, 0, reachable);
+  check(maskEquals(reachable, tree.maskWordsFor(tree.at(0).rule), 2),
+        "right child reaches the mask's categories");
+  tree.reachableCategoriesWide(store, tree.at(0).leftChild, 0, reachable);
+  check(maskPopcount(reachable, 2) == K - 4 && !maskTestBit(reachable, 40) &&
+          maskTestBit(reachable, 0) && maskTestBit(reachable, 68),
+        "left child reaches the complement");
+
+  // each pooled direction bit is marginally 1/2 under the uniform prior on
+  // assignments that leave neither side empty
+  Tree drawTree;
+  drawTree.initialize(indices.data(), n);
+  CGMTreePrior prior;
+  const int numDraws = 20000;
+  std::vector<int> bitCounts(K, 0);
+  bool neverEmpty = true;
+  for (int d = 0; d < numDraws; ++d) {
+    size_t mark = drawTree.maskPoolMark();
+    Rule drawn = prior.drawRuleForVariable(drawTree, store, rng, 0, 0);
+    const std::uint64_t* words = drawTree.maskWordsFor(drawn);
+    size_t numRight = maskPopcount(words, 2);
+    neverEmpty &= numRight > 0 && numRight < K;
+    for (size_t bit = 0; bit < K; ++bit)
+      bitCounts[bit] += maskTestBit(words, static_cast<std::uint32_t>(bit))
+        ? 1 : 0;
+    drawTree.truncateMaskPool(mark);
+  }
+  check(neverEmpty, "pooled draws leave neither side empty");
+  bool marginsMatch = true;
+  double tolerance = 5.0 * std::sqrt(0.25 * numDraws);
+  for (size_t bit = 0; bit < K; ++bit)
+    marginsMatch &= std::fabs(bitCounts[bit] - 0.5 * numDraws) < tolerance;
+  check(marginsMatch, "pooled draw direction bits are marginally uniform");
+  checkNear(prior.ruleForVariableLogProbability(tree, store, 0),
+            -(70.0 * std::log(2.0) + std::log1p(-std::pow(2.0, -69.0))),
+            1e-13, "pooled rule probability uses the closed form");
+
+  // compaction: strand garbage past the high-water mark, then verify the
+  // live rule's words survive at a fresh offset and still partition
+  std::vector<std::uint64_t> liveMask(tree.maskWordsFor(tree.at(0).rule),
+                                      tree.maskWordsFor(tree.at(0).rule) + 2);
+  for (int g = 0; g < 200; ++g) tree.allocateMask(2);
+  tree.compactMaskPoolIfNeeded(store);
+  check(tree.maskPool.size() == 2, "compaction keeps only live masks");
+  check(maskEquals(tree.maskWordsFor(tree.at(0).rule), liveMask.data(), 2),
+        "compaction preserves mask contents");
+  tree.repartitionSubtree(store, 0);
+  check(tree.at(tree.at(0).leftChild + 1).numObservations() == expectedRight,
+        "compacted rules still partition");
+
+  // the flattened side channel: offsets sequential in pre-order, category
+  // bits only, gauge re-checked on rebuild
+  std::vector<FlatNode> flat;
+  std::vector<std::uint64_t> flatMasks;
+  std::vector<double> paramByNode(tree.nodes.size(), 0.0);
+  tree.flatten(store, paramByNode.data(), flat, nullptr, 1, nullptr,
+               &flatMasks);
+  check(flat.size() == 3 && flatMasks.size() == 2 && flat[0].value == 0.0,
+        "pooled flatten emits the side channel");
+  check(maskEquals(flatMasks.data(), liveMask.data(), 2),
+        "flattened words match the live mask");
+  check(flatTreeIsWellFormed(store, flat.data(), flat.size(),
+                             flatMasks.data(), flatMasks.size()),
+        "pooled flat tree is well formed");
+  check(!flatTreeIsWellFormed(store, flat.data(), flat.size()),
+        "a missing mask channel is rejected");
+
+  std::vector<size_t> rebuiltIndices(n);
+  std::vector<double> rebuiltParams;
+  Tree rebuilt;
+  rebuilt.initialize(rebuiltIndices.data(), n);
+  check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,
+                              1, nullptr, flatMasks.data(), flatMasks.size()),
+        "pooled tree rebuilds from flat");
+  check(maskEquals(rebuilt.maskWordsFor(rebuilt.at(0).rule),
+                   liveMask.data(), 2),
+        "pooled mask round-trips exactly");
+
+  flat[0].value = 1.0;  // offsets must be the running cursor
+  rebuilt.initialize(rebuiltIndices.data(), n);
+  check(!rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,
+                               1, nullptr, flatMasks.data(),
+                               flatMasks.size()),
+        "a non-sequential mask offset is rejected");
+  flat[0].value = 0.0;
+  std::vector<std::uint64_t> badMasks(flatMasks);
+  maskSetBit(badMasks.data(), 70);  // the missing position must stay clear
+  rebuilt.initialize(rebuiltIndices.data(), n);
+  check(!rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,
+                               1, nullptr, badMasks.data(), badMasks.size()),
+        "mask bits past the categories are rejected");
+
+  // missing values compose: the NA pseudo-category is bit K
+  std::vector<double> xMissing(x);
+  xMissing[0] = std::nan("");
+  xMissing[7] = std::nan("");
+  ColumnStore storeMissing;
+  storeMissing.build(xMissing.data(), n, 1, 10, false, types);
+  check(storeMissing.numCuts[0] == K && storeMissing.hasMissing[0] == 1 &&
+          storeMissing.codes[0] == 70,
+        "pooled NA takes code K");
+  Tree missingTree;
+  missingTree.initialize(indices.data(), n);
+  missingTree.reachableCategoriesWide(storeMissing, 0, 0, reachable);
+  check(maskPopcount(reachable, 2) == K + 1 && maskTestBit(reachable, 70),
+        "the missing pseudo-category enters the reachable set");
+
+  printf("ok: pooled mask mechanics\n");
+}
+
+static void testPooledMaskSampler(ext_rng* rng) {
+  // end to end over one pooled column (K = 70) and one inline-band column
+  // (K = 60, whose flattened masks also move to the side channel), with
+  // keepTrees, saved-tree replay, live prediction, and a bitwise state
+  // round trip mid-run
+  const size_t K = 70, K2 = 60;
+  const size_t n = 10 * K;
+  std::vector<double> x(2 * n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    size_t category = (i * 37) % K;
+    size_t category2 = (i * 13) % K2;
+    x[i] = static_cast<double>(category);
+    x[i + n] = static_cast<double>(category2);
+    y[i] = (category % 3 == 0 ? 2.0 : 0.0) +
+           (category2 >= 55 ? -1.5 : 0.0) + 0.3 * (runif01() - 0.5);
+  }
+
+  ColumnType types[] = {ColumnType::categorical, ColumnType::categorical};
+  {
+    ColumnStore probe;
+    probe.build(x.data(), n, 2, 10, false, types);
+    check(!probe.columnIsPooled(1) && probe.columnHasWideMask(1),
+          "60 categories stay inline but flatten wide");
+  }
+
+  const size_t numSamples = 4, nTest = K;
+  std::vector<double> xTest(2 * nTest);
+  for (size_t i = 0; i < nTest; ++i) {
+    xTest[i] = static_cast<double>(i % K);
+    xTest[i + nTest] = static_cast<double>(i % K2);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.columnTypes = types;
+  options.keepTrees = true;
+  options.numSamplesToStore = numSamples;
+  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  sampler.setTestPredictors(xTest.data(), nTest);
+
+  const size_t numRecorded = 100;
+  std::vector<double> trainingFits(n * numRecorded);
+  Results burnResults;
+  burnResults.trainingFits = trainingFits.data();
+  sampler.run(100, numRecorded, burnResults);
+
+  double lowSum = 0.0, highSum = 0.0;
+  size_t lowCount = 0, highCount = 0;
+  for (size_t s = 0; s < numRecorded; ++s)
+    for (size_t i = 0; i < n; ++i) {
+      double centered = trainingFits[i + s * n] -
+                        ((i * 13) % K2 >= 55 ? -1.5 : 0.0);
+      if ((i * 37) % K % 3 == 0) { highSum += centered; ++highCount; }
+      else                       { lowSum += centered; ++lowCount; }
+    }
+  check(std::fabs(highSum / static_cast<double>(highCount) - 2.0) < 0.2 &&
+          std::fabs(lowSum / static_cast<double>(lowCount)) < 0.2,
+        "pooled subset splits recover group means");
+
+  // saved-tree replay equals the recorded test fits exactly
+  std::vector<double> sigma(numSamples), testFits(nTest * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.testFits = testFits.data();
+  sampler.run(0, numSamples, results);
+  std::vector<double> predicted(nTest * numSamples);
+  sampler.predict(xTest.data(), nTest, predicted.data());
+  check(predicted == testFits,
+        "pooled saved-tree predictions equal the run's test fits");
+
+  // a stored state restores to a bitwise-identical continuation
+  SamplerStateData state;
+  sampler.getState(state);
+  check(!state.chains[0].treeMasks.empty(),
+        "wide-column states carry mask channels");
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng2, 4242);
+  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rng2);
+  restored.setTestPredictors(xTest.data(), nTest);
+  check(restored.setState(state), "a pooled state restores");
+
+  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
+  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  sampler.run(0, numSamples, resultsA);
+  restored.run(0, numSamples, resultsB);
+  check(sigmaA == sigmaB && trainA == trainB,
+        "restored pooled chains continue bitwise");
+
+  // live-tree prediction agrees with the final tree fits
+  std::vector<double> livePredict(n);
+  {
+    ClassicSampler live(x.data(), y.data(), n, 2, nullptr, nullptr,
+                        ResponseFamily::gaussian, 1.0, 3.0,
+                        0.37804942330213542, options, &rng2);
+    Results liveResults;
+    std::vector<double> liveSigma(1), liveTrain(n);
+    liveResults.sigma = liveSigma.data();
+    liveResults.trainingFits = liveTrain.data();
+    live.setTreeStorage(false, 0);
+    live.run(50, 1, liveResults);
+    live.predict(x.data(), n, livePredict.data());
+    bool livePredictionMatches = true;
+    for (size_t i = 0; i < n; ++i)
+      livePredictionMatches &=
+        std::fabs(livePredict[i] - liveTrain[i]) < 1e-10;
+    check(livePredictionMatches,
+          "live pooled prediction matches the last recorded fits");
+  }
+  ext_rng_destroy(rng2);
+
+  printf("ok: pooled mask sampler\n");
+}
+
 static void testFlattenRoundTrip() {
   // one categorical column (codes 0..3) and one ordinal, a hand-built tree
   // with one rule of each kind
@@ -3631,6 +3924,8 @@ int main() {
   testEndToEndCategorical(rng);
   testCategoricalMutation(rng);
   testWideCategorical(rng);
+  testPooledMaskMechanics(rng);
+  testPooledMaskSampler(rng);
   testFlattenRoundTrip();
   testKeepTrees(rng);
   testPredictCurrentTrees(rng);

@@ -439,6 +439,11 @@ partitioning entirely; a different library sharing only the tree structure).
    equality can compare the wide member for both kinds. Uncapped categories
    need pooled mask storage and a wide-mask reporting format; deferred to
    the public-surface proposal (docs/design/public-surface.md).
+   Pooled masks (DONE 2026-07-04): the cap is 65535 - masks of up to 63
+   categories stay inline in the rule word, wider columns pool per-tree
+   mask words, the flattened format moves masks past 53 categories to a
+   side channel, and getTrees reports such rules with value = NA plus the
+   usual directions decode; see docs/design/pooled-masks.md.
    Data.frame ingestion (DONE 2026-07-03): `dbarts` and `dbartsData` take
    `factors = "categorical"`, coding unordered factors as single
    categorical columns (codes 0..K-1, K <= 53), ordered factors as
