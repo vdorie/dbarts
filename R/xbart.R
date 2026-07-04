@@ -5,7 +5,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   n.trees = 75L, k = NULL, power = 2, base = 0.95, drop = TRUE,
                   resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
                   seed = NA_integer_,
-                  factors = c("categorical", "indicators"))
+                  factors = c("categorical", "indicators"),
+                  family = c("auto", "gaussian", "probit", "logistic"))
 {
   matchedCall <- match.call()
 
@@ -31,8 +32,19 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   data@sigma  <- sigma
   attr(control, "n.cuts") <- NULL
 
+  family <- match.arg(family)
   uniqueResponses <- unique(data@y)
-  if (length(uniqueResponses) == 2L && all(sort(uniqueResponses) == c(0, 1))) control@binary <- TRUE
+  responseIsBinary <- length(uniqueResponses) == 2L &&
+    all(sort(uniqueResponses) == c(0, 1))
+  if (family == "auto") {
+    family <- if (responseIsBinary) "probit" else "gaussian"
+  } else if (family != "gaussian" && !responseIsBinary) {
+    # gaussian on a 0/1 response is a legitimate request; the binary
+    # families need latent-variable coding
+    stop("family \"", family, "\" requires a response coded 0/1")
+  }
+  control@family <- family
+  control@binary <- family != "gaussian"
 
   if (is.na(data@sigma) && !control@binary)
     data@sigma <- summary(lm(data@y ~ data@x, weights = data@weights, offset = data@offset))$sigma
@@ -103,7 +115,12 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     }
   if (is.call(resid.prior)) resid.prior <- eval(resid.prior, getNamespace("dbarts"))
   model <- new("dbartsModel", tree.prior, node.prior, node.hyperprior, resid.prior,
-               node.scale = if (control@binary) 3.0 else 0.5)
+               # the logistic scale is probit's default widened by the logistic
+               # latent's standard deviation, pi / sqrt(3)
+               node.scale = switch(control@family,
+                                   gaussian = 0.5,
+                                   probit   = 3.0,
+                                   logistic = pi * sqrt(3.0)))
 
   numObservations <- length(data@y)
   if (method == "k-fold") {

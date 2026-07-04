@@ -62,7 +62,30 @@ expect_equal(
   )
 )
 
-rm(xval, power, n.reps, z, x)
+rm(xval)
+
+# family routes through to the folds: logistic and forced-gaussian fit 0/1
+# responses, binary families reject continuous ones
+xval.logistic <- dbarts::xbart(
+  x, z, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
+  n.reps = n.reps, n.threads = 1L, family = "logistic"
+)
+expect_equal(dim(xval.logistic), NULL)
+expect_true(!anyNA(xval.logistic))
+
+xval.gaussian <- dbarts::xbart(
+  x, z, n.samples = 6L, n.burn = c(5L, 3L, 1L), method = "k-fold", n.test = 5,
+  n.reps = n.reps, n.threads = 1L, family = "gaussian"
+)
+expect_true(!anyNA(xval.gaussian))
+
+expect_error(
+  dbarts::xbart(x, rnorm(nrow(x)), n.reps = 1L, n.threads = 1L,
+                family = "probit"),
+  pattern = "requires a response coded 0/1"
+)
+
+rm(xval.logistic, xval.gaussian, power, n.reps, z, x)
 
 rm(testData)
 
