@@ -822,7 +822,7 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
-      .Call(
+      trees <- .Call(
         C_dbarts_bartcore_getTrees,
         ptr,
         chainNums,
@@ -831,6 +831,11 @@ dbartsSampler <- setRefClass(
         current,
         newdata
       )
+      # categorical rules report their raw direction mask in 'value'; when any
+      # column can hold one, decode the masks into per-level L/R strings
+      if (any(data@varTypes == CATEGORICAL_VARIABLE))
+        trees <- decodeCategoricalSplits(trees, data@x, data@varTypes)
+      trees
     },
     plotTree = function(
       treeNum,
