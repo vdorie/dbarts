@@ -96,18 +96,19 @@ the column lacks NAs).
 ## Bridge and R surface
 
 - Ingestion: dbartsData accepts NAs in predictors (train and test) when
-  the engine does. Add missing = c("mia", "error") to dbartsData and
-  thread it through dbarts/bart2/xbart/rbart_vi like factors;
-  recommendation is "mia" as the default under the major-version
-  license, with "error" as the strictness escape - but the default is
-  Vincent's call before this lands. bart keeps rejecting NAs (classic
+  the engine does. Add missing = c("incorporate", "error") to dbartsData
+  and thread it through dbarts/bart2/xbart/rbart_vi like factors. The
+  value is named for what happens - missingness is incorporated into the
+  split rules - rather than for the MIA acronym (DECIDED 2026-07-04,
+  Vincent: the name and the default are both "incorporate"; "error" is
+  the strictness escape). bart keeps rejecting NAs (classic
   makeModelMatrix surface).
 - Mutation surface: setPredictor/updatePredictor/setData/setCell accept
   NaN, refresh hasMissing, and re-quantize; a column that gains NAs
   mid-run routes them by the existing rules' canonical-zero bit (left)
   until moves revisit those rules - deterministic and documented.
   cutsWouldRemainValid and categoricalValueIsValid treat NaN as valid
-  when missing = "mia".
+  when missing = "incorporate".
 - Views (buildFromParent) copy hasMissing with the rest of the grid; the
   reserved codes gather like any other.
 - Reporting: getTrees gains a missing column ("L"/"R", NA where the rule

@@ -402,8 +402,8 @@ classic engine.
   handle exists.
 - MIA missingness: reserved NA code + rule direction bit; interacts with
   ingestion defaults, so it follows section 2 landing. Proposal written
-  (mia-missingness.md, 2026-07-04); the open decision is the default of
-  its missing = c("mia", "error") argument.
+  (mia-missingness.md, 2026-07-04); the surface is
+  missing = c("incorporate", "error"), name and default decided.
 - Wave-2 models (linear leaves, in-core grouped random effects retiring the
   rbart_vi R loop): engine work, independent of this document except that
   rbart_vi's public signature would eventually gain the in-core option.
