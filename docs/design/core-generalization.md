@@ -521,6 +521,20 @@ partitioning entirely; a different library sharing only the tree structure).
    engines) was replaced with a robust check. Suite 1975; equivalence
    reproduces all nine baseline z-stats exactly; exact-posterior gates
    pass.
+   Classic removal, C++ deletion (DONE 2026-07-03, cutover step 3c, THE
+   CUTOVER IS COMPLETE): src/dbarts/, R_interface_sampler.cpp,
+   R_interface_common.cpp, R_C_interface.cpp, and all classic headers in
+   inst/include/dbarts/ are deleted - dbarts.h is the only shipped
+   header. Classic .Call/CCallable tables removed; unload finalizer is a
+   no-op. Build: dbarts.a out of SUBDIRS/PKG_LIBS (unix + win),
+   configure.win stops copying classic config/types, configure.ac loses
+   match-bayes-tree/thread-safe-unload and the classic config headers.
+   GOTCHA hit and fixed: --with-xint-size is NOT classic-only - misc's
+   partition kernels define misc_xint_t from XINT_TYPE
+   (src/include/misc/types.h) and bartcore's tree.hpp calls them, so the
+   block stays in configure.ac. Component tests, full suite, and the
+   equivalence gate against the saved classic baseline all pass on the
+   classic-free build.
    Classic removal, R surface (DONE 2026-07-03, cutover step 3b): the
    engine argument/slot, rngKind/rngNormalKind, and dbartsState are gone;
    every dbartsSampler method runs its bartcore body unconditionally

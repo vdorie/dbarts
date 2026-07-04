@@ -1,7 +1,3 @@
-## pass -DMATCH_BAYES_TREE to get same results as BayesTree, including excess random calls
-MATCH_BAYES_TREE=
-THREAD_SAFE_UNLOAD=
-
 ARCH=$(shell "${R_HOME}/bin/R" --no-echo -e 'cat(R.version$$arch)')
 ifeq "$(ARCH)" "x86_64"
   SSE2_FLAG=-msse2
@@ -20,11 +16,11 @@ PTHREAD_LIBS=$(SHLIB_PTHREAD_FLAGS)
 CXX_STD = CXX20
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
-PKG_LIBS= dbarts.a external.a misc.a rc.a $(PTHREAD_LIBS)
+PKG_LIBS= external.a misc.a rc.a $(PTHREAD_LIBS)
 
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
-SUBDIRS = dbarts external misc rc
+SUBDIRS = external misc rc
 SUBLIBS = $(SUBDIRS:=.a)
 
 all: $(SHLIB)
@@ -35,7 +31,6 @@ sublibs:
 	@for d in $(SUBDIRS); do \
 	  (cd $${d} && $(MAKE) -f "$(MkInclude)" -f Makefile library \
 	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
-	   DBARTS_FLAGS="$(MATCH_BAYES_TREE)" \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
            CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)") \
@@ -43,7 +38,7 @@ sublibs:
 	done
 
 clean: subclean
-	@-rm -f ../inst/include/dbarts/types.hpp include/misc/types.h config.hpp
+	@-rm -f include/misc/types.h config.hpp
 	@-rm -rf .libs _libs
 	@-rm -f *.o $(SHLIB)
 

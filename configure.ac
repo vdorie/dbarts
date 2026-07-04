@@ -6,10 +6,8 @@ AC_INIT([dbarts],[0.9.33],[vdorie@gmail.com])
 AC_CONFIG_SRCDIR([src/R_interface.cpp])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_HEADERS([src/config.hpp])
-AC_CONFIG_HEADERS([src/dbarts/config.hpp])
 AC_CONFIG_HEADERS([src/misc/config.h])
 AC_CONFIG_HEADERS([src/external/config.h])
-AC_CONFIG_HEADERS([inst/include/dbarts/types.hpp])
 AC_CONFIG_HEADERS([src/include/misc/types.h])
 
 m4_include([tools/m4/ax_check_compile_flag.m4])
@@ -21,20 +19,8 @@ m4_include([tools/m4/ax_snprintf_in_namespace_std.m4])
 m4_include([tools/m4/ax_log1p_in_namespace_std.m4])
 m4_include([tools/m4/ax_func_posix_memalign.m4])
 
-AC_ARG_ENABLE([match-bayes-tree],
-              [AS_HELP_STRING([--enable-match-bayes-tree],
-                              [get results identical to BayesTree])],
-              [match_bayes_tree=-DMATCH_BAYES_TREE],
-              [unset match_bayes_tree])
-AC_SUBST(match_bayes_tree)
-
-AC_ARG_ENABLE([thread-safe-unload],
-              [AS_HELP_STRING([--enable-thread-safe-unload],
-                              [block when adding/deleting fits for the purposes of package reloading])],
-              [thread_safe_unload=-DTHREAD_SAFE_UNLOAD],
-              [unset thread_safe_unload])
-AC_SUBST(thread_safe_unload)
-
+# the integer type misc's partition kernels use for cut indices; consumed
+# through src/include/misc/types.h by the bartcore engine
 AC_ARG_WITH([xint-size],
             [AS_HELP_STRING([--with-xint-size=16],
                             [constrains the number of cutpoints to 2^x-size - 1])],
