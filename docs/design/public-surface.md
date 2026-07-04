@@ -36,7 +36,11 @@ Proposed sequence:
    (section 6) in the same window.
 
 Open: whether any external `LinkingTo` consumers beyond stan4bart exist and
-need a transition release with both ABIs.
+need a transition release with both ABIs. RESOLVED 2026-07-03: the CRAN
+reverse dependencies (EBcoBART, bartCause, bartMan, countSTAR, glossa,
+riAFTBART, stan4bart, tidytreatment, voi) were checked; only stan4bart
+links, the rest are R-level. No transition release needed beyond the
+stan4bart port.
 
 DECIDED: break freely now and patch at the end; xbart may be redesigned
 around the new data layer rather than accommodated, or shelved and
@@ -233,27 +237,89 @@ Model, BARTFit) across a compiled boundary - fragile against layout changes
 and gone with the classic engine. bartcore is header-only C++20, which no
 CRAN package should be forced to compile against.
 
-Proposed:
+Audit of stan4bart 0.0-13 (src/init.cpp, bart_util.{hpp,cpp}), 2026-07-03,
+resolving the open question below:
 
-- A flat C ABI, `inst/include/dbarts/dbarts.h`: opaque `dbarts_sampler*`,
-  `extern "C"` functions over plain arrays, an integer ABI version constant.
-  Entry points sized by what the R bridge and stan4bart actually use:
-  create/destroy, run (results into caller buffers), the mutation surface
-  (response, offset, weights, sigma, predictors incl. transactional
-  updates), latents, predict, state save/restore, prior sampling, and the
-  control/model setters. Names mirror the R5 methods.
-- Callbacks: a per-iteration observer registered with a `void*` closure,
-  receiving (chain, iteration, is-burn-in, training fits, sigma). Same
-  threading contract as the progress sink: with one thread it runs inline
-  and may call into R; with worker threads it runs on the worker and must
-  not touch R. This replaces classic `Control::callback`, which no R-level
-  consumer could reach.
+- CCallables called (19): the lifecycle set (initializeControl,
+  initializeData/invalidateData, initializeModel/invalidateModel,
+  initializeFit/invalidateFit, setControl), runSamplerWithResults,
+  sampleTreesFromPrior, the Gibbs conditioning set (setOffset with the
+  update-scale flag every iteration, setSigma every iteration, storeLatents
+  into its own buffer), predict, createStateExpression/initializeState,
+  printInitialSummary, printTrees, getTrees. setResponse is looked up but
+  never called (latents flow BART -> Stan, not back).
+- ABI couplings beyond the function table: allocates BARTFit by sizeof;
+  stack Control/Data/Model with direct field access (keepTrees toggled off
+  for warmup and on for sampling, defaultNumSamples/defaultNumBurnIn sized
+  to the run, responseIsBinary, verbose, numChains written on restored
+  samplers, numTrees read); fit->currentNumSamples to size predict output;
+  fit->sharedScratch.dataScale read (exported as range.bart to untransform
+  predictions R-side) and written (forced to -0.5/0.5 on samplers restored
+  for predict); subclasses Results and bumps its public pointers to land
+  one draw at a time in caller-controlled storage; reads FlattenedTrees
+  members and frees them field by field; model.kPrior->isFixed to size k
+  samples.
+- R-level internals (not C ABI, same migration window): dbarts:::parsePriors,
+  new("dbartsModel") with node.scale, data@sigma/@weights/@n.cuts,
+  control@binary.
+
+Every coupling maps onto the bartcore facade, so the v1 header needs no
+engine additions: caller-buffer run kills the Results subclass (bartcore
+Results pointers are caller-owned with null-means-skip), setTreeStorage
+replaces the keepTrees toggling, savedTreeCapacity replaces
+currentNumSamples, kIsSampled/usesDart replace the prior pokes, and the
+opaque complete state plus original-scale predict kills both the dataScale
+write and range.bart. getTrees returns the data.frame directly - both
+stan4bart entry points only marshal it into one. stan4bart inherits the
+binary+weights refusal (it forwards user weights verbatim; by-design). The
+create-time verbose summary replaces the printInitialSummary entry point.
+
+DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
+
+- Flat C ABI: opaque `dbarts_sampler*`, `DBARTS_C_API_VERSION` plus
+  `dbarts_apiVersion()`, everything reached via `R_GetCCallable`. Symbol
+  names are `dbarts_sampler_*` (camelCase methods after the prefix):
+  classic already exports `dbarts_setResponse` et al. until removal, and
+  handle-prefixed names stay defensible after it.
+- SEXPs at exactly two boundaries: creation takes the R spec objects
+  (dbartsControl/dbartsModel/dbartsData - the prior/data language IS R),
+  and state/trees are R-serializable/R-facing by purpose. All else is
+  plain arrays.
+- Entry points: create/destroy; run into a caller-owned `dbarts_results`
+  struct (sigma, train, test, varcount, k, varprobs; NULL skips);
+  sampleTreesFromPrior/sampleNodeParametersFromPrior; setResponse,
+  setOffset(updateScale), setWeights, setSigma, getLatents; setPredictor/
+  updatePredictor (transactional, rollback on failure); setTestPredictors
+  (NULL removes)/setTestOffset; predict into a caller buffer;
+  setTreeStorage, getTrees (data.frame), printTrees; storeState/setState;
+  setNumThreads/setNumThin/setVerbose; queries (numObservations,
+  numPredictors, numTestObservations, numChains, numTrees,
+  numSavedSamples, kIsSampled, usesDart).
+- Contracts documented in the header: errors longjmp via Rf_error; R RNG
+  bracketing is internal (call from the main R thread, no caller
+  bracketing); creation preserves the data object, raw-array setters
+  borrow for the sampler's lifetime.
+- Additive evolution is free (name lookup), so deferred without cost:
+  per-observation predictor updates and the joint session, setCutPoints,
+  setData, and the per-iteration observer callback - classic
+  `Control::callback` had no reachable consumer, so its replacement waits
+  for one.
 - The C++ headers ship for `LinkingTo` use without ABI promises (header-only,
   recompiled per consumer), documented as unstable.
 
 Open: whether stan4bart needs anything beyond the list above (it currently
 reaches into fit internals in places); worth enumerating against its source
-before freezing the header.
+before freezing the header. RESOLVED above, 2026-07-03.
+
+Landed 2026-07-03: dbarts.h v1 with all entry points registered as
+CCallables; the bridge's creation/state/tree cores extracted into
+bartcore_bridge:: (R_interface_bartcore_common.hpp) so C_interface.cpp is
+a thin adapter; an actual-consumer test (test-capi.R compiles
+inst/tinytest/capi/consumer.c against the installed headers and drives
+the stan4bart workout through R_GetCCallable, self-gating on toolchain
+availability). Remaining for this section: the stan4bart port, observer
+callbacks when a consumer exists, and retiring R_C_interface.hpp with the
+classic engine.
 
 ## 7. Deferred, with their blockers
 
