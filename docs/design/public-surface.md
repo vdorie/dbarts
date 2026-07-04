@@ -407,3 +407,7 @@ classic engine.
 - Wave-2 models (linear leaves, in-core grouped random effects retiring the
   rbart_vi R loop): engine work, independent of this document except that
   rbart_vi's public signature would eventually gain the in-core option.
+  Linear leaves have a proposal (linear-leaves.md, 2026-07-04): a
+  designated column set per leaf regression via node.prior =
+  linear(columns, k), conjugate and integrable, with four open decisions
+  listed at its end.
