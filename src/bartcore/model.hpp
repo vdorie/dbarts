@@ -131,7 +131,9 @@ static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
 /// widened by (q + 1)^2 - so move rollbacks need no cache invalidation.
 /// Missing covariate values enter at the standardized mean (zero); rules on
 /// the same column still route the missingness itself. Linear leaves read
-/// raw predictor values, so store views (which hold none) are refused
+/// raw predictor values through ColumnStore::rawColumn: the borrowed matrix
+/// normally, gathered copies (with parent-derived standardization constants)
+/// on a view built with the designation; a view without them is refused
 /// upstream.
 struct LinearGaussianLeaf {
   static constexpr bool hasVectorParams = true;
@@ -159,7 +161,10 @@ struct LinearGaussianLeaf {
 
   /// Re-derive the standardization constants and covariates for the stored
   /// designation, for whole-data replacement (possibly a new number of
-  /// observations): the analogue of setData rebuilding the cut grid.
+  /// observations): the analogue of setData rebuilding the cut grid. On a
+  /// view the raw values come from the gathered copies and the constants
+  /// from the parent's full data - the same calibration inheritance as the
+  /// copied cut grid, so every fold runs the prior a full-data fit would.
   void reinitialize(const ColumnStore& data) {
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
@@ -167,24 +172,10 @@ struct LinearGaussianLeaf {
     sds_.assign(numColumns, 1.0);
     u_.resize(numObservations_ * numColumns);
     for (std::size_t j = 0; j < numColumns; ++j) {
-      const double* column = data.x + columns_[j] * numObservations_;
-      double total = 0.0;
-      std::size_t numObserved = 0;
-      for (std::size_t i = 0; i < numObservations_; ++i) {
-        if (isNA(column[i])) continue;
-        total += column[i];
-        ++numObserved;
-      }
-      double mean = numObserved > 0 ? total / static_cast<double>(numObserved)
-                                    : 0.0;
-      double sumOfSquares = 0.0;
-      for (std::size_t i = 0; i < numObservations_; ++i)
-        if (!isNA(column[i]))
-          sumOfSquares += (column[i] - mean) * (column[i] - mean);
-      double sd = numObserved > 1
-        ? std::sqrt(sumOfSquares / static_cast<double>(numObserved - 1))
-        : 0.0;
-      if (!(sd > 0.0)) sd = 1.0;
+      const double* column = data.rawColumn(columns_[j]);
+      double mean, sd;
+      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
       double* u = u_.data() + j * numObservations_;
@@ -202,7 +193,7 @@ struct LinearGaussianLeaf {
   /// the constants the way setData rebuilds the cut grid.
   void regatherTrainingCovariates(const ColumnStore& data) {
     for (std::size_t j = 0; j < numCovariates_; ++j) {
-      const double* column = data.x + columns_[j] * numObservations_;
+      const double* column = data.rawColumn(columns_[j]);
       double* u = u_.data() + j * numObservations_;
       for (std::size_t i = 0; i < numObservations_; ++i)
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
@@ -214,9 +205,10 @@ struct LinearGaussianLeaf {
   void rebuildTestCovariates(const ColumnStore& data) {
     numTestObservations_ = data.numTestObservations;
     uTest_.assign(numTestObservations_ * numCovariates_, 0.0);
-    if (numTestObservations_ == 0 || data.x_test == nullptr) return;
+    if (numTestObservations_ == 0) return;
     for (std::size_t j = 0; j < numCovariates_; ++j) {
-      const double* column = data.x_test + columns_[j] * numTestObservations_;
+      const double* column = data.rawTestColumn(columns_[j]);
+      if (column == nullptr) continue;
       double* u = uTest_.data() + j * numTestObservations_;
       for (std::size_t i = 0; i < numTestObservations_; ++i)
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];

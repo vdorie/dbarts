@@ -24,7 +24,12 @@
             and the predictor-mutation methods. `getTrees` reports leaf
             intercepts in `value` plus one `beta.<column>` slope column
             per covariate, and `plotTree` labels linear leaves with
-            their coefficients. Unavailable in `xbart`.
+            their coefficients. `xbart` accepts the same specification
+            through a new `node.prior` argument, crossvalidating over
+            its `k` grid as usual; folds standardize the leaf
+            covariates with full-data constants, matching the final
+            fit's calibration the way folds bin on the full-data cut
+            grid.
       \item The bartcore engine replaces the classic engine: every
             fitting function runs on it. Fits are statistically
             equivalent to the classic engine's but not draw-for-draw

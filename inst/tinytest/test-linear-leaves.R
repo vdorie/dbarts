@@ -90,6 +90,58 @@ sampler.binary <- dbarts(z ~ x1 + x2 + x3, df.binary,
 samples.binary <- sampler.binary$run(100L, 20L)
 expect_true(all(is.finite(samples.binary$train)))
 
+# linear leaves ride the data-handle views: a full-rows view matches the
+# raw-data path bitwise, standardizing with the parent's constants
+control.view <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 15L,
+                              updateState = FALSE)
+sampler.view <- dbarts(y ~ x1 + x2 + x3, df, node.prior = linear("x2"),
+                       control = control.view)
+handle <- dbarts:::bartcoreDataHandle(sampler.view$control, sampler.view$data)
+view <- dbarts:::bartcoreSamplerFromHandle(handle, sampler.view$control,
+                                           sampler.view$model,
+                                           sampler.view$data,
+                                           trainRows = seq_len(n))
+full <- dbarts:::bartcoreSampler(sampler.view)
+set.seed(7)
+samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
+set.seed(7)
+samples.full <- dbarts:::bartcoreRun(full, 40L, 20L)
+expect_identical(samples.view$sigma, samples.full$sigma)
+expect_identical(samples.view$train, samples.full$train)
+
+# a proper fold serves its held-out rows through the gathered covariates
+testRows <- seq(1L, n, by = 4L)
+set.seed(11)
+fold <- dbarts:::bartcoreSamplerFromHandle(handle, sampler.view$control,
+                                           sampler.view$model,
+                                           sampler.view$data,
+                                           setdiff(seq_len(n), testRows),
+                                           testRows)
+samples.fold <- dbarts:::bartcoreRun(fold, 150L, 100L)
+expect_true(all(is.finite(samples.fold$test)))
+expect_true(cor(rowMeans(samples.fold$test), mu[testRows]) > 0.7)
+
+# views still refuse raw-predictor mutation under linear leaves
+expect_error(dbarts:::bartcoreSetPredictor(fold, sampler.view$data@x),
+             pattern = "views hold none")
+
+# xbart accepts a linear node prior, with its k standing in for a missing
+# k argument and the k grid overriding per cell
+xbart.linear <- xbart(y ~ x1 + x2 + x3, df, node.prior = linear("x2", k = 3),
+                      n.samples = 60L, n.burn = c(60L, 30L, 0L), n.reps = 2L,
+                      n.trees = 15L, n.threads = 1L, seed = 1L)
+expect_true(all(is.finite(xbart.linear)))
+xbart.grid <- xbart(y ~ x1 + x2 + x3, df, node.prior = linear("x2"),
+                    k = c(1, 4), n.samples = 60L, n.burn = c(60L, 30L, 0L),
+                    n.reps = 2L, n.trees = 15L, n.threads = 1L, seed = 1L,
+                    drop = FALSE)
+expect_equal(dim(xbart.grid)[3L], 2L)
+expect_error(xbart(y ~ x1 + x2 + g, data.frame(df, g),
+                   node.prior = linear("g"), n.threads = 1L),
+             pattern = "must be continuous")
+
 rm(sampler, sampler.state, sampler.restored, sampler.mut, sampler.binary,
    samples, samples.binary, more, trees, predictions, fits, control,
-   control.state, df, df.binary, x1, x2, x3, g, y, z, mu, x2.new, n)
+   control.state, df, df.binary, x1, x2, x3, g, y, z, mu, x2.new, n,
+   control.view, sampler.view, handle, view, full, samples.view,
+   samples.full, testRows, fold, samples.fold, xbart.linear, xbart.grid)

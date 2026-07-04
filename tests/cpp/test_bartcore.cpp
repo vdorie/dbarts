@@ -3878,6 +3878,207 @@ static void testLinearLeafMutation(ext_rng* rng) {
   printf("ok: linear leaf mutation (post-setData slope %.2f)\n", slope);
 }
 
+static void testLinearLeafViews() {
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), f(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    x[i + 2 * n] = runif01();
+    f[i] = x[i] > 0.5 ? x[i + n] : 0.0;
+    double u1 = runif01(), u2 = runif01();
+    double normal =
+      std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = f[i] + 0.2 * normal;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  size_t covariates[] = {1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+
+  ColumnStore parent;
+  parent.build(x.data(), n, p, options.maxNumCuts);
+
+  // view gather mechanics: subset raw values and parent-derived constants
+  {
+    std::vector<size_t> rows, testRows;
+    for (size_t i = 0; i < n; ++i)
+      (i % 4 == 0 ? testRows : rows).push_back(i);
+    ColumnStore view;
+    view.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                         testRows.size(), covariates, 1);
+
+    const double* raw = view.rawColumn(1);
+    const double* rawTest = view.rawTestColumn(1);
+    bool valuesMatch = raw != nullptr && rawTest != nullptr;
+    for (size_t i = 0; i < rows.size() && valuesMatch; ++i)
+      valuesMatch = raw[i] == x[rows[i] + n];
+    for (size_t i = 0; i < testRows.size() && valuesMatch; ++i)
+      valuesMatch = rawTest[i] == x[testRows[i] + n];
+    check(valuesMatch, "view gathers raw leaf covariates by row");
+    check(view.rawColumn(0) == nullptr && view.rawTestColumn(0) == nullptr,
+          "undesignated columns stay unserved on views");
+
+    double mean, sd, parentMean, parentSd;
+    standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd);
+    check(view.suppliedStandardization(1, &mean, &sd) &&
+            mean == parentMean && sd == parentSd,
+          "view standardization constants come from the parent's full data");
+    check(!parent.suppliedStandardization(1, &mean, &sd),
+          "raw-data stores supply no gathered constants");
+  }
+
+  // a full-rows linear view runs bitwise identically to the raw-data path
+  {
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 1234) != 0 ||
+        ext_rng_setSeed(rngB, 1234) != 0) {
+      check(false, "linear view: rng creation");
+      return;
+    }
+
+    std::unique_ptr<SamplerBase> full = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngA);
+
+    std::vector<size_t> rows(n);
+    for (size_t i = 0; i < n; ++i) rows[i] = i;
+    ColumnStore store;
+    store.buildFromParent(parent, rows.data(), n, nullptr, 0, covariates, 1);
+    std::unique_ptr<SamplerBase> view = createSamplerOverStore(
+      std::move(store), y.data(), nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngB);
+    check(view != nullptr, "linear view sampler creation");
+
+    const size_t numBurnIn = 30, numSamples = 40;
+    std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results resultsA, resultsB;
+    resultsA.sigma = sigmaA.data();
+    resultsA.trainingFits = fitsA.data();
+    resultsB.sigma = sigmaB.data();
+    resultsB.trainingFits = fitsB.data();
+    full->run(numBurnIn, numSamples, resultsA);
+    view->run(numBurnIn, numSamples, resultsB);
+
+    bool identical = true;
+    for (size_t s = 0; s < numSamples && identical; ++s)
+      identical = sigmaA[s] == sigmaB[s];
+    for (size_t i = 0; i < n * numSamples && identical; ++i)
+      identical = fitsA[i] == fitsB[i];
+    check(identical,
+          "full-rows linear view bitwise-matches the raw-data path");
+
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+  }
+
+  // a proper fold recovers the varying slope on its held-out rows, and raw
+  // test predictors installed later supersede the gathered fold values
+  {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rng == NULL || ext_rng_setSeed(rng, 5678) != 0) {
+      check(false, "linear fold view: rng creation");
+      return;
+    }
+
+    std::vector<size_t> rows, testRows;
+    for (size_t i = 0; i < n; ++i)
+      (i % 4 == 0 ? testRows : rows).push_back(i);
+    size_t numTest = testRows.size();
+    std::vector<double> yTrain(rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) yTrain[i] = y[rows[i]];
+
+    ColumnStore store;
+    store.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                          numTest, covariates, 1);
+    std::unique_ptr<SamplerBase> view = createSamplerOverStore(
+      std::move(store), yTrain.data(), nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options, &rng);
+    check(view != nullptr, "linear fold view creation");
+
+    const size_t numBurnIn = 200, numSamples = 200;
+    std::vector<double> testFits(numTest * numSamples);
+    Results results;
+    results.testFits = testFits.data();
+    view->run(numBurnIn, numSamples, results);
+
+    std::vector<double> posteriorMean(numTest, 0.0);
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t i = 0; i < numTest; ++i)
+        posteriorMean[i] += testFits[i + s * numTest] / (double) numSamples;
+    double sseFit = 0.0, sseMean = 0.0;
+    for (size_t i = 0; i < numTest; ++i) {
+      double truth = f[testRows[i]];
+      sseFit += (posteriorMean[i] - truth) * (posteriorMean[i] - truth);
+      sseMean += truth * truth;
+    }
+    check(sseFit < 0.35 * sseMean,
+          "fold view recovers held-out signal through the linear leaf");
+
+    // duplicated training rows through setTestPredictors: raw values now
+    // come from x_test, and their fits must match the training fits
+    const size_t numDup = 5;
+    std::vector<double> xDup(numDup * p);
+    for (size_t j = 0; j < p; ++j)
+      for (size_t i = 0; i < numDup; ++i)
+        xDup[i + j * numDup] = x[rows[i] + j * n];
+    view->setTestPredictors(xDup.data(), numDup);
+
+    std::vector<double> dupFits(numDup * numSamples);
+    std::vector<double> trainingFits(rows.size() * numSamples);
+    Results dupResults;
+    dupResults.testFits = dupFits.data();
+    dupResults.trainingFits = trainingFits.data();
+    view->run(0, numSamples, dupResults);
+    bool dupMatches = true;
+    for (size_t s = 0; s < numSamples && dupMatches; ++s)
+      for (size_t i = 0; i < numDup && dupMatches; ++i)
+        dupMatches = std::fabs(dupFits[i + s * numDup] -
+                               trainingFits[i + s * rows.size()]) < 1e-8;
+    check(dupMatches,
+          "raw test predictors on a view supersede the gathered fold");
+
+    ext_rng_destroy(rng);
+  }
+
+  // invalid designations refuse cleanly at the store factory
+  {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rng == NULL || ext_rng_setSeed(rng, 91) != 0) {
+      check(false, "linear view refusals: rng creation");
+      return;
+    }
+    std::vector<size_t> rows(n);
+    for (size_t i = 0; i < n; ++i) rows[i] = i;
+
+    // built without the designation, the view holds no raw values to serve
+    ColumnStore bare;
+    bare.buildFromParent(parent, rows.data(), n, nullptr, 0);
+    check(createSamplerOverStore(std::move(bare), y.data(), nullptr, nullptr,
+                                 ResponseFamily::gaussian, 1.0, 3.0,
+                                 0.37804942330213542, options, &rng) ==
+            nullptr,
+          "view without gathered covariates refused");
+
+    ColumnStore store;
+    store.buildFromParent(parent, rows.data(), n, nullptr, 0, covariates, 1);
+    SamplerOptions bad = options;
+    size_t outOfRange[] = {7};
+    bad.leafCovariateColumns = outOfRange;
+    check(createSamplerOverStore(std::move(store), y.data(), nullptr, nullptr,
+                                 ResponseFamily::gaussian, 1.0, 3.0,
+                                 0.37804942330213542, bad, &rng) == nullptr,
+          "out-of-range designation refused over a store");
+    ext_rng_destroy(rng);
+  }
+
+  printf("ok: linear leaf views\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -3944,6 +4145,7 @@ int main() {
   testLinearLeafEndToEnd(rng);
   testLinearLeafFormats(rng);
   testLinearLeafMutation(rng);
+  testLinearLeafViews();
 
   ext_rng_destroy(rng);
 

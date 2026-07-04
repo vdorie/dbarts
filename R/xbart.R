@@ -7,7 +7,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   seed = NA_integer_,
                   factors = c("categorical", "indicators"),
                   family = c("auto", "gaussian", "probit", "logistic"),
-                  missing = c("incorporate", "error"))
+                  missing = c("incorporate", "error"),
+                  node.prior = NULL)
 {
   matchedCall <- match.call()
 
@@ -79,7 +80,27 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (anyNA(n.trees) || any(n.trees <= 0L))
     stop("'n.trees' must contain only positive integers")
 
-  if (is.null(matchedCall[["k"]])) k <- eval(eval(quoteInNamespace(.kDefault)))
+  # a supplied node.prior contributes the leaf model shape - normal(k), the
+  # default, or linear(columns, k), whose designated covariate columns
+  # resolve against the model matrix; the k argument drives the k grid as
+  # always, with a k inside the supplied prior standing in for a missing k
+  # argument
+  node.spec <- NULL
+  if (!is.null(matchedCall[["node.prior"]])) {
+    priorEnv <- new.env(parent = evalEnv)
+    priorEnv[["normal"]] <- getNamespace("dbarts")[["normal"]]
+    priorEnv[["linear"]] <- getNamespace("dbarts")[["linear"]]
+    priorEnv[["chi"]]    <- getNamespace("dbarts")[["chi"]]
+    node.spec <- eval(matchedCall[["node.prior"]], priorEnv)
+    if (is.function(node.spec)) node.spec <- node.spec()
+    if (!is.null(node.spec) && !is(node.spec, "dbartsNodePrior"))
+      stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
+  }
+
+  if (is.null(matchedCall[["k"]])) {
+    k <- if (!is.null(node.spec) && !is.null(node.spec@k)) node.spec@k
+         else eval(eval(quoteInNamespace(.kDefault)))
+  }
   kIsGrid <- is.numeric(k)
   if (kIsGrid && (anyNA(k) || any(k <= 0)))
     stop("'k' must contain only positive values")
@@ -97,10 +118,19 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   tree.prior[[2L]] <- power[1L]; tree.prior[[3L]] <- base[1L]
   tree.prior <- eval(tree.prior)
 
-  node.prior <- quote(normal(k))
-  node.prior[[1L]] <- quoteInNamespace(normal)
-  node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
-  node.prior <- eval(node.prior)
+  if (is.null(node.spec)) {
+    node.prior <- quote(normal(k))
+    node.prior[[1L]] <- quoteInNamespace(normal)
+    node.prior[[2L]] <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
+    node.prior <- eval(node.prior)
+  } else {
+    kValue <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
+    if (is.call(kValue)) kValue <- eval(kValue)
+    node.prior <- if (is(node.spec, "dbartsLinearPrior"))
+      resolveLeafCovariates(linear(node.spec@columns, kValue), data)
+    else
+      normal(kValue)
+  }
   # xbart cells always run a fixed k (the default 2, not the binary
   # hyperprior), as before the priors became objects
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
