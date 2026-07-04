@@ -177,10 +177,12 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   } else {
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
+    # passing the namespace function itself serializes it by reference,
+    # loading dbarts on the workers without shipping this frame
     chunkResults <- parallel::clusterMap(
-      cluster,
-      function(indices, chunkSeed, spec) dbarts:::xbartRunChunk(spec, indices, chunkSeed),
-      chunkIndices, chunkSeeds, MoreArgs = list(spec = spec)
+      cluster, xbartRunChunk,
+      repIndices = chunkIndices, chunkSeed = chunkSeeds,
+      MoreArgs = list(spec = spec)
     )
   }
   # rep-major, cells within: chunks hold contiguous rep ranges
