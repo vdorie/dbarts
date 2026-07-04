@@ -81,6 +81,129 @@ static void testColumnStoreCodes() {
   printf("ok: column store codes\n");
 }
 
+static void testColumnStoreView() {
+  const size_t n = 120, p = 3;
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    x[i + 2 * n] = (double) (i % 4);  // categorical codes 0..3
+  }
+  // rows 0 and 1 carry column 0's extremes; the subset below excludes them,
+  // so a store built over only the subset would bin that column differently
+  x[0] = 0.0;
+  x[1] = 1.0;
+
+  std::vector<ColumnType> types = {ColumnType::ordinal, ColumnType::ordinal,
+                                   ColumnType::categorical};
+  ColumnStore parent;
+  parent.build(x.data(), n, p, 25, false, types.data());
+
+  std::vector<size_t> rows, testRows;
+  for (size_t i = 2; i < n; i += 2) rows.push_back(i);
+  testRows.push_back(0);  // the extremes land in the test rows
+  testRows.push_back(1);
+  for (size_t i = 3; i < n; i += 2) testRows.push_back(i);
+
+  ColumnStore view;
+  view.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                       testRows.size());
+
+  check(view.x == nullptr && view.x_test == nullptr,
+        "view holds no raw values");
+  check(view.numObservations == rows.size() &&
+        view.numTestObservations == testRows.size() &&
+        view.numPredictors == p, "view dimensions");
+  check(view.types == parent.types && view.numCuts == parent.numCuts &&
+        view.cutPoints == parent.cutPoints &&
+        view.maxNumCuts == parent.maxNumCuts,
+        "view copies the parent cut grid");
+
+  bool codesMatch = true;
+  for (size_t j = 0; j < p && codesMatch; ++j)
+    for (size_t i = 0; i < rows.size() && codesMatch; ++i)
+      codesMatch =
+        view.codes[i + j * rows.size()] == parent.codes[rows[i] + j * n];
+  check(codesMatch, "view gathers subset codes");
+
+  bool testCodesMatch = true;
+  for (size_t i = 0; i < testRows.size() && testCodesMatch; ++i)
+    for (size_t j = 0; j < p && testCodesMatch; ++j)
+      testCodesMatch =
+        view.testCodes[i * p + j] == parent.codes[testRows[i] + j * n];
+  check(testCodesMatch, "view gathers test codes from parent rows");
+
+  // demonstrate the property matters: a store built over the subset's raw
+  // values bins column 0 onto a different grid than the view keeps
+  std::vector<double> subsetX(rows.size() * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < rows.size(); ++i)
+      subsetX[i + j * rows.size()] = x[rows[i] + j * n];
+  ColumnStore rebuilt;
+  rebuilt.build(subsetX.data(), rows.size(), p, 25, false, types.data());
+  bool anyDiffer = false;
+  for (size_t i = 0; i < rows.size() && !anyDiffer; ++i)
+    anyDiffer = rebuilt.codes[i] != view.codes[i];
+  check(anyDiffer, "subset-built store bins differently than the view");
+
+  printf("ok: column store view\n");
+}
+
+static void testViewSamplerMatchesFull() {
+  const size_t n = 300, p = 4;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = std::sin(3.0 * x[i]) + x[i + n] + 0.5 * runif01();
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 1234) != 0 ||
+      ext_rng_setSeed(rngB, 1234) != 0) {
+    check(false, "view sampler: rng creation");
+    return;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+
+  ClassicSampler full(x.data(), y.data(), n, p, nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0,
+                      0.37804942330213542, options, &rngA);
+
+  ColumnStore parent;
+  parent.build(x.data(), n, p, options.maxNumCuts);
+  std::vector<size_t> rows(n);
+  for (size_t i = 0; i < n; ++i) rows[i] = i;
+  ColumnStore store;
+  store.buildFromParent(parent, rows.data(), n, nullptr, 0);
+  ClassicSampler view(std::move(store), y.data(), nullptr, nullptr,
+                      ResponseFamily::gaussian, 1.0, 3.0,
+                      0.37804942330213542, options, &rngB);
+
+  const size_t numBurnIn = 30, numSamples = 40;
+  std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = fitsA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = fitsB.data();
+  full.run(numBurnIn, numSamples, resultsA);
+  view.run(numBurnIn, numSamples, resultsB);
+
+  bool identical = true;
+  for (size_t s = 0; s < numSamples && identical; ++s)
+    identical = sigmaA[s] == sigmaB[s];
+  for (size_t i = 0; i < n * numSamples && identical; ++i)
+    identical = fitsA[i] == fitsB[i];
+  check(identical, "full-rows view sampler bitwise-matches the classic path");
+
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: view sampler matches full\n");
+}
+
 static void testIntegratedLikelihood() {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(200.0)};
   double k = 2.0, sigmaSq = 0.01;
@@ -2644,6 +2767,8 @@ int main() {
   }
 
   testColumnStoreCodes();
+  testColumnStoreView();
+  testViewSamplerMatchesFull();
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
   testTreeMechanics();

@@ -280,6 +280,21 @@ inline std::unique_ptr<SamplerBase> createClassicSampler(
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
 
+/// As createClassicSampler, but over a pre-built store - typically a
+/// row-subset view (ColumnStore::buildFromParent) sharing a parent's cut
+/// grid. y/weights/offset match the store's observations and stay alive for
+/// the sampler's lifetime; the raw-x mutation surface must not be called on
+/// the result when the store holds no raw values.
+inline std::unique_ptr<SamplerBase> createSamplerOverStore(
+  ColumnStore&& store, const double* y, const double* weights,
+  const double* offset, ResponseFamily family, double sigmaEstimate,
+  double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
+  ext_rng* const* rngs) {
+  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+    std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
+    sigmaRawScale, options, rngs);
+}
+
 }  // namespace bartcore
 
 #endif  // BARTCORE_FACADE_HPP

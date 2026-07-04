@@ -72,7 +72,12 @@
             results are reproducible for a fixed `seed` and `n.threads`.
             Also fixed: the weighted RMSE loss was not on the scale of the
             response, and `loss = "log"` on a continuous response now
-            errors instead of silently computing RMSE.
+            errors instead of silently computing RMSE. Folds now share the
+            full data's cut grid through an internal data handle instead
+            of each deriving a grid from its own training rows, so every
+            fold bins the predictors identically to a fit on all of the
+            data and creation does not re-quantize per fold; numeric
+            results shift accordingly.
       \item `dbarts` and `bart2` accept `family`: `"auto"` keeps the
             existing dispatch (gaussian for continuous responses, probit
             for 0/1), `"gaussian"` forces a continuous fit even for a 0/1
