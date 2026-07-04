@@ -753,7 +753,11 @@ partitioning entirely; a different library sharing only the tree structure).
 - Instantiation bloat / compile times / .so size: bounded by the small
   matrix; measure from phase 2.
 - Sparse partitioning performance is open; prototype before committing to a
-  representation (order-preserving partition likely needed).
+  representation (order-preserving partition likely needed). RESOLVED
+  2026-07-04: the prototype (docs/design/sparse-columns.md) settled on a
+  rank-bitmap layout at dense-kernel parity in a tenth the memory, and
+  order preservation turned out NOT to be needed - the merge approach
+  that wanted it collapses on small nodes and was rejected.
 - Polya-Gamma draw cost (one per observation per iteration) dominates
   logistic; choose sampler variant by benchmark.
 - setPredictor/rollback semantics for factors and sparse patterns need
