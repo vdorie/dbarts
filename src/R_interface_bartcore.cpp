@@ -13,24 +13,17 @@
 #include <R_ext/Random.h> // GetRNGstate, PutRNGstate
 
 #include <external/random.h>
-#include <external/stats.h> // ext_percentileOfChiSquared
+#include <external/stats.h> // ext_quantileOfChiSquared and its inverse
 
 #include <rc/bounds.h>
 #include <rc/util.h>
-
-#include <dbarts/control.hpp>
-#include <dbarts/data.hpp>
-#include <dbarts/model.hpp>
-#include <dbarts/types.hpp>
-
-#include "R_interface_common.hpp"
 
 #include "bartcore/bartcore.hpp"
 
 #include "R_interface_bartcore_common.hpp"
 
 using std::size_t;
-using namespace dbarts;
+using std::uint32_t;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::validateColumnValues;
 
@@ -93,12 +86,336 @@ SEXP getListElement(SEXP listExpr, const char* name) {
   return R_NilValue;
 }
 
+// The subset of the R specification objects (dbartsControl, dbartsData,
+// dbartsModel) the bartcore engine consumes, parsed without the classic
+// engine's types. Pointers borrow from the expressions; error paths may
+// leak the parse vectors (Rf_error longjmps past destructors), matching
+// the classic parse layer's behavior.
+
+struct ParsedControl {
+  bool responseIsBinary = false;
+  bool verbose = false;
+  bool keepTrainingFits = true;
+  bool useQuantiles = false;
+  bool keepTrees = false;
+  size_t defaultNumSamples = 0;
+  size_t numTrees = 75;
+  size_t numChains = 1;
+  size_t numThreads = 1;
+  uint32_t treeThinningRate = 1;
+  uint32_t printEvery = 100;
+  uint32_t printCutoffs = 0;
+  bool haveRngSeed = false;
+  std::uint_least32_t rngSeed = 0;
+};
+
+struct ParsedData {
+  const double* y = NULL;
+  const double* x = NULL;
+  size_t numObservations = 0;
+  size_t numPredictors = 0;
+  std::vector<bartcore::ColumnType> columnTypes;
+  bool anyCategorical = false;
+  const double* x_test = NULL;
+  size_t numTestObservations = 0;
+  const double* weights = NULL;
+  const double* offset = NULL;
+  const double* testOffset = NULL;
+  double sigmaEstimate = 1.0;
+  std::vector<uint32_t> maxNumCuts;
+};
+
+struct ParsedModel {
+  double birthOrDeathProbability = 0.5;
+  double swapProbability = 0.1;
+  double changeProbability = 0.4;
+  double birthProbability = 0.5;
+  double nodeScale = 0.5;
+  double power = 2.0;
+  double base = 0.95;
+  const double* splitProbabilities = NULL;
+  bool updateK = false;
+  double k = 2.0;
+  double kDf = 1.25;
+  double kScale = HUGE_VAL;
+  bool sigmaIsFixed = false;
+  double fixedSigmaSq = 1.0; // the residual variance fixed() holds
+  double sigmaDf = 3.0;
+  double sigmaQuantile = 0.9;
+  // the chi-squared prior's scale before anchoring to the sigma estimate
+  double sigmaRawScale = 1.0;
+};
+
+void parseControl(ParsedControl& control, SEXP controlExpr) {
+  SEXP slotExpr = Rf_getAttrib(controlExpr, Rf_install("binary"));
+  control.responseIsBinary =
+    rc_getBool(slotExpr, "binary response signifier", RC_LENGTH | RC_GEQ,
+               rc_asRLength(1), RC_END);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("verbose"));
+  control.verbose = rc_getBool(slotExpr, "verbose", RC_LENGTH | RC_GEQ,
+                               rc_asRLength(1), RC_END);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrainingFits"));
+  control.keepTrainingFits =
+    rc_getBool(slotExpr, "keep training fits", RC_LENGTH | RC_EQ,
+               rc_asRLength(1), RC_END);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("useQuantiles"));
+  control.useQuantiles = rc_getBool(slotExpr, "use quantiles",
+                                    RC_LENGTH | RC_EQ, rc_asRLength(1),
+                                    RC_END);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrees"));
+  control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
+                                 rc_asRLength(1), RC_END);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.samples"));
+  control.defaultNumSamples = static_cast<size_t>(
+    rc_getInt(slotExpr, "number of samples", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.trees"));
+  control.numTrees = static_cast<size_t>(
+    rc_getInt(slotExpr, "number of trees", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.chains"));
+  control.numChains = static_cast<size_t>(
+    rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.threads"));
+  control.numThreads = static_cast<size_t>(
+    rc_getInt(slotExpr, "number of threads", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.thin"));
+  control.treeThinningRate = static_cast<uint32_t>(
+    rc_getInt(slotExpr, "tree thinning rate", RC_LENGTH | RC_EQ,
+              rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("printEvery"));
+  int i_temp = rc_getInt(slotExpr, "print every", RC_LENGTH | RC_EQ,
+                         rc_asRLength(1), RC_VALUE | RC_GEQ, 1,
+                         RC_NA | RC_YES, RC_END);
+  if (i_temp != NA_INTEGER) control.printEvery = static_cast<uint32_t>(i_temp);
+
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("printCutoffs"));
+  i_temp = rc_getInt(slotExpr, "print cutoffs", RC_LENGTH | RC_EQ,
+                     rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES,
+                     RC_END);
+  if (i_temp == NA_INTEGER) i_temp = 0;
+  control.printCutoffs = static_cast<uint32_t>(i_temp);
+
+  // rngKind and rngNormalKind are classic-only; the R side refuses them
+  // before creation, so they are not read here
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngSeed"));
+  if (rc_getLength(slotExpr) != 1)
+    Rf_error("slot 'rngSeed' must be of length 1");
+  control.haveRngSeed = INTEGER(slotExpr)[0] != NA_INTEGER;
+  if (control.haveRngSeed)
+    control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
+}
+
+void parseData(ParsedData& data, SEXP dataExpr) {
+  SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
+  if (!Rf_isReal(slotExpr)) Rf_error("y must be of type real");
+  if (rc_getLength(slotExpr) <= 0)
+    Rf_error("length of y must be greater than 0");
+  data.y = REAL(slotExpr);
+  data.numObservations = rc_getLength(slotExpr);
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+  if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
+  rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ,
+                          rc_asRLength(2), RC_VALUE | RC_EQ,
+                          static_cast<int>(data.numObservations), RC_END);
+  int* dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+  data.x = REAL(slotExpr);
+  data.numPredictors = static_cast<size_t>(dims[1]);
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
+  rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ,
+                          rc_asRLength(data.numPredictors), RC_END);
+  int* i_variableTypes = INTEGER(slotExpr);
+  data.columnTypes.assign(data.numPredictors, bartcore::ColumnType::ordinal);
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    if (i_variableTypes[j] == 0) continue; // 0 encodes ordinal
+    data.columnTypes[j] = bartcore::ColumnType::categorical;
+    data.anyCategorical = true;
+  }
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
+  if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
+      rc_getLength(slotExpr) == 0) {
+    data.x_test = NULL;
+    data.numTestObservations = 0;
+  } else {
+    if (!Rf_isReal(slotExpr)) Rf_error("x.test must be of type real");
+    rc_assertDimConstraints(slotExpr, "dimensions of x.test",
+                            RC_LENGTH | RC_EQ, rc_asRLength(2), RC_NA,
+                            RC_VALUE | RC_EQ,
+                            static_cast<int>(data.numPredictors), RC_END);
+    dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+    data.x_test = REAL(slotExpr);
+    data.numTestObservations = static_cast<size_t>(dims[0]);
+  }
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("weights"));
+  if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
+      rc_getLength(slotExpr) == 0) {
+    data.weights = NULL;
+  } else {
+    rc_assertDoubleConstraints(slotExpr, "weights", RC_LENGTH | RC_EQ,
+                               rc_asRLength(data.numObservations), RC_END);
+    data.weights = REAL(slotExpr);
+  }
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset"));
+  if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
+      rc_getLength(slotExpr) == 0) {
+    data.offset = NULL;
+  } else {
+    rc_assertDoubleConstraints(slotExpr, "offset", RC_LENGTH | RC_EQ,
+                               rc_asRLength(data.numObservations), RC_END);
+    data.offset = REAL(slotExpr);
+  }
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset.test"));
+  if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
+      rc_getLength(slotExpr) == 0) {
+    data.testOffset = NULL;
+  } else {
+    rc_assertDoubleConstraints(slotExpr, "test offset", RC_LENGTH | RC_EQ,
+                               rc_asRLength(data.numTestObservations),
+                               RC_END);
+    data.testOffset = REAL(slotExpr);
+  }
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("sigma"));
+  data.sigmaEstimate = rc_getDouble(
+    slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1),
+    RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
+
+  slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
+  rc_assertIntConstraints(slotExpr, "maximum number of cuts",
+                          RC_LENGTH | RC_EQ,
+                          rc_asRLength(data.numPredictors), RC_END);
+  int* i_maxNumCuts = INTEGER(slotExpr);
+  data.maxNumCuts.resize(data.numPredictors);
+  for (size_t j = 0; j < data.numPredictors; ++j)
+    data.maxNumCuts[j] = static_cast<uint32_t>(i_maxNumCuts[j]);
+}
+
+void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
+  SEXP slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth_death"));
+  model.birthOrDeathProbability = rc_getDouble(
+    slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ,
+    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+
+  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.swap"));
+  model.swapProbability = rc_getDouble(
+    slotExpr, "probability of swap rule", RC_LENGTH | RC_EQ,
+    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+
+  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.change"));
+  model.changeProbability = rc_getDouble(
+    slotExpr, "probability of change rule", RC_LENGTH | RC_EQ,
+    rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+
+  if (std::fabs(model.birthOrDeathProbability + model.swapProbability +
+                model.changeProbability - 1.0) >= 1.0e-10)
+    Rf_error("rule proposal probabilities must sum to 1.0");
+
+  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth"));
+  model.birthProbability = rc_getDouble(
+    slotExpr, "probability of birth in birth/death rule", RC_LENGTH | RC_EQ,
+    rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
+
+  slotExpr = Rf_getAttrib(modelExpr, Rf_install("node.scale"));
+  model.nodeScale = rc_getDouble(
+    slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
+    RC_VALUE | RC_GT, 0.0, RC_END);
+
+  SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
+  slotExpr = Rf_getAttrib(priorExpr, Rf_install("power"));
+  model.power = rc_getDouble(slotExpr, "tree prior power", RC_LENGTH | RC_EQ,
+                             rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+
+  slotExpr = Rf_getAttrib(priorExpr, Rf_install("base"));
+  model.base = rc_getDouble(slotExpr, "tree prior base", RC_LENGTH | RC_EQ,
+                            rc_asRLength(1), RC_VALUE | RC_GT, 0.0,
+                            RC_VALUE | RC_LT, 1.0, RC_END);
+
+  slotExpr = Rf_getAttrib(priorExpr, Rf_install("splitProbabilities"));
+  if (rc_getLength(slotExpr) == 0) {
+    model.splitProbabilities = NULL;
+  } else {
+    model.splitProbabilities = REAL(slotExpr);
+    if (rc_getLength(slotExpr) != numPredictors)
+      Rf_error("length of split probabilities must equal number of "
+               "predictors");
+    double totalProbability = 0.0;
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (model.splitProbabilities[j] < 0.0)
+        Rf_error("split probabilities must be non-negative");
+      totalProbability += model.splitProbabilities[j];
+    }
+    if (std::fabs(totalProbability - 1.0) >= 1.0e-10)
+      Rf_error("split probabilities must sum to 1.0");
+  }
+
+  priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.hyperprior"));
+  const char* classStr = CHAR(STRING_ELT(rc_getClass(priorExpr), 0));
+  if (std::strcmp(classStr, "dbartsChiHyperprior") == 0) {
+    model.updateK = true;
+    model.kDf = rc_getDouble(
+      Rf_getAttrib(priorExpr, Rf_install("degreesOfFreedom")),
+      "degreesOfFreedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
+      RC_VALUE | RC_GT, 0.0, RC_END);
+    model.kScale = rc_getDouble(
+      Rf_getAttrib(priorExpr, Rf_install("scale")), "scale",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  } else if (std::strcmp(classStr, "dbartsFixedHyperprior") == 0) {
+    model.k = rc_getDouble(Rf_getAttrib(priorExpr, Rf_install("k")), "k",
+                           RC_LENGTH | RC_EQ, rc_asRLength(1),
+                           RC_VALUE | RC_GT, 0.0, RC_END);
+  } else {
+    Rf_error("unsupported k prior type '%s'", classStr);
+  }
+
+  priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
+  classStr = CHAR(STRING_ELT(rc_getClass(priorExpr), 0));
+  if (std::strcmp(classStr, "dbartsChiSqPrior") == 0) {
+    model.sigmaDf = rc_getDouble(
+      Rf_getAttrib(priorExpr, Rf_install("df")),
+      "sigma prior degrees of freedom", RC_LENGTH | RC_EQ, rc_asRLength(1),
+      RC_VALUE | RC_GT, 0.0, RC_END);
+    model.sigmaQuantile = rc_getDouble(
+      Rf_getAttrib(priorExpr, Rf_install("quantile")), "sigma prior quantile",
+      RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GT, 0.0,
+      RC_VALUE | RC_LT, 1.0, RC_END);
+    model.sigmaRawScale =
+      ext_quantileOfChiSquared(1.0 - model.sigmaQuantile, model.sigmaDf) /
+      model.sigmaDf;
+  } else if (std::strcmp(classStr, "dbartsFixedPrior") == 0) {
+    model.sigmaIsFixed = true;
+    model.fixedSigmaSq = rc_getDouble(
+      Rf_getAttrib(priorExpr, Rf_install("value")),
+      "residual variance prior fixed value", RC_LENGTH | RC_EQ,
+      rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
+  } else {
+    Rf_error("unsupported residual variance prior type '%s'", classStr);
+  }
+}
+
 // The classic engine's BARTFit::printInitialSummary, line for line, printed
 // at creation under verbose; the classic version's quantile and scale lines
 // reduce at creation to expressions over the raw prior scale and the
 // response range, used here directly.
-void printInitialSummary(const Control& control, const Model& model,
-                         const Data& data,
+void printInitialSummary(const ParsedControl& control,
+                         const ParsedModel& model, const ParsedData& data,
                          const bartcore::SamplerBase& sampler) {
   if (control.responseIsBinary)
     ext_printf("\nRunning BART with binary y\n\n");
@@ -113,43 +430,34 @@ void printInitialSummary(const Control& control, const Model& model,
   ext_printf("tree thinning rate: %u\n", control.treeThinningRate);
 
   ext_printf("Prior:\n");
-  if (model.kPrior->isFixed) {
-    ext_printf("\tk prior fixed to %f\n",
-               static_cast<FixedHyperprior*>(model.kPrior)->getK());
+  if (!model.updateK) {
+    ext_printf("\tk prior fixed to %f\n", model.k);
   } else {
-    const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
     ext_printf("\tprior on k: chi with %f degrees of freedom and %f scale\n",
-               kPrior.degreesOfFreedom, kPrior.scale);
+               model.kDf, model.kScale);
   }
   if (!control.responseIsBinary) {
-    if (model.sigmaSqPrior->isFixed) {
+    if (model.sigmaIsFixed) {
       // the classic engine's FixedPrior::print
       ext_printf("\tresidual variance prior fixed to %f\n",
-                 static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
+                 model.fixedSigmaSq);
     } else {
-      const ChiSquaredPrior& sigmaSqPrior(
-        *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
-      ext_printf("\tdegrees of freedom in sigma prior: %f\n",
-                 sigmaSqPrior.degreesOfFreedom);
-      double quantile = 1.0 - ext_percentileOfChiSquared(
-        sigmaSqPrior.scale * sigmaSqPrior.degreesOfFreedom,
-        sigmaSqPrior.degreesOfFreedom);
-      ext_printf("\tquantile in sigma prior: %f\n", quantile);
+      ext_printf("\tdegrees of freedom in sigma prior: %f\n", model.sigmaDf);
+      ext_printf("\tquantile in sigma prior: %f\n", model.sigmaQuantile);
       double sigmaInternal = data.sigmaEstimate / sampler.fitScale();
       ext_printf("\tscale in sigma prior: %f\n",
-                 sigmaInternal * sigmaInternal * sigmaSqPrior.scale);
+                 sigmaInternal * sigmaInternal * model.sigmaRawScale);
     }
   }
 
-  const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
-  ext_printf("\tpower and base for tree prior: %f %f\n", treePrior.power,
-             treePrior.base);
-  if (treePrior.splitProbabilities != NULL) {
+  ext_printf("\tpower and base for tree prior: %f %f\n", model.power,
+             model.base);
+  if (model.splitProbabilities != NULL) {
     ext_printf("\ttree split probabilities: %f",
-               treePrior.splitProbabilities[0]);
+               model.splitProbabilities[0]);
     size_t printLength = 5 < data.numPredictors ? 5 : data.numPredictors;
     for (size_t i = 1; i < printLength; ++i)
-      ext_printf(", %f", treePrior.splitProbabilities[i]);
+      ext_printf(", %f", model.splitProbabilities[i]);
     ext_printf("\n");
   }
   ext_printf("\tuse quantiles for rule cut points: %s\n",
@@ -243,17 +551,13 @@ void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
 // Continuous responses are gaussian and accept only "" or "gaussian".
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName) {
-  Control control;
-  Data data;
-  Model model;
+  ParsedControl control;
+  ParsedData data;
+  ParsedModel model;
 
-  initializeControlFromExpression(control, controlExpr);
-  initializeDataFromExpression(data, dataExpr);
-  initializeModelFromExpression(model, modelExpr, control, data);
-
-  // Rf_error longjmps past destructors, so collect the reason, clean up,
-  // and error at the end.
-  const char* errorMessage = NULL;
+  parseControl(control, controlExpr);
+  parseData(data, dataExpr);
+  parseModel(model, modelExpr, data.numPredictors);
 
   bartcore::ResponseFamily family = bartcore::ResponseFamily::gaussian;
   if (control.responseIsBinary) {
@@ -263,105 +567,70 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                std::strcmp(familyName, "probit") == 0) {
       family = bartcore::ResponseFamily::probit;
     } else {
-      errorMessage = "unrecognized response family for a binary response";
+      Rf_error("unrecognized response family for a binary response");
     }
   } else if (familyName[0] != '\0' &&
              std::strcmp(familyName, "gaussian") != 0) {
-    errorMessage = "response families other than gaussian require a binary "
-                   "response";
+    Rf_error("response families other than gaussian require a binary "
+             "response");
   }
 
-  std::vector<bartcore::ColumnType> columnTypes(
-    data.numPredictors, bartcore::ColumnType::ordinal);
-  bool anyCategorical = false;
-  for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
-    if (data.variableTypes[j] != CATEGORICAL) continue;
-    columnTypes[j] = bartcore::ColumnType::categorical;
-    anyCategorical = true;
-    for (size_t i = 0; i < data.numObservations && errorMessage == NULL; ++i) {
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    for (size_t i = 0; i < data.numObservations; ++i) {
       double value = data.x[i + j * data.numObservations];
       if (value < 0.0 ||
           value >= static_cast<double>(bartcore::maxCategories) ||
           value != std::floor(value))
-        errorMessage = "categorical predictors must hold integer category "
-                       "codes in [0, 53)";
+        Rf_error("categorical predictors must hold integer category codes "
+                 "in [0, 53)");
     }
   }
-  if (errorMessage == NULL && anyCategorical &&
-      data.numTestObservations > 0) {
+  if (data.anyCategorical && data.numTestObservations > 0) {
     // test codes must also be representable; category counts come from the
     // training columns
-    for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
-      if (columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
       double maxValue = 0.0;
       for (size_t i = 0; i < data.numObservations; ++i) {
         double value = data.x[i + j * data.numObservations];
         if (value > maxValue) maxValue = value;
       }
-      for (size_t i = 0;
-           i < data.numTestObservations && errorMessage == NULL; ++i) {
+      for (size_t i = 0; i < data.numTestObservations; ++i) {
         double value = data.x_test[i + j * data.numTestObservations];
         if (value < 0.0 || value > maxValue || value != std::floor(value))
-          errorMessage = "categorical test predictors must hold existing "
-                         "category codes";
+          Rf_error("categorical test predictors must hold existing category "
+                   "codes");
       }
     }
   }
-  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaSqPrior->isFixed;
+  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
   if (sigmaIsFixed) {
     // documented semantics: fixed(value) holds the residual variance at
     // value, so sigma enters as sqrt(value) and is never drawn
-    data.sigmaEstimate =
-      std::sqrt(static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
+    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   }
-  if (errorMessage == NULL && control.responseIsBinary &&
-      data.weights != NULL)
-    errorMessage = "binary response families do not support weights: the "
-                   "weighted probit the classic engine fit was incorrect; "
-                   "replicate rows or model the latents instead";
-
-  double k = 2.0, sigmaDf = 3.0, sigmaRawScale = 1.0;
-  bool updateK = !model.kPrior->isFixed;
-  double kDf = 1.25, kScale = HUGE_VAL;
-  if (errorMessage == NULL) {
-    if (updateK) {
-      const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
-      kDf = kPrior.degreesOfFreedom;
-      kScale = kPrior.scale;
-    } else {
-      k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
-    }
-    if (!control.responseIsBinary && !sigmaIsFixed) {
-      const ChiSquaredPrior& sigmaSqPrior(
-        *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
-      sigmaDf = sigmaSqPrior.degreesOfFreedom;
-      sigmaRawScale = sigmaSqPrior.scale;
-    }
-  }
-
-  if (errorMessage != NULL) {
-    invalidateModel(model);
-    invalidateData(data);
-    Rf_error("%s", errorMessage);
-  }
-
-  const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
+  if (control.responseIsBinary && data.weights != NULL)
+    Rf_error("binary response families do not support weights: the "
+             "weighted probit the classic engine fit was incorrect; "
+             "replicate rows or model the latents instead");
 
   bartcore::SamplerOptions options;
   options.numTrees = control.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
-  options.k = k;
+  options.k = model.k;
   options.nodeScale = model.nodeScale;
-  options.base = treePrior.base;
-  options.power = treePrior.power;
+  options.base = model.base;
+  options.power = model.power;
   options.birthOrDeathProbability = model.birthOrDeathProbability;
   options.swapProbability = model.swapProbability;
   options.changeProbability = model.changeProbability;
   options.birthProbability = model.birthProbability;
-  options.maxNumCutsPerVariable = data.maxNumCuts; // copied during build
+  options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
   options.useQuantiles = control.useQuantiles;
-  options.columnTypes = anyCategorical ? columnTypes.data() : NULL;
-  options.splitProbabilities = treePrior.splitProbabilities; // copied by ctor
+  options.columnTypes =
+    data.anyCategorical ? data.columnTypes.data() : NULL;
+  options.splitProbabilities = model.splitProbabilities; // copied by ctor
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly
@@ -386,9 +655,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       Rf_getAttrib(treePriorExpr, Rf_install("update.delay")), "dart update.delay",
       RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_END));
   }
-  options.updateK = updateK;
-  options.kHyperprior.degreesOfFreedom = kDf;
-  options.kHyperprior.scale = kScale;
+  options.updateK = model.updateK;
+  options.kHyperprior.degreesOfFreedom = model.kDf;
+  options.kHyperprior.scale = model.kScale;
   options.numChains = control.numChains;
   options.numThreads = control.numThreads;
   options.numThin = control.treeThinningRate;
@@ -403,18 +672,18 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   // makes results reproducible without R's stream: it seeds R's generator
   // directly for a single chain (the classic convention) and otherwise seeds
   // a dedicated generator that hands each chain its seed.
-  bool haveSeed = control.rng_seed != DBARTS_CONTROL_INVALID_SEED;
+  bool haveSeed = control.haveRngSeed;
   std::vector<ext_rng*> rngs(options.numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
   if (options.numChains == 1) {
     rngs[0] = ext_rng_createDefault(true);
     rngFailed = rngs[0] == NULL ||
-      (haveSeed && ext_rng_setSeed(rngs[0], control.rng_seed) != 0);
+      (haveSeed && ext_rng_setSeed(rngs[0], control.rngSeed) != 0);
   } else if (haveSeed) {
     ext_rng* seedGenerator =
       ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     rngFailed = seedGenerator == NULL ||
-      ext_rng_setSeed(seedGenerator, control.rng_seed) != 0;
+      ext_rng_setSeed(seedGenerator, control.rngSeed) != 0;
     for (size_t c = 0; c < options.numChains && !rngFailed; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
       rngFailed = rngs[c] == NULL ||
@@ -436,15 +705,13 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   if (rngFailed) {
     for (size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
-    invalidateModel(model);
-    invalidateData(data);
     Rf_error("could not allocate rng");
   }
 
   std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createClassicSampler(
     data.x, data.y, data.numObservations, data.numPredictors, data.weights,
-    data.offset, family, data.sigmaEstimate, sigmaDf, sigmaRawScale, options,
-    rngs.data());
+    data.offset, family, data.sigmaEstimate, model.sigmaDf,
+    model.sigmaRawScale, options, rngs.data());
 
   if (data.numTestObservations > 0) {
     sampler->setTestPredictors(data.x_test, data.numTestObservations);
@@ -452,9 +719,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   }
 
   if (control.verbose) printInitialSummary(control, model, data, *sampler);
-
-  invalidateModel(model);
-  invalidateData(data);
 
   return new BartcoreHolder{std::move(sampler), std::move(rngs),
                             control.keepTrainingFits};
@@ -654,53 +918,41 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
 
-  Data data;
-  initializeDataFromExpression(data, dataExpr);
+  ParsedData data;
+  parseData(data, dataExpr);
 
-  // Rf_error longjmps past destructors, so collect the reason, clean up,
-  // and error at the end.
-  const char* errorMessage = NULL;
   if (data.numPredictors != sampler.numPredictors())
-    errorMessage = "bartcore setData requires the same predictors";
-  if (errorMessage == NULL &&
-      sampler.family() != bartcore::ResponseFamily::gaussian &&
+    Rf_error("bartcore setData requires the same predictors");
+  if (sampler.family() != bartcore::ResponseFamily::gaussian &&
       data.weights != NULL)
-    errorMessage = "binary response families do not support weights: the "
-                   "weighted probit the classic engine fit was incorrect; "
-                   "replicate rows or model the latents instead";
-  for (size_t j = 0; j < data.numPredictors && errorMessage == NULL; ++j) {
+    Rf_error("binary response families do not support weights: the "
+             "weighted probit the classic engine fit was incorrect; "
+             "replicate rows or model the latents instead");
+  for (size_t j = 0; j < data.numPredictors; ++j) {
     bool wasCategorical = sampler.data().types[j] ==
                           bartcore::ColumnType::categorical;
-    if ((data.variableTypes[j] == CATEGORICAL) != wasCategorical) {
-      errorMessage = "bartcore setData requires the same predictor types";
-      break;
-    }
+    bool isCategorical = data.columnTypes[j] ==
+                         bartcore::ColumnType::categorical;
+    if (isCategorical != wasCategorical)
+      Rf_error("bartcore setData requires the same predictor types");
     if (!wasCategorical) continue;
     // category counts are fixed at creation; new values must be existing
     // codes, in the training and test data both
-    for (size_t i = 0; i < data.numObservations && errorMessage == NULL; ++i)
+    for (size_t i = 0; i < data.numObservations; ++i)
       if (!sampler.data().categoricalValueIsValid(
             j, data.x[i + j * data.numObservations]))
-        errorMessage = "categorical predictor values must be existing "
-                       "category codes";
-    for (size_t i = 0;
-         i < data.numTestObservations && errorMessage == NULL; ++i)
+        Rf_error("categorical predictor values must be existing category "
+                 "codes");
+    for (size_t i = 0; i < data.numTestObservations; ++i)
       if (!sampler.data().categoricalValueIsValid(
             j, data.x_test[i + j * data.numTestObservations]))
-        errorMessage = "categorical predictor values must be existing "
-                       "category codes";
-  }
-
-  if (errorMessage != NULL) {
-    invalidateData(data);
-    Rf_error("%s", errorMessage);
+        Rf_error("categorical predictor values must be existing category "
+                 "codes");
   }
 
   sampler.setData(data.x, data.y, data.numObservations, data.weights,
                   data.offset, data.x_test, data.numTestObservations,
                   data.testOffset);
-
-  invalidateData(data);
 
   // everything the sampler borrows now comes from the new data object
   retain(ptrExpr, PROT_DATA, dataExpr);
@@ -830,8 +1082,8 @@ SEXP bartcore_setControl(SEXP ptrExpr, SEXP controlExpr) {
     Rf_error("'control' argument to bartcore_setControl not of class "
              "'dbartsControl'");
 
-  Control control;
-  initializeControlFromExpression(control, controlExpr);
+  ParsedControl control;
+  parseControl(control, controlExpr);
 
   if (control.numChains != sampler.numChains())
     Rf_error("the bartcore engine cannot change the number of chains of an "
@@ -860,55 +1112,46 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
     Rf_error("'model' argument to bartcore_setModel not of class "
              "'dbartsModel'");
 
-  Control control;
-  Data data;
-  Model model;
-  initializeControlFromExpression(control, controlExpr);
-  initializeDataFromExpression(data, dataExpr);
-  initializeModelFromExpression(model, modelExpr, control, data);
+  (void) controlExpr; // arity fixed by the call table; nothing read from it
+
+  ParsedModel model;
+  parseModel(model, modelExpr, sampler.numPredictors());
 
   bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
-  {
-    const CGMPrior& treePrior(*static_cast<CGMPrior*>(model.treePrior));
 
-    bartcore::ModelParameters parameters;
-    parameters.base = treePrior.base;
-    parameters.power = treePrior.power;
-    parameters.splitProbabilities = treePrior.splitProbabilities;
-    parameters.birthOrDeathProbability = model.birthOrDeathProbability;
-    parameters.swapProbability = model.swapProbability;
-    parameters.changeProbability = model.changeProbability;
-    parameters.birthProbability = model.birthProbability;
-    parameters.nodeScale = model.nodeScale;
-    parameters.updateK = !model.kPrior->isFixed;
-    if (parameters.updateK) {
-      const ChiHyperprior& kPrior(*static_cast<ChiHyperprior*>(model.kPrior));
-      parameters.kHyperprior.degreesOfFreedom = kPrior.degreesOfFreedom;
-      parameters.kHyperprior.scale = kPrior.scale;
+  bartcore::ModelParameters parameters;
+  parameters.base = model.base;
+  parameters.power = model.power;
+  parameters.splitProbabilities = model.splitProbabilities;
+  parameters.birthOrDeathProbability = model.birthOrDeathProbability;
+  parameters.swapProbability = model.swapProbability;
+  parameters.changeProbability = model.changeProbability;
+  parameters.birthProbability = model.birthProbability;
+  parameters.nodeScale = model.nodeScale;
+  parameters.updateK = model.updateK;
+  if (parameters.updateK) {
+    parameters.kHyperprior.degreesOfFreedom = model.kDf;
+    parameters.kHyperprior.scale = model.kScale;
+  } else {
+    parameters.k = model.k;
+  }
+  if (isGaussian) {
+    if (model.sigmaIsFixed) {
+      // documented semantics: fixed(value) holds the residual variance
+      parameters.sigmaIsFixed = true;
+      parameters.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
     } else {
-      parameters.k = static_cast<FixedHyperprior*>(model.kPrior)->getK();
+      parameters.sigmaEstimate = rc_getDouble(
+        Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
+        RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
+        RC_VALUE | RC_GT, 0.0, RC_END);
+      parameters.sigmaDf = model.sigmaDf;
+      parameters.sigmaRawScale = model.sigmaRawScale;
     }
-    if (isGaussian) {
-      if (model.sigmaSqPrior->isFixed) {
-        // documented semantics: fixed(value) holds the residual variance
-        parameters.sigmaIsFixed = true;
-        parameters.sigmaEstimate = std::sqrt(
-          static_cast<FixedPrior*>(model.sigmaSqPrior)->getScale());
-      } else {
-        const ChiSquaredPrior& sigmaSqPrior(
-          *static_cast<ChiSquaredPrior*>(model.sigmaSqPrior));
-        parameters.sigmaEstimate = data.sigmaEstimate;
-        parameters.sigmaDf = sigmaSqPrior.degreesOfFreedom;
-        parameters.sigmaRawScale = sigmaSqPrior.scale;
-      }
-    }
-
-    // split probabilities are copied per chain before the model goes away
-    sampler.setModel(parameters);
   }
 
-  invalidateModel(model);
-  invalidateData(data);
+  // split probabilities are copied per chain before the model goes away
+  sampler.setModel(parameters);
 
   return R_NilValue;
 }
