@@ -22,8 +22,8 @@
             data), latents, prediction, tree storage and introspection,
             and state save and restore. Entry points are reached through
             `R_GetCCallable` and versioned by `DBARTS_C_API_VERSION`.
-            It replaces the C++ interface in `dbarts/R_C_interface.hpp`,
-            which is scheduled for removal.
+            It replaces the removed C++ interface in
+            `dbarts/R_C_interface.hpp`.
       \item `rngSeed` makes results reproducible for any number of
             chains without touching R's stream, and seeded results no
             longer depend on the thread count. Without a seed,
@@ -116,10 +116,9 @@
   }
   \subsection{C API}{
     \itemize{
-      \item Added `dbarts_getTreesCountingData`, which routes a supplied matrix
-            through the trees for the `newdata` feature above.
-      \item `dbarts_getTrees` gained a trailing `useLiveTrees` argument (for the
-            `current = TRUE` feature); callers linking to dbarts must update.
+      \item The C++ interface in `dbarts/R_C_interface.hpp` is removed with
+            the classic engine it exposed; packages compiling against
+            dbarts use the flat C interface in `dbarts/dbarts.h` instead.
     }
   }
   \subsection{BUG FIXES}{

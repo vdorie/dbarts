@@ -46,6 +46,20 @@ DECIDED: break freely now and patch at the end; xbart may be redesigned
 around the new data layer rather than accommodated, or shelved and
 completed later - it does not gate the rest.
 
+Landed 2026-07-03 (step 3, C++ deletion): src/dbarts/ is gone, along with
+R_interface_sampler.cpp, R_interface_common.cpp, R_C_interface.cpp, and
+every classic header in inst/include/dbarts/ - dbarts.h is the only
+shipped header left. The classic .Call and CCallable tables are gone
+(only the dbarts_sampler_* registrations remain); the package unload
+finalizer is a no-op (bartcore samplers free through per-pointer R
+finalizers). Build system: SUBDIRS/PKG_LIBS drop dbarts.a on both
+platforms, configure loses match-bayes-tree, thread-safe-unload, the
+dbarts config headers, and the generated inst/include/dbarts/types.hpp;
+--with-xint-size STAYS - misc's partition kernels (used by bartcore)
+consume XINT_TYPE through src/include/misc/types.h. The cutover is
+complete: stan4bart ports to dbarts.h in lockstep (Vincent publishes
+both).
+
 Landed 2026-07-03 (step 3, R surface): the `engine` argument is gone from
 `dbartsControl` (with the slot, its validity checks, and the class
 prototype), along with `rngKind`/`rngNormalKind` (explicit generator
