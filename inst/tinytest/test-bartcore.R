@@ -9,7 +9,7 @@ f <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 5 * x[, 4L]
 y <- f + rnorm(n)
 x.test <- matrix(runif(10L * p), 10L, p)
 
-control <- dbartsControl(engine = "classic", n.chains = 1L, n.threads = 1L,
+control <- dbartsControl(n.chains = 1L, n.threads = 1L,
                          n.trees = 50L, updateState = FALSE)
 sampler <- dbarts(x, y, test = x.test, control = control)
 bcSampler <- dbarts:::bartcoreSampler(sampler)
@@ -125,7 +125,7 @@ expect_true(all(is.finite(
 # quantile cut points and heterogeneous n.cuts
 x.quants <- x + 0
 x.quants[, 3L] <- round(x.quants[, 3L], 1L)  # 11 levels -> 10 quantile cuts
-control.quants <- dbartsControl(engine = "classic", n.chains = 1L,
+control.quants <- dbartsControl(n.chains = 1L,
                                 n.threads = 1L,
                                 n.trees = 50L, updateState = FALSE,
                                 useQuantiles = TRUE,
@@ -154,7 +154,7 @@ expect_error(
 
 # multiple chains: per-chain slabs with a trailing chain dimension, run on
 # worker threads; each chain gets its own generator seeded from R's stream
-control.chains <- dbartsControl(engine = "classic", n.chains = 2L,
+control.chains <- dbartsControl(n.chains = 2L,
                                 n.threads = 2L, n.trees = 50L,
                                 updateState = FALSE)
 sampler.chains <- dbarts(x + 0, y, test = x.test, control = control.chains)
@@ -186,9 +186,8 @@ expect_equal(dim(result.chains.binary$k), c(10L, 2L))
 latents.chains <- dbarts:::bartcoreGetLatents(bcSampler.chains.binary)
 expect_equal(dim(latents.chains), c(n, 2L))
 
-# the engine flag: dbartsControl(engine = "bartcore") makes the standard
-# dbartsSampler surface run on the new engine
-control.engine <- dbartsControl(engine = "bartcore", n.chains = 1L,
+# the standard dbartsSampler surface
+control.engine <- dbartsControl(n.chains = 1L,
                                 n.threads = 1L, n.trees = 50L,
                                 n.burn = 100L, n.samples = 100L)
 x.engine <- x + 0
@@ -296,14 +295,14 @@ expect_equal(sampler.to2$data@offset.test, rep(1, 5L))
 expect_equal(dim(sampler.to2$run(0L, 2L)$test), c(5L, 2L))
 
 # thinning counts burn-in and samples at the kept rate
-control.thin <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.thin <- dbartsControl(n.chains = 1L,
                               n.threads = 1L, n.trees = 25L, n.thin = 2L)
 sampler.thin <- dbarts(x + 0, y, control = control.thin)
 r.thin <- sampler.thin$run(50L, 20L)
 expect_equal(dim(r.thin$train), c(n, 20L))
 
 # multiple chains through the flag: chain-dimensioned results and latents
-control.engine2 <- dbartsControl(engine = "bartcore", n.chains = 2L,
+control.engine2 <- dbartsControl(n.chains = 2L,
                                  n.threads = 2L, n.trees = 50L)
 sampler.engine2 <- dbarts(x + 0, y.binary, control = control.engine2)
 r.engine2 <- sampler.engine2$run(50L, 10L)
@@ -311,8 +310,7 @@ expect_equal(dim(r.engine2$k), c(10L, 2L))
 expect_equal(dim(sampler.engine2$getLatents()), c(n, 2L))
 expect_equal(length(sampler.engine2$getSigmas()), 2L)
 
-# the package-level joint updater routes whole-engine groups, and refuses
-# mixed ones
+# the package-level joint updater over full samplers
 x.jointC <- x + 0
 colnames(x.jointC) <- paste0("x", seq_len(p))
 sampler.jointC <- dbarts(x.jointC, y, control = control.engine)
@@ -322,19 +320,10 @@ invisible(sampler.jointD$run(50L, 1L))
 installed.engine.joint <- updatePredictorPerObservationJointly(
   list(sampler.jointC, sampler.jointD), rep(10, n), "x1")
 expect_equal(length(installed.engine.joint), n)
-sampler.classic <- dbarts(x.jointC + 0, y,
-                          control = dbartsControl(engine = "classic",
-                                                  n.chains = 1L,
-                                                  n.threads = 1L,
-                                                  n.trees = 50L,
-                                                  updateState = FALSE))
-expect_error(updatePredictorPerObservationJointly(
-  list(sampler.jointC, sampler.classic), rep(10, n), "x1"),
-  pattern = "different engines")
 
 # whole-data replacement: cut points rebuild, splits remap, observation
 # counts may change, and sigma holds on the original scale
-control.setdata <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.setdata <- dbartsControl(n.chains = 1L,
                                  n.threads = 1L, n.trees = 50L)
 sampler.setdata <- dbarts(x + 0, y, control = control.setdata)
 invisible(sampler.setdata$run(100L, 1L))
@@ -397,16 +386,15 @@ expect_error(dbarts:::bartcoreSampler(sampler.logit.host, family = "cauchit"),
 expect_error(dbarts:::bartcoreSampler(sampler, family = "logistic"),
              pattern = "binary response")
 
-# binary weights are rejected rather than run with the reference engine's
+# binary weights are rejected rather than run with the classic engine's
 # incorrect latent scaling
-sampler.wbin <- dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
-                       control = control)
-expect_error(dbarts:::bartcoreSampler(sampler.wbin),
+expect_error(dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
+                    control = control),
              pattern = "binary response families do not support weights")
 
-# categorical predictors, a bartcore-only capability (the classic engine's
-# categorical rules are unreachable from R); no public surface marks
-# columns categorical yet, so the type is flipped on the data by hand
+# categorical predictors; no public surface marks matrix columns
+# categorical (factors = "categorical" applies to data.frames), so the type
+# is flipped on the data by hand
 x.cat <- cbind(as.double(rep(0:3, length.out = n)), runif(n))
 mu.cat <- c(2, -1, 3, 0)[x.cat[, 1L] + 1L]
 y.cat <- mu.cat + 2 * x.cat[, 2L] + rnorm(n, 0, 0.5)
@@ -479,7 +467,7 @@ expect_error(dbarts:::bartcoreSampler(sampler.over.host),
 
 # keepTrees through the flag: predictions from the saved trees reproduce the
 # run's recorded test fits exactly
-control.keep <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.keep <- dbartsControl(n.chains = 1L,
                               n.threads = 1L, n.trees = 20L,
                               n.samples = 25L, n.burn = 50L,
                               keepTrees = TRUE, updateState = FALSE)
@@ -522,7 +510,7 @@ expect_true(all(grepl(
   "^ *TBN: [01]{3}  (var: [0-9]+ ORDRule: |pred: )", print.saved)))
 
 # prediction without keepTrees comes from the live trees, one set per chain
-control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.bc <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 20L,
                             updateState = FALSE)
 sampler.livepred <- dbarts(x, y, control = control.bc)
@@ -534,7 +522,7 @@ expect_equal(sampler.livepred$predict(x.test, offset.test = 2),
 
 # multiple chains add their dimension to predictions and a chain column to
 # the trees
-control.keep2 <- dbartsControl(engine = "bartcore", n.chains = 2L,
+control.keep2 <- dbartsControl(n.chains = 2L,
                                n.threads = 1L, n.trees = 10L,
                                n.samples = 5L, keepTrees = TRUE,
                                updateState = FALSE)
@@ -553,7 +541,7 @@ expect_true(any(grepl("sample [12]$", print.keep2)))
 
 # state serialization: a restored sampler continues bitwise identically;
 # multiple chains run on their own generators, so no seed sync is needed
-control.state <- dbartsControl(engine = "bartcore", n.chains = 2L,
+control.state <- dbartsControl(n.chains = 2L,
                                n.threads = 1L, n.trees = 10L,
                                n.samples = 5L, updateState = FALSE)
 sampler.state <- dbarts(x, y, control = control.state)
@@ -582,7 +570,7 @@ expect_identical(result.a, result.b)
 
 # save/load: runs store state by default (updateState), and getPointer
 # transparently re-creates the sampler from it after deserialization
-control.us <- dbartsControl(engine = "bartcore", n.chains = 2L,
+control.us <- dbartsControl(n.chains = 2L,
                             n.threads = 1L, n.trees = 10L, n.samples = 5L)
 sampler.us <- dbarts(x, y, control = control.us)
 invisible(sampler.us$run(20L, 2L))
@@ -604,12 +592,9 @@ state.bad[[1L]]$tree.values[internal.nodes[1L]] <-
   state.bad[[1L]]$tree.values[internal.nodes[1L]] + 1e-3
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
-# prior sampling: both engines draw tree structures and leaf parameters from
-# the same prior; with fixed seeds the comparison is deterministic
-control.prior <- dbartsControl(engine = "classic", n.chains = 1L,
-                               n.threads = 1L, n.trees = 50L,
-                               updateState = FALSE)
-control.prior.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+# prior sampling: tree structures and leaf parameters come from the CGM and
+# node priors
+control.prior.bc <- dbartsControl(n.chains = 1L,
                                   n.threads = 1L, n.trees = 50L,
                                   updateState = FALSE)
 samplePrior <- function(sampler, numReplications) {
@@ -625,30 +610,24 @@ samplePrior <- function(sampler, numReplications) {
   }
   list(counts = leafCounts, values = leafValues)
 }
-sampler.prior <- dbarts(x, y, control = control.prior)
 sampler.prior.bc <- dbarts(x, y, control = control.prior.bc)
-set.seed(20)
-prior.classic <- samplePrior(sampler.prior, 10L)
 set.seed(20)
 prior.bc <- samplePrior(sampler.prior.bc, 10L)
 
-# structures: same leaf-count distribution
-expect_true(abs(mean(prior.classic$counts) - mean(prior.bc$counts)) < 0.3)
-ks.counts <- suppressWarnings(ks.test(prior.classic$counts, prior.bc$counts))
-expect_true(ks.counts$p.value > 0.001)
+# structures: the CGM(0.95, 2) prior's mean leaf count is about 2.5
+expect_true(mean(prior.bc$counts) > 2.2 && mean(prior.bc$counts) < 2.8)
 
-# parameters: leaf values match the node prior's spread on both engines
+# parameters: leaf values match the node prior's spread
 prior.sd <- 0.5 / (2 * sqrt(50))
-expect_true(abs(sd(prior.classic$values) - prior.sd) < 0.15 * prior.sd)
 expect_true(abs(sd(prior.bc$values) - prior.sd) < 0.15 * prior.sd)
 
 # a sampler keeps running from a prior-drawn state
 expect_true(all(is.finite(sampler.prior.bc$run(0L, 2L)$train)))
 
-# setControl reconfigures a live sampler like the classic engine: the bart()
-# dance of burning without training fits or stored trees, then flipping
-# keepTrees on for the real samples
-control.sc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+# setControl reconfigures a live sampler: the bart() dance of burning
+# without training fits or stored trees, then flipping keepTrees on for
+# the real samples
+control.sc <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 20L, n.samples = 8L,
                             n.burn = 50L, updateState = FALSE)
 sampler.sc <- dbarts(x, y, test = x.test, control = control.sc)
@@ -681,11 +660,11 @@ control.bad <- control.sc
 control.bad@n.chains <- 2L
 expect_error(sampler.sc$setControl(control.bad), pattern = "n.chains")
 control.bad <- control.sc
-control.bad@rngKind <- "Mersenne-Twister"
-expect_error(sampler.sc$setControl(control.bad), pattern = "rngKind")
+control.bad@rngSeed <- 71L
+expect_error(sampler.sc$setControl(control.bad), pattern = "rngSeed")
 
 # thinning through setControl matches creating with the rate
-control.thin <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.thin <- dbartsControl(n.chains = 1L,
                               n.threads = 1L, n.trees = 20L, n.samples = 5L,
                               n.thin = 3L, updateState = FALSE)
 sampler.thin1 <- dbarts(x, y, control = control.thin)
@@ -700,7 +679,7 @@ r.thin2 <- sampler.thin2$run(5L, 5L)
 expect_identical(r.thin1, r.thin2)
 
 # setModel before running is indistinguishable from creating with the model
-control.sm <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.sm <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 20L, n.samples = 5L,
                             updateState = FALSE)
 sampler.sm1 <- dbarts(x, y, control = control.sm)
@@ -735,40 +714,38 @@ r.ssr <- sampler.ssr$run(20L, 1L)
 expect_equal(sampler.ssr$getSumsOfSquaredResiduals(),
              sum((y - r.ssr$train[, 1L])^2))
 
-# verbose mirrors the classic engine: creation summaries are byte-identical
-# across engines over the same data, and runs print the loop header, the
-# iteration counter, and the terminal summary
-mkVerboseControl <- function(engine) {
-  dbartsControl(engine = engine, n.chains = 1L, n.threads = 1L,
+# verbose keeps the classic engine's format: the creation summary, the loop
+# header, the iteration counter, and the terminal summary
+mkVerboseControl <- function() {
+  dbartsControl(n.chains = 1L, n.threads = 1L,
                 n.trees = 10L, n.samples = 5L, verbose = TRUE,
                 printEvery = 2L, updateState = FALSE)
 }
-out.create.classic <- capture.output(
-  sampler.vc <- dbarts(x, y, test = x.test, offset = 0.5,
-                       control = mkVerboseControl("classic")))
 out.create.bc <- capture.output(
   sampler.vb <- dbarts(x, y, test = x.test, offset = 0.5,
-                       control = mkVerboseControl("bartcore")))
-expect_identical(out.create.bc, out.create.classic)
+                       control = mkVerboseControl()))
+expect_true(any(out.create.bc == "Running BART with numeric y"))
+expect_true(any(out.create.bc == "number of trees: 10"))
+expect_true(any(grepl("^\tnumber of training observations: 200$",
+                      out.create.bc)))
+expect_true(any(grepl("^\treg : 0\\.50", out.create.bc)))
 
-run.classic <- capture.output(invisible(sampler.vc$run(2L, 4L)))
 run.bc <- capture.output(invisible(sampler.vb$run(2L, 4L)))
-iterationLines <- function(lines) grep("^iteration: ", lines, value = TRUE)
-expect_identical(iterationLines(run.bc), iterationLines(run.classic))
+expect_equal(sum(grepl("^iteration: ", run.bc)), 3L) # printEvery = 2, 6 total
 expect_identical(run.bc[1L], "Running mcmc loop:")
 expect_true(any(grepl("^total seconds in loop: ", run.bc)))
 expect_true(any(run.bc == "Tree sizes, last iteration:"))
 expect_true(any(run.bc == "DONE BART"))
 
 # verbose toggles off through setControl
-control.quiet <- mkVerboseControl("bartcore")
+control.quiet <- mkVerboseControl()
 control.quiet@verbose <- FALSE
 sampler.vb$setControl(control.quiet)
 expect_identical(capture.output(invisible(sampler.vb$run(0L, 2L))),
                  character(0))
 
 # worker threads relay chain-prefixed progress through the main thread
-control.threaded <- dbartsControl(engine = "bartcore", n.chains = 2L,
+control.threaded <- dbartsControl(n.chains = 2L,
                                   n.threads = 2L, n.trees = 10L,
                                   n.samples = 5L, verbose = TRUE,
                                   printEvery = 25L, updateState = FALSE)

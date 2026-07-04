@@ -1,5 +1,5 @@
 # the family argument: auto dispatch, forced gaussian on 0/1 responses, and
-# the public logistic family on the bartcore engine
+# the public logistic family
 
 set.seed(11)
 n <- 300L
@@ -25,14 +25,11 @@ samples.gauss <- sampler.gauss$run(50L, 50L)
 expect_true(all(is.finite(samples.gauss$sigma)) &&
               length(unique(samples.gauss$sigma)) > 1L)
 
-# binary families need a 0/1 response; logistic needs the bartcore engine
+# binary families need a 0/1 response
 expect_error(dbarts(y.continuous ~ x, family = "probit", control = control),
              pattern = "requires a response coded 0/1")
-expect_error(dbarts(y.binary ~ x, family = "logistic",
-                    control = dbartsControl(engine = "classic")),
-             pattern = "requires engine")
 
-control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.bc <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 50L)
 sampler.logit <- dbarts(y.binary ~ x, family = "logistic",
                         control = control.bc)
@@ -79,7 +76,7 @@ fit.probit <- bart2(y.binary ~ x, n.samples = 40L, n.burn = 40L,
 expect_equal(fit.probit$family, "probit")
 expect_equal(extract(fit.probit, "ev"), pnorm(extract(fit.probit, "bart")))
 
-fit.logit <- bart2(y.binary ~ x, family = "logistic", engine = "bartcore",
+fit.logit <- bart2(y.binary ~ x, family = "logistic",
                    n.samples = 40L, n.burn = 40L, n.trees = 25L,
                    n.chains = 1L, n.threads = 1L, verbose = FALSE,
                    keepTrees = TRUE)

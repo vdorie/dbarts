@@ -46,6 +46,25 @@ DECIDED: break freely now and patch at the end; xbart may be redesigned
 around the new data layer rather than accommodated, or shelved and
 completed later - it does not gate the rest.
 
+Landed 2026-07-03 (step 3, R surface): the `engine` argument is gone from
+`dbartsControl` (with the slot, its validity checks, and the class
+prototype), along with `rngKind`/`rngNormalKind` (explicit generator
+kinds were a classic feature; `rngSeed` stays) and the classic
+`dbartsState` class. Every R5 method runs its bartcore body
+unconditionally; `startThreads`/`stopThreads` remain as no-ops for their
+callers. Binary responses with weights are now refused at creation
+everywhere (previously only the bartcore path refused).
+test-sampler-customMCMC.R (classic-stream snapshots; behaviors covered on
+bartcore in test-bartcore.R) is deleted, test-rng.R keeps its
+engine-generic blocks, and the cross-engine comparisons in
+test-bartcore.R (prior-sampling KS test, byte-identical verbose creation
+summaries) became bartcore-only structural checks. The equivalence
+harness still accepts `engine=new` and compares the installed engine
+against saved classic baselines; re-recording under classic is no longer
+possible, so the existing baseline rds files are the permanent
+cross-engine reference. The classic C++ (src/dbarts/, R_C_interface,
+call tables) is unreachable and deleted in the next step.
+
 Landed 2026-07-03 (step 2, the flip): `dbartsControl` defaults to
 `engine = "bartcore"` and `factors` defaults to `"categorical"` on
 `dbarts`/`dbartsData`/`bart2`/`xbart` (which gained the argument); `bart`

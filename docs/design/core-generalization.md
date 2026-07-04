@@ -521,6 +521,21 @@ partitioning entirely; a different library sharing only the tree structure).
    engines) was replaced with a robust check. Suite 1975; equivalence
    reproduces all nine baseline z-stats exactly; exact-posterior gates
    pass.
+   Classic removal, R surface (DONE 2026-07-03, cutover step 3b): the
+   engine argument/slot, rngKind/rngNormalKind, and dbartsState are gone;
+   every dbartsSampler method runs its bartcore body unconditionally
+   (startThreads/stopThreads stay as no-ops for wrapper callers);
+   binary+weights refuses at creation everywhere. Classic-pinned tests
+   deleted (test-sampler-customMCMC) or reworked to engine-free forms
+   (test-rng, test-bartcore's prior-KS and verbose byte-comparisons are
+   now bartcore-only structural checks; binary-weights host creation is
+   itself the refusal). Harnesses updated: equivalence's samplerApi path
+   and bench-sampler run the installed engine; engine=new still selects
+   the rshim path and old classic baselines remain the permanent
+   cross-engine reference (re-recording classic is impossible). Suite
+   1990 across 57 files; equivalence vs the saved baseline still
+   statistically indistinguishable. The classic C++ is unreachable and
+   deleted next (step 3c).
    Flat C API (DONE 2026-07-03, cutover step 3a): inst/include/dbarts/
    dbarts.h, the LinkingTo replacement for R_C_interface.hpp, sized by
    an audit of stan4bart 0.0-13 (the only compiled-boundary reverse

@@ -67,8 +67,7 @@ df$y.binary <- rbinom(n, 1L, 0.5)
 sampler.bin <- dbarts(y.binary ~ a + b, df, control = control)
 expect_inherits(sampler.bin$model@node.hyperprior, "dbartsChiHyperprior")
 
-# DART: a Dirichlet prior over the split-variable probabilities, bartcore
-# engine only
+# DART: a Dirichlet prior over the split-variable probabilities
 prior.dart <- dbartsPriors$dart(a = 0.75, alpha = 2, update.delay = 10)
 expect_inherits(prior.dart, "dbartsDartPrior")
 expect_inherits(prior.dart, "dbartsCGMPrior")
@@ -76,12 +75,8 @@ expect_equal(prior.dart@a, 0.75)
 expect_error(dbartsPriors$dart(a = -1), pattern = "'a' must be positive")
 expect_error(dbartsPriors$dart(alpha = 0), pattern = "'alpha' must be positive")
 
-expect_error(dbarts(y ~ a + b, df, tree.prior = dart(),
-                    control = dbartsControl(engine = "classic")),
-             pattern = "DART tree prior requires")
-
 # a left-unset update delay resolves to half the control burn-in
-control.bc <- dbartsControl(engine = "bartcore", n.chains = 1L,
+control.bc <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 75L, n.burn = 500L,
                             updateState = TRUE)
 set.seed(7)
@@ -111,23 +106,23 @@ expect_error(sampler.dart$setModel(sampler.dart$model),
              pattern = "cannot change a DART tree prior")
 
 # bart2 exposes DART through the dart flag and packages varprobs
-fit.dart <- bart2(y.dart ~ x.dart, engine = "bartcore", dart = TRUE,
+fit.dart <- bart2(y.dart ~ x.dart, dart = TRUE,
                   n.samples = 25L, n.burn = 50L, n.trees = 25L,
                   n.chains = 2L, n.threads = 1L, verbose = FALSE)
 expect_equal(dim(fit.dart$varprobs), c(2L, 25L, 10L))
 expect_equal(unname(apply(fit.dart$varprobs, c(1L, 2L), sum)),
              matrix(1, 2L, 25L))
-expect_error(bart2(y.dart ~ x.dart, engine = "bartcore", dart = TRUE,
+expect_error(bart2(y.dart ~ x.dart, dart = TRUE,
                    split.probs = rep(0.1, 10L)),
              pattern = "cannot be combined")
-expect_error(bart2(y.dart ~ x.dart, engine = "bartcore", dart = 2),
+expect_error(bart2(y.dart ~ x.dart, dart = 2),
              pattern = "must be TRUE, FALSE")
-expect_null(bart2(y.dart ~ x.dart, engine = "bartcore", n.samples = 5L,
+expect_null(bart2(y.dart ~ x.dart, n.samples = 5L,
                   n.burn = 5L, n.trees = 5L, n.chains = 1L, n.threads = 1L,
                   verbose = FALSE)$varprobs)
 
 # a full spec object overrides power/base with its own settings
-fit.spec <- bart2(y.dart ~ x.dart, engine = "bartcore",
+fit.spec <- bart2(y.dart ~ x.dart,
                   dart = dbartsPriors$dart(a = 0.75, update.delay = 5),
                   n.samples = 5L, n.burn = 10L, n.trees = 10L,
                   n.chains = 1L, n.threads = 1L, verbose = FALSE,

@@ -109,7 +109,6 @@ methods::setClass("dbartsControl",
     binary           = "logical",
     # "auto" until a fitting function resolves it against the response
     family           = "character",
-    engine           = "character",
     verbose          = "logical",
     keepTrainingFits = "logical",
     useQuantiles     = "logical",
@@ -122,8 +121,6 @@ methods::setClass("dbartsControl",
     n.thin           = "integer",
     printEvery       = "integer",
     printCutoffs     = "integer",
-    rngKind          = "character",
-    rngNormalKind    = "character",
     rngSeed          = "integer",
     updateState      = "logical",
     call             = "language"
@@ -131,7 +128,6 @@ methods::setClass("dbartsControl",
   prototype = list(
     binary           = FALSE,
     family           = "auto",
-    engine           = "bartcore",
     verbose          = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles     = FALSE,
@@ -144,8 +140,6 @@ methods::setClass("dbartsControl",
     n.thin           = 1L,
     printEvery       = 100L,
     printCutoffs     = 0L,
-    rngKind          = "default",
-    rngNormalKind    = "default",
     rngSeed          = NA_integer_,
     updateState      = TRUE,
     call             = quote(call("NA"))
@@ -154,9 +148,6 @@ methods::setClass("dbartsControl",
 
 methods::setValidity("dbartsControl",
   function(object) {
-    if (length(object@engine) != 1L || is.na(object@engine) ||
-        !(object@engine %in% c("classic", "bartcore")))
-      return("'engine' must be \"classic\" or \"bartcore\"")
     if (length(object@family) != 1L || is.na(object@family) ||
         !(object@family %in% c("auto", "gaussian", "probit", "logistic")))
       return("'family' must be \"auto\", \"gaussian\", \"probit\", or \"logistic\"")
@@ -197,44 +188,7 @@ methods::setValidity("dbartsControl",
       return("'printEvery' must be a non-negative integer")
     if (is.na(object@printCutoffs) || object@printCutoffs < 0L)
       return("'printCutoffs' must be a non-negative integer")
-    
-    ## try to extract rng kinds from function text
-    rngKind <- body(RNGkind)
-    rngKinds <- character(0L)
-    rngNormalKinds <- character(0L)
-    for (i in seq_along(rngKind)) {
-      rngKind.i <- as.character(rngKind[[i]])
-      if (any(grepl("Mersenne", rngKind.i)))
-        rngKinds <- eval(parse(text = rngKind.i[which(grepl("Mersenne", rngKind.i))]))
-      if (any(grepl("Inversion", rngKind.i)))
-        rngNormalKinds <- eval(parse(text = rngKind.i[which(grepl("Inversion", rngKind.i))]))
-    }
-    
-    if (length(rngKinds) == 0L || length(rngNormalKinds) == 0L) {
-      ## NULL when the session has yet to initialize its generator
-      oldSeed <- NULL
-      if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
-        oldSeed <- .GlobalEnv[[".Random.seed"]]
-      
-      tryResult <- tryCatch(RNGkind(object@rngKind, object@rngNormalKind), error = function(e) e)
-      if (inherits(tryResult, "error")) return(paste0("unrecognized rng kind ('", object@rngKind, "', '", object@rngNormalKind, "')"))
-      
-      ## this will work with partial matches, so we extract the full name
-      object@rngKind       <- RNGkind()[1L]
-      object@rngNormalKind <- RNGkind()[2L]
-      
-      ## .Random.seed carries the kinds as well as the state, so putting it back
-      ## undoes the probe; without one, leave the generator uninitialized
-      if (!is.null(oldSeed)) {
-        .GlobalEnv[[".Random.seed"]] <- oldSeed
-      } else {
-        suppressWarnings(rm(list = ".Random.seed", envir = .GlobalEnv))
-      }
-    } else {
-      if (!(object@rngKind %in% rngKinds)) return(paste0("unrecognized rng kind '", object@rngKind, "'"))
-      if (!(object@rngNormalKind %in% rngNormalKinds)) return(paste0("unrecognized rng normal kind '", object@rngNormalKind, "'"))
-    }
-    
+
     if (is.na(object@updateState)) return("'updateState' must be TRUE/FALSE")
     
     ## handle this in particular b/c it is set through dbarts, not
@@ -357,19 +311,7 @@ methods::setValidity("dbartsData",
     
     if (!is.na(object@sigma) && object@sigma <= 0.0)
       return("'sigma' must be positive")
-    
+
     TRUE
   })
-
-## this shouldn't ever get created, used, modified, whathaveyou
-methods::setClass("dbartsState",
-  slots = list(
-    trees      = "integer",
-    treeFits   = "matrix",
-    savedTrees = "integer",
-    sigma      = "numeric",
-    k          = "numericOrNULL",
-    rng.state  = "integer"
-  )
-)
 

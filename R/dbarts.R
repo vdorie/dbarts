@@ -22,15 +22,11 @@ dbartsControl <- function(
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,
-  rngKind = "default",
-  rngNormalKind = "default",
   rngSeed = NA_integer_,
-  updateState = TRUE,
-  engine = c("bartcore", "classic")
+  updateState = TRUE
 ) {
   result <- new(
     "dbartsControl",
-    engine = match.arg(engine),
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
     useQuantiles = as.logical(useQuantiles),
@@ -43,8 +39,6 @@ dbartsControl <- function(
     n.thin = coerceOrError(n.thin, "integer"),
     printEvery = coerceOrError(printEvery, "integer"),
     printCutoffs = coerceOrError(printCutoffs, "integer"),
-    rngKind = rngKind,
-    rngNormalKind = rngNormalKind,
     rngSeed = coerceOrError(rngSeed, "integer"),
     updateState = as.logical(updateState)
   )
@@ -179,9 +173,6 @@ dbarts <- function(
     # families need latent-variable coding
     stop("family \"", family, "\" requires a response coded 0/1")
   }
-  if (family == "logistic" && control@engine != "bartcore") {
-    stop("family \"logistic\" requires engine = \"bartcore\"")
-  }
   control@family <- family
   control@binary <- family != "gaussian"
 
@@ -294,68 +285,25 @@ dbartsSampler <- setRefClass(
       if (!inherits(data, "dbartsData")) {
         stop("'data' must inherit from dbartsData")
       }
-      # the classic engine's categorical machinery is unreachable, untested
-      # code; only bartcore runs subset splits
-      if (control@engine != "bartcore" &&
-          any(data@varTypes == CATEGORICAL_VARIABLE)) {
-        stop("categorical predictors require engine = \"bartcore\"")
-      }
-      if (control@engine != "bartcore" &&
-          is(model@tree.prior, "dbartsDartPrior")) {
-        stop("a DART tree prior requires engine = \"bartcore\"")
-      }
-      # a single chain draws through R's generator and several chains use
-      # Mersenne twisters (seeded from rngSeed when given, R's stream
-      # otherwise); there is no explicit-kind machinery to configure
-      if (control@engine == "bartcore" &&
-          (control@rngKind != "default" || control@rngNormalKind != "default")) {
-        stop("the bartcore engine does not support 'rngKind' or 'rngNormalKind'")
-      }
-
       .self$control <- control
       .self$model <- model
       .self$data <- data
 
-      if (control@engine == "bartcore") {
-        # "auto" (a hand-built control) keeps the bridge's own dispatch
-        .self$pointer <- .Call(
-          C_dbarts_bartcore_create,
-          .self$control,
-          .self$model,
-          .self$data,
-          if (control@family == "auto") "" else control@family
-        )
-        # engine-specific state; like the classic engine's, materialized
-        # lazily on first access (forcing it before saveRDS captures the
-        # sampler), or eagerly by storeState / updateState runs
-        delayedAssign(
-          "state",
-          {
-            if (control@updateState) {
-              .Call(C_dbarts_bartcore_storeState, pointer)
-            } else {
-              NULL
-            }
-          },
-          eval.env = as.environment(.self),
-          assign.env = as.environment(.self)
-        )
-
-        callSuper(...)
-        return(invisible(NULL))
-      }
-
+      # "auto" (a hand-built control) keeps the bridge's own dispatch
       .self$pointer <- .Call(
-        C_dbarts_create,
+        C_dbarts_bartcore_create,
         .self$control,
         .self$model,
-        .self$data
+        .self$data,
+        if (control@family == "auto") "" else control@family
       )
+      # materialized lazily on first access (forcing it before saveRDS
+      # captures the sampler), or eagerly by storeState / updateState runs
       delayedAssign(
         "state",
         {
           if (control@updateState) {
-            .Call(C_dbarts_createState, pointer)
+            .Call(C_dbarts_bartcore_storeState, pointer)
           } else {
             NULL
           }
@@ -380,50 +328,22 @@ dbartsSampler <- setRefClass(
         numSamples <- NA_integer_
       }
 
-      if (control@engine == "bartcore") {
-        samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples)
-        if (
-          (is.na(updateState) && control@updateState == TRUE) ||
-            identical(updateState, TRUE)
-        ) {
-          storeState()
-        }
-        if (is.null(samples)) {
-          return(invisible(NULL))
-        }
-        return(samples)
-      }
-
-      ptr <- getPointer()
-      samples <- .Call(
-        C_dbarts_run,
-        ptr,
-        as.integer(numBurnIn),
-        as.integer(numThreads),
-        as.integer(numSamples)
-      )
-
+      samples <- bartcoreSamplerRun(.self, numBurnIn, numSamples)
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
           identical(updateState, TRUE)
       ) {
-        storeState(ptr)
+        storeState()
       }
-
       if (is.null(samples)) {
         return(invisible(NULL))
       }
-
       samples
     },
     sampleTreesFromPrior = function(updateState = NA) {
       "Draws tree structure from prior"
       ptr <- getPointer()
-      if (control@engine == "bartcore") {
-        .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
-      } else {
-        .Call(C_dbarts_sampleTreesFromPrior, ptr)
-      }
+      .Call(C_dbarts_bartcore_sampleTreesFromPrior, ptr)
 
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
@@ -437,11 +357,7 @@ dbartsSampler <- setRefClass(
     sampleNodeParametersFromPrior = function(updateState = NA) {
       "Draws end node parameters from prior; does not update tree structure."
       ptr <- getPointer()
-      if (control@engine == "bartcore") {
-        .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
-      } else {
-        .Call(C_dbarts_sampleNodeParametersFromPrior, ptr)
-      }
+      .Call(C_dbarts_bartcore_sampleNodeParametersFromPrior, ptr)
 
       if (
         (is.na(updateState) && control@updateState == TRUE) ||
@@ -468,64 +384,11 @@ dbartsSampler <- setRefClass(
           dbartsSampler$new(control, model, newData)
         }
 
-      if (control@engine == "bartcore") {
-        # the stored state is opaque and never mutated in place (storeState
-        # replaces it whole), so the copy can install the same object
-        if (!is.null(state)) {
-          dupe$setState(state)
-        }
-        return(dupe)
-      }
-
+      # the stored state is opaque and never mutated in place (storeState
+      # replaces it whole), so the copy can install the same object
       if (!is.null(state)) {
-        newState <- state
-        attr(newState, "currentNumSamples") <- .Call(
-          C_dbarts_deepCopy,
-          attr(state, "currentNumSamples")
-        )
-        attr(newState, "currentSampleNum") <- .Call(
-          C_dbarts_deepCopy,
-          attr(state, "currentSampleNum")
-        )
-        for (chainNum in seq_len(control@n.chains)) {
-          newState[[chainNum]]@trees <- .Call(
-            C_dbarts_deepCopy,
-            state[[chainNum]]@trees
-          )
-          newState[[chainNum]]@treeFits <- .Call(
-            C_dbarts_deepCopy,
-            state[[chainNum]]@treeFits
-          )
-          newState[[chainNum]]@sigma <- .Call(
-            C_dbarts_deepCopy,
-            state[[chainNum]]@sigma
-          )
-          newState[[chainNum]]@rng.state <- .Call(
-            C_dbarts_deepCopy,
-            state[[chainNum]]@rng.state
-          )
-          if (!is.null(state[[chainNum]]@k)) {
-            newState[[chainNum]]@k <- .Call(
-              C_dbarts_deepCopy,
-              state[[chainNum]]@k
-            )
-          }
-
-          if (control@keepTrees) {
-            newState[[chainNum]]@savedTrees <- .Call(
-              C_dbarts_deepCopy,
-              state[[chainNum]]@savedTrees
-            )
-          }
-        }
-        attr(newState, "runningTime") <- .Call(
-          C_dbarts_deepCopy,
-          attr(state, "runningTime")
-        )
-
-        dupe$setState(newState)
+        dupe$setState(state)
       }
-
       dupe
     },
     show = function() {
@@ -564,16 +427,12 @@ dbartsSampler <- setRefClass(
         }
       }
 
-      if (control@engine == "bartcore") {
-        # the engine runs prediction serially; a missing offset is passed
-        # as NULL rather than the classic NA sentinel
-        if (length(offset.test) == 1L && is.na(offset.test)) {
-          offset.test <- NULL
-        }
-        return(.Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test))
+      # the engine runs prediction serially; a missing offset is passed
+      # as NULL rather than an NA sentinel
+      if (length(offset.test) == 1L && is.na(offset.test)) {
+        offset.test <- NULL
       }
-
-      .Call(C_dbarts_predict, ptr, x.test, offset.test, n.threads)
+      .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test)
     },
     setControl = function(newControl) {
       'Sets the control object for the sampler to a new one. Preserves the call() slot.'
@@ -587,34 +446,25 @@ dbartsSampler <- setRefClass(
       newControl@family <- control@family
       newControl@call <- control@call
 
-      if (control@engine == "bartcore") {
-        # settings fixed at creation: the engine itself, the generators,
-        # and anything shaping the cut grid
-        for (slotName in c(
-          "engine", "n.trees", "n.chains", "useQuantiles",
-          "rngKind", "rngNormalKind", "rngSeed"
-        )) {
-          if (!identical(slot(newControl, slotName), slot(control, slotName))) {
-            stop(
-              "the bartcore engine cannot change '", slotName,
-              "' on an existing sampler"
-            )
-          }
+      # settings fixed at creation: the generators and anything shaping
+      # the cut grid
+      for (slotName in c(
+        "n.trees", "n.chains", "useQuantiles", "rngSeed"
+      )) {
+        if (!identical(slot(newControl, slotName), slot(control, slotName))) {
+          stop(
+            "the bartcore engine cannot change '", slotName,
+            "' on an existing sampler"
+          )
         }
-        if (newControl@keepTrees && is.na(newControl@n.samples)) {
-          stop("keepTrees requires 'n.samples' to be specified")
-        }
-
-        ptr <- getPointer()
-        selfEnv$control <- newControl
-        .Call(C_dbarts_bartcore_setControl, ptr, control)
-        return(invisible(NULL))
+      }
+      if (newControl@keepTrees && is.na(newControl@n.samples)) {
+        stop("keepTrees requires 'n.samples' to be specified")
       }
 
       ptr <- getPointer()
-
       selfEnv$control <- newControl
-      .Call(C_dbarts_setControl, ptr, control)
+      .Call(C_dbarts_bartcore_setControl, ptr, control)
 
       invisible(NULL)
     },
@@ -623,8 +473,8 @@ dbartsSampler <- setRefClass(
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
-      # the Dirichlet machinery is fixed at creation: the classic engine
-      # never has it and a bartcore sampler cannot gain or reconfigure it
+      # the Dirichlet machinery is fixed at creation: a sampler cannot gain
+      # or reconfigure it
       if (is(newModel@tree.prior, "dbartsDartPrior") ||
           is(model@tree.prior, "dbartsDartPrior")) {
         stop("setModel cannot change a DART tree prior; recreate the sampler")
@@ -635,14 +485,12 @@ dbartsSampler <- setRefClass(
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
-        if (control@engine == "bartcore") {
-          .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data)
-        } else {
-          .Call(C_dbarts_setModel, ptr, selfEnv$model)
-        },
+        .Call(C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data),
         error = function(e) {
           selfEnv$model <- oldModel
-          e$call <- quote(.Call(C_dbarts_setModel, ptr, selfEnv$model))
+          e$call <- quote(.Call(
+            C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data
+          ))
           e
         }
       )
@@ -654,161 +502,15 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetData(.self, newData))
-      }
-
-      if (!inherits(newData, "dbartsData")) {
-        stop("'data' must inherit from dbartsData")
-      }
-      if (any(newData@varTypes == CATEGORICAL_VARIABLE)) {
-        stop("categorical predictors require engine = \"bartcore\"")
-      }
-
-      newData@n.cuts <- data@n.cuts
-      newData@sigma <- data@sigma
-
-      ptr <- getPointer()
-      selfEnv <- parent.env(environment())
-
-      oldData <- data
-      selfEnv$data <- newData
-      tryResult <- tryCatch(
-        .Call(C_dbarts_setData, ptr, selfEnv$data),
-        error = function(e) {
-          selfEnv$data <- oldData
-          e$call <- quote(.Call(C_dbarts_setData, ptr, selfEnv$data))
-          e
-        }
-      )
-      if (inherits(tryResult, "error")) {
-        stop(tryResult)
-      }
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
-      invisible(NULL)
+      bartcoreSamplerSetData(.self, newData)
     },
     setResponse = function(y, updateState = NA) {
       'Changes the response against which the sampler is fitted.'
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetResponse(.self, y))
-      }
-      ptr <- getPointer()
-      selfEnv <- parent.env(environment())
-
-      oldY <- data@y
-      selfEnv$data@y <- as.double(y)
-      tryResult <- tryCatch(
-        .Call(C_dbarts_setResponse, ptr, data@y),
-        error = function(e) {
-          selfEnv$data@y <- oldY
-          e$call <- quote(.Call(C_dbarts_setResponse, ptr, data@y))
-          e
-        }
-      )
-      if (inherits(tryResult, "error")) {
-        stop(tryResult)
-      }
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
-      invisible(NULL)
+      bartcoreSamplerSetResponse(.self, y)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
       'Changes the offset slot used to adjust the response.'
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetOffset(.self, offset, updateScale))
-      }
-      ptr <- getPointer()
-      selfEnv <- parent.env(environment())
-
-      offset.test <- NA
-      if (is.null(offset)) {
-        if (identical(data@testUsesRegularOffset, TRUE)) offset.test <- NULL
-      } else {
-        offset <- as.double(offset)
-
-        if (length(offset) == 1L) {
-          if (identical(data@testUsesRegularOffset, TRUE)) {
-            if (!is.null(data@x.test)) {
-              offset.test <- rep_len(offset, nrow(data@x.test))
-            } else {
-              offset.test <- NULL
-            }
-          }
-          offset <- rep_len(offset, length(data@y))
-        } else {
-          if (!identical(length(offset), length(data@y))) {
-            stop(
-              'length of replacement offset is not equal to number of observations'
-            )
-          }
-          if (identical(data@testUsesRegularOffset, TRUE)) {
-            if (!is.null(data@x.test) && length(offset) == nrow(data@x.test)) {
-              offset.test <- offset
-            } else {
-              offset.test <- NULL
-            }
-          }
-        }
-      }
-
-      oldOffset <- data@offset
-      selfEnv$data@offset <- offset
-      tryResult <- tryCatch(
-        .Call(C_dbarts_setOffset, ptr, data@offset, updateScale),
-        error = function(e) {
-          selfEnv$data@offset <- oldOffset
-          e$call <- quote(.Call(
-            C_dbarts_setOffset,
-            ptr,
-            data@offset,
-            updateScale
-          ))
-          e
-        }
-      )
-      if (inherits(tryResult, "error")) {
-        stop(tryResult)
-      }
-
-      if (!identical(offset.test, NA)) {
-        oldOffset.test <- data@offset.test
-        selfEnv$data@offset.test <- offset.test
-        tryResult <- tryCatch(
-          .Call(C_dbarts_setTestOffset, ptr, data@offset.test),
-          error = function(e) {
-            selfEnv$data@offset.test <- oldOffset.test
-            e$call <- quote(.Call(
-              C_dbarts_setTestOffset,
-              ptr,
-              data@offset.test
-            ))
-            e
-          }
-        )
-        if (inherits(tryResult, "error")) stop(tryResult)
-      }
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
-      invisible(NULL)
+      bartcoreSamplerSetOffset(.self, offset, updateScale)
     },
     setWeights = function(weights, updateState = NA) {
       'Changes the weights with which the sampler is fitted.'
@@ -818,11 +520,7 @@ dbartsSampler <- setRefClass(
       oldWeights <- data@weights
       selfEnv$data@weights <- as.double(weights)
       tryResult <- tryCatch(
-        if (control@engine == "bartcore") {
-          .Call(C_dbarts_bartcore_setWeights, ptr, data@weights)
-        } else {
-          .Call(C_dbarts_setWeights, ptr, data@weights)
-        },
+        .Call(C_dbarts_bartcore_setWeights, ptr, data@weights),
         error = function(e) {
           selfEnv$data@weights <- oldWeights
           e
@@ -831,36 +529,13 @@ dbartsSampler <- setRefClass(
       if (inherits(tryResult, "error")) {
         stop(tryResult)
       }
-      if (control@engine == "bartcore") {
-        return(invisible(NULL))
-      }
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
 
       invisible(NULL)
     },
     setSigma = function(sigma, updateState = NA) {
       'Changes the residual standard deviation parameter for each chain.'
       ptr <- getPointer()
-
-      if (control@engine == "bartcore") {
-        .Call(C_dbarts_bartcore_setSigma, ptr, as.double(sigma))
-        return(invisible(NULL))
-      }
-
-      .Call(C_dbarts_setSigma, ptr, sigma)
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
+      .Call(C_dbarts_bartcore_setSigma, ptr, as.double(sigma))
       invisible(NULL)
     },
     setPredictor = function(
@@ -872,359 +547,79 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing."
 
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetPredictor(
-          .self,
-          x,
-          column = if (missing(column)) NULL else column,
-          forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
-          updateCutPoints = updateCutPoints
-        ))
-      }
-
-      selfEnv <- parent.env(environment())
-
-      if (
-        control@keepTrees &&
-          isTRUE(updateCutPoints) &&
-          (is.null(selfEnv$keepTreesWarnOnce) ||
-            self$keepTreesWarnOnce == FALSE)
-      ) {
-        warning("changing cut points does not update saved trees")
-        selfEnv$keepTreesWarnOnce <- TRUE
-      }
-
-      columnIsMissing <- missing(column)
-      forceUpdateIsMissing <- missing(forceUpdate)
-
-      partialUpdate <- !forceUpdateIsMissing &&
-        is.character(forceUpdate) &&
-        length(forceUpdate) == 1L &&
-        !is.na(forceUpdate) &&
-        forceUpdate == "partial"
-
-      if (!columnIsMissing && is.character(column)) {
-        if (is.null(colnames(data@x))) {
-          stop(
-            "column names not specified at initialization, so cannot be ",
-            "replaced by name"
-          )
-        }
-
-        column <- match(column, colnames(data@x))
-        if (is.na(column)) stop("column name not found in names of current X")
-      }
-
-      if (partialUpdate) {
-        if (columnIsMissing) {
-          stop("partial updates require a single 'column' to be specified")
-        }
-        if (length(column) != 1L) {
-          stop("partial updates can only be applied to a single column")
-        }
-        if (isTRUE(coerceOrError(updateCutPoints, "logical"))) {
-          stop("partial updates cannot also update cut points")
-        }
-
-        x <- as.double(x)
-
-        ptr <- getPointer()
-        installed <- .Call(
-          C_dbarts_updatePredictorPerObservation,
-          ptr,
-          x,
-          as.integer(column)
-        )
-
-        if (
-          (is.na(updateState) && control@updateState == TRUE) ||
-            identical(updateState, TRUE)
-        ) {
-          storeState(ptr)
-        }
-
-        return(installed)
-      }
-
-      x <- if (is.matrix(x)) matrix(as.double(x), nrow(x)) else as.double(x)
-
-      forceUpdate <-
-        if (forceUpdateIsMissing) {
-          columnIsMissing
-        } else {
-          coerceOrError(forceUpdate, "logical")
-        }
-      updateCutPoints <- coerceOrError(updateCutPoints, "logical")
-
-      ptr <- getPointer()
-
-      if (columnIsMissing) {
-        x.old <- selfEnv$data@x
-        selfEnv$data@x <- x
-        tryResult <- tryCatch(
-          updateSuccessful <- .Call(
-            C_dbarts_setPredictor,
-            ptr,
-            data@x,
-            forceUpdate,
-            updateCutPoints
-          ),
-          error = function(e) {
-            selfEnv$data@x <- x.old
-            e$call <- quote(.Call(
-              C_dbarts_setPredictor,
-              ptr,
-              data@x,
-              forceUpdate,
-              updateCutPoints
-            ))
-            e
-          }
-        )
-        if (inherits(tryResult, "error")) {
-          stop(tryResult)
-        }
-        if (!forceUpdate && !updateSuccessful) selfEnv$data@x <- x.old
-      } else {
-        updateSuccessful <- .Call(
-          C_dbarts_updatePredictor,
-          ptr,
-          x,
-          as.integer(column),
-          forceUpdate,
-          updateCutPoints
-        )
-      }
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
-      if (!forceUpdate) updateSuccessful else invisible(NULL)
+      bartcoreSamplerSetPredictor(
+        .self,
+        x,
+        column = if (missing(column)) NULL else column,
+        forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
+        updateCutPoints = updateCutPoints
+      )
     },
     setCutPoints = function(cuts, column, updateState = NA) {
       'Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty.'
 
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetCutPoints(
-          .self,
-          cuts,
-          column = if (missing(column)) NULL else column
-        ))
-      }
-
-      selfEnv <- parent.env(environment())
-
-      if (
-        control@keepTrees &&
-          (is.null(selfEnv$keepTreesWarnOnce) ||
-            self$keepTreesWarnOnce == FALSE)
-      ) {
-        warning("changing cut points does not update saved trees")
-        selfEnv$keepTreesWarnOnce <- TRUE
-      }
-
-      columnIsMissing <- missing(column)
-
-      if (!columnIsMissing && is.character(column)) {
-        if (is.null(colnames(data@x))) {
-          stop(
-            "column names not specified at initialization, so cannot be replaced by name"
-          )
-        }
-
-        column <- match(column, colnames(data@x))
-        if (is.na(column)) stop("column name not found in names of current X")
-      }
-
-      if (!is.list(cuts)) {
-        cuts <- list(cuts)
-      }
-      for (j in seq_along(cuts)) {
-        if (!is.double(cuts[[j]])) cuts[[j]] <- as.double(cuts[[j]])
-      }
-
-      ptr <- getPointer()
-
-      .Call(
-        C_dbarts_setCutPoints,
-        ptr,
+      bartcoreSamplerSetCutPoints(
+        .self,
         cuts,
-        if (columnIsMissing) NULL else as.integer(column)
+        column = if (missing(column)) NULL else column
       )
-
-      if (
-        (is.na(updateState) && control@updateState == TRUE) ||
-          identical(updateState, TRUE)
-      ) {
-        storeState(ptr)
-      }
-
-      invisible(NULL)
     },
     setTestPredictor = function(x.test, column) {
       'Changes a single column of the test predictor matrix.'
 
-      if (control@engine == "bartcore") {
-        return(bartcoreSamplerSetTestPredictor(
-          .self,
-          x.test,
-          column = if (missing(column)) NULL else column
-        ))
-      }
-
-      columnIsMissing <- missing(column)
-
-      if (!columnIsMissing && is.character(column)) {
-        if (is.null(colnames(data@x.test))) {
-          stop(
-            "column names not specified at initialization, so cannot be replaced by name"
-          )
-        }
-
-        column <- match(column, colnames(data@x.test))
-        if (is.na(column)) {
-          stop(
-            "column name not found in names of current test predictor matrix"
-          )
-        }
-      }
-
-      ptr <- getPointer()
-      selfEnv <- parent.env(environment())
-
-      if (columnIsMissing) {
-        oldX.test <- data@x.test
-        selfEnv$data@x.test <- validateXTest(x.test, data@x)
-        tryResult <- tryCatch(
-          .Call(C_dbarts_setTestPredictor, ptr, data@x.test),
-          error = function(e) {
-            selfEnv$data@x.test <- oldX.test
-            e$call <- quote(.Call(C_dbarts_setTestPredictor, ptr, data@x.test))
-            e
-          }
-        )
-        if (inherits(tryResult, "error")) stop(tryResult)
-      } else {
-        x.test <- if (is.matrix(x.test)) {
-          matrix(as.double(x.test), nrow(x.test))
-        } else {
-          as.double(x.test)
-        }
-        .Call(C_dbarts_updateTestPredictor, ptr, x.test, as.integer(column))
-      }
-
-      invisible(NULL)
+      bartcoreSamplerSetTestPredictor(
+        .self,
+        x.test,
+        column = if (missing(column)) NULL else column
+      )
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       'Changes the test predictor matrix, and optionally the test offset.'
-      if (control@engine == "bartcore") {
-        if (missing(offset.test)) {
-          # predictors only; the engine keeps the current offset and the
-          # bridge refuses if the row count would orphan its length
-          return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
-        }
-
-        x.test <- validateXTest(x.test, data@x)
-        if (is.null(x.test) && !is.null(offset.test)) {
-          stop("when test matrix is NULL, test offset must be as well")
-        }
-        if (!is.null(offset.test)) {
-          offset.test <- as.double(offset.test)
-          if (length(offset.test) == 1L) {
-            offset.test <- rep_len(offset.test, nrow(x.test))
-          }
-          if (!identical(length(offset.test), nrow(x.test))) {
-            stop(
-              "length of test offset must be equal to number of rows in test matrix"
-            )
-          }
-        }
-
-        selfEnv <- parent.env(environment())
-        oldTestUsesRegularOffset <- data@testUsesRegularOffset
-        oldX.test <- data@x.test
-        oldOffset.test <- data@offset.test
-
-        selfEnv$data@testUsesRegularOffset <- FALSE
-        selfEnv$data@x.test <- x.test
-        selfEnv$data@offset.test <- offset.test
-        tryResult <- tryCatch(
-          .Call(
-            C_dbarts_bartcore_setTestPredictorAndOffset,
-            getPointer(),
-            data@x.test,
-            data@offset.test
-          ),
-          error = function(e) {
-            selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
-            selfEnv$data@x.test <- oldX.test
-            selfEnv$data@offset.test <- oldOffset.test
-            e
-          }
-        )
-        if (inherits(tryResult, "error")) stop(tryResult)
-        return(invisible(NULL))
+      if (missing(offset.test)) {
+        # predictors only; the engine keeps the current offset and the
+        # bridge refuses if the row count would orphan its length
+        return(bartcoreSamplerSetTestPredictor(.self, x.test, column = NULL))
       }
-      ptr <- getPointer()
-      selfEnv <- parent.env(environment())
 
       x.test <- validateXTest(x.test, data@x)
-
-      if (!missing(offset.test)) {
-        if (is.null(x.test)) {
-          if (!is.null(offset.test)) {
-            stop("when test matrix is NULL, test offset must be as well")
-          }
-        } else {
-          if (!is.null(offset.test)) {
-            offset.test <- as.double(offset.test)
-            if (length(offset.test) == 1L) {
-              offset.test <- rep_len(offset.test, nrow(x.test))
-            }
-            if (!identical(length(offset.test), nrow(x.test))) {
-              stop(
-                "length of test offset must be equal to number of rows in test matrix"
-              )
-            }
-          }
-        }
-        oldTestUsesRegularOffset <- data@testUsesRegularOffset
-        oldX.test <- data@x.test
-        oldOffset.test <- data@offset.test
-
-        selfEnv$data@testUsesRegularOffset <- FALSE
-        selfEnv$data@x.test <- x.test
-        selfEnv$data@offset.test <- offset.test
-        tryResult <- tryCatch(
-          .Call(
-            C_dbarts_setTestPredictorAndOffset,
-            ptr,
-            data@x.test,
-            data@offset.test
-          ),
-          error = function(e) {
-            selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
-            selfEnv$data@x.test <- oldX.test
-            selfEnv$data@offset.test <- oldOffset.test
-
-            e$call <- quote(.Call(
-              C_dbarts_setTestPredictorAndOffset,
-              ptr,
-              data@x.test,
-              data@offset.test
-            ))
-            e
-          }
-        )
-        if (inherits(tryResult, "error")) stop(tryResult)
-      } else {
-        selfEnv$data@x.test <- x.test
-        .Call(C_dbarts_setTestPredictorAndOffset, ptr, data@x.test, NA_real_)
+      if (is.null(x.test) && !is.null(offset.test)) {
+        stop("when test matrix is NULL, test offset must be as well")
       }
+      if (!is.null(offset.test)) {
+        offset.test <- as.double(offset.test)
+        if (length(offset.test) == 1L) {
+          offset.test <- rep_len(offset.test, nrow(x.test))
+        }
+        if (!identical(length(offset.test), nrow(x.test))) {
+          stop(
+            "length of test offset must be equal to number of rows in test matrix"
+          )
+        }
+      }
+
+      selfEnv <- parent.env(environment())
+      oldTestUsesRegularOffset <- data@testUsesRegularOffset
+      oldX.test <- data@x.test
+      oldOffset.test <- data@offset.test
+
+      selfEnv$data@testUsesRegularOffset <- FALSE
+      selfEnv$data@x.test <- x.test
+      selfEnv$data@offset.test <- offset.test
+      tryResult <- tryCatch(
+        .Call(
+          C_dbarts_bartcore_setTestPredictorAndOffset,
+          getPointer(),
+          data@x.test,
+          data@offset.test
+        ),
+        error = function(e) {
+          selfEnv$data@testUsesRegularOffset <- oldTestUsesRegularOffset
+          selfEnv$data@x.test <- oldX.test
+          selfEnv$data@offset.test <- oldOffset.test
+          e
+        }
+      )
+      if (inherits(tryResult, "error")) stop(tryResult)
       invisible(NULL)
     },
     setTestOffset = function(offset.test) {
@@ -1249,11 +644,7 @@ dbartsSampler <- setRefClass(
       oldOffset.test <- data@offset.test
       selfEnv$data@offset.test <- offset.test
       tryResult <- tryCatch(
-        if (control@engine == "bartcore") {
-          .Call(C_dbarts_bartcore_setTestOffset, ptr, data@offset.test)
-        } else {
-          .Call(C_dbarts_setTestOffset, ptr, data@offset.test)
-        },
+        .Call(C_dbarts_bartcore_setTestOffset, ptr, data@offset.test),
         error = function(e) {
           selfEnv$data@offset.test <- oldOffset.test
           e
@@ -1271,138 +662,68 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
 
-      if (control@engine == "bartcore") {
-        return(.Call(
-          C_dbarts_bartcore_getLatents,
-          ptr,
-          if (resultIsMissing) NULL else result
-        ))
-      }
-
-      .Call(C_dbarts_storeLatents, ptr, if (resultIsMissing) NULL else result)
+      .Call(
+        C_dbarts_bartcore_getLatents,
+        ptr,
+        if (resultIsMissing) NULL else result
+      )
     },
     getSigmas = function(result) {
       'Return current residual error term on original, standard deviation scale.'
 
       ptr <- getPointer()
-
-      if (control@engine == "bartcore") {
-        return(.Call(C_dbarts_bartcore_getSigmas, ptr))
-      }
-
-      .Call(C_dbarts_getSigmas, ptr)
+      .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
     getSumsOfSquaredResiduals = function(result) {
       'Return sum( (y - y.hat)^2 ) on original scale.'
       ptr <- getPointer()
-
-      if (control@engine == "bartcore") {
-        return(.Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr))
-      }
-
-      .Call(C_dbarts_getSumsOfSquaredResiduals, ptr)
+      .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
     getPointer = function() {
       'Returns the underlying reference pointer, checking for consistency first.'
       selfEnv <- parent.env(environment())
 
-      if (control@engine == "bartcore") {
-        if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-          if (is.null(state)) {
-            stop(
-              "bartcore engine samplers cannot be re-created without a ",
-              "stored state; call storeState() before serializing"
-            )
-          }
-          selfEnv$pointer <- .Call(
-            C_dbarts_bartcore_create,
-            control,
-            model,
-            data,
-            if (control@family == "auto") "" else control@family
+      if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
+        if (is.null(state)) {
+          stop(
+            "samplers cannot be re-created without a stored state; call ",
+            "storeState() before serializing"
           )
-          .Call(C_dbarts_bartcore_setState, pointer, state)
         }
-        return(pointer)
+        selfEnv$pointer <- .Call(
+          C_dbarts_bartcore_create,
+          control,
+          model,
+          data,
+          if (control@family == "auto") "" else control@family
+        )
+        .Call(C_dbarts_bartcore_setState, pointer, state)
       }
-
-      if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
-        oldVerbose <- control@verbose
-        selfEnv$control@verbose <- FALSE
-        selfEnv$pointer <- .Call(C_dbarts_create, control, model, data)
-        if (!is.null(state)) {
-          selfEnv$state <- .Call(C_dbarts_restoreState, pointer, state)
-        }
-        if (control@verbose != oldVerbose) {
-          selfEnv$control@verbose <- oldVerbose
-          .Call(C_dbarts_setControl, pointer, control)
-        }
-      }
-
       pointer
     },
     setState = function(newState) {
       'Sets the internal state from a cache.'
-      if (control@engine == "bartcore") {
-        if (!inherits(newState, "bartcoreState")) {
-          stop("'state' must inherit from bartcoreState")
-        }
-        selfEnv <- parent.env(environment())
-        if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-          selfEnv$pointer <- .Call(
-            C_dbarts_bartcore_create,
-            control,
-            model,
-            data,
-            if (control@family == "auto") "" else control@family
-          )
-        }
-        .Call(C_dbarts_bartcore_setState, pointer, newState)
-        selfEnv$state <- newState
-        return(invisible(NULL))
+      if (!inherits(newState, "bartcoreState")) {
+        stop("'state' must inherit from bartcoreState")
       }
-
-      if (!is.list(newState)) {
-        stop("'state' must be a list of dbartsState objects")
-      }
-      if (length(newState) != control@n.chains) {
-        stop("'state' length must equal number of chains")
-      }
-      for (chainNum in seq_along(newState)) {
-        if (!is(newState[[chainNum]], "dbartsState")) {
-          stop("'state' must inherit from dbartsState")
-        }
-      }
-
       selfEnv <- parent.env(environment())
-      if (.Call(C_dbarts_isValidPointer, pointer) == FALSE) {
-        oldVerbose <- control@verbose
-        selfEnv$control@verbose <- FALSE
-        selfEnv$pointer <- .Call(C_dbarts_create, control, model, data)
-        if (control@verbose != oldVerbose) {
-          selfEnv$control@verbose <- oldVerbose
-          .Call(C_dbarts_setControl, pointer, control)
-        }
+      if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
+        selfEnv$pointer <- .Call(
+          C_dbarts_bartcore_create,
+          control,
+          model,
+          data,
+          if (control@family == "auto") "" else control@family
+        )
       }
-      if (!is.null(newState)) {
-        selfEnv$state <- .Call(C_dbarts_restoreState, pointer, newState)
-      }
-
+      .Call(C_dbarts_bartcore_setState, pointer, newState)
+      selfEnv$state <- newState
       invisible(NULL)
     },
     storeState = function(ptr = getPointer()) {
       'Updates the cached internal state used for saving/loading.'
       selfEnv <- parent.env(environment())
-      if (control@engine == "bartcore") {
-        selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
-        return(invisible(NULL))
-      }
-      if (is.null(state)) {
-        selfEnv$state <- .Call(C_dbarts_createState, ptr)
-      } else {
-        .Call(C_dbarts_storeState, ptr, state)
-      }
-
+      selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
       invisible(NULL)
     },
     printTrees = function(treeNums, chainNums, sampleNums) {
@@ -1430,17 +751,8 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
-      if (control@engine == "bartcore") {
-        return(invisible(.Call(
-          C_dbarts_bartcore_printTrees,
-          ptr,
-          as.integer(chainNums),
-          sampleNums,
-          as.integer(treeNums)
-        )))
-      }
       invisible(.Call(
-        C_dbarts_printTrees,
+        C_dbarts_bartcore_printTrees,
         ptr,
         as.integer(chainNums),
         sampleNums,
@@ -1510,19 +822,8 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
-      if (control@engine == "bartcore") {
-        return(.Call(
-          C_dbarts_bartcore_getTrees,
-          ptr,
-          chainNums,
-          sampleNums,
-          treeNums,
-          current,
-          newdata
-        ))
-      }
       .Call(
-        C_dbarts_getTrees,
+        C_dbarts_bartcore_getTrees,
         ptr,
         chainNums,
         sampleNums,
@@ -1593,15 +894,11 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     startThreads = function(n.threads = control@n.threads) {
-      # the bartcore engine manages worker threads within each run
-      if (control@engine == "bartcore") return(invisible(NULL))
-      ptr <- getPointer()
-      .Call(C_dbarts_startThreads, ptr, as.integer(n.threads))
+      # the engine manages worker threads within each run
+      invisible(NULL)
     },
     stopThreads = function() {
-      if (control@engine == "bartcore") return(invisible(NULL))
-      ptr <- getPointer()
-      .Call(C_dbarts_stopThreads, ptr)
+      invisible(NULL)
     }
   )
 )
