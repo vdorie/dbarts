@@ -12,6 +12,16 @@
             apart from the engine (indicator expansion of factors, probit
             for binary responses). The classic engine is scheduled for
             removal.
+      \item A flat C interface for packages compiling against dbarts,
+            `dbarts/dbarts.h`: an opaque sampler handle over the bartcore
+            engine, created from the R specification objects, with entry
+            points for running into caller-owned buffers, the mutation
+            surface (response, offset, weights, sigma, predictors, test
+            data), latents, prediction, tree storage and introspection,
+            and state save and restore. Entry points are reached through
+            `R_GetCCallable` and versioned by `DBARTS_C_API_VERSION`.
+            The C++ interface in `dbarts/R_C_interface.hpp` still works
+            and is scheduled for removal with the classic engine.
       \item On the bartcore engine, `rngSeed` makes results reproducible
             for any number of chains without touching R's stream, and
             seeded results no longer depend on the thread count. Without

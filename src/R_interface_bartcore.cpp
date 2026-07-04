@@ -27,21 +27,14 @@
 
 #include "bartcore/bartcore.hpp"
 
+#include "R_interface_bartcore_common.hpp"
+
 using std::size_t;
 using namespace dbarts;
+using bartcore_bridge::BartcoreHolder;
+using bartcore_bridge::validateColumnValues;
 
 namespace {
-
-struct BartcoreHolder {
-  std::unique_ptr<bartcore::SamplerBase> sampler;
-  std::vector<ext_rng*> rngs;  // one per chain
-  bool keepTrainingFits;
-
-  ~BartcoreHolder() {
-    for (size_t c = rngs.size(); c > 0; --c)
-      if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
-  }
-};
 
 // The external pointer's protection slot pins the vectors the sampler
 // borrows, one fixed slot per borrowable so replacements do not accumulate.
@@ -74,17 +67,6 @@ BartcoreHolder& holderFromExpression(SEXP ptrExpr) {
   if (holder == NULL)
     Rf_error("bartcore function called on NULL external pointer");
   return *holder;
-}
-
-// errors unless every replacement value for a categorical column is an
-// existing category code; ordinal columns pass through
-void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
-                          const double* values, size_t numValues) {
-  if (store.types[column] != bartcore::ColumnType::categorical) return;
-  for (size_t i = 0; i < numValues; ++i) {
-    if (!store.categoricalValueIsValid(column, values[i]))
-      Rf_error("categorical predictor values must be existing category codes");
-  }
 }
 
 // validates a column-major matrix of predictors against the store: matching
@@ -245,17 +227,22 @@ void printInitialSummary(const Control& control, const Model& model,
 
 } // namespace
 
-extern "C" {
+namespace bartcore_bridge {
 
-// The external pointer's protection slot pins everything the sampler
-// borrows: the data expression at creation, and any replacement vectors the
-// setters install later.
-//
+void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
+                          const double* values, size_t numValues) {
+  if (store.types[column] != bartcore::ColumnType::categorical) return;
+  for (size_t i = 0; i < numValues; ++i) {
+    if (!store.categoricalValueIsValid(column, values[i]))
+      Rf_error("categorical predictor values must be existing category codes");
+  }
+}
+
 // family selects the response model for binary responses: "" or "probit"
 // give the classic probit latents, "logistic" the Polya-Gamma sampler.
-// Continuous responses are gaussian and accept only "".
-SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                     SEXP familyExpr) {
+// Continuous responses are gaussian and accept only "" or "gaussian".
+BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                             const char* familyName) {
   Control control;
   Data data;
   Model model;
@@ -263,9 +250,6 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   initializeControlFromExpression(control, controlExpr);
   initializeDataFromExpression(data, dataExpr);
   initializeModelFromExpression(model, modelExpr, control, data);
-
-  const char* familyName =
-    Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
 
   // Rf_error longjmps past destructors, so collect the reason, clean up,
   // and error at the end.
@@ -472,9 +456,23 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   invalidateModel(model);
   invalidateData(data);
 
-  BartcoreHolder* holder = new BartcoreHolder{std::move(sampler),
-                                              std::move(rngs),
-                                              control.keepTrainingFits};
+  return new BartcoreHolder{std::move(sampler), std::move(rngs),
+                            control.keepTrainingFits};
+}
+
+} // namespace bartcore_bridge
+
+extern "C" {
+
+// The external pointer's protection slot pins everything the sampler
+// borrows: the data expression at creation, and any replacement vectors the
+// setters install later. family is as createHolder's.
+SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                     SEXP familyExpr) {
+  const char* familyName =
+    Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
+  BartcoreHolder* holder = bartcore_bridge::createHolder(
+    controlExpr, modelExpr, dataExpr, familyName);
 
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
@@ -1220,8 +1218,202 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
 
 SEXP bartcore_storeState(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  return bartcore_bridge::storeState(*holder.sampler);
+}
+
+SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore_bridge::setState(*holder.sampler, stateExpr);
+  return R_NilValue;
+}
+
+// Fits for new data on the original response scale (binary responses give
+// the latent scale, as the classic engine does). With keepTrees the saved
+// trees produce numTestObservations x numSamples (x numChains) fits; without,
+// the live trees produce a single set per chain. offset, when non-null, is
+// added to every sample's fits.
+SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
 
+  size_t numTestObservations =
+    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
+  if (numTestObservations == 0) Rf_error("bartcore_predict requires rows");
+
+  const double* offset = NULL;
+  if (!Rf_isNull(offsetExpr)) {
+    if (!Rf_isReal(offsetExpr) ||
+        static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
+      Rf_error("bartcore_predict offset must have one value per row");
+    offset = REAL(offsetExpr);
+  }
+
+  size_t capacity = sampler.savedTreeCapacity();
+  size_t numChains = sampler.numChains();
+  size_t numSamples = capacity > 0 ? capacity : 1;
+
+  int numTestInt = static_cast<int>(numTestObservations);
+  SEXP resultExpr;
+  if (capacity > 0) {
+    resultExpr = numChains == 1
+      ? PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
+                               static_cast<int>(capacity)))
+      : PROTECT(Rf_alloc3DArray(REALSXP, numTestInt,
+                                static_cast<int>(capacity),
+                                static_cast<int>(numChains)));
+  } else {
+    resultExpr = numChains == 1
+      ? PROTECT(Rf_allocVector(REALSXP,
+                               static_cast<R_xlen_t>(numTestObservations)))
+      : PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
+                               static_cast<int>(numChains)));
+  }
+
+  sampler.predict(REAL(xTestExpr), numTestObservations, REAL(resultExpr));
+
+  if (offset != NULL) {
+    for (size_t slab = 0; slab < numSamples * numChains; ++slab)
+      misc_addVectorsInPlace(offset, numTestObservations,
+                             REAL(resultExpr) + slab * numTestObservations);
+  }
+
+  UNPROTECT(1);
+  return resultExpr;
+}
+
+// index conversion around bartcore_bridge::getTrees, which describes the
+// data.frame produced
+SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
+                       SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
+  bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
+
+  std::vector<size_t> chainIndices(
+    static_cast<size_t>(Rf_xlength(chainNumsExpr)));
+  for (size_t i = 0; i < chainIndices.size(); ++i) {
+    int chainNum = INTEGER(chainNumsExpr)[i];
+    if (chainNum < 1) Rf_error("bartcore_getTrees chain number out of range");
+    chainIndices[i] = static_cast<size_t>(chainNum - 1);
+  }
+  std::vector<size_t> sampleIndices;
+  if (useSaved) {
+    sampleIndices.resize(static_cast<size_t>(Rf_xlength(sampleNumsExpr)));
+    for (size_t i = 0; i < sampleIndices.size(); ++i) {
+      int sampleNum = INTEGER(sampleNumsExpr)[i];
+      if (sampleNum < 1)
+        Rf_error("bartcore_getTrees sample number out of range");
+      sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
+    }
+  }
+  std::vector<size_t> treeIndices(
+    static_cast<size_t>(Rf_xlength(treeNumsExpr)));
+  for (size_t i = 0; i < treeIndices.size(); ++i) {
+    int treeNum = INTEGER(treeNumsExpr)[i];
+    if (treeNum < 1) Rf_error("bartcore_getTrees tree number out of range");
+    treeIndices[i] = static_cast<size_t>(treeNum - 1);
+  }
+
+  const double* newdata = NULL;
+  size_t newdataNumRows = 0;
+  if (!Rf_isNull(newdataExpr)) {
+    newdataNumRows =
+      validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
+    newdata = REAL(newdataExpr);
+  }
+
+  return bartcore_bridge::getTrees(
+    sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
+    sampleIndices.size(), treeIndices.data(), treeIndices.size(),
+    useLiveTrees, newdata, newdataNumRows, "bartcore_getTrees");
+}
+
+SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
+                         SEXP treeNumsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+
+  size_t capacity = sampler.savedTreeCapacity();
+
+  std::vector<size_t> chainIndices, sampleIndices, treeIndices;
+  if (Rf_isNull(chainNumsExpr)) {
+    for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
+  } else {
+    for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
+      int chainNum = INTEGER(chainNumsExpr)[i];
+      if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
+        Rf_error("bartcore_printTrees chain number out of range");
+      chainIndices.push_back(static_cast<size_t>(chainNum - 1));
+    }
+  }
+  if (capacity > 0) {
+    if (Rf_isNull(sampleNumsExpr)) {
+      for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
+    } else {
+      for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
+        int sampleNum = INTEGER(sampleNumsExpr)[i];
+        if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
+          Rf_error("bartcore_printTrees sample number out of range");
+        sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
+      }
+    }
+  }
+  if (Rf_isNull(treeNumsExpr)) {
+    for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
+  } else {
+    for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
+      int treeNum = INTEGER(treeNumsExpr)[i];
+      if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
+        Rf_error("bartcore_printTrees tree number out of range");
+      treeIndices.push_back(static_cast<size_t>(treeNum - 1));
+    }
+  }
+
+  sampler.printTrees(chainIndices.data(), chainIndices.size(),
+                     sampleIndices.data(), sampleIndices.size(),
+                     treeIndices.data(), treeIndices.size());
+
+  return R_NilValue;
+}
+
+// resultExpr, when non-null, is a preallocated numeric filled in place (the
+// classic engine's storeLatents contract, which rbart_vi relies on).
+SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  if (holder.sampler->latents(0) == NULL) return R_NilValue;
+
+  size_t numObservations = holder.sampler->numObservations();
+  size_t numChains = holder.sampler->numChains();
+
+  SEXP result;
+  if (!Rf_isNull(resultExpr)) {
+    if (!Rf_isReal(resultExpr) ||
+        static_cast<size_t>(Rf_xlength(resultExpr)) !=
+          numObservations * numChains)
+      Rf_error("preallocated latents must be a numeric of length equal to "
+               "the number of observations times the number of chains");
+    result = PROTECT(resultExpr);
+  } else if (numChains == 1) {
+    result =
+      PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numObservations)));
+  } else {
+    result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                                    static_cast<int>(numChains)));
+  }
+  for (size_t c = 0; c < numChains; ++c)
+    std::memcpy(REAL(result) + c * numObservations,
+                holder.sampler->latents(c), numObservations * sizeof(double));
+  UNPROTECT(1);
+  return result;
+}
+
+} // extern "C"
+
+namespace bartcore_bridge {
+
+SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
   sampler.getState(state);
 
@@ -1328,10 +1520,7 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
   return resultExpr;
 }
 
-SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
-
+void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
   if (static_cast<size_t>(Rf_xlength(stateExpr)) != sampler.numChains())
@@ -1478,61 +1667,6 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (!restored)
     Rf_error("state is not consistent with this sampler");
-  return R_NilValue;
-}
-
-// Fits for new data on the original response scale (binary responses give
-// the latent scale, as the classic engine does). With keepTrees the saved
-// trees produce numTestObservations x numSamples (x numChains) fits; without,
-// the live trees produce a single set per chain. offset, when non-null, is
-// added to every sample's fits.
-SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
-
-  size_t numTestObservations =
-    validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
-  if (numTestObservations == 0) Rf_error("bartcore_predict requires rows");
-
-  const double* offset = NULL;
-  if (!Rf_isNull(offsetExpr)) {
-    if (!Rf_isReal(offsetExpr) ||
-        static_cast<size_t>(Rf_xlength(offsetExpr)) != numTestObservations)
-      Rf_error("bartcore_predict offset must have one value per row");
-    offset = REAL(offsetExpr);
-  }
-
-  size_t capacity = sampler.savedTreeCapacity();
-  size_t numChains = sampler.numChains();
-  size_t numSamples = capacity > 0 ? capacity : 1;
-
-  int numTestInt = static_cast<int>(numTestObservations);
-  SEXP resultExpr;
-  if (capacity > 0) {
-    resultExpr = numChains == 1
-      ? PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
-                               static_cast<int>(capacity)))
-      : PROTECT(Rf_alloc3DArray(REALSXP, numTestInt,
-                                static_cast<int>(capacity),
-                                static_cast<int>(numChains)));
-  } else {
-    resultExpr = numChains == 1
-      ? PROTECT(Rf_allocVector(REALSXP,
-                               static_cast<R_xlen_t>(numTestObservations)))
-      : PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
-                               static_cast<int>(numChains)));
-  }
-
-  sampler.predict(REAL(xTestExpr), numTestObservations, REAL(resultExpr));
-
-  if (offset != NULL) {
-    for (size_t slab = 0; slab < numSamples * numChains; ++slab)
-      misc_addVectorsInPlace(offset, numTestObservations,
-                             REAL(resultExpr) + slab * numTestObservations);
-  }
-
-  UNPROTECT(1);
-  return resultExpr;
 }
 
 // A data.frame of tree structure in the classic engine's format: pre-order
@@ -1541,40 +1675,37 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 // a categorical rule's direction mask), leaf values on the engine's internal
 // response scale. Saved trees replay the training predictors for n unless
 // newdata is supplied; live trees report their own counts.
-SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
-                       SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
+SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
+              size_t numChainIndices, const size_t* sampleIndices,
+              size_t numSampleIndices, const size_t* treeIndices,
+              size_t numTreeIndices, bool useLiveTrees, const double* newdata,
+              size_t newdataNumRows, const char* caller) {
   const bartcore::ColumnStore& store(sampler.data());
 
-  bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
   bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
+  if (!useSaved) numSampleIndices = 1;
 
-  size_t numChainIndices = static_cast<size_t>(Rf_xlength(chainNumsExpr));
-  size_t numTreeIndices = static_cast<size_t>(Rf_xlength(treeNumsExpr));
-  size_t numSampleIndices = useSaved
-    ? static_cast<size_t>(Rf_xlength(sampleNumsExpr)) : 1;
   for (size_t i = 0; i < numChainIndices; ++i) {
-    int chainNum = INTEGER(chainNumsExpr)[i];
-    if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
-      Rf_error("bartcore_getTrees chain number out of range");
+    if (chainIndices[i] >= sampler.numChains())
+      Rf_error("%s chain number out of range", caller);
   }
   if (useSaved) {
     for (size_t i = 0; i < numSampleIndices; ++i) {
-      int sampleNum = INTEGER(sampleNumsExpr)[i];
-      if (sampleNum < 1 ||
-          static_cast<size_t>(sampleNum) > sampler.savedTreeCapacity())
-        Rf_error("bartcore_getTrees sample number out of range");
+      if (sampleIndices[i] >= sampler.savedTreeCapacity())
+        Rf_error("%s sample number out of range", caller);
     }
+  }
+  for (size_t i = 0; i < numTreeIndices; ++i) {
+    if (treeIndices[i] >= sampler.numTrees())
+      Rf_error("%s tree number out of range", caller);
   }
 
   const double* replayData = store.x;
   size_t replayNumRows = store.numObservations;
   bool replay = useSaved;
-  if (!Rf_isNull(newdataExpr)) {
-    replayNumRows =
-      validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
-    replayData = REAL(newdataExpr);
+  if (newdata != NULL) {
+    replayData = newdata;
+    replayNumRows = newdataNumRows;
     replay = true;
   }
 
@@ -1586,22 +1717,17 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
   std::vector<size_t> replayIndices(replayNumRows);
 
   for (size_t i = 0; i < numChainIndices; ++i) {
-    size_t chainNum = static_cast<size_t>(INTEGER(chainNumsExpr)[i] - 1);
+    size_t chainNum = chainIndices[i];
     for (size_t j = 0; j < numSampleIndices; ++j) {
-      size_t sampleNum = useSaved
-        ? static_cast<size_t>(INTEGER(sampleNumsExpr)[j] - 1) : 0;
+      size_t sampleNum = useSaved ? sampleIndices[j] : 0;
       for (size_t k = 0; k < numTreeIndices; ++k) {
-        int treeNum = INTEGER(treeNumsExpr)[k];
-        if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
-          Rf_error("bartcore_getTrees tree number out of range");
+        size_t treeNum = treeIndices[k];
 
         const std::vector<bartcore::FlatNode>* nodes;
         if (useSaved) {
-          nodes = &sampler.savedTree(chainNum, sampleNum,
-                                     static_cast<size_t>(treeNum - 1));
+          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum);
         } else {
-          sampler.flattenTree(chainNum, static_cast<size_t>(treeNum - 1),
-                              liveNodes, counts);
+          sampler.flattenTree(chainNum, treeNum, liveNodes, counts);
           nodes = &liveNodes;
         }
         if (replay) {
@@ -1615,7 +1741,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
         for (size_t l = 0; l < nodes->size(); ++l) {
           chainColumn.push_back(static_cast<int>(chainNum + 1));
           sampleColumn.push_back(static_cast<int>(sampleNum + 1));
-          treeColumn.push_back(treeNum);
+          treeColumn.push_back(static_cast<int>(treeNum + 1));
           countColumn.push_back(static_cast<int>(counts[l]));
           const bartcore::FlatNode& node((*nodes)[l]);
           variableColumn.push_back(
@@ -1687,83 +1813,4 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
   return resultExpr;
 }
 
-SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
-                         SEXP treeNumsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
-
-  size_t capacity = sampler.savedTreeCapacity();
-
-  std::vector<size_t> chainIndices, sampleIndices, treeIndices;
-  if (Rf_isNull(chainNumsExpr)) {
-    for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
-  } else {
-    for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
-      int chainNum = INTEGER(chainNumsExpr)[i];
-      if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
-        Rf_error("bartcore_printTrees chain number out of range");
-      chainIndices.push_back(static_cast<size_t>(chainNum - 1));
-    }
-  }
-  if (capacity > 0) {
-    if (Rf_isNull(sampleNumsExpr)) {
-      for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
-    } else {
-      for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
-        int sampleNum = INTEGER(sampleNumsExpr)[i];
-        if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
-          Rf_error("bartcore_printTrees sample number out of range");
-        sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
-      }
-    }
-  }
-  if (Rf_isNull(treeNumsExpr)) {
-    for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
-  } else {
-    for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
-      int treeNum = INTEGER(treeNumsExpr)[i];
-      if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
-        Rf_error("bartcore_printTrees tree number out of range");
-      treeIndices.push_back(static_cast<size_t>(treeNum - 1));
-    }
-  }
-
-  sampler.printTrees(chainIndices.data(), chainIndices.size(),
-                     sampleIndices.data(), sampleIndices.size(),
-                     treeIndices.data(), treeIndices.size());
-
-  return R_NilValue;
-}
-
-// resultExpr, when non-null, is a preallocated numeric filled in place (the
-// classic engine's storeLatents contract, which rbart_vi relies on).
-SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  if (holder.sampler->latents(0) == NULL) return R_NilValue;
-
-  size_t numObservations = holder.sampler->numObservations();
-  size_t numChains = holder.sampler->numChains();
-
-  SEXP result;
-  if (!Rf_isNull(resultExpr)) {
-    if (!Rf_isReal(resultExpr) ||
-        static_cast<size_t>(Rf_xlength(resultExpr)) !=
-          numObservations * numChains)
-      Rf_error("preallocated latents must be a numeric of length equal to "
-               "the number of observations times the number of chains");
-    result = PROTECT(resultExpr);
-  } else if (numChains == 1) {
-    result =
-      PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numObservations)));
-  } else {
-    result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
-                                    static_cast<int>(numChains)));
-  }
-  for (size_t c = 0; c < numChains; ++c)
-    std::memcpy(REAL(result) + c * numObservations,
-                holder.sampler->latents(c), numObservations * sizeof(double));
-  UNPROTECT(1);
-  return result;
-}
-
-} // extern "C"
+} // namespace bartcore_bridge

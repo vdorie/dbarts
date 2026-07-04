@@ -521,6 +521,27 @@ partitioning entirely; a different library sharing only the tree structure).
    engines) was replaced with a robust check. Suite 1975; equivalence
    reproduces all nine baseline z-stats exactly; exact-posterior gates
    pass.
+   Flat C API (DONE 2026-07-03, cutover step 3a): inst/include/dbarts/
+   dbarts.h, the LinkingTo replacement for R_C_interface.hpp, sized by
+   an audit of stan4bart 0.0-13 (the only compiled-boundary reverse
+   dependency; findings and the resolved v1 surface in
+   public-surface.md section 6). Opaque dbarts_sampler handle over the
+   bartcore facade, dbarts_sampler_* CCallables (classic still exports
+   the unprefixed dbarts_* symbols until removal), SEXPs only at
+   creation (the R spec objects) and state/trees (R-serializable by
+   purpose), run writes into a caller-owned dbarts_results with
+   null-means-skip - which the engine already honored end to end.
+   Implementation shares the bridge's cores, extracted into
+   bartcore_bridge:: (createHolder, storeState, setState, getTrees,
+   validateColumnValues; declared in R_interface_bartcore_common.hpp) -
+   C_interface.cpp is a thin adapter. Tested by an actual consumer:
+   test-capi.R compiles inst/tinytest/capi/consumer.c with R CMD SHLIB
+   against the installed headers, resolves everything through
+   R_GetCCallable, and drives the stan4bart workout (caller buffers,
+   seeded bitwise reproducibility, offset/fixed-sigma conditioning,
+   probit latents, predict == recorded test fits, state round trip with
+   identical predictions); it self-gates on toolchain availability.
+   Suite 2013 (was 1975); equivalence exact.
    Categorical splits (DONE 2026-07-02, engine-side): a finding first -
    the classic engine's categorical machinery is DEAD CODE from R (nothing
    ever assigns CATEGORICAL_VARIABLE; factors are dummy-expanded by

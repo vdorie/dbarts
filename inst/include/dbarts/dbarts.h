@@ -1,0 +1,189 @@
+#ifndef DBARTS_DBARTS_H
+#define DBARTS_DBARTS_H
+
+/// \file dbarts.h
+/// Flat C interface to the dbarts sampler, for packages that drive BART as
+/// a conditional model inside a larger sampler (LinkingTo: dbarts).
+///
+/// Every function is registered with R_RegisterCCallable under its own
+/// name; look entry points up at load time with
+/// R_GetCCallable("dbarts", "<name>") and cast the DL_FUNC to the matching
+/// signature. Check dbarts_apiVersion() against DBARTS_C_API_VERSION before
+/// using the rest. The interface only ever grows: names and signatures
+/// below are stable, additions arrive under new names.
+///
+/// Contracts common to all entry points:
+/// - Invalid arguments raise R errors (Rf_error), which longjmp through the
+///   caller's frames; call from contexts that are safe to unwind.
+/// - Functions that draw (creation, run, the prior samplers, predictor
+///   updates) manage R's RNG state internally and must be called from the
+///   main R thread. Do not wrap them in a GetRNGstate/PutRNGstate bracket
+///   that spans your own draws through R's API.
+/// - Creation preserves the data specification object against garbage
+///   collection for the sampler's lifetime. Raw-array setters instead
+///   borrow: the caller keeps the array alive until it is replaced or the
+///   sampler is destroyed.
+/// - Matrices are column-major. Result and prediction layouts put samples
+///   and then chains in trailing dimensions.
+
+#include <stddef.h> // size_t
+#include <stdint.h> // uint32_t
+
+// imports Rinternals.h for SEXP while doing the least to pollute namespaces
+#include <Rversion.h>
+#if R_VERSION >= R_Version(3, 6, 2)
+#  define USE_FC_LEN_T
+#endif
+#ifndef R_NO_REMAP
+#  define DBARTS_UNMAP_R_NO_REMAP
+#  define R_NO_REMAP
+#endif
+#include <Rinternals.h>
+#ifdef DBARTS_UNMAP_R_NO_REMAP
+#  undef R_NO_REMAP
+#  undef DBARTS_UNMAP_R_NO_REMAP
+#endif
+#undef USE_FC_LEN_T
+
+#define DBARTS_C_API_VERSION 1
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// Opaque sampler handle.
+typedef struct dbarts_sampler_t dbarts_sampler;
+
+/// Caller-owned output buffers for dbarts_sampler_run. A null member skips
+/// that quantity. k requires a k hyperprior (dbarts_sampler_kIsSampled) and
+/// varprobs a DART tree prior (dbarts_sampler_usesDart); they are left
+/// untouched otherwise.
+typedef struct dbarts_results_t {
+  double* sigma;      ///< numSamples x numChains
+  double* train;      ///< numObservations x numSamples x numChains
+  double* test;       ///< numTestObservations x numSamples x numChains
+  uint32_t* varcount; ///< numPredictors x numSamples x numChains
+  double* k;          ///< numSamples x numChains
+  double* varprobs;   ///< numPredictors x numSamples x numChains
+} dbarts_results;
+
+/// Returns DBARTS_C_API_VERSION of the installed package.
+int dbarts_apiVersion(void);
+
+/// Creates a sampler from the R specification objects (dbartsControl,
+/// dbartsModel, dbartsData). family selects the response model for binary
+/// responses: "" or "probit" give probit latents, "logistic" the
+/// Polya-Gamma sampler; continuous responses are gaussian and accept only
+/// "" or "gaussian". A verbose control prints the initial summary here.
+dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
+                                      const char* family);
+void dbarts_sampler_destroy(dbarts_sampler* sampler);
+
+/// Runs numBurnIn discarded then numSamples recorded iterations per chain,
+/// recording into results (which may be null when numSamples is 0).
+/// Thinning applies within recorded iterations at the rate the control set.
+void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
+                        size_t numSamples, dbarts_results* results);
+void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
+void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler);
+
+/// y has numObservations values; for binary families they must be 0/1.
+void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y);
+/// offset has numObservations values or is null to remove. updateScale
+/// rescales the internal response transform to the offset-adjusted range
+/// (gaussian only); pass false once burnt in so fits stay comparable.
+void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
+                              int updateScale);
+/// weights has numObservations values; gaussian responses only.
+void dbarts_sampler_setWeights(dbarts_sampler* sampler,
+                               const double* weights);
+/// Holds the residual standard deviation at sigma (original response scale)
+/// until the next call or gaussian draw; the Gibbs conditioning hook.
+void dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma);
+/// Copies the latent response values (numObservations x numChains) into
+/// out. Returns 1, or 0 without touching out when the family has no
+/// latents (gaussian).
+int dbarts_sampler_getLatents(const dbarts_sampler* sampler, double* out);
+
+/// Replaces the full numObservations x numPredictors matrix. Transactional:
+/// returns 1 when every tree still has non-empty leaves under the new
+/// values (or forceUpdate), 0 after rolling back. Errors when cut points
+/// would invalidate existing splits and updateCutPoints is false.
+int dbarts_sampler_setPredictor(dbarts_sampler* sampler, const double* x,
+                                int forceUpdate, int updateCutPoints);
+/// Replaces numColumns columns, 0-indexed by columns; x holds them
+/// contiguously. Same transaction contract as setPredictor.
+int dbarts_sampler_updatePredictor(dbarts_sampler* sampler, const double* x,
+                                   const size_t* columns, size_t numColumns,
+                                   int forceUpdate, int updateCutPoints);
+
+/// x_test is numTestObservations x numPredictors, or null with 0 rows to
+/// remove test data (clearing any test offset).
+void dbarts_sampler_setTestPredictors(dbarts_sampler* sampler,
+                                      const double* x_test,
+                                      size_t numTestObservations);
+/// offset_test has numTestObservations values or is null to remove.
+void dbarts_sampler_setTestOffset(dbarts_sampler* sampler,
+                                  const double* offset_test);
+
+/// Fits for new data on the original response scale (binary families give
+/// the latent scale). With tree storage out is numTestObservations x
+/// numSavedSamples x numChains from the saved trees; without, one set per
+/// chain from the live trees. offset_test, when non-null, is added to
+/// every sample's fits.
+void dbarts_sampler_predict(dbarts_sampler* sampler, const double* x_test,
+                            size_t numTestObservations,
+                            const double* offset_test, double* out);
+
+/// Turns saved-tree storage on or off; numSamplesToStore sizes the buffer
+/// when on. Turn on for recorded iterations to predict from them later.
+void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
+                                   size_t numSamplesToStore);
+/// A data.frame of tree structure: pre-order rows of ([chain,] [sample,]
+/// tree, n, var, value), var 1-based with -1 marking leaves, leaf values on
+/// the engine's internal response scale. Indices are 0-based here. Saved
+/// trees are read unless useLiveTrees; sampleIndices is ignored when
+/// reading live trees. The caller must protect the result.
+SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
+                             const size_t* chainIndices,
+                             size_t numChainIndices,
+                             const size_t* sampleIndices,
+                             size_t numSampleIndices,
+                             const size_t* treeIndices,
+                             size_t numTreeIndices, int useLiveTrees);
+void dbarts_sampler_printTrees(dbarts_sampler* sampler,
+                               const size_t* chainIndices,
+                               size_t numChainIndices,
+                               const size_t* sampleIndices,
+                               size_t numSampleIndices,
+                               const size_t* treeIndices,
+                               size_t numTreeIndices);
+
+/// A serializable R object holding the complete sampler state (trees,
+/// parameters, latents, rng); the caller must protect it. Restoring into a
+/// sampler created from the same specification continues bitwise
+/// identically; use for save/load and predict-after-reload.
+SEXP dbarts_sampler_storeState(dbarts_sampler* sampler);
+void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
+
+void dbarts_sampler_setNumThreads(dbarts_sampler* sampler, size_t numThreads);
+void dbarts_sampler_setNumThin(dbarts_sampler* sampler, size_t numThin);
+void dbarts_sampler_setVerbose(dbarts_sampler* sampler, int verbose,
+                               uint32_t printEvery);
+
+size_t dbarts_sampler_numObservations(const dbarts_sampler* sampler);
+size_t dbarts_sampler_numPredictors(const dbarts_sampler* sampler);
+size_t dbarts_sampler_numTestObservations(const dbarts_sampler* sampler);
+size_t dbarts_sampler_numChains(const dbarts_sampler* sampler);
+size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler);
+/// The saved-tree buffer size, 0 without tree storage; the sample count
+/// predict produces.
+size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
+int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
+int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // DBARTS_DBARTS_H
