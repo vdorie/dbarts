@@ -148,13 +148,21 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
                            n.trees = ntree, updateState = FALSE)
-  sampler <- if (!is.null(scenario$weights) || !is.null(scenario$offset)) {
-    dbarts(scenario$x, scenario$y, test = scenario$x.test,
-           weights = scenario$weights, offset = scenario$offset,
-           control = control)
-  } else {
-    dbarts(scenario$x, scenario$y, test = scenario$x.test, control = control)
-  }
+  # weights with test data draw the benign posterior-predictive warning;
+  # muffle only that one, as the bart() paths below do
+  sampler <- withCallingHandlers(
+    if (!is.null(scenario$weights) || !is.null(scenario$offset)) {
+      dbarts(scenario$x, scenario$y, test = scenario$x.test,
+             weights = scenario$weights, offset = scenario$offset,
+             control = control)
+    } else {
+      dbarts(scenario$x, scenario$y, test = scenario$x.test, control = control)
+    },
+    warning = function(w) {
+      if (grepl("'weights' are ignored for test data", conditionMessage(w)))
+        invokeRestart("muffleWarning")
+    }
+  )
   # [d, S] or [d, S, C] -> (S * C) x d, pooling chains
   poolChains <- function(a) {
     if (length(dim(a)) == 3L) t(matrix(a, nrow = dim(a)[1L])) else t(a)
