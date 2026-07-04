@@ -84,6 +84,9 @@ public:
                           std::size_t numTreeIndices) = 0;
 
   virtual ext_rng* rng() const = 0;
+  /// The linear-leaf covariate designation; 0/null for scalar leaf models.
+  virtual std::size_t numLeafCovariates() const = 0;
+  virtual const std::size_t* leafCovariateColumns() const = 0;
   virtual ResponseFamily family() const = 0;
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
@@ -219,6 +222,12 @@ public:
   }
 
   ext_rng* rng() const override { return impl_.rng(); }
+  std::size_t numLeafCovariates() const override {
+    return impl_.numLeafCovariates();
+  }
+  const std::size_t* leafCovariateColumns() const override {
+    return impl_.leafCovariateColumns();
+  }
   ResponseFamily family() const override { return impl_.family(); }
   const ColumnStore& data() const override { return impl_.data(); }
   const double* latents(std::size_t chainNum) const override {

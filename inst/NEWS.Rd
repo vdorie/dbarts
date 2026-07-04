@@ -4,6 +4,20 @@
 \section{CHANGES IN VERSION 1.0-0}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Linear leaves: `node.prior = linear(columns, k)` in `dbarts`
+            fits each bottom node with an intercept plus a linear term
+            in the designated continuous predictor columns (standardized
+            internally, every coefficient sharing the `normal(k)`
+            prior), so a forest models smoothly-varying coefficients -
+            treed regression in the sense of Chipman, George, and
+            McCulloch, or the varying-slope structure of Bayesian Causal
+            Forests when the covariate is a treatment indicator. The
+            full sampler surface composes: weights, probit and logistic
+            responses, `keepTrees` with `predict`, state serialization,
+            and the predictor-mutation methods. `getTrees` reports leaf
+            intercepts in `value` plus one `beta.<column>` slope column
+            per covariate, and `plotTree` labels linear leaves with
+            their coefficients. Unavailable in `xbart`.
       \item The bartcore engine replaces the classic engine: every
             fitting function runs on it. Fits are statistically
             equivalent to the classic engine's but not draw-for-draw

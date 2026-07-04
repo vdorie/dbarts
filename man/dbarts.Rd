@@ -47,7 +47,7 @@ dbarts(
     An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} setting the tree prior used in fitting, or a prior object built with \code{\link{dbartsPriors}}.
   }
   \item{node.prior}{
-    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes, or a prior object built with \code{\link{dbartsPriors}}.
+    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes, or a prior object built with \code{\link{dbartsPriors}}. \code{linear(columns, k)} instead fits each leaf with an intercept plus a linear term in the designated continuous predictor columns (character names or numeric indices into the model matrix), standardized internally, all coefficients sharing the \code{normal(k)} prior; factor columns cannot be designated and linear leaves are unavailable in \code{\link{xbart}}.
   }
   \item{resid.prior}{
     An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance, or a prior object built with \code{\link{dbartsPriors}}.

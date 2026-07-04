@@ -85,6 +85,13 @@ methods::setClass("dbartsNodePrior")
 methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior",
                   slots = list(k = "ANY"),
                   prototype = list(k = NULL))
+# each leaf fits an intercept plus a linear term in the designated
+# continuous columns; columns holds the raw user designation (character
+# names or numeric indices) until a fitting function resolves it against
+# the model matrix, after which it is 1-based integer column indices
+methods::setClass("dbartsLinearPrior", contains = "dbartsNodePrior",
+                  slots = list(k = "ANY", columns = "ANY"),
+                  prototype = list(k = NULL, columns = NULL))
 
 
 methods::setClass("dbartsResidPrior")

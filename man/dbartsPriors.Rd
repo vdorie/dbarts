@@ -37,6 +37,17 @@
       \code{chi}, or \code{NULL} for the default: 2 for continuous
       responses, \code{chi(1.25, Inf)} for binary ones.
     }
+    \item{\code{linear(columns, k = NULL)}}{
+      Each leaf fits an intercept plus a linear term in the designated
+      continuous predictor columns instead of a constant, so the forest
+      models smoothly-varying coefficients. \code{columns} names model
+      matrix columns (character) or indexes them (numeric) and is matched
+      to the data when a sampler is built; factor columns cannot be
+      designated. The covariates are standardized internally and every
+      coefficient shares the \code{normal(k)} prior. Reported leaf values
+      keep the intercept; \code{getTrees} adds one \code{beta.<column>}
+      column per covariate. Unavailable in \code{\link{xbart}}.
+    }
     \item{\code{chi(degreesOfFreedom = 1.25, scale = Inf)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
       model.

@@ -845,6 +845,16 @@ dbartsSampler <- setRefClass(
       # rules on columns with missing values report their NA route
       if (!is.null(trees$missing))
         trees$missing <- c("L", "R")[trees$missing + 1L]
+      # linear leaves report one generically named slope column per
+      # covariate; name them after the designated columns
+      if (is(model@node.prior, "dbartsLinearPrior")) {
+        covariateNames <- colnames(data@x)[model@node.prior@columns]
+        if (!is.null(covariateNames)) {
+          slopeColumns <- match(
+            paste0("beta.", seq_along(covariateNames)), names(trees))
+          names(trees)[slopeColumns] <- paste0("beta.", covariateNames)
+        }
+      }
       trees
     },
     plotTree = function(
