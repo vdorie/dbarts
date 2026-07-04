@@ -400,8 +400,12 @@ classic engine.
   categories stay inline in the rule word, wider ones pool per tree, and
   the flattened format's masks past 53 categories ride a side channel
   with getTrees reporting value = NA plus the usual directions decode).
-- Sparse columns: kernel design plus an ingestion story; prototype after the
-  handle exists.
+- Sparse columns: PROTOTYPED 2026-07-04 (docs/design/sparse-columns.md,
+  benchmarks/kernels/sparse.c). The representation is settled - a
+  rank-bitmap column layout at parity with the dense kernel where
+  sparsity is real, in a tenth the memory - and order-preserving
+  partitions are ruled out. Landing waits on the per-column data model
+  (u8 widths) plus a dgCMatrix ingestion story.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
   mia-missingness.md; surface is missing = c("incorporate", "error"),
   incorporate the default).

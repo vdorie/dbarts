@@ -46,8 +46,10 @@ Contract:
   case, or any contiguously stored node).
 - `Indices`: `indices` is an existing arbitrary index set into the full
   column `x`; permuted in place.
-- **Unstable**: two-pointer swap; relative order is not preserved. Anything
-  that needs order (candidate: sparse columns) requires a new stable variant.
+- **Unstable**: two-pointer swap; relative order is not preserved. The one
+  candidate consumer of a stable variant (sparse columns) was prototyped
+  and rejected in favor of a rank-bitmap layout that keeps this contract
+  (docs/design/sparse-columns.md).
 - Codes are assumed valid (no NA sentinel yet; see planned additions).
 - ISA variants: C, SSE2, SSE4.1, AVX2, NEON.
 
@@ -116,10 +118,13 @@ SIMD specializations only when profiling justifies them.
 3. **NA-aware variants**: a reserved per-column NA code plus a
    goes-left/right flag folded into the rule encoding; kernels take the
    encoded rule rather than a bare cut once missingness lands (phase 4).
-4. **Sparse partition**: partition an index set by a CSC column (sorted
-   nonzero row ids + codes for nonzeros, implicit zero code). Semantics,
-   including whether an order-preserving partition is required generally,
-   to be settled by prototype before the interface freezes.
+4. **Sparse partition**: SETTLED by prototype 2026-07-04
+   (docs/design/sparse-columns.md, benchmarks/kernels/sparse.c): the
+   layout is a rank bitmap (nonzero-row bits + per-word cumulative
+   popcounts + packed nonzero codes), not CSC, and no order-preserving
+   partition is required - the unstable two-pointer contract stands. The
+   kernel lands with the per-column data model as
+   misc_partitionIndicesSparse, scalar reference first.
 5. **Cut-scan histogram** (enables grow-from-root samplers and exhaustive
    change-rule proposals; XGBoost's histogram trick):
 
