@@ -1583,10 +1583,13 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 
 // State serialization. The returned object is engine-specific and opaque:
 // one list per chain (flattened trees, the saved-tree buffer, accumulated
-// fits, per-tree observation orderings, internal-scale sigma, k, latents,
-// dart state, and the serialized rng), with the store's cut points and the
-// saved-tree write position as attributes. A sampler restored from it over
-// the same data continues bitwise identically to one that was never stored.
+// fits, per-tree observation orderings, internal-scale sigma, k, the
+// response transform, latents, dart state, and the serialized rng), with
+// the store's cut points and the saved-tree write position as attributes.
+// A sampler restored from it over the same data continues bitwise
+// identically to one that was never stored; the stored transform makes
+// that hold even when setOffset(updateScale) moved the scale after
+// creation.
 
 // flattened trees as three parallel R vectors: concatenated 1-based-with-(-1)
 // variables, values, and per-tree node counts
@@ -1872,13 +1875,15 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   enum {
     SLOT_TREE_VARS = 0, SLOT_TREE_VALUES, SLOT_TREE_SIZES, SLOT_SAVED_VARS,
     SLOT_SAVED_VALUES, SLOT_SAVED_SIZES, SLOT_TOTAL_FITS, SLOT_INDICES,
-    SLOT_SIGMA, SLOT_K, SLOT_LATENTS, SLOT_DART_PROBABILITIES,
-    SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED, SLOT_RNG_STATE, SLOT_COUNT
+    SLOT_SIGMA, SLOT_K, SLOT_FIT_SCALE, SLOT_LATENTS,
+    SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
+    SLOT_RNG_STATE, SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
     "tree.vars", "tree.values", "tree.sizes", "saved.vars", "saved.values",
-    "saved.sizes", "total.fits", "indices", "sigma", "k", "latents",
-    "dart.probabilities", "dart.alpha", "dart.updates.skipped", "rng.state"
+    "saved.sizes", "total.fits", "indices", "sigma", "k", "fit.scale",
+    "latents", "dart.probabilities", "dart.alpha", "dart.updates.skipped",
+    "rng.state"
   };
 
   SEXP resultExpr =
@@ -1914,6 +1919,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
 
     SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
     SET_VECTOR_ELT(chainExpr, SLOT_K, Rf_ScalarReal(chainState.k));
+
+    SET_VECTOR_ELT(chainExpr, SLOT_FIT_SCALE, Rf_allocVector(REALSXP, 2));
+    REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[0] = chainState.fitMin;
+    REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[1] = chainState.fitMax;
 
     if (!chainState.latents.empty()) {
       SET_VECTOR_ELT(chainExpr, SLOT_LATENTS,
@@ -2064,6 +2073,14 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     }
     chainState.sigma = REAL(sigmaExpr)[0];
     chainState.k = REAL(kExpr)[0];
+
+    SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
+    if (!Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
+      errorMessage = "malformed fit scale in bartcore state";
+      break;
+    }
+    chainState.fitMin = REAL(fitScaleExpr)[0];
+    chainState.fitMax = REAL(fitScaleExpr)[1];
 
     SEXP latentsExpr = getListElement(chainExpr, "latents");
     if (!Rf_isNull(latentsExpr)) {

@@ -136,6 +136,8 @@ struct ChainStateData {
   std::vector<size_t> indices;        // numObservations x numTrees, or empty
   double sigma = 1.0;
   double k = 2.0;
+  // the gaussian response transform at capture; max <= min marks scale-free
+  double fitMin = 0.0, fitMax = 0.0;
   std::vector<double> latents;            // empty for gaussian
   std::vector<double> dartProbabilities;  // empty when DART is off
   double dartAlpha = 1.0;
@@ -642,6 +644,7 @@ public:
     state.indices = indexBuffer_;
     state.sigma = sigma_;
     state.k = k_;
+    response_->getScale(state.fitMin, state.fitMax);
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
                            response_->latents() + data_.numObservations);
@@ -682,6 +685,7 @@ public:
     if (!state.rngState.empty() &&
         state.rngState.size() != ext_rng_getSerializedStateLength(rng_))
       return false;
+    if (state.fitMax < state.fitMin) return false;
 
     Tree scratch;
     std::vector<size_t> scratchIndices(n);
@@ -715,6 +719,10 @@ public:
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
     size_t n = data_.numObservations;
+    // internal-scale quantities below (tree parameters, fits, sigma) were
+    // recorded under this transform; scale-free states leave creation's
+    if (state.fitMax > state.fitMin)
+      response_->restoreScale(state.fitMin, state.fitMax);
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
     std::vector<double> params;
     for (size_t t = 0; t < options_.numTrees; ++t) {

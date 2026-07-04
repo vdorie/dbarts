@@ -415,6 +415,13 @@ public:
   /// for models without latents.
   virtual void restoreLatents(const double*) {}
 
+  /// State serialization of the response transform: gaussian's offset-
+  /// adjusted (min, max), whose evolution under setOffset(updateScale) is
+  /// otherwise unrecoverable from the data; scale-free families report
+  /// (0, 0) and ignore restoration.
+  virtual void getScale(double& min, double& max) const { min = max = 0.0; }
+  virtual void restoreScale(double /*min*/, double /*max*/) {}
+
   virtual double initialSigma() const = 0;
 
   // Sample de-scaling to the original response scale.
@@ -516,6 +523,35 @@ public:
   double fitScale() const override { return range_; }
   double fitShift() const override { return range_ * 0.5 + min_; }
   double sigmaScale() const override { return range_; }
+
+  void getScale(double& min, double& max) const override {
+    min = min_;
+    max = max_;
+  }
+
+  /// Installs a stored transform, rebuilding the working response under it
+  /// and re-anchoring the variance prior on the original scale, exactly as
+  /// the mutation methods do; the chain's internal sigma is restored from
+  /// the same state afterwards, so no sigmaInOut here.
+  void restoreScale(double min, double max) override {
+    double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
+
+    min_ = min;
+    max_ = max;
+    range_ = max_ - min_;
+    if (range_ == 0.0) range_ = 1.0;
+
+    std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
+    if (offset_ != nullptr)
+      misc_subtractVectorsInPlace(offset_, numObservations_,
+                                  yRescaled_.data());
+    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+    misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
+                                     1.0 / range_);
+    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
+
+    sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
+  }
 
 private:
   void rescale() {

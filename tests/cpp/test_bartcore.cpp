@@ -2236,6 +2236,78 @@ static void testPredictCurrentTrees(ext_rng* rng) {
   printf("ok: predict from current trees\n");
 }
 
+static void testStateRoundTripScaledOffset() {
+  // setOffset(updateScale) moves the gaussian response transform after
+  // creation; the state must carry it or a restored sampler mis-scales
+  // every internal quantity (the classic engine forced hosts to export the
+  // scale themselves)
+  const size_t n = 200, numSamples = 5;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::vector<double> offset(n);
+  for (size_t i = 0; i < n; ++i)
+    offset[i] = 2.0 * std::sin(0.1 * (double) i);  // widens y - offset
+
+  SamplerOptions options;
+  options.numTrees = 25;
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 77) != 0 ||
+      ext_rng_setSeed(rngB, 78) != 0) {
+    check(false, "scaled state: rng creation");
+    return;
+  }
+
+  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngA);
+  Results empty;
+  original.run(20, 0, empty);
+  original.setOffset(offset.data(), true);
+  original.run(20, 0, empty);
+
+  SamplerStateData state;
+  original.getState(state);
+  check(state.chains[0].fitMax > state.chains[0].fitMin,
+        "gaussian state captures the response transform");
+
+  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, &rngB);
+  // a host reinstalls the current offset but cannot reproduce the scale
+  // trajectory that produced the state; the stored transform must win
+  restored.setOffset(offset.data(), false);
+  check(restored.setState(state), "scaled state restores");
+
+  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  original.run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  restored.run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB, "scaled restore continues sigma bitwise");
+  check(trainA == trainB, "scaled restore continues fits bitwise");
+
+  std::vector<double> xTest(20 * 2);
+  for (double& v : xTest) v = runif01();
+  std::vector<double> predictionsA(20), predictionsB(20);
+  original.predict(xTest.data(), 20, predictionsA.data());
+  restored.predict(xTest.data(), 20, predictionsB.data());
+  check(predictionsA == predictionsB,
+        "scaled restore predicts on the original scale");
+
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: state round-trip with a moved scale\n");
+}
+
 static void testStateRoundTrip() {
   // the strong gate: store the state, continue the original, and continue a
   // fresh sampler restored from the state; the draws must agree bitwise
@@ -2807,6 +2879,7 @@ int main() {
   testKeepTrees(rng);
   testPredictCurrentTrees(rng);
   testStateRoundTrip();
+  testStateRoundTripScaledOffset();
   testStateRoundTripLatents(rng);
   testStateValidation(rng);
   testSetWeightsAndTestOffset();
