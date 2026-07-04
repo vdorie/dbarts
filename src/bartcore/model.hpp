@@ -19,24 +19,50 @@
 namespace bartcore {
 
 /// Leaf models the conjugate engine can run must be integrable: they expose
-/// a closed-form log marginal over their parameters. The engine scores and
-/// draws through node context - (tree, working response, weights, node) -
-/// so models with richer sufficient statistics than the constant leaf's
-/// cached (average, effective count) can slot in without the moves or the
-/// chain knowing their shape.
+/// a closed-form log marginal over their parameters, scored through node
+/// context - (tree, working response, weights, node) - which is all the
+/// moves ever see. Parameter shape splits the hierarchy below that: scalar
+/// models (one parameter per leaf) keep the classic scalar draw interface,
+/// vector models write numParams() doubles per leaf and evaluate fits per
+/// observation. Chain code branches on hasVectorParams at compile time, so
+/// the scalar paths compile exactly as they always have.
 template <typename L>
-concept IntegrableLeafModel =
-  requires(const L leaf, ext_rng* rng, const Tree& tree, const double* v,
-           double d, std::int32_t node) {
+concept LeafModelCore =
+  requires(const L leaf, const Tree& tree, const double* v, double d,
+           std::int32_t node) {
+    { L::hasVectorParams } -> std::convertible_to<bool>;
     { leaf.logIntegratedLikelihoodForNode(tree, v, v, d, d, node) }
       -> std::same_as<double>;
+  };
+
+template <typename L>
+concept ScalarLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
+  requires(const L leaf, ext_rng* rng, const Tree& tree, double d,
+           std::int32_t node) {
     { leaf.drawFromPosteriorForNode(rng, tree, d, d, node) }
       -> std::same_as<double>;
     { leaf.drawFromPrior(rng, d) } -> std::same_as<double>;
   };
 
+template <typename L>
+concept VectorLeafModel = LeafModelCore<L> && L::hasVectorParams &&
+  requires(const L leaf, ext_rng* rng, const Tree& tree, const double* v,
+           double d, std::int32_t node, double* out, std::size_t i) {
+    { leaf.numParams() } -> std::same_as<std::size_t>;
+    { leaf.drawFromPosteriorForNode(rng, tree, v, v, d, d, node, out) }
+      -> std::same_as<void>;
+    { leaf.drawFromPrior(rng, d, out) } -> std::same_as<void>;
+    { leaf.fitForObservation(v, i) } -> std::same_as<double>;
+    { leaf.fitForTestObservation(v, i) } -> std::same_as<double>;
+  };
+
+template <typename L>
+concept IntegrableLeafModel = ScalarLeafModel<L> || VectorLeafModel<L>;
+
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
+  static constexpr bool hasVectorParams = false;
+
   double scale;  // nodeScale / sqrt(numTrees)
 
   double logIntegratedLikelihood(double k, double residualVariance,
@@ -93,7 +119,258 @@ struct ConstantGaussianLeaf {
   }
 };
 
-static_assert(IntegrableLeafModel<ConstantGaussianLeaf>);
+static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
+
+/// Linear Gaussian leaf: each bottom node fits an intercept plus a linear
+/// term in q designated ordinal predictor columns, standardized internally
+/// to the training mean and sample sd. All q + 1 coefficients are iid
+/// N(0, (scale / k)^2), so the marginal over them is a closed-form ridge
+/// regression and the conjugate MH moves apply unchanged. The sufficient
+/// statistics (U'WU, U'Wz, z'Wz) accumulate per call over the node's index
+/// segment - the same O(n_leaf) walk as the constant leaf's variance,
+/// widened by (q + 1)^2 - so move rollbacks need no cache invalidation.
+/// Missing covariate values enter at the standardized mean (zero); rules on
+/// the same column still route the missingness itself. Linear leaves read
+/// raw predictor values, so store views (which hold none) are refused
+/// upstream.
+struct LinearGaussianLeaf {
+  static constexpr bool hasVectorParams = true;
+  /// Sufficient-statistic scratch lives on the stack; the factory validates.
+  static constexpr std::size_t maxNumCovariates = 8;
+
+  double scale = 1.0;  // nodeScale / sqrt(numTrees)
+
+  std::size_t numParams() const { return numCovariates_ + 1; }
+  std::size_t numCovariates() const { return numCovariates_; }
+  const std::vector<std::size_t>& covariateColumns() const { return columns_; }
+  const std::vector<double>& covariateMeans() const { return means_; }
+  const std::vector<double>& covariateSds() const { return sds_; }
+
+  /// Gather and standardize the designated columns from the store's raw
+  /// training values. Standardization constants come from the observed
+  /// values alone; a constant (or all-missing) column keeps sd 1 and
+  /// degrades to an extra intercept the ridge prior absorbs.
+  void initialize(const ColumnStore& data, const std::size_t* columns,
+                  std::size_t numColumns) {
+    numCovariates_ = numColumns;
+    columns_.assign(columns, columns + numColumns);
+    numObservations_ = data.numObservations;
+    means_.assign(numColumns, 0.0);
+    sds_.assign(numColumns, 1.0);
+    u_.resize(numObservations_ * numColumns);
+    for (std::size_t j = 0; j < numColumns; ++j) {
+      const double* column = data.x + columns_[j] * numObservations_;
+      double total = 0.0;
+      std::size_t numObserved = 0;
+      for (std::size_t i = 0; i < numObservations_; ++i) {
+        if (isNA(column[i])) continue;
+        total += column[i];
+        ++numObserved;
+      }
+      double mean = numObserved > 0 ? total / static_cast<double>(numObserved)
+                                    : 0.0;
+      double sumOfSquares = 0.0;
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        if (!isNA(column[i]))
+          sumOfSquares += (column[i] - mean) * (column[i] - mean);
+      double sd = numObserved > 1
+        ? std::sqrt(sumOfSquares / static_cast<double>(numObserved - 1))
+        : 0.0;
+      if (!(sd > 0.0)) sd = 1.0;
+      means_[j] = mean;
+      sds_[j] = sd;
+      double* u = u_.data() + j * numObservations_;
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
+    }
+    rebuildTestCovariates(data);
+  }
+
+  /// Regather the test covariates under the training standardization; called
+  /// whenever the store's test data changes.
+  void rebuildTestCovariates(const ColumnStore& data) {
+    numTestObservations_ = data.numTestObservations;
+    uTest_.assign(numTestObservations_ * numCovariates_, 0.0);
+    if (numTestObservations_ == 0 || data.x_test == nullptr) return;
+    for (std::size_t j = 0; j < numCovariates_; ++j) {
+      const double* column = data.x_test + columns_[j] * numTestObservations_;
+      double* u = uTest_.data() + j * numTestObservations_;
+      for (std::size_t i = 0; i < numTestObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
+    }
+  }
+
+  double fitForObservation(const double* params, std::size_t i) const {
+    double result = params[0];
+    for (std::size_t j = 0; j < numCovariates_; ++j)
+      result += params[j + 1] * u_[i + j * numObservations_];
+    return result;
+  }
+
+  double fitForTestObservation(const double* params, std::size_t i) const {
+    double result = params[0];
+    for (std::size_t j = 0; j < numCovariates_; ++j)
+      result += params[j + 1] * uTest_[i + j * numTestObservations_];
+    return result;
+  }
+
+  /// log integral of prod N(z_i; b0 + b'u_i, sigma^2 / w_i) against the
+  /// N(0, (scale / k)^2 I) prior on (b0, b), dropping the same terms the
+  /// constant leaf drops (they depend only on n and w, which the moves'
+  /// before/after comparisons share). With M = U'WU + tau sigma^2 I and
+  /// tau = (k / scale)^2:
+  ///   0.5 (q+1) log(tau sigma^2) - 0.5 log det M
+  ///     - 0.5 (z'Wz - b'M^-1 b) / sigma^2,  b = U'Wz,
+  /// which reduces exactly to the constant leaf's formula at q = 0.
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
+                                        const double* weights, double k,
+                                        double residualVariance,
+                                        int32_t nodeIndex) const {
+    if (tree.at(nodeIndex).numObservations() == 0) return 0.0;
+
+    std::size_t p = numParams();
+    double crossproduct[maxStatisticSize], projection[maxNumCovariates + 1];
+    double responseSumOfSquares;
+    accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct,
+                             projection, &responseSumOfSquares);
+
+    double ridge = (k / scale) * (k / scale) * residualVariance;
+    for (std::size_t a = 0; a < p; ++a) crossproduct[a * p + a] += ridge;
+    choleskyDecompose(crossproduct, p);
+
+    double halfLogDet = 0.0;
+    for (std::size_t a = 0; a < p; ++a)
+      halfLogDet += std::log(crossproduct[a * p + a]);
+
+    // b' M^-1 b through the forward half-solve alone
+    solveLowerTriangular(crossproduct, p, projection);
+    double quadraticForm = 0.0;
+    for (std::size_t a = 0; a < p; ++a)
+      quadraticForm += projection[a] * projection[a];
+
+    return 0.5 * static_cast<double>(p) * std::log(ridge) - halfLogDet -
+           0.5 * (responseSumOfSquares - quadraticForm) / residualVariance;
+  }
+
+  /// (b0, b) | z ~ N(M^-1 b, sigma^2 M^-1): with M = LL' and v = L^-1 b, the
+  /// draw is L'^-1 (v + sigma eps) for eps standard normal, drawn in
+  /// coordinate order (intercept first). Empty leaves zero the block without
+  /// consuming generator draws, like the constant leaf's empty-leaf zero.
+  void drawFromPosteriorForNode(ext_rng* rng, const Tree& tree,
+                                const double* y, const double* weights,
+                                double k, double residualVariance,
+                                int32_t nodeIndex, double* out) const {
+    std::size_t p = numParams();
+    if (tree.at(nodeIndex).numObservations() == 0) {
+      for (std::size_t a = 0; a < p; ++a) out[a] = 0.0;
+      return;
+    }
+
+    double crossproduct[maxStatisticSize];
+    double responseSumOfSquares;
+    accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct, out,
+                             &responseSumOfSquares);
+
+    double ridge = (k / scale) * (k / scale) * residualVariance;
+    for (std::size_t a = 0; a < p; ++a) crossproduct[a * p + a] += ridge;
+    choleskyDecompose(crossproduct, p);
+
+    solveLowerTriangular(crossproduct, p, out);
+    double sigma = std::sqrt(residualVariance);
+    for (std::size_t a = 0; a < p; ++a)
+      out[a] += sigma * ext_rng_simulateStandardNormal(rng);
+    solveLowerTriangularTransposed(crossproduct, p, out);
+  }
+
+  void drawFromPrior(ext_rng* rng, double k, double* out) const {
+    std::size_t p = numParams();
+    for (std::size_t a = 0; a < p; ++a)
+      out[a] = (scale / k) * ext_rng_simulateStandardNormal(rng);
+  }
+
+private:
+  static constexpr std::size_t maxStatisticSize =
+    (maxNumCovariates + 1) * (maxNumCovariates + 1);
+
+  /// One pass over the node's index segment: crossproduct receives the full
+  /// symmetric U'WU (row-major (q+1) x (q+1), leading intercept column),
+  /// projection U'Wz, and responseSumOfSquares z'Wz.
+  void accumulateNodeStatistics(const Tree& tree, const double* y,
+                                const double* weights, int32_t nodeIndex,
+                                double* crossproduct, double* projection,
+                                double* responseSumOfSquares) const {
+    const Node& node(tree.at(nodeIndex));
+    std::size_t p = numParams();
+    for (std::size_t a = 0; a < p * p; ++a) crossproduct[a] = 0.0;
+    for (std::size_t a = 0; a < p; ++a) projection[a] = 0.0;
+    *responseSumOfSquares = 0.0;
+
+    double row[maxNumCovariates + 1];
+    row[0] = 1.0;
+    for (std::size_t m = node.begin; m < node.end; ++m) {
+      std::size_t i = tree.indices[m];
+      double w = weights == nullptr ? 1.0 : weights[i];
+      double z = y[i];
+      for (std::size_t j = 0; j < numCovariates_; ++j)
+        row[j + 1] = u_[i + j * numObservations_];
+      for (std::size_t a = 0; a < p; ++a) {
+        double scaled = w * row[a];
+        projection[a] += scaled * z;
+        for (std::size_t b = a; b < p; ++b)
+          crossproduct[a * p + b] += scaled * row[b];
+      }
+      *responseSumOfSquares += w * z * z;
+    }
+    for (std::size_t a = 0; a < p; ++a)
+      for (std::size_t b = a + 1; b < p; ++b)
+        crossproduct[b * p + a] = crossproduct[a * p + b];
+  }
+
+  /// In-place lower Cholesky of a symmetric positive-definite matrix; the
+  /// ridge guarantees definiteness, so there is no failure path.
+  static void choleskyDecompose(double* m, std::size_t p) {
+    for (std::size_t j = 0; j < p; ++j) {
+      double diagonal = m[j * p + j];
+      for (std::size_t a = 0; a < j; ++a)
+        diagonal -= m[j * p + a] * m[j * p + a];
+      diagonal = std::sqrt(diagonal);
+      m[j * p + j] = diagonal;
+      for (std::size_t i = j + 1; i < p; ++i) {
+        double value = m[i * p + j];
+        for (std::size_t a = 0; a < j; ++a)
+          value -= m[i * p + a] * m[j * p + a];
+        m[i * p + j] = value / diagonal;
+      }
+    }
+  }
+
+  static void solveLowerTriangular(const double* l, std::size_t p, double* x) {
+    for (std::size_t i = 0; i < p; ++i) {
+      double value = x[i];
+      for (std::size_t a = 0; a < i; ++a) value -= l[i * p + a] * x[a];
+      x[i] = value / l[i * p + i];
+    }
+  }
+
+  static void solveLowerTriangularTransposed(const double* l, std::size_t p,
+                                             double* x) {
+    for (std::size_t i = p; i > 0; --i) {
+      double value = x[i - 1];
+      for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
+      x[i - 1] = value / l[(i - 1) * p + (i - 1)];
+    }
+  }
+
+  std::size_t numCovariates_ = 0;
+  std::size_t numObservations_ = 0;
+  std::size_t numTestObservations_ = 0;
+  std::vector<std::size_t> columns_;
+  std::vector<double> means_, sds_;
+  std::vector<double> u_;      // standardized, column-major n x q
+  std::vector<double> uTest_;  // standardized, column-major numTest x q
+};
+
+static_assert(VectorLeafModel<LinearGaussianLeaf>);
 
 /// Chipman-George-McCulloch tree structure prior. Split-variable selection
 /// is uniform over available variables when splitProbabilities is null;

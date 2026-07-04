@@ -280,11 +280,44 @@ inline std::unique_ptr<SamplerBase> createClassicSampler(
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
 }
 
+/// Dispatch on the leaf model: designated leaf covariates select the
+/// linear-leaf instantiation, anything else the classic constant leaf.
+/// Returns null on an invalid designation - more than
+/// LinearGaussianLeaf::maxNumCovariates columns, a column out of range, or
+/// a categorical column (category codes are unordered; interact through
+/// splits instead) - which the host turns into its own error.
+inline std::unique_ptr<SamplerBase> createSampler(
+  const double* x, const double* y, std::size_t numObservations,
+  std::size_t numPredictors, const double* weights, const double* offset,
+  ResponseFamily family, double sigmaEstimate, double sigmaDf,
+  double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
+  if (options.numLeafCovariates == 0)
+    return createClassicSampler(x, y, numObservations, numPredictors, weights,
+                                offset, family, sigmaEstimate, sigmaDf,
+                                sigmaRawScale, options, rngs);
+
+  if (options.leafCovariateColumns == nullptr ||
+      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
+    return nullptr;
+  for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
+    std::size_t j = options.leafCovariateColumns[k];
+    if (j >= numPredictors) return nullptr;
+    if (options.columnTypes != nullptr &&
+        options.columnTypes[j] == ColumnType::categorical)
+      return nullptr;
+  }
+  return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
+    x, y, numObservations, numPredictors, weights, offset, family,
+    sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
+}
+
 /// As createClassicSampler, but over a pre-built store - typically a
 /// row-subset view (ColumnStore::buildFromParent) sharing a parent's cut
 /// grid. y/weights/offset match the store's observations and stay alive for
 /// the sampler's lifetime; the raw-x mutation surface must not be called on
-/// the result when the store holds no raw values.
+/// the result when the store holds no raw values. Views hold no raw values
+/// at all, so this path stays constant-leaf until stage 3 teaches views to
+/// gather leaf covariates.
 inline std::unique_ptr<SamplerBase> createSamplerOverStore(
   ColumnStore&& store, const double* y, const double* weights,
   const double* offset, ResponseFamily family, double sigmaEstimate,

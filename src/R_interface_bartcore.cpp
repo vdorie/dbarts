@@ -763,6 +763,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
   std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
 
+  // becomes the leaf-model dispatching bartcore::createSampler when the R
+  // surface exposes leaf covariates (linear-leaves stage 4); until then the
+  // second instantiation would only add ~65KB of unreachable code to the .so
   std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createClassicSampler(
     data.x, data.y, data.numObservations, data.numPredictors, data.weights,
     data.offset, family, data.sigmaEstimate, model.sigmaDf,

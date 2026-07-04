@@ -3094,6 +3094,290 @@ static void testMissingEndToEnd() {
   printf("ok: missing end to end\n");
 }
 
+// Shared fixture for the linear-leaf component tests; the reference
+// constants come from an independent R implementation
+// (scratchpad linear_leaf_reference.R).
+struct LinearLeafFixture {
+  static constexpr size_t n = 8;
+  std::vector<double> x, z, w;
+  ColumnStore store;
+  std::vector<size_t> indexBuffer;
+  Tree tree;
+  double k = 2.0, scale = 0.5 / std::sqrt(10.0), sigmaSq = 0.04;
+
+  LinearLeafFixture() : indexBuffer(n) {
+    double x1[] = {0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9};
+    double u1[] = {1.3, -0.4, 0.7, 2.2, -1.5, 0.6, 0.1, -0.8};
+    double u2[] = {0.2, 1.1, -0.6, 0.4, 0.9, -1.3, 0.5, -0.2};
+    x.assign(3 * n, 0.0);
+    for (size_t i = 0; i < n; ++i) {
+      x[i] = x1[i];
+      x[i + n] = u1[i];
+      x[i + 2 * n] = u2[i];
+    }
+    z = {0.35, -0.10, 0.22, 0.55, -0.42, 0.16, 0.03, -0.25};
+    w = {1.0, 2.0, 0.5, 1.0, 1.5, 1.0, 0.8, 1.2};
+    store.build(x.data(), n, 3, 100);
+    tree.initialize(indexBuffer.data(), n);
+  }
+};
+
+static void testLinearLeafMarginal() {
+  LinearLeafFixture f;
+
+  LinearGaussianLeaf leaf;
+  leaf.scale = f.scale;
+  size_t columns[] = {1};
+  leaf.initialize(f.store, columns, 1);
+  check(leaf.numParams() == 2, "linear leaf parameter count");
+
+  // root marginals against the R reference
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, 0),
+            -5.517188945419923, 1e-9, "linear marginal, weighted root");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), nullptr,
+                                                f.k, f.sigmaSq, 0),
+            -5.256174278535296, 1e-9, "linear marginal, unit-weight root");
+
+  // q = 0 reduces exactly to the constant leaf's formula
+  LinearGaussianLeaf interceptOnly;
+  interceptOnly.scale = f.scale;
+  interceptOnly.initialize(f.store, nullptr, 0);
+  ConstantGaussianLeaf constant{f.scale};
+  f.tree.setNodeAverages(f.z.data(), f.w.data());
+  checkNear(interceptOnly.logIntegratedLikelihoodForNode(
+              f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
+            constant.logIntegratedLikelihoodForNode(
+              f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
+            1e-9, "q = 0 linear marginal equals the constant leaf's");
+
+  // children of a split at x1 ~ 0.5 (cut 50 of the uniform grid)
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(50);
+  f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
+  int32_t leftChild = f.tree.at(0).leftChild;
+  check(f.tree.at(leftChild).numObservations() == 4 &&
+        f.tree.at(leftChild + 1).numObservations() == 4,
+        "fixture split partitions 4/4");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, leftChild),
+            -3.760266419465231, 1e-9, "linear marginal, left child");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, leftChild + 1),
+            -3.062089185586155, 1e-9, "linear marginal, right child");
+
+  // two covariates exercise the 3x3 Cholesky
+  LinearGaussianLeaf leaf2;
+  leaf2.scale = f.scale;
+  size_t columns2[] = {1, 2};
+  leaf2.initialize(f.store, columns2, 2);
+  Tree rootTree;
+  std::vector<size_t> rootIndices(LinearLeafFixture::n);
+  rootTree.initialize(rootIndices.data(), LinearLeafFixture::n);
+  checkNear(leaf2.logIntegratedLikelihoodForNode(
+              rootTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
+            -5.791887259328131, 1e-9, "linear marginal, two covariates");
+
+  // standardization constants match R's mean/sd
+  checkNear(leaf2.covariateMeans()[0], 0.275, 1e-12, "covariate mean");
+  checkNear(leaf2.covariateSds()[0], 1.185326959112970, 1e-12, "covariate sd");
+
+  printf("ok: linear leaf marginal\n");
+}
+
+static void testLinearLeafDraw(ext_rng* rng) {
+  LinearLeafFixture f;
+  LinearGaussianLeaf leaf;
+  leaf.scale = f.scale;
+  size_t columns[] = {1};
+  leaf.initialize(f.store, columns, 1);
+
+  // posterior moments for the weighted root, from the R reference
+  const double expectedMean[2] = {0.023101719628228, 0.176899579133385};
+  const double expectedCov[3] = {0.002628477539281, 0.000290149914052,
+                                 0.002709159455639};
+
+  const int numDraws = 200000;
+  double sum[2] = {0.0, 0.0};
+  double sumSq[3] = {0.0, 0.0, 0.0};
+  double draw[2];
+  for (int r = 0; r < numDraws; ++r) {
+    leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), f.k,
+                                  f.sigmaSq, 0, draw);
+    sum[0] += draw[0];
+    sum[1] += draw[1];
+    sumSq[0] += draw[0] * draw[0];
+    sumSq[1] += draw[0] * draw[1];
+    sumSq[2] += draw[1] * draw[1];
+  }
+  double mean0 = sum[0] / numDraws, mean1 = sum[1] / numDraws;
+  checkNear(mean0, expectedMean[0], 1e-3, "posterior draw mean, intercept");
+  checkNear(mean1, expectedMean[1], 1e-3, "posterior draw mean, slope");
+  checkNear(sumSq[0] / numDraws - mean0 * mean0, expectedCov[0], 1e-4,
+            "posterior draw variance, intercept");
+  checkNear(sumSq[1] / numDraws - mean0 * mean1, expectedCov[1], 1e-4,
+            "posterior draw covariance");
+  checkNear(sumSq[2] / numDraws - mean1 * mean1, expectedCov[2], 1e-4,
+            "posterior draw variance, slope");
+
+  // an empty leaf zeroes its block without consuming generator draws; no
+  // valid rule can empty a child of this fixture, so fabricate the range
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(50);
+  f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
+  int32_t rightChild = f.tree.at(0).leftChild + 1;
+  f.tree.at(rightChild).begin = f.tree.at(rightChild).end;
+  check(f.tree.at(rightChild).numObservations() == 0, "empty right child");
+  draw[0] = draw[1] = 1.0;
+  leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), f.k,
+                                f.sigmaSq, rightChild, draw);
+  check(draw[0] == 0.0 && draw[1] == 0.0, "empty leaf draws a zero block");
+
+  printf("ok: linear leaf draw\n");
+}
+
+static void testLinearLeafEndToEnd(ext_rng* rng) {
+  const size_t n = 400, p = 2;
+  std::vector<double> x(n * p), f(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    f[i] = x[i] > 0.5 ? x[i + n] : 0.0;
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = f[i] + 0.2 * normal;
+  }
+
+  double yMean = 0.0, ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= (double) n;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / (double) (n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 30;
+  size_t covariates[] = {1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+
+  // invalid designations refuse cleanly at the factory
+  {
+    SamplerOptions bad = options;
+    size_t outOfRange[] = {7};
+    bad.leafCovariateColumns = outOfRange;
+    check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                        ResponseFamily::gaussian, ySd, 3.0,
+                        0.37804942330213542, bad, &rng) == nullptr,
+          "out-of-range leaf covariate refused");
+    ColumnType types[] = {ColumnType::ordinal, ColumnType::categorical};
+    bad = options;
+    bad.columnTypes = types;
+    check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                        ResponseFamily::gaussian, ySd, 3.0,
+                        0.37804942330213542, bad, &rng) == nullptr,
+          "categorical leaf covariate refused");
+  }
+
+  std::unique_ptr<SamplerBase> sampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+  check(sampler != nullptr, "linear-leaf sampler creation");
+
+  // the first five training rows double as test rows: their fits must agree
+  const size_t numTest = 5;
+  std::vector<double> xTest(numTest * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      xTest[i + j * numTest] = x[i + j * n];
+  sampler->setTestPredictors(xTest.data(), numTest);
+
+  const size_t numBurnIn = 200, numSamples = 300;
+  std::vector<double> sigmaDraws(numSamples);
+  std::vector<double> trainingFits(n * numSamples);
+  std::vector<double> testFits(numTest * numSamples);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  results.trainingFits = trainingFits.data();
+  results.testFits = testFits.data();
+  sampler->run(numBurnIn, numSamples, results);
+
+  std::vector<double> posteriorMean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i)
+      posteriorMean[i] += trainingFits[i + s * n] / (double) numSamples;
+
+  double sseFit = 0.0, sseMean = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    sseFit += (posteriorMean[i] - f[i]) * (posteriorMean[i] - f[i]);
+    sseMean += (yMean - f[i]) * (yMean - f[i]);
+  }
+  check(sseFit < 0.2 * sseMean, "linear end-to-end: fit explains most signal");
+
+  double sigmaPosteriorMean = 0.0;
+  for (double s : sigmaDraws) sigmaPosteriorMean += s / (double) numSamples;
+  check(sigmaPosteriorMean > 0.15 && sigmaPosteriorMean < 0.3,
+        "linear end-to-end: sigma near truth (0.2)");
+
+  bool testFitsMatch = true;
+  for (size_t s = 0; s < numSamples && testFitsMatch; ++s)
+    for (size_t i = 0; i < numTest && testFitsMatch; ++i)
+      testFitsMatch = std::fabs(testFits[i + s * numTest] -
+                                trainingFits[i + s * n]) < 1e-8;
+  check(testFitsMatch, "test fits of duplicated rows match training fits");
+
+  // the slope structure: within x1 > 0.5, fits track x2 with slope ~1;
+  // within x1 < 0.5, slope ~0 (simple regression of fits on x2)
+  double slope[2];
+  for (int side = 0; side < 2; ++side) {
+    double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0, count = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      if ((x[i] > 0.5) != (side == 1)) continue;
+      sx += x[i + n];
+      sy += posteriorMean[i];
+      sxx += x[i + n] * x[i + n];
+      sxy += x[i + n] * posteriorMean[i];
+      count += 1.0;
+    }
+    slope[side] = (sxy - sx * sy / count) / (sxx - sx * sx / count);
+  }
+  check(std::fabs(slope[0]) < 0.25, "flat side has near-zero slope");
+  check(slope[1] > 0.75 && slope[1] < 1.25, "steep side recovers unit slope");
+
+  // the stage-3 surfaces refuse cleanly rather than misbehave
+  check(sampler->setPredictor(x.data(), false, true) ==
+          PredictorUpdateResult::rolledBack,
+        "linear leaves refuse setPredictor");
+  SamplerStateData state;
+  sampler->getState(state);
+  check(!sampler->setState(state), "linear leaves refuse state restoration");
+  check(sampler->savedTreeCapacity() == 0, "linear leaves store no trees");
+
+  // a short run with the k hyperprior exercises the all-coordinate
+  // accumulation
+  SamplerOptions kOptions = options;
+  kOptions.numTrees = 20;
+  kOptions.updateK = true;
+  std::unique_ptr<SamplerBase> kSampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, kOptions, &rng);
+  const size_t numKSamples = 100;
+  std::vector<double> kDraws(numKSamples), kSigma(numKSamples);
+  Results kResults;
+  kResults.k = kDraws.data();
+  kResults.sigma = kSigma.data();
+  kSampler->run(100, numKSamples, kResults);
+  bool kSane = true;
+  for (double kDraw : kDraws)
+    kSane = kSane && std::isfinite(kDraw) && kDraw > 0.05 && kDraw < 50.0;
+  check(kSane, "sampled k stays finite and positive");
+
+  printf("ok: linear leaf end to end (sse ratio %.3f, sigma %.3f, "
+         "slopes %.2f/%.2f)\n",
+         sseFit / sseMean, sigmaPosteriorMean, slope[0], slope[1]);
+}
+
 int main() {
   misc_simd_init();
 
@@ -3153,6 +3437,9 @@ int main() {
   testMissingIngestion();
   testMissingMechanics();
   testMissingEndToEnd();
+  testLinearLeafMarginal();
+  testLinearLeafDraw(rng);
+  testLinearLeafEndToEnd(rng);
 
   ext_rng_destroy(rng);
 

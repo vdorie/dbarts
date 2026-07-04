@@ -1,11 +1,56 @@
 # Linear leaves
 
-Proposal (2026-07-04, not yet implemented). Wave-2 model, phase 5 of
-core-generalization.md. The first leaf model beyond the constant leaf:
-each bottom node holds a small Bayesian linear regression, so a forest
-fits smoothly-varying coefficients (Chipman-George-McCulloch treed
-regression; the varying-slope structure of Bayesian Causal Forests when
-the leaf covariate is a treatment indicator).
+Wave-2 model, phase 5 of core-generalization.md. The first leaf model
+beyond the constant leaf: each bottom node holds a small Bayesian linear
+regression, so a forest fits smoothly-varying coefficients
+(Chipman-George-McCulloch treed regression; the varying-slope structure
+of Bayesian Causal Forests when the leaf covariate is a treatment
+indicator).
+
+STAGES 1-2 LANDED 2026-07-04 (engine; formats and the R surface remain).
+The leaf concept split into LeafModelCore plus Scalar/VectorLeafModel
+shapes: the moves see only logIntegratedLikelihoodForNode, the constant
+leaf keeps its scalar draw interface and code paths textually unchanged
+(gates: equivalence identical draws, suite 2192/0, speed within noise),
+and vector models write numParams() doubles per leaf with fits evaluated
+per observation; Chain branches on L::hasVectorParams at compile time.
+Deltas from the proposal discovered while landing:
+
+- No arena-indexed sufficient-statistic blocks: (U'WU, U'Wz, z'Wz)
+  accumulate per call over the node's index segment instead, the same
+  O(n_leaf (q+1)^2) the Costs section already budgeted per score. Cached
+  blocks would need snapshot/restore coupling with the moves' subtree
+  rollbacks (Node's two scalars ride the existing snapshots; side
+  storage would not) for a constant-factor win; revisit only if
+  profiling demands.
+- Missing leaf-covariate values enter at the standardized mean (zero)
+  rather than erroring: composes with MIA, whose rules still route the
+  missingness itself. A constant or all-missing designated column keeps
+  sd 1 and degrades to an extra intercept the ridge absorbs.
+- Posterior and prior draws fill coordinates in order, intercept first;
+  empty leaves zero their block without consuming generator draws,
+  matching the scalar path.
+- Each chain owns its standardized covariate copy (n x q doubles);
+  share through the sampler later if multi-chain memory matters.
+- Stage-2 refusals (until the stage-3 formats): keepTrees, getState/
+  setState, flattenTree/printTrees, predict from live or saved trees,
+  and the whole raw-x mutation surface (setPredictor, updatePredictor,
+  the per-observation sessions, setData, setCutPoints) refuse
+  gracefully - rolled back, false, empty, or zeroed, never wrong.
+- createSampler (facade.hpp) dispatches on options.leafCovariateColumns
+  and validates the designation (at most 8 columns, in range, not
+  categorical; null on failure). The bridge stays on
+  createClassicSampler until stage 4: linking the second instantiation
+  costs +65KB .so (442 -> 506KB, +15%), +0.5s on the bridge TU (2.9 ->
+  3.8s), and its code-layout shift alone moved hot microbenchmarks 3-9%
+  with no behavioral change, so the cost should land with the feature.
+- Component tests check the marginal against an independently coded R
+  reference (weighted/unweighted, children of a split, q = 2, and q = 0
+  equality with the constant leaf), posterior draw moments against R,
+  and end-to-end varying-slope recovery (unit slope on the active side,
+  zero on the flat side) plus a sampled-k smoke test.
+
+Original proposal follows.
 
 ## Model
 
