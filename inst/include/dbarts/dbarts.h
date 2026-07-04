@@ -162,7 +162,11 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
 /// A serializable R object holding the complete sampler state (trees,
 /// parameters, latents, rng); the caller must protect it. Restoring into a
 /// sampler created from the same specification continues bitwise
-/// identically; use for save/load and predict-after-reload.
+/// identically; use for save/load and predict-after-reload. States are one
+/// R list element per chain, so single-chain states may be gathered into a
+/// multi-chain restore; a stored generator of a different kind than the
+/// destination chain's is then left unrestored (the destination keeps its
+/// own stream), which only forfeits cross-kind bitwise continuation.
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler);
 void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
 

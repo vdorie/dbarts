@@ -682,9 +682,6 @@ public:
     if (options_.useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
       return false;
-    if (!state.rngState.empty() &&
-        state.rngState.size() != ext_rng_getSerializedStateLength(rng_))
-      return false;
     if (state.fitMax < state.fitMin) return false;
 
     Tree scratch;
@@ -755,7 +752,12 @@ public:
       dart_.alpha = state.dartAlpha;
       dart_.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
-    if (!state.rngState.empty())
+    // a serialized generator of a different kind (a single-chain state
+    // riding R's stream restored into a dedicated-generator chain, say)
+    // cannot be installed; the destination keeps its own stream, which
+    // only forfeits bitwise continuation across generator kinds
+    if (!state.rngState.empty() &&
+        state.rngState.size() == ext_rng_getSerializedStateLength(rng_))
       ext_rng_readSerializedState(rng_, state.rngState.data());
     return true;
   }
