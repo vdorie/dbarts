@@ -419,4 +419,7 @@ classic engine.
   Linear leaves are LANDED in full (linear-leaves.md, 2026-07-04): a
   designated column set per leaf regression via node.prior =
   linear(columns, k) on dbarts() and xbart(), including data-handle views
-  (section 5 update).
+  (section 5 update). Grouped random effects have a proposal
+  (grouped-random-effects.md, 2026-07-04): a ResponseModel decorator
+  running rbart_vi's Gibbs blocks in-core for the built-in tau priors,
+  with the R loop retained for custom priors and callbacks.

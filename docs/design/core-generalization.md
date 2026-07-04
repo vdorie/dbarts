@@ -742,8 +742,9 @@ partitioning entirely; a different library sharing only the tree structure).
 
    Remaining unsupported surface: weights + binary (by design) and
    setControl changes to creation-fixed settings.
-5. **Wave 2 models**: linear leaves; in-core grouped random effects
-   (retiring the rbart_vi R loop).
+5. **Wave 2 models**: linear leaves (LANDED in full, linear-leaves.md);
+   in-core grouped random effects retiring the rbart_vi R loop for the
+   built-in tau priors (proposal: grouped-random-effects.md).
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
 7. **Cutover**: new core default, R_C_interface mapped onto it, old engine
    deleted, headers published for LinkingTo.
