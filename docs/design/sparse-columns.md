@@ -255,6 +255,63 @@ rebuilds (needs a consumer), sparse x.test, rbart_vi and linear-leaf
 support, per-column u8 code widths, a streaming range kernel for
 root-sized segments, and any public exposure of the density threshold.
 
+## Planned: mixed dense and sparse predictors (Vincent, 2026-07-04)
+
+Requested surface: a data frame holding ordinary numeric and factor
+columns alongside sparse columns - Matrix::sparseVector entries and
+matrix-valued columns including dgCMatrix (both enter data frames
+I()-wrapped, matrix columns natively) - through the existing
+data-frame interfaces, so one input mixes both worlds. The v1 landing
+above is deliberately all-or-nothing per input object; the per-column
+machinery it introduced is the enabler here, and the restrictions v1
+imposes globally are per-SOURCE facts, so a mixed store relaxes them
+where the source allows:
+
+- Engine: ColumnStore::buildMixed(denseX, cscTriple, columnSources,
+  ...) assigns each column either a dense column-major slice
+  (quantized exactly as build() does; categorical allowed; rawColumn
+  serves it) or a CSC slice (exactly as buildFromCsc: threshold
+  chooses rank bitmap vs densified codes; ordinal only). Nothing
+  downstream changes: codeAt, partitionChildren, the cut builders, and
+  quantizeColumn already dispatch per column. Dense-backed columns in
+  a mixed store keep categorical splits (factors compose with sparse
+  features, which v1 cannot do at all) and are designatable as linear
+  leaf covariates (the facade check moves from store-wide to
+  per-designated-column via rawColumn(j) != null, the
+  createSamplerOverStore precedent).
+- Ingestion: the model-matrix builders (makeCategoricalModelMatrix,
+  makeModelMatrixFromDataFrame) gain a sparse pass-through - a
+  sparseVector column contributes one ordinal column, a dgCMatrix
+  column contributes its columns, dense columns behave exactly as
+  today including the factors= treatment. Primary surface is the
+  data-frame/xy path; the formula path routes through the same
+  builders but model.frame's handling of S4 columns needs validation
+  during implementation.
+- Container: dbartsData@x (already ANY) holds an internal mixed
+  container - the dense columns as one numeric matrix, the sparse
+  columns cbound into one dgCMatrix, plus a source map and dimnames,
+  with ncol/colnames/nrow served so the R-side consumers (varcount
+  naming, plotTree, partialDependence) keep working. A plain R object,
+  so getPointer() re-creation and save/load work unchanged.
+- Bridge: parseData recognizes the container and passes the dense
+  pointer, the CSC slots, and the per-column source map through
+  SamplerOptions (internal, freely extensible); validation as v1 plus
+  map consistency.
+- Test data: stays dense in v1 of mixed too - a test data frame
+  expands through the same builders to a dense matrix over all
+  columns, which validateXTest already produces.
+- Mutation: store-wide refusal stays while any CSC-backed column
+  exists (the transactional paths are column-granular, so a later
+  relaxation to dense-backed columns is mechanical, but it needs a
+  consumer). rbart_vi keeps its refusal (the R loop predicts over
+  data@x) until the in-core path takes sparse.
+
+Order of work when picked up: buildMixed + component test (mixed store
+bitwise vs a two-store reference), the container + ingestion
+pass-through, bridge plumbing, then the per-column linear-leaf and
+categorical relaxations with tests. No kernel work is involved.
+
 ## Status
 
-LANDED 2026-07-04 (plan and landing notes above).
+LANDED 2026-07-04 (plan and landing notes above); mixed dense/sparse
+input is planned (section above), not yet implemented.
