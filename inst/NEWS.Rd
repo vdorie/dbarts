@@ -30,6 +30,23 @@
             covariates with full-data constants, matching the final
             fit's calibration the way folds bin on the full-data cut
             grid.
+      \item `rbart_vi` with a built-in `prior` (`cauchy`, `gamma`) and
+            no `callback` now runs its whole Gibbs sampler - random
+            intercepts and their standard deviation included - inside
+            the engine: one sampler with `n.chains` chains on worker
+            threads instead of per-chain samplers driven
+            iteration-by-iteration from R over a PSOCK/FORK cluster.
+            Custom prior functions and callbacks keep the previous
+            implementation. Results are statistically equivalent but
+            not draw-for-draw identical: the response scaling is fixed
+            at creation from the data alone (the old loop re-anchored
+            it during warmup with the current random effects
+            subtracted), and with case weights the conjugate intercept
+            update now weights the group contributions (the old loop's
+            update ignored weights). Fitted objects keep their shape;
+            with `keepSampler` the `fit` element holds one multi-chain
+            sampler instead of one sampler per chain, and save/load of
+            such fits continues to work.
       \item The bartcore engine replaces the classic engine: every
             fitting function runs on it. Fits are statistically
             equivalent to the classic engine's but not draw-for-draw

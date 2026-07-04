@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstring>
 #include <cfloat>
+#include <memory>
+#include <numbers>
 #include <vector>
 
 #include <external/random.h>
@@ -780,8 +782,11 @@ public:
   /// working response.
   virtual const double* workingWeights() const = 0;
 
-  /// Called once per iteration after all trees update.
-  virtual void refreshLatents(ext_rng* rng, const double* totalFits) = 0;
+  /// Called once per iteration after all trees update; sigma is the chain's
+  /// current residual sd on the internal scale (1 for the binary families),
+  /// which only the grouped decorator's conjugate update consumes.
+  virtual void refreshLatents(ext_rng* rng, const double* totalFits,
+                              double sigma) = 0;
 
   /// Residual standard deviation update; fixed-sigma models return sigma.
   virtual double drawSigma(ext_rng* rng, const double* totalFits,
@@ -846,6 +851,17 @@ public:
   virtual double fitScale() const = 0;
   virtual double fitShift() const = 0;
   virtual double sigmaScale() const = 0;
+
+  /// Grouped random effects, when the model carries them (the GroupedResponse
+  /// decorator): the per-group intercepts and tau, on the internal scale.
+  /// Ungrouped models report none.
+  virtual const double* groupEffects() const { return nullptr; }
+  virtual std::size_t numGroupEffects() const { return 0; }
+  virtual double groupTau() const { return 0.0; }
+  /// State restoration of the grouped channel; values are internal-scale
+  /// exactly as reported, so restores are exact. A no-op when ungrouped.
+  virtual void restoreGroupEffects(const double* /*effects*/,
+                                   double /*tau*/) {}
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -867,7 +883,7 @@ public:
   double* workingResponse() override { return yRescaled_.data(); }
   const double* workingWeights() const override { return weights_; }
   const double* offset() const override { return offset_; }
-  void refreshLatents(ext_rng*, const double*) override {}
+  void refreshLatents(ext_rng*, const double*, double) override {}
 
   double drawSigma(ext_rng* rng, const double* totalFits, double) override {
     return std::sqrt(sigmaSqPrior_.drawSigmaSqFromPosterior(
@@ -1033,7 +1049,8 @@ public:
   const double* workingWeights() const override { return nullptr; }
   const double* offset() const override { return offset_; }
 
-  void refreshLatents(ext_rng* rng, const double* totalFits) override {
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       double sign = 2.0 * y_[i] - 1.0;
@@ -1051,7 +1068,7 @@ public:
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
                    double*) override {
     y_ = y;
-    refreshLatents(rng, totalFits);
+    refreshLatents(rng, totalFits, 1.0);
   }
 
   void setOffset(const double* offset, bool, double*) override {
@@ -1122,7 +1139,8 @@ public:
   const double* workingWeights() const override { return omega_.data(); }
   const double* offset() const override { return offset_; }
 
-  void refreshLatents(ext_rng* rng, const double* totalFits) override {
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
       omega_[i] = ext_rng_simulatePolyaGamma(rng, totalFits[i] + offset);
@@ -1137,7 +1155,7 @@ public:
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
                    double*) override {
     y_ = y;
-    refreshLatents(rng, totalFits);
+    refreshLatents(rng, totalFits, 1.0);
   }
 
   void setOffset(const double* offset, bool, double*) override {
@@ -1191,6 +1209,278 @@ private:
   std::size_t numObservations_;
   std::vector<double> omega_;
   std::vector<double> working_;
+};
+
+/// Tau priors the in-core grouped sampler supports (rbart.priors); custom
+/// R-function priors keep rbart_vi's R loop instead.
+enum class TauPriorKind { cauchy, gamma };
+
+/// log p(tau) for the built-in priors, matching rbart.priors evaluated with
+/// scale already converted to the engine's internal response scale:
+/// dcauchy(tau; 0, scale) or dgamma(tau; shape 2.5, scale), both log.
+/// Normalizing constants are kept so component tests compare against R
+/// directly; both are scale families, so the internal-scale conversion is
+/// exactly a division of the scale parameter.
+inline double logTauPrior(TauPriorKind kind, double scale, double tau) {
+  if (kind == TauPriorKind::cauchy) {
+    double z = tau / scale;
+    return -std::log(std::numbers::pi * scale) - std::log1p(z * z);
+  }
+  return 1.5 * std::log(tau) - tau / scale - 2.5 * std::log(scale) -
+         std::lgamma(2.5);
+}
+
+/// The R loop's tau log posterior given the group effects:
+///   -J log(tau) - 0.5 sum(b^2) / tau^2 + log p(tau)
+/// on (0, Inf); anything outside scores -inf.
+inline double logTauPosterior(double tau, double numGroups,
+                              double sumSquaredEffects, TauPriorKind kind,
+                              double priorScale) {
+  if (tau <= 0.0 || std::isinf(tau)) return -HUGE_VAL;
+  return -numGroups * std::log(tau) -
+         0.5 * sumSquaredEffects / (tau * tau) +
+         logTauPrior(kind, priorScale, tau);
+}
+
+/// One slice-sampling step (Neal 2003: stepping out, then shrinkage) of a
+/// log density on (lower, upper); width is the stepping-out unit and the
+/// interval endpoints clamp to the boundary, as R's sliceSample does.
+/// Shrinkage terminates in exact arithmetic; the iteration cap turns numeric
+/// pathology into keeping the current point.
+template <typename LogDensity>
+double sliceSampleOnce(ext_rng* rng, const LogDensity& logDensity, double x,
+                       double width, double lower, double upper) {
+  double logHeight = logDensity(x) - ext_rng_simulateExponential(rng, 1.0);
+  double u = ext_rng_simulateContinuousUniform(rng);
+  double left = x - u * width;
+  double right = left + width;
+  while (left > lower && logDensity(left) > logHeight) left -= width;
+  if (left < lower) left = lower;
+  while (right < upper && logDensity(right) > logHeight) right += width;
+  if (right > upper) right = upper;
+
+  for (int iteration = 0; iteration < 1000; ++iteration) {
+    double proposal =
+      left + ext_rng_simulateContinuousUniform(rng) * (right - left);
+    if (logDensity(proposal) > logHeight) return proposal;
+    if (proposal < x) left = proposal; else right = proposal;
+  }
+  return x;
+}
+
+/// One conjugate draw of grouped random intercepts: with working response
+/// z_i ~ N(F_i + b_g(i), sigma^2 / w_i) and prior b_j ~ N(0, tau^2), the
+/// groups are independent normals
+///   prec_j = (sum_{i in j} w_i) / sigma^2 + 1 / tau^2
+///   mean_j = (sum_{i in j} w_i (z_i - F_i)) / (sigma^2 prec_j).
+/// Null weights are unit weights; a group with no observations draws from
+/// its prior through the same formula. Draws land in effects (also used as
+/// the residual accumulator) in group order, one standard normal each;
+/// weightScratch supplies numGroups doubles of scratch.
+inline void drawGroupEffects(ext_rng* rng, const double* z,
+                             const double* weights, const double* totalFits,
+                             const std::uint32_t* groupIndex,
+                             std::size_t numObservations,
+                             std::size_t numGroups, double sigma, double tau,
+                             double* effects, double* weightScratch) {
+  for (std::size_t j = 0; j < numGroups; ++j) {
+    effects[j] = 0.0;
+    weightScratch[j] = 0.0;
+  }
+  for (std::size_t i = 0; i < numObservations; ++i) {
+    double w = weights == nullptr ? 1.0 : weights[i];
+    std::uint32_t j = groupIndex[i];
+    weightScratch[j] += w;
+    effects[j] += w * (z[i] - totalFits[i]);
+  }
+  double sigmaSq = sigma * sigma;
+  for (std::size_t j = 0; j < numGroups; ++j) {
+    double precision = weightScratch[j] / sigmaSq + 1.0 / (tau * tau);
+    double mean = effects[j] / (sigmaSq * precision);
+    effects[j] =
+      mean + ext_rng_simulateStandardNormal(rng) / std::sqrt(precision);
+  }
+}
+
+/// Grouped random intercepts as a response-model decorator, running
+/// rbart_vi's Gibbs blocks in-core over any base family: the trees condition
+/// on workingResponse() = base z - b_g(i), so recorded fits stay f(x)-only
+/// and the user offset and gaussian scale anchoring belong to the base model
+/// untouched. b and tau live on the base model's internal scale; the tau
+/// prior's relative scale converts once at construction (both priors are
+/// scale families) and reported draws de-scale by sigmaScale(), like sigma.
+/// The weighted conjugate update deliberately replaces the R loop's
+/// unweighted group means, which is what makes Polya-Gamma logistic weights
+/// compose. Group structure is fixed at creation; the bridge refuses
+/// setResponse/setData on grouped samplers (the overrides below delegate
+/// faithfully for same-length replacements regardless).
+class GroupedResponse final : public ResponseModel {
+public:
+  /// tauPriorScale is the original-scale relative scale (sd(y) continuous,
+  /// 0.5 binary); the prior's 2.5 multiplier and the internal-scale
+  /// conversion are applied here. Initialization matches the R loop: tau at
+  /// a fifth of the relative scale, b drawn from its prior.
+  GroupedResponse(std::unique_ptr<ResponseModel> base,
+                  std::size_t numObservations,
+                  const std::uint32_t* groupIndices, std::size_t numGroups,
+                  TauPriorKind tauPriorKind, double tauPriorScale,
+                  std::size_t tauSliceSteps, ext_rng* rng)
+    : base_(std::move(base)), numObservations_(numObservations),
+      groupIndex_(groupIndices, groupIndices + numObservations),
+      priorKind_(tauPriorKind), sliceSteps_(tauSliceSteps) {
+    double scale = base_->sigmaScale();
+    priorScale_ = 2.5 * tauPriorScale / scale;
+    tau_ = (tauPriorScale / 5.0) / scale;
+    groupEffects_.resize(numGroups);
+    for (std::size_t j = 0; j < numGroups; ++j)
+      groupEffects_[j] = tau_ * ext_rng_simulateStandardNormal(rng);
+    weightScratch_.resize(numGroups);
+    workingResponse_.resize(numObservations);
+    fitScratch_.resize(numObservations);
+    rebuildWorking();
+  }
+
+  double* workingResponse() override { return workingResponse_.data(); }
+  const double* workingWeights() const override {
+    return base_->workingWeights();
+  }
+  const double* offset() const override { return base_->offset(); }
+
+  /// rbart_vi's blocks in their order relative to the tree sweep: the base
+  /// refreshes its latents against f + b, then b draws conjugately against
+  /// the fresh working response and weights, then tau by slice sampling,
+  /// keeping the last of sliceSteps_ steps as the R loop does. sigma is the
+  /// previous draw, exactly the value the R loop's b update conditions on.
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double sigma) override {
+    shiftFits(totalFits);
+    base_->refreshLatents(rng, fitScratch_.data(), sigma);
+    drawGroupEffects(rng, base_->workingResponse(), base_->workingWeights(),
+                     totalFits, groupIndex_.data(), numObservations_,
+                     groupEffects_.size(), sigma, tau_, groupEffects_.data(),
+                     weightScratch_.data());
+
+    double sumSquaredEffects = 0.0;
+    for (double effect : groupEffects_)
+      sumSquaredEffects += effect * effect;
+    double numGroups = static_cast<double>(groupEffects_.size());
+    TauPriorKind kind = priorKind_;
+    double priorScale = priorScale_;
+    auto logDensity = [=](double tau) {
+      return logTauPosterior(tau, numGroups, sumSquaredEffects, kind,
+                             priorScale);
+    };
+    for (std::size_t step = 0; step < sliceSteps_; ++step)
+      tau_ = sliceSampleOnce(rng, logDensity, tau_, priorScale_, 0.0,
+                             HUGE_VAL);
+
+    rebuildWorking();
+  }
+
+  /// sigma conditions on f + b through the same shifted scratch.
+  double drawSigma(ext_rng* rng, const double* totalFits,
+                   double sigma) override {
+    shiftFits(totalFits);
+    return base_->drawSigma(rng, fitScratch_.data(), sigma);
+  }
+
+  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
+                   double* sigmaInOut) override {
+    shiftFits(totalFits);
+    base_->setResponse(y, rng, fitScratch_.data(), sigmaInOut);
+    rebuildWorking();
+  }
+
+  /// The base handles any scale re-anchoring; b and tau keep their values
+  /// against the new transform, so an updateScale offset change shifts what
+  /// they mean on the original scale. rbart_vi's in-core path never calls
+  /// this.
+  void setOffset(const double* offset, bool updateScale,
+                 double* sigmaInOut) override {
+    base_->setOffset(offset, updateScale, sigmaInOut);
+    rebuildWorking();
+  }
+
+  /// Group indices are per-observation and fixed at creation, so only a
+  /// same-length replacement is coherent; the bridge refuses the call.
+  void setData(const double* y, const double* offset, const double* weights,
+               std::size_t numObservations, double* sigmaInOut) override {
+    base_->setData(y, offset, weights, numObservations, sigmaInOut);
+    rebuildWorking();
+  }
+
+  void setWeights(const double* weights) override {
+    base_->setWeights(weights);
+  }
+
+  void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
+                     double rawScale) override {
+    base_->setSigmaPrior(sigmaEstimate, degreesOfFreedom, rawScale);
+  }
+
+  const double* latents() const override { return base_->latents(); }
+
+  void restoreLatents(const double* latents) override {
+    base_->restoreLatents(latents);
+    rebuildWorking();
+  }
+
+  void getScale(double& min, double& max) const override {
+    base_->getScale(min, max);
+  }
+  void restoreScale(double min, double max) override {
+    base_->restoreScale(min, max);
+    rebuildWorking();
+  }
+  double sigmaPriorScaleInternal() const override {
+    return base_->sigmaPriorScaleInternal();
+  }
+  void restoreSigmaPriorScaleInternal(double scale) override {
+    base_->restoreSigmaPriorScaleInternal(scale);
+  }
+
+  double initialSigma() const override { return base_->initialSigma(); }
+  double fitScale() const override { return base_->fitScale(); }
+  double fitShift() const override { return base_->fitShift(); }
+  double sigmaScale() const override { return base_->sigmaScale(); }
+
+  const double* groupEffects() const override {
+    return groupEffects_.data();
+  }
+  std::size_t numGroupEffects() const override {
+    return groupEffects_.size();
+  }
+  double groupTau() const override { return tau_; }
+  void restoreGroupEffects(const double* effects, double tau) override {
+    std::memcpy(groupEffects_.data(), effects,
+                groupEffects_.size() * sizeof(double));
+    tau_ = tau;
+    rebuildWorking();
+  }
+
+private:
+  void shiftFits(const double* totalFits) {
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      fitScratch_[i] = totalFits[i] + groupEffects_[groupIndex_[i]];
+  }
+
+  void rebuildWorking() {
+    const double* z = base_->workingResponse();
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      workingResponse_[i] = z[i] - groupEffects_[groupIndex_[i]];
+  }
+
+  std::unique_ptr<ResponseModel> base_;
+  std::size_t numObservations_;
+  std::vector<std::uint32_t> groupIndex_;  // per observation, 0..J-1
+  std::vector<double> groupEffects_;       // b, internal scale
+  double tau_ = 1.0;                       // internal scale
+  TauPriorKind priorKind_;
+  double priorScale_ = 1.0;                // internal scale, 2.5 applied
+  std::size_t sliceSteps_ = 1;
+  std::vector<double> workingResponse_;    // base z minus b_g(i)
+  std::vector<double> fitScratch_;         // f + b for base updates
+  std::vector<double> weightScratch_;      // per-group weight sums
 };
 
 }  // namespace bartcore

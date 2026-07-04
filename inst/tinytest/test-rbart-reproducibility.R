@@ -37,38 +37,33 @@ fit2 <- dbarts::rbart_vi(
   seed = 0L
 )
 
-set.seed(0L)
-seeds <- sample.int(.Machine$integer.max, 2L)
+expect_equal(fit1$yhat.train, fit2$yhat.train)
+expect_equal(fit1$ranef, fit2$ranef)
+expect_equal(fit1$tau, fit2$tau)
 
-set.seed(seeds[1L])
+# the chains explore independently rather than repeating one stream
+expect_true(any(fit1$yhat.train[1L, , ] != fit1$yhat.train[2L, , ]))
+
+# single-chain runs draw through R's generator and reproduce under set.seed
+set.seed(0L)
 fit3 <- dbarts::rbart_vi(
   y ~ x, group.by = g,
   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
   n.trees = 3L, n.threads = 1L, verbose = FALSE
 )
 
-set.seed(seeds[2L])
+set.seed(0L)
 fit4 <- dbarts::rbart_vi(
   y ~ x, group.by = g,
   n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
   n.trees = 3L, n.threads = 1L, verbose = FALSE
 )
 
-expect_equal(fit1$yhat.train, fit2$yhat.train)
-expect_equal(fit1$ranef, fit2$ranef)
+expect_equal(fit3$yhat.train, fit4$yhat.train)
+expect_equal(fit3$ranef, fit4$ranef)
+expect_equal(fit3$tau, fit4$tau)
 
-
-yhat <- aperm(array(c(fit3$yhat.train, fit4$yhat.train),
-                    c(dim(fit3$yhat.train), 2L)),
-              c(3L, 1L, 2L))
-expect_equal(yhat, fit1$yhat.train)
-
-ranef <- aperm(array(c(fit3$ranef, fit4$ranef),
-                     c(dim(fit3$ranef), 2L)),
-               c(3L, 1L:2L))
-expect_equal(as.vector(ranef), as.vector(fit1$ranef))
-
-rm(ranef, yhat, fit4, fit3, seeds, fit2, fit1)
+rm(fit4, fit3, fit2, fit1)
 
 rm(g, y, x)
 
@@ -87,11 +82,13 @@ rbartFit <- dbarts::rbart_vi(
   verbose = FALSE
 )
 
+# regenerate by replaying this file from the top: draws depend on the
+# preceding fits through R's stream position and last-ulp arithmetic
 expect_equal(
   as.numeric(rbartFit$ranef),
   c(
-    0.306042637443852, 0.277641894880285, -1.20440273126295,
-    -0.590558222789585, 2.7169449874086
+    -0.633191770812314, -0.300187735171359, -1.18793374547573,
+    -0.47732899393382, 0.855568120506501
   )
 )
 

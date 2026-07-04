@@ -94,6 +94,8 @@ public:
   virtual std::size_t numLeafCovariates() const = 0;
   virtual const std::size_t* leafCovariateColumns() const = 0;
   virtual ResponseFamily family() const = 0;
+  /// Grouped random intercepts: the group count, 0 when ungrouped.
+  virtual std::size_t numGroups() const = 0;
   virtual const ColumnStore& data() const = 0;
   virtual const double* latents(std::size_t chainNum) const = 0;
   virtual double sigma(std::size_t chainNum) const = 0;
@@ -241,6 +243,7 @@ public:
     return impl_.leafCovariateColumns();
   }
   ResponseFamily family() const override { return impl_.family(); }
+  std::size_t numGroups() const override { return impl_.numGroups(); }
   const ColumnStore& data() const override { return impl_.data(); }
   const double* latents(std::size_t chainNum) const override {
     return impl_.latents(chainNum);

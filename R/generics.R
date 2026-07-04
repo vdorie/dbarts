@@ -186,12 +186,19 @@ predict.rbart <- function(object, newdata, group.by, offset,
   # the test matrix
   if (type != "ranef") {
     if (n.chains > 1L) {
-      n.obs <- NULL
-      nonParametricPart <- array(sapply(seq_len(n.chains), function(i) {
-        res <- object$fit[[i]]$predict(newdata, offset)
-          if (is.null(n.obs)) n.obs <<- dim(res)[1L]
-          res
-        }), c(n.obs, n.samples, n.chains))
+      if (length(object$fit) == 1L) {
+        # the in-core Gibbs path keeps one multi-chain sampler, whose
+        # predictions already carry the chain dimension
+        nonParametricPart <- object$fit[[1L]]$predict(newdata, offset)
+        n.obs <- dim(nonParametricPart)[1L]
+      } else {
+        n.obs <- NULL
+        nonParametricPart <- array(sapply(seq_len(n.chains), function(i) {
+          res <- object$fit[[i]]$predict(newdata, offset)
+            if (is.null(n.obs)) n.obs <<- dim(res)[1L]
+            res
+          }), c(n.obs, n.samples, n.chains))
+      }
     } else {
       nonParametricPart <- object$fit[[1L]]$predict(newdata, offset)
       n.obs <- nrow(nonParametricPart)
@@ -290,12 +297,16 @@ extract.rbart <- function(object,
     if (is.null(object$fit))
       stop("extracting trees requires rbart to be called with 'keepTrees' == TRUE")
     treesCall <- match.call()
+    # the in-core Gibbs path keeps one multi-chain sampler: route chain
+    # selection through its chainNums argument instead of the fit list
+    singleFit <- length(object$fit) == 1L && n.chains > 1L
     target <- quote(object$fit[[i]]$getTrees)
     target[[2L]][[2L]][[2L]] <- treesCall$object
+    if (singleFit) target[[2L]][[3L]] <- 1L
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
-    treesCall$chainNums <- NULL
+    treesCall$chainNums <- if (singleFit) quote(i) else NULL
     evalEnv <- parent.frame()
     dotsList <- list(...)
     chainNums <- if ("chainNums" %in% names(dotsList)) as.integer(dotsList[["chainNums"]]) else seq_len(n.chains)
