@@ -255,7 +255,9 @@ methods::setClassUnion("numericOrNULL", c("numeric", "NULL"))
 methods::setClass("dbartsData",
   slots = list(
     y            = "numeric",
-    x            = "matrix",
+    # a dense matrix or a Matrix::dgCMatrix (validated below; the class
+    # cannot appear in a slot union without Matrix at load time)
+    x            = "ANY",
     varTypes     = "integer",
     x.test       = "matrixOrNULL",
     weights      = "numericOrNULL",
@@ -287,6 +289,8 @@ methods::setClass("dbartsData",
 methods::setValidity("dbartsData",
   function(object) {
     numObservations <- length(object@y)
+    if (!is.matrix(object@x) && !inherits(object@x, "dgCMatrix"))
+      return("'x' must be a matrix or a Matrix::dgCMatrix")
     if (nrow(object@x) != numObservations)
       return("number of rows of 'x' must equal length of 'y'")
     

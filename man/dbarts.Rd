@@ -17,7 +17,7 @@ dbarts(
     missing = c("incorporate", "error"))}
 \arguments{
   \item{formula}{
-    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}.
+    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}, including a sparse \code{Matrix::dgCMatrix}: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface (\code{setPredictor} and relatives, \code{setData}) is fixed at creation. Sparse inputs are not supported by \code{\link{rbart_vi}} or \code{node.prior = linear()}; test matrices remain dense.
   }
   \item{data}{
     An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bart}} vector \code{y.train}.

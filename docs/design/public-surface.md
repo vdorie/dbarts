@@ -404,12 +404,15 @@ classic engine.
   categories stay inline in the rule word, wider ones pool per tree, and
   the flattened format's masks past 53 categories ride a side channel
   with getTrees reporting value = NA plus the usual directions decode).
-- Sparse columns: PROTOTYPED 2026-07-04 (docs/design/sparse-columns.md,
-  benchmarks/kernels/sparse.c). The representation is settled - a
-  rank-bitmap column layout at parity with the dense kernel where
-  sparsity is real, in a tenth the memory - and order-preserving
-  partitions are ruled out. Landing waits on the per-column data model
-  (u8 widths) plus a dgCMatrix ingestion story.
+- Sparse columns: LANDED 2026-07-04 (design, plan, and landing notes in
+  sparse-columns.md). A Matrix::dgCMatrix enters the x/y interfaces of
+  dbarts/dbartsData/bart/bart2/xbart; per column the engine stores a
+  rank bitmap below 20 percent density and densifies above it, cuts and
+  codes matching a dense build of the same values exactly. The raw-x
+  mutation surface is fixed at creation; state serialization and the
+  data-handle/xbart path (views densify) compose. rbart_vi and linear
+  leaves refuse sparse inputs for now. Per-column u8 code widths remain
+  future work.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
   mia-missingness.md; surface is missing = c("incorporate", "error"),
   incorporate the default).

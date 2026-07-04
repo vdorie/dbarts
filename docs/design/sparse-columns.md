@@ -199,7 +199,62 @@ Gates per the standing checklist; equivalence must report identical
 draws (dense paths are layout-refactored only), speed must hold at
 baseline on every metric.
 
+## Landing notes (2026-07-04)
+
+Landed per the plan; deltas and specifics:
+
+- misc_partitionIndicesSparse lives in src/misc/partition.c as a plain
+  exported function (no dispatch pointer until a SIMD variant exists),
+  mirroring the scalar two-pointer body exactly. MIA columns take the
+  engine-side partitionIndicesSparseMIA in tree.hpp.
+- ColumnStore: codeOffsets indexes the single packed codes vector
+  (j * n for dense builds, packed among densified columns for CSC
+  builds); rank columns live in SparseColumnData slots keyed by
+  sparseSlot, with borrowed CscColumnSlice values/rows per column for
+  re-quantization. codeAt(j, i) is the storage-aware accessor used by
+  tree descent, restore validation, and view gathering. The bitmap
+  build scatters, so sorted rows are not assumed by the engine - but
+  the bridge validates rows strictly increasing, unique, and in range
+  ("malformed sparse predictor matrix") because the engine trusts its
+  input beyond that.
+- Cut construction: fillCutsUniformlyCsc folds an implicit zero into
+  the min/max seed; quantileGridForCscColumn collects stored non-NA
+  values plus one zero when implicit zeros exist. Both reproduce the
+  dense builders bitwise (component-tested under both cut modes), so
+  an all-densified dgCMatrix fit draws bitwise-identically to the
+  dense-matrix fit of the same values - that is the equivalence-style
+  component test (testSparseEndToEnd part 1).
+- setState snapshots sparseColumns alongside codes for its rollback;
+  save/load works through getPointer() re-creation from the stored
+  dbartsData holding the dgCMatrix (the grouped/n.cuts precedent),
+  with the bridge's view refusal split so setState/setCutPoints stay
+  open on CSC-built samplers (refuseViewSamplerOnly) while the raw-x
+  surface refuses with "sparse predictors fix the design at creation".
+- R surface: dbartsData's x slot widened to ANY with validity checking
+  matrix-or-dgCMatrix (a slot union cannot name a Suggests class at
+  load); the sigma estimate falls back to sd(y - offset); bart pins
+  missing = "error" so NA-bearing sparse fits go through bart2/dbarts.
+  Matrix sits in Suggests; the bridge reads the i/p/x slots via
+  Rf_getAttrib without touching the Matrix namespace.
+- xbart/data-handle: bartcore_createDataHandle builds the parent store
+  from CSC and fold views densify through codeAt - no other change.
+- Component tests: testSparseKernel (dense-reference partition at
+  boundary cuts), testSparseColumnStore (bitwise cuts/codes vs the
+  dense builder, tier split, view densification), testSparseEndToEnd
+  (densified-tier bitwise match; rank-tier signal recovery with MIA,
+  sigma 0.295 vs truth 0.3), testSparseStateRoundTrip (bitwise
+  continuation, 2 chains). tinytest test-data-sparse.R (21 asserts)
+  covers ingestion, fits, MIA, refusals, save/load, xbart.
+- Gates: tests/cpp 37 tests green; tinytest 2285 across 63 files, 0
+  failures; equivalence identical draws on all nine scenarios (dense
+  paths are layout-refactored only); speed at baseline; R CMD check
+  --as-cran Status OK.
+
+Still open, by design: in-place nonzero-value mutation and pattern
+rebuilds (needs a consumer), sparse x.test, rbart_vi and linear-leaf
+support, per-column u8 code widths, a streaming range kernel for
+root-sized segments, and any public exposure of the density threshold.
+
 ## Status
 
-Prototype complete; landing plan above committed before implementation.
-Landing waits on nothing external.
+LANDED 2026-07-04 (plan and landing notes above).

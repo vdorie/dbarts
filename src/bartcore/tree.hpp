@@ -500,6 +500,33 @@ public:
     return lo;
   }
 
+  /// partitionIndicesMIA over rank-bitmap storage: the sparse sibling of
+  /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
+  /// sparse columns).
+  static size_t partitionIndicesSparseMIA(const SparseColumnData& column,
+                                          const Rule& rule, size_t* indices,
+                                          size_t length) {
+    int32_t splitIndex = rule.splitIndex();
+    bool missingGoesRight = rule.missingGoesRight();
+    auto goesRight = [&](size_t i) {
+      xint_t code = column.at(i);
+      return code == naCode ? missingGoesRight
+                            : static_cast<int32_t>(code) > splitIndex;
+    };
+    size_t lo = 0, hi = length;
+    while (true) {
+      while (lo < hi && !goesRight(indices[lo])) ++lo;
+      while (lo < hi && goesRight(indices[hi - 1])) --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
   /// Two-pointer ordinal partition aware of the reserved missing code:
   /// codes at or below the split go left, missing codes go by the rule's
   /// direction. The scalar fallback for columns containing NAs.
@@ -533,10 +560,10 @@ public:
 
     size_t numOnLeft = 0;
     if (node.numObservations() > 0) {
-      const xint_t* column = data.column(static_cast<size_t>(node.rule.variableIndex));
-      if (data.types[static_cast<size_t>(node.rule.variableIndex)] ==
-          ColumnType::categorical) {
-        if (data.columnIsPooled(static_cast<size_t>(node.rule.variableIndex))) {
+      size_t variable = static_cast<size_t>(node.rule.variableIndex);
+      if (data.types[variable] == ColumnType::categorical) {
+        const xint_t* column = data.column(variable);
+        if (data.columnIsPooled(variable)) {
           numOnLeft = partitionIndicesByWideMask(column,
                                                  maskWordsFor(node.rule),
                                                  indices + node.begin,
@@ -547,9 +574,25 @@ public:
                                              indices + node.begin,
                                              node.numObservations());
         }
+      } else if (data.columnIsSparse(variable)) {
+        // in-place partition at the root too: misc_partitionRange assumes
+        // identity index content, which only the dense path maintains
+        const SparseColumnData& column = data.sparseColumn(variable);
+        if (data.hasMissing[variable]) {
+          numOnLeft = partitionIndicesSparseMIA(column, node.rule,
+                                                indices + node.begin,
+                                                node.numObservations());
+        } else {
+          numOnLeft = misc_partitionIndicesSparse(
+            column.bits.data(), column.wordRanks.data(),
+            column.nzCodes.data(), column.zeroCode,
+            static_cast<misc_xint_t>(node.rule.splitIndex()),
+            indices + node.begin, node.numObservations());
+        }
       } else {
+        const xint_t* column = data.column(variable);
         bool isRoot = node.parent == invalidNode;
-        if (data.hasMissing[static_cast<size_t>(node.rule.variableIndex)]) {
+        if (data.hasMissing[variable]) {
           numOnLeft = partitionIndicesMIA(column, node.rule,
                                           indices + node.begin,
                                           node.numObservations());
@@ -578,15 +621,16 @@ public:
     Node& node(at(nodeIndex));
     if (node.isBottom()) return true;
 
-    const xint_t* column =
-      data.column(static_cast<size_t>(node.rule.variableIndex));
+    size_t variable = static_cast<size_t>(node.rule.variableIndex);
     size_t numOnLeft = 0;
     while (numOnLeft < node.numObservations() &&
            !ruleSendsRight(data, node.rule,
-                           column[indices[node.begin + numOnLeft]]))
+                           data.codeAt(variable,
+                                       indices[node.begin + numOnLeft])))
       ++numOnLeft;
     for (size_t k = numOnLeft; k < node.numObservations(); ++k)
-      if (!ruleSendsRight(data, node.rule, column[indices[node.begin + k]]))
+      if (!ruleSendsRight(data, node.rule,
+                          data.codeAt(variable, indices[node.begin + k])))
         return false;
 
     Node& left(at(node.leftChild));
@@ -725,7 +769,7 @@ public:
       const Rule& rule(at(current).rule);
       xint_t code = rule.variableIndex == overrideVariable
         ? overrideCode
-        : data.column(static_cast<size_t>(rule.variableIndex))[i];
+        : data.codeAt(static_cast<size_t>(rule.variableIndex), i);
       current = ruleSendsRight(data, rule, code) ? at(current).leftChild + 1
                                                  : at(current).leftChild;
     }

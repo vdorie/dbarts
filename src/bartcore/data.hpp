@@ -2,6 +2,7 @@
 #define BARTCORE_DATA_HPP
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -12,8 +13,9 @@ namespace bartcore {
 
 using std::size_t;
 
-/// Predictor code type; per-column widths are planned (see
-/// docs/design/core-generalization.md), uint16_t matches the classic engine.
+/// Predictor code type; per-column widths (u8 hot layers) remain planned
+/// (see docs/design/core-generalization.md), uint16_t matches the classic
+/// engine.
 using xint_t = std::uint16_t;
 
 /// Reserved code for a missing ordinal value; cut counts cap below it so
@@ -82,6 +84,37 @@ enum class ColumnType : std::uint8_t { ordinal, categorical };
 
 constexpr std::uint32_t maxCategories = 0xFFFFu;
 
+/// CSC-built columns at or below this nonzero fraction take rank-bitmap
+/// storage; denser ones densify their codes (docs/design/sparse-columns.md).
+constexpr double sparseDensityThreshold = 0.2;
+
+/// Rank-bitmap hot storage of a sparse ordinal column: code(i) is zeroCode
+/// when bit i is clear, otherwise the packed nonzero code at rank(i), an
+/// O(1) word rank plus masked popcount. The pattern (bits, wordRanks) is
+/// fixed at build; re-quantization rewrites nzCodes and zeroCode only.
+struct SparseColumnData {
+  std::vector<std::uint64_t> bits;       // ceil(n / 64) words
+  std::vector<std::uint32_t> wordRanks;  // nonzeros before each word
+  std::vector<xint_t> nzCodes;           // ascending-row order
+  xint_t zeroCode = 0;
+
+  xint_t at(size_t i) const {
+    std::uint64_t word = bits[i >> 6];
+    std::uint64_t bit = std::uint64_t{1} << (i & 63u);
+    if ((word & bit) == 0) return zeroCode;
+    return nzCodes[wordRanks[i >> 6] +
+                   static_cast<size_t>(std::popcount(word & (bit - 1u)))];
+  }
+};
+
+/// A CSC column's borrowed slices, kept for re-quantization; rows within a
+/// column are unique and in range (the host validates before building).
+struct CscColumnSlice {
+  const double* values = nullptr;
+  const int* rows = nullptr;
+  size_t numNonzero = 0;
+};
+
 /// The widest category count whose full direction mask a double represents
 /// exactly; the flattened format's value-encoding boundary.
 constexpr std::uint32_t maxValueEncodableCategories = 53;
@@ -100,7 +133,18 @@ struct ColumnStore {
   bool useQuantiles = false;
 
   std::vector<ColumnType> types;
-  std::vector<xint_t> codes;  // column-major, numObservations x numPredictors
+  // packed dense codes; per-column starts in codeOffsets (j * numObservations
+  // for dense-matrix builds, packed among densified columns for CSC builds,
+  // unused for rank-stored columns)
+  std::vector<xint_t> codes;
+  std::vector<size_t> codeOffsets;
+  // per column, the rank-storage slot in sparseColumns or -1 for dense
+  std::vector<std::int32_t> sparseSlot;
+  std::vector<SparseColumnData> sparseColumns;
+  // borrowed CSC slices per column when builtFromCsc, for re-quantization
+  std::vector<CscColumnSlice> cscSlices;
+  bool builtFromCsc = false;
+  bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
   std::vector<std::uint32_t> maxNumCuts;  // cap on quantile-induced counts
@@ -215,12 +259,7 @@ struct ColumnStore {
     size_t step = 1, offset = 0;
   };
 
-  QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
-    QuantileGrid grid;
-    grid.sortedUnique.reserve(numObservations);
-    // NaN would break the sort's ordering; the grid is over observed values
-    for (size_t i = 0; i < numObservations; ++i)
-      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i]);
+  void finishQuantileGrid(QuantileGrid& grid, size_t j) const {
     std::sort(grid.sortedUnique.begin(), grid.sortedUnique.end());
     grid.sortedUnique.erase(
       std::unique(grid.sortedUnique.begin(), grid.sortedUnique.end()),
@@ -236,6 +275,29 @@ struct ColumnStore {
       grid.step = numUnique / grid.inducedNumCuts;
       grid.offset = grid.step / 2;
     }
+  }
+
+  QuantileGrid quantileGridForColumn(size_t j, const double* values) const {
+    QuantileGrid grid;
+    grid.sortedUnique.reserve(numObservations);
+    // NaN would break the sort's ordering; the grid is over observed values
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!isNA(values[i])) grid.sortedUnique.push_back(values[i]);
+    finishQuantileGrid(grid, j);
+    return grid;
+  }
+
+  /// The quantile grid of a CSC column's logical values: the observed stored
+  /// entries plus a single zero when implicit zeros exist, the same value
+  /// set the dense collector sees, so the induced grid is identical.
+  QuantileGrid quantileGridForCscColumn(size_t j) const {
+    const CscColumnSlice& slice = cscSlices[j];
+    QuantileGrid grid;
+    grid.sortedUnique.reserve(slice.numNonzero + 1);
+    if (slice.numNonzero < numObservations) grid.sortedUnique.push_back(0.0);
+    for (size_t k = 0; k < slice.numNonzero; ++k)
+      if (!isNA(slice.values[k])) grid.sortedUnique.push_back(slice.values[k]);
+    finishQuantileGrid(grid, j);
     return grid;
   }
 
@@ -247,6 +309,13 @@ struct ColumnStore {
       cutPoints[j][k] =
         0.5 * (grid.sortedUnique[index] + grid.sortedUnique[index + 1]);
     }
+  }
+
+  void fillCutsOverRange(size_t j, double xMin, double xMax) {
+    cutPoints[j].resize(numCuts[j]);
+    double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
+    for (std::uint32_t k = 0; k < numCuts[j]; ++k)
+      cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
   }
 
   void fillCutsUniformly(size_t j) {
@@ -263,14 +332,32 @@ struct ColumnStore {
         if (column[i] > xMax) xMax = column[i];
       }
     }
-    cutPoints[j].resize(numCuts[j]);
-    double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
-    for (std::uint32_t k = 0; k < numCuts[j]; ++k)
-      cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
+    fillCutsOverRange(j, xMin, xMax);
+  }
+
+  /// The dense range scan over a CSC column's logical values: implicit
+  /// zeros seed the range at 0, observed stored entries fold in.
+  void fillCutsUniformlyCsc(size_t j) {
+    const CscColumnSlice& slice = cscSlices[j];
+    double xMin = 0.0, xMax = 0.0;
+    size_t k = 0;
+    if (slice.numNonzero == numObservations) {  // no implicit zeros
+      while (k < slice.numNonzero && isNA(slice.values[k])) ++k;
+      if (k < slice.numNonzero) {
+        xMin = xMax = slice.values[k];
+        ++k;
+      }
+    }
+    for (; k < slice.numNonzero; ++k) {
+      if (slice.values[k] < xMin) xMin = slice.values[k];
+      if (slice.values[k] > xMax) xMax = slice.values[k];
+    }
+    fillCutsOverRange(j, xMin, xMax);
   }
 
   /// Initial cut construction; sets numCuts[j]. A categorical column takes
   /// its (fixed) category count from its largest value and keeps no cuts.
+  /// CSC columns are always ordinal.
   void buildCutsForColumn(size_t j) {
     if (types[j] == ColumnType::categorical) {
       const double* column = x + j * numObservations;
@@ -281,12 +368,15 @@ struct ColumnStore {
         ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
       cutPoints[j].clear();
     } else if (useQuantiles) {
-      QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
+      QuantileGrid grid = builtFromCsc
+        ? quantileGridForCscColumn(j)
+        : quantileGridForColumn(j, x + j * numObservations);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
       numCuts[j] = maxNumCuts[j];
-      fillCutsUniformly(j);
+      if (builtFromCsc) fillCutsUniformlyCsc(j);
+      else fillCutsUniformly(j);
     }
   }
 
@@ -333,12 +423,48 @@ struct ColumnStore {
   }
 
   void quantizeColumn(size_t j) {
+    if (builtFromCsc) {
+      quantizeCscColumn(j);
+      return;
+    }
     const double* column = x + j * numObservations;
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numObservations; ++i) {
       xint_t code = codeFor(j, column[i]);
       if (isNA(column[i])) anyMissing = 1;
-      codes[i + j * numObservations] = code;
+      codes[codeOffsets[j] + i] = code;
+    }
+    hasMissing[j] = anyMissing;
+  }
+
+  /// Quantize a CSC column against its current cuts: rank columns rewrite
+  /// their packed codes and zero code in place (the pattern is fixed),
+  /// densified ones fill with the zero code and scatter the stored entries.
+  /// Missing values are stored NaN entries and take the reserved code.
+  void quantizeCscColumn(size_t j) {
+    const CscColumnSlice& slice = cscSlices[j];
+    xint_t zeroCode = codeFor(j, 0.0);
+    std::uint8_t anyMissing = 0;
+    if (columnIsSparse(j)) {
+      SparseColumnData& sparse =
+        sparseColumns[static_cast<size_t>(sparseSlot[j])];
+      sparse.zeroCode = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k) {
+        size_t i = static_cast<size_t>(slice.rows[k]);
+        std::uint64_t word = sparse.bits[i >> 6];
+        size_t rank = sparse.wordRanks[i >> 6] +
+          static_cast<size_t>(std::popcount(
+            word & ((std::uint64_t{1} << (i & 63u)) - 1u)));
+        sparse.nzCodes[rank] = codeFor(j, slice.values[k]);
+        if (isNA(slice.values[k])) anyMissing = 1;
+      }
+    } else {
+      xint_t* column = codes.data() + codeOffsets[j];
+      for (size_t i = 0; i < numObservations; ++i) column[i] = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k) {
+        column[slice.rows[k]] = codeFor(j, slice.values[k]);
+        if (isNA(slice.values[k])) anyMissing = 1;
+      }
     }
     hasMissing[j] = anyMissing;
   }
@@ -371,6 +497,13 @@ struct ColumnStore {
       if (maxNumCuts[j] > maxNumCutsRepresentable)
         maxNumCuts[j] = maxNumCutsRepresentable;
     codes.resize(n * p);
+    codeOffsets.resize(p);
+    for (size_t j = 0; j < p; ++j) codeOffsets[j] = j * n;
+    sparseSlot.assign(p, -1);
+    sparseColumns.clear();
+    cscSlices.clear();
+    builtFromCsc = false;
+    hasSparse = false;
     hasMissing.assign(p, 0);
     gatheredRawColumns.clear();
     gatheredRawValues.clear();
@@ -383,6 +516,92 @@ struct ColumnStore {
       quantizeColumn(j);
     }
     refreshCategoricalTiers();
+  }
+
+  /// Build from a CSC (dgCMatrix-layout) predictor matrix: all columns
+  /// ordinal, no raw dense matrix (x stays null). Columns at or below
+  /// sparseDensityThreshold nonzero fraction take rank-bitmap storage, the
+  /// rest densify their codes; either way the borrowed slices serve
+  /// re-quantization. The host has validated the structure (row indices
+  /// unique and in range per column).
+  void buildFromCsc(const int* columnPointers, const int* rowIndices,
+                    const double* values, size_t n, size_t p,
+                    const std::uint32_t* maxNumCutsPerColumn,
+                    std::uint32_t maxNumCutsScalar, bool useQuantiles_) {
+    x = nullptr;
+    numObservations = n;
+    numPredictors = p;
+    useQuantiles = useQuantiles_;
+    builtFromCsc = true;
+    types.assign(p, ColumnType::ordinal);
+    cutPoints.resize(p);
+    numCuts.resize(p);
+    if (maxNumCutsPerColumn != nullptr) {
+      maxNumCuts.assign(maxNumCutsPerColumn, maxNumCutsPerColumn + p);
+    } else {
+      maxNumCuts.assign(p, maxNumCutsScalar);
+    }
+    for (size_t j = 0; j < p; ++j)
+      if (maxNumCuts[j] > maxNumCutsRepresentable)
+        maxNumCuts[j] = maxNumCutsRepresentable;
+    hasMissing.assign(p, 0);
+    gatheredRawColumns.clear();
+    gatheredRawValues.clear();
+    gatheredRawTestValues.clear();
+    gatheredMeans.clear();
+    gatheredSds.clear();
+
+    cscSlices.resize(p);
+    sparseSlot.assign(p, -1);
+    sparseColumns.clear();
+    codeOffsets.assign(p, 0);
+    size_t numDenseCodes = 0;
+    for (size_t j = 0; j < p; ++j) {
+      size_t begin = static_cast<size_t>(columnPointers[j]);
+      size_t end = static_cast<size_t>(columnPointers[j + 1]);
+      cscSlices[j] = { values + begin, rowIndices + begin, end - begin };
+      bool sparse = static_cast<double>(end - begin) <=
+        sparseDensityThreshold * static_cast<double>(n);
+      if (sparse) {
+        sparseSlot[j] = static_cast<std::int32_t>(sparseColumns.size());
+        sparseColumns.emplace_back();
+      } else {
+        codeOffsets[j] = numDenseCodes;
+        numDenseCodes += n;
+      }
+    }
+    codes.resize(numDenseCodes);
+    hasSparse = !sparseColumns.empty();
+
+    size_t numWords = (n + 63) / 64;
+    for (size_t j = 0; j < p; ++j) {
+      if (columnIsSparse(j)) {
+        SparseColumnData& sparse =
+          sparseColumns[static_cast<size_t>(sparseSlot[j])];
+        const CscColumnSlice& slice = cscSlices[j];
+        sparse.bits.assign(numWords, 0);
+        sparse.wordRanks.assign(numWords, 0);
+        sparse.nzCodes.assign(slice.numNonzero, 0);
+        for (size_t k = 0; k < slice.numNonzero; ++k) {
+          size_t i = static_cast<size_t>(slice.rows[k]);
+          sparse.bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
+        }
+        std::uint32_t runningRank = 0;
+        for (size_t w = 0; w < numWords; ++w) {
+          sparse.wordRanks[w] = runningRank;
+          runningRank +=
+            static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
+        }
+      }
+      buildCutsForColumn(j);
+      quantizeColumn(j);
+    }
+    refreshCategoricalTiers();
+
+    numTestObservations = 0;
+    x_test = nullptr;
+    testCodes.clear();
+    testOffset = nullptr;
   }
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
@@ -422,7 +641,16 @@ struct ColumnStore {
     cutPoints = parent.cutPoints;
     numCuts = parent.numCuts;
     maxNumCuts = parent.maxNumCuts;
+    // views densify: gathered codes are fully dense whatever the parent's
+    // per-column storage (docs/design/sparse-columns.md)
     codes.resize(numRows * numPredictors);
+    codeOffsets.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * numRows;
+    sparseSlot.assign(numPredictors, -1);
+    sparseColumns.clear();
+    cscSlices.clear();
+    builtFromCsc = false;
+    hasSparse = false;
     hasMissing.assign(numPredictors, 0);
     refreshCategoricalTiers();
 
@@ -453,13 +681,11 @@ struct ColumnStore {
       }
     }
     for (size_t j = 0; j < numPredictors; ++j) {
-      const xint_t* parentColumn =
-        parent.codes.data() + j * parent.numObservations;
       xint_t missingCode = types[j] == ColumnType::categorical
         ? missingCategoryCode(numCuts[j]) : naCode;
       xint_t* column = codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
-        column[i] = parentColumn[rows[i]];
+        column[i] = parent.codeAt(j, rows[i]);
         if (column[i] == missingCode) hasMissing[j] = 1;
       }
     }
@@ -468,8 +694,7 @@ struct ColumnStore {
     testCodes.resize(numTestRows * numPredictors);
     for (size_t i = 0; i < numTestRows; ++i)
       for (size_t j = 0; j < numPredictors; ++j)
-        testCodes[i * numPredictors + j] =
-          parent.codes[testRows[i] + j * parent.numObservations];
+        testCodes[i * numPredictors + j] = parent.codeAt(j, testRows[i]);
     testOffset = nullptr;
   }
 
@@ -508,7 +733,7 @@ struct ColumnStore {
   /// partition handles columns without missing values too).
   void setCell(size_t i, size_t j, double value) {
     const_cast<double*>(x)[i + j * numObservations] = value;
-    codes[i + j * numObservations] = codeFor(j, value);
+    codes[codeOffsets[j] + i] = codeFor(j, value);
     if (isNA(value)) hasMissing[j] = 1;
   }
 
@@ -521,6 +746,7 @@ struct ColumnStore {
     x = x_;
     numObservations = n;
     codes.resize(n * numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * n;
     for (size_t j = 0; j < numPredictors; ++j) {
       if (types[j] != ColumnType::categorical) buildCutsForColumn(j);
       quantizeColumn(j);
@@ -534,11 +760,24 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
+  /// Dense-stored columns only; rank columns have no contiguous codes.
   const xint_t* column(size_t variable) const {
-    return codes.data() + variable * numObservations;
+    return codes.data() + codeOffsets[variable];
   }
   const xint_t* testRow(size_t testObservation) const {
     return testCodes.data() + testObservation * numPredictors;
+  }
+
+  bool columnIsSparse(size_t variable) const {
+    return sparseSlot[variable] >= 0;
+  }
+  const SparseColumnData& sparseColumn(size_t variable) const {
+    return sparseColumns[static_cast<size_t>(sparseSlot[variable])];
+  }
+  /// Storage-aware single-code access (tree descent, restore validation).
+  xint_t codeAt(size_t variable, size_t i) const {
+    return columnIsSparse(variable) ? sparseColumn(variable).at(i)
+                                    : codes[codeOffsets[variable] + i];
   }
 };
 

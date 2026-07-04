@@ -29,6 +29,11 @@ bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
 
 bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
                                         updateCutPoints) {
+  # guard before data@x is swapped: the C entry point refuses too, but the
+  # R5 object must not be left holding a half-installed dense matrix
+  if (!is.matrix(sampler$data@x))
+    stop("sparse predictors fix the design at creation; make a new sampler instead")
+
   partialUpdate <- !is.null(forceUpdate) &&
     is.character(forceUpdate) &&
     length(forceUpdate) == 1L &&

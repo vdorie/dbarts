@@ -4,6 +4,20 @@
 \section{CHANGES IN VERSION 1.0-0}{
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Sparse predictor matrices: the x/y interfaces of
+            \code{dbarts}, \code{dbartsData}, \code{bart}, \code{bart2},
+            and \code{xbart} accept a \code{Matrix::dgCMatrix}. Columns
+            are ordinal only; per column, the engine stores codes in a
+            rank-bitmap layout when at most 20 percent of rows are
+            nonzero (roughly a tenth of dense memory at real sparsity)
+            and densifies otherwise, so the sparse object is never
+            expanded. Missing values enter as stored \code{NA} entries.
+            Test matrices stay dense, and the predictor-mutation surface
+            (\code{setPredictor} and relatives, \code{setData}) is fixed
+            at creation - make a new sampler instead; state
+            serialization and \code{predict} work as usual.
+            \code{rbart_vi} and \code{node.prior = linear()} do not yet
+            support sparse inputs.
       \item Categorical predictors support up to 65535 levels, up from
             53: rules on wider factors pool their direction masks per
             tree. In `getTrees` such a rule's `value` is `NA` (its mask

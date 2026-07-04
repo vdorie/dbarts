@@ -214,6 +214,12 @@ makeCategoricalModelMatrix <- function(x) {
 ## variance prior.
 estimateSigmaFromLinearModel <- function(data) {
   x <- data@x
+  # a sparse design would densify under lm and is typically wide anyway;
+  # the marginal estimate still anchors the residual variance prior
+  if (!is.matrix(x)) {
+    residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+    return(sd(residual))
+  }
   if (anyNA(x)) {
     for (j in seq_len(ncol(x))) {
       column <- x[, j]
