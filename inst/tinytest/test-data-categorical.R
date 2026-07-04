@@ -34,10 +34,12 @@ data.ind <- dbartsData(y ~ g + o + z + b + s, df, factors = "indicators")
 expect_true(ncol(data.ind@x) > 5L)
 expect_true(all(data.ind@varTypes == 0L))
 
-# unordered factors cap at 53 levels; ordered factors are ordinal and do not
+# unordered factors cap at the code type's limit (see
+# test-data-categorical-wide.R for levels past 53); ordered factors are
+# ordinal and never cap
 df.wide <- data.frame(f = factor(paste0("l", seq_len(54L))), y = rnorm(54L))
-expect_error(dbartsData(y ~ f, df.wide, factors = "categorical"),
-             pattern = "more than 53 levels")
+expect_inherits(dbartsData(y ~ f, df.wide, factors = "categorical"),
+                "dbartsData")
 df.wide$f <- as.ordered(df.wide$f)
 expect_inherits(dbartsData(y ~ f, df.wide, factors = "categorical"),
                 "dbartsData")

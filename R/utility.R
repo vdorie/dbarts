@@ -173,8 +173,8 @@ makeCategoricalModelMatrix <- function(x) {
     column <- x[[j]]
     name <- names(x)[j]
     if (is.factor(column)) {
-      if (!is.ordered(column) && nlevels(column) > 53L)
-        stop("factor '", name, "' has more than 53 levels, the most a ",
+      if (!is.ordered(column) && nlevels(column) > 65535L)
+        stop("factor '", name, "' has more than 65535 levels, the most a ",
              "categorical predictor supports")
       columns[[j]] <- matrix(as.double(as.integer(column) - 1L), ncol = 1L)
       columnTypes[[j]] <- if (is.ordered(column)) ORDINAL_VARIABLE else CATEGORICAL_VARIABLE

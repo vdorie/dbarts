@@ -1,7 +1,11 @@
 ## Decode the categorical direction masks in a getTrees data.frame into
 ## per-level direction strings: character k of a rule's string sends the
 ## variable's k'th level down the "L"eft or "R"ight child (bit k - 1 of the
-## mask set sends it right). Ordinal rules and leaves decode to NA.
+## mask set sends it right). Ordinal rules and leaves decode to NA. Rules on
+## columns of more than 53 levels arrive already decoded from C (their masks
+## are not double-exact, so value is NA) over the observed categories; those
+## strings are right-padded with "L" to the declared level count, exactly
+## what unobserved trailing levels decode to under the canonical gauge.
 decodeCategoricalSplits <- function(trees, x, varTypes)
 {
   factorLevels <- attr(x, "factor.levels")
@@ -13,14 +17,22 @@ decodeCategoricalSplits <- function(trees, x, varTypes)
       as.integer(max(x[, j])) + 1L # hand-typed matrix: the levels are the codes
   }
 
-  directions <- rep.int(NA_character_, nrow(trees))
+  directions <- if (!is.null(trees$directions)) trees$directions
+                else rep.int(NA_character_, nrow(trees))
   isCategoricalRule <- trees$var > 0L
   isCategoricalRule[isCategoricalRule] <-
     varTypes[trees$var[isCategoricalRule]] == CATEGORICAL_VARIABLE
   for (i in which(isCategoricalRule)) {
-    goesRight <-
-      (trees$value[i] %/% 2^(seq_len(numLevels[trees$var[i]]) - 1L)) %% 2
-    directions[i] <- paste(c("L", "R")[goesRight + 1], collapse = "")
+    if (!is.na(directions[i])) {
+      padding <- numLevels[trees$var[i]] - nchar(directions[i])
+      if (padding > 0L)
+        directions[i] <- paste0(directions[i],
+                                paste(rep.int("L", padding), collapse = ""))
+    } else {
+      goesRight <-
+        (trees$value[i] %/% 2^(seq_len(numLevels[trees$var[i]]) - 1L)) %% 2
+      directions[i] <- paste(c("L", "R")[goesRight + 1], collapse = "")
+    }
   }
   trees$directions <- directions
   trees

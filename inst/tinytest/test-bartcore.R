@@ -445,9 +445,9 @@ data.cat2@x[1L, 1L] <- 11
 expect_error(dbarts:::bartcoreSetData(bcSampler.cat, data.cat2),
              pattern = "existing category codes")
 
-# categories are capped at 53, the widest direction mask the double-valued
-# flat tree format represents exactly; codes past 31 exercise the high mask
-# bits
+# categories are capped at the code type's limit (65535); codes past 31
+# exercise the high bits of the inline direction masks, and codes past 53
+# the pooled tier (see test-data-categorical-wide.R)
 n.wide <- 424L
 x.wide <- matrix(as.double(rep(0:52, length.out = n.wide)), n.wide)
 y.wide <- ifelse(x.wide[, 1L] >= 27, 2, 0) + rnorm(n.wide, 0, 0.3)
@@ -459,11 +459,11 @@ group.means <- tapply(rowMeans(result.wide$train), x.wide[, 1L] >= 27, mean)
 expect_true(abs(group.means[[1L]]) < 0.3 && abs(group.means[[2L]] - 2) < 0.3)
 
 x.over <- x.wide
-x.over[1L, 1L] <- 53
+x.over[1L, 1L] <- 65535
 sampler.over.host <- dbarts(x.over, y.wide, control = control)
 sampler.over.host$data@varTypes[1L] <- 1L
 expect_error(dbarts:::bartcoreSampler(sampler.over.host),
-             pattern = "codes in \\[0, 53\\)")
+             pattern = "codes in \\[0, 65535\\)")
 
 # keepTrees through the flag: predictions from the saved trees reproduce the
 # run's recorded test fits exactly

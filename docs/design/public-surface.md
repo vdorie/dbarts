@@ -395,10 +395,11 @@ classic engine.
 
 ## 7. Deferred, with their blockers
 
-- Pooled category masks (K > 53): needs a flat-format extension (masks no
-  longer fit a double exactly) and the section-2 reporting decision; state
-  objects are opaque and engine-specific, so serialization is free to
-  change.
+- Pooled category masks (K > 53): LANDED 2026-07-04 (design and landing
+  notes in pooled-masks.md; the cap is now 65535, masks up to 63
+  categories stay inline in the rule word, wider ones pool per tree, and
+  the flattened format's masks past 53 categories ride a side channel
+  with getTrees reporting value = NA plus the usual directions decode).
 - Sparse columns: kernel design plus an ingestion story; prototype after the
   handle exists.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
