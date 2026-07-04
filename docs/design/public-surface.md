@@ -135,10 +135,19 @@ high union word is invariantly zero. The flat tree format may grow a
 flags field when MIA lands; state objects are opaque, so that is not a
 compatibility break.
 
-Open: reporting format for categorical rules in `getTrees`/`plotTree`. The
-flat format stores the direction mask as a double; proposal is to keep the
-raw mask in the `value` column and add a decoded convenience (per-level
-direction characters, using stored level names) at the R level.
+Landed (2026-07-04): reporting format for categorical rules in
+`getTrees`/`plotTree`. The flat format stores the direction mask as a
+double and `getTrees` keeps the raw mask in the `value` column; when the
+sampler has any categorical predictors the data.frame gains a `directions`
+column decoding each categorical rule into one "L"/"R" character per level
+in level order (bit set sends the level right, matching the engine), with
+ordinal rules and leaves NA. `plotTree` labels a categorical rule with the
+level names sent down the left branch ("g in {blue,red}"), reading as the
+left-branch condition like the ordinal "<=". The decode lives R-side
+(`decodeCategoricalSplits`); the bare `bartcoreGetTrees` helper stays raw.
+This is the reporting decision pooled masks (section 7) waited on: a
+wider-than-double mask changes only the flat format and the R decode,
+not the reported vocabulary.
 
 ## 3. Response families
 

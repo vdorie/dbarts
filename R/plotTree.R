@@ -1,3 +1,31 @@
+## Decode the categorical direction masks in a getTrees data.frame into
+## per-level direction strings: character k of a rule's string sends the
+## variable's k'th level down the "L"eft or "R"ight child (bit k - 1 of the
+## mask set sends it right). Ordinal rules and leaves decode to NA.
+decodeCategoricalSplits <- function(trees, x, varTypes)
+{
+  factorLevels <- attr(x, "factor.levels")
+  numLevels <- integer(ncol(x))
+  for (j in which(varTypes == CATEGORICAL_VARIABLE)) {
+    numLevels[j] <- if (!is.null(factorLevels) && !is.null(factorLevels[[j]]))
+      length(factorLevels[[j]])
+    else
+      as.integer(max(x[, j])) + 1L # hand-typed matrix: the levels are the codes
+  }
+
+  directions <- rep.int(NA_character_, nrow(trees))
+  isCategoricalRule <- trees$var > 0L
+  isCategoricalRule[isCategoricalRule] <-
+    varTypes[trees$var[isCategoricalRule]] == CATEGORICAL_VARIABLE
+  for (i in which(isCategoricalRule)) {
+    goesRight <-
+      (trees$value[i] %/% 2^(seq_len(numLevels[trees$var[i]]) - 1L)) %% 2
+    directions[i] <- paste(c("L", "R")[goesRight + 1], collapse = "")
+  }
+  trees$directions <- directions
+  trees
+}
+
 getTreeDepthAndSize <- function(node)
 {
   if (node$var[1L] == -1) return(c(depth = 1, size = 1))
@@ -47,14 +75,38 @@ plotNode <- function(node, sampler, plotPars)
   nodeGap    <- plotPars[["nodeGap"]]
   compress <- FALSE
   if (node$var[1L] != -1) {
-    expr1 <- expression(a <= b)
-    if (!is.null(colnames(sampler$data@x))) {
-      expr1[[1]][[2]] <- colnames(sampler$data@x)[node$var[1L]]
+    directions <- if (!is.null(node$directions)) node$directions[1L]
+                  else NA_character_
+    varName <- if (!is.null(colnames(sampler$data@x)))
+      colnames(sampler$data@x)[node$var[1L]]
+    else
+      NULL
+    if (!is.na(directions)) {
+      # a categorical rule; like the ordinal '<=', the label states the
+      # condition for going left
+      factorLevels <- attr(sampler$data@x, "factor.levels")
+      levelNames <-
+        if (!is.null(factorLevels) && !is.null(factorLevels[[node$var[1L]]]))
+          factorLevels[[node$var[1L]]]
+        else
+          as.character(seq_len(nchar(directions)) - 1L)
+      expr1 <- paste0(
+        if (!is.null(varName)) varName else paste0("x[", node$var[1L], "]"),
+        " in {",
+        paste(levelNames[strsplit(directions, "")[[1L]] == "L"],
+              collapse = ","),
+        "}"
+      )
     } else {
-      expr1[[1]][[2]] <- quote(x[a])
-      expr1[[1]][[2]][[3]] <- node$var[1L]
+      expr1 <- expression(a <= b)
+      if (!is.null(varName)) {
+        expr1[[1]][[2]] <- varName
+      } else {
+        expr1[[1]][[2]] <- quote(x[a])
+        expr1[[1]][[2]][[3]] <- node$var[1L]
+      }
+      expr1[[1]][[3]] <- signif(node$value[1L], 3)
     }
-    expr1[[1]][[3]] <- signif(node$value[1L], 3)
   } else {
     expr1 <- expression(mu == b)
     expr1[[1]][[3]] <- signif(node$value[1L], 3)

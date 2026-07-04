@@ -73,3 +73,48 @@ expect_equal(dim(samples$test), c(20L, 300L))
 # a later data.frame through setTestPredictor recodes identically
 sampler$setTestPredictor(df.test)
 expect_equal(sampler$data@x.test[, "g"], data.cat2@x.test[, "g"])
+
+# getTrees keeps the raw direction mask in 'value' and decodes it in a
+# 'directions' column: one L/R per level in level order, bit k - 1 of the
+# mask set sending level k right; ordinal rules and leaves are NA
+control.keep <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
+                              n.samples = 5L, keepTrees = TRUE,
+                              updateState = FALSE)
+sampler.keep <- dbarts(y ~ g + o + z + b + s, df, control = control.keep,
+                       factors = "categorical")
+invisible(sampler.keep$run(50L, 5L))
+trees <- sampler.keep$getTrees()
+expect_true("directions" %in% names(trees))
+
+varTypes <- sampler.keep$data@varTypes
+isCategoricalRule <- trees$var > 0L & varTypes[pmax(trees$var, 1L)] == 1L
+expect_true(any(isCategoricalRule))
+expect_true(all(is.na(trees$directions[!isCategoricalRule])))
+expect_true(!anyNA(trees$directions[isCategoricalRule]))
+
+numLevels <- lengths(attr(sampler.keep$data@x, "factor.levels"))
+expect_equal(nchar(trees$directions[isCategoricalRule]),
+             unname(numLevels[trees$var[isCategoricalRule]]))
+maskFromDirections <- function(directions)
+  sum(2^(which(strsplit(directions, "")[[1L]] == "R") - 1L))
+expect_equal(sapply(trees$directions[isCategoricalRule], maskFromDirections,
+                    USE.NAMES = FALSE),
+             trees$value[isCategoricalRule])
+# masks put at least one level on each side
+expect_true(all(grepl("L", trees$directions[isCategoricalRule]) &
+                grepl("R", trees$directions[isCategoricalRule])))
+
+# the decode matches what the engine does: at a categorical root split the
+# left child's n counts the training observations whose level decodes to L
+categoricalRoots <- which(isCategoricalRule &
+                          !duplicated(trees[c("sample", "tree")]))
+for (i in categoricalRoots) {
+  goesLeft <- strsplit(trees$directions[i], "")[[1L]] == "L"
+  codes <- sampler.keep$data@x[, trees$var[i]]
+  expect_equal(trees$n[i + 1L], sum(goesLeft[codes + 1L]))
+}
+
+# plotTree labels categorical rules with the left-branch level set
+pdf(NULL)
+expect_silent(sampler.keep$plotTree(1L))
+dev.off()

@@ -94,6 +94,11 @@
             factor's levels (at most 53) down each branch; ordered factors
             are coded as ordinal. Level tables are retained so test data
             are coded identically, with unseen levels an error.
+      \item `getTrees` reports a categorical rule's raw direction mask in
+            `value` and, when the sampler has categorical predictors, adds
+            a `directions` column decoding each rule into one "L"/"R"
+            character per level. `plotTree` labels categorical rules with
+            the levels sent down the left branch.
       \item The bartcore engine implements the full `dbartsSampler`
             interface: every method works, including `keepTrees`,
             `getTrees`, `predict`, `plotTree`, `setWeights`, test offsets,
