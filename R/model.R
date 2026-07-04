@@ -8,6 +8,10 @@ setMethod("initialize", "dbartsModel",
       !is.null(tree.prior@splitProbabilitiesSpec))
     stop("tree prior split probabilities must be resolved against data; ",
          "pass the prior to a fitting function instead")
+  if (!missing(node.prior) && is(node.prior, "dbartsLinearPrior") &&
+      !is.integer(node.prior@columns))
+    stop("linear node prior columns must be resolved against data; ",
+         "pass the prior to a fitting function instead")
   if (!missing(tree.prior)) .Object@tree.prior  <- tree.prior
   if (!missing(node.prior)) .Object@node.prior  <- node.prior
   if (!missing(node.hyperprior)) .Object@node.hyperprior  <- node.hyperprior
@@ -78,9 +82,54 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   node.prior <- resolveSpec(matchedCall$node.prior)
   if (!is(node.prior, "dbartsNodePrior"))
     stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
+  if (is(node.prior, "dbartsLinearPrior"))
+    node.prior <- resolveLeafCovariates(node.prior, data)
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
 
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
+}
+
+## Turn a linear node prior's raw columns specification into 1-based model
+## matrix column indices: names match columns exactly, numbers pass through
+## as indices. Categorical columns are rejected - their codes are unordered,
+## so a linear term is meaningless; interact through splits instead. (Under
+## factors = "indicators" the dummy columns are ordinary numeric columns and
+## legal.)
+resolveLeafCovariates <- function(prior, data)
+{
+  columns <- prior@columns
+  if (is.null(columns) || length(columns) == 0L)
+    stop("linear node prior requires at least one covariate column")
+
+  columnNames <- colnames(data@x)
+  if (is.character(columns)) {
+    if (is.null(columnNames))
+      stop("cannot assign leaf covariates: model matrix has no column names")
+    columnIndices <- match(columns, columnNames)
+    if (anyNA(columnIndices))
+      stop("cannot assign leaf covariates: unrecognized column name(s) ",
+           paste0("'", columns[is.na(columnIndices)], "'", collapse = ", "))
+  } else if (is.numeric(columns)) {
+    columnIndices <- as.integer(columns)
+    if (anyNA(columnIndices) || any(columnIndices < 1L) ||
+        any(columnIndices > ncol(data@x)))
+      stop("cannot assign leaf covariates: column indices out of range")
+  } else {
+    stop("linear node prior 'columns' must be a character or numeric vector")
+  }
+  if (anyDuplicated(columnIndices) > 0L)
+    stop("cannot assign leaf covariates: duplicate columns")
+
+  if (any(data@varTypes[columnIndices] == CATEGORICAL_VARIABLE))
+    stop("leaf covariates must be continuous columns; interact with factors ",
+         "through splits instead")
+
+  # the engine's cap; blocks are solved on the stack
+  if (length(columnIndices) > 8L)
+    stop("at most 8 leaf covariates are supported")
+
+  prior@columns <- columnIndices
+  prior
 }
 
 ## Turn a cgm-family prior's raw split.probs specification into normalized
@@ -184,6 +233,16 @@ cgm <- function(power = 2, base = 0.95, split.probs = NULL)
   result
 }
 
+linear <- function(columns, k = NULL)
+{
+  if (missing(columns))
+    stop("linear node prior requires 'columns' naming the leaf covariates")
+  if (!is.character(columns) && !is.numeric(columns))
+    stop("linear node prior 'columns' must be a character or numeric vector")
+  normalPrior <- normal(k)  # reuses its k validation and coercions
+  new("dbartsLinearPrior", k = normalPrior@k, columns = columns)
+}
+
 normal <- function(k = NULL)
 {
   if (is.character(k)) {
@@ -244,6 +303,7 @@ dbartsPriors <- list(
   cgm    = cgm,
   dart   = dart,
   normal = normal,
+  linear = linear,
   chisq  = chisq,
   fixed  = fixed,
   chi    = chi

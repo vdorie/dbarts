@@ -118,8 +118,19 @@ plotNode <- function(node, sampler, plotPars)
       expr1 <- paste0(expr1, ", NA->", naRoute)
     }
   } else {
-    expr1 <- expression(mu == b)
-    expr1[[1]][[3]] <- signif(node$value[1L], 3)
+    slopeColumns <- startsWith(names(node), "beta.")
+    if (any(slopeColumns)) {
+      # a linear leaf: label with its fitted plane's coefficients
+      slopes <- unlist(node[1L, slopeColumns])
+      covariateNames <- sub("^beta\\.", "", names(node)[slopeColumns])
+      expr1 <- paste0(
+        signif(node$value[1L], 3),
+        paste0(ifelse(slopes < 0, " - ", " + "), signif(abs(slopes), 3),
+               " ", covariateNames, collapse = ""))
+    } else {
+      expr1 <- expression(mu == b)
+      expr1[[1]][[3]] <- signif(node$value[1L], 3)
+    }
   }
   expr2 <- expression(n == a)
   expr2[[1]][[3]] <- node$n[1L]

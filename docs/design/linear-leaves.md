@@ -7,8 +7,42 @@ regression, so a forest fits smoothly-varying coefficients
 of Bayesian Causal Forests when the leaf covariate is a treatment
 indicator).
 
-STAGES 1-3 LANDED 2026-07-04 (engine and formats; the R surface, bridge
-state slots, getTrees beta columns, and view support remain - stage 4).
+ALL FOUR STAGES LANDED 2026-07-04; xbart view support remains the one
+deliberate deferral. The four open decisions at the end of this doc were
+implemented per their recommendations (explicit column designation, slope
+sd = intercept sd, chi-k over all coordinates, beta.<name> reporting) -
+any can be revisited before release. Stage-4 (R surface) notes:
+
+- node.prior = linear(columns, k) on dbarts(): a dbartsLinearPrior
+  whose raw designation (names or indices) resolves against the model
+  matrix in parsePriors (resolveLeafCovariates: exact column names or
+  1-based indices, duplicates and factor columns rejected via
+  data@varTypes, at most 8). An unresolved designation cannot enter
+  dbartsModel directly, mirroring the split.probs guard. bart2 and
+  rbart_vi construct node.prior = normal(k) internally and do not
+  reach linear; xbart has no node.prior at all, and the data-handle
+  creation path refuses designations outright.
+- The bridge dispatches through bartcore::createSampler (both
+  instantiations now ship; speed compare stayed at-or-below baseline,
+  .so 442 -> 529KB total including the format code). parseModel reads
+  the resolved columns off the prior; setModel refuses a designation
+  change (the leaf model is a template instantiation, fixed at
+  creation).
+- State objects gain tree.params/saved.params slots (REALSXP, each
+  tree's slopes concatenated, pre-order by leaf; split by the (m+1)/2
+  leaf counts of tree.sizes). Linear-leaf states require them.
+- getTrees emits one slope column per covariate (NA on internal
+  nodes), generically named C-side and renamed beta.<column name> by
+  the R wrapper (open decision 4, implemented as recommended);
+  plotTree labels linear leaves "b0 + b1 name ...". printTrees prints
+  "b:" slope lists at leaves.
+- Gates: tinytest test-linear-leaves.R (17 asserts: designation
+  validation, slope recovery, saved-tree replay vs recorded test
+  fits, beta columns, bitwise state round trip through the R slots,
+  fixed-designation refusal, forced predictor mutation, probit
+  smoke); full suite 2209/60; equivalence identical draws; speed
+  clean; R CMD check --as-cran.
+
 Stage-3 deltas:
 
 - Each live tree persists its parameter blocks (Chain::paramsByTree_,

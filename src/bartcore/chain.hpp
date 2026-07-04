@@ -955,6 +955,7 @@ public:
   }
 
   ext_rng* rng() const { return rng_; }
+  const L& leaf() const { return leaf_; }
   /// On the original response scale, symmetric with setSigma.
   double sigma() const { return sigma_ * response_->sigmaScale(); }
   double k() const { return k_; }

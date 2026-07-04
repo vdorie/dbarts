@@ -654,6 +654,20 @@ public:
 
   ext_rng* rng() const { return chains_[0]->rng(); }
 
+  /// The linear-leaf covariate designation; 0/null for scalar leaf models.
+  size_t numLeafCovariates() const {
+    if constexpr (L::hasVectorParams)
+      return chains_[0]->leaf().numCovariates();
+    else
+      return 0;
+  }
+  const size_t* leafCovariateColumns() const {
+    if constexpr (L::hasVectorParams)
+      return chains_[0]->leaf().covariateColumns().data();
+    else
+      return nullptr;
+  }
+
   ResponseFamily family() const { return family_; }
   double sigma(size_t chainNum = 0) const { return chains_[chainNum]->sigma(); }
   double k(size_t chainNum = 0) const { return chains_[chainNum]->k(); }
