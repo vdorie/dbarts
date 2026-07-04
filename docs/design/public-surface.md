@@ -353,8 +353,24 @@ DECIDED, v1 surface of `inst/include/dbarts/dbarts.h`:
 - The C++ headers ship for `LinkingTo` use without ABI promises (header-only,
   recompiled per consumer), documented as unstable.
 
-Open: whether stan4bart needs anything beyond the list above (it currently
-reaches into fit internals in places); worth enumerating against its source
+RESOLVED by the port (2026-07-04, stan4bart 8c96206 against dbarts
+1.0-0): stan4bart needed two dbarts-side additions the audit missed, both
+in state semantics rather than the entry-point list. First, the state now
+carries the gaussian response transform (698f630): setOffset(updateScale)
+moves the scale after creation and nothing else could reproduce it, which
+is what actually kills the dataScale write and range.bart. Second,
+multi-chain restores may gather single-chain states, with a generator-kind
+mismatch leaving the destination stream unrestored (1eee83e): stan4bart
+fits chains in separate single-chain samplers riding R's stream and
+splices their states into one dedicated-generator sampler for prediction.
+The port itself: per-iteration caller buffers replace the Results
+subclass, setTreeStorage replaces the keepTrees control toggling, the
+stored sampler is created from the spec objects with the control shaped to
+the state, getTrees returns the data.frame directly, and the create-time
+verbose summary replaces printInitialSummary. stan4bart pins
+factors = "indicators" against the new categorical default, and its one
+seed-pinned stochastic test was lengthened past trajectory luck. Suite:
+206 passing, 0 failing.
 before freezing the header. RESOLVED above, 2026-07-03.
 
 Landed 2026-07-03: dbarts.h v1 with all entry points registered as
