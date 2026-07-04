@@ -837,8 +837,7 @@ private:
       const Node& node(tree.at(i));
       double param = node.numObservations() == 0
         ? 0.0
-        : leaf_.drawFromPosterior(rng_, k_, node.average,
-                                  node.numEffectiveObservations, sigma_ * sigma_);
+        : leaf_.drawFromPosteriorForNode(rng_, tree, k_, sigma_ * sigma_, i);
       paramByNode_[static_cast<size_t>(i)] = param;
 
       if (options_.updateK) {

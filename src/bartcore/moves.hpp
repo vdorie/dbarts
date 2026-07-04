@@ -49,14 +49,11 @@ double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
 
   double result = 0.0;
   for (int32_t i : bottoms) {
-    const Node& node(tree.at(i));
     // the reference engine vetoes any branch containing an empty leaf, which
     // keeps empty leaves out of the chain state entirely
-    if (node.numObservations() == 0) return -10000000.0;
-    double variance = tree.computeVariance(i, y, ctx.weights);
-    result += leaf.logIntegratedLikelihood(ctx.k, sigma * sigma, node.average,
-                                           node.numEffectiveObservations, variance,
-                                           node.numObservations());
+    if (tree.at(i).numObservations() == 0) return -10000000.0;
+    result += leaf.logIntegratedLikelihoodForNode(tree, y, ctx.weights, ctx.k,
+                                                  sigma * sigma, i);
   }
   return result;
 }
