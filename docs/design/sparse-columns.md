@@ -4,7 +4,8 @@ Prototype study settling the representation question for sparse predictor
 columns (core-generalization.md data model; kernel-vocabulary.md planned
 addition 4; public-surface.md section 7), including whether the engine
 needs order-preserving partitions. Prototyped 2026-07-04 in
-benchmarks/kernels/sparse.c; nothing lands in the engine from this pass.
+benchmarks/kernels/sparse.c; the landing plan and landing notes follow the
+prototype sections.
 
 ## Problem
 
@@ -96,8 +97,109 @@ real); CSC 6f bytes.
   (buildFromParent) can gather into either layout; simplest is to
   densify views until sparse proves itself there.
 
+## Landing plan (2026-07-04)
+
+The prototype's integration sketch made concrete. Scope: rank-bitmap
+storage for sparse ordinal columns, entered through Matrix::dgCMatrix
+ingestion; codes stay u16 throughout. Per-column code widths (u8 hot
+layers) are NOT in this landing: the machinery the two share is the
+per-column storage dispatch, which this delivers, while width variants
+multiply the SIMD kernel surface and stand alone as future work.
+
+### Data model
+
+ColumnStore keeps one contiguous codes vector but gains per-column
+offsets into it (codeOffsets[j]; j * n for dense-matrix builds, packed
+among densified columns for CSC builds, unused for rank columns), so the
+dense layout, arithmetic, and kernels are unchanged where they run today.
+Rank columns live in SparseColumnData slots: bitmap words (ceil(n/64)),
+per-word cumulative popcounts (u32; dgCMatrix row indices are int, so n
+fits), packed nonzero codes in ascending-row order, the zero code, plus
+borrowed CSC value/row slices for re-quantization. The rank build
+scatters through the bitmap so it never assumes sorted or unique row
+indices; a total-popcount != nnz check rejects duplicates.
+
+A dgCMatrix build (buildFromCsc) stores columns with nnz/n <= 0.2 (the
+prototype table's crossing region, internal and tunable) as rank
+bitmaps and densifies the rest into packed dense codes - densified
+columns run the existing SIMD kernels bitwise-identically to a dense
+build of the same values, which is also the equivalence test. Raw
+doubles are never materialized: the store's x stays null and rawColumn
+serves nothing, so linear-leaf designations are refused up front.
+
+Cuts are computed over the full logical distribution: uniform grids
+min/max over nonzero values folding in 0.0 when implicit zeros exist
+(nnz < n), quantile grids over the sorted unique nonzeros plus that
+zero. Both reproduce the dense builders' arithmetic exactly, so a CSC
+build and a dense build of the same matrix carry identical cut points
+and identical codes (component-tested). Missing values arrive as stored
+NaN entries (the Matrix convention), quantize to the reserved codes,
+and set hasMissing: MIA composes with no new machinery.
+
+### Kernels and engine dispatch
+
+misc_partitionIndicesSparse joins the vocabulary as a dispatched pointer
+with the scalar reference installed at every ISA level (kernel-
+vocabulary.md planned addition 4): the two-pointer partition over
+(bits, wordRanks, nzCodes, zeroCode), O(1) rank access per element. The
+engine uses it for every sparse ordinal partition including the root -
+misc_partitionRange assumes identity index content, which holds only on
+the dense path - so a streaming range variant remains headroom. Columns
+with missing values take an engine-side scalar MIA sibling
+(partitionIndicesSparseMIA), mirroring partitionIndicesMIA over the rank
+accessor. Tree descent (findBottomNodeForObservation) and state-restore
+partition checks (setPartitionsFromOrderedIndices) go through a
+storage-aware codeAt(j, i). Test codes stay dense row-major and x.test
+stays a dense matrix: quantization only reads cut points.
+
+Views densify (the sketch's recommendation): buildFromParent gathers
+parent codes through codeAt into a fully dense child store, so the
+data-handle and xbart paths compose without sparse-specific code; folds
+of a wide sparse design pay a transient dense-codes copy.
+
+### Mutation surface and state
+
+The raw-x mutation surface - setPredictor, updatePredictor, the
+per-observation sessions, setData - is refused for CSC-built stores in
+v1 ("sparse predictors fix the design at creation; make a new sampler
+instead", the grouped-random-effects precedent). The existing view
+guard already fires on x == null; the bridge distinguishes the two
+cases for the message and, unlike views, ALLOWS setState and
+setCutPoints on CSC stores: quantizeColumn is storage-aware, and
+getPointer() re-creation from the stored dbartsData (which holds the
+dgCMatrix) rebuilds the sampler, so save/load works exactly as it does
+for grouped fits. In-place nonzero-value mutation and pattern rebuilds
+(the sketch's O(n/64 + nnz) path) wait for a consumer.
+
+### R surface
+
+dbartsData accepts a dgCMatrix as x (the x slot widens to ANY with the
+class checked in validity; x.test stays dense). All columns are ordinal
+- factors do not ride numeric sparse matrices - and the sigma estimate
+falls back to sd(y). dbarts, bart2, rbart_vi, and xbart inherit
+acceptance through dbartsData; node.prior = linear() with sparse x is
+refused when columns are designated. The bridge's parseData reads the
+i/p/x slots directly (borrowed for the sampler's lifetime, like dense x
+today) and hands them to the engine through SamplerOptions. Matrix goes
+to Suggests.
+
+### Stages and gates
+
+1. Kernel: misc_partitionIndicesSparse + simd.c registration +
+   kernel-vocabulary.md; correctness vs the dense kernel in tests/cpp.
+2. Engine: ColumnStore storage dispatch, buildFromCsc, cut/quantize
+   variants, tree.hpp dispatch, view densification; component tests
+   (CSC-vs-dense cuts/codes equality, partition membership equality,
+   densified-tier bitwise fit equality, rank-tier end-to-end recovery,
+   MIA, state round trip).
+3. R and bridge: parseData CSC branch, refusal wiring, dbartsData
+   acceptance, tinytest test-data-sparse.R, docs and NEWS.
+
+Gates per the standing checklist; equivalence must report identical
+draws (dense paths are layout-refactored only), speed must hold at
+baseline on every metric.
+
 ## Status
 
-Prototype only: the benchmark and this writeup. The engine is untouched;
-landing sparse columns waits on the per-column-width data model work it
-shares machinery with (u8 hot layers, per-column code widths).
+Prototype complete; landing plan above committed before implementation.
+Landing waits on nothing external.
