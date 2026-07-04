@@ -280,6 +280,42 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       temp <- eval(testCall, parent.frame())
       if (!is.null(temp)) test <- temp
     }
+  } else if (inherits(formula, "dgCMatrix")) {
+    ## sparse designs enter through the x/y interface only; columns are all
+    ## ordinal and missing values are stored NaN entries (the Matrix
+    ## convention), so no complete-case filtering applies
+    if (dataIsMissing || is.null(data)) data <- rep(0, nrow(formula))
+    if (!is.numeric(data) && !is.factor(data))
+      stop("when 'formula' is a sparse matrix, 'data' must be numeric")
+
+    y <- if (is.factor(data)) as.double(as.integer(data) - 1L) else as.double(data)
+    if (nrow(formula) != NROW(y))
+      stop("'x' must have the same number of observations as 'y'")
+    initialNumObservations <- NROW(y)
+
+    if (missing(subset) || is.null(subset)) subset <- seq.int(length(y))
+    y <- y[subset]
+    x <- formula[subset, , drop = FALSE]
+
+    if (missing(weights)) weights <- NULL
+    if (!is.null(weights)) {
+      if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
+      weights <- rep_len(weights, initialNumObservations)[subset]
+    }
+
+    if (offsetIsMissing) offset <- NULL
+    if (!is.null(offset)) {
+      if (!is.numeric(offset)) stop("'offset' must be numeric")
+      if (length(offset) == 1L) {
+        offset <- rep_len(offset, initialNumObservations)
+        offsetGivenAsScalar <- TRUE
+      } else {
+        offsetGivenAsScalar <- FALSE
+      }
+      if (length(offset) != initialNumObservations) stop("length of 'offset' must equal length of 'y'")
+      originalOffset <- offset
+      offset <- offset[subset]
+    }
   } else if (is.numeric(formula) || is.data.frame(formula) || is.factor(formula)) {
     ## backwards compatibility of bart(x.train, y.train, x.test)
     if (dataIsMissing || is.null(data)) data <- rep(0, NROW(formula))
@@ -390,14 +426,29 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   }
   
   # missingness is a predictor-only feature: rules route NAs in x, but the
-  # response side must be complete
+  # response side must be complete. In a sparse x, NAs live only among the
+  # stored entries and implicit zeros are observed values, so the checks
+  # work off the slots without densifying.
   if (anyNA(y)) stop("response contains missing values")
-  if (anyNA(x) && any(colSums(!is.na(x)) == 0L))
-    stop("predictor columns cannot be entirely missing")
+  if (is.matrix(x)) {
+    xHasNA <- anyNA(x)
+    if (xHasNA && any(colSums(!is.na(x)) == 0L))
+      stop("predictor columns cannot be entirely missing")
+  } else {
+    xHasNA <- anyNA(x@x)
+    if (xHasNA) {
+      columnNnz <- diff(x@p)
+      columnNumNA <- vapply(seq_len(ncol(x)), function(j)
+        sum(is.na(x@x[seq.int(x@p[j] + 1L, length.out = columnNnz[j])])),
+        0L)
+      if (any(columnNnz == nrow(x) & columnNumNA == nrow(x)))
+        stop("predictor columns cannot be entirely missing")
+    }
+  }
   if (!is.null(offset) && anyNA(offset)) stop("'offset' contains missing values")
   if (!is.null(offset.test) && anyNA(offset.test)) stop("'offset.test' contains missing values")
   if (missing == "error") {
-    if (anyNA(x))
+    if (xHasNA)
       stop("predictors contain missing values; use missing = \"incorporate\" to model them")
     if (!is.null(x.test) && anyNA(x.test))
       stop("test predictors contain missing values; use missing = \"incorporate\" to model them")

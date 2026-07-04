@@ -95,7 +95,12 @@ public:
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
     : options_(options), family_(family) {
-    if (options.maxNumCutsPerVariable != nullptr) {
+    if (options.cscColumnPointers != nullptr) {
+      data_.buildFromCsc(options.cscColumnPointers, options.cscRowIndices,
+                         options.cscValues, numObservations, numPredictors,
+                         options.maxNumCutsPerVariable, options.maxNumCuts,
+                         options.useQuantiles);
+    } else if (options.maxNumCutsPerVariable != nullptr) {
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles,
                   options.columnTypes);
@@ -105,6 +110,10 @@ public:
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     options_.columnTypes = nullptr;
+    // the CSC slices themselves live on in the store
+    options_.cscColumnPointers = nullptr;
+    options_.cscRowIndices = nullptr;
+    options_.cscValues = nullptr;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -352,6 +361,8 @@ public:
     std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
     std::vector<xint_t> oldCodes(data_.codes);
     std::vector<xint_t> oldTestCodes(data_.testCodes);
+    // rank columns re-quantize into their own storage, not codes
+    std::vector<SparseColumnData> oldSparseColumns(data_.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.types[j] == ColumnType::categorical) continue;
       data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
@@ -369,6 +380,7 @@ public:
       data_.maxNumCuts = std::move(oldMaxNumCuts);
       data_.codes = std::move(oldCodes);
       data_.testCodes = std::move(oldTestCodes);
+      data_.sparseColumns = std::move(oldSparseColumns);
       return false;
     }
 
@@ -587,7 +599,8 @@ public:
       for (size_t k = 0; k < numColumns; ++k) {
         std::memcpy(oldValues.data() + k * n, data_.x + columns[k] * n,
                     n * sizeof(double));
-        std::memcpy(oldCodes.data() + k * n, data_.codes.data() + columns[k] * n,
+        std::memcpy(oldCodes.data() + k * n,
+                    data_.codes.data() + data_.codeOffsets[columns[k]],
                     n * sizeof(xint_t));
         if (updateCutPoints) oldCuts[k] = data_.cutPoints[columns[k]];
       }
@@ -609,8 +622,8 @@ public:
         size_t j = columns[k];
         std::memcpy(x_mutable + j * n, oldValues.data() + k * n,
                     n * sizeof(double));
-        std::memcpy(data_.codes.data() + j * n, oldCodes.data() + k * n,
-                    n * sizeof(xint_t));
+        std::memcpy(data_.codes.data() + data_.codeOffsets[j],
+                    oldCodes.data() + k * n, n * sizeof(xint_t));
         if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
       }
       for (auto& chain : chains_) chain->repartitionTrees();
@@ -789,7 +802,7 @@ private:
       ColumnStore& data(sampler_.data_);
       size_t n = data.numObservations;
       const_cast<double*>(data.x)[i + column_ * n] = newColumn_[i];
-      data.codes[i + column_ * n] = newCodes_[i];
+      data.codes[data.codeOffsets[column_] + i] = newCodes_[i];
       for (size_t t = 0; t < leafCounts_.size(); ++t) {
         if (pendingNewLeaf_[t] != invalidNode) {
           --leafCounts_[t][static_cast<size_t>(pendingOldLeaf_[t])];

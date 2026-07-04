@@ -53,6 +53,21 @@ Contract:
 - Codes are assumed valid (no NA sentinel yet; see planned additions).
 - ISA variants: C, SSE2, SSE4.1, AVX2, NEON.
 
+Sparse sibling (landed 2026-07-04, docs/design/sparse-columns.md):
+
+    size_t misc_partitionIndicesSparse(const uint64_t* bits,
+                                       const uint32_t* wordRanks,
+                                       const misc_xint_t* nzCodes,
+                                       misc_xint_t zeroCode, misc_xint_t cut,
+                                       size_t* indices, size_t length);
+
+Same contract as misc_partitionIndices over the rank-bitmap column layout:
+code(i) is zeroCode when bit i is clear, else nzCodes[rank(i)] with rank(i)
+= wordRanks[i / 64] + popcount of the word's lower bits. Scalar only and a
+plain function (no dispatch pointer until a SIMD variant justifies one);
+missing-value columns use an engine-side MIA sibling instead, matching the
+dense split.
+
 ### Sufficient statistics / moments (misc/stats.h, src/misc/moments.c)
 
 Family: mean, variance (given or computing mean), sum of squared residuals;
@@ -118,13 +133,9 @@ SIMD specializations only when profiling justifies them.
 3. **NA-aware variants**: a reserved per-column NA code plus a
    goes-left/right flag folded into the rule encoding; kernels take the
    encoded rule rather than a bare cut once missingness lands (phase 4).
-4. **Sparse partition**: SETTLED by prototype 2026-07-04
-   (docs/design/sparse-columns.md, benchmarks/kernels/sparse.c): the
-   layout is a rank bitmap (nonzero-row bits + per-word cumulative
-   popcounts + packed nonzero codes), not CSC, and no order-preserving
-   partition is required - the unstable two-pointer contract stands. The
-   kernel lands with the per-column data model as
-   misc_partitionIndicesSparse, scalar reference first.
+4. **Sparse partition**: LANDED 2026-07-04 as misc_partitionIndicesSparse
+   (see the partition section above); a streaming range variant for
+   root-sized segments remains headroom.
 5. **Cut-scan histogram** (enables grow-from-root samplers and exhaustive
    change-rule proposals; XGBoost's histogram trick):
 

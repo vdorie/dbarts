@@ -101,6 +101,10 @@ resolveLeafCovariates <- function(prior, data)
   if (is.null(columns) || length(columns) == 0L)
     stop("linear node prior requires at least one covariate column")
 
+  # the engine reads raw covariate values from contiguous dense columns
+  if (!is.matrix(data@x))
+    stop("linear node priors are not supported with sparse predictor matrices")
+
   columnNames <- colnames(data@x)
   if (is.character(columns)) {
     if (is.null(columnNames))

@@ -145,7 +145,12 @@ rbart_vi <- function(
     prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
   
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
-   
+
+  # both the R loop (predicts over data@x) and the in-core path would need
+  # sparse-aware plumbing; reserved until a consumer appears
+  if (!is.matrix(data@x))
+    stop("rbart_vi does not support sparse predictor matrices")
+
   if (length(group.by) != length(data@y))
     stop("'group.by' not of length equal to that of data; check for NAs in original data, and for name collisions with `data` argument and calling environment")
   group.by <- droplevels(as.factor(group.by))

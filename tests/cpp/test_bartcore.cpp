@@ -1,6 +1,8 @@
 // Component and smoke tests for bartcore against independently coded
 // reference math. Exit code 0 on success.
 
+#include <algorithm>
+#include <bit>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -8,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include <misc/partition.h>
 #include <misc/simd.h>
 #include <external/random.h>
 
@@ -4438,6 +4441,363 @@ static void testGroupedStateRoundTrip() {
   printf("ok: grouped state round trip\n");
 }
 
+// A logical matrix held both densely and as CSC arrays, for comparing the
+// two build paths over identical values.
+struct CscFixture {
+  size_t n = 0, p = 0;
+  std::vector<double> dense;   // column-major, zeros where nothing stored
+  std::vector<int> pointers;   // p + 1
+  std::vector<int> rows;
+  std::vector<double> values;
+
+  // fraction of rows stored per column; stored NaNs count as entries, the
+  // Matrix convention for missing values
+  void build(size_t n_, const std::vector<double>& nonzeroFractions,
+             size_t numMissingPerColumn = 0) {
+    n = n_;
+    p = nonzeroFractions.size();
+    dense.assign(n * p, 0.0);
+    pointers.assign(p + 1, 0);
+    rows.clear();
+    values.clear();
+    for (size_t j = 0; j < p; ++j) {
+      size_t numMissing = 0;
+      for (size_t i = 0; i < n; ++i) {
+        if (runif01() >= nonzeroFractions[j]) continue;
+        double value = 0.5 + runif01();
+        if (numMissing < numMissingPerColumn) {
+          value = std::nan("");
+          ++numMissing;
+        }
+        dense[i + j * n] = value;
+        rows.push_back(static_cast<int>(i));
+        values.push_back(value);
+      }
+      pointers[j + 1] = static_cast<int>(rows.size());
+    }
+  }
+};
+
+static void testSparseKernel() {
+  const size_t n = 1000;
+  const xint_t zeroCode = 5;
+  std::vector<xint_t> denseCodes(n, zeroCode);
+  size_t numWords = (n + 63) / 64;
+  std::vector<std::uint64_t> bits(numWords, 0);
+  std::vector<std::uint32_t> wordRanks(numWords, 0);
+  std::vector<xint_t> nzCodes;
+  for (size_t i = 0; i < n; ++i) {
+    if (runif01() >= 0.1) continue;
+    xint_t code = static_cast<xint_t>(1.0 + runif01() * 249.0);
+    denseCodes[i] = code;
+    bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
+    nzCodes.push_back(code);
+  }
+  std::uint32_t runningRank = 0;
+  for (size_t w = 0; w < numWords; ++w) {
+    wordRanks[w] = runningRank;
+    runningRank += static_cast<std::uint32_t>(std::popcount(bits[w]));
+  }
+
+  // a scrambled index segment, partitioned at several cuts against a dense
+  // reference
+  std::vector<size_t> segment(n);
+  for (size_t i = 0; i < n; ++i) segment[i] = i;
+  for (size_t i = n - 1; i > 0; --i) {
+    size_t k = static_cast<size_t>(runif01() * static_cast<double>(i + 1));
+    std::swap(segment[i], segment[k]);
+  }
+
+  const xint_t cuts[] = { 0, 4, 5, 100, 250 };
+  bool allMatch = true;
+  for (xint_t cut : cuts) {
+    std::vector<size_t> indices(segment);
+    size_t numOnLeft = misc_partitionIndicesSparse(
+      bits.data(), wordRanks.data(), nzCodes.data(), zeroCode, cut,
+      indices.data(), indices.size());
+
+    size_t expected = 0;
+    for (size_t i : segment) expected += denseCodes[i] <= cut ? 1 : 0;
+    allMatch &= numOnLeft == expected;
+    for (size_t k = 0; k < indices.size(); ++k)
+      allMatch &= (denseCodes[indices[k]] <= cut) == (k < numOnLeft);
+    std::vector<size_t> sorted(indices);
+    std::sort(sorted.begin(), sorted.end());
+    std::vector<size_t> sortedSegment(segment);
+    std::sort(sortedSegment.begin(), sortedSegment.end());
+    allMatch &= sorted == sortedSegment;
+  }
+  check(allMatch, "sparse kernel matches dense reference at every cut");
+  check(misc_partitionIndicesSparse(bits.data(), wordRanks.data(),
+                                    nzCodes.data(), zeroCode, 100, nullptr,
+                                    0) == 0,
+        "sparse kernel handles the empty segment");
+  printf("ok: sparse partition kernel\n");
+}
+
+static void testSparseColumnStore() {
+  const size_t n = 300;
+  CscFixture fixture;
+  // rank, densified, fully dense, rank-with-missing
+  fixture.build(n, {0.05, 0.5, 1.0, 0.1}, 0);
+  // mark ~5 of column 3's stored entries missing
+  for (int k = fixture.pointers[3];
+       k < fixture.pointers[3] + 5 && k < fixture.pointers[4]; ++k) {
+    fixture.values[static_cast<size_t>(k)] = std::nan("");
+    fixture.dense[static_cast<size_t>(fixture.rows[static_cast<size_t>(k)]) +
+                  3 * n] = std::nan("");
+  }
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore fromCsc;
+    fromCsc.buildFromCsc(fixture.pointers.data(), fixture.rows.data(),
+                         fixture.values.data(), n, fixture.p, nullptr, 100,
+                         useQuantiles);
+    ColumnStore fromDense;
+    fromDense.build(fixture.dense.data(), n, fixture.p, 100, useQuantiles);
+
+    check(fromCsc.builtFromCsc && fromCsc.hasSparse,
+          "CSC store flags itself");
+    check(fromCsc.columnIsSparse(0) && !fromCsc.columnIsSparse(1) &&
+          !fromCsc.columnIsSparse(2) && fromCsc.columnIsSparse(3),
+          "density threshold splits the storage tiers");
+    check(fromCsc.hasMissing[0] == 0 && fromCsc.hasMissing[1] == 0 &&
+          fromCsc.hasMissing[2] == 0 && fromCsc.hasMissing[3] == 1,
+          "stored NaN entries mark the column missing");
+
+    bool cutsMatch = true;
+    for (size_t j = 0; j < fixture.p; ++j) {
+      cutsMatch &= fromCsc.numCuts[j] == fromDense.numCuts[j];
+      cutsMatch &= fromCsc.cutPoints[j] == fromDense.cutPoints[j];
+    }
+    check(cutsMatch, useQuantiles
+          ? "CSC quantile cuts bitwise-match the dense builder's"
+          : "CSC uniform cuts bitwise-match the dense builder's");
+
+    bool codesMatch = true;
+    for (size_t j = 0; j < fixture.p; ++j)
+      for (size_t i = 0; i < n; ++i)
+        codesMatch &= fromCsc.codeAt(j, i) == fromDense.codes[i + j * n];
+    check(codesMatch, "CSC codes match the dense builder's at every cell");
+
+    check(fromCsc.sparseColumn(0).zeroCode == fromDense.codeFor(0, 0.0),
+          "rank zero code is the quantized zero");
+
+    // a view over the CSC parent densifies and gathers identical codes
+    std::vector<size_t> viewRows;
+    for (size_t i = 0; i < n; i += 3) viewRows.push_back(i);
+    ColumnStore view;
+    view.buildFromParent(fromCsc, viewRows.data(), viewRows.size(), nullptr,
+                         0);
+    check(!view.hasSparse && !view.builtFromCsc,
+          "views over CSC parents densify");
+    bool viewMatches = true;
+    for (size_t j = 0; j < fixture.p; ++j)
+      for (size_t i = 0; i < viewRows.size(); ++i)
+        viewMatches &= view.codes[i + j * viewRows.size()] ==
+          fromCsc.codeAt(j, viewRows[i]);
+    check(viewMatches, "view gathers parent codes through the rank layout");
+  }
+  printf("ok: sparse column store\n");
+}
+
+static void testSparseEndToEnd() {
+  // densified tier: a CSC build whose columns all densify runs the dense
+  // kernels over identical codes, so draws are bitwise identical to the
+  // dense-matrix path
+  {
+    const size_t n = 300, p = 3;
+    CscFixture fixture;
+    fixture.build(n, {1.0, 0.6, 0.9});
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = std::sin(3.0 * fixture.dense[i]) + fixture.dense[i + n] +
+             0.5 * runif01();
+
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 1234) != 0 ||
+        ext_rng_setSeed(rngB, 1234) != 0) {
+      check(false, "sparse end-to-end: rng creation");
+      return;
+    }
+
+    SamplerOptions options;
+    options.numTrees = 25;
+    ClassicSampler dense(fixture.dense.data(), y.data(), n, p, nullptr,
+                         nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rngA);
+
+    SamplerOptions cscOptions(options);
+    cscOptions.cscColumnPointers = fixture.pointers.data();
+    cscOptions.cscRowIndices = fixture.rows.data();
+    cscOptions.cscValues = fixture.values.data();
+    ClassicSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, cscOptions, &rngB);
+    check(!sparse.data().hasSparse && sparse.data().builtFromCsc,
+          "all-densified CSC sampler holds no rank columns");
+
+    const size_t numBurnIn = 30, numSamples = 40;
+    std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results resultsA, resultsB;
+    resultsA.sigma = sigmaA.data();
+    resultsA.trainingFits = fitsA.data();
+    resultsB.sigma = sigmaB.data();
+    resultsB.trainingFits = fitsB.data();
+    dense.run(numBurnIn, numSamples, resultsA);
+    sparse.run(numBurnIn, numSamples, resultsB);
+
+    check(sigmaA == sigmaB && fitsA == fitsB,
+          "all-densified CSC sampler bitwise-matches the dense path");
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+  }
+
+  // rank tier: signal riding sparse columns is recovered, missing entries
+  // included (exercising the sparse MIA partition)
+  {
+    const size_t n = 600;
+    CscFixture fixture;
+    fixture.build(n, {0.1, 0.1, 0.1, 0.1});
+    // NAs on a noise column so rules there route through the MIA sibling
+    for (int k = fixture.pointers[2];
+         k < fixture.pointers[2] + 8 && k < fixture.pointers[3]; ++k)
+      fixture.values[static_cast<size_t>(k)] = std::nan("");
+
+    std::vector<double> f(n), y(n);
+    double yMean = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double x0 = fixture.dense[i];
+      double x1 = fixture.dense[i + n];
+      f[i] = 2.0 * x0 - 1.5 * x1;
+      double u1 = runif01(), u2 = runif01();
+      double normal =
+        std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+      y[i] = f[i] + 0.3 * normal;
+      yMean += y[i] / static_cast<double>(n);
+    }
+    double ySd = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      ySd += (y[i] - yMean) * (y[i] - yMean);
+    ySd = std::sqrt(ySd / static_cast<double>(n - 1));
+
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rng == NULL || ext_rng_setSeed(rng, 2026) != 0) {
+      check(false, "sparse end-to-end: rng creation");
+      return;
+    }
+    SamplerOptions options;
+    options.numTrees = 75;
+    options.cscColumnPointers = fixture.pointers.data();
+    options.cscRowIndices = fixture.rows.data();
+    options.cscValues = fixture.values.data();
+    ClassicSampler sampler(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                           ResponseFamily::gaussian, ySd, 3.0,
+                           0.37804942330213542, options, &rng);
+    check(sampler.data().hasSparse, "rank-tier sampler holds rank columns");
+
+    const size_t numBurnIn = 200, numSamples = 300;
+    std::vector<double> sigmaDraws(numSamples);
+    std::vector<double> trainingFits(n * numSamples);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    results.trainingFits = trainingFits.data();
+    sampler.run(numBurnIn, numSamples, results);
+
+    std::vector<double> posteriorMean(n, 0.0);
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t i = 0; i < n; ++i)
+        posteriorMean[i] +=
+          trainingFits[i + s * n] / static_cast<double>(numSamples);
+    double sseFit = 0.0, sseMean = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      sseFit += (posteriorMean[i] - f[i]) * (posteriorMean[i] - f[i]);
+      sseMean += (yMean - f[i]) * (yMean - f[i]);
+    }
+    check(sseFit < 0.2 * sseMean,
+          "sparse end-to-end: fit explains most signal");
+    double sigmaPosteriorMean = 0.0;
+    for (double s : sigmaDraws)
+      sigmaPosteriorMean += s / static_cast<double>(numSamples);
+    check(sigmaPosteriorMean > 0.2 && sigmaPosteriorMean < 0.45,
+          "sparse end-to-end: sigma near truth (0.3)");
+    ext_rng_destroy(rng);
+    printf("ok: sparse end-to-end (sigma posterior mean %.3f, sse ratio "
+           "%.3f)\n",
+           sigmaPosteriorMean, sseFit / sseMean);
+  }
+}
+
+static void testSparseStateRoundTrip() {
+  const size_t n = 240, numChains = 2, numSamples = 5;
+  CscFixture fixture;
+  fixture.build(n, {0.1, 0.5, 0.08});
+  // missing entries on a rank column ride the state round trip too
+  for (int k = fixture.pointers[2];
+       k < fixture.pointers[2] + 4 && k < fixture.pointers[3]; ++k)
+    fixture.values[static_cast<size_t>(k)] = std::nan("");
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 1.5 * fixture.dense[i] + 0.4 * runif01();
+
+  SamplerOptions options;
+  options.numTrees = 15;
+  options.numChains = numChains;
+  options.cscColumnPointers = fixture.pointers.data();
+  options.cscRowIndices = fixture.rows.data();
+  options.cscValues = fixture.values.data();
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t seed) {
+    for (size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], seed + static_cast<std::uint32_t>(c));
+    }
+  };
+
+  std::vector<ext_rng*> rngs(numChains, nullptr);
+  makeRngs(rngs, 4242);
+  ClassicSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs.data());
+  Results empty;
+  original.run(40, 0, empty);
+
+  SamplerStateData state;
+  original.getState(state);
+
+  std::vector<ext_rng*> rngs2(numChains, nullptr);
+  makeRngs(rngs2, 1111);
+  ClassicSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs2.data());
+  check(restored.setState(state), "a sparse-store state restores");
+
+  std::vector<double> sigmaA(numSamples * numChains);
+  std::vector<double> trainA(n * numSamples * numChains);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  original.run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples * numChains);
+  std::vector<double> trainB(n * numSamples * numChains);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  restored.run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB, "restored sparse chains draw identical sigmas");
+  check(trainA == trainB, "restored sparse chains draw identical fits");
+
+  for (size_t c = 0; c < numChains; ++c) {
+    ext_rng_destroy(rngs[c]);
+    ext_rng_destroy(rngs2[c]);
+  }
+  printf("ok: sparse state round trip\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -4509,6 +4869,10 @@ int main() {
   testGroupedEndToEnd(rng);
   testGroupedBinary(rng);
   testGroupedStateRoundTrip();
+  testSparseKernel();
+  testSparseColumnStore();
+  testSparseEndToEnd();
+  testSparseStateRoundTrip();
 
   ext_rng_destroy(rng);
 

@@ -27,10 +27,11 @@ Imports:
   methods,
   graphics,
   parallel
-Suggests: 
+Suggests:
   knitr,
   rmarkdown,
-  tinytest
+  tinytest,
+  Matrix
 VignetteBuilder: knitr, rmarkdown
 Config/Needs/check: rcmdcheck
 Config/Needs/dev: lintr, languageserver

@@ -43,6 +43,15 @@ struct SamplerOptions {
   // K <= maxCategories; the caller validates.
   const ColumnType* columnTypes = nullptr;
 
+  // sparse (CSC / dgCMatrix-layout) predictor ingestion: when
+  // cscColumnPointers is non-null the x creation argument is ignored and
+  // columns build from the triple (all ordinal; borrowed for the sampler's
+  // lifetime; the host validates row indices unique and in range). See
+  // docs/design/sparse-columns.md.
+  const int* cscColumnPointers = nullptr;  // length numPredictors + 1
+  const int* cscRowIndices = nullptr;
+  const double* cscValues = nullptr;
+
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates
   // the constant leaf; the factory validates count, range, and type.

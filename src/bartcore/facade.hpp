@@ -333,6 +333,8 @@ inline std::unique_ptr<SamplerBase> createSampler(
                                 offset, family, sigmaEstimate, sigmaDf,
                                 sigmaRawScale, options, rngs);
 
+  // CSC-built stores hold no contiguous raw columns for a leaf model
+  if (options.cscColumnPointers != nullptr) return nullptr;
   if (options.leafCovariateColumns == nullptr ||
       options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
     return nullptr;

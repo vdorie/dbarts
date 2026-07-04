@@ -117,6 +117,12 @@ struct ParsedData {
   size_t numPredictors = 0;
   std::vector<bartcore::ColumnType> columnTypes;
   bool anyCategorical = false;
+  // set when x is a dgCMatrix: x stays null and the CSC slots are borrowed
+  // (docs/design/sparse-columns.md)
+  bool xIsSparse = false;
+  const int* cscColumnPointers = NULL;
+  const int* cscRowIndices = NULL;
+  const double* cscValues = NULL;
   const double* x_test = NULL;
   size_t numTestObservations = 0;
   const double* weights = NULL;
@@ -231,13 +237,55 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   data.numObservations = rc_getLength(slotExpr);
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
-  if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
-  rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ,
-                          rc_asRLength(2), RC_VALUE | RC_EQ,
-                          static_cast<int>(data.numObservations), RC_END);
-  int* dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
-  data.x = REAL(slotExpr);
-  data.numPredictors = static_cast<size_t>(dims[1]);
+  if (Rf_inherits(slotExpr, "dgCMatrix")) {
+    // borrowed CSC slots; the structure is validated here because the
+    // engine trusts it (rows unique, ascending, and in range per column)
+    SEXP dimExpr = Rf_getAttrib(slotExpr, Rf_install("Dim"));
+    if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
+      Rf_error("malformed sparse predictor matrix");
+    if (static_cast<size_t>(INTEGER(dimExpr)[0]) != data.numObservations)
+      Rf_error("number of rows of 'x' must equal length of 'y'");
+    data.numPredictors = static_cast<size_t>(INTEGER(dimExpr)[1]);
+
+    SEXP pointersExpr = Rf_getAttrib(slotExpr, Rf_install("p"));
+    SEXP rowsExpr = Rf_getAttrib(slotExpr, Rf_install("i"));
+    SEXP valuesExpr = Rf_getAttrib(slotExpr, Rf_install("x"));
+    if (!Rf_isInteger(pointersExpr) || !Rf_isInteger(rowsExpr) ||
+        !Rf_isReal(valuesExpr) ||
+        static_cast<size_t>(rc_getLength(pointersExpr)) !=
+          data.numPredictors + 1)
+      Rf_error("malformed sparse predictor matrix");
+    const int* pointers = INTEGER(pointersExpr);
+    const int* rows = INTEGER(rowsExpr);
+    size_t numNonzero = static_cast<size_t>(rc_getLength(rowsExpr));
+    if (pointers[0] != 0 || pointers[data.numPredictors] < 0 ||
+        static_cast<size_t>(pointers[data.numPredictors]) != numNonzero ||
+        static_cast<size_t>(rc_getLength(valuesExpr)) != numNonzero)
+      Rf_error("malformed sparse predictor matrix");
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      if (pointers[j + 1] < pointers[j])
+        Rf_error("malformed sparse predictor matrix");
+      for (int k = pointers[j]; k < pointers[j + 1]; ++k) {
+        if (rows[k] < 0 ||
+            static_cast<size_t>(rows[k]) >= data.numObservations ||
+            (k > pointers[j] && rows[k] <= rows[k - 1]))
+          Rf_error("malformed sparse predictor matrix");
+      }
+    }
+    data.xIsSparse = true;
+    data.cscColumnPointers = pointers;
+    data.cscRowIndices = rows;
+    data.cscValues = REAL(valuesExpr);
+    data.x = NULL;
+  } else {
+    if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
+    rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ,
+                            rc_asRLength(2), RC_VALUE | RC_EQ,
+                            static_cast<int>(data.numObservations), RC_END);
+    int* dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+    data.x = REAL(slotExpr);
+    data.numPredictors = static_cast<size_t>(dims[1]);
+  }
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
   rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ,
@@ -249,6 +297,8 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.columnTypes[j] = bartcore::ColumnType::categorical;
     data.anyCategorical = true;
   }
+  if (data.xIsSparse && data.anyCategorical)
+    Rf_error("sparse predictor matrices must be entirely ordinal");
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
@@ -261,9 +311,9 @@ void parseData(ParsedData& data, SEXP dataExpr) {
                             RC_LENGTH | RC_EQ, rc_asRLength(2), RC_NA,
                             RC_VALUE | RC_EQ,
                             static_cast<int>(data.numPredictors), RC_END);
-    dims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
+    int* testDims = INTEGER(Rf_getAttrib(slotExpr, R_DimSymbol));
     data.x_test = REAL(slotExpr);
-    data.numTestObservations = static_cast<size_t>(dims[0]);
+    data.numTestObservations = static_cast<size_t>(testDims[0]);
   }
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("weights"));
@@ -576,6 +626,7 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
 }
 
 void validateCategoricalPredictors(const ParsedData& data) {
+  if (data.xIsSparse) return;  // parseData enforced all-ordinal
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
     for (size_t i = 0; i < data.numObservations; ++i) {
@@ -628,6 +679,11 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.useQuantiles = control.useQuantiles;
   options.columnTypes =
     data.anyCategorical ? data.columnTypes.data() : NULL;
+  if (data.xIsSparse) {
+    options.cscColumnPointers = data.cscColumnPointers;
+    options.cscRowIndices = data.cscRowIndices;
+    options.cscValues = data.cscValues;
+  }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
     ? NULL : model.leafCovariateColumns.data();  // consumed at construction
@@ -774,10 +830,24 @@ void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
 }
 
 // A sampler created over a data handle holds no raw predictor values, so
-// the raw-x mutation surface has nothing to work from.
+// the raw-x mutation surface has nothing to work from; a CSC-built sampler
+// holds only borrowed slices and refuses the same surface by design
+// (docs/design/sparse-columns.md).
 void refuseViewSampler(const bartcore::SamplerBase& sampler,
                        const char* caller) {
-  if (sampler.data().x == NULL)
+  if (sampler.data().x != NULL) return;
+  if (sampler.data().builtFromCsc)
+    Rf_error("%s: sparse predictors fix the design at creation; make a new "
+             "sampler instead", caller);
+  Rf_error("%s requires a sampler that owns its predictors; data-handle "
+           "views hold none", caller);
+}
+
+// Unlike views, CSC-built samplers re-quantize from their borrowed slices,
+// so cut installation and state restore stay available on them.
+void refuseViewSamplerOnly(const bartcore::SamplerBase& sampler,
+                           const char* caller) {
+  if (sampler.data().x == NULL && !sampler.data().builtFromCsc)
     Rf_error("%s requires a sampler that owns its predictors; data-handle "
              "views hold none", caller);
 }
@@ -911,9 +981,16 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
   validateCategoricalPredictors(data);
 
   DataHandle* handle = new DataHandle;
-  handle->store.build(data.x, data.numObservations, data.numPredictors,
-                      data.maxNumCuts.data(), control.useQuantiles,
-                      data.anyCategorical ? data.columnTypes.data() : NULL);
+  if (data.xIsSparse) {
+    handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
+                               data.cscValues, data.numObservations,
+                               data.numPredictors, data.maxNumCuts.data(), 0,
+                               control.useQuantiles);
+  } else {
+    handle->store.build(data.x, data.numObservations, data.numPredictors,
+                        data.maxNumCuts.data(), control.useQuantiles,
+                        data.anyCategorical ? data.columnTypes.data() : NULL);
+  }
 
   SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
   R_RegisterCFinalizerEx(result, dataHandleFinalizer,
@@ -1256,6 +1333,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
   ParsedData data;
   parseData(data, dataExpr);
+  if (data.xIsSparse)
+    Rf_error("bartcore setData requires a dense predictor matrix; sparse "
+             "predictors fix the design at creation");
 
   if (data.numPredictors != sampler.numPredictors())
     Rf_error("bartcore setData requires the same predictors");
@@ -1597,9 +1677,10 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
 }
 
-SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr, SEXP columnsExpr) {
+SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
+                           SEXP columnsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSampler(*holder.sampler, "bartcore_setCutPoints");
+  refuseViewSamplerOnly(*holder.sampler, "bartcore_setCutPoints");
   size_t numPredictors = holder.sampler->numPredictors();
 
   size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
@@ -1941,7 +2022,7 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
-  refuseViewSampler(*holder.sampler, "bartcore_setState");
+  refuseViewSamplerOnly(*holder.sampler, "bartcore_setState");
   bartcore_bridge::setState(*holder.sampler, stateExpr);
   return R_NilValue;
 }
