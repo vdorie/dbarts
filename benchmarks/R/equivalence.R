@@ -139,29 +139,139 @@ makeScenarios <- function() {
     x.test = x.test, binary = FALSE, usequants = TRUE
   )
 
+  # --- 1.0-0 feature paths (all driven through the sampler API so node.prior,
+  # tree.prior, family, factor data, missingness, and zero weights each reach
+  # their own sampling code; the equivalence gate otherwise touches none) ---
+
+  # factor predictors: categorical split rules and the mask machinery
+  set.seed(5110L)
+  xc <- data.frame(
+    a = runif(500L), b = runif(500L),
+    f = factor(sample(letters[1:4], 500L, replace = TRUE)),
+    g = factor(sample(LETTERS[1:3], 500L, replace = TRUE))
+  )
+  fcat <- 10 * sin(pi * xc$a * xc$b) + 5 * (as.integer(xc$f) - 2L) +
+    3 * (as.integer(xc$g) - 1L)
+  xc.test <- data.frame(
+    a = runif(n.test), b = runif(n.test),
+    f = factor(sample(letters[1:4], n.test, replace = TRUE), levels = levels(xc$f)),
+    g = factor(sample(LETTERS[1:3], n.test, replace = TRUE), levels = levels(xc$g))
+  )
+  result$categorical <- list(
+    x = xc, y = fcat + rnorm(500L), x.test = xc.test,
+    binary = FALSE, samplerApi = TRUE
+  )
+
+  # missing predictors: MIA routing (reserved codes + the extra Bernoulli on
+  # NA-bearing columns). y is built from the complete design, then NAs injected
+  set.seed(5111L)
+  xm.full <- matrix(runif(500L * 10L), 500L)
+  ym <- friedman(xm.full) + rnorm(500L)
+  xm <- xm.full
+  xm[sample.int(500L * 10L, floor(500L * 10L * 0.08))] <- NA
+  xm.test <- matrix(runif(n.test * 10L), n.test)
+  xm.test[sample.int(n.test * 10L, floor(n.test * 10L * 0.08))] <- NA
+  result$missing <- list(
+    x = xm, y = ym, x.test = xm.test, binary = FALSE,
+    samplerApi = TRUE, samplerArgs = list(missing = "incorporate")
+  )
+
+  # adaptive DART tree prior: the Dirichlet split-probability updates
+  set.seed(5112L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$dart <- list(
+    x = x, y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE, samplerArgs = list(tree.prior = dbarts:::dart(2, 0.95))
+  )
+
+  # linear leaves with a chi hyperprior on k: conjugate ridge draws + sampled k
+  set.seed(5113L)
+  x <- matrix(runif(500L * 10L), 500L)
+  result$linear <- list(
+    x = x, y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25)))
+  )
+
+  # GP leaves with a chi hyperprior: marginal/Matheron draw + kernel cache + k
+  set.seed(5114L)
+  x <- matrix(runif(300L * 10L), 300L)
+  result$gp <- list(
+    x = x, y = friedman(x) + rnorm(300L),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25),
+                                                max.leaf.size = 100L))
+  )
+
+  # logistic family: the Polya-Gamma latent path (distinct from probit)
+  set.seed(5115L)
+  x <- matrix(runif(600L * 10L), 600L)
+  result$logistic <- list(
+    x = x, y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
+    samplerApi = TRUE, samplerArgs = list(family = "logistic")
+  )
+
+  # exact-zero training weights: the constant-leaf no-likelihood path and the
+  # collapseEmptyNodes weightTotal > 0 guard
+  set.seed(5116L)
+  x <- matrix(runif(500L * 10L), 500L)
+  weights <- sample(c(0, 1, 2), 500L, replace = TRUE, prob = c(0.15, 0.5, 0.35))
+  result$zeroweights <- list(
+    x = x, y = friedman(x) + rnorm(500L), weights = weights,
+    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    samplerApi = TRUE
+  )
+
+  # sparse (dgCMatrix) predictors: the rank-bitmap column store and sparse
+  # partition kernel. x.test stays dense (sparse test input is unsupported).
+  # Skipped when Matrix is unavailable so the core gate still runs.
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    set.seed(5117L)
+    dense <- matrix(runif(500L * 10L), 500L)
+    mask <- matrix(runif(500L * 10L) < 0.15, 500L)  # ~85% structural zeros
+    dense[!mask] <- 0
+    xs <- as(dense, "CsparseMatrix")
+    result$sparse <- list(
+      x = xs, y = friedman(dense) + rnorm(500L),
+      x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+      samplerApi = TRUE
+    )
+  }
+
   result
 }
 
+# benign warnings the fitting paths emit for legitimate scenarios: test-data
+# weights (no posterior-predictive use here) and zero training weights
+# (deliberate in the zero-weight scenario). Muffle only these so real ones stay
+# visible.
+muffleBenignWarning <- function(w) {
+  msg <- conditionMessage(w)
+  if (grepl("'weights' are ignored for test data", msg) ||
+      grepl("'weights' of 0 will be ignored", msg))
+    invokeRestart("muffleWarning")
+}
+
 # runs through the public dbartsSampler surface on the installed package's
-# engine (the control's engine flag retired with the classic engine)
+# engine (the control's engine flag retired with the classic engine).
+# scenario$samplerArgs (a named list) is spliced into the dbarts() call so a
+# scenario can select node.prior/tree.prior/family/missing without new plumbing.
 fitViaSamplerApi <- function(scenario, engineIsNew) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
   control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
                            n.trees = ntree, updateState = FALSE)
-  # weights with test data draw the benign posterior-predictive warning;
-  # muffle only that one, as the bart() paths below do
+  dbartsArgs <- list(scenario$x, scenario$y, test = scenario$x.test,
+                     control = control)
+  if (!is.null(scenario$weights)) dbartsArgs$weights <- scenario$weights
+  if (!is.null(scenario$offset))  dbartsArgs$offset  <- scenario$offset
+  dbartsArgs <- c(dbartsArgs, scenario$samplerArgs)
   sampler <- withCallingHandlers(
-    if (!is.null(scenario$weights) || !is.null(scenario$offset)) {
-      dbarts(scenario$x, scenario$y, test = scenario$x.test,
-             weights = scenario$weights, offset = scenario$offset,
-             control = control)
-    } else {
-      dbarts(scenario$x, scenario$y, test = scenario$x.test, control = control)
-    },
-    warning = function(w) {
-      if (grepl("'weights' are ignored for test data", conditionMessage(w)))
-        invokeRestart("muffleWarning")
-    }
+    do.call(dbarts, dbartsArgs),
+    warning = muffleBenignWarning
   )
   # [d, S] or [d, S, C] -> (S * C) x d, pooling chains
   poolChains <- function(a) {
@@ -208,10 +318,7 @@ fitSummaries <- function(scenario, seed) {
       ntree = ntree, ndpost = ndpost, nskip = nskip,
       nchain = 1L, nthread = 1L, verbose = FALSE
     ),
-    warning = function(w) {
-      if (grepl("'weights' are ignored for test data", conditionMessage(w)))
-        invokeRestart("muffleWarning")
-    }
+    warning = muffleBenignWarning
   ) else withCallingHandlers(
     bart(
       scenario$x, scenario$y, x.test = scenario$x.test,
@@ -220,15 +327,14 @@ fitSummaries <- function(scenario, seed) {
       ntree = ntree, ndpost = ndpost, nskip = nskip,
       nchain = 1L, nthread = 1L, verbose = FALSE
     ),
-    warning = function(w) {
-      if (grepl("'weights' are ignored for test data", conditionMessage(w)))
-        invokeRestart("muffleWarning")
-    }
+    warning = muffleBenignWarning
   )
-  p <- ncol(scenario$x)
+  # varcount width follows the fitted forest (one column per predictor, a factor
+  # counting as one variable), which need not equal ncol(x) for data frames.
+  vc <- fit$varcount
   result <- c(
     setNames(colMeans(fit$yhat.test), paste0("fhat.test.", seq_len(n.test))),
-    setNames(colMeans(fit$varcount / rowSums(fit$varcount)), paste0("vprop.", seq_len(p)))
+    setNames(colMeans(vc / rowSums(vc)), paste0("vprop.", seq_len(ncol(vc))))
   )
   if (!scenario$binary)
     result <- c(result, sigma.mean = mean(fit$sigma), sigma.sd = sd(fit$sigma))
@@ -269,6 +375,11 @@ if (mode == "record") {
   for (name in names(baseline$results)) {
     a <- baseline$results[[name]]
     b <- results[[name]]
+    if (is.null(b)) {
+      # scenario absent this run (e.g. sparse when Matrix is not installed)
+      cat(sprintf("%-10s skipped (not produced this run)\n", name))
+      next
+    }
     if (identical(a, b)) {
       cat(sprintf("%-10s identical draws (same RNG stream)\n", name))
       next
