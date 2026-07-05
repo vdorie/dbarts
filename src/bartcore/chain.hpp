@@ -383,8 +383,7 @@ public:
 
         sampleParametersAndSetFits(t, record);
 
-        // flatten while the freshly drawn parameters are live;
-        // function-valued leaves refuse keepTrees until the formats stage
+        // flatten while the freshly drawn parameters are live
         if (record && savedTreeCapacity_ > 0) {
           size_t slot = (savedSlotBase_ + sampleNum) % savedTreeCapacity_;
           std::vector<std::uint64_t>* masks = data_.hasWideCategorical
@@ -399,6 +398,20 @@ public:
                               nullptr, leaf_.numParams(),
                               &savedTreeParams_[slot * options_.numTrees + t],
                               masks);
+          } else {
+            // function-valued leaves: records carry per-leaf mean fits for
+            // reporting, the side channel carries the draw cache's alpha
+            // weights plus covariate rows - the exact values the recorded
+            // test fits used, so saved replays bit-match them
+            functionLeafValues(trees_[t], currFits_.data(), paramByNode_);
+            trees_[t].flatten(data_, paramByNode_.data(),
+                              savedTrees_[slot * options_.numTrees + t],
+                              nullptr, 1, nullptr, masks);
+            std::vector<double>& blocks(
+              savedTreeParams_[slot * options_.numTrees + t]);
+            blocks.clear();
+            for (int32_t i : trees_[t].bottomScratch)
+              leaf_.appendLeafBlockFromCache(trees_[t], i, blocks);
           }
         }
 
@@ -775,11 +788,15 @@ public:
     savedTreeCapacity_ = capacity;
     savedTrees_.assign(capacity * options_.numTrees,
                        std::vector<FlatNode>(1));
-    // the default slot is a single zero leaf; its slopes are zero too
+    // the default slot is a single zero leaf; its slopes are zero too, and
+    // a function-valued slot holds one zero-constant block
     if constexpr (L::hasVectorParams)
       savedTreeParams_.assign(
         capacity * options_.numTrees,
         std::vector<double>(leaf_.numParams() - 1, 0.0));
+    else if constexpr (L::hasFunctionParams)
+      savedTreeParams_.assign(capacity * options_.numTrees,
+                              std::vector<double>{0.0, 0.0});
     if (data_.hasWideCategorical)
       savedTreeMasks_.assign(capacity * options_.numTrees,
                              std::vector<std::uint64_t>());
@@ -809,12 +826,19 @@ public:
                    std::vector<double>* slopes = nullptr,
                    std::vector<std::uint64_t>* masks = nullptr) {
     if constexpr (L::hasFunctionParams) {
-      // function-valued leaves flatten in the formats stage; empty output
-      // marks the refusal for the host
-      nodes.clear();
-      counts.clear();
-      if (slopes != nullptr) slopes->clear();
-      if (masks != nullptr) masks->clear();
+      // records carry per-leaf mean fits; slopes, when requested, receives
+      // the saved-format side-channel blocks recomputed from the fits
+      size_t n = data_.numObservations;
+      std::vector<double> values;
+      functionLeafValues(trees_[t], treeFits_.data() + t * n, values);
+      trees_[t].flatten(data_, values.data(), nodes, &counts, 1, nullptr,
+                        masks);
+      if (slopes != nullptr) {
+        slopes->clear();
+        for (int32_t i : trees_[t].bottomScratch)
+          leaf_.appendLeafBlock(trees_[t], i, treeFits_.data() + t * n,
+                                *slopes);
+      }
     } else if constexpr (!L::hasVectorParams) {
       if (slopes != nullptr) slopes->clear();
       std::vector<double> params;
@@ -827,12 +851,15 @@ public:
     }
   }
 
-  /// Info dump of live tree t; function-valued leaves print in the formats
-  /// stage.
+  /// Info dump of live tree t; function-valued leaves print their per-leaf
+  /// mean fits.
   void printTree(size_t t, int indentation) {
     if constexpr (L::hasFunctionParams) {
-      (void) t;
-      (void) indentation;
+      std::vector<double> values;
+      functionLeafValues(trees_[t],
+                         treeFits_.data() + t * data_.numObservations,
+                         values);
+      trees_[t].print(data_, values.data(), indentation);
     } else if constexpr (!L::hasVectorParams) {
       std::vector<double> params;
       recoverParametersFromFits(t, params);
@@ -843,14 +870,9 @@ public:
     }
   }
 
-  /// The same for one saved tree, in the reference engine's saved format.
+  /// The same for one saved tree, in the reference engine's saved format;
+  /// function-valued leaves print their recorded mean values.
   void printSavedTree(size_t slot, size_t t, int indentation) const {
-    if constexpr (L::hasFunctionParams) {
-      (void) slot;
-      (void) t;
-      (void) indentation;
-      return;
-    }
     const std::vector<FlatNode>& flat(savedTrees_[slot * options_.numTrees + t]);
     const std::uint64_t* masks = data_.hasWideCategorical
       ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
@@ -870,14 +892,8 @@ public:
   void predictFromSavedSample(size_t slot, const double* x_test,
                               size_t numTestObservations, double* out) const {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
-    if constexpr (L::hasFunctionParams) {
-      // function-valued prediction rides the formats stage; the host
-      // refuses keepTrees on these samplers before anything is saved
-      (void) slot;
-      (void) x_test;
-      return;
-    }
     std::vector<size_t> indices(numTestObservations);
+    std::vector<size_t> blockOffsets;
     const std::uint32_t* numCategories =
       data_.hasWideCategorical ? data_.numCuts.data() : nullptr;
     for (size_t t = 0; t < options_.numTrees; ++t) {
@@ -886,12 +902,12 @@ public:
       const std::uint64_t* masks = data_.hasWideCategorical
         ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
       for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
-      if constexpr (!L::hasVectorParams) {
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
         addFlatPredictionsBelow(flat.data(), data_.types.data(), x_test,
                                 numTestObservations, indices.data(), 0,
                                 numTestObservations, out, numCategories,
                                 masks);
-      } else {
+      } else if constexpr (L::hasVectorParams) {
         const std::vector<double>& slopes(
           savedTreeParams_[slot * options_.numTrees + t]);
         addFlatLinearPredictionsBelow(
@@ -900,6 +916,20 @@ public:
           leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
           leaf_.covariateSds().data(), leaf_.numParams() - 1, slopes.data(),
           0, numCategories, masks);
+      } else {
+        const std::vector<double>& blocks(
+          savedTreeParams_[slot * options_.numTrees + t]);
+        // valid by construction (flatten wrote it) or by stateIsValid
+        computeFunctionBlockOffsets(blocks.data(), blocks.size(),
+                                    (flat.size() + 1) / 2,
+                                    leaf_.numCovariates(), blockOffsets);
+        addFlatFunctionPredictionsBelow(
+          flat.data(), data_.types.data(), x_test, numTestObservations,
+          indices.data(), 0, numTestObservations, out,
+          leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
+          leaf_.covariateSds().data(), leaf_.lengthscales().data(),
+          leaf_.numCovariates(), blocks.data(), blockOffsets.data(), 0,
+          numCategories, masks);
       }
     }
     double scale = response_->fitScale();
@@ -913,14 +943,9 @@ public:
   void predictFromCurrentTrees(const double* x_test,
                                size_t numTestObservations, double* out) {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
-    if constexpr (L::hasFunctionParams) {
-      // function-valued prediction rides the formats stage; zeroed output
-      // marks the refusal for the host
-      (void) x_test;
-      return;
-    }
     std::vector<size_t> indices(numTestObservations);
     std::vector<double> params, slopes;
+    std::vector<size_t> blockOffsets;
     std::vector<FlatNode> flat;
     std::vector<std::uint64_t> maskBuffer;
     const std::uint32_t* numCategories =
@@ -929,7 +954,7 @@ public:
       data_.hasWideCategorical ? &maskBuffer : nullptr;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
-      if constexpr (!L::hasVectorParams) {
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
         recoverParametersFromFits(t, params);
         trees_[t].flatten(data_, params.data(), flat, nullptr, 1, nullptr,
                           masks);
@@ -937,6 +962,27 @@ public:
                                 numTestObservations, indices.data(), 0,
                                 numTestObservations, out, numCategories,
                                 maskBuffer.data());
+      } else if constexpr (L::hasFunctionParams) {
+        // no draw cache is fresh between runs: blocks recompute from the
+        // persisted fits against the current covariates
+        size_t n = data_.numObservations;
+        functionLeafValues(trees_[t], treeFits_.data() + t * n, params);
+        trees_[t].flatten(data_, params.data(), flat, nullptr, 1, nullptr,
+                          masks);
+        slopes.clear();
+        for (int32_t i : trees_[t].bottomScratch)
+          leaf_.appendLeafBlock(trees_[t], i, treeFits_.data() + t * n,
+                                slopes);
+        computeFunctionBlockOffsets(slopes.data(), slopes.size(),
+                                    (flat.size() + 1) / 2,
+                                    leaf_.numCovariates(), blockOffsets);
+        addFlatFunctionPredictionsBelow(
+          flat.data(), data_.types.data(), x_test, numTestObservations,
+          indices.data(), 0, numTestObservations, out,
+          leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
+          leaf_.covariateSds().data(), leaf_.lengthscales().data(),
+          leaf_.numCovariates(), slopes.data(), blockOffsets.data(), 0,
+          numCategories, maskBuffer.data());
       } else {
         trees_[t].flatten(data_, paramsByTree_[t].data(), flat, nullptr,
                           leaf_.numParams(), &slopes, masks);
@@ -961,12 +1007,6 @@ public:
   // their slopes in treeParams/savedTreeParams alongside the flat trees.
 
   void getState(ChainStateData& state) {
-    if constexpr (L::hasFunctionParams) {
-      // function-valued states serialize in the formats stage; an empty
-      // tree set marks the state unusable and stateIsValid refuses it
-      state = ChainStateData();
-      return;
-    }
     state.trees.resize(options_.numTrees);
     if (data_.hasWideCategorical) {
       state.treeMasks.resize(options_.numTrees);
@@ -975,7 +1015,7 @@ public:
       state.treeMasks.clear();
       state.savedTreeMasks.clear();
     }
-    if constexpr (!L::hasVectorParams) {
+    if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
       std::vector<double> params;
       for (size_t t = 0; t < options_.numTrees; ++t) {
         recoverParametersFromFits(t, params);
@@ -986,13 +1026,30 @@ public:
       }
       state.treeParams.clear();
       state.savedTreeParams.clear();
-    } else {
+    } else if constexpr (L::hasVectorParams) {
       state.treeParams.resize(options_.numTrees);
       for (size_t t = 0; t < options_.numTrees; ++t)
         trees_[t].flatten(data_, paramsByTree_[t].data(), state.trees[t],
                           nullptr, leaf_.numParams(), &state.treeParams[t],
                           data_.hasWideCategorical ? &state.treeMasks[t]
                                                    : nullptr);
+      state.savedTreeParams = savedTreeParams_;
+    } else {
+      // function-valued leaves: records carry reporting means, and each
+      // live tree's parameters ARE its fits - one slab per tree in
+      // observation order, restored by copy so continuation is bitwise
+      size_t n = data_.numObservations;
+      std::vector<double> values;
+      state.treeParams.resize(options_.numTrees);
+      for (size_t t = 0; t < options_.numTrees; ++t) {
+        functionLeafValues(trees_[t], treeFits_.data() + t * n, values);
+        trees_[t].flatten(data_, values.data(), state.trees[t], nullptr, 1,
+                          nullptr,
+                          data_.hasWideCategorical ? &state.treeMasks[t]
+                                                   : nullptr);
+        state.treeParams[t].assign(treeFits_.data() + t * n,
+                                   treeFits_.data() + (t + 1) * n);
+      }
       state.savedTreeParams = savedTreeParams_;
     }
     state.savedTrees = savedTrees_;
@@ -1030,7 +1087,6 @@ public:
   }
 
   bool stateIsValid(const ChainStateData& state) const {
-    if constexpr (L::hasFunctionParams) return false;
     if (state.trees.size() != options_.numTrees) return false;
     if (!state.savedTrees.empty() &&
         state.savedTrees.size() != savedTrees_.size())
@@ -1058,6 +1114,25 @@ public:
         for (size_t s = 0; s < state.savedTrees.size(); ++s)
           if (state.savedTreeParams[s].size() !=
               ((state.savedTrees[s].size() + 1) / 2) * numSlopes)
+            return false;
+      }
+    }
+    if constexpr (L::hasFunctionParams) {
+      // one fits slab per live tree; saved side channels must walk cleanly
+      // against their trees' leaf counts
+      if (state.treeParams.size() != options_.numTrees) return false;
+      for (size_t t = 0; t < options_.numTrees; ++t)
+        if (state.treeParams[t].size() != data_.numObservations) return false;
+      if (!state.savedTrees.empty()) {
+        if (state.savedTreeParams.size() != state.savedTrees.size())
+          return false;
+        std::vector<size_t> blockOffsets;
+        for (size_t s = 0; s < state.savedTrees.size(); ++s)
+          if (!computeFunctionBlockOffsets(
+                state.savedTreeParams[s].data(),
+                state.savedTreeParams[s].size(),
+                (state.savedTrees[s].size() + 1) / 2, leaf_.numCovariates(),
+                blockOffsets))
             return false;
       }
     }
@@ -1124,7 +1199,6 @@ public:
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
-    if constexpr (L::hasFunctionParams) return false;
     size_t n = data_.numObservations;
     // internal-scale quantities below (tree parameters, fits, sigma) were
     // recorded under this transform; scale-free states leave creation's
@@ -1160,11 +1234,15 @@ public:
                     n * sizeof(size_t));
         if (!trees_[t].setPartitionsFromOrderedIndices(data_, 0)) return false;
       }
-      if constexpr (!L::hasVectorParams) {
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
         setTreeFitsFromParameters(t, params);
-      } else {
+      } else if constexpr (L::hasVectorParams) {
         paramsByTree_[t] = params;
         setTreeFitsFromParameterBlocks(t, params);
+      } else {
+        // the recorded slab IS the tree's parameters; copy restores bitwise
+        std::memcpy(treeFits_.data() + t * n, state.treeParams[t].data(),
+                    n * sizeof(double));
       }
       misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
     }
@@ -1173,7 +1251,7 @@ public:
                   n * sizeof(double));
     if (!state.savedTrees.empty()) {
       savedTrees_ = state.savedTrees;
-      if constexpr (L::hasVectorParams)
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
         savedTreeParams_ = state.savedTreeParams;
       if (data_.hasWideCategorical) {
         if (state.savedTreeMasks.empty())
@@ -1253,6 +1331,26 @@ private:
       const Node& node(tree.at(i));
       if (node.numObservations() > 0)
         paramByNode[static_cast<size_t>(i)] = treeFits[tree.indices[node.begin]];
+    }
+  }
+
+  /// Function-valued leaves' per-leaf reporting values, indexed by arena
+  /// node id: the mean of the leaf's fits (fits indexed by observation),
+  /// zero for empty leaves. FlatNode.value carries this for reporting; the
+  /// saved side channel serves prediction.
+  void functionLeafValues(Tree& tree, const double* fits,
+                          std::vector<double>& valueByNode) {
+    valueByNode.assign(tree.nodes.size(), 0.0);
+    tree.bottomScratch.clear();
+    tree.fillBottom(0, tree.bottomScratch);
+    for (int32_t i : tree.bottomScratch) {
+      const Node& node(tree.at(i));
+      if (node.numObservations() == 0) continue;
+      double total = 0.0;
+      for (size_t m = node.begin; m < node.end; ++m)
+        total += fits[tree.indices[m]];
+      valueByNode[static_cast<size_t>(i)] =
+        total / static_cast<double>(node.numObservations());
     }
   }
 

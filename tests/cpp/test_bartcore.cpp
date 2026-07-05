@@ -5479,16 +5479,16 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
     kSane = kSane && std::isfinite(kDraw) && kDraw > 0.05 && kDraw < 50.0;
   check(kSane, "sampled k stays finite and positive under gp leaves");
 
-  // stage-1 refusals: states come back unusable, flatten comes back empty
+  // the format surfaces work post-stage 2: a captured state restores into
+  // its own sampler and flatten emits records
   SamplerStateData state;
   gpSampler.getState(state);
-  check(state.chains.size() == 1 && state.chains[0].trees.empty(),
-        "gp state capture refuses with empty trees");
-  check(!gpSampler.setState(state), "gp state restore refuses");
+  check(gpSampler.setState(state), "a gp state restores into its own sampler");
   std::vector<FlatNode> flatNodes;
   std::vector<std::uint32_t> flatCounts;
   gpSampler.flattenTree(0, 0, flatNodes, flatCounts);
-  check(flatNodes.empty(), "gp flatten refuses with empty output");
+  check(!flatNodes.empty() && flatCounts.size() == flatNodes.size(),
+        "gp flatten emits records and counts");
 
   // prior draws compose: fresh structures and prior parameters, then a
   // short continued run stays finite
@@ -5505,22 +5505,135 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
   check(continuedFinite, "prior draws continue into finite sampling");
 
   // the type-erased facade instantiates every member for the function-leaf
-  // shape; live prediction refuses with zeroed output until the formats
-  // stage
+  // shape; a fresh sampler's live prediction is the response center (all
+  // trees are over-cap roots with zero fits)
   SamplerFacade<GPGaussianLeaf> facade(
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     ySd, 3.0, 0.37804942330213542, options, &rng);
   std::vector<double> predictions(numTest, 1.0);
   facade.predict(xTest.data(), numTest, predictions.data());
-  bool predictionsZeroed = true;
+  bool predictionsCentered = true;
   for (double prediction : predictions)
-    predictionsZeroed = predictionsZeroed && prediction == 0.0;
-  check(predictionsZeroed, "gp live prediction refuses with zeroed output");
+    predictionsCentered = predictionsCentered &&
+      std::isfinite(prediction) && prediction == predictions[0];
+  check(predictionsCentered, "fresh gp live prediction sits at the center");
 
   printf("ok: gp leaf end to end (sse ratio %.3f, constant ratio %.3f, "
          "sigma %.3f, test gap %.4f)\n",
          sseGp / sseMean, sseConstant / sseMean, sigmaPosteriorMean,
          maxTestGap);
+}
+
+static void testGPLeafFormats(ext_rng* rng) {
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) *
+                    std::cos(6.283185307179586 * u2);
+    y[i] = std::sin(3.0 * x[i]) + 0.5 * std::cos(3.0 * x[i + n]) +
+           0.2 * normal;
+  }
+  double yMean = 0.0, ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= (double) n;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / (double) (n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 5;
+  size_t covariates[] = {0, 1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 2;
+  options.gpMaxLeafSize = 60;
+  options.keepTrees = true;
+  options.numSamplesToStore = 20;
+
+  Sampler<GPGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+
+  const size_t numTest = 8;
+  std::vector<double> xTest(numTest * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      xTest[i + j * numTest] = runif01();
+  sampler.setTestPredictors(xTest.data(), numTest);
+
+  const size_t numSamples = 20;
+  std::vector<double> sigmaDraws(numSamples);
+  std::vector<double> testFits(numTest * numSamples);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  results.testFits = testFits.data();
+  sampler.run(60, numSamples, results);
+
+  // saved replay reproduces the recorded test fits bitwise: the stored
+  // alpha weights and covariate rows are the exact values the live
+  // evaluation used, and the replay repeats its arithmetic order
+  std::vector<double> replayed(numTest * numSamples, 0.0);
+  sampler.predict(xTest.data(), numTest, replayed.data());
+  bool replayMatches = true;
+  for (size_t s = 0; s < numSamples && replayMatches; ++s)
+    for (size_t i = 0; i < numTest && replayMatches; ++i)
+      replayMatches = replayed[i + s * numTest] == testFits[i + s * numTest];
+  check(replayMatches, "gp saved replay bit-matches recorded test fits");
+
+  // bitwise state round trip into a fresh sampler, then identical
+  // continuation of both
+  ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng2, 1234);
+  Sampler<GPGaussianLeaf> restored(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng2);
+  restored.setTestPredictors(xTest.data(), numTest);
+
+  SamplerStateData state;
+  sampler.getState(state);
+  check(restored.setState(state), "gp state installs into a fresh sampler");
+
+  // malformed side channels refuse without mutating anything
+  SamplerStateData malformed = state;
+  malformed.chains[0].savedTreeParams[0].pop_back();
+  check(!restored.setState(malformed), "truncated gp side channel refused");
+  malformed = state;
+  malformed.chains[0].treeParams[0].pop_back();
+  check(!restored.setState(malformed), "short gp fits slab refused");
+
+  const size_t numContinued = 10;
+  std::vector<double> sigmaA(numContinued), sigmaB(numContinued);
+  std::vector<double> trainA(n * numContinued), trainB(n * numContinued);
+  std::vector<double> testA(numTest * numContinued),
+                      testB(numTest * numContinued);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  resultsA.testFits = testA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  resultsB.testFits = testB.data();
+  sampler.run(0, numContinued, resultsA);
+  restored.run(0, numContinued, resultsB);
+  check(sigmaA == sigmaB, "restored gp chain draws identical sigmas");
+  check(trainA == trainB, "restored gp chain draws identical fits");
+  check(testA == testB, "restored gp chain draws identical test fits");
+
+  // flattened live trees emit walkable side-channel blocks
+  std::vector<FlatNode> nodes;
+  std::vector<std::uint32_t> counts;
+  std::vector<double> blocks;
+  sampler.flattenTree(0, 0, nodes, counts, &blocks);
+  std::vector<size_t> blockOffsets;
+  check(!nodes.empty() && counts.size() == nodes.size() &&
+          computeFunctionBlockOffsets(blocks.data(), blocks.size(),
+                                      (nodes.size() + 1) / 2, 2,
+                                      blockOffsets),
+        "gp flatten emits records and walkable blocks");
+
+  ext_rng_destroy(rng2);
+  printf("ok: gp leaf formats\n");
 }
 
 int main() {
@@ -5605,6 +5718,7 @@ int main() {
   testGPLeafMarginal();
   testGPLeafDraw(rng);
   testGPLeafEndToEnd(rng);
+  testGPLeafFormats(rng);
 
   ext_rng_destroy(rng);
 
