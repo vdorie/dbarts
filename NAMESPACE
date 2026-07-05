@@ -30,6 +30,11 @@ S3method(residuals, rbart)
 S3method(print, bart)
 S3method(print, rbart)
 
+S3method(dim, dbartsMixedMatrix)
+S3method(dimnames, dbartsMixedMatrix)
+S3method("[", dbartsMixedMatrix)
+S3method(as.matrix, dbartsMixedMatrix)
+
 importFrom(methods, setRefClass, setClass, setClassUnion, callNextMethod, validObject, new, setValidity, setMethod, is)
 
 importFrom(stats, model.frame, model.offset, model.response, model.weights, is.empty.model, terms, na.omit, complete.cases)

@@ -18,6 +18,18 @@
             serialization and \code{predict} work as usual.
             \code{rbart_vi} and \code{node.prior = linear()} do not yet
             support sparse inputs.
+      \item Mixed dense and sparse predictors: a data frame passed to
+            the x/y interfaces may hold \code{Matrix::sparseVector} and
+            \code{dgCMatrix} columns (assign them into the frame; they
+            do not survive \code{data.frame(...)} or \code{I()})
+            alongside ordinary numeric and factor columns. Sparse
+            columns pass through unexpanded and tier exactly as an
+            all-sparse design does, while dense-backed columns keep the
+            full feature set: factors still split categorically and
+            \code{node.prior = linear()} may designate dense-backed
+            columns. Test data frames expand to dense matrices;
+            predictor mutation remains fixed at creation and
+            \code{rbart_vi} still requires dense inputs.
       \item Categorical predictors support up to 65535 levels, up from
             53: rules on wider factors pool their direction masks per
             tree. In `getTrees` such a rule's `value` is `NA` (its mask

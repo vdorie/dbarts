@@ -143,6 +143,9 @@ struct ColumnStore {
   std::vector<SparseColumnData> sparseColumns;
   // borrowed CSC slices per column when builtFromCsc, for re-quantization
   std::vector<CscColumnSlice> cscSlices;
+  // per column, borrowed raw dense values on mixed builds (null for
+  // CSC-backed columns); empty for every other build kind
+  std::vector<const double*> mixedRawColumns;
   bool builtFromCsc = false;
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
@@ -196,10 +199,27 @@ struct ColumnStore {
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
-  /// Raw training values of column j: the borrowed matrix when the store has
-  /// one, a gathered copy on views, null when neither serves it.
-  const double* rawColumn(size_t j) const {
+  /// Borrowed raw values of column j when a dense source backs it: the
+  /// matrix column of a dense build, the dense-slice column of a mixed
+  /// build, null for CSC-backed columns and views.
+  const double* denseSourceColumn(size_t j) const {
     if (x != nullptr) return x + j * numObservations;
+    if (!mixedRawColumns.empty()) return mixedRawColumns[j];
+    return nullptr;
+  }
+
+  /// Whether column j quantizes from a borrowed CSC slice (every column of
+  /// a buildFromCsc store, the sparse-source columns of a mixed build).
+  bool columnIsCscBacked(size_t j) const {
+    return builtFromCsc &&
+           (mixedRawColumns.empty() || mixedRawColumns[j] == nullptr);
+  }
+
+  /// Raw training values of column j: the dense source when one backs it,
+  /// a gathered copy on views, null when neither serves it.
+  const double* rawColumn(size_t j) const {
+    const double* raw = denseSourceColumn(j);
+    if (raw != nullptr) return raw;
     for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
       if (gatheredRawColumns[k] == j)
         return gatheredRawValues.data() + k * numObservations;
@@ -319,7 +339,7 @@ struct ColumnStore {
   }
 
   void fillCutsUniformly(size_t j) {
-    const double* column = x + j * numObservations;
+    const double* column = denseSourceColumn(j);
     // the range is over observed values; NaN never satisfies a comparison,
     // so only the seed needs the explicit skip
     double xMin = 0.0, xMax = 0.0;
@@ -360,7 +380,7 @@ struct ColumnStore {
   /// CSC columns are always ordinal.
   void buildCutsForColumn(size_t j) {
     if (types[j] == ColumnType::categorical) {
-      const double* column = x + j * numObservations;
+      const double* column = denseSourceColumn(j);
       double maxValue = -1.0;
       for (size_t i = 0; i < numObservations; ++i)
         if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
@@ -368,14 +388,14 @@ struct ColumnStore {
         ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
       cutPoints[j].clear();
     } else if (useQuantiles) {
-      QuantileGrid grid = builtFromCsc
+      QuantileGrid grid = columnIsCscBacked(j)
         ? quantileGridForCscColumn(j)
-        : quantileGridForColumn(j, x + j * numObservations);
+        : quantileGridForColumn(j, denseSourceColumn(j));
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
       numCuts[j] = maxNumCuts[j];
-      if (builtFromCsc) fillCutsUniformlyCsc(j);
+      if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
       else fillCutsUniformly(j);
     }
   }
@@ -388,7 +408,7 @@ struct ColumnStore {
   bool refreshCutsForColumn(size_t j) {
     if (types[j] == ColumnType::categorical) return true;
     if (useQuantiles) {
-      QuantileGrid grid = quantileGridForColumn(j, x + j * numObservations);
+      QuantileGrid grid = quantileGridForColumn(j, denseSourceColumn(j));
       if (grid.inducedNumCuts < numCuts[j]) return false;
       fillCutsFromQuantileGrid(j, grid);
     } else {
@@ -423,11 +443,11 @@ struct ColumnStore {
   }
 
   void quantizeColumn(size_t j) {
-    if (builtFromCsc) {
+    if (columnIsCscBacked(j)) {
       quantizeCscColumn(j);
       return;
     }
-    const double* column = x + j * numObservations;
+    const double* column = denseSourceColumn(j);
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numObservations; ++i) {
       xint_t code = codeFor(j, column[i]);
@@ -502,6 +522,7 @@ struct ColumnStore {
     sparseSlot.assign(p, -1);
     sparseColumns.clear();
     cscSlices.clear();
+    mixedRawColumns.clear();
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(p, 0);
@@ -518,22 +539,32 @@ struct ColumnStore {
     refreshCategoricalTiers();
   }
 
-  /// Build from a CSC (dgCMatrix-layout) predictor matrix: all columns
-  /// ordinal, no raw dense matrix (x stays null). Columns at or below
-  /// sparseDensityThreshold nonzero fraction take rank-bitmap storage, the
-  /// rest densify their codes; either way the borrowed slices serve
-  /// re-quantization. The host has validated the structure (row indices
-  /// unique and in range per column).
-  void buildFromCsc(const int* columnPointers, const int* rowIndices,
-                    const double* values, size_t n, size_t p,
-                    const std::uint32_t* maxNumCutsPerColumn,
-                    std::uint32_t maxNumCutsScalar, bool useQuantiles_) {
+  /// Build from mixed dense and CSC sources: column j reads dense column
+  /// columnSources[j] of denseValues (column-major) when the source is
+  /// nonnegative - quantized with the dense arithmetic exactly as build(),
+  /// categorical allowed, rawColumn served - or CSC column ~columnSources[j]
+  /// of the triple otherwise: ordinal only, rank-bitmap storage at or below
+  /// sparseDensityThreshold nonzero fraction, densified codes above, the
+  /// borrowed slices serving re-quantization either way. The host validates
+  /// structure (row indices unique and in range per column) and that
+  /// categorical columns are dense-backed. All pointers are borrowed for
+  /// the store's lifetime.
+  void buildMixed(const double* denseValues, const int* columnPointers,
+                  const int* rowIndices, const double* values,
+                  const std::int32_t* columnSources, size_t n, size_t p,
+                  const std::uint32_t* maxNumCutsPerColumn,
+                  std::uint32_t maxNumCutsScalar, bool useQuantiles_,
+                  const ColumnType* columnTypes = nullptr) {
     x = nullptr;
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
     builtFromCsc = true;
-    types.assign(p, ColumnType::ordinal);
+    if (columnTypes != nullptr) {
+      types.assign(columnTypes, columnTypes + p);
+    } else {
+      types.assign(p, ColumnType::ordinal);
+    }
     cutPoints.resize(p);
     numCuts.resize(p);
     if (maxNumCutsPerColumn != nullptr) {
@@ -551,14 +582,24 @@ struct ColumnStore {
     gatheredMeans.clear();
     gatheredSds.clear();
 
-    cscSlices.resize(p);
+    cscSlices.assign(p, CscColumnSlice());
+    mixedRawColumns.assign(p, nullptr);
     sparseSlot.assign(p, -1);
     sparseColumns.clear();
     codeOffsets.assign(p, 0);
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
-      size_t begin = static_cast<size_t>(columnPointers[j]);
-      size_t end = static_cast<size_t>(columnPointers[j + 1]);
+      if (columnSources[j] >= 0) {
+        mixedRawColumns[j] =
+          denseValues + static_cast<size_t>(columnSources[j]) * n;
+        codeOffsets[j] = numDenseCodes;
+        numDenseCodes += n;
+        continue;
+      }
+      std::int32_t sourceIndex = ~columnSources[j];
+      size_t source = static_cast<size_t>(sourceIndex);
+      size_t begin = static_cast<size_t>(columnPointers[source]);
+      size_t end = static_cast<size_t>(columnPointers[source + 1]);
       cscSlices[j] = { values + begin, rowIndices + begin, end - begin };
       bool sparse = static_cast<double>(end - begin) <=
         sparseDensityThreshold * static_cast<double>(n);
@@ -602,6 +643,19 @@ struct ColumnStore {
     x_test = nullptr;
     testCodes.clear();
     testOffset = nullptr;
+  }
+
+  /// Build from a CSC (dgCMatrix-layout) predictor matrix: buildMixed with
+  /// every column CSC-backed, so all columns ordinal and no raw dense
+  /// matrix (x stays null).
+  void buildFromCsc(const int* columnPointers, const int* rowIndices,
+                    const double* values, size_t n, size_t p,
+                    const std::uint32_t* maxNumCutsPerColumn,
+                    std::uint32_t maxNumCutsScalar, bool useQuantiles_) {
+    std::vector<std::int32_t> allCsc(p);
+    for (size_t j = 0; j < p; ++j) allCsc[j] = ~static_cast<std::int32_t>(j);
+    buildMixed(nullptr, columnPointers, rowIndices, values, allCsc.data(),
+               n, p, maxNumCutsPerColumn, maxNumCutsScalar, useQuantiles_);
   }
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
@@ -649,6 +703,7 @@ struct ColumnStore {
     sparseSlot.assign(numPredictors, -1);
     sparseColumns.clear();
     cscSlices.clear();
+    mixedRawColumns.clear();
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(numPredictors, 0);
@@ -659,26 +714,30 @@ struct ColumnStore {
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
-    if (parent.x != nullptr && numRawColumnsToGather > 0) {
-      gatheredRawColumns.assign(rawColumnsToGather,
-                                rawColumnsToGather + numRawColumnsToGather);
-      gatheredRawValues.resize(numRows * numRawColumnsToGather);
-      gatheredRawTestValues.resize(numTestRows * numRawColumnsToGather);
-      gatheredMeans.resize(numRawColumnsToGather);
-      gatheredSds.resize(numRawColumnsToGather);
-      for (size_t k = 0; k < numRawColumnsToGather; ++k) {
-        const double* parentColumn =
-          parent.x + rawColumnsToGather[k] * parent.numObservations;
-        double* values = gatheredRawValues.data() + k * numRows;
-        for (size_t i = 0; i < numRows; ++i)
-          values[i] = parentColumn[rows[i]];
-        double* testValues = gatheredRawTestValues.data() + k * numTestRows;
-        for (size_t i = 0; i < numTestRows; ++i)
-          testValues[i] = parentColumn[testRows[i]];
+    // gather what the parent can serve raw (dense-backed columns, or its
+    // own gathered copies); columns it cannot are left ungathered, so the
+    // view's rawColumn returns null and the facade refuses the designation
+    for (size_t k = 0; k < numRawColumnsToGather; ++k) {
+      const double* parentColumn = parent.rawColumn(rawColumnsToGather[k]);
+      if (parentColumn == nullptr) continue;
+      size_t slot = gatheredRawColumns.size();
+      gatheredRawColumns.push_back(rawColumnsToGather[k]);
+      gatheredRawValues.resize(gatheredRawValues.size() + numRows);
+      gatheredRawTestValues.resize(gatheredRawTestValues.size() + numTestRows);
+      gatheredMeans.resize(slot + 1);
+      gatheredSds.resize(slot + 1);
+      double* values = gatheredRawValues.data() + slot * numRows;
+      for (size_t i = 0; i < numRows; ++i)
+        values[i] = parentColumn[rows[i]];
+      double* testValues = gatheredRawTestValues.data() + slot * numTestRows;
+      for (size_t i = 0; i < numTestRows; ++i)
+        testValues[i] = parentColumn[testRows[i]];
+      double mean, sd;
+      if (!parent.suppliedStandardization(rawColumnsToGather[k], &mean, &sd))
         standardizationMomentsForColumn(parentColumn, parent.numObservations,
-                                        gatheredMeans.data() + k,
-                                        gatheredSds.data() + k);
-      }
+                                        &mean, &sd);
+      gatheredMeans[slot] = mean;
+      gatheredSds[slot] = sd;
     }
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = types[j] == ColumnType::categorical

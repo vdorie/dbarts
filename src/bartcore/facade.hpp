@@ -333,8 +333,10 @@ inline std::unique_ptr<SamplerBase> createSampler(
                                 offset, family, sigmaEstimate, sigmaDf,
                                 sigmaRawScale, options, rngs);
 
-  // CSC-built stores hold no contiguous raw columns for a leaf model
-  if (options.cscColumnPointers != nullptr) return nullptr;
+  // CSC-backed columns hold no contiguous raw values for a leaf model:
+  // pure-CSC stores are refused outright, mixed builds per designated column
+  if (options.cscColumnPointers != nullptr && options.columnSources == nullptr)
+    return nullptr;
   if (options.leafCovariateColumns == nullptr ||
       options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
     return nullptr;
@@ -343,6 +345,8 @@ inline std::unique_ptr<SamplerBase> createSampler(
     if (j >= numPredictors) return nullptr;
     if (options.columnTypes != nullptr &&
         options.columnTypes[j] == ColumnType::categorical)
+      return nullptr;
+    if (options.columnSources != nullptr && options.columnSources[j] < 0)
       return nullptr;
   }
   return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(

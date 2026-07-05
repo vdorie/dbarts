@@ -289,8 +289,9 @@ methods::setClass("dbartsData",
 methods::setValidity("dbartsData",
   function(object) {
     numObservations <- length(object@y)
-    if (!is.matrix(object@x) && !inherits(object@x, "dgCMatrix"))
-      return("'x' must be a matrix or a Matrix::dgCMatrix")
+    if (!is.matrix(object@x) && !inherits(object@x, "dgCMatrix") &&
+        !inherits(object@x, "dbartsMixedMatrix"))
+      return("'x' must be a matrix, a Matrix::dgCMatrix, or a mixed container")
     if (nrow(object@x) != numObservations)
       return("number of rows of 'x' must equal length of 'y'")
     

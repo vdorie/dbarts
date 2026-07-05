@@ -123,6 +123,13 @@ struct ParsedData {
   const int* cscColumnPointers = NULL;
   const int* cscRowIndices = NULL;
   const double* cscValues = NULL;
+  // set when x is the R-side mixed container: x stays null, the CSC slots
+  // borrow the container's sparse part, mixedDenseValues its dense part,
+  // and columnSources maps each column in engine convention (a nonnegative
+  // dense column or the complement of a CSC column)
+  bool xIsMixed = false;
+  const double* mixedDenseValues = NULL;
+  std::vector<std::int32_t> columnSources;
   const double* x_test = NULL;
   size_t numTestObservations = 0;
   const double* weights = NULL;
@@ -228,6 +235,55 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
 }
 
+struct CscSlots {
+  const int* pointers = NULL;
+  const int* rows = NULL;
+  const double* values = NULL;
+  size_t numColumns = 0;
+};
+
+// Borrowed slots of a dgCMatrix; the structure is validated here because
+// the engine trusts it (rows unique, ascending, and in range per column).
+CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations) {
+  CscSlots result;
+  SEXP dimExpr = Rf_getAttrib(matrixExpr, Rf_install("Dim"));
+  if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
+    Rf_error("malformed sparse predictor matrix");
+  if (static_cast<size_t>(INTEGER(dimExpr)[0]) != numObservations)
+    Rf_error("number of rows of 'x' must equal length of 'y'");
+  result.numColumns = static_cast<size_t>(INTEGER(dimExpr)[1]);
+
+  SEXP pointersExpr = Rf_getAttrib(matrixExpr, Rf_install("p"));
+  SEXP rowsExpr = Rf_getAttrib(matrixExpr, Rf_install("i"));
+  SEXP valuesExpr = Rf_getAttrib(matrixExpr, Rf_install("x"));
+  if (!Rf_isInteger(pointersExpr) || !Rf_isInteger(rowsExpr) ||
+      !Rf_isReal(valuesExpr) ||
+      static_cast<size_t>(rc_getLength(pointersExpr)) !=
+        result.numColumns + 1)
+    Rf_error("malformed sparse predictor matrix");
+  const int* pointers = INTEGER(pointersExpr);
+  const int* rows = INTEGER(rowsExpr);
+  size_t numNonzero = static_cast<size_t>(rc_getLength(rowsExpr));
+  if (pointers[0] != 0 || pointers[result.numColumns] < 0 ||
+      static_cast<size_t>(pointers[result.numColumns]) != numNonzero ||
+      static_cast<size_t>(rc_getLength(valuesExpr)) != numNonzero)
+    Rf_error("malformed sparse predictor matrix");
+  for (size_t j = 0; j < result.numColumns; ++j) {
+    if (pointers[j + 1] < pointers[j])
+      Rf_error("malformed sparse predictor matrix");
+    for (int k = pointers[j]; k < pointers[j + 1]; ++k) {
+      if (rows[k] < 0 ||
+          static_cast<size_t>(rows[k]) >= numObservations ||
+          (k > pointers[j] && rows[k] <= rows[k - 1]))
+        Rf_error("malformed sparse predictor matrix");
+    }
+  }
+  result.pointers = pointers;
+  result.rows = rows;
+  result.values = REAL(valuesExpr);
+  return result;
+}
+
 void parseData(ParsedData& data, SEXP dataExpr) {
   SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
   if (!Rf_isReal(slotExpr)) Rf_error("y must be of type real");
@@ -238,44 +294,55 @@ void parseData(ParsedData& data, SEXP dataExpr) {
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
   if (Rf_inherits(slotExpr, "dgCMatrix")) {
-    // borrowed CSC slots; the structure is validated here because the
-    // engine trusts it (rows unique, ascending, and in range per column)
-    SEXP dimExpr = Rf_getAttrib(slotExpr, Rf_install("Dim"));
-    if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
-      Rf_error("malformed sparse predictor matrix");
-    if (static_cast<size_t>(INTEGER(dimExpr)[0]) != data.numObservations)
-      Rf_error("number of rows of 'x' must equal length of 'y'");
-    data.numPredictors = static_cast<size_t>(INTEGER(dimExpr)[1]);
+    CscSlots csc = parseCscMatrix(slotExpr, data.numObservations);
+    data.numPredictors = csc.numColumns;
+    data.xIsSparse = true;
+    data.cscColumnPointers = csc.pointers;
+    data.cscRowIndices = csc.rows;
+    data.cscValues = csc.values;
+    data.x = NULL;
+  } else if (Rf_inherits(slotExpr, "dbartsMixedMatrix")) {
+    // the internal mixed container (R/mixedMatrix.R): a dense matrix, a
+    // dgCMatrix, and a 1-based map - positive k names dense column k,
+    // negative -k sparse column k, which is the engine's ~(k - 1)
+    SEXP denseExpr = getListElement(slotExpr, "dense");
+    SEXP sparseExpr = getListElement(slotExpr, "sparse");
+    SEXP mapExpr = getListElement(slotExpr, "map");
+    if (!Rf_inherits(sparseExpr, "dgCMatrix") || !Rf_isInteger(mapExpr) ||
+        rc_getLength(mapExpr) == 0)
+      Rf_error("malformed mixed predictor container");
+    CscSlots csc = parseCscMatrix(sparseExpr, data.numObservations);
 
-    SEXP pointersExpr = Rf_getAttrib(slotExpr, Rf_install("p"));
-    SEXP rowsExpr = Rf_getAttrib(slotExpr, Rf_install("i"));
-    SEXP valuesExpr = Rf_getAttrib(slotExpr, Rf_install("x"));
-    if (!Rf_isInteger(pointersExpr) || !Rf_isInteger(rowsExpr) ||
-        !Rf_isReal(valuesExpr) ||
-        static_cast<size_t>(rc_getLength(pointersExpr)) !=
-          data.numPredictors + 1)
-      Rf_error("malformed sparse predictor matrix");
-    const int* pointers = INTEGER(pointersExpr);
-    const int* rows = INTEGER(rowsExpr);
-    size_t numNonzero = static_cast<size_t>(rc_getLength(rowsExpr));
-    if (pointers[0] != 0 || pointers[data.numPredictors] < 0 ||
-        static_cast<size_t>(pointers[data.numPredictors]) != numNonzero ||
-        static_cast<size_t>(rc_getLength(valuesExpr)) != numNonzero)
-      Rf_error("malformed sparse predictor matrix");
+    size_t numDenseColumns = 0;
+    if (!Rf_isNull(denseExpr)) {
+      if (!Rf_isReal(denseExpr))
+        Rf_error("malformed mixed predictor container");
+      rc_assertDimConstraints(denseExpr, "dimensions of x",
+                              RC_LENGTH | RC_EQ, rc_asRLength(2),
+                              RC_VALUE | RC_EQ,
+                              static_cast<int>(data.numObservations), RC_END);
+      numDenseColumns = static_cast<size_t>(
+        INTEGER(Rf_getAttrib(denseExpr, R_DimSymbol))[1]);
+      data.mixedDenseValues = REAL(denseExpr);
+    }
+
+    data.numPredictors = rc_getLength(mapExpr);
+    const int* map = INTEGER(mapExpr);
+    data.columnSources.resize(data.numPredictors);
     for (size_t j = 0; j < data.numPredictors; ++j) {
-      if (pointers[j + 1] < pointers[j])
-        Rf_error("malformed sparse predictor matrix");
-      for (int k = pointers[j]; k < pointers[j + 1]; ++k) {
-        if (rows[k] < 0 ||
-            static_cast<size_t>(rows[k]) >= data.numObservations ||
-            (k > pointers[j] && rows[k] <= rows[k - 1]))
-          Rf_error("malformed sparse predictor matrix");
+      if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns) {
+        data.columnSources[j] = map[j] - 1;
+      } else if (map[j] < 0 &&
+                 static_cast<size_t>(-map[j]) <= csc.numColumns) {
+        data.columnSources[j] = map[j];
+      } else {
+        Rf_error("malformed mixed predictor container");
       }
     }
-    data.xIsSparse = true;
-    data.cscColumnPointers = pointers;
-    data.cscRowIndices = rows;
-    data.cscValues = REAL(valuesExpr);
+    data.xIsMixed = true;
+    data.cscColumnPointers = csc.pointers;
+    data.cscRowIndices = csc.rows;
+    data.cscValues = csc.values;
     data.x = NULL;
   } else {
     if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
@@ -299,6 +366,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   }
   if (data.xIsSparse && data.anyCategorical)
     Rf_error("sparse predictor matrices must be entirely ordinal");
+  if (data.xIsMixed && data.anyCategorical) {
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      if (data.columnTypes[j] == bartcore::ColumnType::categorical &&
+          data.columnSources[j] < 0)
+        Rf_error("sparse predictor columns must be ordinal");
+  }
 
   slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
@@ -625,12 +698,26 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   return bartcore::ResponseFamily::gaussian;
 }
 
+// Raw training values of column j, when a dense source serves them: the
+// x matrix, or the mixed container's dense slice via the source map.
+const double* rawTrainingColumn(const ParsedData& data, size_t j) {
+  if (data.xIsMixed)
+    return data.columnSources[j] >= 0
+      ? data.mixedDenseValues +
+        static_cast<size_t>(data.columnSources[j]) * data.numObservations
+      : NULL;
+  return data.x != NULL ? data.x + j * data.numObservations : NULL;
+}
+
 void validateCategoricalPredictors(const ParsedData& data) {
   if (data.xIsSparse) return;  // parseData enforced all-ordinal
+  // for mixed containers parseData enforced dense backing per categorical
+  // column, so rawTrainingColumn serves every column validated here
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    const double* column = rawTrainingColumn(data, j);
     for (size_t i = 0; i < data.numObservations; ++i) {
-      double value = data.x[i + j * data.numObservations];
+      double value = column[i];
       if (bartcore::isNA(value)) continue;  // the reserved missing category
       if (value < 0.0 ||
           value >= static_cast<double>(bartcore::maxCategories) ||
@@ -644,9 +731,10 @@ void validateCategoricalPredictors(const ParsedData& data) {
     // training columns
     for (size_t j = 0; j < data.numPredictors; ++j) {
       if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+      const double* column = rawTrainingColumn(data, j);
       double maxValue = 0.0;
       for (size_t i = 0; i < data.numObservations; ++i) {
-        double value = data.x[i + j * data.numObservations];
+        double value = column[i];
         if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
       }
       for (size_t i = 0; i < data.numTestObservations; ++i) {
@@ -679,10 +767,14 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.useQuantiles = control.useQuantiles;
   options.columnTypes =
     data.anyCategorical ? data.columnTypes.data() : NULL;
-  if (data.xIsSparse) {
+  if (data.xIsSparse || data.xIsMixed) {
     options.cscColumnPointers = data.cscColumnPointers;
     options.cscRowIndices = data.cscRowIndices;
     options.cscValues = data.cscValues;
+  }
+  if (data.xIsMixed) {
+    options.mixedDenseValues = data.mixedDenseValues;
+    options.columnSources = data.columnSources.data();  // consumed at build
   }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
@@ -981,7 +1073,15 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
   validateCategoricalPredictors(data);
 
   DataHandle* handle = new DataHandle;
-  if (data.xIsSparse) {
+  if (data.xIsMixed) {
+    handle->store.buildMixed(data.mixedDenseValues, data.cscColumnPointers,
+                             data.cscRowIndices, data.cscValues,
+                             data.columnSources.data(), data.numObservations,
+                             data.numPredictors, data.maxNumCuts.data(), 0,
+                             control.useQuantiles,
+                             data.anyCategorical ? data.columnTypes.data()
+                                                 : NULL);
+  } else if (data.xIsSparse) {
     handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
                                data.cscValues, data.numObservations,
                                data.numPredictors, data.maxNumCuts.data(), 0,
@@ -1333,7 +1433,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
   ParsedData data;
   parseData(data, dataExpr);
-  if (data.xIsSparse)
+  if (data.xIsSparse || data.xIsMixed)
     Rf_error("bartcore setData requires a dense predictor matrix; sparse "
              "predictors fix the design at creation");
 

@@ -95,7 +95,13 @@ public:
           double sigmaRawScale, const SamplerOptions& options,
           ext_rng* const* rngs)
     : options_(options), family_(family) {
-    if (options.cscColumnPointers != nullptr) {
+    if (options.columnSources != nullptr) {
+      data_.buildMixed(options.mixedDenseValues, options.cscColumnPointers,
+                       options.cscRowIndices, options.cscValues,
+                       options.columnSources, numObservations, numPredictors,
+                       options.maxNumCutsPerVariable, options.maxNumCuts,
+                       options.useQuantiles, options.columnTypes);
+    } else if (options.cscColumnPointers != nullptr) {
       data_.buildFromCsc(options.cscColumnPointers, options.cscRowIndices,
                          options.cscValues, numObservations, numPredictors,
                          options.maxNumCutsPerVariable, options.maxNumCuts,
@@ -110,10 +116,12 @@ public:
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     options_.columnTypes = nullptr;
-    // the CSC slices themselves live on in the store
+    // the CSC slices and dense-source pointers live on in the store
     options_.cscColumnPointers = nullptr;
     options_.cscRowIndices = nullptr;
     options_.cscValues = nullptr;
+    options_.mixedDenseValues = nullptr;
+    options_.columnSources = nullptr;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);

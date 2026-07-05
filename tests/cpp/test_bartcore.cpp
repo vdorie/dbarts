@@ -4,9 +4,11 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstdarg>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -4798,6 +4800,345 @@ static void testSparseStateRoundTrip() {
   printf("ok: sparse state round trip\n");
 }
 
+// A mixed dense/CSC predictor set in the overall layout
+// [dense0, csc0, dense1, csc1, csc2], dense1 optionally 4-category
+// categorical; full is the equivalent all-dense matrix for reference builds.
+struct MixedFixture {
+  size_t n = 0;
+  static const size_t p = 5;
+  CscFixture csc;
+  std::vector<double> denseSource;  // column-major, n x 2
+  std::vector<double> full;         // column-major, n x 5
+  std::vector<std::int32_t> sources;
+  std::vector<ColumnType> types;
+
+  void build(size_t n_, const std::vector<double>& cscFractions,
+             bool categoricalDense1, size_t numMissingCsc2 = 0) {
+    n = n_;
+    csc.build(n, cscFractions);
+    for (int k = csc.pointers[2];
+         k < csc.pointers[2] + static_cast<int>(numMissingCsc2) &&
+         k < csc.pointers[3]; ++k) {
+      csc.values[static_cast<size_t>(k)] = std::nan("");
+      csc.dense[static_cast<size_t>(csc.rows[static_cast<size_t>(k)]) +
+                2 * n] = std::nan("");
+    }
+    denseSource.resize(n * 2);
+    for (size_t i = 0; i < n; ++i) {
+      denseSource[i] = 2.0 * runif01() - 1.0;
+      denseSource[i + n] = categoricalDense1
+        ? std::floor(runif01() * 4.0) : runif01();
+    }
+    sources = { 0, ~0, 1, ~1, ~2 };
+    types.assign(p, ColumnType::ordinal);
+    if (categoricalDense1) types[2] = ColumnType::categorical;
+    full.resize(n * p);
+    const double* columns[p] = {
+      denseSource.data(), csc.dense.data(), denseSource.data() + n,
+      csc.dense.data() + n, csc.dense.data() + 2 * n
+    };
+    for (size_t j = 0; j < p; ++j)
+      std::memcpy(full.data() + j * n, columns[j], n * sizeof(double));
+  }
+
+  void applyOptions(SamplerOptions& options) {
+    options.cscColumnPointers = csc.pointers.data();
+    options.cscRowIndices = csc.rows.data();
+    options.cscValues = csc.values.data();
+    options.mixedDenseValues = denseSource.data();
+    options.columnSources = sources.data();
+    options.columnTypes = types.data();
+  }
+};
+
+static void testMixedColumnStore() {
+  const size_t n = 300;
+  MixedFixture fixture;
+  // csc0 rank, csc1 densified, csc2 rank-with-missing; dense1 categorical
+  fixture.build(n, {0.05, 0.5, 0.1}, true, 5);
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore mixed;
+    mixed.buildMixed(fixture.denseSource.data(), fixture.csc.pointers.data(),
+                     fixture.csc.rows.data(), fixture.csc.values.data(),
+                     fixture.sources.data(), n, fixture.p, nullptr, 100,
+                     useQuantiles, fixture.types.data());
+    ColumnStore reference;
+    reference.build(fixture.full.data(), n, fixture.p, 100, useQuantiles,
+                    fixture.types.data());
+
+    check(mixed.builtFromCsc && mixed.hasSparse, "mixed store flags itself");
+    check(!mixed.columnIsCscBacked(0) && mixed.columnIsCscBacked(1) &&
+          !mixed.columnIsCscBacked(2) && mixed.columnIsCscBacked(3) &&
+          mixed.columnIsCscBacked(4),
+          "the source map splits the column backings");
+    check(!mixed.columnIsSparse(0) && mixed.columnIsSparse(1) &&
+          !mixed.columnIsSparse(2) && !mixed.columnIsSparse(3) &&
+          mixed.columnIsSparse(4),
+          "the density threshold tiers the CSC-backed columns");
+    check(mixed.rawColumn(0) == fixture.denseSource.data() &&
+          mixed.rawColumn(2) == fixture.denseSource.data() + n &&
+          mixed.rawColumn(1) == nullptr && mixed.rawColumn(3) == nullptr,
+          "raw values are served exactly for dense-backed columns");
+    check(mixed.hasMissing[0] == 0 && mixed.hasMissing[1] == 0 &&
+          mixed.hasMissing[2] == 0 && mixed.hasMissing[3] == 0 &&
+          mixed.hasMissing[4] == 1,
+          "stored NaN entries mark only their column missing");
+
+    bool cutsMatch = true;
+    for (size_t j = 0; j < fixture.p; ++j) {
+      cutsMatch &= mixed.numCuts[j] == reference.numCuts[j];
+      cutsMatch &= mixed.cutPoints[j] == reference.cutPoints[j];
+    }
+    check(cutsMatch, useQuantiles
+          ? "mixed quantile cuts bitwise-match the dense builder's"
+          : "mixed uniform cuts bitwise-match the dense builder's");
+    check(mixed.numCuts[2] == 4, "the dense-backed categorical keeps its levels");
+
+    bool codesMatch = true;
+    for (size_t j = 0; j < fixture.p; ++j)
+      for (size_t i = 0; i < n; ++i)
+        codesMatch &= mixed.codeAt(j, i) == reference.codes[i + j * n];
+    check(codesMatch, "mixed codes match the dense builder's at every cell");
+
+    check(mixed.sparseColumn(1).zeroCode == reference.codeFor(1, 0.0),
+          "rank zero code is the quantized zero");
+
+    // a view over the mixed parent densifies its codes and gathers raw
+    // values only for columns the parent serves raw
+    std::vector<size_t> viewRows;
+    for (size_t i = 0; i < n; i += 3) viewRows.push_back(i);
+    size_t rawColumnsToGather[] = { 0, 1 };
+    ColumnStore view;
+    view.buildFromParent(mixed, viewRows.data(), viewRows.size(), nullptr, 0,
+                         rawColumnsToGather, 2);
+    check(!view.hasSparse && !view.builtFromCsc,
+          "views over mixed parents densify");
+    bool viewMatches = true;
+    for (size_t j = 0; j < fixture.p; ++j)
+      for (size_t i = 0; i < viewRows.size(); ++i)
+        viewMatches &= view.codes[i + j * viewRows.size()] ==
+          mixed.codeAt(j, viewRows[i]);
+    check(viewMatches, "view gathers parent codes through the mixed layout");
+    const double* gathered = view.rawColumn(0);
+    bool gatherMatches = gathered != nullptr;
+    if (gathered != nullptr)
+      for (size_t i = 0; i < viewRows.size(); ++i)
+        gatherMatches &= gathered[i] == fixture.denseSource[viewRows[i]];
+    check(gatherMatches, "view gathers raw values of a dense-backed column");
+    check(view.rawColumn(1) == nullptr,
+          "view leaves a CSC-backed column ungathered");
+    double mean = 0.0, sd = 0.0;
+    double referenceMean = 0.0, referenceSd = 0.0;
+    standardizationMomentsForColumn(fixture.denseSource.data(), n,
+                                    &referenceMean, &referenceSd);
+    check(view.suppliedStandardization(0, &mean, &sd) &&
+          mean == referenceMean && sd == referenceSd,
+          "view standardization constants come from the parent's full data");
+  }
+  printf("ok: mixed column store\n");
+}
+
+static void testMixedEndToEnd() {
+  // all CSC sources densify, so the mixed sampler runs the dense kernels
+  // over identical codes: draws bitwise-match the dense-matrix path, the
+  // dense-backed categorical column included
+  const size_t n = 300;
+  MixedFixture fixture;
+  fixture.build(n, {0.6, 0.9, 1.0}, true);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i)
+    y[i] = std::sin(3.0 * fixture.denseSource[i]) + fixture.csc.dense[i] +
+           0.3 * (fixture.denseSource[i + n] == 2.0 ? 1.0 : 0.0) +
+           0.5 * runif01();
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 8471) != 0 ||
+      ext_rng_setSeed(rngB, 8471) != 0) {
+    check(false, "mixed end-to-end: rng creation");
+    return;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  options.columnTypes = fixture.types.data();
+  ClassicSampler dense(fixture.full.data(), y.data(), n, fixture.p, nullptr,
+                       nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                       0.37804942330213542, options, &rngA);
+
+  SamplerOptions mixedOptions;
+  mixedOptions.numTrees = 25;
+  fixture.applyOptions(mixedOptions);
+  ClassicSampler mixed(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                       ResponseFamily::gaussian, 1.0, 3.0,
+                       0.37804942330213542, mixedOptions, &rngB);
+  check(!mixed.data().hasSparse && mixed.data().builtFromCsc,
+        "all-densified mixed sampler holds no rank columns");
+
+  const size_t numBurnIn = 30, numSamples = 40;
+  std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = fitsA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = fitsB.data();
+  dense.run(numBurnIn, numSamples, resultsA);
+  mixed.run(numBurnIn, numSamples, resultsB);
+
+  check(sigmaA == sigmaB && fitsA == fitsB,
+        "mixed sampler bitwise-matches the dense path");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: mixed end-to-end\n");
+}
+
+static void testMixedLinearLeaves() {
+  // linear leaves designate dense-backed mixed columns (they serve raw
+  // values); designating a CSC-backed column refuses at the factory
+  const size_t n = 300;
+  MixedFixture fixture;
+  fixture.build(n, {0.6, 0.9, 1.0}, false);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i)
+    y[i] = (fixture.denseSource[i] > 0.0 ? fixture.denseSource[i + n] : 0.0) +
+           0.4 * runif01();
+
+  SamplerOptions mixedOptions;
+  mixedOptions.numTrees = 25;
+  fixture.applyOptions(mixedOptions);
+  size_t covariates[] = { 2 };
+  mixedOptions.leafCovariateColumns = covariates;
+  mixedOptions.numLeafCovariates = 1;
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 555) != 0 ||
+      ext_rng_setSeed(rngB, 555) != 0) {
+    check(false, "mixed linear leaves: rng creation");
+    return;
+  }
+
+  {
+    SamplerOptions bad = mixedOptions;
+    size_t cscBacked[] = { 3 };
+    bad.leafCovariateColumns = cscBacked;
+    check(createSampler(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                        ResponseFamily::gaussian, 1.0, 3.0,
+                        0.37804942330213542, bad, &rngA) == nullptr,
+          "CSC-backed leaf covariate refused");
+  }
+
+  std::unique_ptr<SamplerBase> mixed = createSampler(
+    nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+    ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, mixedOptions,
+    &rngB);
+  check(mixed != nullptr, "dense-backed leaf covariate creates");
+  if (mixed == nullptr) {
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+    return;
+  }
+
+  SamplerOptions denseOptions;
+  denseOptions.numTrees = 25;
+  denseOptions.leafCovariateColumns = covariates;
+  denseOptions.numLeafCovariates = 1;
+  std::unique_ptr<SamplerBase> dense = createSampler(
+    fixture.full.data(), y.data(), n, fixture.p, nullptr, nullptr,
+    ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, denseOptions,
+    &rngA);
+  check(dense != nullptr, "dense reference linear-leaf sampler creates");
+  if (dense == nullptr) {
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+    return;
+  }
+
+  const size_t numBurnIn = 30, numSamples = 40;
+  std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = fitsA.data();
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = fitsB.data();
+  dense->run(numBurnIn, numSamples, resultsA);
+  mixed->run(numBurnIn, numSamples, resultsB);
+  check(sigmaA == sigmaB && fitsA == fitsB,
+        "mixed linear-leaf sampler bitwise-matches the dense path");
+
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  printf("ok: mixed linear leaves\n");
+}
+
+static void testMixedStateRoundTrip() {
+  const size_t n = 240, numChains = 2, numSamples = 5;
+  MixedFixture fixture;
+  // both CSC tiers, missing entries, and a dense-backed categorical ride
+  // the state round trip
+  fixture.build(n, {0.1, 0.5, 0.08}, true, 4);
+  std::vector<double> y(n);
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 1.5 * fixture.denseSource[i] + fixture.csc.dense[i] +
+           0.4 * runif01();
+
+  SamplerOptions options;
+  options.numTrees = 15;
+  options.numChains = numChains;
+  fixture.applyOptions(options);
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t seed) {
+    for (size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], seed + static_cast<std::uint32_t>(c));
+    }
+  };
+
+  std::vector<ext_rng*> rngs(numChains, nullptr);
+  makeRngs(rngs, 6161);
+  ClassicSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs.data());
+  Results empty;
+  original.run(40, 0, empty);
+
+  SamplerStateData state;
+  original.getState(state);
+
+  std::vector<ext_rng*> rngs2(numChains, nullptr);
+  makeRngs(rngs2, 2323);
+  ClassicSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, options, rngs2.data());
+  check(restored.setState(state), "a mixed-store state restores");
+
+  std::vector<double> sigmaA(numSamples * numChains);
+  std::vector<double> trainA(n * numSamples * numChains);
+  Results resultsA;
+  resultsA.sigma = sigmaA.data();
+  resultsA.trainingFits = trainA.data();
+  original.run(0, numSamples, resultsA);
+
+  std::vector<double> sigmaB(numSamples * numChains);
+  std::vector<double> trainB(n * numSamples * numChains);
+  Results resultsB;
+  resultsB.sigma = sigmaB.data();
+  resultsB.trainingFits = trainB.data();
+  restored.run(0, numSamples, resultsB);
+
+  check(sigmaA == sigmaB, "restored mixed chains draw identical sigmas");
+  check(trainA == trainB, "restored mixed chains draw identical fits");
+
+  for (size_t c = 0; c < numChains; ++c) {
+    ext_rng_destroy(rngs[c]);
+    ext_rng_destroy(rngs2[c]);
+  }
+  printf("ok: mixed state round trip\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -4873,6 +5214,10 @@ int main() {
   testSparseColumnStore();
   testSparseEndToEnd();
   testSparseStateRoundTrip();
+  testMixedColumnStore();
+  testMixedEndToEnd();
+  testMixedLinearLeaves();
+  testMixedStateRoundTrip();
 
   ext_rng_destroy(rng);
 
