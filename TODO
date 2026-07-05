@@ -82,8 +82,16 @@ is done, so this batch is one of the last pre-release steps.)
     with n). The two setPredictor microbenchmarks moved +7/+13% but share
     NO code with the fusion (it is inline in run()), so that is
     code-layout jitter on 0.15ms measurements, not a real regression.
-    STILL OPEN (order-preserving): have the draw write the treeFits_ slab
-    directly to drop currFits_ and the trailing memcpy (~1 more pass).
+  draw into the fit slab, ORDER-PRESERVING: DONE (d688b19). The draw now
+    writes each tree's new fits straight into its treeFits_ slab; the
+    residual pass also strips the tree's old fits from totalFits so the
+    slab can be overwritten in place, and the running total is restored by
+    adding the slab back. The trailing memcpy and the currFits_ scratch
+    buffer are gone: two O(n) passes per tree instead of three. totalFits
+    stays (total - oldFits) + newFits in order, bitwise identical
+    (equivalence identical on all 17); A/B 3-6% faster on the p=10 run
+    scenarios (embedded-offset's +6.8% flag was within its ~13% same-binary
+    noise band, verified by a noise-floor run).
   the bigger residual restructure - maintain R = y - totalFits across the
     sweep, ~3 passes total, ~25% ceiling - is ORDER-CHANGING (totalFits
     carries FP accumulation history the state format preserves): part of
