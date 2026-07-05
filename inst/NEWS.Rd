@@ -37,6 +37,25 @@
             `directions` column carries the decode as before. Everything
             else composes unchanged, including missing values, saved
             trees with `predict`, and state serialization.
+      \item GP leaves: `node.prior = gp(columns, k, lengthscale,
+            max.leaf.size)` in `dbarts` fits each bottom node with a
+            smooth Gaussian-process function of the designated
+            continuous predictor columns under a squared-exponential
+            kernel, the prior scale tied to `k` exactly as the other
+            leaf priors, giving smooth fits where constant-leaf BART
+            steps. `k` is fixed in this release (binary responses need
+            it supplied); lengthscales fix at creation, per column or by
+            a median-distance heuristic; leaves larger than
+            `max.leaf.size` fall back to constant fits, so the cubic
+            kernel cost is confined to small leaves. The sampler surface
+            composes: weights, probit and logistic responses,
+            `keepTrees` with `predict` (saved replays reproduce recorded
+            test fits exactly), state serialization, and the
+            predictor-mutation methods. Function-valued fits ride
+            prediction only: `getTrees` reports `NA` leaf values and no
+            coefficient columns, and `keepTrees` storage grows with leaf
+            sizes. `xbart` accepts the same specification through
+            `node.prior`.
       \item Linear leaves: `node.prior = linear(columns, k)` in `dbarts`
             fits each bottom node with an intercept plus a linear term
             in the designated continuous predictor columns (standardized

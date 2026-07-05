@@ -68,12 +68,14 @@ struct SamplerOptions {
   std::size_t numLeafCovariates = 0;
 
   // GP (function-valued) leaves share the leafCovariateColumns designation;
-  // the leaf model type selects which of the two consumes it. gpLengthscales,
-  // when non-null, fixes the kernel lengthscales per designated column on
-  // the standardized scale (borrowed; consumed during construction); null
+  // gpLeaves selects them over the linear leaf at the factory (the leaf
+  // model type consumes the designation either way). gpLengthscales, when
+  // non-null, fixes the kernel lengthscales per designated column on the
+  // standardized scale (borrowed; consumed during construction); null
   // selects the median pairwise-distance heuristic. Leaves larger than
   // gpMaxLeafSize score and draw as constant leaves, confining the
   // O(n_leaf^3) kernel math below the cap.
+  bool gpLeaves = false;
   const double* gpLengthscales = nullptr;
   std::size_t gpMaxLeafSize = 256;
 

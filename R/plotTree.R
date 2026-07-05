@@ -139,6 +139,10 @@ plotNode <- function(node, sampler, plotPars)
         signif(node$value[1L], 3),
         paste0(ifelse(slopes < 0, " - ", " + "), signif(abs(slopes), 3),
                " ", covariateNames, collapse = ""))
+    } else if (is.na(node$value[1L])) {
+      # a function-valued (gp) leaf: the fit varies within the node and
+      # rides prediction only
+      expr1 <- "gp"
     } else {
       expr1 <- expression(mu == b)
       expr1[[1]][[3]] <- signif(node$value[1L], 3)

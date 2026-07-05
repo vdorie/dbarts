@@ -81,15 +81,16 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     stop("'n.trees' must contain only positive integers")
 
   # a supplied node.prior contributes the leaf model shape - normal(k), the
-  # default, or linear(columns, k), whose designated covariate columns
-  # resolve against the model matrix; the k argument drives the k grid as
-  # always, with a k inside the supplied prior standing in for a missing k
-  # argument
+  # default, linear(columns, k), or gp(columns, k, ...), whose designated
+  # covariate columns resolve against the model matrix; the k argument
+  # drives the k grid as always, with a k inside the supplied prior standing
+  # in for a missing k argument
   node.spec <- NULL
   if (!is.null(matchedCall[["node.prior"]])) {
     priorEnv <- new.env(parent = evalEnv)
     priorEnv[["normal"]] <- getNamespace("dbarts")[["normal"]]
     priorEnv[["linear"]] <- getNamespace("dbarts")[["linear"]]
+    priorEnv[["gp"]]     <- getNamespace("dbarts")[["gp"]]
     priorEnv[["chi"]]    <- getNamespace("dbarts")[["chi"]]
     node.spec <- eval(matchedCall[["node.prior"]], priorEnv)
     if (is.function(node.spec)) node.spec <- node.spec()
@@ -128,6 +129,11 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     if (is.call(kValue)) kValue <- eval(kValue)
     node.prior <- if (is(node.spec, "dbartsLinearPrior"))
       resolveLeafCovariates(linear(node.spec@columns, kValue), data)
+    else if (is(node.spec, "dbartsGPPrior"))
+      resolveLeafCovariates(
+        gp(node.spec@columns, kValue, node.spec@lengthscale,
+           node.spec@max.leaf.size),
+        data)
     else
       normal(kValue)
   }

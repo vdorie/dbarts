@@ -95,7 +95,7 @@ xbart(
      How missing values in the predictors enter the model; as in \code{\link{dbarts}}.
    }
    \item{node.prior}{
-     An optional expression of the form \code{normal(k)} or \code{linear(columns, k)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
+     An optional expression of the form \code{normal(k)}, \code{linear(columns, k)}, or \code{gp(columns, k, ...)} selecting the leaf model, as in \code{\link{dbarts}}. The default fits constant leaves. A \code{k} given inside the prior stands in for a missing \code{k} argument; the \code{k} argument otherwise drives the crossvalidation grid as usual.
    }
 }
 \details{
