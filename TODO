@@ -111,12 +111,21 @@ is done, so this batch is one of the last pre-release steps.)
     n=10000 where O(n) passes dominate). STILL OPEN (order-changing): change/
     swap score whole-tree treeLogProbability twice per move where subtree
     differences cancel exactly - part of the end-of-work drop-bitwise batch.
-  linear-leaf draw recomputes accumulateNodeStatistics the marginal
-    just ran on the same node (model.hpp:275-333); caching the
-    crossproduct across the score->draw gap is bitwise identical.
-    Also setNodeAverages maintains constant-leaf stats linear leaves
-    never read (skippable if constexpr). 10-25% of linear-leaf runs;
-    zero effect on default runs.
+  skip setNodeAverages under linear leaves, ORDER-PRESERVING: DONE
+    (44a9383). The constant-leaf per-node means are pure waste for linear
+    (vector) leaves, which accumulate their own statistics and never read
+    node.average; guarded with if constexpr (!hasVectorParams) so it still
+    runs for the constant leaf AND for gp (whose over-cap nodes delegate to
+    the constant leaf - a first guard that skipped gp too shifted the gp
+    component-test values and was caught before commit). Bitwise identical
+    (equivalence all 17 identical); same-climate A/B on a q=2 linear run
+    5.13s -> 4.31s (16% faster, tight distributions). STILL OPEN and NOT
+    pursued: caching the crossproduct across the linear-leaf score->draw
+    gap - the marginal and draw run on different node sets (the draw covers
+    all bottom nodes; move marginals only the touched branch), so a true
+    reuse needs a persistent per-node stats cache, which the design
+    deliberately avoids ("move rollbacks need no cache invalidation",
+    model.hpp:162-165). Not the free win the note implied.
   rbart_vi custom-prior R loop pays a full bridge round trip per
     posterior sample (rbart.R: setOffset + run(0L, 1L), ~10 fresh
     SEXPs per call in bartcore_run); built-in priors already bypass
