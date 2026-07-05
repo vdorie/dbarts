@@ -5636,6 +5636,98 @@ static void testGPLeafFormats(ext_rng* rng) {
   printf("ok: gp leaf formats\n");
 }
 
+// The cross-sweep kernel cache must be invisible. A cold clone is built
+// over the ORIGINAL data (sharing the cut grid), restored from the warm
+// sampler's pre-mutation state, and given the identical mutation, so its
+// empty cache recomputes what the warm sampler serves from cache. Cycle
+// one perturbs the designated column WITHIN its quantization bins: members
+// stay identical, so only the regather-clears-the-cache path keeps stale
+// kernels from hitting. Cycle two moves the non-designated column across
+// bins: observations re-route and the member-list comparison must miss.
+static void testGPLeafKernelCache(ext_rng* rng) {
+  const size_t n = 150, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) *
+                    std::cos(6.283185307179586 * u2);
+    y[i] = std::sin(3.0 * x[i]) + 0.3 * x[i + n] + 0.2 * normal;
+  }
+  double yMean = 0.0, ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= (double) n;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / (double) (n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 5;
+  size_t covariates[] = {0};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+  options.gpMaxLeafSize = 60;
+
+  Sampler<GPGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+
+  std::vector<double> sigmaWarm(5);
+  Results warm;
+  warm.sigma = sigmaWarm.data();
+  sampler.run(40, 5, warm);
+
+  const size_t numContinued = 5;
+  auto mutateAndCompare = [&](const std::vector<double>& xMutated,
+                              const char* acceptLabel,
+                              const char* matchLabel) {
+    SamplerStateData state;
+    sampler.getState(state);
+
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngB, 99);
+    Sampler<GPGaussianLeaf> cold(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      ySd, 3.0, 0.37804942330213542, options, &rngB);
+    bool installed = cold.setState(state);
+
+    bool accepted =
+      sampler.setPredictor(xMutated.data(), true, false) ==
+        PredictorUpdateResult::accepted &&
+      cold.setPredictor(xMutated.data(), true, false) ==
+        PredictorUpdateResult::accepted;
+    check(accepted, acceptLabel);
+
+    std::vector<double> sigmaA(numContinued), sigmaB(numContinued);
+    std::vector<double> trainA(n * numContinued), trainB(n * numContinued);
+    Results resultsA, resultsB;
+    resultsA.sigma = sigmaA.data();
+    resultsA.trainingFits = trainA.data();
+    resultsB.sigma = sigmaB.data();
+    resultsB.trainingFits = trainB.data();
+    sampler.run(0, numContinued, resultsA);
+    cold.run(0, numContinued, resultsB);
+    check(installed && sigmaA == sigmaB && trainA == trainB, matchLabel);
+    ext_rng_destroy(rngB);
+  };
+
+  // within-bin designated perturbation: partitions and member lists stay
+  // put while the kernels' inputs move
+  std::vector<double> xCurrent(x);
+  for (size_t i = 0; i < n; ++i)
+    xCurrent[i] += (static_cast<double>(i % 3) - 1.0) * 1.0e-9;
+  mutateAndCompare(xCurrent, "gp designated-column mutation accepted",
+                   "warm cache matches cold clone after designated mutation");
+
+  // cross-bin non-designated change: re-quantization re-routes members
+  for (size_t i = 0; i < n; ++i)
+    xCurrent[i + n] = 0.05 + 0.9 * xCurrent[i + n];
+  mutateAndCompare(xCurrent, "gp non-designated-column mutation accepted",
+                   "warm cache matches cold clone after member re-route");
+
+  printf("ok: gp leaf kernel cache\n");
+}
+
 int main() {
   misc_simd_init();
 
@@ -5719,6 +5811,7 @@ int main() {
   testGPLeafDraw(rng);
   testGPLeafEndToEnd(rng);
   testGPLeafFormats(rng);
+  testGPLeafKernelCache(rng);
 
   ext_rng_destroy(rng);
 

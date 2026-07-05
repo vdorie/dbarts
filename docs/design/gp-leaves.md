@@ -408,12 +408,86 @@ test-gp-leaves.R's refusal checks became positive coverage
 (continuous chi + binary default, sampled k varies and stays
 positive).
 
+## Stage 4 landing notes: kernel caching (2026-07-05)
+
+The correlation kernel and its Cholesky factor depend only on the
+leaf's member list (values and order) and the fixed lengthscales - not
+on sigma, k, weights, or the response - so they are reusable across
+sweeps for any tree whose structure survives its move. GPGaussianLeaf
+now keeps a per-(tree, node) cache of both, and every lookup
+re-validates by memcmp of the stored member list against
+tree.indices - an O(p) check guarding O(p^3) work that makes a hit
+bitwise identical to a fresh build and makes staleness structurally
+impossible: there are no invalidation hooks in the move code to miss.
+Specifics:
+
+- The cached kernel is the exact buildKernel output (nugget included);
+  a hit skips gather + buildKernel in the marginal and additionally
+  chol(K) in the draws. chol(V) recomputes every draw - sigma moves
+  every sweep - and is the remaining cubic term. Score-to-draw reuse
+  of chol(V) within a sweep (sigma and k are fixed across one
+  iteration's tree updates, and V does not depend on z) is measured
+  second-order headroom, left undone.
+- Trees are keyed by address (the chain's tree vector never
+  reallocates after construction); nodes by arena index. Entries whose
+  node died, stopped being a bottom node, or changed membership are
+  evicted in beginTreeDraw - hygiene for the budget, not correctness,
+  since lookups re-validate regardless.
+- Covariate-value changes are the one thing member comparison cannot
+  see, so reinitialize and regatherTrainingCovariates clear the cache;
+  those are exactly the mutation flows that touch u_. The component
+  test pins both surfaces bitwise against a cold state-restored clone:
+  a WITHIN-BIN designated-column perturbation (members identical,
+  kernels stale - only the clear saves you) and a cross-bin
+  non-designated change (members re-route - only the comparison saves
+  you). Note the test-design trap: mutations with updateCuts map the
+  old grid, so a clone built fresh over mutated data has a different
+  grid and legitimately diverges; the clone must be built over the
+  ORIGINAL data, restored, and handed the identical mutation.
+- Memory is hard-bounded: 256 MB total split evenly across chains at
+  initialize, leaves under 32 observations never cached, and a spent
+  budget degrades to recomputation. Entries charge members + kernel +
+  factor at insert.
+- Measured on n = 2000, one designated column, 50 trees, 200
+  iterations: cap 256 5.85s -> 4.58s, cap 128 0.53s -> 0.41s, cap 64
+  0.12s -> 0.12s; constant-leaf fits unchanged (0.06s). The draw
+  phase's chol(V) dominates what remains. The stored speed baselines
+  were unusable under an interactively loaded machine (same-binary
+  reruns swung 1.04x-1.34x); the gate ran as a same-climate A/B
+  against a fresh pre-cache recording and came in 0.963-1.038, no
+  flags.
+
+## Stage 4 addendum: sampled lengthscales are not mechanical
+(2026-07-05, analysis only - nothing implemented)
+
+The proposal calls slice-sampling theta "a mechanical follow-up".
+Costing it while landing the kernel cache says otherwise; recording
+here so the eventual decision is informed:
+
+- Theta's conditional given trees and function values is
+  p(theta | f) ~ prod over every gp leaf of N(f_leaf; 0, s^2 C_theta)
+  times the prior: one O(p^3) Cholesky per under-cap leaf per
+  evaluation, across ALL trees, times the 5-10 evaluations a slice
+  step takes - several multiples of the whole draw phase, every
+  iteration. A moving theta also empties the kernel cache each sweep,
+  giving back the caching win.
+- The saved format stores plain standardized rows with theta divided
+  out at replay, so it survives - but replay needs the theta CURRENT
+  AT EACH SAVED DRAW, i.e. a per-sample theta channel in the state
+  and flatten formats, plus predict-side plumbing.
+- Open decisions with no recommendation on record: the prior on theta
+  (log-normal centered at the heuristic is the natural default), one
+  theta shared per column vs per-column independence (current fixed
+  code is per-column), and update cadence (every sweep vs thinned) as
+  the cost lever.
+
 ## Status
 
-Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and the
-chi-k coupling from stage 4 is lifted; see the landing notes above.
-Remaining stage 4 follow-ups (Cholesky caching, sampled lengthscales,
-low-rank kernels) wait on demand, and the part-2 non-conjugate
-strategy remains designed-for; the open decisions were implemented per
-their recommendations, with the over-cap fallback replacing the veto
-in decision 1's scope.
+Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and stage
+4's chi-k coupling and Cholesky caching are in; see the landing notes
+above. Remaining follow-ups (sampled lengthscales - see the addendum,
+they need decisions and are NOT cheap - low-rank kernels, and
+score-to-draw chol(V) reuse) wait on demand, and the part-2
+non-conjugate strategy remains designed-for; the open decisions were
+implemented per their recommendations, with the over-cap fallback
+replacing the veto in decision 1's scope.
