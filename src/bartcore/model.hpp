@@ -450,6 +450,8 @@ static_assert(VectorLeafModel<LinearGaussianLeaf>);
 struct GPGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = true;
+  /// The replay predictor's stack scratch bound; the factory validates.
+  static constexpr std::size_t maxNumCovariates = maxFunctionLeafCovariates;
   /// Conditioning jitter on the correlation diagonal; not a modeling knob.
   static constexpr double nugget = 1.0e-6;
 
@@ -717,6 +719,65 @@ struct GPGaussianLeaf {
     return cacheAlphaForNode(nodeIndex, numObs);
   }
 
+  /// Append one leaf's saved side-channel block (the
+  /// computeFunctionBlockOffsets layout) from the live draw cache: the
+  /// cached alpha plus the members' plain standardized rows, in member
+  /// order; constant-valued nodes (over-cap, empty) append [0, constant].
+  /// Valid under the same freshness condition as the test-fit evaluation.
+  void appendLeafBlockFromCache(const Tree& tree, int32_t nodeIndex,
+                                std::vector<double>& blocks) const {
+    std::ptrdiff_t offset =
+      nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)];
+    if (offset < 0) {
+      blocks.push_back(0.0);
+      blocks.push_back(nodeConstant_[static_cast<std::size_t>(nodeIndex)]);
+      return;
+    }
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    blocks.push_back(static_cast<double>(numObs));
+    const double* alpha = alphaBuffer_.data() + offset;
+    blocks.insert(blocks.end(), alpha, alpha + numObs);
+    appendLeafRows(tree, node, numObs, blocks);
+  }
+
+  /// The same block recomputed from a tree's persisted fits (the fits ARE
+  /// the parameters): over-cap leaves append their constant (fits are
+  /// uniform there), gp leaves refactor alpha = C^-1 f against the current
+  /// covariates. Serves flatten and live prediction between runs, when no
+  /// draw cache is fresh.
+  void appendLeafBlock(const Tree& tree, int32_t nodeIndex,
+                       const double* fits, std::vector<double>& blocks) const {
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    if (numObs == 0) {
+      blocks.push_back(0.0);
+      blocks.push_back(0.0);
+      return;
+    }
+    if (numObs > maxLeafSize_) {
+      blocks.push_back(0.0);
+      blocks.push_back(fits[tree.indices[node.begin]]);
+      return;
+    }
+
+    gatherLeafCovariates(tree, node, numObs);
+    buildKernel(numObs, kernel_);
+    cholK_.assign(kernel_.begin(),
+                  kernel_.begin() +
+                    static_cast<std::ptrdiff_t>(numObs * numObs));
+    choleskyDecomposeLeaf(cholK_.data(), numObs);
+
+    blocks.push_back(static_cast<double>(numObs));
+    std::size_t alphaStart = blocks.size();
+    for (std::size_t r = 0; r < numObs; ++r)
+      blocks.push_back(fits[tree.indices[node.begin + r]]);
+    solveLowerLeaf(cholK_.data(), numObs, blocks.data() + alphaStart);
+    solveLowerTransposedLeaf(cholK_.data(), numObs,
+                             blocks.data() + alphaStart);
+    appendLeafRows(tree, node, numObs, blocks);
+  }
+
   /// Conditional mean c(x*)' alpha at one test row from the node's cached
   /// draw; constant-valued nodes (over-cap, empty) return their constant.
   /// Valid only between the node's draw and the next structure change - the
@@ -801,6 +862,18 @@ private:
   void setConstantCache(int32_t nodeIndex, double value) const {
     nodeConstant_[static_cast<std::size_t>(nodeIndex)] = value;
     nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)] = -1;
+  }
+
+  /// Append the members' plain standardized covariate rows (row-major
+  /// numObs x q, member order; lengthscales NOT baked in - replays divide)
+  /// to a saved side-channel block.
+  void appendLeafRows(const Tree& tree, const Node& node, std::size_t numObs,
+                      std::vector<double>& blocks) const {
+    for (std::size_t r = 0; r < numObs; ++r) {
+      std::size_t obs = tree.indices[node.begin + r];
+      for (std::size_t j = 0; j < numCovariates_; ++j)
+        blocks.push_back(u_[obs + j * numObservations_]);
+    }
   }
 
   /// alpha = C^-1 f through the correlation Cholesky, appended to the

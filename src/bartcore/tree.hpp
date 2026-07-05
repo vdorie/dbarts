@@ -2,6 +2,7 @@
 #define BARTCORE_TREE_HPP
 
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1430,6 +1431,102 @@ inline size_t addFlatLinearPredictionsBelow(
     flatNodes + numNodes, types, x, numRows, indices, mid, hi, fits, columns,
     means, sds, numSlopes, slopes, leafOffset + (numOnLeft + 1) / 2,
     numCategories, maskWords);
+  return numNodes;
+}
+
+/// Function-valued leaves' saved side channel holds one variable-length
+/// block per leaf in pre-order: [count, constant] when count is zero
+/// (over-cap and empty leaves replay a constant), otherwise [count,
+/// alpha (count), standardized covariate rows (count x numCovariates,
+/// row-major)]. Walks the channel computing each leaf's block offset;
+/// false when the counts are malformed or the walk does not consume the
+/// channel exactly.
+inline bool computeFunctionBlockOffsets(const double* blocks,
+                                        size_t blocksLength, size_t numLeaves,
+                                        size_t numCovariates,
+                                        std::vector<size_t>& offsets) {
+  offsets.assign(numLeaves, 0);
+  size_t cursor = 0;
+  for (size_t b = 0; b < numLeaves; ++b) {
+    if (cursor >= blocksLength) return false;
+    offsets[b] = cursor;
+    double count = blocks[cursor];
+    if (!(count >= 0.0) || count != std::floor(count) || count > 1.0e8)
+      return false;
+    size_t width = count == 0.0
+      ? 2
+      : 1 + static_cast<size_t>(count) * (1 + numCovariates);
+    if (cursor + width > blocksLength) return false;
+    cursor += width;
+  }
+  return cursor == blocksLength;
+}
+
+/// Stack scratch bound for the function-leaf replay below; the factory
+/// validates designations against it.
+constexpr size_t maxFunctionLeafCovariates = 8;
+
+/// The function-leaf analogue of addFlatLinearPredictionsBelow: a routed
+/// row's fit is its leaf's conditional mean c(x*)' alpha under the
+/// squared-exponential kernel, the row standardized on the fly by the
+/// training constants (missing values enter at the standardized mean,
+/// zero) and distances scaled by the lengthscales - the identical
+/// arithmetic order as the live evaluation, so replays bit-match recorded
+/// test fits. Zero-count blocks add their stored constant. blockOffsets
+/// indexes blocks per pre-order leaf (computeFunctionBlockOffsets);
+/// leafOffset counts the leaves consumed before this subtree. Returns the
+/// number of flattened nodes consumed.
+inline size_t addFlatFunctionPredictionsBelow(
+    const FlatNode* flatNodes, const ColumnType* types, const double* x,
+    size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
+    const size_t* columns, const double* means, const double* sds,
+    const double* lengthscales, size_t numCovariates, const double* blocks,
+    const size_t* blockOffsets, size_t leafOffset = 0,
+    const std::uint32_t* numCategories = nullptr,
+    const std::uint64_t* maskWords = nullptr) {
+  if (flatNodes[0].variable == invalidVariable) {
+    const double* block = blocks + blockOffsets[leafOffset];
+    size_t count = static_cast<size_t>(block[0]);
+    if (count == 0) {
+      for (size_t k = lo; k < hi; ++k) fits[indices[k]] += block[1];
+      return 1;
+    }
+    const double* alpha = block + 1;
+    const double* rows = block + 1 + count;
+    double uStar[maxFunctionLeafCovariates];
+    for (size_t k = lo; k < hi; ++k) {
+      size_t row = indices[k];
+      for (size_t j = 0; j < numCovariates; ++j) {
+        double value = x[columns[j] * numRows + row];
+        uStar[j] = isNA(value) ? 0.0 : (value - means[j]) / sds[j];
+      }
+      double fit = 0.0;
+      for (size_t r = 0; r < count; ++r) {
+        double distanceSq = 0.0;
+        for (size_t j = 0; j < numCovariates; ++j) {
+          double difference =
+            (uStar[j] - rows[r * numCovariates + j]) / lengthscales[j];
+          distanceSq += difference * difference;
+        }
+        fit += std::exp(-0.5 * distanceSq) * alpha[r];
+      }
+      fits[row] += fit;
+    }
+    return 1;
+  }
+
+  size_t mid =
+    partitionFlatIndices(flatNodes[0], types, x, numRows, indices, lo, hi,
+                         numCategories, maskWords);
+  size_t numOnLeft = addFlatFunctionPredictionsBelow(
+    flatNodes + 1, types, x, numRows, indices, lo, mid, fits, columns, means,
+    sds, lengthscales, numCovariates, blocks, blockOffsets, leafOffset,
+    numCategories, maskWords);
+  size_t numNodes = 1 + numOnLeft;
+  numNodes += addFlatFunctionPredictionsBelow(
+    flatNodes + numNodes, types, x, numRows, indices, mid, hi, fits, columns,
+    means, sds, lengthscales, numCovariates, blocks, blockOffsets,
+    leafOffset + (numOnLeft + 1) / 2, numCategories, maskWords);
   return numNodes;
 }
 

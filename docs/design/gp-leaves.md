@@ -287,9 +287,62 @@ Deltas and facts vs the plan above:
   continuation, and a SamplerFacade<GPGaussianLeaf> instantiation for
   full compile coverage of the surface).
 
+## Stage 2 landing notes (2026-07-04)
+
+Formats: flatten, keepTrees, state, and prediction now serve
+function-valued leaves; still engine-only (no facade or bridge
+exposure; equivalence identical draws). Facts vs the plan:
+
+- Saved side channel (savedTreeParams, parallel to savedTrees): one
+  variable-length block per leaf in pre-order - [count, constant] when
+  count is zero (over-cap and empty leaves replay a constant),
+  otherwise [count, alpha (count), plain standardized covariate rows
+  (count x q, row-major, member order)]. Counts ride the stream as
+  doubles (exact to 2^53); computeFunctionBlockOffsets (tree.hpp)
+  walks and validates the channel and produces per-leaf offsets.
+  Lengthscales are NOT baked into the rows - the replay divides - so
+  the format survives a future sampled-theta follow-up unchanged.
+- Replay: addFlatFunctionPredictionsBelow (tree.hpp) is the linear
+  analogue with per-leaf block offsets threaded exactly like
+  leafOffset. It standardizes test rows on the fly and repeats the
+  live evaluation's arithmetic order (((x - mean)/sd - row)/theta,
+  members in draw order), so saved replays BIT-MATCH the recorded test
+  fits - the component test asserts equality. Its stack scratch bound
+  maxFunctionLeafCovariates = 8 (GPGaussianLeaf::maxNumCovariates
+  aliases it; the stage-3 factory validates).
+- run() keepTrees flatten reads the DRAW CACHE
+  (appendLeafBlockFromCache): the alpha weights recorded are the exact
+  values the recorded test fits used. Between runs (no fresh cache),
+  appendLeafBlock recomputes alpha = C^-1 f from the persisted fits
+  against current covariates (flattenTree, predictFromCurrentTrees).
+- FlatNode.value for a gp leaf = the leaf's mean fit
+  (functionLeafValues, chain-side): reporting only - prediction reads
+  the blocks, zero-count blocks carry their own constant - and the
+  natural value column for stage 3 getTrees.
+- Live-tree state channel: treeParams[t] is simply the tree's fits
+  slab (n doubles, observation order; the fits ARE the parameters).
+  getState copies it out, setState memcpys it back - bitwise by
+  construction, no per-leaf bookkeeping. stateIsValid demands one
+  n-slab per tree and walks every saved side channel against its
+  tree's leaf count; restores of truncated channels or short slabs
+  refuse without mutating (component test).
+- initializeSavedTrees default function slot: {0, 0} (zero-constant
+  block), the analogue of the scalar zero leaf. printTree/
+  printSavedTree print the mean values through the scalar path.
+- All stage-1 refusals are lifted; what remains engine-refused is
+  nothing - stage 3 adds creation-time validation (factory) and the R
+  surface, including the bridge state slots for the new channels.
+- Tests: testGPLeafFormats (bitwise saved replay vs recorded test
+  fits; bitwise state round trip into a fresh sampler with identical
+  sigma/train/test continuation; truncated-channel and short-slab
+  refusals; flatten emits walkable blocks); the end-to-end test's
+  refusal checks became positive checks (state restores into its own
+  sampler, flatten emits records, fresh live prediction sits at the
+  response center).
+
 ## Status
 
-Stage 1 (engine) LANDED; see the landing notes above. Stages 2-4 and
-the part-2 strategy remain as proposed; the five open decisions stand,
-with the over-cap fallback replacing the veto in decision 1's
-recommended scope.
+Stages 1 (engine) and 2 (formats) LANDED; see the landing notes above.
+Stages 3-4 and the part-2 strategy remain as proposed; the five open
+decisions stand, with the over-cap fallback replacing the veto in
+decision 1's recommended scope.
