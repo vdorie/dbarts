@@ -146,14 +146,17 @@ internals
     fallback; mirror or comment the asymmetry.
 
 tests (remaining gaps from the coverage review)
-  the equivalence gate protects no 1.0-0 feature: the nine scenarios
-    cover neither logistic, categorical, MIA, adaptive DART,
-    linear/gp leaves, sparse, nor grouped fits, and weighted
-    scenarios never use zero weights. Add scenarios and re-record
-    the baseline.
-  zero-weight fits for the constant and linear leaves (gp is covered
-    by the fix's regression tests); the collapseEmptyNodes
-    weightTotal > 0 guard is still unexercised.
+  the equivalence gate now covers logistic, categorical, MIA, adaptive
+    DART, linear/gp leaves, sparse, and exact-zero weights (eight added
+    scenarios driven through the sampler API, baseline re-recorded at
+    19c499a); grouped rbart_vi fits stay out - their multi-chain result
+    shape does not fit the single-fit summary, so add a scenario only if
+    a grouped refactor is planned.
+  zero-weight fits for the constant and linear leaves still lack a
+    targeted tinytest assertion (gp has the fix's regression tests); the
+    equivalence zeroweights scenario exercises the constant-leaf
+    no-likelihood path and the collapseEmptyNodes weightTotal > 0 guard
+    on every gate run, but only bitwise against itself, not an oracle.
   post-mutation assertions are near-tautologies (is.finite only) in
     the older linear/gp mutation tests; the new mutate-then-serialize
     file covers the bitwise side, but comparing against a
