@@ -1,0 +1,51 @@
+# ASAN + UBSAN over the compiled engine and the .Call bridge, on the
+# r-hub clang-asan container (an AddressSanitizer/UndefinedBehaviorSanitizer
+# instrumented R-devel with libc++). The rewritten pointer-heavy C++20 engine
+# is exactly the kind of code CRAN's clang-san/gcc-san rebuilds bite, so
+# catching a finding here is much cheaper than a CRAN bounce. The component
+# tests (tests/cpp) already pass a native ASAN+UBSAN build locally; this
+# widens coverage to the bridge, the support libraries, and the full tinytest
+# scenario set on x86 under an instrumented R.
+name: sanitizers
+
+on:
+  push:
+    branches: [bartcore]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  clang-asan-ubsan:
+    runs-on: ubuntu-latest
+    name: clang ASAN+UBSAN
+    container:
+      image: ghcr.io/r-hub/containers/clang-asan:latest
+    env:
+      # leak detection is noisy against an uninstrumented R runtime; the
+      # target here is memory-access errors and undefined behavior
+      ASAN_OPTIONS: detect_leaks=0
+      UBSAN_OPTIONS: print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install test dependencies
+        shell: Rscript {0}
+        run: |
+          need <- setdiff(c("tinytest", "Matrix"), rownames(installed.packages()))
+          if (length(need)) install.packages(need, repos = "https://cloud.r-project.org")
+
+      - name: Install dbarts under sanitizers
+        run: R CMD INSTALL --preclean .
+
+      - name: Unit tests under ASAN+UBSAN
+        shell: bash
+        run: |
+          set -o pipefail
+          Rscript -e 'tinytest::test_package("dbarts")' 2>&1 | tee sanitizer-tests.log
+          if grep -Eq "runtime error:|AddressSanitizer|SUMMARY: .*Sanitizer" sanitizer-tests.log; then
+            echo "::error::sanitizer reported a finding"; exit 1
+          fi
+          if grep -Eq "failures: [1-9]" sanitizer-tests.log; then
+            echo "::error::unit test failures under sanitizers"; exit 1
+          fi
