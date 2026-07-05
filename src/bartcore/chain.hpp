@@ -235,7 +235,7 @@ public:
     else if constexpr (L::hasFunctionParams)
       leaf_.initialize(data, options.leafCovariateColumns,
                        options.numLeafCovariates, options.gpLengthscales,
-                       options.gpMaxLeafSize);
+                       options.gpMaxLeafSize, options.numChains);
     options_.leafCovariateColumns = nullptr;  // consumed above
     options_.gpLengthscales = nullptr;
 

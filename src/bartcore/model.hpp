@@ -470,10 +470,12 @@ struct GPGaussianLeaf {
   /// standardized training values.
   void initialize(const ColumnStore& data, const std::size_t* columns,
                   std::size_t numColumns, const double* lengthscales,
-                  std::size_t maxLeafSize) {
+                  std::size_t maxLeafSize, std::size_t numChains = 1) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
     maxLeafSize_ = maxLeafSize;
+    kernelCacheBudget_ =
+      kernelCacheTotalBudgetBytes / (numChains == 0 ? 1 : numChains);
     if (lengthscales != nullptr)
       suppliedLengthscales_.assign(lengthscales, lengthscales + numColumns);
     else
@@ -486,6 +488,7 @@ struct GPGaussianLeaf {
   /// analogue of the rebuilt cut grid, sharing the linear leaf's calibration
   /// inheritance on views.
   void reinitialize(const ColumnStore& data) {
+    clearKernelCaches();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
@@ -515,6 +518,7 @@ struct GPGaussianLeaf {
   /// constants and lengthscales, for the predictor-mutation surface; the
   /// prior's calibration is sticky across in-place value changes.
   void regatherTrainingCovariates(const ColumnStore& data) {
+    clearKernelCaches();
     for (std::size_t j = 0; j < numCovariates_; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double* u = u_.data() + j * numObservations_;
@@ -545,6 +549,7 @@ struct GPGaussianLeaf {
     nodeConstant_.assign(tree.nodes.size(), 0.0);
     nodeAlphaOffset_.assign(tree.nodes.size(), -1);
     alphaBuffer_.clear();
+    evictStaleKernelEntries(tree);
   }
 
   /// score = -0.5 log det V + 0.5 log det(sigma^2 W^-1) - 0.5 z' V^-1 z with
@@ -565,12 +570,20 @@ struct GPGaussianLeaf {
                                                      nodeIndex);
     }
 
-    gatherLeafCovariates(tree, node, numObs);
     double s2 = (scale / k) * (scale / k);
 
-    buildKernel(numObs, cholV_);
+    const CachedLeafKernel* entry =
+      cachedKernelForNode(tree, node, nodeIndex, numObs);
+    if (entry != nullptr) {
+      cholV_.resize(numObs * numObs);
+      for (std::size_t a = 0; a < numObs * numObs; ++a)
+        cholV_[a] = entry->kernel[a] * s2;
+    } else {
+      gatherLeafCovariates(tree, node, numObs);
+      buildKernel(numObs, cholV_);
+      for (std::size_t a = 0; a < numObs * numObs; ++a) cholV_[a] *= s2;
+    }
     double logDetNoise = 0.0;
-    for (std::size_t a = 0; a < numObs * numObs; ++a) cholV_[a] *= s2;
     for (std::size_t r = 0; r < numObs; ++r) {
       double w =
         weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
@@ -623,17 +636,14 @@ struct GPGaussianLeaf {
       return FunctionLeafDrawStats{value * value, 1.0};
     }
 
-    gatherLeafCovariates(tree, node, numObs);
     double s = scale / k, s2 = s * s;
 
-    buildKernel(numObs, kernel_);
-    cholK_.assign(kernel_.begin(),
-                  kernel_.begin() +
-                    static_cast<std::ptrdiff_t>(numObs * numObs));
-    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    const double* kernel;
+    const double* cholK;
+    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
     cholV_.resize(numObs * numObs);
     for (std::size_t a = 0; a < numObs * numObs; ++a)
-      cholV_[a] = s2 * kernel_[a];
+      cholV_[a] = s2 * kernel[a];
     for (std::size_t r = 0; r < numObs; ++r) {
       double w =
         weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
@@ -649,7 +659,7 @@ struct GPGaussianLeaf {
     for (std::size_t r = 0; r < numObs; ++r) {
       double value = 0.0;
       for (std::size_t a = 0; a <= r; ++a)
-        value += cholK_[r * numObs + a] * epsScratch_[a];
+        value += cholK[r * numObs + a] * epsScratch_[a];
       fScratch_[r] = s * value;
     }
     vectorScratch_.resize(numObs);
@@ -665,12 +675,12 @@ struct GPGaussianLeaf {
     for (std::size_t r = 0; r < numObs; ++r) {
       double value = 0.0;
       for (std::size_t a = 0; a < numObs; ++a)
-        value += kernel_[r * numObs + a] * vectorScratch_[a];
+        value += kernel[r * numObs + a] * vectorScratch_[a];
       fScratch_[r] += s2 * value;
       fits[tree.indices[node.begin + r]] = fScratch_[r];
     }
 
-    return cacheAlphaForNode(nodeIndex, numObs);
+    return cacheAlphaForNode(nodeIndex, numObs, cholK);
   }
 
   /// Prior draw f = s L_C eps into fits, with the same prediction cache and
@@ -695,14 +705,11 @@ struct GPGaussianLeaf {
       return FunctionLeafDrawStats{value * value, 1.0};
     }
 
-    gatherLeafCovariates(tree, node, numObs);
     double s = scale / k;
 
-    buildKernel(numObs, kernel_);
-    cholK_.assign(kernel_.begin(),
-                  kernel_.begin() +
-                    static_cast<std::ptrdiff_t>(numObs * numObs));
-    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    const double* kernel;
+    const double* cholK;
+    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
 
     epsScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
@@ -711,12 +718,12 @@ struct GPGaussianLeaf {
     for (std::size_t r = 0; r < numObs; ++r) {
       double value = 0.0;
       for (std::size_t a = 0; a <= r; ++a)
-        value += cholK_[r * numObs + a] * epsScratch_[a];
+        value += cholK[r * numObs + a] * epsScratch_[a];
       fScratch_[r] = s * value;
       fits[tree.indices[node.begin + r]] = fScratch_[r];
     }
 
-    return cacheAlphaForNode(nodeIndex, numObs);
+    return cacheAlphaForNode(nodeIndex, numObs, cholK);
   }
 
   /// Append one leaf's saved side-channel block (the
@@ -879,14 +886,15 @@ private:
   /// alpha = C^-1 f through the correlation Cholesky, appended to the
   /// per-tree buffer; returns the chi-k contribution f' alpha.
   FunctionLeafDrawStats cacheAlphaForNode(int32_t nodeIndex,
-                                          std::size_t numObs) const {
+                                          std::size_t numObs,
+                                          const double* cholK) const {
     std::size_t offset = alphaBuffer_.size();
     alphaBuffer_.insert(alphaBuffer_.end(), fScratch_.begin(),
                         fScratch_.begin() +
                           static_cast<std::ptrdiff_t>(numObs));
     double* alpha = alphaBuffer_.data() + offset;
-    solveLowerLeaf(cholK_.data(), numObs, alpha);
-    solveLowerTransposedLeaf(cholK_.data(), numObs, alpha);
+    solveLowerLeaf(cholK, numObs, alpha);
+    solveLowerTransposedLeaf(cholK, numObs, alpha);
     nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)] =
       static_cast<std::ptrdiff_t>(offset);
     double sumSquared = 0.0;
@@ -931,6 +939,141 @@ private:
     }
   }
 
+  /// One leaf's cached correlation kernel (nugget included) and its lower
+  /// Cholesky factor, tagged with the exact member list that built it. The
+  /// kernel depends only on membership order and the fixed lengthscales -
+  /// not sigma, k, or the response - so entries survive across sweeps until
+  /// an accepted move re-routes observations; every lookup re-validates by
+  /// comparing the member list, making a hit bitwise identical to a fresh
+  /// build with no invalidation hooks to miss. A vacant slot has an empty
+  /// member list.
+  struct CachedLeafKernel {
+    std::vector<std::size_t> members;
+    std::vector<double> kernel;
+    std::vector<double> cholK;  // filled lazily by the first draw
+  };
+  struct TreeKernelCache {
+    const Tree* tree = nullptr;
+    std::vector<CachedLeafKernel> nodes;  // arena-indexed
+  };
+
+  /// Leaves below this recompute; their kernels are cheap and churn fast.
+  static constexpr std::size_t minCachedLeafSize = 32;
+  /// Hard byte ceiling over all cached kernels, split evenly across chains
+  /// at initialize; when spent, further leaves recompute (still correct,
+  /// just uncached).
+  static constexpr std::size_t kernelCacheTotalBudgetBytes =
+    static_cast<std::size_t>(256) << 20;
+
+  static std::size_t kernelEntryBytes(std::size_t numObs) {
+    return numObs * sizeof(std::size_t) +
+           2 * numObs * numObs * sizeof(double);
+  }
+
+  TreeKernelCache& kernelCacheForTree(const Tree& tree) const {
+    for (TreeKernelCache& cache : kernelCaches_)
+      if (cache.tree == &tree) return cache;
+    kernelCaches_.emplace_back();
+    kernelCaches_.back().tree = &tree;
+    return kernelCaches_.back();
+  }
+
+  void clearKernelCaches() const {
+    kernelCaches_.clear();
+    kernelCacheUsedBytes_ = 0;
+  }
+
+  /// The validated cache entry for a leaf, building the kernel into a fresh
+  /// entry when none matches and the budget allows; null when the leaf is
+  /// too small to bother or the budget refuses, in which case the caller
+  /// computes into scratch. The returned pointer is valid until the next
+  /// cache mutation, which no caller spans.
+  CachedLeafKernel* cachedKernelForNode(const Tree& tree, const Node& node,
+                                        int32_t nodeIndex,
+                                        std::size_t numObs) const {
+    if (numObs < minCachedLeafSize) return nullptr;
+    TreeKernelCache& cache = kernelCacheForTree(tree);
+    std::size_t index = static_cast<std::size_t>(nodeIndex);
+    if (index >= cache.nodes.size()) cache.nodes.resize(index + 1);
+    CachedLeafKernel& entry = cache.nodes[index];
+    if (entry.members.size() == numObs &&
+        std::memcmp(entry.members.data(), tree.indices + node.begin,
+                    numObs * sizeof(std::size_t)) == 0)
+      return &entry;
+
+    std::size_t oldBytes = kernelEntryBytes(entry.members.size());
+    std::size_t newBytes = kernelEntryBytes(numObs);
+    if (kernelCacheUsedBytes_ - oldBytes + newBytes > kernelCacheBudget_) {
+      if (!entry.members.empty()) {
+        kernelCacheUsedBytes_ -= oldBytes;
+        entry = CachedLeafKernel();
+      }
+      return nullptr;
+    }
+    kernelCacheUsedBytes_ += newBytes - oldBytes;
+    entry = CachedLeafKernel();  // release any stale capacity
+    entry.members.assign(tree.indices + node.begin, tree.indices + node.end);
+    gatherLeafCovariates(tree, node, numObs);
+    buildKernel(numObs, entry.kernel);
+    return &entry;
+  }
+
+  /// The leaf's correlation kernel and lower Cholesky factor for a draw,
+  /// served from the cache when possible and computed into the scratch
+  /// buffers otherwise; either way the values are bitwise those of a fresh
+  /// build.
+  void kernelAndFactorForNode(const Tree& tree, const Node& node,
+                              int32_t nodeIndex, std::size_t numObs,
+                              const double** kernel,
+                              const double** cholK) const {
+    CachedLeafKernel* entry =
+      cachedKernelForNode(tree, node, nodeIndex, numObs);
+    if (entry != nullptr) {
+      if (entry->cholK.empty()) {
+        entry->cholK.assign(entry->kernel.begin(), entry->kernel.end());
+        choleskyDecomposeLeaf(entry->cholK.data(), numObs);
+      }
+      *kernel = entry->kernel.data();
+      *cholK = entry->cholK.data();
+      return;
+    }
+    gatherLeafCovariates(tree, node, numObs);
+    buildKernel(numObs, kernel_);
+    cholK_.assign(kernel_.begin(),
+                  kernel_.begin() +
+                    static_cast<std::ptrdiff_t>(numObs * numObs));
+    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    *kernel = kernel_.data();
+    *cholK = cholK_.data();
+  }
+
+  /// Drop entries whose node no longer exists, is no longer a bottom node,
+  /// or whose membership changed, keeping the budget for live leaves.
+  /// Lookups re-validate regardless; this is hygiene, not correctness.
+  void evictStaleKernelEntries(const Tree& tree) const {
+    for (TreeKernelCache& cache : kernelCaches_) {
+      if (cache.tree != &tree) continue;
+      for (std::size_t index = 0; index < cache.nodes.size(); ++index) {
+        CachedLeafKernel& entry = cache.nodes[index];
+        if (entry.members.empty()) continue;
+        bool live = index < tree.nodes.size();
+        if (live) {
+          const Node& node(tree.at(static_cast<int32_t>(index)));
+          live = node.isBottom() &&
+                 node.numObservations() == entry.members.size() &&
+                 std::memcmp(entry.members.data(),
+                             tree.indices + node.begin,
+                             entry.members.size() * sizeof(std::size_t)) == 0;
+        }
+        if (!live) {
+          kernelCacheUsedBytes_ -= kernelEntryBytes(entry.members.size());
+          entry = CachedLeafKernel();
+        }
+      }
+      break;
+    }
+  }
+
   std::size_t numCovariates_ = 0;
   std::size_t numObservations_ = 0;
   std::size_t numTestObservations_ = 0;
@@ -949,6 +1092,11 @@ private:
   mutable std::vector<double> alphaBuffer_;
   mutable std::vector<double> nodeConstant_;         // arena-indexed
   mutable std::vector<std::ptrdiff_t> nodeAlphaOffset_;  // -1 = constant
+  // the cross-sweep kernel cache, keyed by tree address (stable for a
+  // chain's lifetime) and node arena index
+  mutable std::vector<TreeKernelCache> kernelCaches_;
+  mutable std::size_t kernelCacheUsedBytes_ = 0;
+  std::size_t kernelCacheBudget_ = kernelCacheTotalBudgetBytes;
 };
 
 static_assert(FunctionLeafModel<GPGaussianLeaf>);
