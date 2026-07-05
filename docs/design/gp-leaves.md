@@ -340,9 +340,63 @@ exposure; equivalence identical draws). Facts vs the plan:
   sampler, flatten emits records, fresh live prediction sits at the
   response center).
 
+## Stage 3 landing notes (2026-07-04)
+
+The R surface: node.prior = gp(columns, k, lengthscale, max.leaf.size)
+on dbarts() and xbart(). Facts vs the plan:
+
+- Dispatch: SamplerOptions.gpLeaves selects SamplerFacade<GPGaussianLeaf>
+  in createSampler/createSamplerOverStore behind the shared designation
+  validation (both leaf models bound at 8 covariates); the third facade
+  instantiation's size cost stayed within speed noise, as the linear
+  landing's did. SamplerBase gained usesFunctionLeaves() (vtable
+  change - --preclean), which the bridge keys its state and reporting
+  layouts on.
+- R: dbartsGPPrior (A_class.R; k + columns like linear, plus
+  lengthscale and max.leaf.size); gp() constructor in dbartsPriors;
+  resolveLeafCovariates is shared with linear (label-parameterized
+  messages) and additionally recycles a scalar lengthscale per resolved
+  column. Open decision 1 implemented per recommendation: v1 REFUSES a
+  non-fixed k for gp priors at parsePriors ("gp node priors require a
+  fixed 'k'"), which binary responses hit through their chi default -
+  they must pass an explicit k. The engine's chi-k accumulation
+  (f' C^-1 f) is implemented and component-tested, so lifting the
+  refusal later is an R-level change only.
+- Bridge: parseModel accepts either prior class into the shared
+  designation, plus gp lengthscales and cap. GOTCHA hit: a NULL S4 slot
+  arrives via Rf_getAttrib as the pseudo-NULL SYMBOL, not R_NilValue -
+  test positively for the resolved REALSXP. setModel's designation
+  refusal also compares the leaf-model kind. setState branches on
+  usesFunctionLeaves(): live channels read as one n-slab per tree,
+  saved channels split by walking each tree's per-leaf blocks
+  (readFunctionTreeParams/readFunctionSavedParams); the engine's
+  stateIsValid re-validates after.
+- getTrees (open decision 3 per recommendation): function-leaf
+  samplers emit NO coefficient columns and NA values on leaf rows (the
+  function rides prediction only); rules keep their split values.
+  plotTree labels gp leaves "gp".
+- xbart: the node.prior mini-env gained gp; folds inherit
+  standardization constants from the full data (the linear precedent)
+  while HEURISTIC lengthscales recompute over each fold's rows -
+  supply lengthscale explicitly for exact cross-fold calibration.
+- rbart_vi/bart/bart2 build normal(k) internally, as with linear.
+  Sparse and sparse-backed mixed columns refuse through the shared
+  resolveLeafCovariates paths.
+- Docs: dbartsPriors.Rd gained the gp entry (and linear's stale
+  "unavailable in xbart" sentence was corrected), dbarts.Rd/xbart.Rd
+  mention the specification, NEWS carries the feature bullet.
+- Tests: tinytest test-gp-leaves.R (26 results): validation and
+  fixed-k refusals, smooth-signal recovery, bitwise saved replay
+  through predict, getTrees/plotTree semantics, bitwise state round
+  trip via storeState/setState, predictor mutation on the designated
+  column, probit composition, full-rows view bitwise vs raw path, fold
+  prediction quality, xbart, sparse refusal.
+
 ## Status
 
-Stages 1 (engine) and 2 (formats) LANDED; see the landing notes above.
-Stages 3-4 and the part-2 strategy remain as proposed; the five open
-decisions stand, with the over-cap fallback replacing the veto in
-decision 1's recommended scope.
+Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED; see the
+landing notes above. Stage 4 follow-ups (Cholesky caching, chi-k
+coupling, sampled lengthscales, low-rank kernels) wait on demand, and
+the part-2 non-conjugate strategy remains designed-for; the open
+decisions were implemented per their recommendations, with the
+over-cap fallback replacing the veto in decision 1's scope.

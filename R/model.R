@@ -8,9 +8,10 @@ setMethod("initialize", "dbartsModel",
       !is.null(tree.prior@splitProbabilitiesSpec))
     stop("tree prior split probabilities must be resolved against data; ",
          "pass the prior to a fitting function instead")
-  if (!missing(node.prior) && is(node.prior, "dbartsLinearPrior") &&
+  if (!missing(node.prior) &&
+      (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior")) &&
       !is.integer(node.prior@columns))
-    stop("linear node prior columns must be resolved against data; ",
+    stop("node prior columns must be resolved against data; ",
          "pass the prior to a fitting function instead")
   if (!missing(tree.prior)) .Object@tree.prior  <- tree.prior
   if (!missing(node.prior)) .Object@node.prior  <- node.prior
@@ -82,29 +83,40 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   node.prior <- resolveSpec(matchedCall$node.prior)
   if (!is(node.prior, "dbartsNodePrior"))
     stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
-  if (is(node.prior, "dbartsLinearPrior"))
+  if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior"))
     node.prior <- resolveLeafCovariates(node.prior, data)
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
+  # v1 gp leaves fix k: the chi hyperprior's sum-of-squares coupling is a
+  # planned follow-up (docs/design/gp-leaves.md); binary responses default
+  # to chi, so they need an explicit fixed k
+  if (is(node.prior, "dbartsGPPrior") &&
+      !is(node.hyperprior, "dbartsFixedHyperprior"))
+    stop("gp node priors require a fixed 'k'; pass a positive scalar, ",
+         "e.g. gp(columns, k = 2)")
 
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }
 
-## Turn a linear node prior's raw columns specification into 1-based model
-## matrix column indices: names match columns exactly, numbers pass through
-## as indices. Categorical columns are rejected - their codes are unordered,
-## so a linear term is meaningless; interact through splits instead. (Under
-## factors = "indicators" the dummy columns are ordinary numeric columns and
-## legal.)
+## Turn a linear or gp node prior's raw columns specification into 1-based
+## model matrix column indices: names match columns exactly, numbers pass
+## through as indices. Categorical columns are rejected - their codes are
+## unordered, so a linear term or a distance is meaningless; interact
+## through splits instead. (Under factors = "indicators" the dummy columns
+## are ordinary numeric columns and legal.) A gp prior's lengthscale also
+## resolves here: NULL passes through (the median-distance heuristic), a
+## scalar recycles per column.
 resolveLeafCovariates <- function(prior, data)
 {
+  label <- if (is(prior, "dbartsGPPrior")) "gp" else "linear"
   columns <- prior@columns
   if (is.null(columns) || length(columns) == 0L)
-    stop("linear node prior requires at least one covariate column")
+    stop(label, " node prior requires at least one covariate column")
 
   # the engine reads raw covariate values from contiguous dense columns; a
   # mixed container serves them for its dense-backed columns only
   if (!is.matrix(data@x) && !inherits(data@x, "dbartsMixedMatrix"))
-    stop("linear node priors are not supported with sparse predictor matrices")
+    stop(label, " node priors are not supported with sparse predictor ",
+         "matrices")
 
   columnNames <- colnames(data@x)
   if (is.character(columns)) {
@@ -120,7 +132,7 @@ resolveLeafCovariates <- function(prior, data)
         any(columnIndices > ncol(data@x)))
       stop("cannot assign leaf covariates: column indices out of range")
   } else {
-    stop("linear node prior 'columns' must be a character or numeric vector")
+    stop(label, " node prior 'columns' must be a character or numeric vector")
   }
   if (anyDuplicated(columnIndices) > 0L)
     stop("cannot assign leaf covariates: duplicate columns")
@@ -138,6 +150,15 @@ resolveLeafCovariates <- function(prior, data)
     stop("at most 8 leaf covariates are supported")
 
   prior@columns <- columnIndices
+  if (is(prior, "dbartsGPPrior") && !is.null(prior@lengthscale)) {
+    lengthscale <- prior@lengthscale
+    if (length(lengthscale) == 1L)
+      lengthscale <- rep_len(lengthscale, length(columnIndices))
+    if (length(lengthscale) != length(columnIndices))
+      stop("gp node prior 'lengthscale' must have length 1 or match the ",
+           "number of columns")
+    prior@lengthscale <- as.double(lengthscale)
+  }
   prior
 }
 
@@ -252,6 +273,26 @@ linear <- function(columns, k = NULL)
   new("dbartsLinearPrior", k = normalPrior@k, columns = columns)
 }
 
+gp <- function(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L)
+{
+  if (missing(columns))
+    stop("gp node prior requires 'columns' naming the leaf covariates")
+  if (!is.character(columns) && !is.numeric(columns))
+    stop("gp node prior 'columns' must be a character or numeric vector")
+  if (!is.null(lengthscale) &&
+      (!is.numeric(lengthscale) || length(lengthscale) == 0L ||
+       anyNA(lengthscale) || any(lengthscale <= 0)))
+    stop("gp node prior 'lengthscale' must be positive")
+  max.leaf.size <- coerceOrError(max.leaf.size, "integer")
+  if (length(max.leaf.size) != 1L || is.na(max.leaf.size) ||
+      max.leaf.size < 1L)
+    stop("gp node prior 'max.leaf.size' must be a positive integer")
+  normalPrior <- normal(k)  # reuses its k validation and coercions
+  new("dbartsGPPrior", k = normalPrior@k, columns = columns,
+      lengthscale = if (is.null(lengthscale)) NULL else as.double(lengthscale),
+      max.leaf.size = max.leaf.size)
+}
+
 normal <- function(k = NULL)
 {
   if (is.character(k)) {
@@ -313,6 +354,7 @@ dbartsPriors <- list(
   dart   = dart,
   normal = normal,
   linear = linear,
+  gp     = gp,
   chisq  = chisq,
   fixed  = fixed,
   chi    = chi

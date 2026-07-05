@@ -90,9 +90,13 @@ public:
                           std::size_t numTreeIndices) = 0;
 
   virtual ext_rng* rng() const = 0;
-  /// The linear-leaf covariate designation; 0/null for scalar leaf models.
+  /// The leaf covariate designation (linear and GP leaves); 0/null for
+  /// scalar leaf models.
   virtual std::size_t numLeafCovariates() const = 0;
   virtual const std::size_t* leafCovariateColumns() const = 0;
+  /// True for function-valued (GP) leaf models, whose state and reporting
+  /// layouts differ from the vector-parameter ones.
+  virtual bool usesFunctionLeaves() const = 0;
   virtual ResponseFamily family() const = 0;
   /// Grouped random intercepts: the group count, 0 when ungrouped.
   virtual std::size_t numGroups() const = 0;
@@ -242,6 +246,7 @@ public:
   const std::size_t* leafCovariateColumns() const override {
     return impl_.leafCovariateColumns();
   }
+  bool usesFunctionLeaves() const override { return L::hasFunctionParams; }
   ResponseFamily family() const override { return impl_.family(); }
   std::size_t numGroups() const override { return impl_.numGroups(); }
   const ColumnStore& data() const override { return impl_.data(); }
@@ -318,11 +323,12 @@ inline std::unique_ptr<SamplerBase> createClassicSampler(
 }
 
 /// Dispatch on the leaf model: designated leaf covariates select the
-/// linear-leaf instantiation, anything else the classic constant leaf.
-/// Returns null on an invalid designation - more than
-/// LinearGaussianLeaf::maxNumCovariates columns, a column out of range, or
-/// a categorical column (category codes are unordered; interact through
-/// splits instead) - which the host turns into its own error.
+/// linear-leaf instantiation - or the GP one under options.gpLeaves -
+/// anything else the classic constant leaf. Returns null on an invalid
+/// designation - more than maxNumCovariates columns (both leaf models share
+/// the bound), a column out of range, or a categorical column (category
+/// codes are unordered; interact through splits instead) - which the host
+/// turns into its own error.
 inline std::unique_ptr<SamplerBase> createSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
@@ -349,6 +355,10 @@ inline std::unique_ptr<SamplerBase> createSampler(
     if (options.columnSources != nullptr && options.columnSources[j] < 0)
       return nullptr;
   }
+  if (options.gpLeaves)
+    return std::make_unique<SamplerFacade<GPGaussianLeaf>>(
+      x, y, numObservations, numPredictors, weights, offset, family,
+      sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
   return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
@@ -382,6 +392,10 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
     if (store.types[j] == ColumnType::categorical) return nullptr;
     if (store.rawColumn(j) == nullptr) return nullptr;
   }
+  if (options.gpLeaves)
+    return std::make_unique<SamplerFacade<GPGaussianLeaf>>(
+      std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
+      sigmaRawScale, options, rngs);
   return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
     std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
     sigmaRawScale, options, rngs);

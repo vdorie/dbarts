@@ -46,7 +46,25 @@
       designated. The covariates are standardized internally and every
       coefficient shares the \code{normal(k)} prior. Reported leaf values
       keep the intercept; \code{getTrees} adds one \code{beta.<column>}
-      column per covariate. Unavailable in \code{\link{xbart}}.
+      column per covariate. \code{\link{xbart}} accepts the same
+      specification through its own \code{node.prior} argument.
+    }
+    \item{\code{gp(columns, k = NULL, lengthscale = NULL,
+                   max.leaf.size = 256L)}}{
+      Each leaf fits a smooth Gaussian-process function of the designated
+      continuous predictor columns, drawn under a squared-exponential
+      kernel whose prior scale ties to \code{k} exactly as the other leaf
+      priors; \code{columns} resolves as for \code{linear}. \code{k} must
+      be fixed (a positive scalar; binary responses therefore need it
+      supplied). \code{lengthscale} fixes the kernel lengthscales on the
+      standardized covariate scale, one value per column or one recycled
+      scalar; \code{NULL} uses the median pairwise-distance heuristic per
+      column. Leaves holding more than \code{max.leaf.size} observations
+      fall back to constant fits, confining the cubic kernel cost.
+      Function-valued fits ride prediction only: \code{getTrees} reports
+      \code{NA} leaf values, and \code{keepTrees} storage grows with the
+      leaf sizes. \code{\link{xbart}} accepts the same specification
+      through its own \code{node.prior} argument.
     }
     \item{\code{chi(degreesOfFreedom = 1.25, scale = Inf)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the

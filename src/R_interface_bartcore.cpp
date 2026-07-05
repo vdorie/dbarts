@@ -158,9 +158,14 @@ struct ParsedModel {
   double sigmaQuantile = 0.9;
   // the chi-squared prior's scale before anchoring to the sigma estimate
   double sigmaRawScale = 1.0;
-  // a linear node prior's designated covariate columns (0-based); empty
-  // for the constant leaf
+  // a linear or gp node prior's designated covariate columns (0-based);
+  // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
+  // gp node priors only: selects the function-valued leaf model over the
+  // linear one; lengthscales empty for the median-distance heuristic
+  bool gpLeaves = false;
+  std::vector<double> gpLengthscales;
+  size_t gpMaxLeafSize = 256;
 };
 
 void parseControl(ParsedControl& control, SEXP controlExpr) {
@@ -465,24 +470,53 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
 
-  // a linear node prior designates leaf covariate columns, resolved R-side
-  // to 1-based model matrix indices; every other node prior is the
-  // constant leaf and carries nothing beyond node.scale/node.hyperprior
+  // linear and gp node priors designate leaf covariate columns, resolved
+  // R-side to 1-based model matrix indices; every other node prior is the
+  // constant leaf and carries nothing beyond node.scale/node.hyperprior.
+  // gp priors add per-column lengthscales (NULL for the median-distance
+  // heuristic; the R side validates and recycles) and the leaf-size cap.
   SEXP nodePriorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
-  if (!Rf_isNull(nodePriorExpr) &&
-      Rf_inherits(nodePriorExpr, "dbartsLinearPrior")) {
+  bool isLinearPrior = !Rf_isNull(nodePriorExpr) &&
+                       Rf_inherits(nodePriorExpr, "dbartsLinearPrior");
+  bool isGPPrior = !Rf_isNull(nodePriorExpr) &&
+                   Rf_inherits(nodePriorExpr, "dbartsGPPrior");
+  if (isLinearPrior || isGPPrior) {
     SEXP columnsExpr = Rf_getAttrib(nodePriorExpr, Rf_install("columns"));
     if (!Rf_isInteger(columnsExpr) || Rf_xlength(columnsExpr) < 1)
-      Rf_error("linear node prior columns must be resolved integer indices");
+      Rf_error("node prior columns must be resolved integer indices");
     R_xlen_t numColumns = Rf_xlength(columnsExpr);
     model.leafCovariateColumns.resize(static_cast<size_t>(numColumns));
     for (R_xlen_t j = 0; j < numColumns; ++j) {
       int column = INTEGER(columnsExpr)[j];
       if (column < 1 || static_cast<size_t>(column) > numPredictors)
-        Rf_error("linear node prior column out of range");
+        Rf_error("node prior column out of range");
       model.leafCovariateColumns[static_cast<size_t>(j)] =
         static_cast<size_t>(column - 1);
     }
+  }
+  if (isGPPrior) {
+    model.gpLeaves = true;
+    // a NULL slot arrives as S4's pseudo-NULL symbol, not R_NilValue, so
+    // test positively for the resolved numeric vector
+    SEXP lengthscaleExpr =
+      Rf_getAttrib(nodePriorExpr, Rf_install("lengthscale"));
+    if (Rf_isReal(lengthscaleExpr)) {
+      if (static_cast<size_t>(Rf_xlength(lengthscaleExpr)) !=
+          model.leafCovariateColumns.size())
+        Rf_error("gp node prior lengthscales must be resolved per column");
+      const double* lengthscales = REAL(lengthscaleExpr);
+      for (size_t j = 0; j < model.leafCovariateColumns.size(); ++j)
+        if (!(lengthscales[j] > 0.0))
+          Rf_error("gp node prior lengthscales must be positive");
+      model.gpLengthscales.assign(
+        lengthscales, lengthscales + model.leafCovariateColumns.size());
+    }
+    SEXP maxLeafSizeExpr =
+      Rf_getAttrib(nodePriorExpr, Rf_install("max.leaf.size"));
+    int maxLeafSize = rc_getInt(
+      maxLeafSizeExpr, "gp node prior maximum leaf size", RC_LENGTH | RC_EQ,
+      rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
+    model.gpMaxLeafSize = static_cast<size_t>(maxLeafSize);
   }
 
   SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
@@ -780,6 +814,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
     ? NULL : model.leafCovariateColumns.data();  // consumed at construction
   options.numLeafCovariates = model.leafCovariateColumns.size();
+  options.gpLeaves = model.gpLeaves;
+  options.gpLengthscales = model.gpLengthscales.empty()
+    ? NULL : model.gpLengthscales.data();  // consumed at construction
+  options.gpMaxLeafSize = model.gpMaxLeafSize;
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly
@@ -1633,10 +1671,11 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
   ParsedModel model;
   parseModel(model, modelExpr, sampler.numPredictors());
 
-  // the leaf model is a template instantiation: the designation is fixed
-  // at creation, so a replacement prior must carry the same one
+  // the leaf model is a template instantiation: the designation and its
+  // kind are fixed at creation, so a replacement prior must carry the same
   bool designationMatches =
-    model.leafCovariateColumns.size() == sampler.numLeafCovariates();
+    model.leafCovariateColumns.size() == sampler.numLeafCovariates() &&
+    model.gpLeaves == sampler.usesFunctionLeaves();
   for (size_t j = 0; designationMatches &&
        j < model.leafCovariateColumns.size(); ++j)
     designationMatches =
@@ -2059,6 +2098,72 @@ static bool readTreeParams(
     size_t numParams = ((trees[t].size() + 1) / 2) * numSlopes;
     params[t].assign(values, values + numParams);
     values += numParams;
+  }
+  return true;
+}
+
+// function-valued live-tree parameters: one fits slab of numObservations
+// doubles per tree, in observation order
+static bool readFunctionTreeParams(
+    SEXP paramsExpr, size_t numTrees, size_t numObservations,
+    std::vector<std::vector<double>>& params, const char** errorMessage) {
+  if (Rf_isNull(paramsExpr) || !Rf_isReal(paramsExpr) ||
+      static_cast<size_t>(Rf_xlength(paramsExpr)) !=
+        numTrees * numObservations) {
+    *errorMessage = "malformed leaf parameters in bartcore state";
+    return false;
+  }
+  const double* values = REAL(paramsExpr);
+  params.resize(numTrees);
+  for (size_t t = 0; t < numTrees; ++t) {
+    params[t].assign(values, values + numObservations);
+    values += numObservations;
+  }
+  return true;
+}
+
+// function-valued saved side channels: variable-length per-leaf blocks (see
+// computeFunctionBlockOffsets), split by walking each tree's leaf count;
+// the engine's stateIsValid re-validates against the rebuilt trees
+static bool readFunctionSavedParams(
+    SEXP paramsExpr, const std::vector<std::vector<bartcore::FlatNode>>& trees,
+    size_t numCovariates, std::vector<std::vector<double>>& params,
+    const char** errorMessage) {
+  if (Rf_isNull(paramsExpr) || !Rf_isReal(paramsExpr)) {
+    *errorMessage = "malformed leaf parameters in bartcore state";
+    return false;
+  }
+  const double* values = REAL(paramsExpr);
+  size_t length = static_cast<size_t>(Rf_xlength(paramsExpr));
+  size_t cursor = 0;
+  params.resize(trees.size());
+  for (size_t t = 0; t < trees.size(); ++t) {
+    size_t numLeaves = (trees[t].size() + 1) / 2;
+    size_t start = cursor;
+    for (size_t b = 0; b < numLeaves; ++b) {
+      if (cursor >= length) {
+        *errorMessage = "malformed leaf parameters in bartcore state";
+        return false;
+      }
+      double count = values[cursor];
+      if (!(count >= 0.0) || count != std::floor(count) || count > 1.0e8) {
+        *errorMessage = "malformed leaf parameters in bartcore state";
+        return false;
+      }
+      size_t width = count == 0.0
+        ? 2
+        : 1 + static_cast<size_t>(count) * (1 + numCovariates);
+      if (cursor + width > length) {
+        *errorMessage = "malformed leaf parameters in bartcore state";
+        return false;
+      }
+      cursor += width;
+    }
+    params[t].assign(values + start, values + cursor);
+  }
+  if (cursor != length) {
+    *errorMessage = "malformed leaf parameters in bartcore state";
+    return false;
   }
   return true;
 }
@@ -2522,16 +2627,28 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
                        chainState.savedTrees, &errorMessage))
       break;
 
-    // linear-leaf states must carry their slope arrays
-    size_t numSlopes = sampler.numLeafCovariates();
-    if (numSlopes > 0) {
+    // linear-leaf states must carry their slope arrays; function-valued
+    // states carry fits slabs and variable-length saved blocks instead
+    size_t numLeafCovariates = sampler.numLeafCovariates();
+    if (sampler.usesFunctionLeaves()) {
+      if (!readFunctionTreeParams(getListElement(chainExpr, "tree.params"),
+                                  chainState.trees.size(),
+                                  sampler.numObservations(),
+                                  chainState.treeParams, &errorMessage))
+        break;
+      if (!chainState.savedTrees.empty() &&
+          !readFunctionSavedParams(getListElement(chainExpr, "saved.params"),
+                                   chainState.savedTrees, numLeafCovariates,
+                                   chainState.savedTreeParams, &errorMessage))
+        break;
+    } else if (numLeafCovariates > 0) {
       if (!readTreeParams(getListElement(chainExpr, "tree.params"),
-                          chainState.trees, numSlopes, chainState.treeParams,
-                          &errorMessage))
+                          chainState.trees, numLeafCovariates,
+                          chainState.treeParams, &errorMessage))
         break;
       if (!chainState.savedTrees.empty() &&
           !readTreeParams(getListElement(chainExpr, "saved.params"),
-                          chainState.savedTrees, numSlopes,
+                          chainState.savedTrees, numLeafCovariates,
                           chainState.savedTreeParams, &errorMessage))
         break;
     }
@@ -2720,7 +2837,11 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     if (store.hasMissing[j]) { anyMissing = true; break; }
   bool anyWide = store.hasWideCategorical;
 
-  size_t numSlopes = sampler.numLeafCovariates();
+  // function-valued (gp) leaves report no per-leaf coefficients - the
+  // function rides prediction only - and their leaves' values print NA
+  // (a whole function per row does not fit a data frame)
+  bool functionLeaves = sampler.usesFunctionLeaves();
+  size_t numSlopes = functionLeaves ? 0 : sampler.numLeafCovariates();
 
   std::vector<int> chainColumn, sampleColumn, treeColumn, countColumn,
     variableColumn, missingColumn;
@@ -2785,7 +2906,10 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
             store.columnHasWideMask(static_cast<size_t>(node.variable));
           // a wide rule's value is a side-channel offset, meaningless
           // outside the format; the directions column carries the decode
-          valueColumn.push_back(isWideRule ? NA_REAL : node.value);
+          valueColumn.push_back(
+            isWideRule ||
+                (functionLeaves && node.variable == bartcore::invalidVariable)
+              ? NA_REAL : node.value);
           if (anyWide) {
             if (isWideRule) {
               size_t variable = static_cast<size_t>(node.variable);

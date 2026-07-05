@@ -92,6 +92,18 @@ methods::setClass("dbartsNormalPrior", contains = "dbartsNodePrior",
 methods::setClass("dbartsLinearPrior", contains = "dbartsNodePrior",
                   slots = list(k = "ANY", columns = "ANY"),
                   prototype = list(k = NULL, columns = NULL))
+# each leaf fits a smooth Gaussian-process function of the designated
+# continuous columns; columns resolves as the linear prior's does.
+# lengthscale is NULL for the median-distance heuristic or per-column
+# kernel lengthscales on the standardized scale (a scalar recycles when
+# resolved); leaves larger than max.leaf.size fall back to constant fits
+methods::setClass("dbartsGPPrior", contains = "dbartsNodePrior",
+                  slots = list(k = "ANY", columns = "ANY",
+                               lengthscale = "ANY",
+                               max.leaf.size = "integer"),
+                  prototype = list(k = NULL, columns = NULL,
+                                   lengthscale = NULL,
+                                   max.leaf.size = 256L))
 
 
 methods::setClass("dbartsResidPrior")
