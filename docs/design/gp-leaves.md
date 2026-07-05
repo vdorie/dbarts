@@ -96,7 +96,9 @@ nothing bounds them. Guardrails, in order of preference:
    (the empty-leaf precedent in logLikelihoodForBranch), so trees
    simply do not grow leaves the exact math cannot afford. Simple,
    honest, and matches how smooth-BART is used (small m, smooth
-   local pieces).
+   local pieces). [SUPERSEDED at landing: the veto deadlocks from the
+   root; over-cap leaves fall back to the constant leaf's exact math
+   instead - see the stage 1 landing notes.]
 2. Cache per-leaf Cholesky factors keyed on the node's span, reusing
    them across the four move types within a sweep (moves re-score the
    same unchanged siblings repeatedly). Optimization only; land after
@@ -211,6 +213,83 @@ is scheduled, using part 1's concept plumbing.
    1.0-0 is otherwise release-ready; Vincent decides whether phase 6
    precedes or follows the CRAN submission.
 
+## Stage 1 landing notes (2026-07-04)
+
+Engine only; nothing is exposed through the facade or bridge, so the
+shipped .so is semantically unchanged (equivalence: identical draws).
+Deltas and facts vs the plan above:
+
+- DELTA, over-cap guardrail: NOT the veto value. The veto deadlocks -
+  every tree starts as a single root leaf holding all n observations,
+  and a birth splitting one over-cap leaf into two over-cap children
+  compares veto against 2 x veto, which no draw accepts, so trees could
+  never grow at all. Instead leaves above gpMaxLeafSize delegate their
+  marginal AND their draw exactly to ConstantGaussianLeaf. The scoring
+  rule is a deterministic function of leaf membership, so MH
+  comparisons stay coherent; oversized regions run constant-BART
+  (data-informed splits throughout) and the GP refinement switches on
+  once a leaf falls under the cap. The component test pins over-cap
+  scores bitwise to the constant leaf's.
+- Concepts (model.hpp): LeafModelCore additionally requires the
+  hasFunctionParams trait (both existing models gained "= false");
+  ScalarLeafModel adds !hasFunctionParams; new FunctionLeafModel
+  requires beginTreeDraw(tree), drawFromPosteriorForNode(rng, tree, y,
+  weights, k, sigmaSq, node, fits) -> FunctionLeafDrawStats
+  (sumSquaredParams, numParams - the chi-k contribution),
+  drawFromPriorForNode, and fitForTestObservationForNode;
+  IntegrableLeafModel is the three-way disjunction.
+- GPGaussianLeaf: squared-exponential correlation with fixed 1e-6
+  nugget over standardized designated columns. The covariate gather
+  duplicates the linear leaf's pattern deliberately (LinearGaussianLeaf
+  stays textually untouched; factor a shared struct only if a third
+  consumer appears). Lengthscales: supplied per column (standardized
+  scale) or the median pairwise-distance heuristic - deterministic
+  subsample of at most 512 rows (stride ceil(n/512)), R median
+  convention, degenerate columns fall back to 1.
+- Math as proposed: score = -0.5 log det V + 0.5 log det(sigma^2 W^-1)
+  - 0.5 z' V^-1 z with V = (scale/k)^2 C + sigma^2 W^-1, one Cholesky
+  (reduces to the constant leaf's formula for a constant kernel, the
+  component test checks the limit numerically). Posterior draw by
+  Matheron's rule f = f0 + s^2 C V^-1 (z - f0 - e0), consuming exactly
+  2 n_leaf standard normals (f0's in row order first); empty leaves
+  consume none. Prior draw s L_C eps, n_leaf normals. Prediction
+  weights alpha = C^-1 f are cached per node (arena-indexed;
+  beginTreeDraw resets per tree sweep) and test rows evaluate
+  c(x*)' alpha; chi-k accumulates f' alpha over n_leaf coordinates
+  (over-cap: value^2 over 1, the scalar accounting).
+- SamplerOptions += gpLengthscales (borrowed; consumed) and
+  gpMaxLeafSize (default 256). The designation shares
+  leafCovariateColumns; the leaf model TYPE picks linear vs gp, so the
+  facade needs a discriminator only at stage 3.
+- Chain: the function-leaf branches next to the existing if constexpr
+  pairs (scalar/vector text unchanged). Draws land in currFits_
+  directly; test rows route per tree through the draw cache. Mutation
+  flows: revalidate/recover leave params empty (fits ARE the
+  parameters and stay in place; rebuildFitsFromParameters only
+  regathers covariates), forceRefreshTrees collapses structure keeping
+  per-observation fits, applyNewData cold-starts fits at zero through
+  the scalar broadcast path (old fits are meaningless over replaced
+  data; structures still carry through the split remap).
+- Stage-1 refusals (graceful, the linear stage-2 precedent): run()
+  skips flattening kept samples, getState returns an empty-tree state,
+  stateIsValid/setState report false, flattenTree/printTree/
+  printSavedTree come back empty or print nothing, and both predict
+  paths zero their output. Sampler::numLeafCovariates and
+  leafCovariateColumns serve function leaves.
+- Tests (tests/cpp, constants from scratchpad gp_leaf_reference.R):
+  testGPLeafMarginal (five marginals + median thetas vs R at 1e-9 /
+  1e-12, constant-kernel limit, over-cap bitwise), testGPLeafDraw
+  (posterior mean/variance vs R, E[f' C^-1 f], prior moments,
+  duplicated-test-row identity, over-cap broadcast, empty leaf),
+  testGPLeafEndToEnd (sin(4 pi x), n 250, m 10, cap 100: sse ratio
+  0.014 beats the constant leaf's 0.016, sigma 0.211 vs truth 0.2,
+  test-fit gap 0.0013, updateK sane, refusals, prior-draw
+  continuation, and a SamplerFacade<GPGaussianLeaf> instantiation for
+  full compile coverage of the surface).
+
 ## Status
 
-PROPOSAL. Nothing implemented.
+Stage 1 (engine) LANDED; see the landing notes above. Stages 2-4 and
+the part-2 strategy remain as proposed; the five open decisions stand,
+with the over-cap fallback replacing the veto in decision 1's
+recommended scope.

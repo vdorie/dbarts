@@ -5139,6 +5139,390 @@ static void testMixedStateRoundTrip() {
   printf("ok: mixed state round trip\n");
 }
 
+struct GPLeafFixture {
+  static constexpr size_t n = 8;
+  std::vector<double> x, z, w;
+  ColumnStore store;
+  std::vector<size_t> indexBuffer;
+  Tree tree;
+  double k = 2.0, scale = 0.5 / std::sqrt(10.0), sigmaSq = 0.04;
+  double theta[2] = {0.7, 1.3};
+
+  GPLeafFixture() : indexBuffer(n) {
+    double x1[] = {0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9};
+    double u1[] = {1.3, -0.4, 0.7, 2.2, -1.5, 0.6, 0.1, -0.8};
+    double u2[] = {0.2, 1.1, -0.6, 0.4, 0.9, -1.3, 0.5, -0.2};
+    x.assign(3 * n, 0.0);
+    for (size_t i = 0; i < n; ++i) {
+      x[i] = x1[i];
+      x[i + n] = u1[i];
+      x[i + 2 * n] = u2[i];
+    }
+    z = {0.35, -0.10, 0.22, 0.55, -0.42, 0.16, 0.03, -0.25};
+    w = {1.0, 2.0, 0.5, 1.0, 1.5, 1.0, 0.8, 1.2};
+    store.build(x.data(), n, 3, 100);
+    tree.initialize(indexBuffer.data(), n);
+  }
+};
+
+static void testGPLeafMarginal() {
+  GPLeafFixture f;
+
+  GPGaussianLeaf leaf;
+  leaf.scale = f.scale;
+  size_t columns[] = {1};
+  leaf.initialize(f.store, columns, 1, f.theta, 256);
+  check(leaf.numCovariates() == 1, "gp leaf covariate count");
+
+  // root marginals against the R reference (gp_leaf_reference.R)
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, 0),
+            -8.4818528980077694, 1e-9, "gp marginal, weighted root");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), nullptr,
+                                                f.k, f.sigmaSq, 0),
+            -7.7744742015613255, 1e-9, "gp marginal, unit-weight root");
+
+  // median pairwise-distance lengthscale heuristic matches R's median
+  GPGaussianLeaf heuristic;
+  heuristic.scale = f.scale;
+  heuristic.initialize(f.store, columns, 1, nullptr, 256);
+  checkNear(heuristic.lengthscales()[0], 1.0967438055849543, 1e-12,
+            "median lengthscale, first covariate");
+
+  // two covariates exercise the multi-column kernel
+  GPGaussianLeaf leaf2;
+  leaf2.scale = f.scale;
+  size_t columns2[] = {1, 2};
+  leaf2.initialize(f.store, columns2, 2, f.theta, 256);
+  checkNear(leaf2.logIntegratedLikelihoodForNode(f.tree, f.z.data(),
+                                                 f.w.data(), f.k, f.sigmaSq, 0),
+            -8.7417667358884774, 1e-9, "gp marginal, two covariates");
+  checkNear(leaf2.covariateMeans()[0], 0.275, 1e-12, "gp covariate mean");
+  checkNear(leaf2.covariateSds()[0], 1.185326959112970, 1e-12,
+            "gp covariate sd");
+  GPGaussianLeaf heuristic2;
+  heuristic2.scale = f.scale;
+  heuristic2.initialize(f.store, columns2, 2, nullptr, 256);
+  checkNear(heuristic2.lengthscales()[1], 0.94224419672838522, 1e-12,
+            "median lengthscale, second covariate");
+
+  // children of a split at x1 ~ 0.5 (cut 50 of the uniform grid)
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(50);
+  f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
+  int32_t leftChild = f.tree.at(0).leftChild;
+  check(f.tree.at(leftChild).numObservations() == 4 &&
+        f.tree.at(leftChild + 1).numObservations() == 4,
+        "gp fixture split partitions 4/4");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, leftChild),
+            -5.0284693098158764, 1e-9, "gp marginal, left child");
+  checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
+                                                f.k, f.sigmaSq, leftChild + 1),
+            -3.7990612354161635, 1e-9, "gp marginal, right child");
+
+  // a constant kernel (huge lengthscale) approaches the constant leaf's
+  // formula by Sherman-Morrison
+  Tree rootTree;
+  std::vector<size_t> rootIndices(GPLeafFixture::n);
+  rootTree.initialize(rootIndices.data(), GPLeafFixture::n);
+  rootTree.setNodeAverages(f.z.data(), f.w.data());
+  ConstantGaussianLeaf constant{f.scale};
+  double constantScore = constant.logIntegratedLikelihoodForNode(
+    rootTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0);
+  GPGaussianLeaf flatKernel;
+  flatKernel.scale = f.scale;
+  double bigTheta[] = {1.0e6};
+  flatKernel.initialize(f.store, columns, 1, bigTheta, 256);
+  checkNear(flatKernel.logIntegratedLikelihoodForNode(
+              rootTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
+            constantScore, 1e-4, "constant-kernel limit matches constant leaf");
+
+  // over the size cap the fallback IS the constant leaf's math, exactly;
+  // nodes at or under the cap keep the gp marginal
+  GPGaussianLeaf capped;
+  capped.scale = f.scale;
+  capped.initialize(f.store, columns, 1, f.theta, 4);
+  check(capped.logIntegratedLikelihoodForNode(rootTree, f.z.data(),
+                                              f.w.data(), f.k, f.sigmaSq, 0) ==
+          constantScore,
+        "over-cap marginal equals the constant leaf's exactly");
+  checkNear(capped.logIntegratedLikelihoodForNode(
+              f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, leftChild),
+            -5.0284693098158764, 1e-9, "at-cap marginal stays gp");
+
+  printf("ok: gp leaf marginal\n");
+}
+
+static void testGPLeafDraw(ext_rng* rng) {
+  GPLeafFixture f;
+  GPGaussianLeaf leaf;
+  leaf.scale = f.scale;
+  size_t columns[] = {1};
+  leaf.initialize(f.store, columns, 1, f.theta, 256);
+  leaf.beginTreeDraw(f.tree);
+
+  // posterior moments of f at the weighted root, from the R reference
+  const double expectedMean[8] = {
+    0.097801590251712, -0.051930303515435, 0.061351828901789,
+    0.097580147953186, -0.100816341185500, 0.052842762505061,
+    0.002453754801322, -0.086391000822176};
+  const double expectedVar[8] = {
+    0.004714667725125, 0.003866729033325, 0.004351767565350,
+    0.005197096398532, 0.004634971897899, 0.004301914991551,
+    0.004053876726524, 0.003974642704896};
+
+  const int numDraws = 50000;
+  std::vector<double> fits(f.n), sum(f.n, 0.0), sumSq(f.n, 0.0);
+  double statsSum = 0.0;
+  FunctionLeafDrawStats stats = leaf.drawFromPosteriorForNode(
+    rng, f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0, fits.data());
+  check(stats.numParams == 8.0, "gp draw reports one parameter per member");
+  for (int r = 0; r < numDraws; ++r) {
+    stats = leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(),
+                                          f.k, f.sigmaSq, 0, fits.data());
+    statsSum += stats.sumSquaredParams;
+    for (size_t i = 0; i < f.n; ++i) {
+      sum[i] += fits[i];
+      sumSq[i] += fits[i] * fits[i];
+    }
+  }
+  bool meansMatch = true, variancesMatch = true;
+  for (size_t i = 0; i < f.n; ++i) {
+    double mean = sum[i] / numDraws;
+    double variance = sumSq[i] / numDraws - mean * mean;
+    meansMatch = meansMatch && std::fabs(mean - expectedMean[i]) < 2e-3;
+    variancesMatch =
+      variancesMatch && std::fabs(variance - expectedVar[i]) < 5e-4;
+  }
+  check(meansMatch, "gp posterior draw means");
+  check(variancesMatch, "gp posterior draw variances");
+  checkNear(statsSum / numDraws, 0.067270287625328065, 5e-3,
+            "chi-k contribution matches E[f' C^-1 f]");
+
+  // prior draws are centered with marginal variance (scale / k)^2
+  double priorSum = 0.0, priorSumSq = 0.0;
+  const int numPriorDraws = 20000;
+  leaf.beginTreeDraw(f.tree);
+  for (int r = 0; r < numPriorDraws; ++r) {
+    leaf.drawFromPriorForNode(rng, f.tree, f.k, 0, fits.data());
+    priorSum += fits[0];
+    priorSumSq += fits[0] * fits[0];
+  }
+  double priorMean = priorSum / numPriorDraws;
+  double s = f.scale / f.k;
+  checkNear(priorMean, 0.0, 2e-3, "gp prior draw mean");
+  checkNear(priorSumSq / numPriorDraws - priorMean * priorMean, s * s, 5e-4,
+            "gp prior draw variance");
+
+  // a test row duplicating a training row reproduces its drawn value up to
+  // the nugget
+  const size_t numTest = 5;
+  std::vector<double> xTest(numTest * 3);
+  for (size_t j = 0; j < 3; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      xTest[i + j * numTest] = f.x[i + j * f.n];
+  f.store.buildTest(xTest.data(), numTest);
+  leaf.rebuildTestCovariates(f.store);
+  leaf.beginTreeDraw(f.tree);
+  leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), f.k,
+                                f.sigmaSq, 0, fits.data());
+  bool predictionsMatch = true;
+  for (size_t i = 0; i < numTest; ++i)
+    predictionsMatch = predictionsMatch &&
+      std::fabs(leaf.fitForTestObservationForNode(f.tree, 0, i) - fits[i]) <
+        1e-3;
+  check(predictionsMatch, "duplicated test rows reproduce drawn values");
+
+  // over-cap draws broadcast one constant value and serve it to test rows
+  GPGaussianLeaf capped;
+  capped.scale = f.scale;
+  capped.initialize(f.store, columns, 1, f.theta, 4);
+  capped.beginTreeDraw(f.tree);
+  f.tree.setNodeAverages(f.z.data(), f.w.data());
+  stats = capped.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(),
+                                          f.k, f.sigmaSq, 0, fits.data());
+  check(stats.numParams == 1.0, "over-cap draw reports one parameter");
+  bool allEqual = true;
+  for (size_t i = 1; i < f.n; ++i) allEqual = allEqual && fits[i] == fits[0];
+  check(allEqual, "over-cap draw broadcasts a constant");
+  check(capped.fitForTestObservationForNode(f.tree, 0, 0) == fits[0],
+        "over-cap test fit serves the constant");
+
+  // an empty leaf writes no fits, consumes no draws, and predicts zero
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(50);
+  f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
+  int32_t rightChild = f.tree.at(0).leftChild + 1;
+  f.tree.at(rightChild).begin = f.tree.at(rightChild).end;
+  leaf.beginTreeDraw(f.tree);
+  fits.assign(f.n, 123.0);
+  leaf.drawFromPosteriorForNode(rng, f.tree, f.z.data(), f.w.data(), f.k,
+                                f.sigmaSq, rightChild, fits.data());
+  bool untouched = true;
+  for (size_t i = 0; i < f.n; ++i) untouched = untouched && fits[i] == 123.0;
+  check(untouched, "empty leaf writes no fits");
+  check(leaf.fitForTestObservationForNode(f.tree, rightChild, 0) == 0.0,
+        "empty leaf predicts zero");
+
+  printf("ok: gp leaf draw\n");
+}
+
+static void testGPLeafEndToEnd(ext_rng* rng) {
+  const size_t n = 250, p = 1;
+  const double pi = 3.141592653589793;
+  std::vector<double> x(n), fTrue(n), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    fTrue[i] = std::sin(4.0 * pi * x[i]);
+    double u1 = runif01(), u2 = runif01();
+    double normal = std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * pi * u2);
+    y[i] = fTrue[i] + 0.2 * normal;
+  }
+
+  double yMean = 0.0, ySd = 0.0;
+  for (size_t i = 0; i < n; ++i) yMean += y[i];
+  yMean /= (double) n;
+  for (size_t i = 0; i < n; ++i) ySd += (y[i] - yMean) * (y[i] - yMean);
+  ySd = std::sqrt(ySd / (double) (n - 1));
+
+  SamplerOptions options;
+  options.numTrees = 10;
+  size_t covariates[] = {0};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+  options.gpMaxLeafSize = 100;
+
+  Sampler<GPGaussianLeaf> gpSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+
+  const size_t numTest = 5;
+  std::vector<double> xTest(x.begin(), x.begin() + numTest);
+  gpSampler.setTestPredictors(xTest.data(), numTest);
+
+  const size_t numBurnIn = 150, numSamples = 200;
+  std::vector<double> sigmaDraws(numSamples);
+  std::vector<double> trainingFits(n * numSamples);
+  std::vector<double> testFits(numTest * numSamples);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  results.trainingFits = trainingFits.data();
+  results.testFits = testFits.data();
+  gpSampler.run(numBurnIn, numSamples, results);
+
+  std::vector<double> posteriorMean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i)
+      posteriorMean[i] += trainingFits[i + s * n] / (double) numSamples;
+
+  double sseGp = 0.0, sseMean = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    sseGp += (posteriorMean[i] - fTrue[i]) * (posteriorMean[i] - fTrue[i]);
+    sseMean += (yMean - fTrue[i]) * (yMean - fTrue[i]);
+  }
+  check(sseGp < 0.15 * sseMean, "gp end to end explains the smooth signal");
+
+  double sigmaPosteriorMean = 0.0;
+  for (double sd : sigmaDraws) sigmaPosteriorMean += sd / (double) numSamples;
+  check(sigmaPosteriorMean > 0.15 && sigmaPosteriorMean < 0.3,
+        "gp end to end: sigma near truth (0.2)");
+
+  // recorded test fits are the leaves' conditional means at the duplicated
+  // rows: equal to the training fits up to the nugget
+  double maxTestGap = 0.0;
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < numTest; ++i) {
+      double gap = std::fabs(testFits[i + s * numTest] -
+                             trainingFits[i + s * n]);
+      if (gap > maxTestGap) maxTestGap = gap;
+    }
+  check(maxTestGap < 0.05, "gp test fits track duplicated training rows");
+
+  // the same run under the constant leaf: the gp fit is closer to the
+  // smooth truth
+  SamplerOptions constantOptions;
+  constantOptions.numTrees = 10;
+  Sampler<ConstantGaussianLeaf> constantSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, constantOptions, &rng);
+  std::vector<double> constantFits(n * numSamples);
+  Results constantResults;
+  constantResults.trainingFits = constantFits.data();
+  constantSampler.run(numBurnIn, numSamples, constantResults);
+  std::vector<double> constantPosteriorMean(n, 0.0);
+  for (size_t s = 0; s < numSamples; ++s)
+    for (size_t i = 0; i < n; ++i)
+      constantPosteriorMean[i] += constantFits[i + s * n] / (double) numSamples;
+  double sseConstant = 0.0;
+  for (size_t i = 0; i < n; ++i)
+    sseConstant += (constantPosteriorMean[i] - fTrue[i]) *
+                   (constantPosteriorMean[i] - fTrue[i]);
+  check(sseGp < sseConstant, "gp fit beats the constant leaf on smooth truth");
+
+  // sampled k stays sane over the f' C^-1 f accumulation
+  SamplerOptions kOptions = options;
+  kOptions.updateK = true;
+  Sampler<GPGaussianLeaf> kSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, kOptions, &rng);
+  const size_t numKSamples = 50;
+  std::vector<double> kDraws(numKSamples), kSigma(numKSamples);
+  Results kResults;
+  kResults.k = kDraws.data();
+  kResults.sigma = kSigma.data();
+  kSampler.run(50, numKSamples, kResults);
+  bool kSane = true;
+  for (double kDraw : kDraws)
+    kSane = kSane && std::isfinite(kDraw) && kDraw > 0.05 && kDraw < 50.0;
+  check(kSane, "sampled k stays finite and positive under gp leaves");
+
+  // stage-1 refusals: states come back unusable, flatten comes back empty
+  SamplerStateData state;
+  gpSampler.getState(state);
+  check(state.chains.size() == 1 && state.chains[0].trees.empty(),
+        "gp state capture refuses with empty trees");
+  check(!gpSampler.setState(state), "gp state restore refuses");
+  std::vector<FlatNode> flatNodes;
+  std::vector<std::uint32_t> flatCounts;
+  gpSampler.flattenTree(0, 0, flatNodes, flatCounts);
+  check(flatNodes.empty(), "gp flatten refuses with empty output");
+
+  // prior draws compose: fresh structures and prior parameters, then a
+  // short continued run stays finite
+  gpSampler.sampleTreesFromPrior();
+  gpSampler.sampleNodeParametersFromPrior();
+  const size_t numContinued = 5;
+  std::vector<double> continuedFits(n * numContinued);
+  Results continuedResults;
+  continuedResults.trainingFits = continuedFits.data();
+  gpSampler.run(0, numContinued, continuedResults);
+  bool continuedFinite = true;
+  for (double fit : continuedFits)
+    continuedFinite = continuedFinite && std::isfinite(fit);
+  check(continuedFinite, "prior draws continue into finite sampling");
+
+  // the type-erased facade instantiates every member for the function-leaf
+  // shape; live prediction refuses with zeroed output until the formats
+  // stage
+  SamplerFacade<GPGaussianLeaf> facade(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ySd, 3.0, 0.37804942330213542, options, &rng);
+  std::vector<double> predictions(numTest, 1.0);
+  facade.predict(xTest.data(), numTest, predictions.data());
+  bool predictionsZeroed = true;
+  for (double prediction : predictions)
+    predictionsZeroed = predictionsZeroed && prediction == 0.0;
+  check(predictionsZeroed, "gp live prediction refuses with zeroed output");
+
+  printf("ok: gp leaf end to end (sse ratio %.3f, constant ratio %.3f, "
+         "sigma %.3f, test gap %.4f)\n",
+         sseGp / sseMean, sseConstant / sseMean, sigmaPosteriorMean,
+         maxTestGap);
+}
+
 int main() {
   misc_simd_init();
 
@@ -5218,6 +5602,9 @@ int main() {
   testMixedEndToEnd();
   testMixedLinearLeaves();
   testMixedStateRoundTrip();
+  testGPLeafMarginal();
+  testGPLeafDraw(rng);
+  testGPLeafEndToEnd(rng);
 
   ext_rng_destroy(rng);
 

@@ -67,6 +67,16 @@ struct SamplerOptions {
   const std::size_t* leafCovariateColumns = nullptr;
   std::size_t numLeafCovariates = 0;
 
+  // GP (function-valued) leaves share the leafCovariateColumns designation;
+  // the leaf model type selects which of the two consumes it. gpLengthscales,
+  // when non-null, fixes the kernel lengthscales per designated column on
+  // the standardized scale (borrowed; consumed during construction); null
+  // selects the median pairwise-distance heuristic. Leaves larger than
+  // gpMaxLeafSize score and draw as constant leaves, confining the
+  // O(n_leaf^3) kernel math below the cap.
+  const double* gpLengthscales = nullptr;
+  std::size_t gpMaxLeafSize = 256;
+
   // grouped random intercepts (rbart_vi's Gibbs blocks in-core): one group
   // index 0..numGroups-1 per training observation (borrowed; consumed during
   // construction). numGroups == 0 leaves the response ungrouped.
@@ -220,7 +230,12 @@ public:
     if constexpr (L::hasVectorParams)
       leaf_.initialize(data, options.leafCovariateColumns,
                        options.numLeafCovariates);
+    else if constexpr (L::hasFunctionParams)
+      leaf_.initialize(data, options.leafCovariateColumns,
+                       options.numLeafCovariates, options.gpLengthscales,
+                       options.gpMaxLeafSize);
     options_.leafCovariateColumns = nullptr;  // consumed above
+    options_.gpLengthscales = nullptr;
 
     switch (family) {
     case ResponseFamily::probit:
@@ -288,7 +303,8 @@ public:
   void resizeTestStorage() {
     totalTestFits_.assign(data_.numTestObservations, 0.0);
     currTestFits_.resize(data_.numTestObservations);
-    if constexpr (L::hasVectorParams) leaf_.rebuildTestCovariates(data_);
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      leaf_.rebuildTestCovariates(data_);
   }
 
   /// One thinning-free run; results slots may be null to skip recording.
@@ -367,16 +383,17 @@ public:
 
         sampleParametersAndSetFits(t, record);
 
-        // flatten while the freshly drawn parameters are live
+        // flatten while the freshly drawn parameters are live;
+        // function-valued leaves refuse keepTrees until the formats stage
         if (record && savedTreeCapacity_ > 0) {
           size_t slot = (savedSlotBase_ + sampleNum) % savedTreeCapacity_;
           std::vector<std::uint64_t>* masks = data_.hasWideCategorical
             ? &savedTreeMasks_[slot * options_.numTrees + t] : nullptr;
-          if constexpr (!L::hasVectorParams) {
+          if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
             trees_[t].flatten(data_, paramByNode_.data(),
                               savedTrees_[slot * options_.numTrees + t],
                               nullptr, 1, nullptr, masks);
-          } else {
+          } else if constexpr (L::hasVectorParams) {
             trees_[t].flatten(data_, paramsByTree_[t].data(),
                               savedTrees_[slot * options_.numTrees + t],
                               nullptr, leaf_.numParams(),
@@ -526,7 +543,7 @@ public:
       Tree& tree(trees_[t]);
       tree.bottomScratch.clear();
       tree.fillBottom(0, tree.bottomScratch);
-      if constexpr (!L::hasVectorParams) {
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
         paramByNode_.assign(tree.nodes.size(), 0.0);
         for (int32_t i : tree.bottomScratch)
           paramByNode_[static_cast<size_t>(i)] = leaf_.drawFromPrior(rng_, k_);
@@ -536,6 +553,19 @@ public:
         for (size_t i = 0; i < data_.numTestObservations; ++i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           totalTestFits_[i] += paramByNode_[static_cast<size_t>(leafIndex)];
+        }
+      } else if constexpr (L::hasFunctionParams) {
+        // prior fits land directly in the tree's fit slab; the per-node
+        // prediction cache serves the routed test rows
+        double* treeFits = treeFits_.data() + t * n;
+        leaf_.beginTreeDraw(tree);
+        for (int32_t i : tree.bottomScratch)
+          leaf_.drawFromPriorForNode(rng_, tree, k_, i, treeFits);
+        misc_addVectorsInPlace(treeFits, n, totalFits_.data());
+        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+          totalTestFits_[i] +=
+            leaf_.fitForTestObservationForNode(tree, leafIndex, i);
         }
       } else {
         size_t numParams = leaf_.numParams();
@@ -565,16 +595,20 @@ public:
   using TreeParameters = std::vector<std::vector<double>>;
 
   /// Recover leaf parameters (from fits for scalar leaves, from the
-  /// persisted blocks for vector ones), re-route every tree against the
-  /// store's current codes, and report whether all leaves stay occupied.
+  /// persisted blocks for vector ones; function-valued leaves keep their
+  /// per-observation fits in place, so nothing is recovered), re-route every
+  /// tree against the store's current codes, and report whether all leaves
+  /// stay occupied.
   bool revalidateTrees(TreeParameters& params) {
     params.resize(options_.numTrees);
     bool allValid = true;
     for (size_t t = 0; t < options_.numTrees && allValid; ++t) {
-      if constexpr (!L::hasVectorParams)
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams)
         recoverParametersFromFits(t, params[t]);
-      else
+      else if constexpr (L::hasVectorParams)
         params[t] = paramsByTree_[t];
+      else
+        params[t].clear();
       trees_[t].repartitionSubtree(data_, 0);
       allValid = trees_[t].bottomNodesAreOccupied();
     }
@@ -584,8 +618,17 @@ public:
   /// Second phase of a successful transaction: rewrite tree fits from the
   /// parameters revalidateTrees recovered. Node averages are left stale;
   /// run() recomputes them from current residuals before any use.
+  /// Function-valued leaves only refresh the covariate gather: their
+  /// per-observation fits are the parameters and stay in place (the next
+  /// sweep's draws replace them under the new values).
   void rebuildFitsFromParameters(const TreeParameters& params) {
     size_t n = data_.numObservations;
+    if constexpr (L::hasFunctionParams) {
+      (void) n;
+      (void) params;
+      leaf_.regatherTrainingCovariates(data_);
+      return;
+    }
     // vector leaves read raw covariate values: pick up the installed ones
     if constexpr (L::hasVectorParams)
       leaf_.regatherTrainingCovariates(data_);
@@ -604,7 +647,7 @@ public:
   /// the sampler has restored its old codes.
   void repartitionTrees() {
     // the restored raw values re-gather to exactly the old covariates
-    if constexpr (L::hasVectorParams)
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
       leaf_.regatherTrainingCovariates(data_);
     for (size_t t = 0; t < options_.numTrees; ++t)
       trees_[t].repartitionSubtree(data_, 0);
@@ -616,10 +659,12 @@ public:
   void recoverTreeParameters(TreeParameters& params) {
     params.resize(options_.numTrees);
     for (size_t t = 0; t < options_.numTrees; ++t) {
-      if constexpr (!L::hasVectorParams)
+      if constexpr (!L::hasVectorParams && !L::hasFunctionParams)
         recoverParametersFromFits(t, params[t]);
-      else
+      else if constexpr (L::hasVectorParams)
         params[t] = paramsByTree_[t];
+      else
+        params[t].clear();
     }
   }
 
@@ -649,8 +694,15 @@ public:
 
     // fresh standardization constants over the replacement data, like the
     // rebuilt cut grid; the persisted parameters carry over as-is, the same
-    // approximate continuation the split remap embodies
-    if constexpr (L::hasVectorParams) leaf_.reinitialize(data_);
+    // approximate continuation the split remap embodies. Function-valued
+    // parameters are per-observation fits over the OLD data, so they
+    // cold-start at zero instead (the next sweep's draws replace them);
+    // structures still carry through the split remap.
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      leaf_.reinitialize(data_);
+    if constexpr (L::hasFunctionParams)
+      for (size_t t = 0; t < options_.numTrees; ++t)
+        params[t].assign(trees_[t].nodes.size(), 0.0);
 
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = leaf_.numParams();
@@ -677,11 +729,22 @@ public:
 
   /// Unconditional refresh: re-route and collapse any node an empty leaf
   /// leaves behind, merging leaf parameters into the collapsed node.
+  /// Function-valued leaves keep their per-observation fits (they remain a
+  /// coherent state under any partition) and collapse structure only.
   void forceRefreshTrees() {
     size_t n = data_.numObservations;
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
 
-    if constexpr (!L::hasVectorParams) {
+    if constexpr (L::hasFunctionParams) {
+      leaf_.regatherTrainingCovariates(data_);
+      std::vector<double> dummyParams;
+      for (size_t t = 0; t < options_.numTrees; ++t) {
+        trees_[t].repartitionSubtree(data_, 0);
+        dummyParams.assign(trees_[t].nodes.size(), 0.0);
+        trees_[t].collapseEmptyNodes(response_->workingWeights(), dummyParams);
+        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+      }
+    } else if constexpr (!L::hasVectorParams) {
       std::vector<double> paramByNode;
       for (size_t t = 0; t < options_.numTrees; ++t) {
         recoverParametersFromFits(t, paramByNode);
@@ -745,7 +808,14 @@ public:
                    std::vector<std::uint32_t>& counts,
                    std::vector<double>* slopes = nullptr,
                    std::vector<std::uint64_t>* masks = nullptr) {
-    if constexpr (!L::hasVectorParams) {
+    if constexpr (L::hasFunctionParams) {
+      // function-valued leaves flatten in the formats stage; empty output
+      // marks the refusal for the host
+      nodes.clear();
+      counts.clear();
+      if (slopes != nullptr) slopes->clear();
+      if (masks != nullptr) masks->clear();
+    } else if constexpr (!L::hasVectorParams) {
       if (slopes != nullptr) slopes->clear();
       std::vector<double> params;
       recoverParametersFromFits(t, params);
@@ -757,9 +827,13 @@ public:
     }
   }
 
-  /// Info dump of live tree t.
+  /// Info dump of live tree t; function-valued leaves print in the formats
+  /// stage.
   void printTree(size_t t, int indentation) {
-    if constexpr (!L::hasVectorParams) {
+    if constexpr (L::hasFunctionParams) {
+      (void) t;
+      (void) indentation;
+    } else if constexpr (!L::hasVectorParams) {
       std::vector<double> params;
       recoverParametersFromFits(t, params);
       trees_[t].print(data_, params.data(), indentation);
@@ -771,6 +845,12 @@ public:
 
   /// The same for one saved tree, in the reference engine's saved format.
   void printSavedTree(size_t slot, size_t t, int indentation) const {
+    if constexpr (L::hasFunctionParams) {
+      (void) slot;
+      (void) t;
+      (void) indentation;
+      return;
+    }
     const std::vector<FlatNode>& flat(savedTrees_[slot * options_.numTrees + t]);
     const std::uint64_t* masks = data_.hasWideCategorical
       ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
@@ -790,6 +870,13 @@ public:
   void predictFromSavedSample(size_t slot, const double* x_test,
                               size_t numTestObservations, double* out) const {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
+    if constexpr (L::hasFunctionParams) {
+      // function-valued prediction rides the formats stage; the host
+      // refuses keepTrees on these samplers before anything is saved
+      (void) slot;
+      (void) x_test;
+      return;
+    }
     std::vector<size_t> indices(numTestObservations);
     const std::uint32_t* numCategories =
       data_.hasWideCategorical ? data_.numCuts.data() : nullptr;
@@ -826,6 +913,12 @@ public:
   void predictFromCurrentTrees(const double* x_test,
                                size_t numTestObservations, double* out) {
     misc_setVectorToConstant(out, numTestObservations, 0.0);
+    if constexpr (L::hasFunctionParams) {
+      // function-valued prediction rides the formats stage; zeroed output
+      // marks the refusal for the host
+      (void) x_test;
+      return;
+    }
     std::vector<size_t> indices(numTestObservations);
     std::vector<double> params, slopes;
     std::vector<FlatNode> flat;
@@ -868,6 +961,12 @@ public:
   // their slopes in treeParams/savedTreeParams alongside the flat trees.
 
   void getState(ChainStateData& state) {
+    if constexpr (L::hasFunctionParams) {
+      // function-valued states serialize in the formats stage; an empty
+      // tree set marks the state unusable and stateIsValid refuses it
+      state = ChainStateData();
+      return;
+    }
     state.trees.resize(options_.numTrees);
     if (data_.hasWideCategorical) {
       state.treeMasks.resize(options_.numTrees);
@@ -931,6 +1030,7 @@ public:
   }
 
   bool stateIsValid(const ChainStateData& state) const {
+    if constexpr (L::hasFunctionParams) return false;
     if (state.trees.size() != options_.numTrees) return false;
     if (!state.savedTrees.empty() &&
         state.savedTrees.size() != savedTrees_.size())
@@ -1024,6 +1124,7 @@ public:
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
+    if constexpr (L::hasFunctionParams) return false;
     size_t n = data_.numObservations;
     // internal-scale quantities below (tree parameters, fits, sigma) were
     // recorded under this transform; scale-free states leave creation's
@@ -1201,7 +1302,30 @@ private:
     bottoms.clear();
     tree.fillBottom(0, bottoms);
 
-    if constexpr (!L::hasVectorParams) {
+    if constexpr (L::hasFunctionParams) {
+      // function-valued draws land one value per member observation
+      // directly in currFits_ (the fits ARE the parameters); the per-node
+      // prediction cache filled by the draws serves the routed test rows
+      // while this tree's partitions are unchanged
+      leaf_.beginTreeDraw(tree);
+      for (int32_t i : bottoms) {
+        FunctionLeafDrawStats stats = leaf_.drawFromPosteriorForNode(
+          rng_, tree, treeY_.data(), response_->workingWeights(), k_,
+          sigma_ * sigma_, i, currFits_.data());
+        if (options_.updateK) {
+          kSumSquaredParams_ += stats.sumSquaredParams;
+          kNumLeaves_ += stats.numParams;
+        }
+      }
+
+      if (updateTestFits && data_.numTestObservations > 0) {
+        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+          currTestFits_[i] =
+            leaf_.fitForTestObservationForNode(tree, leafIndex, i);
+        }
+      }
+    } else if constexpr (!L::hasVectorParams) {
       paramByNode_.assign(tree.nodes.size(), 0.0);
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
