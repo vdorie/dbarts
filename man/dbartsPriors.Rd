@@ -97,6 +97,46 @@ x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
 sampler <- dbarts(y ~ x, node.prior = prior,
                   tree.prior = dbartsPriors$cgm(power = 1.5))
+
+## DART: a Dirichlet prior over split-variable probabilities, useful
+## when only a handful of predictors out of many are relevant
+set.seed(0)
+n <- 60L
+x.dart <- matrix(runif(n * 8), n)
+y.dart <- 4 * x.dart[, 1] + rnorm(n, 0, 0.2)
+fit.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
+                   control = dbartsControl(n.trees = 10L, n.chains = 1L,
+                                            n.threads = 1L))
+samples.dart <- fit.dart$run(20L, 20L)
+
+## linear leaves: each leaf fits an intercept plus a slope in x1,
+## useful for a function that is smooth and roughly linear in a subset
+## of the predictors
+set.seed(1)
+x1 <- runif(n)
+x2 <- runif(n)
+y.lin <- 3 * x1 + rnorm(n, 0, 0.2)
+df.lin <- data.frame(x1, x2, y.lin)
+fit.lin <- dbarts(y.lin ~ x1 + x2, df.lin, node.prior = linear("x1"),
+                  control = dbartsControl(n.trees = 10L, n.chains = 1L,
+                                           n.threads = 1L))
+samples.lin <- fit.lin$run(20L, 20L)
+
+## gp leaves: each leaf fits a smooth Gaussian-process function of x1,
+## useful for a smoothly-varying, nonlinear function
+set.seed(2)
+y.gp <- sin(2 * pi * x1) + rnorm(n, 0, 0.2)
+df.gp <- data.frame(x1, x2, y.gp)
+fit.gp <- dbarts(y.gp ~ x1 + x2, df.gp,
+                 node.prior = gp("x1", max.leaf.size = 30L),
+                 control = dbartsControl(n.trees = 10L, n.chains = 1L,
+                                          n.threads = 1L))
+samples.gp <- fit.gp$run(20L, 20L)
+}
+\references{
+Gramacy, R.B. and Lee, H.K.H. (2008)
+   Bayesian Treed Gaussian Process Models With an Application to Computer Modeling.
+        \emph{Journal of the American Statistical Association}, \bold{103}(483), 1119--1130.
 }
 \seealso{
   \code{\link{dbarts}}, \code{\link{bart2}}

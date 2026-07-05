@@ -103,7 +103,7 @@ extract(object, \dots)
      The quantile of the error variance prior that the rough estimate (\code{sigest}) is placed at. The closer the quantile is to 1, the more aggresive the fit will be as you are putting more prior weight on error standard deviations (\eqn{\sigma}) less than the rough estimate. Not applicable when \eqn{y} is binary.
    }
    \item{k}{
-     For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y}, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or the a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.25, scale = Inf)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous reponses and a \code{chi} hyperprior for binary ones. The default \code{chi} hyperprior is improper, and slightly penalizes small values of \code{k}.
+     For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} (\code{bart2} only) widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, the standard deviation of the standard logistic latent variable. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or the a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.25, scale = Inf)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous reponses and a \code{chi} hyperprior for binary ones. The default \code{chi} hyperprior is improper, and slightly penalizes small values of \code{k}.
    }
    \item{power}{
      Power parameter for tree prior.
@@ -118,7 +118,7 @@ extract(object, \dots)
      \code{TRUE} places a DART prior (a Dirichlet prior over the split-variable probabilities, inducing variable selection; Linero 2018) on the trees with default settings, using \code{power} and \code{base} for the growth probabilities; a prior created by \code{\link[=dbartsPriors]{dbartsPriors$dart}} supplies its own settings, overriding \code{power} and \code{base}. Cannot be combined with \code{split.probs}. Per-sample probabilities are returned in the \code{varprobs} element of the fit.
    }
    \item{binaryOffset}{
-     Used for binary \eqn{y}. When present, the model is \eqn{P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})}{P(Y = 1 | x) = \Phi(f(x) + binaryOffset)}, allowing fits with probabilities shrunk towards values other than \eqn{0.5}.
+     Used for binary \eqn{y}. When present, the model is \eqn{P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})}{P(Y = 1 | x) = \Phi(f(x) + binaryOffset)}, allowing fits with probabilities shrunk towards values other than \eqn{0.5}. \eqn{\Phi} is the link for the default probit family; \code{bart2} fits with \code{family = "logistic"} use \code{plogis} instead, as noted in the value section below.
    }
    \item{weights}{
       An optional vector of weights to be used in the fitting process. When present, BART fits a model with observations \eqn{y \mid x \sim N(f(x), \sigma^2 / w)}{y | x ~ N(f(x), \sigma^2 / w)}, where \eqn{f(x)} is the unknown function.
@@ -387,6 +387,28 @@ lmFit <- lm(y ~ ., data.frame(x, y))
 fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
+
+## binary response with a logistic link, via bart2
+set.seed(0)
+n <- 60L
+x.bin <- matrix(runif(n * 2), n, 2)
+f.bin <- 3 * x.bin[,1] - 1.5
+y.bin <- rbinom(n, 1L, plogis(f.bin))
+fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
+                   n.samples = 20L, n.burn = 20L, n.chains = 1L,
+                   n.trees = 20L, n.threads = 1L)
+
+## fit with missing predictor values, using missing = "incorporate"
+## (the default): every split rule learns a direction for NAs
+set.seed(1)
+x.na <- x.bin
+x.na[1:5, 1] <- NA
+y.na <- x.na[,2] + rnorm(n, 0, 0.3)
+y.na[is.na(x.na[,1])] <- y.na[is.na(x.na[,1])] + 2
+fit.na <- dbarts(y.na ~ x.na, control = dbartsControl(
+                   n.samples = 20L, n.burn = 20L, n.chains = 1L,
+                   n.trees = 20L, n.threads = 1L))
+samples.na <- fit.na$run()
 }
 \keyword{nonparametric}
 \keyword{tree}

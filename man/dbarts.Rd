@@ -74,3 +74,8 @@ dbarts(
 \value{
   A reference object of \code{\link[=dbartsSampler-class]{dbartsSampler}}.
 }
+\references{
+Twala, B.E.T.H., Jones, M.C., and Hand, D.J. (2008)
+   Good methods for coping with missing data in decision trees.
+        \emph{Pattern Recognition Letters}, \bold{29}(7), 950--956.
+}
