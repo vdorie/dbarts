@@ -5255,6 +5255,96 @@ static void testGPLeafMarginal() {
   printf("ok: gp leaf marginal\n");
 }
 
+// Zero-weight members have infinite noise variance: they contribute no
+// likelihood and their draws follow the conditional law given the
+// positive-weight rows. The marginal must equal a leaf holding exactly
+// the positive rows, bitwise.
+static void testGPLeafZeroWeights(ext_rng* rng) {
+  GPLeafFixture f;
+
+  GPGaussianLeaf leaf;
+  leaf.scale = f.scale;
+  size_t columns[] = {1};
+  leaf.initialize(f.store, columns, 1, f.theta, 256);
+
+  std::vector<double> wZero(f.w);
+  wZero[2] = 0.0;
+  wZero[5] = 0.0;
+  double zeroScore = leaf.logIntegratedLikelihoodForNode(
+    f.tree, f.z.data(), wZero.data(), f.k, f.sigmaSq, 0);
+  check(std::isfinite(zeroScore), "zero-weight gp marginal is finite");
+
+  // a tree whose root holds exactly the positive rows, in the same order
+  Tree positiveTree;
+  std::vector<size_t> positiveIndices(6);
+  positiveTree.initialize(positiveIndices.data(), 6);
+  size_t positives[] = {0, 1, 3, 4, 6, 7};
+  for (size_t i = 0; i < 6; ++i) positiveIndices[i] = positives[i];
+  double positiveScore = leaf.logIntegratedLikelihoodForNode(
+    positiveTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0);
+  check(zeroScore == positiveScore,
+        "zero-weight marginal equals the positive-subset leaf bitwise");
+
+  // a zero-weight row duplicating a positive row's designated value must
+  // draw (nearly) that row's function value every time - the conditional
+  // mean at a duplicated input is the input's own value up to the nugget
+  const size_t nd = 5;
+  double xd1[] = {0.1, 0.3, 0.5, 0.7, 0.9};
+  double ud1[] = {1.1, -0.7, 0.4, 1.1, -1.6};  // row 3 duplicates row 0
+  std::vector<double> xd(nd * 2);
+  for (size_t i = 0; i < nd; ++i) {
+    xd[i] = xd1[i];
+    xd[i + nd] = ud1[i];
+  }
+  std::vector<double> zd = {0.4, -0.2, 0.1, 0.0, 0.3};
+  std::vector<double> wd = {1.0, 1.0, 2.0, 0.0, 1.5};
+  ColumnStore dupStore;
+  dupStore.build(xd.data(), nd, 2, 100);
+  std::vector<size_t> dupIndices(nd);
+  Tree dupTree;
+  dupTree.initialize(dupIndices.data(), nd);
+  GPGaussianLeaf dupLeaf;
+  dupLeaf.scale = f.scale;
+  double dupTheta[] = {0.9};
+  dupLeaf.initialize(dupStore, columns, 1, dupTheta, 256);
+
+  std::vector<double> fits(nd, 0.0);
+  const size_t numDraws = 4000;
+  double maxGap = 0.0, minZeroRow = HUGE_VAL, maxZeroRow = -HUGE_VAL;
+  bool allFinite = true;
+  for (size_t s = 0; s < numDraws; ++s) {
+    dupLeaf.beginTreeDraw(dupTree);
+    dupLeaf.drawFromPosteriorForNode(rng, dupTree, zd.data(), wd.data(),
+                                     f.k, f.sigmaSq, 0, fits.data());
+    for (size_t i = 0; i < nd; ++i) allFinite &= std::isfinite(fits[i]);
+    double gap = std::fabs(fits[3] - fits[0]);
+    if (gap > maxGap) maxGap = gap;
+    if (fits[3] < minZeroRow) minZeroRow = fits[3];
+    if (fits[3] > maxZeroRow) maxZeroRow = fits[3];
+  }
+  check(allFinite, "zero-weight gp draws are finite");
+  check(maxGap < 1.0e-2,
+        "zero-weight duplicate row tracks its positive twin");
+  check(maxZeroRow > minZeroRow, "zero-weight row draws vary");
+
+  // no positive members at all: no likelihood - scores like an empty
+  // leaf, draws from the prior
+  std::vector<double> wAllZero(nd, 0.0);
+  check(dupLeaf.logIntegratedLikelihoodForNode(dupTree, zd.data(),
+                                               wAllZero.data(), f.k,
+                                               f.sigmaSq, 0) == 0.0,
+        "all-zero-weight gp marginal scores like an empty leaf");
+  dupLeaf.beginTreeDraw(dupTree);
+  dupLeaf.drawFromPosteriorForNode(rng, dupTree, zd.data(),
+                                   wAllZero.data(), f.k, f.sigmaSq, 0,
+                                   fits.data());
+  bool priorFinite = true;
+  for (size_t i = 0; i < nd; ++i) priorFinite &= std::isfinite(fits[i]);
+  check(priorFinite, "all-zero-weight gp draw is finite");
+
+  printf("ok: gp leaf zero weights\n");
+}
+
 static void testGPLeafDraw(ext_rng* rng) {
   GPLeafFixture f;
   GPGaussianLeaf leaf;
@@ -5812,6 +5902,7 @@ int main() {
   testGPLeafEndToEnd(rng);
   testGPLeafFormats(rng);
   testGPLeafKernelCache(rng);
+  testGPLeafZeroWeights(rng);
 
   ext_rng_destroy(rng);
 

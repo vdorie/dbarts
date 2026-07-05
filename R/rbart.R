@@ -38,10 +38,10 @@ rbart_vi <- function(
     stop("unknown arguments: '", paste0(argNames[unknownArgs], collapse = "', '"), "'")
   
   n.chains <- coerceOrError(n.chains, "integer")[1L]
-  if (is.na(n.chains) || n.chains < 1L) stop("n.chains must be a non-negative integer")
-  
+  if (is.na(n.chains) || n.chains < 1L) stop("'n.chains' must be a positive integer")
+
   n.threads <- coerceOrError(n.threads, "integer")[1L]
-  if (is.na(n.threads) || n.threads < 1L) stop("n.threads must be a non-negative integer")
+  if (is.na(n.threads) || n.threads < 1L) stop("'n.threads' must be a positive integer")
   
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   missingDefaults <- names(formals(rbart_vi))[names(formals(rbart_vi)) %in% names(formals(dbartsControl))]
@@ -80,6 +80,10 @@ rbart_vi <- function(
   }
 
   if (!is.null(matchedCall[["k"]])) {
+    # the EVALUATED value, unlike bart2: rbart forwards its arguments to
+    # dbarts through do.call from internal frames, where a stored symbol
+    # cannot resolve. Without dbarts attached, pass hyperpriors as strings
+    # (k = "chi(1.25)")
     node.prior <- quote(normal(k))
     node.prior[[2L]] <- k
   } else {
@@ -129,20 +133,14 @@ rbart_vi <- function(
     group.by.test <- group.by.literal
     if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
       stop("'group.by.test' must be coercible to factor type")
-
-    if (is.null(group.by.test))
-      stop("'group.by.test' specified but not found")
-  
-    if (!is.numeric(group.by.test) && !is.factor(group.by.test) && !is.character(group.by.test))
-      stop("'group.by.test' must be coercible to factor type")
   }
   
   if (is.null(matchedCall$prior)) matchedCall$prior <- formals(rbart_vi)$prior
 
   builtinTauPrior <- (is.symbol(matchedCall$prior) || is.character(matchedCall$prior)) &&
     any(names(rbart.priors) == as.character(matchedCall$prior))
-  if (is.symbol(matchedCall$prior) || is.character(matchedCall$prior) && any(names(rbart.priors) == matchedCall$prior))
-    prior <- rbart.priors[[which(names(rbart.priors) == matchedCall$prior)]]
+  if (builtinTauPrior)
+    prior <- rbart.priors[[which(names(rbart.priors) == as.character(matchedCall$prior))]]
   
   data <- eval(redirectCall(matchedCall, dbarts::dbartsData), envir = callingEnv)
 
@@ -680,126 +678,3 @@ packageRbartResults <- function(control, data, group.by, group.by.test, chainRes
   class(result) <- "rbart"
   result
 }
-
-## create the contents to be used in partial dependence plots
-if (FALSE) pdrbart <- function(x.train, y.train, group.by, xind = seq_len(ncol(x.train)),
-                    levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-                    pl = TRUE, plquants = c(0.05, 0.95),
-                    ...)
-{
-  n = nrow(x.train)
-  nvar = length(xind)
-  nlevels = rep(0,nvar)
-  if (is.null(levs)) {
-    levs = list()
-    for (i in 1:nvar) {
-      ux = unique(x.train[,xind[i]])
-      if (length(ux) < length(levquants)) levs[[i]] = sort(ux)
-      else levs[[i]] = unique(quantile(x.train[,xind[i]],probs=levquants))
-    }
-  } 
-  nlevels = unlist(lapply(levs,length))
-  x.test = NULL
-  for (i in 1:nvar) {
-    for (v in levs[[i]]) {
-      temp = x.train
-      temp[,xind[i]] = v
-      x.test = rbind(x.test,temp)
-    }
-  }
-  pdbrt = rbart_vi(x.train, y.train, x.test, group.by = group.by, ...)
-  fdr = list() 
-  cnt = 0
-  for (j in 1:nvar) {
-    fdrtemp = NULL
-    for (i in 1:nlevels[j]) {
-      cind = cnt + ((i-1)*n+1):(i*n)
-      yhat.test <- 
-      fdrtemp <- if (length(dim(pdbrt$yhat.test)) > 2L)
-        cbind(fdrtemp, as.vector(t(apply(pdbrt$yhat.test[,,cind], c(1, 2), mean))))
-      else
-        cbind(fdrtemp, apply(pdbrt$yhat.test[,cind], 1, mean))
-    }
-    fdr[[j]] = fdrtemp
-    cnt = cnt + n*nlevels[j]
-  }
-  if (is.null(colnames(x.train))) xlbs = paste('x',xind,sep='')
-  else xlbs = colnames(x.train)[xind]
-  if ('sigma' %in% names(pdbrt)) {
-    retval = list(fd = fdr,levs = levs,xlbs=xlbs,
-    bartcall=pdbrt$call,ranef=pdbrt$ranef,yhat.train=pdbrt$yhat.train,
-    first.sigma=pdbrt$first.sigma,sigma=pdbrt$sigma,tau=pdbrt$tau,
-    yhat.train.mean=pdbrt$yhat.train.mean,sigest=pdbrt$sigest,y=pdbrt$y)
-  } else {
-    retval = list(fd = fdr,levs = levs,xlbs=xlbs,
-    bartcall=pdbrt$call,yhat.train=pdbrt$yhat.train,
-    y=pdbrt$y)
-  }
-  class(retval) = 'pdrbart'
-  if (pl) plot(retval, plquants = plquants)
-  return (retval)
-}
-
-if (FALSE) pd2rbart <- function (
-   x.train, y.train, group.by,
-   xind = c(1, 2),
-   levs = NULL, levquants = c(0.05, seq(0.1, 0.9, 0.1), 0.95),
-   pl = TRUE, plquants = c(0.05, 0.95), 
-   ...
-)
-{
-  n = nrow(x.train)
-  nlevels = rep(0,2)
-  if (is.null(levs)) {
-    levs = list()
-    for (i in 1:2) {
-      ux = unique(x.train[,xind[i]])
-      if(length(ux) <= length(levquants)) levs[[i]] = sort(ux)
-      else levs[[i]] = unique(quantile(x.train[,xind[i]],probs=levquants))
-    }
-  } 
-  nlevels = unlist(lapply(levs,length))
-  xvals <- as.matrix(expand.grid(levs[[1]],levs[[2]]))
-  nxvals <- nrow(xvals)
-  if (ncol(x.train)==2){
-    cat('special case: only 2 xs\n')
-    x.test = xvals
-  } else {
-    x.test=NULL
-    for (v in 1:nxvals) {
-      temp = x.train
-      temp[,xind[1]] = xvals[v,1]
-      temp[,xind[2]] = xvals[v,2]
-      x.test = rbind(x.test,temp)
-    }
-  }
-  pdbrt = rbart_vi(x.train, y.train, x.test, group.by = group.by, ...)
-  if (ncol(x.train)==2) {
-    fdr = pdbrt$yhat.test
-  } else {
-    fdr = NULL 
-    for (i in 1:nxvals) {
-      cind =  ((i-1)*n+1):(i*n)
-      fdr <- if (length(dim(pdbrt$yhat.test)) > 2L)
-        cbind(fdr, as.vector(t(apply(pdbrt$yhat.test[,,cind], c(1, 2), mean))))
-      else
-        cbind(fdr, apply(pdbrt$yhat.test[,cind], 1, mean))
-    }
-  }
-  if (is.null(colnames(x.train))) xlbs = paste('x',xind,sep='')
-  else xlbs = colnames(x.train)[xind]
-  if ('sigma' %in% names(pdbrt)) {
-  retval = list(fd = fdr,levs = levs,xlbs=xlbs,
-                bartcall=pdbrt$call,ranef=pdbrt$ranef,yhat.train=pdbrt$yhat.train,
-                first.sigma=pdbrt$first.sigma,sigma=pdbrt$sigma,tau=pdbrt$tau,
-                yhat.train.mean=pdbrt$yhat.train.mean,sigest=pdbrt$sigest,y=pdbrt$y)
-  } else {
-    retval = list(fd = fdr,levs = levs,xlbs=xlbs,
-                  bartcall=pdbrt$call,yhat.train=pdbrt$yhat.train,
-                  y=pdbrt$y)
-  }
-  class(retval) = 'pd2rbart'
-  if (pl) plot(retval,plquants=plquants)
-  return (retval)
-}
-

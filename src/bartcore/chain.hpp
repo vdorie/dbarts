@@ -433,7 +433,9 @@ public:
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, totalFits_.data(), sigma_);
 
-      if (options_.updateK)
+      // a zero sum of squares under an infinite prior scale would make the
+      // gamma rate zero and k infinite; with no information, keep k
+      if (options_.updateK && kSumSquaredParams_ > 0.0)
         k_ = options_.kHyperprior.draw(rng_, kSumSquaredParams_, kNumLeaves_,
                                        leaf_.scale);
 

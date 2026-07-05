@@ -569,6 +569,9 @@ struct GPGaussianLeaf {
                                                      residualVariance,
                                                      nodeIndex);
     }
+    if (weights != nullptr && anyZeroWeight(tree, node, weights))
+      return logIntegratedLikelihoodOverPositiveWeights(
+        tree, node, y, weights, k, residualVariance, nodeIndex, numObs);
 
     double s2 = (scale / k) * (scale / k);
 
@@ -612,9 +615,10 @@ struct GPGaussianLeaf {
   /// rule - f = f0 + s^2 C V^-1 (z - f0 - e0) with f0 ~ N(0, s^2 C) and
   /// e0 ~ N(0, sigma^2 W^-1) - which has exactly the posterior law and needs
   /// only the two factorizations already in hand. Consumes 2 n_leaf standard
-  /// normals; empty leaves consume none and cache a zero constant. Caches
-  /// the prediction weights alpha = C^-1 f for the node and returns the
-  /// chi-k contribution (f' alpha over n_leaf coordinates).
+  /// normals (n_leaf + n_positive when zero-weight members are present);
+  /// empty leaves consume none and cache a zero constant. Caches the
+  /// prediction weights alpha = C^-1 f for the node and returns the chi-k
+  /// contribution (f' alpha over n_leaf coordinates).
   FunctionLeafDrawStats drawFromPosteriorForNode(
     ext_rng* rng, const Tree& tree, const double* y, const double* weights,
     double k, double residualVariance, int32_t nodeIndex,
@@ -635,6 +639,9 @@ struct GPGaussianLeaf {
       setConstantCache(nodeIndex, value);
       return FunctionLeafDrawStats{value * value, 1.0};
     }
+    if (weights != nullptr && anyZeroWeight(tree, node, weights))
+      return drawFromPosteriorOverPositiveWeights(
+        rng, tree, node, y, weights, k, residualVariance, nodeIndex, fits);
 
     double s = scale / k, s2 = s * s;
 
@@ -1047,6 +1054,145 @@ private:
     *cholK = cholK_.data();
   }
 
+  /// True when any member observation carries a zero weight. Those rows
+  /// have infinite noise variance, so they contribute no likelihood and
+  /// the leaf takes the positive-subset paths below; the constant and
+  /// linear leaves get the same behavior for free by multiplying by w.
+  bool anyZeroWeight(const Tree& tree, const Node& node,
+                     const double* weights) const {
+    for (std::size_t m = node.begin; m < node.end; ++m)
+      if (weights[tree.indices[m]] == 0.0) return true;
+    return false;
+  }
+
+  /// The marginal over only the positive-weight members - the exact limit
+  /// of infinite noise variance on the rest. Still a deterministic
+  /// function of leaf membership and the weights, so MH comparisons stay
+  /// coherent; a leaf with no positive-weight members scores 0 like an
+  /// empty leaf.
+  double logIntegratedLikelihoodOverPositiveWeights(
+    const Tree& tree, const Node& node, const double* y,
+    const double* weights, double k, double residualVariance,
+    int32_t nodeIndex, std::size_t numObs) const {
+    positiveScratch_.clear();
+    for (std::size_t r = 0; r < numObs; ++r)
+      if (weights[tree.indices[node.begin + r]] > 0.0)
+        positiveScratch_.push_back(r);
+    std::size_t numPos = positiveScratch_.size();
+    if (numPos == 0) return 0.0;
+
+    double s2 = (scale / k) * (scale / k);
+
+    const CachedLeafKernel* entry =
+      cachedKernelForNode(tree, node, nodeIndex, numObs);
+    const double* kernel;
+    if (entry != nullptr) {
+      kernel = entry->kernel.data();
+    } else {
+      gatherLeafCovariates(tree, node, numObs);
+      buildKernel(numObs, kernel_);
+      kernel = kernel_.data();
+    }
+    cholV_.resize(numPos * numPos);
+    for (std::size_t a = 0; a < numPos; ++a)
+      for (std::size_t b = 0; b < numPos; ++b)
+        cholV_[a * numPos + b] =
+          kernel[positiveScratch_[a] * numObs + positiveScratch_[b]] * s2;
+    double logDetNoise = 0.0;
+    for (std::size_t a = 0; a < numPos; ++a) {
+      double w = weights[tree.indices[node.begin + positiveScratch_[a]]];
+      double noise = residualVariance / w;
+      logDetNoise += std::log(noise);
+      cholV_[a * numPos + a] += noise;
+    }
+    choleskyDecomposeLeaf(cholV_.data(), numPos);
+
+    double halfLogDetV = 0.0;
+    for (std::size_t a = 0; a < numPos; ++a)
+      halfLogDetV += std::log(cholV_[a * numPos + a]);
+
+    vectorScratch_.resize(numPos);
+    for (std::size_t a = 0; a < numPos; ++a)
+      vectorScratch_[a] = y[tree.indices[node.begin + positiveScratch_[a]]];
+    solveLowerLeaf(cholV_.data(), numPos, vectorScratch_.data());
+    double quadraticForm = 0.0;
+    for (std::size_t a = 0; a < numPos; ++a)
+      quadraticForm += vectorScratch_[a] * vectorScratch_[a];
+
+    return -halfLogDetV + 0.5 * logDetNoise - 0.5 * quadraticForm;
+  }
+
+  /// Matheron's rule conditioning only on the positive-weight members: f0
+  /// covers every member (numObs normals, row order, as always), e0 and
+  /// the correction only the positive rows (numPos more normals), so
+  /// zero-weight rows draw from the correct conditional law and the
+  /// prediction cache stays defined over the full member list. With no
+  /// positive members the draw is the prior draw.
+  FunctionLeafDrawStats drawFromPosteriorOverPositiveWeights(
+    ext_rng* rng, const Tree& tree, const Node& node, const double* y,
+    const double* weights, double k, double residualVariance,
+    int32_t nodeIndex, double* fits) const {
+    std::size_t numObs = node.numObservations();
+    positiveScratch_.clear();
+    for (std::size_t r = 0; r < numObs; ++r)
+      if (weights[tree.indices[node.begin + r]] > 0.0)
+        positiveScratch_.push_back(r);
+    std::size_t numPos = positiveScratch_.size();
+
+    double s = scale / k, s2 = s * s;
+
+    const double* kernel;
+    const double* cholK;
+    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
+
+    epsScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r)
+      epsScratch_[r] = ext_rng_simulateStandardNormal(rng);
+    fScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double value = 0.0;
+      for (std::size_t a = 0; a <= r; ++a)
+        value += cholK[r * numObs + a] * epsScratch_[a];
+      fScratch_[r] = s * value;
+    }
+
+    if (numPos > 0) {
+      cholV_.resize(numPos * numPos);
+      for (std::size_t a = 0; a < numPos; ++a)
+        for (std::size_t b = 0; b < numPos; ++b)
+          cholV_[a * numPos + b] =
+            s2 * kernel[positiveScratch_[a] * numObs + positiveScratch_[b]];
+      for (std::size_t a = 0; a < numPos; ++a) {
+        double w = weights[tree.indices[node.begin + positiveScratch_[a]]];
+        cholV_[a * numPos + a] += residualVariance / w;
+      }
+      choleskyDecomposeLeaf(cholV_.data(), numPos);
+
+      vectorScratch_.resize(numPos);
+      for (std::size_t a = 0; a < numPos; ++a) {
+        std::size_t r = positiveScratch_[a];
+        double w = weights[tree.indices[node.begin + r]];
+        vectorScratch_[a] = y[tree.indices[node.begin + r]] - fScratch_[r] -
+                            std::sqrt(residualVariance / w) *
+                              ext_rng_simulateStandardNormal(rng);
+      }
+      solveLowerLeaf(cholV_.data(), numPos, vectorScratch_.data());
+      solveLowerTransposedLeaf(cholV_.data(), numPos,
+                               vectorScratch_.data());
+      for (std::size_t r = 0; r < numObs; ++r) {
+        double value = 0.0;
+        for (std::size_t a = 0; a < numPos; ++a)
+          value += kernel[r * numObs + positiveScratch_[a]] *
+                   vectorScratch_[a];
+        fScratch_[r] += s2 * value;
+      }
+    }
+    for (std::size_t r = 0; r < numObs; ++r)
+      fits[tree.indices[node.begin + r]] = fScratch_[r];
+
+    return cacheAlphaForNode(nodeIndex, numObs, cholK);
+  }
+
   /// Drop entries whose node no longer exists, is no longer a bottom node,
   /// or whose membership changed, keeping the budget for live leaves.
   /// Lookups re-validate regardless; this is hygiene, not correctness.
@@ -1089,6 +1235,7 @@ private:
   mutable std::vector<double> leafU_;    // row-major numObs x q, / theta
   mutable std::vector<double> kernel_, cholK_, cholV_;
   mutable std::vector<double> epsScratch_, fScratch_, vectorScratch_;
+  mutable std::vector<std::size_t> positiveScratch_;  // w > 0 member offsets
   mutable std::vector<double> alphaBuffer_;
   mutable std::vector<double> nodeConstant_;         // arena-indexed
   mutable std::vector<std::ptrdiff_t> nodeAlphaOffset_;  // -1 = constant
