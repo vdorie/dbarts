@@ -27,12 +27,27 @@ expect_error(dbarts(y ~ x1 + x2 + g, data.frame(df, g),
 expect_error(new("dbartsModel", node.prior = dbarts:::gp("x1")),
              pattern = "resolved against data")
 
-# v1 gp leaves fix k: the chi hyperprior is refused, including the binary
-# family's default
-expect_error(dbarts(y ~ x1 + x2, df, node.prior = gp("x1", k = chi(1.25))),
-             pattern = "fixed 'k'")
-expect_error(dbarts(z ~ x1 + x2, df.binary, node.prior = gp("x1")),
-             pattern = "fixed 'k'")
+# the chi hyperprior composes with gp leaves: k is sampled from the drawn
+# functions' standardized magnitudes
+control.chi <- dbartsControl(n.trees = 10L, n.chains = 1L,
+                             updateState = FALSE)
+set.seed(3)
+sampler.chi <- dbarts(y ~ x1 + x2, df,
+                      node.prior = gp("x1", k = chi(1.25),
+                                      max.leaf.size = 100L),
+                      control = control.chi)
+samples.chi <- sampler.chi$run(100L, 20L)
+expect_true(all(is.finite(samples.chi$k)) && all(samples.chi$k > 0))
+expect_true(length(unique(samples.chi$k)) > 1L)
+
+# binary responses default k to chi under gp leaves like everywhere else
+set.seed(4)
+sampler.chi.binary <- dbarts(z ~ x1 + x2, df.binary,
+                             node.prior = gp("x1", max.leaf.size = 100L),
+                             control = control.chi)
+samples.chi.binary <- sampler.chi.binary$run(60L, 10L)
+expect_true(all(is.finite(samples.chi.binary$train)))
+expect_true(length(unique(samples.chi.binary$k)) > 1L)
 
 # fitting recovers the smooth signal; the small cap keeps large leaves on
 # the constant fallback while splits grow
@@ -157,4 +172,6 @@ rm(sampler, sampler.state, sampler.restored, sampler.mut, sampler.binary,
    samples, samples.binary, more, trees, predictions, fits, control,
    control.state, control.view, sampler.view, handle, view, full,
    samples.view, samples.full, testRows, fold, samples.fold, xbart.gp,
-   df, df.binary, x1, x2, g, y, z, mu, x1.new, n, model.const)
+   df, df.binary, x1, x2, g, y, z, mu, x1.new, n, model.const,
+   control.chi, sampler.chi, samples.chi, sampler.chi.binary,
+   samples.chi.binary)

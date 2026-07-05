@@ -392,11 +392,28 @@ on dbarts() and xbart(). Facts vs the plan:
   column, probit composition, full-rows view bitwise vs raw path, fold
   prediction quality, xbart, sparse refusal.
 
+## Stage 4 landing notes: chi-k coupling (2026-07-04)
+
+The fixed-k restriction was R-side only - the engine has accumulated
+f' C^-1 f over n_leaf (value^2 over 1 for over-cap leaves) into the
+chi-k update since stage 1, component-tested in testGPLeafEndToEnd.
+Lifting it removed the parsePriors refusal and nothing else; the
+bridge's updateK/kHyperprior plumbing is leaf-agnostic. Binary
+responses now get their usual chi(1.25, Inf) default under gp leaves,
+and dbarts run results carry the sampled k as for the other leaf
+models. xbart continues to reduce a k found inside the prior to a
+per-cell fixed value only when it is numeric; a chi object passes
+through to a sampled-k fit, matching normal(chi(...)) semantics.
+test-gp-leaves.R's refusal checks became positive coverage
+(continuous chi + binary default, sampled k varies and stays
+positive).
+
 ## Status
 
-Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED; see the
-landing notes above. Stage 4 follow-ups (Cholesky caching, chi-k
-coupling, sampled lengthscales, low-rank kernels) wait on demand, and
-the part-2 non-conjugate strategy remains designed-for; the open
-decisions were implemented per their recommendations, with the
-over-cap fallback replacing the veto in decision 1's scope.
+Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and the
+chi-k coupling from stage 4 is lifted; see the landing notes above.
+Remaining stage 4 follow-ups (Cholesky caching, sampled lengthscales,
+low-rank kernels) wait on demand, and the part-2 non-conjugate
+strategy remains designed-for; the open decisions were implemented per
+their recommendations, with the over-cap fallback replacing the veto
+in decision 1's scope.

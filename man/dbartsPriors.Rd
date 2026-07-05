@@ -54,9 +54,10 @@
       Each leaf fits a smooth Gaussian-process function of the designated
       continuous predictor columns, drawn under a squared-exponential
       kernel whose prior scale ties to \code{k} exactly as the other leaf
-      priors; \code{columns} resolves as for \code{linear}. \code{k} must
-      be fixed (a positive scalar; binary responses therefore need it
-      supplied). \code{lengthscale} fixes the kernel lengthscales on the
+      priors; \code{columns} resolves as for \code{linear}, and \code{k}
+      may be fixed or given the \code{chi} hyperprior, sampled from the
+      drawn functions' standardized magnitudes.
+      \code{lengthscale} fixes the kernel lengthscales on the
       standardized covariate scale, one value per column or one recycled
       scalar; \code{NULL} uses the median pairwise-distance heuristic per
       column. Leaves holding more than \code{max.leaf.size} observations
