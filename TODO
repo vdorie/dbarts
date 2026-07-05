@@ -44,10 +44,18 @@ usability
   weights + binary refusal fires at sampler creation in the bridge
     (good message, wrong layer); add an early R-side check.
   rbart_vi's sparse refusal doesn't say why or point at dbarts/bart2,
-    which do support sparse.
-  bart/bart2 lack xbart's up-front numeric argument validation
-    (power/base/k ranges, counts); invalid values surface as opaque
-    errors deep in parsePriors.
+    which do support sparse. DONE: the message now names them.
+  bart/bart2 up-front numeric argument validation: MOSTLY ALREADY DONE.
+    power/base validate through the dbartsCGMPrior S4 validity, k through
+    normal(), and the counts through dbartsControl's validity - so bad
+    values report an informative message (wrapped in the standard S4
+    "invalid class ... object:" prefix), not an opaque parsePriors error.
+    The one genuine gap was n.thin = 0, which passed validity (non-
+    negative) and then divided by zero downstream (n.burn %/% n.thin ->
+    NA -> "missing value where TRUE/FALSE needed"); n.thin is now required
+    positive. Residual nit (deferred, package-wide cosmetic): the S4
+    validity prefix leaks internal class names to users; stripping it
+    consistently is a separate pass, not a per-constructor patch.
 
 api surface
   xbart cannot reach DART or split.probs: cgm(power, base) is
