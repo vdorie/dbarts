@@ -1,67 +1,38 @@
-Rewritten 2026-07-05. The 2018 list is fully absorbed: the model
-abstraction, categorical work, rule encapsulation, state audit, and CGM
-bounds all landed with the bartcore engine (see docs/design/); "warn on
-possible factors" is retired as obsolete - factors are first-class
-through data frames and formulas, and low-cardinality numeric columns
-(indicator matrices) would false-positive.
-
-Sections below "release" come from the 2026-07-05 four-way review
-(correctness, design/clarity, feature completion, performance); every
-bug listed was verified against the code, not just reported.
+Rewritten 2026-07-05 from the repo review; pruned the same day after
+the first work wave landed. The 2018 list is fully absorbed by the
+bartcore rewrite (see docs/design/); "warn on possible factors" is
+retired as obsolete. DONE and removed from this list: the five
+verified review bugs (gp zero weights, rbart_vi prior lookup by name,
+silent weights recycling, chi-k Inf guard, dead-code/message cleanups;
+bart2-vs-rbart_vi k handling resolved as deliberate - rbart forwards
+through do.call so it must store the evaluated value), release
+metadata (AC_INIT, SystemRequirements: C++20, .win header versions,
+Description text), CI triggers for the bartcore branch +
+workflow_dispatch, man-page examples for every headline feature,
+logistic k/binaryOffset doc fixes, MIA and gp references, README
+refresh with badge and package-authors note, and seven new coverage
+test files (logistic+offset, DART x categorical x MIA, boundary
+inputs, grouped weighted/binary halves + refusal, mutate-then-
+serialize bitwise for all three leaf types, bridge errors, plot
+smoke).
 
 release
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
     to CRAN together
   stan4bart follow-up: adopt categorical splits (pins factors =
     "indicators"); lockstep with the dbarts release
-  release engineering (2026-07-05 build review; verified):
-    configure.ac AC_INIT still says 0.9.33 vs DESCRIPTION 1.0-0 -
-      bump and autoreconf -i (PACKAGE_VERSION strings are cosmetic
-      but visible)
-    DESCRIPTION lacks SystemRequirements: C++20 despite CXX_STD =
-      CXX20 in both Makevars; add it (WRE asks for it; document the
-      gcc >= 11 concepts floor)
-    the checked-in .win config headers hardcode 0.9.23 and never
-      define COMPILER_SUPPORTS_NEON, and Makevars.win's ARCH check
-      has no aarch64 branch - Windows-arm64 R builds silently run
-      scalar kernels; update versions each release, consider a NEON
-      branch
-  verified clean by the same review: state mask serialization is
-    byte-shifted (endian-safe, not memcpy); .Call registration
-    complete; dbarts.h is C89-clean and matches the bridge; tarball
-    free of build junk; sublibrary Makefiles own the SIMD source
-    lists so Windows tracked the added files automatically
-
-bugs (fix before release)
-  gp leaves divide by observation weight with no zero guard:
-    model.hpp logIntegratedLikelihoodForNode (residualVariance / w on
-    the V diagonal and logDetNoise) and both draw paths; the R surface
-    allows weight 0 with only a warning, and constant/linear leaves
-    multiply by w so zero-weight rows drop out there. gp + weight 0 =
-    Inf/NaN in the MH ratio and fits. Fix: exclude w == 0 rows from
-    the leaf's kernel/marginal/draw and serve their fits like test
-    rows (the exact limit of infinite noise variance).
-  rbart_vi builtin-prior detection, rbart.R:144: && binds tighter than
-    ||, so ANY symbol prior enters the builtin branch - a custom prior
-    function passed by name crashes on the [[ lookup with a subscript
-    error, and a user function named cauchy/gamma is silently ignored
-    in favor of the builtin. Line 142's builtinTauPrior is the correct
-    form; use it.
-  non-formula weights silently recycle: data.R:303,343 rep_len a
-    wrong-length weights vector while offset gets a hard length check
-    right below (data.R:315); the dbartsData validity message can
-    never fire on these paths. Error like offset does.
-  bart2 and rbart_vi resolve k differently: bart.R:236 stores the
-    unevaluated expression (so dbarts::bart2(k = chi(1.25)) resolves
-    in the prior vocabulary), rbart.R:84 stores the evaluated value.
-    Pick bart2's form for both.
-  chi-k draw can return Inf: model.hpp ChiKHyperprior::draw with the
-    default flat prior scale and sumSquaredParams exactly 0 makes the
-    gamma scale infinite. Degenerate but cheap to guard.
-  small cleanups found alongside: rbart.R:133-137 dead duplicate
-    group.by.test validation; rbart.R:41,44 say "non-negative" on a
-    positivity check; dbarts.R:408 dead selfEnv in predict; ~120 lines
-    of if (FALSE) pdrbart/pd2rbart in rbart.R.
+  revdepcheck before submission: dbarts has CRAN reverse dependencies
+    (stan4bart, bartCause, ...) and 1.0-0 deletes an ABI header - run
+    revdepcheck::revdep_check(), coordinate the stan4bart lockstep
+    upload, and write cran-comments.md documenting the break and the
+    revdep status (no cran-comments.md exists)
+  Windows-arm64 runs scalar kernels: the .win config headers never
+    define COMPILER_SUPPORTS_NEON and Makevars.win's ARCH check has no
+    aarch64 branch; consider a NEON branch
+  verified clean by the build review: state mask serialization is
+    byte-shifted (endian-safe); .Call registration complete; dbarts.h
+    is C89-clean and matches the bridge; tarball free of build junk;
+    sublibrary Makefiles own the SIMD source lists cross-platform
 
 usability
   thread cancellation (2018 carryover, still real): nothing calls
@@ -124,9 +95,9 @@ residual restructure)
     never read (skippable if constexpr). 10-25% of linear-leaf runs;
     zero effect on default runs.
   rbart_vi custom-prior R loop pays a full bridge round trip per
-    posterior sample (rbart.R:306-353: setOffset + run(0L, 1L), ~10
-    fresh SEXPs per call in bartcore_run); built-in priors already
-    bypass via in-core. Profile before touching; only that path pays.
+    posterior sample (rbart.R: setOffset + run(0L, 1L), ~10 fresh
+    SEXPs per call in bartcore_run); built-in priors already bypass
+    via in-core. Profile before touching; only that path pays.
   test-fit routing is serial over test rows (chain.hpp findBottom per
     row per tree); rows are independent chains so parallelizing is
     order-preserving - only matters when numTest ~ n.
@@ -159,63 +130,40 @@ internals
     times; bartcore_run's hand-counted UNPROTECT(10) allocation
     cascade and getTrees' 240-line gather/emit both have clean
     extraction seams.
-  bart/bart2/rbart_vi duplicate tree/resid-prior construction (already
-    drifted - see the k bug above); extract a shared builder.
+  bart/bart2/rbart_vi duplicate tree/resid-prior construction;
+    extract a shared builder (note: the k slot must stay evaluated for
+    rbart_vi's do.call forwarding and unevaluated for bart2's call
+    redirection - the builder needs a switch).
   createClassicSampler (facade.hpp:315) now means "constant leaf" -
     rename; createSampler/createSamplerOverStore duplicate the
     designation validation loop.
-  message polish: quote argument names consistently, "coerceable" ->
-    "coercible", validateArgumentsInEnvironment hardcodes "dbarts" in
-    messages shown from other callers.
+  message polish leftovers: validateArgumentsInEnvironment hardcodes
+    "dbarts" in messages shown from other callers.
   hardening: partitionFlatIndices shifts by an unvalidated test
     category code (tree.hpp:1316); every current caller validates
     first, but a one-line clamp makes the tree layer safe standalone.
   Makevars.win passes raw $(ARFLAGS) where Makevars.in has a -crs
     fallback; mirror or comment the asymmetry.
 
-tests (2026-07-05 coverage review; gaps in legal, plumbed
-combinations - deliberate refusals excluded)
-  zero-valued weights are never tested anywhere (smallest in the
-    suite is 0.5): the gp zero-weight bug is exactly this shape. Add
-    zero-weight fits per leaf type once the bug is fixed; the
-    collapseEmptyNodes weightTotal > 0 guard is also unexercised.
+tests (remaining gaps from the coverage review)
   the equivalence gate protects no 1.0-0 feature: the nine scenarios
     cover neither logistic, categorical, MIA, adaptive DART,
     linear/gp leaves, sparse, nor grouped fits, and weighted
     scenarios never use zero weights. Add scenarios and re-record
     the baseline.
-  logistic + offset is fully untested (in-core and setOffset), R and
-    C++ both - the newest family's entire offset path.
-  mutate-then-serialize is untested for linear/gp leaves: every
-    state round trip stores a never-mutated sampler (the kernel-cache
-    component test captures state BEFORE mutation). Store after
-    setPredictor/setWeights and expect identical continuation.
-  DART never meets categorical (pooled-mask) or MIA columns in any
-    test; varprobs indexing across those column mappings is
-    unguarded.
-  boundary inputs: no test uses n = 1 or 2, p = 1, a constant
-    response, or a constant designated column (docs claim linear/gp
-    degrade to an intercept at sd = 0 - untested).
+  zero-weight fits for the constant and linear leaves (gp is covered
+    by the fix's regression tests); the collapseEmptyNodes
+    weightTotal > 0 guard is still unexercised.
   post-mutation assertions are near-tautologies (is.finite only) in
-    the linear/gp mutation tests; compare against a from-scratch
-    sampler instead.
-  smaller: grouped + non-uniform weights + binary untested; MIA
-    setPredictor that moves NA patterns on an incorporate sampler
-    untested; a handful of reachable bridge Rf_errors (setTestOffset
-    without test data, setControl chain/tree-count changes, tau
-    validators) have no expect_error; plot.bart/plot.rbart/pdbart
-    plots have zero smoke coverage.
+    the older linear/gp mutation tests; the new mutate-then-serialize
+    file covers the bitwise side, but comparing against a
+    from-scratch sampler after mutation would strengthen the rest.
+  MIA setPredictor that moves NA patterns on an incorporate sampler.
 
 docs
   prose-level man-page pass before release: codoc mismatches are
     check-gated, prose drift is not (precedent: linear's stale
     "unavailable in xbart" survived until the gp landing).
-  logistic-family doc gaps (statistical audit; the shipped math
-    itself verified correct in all ten areas audited): bart.Rd states
-    the binary k reference scale as +/- 3 unqualified, but logistic
-    uses node.scale = pi * sqrt(3); and binaryOffset is defined via
-    the probit Phi only, while logistic applies plogis. One-sentence
-    fixes.
   vignettes predate the rewrite: working_with_saved_trees.Rmd hangs
     its prose on seed = 2 "chosen to generate a deep tree" under the
     OLD engine's RNG stream (empty subsets degrade silently, not
@@ -223,26 +171,11 @@ docs
     realization-dependent too; neither mentions family, dart, sparse,
     missing, or the new leaf models. Re-run, re-pick seeds, re-verify
     prose.
-  man-page examples demonstrate zero headline features: no example
-    anywhere uses family = "logistic", dart, linear(), gp(),
-    missing =, or sparse input. Add one runnable example per feature.
-  references: dbarts.Rd cites Twala et al. 2008 in prose with no
-    references block; gp() has no citation at all (dart has Linero).
-  README is 27 pre-rewrite lines and DESCRIPTION's Description text
-    predates every 1.0-0 feature; both are the package's storefront.
-  add a short "for package authors" note pointing at
-    inst/include/dbarts/dbarts.h and the R_C_interface.hpp removal
-    (NEWS covers the break; nothing tells a LinkingTo author where
-    to look now).
+  NEWS could consolidate an upgrade-path paragraph (the breaking
+    changes are documented but scattered across bullets).
 
-repo modernization (2026-07-05 survey; existing infra: r-lib
-R-CMD-check matrix in .github/workflows/check-standard.yaml, .lintr,
-air.toml, Authors@R already modern)
-  CI never sees the rewrite: check-standard.yaml triggers only on
-    main/master, so the bartcore branch - a year of engine work - has
-    zero CI runs and the package has never compiled on x86 or Windows.
-    Add the branch (or workflow_dispatch) and let the matrix answer
-    the x86/Windows portability questions BEFORE CRAN does.
+repo modernization (existing infra: r-lib R-CMD-check matrix now
+running on the bartcore branch, .lintr, air.toml, Authors@R modern)
   add a sanitizer job (ASAN/UBSAN via the r-hub/rocker devel-san
     containers): a rewritten pointer-heavy C++ engine is exactly what
     CRAN's clang-san/gcc-san rebuilds bite; running it first is much
@@ -251,19 +184,12 @@ air.toml, Authors@R already modern)
     ride too but needs its statistical mode cross-platform (bitwise
     baselines are ARM-recorded; x86 SIMD changes last-ulp reduction
     order).
-  revdepcheck before submission: dbarts has CRAN reverse dependencies
-    (stan4bart, bartCause, ...) and 1.0-0 deletes an ABI header -
-    run revdepcheck::revdep_check(), coordinate the stan4bart lockstep
-    upload, and write cran-comments.md documenting the break and the
-    revdep status (no cran-comments.md exists).
   coverage measurement: covr supports tinytest; wiring it to codecov
-    (badge + CI job) turns the coverage-gap section above from
-    one-time review findings into a tracked number.
+    (badge + CI job) turns the tests section above from one-time
+    review findings into a tracked number.
   pkgdown site + GitHub Pages workflow: renders the man pages, NEWS,
     and both vignettes into a browsable home for the 1.0-0 feature
     set; near-zero maintenance once configured.
-  README badges (R-CMD-check, CRAN version, coverage) alongside the
-    content refresh already listed under docs.
   enforce .lintr/air in CI or drop them: both configs exist but
     nothing runs them, so they silently rot.
   optional, larger, taste-dependent: roxygen2 migration (hand-written
