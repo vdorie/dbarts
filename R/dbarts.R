@@ -295,11 +295,16 @@ dbartsSampler <- setRefClass(
         if (control@family == "auto") "" else control@family
       )
       # materialized lazily on first access (forcing it before saveRDS
-      # captures the sampler), or eagerly by storeState / updateState runs
+      # captures the sampler), or eagerly by storeState / updateState runs.
+      # A deserialized object can force the promise after its pointer has
+      # died; that must yield NULL - no stored state - not a C error
       delayedAssign(
         "state",
         {
-          if (control@updateState) {
+          if (
+            control@updateState &&
+              .Call(C_dbarts_bartcore_isValidPointer, pointer)
+          ) {
             .Call(C_dbarts_bartcore_storeState, pointer)
           } else {
             NULL
@@ -694,7 +699,8 @@ dbartsSampler <- setRefClass(
         if (is.null(state)) {
           stop(
             "samplers cannot be re-created without a stored state; call ",
-            "storeState() before serializing"
+            "storeState() - or force $state, see the Saving section of ",
+            "?bart - before serializing"
           )
         }
         selfEnv$pointer <- .Call(

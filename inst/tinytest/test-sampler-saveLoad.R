@@ -22,3 +22,19 @@ unlink(tempFile)
 preds.new <- predict(bartFit, testData$x)
 expect_equal(preds.old, preds.new)
 
+# saving without forcing $state cannot restore the sampler, but forcing the
+# serialized promise against the dead pointer must yield the stored-state
+# error, not a C-level null-pointer one
+set.seed(99L)
+bartFit.untouched <- dbarts::bart(
+  testData$x, testData$y,
+  ntree = 3L, ndpost = 7L, nskip = 0L,
+  keeptrees = TRUE, verbose = FALSE
+)
+tempFile <- tempfile()
+saveRDS(bartFit.untouched, file = tempFile)
+bartFit.untouched <- readRDS(tempFile)
+unlink(tempFile)
+expect_error(predict(bartFit.untouched, testData$x),
+             pattern = "stored state")
+
