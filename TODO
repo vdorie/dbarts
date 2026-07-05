@@ -89,14 +89,20 @@ is done, so this batch is one of the last pre-release steps.)
     carries FP accumulation history the state format preserves): part of
     the end-of-work drop-bitwise batch, with threaded within-tree
     reductions (also order-changing, larger headroom at big n).
-  numVariablesAvailable does O(p x depth) ancestor re-walks per call
-    (tree.hpp:386-391); growthProbability and the move preambles only
-    need a boolean (early-exit), and drawSplitVariable can collect all
-    per-variable intervals in one ancestor walk, O(p + depth). Both
-    result-identical, ORDER-PRESERVING. 5-15% at p=10, grows with p -
-    at DART-scale p this bookkeeping can dominate. change/swap also
-    score whole-tree treeLogProbability twice per move where subtree
-    differences cancel exactly (order-changing; likely subsumed).
+  variable availability in one ancestor walk, ORDER-PRESERVING: DONE
+    (c3f5915). numVariablesAvailable re-walked the ancestors once per
+    predictor, O(p x depth) at every node scored in a move; replaced by
+    Tree::hasAnyAvailableVariable (early-exit boolean for growthProbability
+    and the birth-node predicates) and Tree::collectAvailableVariables (one
+    walk narrowing every ordinal interval and inline-categorical mask,
+    O(p + depth); pooled >63-level columns fall back to the per-column
+    walk). splitVariableLogProbability/drawSplitVariable read the cached
+    array. Nested bounds make the extremum equal the nearest-wins bound, so
+    counts/sums/i-th draw are bitwise identical (equivalence identical on all
+    17); same-climate A/B 8-10% faster on the p=10 run scenarios (1.2% at
+    n=10000 where O(n) passes dominate). STILL OPEN (order-changing): change/
+    swap score whole-tree treeLogProbability twice per move where subtree
+    differences cancel exactly - part of the end-of-work drop-bitwise batch.
   linear-leaf draw recomputes accumulateNodeStatistics the marginal
     just ran on the same node (model.hpp:275-333); caching the
     crossproduct across the score->draw gap is bitwise identical.
