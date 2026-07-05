@@ -75,7 +75,7 @@ inline bool birthableNodeExists(const MoveContext& ctx, Tree& tree) {
   bottoms.clear();
   tree.fillBottom(0, bottoms);
   for (int32_t i : bottoms)
-    if (tree.numVariablesAvailable(ctx.data, i) > 0) return true;
+    if (tree.hasAnyAvailableVariable(ctx.data, i)) return true;
   return false;
 }
 
@@ -97,7 +97,7 @@ inline double probabilityOfSelectingNodeForBirth(const MoveContext& ctx,
 
   double totalProbability = 0.0;
   for (int32_t i : bottoms)
-    totalProbability += tree.numVariablesAvailable(ctx.data, i) > 0 ? 1.0 : 0.0;
+    totalProbability += tree.hasAnyAvailableVariable(ctx.data, i) ? 1.0 : 0.0;
 
   if (totalProbability <= 0.0) return 0.0;
   return 1.0 / totalProbability;
@@ -119,7 +119,7 @@ inline int32_t drawBirthableNode(const MoveContext& ctx, ext_rng* rng, Tree& tre
   double totalProbability = 0.0;
   for (size_t i = 0; i < bottoms.size(); ++i) {
     probabilities[i] =
-      tree.numVariablesAvailable(ctx.data, bottoms[i]) > 0 ? 1.0 : 0.0;
+      tree.hasAnyAvailableVariable(ctx.data, bottoms[i]) ? 1.0 : 0.0;
     totalProbability += probabilities[i];
   }
 
