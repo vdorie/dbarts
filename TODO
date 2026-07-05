@@ -183,10 +183,13 @@ running on the bartcore branch, .lintr, air.toml, Authors@R modern)
     clear the Node 20 deprecation warning (r-lib/actions stays @v2, the
     latest major, so it was never flagged); recheck on each push and bump
     again when GitHub deprecates a runtime.
-  add a sanitizer job (ASAN/UBSAN via the r-hub/rocker devel-san
-    containers): a rewritten pointer-heavy C++ engine is exactly what
-    CRAN's clang-san/gcc-san rebuilds bite; running it first is much
-    cheaper than a CRAN bounce.
+  sanitizer coverage: .github/workflows/sanitizers.yaml runs the tinytest
+    suite on the r-hub clang-asan container (ASAN+UBSAN instrumented R),
+    widening past the local tests/cpp check. The engine is already clean
+    under a native ASAN+UBSAN build of tests/cpp (all 48 component tests,
+    zero findings); the CI job adds the bridge, the support libraries, and
+    the full scenario set on x86. Follow-ups: a gcc-asan/valgrind variant,
+    and gating it on pull_request once it has proven stable on the branch.
   run tests/cpp in CI alongside R CMD check; the equivalence gate can
     ride too but needs its statistical mode cross-platform (bitwise
     baselines are ARM-recorded; x86 SIMD changes last-ulp reduction
