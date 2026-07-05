@@ -69,5 +69,18 @@ fit.gamma <- dbarts::rbart_vi(
 )
 expect_true(all(is.finite(fit.gamma$tau)))
 
-rm(fit.gamma, fit.custom, fit.loaded, pred, fit, g, y, x, b, sigma.b)
+# a custom prior passed by NAME is a symbol but not a builtin: it must
+# route through the R loop, not the builtin lookup (which used to crash
+# on any non-builtin symbol)
+flatTauPrior <- function(x, rel.scale) dcauchy(x, 0, rel.scale * 2.5, TRUE)
+fit.named <- dbarts::rbart_vi(
+  y ~ x, group.by = g, prior = flatTauPrior,
+  n.samples = 3L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
+  n.trees = 5L, n.threads = 1L, verbose = FALSE
+)
+expect_true(is.null(fit.named$n.chains))
+expect_true(all(is.finite(fit.named$tau)))
+
+rm(fit.gamma, fit.custom, fit.named, flatTauPrior, fit.loaded, pred, fit,
+   g, y, x, b, sigma.b)
 rm(testData)

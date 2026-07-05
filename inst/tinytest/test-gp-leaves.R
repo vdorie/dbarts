@@ -49,6 +49,18 @@ samples.chi.binary <- sampler.chi.binary$run(60L, 10L)
 expect_true(all(is.finite(samples.chi.binary$train)))
 expect_true(length(unique(samples.chi.binary$k)) > 1L)
 
+# zero weights are ignored like the other leaf types: no likelihood
+# contribution, fits ride the conditional and stay finite
+w0 <- rep_len(c(1, 2, 1, 1, 0), n)
+set.seed(6)
+sampler.w0 <- suppressWarnings(
+  dbarts(y ~ x1 + x2, df, weights = w0,
+         node.prior = gp("x1", k = 2, max.leaf.size = 100L),
+         control = control.chi))
+samples.w0 <- sampler.w0$run(60L, 10L)
+expect_true(all(is.finite(samples.w0$train)))
+expect_true(all(is.finite(samples.w0$sigma)))
+
 # fitting recovers the smooth signal; the small cap keeps large leaves on
 # the constant fallback while splits grow
 control <- dbartsControl(n.trees = 10L, n.chains = 1L, n.samples = 40L,
@@ -174,4 +186,4 @@ rm(sampler, sampler.state, sampler.restored, sampler.mut, sampler.binary,
    samples.view, samples.full, testRows, fold, samples.fold, xbart.gp,
    df, df.binary, x1, x2, g, y, z, mu, x1.new, n, model.const,
    control.chi, sampler.chi, samples.chi, sampler.chi.binary,
-   samples.chi.binary)
+   samples.chi.binary, w0, sampler.w0, samples.w0)

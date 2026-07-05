@@ -16,7 +16,7 @@ expect_error(
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, n.samples = "not-an-integer"),
-  "'n.samples' argument to dbarts must be coerceable to integer type"
+  "'n.samples' argument to dbarts must be coercible to integer type"
 )
 
 expect_error(
@@ -25,7 +25,7 @@ expect_error(
 )
 expect_error(
   dbarts::dbarts(y ~ x, testData, sigma = "not-an-integer"),
-  "'sigma' argument to dbarts must be coerceable to numeric type"
+  "'sigma' argument to dbarts must be coercible to numeric type"
 )
 
 # test that prior model arguments raise errors

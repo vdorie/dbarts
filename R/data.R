@@ -300,7 +300,11 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
       if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
-      weights <- rep_len(weights, initialNumObservations)[subset]
+      if (length(weights) == 1L)
+        weights <- rep_len(weights, initialNumObservations)
+      if (length(weights) != initialNumObservations)
+        stop("length of 'weights' must equal length of 'y'")
+      weights <- weights[subset]
     }
 
     if (offsetIsMissing) offset <- NULL
@@ -340,7 +344,11 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
       if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
-      weights <- rep_len(weights, initialNumObservations)[subset]
+      if (length(weights) == 1L)
+        weights <- rep_len(weights, initialNumObservations)
+      if (length(weights) != initialNumObservations)
+        stop("length of 'weights' must equal length of 'y'")
+      weights <- weights[subset]
     }
 
     if (offsetIsMissing) offset <- NULL

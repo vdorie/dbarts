@@ -273,6 +273,12 @@
             documented; it previously descaled by a single factor of the
             data range instead of its square. Binary responses report on
             the latent scale.
+      \item A `weights` vector whose length matches neither the response
+            nor one is now an error for matrix and sparse inputs; it was
+            previously recycled silently. Scalars still broadcast.
+      \item `rbart_vi` accepts a custom prior function passed by name;
+            any symbol-valued `prior` used to enter the built-in lookup
+            and fail.
     }
   }
 }

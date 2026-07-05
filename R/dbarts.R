@@ -82,7 +82,7 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e) {
-      stop("'n.samples' argument to dbarts must be coerceable to integer type")
+      stop("'n.samples' argument to dbarts must be coercible to integer type")
     })
     if (length(n.samples) != 1L) {
       stop("'n.samples' must be of length 1")
@@ -100,7 +100,7 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(sigma) && !is.na(sigma)) {
     tryCatch(sigma <- as.double(sigma), warning = function(e) {
-      stop("'sigma' argument to dbarts must be coerceable to numeric type")
+      stop("'sigma' argument to dbarts must be coercible to numeric type")
     })
     if (length(sigma) != 1L) {
       stop("'sigma' must be of length 1")
@@ -405,8 +405,6 @@ dbartsSampler <- setRefClass(
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
       'Using existing sampler to predict for new data without re-running.'
-      selfEnv <- parent.env(environment())
-
       ptr <- getPointer()
 
       x.test <- validateXTest(x.test, data@x)

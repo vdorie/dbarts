@@ -86,4 +86,15 @@ expect_warning(
 )
 rm(test)
 
+# wrong-length weights error like offset does instead of silently
+# recycling; scalars still broadcast
+expect_error(
+  dbarts::dbartsData(testData$x, testData$y,
+                     weights = rep(1, length(testData$y) - 1L)),
+  "length of 'weights' must equal length of 'y'"
+)
+expect_silent(
+  dbarts::dbartsData(testData$x, testData$y, weights = 2)
+)
+
 rm(testData)
