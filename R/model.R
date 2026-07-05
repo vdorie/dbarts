@@ -101,8 +101,9 @@ resolveLeafCovariates <- function(prior, data)
   if (is.null(columns) || length(columns) == 0L)
     stop("linear node prior requires at least one covariate column")
 
-  # the engine reads raw covariate values from contiguous dense columns
-  if (!is.matrix(data@x))
+  # the engine reads raw covariate values from contiguous dense columns; a
+  # mixed container serves them for its dense-backed columns only
+  if (!is.matrix(data@x) && !inherits(data@x, "dbartsMixedMatrix"))
     stop("linear node priors are not supported with sparse predictor matrices")
 
   columnNames <- colnames(data@x)
@@ -127,6 +128,10 @@ resolveLeafCovariates <- function(prior, data)
   if (any(data@varTypes[columnIndices] == CATEGORICAL_VARIABLE))
     stop("leaf covariates must be continuous columns; interact with factors ",
          "through splits instead")
+  if (inherits(data@x, "dbartsMixedMatrix") &&
+      any(data@x$map[columnIndices] < 0L))
+    stop("leaf covariates must be dense columns; sparse-backed columns hold ",
+         "no raw values")
 
   # the engine's cap; blocks are solved on the stack
   if (length(columnIndices) > 8L)

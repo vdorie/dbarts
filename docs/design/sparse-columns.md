@@ -311,7 +311,74 @@ bitwise vs a two-store reference), the container + ingestion
 pass-through, bridge plumbing, then the per-column linear-leaf and
 categorical relaxations with tests. No kernel work is involved.
 
+## Mixed input landing notes (2026-07-04)
+
+Implemented per the plan above; deltas and specifics:
+
+- Engine: ColumnStore::buildMixed(denseValues, cscTriple, columnSources,
+  ...) with columnSources per column: nonnegative names a dense-slice
+  column, negative the complement (~) of a CSC column. buildFromCsc is
+  now a thin wrapper (an all-complement map), so the pure-CSC path runs
+  the same code. Per-column raw access went through a new
+  denseSourceColumn(j) (the x matrix on dense builds, mixedRawColumns[j]
+  on mixed builds, null otherwise) and the quantize/cut dispatch through
+  columnIsCscBacked(j); every reader of x + j*n in data.hpp rewired.
+  rawColumn(j) serves dense-backed mixed columns, which gives linear
+  leaves and view raw-gather for free; buildFromParent now gathers
+  through parent.rawColumn per column, skipping columns the parent
+  cannot serve (the facade then refuses those designations), and
+  inherits parent standardization constants when the parent is itself a
+  view. SamplerOptions grew mixedDenseValues/columnSources; the facade
+  refuses linear leaves per designated CSC-backed column instead of
+  store-wide.
+- I() does not survive on S4 objects and data.frame(...) rejects
+  sparseVector/dgCMatrix arguments (NROW sees 1); columns must be
+  assigned into an existing frame (df$s <- sv). model.frame() rejects S4
+  columns outright, so - like the v1 dgCMatrix - mixed input enters
+  through the x/y interface only. Documented in dbarts.Rd/bart.Rd.
+- Container: class "dbartsMixedMatrix" (R/mixedMatrix.R), a plain list
+  of dense matrix (NULL when the frame is all-sparse), one cbound
+  dgCMatrix, a 1-based signed map (+k dense, -k sparse; R's -k IS the
+  engine's ~(k-1), so the bridge maps almost verbatim), and the column
+  names. S3 dim/dimnames/[/as.matrix registered; [ keeps the container
+  (and builder attributes) on row subsetting, densifies on column
+  selection with matrix drop semantics. as.matrix makes validateXTest
+  work unchanged (its !is.matrix coercion densifies containers).
+- Builders: makeCategoricalModelMatrix passes sparse columns through as
+  ordinal (sparseVector one column, dgCMatrix its columns).
+  makeModelMatrixFromDataFrame expands dense input columns ONE AT A
+  TIME through the existing C builder - it treats columns independently,
+  so blocks and drop entries match a whole-frame call - and splices
+  sparse columns in place with all-FALSE drop entries, so the recorded
+  drop pattern replays over a fully dense test frame.
+- dbartsData: the xy data-frame branch skips complete-case dropping for
+  containers (the sparse-branch precedent); the NA validation gains a
+  container branch checking both parts. dbartsData validity accepts the
+  container; estimateSigmaFromLinearModel's !is.matrix fallback covers
+  it.
+- Bridge: parseData gained the container branch (map validated per
+  entry against the parts; the dgCMatrix structure validation is now
+  the shared parseCscMatrix); categorical columns must be dense-backed
+  ("sparse predictor columns must be ordinal");
+  validateCategoricalPredictors reads through rawTrainingColumn;
+  createDataHandle builds mixed parents; setData refuses mixed
+  replacement data. refuseViewSampler needed no change (mixed stores
+  are builtFromCsc, so the sparse message applies).
+- resolveLeafCovariates allows containers but refuses sparse-backed
+  designations ("leaf covariates must be dense columns ..."); rbart_vi
+  and the setPredictor guard refuse via the existing !is.matrix checks.
+- Tests: component testMixedColumnStore/EndToEnd/LinearLeaves/
+  StateRoundTrip (41 total now) - the store and both samplers (constant
+  and linear leaf) verify BITWISE against a dense build of the same
+  values when all CSC columns densify; tinytest test-data-mixed.R (37
+  results). Suite 2322 across 64 files.
+- Observed while landing, pre-existing and out of scope: predict() on a
+  bart2 fit after saveRDS/readRDS fails ("bartcore function called on
+  NULL external pointer") for DENSE inputs too - bart2 does not store
+  sampler state. Sampler-level save/load (storeState + saveRDS) works
+  and is what the tests cover.
+
 ## Status
 
 LANDED 2026-07-04 (plan and landing notes above); mixed dense/sparse
-input is planned (section above), not yet implemented.
+input LANDED 2026-07-04 (plan and landing notes above).

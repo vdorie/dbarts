@@ -48,9 +48,18 @@ struct SamplerOptions {
   // columns build from the triple (all ordinal; borrowed for the sampler's
   // lifetime; the host validates row indices unique and in range). See
   // docs/design/sparse-columns.md.
-  const int* cscColumnPointers = nullptr;  // length numPredictors + 1
+  const int* cscColumnPointers = nullptr;  // length of the CSC source + 1
   const int* cscRowIndices = nullptr;
   const double* cscValues = nullptr;
+
+  // mixed dense/sparse ingestion: when columnSources is non-null, column j
+  // builds from column columnSources[j] of mixedDenseValues (column-major)
+  // when nonnegative - categorical allowed, rawColumn served - or from CSC
+  // column ~columnSources[j] of the triple above otherwise (ordinal only).
+  // Both borrowed for the sampler's lifetime; the host validates. See
+  // docs/design/sparse-columns.md.
+  const double* mixedDenseValues = nullptr;
+  const std::int32_t* columnSources = nullptr;  // length numPredictors
 
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates

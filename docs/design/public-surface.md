@@ -412,7 +412,10 @@ classic engine.
   mutation surface is fixed at creation; state serialization and the
   data-handle/xbart path (views densify) compose. rbart_vi and linear
   leaves refuse sparse inputs for now. Per-column u8 code widths remain
-  future work.
+  future work. Mixed dense/sparse input LANDED 2026-07-04 (same doc): a
+  data frame may hold sparseVector/dgCMatrix columns alongside ordinary
+  ones; dense-backed columns keep categorical splits and linear-leaf
+  designation.
 - MIA missingness: LANDED 2026-07-04 (design and landing notes in
   mia-missingness.md; surface is missing = c("incorporate", "error"),
   incorporate the default).

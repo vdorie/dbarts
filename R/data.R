@@ -334,7 +334,8 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     y <- y[subset]
 
     if (is.data.frame(formula)) formula <- makeModelMatrix(formula)
-    x <- if (!is.matrix(formula)) formula[subset] else formula[subset,,drop=FALSE]
+    xIsMixed <- inherits(formula, "dbartsMixedMatrix")
+    x <- if (is.matrix(formula) || xIsMixed) formula[subset,,drop=FALSE] else formula[subset]
     
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
@@ -356,17 +357,21 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       offset <- offset[subset]
     }
     
-    completeCases <- stats::complete.cases(x, y)
-    
-    y <- y[completeCases]
-    x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,,drop=FALSE]
-    if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
-      if (attributeName == "dim") next
-      if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) next
-      attr(x, attributeName) <- attr(formula, attributeName)
+    # a mixed container keeps its rows and attributes: missing predictor
+    # values are validated below, like the sparse-matrix branch above
+    if (!xIsMixed) {
+      completeCases <- stats::complete.cases(x, y)
+
+      y <- y[completeCases]
+      x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,,drop=FALSE]
+      if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
+        if (attributeName == "dim") next
+        if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) next
+        attr(x, attributeName) <- attr(formula, attributeName)
+      }
+      if (!is.null(weights)) weights <- weights[completeCases]
+      if (!is.null(offset)) offset <- offset[completeCases]
     }
-    if (!is.null(weights)) weights <- weights[completeCases]
-    if (!is.null(offset)) offset <- offset[completeCases]
   } else {
     stop("unrecognized 'formula' type; must be coercible to numeric or a valid formula object")
   }
@@ -430,20 +435,28 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   # stored entries and implicit zeros are observed values, so the checks
   # work off the slots without densifying.
   if (anyNA(y)) stop("response contains missing values")
+  sparseAllMissingCheck <- function(x.sparse) {
+    columnNnz <- diff(x.sparse@p)
+    columnNumNA <- vapply(seq_len(ncol(x.sparse)), function(j)
+      sum(is.na(x.sparse@x[seq.int(x.sparse@p[j] + 1L, length.out = columnNnz[j])])),
+      0L)
+    if (any(columnNnz == nrow(x.sparse) & columnNumNA == nrow(x.sparse)))
+      stop("predictor columns cannot be entirely missing")
+  }
   if (is.matrix(x)) {
     xHasNA <- anyNA(x)
     if (xHasNA && any(colSums(!is.na(x)) == 0L))
       stop("predictor columns cannot be entirely missing")
+  } else if (inherits(x, "dbartsMixedMatrix")) {
+    xHasNA <- (!is.null(x$dense) && anyNA(x$dense)) || anyNA(x$sparse@x)
+    if (xHasNA) {
+      if (!is.null(x$dense) && any(colSums(!is.na(x$dense)) == 0L))
+        stop("predictor columns cannot be entirely missing")
+      sparseAllMissingCheck(x$sparse)
+    }
   } else {
     xHasNA <- anyNA(x@x)
-    if (xHasNA) {
-      columnNnz <- diff(x@p)
-      columnNumNA <- vapply(seq_len(ncol(x)), function(j)
-        sum(is.na(x@x[seq.int(x@p[j] + 1L, length.out = columnNnz[j])])),
-        0L)
-      if (any(columnNnz == nrow(x) & columnNumNA == nrow(x)))
-        stop("predictor columns cannot be entirely missing")
-    }
+    if (xHasNA) sparseAllMissingCheck(x)
   }
   if (!is.null(offset) && anyNA(offset)) stop("'offset' contains missing values")
   if (!is.null(offset.test) && anyNA(offset.test)) stop("'offset.test' contains missing values")

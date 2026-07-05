@@ -143,12 +143,46 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) stop('x is not a dataframe')
   if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) stop('when logical, drop must be TRUE or FALSE')
   if (is.list(drop) && length(drop) != length(x)) stop('when list, drop must have length equal to x')
-  
+
   characterCols <- sapply(x, typeof) == "character"
   if (any(characterCols)) x[characterCols] <- lapply(x[characterCols], as.factor)
-  
-  result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
+
+  columnIsSparse <- vapply(x, isSparseDataFrameColumn, FALSE)
+  if (!any(columnIsSparse)) {
+    result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
+    attr(result, "term.labels") <- names(x)
+    return(result)
+  }
+
+  # expand dense input columns one at a time - the C builder treats columns
+  # independently, so the blocks and drop entries match a whole-frame call -
+  # and splice sparse ones in place; their drop entries are all-FALSE so the
+  # pattern replays over a fully dense test frame
+  columns <- vector("list", length(x))
+  blockNames <- vector("list", length(x))
+  dropPattern <- if (is.list(drop) || isTRUE(drop)) vector("list", length(x)) else NULL
+  for (j in seq_along(x)) {
+    if (columnIsSparse[j]) {
+      slices <- sparseColumnSlices(x[[j]], names(x)[j], nrow(x))
+      columns[[j]] <- slices
+      blockNames[[j]] <- slices$names
+      if (!is.null(dropPattern))
+        dropPattern[[j]] <- rep.int(FALSE, length(slices$i))
+    } else {
+      block <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x[j],
+                     if (is.list(drop)) drop[j] else drop)
+      columns[[j]] <- block
+      blockNames[[j]] <- colnames(block)
+      if (!is.null(dropPattern))
+        dropPattern[j] <- if (is.list(drop)) drop[j] else attr(block, "drop")
+    }
+  }
+  result <- assembleMixedMatrix(columns, columnIsSparse, blockNames, nrow(x))
   attr(result, "term.labels") <- names(x)
+  if (!is.null(dropPattern)) {
+    names(dropPattern) <- names(x)
+    attr(result, "drop") <- dropPattern
+  }
   result
 }
 
@@ -166,13 +200,22 @@ makeCategoricalModelMatrix <- function(x) {
   if (any(characterCols)) x[characterCols] <- lapply(x[characterCols], as.factor)
 
   columns      <- vector("list", length(x))
+  columnIsSparse <- logical(length(x))
   columnTypes  <- vector("list", length(x))
   columnLevels <- vector("list", length(x))
   columnNames  <- vector("list", length(x))
   for (j in seq_along(x)) {
     column <- x[[j]]
     name <- names(x)[j]
-    if (is.factor(column)) {
+    if (isSparseDataFrameColumn(column)) {
+      # sparse columns splice in as ordinal and ride to the engine unexpanded
+      slices <- sparseColumnSlices(column, name, nrow(x))
+      columns[[j]] <- slices
+      columnIsSparse[j] <- TRUE
+      columnTypes[[j]] <- rep.int(ORDINAL_VARIABLE, length(slices$i))
+      columnLevels[[j]] <- rep.int(list(NULL), length(slices$i))
+      columnNames[[j]] <- slices$names
+    } else if (is.factor(column)) {
       if (!is.ordered(column) && nlevels(column) > 65535L)
         stop("factor '", name, "' has more than 65535 levels, the most a ",
              "categorical predictor supports")
@@ -198,8 +241,13 @@ makeCategoricalModelMatrix <- function(x) {
       stop("column '", name, "' cannot be converted to a predictor")
     }
   }
-  result <- do.call(cbind, columns)
-  colnames(result) <- unlist(columnNames)
+  if (any(columnIsSparse)) {
+    result <- assembleMixedMatrix(columns, columnIsSparse, columnNames,
+                                  nrow(x))
+  } else {
+    result <- do.call(cbind, columns)
+    colnames(result) <- unlist(columnNames)
+  }
   attr(result, "term.labels") <- names(x)
   attr(result, "varTypes") <- unlist(columnTypes)
   # c() keeps NULL elements where unlist would drop them, so the list stays
