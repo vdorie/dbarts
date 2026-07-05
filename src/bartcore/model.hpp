@@ -1262,22 +1262,26 @@ struct CGMTreePrior {
   // instance belongs to a single chain
   mutable std::vector<std::uint64_t> reachableScratch_;
   mutable std::vector<std::uint64_t> patternScratch_;
+  // per-variable availability from Tree::collectAvailableVariables
+  mutable std::vector<std::uint8_t> availableScratch_;
 
   double growthProbability(const Tree& tree, const ColumnStore& data,
                            int32_t nodeIndex) const {
-    if (tree.numVariablesAvailable(data, nodeIndex) == 0) return 0.0;
+    if (!tree.hasAnyAvailableVariable(data, nodeIndex)) return 0.0;
     return base / std::pow(1.0 + static_cast<double>(tree.depthOf(nodeIndex)), power);
   }
 
   double splitVariableLogProbability(const Tree& tree, const ColumnStore& data,
                                      int32_t nodeIndex) const {
+    availableScratch_.resize(data.numPredictors);
+    std::size_t numAvailable =
+      tree.collectAvailableVariables(data, nodeIndex, availableScratch_.data());
     if (splitProbabilities == nullptr)
-      return -std::log(static_cast<double>(tree.numVariablesAvailable(data, nodeIndex)));
+      return -std::log(static_cast<double>(numAvailable));
 
     double totalProbability = 0.0;
     for (std::size_t j = 0; j < data.numPredictors; ++j)
-      if (tree.variableAvailable(data, nodeIndex, static_cast<int32_t>(j)))
-        totalProbability += splitProbabilities[j];
+      if (availableScratch_[j]) totalProbability += splitProbabilities[j];
     return std::log(
       splitProbabilities[tree.at(nodeIndex).rule.variableIndex] / totalProbability);
   }
@@ -1337,22 +1341,30 @@ struct CGMTreePrior {
 
   int32_t drawSplitVariable(const Tree& tree, const ColumnStore& data,
                             ext_rng* rng, int32_t nodeIndex) const {
+    availableScratch_.resize(data.numPredictors);
+    std::size_t numGood =
+      tree.collectAvailableVariables(data, nodeIndex, availableScratch_.data());
+
     if (splitProbabilities == nullptr) {
-      std::size_t numGood = tree.numVariablesAvailable(data, nodeIndex);
       std::size_t variableNumber =
         ext_rng_simulateUnsignedIntegerUniformInRange(rng, 0, numGood);
-      return tree.findIthAvailableVariable(data, nodeIndex, variableNumber);
+      std::size_t count = 0;
+      for (std::size_t j = 0; j < data.numPredictors; ++j)
+        if (availableScratch_[j]) {
+          if (count == variableNumber) return static_cast<int32_t>(j);
+          ++count;
+        }
+      return invalidVariable;
     }
 
     double totalProbability = 0.0;
     for (std::size_t j = 0; j < data.numPredictors; ++j)
-      if (tree.variableAvailable(data, nodeIndex, static_cast<int32_t>(j)))
-        totalProbability += splitProbabilities[j];
+      if (availableScratch_[j]) totalProbability += splitProbabilities[j];
 
     double cutoff = ext_rng_simulateContinuousUniform(rng) * totalProbability;
     double runningProbability = 0.0;
     for (std::size_t j = 0; j < data.numPredictors; ++j) {
-      if (tree.variableAvailable(data, nodeIndex, static_cast<int32_t>(j))) {
+      if (availableScratch_[j]) {
         runningProbability += splitProbabilities[j];
         if (runningProbability >= cutoff) return static_cast<int32_t>(j);
       }

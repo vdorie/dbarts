@@ -383,23 +383,78 @@ public:
     return right >= left;
   }
 
-  size_t numVariablesAvailable(const ColumnStore& data, int32_t nodeIndex) const {
-    size_t result = 0;
+  /// Whether at least one predictor can still split at nodeIndex. Early-exits
+  /// at the first available variable, so callers that only need the boolean
+  /// skip the full O(p * depth) count.
+  bool hasAnyAvailableVariable(const ColumnStore& data, int32_t nodeIndex) const {
     for (size_t j = 0; j < data.numPredictors; ++j)
-      if (variableAvailable(data, nodeIndex, static_cast<int32_t>(j))) ++result;
-    return result;
+      if (variableAvailable(data, nodeIndex, static_cast<int32_t>(j)))
+        return true;
+    return false;
   }
 
-  int32_t findIthAvailableVariable(const ColumnStore& data, int32_t nodeIndex,
-                                   size_t i) const {
-    size_t count = 0;
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      if (variableAvailable(data, nodeIndex, static_cast<int32_t>(j))) {
-        if (count == i) return static_cast<int32_t>(j);
-        ++count;
+  /// Per-variable availability at nodeIndex in a SINGLE ancestor walk
+  /// (O(p + depth)) rather than one walk per predictor (O(p * depth)). Ordinal
+  /// variables narrow their [left, right] cut interval and inline categoricals
+  /// their reachable mask along the one walk; pooled categoricals (rare, more
+  /// than 63 levels) fall back to a direct variableAvailable check. Writes a
+  /// 0/1 byte per predictor into `available` and returns the number available.
+  /// The bounds are nested along a root path, so the extremum over every
+  /// ancestor rule equals the nearest-wins bound of splitInterval /
+  /// reachableCategories: availability is bitwise identical to p separate walks.
+  size_t collectAvailableVariables(const ColumnStore& data, int32_t nodeIndex,
+                                   std::uint8_t* available) const {
+    const size_t p = data.numPredictors;
+    availLeftScratch_.resize(p);
+    availRightScratch_.resize(p);
+    availMaskScratch_.resize(p);
+    for (size_t j = 0; j < p; ++j) {
+      if (data.types[j] == ColumnType::categorical) {
+        if (data.columnIsPooled(j)) continue;  // resolved after the walk
+        std::uint32_t numCategories = data.numCuts[j];
+        availMaskScratch_[j] =
+          numCategories >= 64 ? ~0ull : (1ull << numCategories) - 1ull;
+        if (data.hasMissing[j])
+          availMaskScratch_[j] |= Rule::missingDirectionBit;
+      } else {
+        availLeftScratch_[j] = 0;
+        availRightScratch_[j] = static_cast<int32_t>(data.numCuts[j]) - 1;
       }
     }
-    return invalidVariable;
+
+    int32_t current = nodeIndex;
+    while (at(current).parent != invalidNode) {
+      bool isRightChild = current == at(at(current).parent).leftChild + 1;
+      current = at(current).parent;
+      size_t j = static_cast<size_t>(at(current).rule.variableIndex);
+      if (data.types[j] == ColumnType::categorical) {
+        if (data.columnIsPooled(j)) continue;
+        availMaskScratch_[j] &= isRightChild
+          ? at(current).rule.categoryDirections()
+          : ~at(current).rule.categoryDirections();
+      } else {
+        int32_t split = at(current).rule.splitIndex();
+        if (isRightChild) {
+          if (split + 1 > availLeftScratch_[j]) availLeftScratch_[j] = split + 1;
+        } else {
+          if (split - 1 < availRightScratch_[j]) availRightScratch_[j] = split - 1;
+        }
+      }
+    }
+
+    size_t count = 0;
+    for (size_t j = 0; j < p; ++j) {
+      bool avail;
+      if (data.types[j] == ColumnType::categorical)
+        avail = data.columnIsPooled(j)
+          ? variableAvailable(data, nodeIndex, static_cast<int32_t>(j))
+          : std::popcount(availMaskScratch_[j]) >= 2;
+      else
+        avail = availRightScratch_[j] >= availLeftScratch_[j];
+      available[j] = avail ? 1 : 0;
+      count += avail ? 1 : 0;
+    }
+    return count;
   }
 
   /// Leaf sufficient statistics. The root intentionally uses the non-indexed
@@ -1272,6 +1327,10 @@ private:
   // (variableAvailable, buildFromFlat's gauge check); mutable because
   // availability queries are logically const
   mutable std::vector<std::uint64_t> reachableScratch_;
+  // per-variable narrowing state for collectAvailableVariables' single walk
+  mutable std::vector<int32_t> availLeftScratch_;
+  mutable std::vector<int32_t> availRightScratch_;
+  mutable std::vector<std::uint64_t> availMaskScratch_;
 };
 
 /// Partition indices[lo, hi) of raw column-major predictors around a
