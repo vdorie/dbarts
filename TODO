@@ -179,6 +179,10 @@ docs
 
 repo modernization (existing infra: r-lib R-CMD-check matrix now
 running on the bartcore branch, .lintr, air.toml, Authors@R modern)
+  keep the CI action pins current: actions/checkout bumped v4 -> v7 to
+    clear the Node 20 deprecation warning (r-lib/actions stays @v2, the
+    latest major, so it was never flagged); recheck on each push and bump
+    again when GitHub deprecates a runtime.
   add a sanitizer job (ASAN/UBSAN via the r-hub/rocker devel-san
     containers): a rewritten pointer-heavy C++ engine is exactly what
     CRAN's clang-san/gcc-san rebuilds bite; running it first is much
