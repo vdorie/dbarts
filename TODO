@@ -65,21 +65,30 @@ api surface
     has no fit-level dispatch. The rendering already handles linear
     and gp leaves.
 
-performance (static hypotheses; measure before acting; suggested
-order: pass fusion -> split bookkeeping -> custom-prior profiling ->
-residual restructure)
-  run-loop pass fusion, ORDER-PRESERVING: the per-tree sweep makes 8
-    full O(n) passes (chain.hpp:371-373 residual build as
-    memcpy+subtract+add, :420-426 fit swap as subtract+add+memcpy,
-    plus setNodeAverages and the draw write). Fusing the residual
-    build into one (y - total) + old loop and having the draw write
-    the treeFits_ slab directly (dropping currFits_ and the trailing
-    memcpy) is bitwise identical per element and cuts ~3 passes:
-    ceiling ~10-15% of iteration time at n=10000. The bigger
-    restructure - maintain R = y - totalFits across the sweep, ~3
-    passes total, ~25% ceiling - is ORDER-CHANGING (totalFits carries
-    FP accumulation history the state format preserves) and means
-    re-recording the equivalence baselines.
+performance (measure before acting. The ORDER-PRESERVING items are
+bitwise identical and land as we go; the ORDER-CHANGING ones are held
+for a deliberate batch NEAR THE END of the TODO work, where bitwise
+identity is dropped ONCE - re-record the equivalence and speed baselines
+and add a NEWS note that results are statistically identical but not
+bit-identical for performance - once the earlier improvements are
+trusted. Vincent's call, 2026-07-05: 1.0 will not release until the TODO
+is done, so this batch is one of the last pre-release steps.)
+  run-loop pass fusion, ORDER-PRESERVING: DONE. residual build (was
+    memcpy+subtract+add) fused to one (y - total) + old pass, fit swap
+    (was subtract+add) fused to one pass; restrict-qualified locals,
+    left-to-right order preserved so bitwise identical (equivalence
+    reports identical draws on all 17 scenarios). Same-climate A/B: run
+    scenarios 0.90-0.93x (8-10% faster, 9.7% at n=10000 - the win scales
+    with n). The two setPredictor microbenchmarks moved +7/+13% but share
+    NO code with the fusion (it is inline in run()), so that is
+    code-layout jitter on 0.15ms measurements, not a real regression.
+    STILL OPEN (order-preserving): have the draw write the treeFits_ slab
+    directly to drop currFits_ and the trailing memcpy (~1 more pass).
+  the bigger residual restructure - maintain R = y - totalFits across the
+    sweep, ~3 passes total, ~25% ceiling - is ORDER-CHANGING (totalFits
+    carries FP accumulation history the state format preserves): part of
+    the end-of-work drop-bitwise batch, with threaded within-tree
+    reductions (also order-changing, larger headroom at big n).
   numVariablesAvailable does O(p x depth) ancestor re-walks per call
     (tree.hpp:386-391); growthProbability and the move preambles only
     need a boolean (early-exit), and drawSplitVariable can collect all

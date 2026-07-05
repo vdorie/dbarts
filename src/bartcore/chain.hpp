@@ -367,10 +367,18 @@ public:
       for (size_t t = 0; t < options_.numTrees; ++t) {
         double* oldTreeFits = treeFits_.data() + t * n;
 
-        // treeY = y - (totalFits - oldTreeFits): the residual this tree owns
-        std::memcpy(treeY_.data(), y, n * sizeof(double));
-        misc_subtractVectorsInPlace(totalFits_.data(), n, treeY_.data());
-        misc_addVectorsInPlace(oldTreeFits, n, treeY_.data());
+        // treeY = y - (totalFits - oldTreeFits): the residual this tree owns.
+        // One fused pass over treeY replaces memcpy + subtract + add; the
+        // left-to-right (y - totalFits) + oldTreeFits order matches the prior
+        // three-op sequence exactly, so treeY is bitwise identical.
+        {
+          const double* __restrict y_ = y;
+          const double* __restrict total = totalFits_.data();
+          const double* __restrict oldFits = oldTreeFits;
+          double* __restrict treeY = treeY_.data();
+          for (size_t i = 0; i < n; ++i)
+            treeY[i] = y_[i] - total[i] + oldFits[i];
+        }
 
         trees_[t].setNodeAverages(treeY_.data(), weights);
 
@@ -417,8 +425,16 @@ public:
           }
         }
 
-        misc_subtractVectorsInPlace(oldTreeFits, n, totalFits_.data());
-        misc_addVectorsInPlace(currFits_.data(), n, totalFits_.data());
+        // totalFits += currFits - oldTreeFits in one fused pass (vs subtract
+        // + add); (totalFits - oldTreeFits) + currFits keeps the two-op order,
+        // so totalFits is bitwise identical.
+        {
+          double* __restrict total = totalFits_.data();
+          const double* __restrict currFits = currFits_.data();
+          const double* __restrict oldFits = oldTreeFits;
+          for (size_t i = 0; i < n; ++i)
+            total[i] = total[i] - oldFits[i] + currFits[i];
+        }
         if (record && data_.numTestObservations > 0)
           misc_addVectorsInPlace(currTestFits_.data(), data_.numTestObservations,
                                  totalTestFits_.data());
