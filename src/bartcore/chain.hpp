@@ -293,7 +293,6 @@ public:
     treeFits_.assign(numObservations * options.numTrees, 0.0);
     totalFits_.assign(numObservations, 0.0);
     treeY_.resize(numObservations);
-    currFits_.resize(numObservations);
     paramByNode_.clear();
     if constexpr (L::hasVectorParams)
       paramsByTree_.assign(options.numTrees,
@@ -367,17 +366,19 @@ public:
       for (size_t t = 0; t < options_.numTrees; ++t) {
         double* oldTreeFits = treeFits_.data() + t * n;
 
-        // treeY = y - (totalFits - oldTreeFits): the residual this tree owns.
-        // One fused pass over treeY replaces memcpy + subtract + add; the
-        // left-to-right (y - totalFits) + oldTreeFits order matches the prior
-        // three-op sequence exactly, so treeY is bitwise identical.
+        // treeY = (y - totalFits) + oldTreeFits is the residual this tree owns,
+        // in the prior three-op order so it stays bitwise identical. The same
+        // pass strips this tree's old fits from the running total, so the draw
+        // can overwrite its slab in place: totalFits now holds every other tree.
         {
           const double* __restrict y_ = y;
-          const double* __restrict total = totalFits_.data();
+          double* __restrict total = totalFits_.data();
           const double* __restrict oldFits = oldTreeFits;
           double* __restrict treeY = treeY_.data();
-          for (size_t i = 0; i < n; ++i)
+          for (size_t i = 0; i < n; ++i) {
             treeY[i] = y_[i] - total[i] + oldFits[i];
+            total[i] -= oldFits[i];
+          }
         }
 
         trees_[t].setNodeAverages(treeY_.data(), weights);
@@ -391,7 +392,8 @@ public:
         if (data_.hasPooledCategorical)
           trees_[t].compactMaskPoolIfNeeded(data_);
 
-        sampleParametersAndSetFits(t, record);
+        // the draw writes this tree's new fits straight into its slab
+        sampleParametersAndSetFits(t, oldTreeFits, record);
 
         // flatten while the freshly drawn parameters are live
         if (record && savedTreeCapacity_ > 0) {
@@ -413,7 +415,7 @@ public:
             // reporting, the side channel carries the draw cache's alpha
             // weights plus covariate rows - the exact values the recorded
             // test fits used, so saved replays bit-match them
-            functionLeafValues(trees_[t], currFits_.data(), paramByNode_);
+            functionLeafValues(trees_[t], oldTreeFits, paramByNode_);
             trees_[t].flatten(data_, paramByNode_.data(),
                               savedTrees_[slot * options_.numTrees + t],
                               nullptr, 1, nullptr, masks);
@@ -425,21 +427,20 @@ public:
           }
         }
 
-        // totalFits += currFits - oldTreeFits in one fused pass (vs subtract
-        // + add); (totalFits - oldTreeFits) + currFits keeps the two-op order,
-        // so totalFits is bitwise identical.
+        // totalFits += this tree's new fits, restoring the running total. The
+        // old fits were already removed above, so this equals the prior
+        // (totalFits - oldFits) + newFits exactly: totalFits is bitwise
+        // identical, and the draw already left the new fits in the slab (no
+        // trailing memcpy).
         {
           double* __restrict total = totalFits_.data();
-          const double* __restrict currFits = currFits_.data();
-          const double* __restrict oldFits = oldTreeFits;
+          const double* __restrict newFits = oldTreeFits;
           for (size_t i = 0; i < n; ++i)
-            total[i] = total[i] - oldFits[i] + currFits[i];
+            total[i] += newFits[i];
         }
         if (record && data_.numTestObservations > 0)
           misc_addVectorsInPlace(currTestFits_.data(), data_.numTestObservations,
                                  totalTestFits_.data());
-
-        std::memcpy(oldTreeFits, currFits_.data(), n * sizeof(double));
       }
 
       response_->refreshLatents(rng_, totalFits_.data(), sigma_);
@@ -721,7 +722,6 @@ public:
       treeFits_.resize(n * options_.numTrees);
       totalFits_.resize(n);
       treeY_.resize(n);
-      currFits_.resize(n);
     }
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
 
@@ -1414,22 +1414,22 @@ private:
     }
   }
 
-  void sampleParametersAndSetFits(size_t t, bool updateTestFits) {
+  void sampleParametersAndSetFits(size_t t, double* fits, bool updateTestFits) {
     Tree& tree(trees_[t]);
     std::vector<int32_t>& bottoms(tree.bottomScratch);
     bottoms.clear();
     tree.fillBottom(0, bottoms);
 
     if constexpr (L::hasFunctionParams) {
-      // function-valued draws land one value per member observation
-      // directly in currFits_ (the fits ARE the parameters); the per-node
-      // prediction cache filled by the draws serves the routed test rows
-      // while this tree's partitions are unchanged
+      // function-valued draws land one value per member observation directly
+      // in `fits` (the fits ARE the parameters); the per-node prediction cache
+      // filled by the draws serves the routed test rows while this tree's
+      // partitions are unchanged
       leaf_.beginTreeDraw(tree);
       for (int32_t i : bottoms) {
         FunctionLeafDrawStats stats = leaf_.drawFromPosteriorForNode(
           rng_, tree, treeY_.data(), response_->workingWeights(), k_,
-          sigma_ * sigma_, i, currFits_.data());
+          sigma_ * sigma_, i, fits);
         if (options_.updateK) {
           kSumSquaredParams_ += stats.sumSquaredParams;
           kNumLeaves_ += stats.numParams;
@@ -1458,9 +1458,9 @@ private:
         }
 
         if (node.parent == invalidNode) {
-          misc_setVectorToConstant(currFits_.data(), node.numObservations(), param);
+          misc_setVectorToConstant(fits, node.numObservations(), param);
         } else {
-          misc_setIndexedVectorToConstant(currFits_.data(),
+          misc_setIndexedVectorToConstant(fits,
                                           tree.indices + node.begin,
                                           node.numObservations(), param);
         }
@@ -1499,7 +1499,7 @@ private:
 
         for (size_t m = node.begin; m < node.end; ++m) {
           size_t obs = tree.indices[m];
-          currFits_[obs] = leaf_.fitForObservation(params, obs);
+          fits[obs] = leaf_.fitForObservation(params, obs);
         }
       }
 
@@ -1609,7 +1609,7 @@ private:
   std::vector<size_t> indexBuffer_;
   std::vector<double> treeFits_;
   std::vector<double> totalFits_, totalTestFits_;
-  std::vector<double> treeY_, currFits_, currTestFits_;
+  std::vector<double> treeY_, currTestFits_;
   std::vector<double> paramByNode_;
   MoveScratch scratch_;
 };
