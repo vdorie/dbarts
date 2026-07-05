@@ -15,4 +15,5 @@
 \.local
 ^docs$
 ^benchmarks$
-^tests$
+^tests/cpp$
+\.DS_Store$
