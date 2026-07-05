@@ -104,11 +104,18 @@ expect_error(
 )
 expect_error(
   dbarts::dbartsControl(n.thin = NA_integer_),
-  "'n.thin' must be a non-negative integer"
+  "'n.thin' must be a positive integer"
 )
 expect_error(
   dbarts::dbartsControl(n.thin = -1L),
-  "'n.thin' must be a non-negative integer"
+  "'n.thin' must be a positive integer"
+)
+# n.thin of 0 is a thinning interval of zero: it divides by zero downstream
+# (n.burn %/% n.thin), so it must be rejected up front rather than surface as
+# an opaque "missing value where TRUE/FALSE needed"
+expect_error(
+  dbarts::dbartsControl(n.thin = 0L),
+  "'n.thin' must be a positive integer"
 )
 
 expect_error(

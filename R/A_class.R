@@ -200,8 +200,8 @@ methods::setValidity("dbartsControl",
       return("'n.chains' must be a positive integer")
     if (is.na(object@n.threads) || object@n.threads <= 0L)
       return("'n.threads' must be a positive integer")
-    if (is.na(object@n.thin) || object@n.thin < 0L)
-      return("'n.thin' must be a non-negative integer")
+    if (is.na(object@n.thin) || object@n.thin <= 0L)
+      return("'n.thin' must be a positive integer")
     
     if (is.na(object@printEvery) || object@printEvery < 0L)
       return("'printEvery' must be a non-negative integer")
