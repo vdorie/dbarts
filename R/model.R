@@ -86,13 +86,6 @@ parsePriors <- function(control, data, tree.prior, node.prior, resid.prior, pare
   if (is(node.prior, "dbartsLinearPrior") || is(node.prior, "dbartsGPPrior"))
     node.prior <- resolveLeafCovariates(node.prior, data)
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
-  # v1 gp leaves fix k: the chi hyperprior's sum-of-squares coupling is a
-  # planned follow-up (docs/design/gp-leaves.md); binary responses default
-  # to chi, so they need an explicit fixed k
-  if (is(node.prior, "dbartsGPPrior") &&
-      !is(node.hyperprior, "dbartsFixedHyperprior"))
-    stop("gp node priors require a fixed 'k'; pass a positive scalar, ",
-         "e.g. gp(columns, k = 2)")
 
   namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
 }

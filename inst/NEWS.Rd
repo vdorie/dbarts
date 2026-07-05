@@ -43,8 +43,10 @@
             continuous predictor columns under a squared-exponential
             kernel, the prior scale tied to `k` exactly as the other
             leaf priors, giving smooth fits where constant-leaf BART
-            steps. `k` is fixed in this release (binary responses need
-            it supplied); lengthscales fix at creation, per column or by
+            steps. `k` may be fixed or given the `chi` hyperprior (the
+            binary default), sampled from the drawn functions'
+            standardized magnitudes; lengthscales fix at creation, per
+            column or by
             a median-distance heuristic; leaves larger than
             `max.leaf.size` fall back to constant fits, so the cubic
             kernel cost is confined to small leaves. The sampler surface
