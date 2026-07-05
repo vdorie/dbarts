@@ -41,11 +41,17 @@ jobs:
       - name: Unit tests under ASAN+UBSAN
         shell: bash
         run: |
-          set -o pipefail
-          Rscript -e 'tinytest::test_package("dbarts")' 2>&1 | tee sanitizer-tests.log
+          set -eo pipefail
+          # a test failure quits non-zero (via the return value, not by parsing
+          # test_package's printed summary); pipefail + set -e propagate it
+          Rscript -e '
+            res <- tinytest::test_package("dbarts")
+            print(res)
+            ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
+            if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
+          ' 2>&1 | tee sanitizer-tests.log
+          # a sanitizer finding that does not fail an assertion (e.g. a UBSAN
+          # "runtime error:" printed during an otherwise-passing test) still fails
           if grep -Eq "runtime error:|AddressSanitizer|SUMMARY: .*Sanitizer" sanitizer-tests.log; then
             echo "::error::sanitizer reported a finding"; exit 1
-          fi
-          if grep -Eq "failures: [1-9]" sanitizer-tests.log; then
-            echo "::error::unit test failures under sanitizers"; exit 1
           fi
