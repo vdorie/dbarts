@@ -14,6 +14,7 @@
 \alias{\S4method{setData}{dbartsSampler}}
 \alias{\S4method{setResponse}{dbartsSampler}}
 \alias{\S4method{setOffset}{dbartsSampler}}
+\alias{\S4method{setWeights}{dbartsSampler}}
 \alias{\S4method{setSigma}{dbartsSampler}}
 \alias{\S4method{setPredictor}{dbartsSampler}}
 \alias{\S4method{setCutPoints}{dbartsSampler}}
@@ -42,6 +43,7 @@
 \S4method{setData}{dbartsSampler}(data)
 \S4method{setResponse}{dbartsSampler}(y, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
+\S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
@@ -105,6 +107,9 @@
   }
   \item{sigma}{
     Numeric vector of residual standard deviations, one for each chain.
+  }
+  \item{weights}{
+    A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values.
   }
   \item{cuts}{
     Vector of cut points for use with \code{setCutPoints}.
