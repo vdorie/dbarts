@@ -686,15 +686,16 @@ public:
 
   ext_rng* rng() const { return chains_[0]->rng(); }
 
-  /// The linear-leaf covariate designation; 0/null for scalar leaf models.
+  /// The leaf covariate designation (linear and GP leaves); 0/null for
+  /// scalar leaf models.
   size_t numLeafCovariates() const {
-    if constexpr (L::hasVectorParams)
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
       return chains_[0]->leaf().numCovariates();
     else
       return 0;
   }
   const size_t* leafCovariateColumns() const {
-    if constexpr (L::hasVectorParams)
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
       return chains_[0]->leaf().covariateColumns().data();
     else
       return nullptr;

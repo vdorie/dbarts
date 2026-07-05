@@ -1,6 +1,7 @@
 #ifndef BARTCORE_MODEL_HPP
 #define BARTCORE_MODEL_HPP
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <concepts>
@@ -26,19 +27,23 @@ namespace bartcore {
 /// moves ever see. Parameter shape splits the hierarchy below that: scalar
 /// models (one parameter per leaf) keep the classic scalar draw interface,
 /// vector models write numParams() doubles per leaf and evaluate fits per
-/// observation. Chain code branches on hasVectorParams at compile time, so
-/// the scalar paths compile exactly as they always have.
+/// observation, function-valued models draw one value per member observation
+/// directly into the fit vector (the fits ARE the parameters). Chain code
+/// branches on the shape traits at compile time, so the scalar paths compile
+/// exactly as they always have.
 template <typename L>
 concept LeafModelCore =
   requires(const L leaf, const Tree& tree, const double* v, double d,
            std::int32_t node) {
     { L::hasVectorParams } -> std::convertible_to<bool>;
+    { L::hasFunctionParams } -> std::convertible_to<bool>;
     { leaf.logIntegratedLikelihoodForNode(tree, v, v, d, d, node) }
       -> std::same_as<double>;
   };
 
 template <typename L>
 concept ScalarLeafModel = LeafModelCore<L> && !L::hasVectorParams &&
+  !L::hasFunctionParams &&
   requires(const L leaf, ext_rng* rng, const Tree& tree, double d,
            std::int32_t node) {
     { leaf.drawFromPosteriorForNode(rng, tree, d, d, node) }
@@ -58,12 +63,39 @@ concept VectorLeafModel = LeafModelCore<L> && L::hasVectorParams &&
     { leaf.fitForTestObservation(v, i) } -> std::same_as<double>;
   };
 
+/// Chi-k accumulation from one function-valued leaf draw: the standardized
+/// sum of squares (f' C^-1 f for a GP draw, the squared value for a
+/// constant-fallback draw) and its parameter count.
+struct FunctionLeafDrawStats {
+  double sumSquaredParams = 0.0;
+  double numParams = 0.0;
+};
+
+/// Function-valued leaves: draws write one value per member observation into
+/// the caller's fit vector, so parameters need no per-tree storage. Test
+/// rows evaluate through a per-draw cache the chain resets with
+/// beginTreeDraw before each tree's parameter sweep.
 template <typename L>
-concept IntegrableLeafModel = ScalarLeafModel<L> || VectorLeafModel<L>;
+concept FunctionLeafModel = LeafModelCore<L> && L::hasFunctionParams &&
+  requires(const L leaf, ext_rng* rng, const Tree& tree, const double* v,
+           double d, std::int32_t node, double* fits, std::size_t i) {
+    { leaf.beginTreeDraw(tree) } -> std::same_as<void>;
+    { leaf.drawFromPosteriorForNode(rng, tree, v, v, d, d, node, fits) }
+      -> std::same_as<FunctionLeafDrawStats>;
+    { leaf.drawFromPriorForNode(rng, tree, d, node, fits) }
+      -> std::same_as<FunctionLeafDrawStats>;
+    { leaf.fitForTestObservationForNode(tree, node, i) }
+      -> std::same_as<double>;
+  };
+
+template <typename L>
+concept IntegrableLeafModel =
+  ScalarLeafModel<L> || VectorLeafModel<L> || FunctionLeafModel<L>;
 
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
+  static constexpr bool hasFunctionParams = false;
 
   double scale;  // nodeScale / sqrt(numTrees)
 
@@ -139,6 +171,7 @@ static_assert(ScalarLeafModel<ConstantGaussianLeaf>);
 /// upstream.
 struct LinearGaussianLeaf {
   static constexpr bool hasVectorParams = true;
+  static constexpr bool hasFunctionParams = false;
   /// Sufficient-statistic scratch lives on the stack; the factory validates.
   static constexpr std::size_t maxNumCovariates = 8;
 
@@ -388,6 +421,464 @@ private:
 };
 
 static_assert(VectorLeafModel<LinearGaussianLeaf>);
+
+/// Gaussian-process leaf: each bottom node fits a smooth function of q
+/// designated ordinal predictor columns, standardized internally exactly as
+/// the linear leaf's. The leaf function over the standardized covariates u
+/// is
+///   f ~ GP(0, (scale / k)^2 C),
+/// with C a squared-exponential correlation kernel (per-column lengthscales
+/// theta plus a small fixed nugget for conditioning), so the prior variance
+/// ties to k as the constant and linear leaves do and a constant kernel
+/// recovers the constant leaf. The marginal over f is the closed form
+/// log N(z; 0, sigma^2 W^-1 + (scale / k)^2 C) - one O(n_leaf^3) Cholesky -
+/// so the conjugate MH moves apply unchanged. The drawn function values at
+/// the leaf's training rows ARE the parameters and land directly in the
+/// per-tree fits; test rows evaluate the conditional mean c(x*)' C^-1 f
+/// through per-draw cached weights.
+///
+/// Leaves larger than maxLeafSize score and draw as constant leaves instead
+/// (delegating to ConstantGaussianLeaf's exact math). The proposal's veto
+/// guardrail would deadlock: every tree starts as a single root leaf holding
+/// all observations, and a birth splitting one over-cap leaf into two
+/// over-cap children can never be accepted against a vetoed-vs-doubly-vetoed
+/// comparison. The fallback instead makes oversized regions behave exactly
+/// like constant-leaf BART - data-informed splits throughout - with the GP
+/// refinement switching on once a leaf falls under the cap; the scoring rule
+/// is a deterministic function of leaf membership, so the MH comparisons
+/// stay coherent.
+struct GPGaussianLeaf {
+  static constexpr bool hasVectorParams = false;
+  static constexpr bool hasFunctionParams = true;
+  /// Conditioning jitter on the correlation diagonal; not a modeling knob.
+  static constexpr double nugget = 1.0e-6;
+
+  double scale = 1.0;  // nodeScale / sqrt(numTrees)
+
+  std::size_t numCovariates() const { return numCovariates_; }
+  const std::vector<std::size_t>& covariateColumns() const { return columns_; }
+  const std::vector<double>& covariateMeans() const { return means_; }
+  const std::vector<double>& covariateSds() const { return sds_; }
+  const std::vector<double>& lengthscales() const { return lengthscales_; }
+  std::size_t maxLeafSize() const { return maxLeafSize_; }
+
+  /// Gather and standardize the designated columns and fix the kernel
+  /// lengthscales: the supplied per-column values (standardized scale) when
+  /// non-null, otherwise the median pairwise-distance heuristic over the
+  /// standardized training values.
+  void initialize(const ColumnStore& data, const std::size_t* columns,
+                  std::size_t numColumns, const double* lengthscales,
+                  std::size_t maxLeafSize) {
+    numCovariates_ = numColumns;
+    columns_.assign(columns, columns + numColumns);
+    maxLeafSize_ = maxLeafSize;
+    if (lengthscales != nullptr)
+      suppliedLengthscales_.assign(lengthscales, lengthscales + numColumns);
+    else
+      suppliedLengthscales_.clear();
+    reinitialize(data);
+  }
+
+  /// Re-derive standardization constants, covariates, and (when not
+  /// supplied) lengthscales for the stored designation; the whole-data
+  /// analogue of the rebuilt cut grid, sharing the linear leaf's calibration
+  /// inheritance on views.
+  void reinitialize(const ColumnStore& data) {
+    std::size_t numColumns = numCovariates_;
+    numObservations_ = data.numObservations;
+    means_.assign(numColumns, 0.0);
+    sds_.assign(numColumns, 1.0);
+    u_.resize(numObservations_ * numColumns);
+    for (std::size_t j = 0; j < numColumns; ++j) {
+      const double* column = data.rawColumn(columns_[j]);
+      double mean, sd;
+      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
+      means_[j] = mean;
+      sds_[j] = sd;
+      double* u = u_.data() + j * numObservations_;
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
+    }
+    lengthscales_.assign(numColumns, 1.0);
+    for (std::size_t j = 0; j < numColumns; ++j)
+      lengthscales_[j] = suppliedLengthscales_.empty()
+        ? medianPairwiseDistance(u_.data() + j * numObservations_,
+                                 numObservations_)
+        : suppliedLengthscales_[j];
+    rebuildTestCovariates(data);
+  }
+
+  /// Regather the training covariates under the existing standardization
+  /// constants and lengthscales, for the predictor-mutation surface; the
+  /// prior's calibration is sticky across in-place value changes.
+  void regatherTrainingCovariates(const ColumnStore& data) {
+    for (std::size_t j = 0; j < numCovariates_; ++j) {
+      const double* column = data.rawColumn(columns_[j]);
+      double* u = u_.data() + j * numObservations_;
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
+    }
+  }
+
+  /// Regather the test covariates under the training standardization; called
+  /// whenever the store's test data changes.
+  void rebuildTestCovariates(const ColumnStore& data) {
+    numTestObservations_ = data.numTestObservations;
+    uTest_.assign(numTestObservations_ * numCovariates_, 0.0);
+    if (numTestObservations_ == 0) return;
+    for (std::size_t j = 0; j < numCovariates_; ++j) {
+      const double* column = data.rawTestColumn(columns_[j]);
+      if (column == nullptr) continue;
+      double* u = uTest_.data() + j * numTestObservations_;
+      for (std::size_t i = 0; i < numTestObservations_; ++i)
+        u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
+    }
+  }
+
+  /// Reset the per-draw prediction cache before one tree's parameter sweep;
+  /// draws fill it node by node and the test-fit loop reads it while the
+  /// tree's partitions are unchanged.
+  void beginTreeDraw(const Tree& tree) const {
+    nodeConstant_.assign(tree.nodes.size(), 0.0);
+    nodeAlphaOffset_.assign(tree.nodes.size(), -1);
+    alphaBuffer_.clear();
+  }
+
+  /// score = -0.5 log det V + 0.5 log det(sigma^2 W^-1) - 0.5 z' V^-1 z with
+  /// V = (scale / k)^2 C + sigma^2 W^-1, dropping the same per-observation
+  /// terms the constant leaf drops; a constant kernel reduces this to the
+  /// constant leaf's formula by Sherman-Morrison.
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
+                                        const double* weights, double k,
+                                        double residualVariance,
+                                        int32_t nodeIndex) const {
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    if (numObs == 0) return 0.0;
+    if (numObs > maxLeafSize_) {
+      ConstantGaussianLeaf fallback{scale};
+      return fallback.logIntegratedLikelihoodForNode(tree, y, weights, k,
+                                                     residualVariance,
+                                                     nodeIndex);
+    }
+
+    gatherLeafCovariates(tree, node, numObs);
+    double s2 = (scale / k) * (scale / k);
+
+    buildKernel(numObs, cholV_);
+    double logDetNoise = 0.0;
+    for (std::size_t a = 0; a < numObs * numObs; ++a) cholV_[a] *= s2;
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double w =
+        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
+      double noise = residualVariance / w;
+      logDetNoise += std::log(noise);
+      cholV_[r * numObs + r] += noise;
+    }
+    choleskyDecomposeLeaf(cholV_.data(), numObs);
+
+    double halfLogDetV = 0.0;
+    for (std::size_t r = 0; r < numObs; ++r)
+      halfLogDetV += std::log(cholV_[r * numObs + r]);
+
+    vectorScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r)
+      vectorScratch_[r] = y[tree.indices[node.begin + r]];
+    solveLowerLeaf(cholV_.data(), numObs, vectorScratch_.data());
+    double quadraticForm = 0.0;
+    for (std::size_t r = 0; r < numObs; ++r)
+      quadraticForm += vectorScratch_[r] * vectorScratch_[r];
+
+    return -halfLogDetV + 0.5 * logDetNoise - 0.5 * quadraticForm;
+  }
+
+  /// Draws f | z into fits at the leaf's member observations by Matheron's
+  /// rule - f = f0 + s^2 C V^-1 (z - f0 - e0) with f0 ~ N(0, s^2 C) and
+  /// e0 ~ N(0, sigma^2 W^-1) - which has exactly the posterior law and needs
+  /// only the two factorizations already in hand. Consumes 2 n_leaf standard
+  /// normals; empty leaves consume none and cache a zero constant. Caches
+  /// the prediction weights alpha = C^-1 f for the node and returns the
+  /// chi-k contribution (f' alpha over n_leaf coordinates).
+  FunctionLeafDrawStats drawFromPosteriorForNode(
+    ext_rng* rng, const Tree& tree, const double* y, const double* weights,
+    double k, double residualVariance, int32_t nodeIndex,
+    double* fits) const {
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    if (numObs == 0) {
+      setConstantCache(nodeIndex, 0.0);
+      return FunctionLeafDrawStats();
+    }
+    if (numObs > maxLeafSize_) {
+      ConstantGaussianLeaf fallback{scale};
+      double value = fallback.drawFromPosteriorForNode(rng, tree, k,
+                                                       residualVariance,
+                                                       nodeIndex);
+      for (std::size_t m = node.begin; m < node.end; ++m)
+        fits[tree.indices[m]] = value;
+      setConstantCache(nodeIndex, value);
+      return FunctionLeafDrawStats{value * value, 1.0};
+    }
+
+    gatherLeafCovariates(tree, node, numObs);
+    double s = scale / k, s2 = s * s;
+
+    buildKernel(numObs, kernel_);
+    cholK_.assign(kernel_.begin(),
+                  kernel_.begin() +
+                    static_cast<std::ptrdiff_t>(numObs * numObs));
+    choleskyDecomposeLeaf(cholK_.data(), numObs);
+    cholV_.resize(numObs * numObs);
+    for (std::size_t a = 0; a < numObs * numObs; ++a)
+      cholV_[a] = s2 * kernel_[a];
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double w =
+        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
+      cholV_[r * numObs + r] += residualVariance / w;
+    }
+    choleskyDecomposeLeaf(cholV_.data(), numObs);
+
+    // f0 = s L_C eps, drawn first in row order, then e0 row by row
+    epsScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r)
+      epsScratch_[r] = ext_rng_simulateStandardNormal(rng);
+    fScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double value = 0.0;
+      for (std::size_t a = 0; a <= r; ++a)
+        value += cholK_[r * numObs + a] * epsScratch_[a];
+      fScratch_[r] = s * value;
+    }
+    vectorScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double w =
+        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
+      vectorScratch_[r] = y[tree.indices[node.begin + r]] - fScratch_[r] -
+                          std::sqrt(residualVariance / w) *
+                            ext_rng_simulateStandardNormal(rng);
+    }
+    solveLowerLeaf(cholV_.data(), numObs, vectorScratch_.data());
+    solveLowerTransposedLeaf(cholV_.data(), numObs, vectorScratch_.data());
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double value = 0.0;
+      for (std::size_t a = 0; a < numObs; ++a)
+        value += kernel_[r * numObs + a] * vectorScratch_[a];
+      fScratch_[r] += s2 * value;
+      fits[tree.indices[node.begin + r]] = fScratch_[r];
+    }
+
+    return cacheAlphaForNode(nodeIndex, numObs);
+  }
+
+  /// Prior draw f = s L_C eps into fits, with the same prediction cache and
+  /// chi-k accounting as the posterior draw; over-cap leaves draw the
+  /// constant leaf's prior. Consumes n_leaf standard normals (one over cap,
+  /// none when empty).
+  FunctionLeafDrawStats drawFromPriorForNode(ext_rng* rng, const Tree& tree,
+                                             double k, int32_t nodeIndex,
+                                             double* fits) const {
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    if (numObs == 0) {
+      setConstantCache(nodeIndex, 0.0);
+      return FunctionLeafDrawStats();
+    }
+    if (numObs > maxLeafSize_) {
+      ConstantGaussianLeaf fallback{scale};
+      double value = fallback.drawFromPrior(rng, k);
+      for (std::size_t m = node.begin; m < node.end; ++m)
+        fits[tree.indices[m]] = value;
+      setConstantCache(nodeIndex, value);
+      return FunctionLeafDrawStats{value * value, 1.0};
+    }
+
+    gatherLeafCovariates(tree, node, numObs);
+    double s = scale / k;
+
+    buildKernel(numObs, kernel_);
+    cholK_.assign(kernel_.begin(),
+                  kernel_.begin() +
+                    static_cast<std::ptrdiff_t>(numObs * numObs));
+    choleskyDecomposeLeaf(cholK_.data(), numObs);
+
+    epsScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r)
+      epsScratch_[r] = ext_rng_simulateStandardNormal(rng);
+    fScratch_.resize(numObs);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      double value = 0.0;
+      for (std::size_t a = 0; a <= r; ++a)
+        value += cholK_[r * numObs + a] * epsScratch_[a];
+      fScratch_[r] = s * value;
+      fits[tree.indices[node.begin + r]] = fScratch_[r];
+    }
+
+    return cacheAlphaForNode(nodeIndex, numObs);
+  }
+
+  /// Conditional mean c(x*)' alpha at one test row from the node's cached
+  /// draw; constant-valued nodes (over-cap, empty) return their constant.
+  /// Valid only between the node's draw and the next structure change - the
+  /// alpha weights pair with the member ordering at draw time.
+  double fitForTestObservationForNode(const Tree& tree, int32_t nodeIndex,
+                                      std::size_t testIndex) const {
+    std::ptrdiff_t offset = nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)];
+    if (offset < 0) return nodeConstant_[static_cast<std::size_t>(nodeIndex)];
+    const Node& node(tree.at(nodeIndex));
+    std::size_t numObs = node.numObservations();
+    const double* alpha = alphaBuffer_.data() + offset;
+    double result = 0.0;
+    for (std::size_t r = 0; r < numObs; ++r) {
+      std::size_t obs = tree.indices[node.begin + r];
+      double distanceSq = 0.0;
+      for (std::size_t j = 0; j < numCovariates_; ++j) {
+        double difference = (uTest_[testIndex + j * numTestObservations_] -
+                             u_[obs + j * numObservations_]) /
+                            lengthscales_[j];
+        distanceSq += difference * difference;
+      }
+      result += std::exp(-0.5 * distanceSq) * alpha[r];
+    }
+    return result;
+  }
+
+private:
+  /// Median of pairwise absolute differences on the standardized scale,
+  /// deterministically subsampled to at most 512 rows; degenerate columns
+  /// fall back to 1.
+  static double medianPairwiseDistance(const double* u, std::size_t n) {
+    std::size_t stride = 1 + (n - 1) / 512;
+    std::vector<double> values;
+    for (std::size_t i = 0; i < n; i += stride) values.push_back(u[i]);
+    if (values.size() < 2) return 1.0;
+    std::vector<double> distances;
+    distances.reserve(values.size() * (values.size() - 1) / 2);
+    for (std::size_t a = 0; a < values.size(); ++a)
+      for (std::size_t b = a + 1; b < values.size(); ++b)
+        distances.push_back(std::fabs(values[a] - values[b]));
+    std::sort(distances.begin(), distances.end());
+    std::size_t count = distances.size();
+    double median = count % 2 == 1
+      ? distances[count / 2]
+      : 0.5 * (distances[count / 2 - 1] + distances[count / 2]);
+    return median > 0.0 ? median : 1.0;
+  }
+
+  /// Leaf rows' standardized covariates pre-divided by the lengthscales,
+  /// row-major numObs x q, so the kernel is exp(-0.5 ||row_r - row_c||^2).
+  void gatherLeafCovariates(const Tree& tree, const Node& node,
+                            std::size_t numObs) const {
+    leafU_.resize(numObs * numCovariates_);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      std::size_t obs = tree.indices[node.begin + r];
+      for (std::size_t j = 0; j < numCovariates_; ++j)
+        leafU_[r * numCovariates_ + j] =
+          u_[obs + j * numObservations_] / lengthscales_[j];
+    }
+  }
+
+  /// Squared-exponential correlation plus the nugget diagonal over the
+  /// gathered leaf rows.
+  void buildKernel(std::size_t numObs, std::vector<double>& out) const {
+    out.resize(numObs * numObs);
+    for (std::size_t r = 0; r < numObs; ++r) {
+      out[r * numObs + r] = 1.0 + nugget;
+      for (std::size_t c = r + 1; c < numObs; ++c) {
+        double distanceSq = 0.0;
+        for (std::size_t j = 0; j < numCovariates_; ++j) {
+          double difference = leafU_[r * numCovariates_ + j] -
+                              leafU_[c * numCovariates_ + j];
+          distanceSq += difference * difference;
+        }
+        double value = std::exp(-0.5 * distanceSq);
+        out[r * numObs + c] = value;
+        out[c * numObs + r] = value;
+      }
+    }
+  }
+
+  void setConstantCache(int32_t nodeIndex, double value) const {
+    nodeConstant_[static_cast<std::size_t>(nodeIndex)] = value;
+    nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)] = -1;
+  }
+
+  /// alpha = C^-1 f through the correlation Cholesky, appended to the
+  /// per-tree buffer; returns the chi-k contribution f' alpha.
+  FunctionLeafDrawStats cacheAlphaForNode(int32_t nodeIndex,
+                                          std::size_t numObs) const {
+    std::size_t offset = alphaBuffer_.size();
+    alphaBuffer_.insert(alphaBuffer_.end(), fScratch_.begin(),
+                        fScratch_.begin() +
+                          static_cast<std::ptrdiff_t>(numObs));
+    double* alpha = alphaBuffer_.data() + offset;
+    solveLowerLeaf(cholK_.data(), numObs, alpha);
+    solveLowerTransposedLeaf(cholK_.data(), numObs, alpha);
+    nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)] =
+      static_cast<std::ptrdiff_t>(offset);
+    double sumSquared = 0.0;
+    for (std::size_t r = 0; r < numObs; ++r)
+      sumSquared += fScratch_[r] * alpha[r];
+    return FunctionLeafDrawStats{sumSquared,
+                                 static_cast<double>(numObs)};
+  }
+
+  /// In-place lower Cholesky; the nugget and noise diagonals guarantee
+  /// definiteness, so there is no failure path.
+  static void choleskyDecomposeLeaf(double* m, std::size_t p) {
+    for (std::size_t j = 0; j < p; ++j) {
+      double diagonal = m[j * p + j];
+      for (std::size_t a = 0; a < j; ++a)
+        diagonal -= m[j * p + a] * m[j * p + a];
+      diagonal = std::sqrt(diagonal);
+      m[j * p + j] = diagonal;
+      for (std::size_t i = j + 1; i < p; ++i) {
+        double value = m[i * p + j];
+        for (std::size_t a = 0; a < j; ++a)
+          value -= m[i * p + a] * m[j * p + a];
+        m[i * p + j] = value / diagonal;
+      }
+    }
+  }
+
+  static void solveLowerLeaf(const double* l, std::size_t p, double* x) {
+    for (std::size_t i = 0; i < p; ++i) {
+      double value = x[i];
+      for (std::size_t a = 0; a < i; ++a) value -= l[i * p + a] * x[a];
+      x[i] = value / l[i * p + i];
+    }
+  }
+
+  static void solveLowerTransposedLeaf(const double* l, std::size_t p,
+                                       double* x) {
+    for (std::size_t i = p; i > 0; --i) {
+      double value = x[i - 1];
+      for (std::size_t a = i; a < p; ++a) value -= l[a * p + (i - 1)] * x[a];
+      x[i - 1] = value / l[(i - 1) * p + (i - 1)];
+    }
+  }
+
+  std::size_t numCovariates_ = 0;
+  std::size_t numObservations_ = 0;
+  std::size_t numTestObservations_ = 0;
+  std::size_t maxLeafSize_ = 256;
+  std::vector<std::size_t> columns_;
+  std::vector<double> means_, sds_;
+  std::vector<double> lengthscales_, suppliedLengthscales_;
+  std::vector<double> u_;      // standardized, column-major n x q
+  std::vector<double> uTest_;  // standardized, column-major numTest x q
+  // per-call scratch and the per-tree-draw prediction cache; mutable because
+  // scoring and drawing are logically const, and safe because a leaf model
+  // instance belongs to a single chain (the CGMTreePrior precedent)
+  mutable std::vector<double> leafU_;    // row-major numObs x q, / theta
+  mutable std::vector<double> kernel_, cholK_, cholV_;
+  mutable std::vector<double> epsScratch_, fScratch_, vectorScratch_;
+  mutable std::vector<double> alphaBuffer_;
+  mutable std::vector<double> nodeConstant_;         // arena-indexed
+  mutable std::vector<std::ptrdiff_t> nodeAlphaOffset_;  // -1 = constant
+};
+
+static_assert(FunctionLeafModel<GPGaussianLeaf>);
 
 /// Chipman-George-McCulloch tree structure prior. Split-variable selection
 /// is uniform over available variables when splitProbabilities is null;
