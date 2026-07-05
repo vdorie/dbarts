@@ -171,6 +171,13 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
                      n.samples = 40L, n.burn = 10L, n.thin = 2L,
                      n.chains = 1L,
                      n.trees = 25L, n.threads = 1L)
+
+## with dart = TRUE, split-variable probabilities are sampled under a
+## Dirichlet prior, inducing variable selection
+rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
+                          n.samples = 40L, n.burn = 10L, n.thin = 2L,
+                          n.chains = 1L,
+                          n.trees = 25L, n.threads = 1L)
 }
 \keyword{nonparametric}
 \keyword{tree}
