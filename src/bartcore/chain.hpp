@@ -381,7 +381,12 @@ public:
           }
         }
 
-        trees_[t].setNodeAverages(treeY_.data(), weights);
+        // constant-leaf node means, recomputed against this sweep's residual.
+        // Linear (vector) leaves accumulate their own per-node statistics and
+        // never read node.average, so skip it for them; function (gp) leaves
+        // still need it because over-cap nodes delegate to the constant leaf.
+        if constexpr (!L::hasVectorParams)
+          trees_[t].setNodeAverages(treeY_.data(), weights);
 
         bool stepTaken;
         StepType stepType;
