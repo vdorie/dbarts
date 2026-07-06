@@ -218,17 +218,24 @@ engine at the drop: run scenarios 25-30% less time per iteration.)
     point. Verified clean: the hot loop has no allocation churn
     (scratch reused throughout).
 
-internals (all but the first landed 2026-07-06 as refactor-only
-commits: the equivalence gate reported identical draws on all 18
-scenarios afterward, suite 2477/0, speed flat)
-  chain.hpp opens the scalar/vector/function three-way if constexpr in
-    ~12 methods (45 sites); hoisting per-shape helpers would make a
-    fourth leaf shape touch one place instead of twelve. Large; the
-    equivalence gate arbitrates. DECISION PENDING with Vincent - the
-    proposed shape is ~8 named per-operation Chain helpers (flatten,
-    prior draw, state channels, fits rebuild, storage reset, test
-    routing), each holding one three-way, rather than a policy object
-    that would need friend access to half of Chain.
+internals (ALL landed 2026-07-06 as refactor-only commits: the
+equivalence gate reported identical draws on all 18 scenarios after
+each wave, suite 2477/0, speed flat)
+  chain.hpp leaf-shape hoisting: DONE (Vincent approved the
+    grouped-helper design over a policy object). Every scalar/vector/
+    function three-way now lives in exactly one method per concern; the
+    Chain class comment lists the checklist a fourth leaf shape would
+    touch. The real duplications went: recoverLeafParameters replaced
+    two copies of the recovery three-way, setTreeFits the repeated
+    scalar/vector fit-rewrite choice (function leaves excluded by
+    static_assert - their fits ARE the parameters and each flow handles
+    them deliberately: rebuild skips, applyNewData cold-starts through
+    the scalar broadcast, setState copies the slab), storeSavedTreeRecord
+    the run loop's inline flatten, and addFlatPredictions the
+    prediction-kernel dispatch shared by the saved and live predict
+    paths - predictFromCurrentTrees now flattens through flattenTree
+    instead of repeating it. leafTracksNodeAverages names the
+    node-average guard.
   bridge: DONE. createHolder and bartcore_createFromHandle share
     parseSamplerSpecification; the binary-weights mutation refusal is
     one helper; bartcore_run roots each result column in its protected
