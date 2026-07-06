@@ -1619,11 +1619,9 @@ struct ChiSquaredScalePrior {
                                   const double* totalFits, const double* weights,
                                   std::size_t numObservations) const {
     double sumOfSquaredResiduals = weights == nullptr
-      ? misc_htm_computeSumOfSquaredResiduals(nullptr, 0, y, numObservations,
-                                              totalFits)
-      : misc_htm_computeWeightedSumOfSquaredResiduals(nullptr, 0, y,
-                                                      numObservations, weights,
-                                                      totalFits);
+      ? misc_computeSumOfSquaredResiduals(y, numObservations, totalFits)
+      : misc_computeWeightedSumOfSquaredResiduals(y, numObservations, weights,
+                                                  totalFits);
     double posteriorDegreesOfFreedom =
       degreesOfFreedom + static_cast<double>(numObservations);
     double posteriorScale = degreesOfFreedom * scale + sumOfSquaredResiduals;

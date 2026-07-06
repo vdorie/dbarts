@@ -28,20 +28,11 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
-#include <stdarg.h>
 
 #include <misc/stddef.h>
 #include <misc/types.h>
 #include <misc/simd.h>
 #include <misc/partition.h>
-
-void Rprintf(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
-  va_end(args);
-}
-void R_FlushConsole(void) { fflush(stdout); }
 
 #define N ((size_t) 262144)
 #define TARGET_ELEMS ((size_t) 1 << 27)

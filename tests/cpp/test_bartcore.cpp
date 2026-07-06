@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstdarg>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -21,17 +20,6 @@
 #include <bartcore/bartcore.hpp>
 
 using namespace bartcore;
-
-// misc.a/external.a reach into the R runtime for output; stub it.
-extern "C" {
-void Rprintf(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
-  va_end(args);
-}
-void R_FlushConsole(void) { fflush(stdout); }
-}
 
 static int failures = 0;
 

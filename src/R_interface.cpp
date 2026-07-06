@@ -4,12 +4,14 @@
 #include <cstdint> // uint32_t
 #include <cstring> // memcpy
 
+#include <external/R.h> // Rprintf, R_FlushConsole
 #include <external/Rinternals.h>
 #include <R_ext/Rdynload.h>
 #include <R_ext/Visibility.h>
 
 #include <rc/util.h>
 
+#include <misc/io.h>
 #include <misc/simd.h>
 
 #include <dbarts/dbarts.h>
@@ -348,5 +350,8 @@ void attribute_visible R_init_dbarts(DllInfo* info) {
   }
 
   misc_simd_init();
+
+  misc_printf = &Rprintf;
+  misc_flushOutput = &R_FlushConsole;
 }
 }

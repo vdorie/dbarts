@@ -50,8 +50,8 @@ simd.source.neon = $(simd.source.neon.$(have.neon))
 simd.sources = $(simd.source.avx2) $(simd.source.neon)
 simd.objects = $(simd.sources:.c=.o)
 
-LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c $(simd.sources)
-LOCAL_OBJECTS=adaptiveRadixTree.o binaryIO.o blockingThreadManager.o hierarchicalThreadManager.o linearAlgebra.o moments.o partition.o simd.o string.o thread.o $(simd.objects)
+LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c io.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c $(simd.sources)
+LOCAL_OBJECTS=adaptiveRadixTree.o binaryIO.o blockingThreadManager.o hierarchicalThreadManager.o io.o linearAlgebra.o moments.o partition.o simd.o string.o thread.o $(simd.objects)
 
 all : library
 
@@ -69,6 +69,7 @@ $(INCLUDE_DIR)/misc/adaptiveRadixTree.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/alloca.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/binaryIO.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/intrinsic.h :
+$(INCLUDE_DIR)/misc/io.h :
 $(INCLUDE_DIR)/misc/linearAlgebra.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/partition.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/simd.h :
@@ -88,6 +89,9 @@ blockingThreadManager.o : blockingThreadManager.c $(INCLUDE_DIR)/misc/thread.h
 
 hierarchicalThreadManager.o : hierarchicalThreadManager.c $(INCLUDE_DIR)/misc/thread.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c hierarchicalThreadManager.c -o hierarchicalThreadManager.o
+
+io.o : io.c $(INCLUDE_DIR)/misc/io.h
+	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c io.c -o io.o
 
 linearAlgebra.o : linearAlgebra.c $(INCLUDE_DIR)/misc/linearAlgebra.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c linearAlgebra.c -o linearAlgebra.o

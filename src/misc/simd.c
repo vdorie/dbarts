@@ -303,8 +303,6 @@ void misc_simd_init(void) {
 
 extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i);
 
-#include <external/io.h>
-
 void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
   // if the compiler supports SIMD instruction sets then the binary will be built

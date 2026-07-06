@@ -247,6 +247,63 @@ double misc_computeIndexedWeightedVarianceForKnownMean(const double* restrict x,
 
 #define minimum(_A_, _B_) ((_A_) < (_B_) ? (_A_) : (_B_))
 
+// serial fast paths; dispatch matches the htm entry points run single-threaded
+double misc_computeMeanFast(const double* x, size_t length)
+{
+  if (length >= minimum(ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeOnlineUnrolledMean(x, length);
+  return computeUnrolledMean(x, length);
+}
+
+double misc_computeIndexedMeanFast(const double* restrict x, const size_t* restrict indices, size_t length)
+{
+  if (length >= minimum(INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF))
+    return computeIndexedOnlineUnrolledMean(x, indices, length);
+  return computeIndexedUnrolledMean(x, indices, length);
+}
+
+double misc_computeWeightedMeanFast(const double* restrict x, size_t length, const double* restrict w, double* restrict n)
+{
+  if (length >= minimum(UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeOnlineUnrolledWeightedMean(x, length, w, n);
+  return computeUnrolledWeightedMean(x, length, w, n);
+}
+
+double misc_computeIndexedWeightedMeanFast(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict n)
+{
+  if (length >= minimum(INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeIndexedOnlineUnrolledWeightedMean(x, indices, length, w, n);
+  return computeIndexedUnrolledWeightedMean(x, indices, length, w, n);
+}
+
+double misc_computeVarianceForKnownMeanFast(const double* x, size_t length, double mean)
+{
+  if (length >= minimum(UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeOnlineUnrolledVarianceForKnownMean(x, length, mean);
+  return computeUnrolledVarianceForKnownMean(x, length, mean);
+}
+
+double misc_computeIndexedVarianceForKnownMeanFast(const double* restrict x, const size_t* restrict indices, size_t length, double mean)
+{
+  if (length >= minimum(INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF))
+    return computeIndexedOnlineUnrolledVarianceForKnownMean(x, indices, length, mean);
+  return computeIndexedUnrolledVarianceForKnownMean(x, indices, length, mean);
+}
+
+double misc_computeWeightedVarianceForKnownMeanFast(const double* restrict x, size_t length, const double* restrict w, double mean)
+{
+  if (length >= minimum(UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeOnlineUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
+  return computeUnrolledWeightedVarianceForKnownMean(x, length, w, mean);
+}
+
+double misc_computeIndexedWeightedVarianceForKnownMeanFast(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double mean)
+{
+  if (length >= minimum(INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF))
+    return computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
+  return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
+}
+
 // if the data for any thread would, by itself, trigger a fall-back to single threaded
 // and that single-threaded function equiv would prefer the non-online version, do that instead
 double misc_mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
@@ -2819,8 +2876,10 @@ static double htm_computeIndexedOnlineUnrolledMean(misc_htm_manager_t restrict t
 double misc_htm_computeMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, size_t length)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeMeanFast(x, length);
+
   size_t onlineCutoff = minimum(ONLINE_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledMean(threadManager, taskId, x, length);
   return htm_computeUnrolledMean(threadManager, taskId, x, length);
 }
@@ -2828,8 +2887,10 @@ double misc_htm_computeMean(misc_htm_manager_t restrict threadManager, size_t ta
 double misc_htm_computeIndexedMean(misc_htm_manager_t restrict threadManager, size_t taskId, const double* restrict x, const size_t* restrict indices, size_t length)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeIndexedMeanFast(x, indices, length);
+
   size_t onlineCutoff = minimum(INDEXED_UNROLLED_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledMean(threadManager, taskId, x, indices, length);
   return htm_computeIndexedUnrolledMean(threadManager, taskId, x, indices, length);
 }
@@ -2920,8 +2981,10 @@ double misc_htm_computeWeightedMean(misc_htm_manager_t restrict threadManager, s
                                    size_t length, const double* restrict w, double* restrict nPtr)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeWeightedMeanFast(x, length, w, nPtr);
+
   size_t onlineCutoff = minimum(UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledWeightedMean(threadManager, taskId, x, length, w, nPtr);
   return htm_computeUnrolledWeightedMean(threadManager, taskId, x, length, w, nPtr);
 }
@@ -2930,8 +2993,10 @@ double misc_htm_computeIndexedWeightedMean(misc_htm_manager_t restrict threadMan
                                           const size_t* restrict indices, size_t length, const double* restrict w, double* restrict nPtr)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeIndexedWeightedMeanFast(x, indices, length, w, nPtr);
+
   size_t onlineCutoff = minimum(INDEXED_UNROLLED_WEIGHTED_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledWeightedMean(threadManager, taskId, x, indices, length, w, nPtr);
   return htm_computeIndexedUnrolledWeightedMean(threadManager, taskId, x, indices, length, w, nPtr);
 }
@@ -3028,8 +3093,10 @@ double misc_htm_computeVarianceForKnownMean(misc_htm_manager_t restrict threadMa
                                            size_t length, double mean)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeVarianceForKnownMeanFast(x, length, mean);
+
   size_t onlineCutoff = minimum(UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledVarianceForKnownMean(threadManager, taskId, x, length, mean);
   return htm_computeUnrolledVarianceForKnownMean(threadManager, taskId, x, length, mean);
 }
@@ -3038,8 +3105,10 @@ double misc_htm_computeIndexedVarianceForKnownMean(misc_htm_manager_t restrict t
                                                   const size_t* restrict indices, size_t length, double mean)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeIndexedVarianceForKnownMeanFast(x, indices, length, mean);
+
   size_t onlineCutoff = minimum(INDEXED_UNROLLED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, INDEXED_ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledVarianceForKnownMean(threadManager, taskId, x, indices, length, mean);
   return htm_computeIndexedUnrolledVarianceForKnownMean(threadManager, taskId, x, indices, length, mean);
 }
@@ -3147,8 +3216,10 @@ double misc_htm_computeWeightedVarianceForKnownMean(
   size_t length, const double* restrict w, double mean)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeWeightedVarianceForKnownMeanFast(x, length, w, mean);
+
   size_t onlineCutoff = minimum(UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeOnlineUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, length, w, mean);
   return htm_computeUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, length, w, mean);
 }
@@ -3159,8 +3230,10 @@ double misc_htm_computeIndexedWeightedVarianceForKnownMean(
   const double* restrict w, double mean)
 {
   size_t numThreads = misc_htm_getNumThreadsForTopLevelTask(threadManager, taskId);
+  if (numThreads <= 1) return misc_computeIndexedWeightedVarianceForKnownMeanFast(x, indices, length, w, mean);
+
   size_t onlineCutoff = minimum(INDEXED_UNROLLED_WEIGHTED_VAR_FOR_MEAN_MIN_NUM_VALUES_PER_THREAD, ONLINE_CUTOFF);
-  
+
   if (length / numThreads >= onlineCutoff) return htm_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, indices, length, w, mean);
   return htm_computeIndexedUnrolledWeightedVarianceForKnownMean(threadManager, taskId, x, indices, length, w, mean);
 }

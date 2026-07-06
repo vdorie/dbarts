@@ -89,13 +89,12 @@ Threaded variants: `misc_mt_*` (flat thread manager) and `misc_htm_*`
 misc/thread.h). Single-thread, mt, and htm variants must agree numerically
 apart from reduction order.
 
-IMPORTANT: the plain `misc_compute*` moment functions use online (per-element
-division) algorithms and are several times slower than the unrolled
-accumulators behind the `misc_htm_*` entry points, which accept a null
-manager and taskId 0 for serial use. The htm entry points with a null
-manager ARE the fast path; bartcore calls them that way. Exposing the fast
-serial variants directly (without the manager indirection) is a cleanup
-candidate.
+IMPORTANT: the serial fast path is the `misc_compute*Fast` family: the
+unrolled accumulators without the thread-manager indirection. bartcore calls
+them directly; the htm entry points delegate to them when run without a
+manager (or single-threaded). The plain `misc_compute*` moment functions
+dispatch to slower online algorithms at different cutoffs and remain only
+for standalone callers.
 
 ### Vector operations (misc/linearAlgebra.h)
 
@@ -156,7 +155,6 @@ SIMD specializations only when profiling justifies them.
   agreement), which is consistent with the no-bit-parity decision.
 - Instruction-set switching is a test/bench facility only; production
   installs once at load.
-- misc.a is not fully R-free: the hierarchical thread manager prints through
-  `Rprintf`/`R_FlushConsole`. Standalone consumers (benchmarks/kernels) stub
-  these; an injectable output hook is a candidate cleanup for the
-  generalized core.
+- misc.a is R-free: output goes through the `misc_printf`/`misc_flushOutput`
+  hooks (misc/io.h), which default to stderr; the package points them at
+  `Rprintf`/`R_FlushConsole` on load. Standalone consumers need no stubs.
