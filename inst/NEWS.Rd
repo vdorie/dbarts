@@ -308,6 +308,9 @@
   \subsection{BUG FIXES}{
     \itemize{
       \item `copy` now works for samplers with a stored state.
+      \item Seeded parallel `rbart_vi` now restores R's stream after
+            drawing its chain seeds; the restore assigned a local
+            variable instead of the global state.
       \item Fixed reading a saved tree back from binary IO, which recursed with
             the writing routine instead of the reading one.
       \item Fixed installation under R-devel, where \code{RNGkind} gained an

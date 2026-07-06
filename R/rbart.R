@@ -365,7 +365,7 @@ rbart_vi <- function(
         randomSeeds <- sample.int(.Machine$integer.max, n.chains)
 
         if (!is.null(oldSeed)) {
-          .Random.seed <- oldSeed
+          .GlobalEnv$.Random.seed <- oldSeed
         }
       } else {
         randomSeeds <- rep.int(NA_integer_, n.chains)
@@ -403,9 +403,9 @@ rbart_vi <- function(
 
   if (runSingleThreaded) {
     if (!is.na(seed)) {
-      # If the seed was passed in, since we're running single threaded everything will draw
-      # from the built-in generator. In that case, we just have to set.seed and set it
-      # back when done.
+      # If the seed was passed in, a set.seed drives the chain seeds drawn
+      # at sampler creation and any R-level draws; set the stream back when
+      # done.
       oldSeed <- .GlobalEnv[[".Random.seed"]]
       set.seed(seed)
     }
@@ -419,8 +419,8 @@ rbart_vi <- function(
       )
     }
 
-    if (exists("oldSeed")) {
-      .Random.seed <- oldSeed
+    if (exists("oldSeed") && !is.null(oldSeed)) {
+      .GlobalEnv$.Random.seed <- oldSeed
     }
   }
   packageRbartResults(
@@ -739,8 +739,8 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
   environment(posteriorClosure) <- evalEnv
   prior <- namedList(posteriorClosure, evalEnv)
 
-  numObservations <- length(sampler$data@y)
-  numTestObservations <- NROW(sampler$data@x.test)
+  numObservations <- length(sampler$data@y) # nolint: object_usage_linter.
+  numTestObservations <- NROW(sampler$data@x.test) # nolint: object_usage_linter.
 
   kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
 
