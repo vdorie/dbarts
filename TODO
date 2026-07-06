@@ -218,30 +218,32 @@ engine at the drop: run scenarios 25-30% less time per iteration.)
     point. Verified clean: the hot loop has no allocation churn
     (scratch reused throughout).
 
-internals
+internals (all but the first landed 2026-07-06 as refactor-only
+commits: the equivalence gate reported identical draws on all 18
+scenarios afterward, suite 2477/0, speed flat)
   chain.hpp opens the scalar/vector/function three-way if constexpr in
-    ~12 methods (44 sites); hoisting per-shape helpers would make a
+    ~12 methods (45 sites); hoisting per-shape helpers would make a
     fourth leaf shape touch one place instead of twelve. Large; the
-    equivalence gate arbitrates.
-  bridge: createHolder and bartcore_createFromHandle duplicate their
-    parse/validate prologue; the binary-weights error string appears 4
-    times; bartcore_run's hand-counted UNPROTECT(10) allocation
-    cascade and getTrees' 240-line gather/emit both have clean
-    extraction seams.
-  bart/bart2/rbart_vi duplicate tree/resid-prior construction;
-    extract a shared builder (note: the k slot must stay evaluated for
-    rbart_vi's do.call forwarding and unevaluated for bart2's call
-    redirection - the builder needs a switch).
-  createClassicSampler (facade.hpp:315) now means "constant leaf" -
-    rename; createSampler/createSamplerOverStore duplicate the
-    designation validation loop.
-  message polish leftovers: validateArgumentsInEnvironment hardcodes
-    "dbarts" in messages shown from other callers.
-  hardening: partitionFlatIndices shifts by an unvalidated test
-    category code (tree.hpp:1316); every current caller validates
-    first, but a one-line clamp makes the tree layer safe standalone.
-  Makevars.win passes raw $(ARFLAGS) where Makevars.in has a -crs
-    fallback; mirror or comment the asymmetry.
+    equivalence gate arbitrates. DECISION PENDING with Vincent - the
+    proposed shape is ~8 named per-operation Chain helpers (flatten,
+    prior draw, state channels, fits rebuild, storage reset, test
+    routing), each holding one three-way, rather than a policy object
+    that would need friend access to half of Chain.
+  bridge: DONE. createHolder and bartcore_createFromHandle share
+    parseSamplerSpecification; the binary-weights mutation refusal is
+    one helper; bartcore_run roots each result column in its protected
+    container as allocated (no hand-counted UNPROTECT); getTrees is
+    validate -> gatherTrees -> emitTreeDataFrame.
+  bart/bart2/rbart_vi prior construction: DONE (buildSamplerPriors,
+    with nodeK keeping the evaluated/unevaluated asymmetry documented
+    at the call sites).
+  createClassicSampler rename + designation-check dedup: DONE
+    (createConstantLeafSampler; leafCovariateDesignationIsValid).
+  validateArgumentsInEnvironment messages: DONE (callers pass their
+    display name, so xbart errors no longer claim to be dbarts's).
+  partitionFlatIndices hardening: DONE (both category lookups clamp,
+    identity for valid codes).
+  Makevars.win ARFLAGS: DONE (mirrors Makevars.in's -crs fallback).
 
 tests (remaining gaps from the coverage review)
   the equivalence gate now covers logistic, categorical, MIA, adaptive
