@@ -1,0 +1,32 @@
+url: https://vdorie.github.io/dbarts/
+
+# docs/ holds the design documents; the rendered site goes elsewhere
+destination: docs-site
+
+template:
+  bootstrap: 5
+
+reference:
+- title: Model fitting
+  desc: Fit BART models to fixed data.
+  contents:
+  - bart
+  - rbart
+  - xbart
+  - pdbart
+- title: The mutable sampler
+  desc: >
+    Create and drive a sampler whose predictors, response, offset, and
+    weights can change between draws, for use inside larger MCMC schemes.
+  contents:
+  - dbarts
+  - dbartsSampler-class
+  - dbartsControl
+  - dbartsData
+  - dbartsPriors
+  - updatePredictorPerObservationJointly
+- title: Utilities
+  contents:
+  - plotTree
+  - makeModelMatrixFromDataFrame
+  - guessNumCores

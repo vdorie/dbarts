@@ -25,3 +25,4 @@ compile_commands.json
 
 # Claude Code local project directory
 .claude/
+docs-site/
