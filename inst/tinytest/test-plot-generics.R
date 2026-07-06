@@ -31,4 +31,25 @@ pdf(NULL)
 expect_silent(plot(fit.rbart))
 dev.off()
 
-rm(fit.bart, fit.bart2, fit.rbart, x, y.cont, z.bin, g, n)
+# plotTree now dispatches at the fit level (previously reachable only through
+# $fit$plotTree). Kept bart, bart2, and rbart fits plot a single tree, the
+# sampler dispatches directly, and a fit without kept trees errors.
+pt.bart2 <- bart2(x, z.bin, n.trees = 10L, n.burn = 20L, n.samples = 20L,
+                  n.chains = 2L, n.threads = 1L, verbose = FALSE,
+                  keepTrees = TRUE)
+pt.rbart <- rbart_vi(y.cont ~ x, group.by = g, n.samples = 8L, n.burn = 5L,
+                     n.thin = 1L, n.chains = 1L, n.trees = 10L, n.threads = 1L,
+                     verbose = FALSE, keepTrees = TRUE)
+pdf(NULL)
+expect_silent(plotTree(fit.bart, treeNum = 1L))
+expect_silent(plotTree(fit.bart$fit, treeNum = 2L))
+expect_silent(plotTree(pt.bart2, treeNum = 1L, chainNum = 2L, sampleNum = 5L))
+expect_silent(plotTree(pt.rbart, treeNum = 1L))
+dev.off()
+
+expect_error(plotTree(fit.bart2, treeNum = 1L),
+             pattern = "requires the trees to be kept")
+expect_error(plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
+             pattern = "chainNum must be a single chain index")
+
+rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart, x, y.cont, z.bin, g, n)

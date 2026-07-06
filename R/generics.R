@@ -2,6 +2,8 @@
 
 extract <- function(object, ...) UseMethod("extract")
 
+plotTree <- function(object, ...) UseMethod("plotTree")
+
 # latent-scale draws to probabilities for a binary fit; fits saved before
 # the family element existed are all probit
 probabilityFromLatents <- function(latents, object) {
@@ -423,6 +425,42 @@ residuals.rbart <- function(object, type = "ev", ...) {
   # as residuals.bart: type reaches fitted for link-scale residuals, sample
   # is pinned to the training response
   object$y - fitted.rbart(object, type = type, sample = "train", ...)
+}
+
+# fit-level dispatch for the sampler's plotTree method, so a kept bart or
+# rbart fit can be plotted directly instead of reaching into $fit; chainNum
+# and sampleNum forward only when supplied, since the method detects them by
+# their absence
+plotTree.dbartsSampler <- function(object, ...) {
+  invisible(object$plotTree(...))
+}
+
+plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
+  if (is.null(object[["fit"]]))
+    stop("plotTree requires the trees to be kept: fit with ",
+         "keeptrees/keepTrees = TRUE")
+  args <- list(treeNum = treeNum, ...)
+  if (!missing(chainNum)) args$chainNum <- chainNum
+  if (!missing(sampleNum)) args$sampleNum <- sampleNum
+  invisible(do.call(object$fit$plotTree, args))
+}
+
+plotTree.rbart <- function(object, treeNum = 1L, chainNum = 1L, sampleNum, ...) {
+  if (is.null(object[["fit"]]))
+    stop("plotTree requires the trees to be kept: fit rbart_vi with ",
+         "keepTrees = TRUE")
+  n.chains <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
+  chainNum <- as.integer(chainNum)
+  if (length(chainNum) != 1L || is.na(chainNum) ||
+      chainNum < 1L || chainNum > n.chains)
+    stop("chainNum must be a single chain index in [1, ", n.chains, "]")
+  # the in-core Gibbs path keeps one multi-chain sampler (select the chain
+  # through its own chainNum); the R-loop path keeps one sampler per chain
+  singleFit <- length(object$fit) == 1L && n.chains > 1L
+  sampler <- if (singleFit) object$fit[[1L]] else object$fit[[chainNum]]
+  args <- list(treeNum = treeNum, chainNum = if (singleFit) chainNum else 1L, ...)
+  if (!missing(sampleNum)) args$sampleNum <- sampleNum
+  invisible(do.call(sampler$plotTree, args))
 }
 
 
