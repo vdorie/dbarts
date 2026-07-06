@@ -144,7 +144,7 @@
       \item `tree.prior = dart(...)` runs DART (Linero 2018), a Dirichlet
             prior over the split-variable probabilities inducing variable
             selection, with optional sampling of the concentration.
-            `bart2` and `rbart_vi` expose it through a
+            `bart2`, `rbart_vi`, and `xbart` expose it through a
             `dart` argument taking `TRUE` or a full prior specification,
             along with `split.probs` for fixed, non-uniform variable
             weights. Runs return the per-sample probabilities alongside

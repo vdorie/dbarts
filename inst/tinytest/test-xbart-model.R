@@ -30,8 +30,43 @@ expect_silent(
   )
 )
 
+# split.probs and dart reach the tree prior, which used to be hardcoded to a
+# uniform cgm; both fix or sample the split-variable probabilities while power
+# and base stay the swept grid
+p <- ncol(x)
+expect_silent(
+  dbarts::xbart(
+    x, y, method = "k-fold",
+    n.reps = 2L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+    n.threads = 1L, split.probs = c(5, rep(1, p - 1L))
+  )
+)
+expect_silent(
+  dbarts::xbart(
+    x, y, method = "k-fold",
+    n.reps = 2L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+    n.threads = 1L, dart = TRUE
+  )
+)
+expect_silent(
+  dbarts::xbart(
+    x, y, method = "k-fold",
+    n.reps = 2L, n.samples = 6L, n.burn = c(10L, 5L, 1L), n.test = 5,
+    n.threads = 1L, dart = dbarts::dbartsPriors$dart(a = 1)
+  )
+)
+expect_error(
+  dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L,
+                dart = TRUE, split.probs = c(5, rep(1, p - 1L))),
+  pattern = "cannot be combined with 'dart'")
+expect_error(
+  dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, dart = "yes"),
+  pattern = "must be TRUE, FALSE")
+expect_error(
+  dbarts::xbart(x, y, n.reps = 1L, n.threads = 1L, split.probs = c(1, 2)),
+  pattern = "does not equal number of columns")
 
-rm(n.trees, k, y, x)
+rm(p, n.trees, k, y, x)
 
 rm(testData)
 
