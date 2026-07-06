@@ -66,6 +66,7 @@ bart2(
     type = c("ev", "ppd", "bart"),
     combineChains = TRUE,
     n.threads,
+    ci.level = NULL,
     \dots)
 
 extract(object, \dots)
@@ -79,6 +80,7 @@ extract(object, \dots)
     object,
     type = c("ev", "ppd", "bart"),
     sample = c("train", "test"),
+    ci.level = NULL,
     \dots)
 
 \method{residuals}{bart}(object, type = "ev", \dots)
@@ -221,6 +223,9 @@ extract(object, \dots)
    }
    \item{sample}{
      Either \code{"train"} or \code{"test"}.
+   }
+   \item{ci.level}{
+     For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. When \code{NULL} (the default) the posterior mean is returned as before. When given, the result is instead a matrix with one row per observation and columns \code{est} (the posterior mean), \code{ci.lower}, and \code{ci.upper} giving a symmetric credible band at that level, pooled over all samples and chains. The kind of interval follows \code{type}: \code{"ev"} yields a credible interval for the conditional mean (a probability for binary responses), \code{"ppd"} a prediction interval that additionally carries the residual noise (and so is wider), and \code{"bart"} a credible interval on the latent scale.
    }
    \item{\dots}{
      Additional arguments passed on to \code{plot}, \code{dbartsControl}, or \code{extract} when \code{type} is \code{"trees"}. Not used in \code{predict}.

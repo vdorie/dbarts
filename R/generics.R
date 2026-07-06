@@ -10,6 +10,31 @@ probabilityFromLatents <- function(latents, object) {
   if (identical(object[["family"]], "logistic")) plogis(latents) else pnorm(latents)
 }
 
+# per-observation posterior summary for the interval-returning generics: est
+# (the posterior mean) plus a symmetric ci.level credible band from the draw
+# quantiles, pooled over all samples and chains (observations are the last
+# array margin, as in the mean path). The interval KIND follows the caller's
+# type: "ev" gives a credible interval for E[Y|x] (a probability for binary),
+# "ppd" a prediction interval that also carries the residual noise, and "bart"
+# a credible interval on the latent scale.
+posteriorInterval <- function(draws, ci.level) {
+  if (!is.numeric(ci.level) || length(ci.level) != 1L || is.na(ci.level) ||
+      ci.level <= 0 || ci.level >= 1)
+    stop("'ci.level' must be a single number in (0, 1)")
+  probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level) / 2)
+  if (is.null(dim(draws))) {
+    result <- matrix(c(mean(draws), quantile(draws, probs, names = FALSE)),
+                     nrow = 1L)
+  } else {
+    obsMargin <- length(dim(draws))
+    est <- apply(draws, obsMargin, mean)
+    bounds <- apply(draws, obsMargin, quantile, probs = probs, names = FALSE)
+    result <- cbind(est, bounds[1L, ], bounds[2L, ])
+  }
+  colnames(result) <- c("est", "ci.lower", "ci.upper")
+  result
+}
+
 combineOrUncombineChains <- function(x, n.chains, combineChains)
 {
   if (n.chains > 1L) {
@@ -25,6 +50,7 @@ predict.bart <- function(object, newdata, offset, weights,
                          type = c("ev", "ppd", "bart"),
                          combineChains = TRUE,
                          n.threads = object$fit$control@n.threads,
+                         ci.level = NULL,
                          ...)
 {
   if (missing(offset)) offset <- NULL
@@ -51,15 +77,18 @@ predict.bart <- function(object, newdata, offset, weights,
   # result is n.obs x n.samples x n.chains
   n.chains <- object$fit$control@n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
-  
-  if (type == "bart")
-    return(result)
 
-  if ((responseIsBinary <- is.null(object[["sigma"]])))
-    result <- probabilityFromLatents(result, object)
+  if (type != "bart") {
+    if ((responseIsBinary <- is.null(object[["sigma"]])))
+      result <- probabilityFromLatents(result, object)
 
-  if (type == "ppd")
-    result <- sampleFromPPD(result, object, weights)
+    if (type == "ppd")
+      result <- sampleFromPPD(result, object, weights)
+  }
+
+  # ci.level opts into a per-observation est + credible band (kind follows type)
+  if (!is.null(ci.level))
+    return(posteriorInterval(result, ci.level))
 
   result
 }
@@ -125,6 +154,7 @@ extract.bart <- function(object,
 fitted.bart <- function(object,
                         type = c("ev", "ppd", "bart"),
                         sample = c("train", "test"),
+                        ci.level = NULL,
                         ...)
 {
   if (is.character(type)) {
@@ -134,13 +164,18 @@ fitted.bart <- function(object,
   if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type))
     stop("type must be in '", paste0(eval(formals(fitted.bart)$type), collapse = "', '"), "'")
   type <- type[1L]
-  
+
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.bart)$sample))
     stop("sample must be in '", paste0(eval(formals(fitted.bart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
-  
+
   result <- extract(object, type, sample, ...)
-  
+
+  # ci.level opts into a per-observation est + credible band instead of the
+  # posterior mean; the interval kind follows type (see posteriorInterval)
+  if (!is.null(ci.level))
+    return(posteriorInterval(result, ci.level))
+
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
 
@@ -153,6 +188,7 @@ residuals.bart <- function(object, type = "ev", ...) {
 predict.rbart <- function(object, newdata, group.by, offset,
                           type = c("ev", "ppd", "bart", "ranef"),
                           combineChains = TRUE,
+                          ci.level = NULL,
                           ...)
 {
   if (is.null(object$fit))
@@ -213,8 +249,11 @@ predict.rbart <- function(object, newdata, group.by, offset,
     nonParametricPart <- convertSamplesFromDbartsToBart(nonParametricPart, n.chains, combineChains)
   }
   
-  if (type == "bart") return(nonParametricPart)
-  
+  if (type == "bart") {
+    if (!is.null(ci.level)) return(posteriorInterval(nonParametricPart, ci.level))
+    return(nonParametricPart)
+  }
+
   ranef <- 0
   if (type != "bart") {
     ranefNames.test  <- levels(group.by)
@@ -260,7 +299,9 @@ predict.rbart <- function(object, newdata, group.by, offset,
   
   if (type == "ranef") {
     ranef <- if (length(dim(ranef)) > 2L) ranef[,,ranefNames.test,drop = FALSE] else ranef[,ranefNames.test,drop = FALSE]
-    return(combineOrUncombineChains(ranef, n.chains, combineChains))
+    ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
+    if (!is.null(ci.level)) return(posteriorInterval(ranef, ci.level))
+    return(ranef)
   }
   
   ranef <- unname(if (length(dim(ranef)) > 2L) ranef[,,as.character(group.by),drop = FALSE] else ranef[,as.character(group.by),drop = FALSE])
@@ -276,8 +317,10 @@ predict.rbart <- function(object, newdata, group.by, offset,
   if (type == "ppd")
     result <- sampleFromPPD(result, object, NULL)
 
+  if (!is.null(ci.level)) return(posteriorInterval(result, ci.level))
+
   if (exists("unmeasuredRanef", inherits = FALSE)) attr(result, "ranef") <- unmeasuredRanef
-  
+
   result
 }
 
@@ -388,6 +431,7 @@ extract.rbart <- function(object,
 fitted.rbart <- function(object,
                          type = c("ev", "ppd", "bart", "ranef"),
                          sample = c("train", "test"),
+                         ci.level = NULL,
                          ...)
 {
   if (is.character(type)) {
@@ -397,11 +441,16 @@ fitted.rbart <- function(object,
   if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type))
     stop("type must be in '", paste0(eval(formals(fitted.rbart)$type), collapse = "', '"), "'")
   type <- type[1L]
-  
+
   if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.rbart)$sample))
     stop("sample must be in '", paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"), "'")
   sample <- sample[1L]
-  
+
+  # ci.level routes through the draws (extract) rather than the mean-only C
+  # fast path below, then summarizes to est + credible band (kind follows type)
+  if (!is.null(ci.level))
+    return(posteriorInterval(extract(object, type, sample, ...), ci.level))
+
   if (type == "ev") {
     ranefNames <- dimnames(object$ranef)
     ranefNames <- ranefNames[[length(ranefNames)]]
