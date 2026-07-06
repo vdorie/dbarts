@@ -55,7 +55,7 @@ bartFit <- bart(
     nchain = 2,   # number of independent, parallel chains
     nthread = 1,  # units of parallel execution
     ntree = 3,    # number of trees per chain
-    seed = 2,     # chosen to generate a deep tree
+    seed = 56,    # chosen to generate a deep tree
     keeptrees = TRUE,
     verbose = FALSE)
 ```
