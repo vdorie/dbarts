@@ -55,6 +55,7 @@ dbartsControl <- function(
 validateArgumentsInEnvironment <- function(
   envir,
   func,
+  funcName,
   control,
   verbose,
   n.samples,
@@ -74,7 +75,7 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(verbose)) {
     if (!is.logical(verbose) || is.na(verbose)) {
-      stop("'verbose' argument to dbarts must be TRUE/FALSE")
+      stop("'verbose' argument to ", funcName, " must be TRUE/FALSE")
     }
   } else if (!controlIsMissing) {
     envir$verbose <- control@verbose
@@ -82,16 +83,16 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e) {
-      stop("'n.samples' argument to dbarts must be coercible to integer type")
+      stop("'n.samples' argument to ", funcName, " must be coercible to integer type")
     })
     if (length(n.samples) != 1L) {
       stop("'n.samples' must be of length 1")
     }
     if (is.null(n.samples)) {
-      stop("'n.samples' argument to dbarts cannot be NULL")
+      stop("'n.samples' argument to ", funcName, " cannot be NULL")
     }
     if (is.na(n.samples) || n.samples < 0L) {
-      stop("'n.samples' argument to dbarts must be a non-negative integer")
+      stop("'n.samples' argument to ", funcName, " must be a non-negative integer")
     }
     envir$control@n.samples <- n.samples
   } else if (controlIsMissing || is.na(control@n.samples)) {
@@ -100,13 +101,13 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(sigma) && !is.na(sigma)) {
     tryCatch(sigma <- as.double(sigma), warning = function(e) {
-      stop("'sigma' argument to dbarts must be coercible to numeric type")
+      stop("'sigma' argument to ", funcName, " must be coercible to numeric type")
     })
     if (length(sigma) != 1L) {
       stop("'sigma' must be of length 1")
     }
     if (is.null(sigma) || sigma <= 0.0) {
-      stop("'sigma' argument to dbarts must be positive")
+      stop("'sigma' argument to ", funcName, " must be positive")
     }
 
     envir$sigma <- sigma
@@ -144,6 +145,7 @@ dbarts <- function(
   )
   validateCall <- addCallArgument(validateCall, 1L, sys.frame(sys.nframe()))
   validateCall <- addCallArgument(validateCall, 2L, dbarts::dbarts)
+  validateCall <- addCallArgument(validateCall, 3L, "dbarts")
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (length(control@call) == 1L && control@call == call("NA")) {
