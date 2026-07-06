@@ -88,6 +88,29 @@ x2.bad[1L] <- NA
 expect_error(sampler.strict$setPredictor(x2.bad, "x2"),
              pattern = "missing = \"error\"")
 
+# on an incorporate sampler setPredictor may MOVE a column's NA pattern:
+# install a replacement whose missingness carries the response signal, and the
+# refit picks the new pattern up (it was unusable before), fits stay finite,
+# and the installed column carries the moved NAs
+set.seed(11)
+m1.mv <- runif(n) < 0.3            # initial NA pattern, unrelated to the signal
+m2.mv <- runif(n) < 0.3            # moved-in NA pattern, carries the signal
+y.mv <- 3 * m2.mv + x2 + rnorm(n, 0, 0.25)
+x1.mv    <- runif(n); x1.mv[m1.mv]    <- NA_real_
+x1.moved <- runif(n); x1.moved[m2.mv] <- NA_real_
+df.mv <- data.frame(x1 = x1.mv, x2 = x2, y = y.mv)
+control.mv <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L,
+                            updateState = FALSE, rngSeed = 3L)
+sampler.mv <- dbarts(y.mv ~ x1 + x2, df.mv, control = control.mv)
+fits.before <- rowMeans(sampler.mv$run(200L, 200L)$train)
+sampler.mv$setPredictor(x1.moved, "x1")
+run.after <- sampler.mv$run(200L, 200L)
+fits.after <- rowMeans(run.after$train)
+expect_true(mean(fits.before[m2.mv]) - mean(fits.before[!m2.mv]) < 1)
+expect_true(mean(fits.after[m2.mv]) - mean(fits.after[!m2.mv]) > 2)
+expect_true(all(is.finite(run.after$train)))
+expect_equal(which(is.na(sampler.mv$data@x[, "x1"])), which(m2.mv))
+
 # state serialization carries the missing directions: a restored sampler
 # continues bitwise identically
 control.state <- dbartsControl(n.chains = 2L, n.threads = 1L, n.trees = 10L,
@@ -108,4 +131,6 @@ expect_true(!anyNA(xval))
 rm(sampler, sampler.keep, sampler.strict, sampler.state, sampler.restored,
    trees, samples, predictions, xval, df, test.df, df.badY, df.allNA,
    data.mia, x1, x2, g, y, isMissing, codes.x1, roots, fits, control,
-   control.keep, control.state, onMissingColumn, isRule, n)
+   control.keep, control.state, onMissingColumn, isRule, n,
+   sampler.mv, control.mv, df.mv, m1.mv, m2.mv, y.mv, x1.mv, x1.moved,
+   fits.before, fits.after, run.after, x2.bad)
