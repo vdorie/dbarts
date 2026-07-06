@@ -23,7 +23,8 @@ placed by analogy during the rewrite (commit 0a02263 "the way it
 preserves binary"), not by design. Counter-evidence that would change
 the call: family also drives pointer re-creation after save/load and
 setControl preservation - if the migration of those paths turns out to
-touch the state format, keep it and record why. VD signs off.
+touch the state format, keep it and record why. Signed off (VD,
+2026-07-06): move.
 
 ## Constraints
 

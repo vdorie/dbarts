@@ -38,7 +38,8 @@ getTrees currently reports a narrow categorical rule's raw mask in the
 value column (documented). Recommendation: report value = NA +
 directions for ALL categorical rules, unifying with the pooled path -
 one vocabulary, no 53 special case. This is an R-surface change and
-must land pre-release or not at all. VD signs off.
+must land pre-release or not at all. Signed off (VD, 2026-07-06):
+unify.
 
 ## Constraints
 

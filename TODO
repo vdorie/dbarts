@@ -79,8 +79,6 @@ items
     first. RNG-neutral; attacks the DRAM-bound n >= 1e5 regime.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
-  kernel-cleanups: expose the fast serial accumulators without the
-    null-htm indirection; injectable output hook so misc.a is R-free.
   linear-leaf-reuse: score->draw crossproduct reuse (needs a per-node
     stats cache the design deliberately avoids) and within-sweep
     chol(V) reuse; measure before deciding.
