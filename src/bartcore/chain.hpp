@@ -545,9 +545,8 @@ public:
   /// Sum of squared working residuals, descaled to the original response
   /// scale (binary families report on the latent scale).
   double sumOfSquaredResiduals() {
-    double result = misc_htm_computeSumOfSquaredResiduals(
-      nullptr, 0, response_->workingResponse(), data_.numObservations,
-      totalFits_.data());
+    double result = misc_computeSumOfSquaredResiduals(
+      response_->workingResponse(), data_.numObservations, totalFits_.data());
     return result * response_->sigmaScale() * response_->sigmaScale();
   }
 

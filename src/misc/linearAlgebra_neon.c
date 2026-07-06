@@ -5,8 +5,6 @@
 
 #include <misc/intrinsic.h>
 
-#include <external/io.h>
-
 void misc_addVectors_neon(const double* restrict x, size_t length, const double* restrict y, double* restrict z)
 {
   if (length == 0) return;

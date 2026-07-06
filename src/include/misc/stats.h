@@ -25,6 +25,18 @@ double misc_computeIndexedWeightedVarianceForKnownMean(const double* restrict x,
 double misc_computeSumOfSquaredResiduals(const double* restrict x, misc_size_t length, const double* restrict x_hat);
 double misc_computeWeightedSumOfSquaredResiduals(const double* restrict x, misc_size_t length, const double* restrict w, const double* restrict x_hat);
 
+// serial fast paths: the unrolled accumulators the misc_htm_* entry points
+// run when given no (or a single-threaded) manager, minus the indirection
+double misc_computeMeanFast(const double* x, misc_size_t length);
+double misc_computeIndexedMeanFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length);
+double misc_computeWeightedMeanFast(const double* restrict x, misc_size_t length, const double* restrict w, double* restrict n);
+double misc_computeIndexedWeightedMeanFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict n);
+
+double misc_computeVarianceForKnownMeanFast(const double* x, misc_size_t length, double mean);
+double misc_computeIndexedVarianceForKnownMeanFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double mean);
+double misc_computeWeightedVarianceForKnownMeanFast(const double* restrict x, misc_size_t length, const double* restrict w, double mean);
+double misc_computeIndexedWeightedVarianceForKnownMeanFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double mean);
+
 // multithreaded functions below
 
 double misc_mt_computeMean               (misc_mt_manager_t restrict tm, const double* restrict x, misc_size_t length);

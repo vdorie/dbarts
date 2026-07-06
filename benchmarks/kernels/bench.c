@@ -12,25 +12,12 @@
 #include <stdint.h>
 #include <time.h>
 
-#include <stdarg.h>
-
 #include <misc/stddef.h>
 #include <misc/types.h>
 #include <misc/simd.h>
 #include <misc/partition.h>
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
-
-// misc.a's thread manager prints through the R runtime; stub it out here.
-void Rprintf(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  vprintf(format, args);
-  va_end(args);
-}
-void R_FlushConsole(void) {
-  fflush(stdout);
-}
 
 static const size_t sizes[] = { 1024, 16384, 262144 };
 #define NUM_SIZES (sizeof(sizes) / sizeof(sizes[0]))

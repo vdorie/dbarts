@@ -460,30 +460,25 @@ public:
 
   /// Leaf sufficient statistics. The root intentionally uses the non-indexed
   /// kernels like the reference engine (identical values, cheaper access).
-  /// The htm entry points with a null manager run the fast serial unrolled
-  /// accumulators; the plain misc_compute* versions use a slower online
-  /// algorithm.
   void computeLeafStats(int32_t nodeIndex, const double* y, const double* weights) {
     Node& node(at(nodeIndex));
     bool isRoot = node.parent == invalidNode;
     if (isRoot) {
       if (weights == nullptr) {
-        node.average = misc_htm_computeMean(nullptr, 0, y, node.numObservations());
+        node.average = misc_computeMeanFast(y, node.numObservations());
         node.numEffectiveObservations = static_cast<double>(node.numObservations());
       } else {
-        node.average = misc_htm_computeWeightedMean(
-          nullptr, 0, y, node.numObservations(), weights,
-          &node.numEffectiveObservations);
+        node.average = misc_computeWeightedMeanFast(
+          y, node.numObservations(), weights, &node.numEffectiveObservations);
       }
     } else {
       if (weights == nullptr) {
-        node.average = misc_htm_computeIndexedMean(nullptr, 0, y,
-                                                   indices + node.begin,
+        node.average = misc_computeIndexedMeanFast(y, indices + node.begin,
                                                    node.numObservations());
         node.numEffectiveObservations = static_cast<double>(node.numObservations());
       } else {
-        node.average = misc_htm_computeIndexedWeightedMean(
-          nullptr, 0, y, indices + node.begin, node.numObservations(), weights,
+        node.average = misc_computeIndexedWeightedMeanFast(
+          y, indices + node.begin, node.numObservations(), weights,
           &node.numEffectiveObservations);
       }
     }
@@ -495,18 +490,17 @@ public:
     bool isRoot = node.parent == invalidNode;
     if (isRoot) {
       return weights == nullptr
-        ? misc_htm_computeVarianceForKnownMean(nullptr, 0, y,
-                                               node.numObservations(), node.average)
-        : misc_htm_computeWeightedVarianceForKnownMean(
-            nullptr, 0, y, node.numObservations(), weights, node.average);
+        ? misc_computeVarianceForKnownMeanFast(y, node.numObservations(),
+                                               node.average)
+        : misc_computeWeightedVarianceForKnownMeanFast(
+            y, node.numObservations(), weights, node.average);
     }
     return weights == nullptr
-      ? misc_htm_computeIndexedVarianceForKnownMean(nullptr, 0, y,
-                                                    indices + node.begin,
+      ? misc_computeIndexedVarianceForKnownMeanFast(y, indices + node.begin,
                                                     node.numObservations(),
                                                     node.average)
-      : misc_htm_computeIndexedWeightedVarianceForKnownMean(
-          nullptr, 0, y, indices + node.begin, node.numObservations(), weights,
+      : misc_computeIndexedWeightedVarianceForKnownMeanFast(
+          y, indices + node.begin, node.numObservations(), weights,
           node.average);
   }
 

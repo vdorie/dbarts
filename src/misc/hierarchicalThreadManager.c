@@ -5,9 +5,10 @@
 
 #include <errno.h>
 #include <stdarg.h> // varargs for buffered printf
+#include <stdio.h>  // vsnprintf
 #include <stdlib.h> // malloc
 
-#include <external/io.h>
+#include <misc/io.h>
 
 // clock_gettime + CLOCK_REALTIME are in time.h, gettimeofday is in sys/time.h; plain time() is in time.h too
 // time.h imported from <misc/thread.h>
@@ -233,8 +234,8 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
       int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
       if (waitStatus == ETIMEDOUT) {
         if (manager->bufferPos != 0) {
-          ext_printf("%s", manager->buffer);
-          ext_fflush_stdout();
+          misc_printf("%s", manager->buffer);
+          misc_flushOutput();
           manager->bufferPos = 0;
         }
         
@@ -269,8 +270,8 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
     int waitStatus = waitOnConditionForTime(manager->taskDone, manager->mutex, wakeTime);
     if (waitStatus == ETIMEDOUT) {
       if (manager->bufferPos != 0) {
-        ext_printf("%s", manager->buffer);
-        ext_fflush_stdout();
+        misc_printf("%s", manager->buffer);
+        misc_flushOutput();
         manager->bufferPos = 0;
       }
       
@@ -291,8 +292,8 @@ int misc_htm_runTopLevelTasksWithOutput(misc_htm_manager_t restrict manager, mis
   manager->numTopLevelTasks = 0;
   
   if (manager->bufferPos != 0) {
-    ext_printf("%s", manager->buffer);
-    ext_fflush_stdout();
+    misc_printf("%s", manager->buffer);
+    misc_flushOutput();
     manager->bufferPos = 0;
   }
   
@@ -786,7 +787,7 @@ void misc_htm_printf(misc_htm_manager_t manager, const char* format, ...)
     vsnprintf(buffer, BUFFER_LENGTH, format, argsPointer);
     va_end(argsPointer);
     
-    ext_printf("%s", buffer);
+    misc_printf("%s", buffer);
     
     return;
   }
@@ -804,15 +805,15 @@ void misc_htm_printf(misc_htm_manager_t manager, const char* format, ...)
 // debug functions...
 static void printThreadStack(ThreadStack* stack) {
   if (stack->first == NULL) {
-    ext_printf("empty");
+    misc_printf("empty");
     return;
   }
   
-  ext_printf("%zu", stack->first->threadId);
+  misc_printf("%zu", stack->first->threadId);
   
   ThreadData* thread = stack->first->next;
   while (thread != NULL) {
-    ext_printf(", %zu", thread->threadId);
+    misc_printf(", %zu", thread->threadId);
     thread = thread->next;
   }
 }
@@ -820,40 +821,40 @@ static void printThreadStack(ThreadStack* stack) {
 static void printManagerStatus(const misc_htm_manager_t manager)
 {
   if (manager->numTopLevelTasks == 0) {
-    ext_printf("status: inactive\n");
-    ext_printf("  avail pool: ");
+    misc_printf("status: inactive\n");
+    misc_printf("  avail pool: ");
     printThreadStack(&manager->availableThreadStack);
-    ext_printf("\n\n");
+    misc_printf("\n\n");
   } else {
-    ext_printf("status: running %zu tasks, %zu in progress\n", manager->numTopLevelTasks, manager->numTopLevelTasksInProgress);
+    misc_printf("status: running %zu tasks, %zu in progress\n", manager->numTopLevelTasks, manager->numTopLevelTasksInProgress);
     for (size_t i = 0; i < manager->numTopLevelTasks; ++i) {
       TopLevelTaskStatus* taskStatus = &manager->topLevelTaskStatus[i];
       
-      ext_printf("  task %zu: ", i);
+      misc_printf("  task %zu: ", i);
       printTaskProgress(taskStatus);
-      ext_printf(" progress, %zu subtasks, threads ", taskStatus->numSubTaskPiecesInProgress);
+      misc_printf(" progress, %zu subtasks, threads ", taskStatus->numSubTaskPiecesInProgress);
       
-      if (taskStatus->thread == NULL) ext_printf("none");
-      else ext_printf("%zu", taskStatus->thread->threadId);
+      if (taskStatus->thread == NULL) misc_printf("none");
+      else misc_printf("%zu", taskStatus->thread->threadId);
       
       ThreadData* thread = taskStatus->threadStack.first;
       while (thread != NULL) {
-        ext_printf(" %zu", thread->threadId);
+        misc_printf(" %zu", thread->threadId);
         thread = thread->next;
       }
-      ext_printf("\n");
+      misc_printf("\n");
     }
     
-    ext_printf("  avail pool: ");
+    misc_printf("  avail pool: ");
     printThreadStack(&manager->availableThreadStack);
-    ext_printf("\n\n");
+    misc_printf("\n\n");
   }
 }
 
 static void printTaskProgress(TopLevelTaskStatus* status)
 {
-  if (status->progress == TASK_COMPLETE) ext_printf("complete");
-  else if (status->progress == TASK_BEFORE_START) ext_printf("before start");
-  else ext_printf("%zu", status->progress);
+  if (status->progress == TASK_COMPLETE) misc_printf("complete");
+  else if (status->progress == TASK_BEFORE_START) misc_printf("before start");
+  else misc_printf("%zu", status->progress);
 }
 

@@ -49,7 +49,7 @@
 
 #include <misc/intrinsic.h>
 
-#include <external/io.h>
+#include <misc/io.h>
 
 #if (defined(__clang__) && (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 7))) || \
     (defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)))
@@ -1105,27 +1105,27 @@ static void copyNodeHeader(Node* restrict dest, const Node* restrict src) {
 static void printAtDepth(const Node* n, size_t depth)
 {
   if (n == NULL) {
-    ext_printf("NULL\n");
+    misc_printf("NULL\n");
     return;
   }
   
   if (nodeIsLeaf(n)) {
     Leaf* const l = (Leaf* const) getRawLeafPointer(n);
-    ext_printf("leaf: ");
-    for (size_t i = 0; i < l->keyLength; ++i) ext_printf("%c", l->key[i]);
-    ext_printf("\n");
+    misc_printf("leaf: ");
+    for (size_t i = 0; i < l->keyLength; ++i) misc_printf("%c", l->key[i]);
+    misc_printf("\n");
     return;
   }
   
   static const char* const sizeNames[] = { "4", "16", "48", "256" };
   
-  ext_printf("node %s", sizeNames[n->type]);
+  misc_printf("node %s", sizeNames[n->type]);
   if (n->prefixLength > 0) {
-    ext_printf(", partial: '");
-    for (size_t i = 0; i < n->prefixLength; ++i) ext_printf("%c", n->partial[i]);
-    ext_printf("'");
+    misc_printf(", partial: '");
+    for (size_t i = 0; i < n->prefixLength; ++i) misc_printf("%c", n->partial[i]);
+    misc_printf("'");
   }
-  ext_printf(", keys: '");
+  misc_printf(", keys: '");
   
 #if defined(SUPPRESS_DIAGNOSTIC) && defined(__GNUC__) && !defined(__clang__) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
 #  pragma GCC diagnostic push
@@ -1142,37 +1142,37 @@ static void printAtDepth(const Node* n, size_t depth)
     case NODE4:
     p.p1 = (const Node4*) n;
     for (uint8_t i = 0; i < n->numChildren; ++i)
-      if (p.p1->keys[i] != 0) ext_printf("%c", p.p1->keys[i]);
+      if (p.p1->keys[i] != 0) misc_printf("%c", p.p1->keys[i]);
     break;
     
     case NODE16:
     p.p2 = (const Node16*) n;
     for (uint8_t i = 0; i < n->numChildren; ++i)
-      if (p.p2->keys[i] != 0) ext_printf("%c", p.p2->keys[i]);
+      if (p.p2->keys[i] != 0) misc_printf("%c", p.p2->keys[i]);
     break;
     
     case NODE48:
     p.p3 = (const Node48*) n;
     for (uint8_t i = 0; i <= 254; ++i)
-      if (p.p3->keys[i] != 0) ext_printf("%c", i);
-    if (p.p3->keys[255] != 0) ext_printf("%c", 255);
+      if (p.p3->keys[i] != 0) misc_printf("%c", i);
+    if (p.p3->keys[255] != 0) misc_printf("%c", 255);
     break;
     
     case NODE256:
     p.p4 = (const Node256*) n;
     for (uint8_t i = 0; i <= 254; ++i)
-      if (p.p4->children[i] != NULL) ext_printf("%c", i);
-    if (p.p4->children[255] != 0) ext_printf("%c", 255);
+      if (p.p4->children[i] != NULL) misc_printf("%c", i);
+    if (p.p4->children[255] != 0) misc_printf("%c", 255);
     break;
   }
-  ext_printf("'\n");
+  misc_printf("'\n");
   
   switch (n->type) {
     case NODE4:
     for (uint8_t i = 0; i < n->numChildren; ++i) {
       if (p.p1->keys[i] != 0) {
-        for (size_t i = 0; i < depth + 1; ++i) ext_printf("  ");
-        ext_printf("%c: ", p.p1->keys[i]);
+        for (size_t i = 0; i < depth + 1; ++i) misc_printf("  ");
+        misc_printf("%c: ", p.p1->keys[i]);
         printAtDepth(p.p1->children[i], depth + 1);
       }
     }
@@ -1181,8 +1181,8 @@ static void printAtDepth(const Node* n, size_t depth)
     case NODE16:
     for (uint8_t i = 0; i < n->numChildren; ++i) {
       if (p.p2->keys[i] != 0) {
-        for (size_t i = 0; i < depth + 1; ++i) ext_printf("  ");
-        ext_printf("%c: ", p.p2->keys[i]);
+        for (size_t i = 0; i < depth + 1; ++i) misc_printf("  ");
+        misc_printf("%c: ", p.p2->keys[i]);
         printAtDepth(p.p2->children[i], depth + 1);
       }
     }
@@ -1191,14 +1191,14 @@ static void printAtDepth(const Node* n, size_t depth)
     case NODE48:
     for (uint8_t i = 0; i <= 254; ++i) {
       if (p.p3->keys[i] != 0) {
-        for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
-        ext_printf("%c: ", i);
+        for (size_t j = 0; j < depth + 1; ++j) misc_printf("  ");
+        misc_printf("%c: ", i);
         printAtDepth(p.p3->children[p.p3->keys[i] - 1], depth + 1);
       }
     }
     if (p.p3->keys[255] != 0) {
-      for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
-      ext_printf("%c: ", 255);
+      for (size_t j = 0; j < depth + 1; ++j) misc_printf("  ");
+      misc_printf("%c: ", 255);
       printAtDepth(p.p3->children[p.p3->keys[255] - 1], depth + 1);
     }
     break;
@@ -1206,14 +1206,14 @@ static void printAtDepth(const Node* n, size_t depth)
     case NODE256:
     for (uint8_t i = 0; i <= 254; ++i) {
       if (p.p4->children[i] != NULL) {
-        for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
-        ext_printf("%c: ", i);
+        for (size_t j = 0; j < depth + 1; ++j) misc_printf("  ");
+        misc_printf("%c: ", i);
         printAtDepth(p.p4->children[i], depth + 1);
       }
     }
     if (p.p4->children[255] != NULL) {
-      for (size_t j = 0; j < depth + 1; ++j) ext_printf("  ");
-      ext_printf("%c: ", 255);
+      for (size_t j = 0; j < depth + 1; ++j) misc_printf("  ");
+      misc_printf("%c: ", 255);
       printAtDepth(p.p4->children[255], depth + 1);
     }
     break;
