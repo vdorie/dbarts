@@ -11,7 +11,7 @@ dbarts(
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-    control = dbarts::dbartsControl(), sigma = NA_real_,
+    control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"))}
@@ -57,6 +57,9 @@ dbarts(
   }
   \item{control}{
     An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.} \item{sigma}{A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one.
+  }
+  \item{seed}{
+    Optional integer seed for the random number generator, a convenience mirror of \code{dbartsControl(rngSeed = )}. When not \code{NA} it overrides the seed in \code{control}; the fitting-function wrappers (\code{\link{bart2}}, \code{\link{xbart}}) accept the same argument.
   }
   \item{factors}{
     How factor columns in a data frame enter the model. The default \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels (at most 65535) down each branch, and codes ordered factors as ordinal; level tables are retained so that test data are coded identically. \code{"indicators"} expands each factor into binary indicator columns, as previous versions always did and as \code{\link{bart}} still does.

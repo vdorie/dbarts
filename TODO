@@ -72,8 +72,9 @@ api surface
     across the warm-cell setModel path (chain.hpp skips the split-prob
     install when useDart), and the default uniform cgm is bit-identical, so
     the reproducibility snapshots are unchanged.
-  dbarts() has no seed argument; every convenience wrapper grew one
-    and the base factory requires dbartsControl(rngSeed = ).
+  dbarts() has no seed argument: DONE. dbarts() now takes seed, a
+    convenience mirror of dbartsControl(rngSeed = ) as bart2/xbart expose;
+    an explicit seed overrides the control's, NA leaves it untouched.
   no summary() method or credible-interval API; intervals are computed
     inline in plot.* and discarded. residuals.bart/.rbart hardcode
     fitted type "ev" - no link-scale residuals through the generic.
