@@ -295,7 +295,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000363
+#> total seconds in loop: 0.000386
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
@@ -308,7 +308,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001882
+#> total seconds in loop: 0.001902
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 3 2 3 2 5 2 1 2 4 3 4 4 
@@ -353,7 +353,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000434
+#> total seconds in loop: 0.000461
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 3 3 3 2 2 3 2 2 2 1 2 4 
@@ -366,7 +366,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002251
+#> total seconds in loop: 0.002287
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 1 4 3 4 2 2 3 2 2 2 2 2 2 4 3 1 
