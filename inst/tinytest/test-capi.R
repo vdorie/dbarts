@@ -102,6 +102,48 @@ expect_equal(CALL("capi_dims", ptr2)[3L], 0L)
 CALL("capi_set_test_predictors", ptr2, x.test)
 expect_equal(CALL("capi_dims", ptr2)[3L], 20L)
 
+# the remaining conditioning hooks: a replacement response moves the fits,
+# gaussian weights install, and leaf parameters redraw from the prior
+yShifted <- y + 10
+CALL("capi_set_response", ptr2, yShifted)
+rShifted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
+expect_true(abs(mean(rShifted$train) - mean(yShifted)) < 3)
+CALL("capi_set_response", ptr2, y)
+
+# the sampler borrows what it is handed, so the vector must stay live
+weights <- rep(c(0.5, 1.5), length.out = n)
+CALL("capi_set_weights", ptr2, weights)
+rWeighted <- CALL("capi_run", ptr2, 10L, 3L, TRUE, FALSE)
+expect_true(all(is.finite(rWeighted$train)))
+
+CALL("capi_sample_node_parameters_from_prior", ptr2)
+rPriorParams <- CALL("capi_run", ptr2, 0L, 2L, TRUE, FALSE)
+expect_true(all(is.finite(rPriorParams$train)))
+
+# thinning, thread, and verbosity controls apply to subsequent runs
+CALL("capi_set_run_controls", ptr2, 1L, 2L, FALSE)
+rThinned <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
+expect_equal(length(rThinned$sigma), 2L)
+CALL("capi_set_run_controls", ptr2, 1L, 1L, FALSE)
+
+# a live-tree dump goes through the R console without touching state
+printed <- capture.output(CALL("capi_print_trees", ptr2))
+expect_true(is.character(printed))
+
+# a test offset adds to the recorded test fits without entering the trees:
+# saved-tree replays bit-match the recorded fits (asserted above), so with
+# an offset installed the two must differ by exactly the offset
+ptrC <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_set_tree_storage", ptrC, TRUE, 2L)
+testOffset <- rep(1.5, 20L) # borrowed: must outlive the run below
+CALL("capi_set_test_offset", ptrC, testOffset)
+rOffsetTest <- CALL("capi_run", ptrC, 3L, 2L, FALSE, TRUE)
+predNoOffset <- CALL("capi_predict", ptrC, x.test, NULL)
+expect_equal(as.double(rOffsetTest$test), predNoOffset + 1.5)
+CALL("capi_set_test_offset", ptrC, NULL)
+rm(ptrC, testOffset, weights)
+invisible(gc(FALSE))
+
 # latents: absent for gaussian, sign-locked to the response for probit
 expect_null(CALL("capi_get_latents", ptr1))
 
