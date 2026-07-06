@@ -1,9 +1,11 @@
 generateAlmostLinearBinaryData <- function() {
   f <- function(x) {
+    # nolint next: object_usage_linter. res is the implicit return value.
     res <- 0.5 * x[, 1] - 0.3 * x[, 2] + 0.3 * x[, 3]^2 - 0.1 * x[, 1] * x[, 2]
   }
 
   set.seed(99)
+  # nolint next: object_usage_linter. records the noise scale for this fixture.
   sigma <- 1.0
   n <- 200
 

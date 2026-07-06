@@ -262,7 +262,7 @@ packageBartResults <- function(
     )
   }
 
-  class(result) <- 'bart'
+  class(result) <- "bart"
   invisible(result)
 }
 
@@ -671,6 +671,6 @@ bart <- function(
 }
 
 makeind <- function(x, all = TRUE) {
-  ignored <- all ## for R check
+  ignored <- all ## for R check # nolint: object_usage_linter.
   makeModelMatrixFromDataFrame(x, TRUE)
 }

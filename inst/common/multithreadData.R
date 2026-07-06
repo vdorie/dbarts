@@ -6,7 +6,7 @@ generateMultithreadData <- function() {
   x <- matrix(rnorm(n), n, 1)
   y <- sin(x) + rnorm(n)
 
-  return(list(y = y, x = x))
+  list(y = y, x = x)
 }
 testData <- generateMultithreadData()
 rm(generateMultithreadData)

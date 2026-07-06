@@ -443,7 +443,7 @@ dbartsSampler <- setRefClass(
       dupe
     },
     show = function() {
-      'Pretty prints the object.'
+      "Pretty prints the object."
 
       cat("dbarts sampler\n")
       cat("  call: ")
@@ -453,7 +453,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
-      'Using existing sampler to predict for new data without re-running.'
+      "Using existing sampler to predict for new data without re-running."
       ptr <- getPointer()
 
       x.test <- validateXTest(x.test, data@x)
@@ -484,7 +484,7 @@ dbartsSampler <- setRefClass(
       .Call(C_dbarts_bartcore_predict, ptr, x.test, offset.test)
     },
     setControl = function(newControl) {
-      'Sets the control object for the sampler to a new one. Preserves the call() slot.'
+      "Sets the control object for the sampler to a new one. Preserves the call() slot."
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -522,7 +522,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setModel = function(newModel) {
-      'Sets the model object for the sampler to a new one.'
+      "Sets the model object for the sampler to a new one."
       if (!inherits(newModel, "dbartsModel")) {
         stop("'model' must inherit from dbartsModel")
       }
@@ -560,7 +560,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setData = function(newData, updateState = NA) {
-      'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
+      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots."
       if (
         data@missing == "error" &&
           (anyNA(newData@x) ||
@@ -573,15 +573,15 @@ dbartsSampler <- setRefClass(
       bartcoreSamplerSetData(.self, newData)
     },
     setResponse = function(y, updateState = NA) {
-      'Changes the response against which the sampler is fitted.'
+      "Changes the response against which the sampler is fitted."
       bartcoreSamplerSetResponse(.self, y)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
-      'Changes the offset slot used to adjust the response.'
+      "Changes the offset slot used to adjust the response."
       bartcoreSamplerSetOffset(.self, offset, updateScale)
     },
     setWeights = function(weights, updateState = NA) {
-      'Changes the weights with which the sampler is fitted.'
+      "Changes the weights with which the sampler is fitted."
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -601,7 +601,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setSigma = function(sigma, updateState = NA) {
-      'Changes the residual standard deviation parameter for each chain.'
+      "Changes the residual standard deviation parameter for each chain."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_setSigma, ptr, as.double(sigma))
       invisible(NULL)
@@ -629,7 +629,7 @@ dbartsSampler <- setRefClass(
       )
     },
     setCutPoints = function(cuts, column, updateState = NA) {
-      'Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty.'
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty."
 
       bartcoreSamplerSetCutPoints(
         .self,
@@ -638,7 +638,7 @@ dbartsSampler <- setRefClass(
       )
     },
     setTestPredictor = function(x.test, column) {
-      'Changes a single column of the test predictor matrix.'
+      "Changes a single column of the test predictor matrix."
 
       if (data@missing == "error" && anyNA(x.test)) {
         stop(
@@ -652,7 +652,7 @@ dbartsSampler <- setRefClass(
       )
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
-      'Changes the test predictor matrix, and optionally the test offset.'
+      "Changes the test predictor matrix, and optionally the test offset."
       if (data@missing == "error" && !is.null(x.test) && anyNA(x.test)) {
         stop(
           "new test predictors contain missing values and the sampler was built with missing = \"error\""
@@ -708,7 +708,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setTestOffset = function(offset.test) {
-      'Changes the test offset.'
+      "Changes the test offset."
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -742,7 +742,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     getLatents = function(result) {
-      'For binary models, returns the current value of the latent variable representation.'
+      "For binary models, returns the current value of the latent variable representation."
       resultIsMissing <- missing(result)
 
       ptr <- getPointer()
@@ -754,18 +754,18 @@ dbartsSampler <- setRefClass(
       )
     },
     getSigmas = function(result) {
-      'Return current residual error term on original, standard deviation scale.'
+      "Return current residual error term on original, standard deviation scale."
 
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSigmas, ptr)
     },
     getSumsOfSquaredResiduals = function(result) {
-      'Return sum( (y - y.hat)^2 ) on original scale.'
+      "Return sum( (y - y.hat)^2 ) on original scale."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_getSumsOfSquaredResiduals, ptr)
     },
     getPointer = function() {
-      'Returns the underlying reference pointer, checking for consistency first.'
+      "Returns the underlying reference pointer, checking for consistency first."
       selfEnv <- parent.env(environment())
 
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
@@ -788,7 +788,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState) {
-      'Sets the internal state from a cache.'
+      "Sets the internal state from a cache."
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
       }
@@ -807,13 +807,13 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     storeState = function(ptr = getPointer()) {
-      'Updates the cached internal state used for saving/loading.'
+      "Updates the cached internal state used for saving/loading."
       selfEnv <- parent.env(environment())
       selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
       invisible(NULL)
     },
     printTrees = function(treeNums, chainNums, sampleNums) {
-      'Produces an info dump of the internal state of the trees.'
+      "Produces an info dump of the internal state of the trees."
       matchedCall <- match.call()
       if (is.null(matchedCall$chainNums)) {
         chainNums <- seq_len(control@n.chains)
@@ -947,7 +947,7 @@ dbartsSampler <- setRefClass(
       treePlotPars = c(nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
       ...
     ) {
-      'Minimialist visualization of tree branching and contents.'
+      "Minimialist visualization of tree branching and contents."
 
       matchedCall <- match.call()
       if (is.null(matchedCall$chainNum)) {

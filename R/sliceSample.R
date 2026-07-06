@@ -192,7 +192,7 @@ sliceSample <- function(
       }
     }
 
-    return(c(x.l, x.r))
+    c(x.l, x.r)
   }
   shrinkInterval <- function(x, x.p, int) {
     if (x.p > x) {
@@ -200,7 +200,7 @@ sliceSample <- function(
     } else {
       int[1L] <- x.p
     }
-    return(int)
+    int
   }
 
   f <- target

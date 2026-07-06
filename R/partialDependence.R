@@ -208,7 +208,7 @@ pdbart <- function(
   sampler$stopThreads()
 
   if (is.null(colnames(sampler$data@x))) {
-    xLabels <- paste0('x', xind)
+    xLabels <- paste0("x", xind)
   } else {
     xLabels <- colnames(sampler$data@x)[xind]
   }
@@ -238,7 +238,7 @@ pdbart <- function(
       fit = sampler
     )
   }
-  class(result) <- 'pdbart'
+  class(result) <- "pdbart"
 
   if (pl) {
     plot(result, plquants = plquants)
@@ -353,7 +353,7 @@ pd2bart <- function(
         }
     }
   }
-  numLevels <- sapply(levs, length)
+  numLevels <- sapply(levs, length) # nolint: object_usage_linter.
   numSamples <- sampler$control@n.samples * sampler$control@n.chains
 
   xValues <- as.matrix(expand.grid(levs[[1L]], levs[[2L]]))
@@ -439,7 +439,7 @@ pd2bart <- function(
   sampler$stopThreads()
 
   if (is.null(colnames(sampler$data@x))) {
-    xLabels <- paste0('x', xind)
+    xLabels <- paste0("x", xind)
   } else {
     xLabels <- colnames(sampler$data@x)[xind]
   }
@@ -469,7 +469,7 @@ pd2bart <- function(
       fit = sampler
     )
   }
-  class(result) <- 'pd2bart'
+  class(result) <- "pd2bart"
 
   if (pl) {
     plot(result, plquants = plquants)

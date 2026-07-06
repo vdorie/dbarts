@@ -1,7 +1,30 @@
 linters: linters_with_defaults(
-    line_length_linter(80L),
-    object_name_linter(styles = c("camelCase", "dotted.case", "symbols")),
-    commented_code_linter = NULL,
-    cyclocomp_linter = NULL
+    # Layout is owned by the air formatter (air.toml, line-width = 80). These
+    # linters are disabled where they contradict air's output rather than
+    # fighting the formatter: line width (air breaks what it can; the remaining
+    # long lines are unbreakable strings and comments), commas (air keeps
+    # `x[,, i]` without a space after an empty subscript), and continuation-line
+    # indentation.
+    line_length_linter = NULL,
+    commas_linter = NULL,
+    indentation_linter = NULL,
+    # Allowed name styles. The base three (camelCase, dotted.case, symbols)
+    # plus snake_case (exported names like rbart_vi) and UPPERCASE (matrix and
+    # constant names like X, A, ORDINAL_VARIABLE). The mixedDottedCase regex
+    # admits the test-suite convention of a camelCase or snake_case head with
+    # dotted suffixes (e.g. bcSampler.binary, x.jointA, testData_df, df.allNA).
+    object_name_linter(
+      styles = c("camelCase", "dotted.case", "symbols", "snake_case", "UPPERCASE"),
+      regexes = c(
+        mixedDottedCase = "^[.]?[[:alpha:]][[:alnum:]_]*([.][[:alnum:]_]+)*$"
+      )
+    ),
+    # Several internal helper names are longer than the 30-char default and
+    # cannot be renamed (e.g. bartcoreUpdatePredictorPerObservationJointly, 44).
+    object_length_linter(length = 45L),
+    commented_code_linter = NULL
   )
 encoding: "UTF-8"
+# Vignette code chunks are formatted for prose exposition, not lint compliance
+# (indentation, line width, combined naming); exclude them from the package lint.
+exclusions: list("vignettes")

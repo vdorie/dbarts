@@ -1,7 +1,7 @@
 plot.bart <- function(
   x,
   plquants = c(0.05, 0.95),
-  cols = c('blue', 'black'),
+  cols = c("blue", "black"),
   ...
 ) {
   if ("sigma" %in% names(x)) {
@@ -46,7 +46,7 @@ plot.bart <- function(
     }
   }
 
-  if ('sigma' %in% names(x)) {
+  if ("sigma" %in% names(x)) {
     ql <- apply(
       x$yhat.train,
       length(dim(x$yhat.train)),
@@ -64,10 +64,11 @@ plot.bart <- function(
       x$y,
       qm,
       ylim = range(ql, qu),
-      xlab = 'y',
-      ylab = 'posterior interval for E(Y|x)',
+      xlab = "y",
+      ylab = "posterior interval for E(Y|x)",
       ...
     )
+    # nolint next: seq_linter. 1:length preserves the (empty qm) edge behavior.
     for (i in 1:length(qm)) {
       lines(rep(x$y[i], 2), c(ql[i], qu[i]), col = cols[1])
     }
@@ -81,10 +82,11 @@ plot.bart <- function(
       qm,
       qm,
       ylim = range(ql, qu),
-      xlab = 'meadian of p',
-      ylab = 'posterior interval for P(Y=1|x)',
+      xlab = "meadian of p",
+      ylab = "posterior interval for P(Y=1|x)",
       ...
     )
+    # nolint next: seq_linter. 1:length preserves the (empty qm) edge behavior.
     for (i in 1:length(qm)) {
       lines(rep(qm[i], 2), c(ql[i], qu[i]), col = cols[1])
     }
@@ -95,7 +97,7 @@ plot.bart <- function(
 plot.rbart <- function(
   x,
   plquants = c(0.05, 0.95),
-  cols = c('blue', 'black'),
+  cols = c("blue", "black"),
   ...
 ) {
   if ("sigma" %in% names(x)) {
@@ -198,9 +200,9 @@ plot.rbart <- function(
 
 plot.pdbart <- function(
   x,
-  xind = seq_len(length(x$fd)),
+  xind = seq_along(x$fd),
   plquants = c(0.05, 0.95),
-  cols = c('black', 'blue'),
+  cols = c("black", "blue"),
   ...
 ) {
   rgy <- range(x$fd)
@@ -214,14 +216,14 @@ plot.pdbart <- function(
     plot(
       range(x$levs[[i]]),
       rgy,
-      type = 'n',
+      type = "n",
       xlab = x$xlbs[i],
-      ylab = 'partial-dependence',
+      ylab = "partial-dependence",
       ...
     )
-    lines(x$levs[[i]], tsum[2, ], col = cols[1], type = 'b')
-    lines(x$levs[[i]], tsum[1, ], col = cols[2], type = 'b')
-    lines(x$levs[[i]], tsum[3, ], col = cols[2], type = 'b')
+    lines(x$levs[[i]], tsum[2, ], col = cols[1], type = "b")
+    lines(x$levs[[i]], tsum[1, ], col = cols[2], type = "b")
+    lines(x$levs[[i]], tsum[3, ], col = cols[2], type = "b")
   }
 }
 
@@ -235,12 +237,12 @@ if (FALSE) {
 plot.pd2bart <- function(
   x,
   plquants = c(0.05, 0.95),
-  contour.color = 'white',
+  contour.color = "white",
   justmedian = TRUE,
   ...
 ) {
   pdquants <- apply(x$fd, 2, quantile, probs = c(plquants[1], .5, plquants[2]))
-  qq <- vector('list', 3)
+  qq <- vector("list", 3)
   for (i in 1:3) {
     qq[[i]] <- matrix(pdquants[i, ], nrow = length(x$levs[[1]]))
   }
@@ -269,9 +271,9 @@ plot.pd2bart <- function(
       zlim = zlim,
       ,
       add = TRUE,
-      method = 'edge',
+      method = "edge",
       col = contour.color
     )
-    title(main = c('Lower quantile', 'Median', 'Upper quantile')[i])
+    title(main = c("Lower quantile", "Median", "Upper quantile")[i])
   }
 }
