@@ -36,19 +36,18 @@ release
     Suggests-level packages were not individually checked.
     cran-comments.md is DRAFTED with all of this; refresh the results
     and check environments at submission time.
-  DISCOVERED during the coverage work (needs Vincent's decision):
-    single-chain samplers ride R's native stream even when rngSeed is
-    set (createChainRngs numChains == 1 -> ext_rng_createDefault(true),
-    a USER_UNIFORM wrapper), so (a) seeding a single-chain sampler
-    reseeds R's global stream, contradicting the NEWS/docs claim that
-    rngSeed works "without touching R's stream", and (b) a USER_UNIFORM
-    generator cannot serialize (length 0), so single-chain states carry
-    no rng and setState continuation is NOT bitwise for them (the
-    multi-chain dedicated-generator path is unaffected). Options: fix
-    the docs to scope the claims to n.chains > 1, or give seeded
-    single-chain samplers a dedicated Mersenne generator - the latter
-    is more consistent but shifts every seeded single-chain draw, which
-    would trigger a snapshot-regeneration wave in the test suite.
+  single-chain rng finding: RESOLVED (2026-07-06, Vincent chose the
+    dedicated-generator fix). createChainRngs no longer special-cases
+    numChains == 1; every chain gets its own Mersenne twister, seeded
+    from rngSeed via the seed generator or from R's stream at creation.
+    Consequences: rngSeed never touches R's stream (the NEWS claim is
+    now true), single-chain states carry their generator so setState
+    continuation is bitwise for every chain count, a 1-chain seed-S run
+    reproduces chain 0 of an n-chain seed-S run, and sampling never
+    advances R's stream. Cost paid: seeded single-chain snapshots
+    regenerated across the suite; equivalence anchor re-recorded
+    (transition verified statistically, 18/18 scenarios, max |z| =
+    3.55; the multi-chain scenario stayed draw-identical).
   Windows-arm64 runs scalar kernels: the .win config headers never
     define COMPILER_SUPPORTS_NEON and Makevars.win's ARCH check has no
     aarch64 branch; consider a NEON branch

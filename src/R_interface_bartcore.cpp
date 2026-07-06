@@ -890,22 +890,19 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   return options;
 }
 
-// A single chain draws through R's generator; several chains each get a
-// Mersenne twister seeded from R's stream, so results do not depend on the
-// thread count and worker threads never touch the R API. A control rngSeed
-// makes results reproducible without R's stream: it seeds R's generator
-// directly for a single chain (the classic convention) and otherwise seeds
-// a dedicated generator that hands each chain its seed.
+// Every chain gets its own Mersenne twister, so worker threads never touch
+// the R API and results do not depend on the thread count. A control rngSeed
+// makes results reproducible without R's stream: it seeds a dedicated
+// generator that hands each chain its seed, so a single-chain run with seed
+// S reproduces chain 0 of any multi-chain run with seed S. Without one,
+// chain seeds are drawn from R's stream, so a set.seed() beforehand
+// suffices; sampling itself never advances R's stream.
 std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
                                       size_t numChains) {
   bool haveSeed = control.haveRngSeed;
   std::vector<ext_rng*> rngs(numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
-  if (numChains == 1) {
-    rngs[0] = ext_rng_createDefault(true);
-    rngFailed = rngs[0] == NULL ||
-      (haveSeed && ext_rng_setSeed(rngs[0], control.rngSeed) != 0);
-  } else if (haveSeed) {
+  if (haveSeed) {
     ext_rng* seedGenerator =
       ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     rngFailed = seedGenerator == NULL ||

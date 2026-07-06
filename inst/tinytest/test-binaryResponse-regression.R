@@ -14,12 +14,12 @@ bartFit <- dbarts::bart(
 expect_equal(
   bartFit$yhat.train[n.sims, 1L:5L],
   c(
-    0.0773149992140284, 0.400502985797696, 0.151936745406016,
-    0.362320505596542, -0.130398793675396
+    -0.135254389899302, 0.305296648320596, 0.667004345507013,
+    0.627483394905248, -0.152297510506963
   )
 )
 expect_null(bartFit$yhat.test)
-expect_equal(bartFit$varcount[n.sims,], c(25L, 24L, 23L))
+expect_equal(bartFit$varcount[n.sims,], c(17L, 21L, 27L))
 
 expect_equal(extract(bartFit), pnorm(bartFit$yhat.train))
 rm(bartFit, n.sims, n.burn)
@@ -40,12 +40,12 @@ n.sims <- nrow(bartFit$yhat.train)
 expect_equal(
   bartFit$yhat.train[n.sims, 1L:5L],
   c(
-    0.170250482240226, 0.305633294712975, 0.636605516298103,
-    0.391682523723046, -0.166274808432018
+    0.28314561499688, 0.00876684849456905, 0.471386423757719,
+    0.484111685661704, 0.0461271758169942
   )
 )
 expect_null(bartFit$yhat.test)
-expect_equal(bartFit$varcount[n.sims,], c(27L, 28L, 18L))
+expect_equal(bartFit$varcount[n.sims,], c(21L, 27L, 26L))
 rm(bartFit, n.sims, n.burn)
 
 rm(testData)

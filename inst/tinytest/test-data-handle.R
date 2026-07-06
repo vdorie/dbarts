@@ -15,14 +15,15 @@ sampler <- dbarts(x, y, control = control)
 handle <- dbarts:::bartcoreDataHandle(sampler$control, sampler$data)
 
 # a view over every row reproduces the ordinary sampler bitwise: same
-# store contents, same single-chain draws through R's generator
+# store contents, and creation under the same R seed hands both chains
+# the same generator seed
+set.seed(7)
 bc.full <- dbarts:::bartcoreSampler(sampler)
+set.seed(7)
 bc.view <- dbarts:::bartcoreSamplerFromHandle(handle, sampler$control,
                                               sampler$model, sampler$data,
                                               seq_len(n))
-set.seed(7)
 r.full <- dbarts:::bartcoreRun(bc.full, 20L, 30L)
-set.seed(7)
 r.view <- dbarts:::bartcoreRun(bc.view, 20L, 30L)
 expect_identical(r.view$sigma, r.full$sigma)
 expect_identical(r.view$train, r.full$train)

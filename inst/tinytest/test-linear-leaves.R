@@ -97,14 +97,14 @@ control.view <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 15L,
 sampler.view <- dbarts(y ~ x1 + x2 + x3, df, node.prior = linear("x2"),
                        control = control.view)
 handle <- dbarts:::bartcoreDataHandle(sampler.view$control, sampler.view$data)
+set.seed(7)
 view <- dbarts:::bartcoreSamplerFromHandle(handle, sampler.view$control,
                                            sampler.view$model,
                                            sampler.view$data,
                                            trainRows = seq_len(n))
+set.seed(7)
 full <- dbarts:::bartcoreSampler(sampler.view)
-set.seed(7)
 samples.view <- dbarts:::bartcoreRun(view, 40L, 20L)
-set.seed(7)
 samples.full <- dbarts:::bartcoreRun(full, 40L, 20L)
 expect_identical(samples.view$sigma, samples.full$sigma)
 expect_identical(samples.view$train, samples.full$train)

@@ -270,16 +270,16 @@ expect_identical(sampler.offset$data@testUsesRegularOffset, FALSE)
 expect_equal(sampler.offset$data@offset.test, offset.explicit)
 expect_error(sampler.offset$setTestOffset(rep(0, 3L)), pattern = "length")
 
-# recorded test fits carry exactly the test offset: the same seed with and
-# without an offset differs by it alone
+# recorded test fits carry exactly the test offset: the same creation seed
+# with and without an offset differs by it alone
+set.seed(11)
 sampler.to1 <- dbarts(x.engine + 0, y, test = x.test,
                       control = control.engine)
+set.seed(11)
 sampler.to2 <- dbarts(x.engine + 0, y, test = x.test,
                       control = control.engine)
 sampler.to2$setTestOffset(rep(2, 10L))
-set.seed(11)
 r.to1 <- sampler.to1$run(20L, 3L)
-set.seed(11)
 r.to2 <- sampler.to2$run(20L, 3L)
 expect_identical(r.to1$train, r.to2$train)
 expect_identical(r.to1$test + 2, r.to2$test)
@@ -553,17 +553,16 @@ sampler.restored <- dbarts(x, y, control = control.state)
 sampler.restored$setState(state)
 expect_identical(sampler.state$run(0L, 3L), sampler.restored$run(0L, 3L))
 
-# a single chain draws through R's generator, so continuation additionally
-# synchronizes the seed
+# a single chain's state carries its generator like any other, so a restored
+# sampler continues bitwise without any R-stream synchronization
 sampler.state1 <- dbarts(x, y, control = control.bc)
 invisible(sampler.state1$run(30L, 1L))
 sampler.state1$storeState()
 state1 <- sampler.state1$state
+expect_true(length(sampler.state1$state[[1L]]$rng.state) > 0L)
 sampler.restored1 <- dbarts(x, y, control = control.bc)
 sampler.restored1$setState(state1)
-set.seed(7)
 result.a <- sampler.state1$run(0L, 2L)
-set.seed(7)
 result.b <- sampler.restored1$run(0L, 2L)
 expect_identical(result.a, result.b)
 
@@ -666,14 +665,14 @@ expect_error(sampler.sc$setControl(control.bad), pattern = "rngSeed")
 control.thin <- dbartsControl(n.chains = 1L,
                               n.threads = 1L, n.trees = 20L, n.samples = 5L,
                               n.thin = 3L, updateState = FALSE)
+set.seed(31)
 sampler.thin1 <- dbarts(x, y, control = control.thin)
 control.nothin <- control.thin
 control.nothin@n.thin <- 1L
+set.seed(31)
 sampler.thin2 <- dbarts(x, y, control = control.nothin)
 sampler.thin2$setControl(control.thin)
-set.seed(31)
 r.thin1 <- sampler.thin1$run(5L, 5L)
-set.seed(31)
 r.thin2 <- sampler.thin2$run(5L, 5L)
 expect_identical(r.thin1, r.thin2)
 
@@ -681,17 +680,17 @@ expect_identical(r.thin1, r.thin2)
 control.sm <- dbartsControl(n.chains = 1L,
                             n.threads = 1L, n.trees = 20L, n.samples = 5L,
                             updateState = FALSE)
+set.seed(43)
 sampler.sm1 <- dbarts(x, y, control = control.sm)
 model.new <- sampler.sm1$model
 model.new@tree.prior@power <- 1.5
 model.new@tree.prior@base <- 0.8
 model.new@node.hyperprior@k <- 3
 sampler.sm1$setModel(model.new)
+set.seed(43)
 sampler.sm2 <- dbarts(x, y, control = control.sm,
                       tree.prior = cgm(1.5, 0.8), node.prior = normal(3))
-set.seed(43)
 r.sm1 <- sampler.sm1$run(20L, 5L)
-set.seed(43)
 r.sm2 <- sampler.sm2$run(20L, 5L)
 expect_identical(r.sm1, r.sm2)
 

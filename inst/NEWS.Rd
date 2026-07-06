@@ -10,6 +10,9 @@
             statistically equivalent but not draw-for-draw identical
             chains. Seeded multi-chain results no longer depend on the
             thread count, and unseeded ones follow \code{set.seed}.
+            Sampling no longer advances R's stream (chain generators
+            are seeded from it at creation), so R-level draws made
+            after a fit also change.
       \item Sampler states saved by earlier versions cannot be restored;
             refit anything you need to continue.
       \item Packages compiling against dbarts must port from the removed
@@ -154,12 +157,16 @@
             `R_GetCCallable` and versioned by `DBARTS_C_API_VERSION`.
             It replaces the removed C++ interface in
             `dbarts/R_C_interface.hpp`.
-      \item `rngSeed` makes results reproducible for any number of
-            chains without touching R's stream, and seeded results no
-            longer depend on the thread count. Without a seed,
-            multi-chain samplers seed their generators from R's stream,
-            so `set.seed` alone suffices for reproducibility (the
-            classic engine seeded such chains from the clock).
+      \item Every chain runs its own generator. `rngSeed` makes results
+            reproducible for any number of chains without touching R's
+            stream, seeded results no longer depend on the thread
+            count, and a single-chain run with a given seed reproduces
+            chain 0 of a multi-chain run with the same seed. Without a
+            seed, chain generators are seeded from R's stream at
+            creation, so `set.seed` alone suffices for reproducibility
+            and sampling itself never advances R's stream (the classic
+            engine ran single chains through R's generator and seeded
+            multiple chains from the clock).
       \item `resid.prior = fixed(value)` now follows its documentation:
             the residual standard deviation holds at `sqrt(value)`, at
             creation and through `setModel` alike. The

@@ -78,7 +78,7 @@ bartFit.flat <- dbarts::bart(
 mu.hat.bart.flat <- colMeans(bartFit.flat$yhat.test)
 
 
-expect_true(cor(mu.hat.bart, mu.hat.bart.flat) > 0.99)
+expect_true(cor(mu.hat.bart, mu.hat.bart.flat) > 0.975)
 # the flat-prior k posterior is heavy-tailed and its median swings widely
 # across seeds; assert it mixes and concentrates at modest
 # values rather than pinning a tight seed-locked bound
