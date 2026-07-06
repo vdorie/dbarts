@@ -17,7 +17,7 @@ pdbart(
 
 \method{plot}{pdbart}(
     x,
-    xind = seq_len(length(x$fd)),
+    xind = seq_along(x$fd),
     plquants = c(0.05, 0.95), cols = c('black', 'blue'),
     \dots)
 
