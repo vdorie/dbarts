@@ -4,6 +4,7 @@
 ^README\.md$
 ^scratch$
 ^\.vscode$
+^\.claude$
 \.clangd$
 ^\.clang-format$
 ^\.clang-tidy$
