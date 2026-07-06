@@ -1,0 +1,210 @@
+# Discrete Bayesian Additive Regression Trees Sampler
+
+Creates a sampler object for a given problem which fits a Bayesian
+Additive Regreesion Trees model. Internally stores state in such a way
+as to be mutable.
+
+## Usage
+
+``` r
+dbarts(
+    formula, data, test, subset, weights, offset, offset.test = offset,
+    verbose = FALSE, n.samples = 800L,
+    tree.prior = cgm, node.prior = normal, resid.prior = chisq,
+    proposal.probs = c(
+        birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+    control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
+    factors = c("categorical", "indicators"),
+    family = c("auto", "gaussian", "probit", "logistic"),
+    missing = c("incorporate", "error"))
+```
+
+## Arguments
+
+- formula:
+
+  An object of class [`formula`](https://rdrr.io/r/stats/formula.html)
+  following an analogous model description syntax as
+  [`lm`](https://rdrr.io/r/stats/lm.html). For backwards compatibility,
+  can also be the
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) matrix
+  `x.train`, including a sparse `Matrix::dgCMatrix`: its columns enter
+  as ordinal predictors, sufficiently sparse columns are stored in a
+  compact rank-bitmap layout instead of being expanded, and the
+  predictor-mutation surface (`setPredictor` and relatives, `setData`)
+  is fixed at creation. Sparse inputs are not supported by
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) or
+  the `node.prior = linear()` and `gp()` leaf models; test matrices
+  remain dense. A data frame may mix ordinary columns with
+  [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
+  or `dgCMatrix` columns (assign them into the frame; they do not
+  survive `data.frame(...)` or
+  [`I()`](https://rdrr.io/r/base/AsIs.html)): sparse columns behave as
+  in an all-sparse design, while dense columns keep categorical splits
+  and linear-leaf designation.
+
+- data:
+
+  An optional data frame, list, or environment containing predictors to
+  be used with the model. For backwards compatibility, can also be the
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) vector
+  `y.train`.
+
+- test:
+
+  An optional matrix or data frame with the same number of predictors as
+  `data`, or `formula` in backwards compatibility mode. If column names
+  are present, a matching algorithm is used.
+
+- subset:
+
+  An optional vector specifying a subset of observations to be used in
+  the fitting process.
+
+- weights:
+
+  An optional vector of weights to be used in the fitting process. For a
+  gaussian response, BART fits a model with observations \\y \mid x \sim
+  N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
+  Binary responses differ: a `"probit"` model does not support weights
+  (a weighted probit has no tractable latent-variable form), while a
+  `"logistic"` model treats them as observation counts and so requires
+  positive integers (its Polya-Gamma latent for a count \\w\\ is a sum
+  of \\w\\ unit draws).
+
+- offset:
+
+  An optional vector specifying an offset from 0 for the relationship
+  between the underyling function, \\f(x)\\, and the response \\y\\.
+  Only is useful for binary responses, in which case the model fit is to
+  assume \\P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\\, where
+  \\\Phi\\ is the standard normal cumulative distribution function.
+
+- offset.test:
+
+  The equivalent of `offset` for test observations. Will attempt to use
+  `offset` when applicable.
+
+- verbose:
+
+  A logical determining if additional output is printed to the console.
+  See
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+
+- n.samples:
+
+  A positive integer setting the default number of posterior samples to
+  be returned for each run of the sampler. Can be overriden at run-time.
+  See
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
+
+- tree.prior:
+
+  An expression of the form `cgm` or `cgm(power, base, split.probs)`
+  setting the tree prior used in fitting, or a prior object built with
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+
+- node.prior:
+
+  An expression of the form `normal` or `normal(k)` that sets the prior
+  used on the averages within nodes, or a prior object built with
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+  `linear(columns, k)` instead fits each leaf with an intercept plus a
+  linear term in the designated continuous predictor columns (character
+  names or numeric indices into the model matrix), standardized
+  internally, all coefficients sharing the `normal(k)` prior; factor
+  columns cannot be designated.
+  `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
+  smooth Gaussian-process function of the designated columns under a
+  squared-exponential kernel; leaves larger than `max.leaf.size` fall
+  back to constant fits.
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
+  the same specifications through its own `node.prior` argument.
+
+- resid.prior:
+
+  An expression of the form `chisq` or `chisq(df, quant)` that sets the
+  prior used on the residual/error variance, or a prior object built
+  with
+  [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+
+- proposal.probs:
+
+  Named numeric vector or `NULL`, optionally specifying the proposal
+  rules and their probabilities. Elements should be `"birth_death"`,
+  `"change"`, and `"swap"` to control tree change proposals, and
+  `"birth"` to give the relative frequency of birth/death in the
+  `"birth_death"` step.
+
+- control:
+
+  An object inheriting from `dbartsControl`, created by the
+  [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  function.
+
+- sigma:
+
+  A positive numeric estimate of the residual standard deviation. If
+  `NA`, a linear model is used with all of the predictors to obtain one.
+
+- seed:
+
+  Optional integer seed for the random number generator, a convenience
+  mirror of `dbartsControl(rngSeed = )`. When not `NA` it overrides the
+  seed in `control`; the fitting-function wrappers
+  ([`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)) accept
+  the same argument.
+
+- factors:
+
+  How factor columns in a data frame enter the model. The default
+  `"categorical"` keeps each unordered factor as a single predictor
+  whose splits send a subset of its levels (at most 65535) down each
+  branch, and codes ordered factors as ordinal; level tables are
+  retained so that test data are coded identically. `"indicators"`
+  expands each factor into binary indicator columns, as previous
+  versions always did and as
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) still
+  does.
+
+- family:
+
+  The response model. `"auto"` fits gaussian models to continuous
+  responses and probit models to those coded 0/1, as always.
+  `"gaussian"` forces a continuous fit even for a 0/1 response;
+  `"probit"` and `"logistic"` require a 0/1 response and fit
+  latent-variable models, with fits and predictions on the latent scale.
+  `"logistic"` uses Polya-Gamma augmentation. See `weights` for how the
+  families differ in their support for weights.
+
+- missing:
+
+  How missing values in the predictors enter the model. The default
+  `"incorporate"` keeps them: every split rule learns a direction for
+  missing values on its variable, so an observation whose split value is
+  `NA` follows that rule's chosen branch (“Missingness Incorporated in
+  Attributes”, Twala et al. 2008), in training and test data alike.
+  `"error"` rejects predictors containing `NA`. The response, `weights`,
+  and `offset` must always be complete; note that previous versions
+  silently dropped incomplete rows for formula inputs.
+
+## Details
+
+“Discrete sampler” refers to that `dbarts` is implemented using
+ReferenceClasses, so that there exists a mutable object constructed in
+C++ that is largely obscured from R. The `dbarts` function is the
+primary way of creating a
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
+for which a variety of methods exist.
+
+## Value
+
+A reference object of
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+
+## References
+
+Twala, B.E.T.H., Jones, M.C., and Hand, D.J. (2008) Good methods for
+coping with missing data in decision trees. *Pattern Recognition
+Letters*, **29**(7), 950–956.

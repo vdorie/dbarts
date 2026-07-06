@@ -1,0 +1,23 @@
+<urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
+<url><loc>https://vdorie.github.io/dbarts/404.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/articles/gibbs_sampler_mixture_model.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/articles/index.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/articles/working_with_saved_trees.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/authors.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/index.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/bart.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbarts.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbartsControl.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbartsData.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbartsPriors.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/dbartsSampler-class.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/guessNumCores.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/index.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/makeind.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/pdbart.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/plotTree.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/rbart.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/xbart.html</loc></url>
+</urlset>
+
