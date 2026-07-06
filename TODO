@@ -65,10 +65,13 @@ usability
     consistently is a separate pass, not a per-constructor patch.
 
 api surface
-  xbart cannot reach DART or split.probs: cgm(power, base) is
-    hardcoded (xbart.R:117) while dbarts/bart2/rbart_vi all expose it;
-    xbart even exposes resid.prior, so the tree-prior gap looks
-    unintentional.
+  xbart cannot reach DART or split.probs: DONE. xbart now takes
+    split.probs (fixed, non-uniform variable weights) and dart (TRUE or a
+    dart() spec) like bart2, resolved against the fold data and swept over
+    the power/base grid. A DART sampler's sampled Dirichlet state persists
+    across the warm-cell setModel path (chain.hpp skips the split-prob
+    install when useDart), and the default uniform cgm is bit-identical, so
+    the reproducibility snapshots are unchanged.
   dbarts() has no seed argument; every convenience wrapper grew one
     and the base factory requires dbartsControl(rngSeed = ).
   no summary() method or credible-interval API; intervals are computed

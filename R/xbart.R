@@ -2,7 +2,8 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
                   method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
                   n.reps = 40L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "log", "mcr"),
                   n.threads = dbarts::guessNumCores(),
-                  n.trees = 75L, k = NULL, power = 2, base = 0.95, drop = TRUE,
+                  n.trees = 75L, k = NULL, power = 2, base = 0.95,
+                  split.probs = NULL, dart = FALSE, drop = TRUE,
                   resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
                   seed = NA_integer_,
                   factors = c("categorical", "indicators"),
@@ -114,10 +115,23 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (anyNA(base) || any(base <= 0 | base >= 1))
     stop("'base' must contain only values in (0, 1)")
 
-  tree.prior <- quote(cgm(power, base))
-  tree.prior[[1L]] <- quoteInNamespace(cgm)
-  tree.prior[[2L]] <- power[1L]; tree.prior[[3L]] <- base[1L]
-  tree.prior <- eval(tree.prior)
+  # the tree structure prior. DART (dart = TRUE or a dart() spec) samples its
+  # own split probabilities; cgm takes a fixed split.probs. power and base are
+  # xbart's grid axes, so the prior is built at the grid's first values and
+  # every cell overrides them (see cellModel); a supplied dart() spec
+  # contributes its Dirichlet hyperparameters, with power and base still swept.
+  if (inherits(dart, "dbartsDartPrior")) {
+    tree.prior <- dart
+  } else if (isTRUE(dart)) {
+    if ("split.probs" %in% names(matchedCall))
+      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
+    tree.prior <- dbartsPriors$dart(power[1L], base[1L])
+  } else if (!isFALSE(dart)) {
+    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
+  } else {
+    tree.prior <- cgm(power[1L], base[1L], split.probs)
+  }
+  tree.prior <- resolveSplitProbabilities(tree.prior, data)
 
   if (is.null(node.spec)) {
     node.prior <- quote(normal(k))
@@ -181,6 +195,12 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (anyNA(n.burn) || any(n.burn < 0L)) stop("'n.burn' must contain non-negative integers")
   n.threads <- coerceOrError(n.threads, "integer")
   if (is.na(n.threads) || n.threads <= 0L) stop("'n.threads' must be a positive integer")
+
+  # DART holds its Dirichlet updates until the forest is likelihood-informed;
+  # as the fitting functions default it to half the burn-in, default here to
+  # half the fresh-sampler burn-in each cell runs
+  if (is(model@tree.prior, "dbartsDartPrior") && is.na(model@tree.prior@update.delay))
+    model@tree.prior@update.delay <- as.numeric(n.burn[1L] %/% 2L)
 
   lossFunction <- xbartLossFunction(loss, control)
 

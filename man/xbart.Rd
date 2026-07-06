@@ -10,7 +10,8 @@ xbart(
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L, 50L),
     loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
-    k = NULL, power = 2, base = 0.95, drop = TRUE,
+    k = NULL, power = 2, base = 0.95,
+    split.probs = NULL, dart = FALSE, drop = TRUE,
     resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
     seed = NA_integer_,
     factors = c("categorical", "indicators"),
@@ -69,6 +70,12 @@ xbart(
    }
    \item{base}{
      A vector of real numbers in \eqn{(0, 1)}, setting the BART hyperparameter for the tree prior's growth probability.
+   }
+   \item{split.probs}{
+     Prior probabilities that a variable is used in a splitting rule, as in \code{\link{bart2}}. A single value or \code{NULL} yields the uniform default; a named or unnamed vector assigns per-column probabilities. Fixed for the whole crossvalidation, not part of the swept grid. Cannot be combined with \code{dart}.
+   }
+   \item{dart}{
+     Use the DART sparsity-inducing prior of Linero (2018) instead of a fixed \code{split.probs}. \code{TRUE} enables it with default hyperparameters; a prior created by \code{dbartsPriors$dart} supplies its own. The split probabilities are then sampled rather than fixed, while \code{power} and \code{base} are still swept.
    }
    \item{drop}{
      Logical, determining if dimensions with a single value are dropped from the result.
