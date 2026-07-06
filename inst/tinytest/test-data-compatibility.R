@@ -1,8 +1,11 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that compatibility specification creates valid objects
 testData$weights <- runif(length(testData$y))
-testData$offset  <- rnorm(length(testData$y))
+testData$offset <- rnorm(length(testData$y))
 
 attach(testData)
 expect_inherits(dbarts::dbartsData(x, y), "dbartsData")
@@ -35,7 +38,7 @@ y <- testData$y
 colnames(x) <- paste0("x.", seq_len(ncol(x)))
 expect_inherits(dbarts::dbartsData(x, y), "dbartsData")
 
-x <- x[,1L,drop=FALSE]
+x <- x[, 1L, drop = FALSE]
 expect_inherits(dbarts::dbartsData(x, y), "dbartsData")
 rm(x, y)
 
@@ -46,8 +49,8 @@ y <- testData$y
 
 colnames(x) <- c(paste0("x.", seq_len(ncol(x) - 2L)), "", "")
 x.test <- x
-x.test[,ncol(x.test)] <- x.test[,ncol(x.test)] + 1
- 
+x.test[, ncol(x.test)] <- x.test[, ncol(x.test)] + 1
+
 expect_equal(dbarts::dbartsData(x, y, x.test)@x.test, x.test)
 rm(x.test, y, x)
 

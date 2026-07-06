@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 df <- with(testData, data.frame(x, y))
 
@@ -6,8 +9,14 @@ df <- with(testData, data.frame(x, y))
 n.trees <- 3L
 n.samples <- 4L
 fit <- dbarts::bart(
-  y ~ ., df, nthread = 1L, ntree = n.trees, nskip = 0L,
-  ndpost = n.samples, keeptrees = TRUE, verbose = FALSE
+  y ~ .,
+  df,
+  nthread = 1L,
+  ntree = n.trees,
+  nskip = 0L,
+  ndpost = n.samples,
+  keeptrees = TRUE,
+  verbose = FALSE
 )
 allTrees <- dbarts::extract(fit, "trees")
 
@@ -16,7 +25,7 @@ expect_true(!("chain" %in% colnames(allTrees)))
 
 combinations <- data.frame(
   sample = rep(seq_len(n.samples), each = n.trees),
-  tree   = rep(seq_len(n.trees), times = n.samples)
+  tree = rep(seq_len(n.trees), times = n.samples)
 )
 expect_true(
   all(
@@ -52,20 +61,26 @@ n.trees <- 3L
 n.samples <- 4L
 n.chains <- 2L
 fit <- dbarts::rbart_vi(
-  y ~ ., df, group.by = g,
-  n.threads = 1L, n.trees = n.trees, n.burn = 0L, n.thin = 1L,
+  y ~ .,
+  df,
+  group.by = g,
+  n.threads = 1L,
+  n.trees = n.trees,
+  n.burn = 0L,
+  n.thin = 1L,
   n.chains = n.chains,
   n.samples = n.samples,
-  keepTrees = TRUE, verbose = FALSE
+  keepTrees = TRUE,
+  verbose = FALSE
 )
 allTrees <- dbarts::extract(fit, "trees")
 
 expect_true(all(c("sample", "chain", "tree") %in% colnames(allTrees)))
 
 combinations <- data.frame(
-  chain  = rep(seq_len(n.chains), each = n.trees * n.samples),
+  chain = rep(seq_len(n.chains), each = n.trees * n.samples),
   sample = rep(rep(seq_len(n.samples), each = n.trees), times = n.chains),
-  tree   = rep(rep(seq_len(n.trees), times = n.samples), times = n.chains)
+  tree = rep(rep(seq_len(n.trees), times = n.samples), times = n.chains)
 )
 expect_true(all(
   paste0(combinations$sample, ";", combinations$tree) %in%
@@ -125,7 +140,11 @@ expect_equal(current, liveSampler$getTrees())
 expect_equal(liveSampler$getTrees(current = TRUE), liveSampler$getTrees())
 
 # a partial update keeps the live trees valid; getTrees(current = TRUE) sees it
-inst <- keptSampler$setPredictor(x + rnorm(n, sd = 0.5), "x", forceUpdate = "partial")
+inst <- keptSampler$setPredictor(
+  x + rnorm(n, sd = 0.5),
+  "x",
+  forceUpdate = "partial"
+)
 liveTrees <- keptSampler$getTrees(current = TRUE)
 expect_false(any(liveTrees$var == -1L & liveTrees$n == 0L))
 expect_true(length(inst) == n)
@@ -145,8 +164,14 @@ n <- 60L
 x <- rnorm(n)
 y <- x + rnorm(n)
 ctrl <- dbarts::dbartsControl(
-  n.chains = 1L, n.trees = 10L, n.samples = 5L, n.burn = 0L,
-  updateState = TRUE, keepTrees = TRUE, verbose = FALSE, rngSeed = 3L
+  n.chains = 1L,
+  n.trees = 10L,
+  n.samples = 5L,
+  n.burn = 0L,
+  updateState = TRUE,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  rngSeed = 3L
 )
 keptSampler <- dbarts::dbarts(y ~ x, data.frame(x = x, y = y), control = ctrl)
 invisible(keptSampler$run(30L, 5L))
@@ -171,10 +196,15 @@ countByDescent <- function(tree, x) {
   recurse <- function(rows, indices) {
     pos <- rows[1L]
     counts[pos] <<- length(indices)
-    if (tree$var[pos] == -1L) return(1L)
+    if (tree$var[pos] == -1L) {
+      return(1L)
+    }
     goesLeft <- x[indices, tree$var[pos]] <= tree$value[pos]
     nLeft <- recurse(rows[-1L], indices[goesLeft])
-    nRight <- recurse(rows[seq.int(2L + nLeft, length(rows))], indices[!goesLeft])
+    nRight <- recurse(
+      rows[seq.int(2L + nLeft, length(rows))],
+      indices[!goesLeft]
+    )
     1L + nLeft + nRight
   }
   recurse(seq_len(nrow(tree)), seq_len(nrow(x)))
@@ -224,4 +254,3 @@ rm(x, y, n)
 
 
 rm(df, testData)
-

@@ -362,7 +362,9 @@ for (trial in 1:30) {
     as.numeric(RB$data@x[, "theta"])
   ) # shared column stays in sync
 
-  if (any(!mask)) anyRolledBack <- TRUE
+  if (any(!mask)) {
+    anyRolledBack <- TRUE
+  }
 
   invisible(RA$run(0L, 1L))
   invisible(RB$run(0L, 1L))

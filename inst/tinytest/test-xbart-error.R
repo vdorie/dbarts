@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that fails with invalid inputs
 x <- testData$x
@@ -20,7 +23,11 @@ expect_error(
   dbarts::xbart(y ~ x, method = "random subsample", n.test = 0)
 )
 expect_error(
-  dbarts::xbart(y ~ x, method = "random subsample", n.test = length(testData$y) + 1)
+  dbarts::xbart(
+    y ~ x,
+    method = "random subsample",
+    n.test = length(testData$y) + 1
+  )
 )
 expect_error(dbarts::xbart(y ~ x, n.test = "not-a-numeric"))
 expect_error(dbarts::xbart(y ~ x, n.test = NULL))
@@ -77,4 +84,3 @@ expect_error(dbarts::xbart(y ~ x, sigma = "not-a-numeric"))
 
 
 rm(testData)
-

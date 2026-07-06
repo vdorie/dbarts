@@ -31,13 +31,16 @@ quick <- "quick" %in% args
 
 exactNdpost <- if (quick) 10000L else 50000L
 exactSeeds <- if (quick) 1L else 3L
-exactTolerance <- if (quick) 0.01 else 0.005  # vs single-chain MC error
+exactTolerance <- if (quick) 0.01 else 0.005 # vs single-chain MC error
 
 set.seed(999L)
 nPerCell <- 25L
 cellCenters <- c(0.125, 0.375, 0.625, 0.875)
-x1 <- matrix(rep(cellCenters, each = nPerCell) +
-               runif(4L * nPerCell, -0.1, 0.1), ncol = 1L)
+x1 <- matrix(
+  rep(cellCenters, each = nPerCell) +
+    runif(4L * nPerCell, -0.1, 0.1),
+  ncol = 1L
+)
 cell <- rep(1:4, each = nPerCell)
 y1 <- rbinom(length(cell), 1L, c(0.2, 0.4, 0.6, 0.8)[cell])
 x1.test <- matrix(cellCenters, ncol = 1L)
@@ -59,18 +62,26 @@ countsByCell <- as.vector(table(cell))
 # ranges.
 enumerate <- function(loCell, hiCell, loCut, hiCut, depth) {
   growth <- if (hiCut >= loCut) base / (1 + depth)^power else 0
-  result <- list(list(leaves = list(c(loCell, hiCell)),
-                      logPrior = log(1 - growth)))
-  if (hiCut < loCut) return(result)
+  result <- list(list(
+    leaves = list(c(loCell, hiCell)),
+    logPrior = log(1 - growth)
+  ))
+  if (hiCut < loCut) {
+    return(result)
+  }
   for (j in loCut:hiCut) {
     lefts <- enumerate(loCell, j, loCut, j - 1L, depth + 1L)
     rights <- enumerate(j + 1L, hiCell, j + 1L, hiCut, depth + 1L)
-    for (left in lefts) for (right in rights) {
-      result[[length(result) + 1L]] <- list(
-        leaves = c(left$leaves, right$leaves),
-        logPrior = log(growth) - log(hiCut - loCut + 1) +
-          left$logPrior + right$logPrior
-      )
+    for (left in lefts) {
+      for (right in rights) {
+        result[[length(result) + 1L]] <- list(
+          leaves = c(left$leaves, right$leaves),
+          logPrior = log(growth) -
+            log(hiCut - loCut + 1) +
+            left$logPrior +
+            right$logPrior
+        )
+      }
     }
   }
   result
@@ -81,10 +92,16 @@ exactPredictive <- function(linkLogProbability, linkProbability, offset, tau) {
   muGrid <- seq(-10, 10, by = 0.005)
   muDensity <- dnorm(muGrid, 0, tau)
   leafQuantities <- function(s, m) {
-    w <- muDensity * exp(s * linkLogProbability(muGrid + offset) +
-                           (m - s) * linkLogProbability(-(muGrid + offset)))
-    list(logMarginal = log(sum(w) * 0.005),
-         meanProbability = sum(linkProbability(muGrid + offset) * w) / sum(w))
+    w <- muDensity *
+      exp(
+        s *
+          linkLogProbability(muGrid + offset) +
+          (m - s) * linkLogProbability(-(muGrid + offset))
+      )
+    list(
+      logMarginal = log(sum(w) * 0.005),
+      meanProbability = sum(linkProbability(muGrid + offset) * w) / sum(w)
+    )
   }
   logWeights <- numeric(length(trees))
   predictions <- matrix(0, length(trees), 4L)
@@ -104,54 +121,88 @@ exactPredictive <- function(linkLogProbability, linkProbability, offset, tau) {
 
 fitSingleTree <- function(seed, family, nodeScale, offset, linkinv) {
   set.seed(seed)
-  control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 1L,
-                           n.cuts = 3L, updateState = FALSE)
-  sampler <- dbarts(x1, y1, test = x1.test, offset = offset,
-                    control = control, node.prior = normal(k),
-                    tree.prior = cgm(power, base))
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 1L,
+    n.cuts = 3L,
+    updateState = FALSE
+  )
+  sampler <- dbarts(
+    x1,
+    y1,
+    test = x1.test,
+    offset = offset,
+    control = control,
+    node.prior = normal(k),
+    tree.prior = cgm(power, base)
+  )
   sampler$model@node.scale <- nodeScale
-  sampler$data@offset.test <- NULL  # engine fits exclude the offset
+  sampler$data@offset.test <- NULL # engine fits exclude the offset
   bc <- dbarts:::bartcoreSampler(sampler, family = family)
   r <- dbarts:::bartcoreRun(bc, 5000L, exactNdpost)
   colMeans(linkinv(t(r$test) + offset))
 }
 
-checkExact <- function(name, family, nodeScale, offset,
-                       linkLogProbability, linkinv) {
-  exact <- exactPredictive(linkLogProbability, linkinv, offset,
-                           nodeScale / k)
-  fit <- colMeans(do.call(rbind, lapply(
-    seq_len(exactSeeds), fitSingleTree,
-    family = family, nodeScale = nodeScale, offset = offset,
-    linkinv = linkinv
-  )))
+checkExact <- function(
+  name,
+  family,
+  nodeScale,
+  offset,
+  linkLogProbability,
+  linkinv
+) {
+  exact <- exactPredictive(linkLogProbability, linkinv, offset, nodeScale / k)
+  fit <- colMeans(do.call(
+    rbind,
+    lapply(
+      seq_len(exactSeeds),
+      fitSingleTree,
+      family = family,
+      nodeScale = nodeScale,
+      offset = offset,
+      linkinv = linkinv
+    )
+  ))
   gap <- max(abs(fit - exact))
-  cat(sprintf("%-10s exact %s | sampler %s | max gap %.4f%s\n",
-              name,
-              paste(sprintf("%.4f", exact), collapse = " "),
-              paste(sprintf("%.4f", fit), collapse = " "),
-              gap, if (gap > exactTolerance) " <- FAIL" else ""))
+  cat(sprintf(
+    "%-10s exact %s | sampler %s | max gap %.4f%s\n",
+    name,
+    paste(sprintf("%.4f", exact), collapse = " "),
+    paste(sprintf("%.4f", fit), collapse = " "),
+    gap,
+    if (gap > exactTolerance) " <- FAIL" else ""
+  ))
   gap > exactTolerance
 }
 
 cat("part 1: single-tree posteriors vs exact enumeration\n")
 anyFailure <- checkExact(
-  "logistic", "logistic", qlogis(0.975), qlogis(mean(y1)),
-  function(q) plogis(q, log.p = TRUE), plogis
+  "logistic",
+  "logistic",
+  qlogis(0.975),
+  qlogis(mean(y1)),
+  function(q) plogis(q, log.p = TRUE),
+  plogis
 )
 anyFailure <- checkExact(
-  "probit", "probit", 3.0, qnorm(mean(y1)),
-  function(q) pnorm(q, log.p = TRUE), pnorm
-) || anyFailure
+  "probit",
+  "probit",
+  3.0,
+  qnorm(mean(y1)),
+  function(q) pnorm(q, log.p = TRUE),
+  pnorm
+) ||
+  anyFailure
 
 # ---- part 2: BART package comparison (informational) ----
 
 if (requireNamespace("BART", quietly = TRUE)) {
   n.seeds <- if (quick) 3L else 20L
-  ndpost  <- if (quick) 250L else 1000L
-  nskip   <- if (quick) 100L else 500L
-  ntree   <- if (quick) 50L else 200L
-  n.test  <- 25L
+  ndpost <- if (quick) 250L else 1000L
+  nskip <- if (quick) 100L else 500L
+  ntree <- if (quick) 50L else 200L
+  n.test <- 25L
 
   set.seed(5109L)
   n <- 500L
@@ -159,16 +210,31 @@ if (requireNamespace("BART", quietly = TRUE)) {
   x <- matrix(runif(n * p), n)
   x.test <- matrix(runif(n.test * p), n.test)
   linearPredictor <-
-    (10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
-       10 * x[, 4L] + 5 * x[, 5L] - 14) / 4
+    (10 *
+      sin(pi * x[, 1L] * x[, 2L]) +
+      20 * (x[, 3L] - 0.5)^2 +
+      10 * x[, 4L] +
+      5 * x[, 5L] -
+      14) /
+    4
   y <- rbinom(n, 1L, plogis(linearPredictor))
 
   fitBartcore <- function(seed, family, nodeScale, offset, linkinv) {
     set.seed(seed)
-    control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = ntree,
-                             updateState = FALSE)
-    sampler <- dbarts(x, y, test = x.test, offset = offset,
-                      control = control, node.prior = normal(k))
+    control <- dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = ntree,
+      updateState = FALSE
+    )
+    sampler <- dbarts(
+      x,
+      y,
+      test = x.test,
+      offset = offset,
+      control = control,
+      node.prior = normal(k)
+    )
     sampler$model@node.scale <- nodeScale
     sampler$data@offset.test <- NULL
     bc <- dbarts:::bartcoreSampler(sampler, family = family)
@@ -179,8 +245,17 @@ if (requireNamespace("BART", quietly = TRUE)) {
   fitBART <- function(seed, fitter, offset) {
     set.seed(seed)
     log <- capture.output(
-      r <- fitter(x, y, x.test = x.test, k = k, ntree = ntree, numcut = 100L,
-                  ndpost = ndpost, nskip = nskip, binaryOffset = offset)
+      r <- fitter(
+        x,
+        y,
+        x.test = x.test,
+        k = k,
+        ntree = ntree,
+        numcut = 100L,
+        ndpost = ndpost,
+        nskip = nskip,
+        binaryOffset = offset
+      )
     )
     colMeans(r$prob.test)
   }
@@ -188,30 +263,54 @@ if (requireNamespace("BART", quietly = TRUE)) {
   report <- function(name, a, b) {
     cat(sprintf(
       "%-24s mean |prob difference| = %.4f, max = %.4f (base rate %.2f)\n",
-      name, mean(abs(colMeans(a) - colMeans(b))),
-      max(abs(colMeans(a) - colMeans(b))), mean(y)
+      name,
+      mean(abs(colMeans(a) - colMeans(b))),
+      max(abs(colMeans(a) - colMeans(b))),
+      mean(y)
     ))
   }
 
   cat("\npart 2: BART package comparison (informational; see header)\n")
   offset <- qlogis(mean(y))
-  a <- do.call(rbind, lapply(seq_len(n.seeds), fitBartcore,
-                             family = "logistic", nodeScale = qlogis(0.975),
-                             offset = offset, linkinv = plogis))
-  b <- do.call(rbind, lapply(seq_len(n.seeds), fitBART,
-                             fitter = BART::lbart, offset = offset))
+  a <- do.call(
+    rbind,
+    lapply(
+      seq_len(n.seeds),
+      fitBartcore,
+      family = "logistic",
+      nodeScale = qlogis(0.975),
+      offset = offset,
+      linkinv = plogis
+    )
+  )
+  b <- do.call(
+    rbind,
+    lapply(seq_len(n.seeds), fitBART, fitter = BART::lbart, offset = offset)
+  )
   report("logistic vs BART::lbart", a, b)
 
   offset <- qnorm(mean(y))
-  a <- do.call(rbind, lapply(seq_len(n.seeds), fitBartcore,
-                             family = "probit", nodeScale = 3.0,
-                             offset = offset, linkinv = pnorm))
-  b <- do.call(rbind, lapply(seq_len(n.seeds), fitBART,
-                             fitter = BART::pbart, offset = offset))
+  a <- do.call(
+    rbind,
+    lapply(
+      seq_len(n.seeds),
+      fitBartcore,
+      family = "probit",
+      nodeScale = 3.0,
+      offset = offset,
+      linkinv = pnorm
+    )
+  )
+  b <- do.call(
+    rbind,
+    lapply(seq_len(n.seeds), fitBART, fitter = BART::pbart, offset = offset)
+  )
   report("probit vs BART::pbart", a, b)
 } else {
   cat("\npart 2 skipped: BART package not installed\n")
 }
 
-if (anyFailure) quit(status = 1L)
+if (anyFailure) {
+  quit(status = 1L)
+}
 cat("\nOK: samplers match the exact posterior\n")

@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -38,4 +41,3 @@ expect_error(
 )
 
 rm(testData)
-

@@ -18,28 +18,34 @@
 
 suppressPackageStartupMessages(library(dbarts))
 
-args  <- commandArgs(trailingOnly = TRUE)
+args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-args  <- setdiff(args, "quick")
+args <- setdiff(args, "quick")
 useNewEngine <- "engine=new" %in% args
-args  <- setdiff(args, "engine=new")
-mode  <- if (length(args) >= 1L) args[[1L]] else "record"
+args <- setdiff(args, "engine=new")
+mode <- if (length(args) >= 1L) args[[1L]] else "record"
 
 if (useNewEngine) {
-  source(file.path(dirname(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
-                   "bartcore-shim.R"))
+  source(file.path(
+    dirname(sub("--file=", "", grep("--file=", commandArgs(), value = TRUE))),
+    "bartcore-shim.R"
+  ))
   loadBartcoreShim()
 }
 
 n.seeds <- if (quick) 3L else 20L
-ndpost  <- if (quick) 250L else 1000L
-nskip   <- if (quick) 100L else 500L
-ntree   <- if (quick) 50L else 200L
-n.test  <- 25L
+ndpost <- if (quick) 250L else 1000L
+nskip <- if (quick) 100L else 500L
+ntree <- if (quick) 50L else 200L
+n.test <- 25L
 
-friedman <- function(x)
-  10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
-    10 * x[, 4L] + 5 * x[, 5L]
+friedman <- function(x) {
+  10 *
+    sin(pi * x[, 1L] * x[, 2L]) +
+    20 * (x[, 3L] - 0.5)^2 +
+    10 * x[, 4L] +
+    5 * x[, 5L]
+}
 
 makeScenarios <- function() {
   result <- list()
@@ -47,31 +53,40 @@ makeScenarios <- function() {
   set.seed(5101L)
   x <- matrix(runif(500L * 10L), 500L)
   result$friedman <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE
   )
 
   set.seed(5102L)
   x <- matrix(runif(1000L * 10L), 1000L)
   result$probit <- list(
-    x = x, y = rbinom(1000L, 1L, pnorm(scale(friedman(x)))),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE
+    x = x,
+    y = rbinom(1000L, 1L, pnorm(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE
   )
 
   set.seed(5103L)
   x <- matrix(runif(500L * 10L), 500L)
   weights <- sample(c(1, 2), 500L, replace = TRUE)
   result$weighted <- list(
-    x = x, y = friedman(x) + rnorm(500L) / sqrt(weights), weights = weights,
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE
+    x = x,
+    y = friedman(x) + rnorm(500L) / sqrt(weights),
+    weights = weights,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE
   )
 
   # exercises the non-uniform split-variable selection path (DART's seam)
   set.seed(5104L)
   x <- matrix(runif(500L * 10L), 500L)
   result$splitprobs <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     splitprobs = c(rep(0.15, 5L), rep(0.05, 5L))
   )
 
@@ -81,8 +96,10 @@ makeScenarios <- function() {
   set.seed(5105L)
   x <- matrix(runif(600L * 10L), 600L)
   result$chik <- list(
-    x = x, y = rbinom(600L, 1L, pnorm(scale(friedman(x)))),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
+    x = x,
+    y = rbinom(600L, 1L, pnorm(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
     samplerApi = TRUE
   )
 
@@ -91,9 +108,12 @@ makeScenarios <- function() {
   set.seed(5107L)
   x <- matrix(runif(500L * 10L), 500L)
   result$chains <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
-    samplerApi = TRUE, nChains = 2L
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    nChains = 2L
   )
 
   # whole-data replacement mid-chain: burn in on one draw of the process,
@@ -103,8 +123,10 @@ makeScenarios <- function() {
   x <- matrix(runif(400L * 10L), 400L)
   x2 <- matrix(runif(500L * 10L), 500L)
   result$setdata <- list(
-    x = x, y = friedman(x) + rnorm(400L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     samplerApi = TRUE,
     setData = list(x = x2, y = friedman(x2) + rnorm(500L))
   )
@@ -117,12 +139,17 @@ makeScenarios <- function() {
   x <- matrix(runif(500L * 10L), 500L)
   weights <- runif(500L, 0.5, 2)
   result$wtoffset <- list(
-    x = x, y = friedman(x) + 0.4 + rnorm(500L) / sqrt(weights),
-    weights = weights, offset = 0.4,
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + 0.4 + rnorm(500L) / sqrt(weights),
+    weights = weights,
+    offset = 0.4,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     samplerApi = TRUE,
-    mutate = list(weights = runif(500L, 0.5, 2),
-                  offset.test = seq(-1, 1, length.out = n.test))
+    mutate = list(
+      weights = runif(500L, 0.5, 2),
+      offset.test = seq(-1, 1, length.out = n.test)
+    )
   )
 
   # quantile cut points over a mix of continuous columns (thinned to numcut)
@@ -135,8 +162,11 @@ makeScenarios <- function() {
   x[, discrete] <- round(x[, discrete], 1L)
   x.test[, discrete] <- round(x.test[, discrete], 1L)
   result$quants <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = x.test, binary = FALSE, usequants = TRUE
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = x.test,
+    binary = FALSE,
+    usequants = TRUE
   )
 
   # --- 1.0-0 feature paths (all driven through the sampler API so node.prior,
@@ -146,20 +176,33 @@ makeScenarios <- function() {
   # factor predictors: categorical split rules and the mask machinery
   set.seed(5110L)
   xc <- data.frame(
-    a = runif(500L), b = runif(500L),
+    a = runif(500L),
+    b = runif(500L),
     f = factor(sample(letters[1:4], 500L, replace = TRUE)),
     g = factor(sample(LETTERS[1:3], 500L, replace = TRUE))
   )
-  fcat <- 10 * sin(pi * xc$a * xc$b) + 5 * (as.integer(xc$f) - 2L) +
+  fcat <- 10 *
+    sin(pi * xc$a * xc$b) +
+    5 * (as.integer(xc$f) - 2L) +
     3 * (as.integer(xc$g) - 1L)
   xc.test <- data.frame(
-    a = runif(n.test), b = runif(n.test),
-    f = factor(sample(letters[1:4], n.test, replace = TRUE), levels = levels(xc$f)),
-    g = factor(sample(LETTERS[1:3], n.test, replace = TRUE), levels = levels(xc$g))
+    a = runif(n.test),
+    b = runif(n.test),
+    f = factor(
+      sample(letters[1:4], n.test, replace = TRUE),
+      levels = levels(xc$f)
+    ),
+    g = factor(
+      sample(LETTERS[1:3], n.test, replace = TRUE),
+      levels = levels(xc$g)
+    )
   )
   result$categorical <- list(
-    x = xc, y = fcat + rnorm(500L), x.test = xc.test,
-    binary = FALSE, samplerApi = TRUE
+    x = xc,
+    y = fcat + rnorm(500L),
+    x.test = xc.test,
+    binary = FALSE,
+    samplerApi = TRUE
   )
 
   # missing predictors: MIA routing (reserved codes + the extra Bernoulli on
@@ -172,47 +215,64 @@ makeScenarios <- function() {
   xm.test <- matrix(runif(n.test * 10L), n.test)
   xm.test[sample.int(n.test * 10L, floor(n.test * 10L * 0.08))] <- NA
   result$missing <- list(
-    x = xm, y = ym, x.test = xm.test, binary = FALSE,
-    samplerApi = TRUE, samplerArgs = list(missing = "incorporate")
+    x = xm,
+    y = ym,
+    x.test = xm.test,
+    binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(missing = "incorporate")
   )
 
   # adaptive DART tree prior: the Dirichlet split-probability updates
   set.seed(5112L)
   x <- matrix(runif(500L * 10L), 500L)
   result$dart <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
-    samplerApi = TRUE, samplerArgs = list(tree.prior = dbarts:::dart(2, 0.95))
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(tree.prior = dbarts:::dart(2, 0.95))
   )
 
   # linear leaves with a chi hyperprior on k: conjugate ridge draws + sampled k
   set.seed(5113L)
   x <- matrix(runif(500L * 10L), 500L)
   result$linear <- list(
-    x = x, y = friedman(x) + rnorm(500L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     samplerApi = TRUE,
-    samplerArgs = list(node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25)))
+    samplerArgs = list(
+      node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25))
+    )
   )
 
   # GP leaves with a chi hyperprior: marginal/Matheron draw + kernel cache + k
   set.seed(5114L)
   x <- matrix(runif(300L * 10L), 300L)
   result$gp <- list(
-    x = x, y = friedman(x) + rnorm(300L),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + rnorm(300L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     samplerApi = TRUE,
-    samplerArgs = list(node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25),
-                                                max.leaf.size = 100L))
+    samplerArgs = list(
+      node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25), max.leaf.size = 100L)
+    )
   )
 
   # logistic family: the Polya-Gamma latent path (distinct from probit)
   set.seed(5115L)
   x <- matrix(runif(600L * 10L), 600L)
   result$logistic <- list(
-    x = x, y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
-    samplerApi = TRUE, samplerArgs = list(family = "logistic")
+    x = x,
+    y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(family = "logistic")
   )
 
   # logistic family with integer count weights: the weighted Polya-Gamma path,
@@ -220,10 +280,13 @@ makeScenarios <- function() {
   set.seed(5121L)
   x <- matrix(runif(600L * 10L), 600L)
   result$wtlogistic <- list(
-    x = x, y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
+    x = x,
+    y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
     weights = sample(1:3, 600L, replace = TRUE),
-    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
-    samplerApi = TRUE, samplerArgs = list(family = "logistic")
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    samplerApi = TRUE,
+    samplerArgs = list(family = "logistic")
   )
 
   # exact-zero training weights: the constant-leaf no-likelihood path and the
@@ -232,8 +295,11 @@ makeScenarios <- function() {
   x <- matrix(runif(500L * 10L), 500L)
   weights <- sample(c(0, 1, 2), 500L, replace = TRUE, prob = c(0.15, 0.5, 0.35))
   result$zeroweights <- list(
-    x = x, y = friedman(x) + rnorm(500L), weights = weights,
-    x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+    x = x,
+    y = friedman(x) + rnorm(500L),
+    weights = weights,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
     samplerApi = TRUE
   )
 
@@ -243,12 +309,14 @@ makeScenarios <- function() {
   if (requireNamespace("Matrix", quietly = TRUE)) {
     set.seed(5117L)
     dense <- matrix(runif(500L * 10L), 500L)
-    mask <- matrix(runif(500L * 10L) < 0.15, 500L)  # ~85% structural zeros
+    mask <- matrix(runif(500L * 10L) < 0.15, 500L) # ~85% structural zeros
     dense[!mask] <- 0
     xs <- as(dense, "CsparseMatrix")
     result$sparse <- list(
-      x = xs, y = friedman(dense) + rnorm(500L),
-      x.test = matrix(runif(n.test * 10L), n.test), binary = FALSE,
+      x = xs,
+      y = friedman(dense) + rnorm(500L),
+      x.test = matrix(runif(n.test * 10L), n.test),
+      binary = FALSE,
       samplerApi = TRUE
     )
   }
@@ -262,9 +330,12 @@ makeScenarios <- function() {
 # visible.
 muffleBenignWarning <- function(w) {
   msg <- conditionMessage(w)
-  if (grepl("'weights' are ignored for test data", msg) ||
-      grepl("'weights' of 0 will be ignored", msg))
+  if (
+    grepl("'weights' are ignored for test data", msg) ||
+      grepl("'weights' of 0 will be ignored", msg)
+  ) {
     invokeRestart("muffleWarning")
+  }
 }
 
 # runs through the public dbartsSampler surface on the installed package's
@@ -273,12 +344,24 @@ muffleBenignWarning <- function(w) {
 # scenario can select node.prior/tree.prior/family/missing without new plumbing.
 fitViaSamplerApi <- function(scenario, engineIsNew) {
   n.chains <- if (!is.null(scenario$nChains)) scenario$nChains else 1L
-  control <- dbartsControl(n.chains = n.chains, n.threads = 1L,
-                           n.trees = ntree, updateState = FALSE)
-  dbartsArgs <- list(scenario$x, scenario$y, test = scenario$x.test,
-                     control = control)
-  if (!is.null(scenario$weights)) dbartsArgs$weights <- scenario$weights
-  if (!is.null(scenario$offset))  dbartsArgs$offset  <- scenario$offset
+  control <- dbartsControl(
+    n.chains = n.chains,
+    n.threads = 1L,
+    n.trees = ntree,
+    updateState = FALSE
+  )
+  dbartsArgs <- list(
+    scenario$x,
+    scenario$y,
+    test = scenario$x.test,
+    control = control
+  )
+  if (!is.null(scenario$weights)) {
+    dbartsArgs$weights <- scenario$weights
+  }
+  if (!is.null(scenario$offset)) {
+    dbartsArgs$offset <- scenario$offset
+  }
   dbartsArgs <- c(dbartsArgs, scenario$samplerArgs)
   sampler <- withCallingHandlers(
     do.call(dbarts, dbartsArgs),
@@ -290,21 +373,30 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   }
   r <- if (!is.null(scenario$setData)) {
     sampler$run(nskip, 0L)
-    sampler$setData(dbartsData(scenario$setData$x, scenario$setData$y,
-                               test = scenario$x.test))
+    sampler$setData(dbartsData(
+      scenario$setData$x,
+      scenario$setData$y,
+      test = scenario$x.test
+    ))
     sampler$run(ceiling(nskip / 4), ndpost)
   } else if (!is.null(scenario$mutate)) {
     sampler$run(nskip, 0L)
-    if (!is.null(scenario$mutate$weights))
+    if (!is.null(scenario$mutate$weights)) {
       sampler$setWeights(scenario$mutate$weights)
-    if (!is.null(scenario$mutate$offset.test))
+    }
+    if (!is.null(scenario$mutate$offset.test)) {
       sampler$setTestOffset(scenario$mutate$offset.test)
+    }
     sampler$run(ceiling(nskip / 4), ndpost)
   } else {
     sampler$run(nskip, ndpost)
   }
-  list(yhat.test = poolChains(r$test), varcount = poolChains(r$varcount),
-       sigma = as.vector(r$sigma), k = if (!is.null(r$k)) as.vector(r$k))
+  list(
+    yhat.test = poolChains(r$test),
+    varcount = poolChains(r$varcount),
+    sigma = as.vector(r$sigma),
+    k = if (!is.null(r$k)) as.vector(r$k)
+  )
 }
 
 fitSummaries <- function(scenario, seed) {
@@ -316,30 +408,52 @@ fitSummaries <- function(scenario, seed) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
     bartcore_bart(
-      scenario$x, scenario$y, x.test = scenario$x.test,
-      weights = scenario$weights, splitprobs = splitprobs,
-      usequants = isTRUE(scenario$usequants),
-      ntree = ntree, ndpost = ndpost, nskip = nskip
-    )
-  } else if (!is.null(splitprobs)) withCallingHandlers(
-    bart(
-      scenario$x, scenario$y, x.test = scenario$x.test,
-      weights = scenario$weights, splitprobs = splitprobs,
-      usequants = isTRUE(scenario$usequants),
-      ntree = ntree, ndpost = ndpost, nskip = nskip,
-      nchain = 1L, nthread = 1L, verbose = FALSE
-    ),
-    warning = muffleBenignWarning
-  ) else withCallingHandlers(
-    bart(
-      scenario$x, scenario$y, x.test = scenario$x.test,
+      scenario$x,
+      scenario$y,
+      x.test = scenario$x.test,
       weights = scenario$weights,
+      splitprobs = splitprobs,
       usequants = isTRUE(scenario$usequants),
-      ntree = ntree, ndpost = ndpost, nskip = nskip,
-      nchain = 1L, nthread = 1L, verbose = FALSE
-    ),
-    warning = muffleBenignWarning
-  )
+      ntree = ntree,
+      ndpost = ndpost,
+      nskip = nskip
+    )
+  } else if (!is.null(splitprobs)) {
+    withCallingHandlers(
+      bart(
+        scenario$x,
+        scenario$y,
+        x.test = scenario$x.test,
+        weights = scenario$weights,
+        splitprobs = splitprobs,
+        usequants = isTRUE(scenario$usequants),
+        ntree = ntree,
+        ndpost = ndpost,
+        nskip = nskip,
+        nchain = 1L,
+        nthread = 1L,
+        verbose = FALSE
+      ),
+      warning = muffleBenignWarning
+    )
+  } else {
+    withCallingHandlers(
+      bart(
+        scenario$x,
+        scenario$y,
+        x.test = scenario$x.test,
+        weights = scenario$weights,
+        usequants = isTRUE(scenario$usequants),
+        ntree = ntree,
+        ndpost = ndpost,
+        nskip = nskip,
+        nchain = 1L,
+        nthread = 1L,
+        verbose = FALSE
+      ),
+      warning = muffleBenignWarning
+    )
+  }
   # varcount width follows the fitted forest (one column per predictor, a factor
   # counting as one variable), which need not equal ncol(x) for data frames.
   vc <- fit$varcount
@@ -347,17 +461,22 @@ fitSummaries <- function(scenario, seed) {
     setNames(colMeans(fit$yhat.test), paste0("fhat.test.", seq_len(n.test))),
     setNames(colMeans(vc / rowSums(vc)), paste0("vprop.", seq_len(ncol(vc))))
   )
-  if (!scenario$binary)
+  if (!scenario$binary) {
     result <- c(result, sigma.mean = mean(fit$sigma), sigma.sd = sd(fit$sigma))
-  if (!is.null(fit$k))
+  }
+  if (!is.null(fit$k)) {
     result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
+  }
   result
 }
 
 runAll <- function(scenarios) {
-  lapply(scenarios, function(scenario)
-    do.call(rbind, lapply(seq_len(n.seeds), function(seed) fitSummaries(scenario, seed)))
-  )
+  lapply(scenarios, function(scenario) {
+    do.call(
+      rbind,
+      lapply(seq_len(n.seeds), function(seed) fitSummaries(scenario, seed))
+    )
+  })
 }
 
 scenarios <- makeScenarios()
@@ -367,19 +486,46 @@ if (mode == "record") {
   results <- runAll(scenarios)
   meta <- list(
     rev = system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE),
-    date = format(Sys.Date()), quick = quick,
-    n.seeds = n.seeds, ndpost = ndpost, nskip = nskip, ntree = ntree
+    date = format(Sys.Date()),
+    quick = quick,
+    n.seeds = n.seeds,
+    ndpost = ndpost,
+    nskip = nskip,
+    ntree = ntree
   )
   saveRDS(list(meta = meta, results = results), out.file)
-  cat("wrote baseline for", length(results), "scenarios x", n.seeds, "seeds to", out.file, "\n")
+  cat(
+    "wrote baseline for",
+    length(results),
+    "scenarios x",
+    n.seeds,
+    "seeds to",
+    out.file,
+    "\n"
+  )
 } else if (mode == "compare") {
-  if (length(args) < 2L) stop("usage: equivalence.R compare baseline.rds")
+  if (length(args) < 2L) {
+    stop("usage: equivalence.R compare baseline.rds")
+  }
   baseline <- readRDS(args[[2L]])
   settings <- baseline$meta[c("quick", "n.seeds", "ndpost", "nskip", "ntree")]
-  if (!identical(settings, list(quick = quick, n.seeds = n.seeds, ndpost = ndpost,
-                                nskip = nskip, ntree = ntree)))
-    stop("baseline was recorded with different settings: ",
-         paste(names(settings), unlist(settings), sep = "=", collapse = ", "))
+  if (
+    !identical(
+      settings,
+      list(
+        quick = quick,
+        n.seeds = n.seeds,
+        ndpost = ndpost,
+        nskip = nskip,
+        ntree = ntree
+      )
+    )
+  ) {
+    stop(
+      "baseline was recorded with different settings: ",
+      paste(names(settings), unlist(settings), sep = "=", collapse = ", ")
+    )
+  }
 
   results <- runAll(scenarios)
   anyFailure <- FALSE
@@ -401,18 +547,31 @@ if (mode == "record") {
     n.fail <- sum(abs(z) > 4, na.rm = TRUE)
     cat(sprintf(
       "%-10s %d summaries, max |z| = %.2f%s%s\n",
-      name, length(z), max(abs(z), na.rm = TRUE),
+      name,
+      length(z),
+      max(abs(z), na.rm = TRUE),
       if (n.warn > 0L) sprintf(", %d with |z| > 3", n.warn) else "",
       if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else ""
     ))
     if (n.fail > 0L) {
       anyFailure <- TRUE
       failed <- which(abs(z) > 4)
-      cat("  worst offenders:", paste0(names(z)[failed], " (z=", round(z[failed], 2L), ")",
-                                       collapse = ", "), "\n")
+      cat(
+        "  worst offenders:",
+        paste0(
+          names(z)[failed],
+          " (z=",
+          round(z[failed], 2L),
+          ")",
+          collapse = ", "
+        ),
+        "\n"
+      )
     }
   }
-  if (anyFailure) quit(status = 1L)
+  if (anyFailure) {
+    quit(status = 1L)
+  }
   cat("\nOK: posteriors statistically indistinguishable at |z| > 4\n")
 } else {
   stop("unknown mode '", mode, "'; use record or compare")

@@ -8,18 +8,21 @@ x <- runif(n, -10, 10)
 x.test <- seq.int(min(x), max(x), length.out = 101L)
 
 beta.1 <- -0.75
-beta.2 <-  0.5
+beta.2 <- 0.5
 
 n.cuts <- 10L
 cutoffs <- min(x) + seq_len(n.cuts) * (max(x) - min(x)) / (n.cuts + 1)
 
 y <- ifelse(x <= cutoffs[1L] | x > cutoffs[n.cuts], beta.1, beta.2) +
-     rnorm(n, 0L, 0.15)
+  rnorm(n, 0L, 0.15)
 
 control <- dbarts::dbartsControl(
-  n.trees = 1L, n.cuts = n.cuts,
-  n.chains = 1L, n.threads = 1L,
-  updateState = FALSE, verbose = FALSE
+  n.trees = 1L,
+  n.cuts = n.cuts,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE,
+  verbose = FALSE
 )
 sampler <- dbarts::dbarts(y ~ x, control = control)
 
@@ -37,6 +40,18 @@ expect_equal(
 )
 
 rm(
-  samples2, x.new, samples1, sampler, control, y, cutoffs, n.cuts, beta.2,
-  beta.1, x.test, x, n, testData
+  samples2,
+  x.new,
+  samples1,
+  sampler,
+  control,
+  y,
+  cutoffs,
+  n.cuts,
+  beta.2,
+  beta.1,
+  x.test,
+  x,
+  n,
+  testData
 )

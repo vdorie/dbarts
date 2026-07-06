@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that formula specification raises errors
 expect_error(
@@ -23,7 +26,7 @@ expect_error(
 set.seed(0)
 testData_df <- as.data.frame(testData)
 testData_df$weights <- runif(nrow(testData_df))
-testData_df$offset  <- rnorm(nrow(testData_df))
+testData_df$offset <- rnorm(nrow(testData_df))
 
 modelFormula <- y ~ x.1 + x.2 + x.3 + x.4 + x.5 + x.6 + x.7 + x.8 + x.9 + x.10
 
@@ -78,7 +81,7 @@ expect_error(
   "object 'outOfScope' not found"
 )
 
-test <- testData$x[11:20,]
+test <- testData$x[11:20, ]
 colnames(test) <- paste0("x", c(1:9, 11))
 expect_warning(
   dbarts::dbartsData(y ~ x, testData, test),
@@ -89,8 +92,11 @@ rm(test)
 # wrong-length weights error like offset does instead of silently
 # recycling; scalars still broadcast
 expect_error(
-  dbarts::dbartsData(testData$x, testData$y,
-                     weights = rep(1, length(testData$y) - 1L)),
+  dbarts::dbartsData(
+    testData$x,
+    testData$y,
+    weights = rep(1, length(testData$y) - 1L)
+  ),
   "length of 'weights' must equal length of 'y'"
 )
 expect_silent(

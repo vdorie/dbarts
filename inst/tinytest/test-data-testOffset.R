@@ -10,7 +10,7 @@ expect_identical(data@testUsesRegularOffset, NA)
 
 data <- dbarts::dbartsData(Z ~ X, testData, testData$X, offset = 0.2)
 
-expect_equal(data@offset[1:5],      rep(0.2, 5))
+expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], rep(0.2, 5))
 expect_equal(data@testUsesRegularOffset, TRUE)
 rm(data)
@@ -19,11 +19,10 @@ rm(data)
 otherOffset <- 0.2 + 0.1
 data <- dbarts::dbartsData(Z ~ X, testData, testData$X, offset = otherOffset)
 
-expect_equal(data@offset[1:5],      rep(0.3, 5))
+expect_equal(data@offset[1:5], rep(0.3, 5))
 expect_equal(data@offset.test[1:5], rep(0.3, 5))
 expect_equal(data@testUsesRegularOffset, TRUE)
 rm(data, otherOffset)
-
 
 
 data <- dbarts::dbartsData(
@@ -48,7 +47,7 @@ data <- dbarts::dbartsData(
   offset.test = 0.1
 )
 
-expect_equal(data@offset[1:5],      rep(0.2, 5))
+expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], rep(0.1, 5))
 expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
@@ -62,7 +61,7 @@ data <- dbarts::dbartsData(
   offset.test = offset + 0.1
 )
 
-expect_equal(data@offset[1:5],      rep(0.2, 5))
+expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], rep(0.3, 5))
 expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
@@ -76,7 +75,7 @@ data <- dbarts::dbartsData(
   offset.test = offset
 )
 
-expect_equal(data@offset[1:5],      rep(0.2, 5))
+expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], rep(0.2, 5))
 expect_equal(data@testUsesRegularOffset, TRUE)
 rm(data)
@@ -86,17 +85,16 @@ set.seed(0)
 otherOffset <- runif(nrow(testData$X))
 data <- dbarts::dbartsData(Z ~ X, testData, testData$X, offset = otherOffset)
 
-expect_equal(data@offset[1:5],      otherOffset[1:5])
+expect_equal(data@offset[1:5], otherOffset[1:5])
 expect_equal(data@offset.test[1:5], otherOffset[1:5])
 expect_equal(data@testUsesRegularOffset, TRUE)
 
 
 expect_error(
-  dbarts::dbartsData(Z ~ X, testData, testData$X[-1,], offset = otherOffset),
+  dbarts::dbartsData(Z ~ X, testData, testData$X[-1, ], offset = otherOffset),
   "vectored 'offset' cannot be directly applied to test data of unequal length"
 )
 rm(data)
-
 
 
 data <- dbarts::dbartsData(
@@ -113,7 +111,6 @@ expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
 
 
-
 data <- dbarts::dbartsData(
   Z ~ X,
   testData,
@@ -122,11 +119,10 @@ data <- dbarts::dbartsData(
   offset.test = 0.2
 )
 
-expect_equal(data@offset[1:5],      otherOffset[1:5])
+expect_equal(data@offset[1:5], otherOffset[1:5])
 expect_equal(data@offset.test[1:5], rep(0.2, 5))
 expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
-
 
 
 data <- dbarts::dbartsData(
@@ -137,7 +133,7 @@ data <- dbarts::dbartsData(
   offset.test = offset + 0.1
 )
 
-expect_equal(data@offset[1:5],      otherOffset[1:5])
+expect_equal(data@offset[1:5], otherOffset[1:5])
 expect_equal(data@offset.test[1:5], otherOffset[1:5] + 0.1)
 expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
@@ -151,7 +147,7 @@ data <- dbarts::dbartsData(
   offset.test = otherOffset
 )
 
-expect_equal(data@offset[1:5],      rep(0.2, 5))
+expect_equal(data@offset[1:5], rep(0.2, 5))
 expect_equal(data@offset.test[1:5], otherOffset[1:5])
 expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data)
@@ -171,4 +167,3 @@ expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data, otherOffset)
 
 rm(testData)
-

@@ -4,9 +4,15 @@
 # conditional-sampling workout stan4bart performs. Skips wherever the
 # consumer cannot be compiled.
 
-consumerSource <- system.file("tinytest", "capi", "consumer.c",
-                              package = "dbarts")
-if (consumerSource == "") exit_file("consumer source not installed")
+consumerSource <- system.file(
+  "tinytest",
+  "capi",
+  "consumer.c",
+  package = "dbarts"
+)
+if (consumerSource == "") {
+  exit_file("consumer source not installed")
+}
 
 buildDir <- tempfile("capi")
 dir.create(buildDir)
@@ -16,17 +22,20 @@ includeDir <- system.file("include", package = "dbarts")
 owd <- setwd(buildDir)
 compileOutput <- tryCatch(
   suppressWarnings(system2(
-    file.path(R.home("bin"), "R"), c("CMD", "SHLIB", "consumer.c"),
+    file.path(R.home("bin"), "R"),
+    c("CMD", "SHLIB", "consumer.c"),
     env = paste0("PKG_CPPFLAGS=-I", shQuote(includeDir)),
-    stdout = TRUE, stderr = TRUE
+    stdout = TRUE,
+    stderr = TRUE
   )),
   error = function(e) e
 )
 setwd(owd)
 
 sharedLib <- file.path(buildDir, paste0("consumer", .Platform$dynlib.ext))
-if (!file.exists(sharedLib))
+if (!file.exists(sharedLib)) {
   exit_file("could not compile the C API consumer")
+}
 
 dll <- dyn.load(sharedLib)
 CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
@@ -41,8 +50,13 @@ y <- 2 + x[, 1L] + 0.5 * sin(4 * x[, 2L]) + rnorm(n, 0, 0.4)
 x.test <- matrix(runif(20L * p), 20L, p)
 
 nSamples <- 7L
-control <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
-                         updateState = FALSE, rngSeed = 99L)
+control <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 25L,
+  updateState = FALSE,
+  rngSeed = 99L
+)
 spec <- dbarts(x, y, test = x.test, control = control)
 
 # creation, queries, and a run into caller-owned buffers
@@ -82,8 +96,13 @@ rOffset <- CALL("capi_run", ptr2, 30L, 3L, TRUE, FALSE)
 expect_true(abs(mean(rOffset$train) - mean(y)) < 3)
 
 specFixed <- dbarts(x, y, resid.prior = fixed(1), control = control)
-ptrFixed <- CALL("capi_create", specFixed$control, specFixed$model,
-                 specFixed$data, "")
+ptrFixed <- CALL(
+  "capi_create",
+  specFixed$control,
+  specFixed$model,
+  specFixed$data,
+  ""
+)
 rm(specFixed)
 invisible(gc(FALSE)) # creation preserves what the sampler borrows
 CALL("capi_set_sigma", ptrFixed, 0.37)
@@ -149,8 +168,13 @@ expect_null(CALL("capi_get_latents", ptr1))
 
 yBinary <- rbinom(n, 1L, pnorm(scale(y)))
 specBinary <- dbarts(x, yBinary, control = control)
-ptrBinary <- CALL("capi_create", specBinary$control, specBinary$model,
-                  specBinary$data, "probit")
+ptrBinary <- CALL(
+  "capi_create",
+  specBinary$control,
+  specBinary$model,
+  specBinary$data,
+  "probit"
+)
 invisible(CALL("capi_run", ptrBinary, 3L, 2L, FALSE, FALSE))
 latents <- CALL("capi_get_latents", ptrBinary)
 expect_equal(length(latents), n)

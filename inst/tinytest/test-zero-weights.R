@@ -23,15 +23,22 @@ nz <- which(w > 0.0)
 signal <- 2 * x[, 1L] - x[, 2L]
 # non-zero-weight rows span [0, 10] exactly (so they hold the extremes)
 ybase <- 10 * (signal - min(signal[nz])) / (max(signal[nz]) - min(signal[nz]))
-ybase[zeros] <- 5.0             # zero-weight rows sit inside the range
+ybase[zeros] <- 5.0 # zero-weight rows sit inside the range
 ypert <- ybase
-ypert[zeros] <- 5.5             # a different interior value
+ypert[zeros] <- 5.5 # a different interior value
 
 fitZeroWeight <- function(resp, nodePrior) {
-  ctrl <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 25L,
-                        updateState = FALSE, rngSeed = 5L)
+  ctrl <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 25L,
+    updateState = FALSE,
+    rngSeed = 5L
+  )
   args <- list(x, resp, weights = w, control = ctrl, sigma = 1.0)
-  if (!is.null(nodePrior)) args$node.prior <- nodePrior
+  if (!is.null(nodePrior)) {
+    args$node.prior <- nodePrior
+  }
   suppressWarnings(do.call(dbarts, args))$run(50L, 50L)$train
 }
 
@@ -52,5 +59,18 @@ expect_identical(lin.base[nz, ], lin.pert[nz, ])
 expect_equal(lin.base[zeros, ], lin.pert[zeros, ], tolerance = 1e-12)
 expect_true(all(is.finite(lin.base)))
 
-rm(x, w, zeros, nz, signal, ybase, ypert, fitZeroWeight,
-   const.base, const.pert, lin.base, lin.pert, n)
+rm(
+  x,
+  w,
+  zeros,
+  nz,
+  signal,
+  ybase,
+  ypert,
+  fitZeroWeight,
+  const.base,
+  const.pert,
+  lin.base,
+  lin.pert,
+  n
+)

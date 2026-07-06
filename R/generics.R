@@ -7,7 +7,11 @@ plotTree <- function(object, ...) UseMethod("plotTree")
 # latent-scale draws to probabilities for a binary fit; fits saved before
 # the family element existed are all probit
 probabilityFromLatents <- function(latents, object) {
-  if (identical(object[["family"]], "logistic")) plogis(latents) else pnorm(latents)
+  if (identical(object[["family"]], "logistic")) {
+    plogis(latents)
+  } else {
+    pnorm(latents)
+  }
 }
 
 # per-observation posterior summary for the interval-returning generics: est
@@ -18,13 +22,21 @@ probabilityFromLatents <- function(latents, object) {
 # "ppd" a prediction interval that also carries the residual noise, and "bart"
 # a credible interval on the latent scale.
 posteriorInterval <- function(draws, ci.level) {
-  if (!is.numeric(ci.level) || length(ci.level) != 1L || is.na(ci.level) ||
-      ci.level <= 0 || ci.level >= 1)
+  if (
+    !is.numeric(ci.level) ||
+      length(ci.level) != 1L ||
+      is.na(ci.level) ||
+      ci.level <= 0 ||
+      ci.level >= 1
+  ) {
     stop("'ci.level' must be a single number in (0, 1)")
+  }
   probs <- c((1 - ci.level) / 2, 1 - (1 - ci.level) / 2)
   if (is.null(dim(draws))) {
-    result <- matrix(c(mean(draws), quantile(draws, probs, names = FALSE)),
-                     nrow = 1L)
+    result <- matrix(
+      c(mean(draws), quantile(draws, probs, names = FALSE)),
+      nrow = 1L
+    )
   } else {
     obsMargin <- length(dim(draws))
     est <- apply(draws, obsMargin, mean)
@@ -35,84 +47,124 @@ posteriorInterval <- function(draws, ci.level) {
   result
 }
 
-combineOrUncombineChains <- function(x, n.chains, combineChains)
-{
+combineOrUncombineChains <- function(x, n.chains, combineChains) {
   if (n.chains > 1L) {
-    if (length(dim(x)) > 2L && combineChains)
+    if (length(dim(x)) > 2L && combineChains) {
       x <- combineChains(x)
-    else if (length(dim(x)) == 2L && !combineChains)
+    } else if (length(dim(x)) == 2L && !combineChains) {
       x <- uncombineChains(x, n.chains)
+    }
   }
   x
 }
 
-predict.bart <- function(object, newdata, offset, weights,
-                         type = c("ev", "ppd", "bart"),
-                         combineChains = TRUE,
-                         n.threads = object$fit$control@n.threads,
-                         ci.level = NULL,
-                         ...)
-{
-  if (missing(offset)) offset <- NULL
-  if (missing(weights)) weights <- NULL
+predict.bart <- function(
+  object,
+  newdata,
+  offset,
+  weights,
+  type = c("ev", "ppd", "bart"),
+  combineChains = TRUE,
+  n.threads = object$fit$control@n.threads,
+  ci.level = NULL,
+  ...
+) {
+  if (missing(offset)) {
+    offset <- NULL
+  }
+  if (missing(weights)) {
+    weights <- NULL
+  }
 
   if (is.null(object[["fit"]])) {
-    if (as.character(object$call[[1L]]) == "bart2")
+    if (as.character(object$call[[1L]]) == "bart2") {
       stop("predict requires bart2 to be called with 'keepTrees' == TRUE")
-    else
+    } else {
       stop("predict requires bart to be called with 'keeptrees' == TRUE")
+    }
   }
-  
+
   if (is.character(type)) {
-    if (type[1L] == "response")  type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.bart)$type))
-    stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) ||
+      length(type) == 0L ||
+      type[1L] %not_in% eval(formals(predict.bart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(predict.rbart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
 
   n.threads <- as.integer(n.threads)[1L]
-  
+
   result <- object$fit$predict(newdata, offset, n.threads)
   # result is n.obs x n.samples x n.chains
   n.chains <- object$fit$control@n.chains
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
 
   if (type != "bart") {
-    if ((responseIsBinary <- is.null(object[["sigma"]])))
+    if ((responseIsBinary <- is.null(object[["sigma"]]))) {
       result <- probabilityFromLatents(result, object)
+    }
 
-    if (type == "ppd")
+    if (type == "ppd") {
       result <- sampleFromPPD(result, object, weights)
+    }
   }
 
   # ci.level opts into a per-observation est + credible band (kind follows type)
-  if (!is.null(ci.level))
+  if (!is.null(ci.level)) {
     return(posteriorInterval(result, ci.level))
+  }
 
   result
 }
 
-extract.bart <- function(object,
-                         type = c("ev", "ppd", "bart", "trees"),
-                         sample = c("train", "test"),
-                         combineChains = TRUE,
-                         ...)
-{
+extract.bart <- function(
+  object,
+  type = c("ev", "ppd", "bart", "trees"),
+  sample = c("train", "test"),
+  combineChains = TRUE,
+  ...
+) {
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (!is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type))
-    stop("type must be in '", paste0(eval(formals(extract.bart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) || type[1L] %not_in% eval(formals(extract.bart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(extract.bart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
-  
+
   if (type == "trees") {
     if (is.null(object$fit)) {
-      if (as.character(object$call[[1L]]) == "bart2")
-        stop("extracting trees requires bart2 to be called with 'keepTrees' == TRUE")
-      else
-        stop("extracting trees requires bart to be called with 'keeptrees' == TRUE")
+      if (as.character(object$call[[1L]]) == "bart2") {
+        stop(
+          "extracting trees requires bart2 to be called with 'keepTrees' == TRUE"
+        )
+      } else {
+        stop(
+          "extracting trees requires bart to be called with 'keeptrees' == TRUE"
+        )
+      }
     }
     treesCall <- match.call()
     target <- quote(object$fit$getTrees)
@@ -122,61 +174,103 @@ extract.bart <- function(object,
     treesCall$type <- NULL
     return(eval(treesCall, parent.frame()))
   }
-  
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.bart)$sample))
-    stop("sample must be in '", paste0(eval(formals(extract.bart)$sample), collapse = "', '"), "'")
+
+  if (
+    !is.character(sample) ||
+      sample[1L] %not_in% eval(formals(extract.bart)$sample)
+  ) {
+    stop(
+      "sample must be in '",
+      paste0(eval(formals(extract.bart)$sample), collapse = "', '"),
+      "'"
+    )
+  }
   sample <- sample[1L]
-  
-  if (sample == "test" && is.null(object[["yhat.test"]]))
-    stop("cannot extract test sample predictions if no test data exists; use `predict` instead")  
-  
+
+  if (sample == "test" && is.null(object[["yhat.test"]])) {
+    stop(
+      "cannot extract test sample predictions if no test data exists; use `predict` instead"
+    )
+  }
+
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   weights <- if (sample == "train") object$weigths else object$weights.test
-  
-  n.chains  <- if (!is.null(object[["fit"]])) object$fit$control@n.chains else object$n.chains
+
+  n.chains <- if (!is.null(object[["fit"]])) {
+    object$fit$control@n.chains
+  } else {
+    object$n.chains
+  }
   #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
   #n.obs     <- if (length(dim(result)) > 2L) dim(result)[3L] else dim(result)[2L]
-  
-  result <- combineOrUncombineChains(result, n.chains, combineChains)
-    
-  if (type == "bart")
-    return(result)
-  
-  if ((responseIsBinary <- is.null(object[["sigma"]])))
-    result <- probabilityFromLatents(result, object)
 
-  if (type == "ppd")
+  result <- combineOrUncombineChains(result, n.chains, combineChains)
+
+  if (type == "bart") {
+    return(result)
+  }
+
+  if ((responseIsBinary <- is.null(object[["sigma"]]))) {
+    result <- probabilityFromLatents(result, object)
+  }
+
+  if (type == "ppd") {
     result <- sampleFromPPD(result, object, weights)
+  }
 
   result
 }
 
-fitted.bart <- function(object,
-                        type = c("ev", "ppd", "bart"),
-                        sample = c("train", "test"),
-                        ci.level = NULL,
-                        ...)
-{
+fitted.bart <- function(
+  object,
+  type = c("ev", "ppd", "bart"),
+  sample = c("train", "test"),
+  ci.level = NULL,
+  ...
+) {
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type))
-    stop("type must be in '", paste0(eval(formals(fitted.bart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) || type[1L] %not_in% eval(formals(fitted.bart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(fitted.bart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
 
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.bart)$sample))
-    stop("sample must be in '", paste0(eval(formals(fitted.bart)$sample), collapse = "', '"), "'")
+  if (
+    !is.character(sample) ||
+      sample[1L] %not_in% eval(formals(fitted.bart)$sample)
+  ) {
+    stop(
+      "sample must be in '",
+      paste0(eval(formals(fitted.bart)$sample), collapse = "', '"),
+      "'"
+    )
+  }
   sample <- sample[1L]
 
   result <- extract(object, type, sample, ...)
 
   # ci.level opts into a per-observation est + credible band instead of the
   # posterior mean; the interval kind follows type (see posteriorInterval)
-  if (!is.null(ci.level))
+  if (!is.null(ci.level)) {
     return(posteriorInterval(result, ci.level))
+  }
 
-  if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
+  if (!is.null(dim(result))) {
+    apply(result, length(dim(result)), mean)
+  } else {
+    mean(result)
+  }
 }
 
 residuals.bart <- function(object, type = "ev", ...) {
@@ -185,39 +279,62 @@ residuals.bart <- function(object, type = "ev", ...) {
   object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
-predict.rbart <- function(object, newdata, group.by, offset,
-                          type = c("ev", "ppd", "bart", "ranef"),
-                          combineChains = TRUE,
-                          ci.level = NULL,
-                          ...)
-{
-  if (is.null(object$fit))
+predict.rbart <- function(
+  object,
+  newdata,
+  group.by,
+  offset,
+  type = c("ev", "ppd", "bart", "ranef"),
+  combineChains = TRUE,
+  ci.level = NULL,
+  ...
+) {
+  if (is.null(object$fit)) {
     stop("predict requires rbart to be called with 'keepTrees' == TRUE")
-  
+  }
+
   dotsList <- list(...)
   if (!is.null(dotsList[["value"]])) {
     warning("argument 'value' has been deprecated; use 'type' instead")
     type <- dotsList[["value"]]
     dotsList[["value"]] <- NULL
   }
-  
+
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (is.character(type) && length(type) > 0L &&  type[1L] == "post-mean") {
+  if (is.character(type) && length(type) > 0L && type[1L] == "post-mean") {
     warning("type of 'post-mean' for predict deprecated; use 'ev' instead")
     type[1L] <- "ev"
   }
-  if (!is.character(type) || length(type) == 0L || type[1L] %not_in% eval(formals(predict.rbart)$type))
-    stop("type must be in '", paste0(eval(formals(predict.rbart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) ||
+      length(type) == 0L ||
+      type[1L] %not_in% eval(formals(predict.rbart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(predict.rbart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
-  
-  if (missing(offset)) offset <- NULL
-  
-  n.chains  <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
+
+  if (missing(offset)) {
+    offset <- NULL
+  }
+
+  n.chains <- if (is.null(object$n.chains)) {
+    length(object$fit)
+  } else {
+    object$n.chains
+  }
   n.samples <- object$fit[[1L]]$control@n.samples
-    
+
   nonParametricPart <- 0
   # collects results in an array of n.obs x n.samples x n.chains, default for
   # internal sampler
@@ -233,135 +350,226 @@ predict.rbart <- function(object, newdata, group.by, offset,
         n.obs <- dim(nonParametricPart)[1L]
       } else {
         n.obs <- NULL
-        nonParametricPart <- array(sapply(seq_len(n.chains), function(i) {
-          res <- object$fit[[i]]$predict(newdata, offset)
-            if (is.null(n.obs)) n.obs <<- dim(res)[1L]
+        nonParametricPart <- array(
+          sapply(seq_len(n.chains), function(i) {
+            res <- object$fit[[i]]$predict(newdata, offset)
+            if (is.null(n.obs)) {
+              n.obs <<- dim(res)[1L]
+            }
             res
-          }), c(n.obs, n.samples, n.chains))
+          }),
+          c(n.obs, n.samples, n.chains)
+        )
       }
     } else {
       nonParametricPart <- object$fit[[1L]]$predict(newdata, offset)
       n.obs <- nrow(nonParametricPart)
     }
-    if (n.obs != length(group.by))
+    if (n.obs != length(group.by)) {
       stop("length of group.by not equal to number of rows in test")
-    
-    nonParametricPart <- convertSamplesFromDbartsToBart(nonParametricPart, n.chains, combineChains)
+    }
+
+    nonParametricPart <- convertSamplesFromDbartsToBart(
+      nonParametricPart,
+      n.chains,
+      combineChains
+    )
   }
-  
+
   if (type == "bart") {
-    if (!is.null(ci.level)) return(posteriorInterval(nonParametricPart, ci.level))
+    if (!is.null(ci.level)) {
+      return(posteriorInterval(nonParametricPart, ci.level))
+    }
     return(nonParametricPart)
   }
 
   ranef <- 0
   if (type != "bart") {
-    ranefNames.test  <- levels(group.by)
-    ranefNames.train <- if (length(dim(object$ranef)) > 2L) dimnames(object$ranef)[[3L]] else dimnames(object$ranef)[[2L]]
-  
+    ranefNames.test <- levels(group.by)
+    ranefNames.train <- if (length(dim(object$ranef)) > 2L) {
+      dimnames(object$ranef)[[3L]]
+    } else {
+      dimnames(object$ranef)[[2L]]
+    }
+
     ranef <- object$ranef
     if (n.chains > 1L) {
-      if (length(dim(ranef)) > 2L && combineChains)
+      if (length(dim(ranef)) > 2L && combineChains) {
         ranef <- combineChains(ranef)
-      else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L)
+      } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
         ranef <- uncombineChains(ranef, n.chains)
+      }
     }
-    
+
     if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
-      warning("test includes random effect levels not present in training - ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'")
+      warning(
+        "test includes random effect levels not present in training - ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'"
+      )
       n.unmeasured <- sum(!measuredLevels)
       if (n.chains > 1L) {
         if (!combineChains) {
-          unmeasuredRanef <- array(rnorm(n.chains * n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                   c(n.chains, n.samples, n.unmeasured),
-                                   dimnames = list(NULL, NULL, ranefNames.test[!measuredLevels]))
+          unmeasuredRanef <- array(
+            rnorm(
+              n.chains * n.samples * n.unmeasured,
+              0,
+              rep.int(object$tau, n.unmeasured)
+            ),
+            c(n.chains, n.samples, n.unmeasured),
+            dimnames = list(NULL, NULL, ranefNames.test[!measuredLevels])
+          )
         } else {
-          unmeasuredRanef <- matrix(rnorm(n.chains * n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                    n.chains * n.samples, n.unmeasured,
-                                    dimnames = list(NULL, ranefNames.test[!measuredLevels]))
+          unmeasuredRanef <- matrix(
+            rnorm(
+              n.chains * n.samples * n.unmeasured,
+              0,
+              rep.int(object$tau, n.unmeasured)
+            ),
+            n.chains * n.samples,
+            n.unmeasured,
+            dimnames = list(NULL, ranefNames.test[!measuredLevels])
+          )
         }
         if (length(dim(object$ranef)) == 2L) {
           ranef <- cbind(ranef, unmeasuredRanef)
         } else {
           # ranef are n.chains x n.samples x n.group
-          ranef <- array(c(ranef, unmeasuredRanef), c(n.chains, n.samples, dim(ranef)[3L] + n.unmeasured),
+          ranef <- array(
+            c(ranef, unmeasuredRanef),
+            c(n.chains, n.samples, dim(ranef)[3L] + n.unmeasured),
 
-                         dimnames = list(NULL, NULL, c(dimnames(ranef)[[3L]], dimnames(unmeasuredRanef)[[3L]])))
+            dimnames = list(
+              NULL,
+              NULL,
+              c(dimnames(ranef)[[3L]], dimnames(unmeasuredRanef)[[3L]])
+            )
+          )
         }
       } else {
-        unmeasuredRanef <- matrix(rnorm(n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
-                                  n.samples, n.unmeasured,
-                                  dimnames = list(NULL, ranefNames.test[!measuredLevels]))
+        unmeasuredRanef <- matrix(
+          rnorm(n.samples * n.unmeasured, 0, rep.int(object$tau, n.unmeasured)),
+          n.samples,
+          n.unmeasured,
+          dimnames = list(NULL, ranefNames.test[!measuredLevels])
+        )
         ranef <- cbind(ranef, unmeasuredRanef)
       }
     }
   }
-  
+
   if (type == "ranef") {
-    ranef <- if (length(dim(ranef)) > 2L) ranef[,,ranefNames.test,drop = FALSE] else ranef[,ranefNames.test,drop = FALSE]
+    ranef <- if (length(dim(ranef)) > 2L) {
+      ranef[,, ranefNames.test, drop = FALSE]
+    } else {
+      ranef[, ranefNames.test, drop = FALSE]
+    }
     ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-    if (!is.null(ci.level)) return(posteriorInterval(ranef, ci.level))
+    if (!is.null(ci.level)) {
+      return(posteriorInterval(ranef, ci.level))
+    }
     return(ranef)
   }
-  
-  ranef <- unname(if (length(dim(ranef)) > 2L) ranef[,,as.character(group.by),drop = FALSE] else ranef[,as.character(group.by),drop = FALSE])
+
+  ranef <- unname(
+    if (length(dim(ranef)) > 2L) {
+      ranef[,, as.character(group.by), drop = FALSE]
+    } else {
+      ranef[, as.character(group.by), drop = FALSE]
+    }
+  )
   ranef <- combineOrUncombineChains(ranef, n.chains, combineChains)
-  
-  if (length(dim(nonParametricPart)) != length(dim(ranef)) || any(dim(nonParametricPart) != dim(ranef)))
+
+  if (
+    length(dim(nonParametricPart)) != length(dim(ranef)) ||
+      any(dim(nonParametricPart) != dim(ranef))
+  ) {
     browser()
+  }
   result <- nonParametricPart + ranef
-  
+
   responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) result <- probabilityFromLatents(result, object)
+  if (responseIsBinary) {
+    result <- probabilityFromLatents(result, object)
+  }
 
-  if (type == "ppd")
+  if (type == "ppd") {
     result <- sampleFromPPD(result, object, NULL)
+  }
 
-  if (!is.null(ci.level)) return(posteriorInterval(result, ci.level))
+  if (!is.null(ci.level)) {
+    return(posteriorInterval(result, ci.level))
+  }
 
-  if (exists("unmeasuredRanef", inherits = FALSE)) attr(result, "ranef") <- unmeasuredRanef
+  if (exists("unmeasuredRanef", inherits = FALSE)) {
+    attr(result, "ranef") <- unmeasuredRanef
+  }
 
   result
 }
 
-extract.rbart <- function(object,
-                          type = c("ev", "ppd", "bart", "ranef", "trees"),
-                          sample = c("train", "test"),
-                          combineChains = TRUE,
-                          ...)
-{
+extract.rbart <- function(
+  object,
+  type = c("ev", "ppd", "bart", "ranef", "trees"),
+  sample = c("train", "test"),
+  combineChains = TRUE,
+  ...
+) {
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (!is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type))
-    stop("type must be in '", paste0(eval(formals(extract.rbart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) || type[1L] %not_in% eval(formals(extract.rbart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(extract.rbart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
 
-  n.chains  <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
-  
+  n.chains <- if (is.null(object$n.chains)) {
+    length(object$fit)
+  } else {
+    object$n.chains
+  }
+
   if (type == "trees") {
-    if (is.null(object$fit))
-      stop("extracting trees requires rbart to be called with 'keepTrees' == TRUE")
+    if (is.null(object$fit)) {
+      stop(
+        "extracting trees requires rbart to be called with 'keepTrees' == TRUE"
+      )
+    }
     treesCall <- match.call()
     # the in-core Gibbs path keeps one multi-chain sampler: route chain
     # selection through its chainNums argument instead of the fit list
     singleFit <- length(object$fit) == 1L && n.chains > 1L
     target <- quote(object$fit[[i]]$getTrees)
     target[[2L]][[2L]][[2L]] <- treesCall$object
-    if (singleFit) target[[2L]][[3L]] <- 1L
+    if (singleFit) {
+      target[[2L]][[3L]] <- 1L
+    }
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
     treesCall$chainNums <- if (singleFit) quote(i) else NULL
     evalEnv <- parent.frame()
     dotsList <- list(...)
-    chainNums <- if ("chainNums" %in% names(dotsList)) as.integer(dotsList[["chainNums"]]) else seq_len(n.chains)
+    chainNums <- if ("chainNums" %in% names(dotsList)) {
+      as.integer(dotsList[["chainNums"]])
+    } else {
+      seq_len(n.chains)
+    }
     varOrder <- c("sample", "chain", "tree", "n", "var", "value")
     allTrees <- lapply(chainNums, function(i) {
       result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)
-      if (n.chains > 1L) result_i$chain <- i
-      result_i[,match(varOrder, colnames(result_i))]
+      if (n.chains > 1L) {
+        result_i$chain <- i
+      }
+      result_i[, match(varOrder, colnames(result_i))]
     })
     if (length(allTrees) > 1L) {
       allTrees <- Reduce(rbind, allTrees)
@@ -372,99 +580,171 @@ extract.rbart <- function(object,
     return(allTrees)
   }
 
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(extract.rbart)$sample))
-    stop("sample must be in '", paste0(eval(formals(extract.rbart)$sample), collapse = "', '"), "'")
+  if (
+    !is.character(sample) ||
+      sample[1L] %not_in% eval(formals(extract.rbart)$sample)
+  ) {
+    stop(
+      "sample must be in '",
+      paste0(eval(formals(extract.rbart)$sample), collapse = "', '"),
+      "'"
+    )
+  }
   sample <- sample[1L]
-  
-  if (sample == "test" && is.null(object[["yhat.test"]]))
-    stop("cannot extract test sample predictions if no test data exists; use `predict` instead")
-  
-    
+
+  if (sample == "test" && is.null(object[["yhat.test"]])) {
+    stop(
+      "cannot extract test sample predictions if no test data exists; use `predict` instead"
+    )
+  }
+
   if (type == "ranef") {
-    ranefNames <- if (sample == "train") levels(object$group.by) else levels(object$group.by.test)
-    ranef <- if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames,drop = FALSE] else object$ranef[,ranefNames,drop = FALSE]
-    if (n.chains > 1L) {
-      if (length(dim(ranef)) > 2L && combineChains)
-        ranef <- combineChains(ranef)
-      else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L)
-        ranef <- uncombineChains(ranef, n.chains)
+    ranefNames <- if (sample == "train") {
+      levels(object$group.by)
+    } else {
+      levels(object$group.by.test)
     }
-    
+    ranef <- if (length(dim(object$ranef)) > 2L) {
+      object$ranef[,, ranefNames, drop = FALSE]
+    } else {
+      object$ranef[, ranefNames, drop = FALSE]
+    }
+    if (n.chains > 1L) {
+      if (length(dim(ranef)) > 2L && combineChains) {
+        ranef <- combineChains(ranef)
+      } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
+        ranef <- uncombineChains(ranef, n.chains)
+      }
+    }
+
     return(ranef)
-  }  
-  
+  }
+
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   # if necessary, recover chain information or throw it away
   if (n.chains > 1L) {
-    if (length(dim(result)) > 2L && combineChains)
+    if (length(dim(result)) > 2L && combineChains) {
       result <- combineChains(result)
-    else if (length(dim(result)) == 2L && !combineChains && n.chains > 1L)
+    } else if (length(dim(result)) == 2L && !combineChains && n.chains > 1L) {
       result <- uncombineChains(result, n.chains)
+    }
   }
-  
+
   #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
   #n.obs     <- dim(result)[length(dim(result))]
-  
-  if (type == "bart") return(result)
-  
-  ranefNames <- if (sample == "train") as.character(object$group.by) else as.character(object$group.by.test)
-  ranef <- unname(if (length(dim(object$ranef)) > 2L) object$ranef[,,ranefNames,drop = FALSE] else object$ranef[,ranefNames,drop = FALSE])
-  
-  if (n.chains > 1L) {
-    if (length(dim(ranef)) > 2L && combineChains)
-      ranef <- combineChains(ranef)
-    else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L)
-      ranef <- uncombineChains(ranef, n.chains)
-  }
-  
-  result <- result + ranef
-  
-  responseIsBinary <- is.null(object[["sigma"]])
-  if (responseIsBinary) result <- probabilityFromLatents(result, object)
 
-  if (type == "ppd")
+  if (type == "bart") {
+    return(result)
+  }
+
+  ranefNames <- if (sample == "train") {
+    as.character(object$group.by)
+  } else {
+    as.character(object$group.by.test)
+  }
+  ranef <- unname(
+    if (length(dim(object$ranef)) > 2L) {
+      object$ranef[,, ranefNames, drop = FALSE]
+    } else {
+      object$ranef[, ranefNames, drop = FALSE]
+    }
+  )
+
+  if (n.chains > 1L) {
+    if (length(dim(ranef)) > 2L && combineChains) {
+      ranef <- combineChains(ranef)
+    } else if (length(dim(ranef)) == 2L && !combineChains && n.chains > 1L) {
+      ranef <- uncombineChains(ranef, n.chains)
+    }
+  }
+
+  result <- result + ranef
+
+  responseIsBinary <- is.null(object[["sigma"]])
+  if (responseIsBinary) {
+    result <- probabilityFromLatents(result, object)
+  }
+
+  if (type == "ppd") {
     result <- sampleFromPPD(result, object, NULL)
+  }
 
   result
 }
 
-fitted.rbart <- function(object,
-                         type = c("ev", "ppd", "bart", "ranef"),
-                         sample = c("train", "test"),
-                         ci.level = NULL,
-                         ...)
-{
+fitted.rbart <- function(
+  object,
+  type = c("ev", "ppd", "bart", "ranef"),
+  sample = c("train", "test"),
+  ci.level = NULL,
+  ...
+) {
   if (is.character(type)) {
-    if (type[1L] == "response") type[1L] <- "ev"
-    else if (type[1L] == "link") type[1L] <- "bart"
+    if (type[1L] == "response") {
+      type[1L] <- "ev"
+    } else if (type[1L] == "link") {
+      type[1L] <- "bart"
+    }
   }
-  if (!is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type))
-    stop("type must be in '", paste0(eval(formals(fitted.rbart)$type), collapse = "', '"), "'")
+  if (
+    !is.character(type) || type[1L] %not_in% eval(formals(fitted.rbart)$type)
+  ) {
+    stop(
+      "type must be in '",
+      paste0(eval(formals(fitted.rbart)$type), collapse = "', '"),
+      "'"
+    )
+  }
   type <- type[1L]
 
-  if (!is.character(sample) || sample[1L] %not_in% eval(formals(fitted.rbart)$sample))
-    stop("sample must be in '", paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"), "'")
+  if (
+    !is.character(sample) ||
+      sample[1L] %not_in% eval(formals(fitted.rbart)$sample)
+  ) {
+    stop(
+      "sample must be in '",
+      paste0(eval(formals(fitted.rbart)$sample), collapse = "', '"),
+      "'"
+    )
+  }
   sample <- sample[1L]
 
   # ci.level routes through the draws (extract) rather than the mean-only C
   # fast path below, then summarizes to est + credible band (kind follows type)
-  if (!is.null(ci.level))
+  if (!is.null(ci.level)) {
     return(posteriorInterval(extract(object, type, sample, ...), ci.level))
+  }
 
   if (type == "ev") {
     ranefNames <- dimnames(object$ranef)
     ranefNames <- ranefNames[[length(ranefNames)]]
     if (sample == "train") {
       groupByMatch <- match(object$group.by, ranefNames)
-      result <- .Call(C_rbart_fitted, object$yhat.train, object$ranef, groupByMatch, is.null(object[["sigma"]]))
+      result <- .Call(
+        C_rbart_fitted,
+        object$yhat.train,
+        object$ranef,
+        groupByMatch,
+        is.null(object[["sigma"]])
+      )
     } else {
       groupByMatch <- match(object$group.by.test, ranefNames)
-      result <- .Call(C_rbart_fitted, object$yhat.test, object$ranef, groupByMatch, is.null(object[["sigma"]]))
+      result <- .Call(
+        C_rbart_fitted,
+        object$yhat.test,
+        object$ranef,
+        groupByMatch,
+        is.null(object[["sigma"]])
+      )
     }
   } else {
     result <- extract(object, type, sample, ...)
-    
-    result <- if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
+
+    result <- if (!is.null(dim(result))) {
+      apply(result, length(dim(result)), mean)
+    } else {
+      mean(result)
+    }
   }
 
   result
@@ -485,30 +765,61 @@ plotTree.dbartsSampler <- function(object, ...) {
 }
 
 plotTree.bart <- function(object, treeNum = 1L, chainNum, sampleNum, ...) {
-  if (is.null(object[["fit"]]))
-    stop("plotTree requires the trees to be kept: fit with ",
-         "keeptrees/keepTrees = TRUE")
+  if (is.null(object[["fit"]])) {
+    stop(
+      "plotTree requires the trees to be kept: fit with ",
+      "keeptrees/keepTrees = TRUE"
+    )
+  }
   args <- list(treeNum = treeNum, ...)
-  if (!missing(chainNum)) args$chainNum <- chainNum
-  if (!missing(sampleNum)) args$sampleNum <- sampleNum
+  if (!missing(chainNum)) {
+    args$chainNum <- chainNum
+  }
+  if (!missing(sampleNum)) {
+    args$sampleNum <- sampleNum
+  }
   invisible(do.call(object$fit$plotTree, args))
 }
 
-plotTree.rbart <- function(object, treeNum = 1L, chainNum = 1L, sampleNum, ...) {
-  if (is.null(object[["fit"]]))
-    stop("plotTree requires the trees to be kept: fit rbart_vi with ",
-         "keepTrees = TRUE")
-  n.chains <- if (is.null(object$n.chains)) length(object$fit) else object$n.chains
+plotTree.rbart <- function(
+  object,
+  treeNum = 1L,
+  chainNum = 1L,
+  sampleNum,
+  ...
+) {
+  if (is.null(object[["fit"]])) {
+    stop(
+      "plotTree requires the trees to be kept: fit rbart_vi with ",
+      "keepTrees = TRUE"
+    )
+  }
+  n.chains <- if (is.null(object$n.chains)) {
+    length(object$fit)
+  } else {
+    object$n.chains
+  }
   chainNum <- as.integer(chainNum)
-  if (length(chainNum) != 1L || is.na(chainNum) ||
-      chainNum < 1L || chainNum > n.chains)
+  if (
+    length(chainNum) != 1L ||
+      is.na(chainNum) ||
+      chainNum < 1L ||
+      chainNum > n.chains
+  ) {
     stop("chainNum must be a single chain index in [1, ", n.chains, "]")
+  }
   # the in-core Gibbs path keeps one multi-chain sampler (select the chain
   # through its own chainNum); the R-loop path keeps one sampler per chain
   singleFit <- length(object$fit) == 1L && n.chains > 1L
   sampler <- if (singleFit) object$fit[[1L]] else object$fit[[chainNum]]
-  args <- list(treeNum = treeNum, chainNum = if (singleFit) chainNum else 1L, ...)
-  if (!missing(sampleNum)) args$sampleNum <- sampleNum
+  args <- list(
+    treeNum = treeNum,
+    chainNum = if (singleFit) chainNum else 1L,
+    ...
+  )
+  if (!missing(sampleNum)) {
+    args$sampleNum <- sampleNum
+  }
   invisible(do.call(sampler$plotTree, args))
 }
 
@@ -517,66 +828,98 @@ plotTree.rbart <- function(object, treeNum = 1L, chainNum = 1L, sampleNum, ...) 
 # ev (expected value) should have dimensions
 #   n.samples x n.chains x n.obs, (n.samples * n.chains n.obs),
 #   or n.samples x n.obs if n.chains = 1
-# 
-# ev consists of contiguous blocks of length equal to the number of 
+#
+# ev consists of contiguous blocks of length equal to the number of
 # samples, so that ev[1:totalNumSamples] should get paired with
 # as.vector(sigma), and then repeated from there
 #
 #
 # for ev of dim n.chains x n.samples x n.obs (bart default),
 # each sigma needs to be repeated as below
-sampleFromPPD <- function(ev, object, weights)
-{
+sampleFromPPD <- function(ev, object, weights) {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed
     .GlobalEnv$.Random.seed <- object$seed
   }
-  
+
   responseIsBinary <- is.null(object$sigma)
-  
+
   if (is.null(weights)) {
     if (responseIsBinary) {
-      if (length(dim(ev)) > 2L)
-        result <- array(rbinom(length(ev), 1L, ev), dim(ev), dimnames = dimnames(ev))
-      else
-        result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
+      if (length(dim(ev)) > 2L) {
+        result <- array(
+          rbinom(length(ev), 1L, ev),
+          dim(ev),
+          dimnames = dimnames(ev)
+        )
+      } else {
+        result <- matrix(
+          rbinom(length(ev), 1L, ev),
+          nrow(ev),
+          ncol(ev),
+          dimnames = list(rownames(ev), colnames(ev))
+        )
+      }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      result <- ev + rnorm(n.obs * length(object$sigma), 0, rep_len(object$sigma, n.obs * length(object$sigma)))
+      result <- ev +
+        rnorm(
+          n.obs * length(object$sigma),
+          0,
+          rep_len(object$sigma, n.obs * length(object$sigma))
+        )
     }
   } else {
     if (responseIsBinary) {
       if (length(dim(ev)) > 2L) {
-        result <- array(rbinom(length(ev), 1L, ev), dim(ev), dimnames = dimnames(ev))
+        result <- array(
+          rbinom(length(ev), 1L, ev),
+          dim(ev),
+          dimnames = dimnames(ev)
+        )
         # recycle weight vector by permuting observations to first dimension
         result <- aperm(weights * aperm(result, c(3L, 1L, 2L)), c(2L, 3L, 1L))
       } else {
-        result <- matrix(rbinom(length(ev), 1L, ev), nrow(ev), ncol(ev), dimnames = list(rownames(ev), colnames(ev)))
+        result <- matrix(
+          rbinom(length(ev), 1L, ev),
+          nrow(ev),
+          ncol(ev),
+          dimnames = list(rownames(ev), colnames(ev))
+        )
         result <- t(weights * t(result))
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
       n.samples <- length(object$sigma)
-      sigma <- rep_len(object$sigma, n.obs * n.samples) * rep(sqrt(1 / weights), each = n.samples)
+      sigma <- rep_len(object$sigma, n.obs * n.samples) *
+        rep(sqrt(1 / weights), each = n.samples)
       result <- ev + rnorm(n.obs * n.samples, 0, sigma)
     }
   }
-  if (!is.null(oldSeed))
+  if (!is.null(oldSeed)) {
     .GlobalEnv$.Random.seed <- oldSeed
-  
+  }
+
   result
 }
 
 print.bart <- function(x, ...) {
-  cat("\nCall:\n", paste(deparse(x$call), sep = "\n", collapse = "\n"), 
-      "\n\n", sep = "")
+  cat(
+    "\nCall:\n",
+    paste(deparse(x$call), sep = "\n", collapse = "\n"),
+    "\n\n",
+    sep = ""
+  )
   invisible(x)
 }
 
 print.rbart <- function(x, ...) {
-  cat("\nCall:\n", paste(deparse(x$call), sep = "\n", collapse = "\n"), 
-      "\n\n", sep = "")
+  cat(
+    "\nCall:\n",
+    paste(deparse(x$call), sep = "\n", collapse = "\n"),
+    "\n\n",
+    sep = ""
+  )
   invisible(x)
 }
-

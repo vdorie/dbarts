@@ -15,24 +15,42 @@
 
 bartcoreSamplerRun <- function(sampler, numBurnIn, numSamples) {
   control <- sampler$control
-  if (is.na(numBurnIn)) numBurnIn <- control@n.burn
-  if (is.na(numSamples)) numSamples <- control@n.samples
+  if (is.na(numBurnIn)) {
+    numBurnIn <- control@n.burn
+  }
+  if (is.na(numSamples)) {
+    numSamples <- control@n.samples
+  }
   if (is.na(numSamples)) {
     stop("bartcore engine samplers require 'numSamples' to be specified")
   }
 
-  result <- .Call(C_dbarts_bartcore_run, sampler$getPointer(),
-                  as.integer(numBurnIn), as.integer(numSamples))
-  if (is.null(result)) return(invisible(NULL))
+  result <- .Call(
+    C_dbarts_bartcore_run,
+    sampler$getPointer(),
+    as.integer(numBurnIn),
+    as.integer(numSamples)
+  )
+  if (is.null(result)) {
+    return(invisible(NULL))
+  }
   result
 }
 
-bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
-                                        updateCutPoints) {
+bartcoreSamplerSetPredictor <- function(
+  sampler,
+  x,
+  column,
+  forceUpdate,
+  updateCutPoints
+) {
   # guard before data@x is swapped: the C entry point refuses too, but the
   # R5 object must not be left holding a half-installed dense matrix
-  if (!is.matrix(sampler$data@x))
-    stop("sparse predictors fix the design at creation; make a new sampler instead")
+  if (!is.matrix(sampler$data@x)) {
+    stop(
+      "sparse predictors fix the design at creation; make a new sampler instead"
+    )
+  }
 
   partialUpdate <- !is.null(forceUpdate) &&
     is.character(forceUpdate) &&
@@ -64,8 +82,12 @@ bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
       stop("partial updates cannot also update cut points")
     }
 
-    return(.Call(C_dbarts_bartcore_updatePredictorPerObservation, ptr,
-                 as.double(x), as.integer(column)))
+    return(.Call(
+      C_dbarts_bartcore_updatePredictorPerObservation,
+      ptr,
+      as.double(x),
+      as.integer(column)
+    ))
   }
 
   forceUpdate <- if (is.null(forceUpdate)) {
@@ -96,32 +118,49 @@ bartcoreSamplerSetPredictor <- function(sampler, x, column, forceUpdate,
     x.old <- sampler$data@x
     sampler$data@x <- x
     tryResult <- tryCatch(
-      updateSuccessful <- .Call(C_dbarts_bartcore_setPredictor, ptr,
-                                sampler$data@x, forceUpdate, updateCutPoints),
+      updateSuccessful <- .Call(
+        C_dbarts_bartcore_setPredictor,
+        ptr,
+        sampler$data@x,
+        forceUpdate,
+        updateCutPoints
+      ),
       error = function(e) {
         sampler$data@x <- x.old
         e
       }
     )
-    if (inherits(tryResult, "error")) stop(tryResult)
+    if (inherits(tryResult, "error")) {
+      stop(tryResult)
+    }
     if (!forceUpdate && !updateSuccessful) sampler$data@x <- x.old
   } else {
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x))) {
-      stop("column '", column[which(column < 1L | column > ncol(sampler$data@x))[1L]],
-           "' is out of range")
+      stop(
+        "column '",
+        column[which(column < 1L | column > ncol(sampler$data@x))[1L]],
+        "' is out of range"
+      )
     }
     if (is.matrix(x) && ncol(x) != length(column)) {
-      stop("number of columns of new x does not match length of columns to replace")
+      stop(
+        "number of columns of new x does not match length of columns to replace"
+      )
     }
     if (length(x) != nrow(sampler$data@x) * length(column)) {
       stop("length of new x does not match y")
     }
     # written in place through the matrix the engine borrows, so data@x
     # already reflects the change
-    updateSuccessful <- .Call(C_dbarts_bartcore_updatePredictor, ptr,
-                              as.double(x), column, forceUpdate,
-                              updateCutPoints)
+    updateSuccessful <- .Call(
+      C_dbarts_bartcore_updatePredictor,
+      ptr,
+      as.double(x),
+      column,
+      forceUpdate,
+      updateCutPoints
+    )
   }
 
   if (!forceUpdate) updateSuccessful else invisible(NULL)
@@ -154,11 +193,15 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
       offset <- rep_len(offset, length(sampler$data@y))
     } else {
       if (length(offset) != length(sampler$data@y)) {
-        stop("length of replacement offset is not equal to number of observations")
+        stop(
+          "length of replacement offset is not equal to number of observations"
+        )
       }
       if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
-        offset.test <- if (!is.null(sampler$data@x.test) &&
-                           length(offset) == nrow(sampler$data@x.test)) {
+        offset.test <- if (
+          !is.null(sampler$data@x.test) &&
+            length(offset) == nrow(sampler$data@x.test)
+        ) {
           offset
         } else {
           NULL
@@ -170,8 +213,12 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   ptr <- sampler$getPointer()
 
   sampler$data@offset <- offset
-  .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset,
-        as.logical(updateScale))
+  .Call(
+    C_dbarts_bartcore_setOffset,
+    ptr,
+    sampler$data@offset,
+    as.logical(updateScale)
+  )
 
   if (!identical(offset.test, NA)) {
     oldOffset.test <- sampler$data@offset.test
@@ -211,7 +258,9 @@ bartcoreSamplerSetData <- function(sampler, newData) {
       e
     }
   )
-  if (inherits(tryResult, "error")) stop(tryResult)
+  if (inherits(tryResult, "error")) {
+    stop(tryResult)
+  }
 
   invisible(NULL)
 }
@@ -227,13 +276,21 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
     column <- match(column, colnames(sampler$data@x))
     if (anyNA(column)) stop("column name not found in names of current X")
   }
-  if (is.null(column)) column <- seq_len(ncol(sampler$data@x))
+  if (is.null(column)) {
+    column <- seq_len(ncol(sampler$data@x))
+  }
 
-  if (!is.list(cuts)) cuts <- list(cuts)
+  if (!is.list(cuts)) {
+    cuts <- list(cuts)
+  }
   cuts <- lapply(cuts, as.double)
 
-  .Call(C_dbarts_bartcore_setCutPoints, sampler$getPointer(), cuts,
-        as.integer(column))
+  .Call(
+    C_dbarts_bartcore_setCutPoints,
+    sampler$getPointer(),
+    cuts,
+    as.integer(column)
+  )
   invisible(NULL)
 }
 
@@ -257,9 +314,11 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   } else {
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x.test))) {
-      stop("column '",
-           column[which(column < 1L | column > ncol(sampler$data@x.test))[1L]],
-           "' is out of range")
+      stop(
+        "column '",
+        column[which(column < 1L | column > ncol(sampler$data@x.test))[1L]],
+        "' is out of range"
+      )
     }
     if (length(x.test) != nrow(sampler$data@x.test) * length(column)) {
       stop("length of new x does not match old x.test")
@@ -271,9 +330,14 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   sampler$data@x.test <- x.test
-  if (is.null(x.test)) sampler$data@offset.test <- NULL
-  .Call(C_dbarts_bartcore_setTestPredictor, sampler$getPointer(),
-        sampler$data@x.test)
+  if (is.null(x.test)) {
+    sampler$data@offset.test <- NULL
+  }
+  .Call(
+    C_dbarts_bartcore_setTestPredictor,
+    sampler$getPointer(),
+    sampler$data@x.test
+  )
   invisible(NULL)
 }
 
@@ -289,8 +353,13 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
 
 bartcoreSampler <- function(sampler, family = "") {
   result <- new.env(parent = emptyenv())
-  result$ptr <- .Call(C_dbarts_bartcore_create, sampler$control, sampler$model,
-                      sampler$data, as.character(family))
+  result$ptr <- .Call(
+    C_dbarts_bartcore_create,
+    sampler$control,
+    sampler$model,
+    sampler$data,
+    as.character(family)
+  )
   result
 }
 
@@ -311,48 +380,86 @@ bartcoreDataHandle <- function(control, data) {
 # test offset comes from offset[testRows] (xbart's fold semantics). The
 # result refuses raw-predictor mutation (setPredictor and friends, setData,
 # setCutPoints, setState); family is as bartcoreSampler's.
-bartcoreSamplerFromHandle <- function(handle, control, model, data,
-                                      trainRows, testRows = NULL,
-                                      family = "") {
+bartcoreSamplerFromHandle <- function(
+  handle,
+  control,
+  model,
+  data,
+  trainRows,
+  testRows = NULL,
+  family = ""
+) {
   result <- new.env(parent = emptyenv())
-  result$ptr <- .Call(C_dbarts_bartcore_createFromHandle, control, model,
-                      data, handle$ptr, as.integer(trainRows),
-                      if (!is.null(testRows)) as.integer(testRows),
-                      as.character(family))
+  result$ptr <- .Call(
+    C_dbarts_bartcore_createFromHandle,
+    control,
+    model,
+    data,
+    handle$ptr,
+    as.integer(trainRows),
+    if (!is.null(testRows)) as.integer(testRows),
+    as.character(family)
+  )
   result
 }
 
-bartcoreSetModel <- function(bcSampler, model, control, data)
-  invisible(.Call(C_dbarts_bartcore_setModel, bcSampler$ptr, model, control,
-                  data))
-
-bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L)
-  .Call(C_dbarts_bartcore_run, bcSampler$ptr, as.integer(numBurnIn),
-        as.integer(numSamples))
-
-bartcoreSetOffset <- function(bcSampler, offset, updateScale = FALSE) {
-  if (!is.null(offset)) offset <- as.double(offset)
-  invisible(.Call(C_dbarts_bartcore_setOffset, bcSampler$ptr, offset,
-                  as.logical(updateScale)))
+bartcoreSetModel <- function(bcSampler, model, control, data) {
+  invisible(.Call(
+    C_dbarts_bartcore_setModel,
+    bcSampler$ptr,
+    model,
+    control,
+    data
+  ))
 }
 
-bartcoreSetResponse <- function(bcSampler, y)
-  invisible(.Call(C_dbarts_bartcore_setResponse, bcSampler$ptr, as.double(y)))
+bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
+  .Call(
+    C_dbarts_bartcore_run,
+    bcSampler$ptr,
+    as.integer(numBurnIn),
+    as.integer(numSamples)
+  )
+}
 
-bartcoreSetWeights <- function(bcSampler, weights)
-  invisible(.Call(C_dbarts_bartcore_setWeights, bcSampler$ptr,
-                  as.double(weights)))
+bartcoreSetOffset <- function(bcSampler, offset, updateScale = FALSE) {
+  if (!is.null(offset)) {
+    offset <- as.double(offset)
+  }
+  invisible(.Call(
+    C_dbarts_bartcore_setOffset,
+    bcSampler$ptr,
+    offset,
+    as.logical(updateScale)
+  ))
+}
+
+bartcoreSetResponse <- function(bcSampler, y) {
+  invisible(.Call(C_dbarts_bartcore_setResponse, bcSampler$ptr, as.double(y)))
+}
+
+bartcoreSetWeights <- function(bcSampler, weights) {
+  invisible(.Call(
+    C_dbarts_bartcore_setWeights,
+    bcSampler$ptr,
+    as.double(weights)
+  ))
+}
 
 bartcoreSetTestOffset <- function(bcSampler, offset.test) {
-  if (!is.null(offset.test)) offset.test <- as.double(offset.test)
+  if (!is.null(offset.test)) {
+    offset.test <- as.double(offset.test)
+  }
   invisible(.Call(C_dbarts_bartcore_setTestOffset, bcSampler$ptr, offset.test))
 }
 
-bartcoreSetSigma <- function(bcSampler, sigma)
+bartcoreSetSigma <- function(bcSampler, sigma) {
   invisible(.Call(C_dbarts_bartcore_setSigma, bcSampler$ptr, as.double(sigma)))
+}
 
-bartcoreSetData <- function(bcSampler, data)
+bartcoreSetData <- function(bcSampler, data) {
   invisible(.Call(C_dbarts_bartcore_setData, bcSampler$ptr, data))
+}
 
 bartcoreSetTestPredictor <- function(bcSampler, x.test) {
   x.test <- as.matrix(x.test)
@@ -360,78 +467,145 @@ bartcoreSetTestPredictor <- function(bcSampler, x.test) {
   invisible(.Call(C_dbarts_bartcore_setTestPredictor, bcSampler$ptr, x.test))
 }
 
-bartcoreSetPredictor <- function(bcSampler, x, forceUpdate = FALSE,
-                                 updateCutPoints = FALSE) {
+bartcoreSetPredictor <- function(
+  bcSampler,
+  x,
+  forceUpdate = FALSE,
+  updateCutPoints = FALSE
+) {
   x <- as.matrix(x)
   storage.mode(x) <- "double"
-  .Call(C_dbarts_bartcore_setPredictor, bcSampler$ptr, x,
-        as.logical(forceUpdate), as.logical(updateCutPoints))
+  .Call(
+    C_dbarts_bartcore_setPredictor,
+    bcSampler$ptr,
+    x,
+    as.logical(forceUpdate),
+    as.logical(updateCutPoints)
+  )
 }
 
 # In-place overwrite of columns in the matrix the sampler borrows, visible
 # through the originating data object, exactly like the classic engine.
-bartcoreUpdatePredictor <- function(bcSampler, x, columns, forceUpdate = FALSE,
-                                    updateCutPoints = FALSE)
-  .Call(C_dbarts_bartcore_updatePredictor, bcSampler$ptr, as.double(x),
-        as.integer(columns), as.logical(forceUpdate),
-        as.logical(updateCutPoints))
+bartcoreUpdatePredictor <- function(
+  bcSampler,
+  x,
+  columns,
+  forceUpdate = FALSE,
+  updateCutPoints = FALSE
+) {
+  .Call(
+    C_dbarts_bartcore_updatePredictor,
+    bcSampler$ptr,
+    as.double(x),
+    as.integer(columns),
+    as.logical(forceUpdate),
+    as.logical(updateCutPoints)
+  )
+}
 
-bartcoreUpdatePredictorPerObservation <- function(bcSampler, x, column)
-  .Call(C_dbarts_bartcore_updatePredictorPerObservation, bcSampler$ptr,
-        as.double(x), as.integer(column))
+bartcoreUpdatePredictorPerObservation <- function(bcSampler, x, column) {
+  .Call(
+    C_dbarts_bartcore_updatePredictorPerObservation,
+    bcSampler$ptr,
+    as.double(x),
+    as.integer(column)
+  )
+}
 
-bartcoreUpdatePredictorPerObservationJointly <- function(bcSamplers, x, columns)
-  .Call(C_dbarts_bartcore_updatePredictorPerObservationJointly,
-        lapply(bcSamplers, function(s) s$ptr), as.double(x),
-        as.integer(columns))
+bartcoreUpdatePredictorPerObservationJointly <- function(
+  bcSamplers,
+  x,
+  columns
+) {
+  .Call(
+    C_dbarts_bartcore_updatePredictorPerObservationJointly,
+    lapply(bcSamplers, function(s) s$ptr),
+    as.double(x),
+    as.integer(columns)
+  )
+}
 
 # cutPoints is a list of strictly increasing numeric vectors, one per column;
 # trees are refreshed unconditionally, collapsing splits the new cuts orphan
 bartcoreSetCutPoints <- function(bcSampler, cutPoints, columns) {
-  if (!is.list(cutPoints)) cutPoints <- list(cutPoints)
+  if (!is.list(cutPoints)) {
+    cutPoints <- list(cutPoints)
+  }
   cutPoints <- lapply(cutPoints, as.double)
-  invisible(.Call(C_dbarts_bartcore_setCutPoints, bcSampler$ptr, cutPoints,
-                  as.integer(columns)))
+  invisible(.Call(
+    C_dbarts_bartcore_setCutPoints,
+    bcSampler$ptr,
+    cutPoints,
+    as.integer(columns)
+  ))
 }
 
-bartcoreGetLatents <- function(bcSampler)
+bartcoreGetLatents <- function(bcSampler) {
   .Call(C_dbarts_bartcore_getLatents, bcSampler$ptr, NULL)
+}
 
 bartcorePredict <- function(bcSampler, x.test, offset.test = NULL) {
   x.test <- as.matrix(x.test)
   storage.mode(x.test) <- "double"
-  if (!is.null(offset.test)) offset.test <- as.double(offset.test)
+  if (!is.null(offset.test)) {
+    offset.test <- as.double(offset.test)
+  }
   .Call(C_dbarts_bartcore_predict, bcSampler$ptr, x.test, offset.test)
 }
 
-bartcoreGetTrees <- function(bcSampler, chainNums, sampleNums = NULL,
-                             treeNums, current = FALSE, newdata = NULL) {
+bartcoreGetTrees <- function(
+  bcSampler,
+  chainNums,
+  sampleNums = NULL,
+  treeNums,
+  current = FALSE,
+  newdata = NULL
+) {
   if (!is.null(newdata)) {
     newdata <- as.matrix(newdata)
     storage.mode(newdata) <- "double"
   }
-  .Call(C_dbarts_bartcore_getTrees, bcSampler$ptr, as.integer(chainNums),
-        if (is.null(sampleNums)) NULL else as.integer(sampleNums),
-        as.integer(treeNums), as.logical(current), newdata)
+  .Call(
+    C_dbarts_bartcore_getTrees,
+    bcSampler$ptr,
+    as.integer(chainNums),
+    if (is.null(sampleNums)) NULL else as.integer(sampleNums),
+    as.integer(treeNums),
+    as.logical(current),
+    newdata
+  )
 }
 
-bartcoreStoreState <- function(bcSampler)
+bartcoreStoreState <- function(bcSampler) {
   .Call(C_dbarts_bartcore_storeState, bcSampler$ptr)
+}
 
-bartcoreSetState <- function(bcSampler, state)
+bartcoreSetState <- function(bcSampler, state) {
   invisible(.Call(C_dbarts_bartcore_setState, bcSampler$ptr, state))
+}
 
-bartcoreSampleTreesFromPrior <- function(bcSampler)
+bartcoreSampleTreesFromPrior <- function(bcSampler) {
   invisible(.Call(C_dbarts_bartcore_sampleTreesFromPrior, bcSampler$ptr))
+}
 
-bartcoreSampleNodeParametersFromPrior <- function(bcSampler)
-  invisible(.Call(C_dbarts_bartcore_sampleNodeParametersFromPrior,
-                  bcSampler$ptr))
+bartcoreSampleNodeParametersFromPrior <- function(bcSampler) {
+  invisible(.Call(
+    C_dbarts_bartcore_sampleNodeParametersFromPrior,
+    bcSampler$ptr
+  ))
+}
 
-bartcorePrintTrees <- function(bcSampler, chainNums = NULL, sampleNums = NULL,
-                               treeNums = NULL) {
-  invisible(.Call(C_dbarts_bartcore_printTrees, bcSampler$ptr,
-                  if (is.null(chainNums)) NULL else as.integer(chainNums),
-                  if (is.null(sampleNums)) NULL else as.integer(sampleNums),
-                  if (is.null(treeNums)) NULL else as.integer(treeNums)))
+bartcorePrintTrees <- function(
+  bcSampler,
+  chainNums = NULL,
+  sampleNums = NULL,
+  treeNums = NULL
+) {
+  invisible(.Call(
+    C_dbarts_bartcore_printTrees,
+    bcSampler$ptr,
+    if (is.null(chainNums)) NULL else as.integer(chainNums),
+    if (is.null(sampleNums)) NULL else as.integer(sampleNums),
+    if (is.null(treeNums)) NULL else as.integer(treeNums)
+  ))
 }

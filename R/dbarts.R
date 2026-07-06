@@ -83,7 +83,11 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(n.samples)) {
     tryCatch(n.samples <- as.integer(n.samples), warning = function(e) {
-      stop("'n.samples' argument to ", funcName, " must be coercible to integer type")
+      stop(
+        "'n.samples' argument to ",
+        funcName,
+        " must be coercible to integer type"
+      )
     })
     if (length(n.samples) != 1L) {
       stop("'n.samples' must be of length 1")
@@ -92,7 +96,11 @@ validateArgumentsInEnvironment <- function(
       stop("'n.samples' argument to ", funcName, " cannot be NULL")
     }
     if (is.na(n.samples) || n.samples < 0L) {
-      stop("'n.samples' argument to ", funcName, " must be a non-negative integer")
+      stop(
+        "'n.samples' argument to ",
+        funcName,
+        " must be a non-negative integer"
+      )
     }
     envir$control@n.samples <- n.samples
   } else if (controlIsMissing || is.na(control@n.samples)) {
@@ -101,7 +109,11 @@ validateArgumentsInEnvironment <- function(
 
   if (!missing(sigma) && !is.na(sigma)) {
     tryCatch(sigma <- as.double(sigma), warning = function(e) {
-      stop("'sigma' argument to ", funcName, " must be coercible to numeric type")
+      stop(
+        "'sigma' argument to ",
+        funcName,
+        " must be coercible to numeric type"
+      )
     })
     if (length(sigma) != 1L) {
       stop("'sigma' must be of length 1")
@@ -155,7 +167,9 @@ dbarts <- function(
   # a convenience mirror of dbartsControl(rngSeed = ), as the wrappers expose;
   # an explicit seed overrides the control's, NA leaves it untouched
   seed <- coerceOrError(seed, "integer")
-  if (!is.na(seed)) control@rngSeed <- seed
+  if (!is.na(seed)) {
+    control@rngSeed <- seed
+  }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
   data <- eval(dataCall, evalEnv)
@@ -191,16 +205,22 @@ dbarts <- function(
   # per-copy draws), so they must be positive integers. Gaussian weights,
   # including a gaussian fit of a 0/1 response, are unrestricted.
   if (!is.null(data@weights)) {
-    if (control@family == "probit")
-      stop("probit models do not support weights: a weighted probit has no ",
-           "tractable latent-variable form. Use family = \"logistic\" for ",
-           "weighted binary regression, or model the latents directly.")
+    if (control@family == "probit") {
+      stop(
+        "probit models do not support weights: a weighted probit has no ",
+        "tractable latent-variable form. Use family = \"logistic\" for ",
+        "weighted binary regression, or model the latents directly."
+      )
+    }
     if (control@family == "logistic") {
       w <- data@weights
-      if (anyNA(w) || any(w <= 0) || any(w != round(w)))
-        stop("logistic weights are observation counts and must be positive ",
-             "integers; drop zero-count rows, and use a gaussian model for ",
-             "continuous weights.")
+      if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
+        stop(
+          "logistic weights are observation counts and must be positive ",
+          "integers; drop zero-count rows, and use a gaussian model for ",
+          "continuous weights."
+        )
+      }
     }
   }
 
@@ -266,10 +286,12 @@ dbarts <- function(
     proposal.probs = proposal.probs,
     # the logistic scale is probit's default widened by the logistic
     # latent's standard deviation, pi / sqrt(3)
-    node.scale = switch(control@family,
-                        gaussian = 0.5,
-                        probit   = 3.0,
-                        logistic = pi * sqrt(3.0))
+    node.scale = switch(
+      control@family,
+      gaussian = 0.5,
+      probit = 3.0,
+      logistic = pi * sqrt(3.0)
+    )
   )
 
   result <- new("dbartsSampler", control, model, data)
@@ -476,11 +498,15 @@ dbartsSampler <- setRefClass(
       # settings fixed at creation: the generators and anything shaping
       # the cut grid
       for (slotName in c(
-        "n.trees", "n.chains", "useQuantiles", "rngSeed"
+        "n.trees",
+        "n.chains",
+        "useQuantiles",
+        "rngSeed"
       )) {
         if (!identical(slot(newControl, slotName), slot(control, slotName))) {
           stop(
-            "the bartcore engine cannot change '", slotName,
+            "the bartcore engine cannot change '",
+            slotName,
             "' on an existing sampler"
           )
         }
@@ -502,8 +528,10 @@ dbartsSampler <- setRefClass(
       }
       # the Dirichlet machinery is fixed at creation: a sampler cannot gain
       # or reconfigure it
-      if (is(newModel@tree.prior, "dbartsDartPrior") ||
-          is(model@tree.prior, "dbartsDartPrior")) {
+      if (
+        is(newModel@tree.prior, "dbartsDartPrior") ||
+          is(model@tree.prior, "dbartsDartPrior")
+      ) {
         stop("setModel cannot change a DART tree prior; recreate the sampler")
       }
       ptr <- getPointer()
@@ -516,7 +544,11 @@ dbartsSampler <- setRefClass(
         error = function(e) {
           selfEnv$model <- oldModel
           e$call <- quote(.Call(
-            C_dbarts_bartcore_setModel, ptr, selfEnv$model, control, data
+            C_dbarts_bartcore_setModel,
+            ptr,
+            selfEnv$model,
+            control,
+            data
           ))
           e
         }
@@ -529,10 +561,15 @@ dbartsSampler <- setRefClass(
     },
     setData = function(newData, updateState = NA) {
       'Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots.'
-      if (data@missing == "error" &&
+      if (
+        data@missing == "error" &&
           (anyNA(newData@x) ||
-           (!is.null(newData@x.test) && anyNA(newData@x.test))))
-        stop("new predictors contain missing values and the sampler was built with missing = \"error\"")
+            (!is.null(newData@x.test) && anyNA(newData@x.test)))
+      ) {
+        stop(
+          "new predictors contain missing values and the sampler was built with missing = \"error\""
+        )
+      }
       bartcoreSamplerSetData(.self, newData)
     },
     setResponse = function(y, updateState = NA) {
@@ -578,8 +615,11 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing."
 
-      if (data@missing == "error" && anyNA(x))
-        stop("new predictors contain missing values and the sampler was built with missing = \"error\"")
+      if (data@missing == "error" && anyNA(x)) {
+        stop(
+          "new predictors contain missing values and the sampler was built with missing = \"error\""
+        )
+      }
       bartcoreSamplerSetPredictor(
         .self,
         x,
@@ -600,8 +640,11 @@ dbartsSampler <- setRefClass(
     setTestPredictor = function(x.test, column) {
       'Changes a single column of the test predictor matrix.'
 
-      if (data@missing == "error" && anyNA(x.test))
-        stop("new test predictors contain missing values and the sampler was built with missing = \"error\"")
+      if (data@missing == "error" && anyNA(x.test)) {
+        stop(
+          "new test predictors contain missing values and the sampler was built with missing = \"error\""
+        )
+      }
       bartcoreSamplerSetTestPredictor(
         .self,
         x.test,
@@ -610,8 +653,11 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       'Changes the test predictor matrix, and optionally the test offset.'
-      if (data@missing == "error" && !is.null(x.test) && anyNA(x.test))
-        stop("new test predictors contain missing values and the sampler was built with missing = \"error\"")
+      if (data@missing == "error" && !is.null(x.test) && anyNA(x.test)) {
+        stop(
+          "new test predictors contain missing values and the sampler was built with missing = \"error\""
+        )
+      }
       if (missing(offset.test)) {
         # predictors only; the engine keeps the current offset and the
         # bridge refuses if the row count would orphan its length
@@ -656,7 +702,9 @@ dbartsSampler <- setRefClass(
           e
         }
       )
-      if (inherits(tryResult, "error")) stop(tryResult)
+      if (inherits(tryResult, "error")) {
+        stop(tryResult)
+      }
       invisible(NULL)
     },
     setTestOffset = function(offset.test) {
@@ -871,18 +919,22 @@ dbartsSampler <- setRefClass(
       )
       # categorical rules report their raw direction mask in 'value'; when any
       # column can hold one, decode the masks into per-level L/R strings
-      if (any(data@varTypes == CATEGORICAL_VARIABLE))
+      if (any(data@varTypes == CATEGORICAL_VARIABLE)) {
         trees <- decodeCategoricalSplits(trees, data@x, data@varTypes)
+      }
       # rules on columns with missing values report their NA route
-      if (!is.null(trees$missing))
+      if (!is.null(trees$missing)) {
         trees$missing <- c("L", "R")[trees$missing + 1L]
+      }
       # linear leaves report one generically named slope column per
       # covariate; name them after the designated columns
       if (is(model@node.prior, "dbartsLinearPrior")) {
         covariateNames <- colnames(data@x)[model@node.prior@columns]
         if (!is.null(covariateNames)) {
           slopeColumns <- match(
-            paste0("beta.", seq_along(covariateNames)), names(trees))
+            paste0("beta.", seq_along(covariateNames)),
+            names(trees)
+          )
           names(trees)[slopeColumns] <- paste0("beta.", covariateNames)
         }
       }

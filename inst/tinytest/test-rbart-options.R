@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -21,9 +24,15 @@ rm(b, sigma.b, g, n.g)
 
 # test that rbart works with keepTrainingFits = FALSE
 rbartFit <- dbarts::rbart_vi(
-  y ~ x, testData, group.by = g,
-  n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 2L,
-  n.trees = 3L, n.threads = 1L,
+  y ~ x,
+  testData,
+  group.by = g,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.thin = 2L,
+  n.chains = 2L,
+  n.trees = 3L,
+  n.threads = 1L,
   keepTrainingFits = FALSE,
   verbose = FALSE
 )
@@ -39,9 +48,15 @@ rm(rbartFit)
 k <- 1.8
 expect_inherits(
   dbarts::rbart_vi(
-    y ~ x, testData, group.by = g,
-    n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 2L,
-    n.trees = 3L, n.threads = 1L,
+    y ~ x,
+    testData,
+    group.by = g,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.thin = 2L,
+    n.chains = 2L,
+    n.trees = 3L,
+    n.threads = 1L,
     k = k,
     keepTrainingFits = FALSE,
     verbose = FALSE
@@ -59,18 +74,30 @@ df$y <- testData$y + 0.5 * (df$f == "b")
 df$g <- testData$g
 
 fit.cat <- dbarts::rbart_vi(
-  y ~ x1 + x2 + f, df, group.by = g,
-  n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 1L,
-  n.trees = 3L, n.threads = 1L,
+  y ~ x1 + x2 + f,
+  df,
+  group.by = g,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.thin = 2L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
   verbose = FALSE
 )
 expect_equal(colnames(fit.cat$fit[[1L]]$data@x), c("x1", "x2", "f"))
 expect_equal(fit.cat$fit[[1L]]$data@varTypes, c(0L, 0L, 1L))
 
 fit.ind <- dbarts::rbart_vi(
-  y ~ x1 + x2 + f, df, group.by = g,
-  n.samples = 2L, n.burn = 0L, n.thin = 2L, n.chains = 1L,
-  n.trees = 3L, n.threads = 1L,
+  y ~ x1 + x2 + f,
+  df,
+  group.by = g,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.thin = 2L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
   verbose = FALSE,
   factors = "indicators"
 )
@@ -81,9 +108,15 @@ rm(fit.cat, fit.ind, df)
 
 # dart runs inside the Gibbs sampler and reports its split probabilities
 fit.dart <- dbarts::rbart_vi(
-  y ~ x, testData, group.by = g,
-  n.samples = 4L, n.burn = 2L, n.thin = 1L, n.chains = 1L,
-  n.trees = 3L, n.threads = 1L,
+  y ~ x,
+  testData,
+  group.by = g,
+  n.samples = 4L,
+  n.burn = 2L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
   verbose = FALSE,
   dart = TRUE
 )
@@ -92,11 +125,18 @@ expect_equivalent(colSums(fit.dart$varprobs), rep(1, 4L))
 
 expect_error(
   dbarts::rbart_vi(
-    y ~ x, testData, group.by = g,
-    n.samples = 2L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-    n.trees = 3L, n.threads = 1L,
+    y ~ x,
+    testData,
+    group.by = g,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 3L,
+    n.threads = 1L,
     verbose = FALSE,
-    dart = TRUE, split.probs = c(0.5, 0.5)
+    dart = TRUE,
+    split.probs = c(0.5, 0.5)
   ),
   pattern = "cannot be combined"
 )
@@ -104,4 +144,3 @@ expect_error(
 rm(fit.dart)
 
 rm(testData)
-

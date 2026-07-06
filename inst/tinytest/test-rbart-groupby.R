@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -26,9 +29,16 @@ df$y <- testData$y
 df$g <- testData$g
 expect_inherits(
   dbarts::rbart_vi(
-    y ~ . - g, df, group.by = g,
-    n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-    n.trees = 25L, n.threads = 1L, verbose = FALSE
+    y ~ . - g,
+    df,
+    group.by = g,
+    n.samples = 1L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 25L,
+    n.threads = 1L,
+    verbose = FALSE
   ),
   "rbart"
 )
@@ -37,9 +47,16 @@ g <- df$g
 df$g <- NULL
 expect_inherits(
   dbarts::rbart_vi(
-    y ~ . , df, group.by = g,
-    n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-    n.trees = 25L, n.threads = 1L, verbose = FALSE
+    y ~ .,
+    df,
+    group.by = g,
+    n.samples = 1L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 25L,
+    n.threads = 1L,
+    verbose = FALSE
   ),
   "rbart"
 )
@@ -48,9 +65,15 @@ y <- testData$y
 x <- testData$x
 expect_inherits(
   dbarts::rbart_vi(
-    y ~ x, group.by = g,
-    n.samples = 1L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-    n.trees = 25L, n.threads = 1L, verbose = FALSE
+    y ~ x,
+    group.by = g,
+    n.samples = 1L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 1L,
+    n.trees = 25L,
+    n.threads = 1L,
+    verbose = FALSE
   ),
   "rbart"
 )
@@ -60,19 +83,27 @@ rm(x, y, g, df)
 
 # test that works with missing levels
 n.train <- 80L
-x <- testData$x[seq_len(n.train),]
+x <- testData$x[seq_len(n.train), ]
 y <- testData$y[seq_len(n.train)]
 g <- factor(testData$g[seq_len(n.train)])
 
-x.test <- testData$x[seq.int(n.train + 1L, nrow(testData$x)),]
+x.test <- testData$x[seq.int(n.train + 1L, nrow(testData$x)), ]
 g.test <- factor(testData$g[seq.int(n.train + 1L, nrow(testData$x))], levels(g))
 levels(g.test)[5L] <- "6"
 
 # check that predict works when we've fit with missing levels
 rbartFit <- suppressWarnings(dbarts::rbart_vi(
-  y ~ x, group.by = g, test = x.test, group.by.test = g.test,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, keepTrees = TRUE,
+  y ~ x,
+  group.by = g,
+  test = x.test,
+  group.by.test = g.test,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
   verbose = FALSE
 ))
 expect_equal(
@@ -91,8 +122,8 @@ ranef.pred <- suppressWarnings(
   predict(rbartFit, x.test, g.test, type = "ranef", combineChains = FALSE)
 )
 expect_equal(
-  ranef.pred[,,as.character(1L:4L)],
-  rbartFit$ranef[,,as.character(1L:4L)]
+  ranef.pred[,, as.character(1L:4L)],
+  rbartFit$ranef[,, as.character(1L:4L)]
 )
 expect_true(
   # 7 samples of a 22-draw sd estimate: the correlation tracks tau but the
@@ -100,17 +131,27 @@ expect_true(
   # knife-edge bound
   cor(
     as.numeric(rbartFit$tau),
-    as.numeric(apply(ranef.pred[,,5L:26L], c(1L, 2L), sd))
-  ) > 0.80
+    as.numeric(apply(ranef.pred[,, 5L:26L], c(1L, 2L), sd))
+  ) >
+    0.80
 )
 
 # check again with combineChains as TRUE at the top level
 g.test <- droplevels(g.test)
 levels(g.test) <- c(levels(g)[-5L], "6")
 rbartFit <- suppressWarnings(dbarts::rbart_vi(
-  y ~ x, group.by = g, test = x.test, group.by.test = g.test,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = TRUE,
+  y ~ x,
+  group.by = g,
+  test = x.test,
+  group.by.test = g.test,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  combineChains = TRUE,
   verbose = FALSE
 ))
 expect_equal(
@@ -124,25 +165,39 @@ expect_equal(
 
 levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
 set.seed(0L)
-ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, type = "ranef"))
+ranef.pred <- suppressWarnings(predict(
+  rbartFit,
+  x.test,
+  g.test,
+  type = "ranef"
+))
 expect_equal(
-  as.numeric(ranef.pred[,as.character(1L:4L)]),
-  as.numeric(rbartFit$ranef[,as.character(1L:4L)])
+  as.numeric(ranef.pred[, as.character(1L:4L)]),
+  as.numeric(rbartFit$ranef[, as.character(1L:4L)])
 )
 expect_true(
   cor(
     as.numeric(rbartFit$tau),
-    as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))
-  ) > 0.90
+    as.numeric(apply(ranef.pred[, 5L:26L], 1L, sd))
+  ) >
+    0.90
 )
 
 # check one last time with one chain
 g.test <- droplevels(g.test)
 levels(g.test) <- c(levels(g)[-5L], "6")
 rbartFit <- suppressWarnings(dbarts::rbart_vi(
-  y ~ x, group.by = g, test = x.test, group.by.test = g.test,
-  n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-  n.trees = 25L, n.threads = 1L, keepTrees = TRUE,
+  y ~ x,
+  group.by = g,
+  test = x.test,
+  group.by.test = g.test,
+  n.samples = 14L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
   verbose = FALSE
 ))
 expect_equal(
@@ -151,26 +206,39 @@ expect_equal(
 )
 levels(g.test) <- c(levels(g.test)[-5L], as.character(seq.int(7L, 28L)))
 set.seed(0L)
-ranef.pred <- suppressWarnings(predict(rbartFit, x.test, g.test, type = "ranef"))
+ranef.pred <- suppressWarnings(predict(
+  rbartFit,
+  x.test,
+  g.test,
+  type = "ranef"
+))
 expect_equal(
-  as.numeric(ranef.pred[,as.character(1L:4L)]),
-  as.numeric(rbartFit$ranef[,as.character(1L:4L)])
+  as.numeric(ranef.pred[, as.character(1L:4L)]),
+  as.numeric(rbartFit$ranef[, as.character(1L:4L)])
 )
 expect_true(
   # 14 samples of a 22-draw sd estimate: the correlation tracks tau but sits
   # near 0.9 by seed; assert strong tracking rather than a knife-edge bound
   cor(
     as.numeric(rbartFit$tau),
-    as.numeric(apply(ranef.pred[,5L:26L], 1L, sd))
-  ) > 0.80
+    as.numeric(apply(ranef.pred[, 5L:26L], 1L, sd))
+  ) >
+    0.80
 )
 
 # check with more than one missing level
 levels(g.test)[4L] <- "7"
 rbartFit <- suppressWarnings(dbarts::rbart_vi(
-  y ~ x, group.by = g, test = x.test, group.by.test = g.test,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 4L,
-  n.trees = 25L, n.threads = 1L,
+  y ~ x,
+  group.by = g,
+  test = x.test,
+  group.by.test = g.test,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 4L,
+  n.trees = 25L,
+  n.threads = 1L,
   verbose = FALSE
 ))
 expect_inherits(rbartFit, "rbart")
@@ -180,4 +248,3 @@ rm(rbartFit, ranef.pred, g.test)
 rm(x.test, g, y, x, n.train)
 
 rm(testData)
-

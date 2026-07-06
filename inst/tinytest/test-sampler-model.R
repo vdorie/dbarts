@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that prior model arguments create valid objects
 expect_inherits(
@@ -47,4 +50,3 @@ expect_inherits(
 rm(k)
 
 rm(testData)
-

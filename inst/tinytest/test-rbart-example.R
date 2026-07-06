@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -21,9 +24,15 @@ rm(b, sigma.b, g, n.g)
 
 # test that rbart runs example
 rbartFit <- dbarts::rbart_vi(
-  y ~ x, testData, group.by = g,
-  n.samples = 40L, n.burn = 10L, n.thin = 2L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L,
+  y ~ x,
+  testData,
+  group.by = g,
+  n.samples = 40L,
+  n.burn = 10L,
+  n.thin = 2L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
   verbose = FALSE
 )
 expect_equal(
@@ -47,17 +56,25 @@ expect_true(length(unique(rbartFit$ranef)) > 1L)
 
 # check for one chain
 rbartFit <- dbarts::rbart_vi(
-  y ~ x, testData, group.by = g,
-  n.samples = 80L, n.burn = 20L, n.thin = 2L, n.chains = 1L,
-  n.trees = 25L, n.threads = 1L,
+  y ~ x,
+  testData,
+  group.by = g,
+  n.samples = 80L,
+  n.burn = 20L,
+  n.thin = 2L,
+  n.chains = 1L,
+  n.trees = 25L,
+  n.threads = 1L,
   verbose = FALSE
 )
 expect_equal(
-  dim(rbartFit$yhat.train), c(80L %/% 2L, length(testData$y))
+  dim(rbartFit$yhat.train),
+  c(80L %/% 2L, length(testData$y))
 )
 expect_equal(length(rbartFit$yhat.train.mean), length(testData$y))
 expect_equal(
-  dim(rbartFit$ranef), c(80L %/% 2L, length(unique(testData$g)))
+  dim(rbartFit$ranef),
+  c(80L %/% 2L, length(unique(testData$g)))
 )
 expect_equal(length(rbartFit$first.tau), 20L %/% 2L)
 expect_equal(length(rbartFit$first.sigma), 20L %/% 2L)
@@ -69,4 +86,3 @@ expect_true(length(unique(rbartFit$ranef)) > 1L)
 rm(rbartFit)
 
 rm(testData)
-

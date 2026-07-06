@@ -1,4 +1,7 @@
-source(system.file("common", "almostLinearBinaryData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "almostLinearBinaryData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that bart creates viable sampler with formula, data specification"
 data <- data.frame(y = testData$y, x = testData$x)
@@ -11,8 +14,8 @@ expect_inherits(
 expect_inherits(
   dbarts::bart(
     modelFormula,
-    data[1L:100L,],
-    data[101L:200L,],
+    data[1L:100L, ],
+    data[101L:200L, ],
     nskip = 0L,
     ndpost = 1L,
     verbose = FALSE
@@ -22,4 +25,3 @@ expect_inherits(
 rm(modelFormula, data)
 
 rm(testData)
-
