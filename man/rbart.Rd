@@ -81,7 +81,7 @@ rbart_vi(
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
   \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
-    Same as in \code{\link{bart2}}. With \code{dart}, split probability samples appear as \code{varprobs} on the fit.
+    Same as in \code{\link{bart2}}. With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} has no \code{family} argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{object}{
     A fitted \code{rbart} model.

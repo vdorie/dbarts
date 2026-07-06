@@ -76,10 +76,10 @@
     A logical determining if the copy should retain the underlying data of the sampler (\code{TRUE}) or have its own copies (\code{FALSE}).
   }
   \item{control}{
-    An object inheriting from \code{\link{dbartsControl}}.
+    An object inheriting from \code{\link{dbartsControl}}. When passed to \code{setControl}, it cannot change \code{n.trees}, \code{n.chains}, \code{useQuantiles}, or \code{rngSeed} from the values the sampler was created with, and cannot set \code{keepTrees = TRUE} without also giving \code{n.samples}; either is an error.
   }
   \item{model}{
-    An object inheriting from \code{dbartsModel}.
+    An object inheriting from \code{dbartsModel}. When passed to \code{setModel}, it cannot switch a DART tree prior on or off relative to the sampler's creation-time model; recreate the sampler instead.
   }
   \item{data}{
     An object inheriting from \code{\link{dbartsData}}.
@@ -109,7 +109,7 @@
     Numeric vector of residual standard deviations, one for each chain.
   }
   \item{weights}{
-    A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values.
+    A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. This gaussian interpretation is the general case; a logistic-family sampler treats weights as observation counts and requires positive integers, and a probit-family sampler does not accept weights at all.
   }
   \item{cuts}{
     Vector of cut points for use with \code{setCutPoints}.

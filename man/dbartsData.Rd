@@ -17,7 +17,7 @@ dbartsData(
    }
 }
 \value{
-  An object of class \code{dbartData}.
+  An object of class \code{dbartsData}.
 }
 \seealso{
   \code{\link{dbarts}}
