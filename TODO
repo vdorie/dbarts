@@ -1,11 +1,196 @@
-Trimmed 2026-07-06 to yet-to-be-done items only; completed work and its
+Rewritten 2026-07-06 as an unordered backlog; completed work and its
 rationale live in the git history of this file, docs/design/, and NEWS.
 
-release
+Items are listed alphabetically by plan name; the order carries no
+meaning. Every item has an implementation plan in docs/plans/<name>.md,
+and the planning/implementation/review process (who plans, who
+implements, who reviews, which gates run) is docs/plans/README.md.
+"window: pre-release" marks items whose cheap form expires when 1.0-0
+freezes the R and dbarts.h compatibility contracts: they need a
+go/no-go decision before submission, not necessarily the work itself.
+
+Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
+common. The large-n performance items are live, not consumer-gated.
+
+items
+  architecture-doc: contributor-facing docs/architecture.md distilling
+    the current engine design (layers, dispatch tiers, concepts, data
+    model, mutation surface) out of the design docs' landing-note
+    history; seeds from readability-review's current-state section.
+  autoconf-dead-code: drop the --with-xint-size knob (non-default
+    widths no longer compile: bartcore pins xint_t = uint16_t and
+    passes pointers uncast into the misc kernels), pin misc_xint_t with
+    a boundary static_assert; delete the Solaris/sun machinery,
+    consumerless configure checks, and the dead misc.a members
+    (binaryIO, adaptiveRadixTree, string). Thread managers stay
+    (within-chain-threading's substrate).
+  blocked-jacobi-trees: exact parallel tree updates via noise-splitting
+    augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
+    sum-constrained): b trees update independently per barrier at the
+    cost of b-fold precision on structure moves. Candidate mechanism
+    for within-chain-threading; an ESS-per-second experiment decides.
+  capi-callbacks: additive dbarts.h evolution - per-sweep conditioning
+    callback and observer hook at the existing pollInterrupt dispatch
+    point; tau/groupEffects fields on dbarts_results.
+  collapse-merge: unify the two subtree-collapse parameter merges
+    (occupancy-weighted in collapseEmptyNodesBelow, plain mean in
+    mapCutPointsBelow) on the weighted form.
+  constant-leaf-suffstat: move ConstantGaussianLeaf to the design's
+    (sum w, sum wz, sum wz^2) single-pass sufficient statistic;
+    order-insensitive, prerequisite for state-continuation.
+  convergence-diagnostics: multi-chain fits return raw arrays with no
+    R-hat/ESS story; posterior-package-compatible draw accessors and a
+    summary that says whether the chains agree.
+  data-ownership: own predictor storage instead of borrowing REAL(x)
+    (drops the PROT_* pinning and the const_cast write-through);
+    changes the documented aliasing of per-observation updates.
+    window: pre-release.
+  empty-leaf-veto: the -1e7 empty-leaf branch veto is a ported classic
+    hack, redundant with the categorical gauge invariant; either
+    occupancy-aware ordinal proposals or a documented, principled veto.
+    Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
+    on the finite value; the gp-leaves deadlock).
+  equivalence-ci: wire equivalence.R's statistical (z) mode into
+    scheduled CI; scenario-coverage manifest; mark the classic-era
+    baselines historical; CURRENT marker for benchmark baselines.
+  family-on-model: family sits on dbartsControl by analogy to classic's
+    responseIsBinary flag; decide whether it belongs on dbartsModel.
+    window: pre-release (slot moves are free only until release).
+  flat-format-v2: tagged split payload in FlatNode instead of
+    mask-in-a-double; deletes the 53-category encoding boundary and the
+    54-63-band side channel. Includes the getTrees narrow-mask value
+    reporting decision. window: pre-release for the reporting column.
+  forest-split-bcf: split Forest out of Sampler (deferred since phase
+    1) with BCF - prognostic + treatment forests - as the driving
+    consumer; bartCause is the named consumer and VD maintains it.
+  gp-followups: sampled lengthscales (theta prior, per-sample channels,
+    real cost - not the mechanical follow-up the proposal suggested);
+    low-rank kernels. decision/consumer-gated.
+  group-by-exposure: public group.by beyond rbart_vi
+    (grouped-random-effects.md; naming reserved). decision-gated.
+  grouped-equivalence: equivalence scenario for grouped rbart_vi fits,
+    only if a grouped refactor is planned.
+  grow-from-root: XBART-style root-down tree sampling on the
+    provisioned cut-scan kernel; the highest-ceiling large-n item and
+    the realistic doorway to any GPU backend. memo + kernel prototype
+    first.
+  hot-layer-u8: per-column u8/u16 code widths (default n.cuts = 100
+    fits u8); prototype the u8 partition kernel in benchmarks/kernels
+    first. RNG-neutral; attacks the DRAM-bound n >= 1e5 regime.
+  interaction-constraints: structured sparsity and interaction limits
+    on the SplitSelector seam. consumer-gated.
+  kernel-cleanups: expose the fast serial accumulators without the
+    null-htm indirection; injectable output hook so misc.a is R-free.
+  linear-leaf-reuse: score->draw crossproduct reuse (needs a per-node
+    stats cache the design deliberately avoids) and within-sweep
+    chol(V) reuse; measure before deciding.
+  monotone-bart: shape-constrained fits via the tree-level leaf-draw
+    hook the design provisioned.
+  multi-forest-models: multinomial, heteroscedastic, hurdle - queued
+    behind forest-split-bcf; one design note each when picked.
+  mutation-fuzzing: property test driving random mutation-op sequences
+    and asserting well-formedness, fit consistency, and rollback
+    integrity; the transactional surface is the package's most
+    state-heavy code.
+  mutation-journal: build-new-and-swap for setPredictor instead of
+    copy-old-and-restore; cell-granular journal for the patch paths;
+    document the cost contract per entry point.
+  negative-binomial: count outcomes via the Polya-Gamma NB
+    augmentation (the PG sampler already ships); the r update decides
+    integer vs real shape - a caveat shared with weighted-binary.
+  ordinal-outcomes: cumulative probit on the existing truncated-normal
+    machinery plus a cutpoint block.
+  pointwise-loglik: per-observation log-likelihood as a Results field
+    (null-skip), unlocking loo/WAIC integration.
+  post-mutation-assertions: replace the is.finite near-tautologies in
+    the older linear/gp mutation tests with statistical from-scratch
+    comparisons (not identical: setPredictor re-quantizes differently).
+  prior-constants: record provenance/derivations for the adopted
+    defaults (k = 2, power = 2, base = 0.95, sigdf = 3, sigquant = 0.9,
+    node.scale 3.0, n.trees 75/200, dart update delay) and the
+    tau-steps = n.thin coupling.
+  prior-predictive: R-level verbs over the already-ported prior
+    sampling entry points, for prior calibration workflows.
+  python-bindings: post kernel-cleanups the engine is R-free below the
+    bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
+    likely out-of-repo. decision-gated.
+  r5-cleanup: remove the startThreads/stopThreads no-ops (all callers
+    internal); make the testUsesRegularOffset offset sync explicit or
+    documented; strip the S4 validity prefix from user-facing errors.
+  range-scaling: range-to-[-0.5, 0.5] response scaling is inherited
+    from BayesTree unexamined; decide versus sd standardization and
+    document either way. window: pre-release. Plan recommends keep +
+    document.
+  rbart-loop-profile: the custom-prior R loop pays a bridge round trip
+    per posterior sample; profile before touching (built-in priors
+    already bypass in-core).
+  rchk-ci: scheduled rchk run; the bridge hand-manages protection
+    slots and data-ownership will churn them.
+  readability-review: the bartcore branch was agent-written end to end;
+    rubric-driven human-readability pass over its code, comments, and
+    design docs (core-generalization.md's landing-note accretion
+    especially). Also a standing review step in docs/plans/README.md.
+  repo-modernization: CI action pins current; gcc-asan/valgrind
+    sanitizer variants and PR gating once stable; optional codecov
+    badge; optional roxygen2 and NEWS.md migrations.
+  revdep-smoke-ci: monthly scheduled check of dev dbarts against
+    stan4bart and bartCause, so breakage surfaces before release
+    sweeps.
+  robust-errors: Student-t residuals as a scale-mixture on the
+    workingWeights hook; composes with user weights.
+  snapshot-tests: move the ~65 RNG-locked literals into per-family
+    reproducibility files with per-block reseeding and a regeneration
+    script; label them drift tripwires, not correctness tests.
+  sparse-extensions: in-place mutation, sparse x.test, streaming range
+    kernel, mutation on dense-backed mixed columns (sparse-columns.md
+    landing notes). The u8 width entry moved to hot-layer-u8.
+    consumer-gated.
+  state-continuation: bitwise-exact restore is a self-imposed contract
+    (classic rebuilt scratch state on load); decide whether to keep it,
+    else drop the indices/totalFits/internal-scale state fields.
+    Depends on constant-leaf-suffstat.
+  state-format-policy: decide and document the cross-version guarantee
+    for saved sampler states; refuse-cleanly tested. Shares one version
+    scheme with flat-format-v2 and state-continuation.
+    window: pre-release.
+  survival-models: AFT log-normal (censoring via truncated-normal
+    latents; riAFTBART is the named consumer) and discrete-time hazard
+    (person-period ingestion); the design note picks which lands first.
+  test-fit-parallel: test-fit routing is serial over rows (findBottom
+    per row per tree); rows are independent so parallelizing is
+    order-preserving; matters when numTest ~ n.
+  tests-cpp-split: split the 6075-line test_bartcore.cpp monolith into
+    per-area TUs with a test filter, when compile time hurts.
+  vignette-refresh: neither vignette mentions family, dart, sparse,
+    missing, or the new leaf models; the saved-trees traversal code
+    assumes constant leaves.
+  warm-starts: initialize a sampler's forest from a previous fit's
+    saved trees; the flat replay and cut-mapping machinery exist, the
+    verb does not.
+  weighted-binary: integer-weight probit (exact via replicated latent
+    draws, linear in total counts; threshold hybrid if that matters)
+    and arbitrary real logistic weights (needs a real-shape PG sampler;
+    IPW use is a pseudo-likelihood trap). decision-gated, post 1.0.
+  within-chain-threading: previously assessed-and-deferred pending
+    n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
+    reductions preserve thread-count invariance; the measurement
+    interacts with hot-layer-u8 (same DRAM-bound regime) and competes
+    with blocked-jacobi-trees as the mechanism.
+  x86-simd: three linalg SSE2/AVX bodies are scalar with intrinsics
+    commented out (predates the rewrite; the originals used
+    non-temporal stores autovectorization cannot emit) - measure on
+    x86, restore or delete; add misc_setIndexedVectorToConstant to the
+    dispatch table; SSR SIMD leaf; Windows-arm64 NEON config.
+
+release (deferred; the one ordered procedure, run when VD triggers it)
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
     to CRAN together. bartCause is ready on branch dbarts-1.0 in
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
     push and submit it after dbarts is accepted.
+  before submission, resolve the window: pre-release decisions above
+    (data-ownership, family-on-model, flat-format-v2 reporting,
+    range-scaling, state-format-policy) - a documented "no" is a valid
+    resolution.
   re-run the revdep sweep near submission (manual; the revdepcheck
     package is GitHub-only). 23 CRAN reverse dependencies; the
     2026-07-06 pass was clean or explained everywhere (stan4bart 0.0-13
@@ -29,109 +214,3 @@ release
     genuinely weighted binomial analyses lose the dbarts learners by
     design, and family routing on their side would need the matching
     inverse link.
-  Windows-arm64 runs scalar kernels: the .win config headers never
-    define COMPILER_SUPPORTS_NEON and Makevars.win's ARCH check has no
-    aarch64 branch; consider a NEON branch.
-
-usability
-  the S4 validity prefix ("invalid class ... object:") leaks internal
-    class names into user-facing validation errors; stripping it
-    consistently is a package-wide cosmetic pass.
-
-performance (measure before acting)
-  rbart_vi custom-prior R loop pays a full bridge round trip per
-    posterior sample (rbart.R: setOffset + run(0L, 1L), ~10 fresh
-    SEXPs per call in bartcore_run); built-in priors already bypass
-    via in-core. Profile before touching; only that path pays.
-  test-fit routing is serial over test rows (chain.hpp findBottom per
-    row per tree); rows are independent chains so parallelizing is
-    order-preserving - only matters when numTest ~ n.
-  x86 SIMD is silently scalar: the SSE2/AVX bodies of
-    misc_addVectorsInPlace, misc_subtractVectorsInPlace, and
-    misc_setVectorToConstant contain scalar loops with the real
-    intrinsics commented out (linearAlgebra_sse2.c:173-215 and
-    siblings); dispatch tables and cpuid detection all wired; NEON
-    arms live. Likely LOW impact - the scalar bodies autovectorize at
-    -O2 - so either restore the intrinsics after measuring on x86 or
-    simplify away the dead dispatch weight.
-    misc_setIndexedVectorToConstant never entered the dispatch table.
-    The SSR kernel has no SIMD leaf, unlike its mean/variance neighbors.
-  within-chain threading: ASSESSED AND DEFERRED. Backfitting serializes
-    trees, so parallelism lives inside each O(n) pass, costing ~3
-    barrier syncs x numTrees per sweep (~300 at the defaults) against
-    2.1 ms/iteration at n = 10^4 - overhead on the order of the win.
-    Headroom exists only at n >= 10^5 (DRAM-bound, 31 ms/iteration),
-    and wiring it makes results depend on n.threads. Revisit if
-    single-chain n ~ 10^5 workloads materialize; the dormant htm
-    machinery is the starting point.
-  linear-leaf score->draw crossproduct reuse: needs a persistent
-    per-node stats cache the design deliberately avoids ("move
-    rollbacks need no cache invalidation", model.hpp:162-165); not the
-    free win the old note implied.
-
-tests
-  grouped rbart_vi fits stay out of the equivalence gate (their
-    multi-chain result shape does not fit the single-fit summary); add
-    a scenario only if a grouped refactor is planned.
-  post-mutation assertions are near-tautologies (is.finite only) in
-    the older linear/gp mutation tests; mutate-then-serialize covers
-    the bitwise side, but a from-scratch comparison after mutation
-    would strengthen the rest. It must be statistical, not identical:
-    setPredictor re-quantizes differently from a fresh build (see the
-    MIA setPredictor test).
-
-docs
-  vignette polish (optional): neither vignette mentions family, dart,
-    sparse, missing, or the new leaf models; the saved-trees traversal
-    code assumes constant leaves (linear/gp change the getTrees
-    columns).
-
-repo modernization
-  keep the CI action pins current; recheck on each push and bump when
-    GitHub deprecates a runtime (r-lib/actions stays @v2, the latest
-    major).
-  sanitizer follow-ups: a gcc-asan/valgrind variant, and gating the
-    sanitizers workflow on pull_request once it has proven stable.
-  the equivalence gate could ride CI but needs its statistical
-    (z-score) mode wired cross-platform - the bitwise baselines are
-    ARM-recorded.
-  codecov CI wiring remains optional if a public badge is ever wanted
-    (coverage is measured locally on demand; 88 percent at last run).
-  optional, larger, taste-dependent: roxygen2 migration (hand-written
-    Rd is complete and codoc-clean today; migration buys inline
-    doc-next-to-code at the cost of a huge one-time diff); NEWS.md
-    instead of inst/NEWS.Rd (pkgdown renders it natively).
-
-decision-gated (design notes in docs/design/)
-  integer-weight probit (post 1.0): Phi(f)^w is exactly tractable as w
-    replicated latent draws - the tree side stays O(n) because the
-    latent mean is a sufficient statistic (zbar_i ~ N(f_i, 1/w_i),
-    the existing weighted-gaussian machinery); only the latent-update
-    phase scales as Theta(sum w_i), i.e. linear in the UNAGGREGATED
-    count, which silently undoes the aggregation that motivates count
-    weights. The shipped weighted logistic has the same structure
-    (fbd2168 draws PG(w, psi) as a sum of w PG(1, psi) variates), so
-    replication would not be a regression - both families are exact
-    but linear in total counts. If large counts ever matter, the
-    standard fix is a threshold hybrid: exact summation for small w,
-    a large-w approximation above it (CLT normal approximation for
-    the truncated-normal sum; Windle et al. large-b Polya-Gamma
-    samplers) - O(1) per observation but perturbs the stationary
-    distribution, so it must be a deliberate, documented switch.
-  arbitrary real logistic weights: needs a general real-shape PG
-    sampler; the survey/IPW use case wants it but is a
-    pseudo-likelihood trap (see docs/design/weighted-logistic.md).
-  sampled gp lengthscales: gp-leaves.md stage-4 addendum - needs a
-    theta prior choice, per-sample theta channels in state/flatten
-    formats, and costs multiples of the draw phase per sweep; not the
-    mechanical follow-up the original proposal suggested.
-  public group.by exposure beyond rbart_vi: grouped-random-effects.md;
-    naming reserved.
-
-consumer-gated
-  sparse extensions (sparse-columns.md landing notes): in-place
-    mutation, sparse x.test, u8 per-column widths, streaming range
-    kernel, mutation on dense-backed mixed columns
-  low-rank gp kernels
-  score-to-draw chol(V) reuse within a sweep (measured second-order
-    after the kernel cache)
