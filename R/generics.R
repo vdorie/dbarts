@@ -112,6 +112,7 @@ predict.bart <- function(
   result <- convertSamplesFromDbartsToBart(result, n.chains, combineChains)
 
   if (type != "bart") {
+    # nolint next: object_usage_linter. named for readability; value drives if.
     if ((responseIsBinary <- is.null(object[["sigma"]]))) {
       result <- probabilityFromLatents(result, object)
     }
@@ -210,6 +211,7 @@ extract.bart <- function(
     return(result)
   }
 
+  # nolint next: object_usage_linter. named for readability; value drives if.
   if ((responseIsBinary <- is.null(object[["sigma"]]))) {
     result <- probabilityFromLatents(result, object)
   }

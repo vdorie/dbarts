@@ -1,0 +1,46 @@
+# Enforces the checked-in .lintr config and the air formatter (air.toml).
+# Both jobs hard-fail on any finding. Workflow derived from
+# https://github.com/r-lib/actions/tree/v2/examples and
+# https://github.com/posit-dev/setup-air
+on:
+  push:
+    branches: [main, master, bartcore]
+  pull_request:
+  workflow_dispatch:
+
+name: lint.yaml
+
+permissions: read-all
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::lintr, local::.
+          needs: lint
+
+      - name: Lint
+        run: lintr::lint_package()
+        shell: Rscript {0}
+        env:
+          LINTR_ERROR_ON_LINT: true
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: posit-dev/setup-air@v1
+
+      - name: Check formatting
+        run: air format --check .

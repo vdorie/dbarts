@@ -9,7 +9,7 @@ generateProbitData <- function() {
   mu <- pnorm(X %*% beta)
   Z <- rbinom(n, 1, mu)
 
-  return(list(X = X, Z = Z, p = mu))
+  list(X = X, Z = Z, p = mu)
 }
 testData <- generateProbitData()
 rm(generateProbitData)

@@ -23,7 +23,7 @@ generateHillData <- function() {
   p <- rbeta(1, 1, 1)
   z <- rbinom(n, 1, p)
 
-  return(list(x = x, y = y, n = n, z.0 = z.0, p.0 = p.0, p = p, z = z))
+  list(x = x, y = y, n = n, z.0 = z.0, p.0 = p.0, p = p, z = z)
 }
 testData <- generateHillData()
 rm(generateHillData)

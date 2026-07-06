@@ -79,7 +79,7 @@ validateXTest <- function(x.test, x.train) {
   }
 
   if (!is.numeric(x.test)) {
-    stop('test matrix must be numeric')
+    stop("test matrix must be numeric")
   }
 
   if (is.integer(x.test)) {
@@ -121,7 +121,7 @@ validateXTest <- function(x.test, x.train) {
 }
 
 findTermInFormulaData <- function(formula, data, term) {
-  formulaIsMissing <- missing(formula)
+  formulaIsMissing <- missing(formula) # nolint: object_usage_linter.
   dataIsMissing <- missing(data)
   matchedCall <- match.call()
 
@@ -341,7 +341,7 @@ dbartsData <- function(
           modelFrameArgs <- c("formula", "data", "subset", "weights")
         }
       }
-      originalOffset <- offset
+      originalOffset <- offset # nolint: object_usage_linter.
     }
     modelFrameCall <- matchedCall
     modelFrameCall <- modelFrameCall[c(

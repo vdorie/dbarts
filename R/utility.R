@@ -150,7 +150,7 @@ setDefaultsFromFormals <- function(call, formals, ...) {
   call
 }
 
-is.formula <- function(x) is.language(x) && x[[1L]] == '~'
+is.formula <- function(x) is.language(x) && x[[1L]] == "~"
 
 ## from lme4
 namedList <- function(...) {
@@ -170,13 +170,13 @@ namedList <- function(...) {
 ## factors
 makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   if (!is.data.frame(x)) {
-    stop('x is not a dataframe')
+    stop("x is not a dataframe")
   }
   if (is.logical(drop) && (length(drop) != 1L || is.na(drop))) {
-    stop('when logical, drop must be TRUE or FALSE')
+    stop("when logical, drop must be TRUE or FALSE")
   }
   if (is.list(drop) && length(drop) != length(x)) {
-    stop('when list, drop must have length equal to x')
+    stop("when list, drop must have length equal to x")
   }
 
   characterCols <- sapply(x, typeof) == "character"
