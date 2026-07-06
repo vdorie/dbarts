@@ -81,7 +81,7 @@ extract(object, \dots)
     sample = c("train", "test"),
     \dots)
 
-\method{residuals}{bart}(object, \dots)
+\method{residuals}{bart}(object, type = "ev", \dots)
 }
 \arguments{
    \item{x.train}{

@@ -142,8 +142,10 @@ fitted.bart <- function(object,
   if (!is.null(dim(result))) apply(result, length(dim(result)), mean) else mean(result)
 }
 
-residuals.bart <- function(object, ...) {
-  object$y - fitted.bart(object)
+residuals.bart <- function(object, type = "ev", ...) {
+  # type flows to fitted so link-scale (type = "bart") residuals are reachable;
+  # residuals are always against the training response, so sample is pinned
+  object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
 predict.rbart <- function(object, newdata, group.by, offset,
@@ -417,8 +419,10 @@ fitted.rbart <- function(object,
   result
 }
 
-residuals.rbart <- function(object, ...) {
-  object$y - fitted.rbart(object)
+residuals.rbart <- function(object, type = "ev", ...) {
+  # as residuals.bart: type reaches fitted for link-scale residuals, sample
+  # is pinned to the training response
+  object$y - fitted.rbart(object, type = type, sample = "train", ...)
 }
 
 

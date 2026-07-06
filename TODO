@@ -76,8 +76,14 @@ api surface
     convenience mirror of dbartsControl(rngSeed = ) as bart2/xbart expose;
     an explicit seed overrides the control's, NA leaves it untouched.
   no summary() method or credible-interval API; intervals are computed
-    inline in plot.* and discarded. residuals.bart/.rbart hardcode
-    fitted type "ev" - no link-scale residuals through the generic.
+    inline in plot.* and discarded. (Still open - a design decision on the
+    return shape and interval convention.) residuals link scale: DONE.
+    residuals.bart/.rbart now take a type argument that flows to fitted
+    (sample pinned to "train"), so type = "bart" gives link-scale
+    residuals; default "ev" is unchanged. Fixed alongside: binary bart()
+    fits did not store y, so residuals() returned numeric(0) on them - the
+    binary result branch now keeps y like the gaussian one (rbart already
+    did).
   plotTree is reachable only through the retained sampler
     ($fit$plotTree, $fit[[i]]$plotTree for multi-chain rbart);
     extract(type = "trees") wraps the chain indirection but plotTree

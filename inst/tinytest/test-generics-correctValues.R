@@ -78,7 +78,15 @@ bartFit <- dbarts::bart(
 predictions <- predict(bartFit, testData$X, type = "bart", n.threads = 1L)
 expect_equal(predictions, bartFit$yhat.train)
 
-rm(predictions, bartFit)
+# residuals reach fitted's type: the default is the response scale (y - phat),
+# and type = "bart" gives link-scale residuals, distinct for a binary fit
+resid.ev <- residuals(bartFit)
+resid.link <- residuals(bartFit, type = "bart")
+expect_equal(resid.ev, testData$Z - fitted(bartFit, type = "ev"))
+expect_equal(resid.link, testData$Z - fitted(bartFit, type = "bart"))
+expect_false(isTRUE(all.equal(resid.ev, resid.link)))
+
+rm(predictions, bartFit, resid.ev, resid.link)
 
 rm(testData)
 
