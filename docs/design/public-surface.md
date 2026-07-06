@@ -136,6 +136,15 @@ high union word is invariantly zero. The flat tree format may grow a
 flags field when MIA lands; state objects are opaque, so that is not a
 compatibility break.
 
+Landed (2026-07-06): "opaque" now carries a guarantee, not just an
+absence of one. storeState stamps the state with a format version and
+the writing package version; setState checks the format version first,
+before any structural parsing, and refuses a mismatch naming both
+versions rather than risk a silent misread. States load within a
+format version; there is no cross-version migration. This is the one
+version scheme flat-format-v2, state-continuation, and forest-split-bcf
+all bump.
+
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a
 double and `getTrees` keeps the raw mask in the `value` column; when the

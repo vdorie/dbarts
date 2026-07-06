@@ -2451,6 +2451,11 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 
 namespace bartcore_bridge {
 
+// Bumped by any change to the layout storeState/setState exchange (tree
+// encoding, per-chain slots, attributes). States load only within a format
+// version; there are no migration shims.
+static const int stateFormatVersion = 1;
+
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
   sampler.getState(state);
@@ -2593,6 +2598,10 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   Rf_setAttrib(resultExpr, Rf_install("cutPoints"), cutPointsExpr);
   Rf_setAttrib(resultExpr, Rf_install("currentSampleNum"),
                Rf_ScalarInteger(static_cast<int>(state.currentSampleNum)));
+  Rf_setAttrib(resultExpr, Rf_install("formatVersion"),
+               Rf_ScalarInteger(stateFormatVersion));
+  Rf_setAttrib(resultExpr, Rf_install("packageVersion"),
+               Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
 
@@ -2603,6 +2612,22 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
+
+  SEXP formatVersionExpr = Rf_getAttrib(stateExpr, Rf_install("formatVersion"));
+  int formatVersion = Rf_isInteger(formatVersionExpr) &&
+      Rf_xlength(formatVersionExpr) == 1 ? INTEGER(formatVersionExpr)[0] : 0;
+  if (formatVersion != stateFormatVersion) {
+    SEXP packageVersionExpr =
+      Rf_getAttrib(stateExpr, Rf_install("packageVersion"));
+    const char* packageVersion = Rf_isString(packageVersionExpr) &&
+        Rf_xlength(packageVersionExpr) == 1 ?
+      CHAR(STRING_ELT(packageVersionExpr, 0)) : "unknown";
+    Rf_error("state format version %d (written by dbarts %s) is not "
+             "compatible with this dbarts's format version %d; re-fit or "
+             "use the dbarts release that wrote it", formatVersion,
+             packageVersion, stateFormatVersion);
+  }
+
   if (static_cast<size_t>(Rf_xlength(stateExpr)) != sampler.numChains())
     Rf_error("'state' length must equal number of chains");
 
