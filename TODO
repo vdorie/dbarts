@@ -84,11 +84,12 @@ api surface
     fits did not store y, so residuals() returned numeric(0) on them - the
     binary result branch now keeps y like the gaussian one (rbart already
     did).
-  plotTree is reachable only through the retained sampler
-    ($fit$plotTree, $fit[[i]]$plotTree for multi-chain rbart);
-    extract(type = "trees") wraps the chain indirection but plotTree
-    has no fit-level dispatch. The rendering already handles linear
-    and gp leaves.
+  plotTree fit-level dispatch: DONE. plotTree is now an exported S3
+    generic with methods for bart, rbart, and dbartsSampler, so a kept
+    fit plots a tree directly instead of reaching into $fit$plotTree.
+    plotTree.rbart mirrors extract's chain indirection (one in-core
+    multi-chain sampler selects the chain through its own chainNum; the
+    R-loop path keeps one sampler per chain). man/plotTree.Rd added.
 
 performance (measure before acting. The ORDER-PRESERVING items are
 bitwise identical and land as we go; the ORDER-CHANGING ones are held
