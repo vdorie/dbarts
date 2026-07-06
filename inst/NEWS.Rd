@@ -2,6 +2,37 @@
 \title{dbarts News}
 \encoding{UTF-8}
 \section{CHANGES IN VERSION 1.0-0}{
+  \subsection{UPGRADING}{
+    A summary of the changes that can break existing code or alter
+    results; each is detailed under the other headings.
+    \itemize{
+      \item Seeded results differ from 0.9-x: the rewritten engine draws
+            statistically equivalent but not draw-for-draw identical
+            chains. Seeded multi-chain results no longer depend on the
+            thread count, and unseeded ones follow \code{set.seed}.
+      \item Sampler states saved by earlier versions cannot be restored;
+            refit anything you need to continue.
+      \item Packages compiling against dbarts must port from the removed
+            C++ interface (\code{dbarts/R_C_interface.hpp}) to the flat
+            C API in \code{dbarts/dbarts.h}.
+      \item Unordered factors split on level subsets by default in
+            \code{dbarts}, \code{dbartsData}, \code{bart2}, \code{xbart},
+            and \code{rbart_vi}; pass \code{factors = "indicators"} for
+            the previous dummy expansion. \code{bart} is unchanged.
+      \item Missing predictor values are modeled by default
+            (\code{missing = "incorporate"}) rather than dropped
+            (formulas) or silently miscoded (matrices); use
+            \code{missing = "error"} to reject them. Complete data draw
+            as before.
+      \item \code{dbartsControl} loses the \code{engine}, \code{rngKind},
+            and \code{rngNormalKind} arguments; a \code{weights} vector
+            whose length matches neither the response nor one is an error
+            instead of recycling; \code{resid.prior = fixed(value)} now
+            holds the residual variance at \code{value}; and
+            \code{getSumsOfSquaredResiduals} reports on the documented
+            scale.
+    }
+  }
   \subsection{NEW FEATURES}{
     \itemize{
       \item Sparse predictor matrices: the x/y interfaces of
