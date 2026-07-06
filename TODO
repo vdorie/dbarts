@@ -218,16 +218,25 @@ tests (remaining gaps from the coverage review)
     19c499a); grouped rbart_vi fits stay out - their multi-chain result
     shape does not fit the single-fit summary, so add a scenario only if
     a grouped refactor is planned.
-  zero-weight fits for the constant and linear leaves still lack a
-    targeted tinytest assertion (gp has the fix's regression tests); the
-    equivalence zeroweights scenario exercises the constant-leaf
-    no-likelihood path and the collapseEmptyNodes weightTotal > 0 guard
-    on every gate run, but only bitwise against itself, not an oracle.
+  zero-weight fits for the constant and linear leaves: DONE
+    (test-zero-weights.R). Oracle: perturbing a zero-weight row's response
+    leaves the fit bitwise unchanged (it contributes nothing to any leaf's
+    sufficient statistics), for both constant and linear leaves. The
+    perturbation is kept inside the response range - extremes held by
+    non-zero-weight rows - because the gaussian transform is range-based
+    (fitMin/fitMax), so an out-of-range change legitimately shifts the fit.
   post-mutation assertions are near-tautologies (is.finite only) in
     the older linear/gp mutation tests; the new mutate-then-serialize
     file covers the bitwise side, but comparing against a
     from-scratch sampler after mutation would strengthen the rest.
-  MIA setPredictor that moves NA patterns on an incorporate sampler.
+    (Note: setPredictor is NOT bitwise-equal to a fresh build even before
+    any run - it re-quantizes differently - so a from-scratch oracle must
+    be statistical, not identical; see the MIA setPredictor test.)
+  MIA setPredictor that moves NA patterns: DONE (test-data-missing.R). On
+    an incorporate sampler, setPredictor installs a replacement column whose
+    missingness carries the response signal; the refit recovers it (it was
+    unusable before), fits stay finite, and the installed column carries the
+    moved NA rows.
 
 docs
   prose-level man-page pass before release: codoc mismatches are
