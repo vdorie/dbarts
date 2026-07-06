@@ -110,7 +110,10 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
       yhat.train = yhat.train,
       yhat.test = yhat.test,
       varcount = varcount,
-      binaryOffset = fit$data@offset)
+      binaryOffset = fit$data@offset,
+      # kept so residuals() works on binary fits (y - fitted); for gaussian
+      # fits y rides the other branch
+      y = fit$data@y)
   } else {
     result <- list(
       call = fit$control@call,

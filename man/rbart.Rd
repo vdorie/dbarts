@@ -57,7 +57,7 @@ rbart_vi(
     combineChains = TRUE,
     \dots)
 
-\S3method{residuals}{rbart}(object, \dots)
+\S3method{residuals}{rbart}(object, type = "ev", \dots)
 }
 \arguments{
   \item{group.by}{
