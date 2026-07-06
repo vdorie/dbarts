@@ -36,8 +36,11 @@ jobs:
           extra-packages: any::pkgdown, local::.
           needs: website
 
+      # dest_dir must be passed explicitly: build_site_github_pages ignores
+      # the destination in _pkgdown.yml and would try to clean docs/, which
+      # holds the design documents.
       - name: Build site
-        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
+        run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE, dest_dir = "docs-site")
         shell: Rscript {0}
 
       - name: Deploy to GitHub pages
