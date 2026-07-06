@@ -147,6 +147,51 @@ packageBartResults <- function(fit, samples, burnInSigma, burnInK, combineChains
 
 .kDefault <- quote(if (control@binary) quote(chi(1.25, Inf)) else 2)
 
+## Builds the quoted tree/node/resid prior calls that bart, bart2, and
+## rbart_vi hand to dbarts. nodeK is the node prior's k argument exactly as
+## it should enter the call - unevaluated for functions that redirect their
+## matched call, evaluated for those that forward through do.call from
+## internal frames - or NULL for no node prior. dart may be FALSE, TRUE, or
+## a dbartsDartPrior spec; splitProbsName is the caller's argument spelling
+## and splitProbsDefault its formal default.
+buildSamplerPriors <- function(matchedCall, power, base, sigdf, sigquant,
+                               nodeK, dart = FALSE,
+                               splitProbsName = "split.probs",
+                               splitProbsDefault = NULL)
+{
+  if (inherits(dart, "dbartsDartPrior")) {
+    # a full spec overrides the power/base arguments with its own
+    tree.prior <- dart
+  } else if (isTRUE(dart)) {
+    if (splitProbsName %in% names(matchedCall))
+      stop("'", splitProbsName, "' cannot be combined with 'dart': a DART prior samples its split probabilities")
+    tree.prior <- quote(dart(power, base))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+  } else if (!isFALSE(dart)) {
+    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
+  } else {
+    tree.prior <- quote(cgm(power, base, split.probs))
+    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
+    if (splitProbsName %in% names(matchedCall))
+      tree.prior[[4L]] <- matchedCall[[splitProbsName]]
+    else
+      tree.prior[[4L]] <- splitProbsDefault
+  }
+
+  if (!is.null(nodeK)) {
+    node.prior <- quote(normal(k))
+    node.prior[[2L]] <- nodeK
+  } else {
+    node.prior <- NULL
+  }
+
+  resid.prior <- quote(chisq(sigdf, sigquant))
+  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
+
+  list(tree.prior = tree.prior, node.prior = node.prior,
+       resid.prior = resid.prior)
+}
+
 bart2 <- function(
   formula,
   data,
@@ -215,35 +260,16 @@ bart2 <- function(
   if (control@n.burn == 0L && keepTrees == TRUE) control@keepTrees <- TRUE
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   
-  if (inherits(dart, "dbartsDartPrior")) {
-    # a full spec overrides the power/base arguments with its own
-    tree.prior <- dart
-  } else if (isTRUE(dart)) {
-    if ("split.probs" %in% names(matchedCall))
-      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
-    tree.prior <- quote(dart(power, base))
-    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-  } else if (!isFALSE(dart)) {
-    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
-  } else {
-    tree.prior <- quote(cgm(power, base, split.probs))
-    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-    if ("split.probs" %in% names(matchedCall))
-      tree.prior[[4L]] <- matchedCall$split.probs
-    else
-      tree.prior[[4L]] <- formals(dbarts::bart2)[["split.probs"]]
-  }
+  # k enters unevaluated: bart2 redirects its matched call, so the stored
+  # symbol resolves in the caller's frame
+  priors <- buildSamplerPriors(
+    matchedCall, power, base, sigdf, sigquant,
+    nodeK = matchedCall[["k"]], dart = dart,
+    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]])
+  tree.prior <- priors$tree.prior
+  node.prior <- priors$node.prior
+  resid.prior <- priors$resid.prior
 
-  if (!is.null(matchedCall[["k"]])) {
-    node.prior <- quote(normal(k))
-    node.prior[[2L]] <- matchedCall[["k"]]
-  } else {
-    node.prior <- NULL
-  }
-  
-  resid.prior <- quote(chisq(sigdf, sigquant))
-  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
-  
   samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
   samplerCall$control <- control
   samplerCall$n.samples <- NULL
@@ -336,18 +362,14 @@ bart <- function(
   if (control@n.burn > 0L) control@keepTrees <- FALSE
   ndpost <- as.integer(ndpost) %/% control@n.thin
 
-  tree.prior <- quote(cgm(power, base, split.probs))
-  tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-  if ("splitprobs" %in% names(matchedCall))
-    tree.prior[[4L]] <- matchedCall$splitprobs
-  else
-    tree.prior[[4L]] <- formals(dbarts::bart)[["splitprobs"]]
-
-  node.prior <- quote(normal(k))
-  node.prior[[2L]] <- if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k
-
-  resid.prior <- quote(chisq(sigdf, sigquant))
-  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
+  priors <- buildSamplerPriors(
+    matchedCall, power, base, sigdf, sigquant,
+    nodeK = if (!is.null(matchedCall[["k"]])) matchedCall[["k"]] else k,
+    splitProbsName = "splitprobs",
+    splitProbsDefault = formals(dbarts::bart)[["splitprobs"]])
+  tree.prior <- priors$tree.prior
+  node.prior <- priors$node.prior
+  resid.prior <- priors$resid.prior
   
   # the frozen BayesTree-compatibility shim keeps dummy expansion
   args <- list(formula = x.train, data = y.train, test = x.test, subset = NULL, weights = weights,
