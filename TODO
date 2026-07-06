@@ -1,225 +1,44 @@
-Rewritten 2026-07-05 from the repo review; pruned the same day after
-the first work wave landed. The 2018 list is fully absorbed by the
-bartcore rewrite (see docs/design/); "warn on possible factors" is
-retired as obsolete. DONE and removed from this list: the five
-verified review bugs (gp zero weights, rbart_vi prior lookup by name,
-silent weights recycling, chi-k Inf guard, dead-code/message cleanups;
-bart2-vs-rbart_vi k handling resolved as deliberate - rbart forwards
-through do.call so it must store the evaluated value), release
-metadata (AC_INIT, SystemRequirements: C++20, .win header versions,
-Description text), CI triggers for the bartcore branch +
-workflow_dispatch, man-page examples for every headline feature,
-logistic k/binaryOffset doc fixes, MIA and gp references, README
-refresh with badge and package-authors note, and seven new coverage
-test files (logistic+offset, DART x categorical x MIA, boundary
-inputs, grouped weighted/binary halves + refusal, mutate-then-
-serialize bitwise for all three leaf types, bridge errors, plot
-smoke).
+Trimmed 2026-07-06 to yet-to-be-done items only; completed work and its
+rationale live in the git history of this file, docs/design/, and NEWS.
 
 release
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
-    to CRAN together
-  stan4bart follow-up: adopt categorical splits (pins factors =
-    "indicators"); lockstep with the dbarts release
-  revdepcheck before submission: FIRST PASS DONE (2026-07-06, manual
-    sweep on macOS arm64; re-run near submission). dbarts has 23 CRAN
-    reverse dependencies. Checked against 1.0-0: stan4bart 0.0-13 dev
-    sources OK (the lockstep partner); bartMan/EBcoBART/funcml/glossa/
-    nlfh/riAFTBART/voi OK (_R_CHECK_FORCE_SUGGESTS_=false); bartCause
-    UPDATE READY (branch dbarts-1.0 in ~/Repositories/bartCause,
-    unpushed): snapshots regenerated, test-10-rng.R rewritten to the
-    1.0-0 rng semantics, missing-response subsetting fixed, checks
-    Status OK - push and submit after dbarts is accepted. Weighted
-    BART propensity DECIDED (2026-07-06): the dbarts-backed treatment
-    paths strip weights and message once ("propensity score model is
-    fit unweighted; weights enter the treatment-effect estimators") -
-    weights are realistically continuous so the logistic count route
-    could not cover them, and the estimators already carry the design
-    information. glm/stan4bart treatment paths untouched; a weighted
-    BINARY RESPONSE still errors through getBartResponseFit
-    (untested, acceptable). Related: tmle's default SuperLearner
-    wrappers pass unit
-    obsWeights into probit bart unconditionally - handled dbarts-side
-    by treating weights identically 1 as absent (6e1366b); genuinely
-    weighted tmle analyses lose the dbarts learners by design (the
-    ensemble falls back to weight-respecting learners); could notify
-    the tmle maintainers. tidytreatment WARNS
-    (vignette loads the CRAN stan4bart binary = the documented ABI
-    break, resolves with 0.0-13); bartXViz not checkable locally
-    (needs its own gfortran runtime; R-level dbarts use only); the 12
-    Suggests-level packages were not individually checked.
-    cran-comments.md is DRAFTED with all of this; refresh the results
-    and check environments at submission time.
-  single-chain rng finding: RESOLVED (2026-07-06, Vincent chose the
-    dedicated-generator fix). createChainRngs no longer special-cases
-    numChains == 1; every chain gets its own Mersenne twister, seeded
-    from rngSeed via the seed generator or from R's stream at creation.
-    Consequences: rngSeed never touches R's stream (the NEWS claim is
-    now true), single-chain states carry their generator so setState
-    continuation is bitwise for every chain count, a 1-chain seed-S run
-    reproduces chain 0 of an n-chain seed-S run, and sampling never
-    advances R's stream. Cost paid: seeded single-chain snapshots
-    regenerated across the suite; equivalence anchor re-recorded
-    (transition verified statistically, 18/18 scenarios, max |z| =
-    3.55; the multi-chain scenario stayed draw-identical).
+    to CRAN together. bartCause is ready on branch dbarts-1.0 in
+    ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
+    push and submit it after dbarts is accepted.
+  re-run the revdep sweep near submission (manual; the revdepcheck
+    package is GitHub-only). 23 CRAN reverse dependencies; the
+    2026-07-06 pass was clean or explained everywhere (stan4bart 0.0-13
+    dev OK; bartMan/EBcoBART/funcml/glossa/nlfh/riAFTBART/voi OK with
+    _R_CHECK_FORCE_SUGGESTS_=false; bartCause handled by its update;
+    tidytreatment's WARNING is the documented ABI break, resolved by
+    stan4bart 0.0-13; bartXViz not checkable locally - own gfortran
+    runtime, R-level dbarts use only; the 12 Suggests-level packages
+    not individually checked).
+  write cran-comments.md at submission time. Content it needs: major
+    release, engine rewritten, seeded results change; the C++ interface
+    is removed and dbarts.h replaces it, so stan4bart 0.0-12 cannot
+    build against 1.0-0 and 0.0-13 is submitted alongside (same
+    maintainer); revdep summary as above; test environments; goal
+    0 errors / 0 warnings / 0 notes.
+  stan4bart follow-up: adopt categorical splits (it pins factors =
+    "indicators"); lockstep with the dbarts release.
+  optional courtesy: notify the tmle maintainers. Their default
+    SuperLearner dbarts wrappers pass obsWeights unconditionally and
+    pnorm() the latents; unit weights are handled dbarts-side now, but
+    genuinely weighted binomial analyses lose the dbarts learners by
+    design, and family routing on their side would need the matching
+    inverse link.
   Windows-arm64 runs scalar kernels: the .win config headers never
     define COMPILER_SUPPORTS_NEON and Makevars.win's ARCH check has no
-    aarch64 branch; consider a NEON branch
-  verified clean by the build review: state mask serialization is
-    byte-shifted (endian-safe); .Call registration complete; dbarts.h
-    is C89-clean and matches the bridge; tarball free of build junk;
-    sublibrary Makefiles own the SIMD source lists cross-platform
+    aarch64 branch; consider a NEON branch.
 
 usability
-  thread cancellation (2018 carryover): DONE. run() now polls a
-    cooperative cancel predicate between sweeps (chain.hpp returns early;
-    order-preserving so equivalence stays bitwise identical - all 18
-    scenarios). Single-chain polls R_CheckUserInterrupt inline (throttled
-    ~100ms via R_ToplevelExec so the longjmp is caught and threads can be
-    joined); multi-chain has the main thread poll and set an atomic flag the
-    workers read, with SIGINT blocked in workers (POSIX) so only the main
-    thread runs R's handler. The bridge turns a cancelled run into an
-    Rf_error after every worker is joined. Verified: pty Ctrl-C interrupts
-    both paths in ~0.3-0.5s with R healthy after; tests/cpp
-    testRunCancellation gates the engine mechanism; ASAN+UBSAN and TSAN
-    (zero races) clean. Interactive Ctrl-C can't be exercised in tinytest
-    (non-tty Rscript never sets the interrupt flag), so the pty check stays
-    out of CI - the C++ test covers the mechanism.
-  weights + binary refusal fires at sampler creation in the bridge
-    (good message, wrong layer): DONE, and extended. The refusal now lives
-    in the R layer (dbarts.R, bridge backstops direct-API consumers) and is
-    split by family: probit is refused (no tractable weighted latent form)
-    except that weights identically 1 are treated as absent (6e1366b;
-    SuperLearner-style callers pass unit obsWeights unconditionally),
-    logistic accepts positive-integer weights as observation counts (the
-    Polya-Gamma latent PG(w, psi) is a sum of w PG(1, psi) draws), gaussian
-    is unrestricted. See docs/design/weighted-logistic.md. Deferred there:
-    arbitrary real logistic weights (needs a general real-shape PG sampler;
-    the survey/IPW use case wants it but is a pseudo-likelihood trap).
-  rbart_vi's sparse refusal doesn't say why or point at dbarts/bart2,
-    which do support sparse. DONE: the message now names them.
-  bart/bart2 up-front numeric argument validation: MOSTLY ALREADY DONE.
-    power/base validate through the dbartsCGMPrior S4 validity, k through
-    normal(), and the counts through dbartsControl's validity - so bad
-    values report an informative message (wrapped in the standard S4
-    "invalid class ... object:" prefix), not an opaque parsePriors error.
-    The one genuine gap was n.thin = 0, which passed validity (non-
-    negative) and then divided by zero downstream (n.burn %/% n.thin ->
-    NA -> "missing value where TRUE/FALSE needed"); n.thin is now required
-    positive. Residual nit (deferred, package-wide cosmetic): the S4
-    validity prefix leaks internal class names to users; stripping it
-    consistently is a separate pass, not a per-constructor patch.
+  the S4 validity prefix ("invalid class ... object:") leaks internal
+    class names into user-facing validation errors; stripping it
+    consistently is a package-wide cosmetic pass.
 
-api surface
-  xbart cannot reach DART or split.probs: DONE. xbart now takes
-    split.probs (fixed, non-uniform variable weights) and dart (TRUE or a
-    dart() spec) like bart2, resolved against the fold data and swept over
-    the power/base grid. A DART sampler's sampled Dirichlet state persists
-    across the warm-cell setModel path (chain.hpp skips the split-prob
-    install when useDart), and the default uniform cgm is bit-identical, so
-    the reproducibility snapshots are unchanged.
-  dbarts() has no seed argument: DONE. dbarts() now takes seed, a
-    convenience mirror of dbartsControl(rngSeed = ) as bart2/xbart expose;
-    an explicit seed overrides the control's, NA leaves it untouched.
-  credible-interval API: DONE (Vincent confirmed the shape 2026-07-05).
-    fitted() and predict() take a scalar ci.level; when set they return a
-    per-observation matrix of est/ci.lower/ci.upper instead of the posterior
-    mean. The interval KIND rides the existing type axis rather than a new
-    flag: "ev" is a credible interval for the mean (probability for binary),
-    "ppd" a wider prediction interval that adds residual noise, "bart" the
-    latent scale - matching base R's confidence/prediction split and
-    rstanarm's epred/predict split (see the ecosystem survey in the session
-    notes; bartMachine splits it into two functions instead). A standalone
-    summary() method is still open but now trivial (it would just call this).
-    residuals link scale: DONE.
-    residuals.bart/.rbart now take a type argument that flows to fitted
-    (sample pinned to "train"), so type = "bart" gives link-scale
-    residuals; default "ev" is unchanged. Fixed alongside: binary bart()
-    fits did not store y, so residuals() returned numeric(0) on them - the
-    binary result branch now keeps y like the gaussian one (rbart already
-    did).
-  plotTree fit-level dispatch: DONE. plotTree is now an exported S3
-    generic with methods for bart, rbart, and dbartsSampler, so a kept
-    fit plots a tree directly instead of reaching into $fit$plotTree.
-    plotTree.rbart mirrors extract's chain indirection (one in-core
-    multi-chain sampler selects the chain through its own chainNum; the
-    R-loop path keeps one sampler per chain). man/plotTree.Rd added.
-
-performance (measure before acting. The ORDER-PRESERVING items landed
-as we went, bitwise identical; the ORDER-CHANGING batch landed
-2026-07-06 as the deliberate one-time bitwise drop - equivalence and
-speed baselines re-recorded, NEWS notes the trade. The RNG stream and
-realized accept/reject decisions survived the reorder, so the
-tolerance-based test snapshots did not need regeneration; the
-equivalence gate now compares statistically against pre-drop anchors,
-reporting max |z| = 0.00 on all 18 scenarios. Cumulative vs the classic
-engine at the drop: run scenarios 25-30% less time per iteration.)
-  run-loop pass fusion, ORDER-PRESERVING: DONE. residual build (was
-    memcpy+subtract+add) fused to one (y - total) + old pass, fit swap
-    (was subtract+add) fused to one pass; restrict-qualified locals,
-    left-to-right order preserved so bitwise identical (equivalence
-    reports identical draws on all 17 scenarios). Same-climate A/B: run
-    scenarios 0.90-0.93x (8-10% faster, 9.7% at n=10000 - the win scales
-    with n). The two setPredictor microbenchmarks moved +7/+13% but share
-    NO code with the fusion (it is inline in run()), so that is
-    code-layout jitter on 0.15ms measurements, not a real regression.
-  draw into the fit slab, ORDER-PRESERVING: DONE (d688b19). The draw now
-    writes each tree's new fits straight into its treeFits_ slab; the
-    residual pass also strips the tree's old fits from totalFits so the
-    slab can be overwritten in place, and the running total is restored by
-    adding the slab back. The trailing memcpy and the currFits_ scratch
-    buffer are gone: two O(n) passes per tree instead of three. totalFits
-    stays (total - oldFits) + newFits in order, bitwise identical
-    (equivalence identical on all 17); A/B 3-6% faster on the p=10 run
-    scenarios (embedded-offset's +6.8% flag was within its ~13% same-binary
-    noise band, verified by a noise-floor run).
-  running residual, ORDER-CHANGING (the deliberate end-of-work bitwise
-    drop): DONE. treeY_ carries y - totalFits across the sweep: one
-    fused pass per tree retires the previous tree's new fits and admits
-    this tree's old ones (in place of three totalFits-maintenance
-    passes), the draw overwrites the slab, and totalFits_ is rebuilt
-    once per sweep - retiring the last tree's fits in the same pass -
-    for the latent/sigma/record consumers. The RNG stream and
-    accept/reject decisions are unchanged in practice (values move at
-    rounding scale only), so the tolerance-based test snapshots survived
-    untouched; the one bitwise casualty is that a zero-weight row's own
-    reported fit now depends on its response at rounding scale (y enters
-    and leaves through the rebuild), and test-zero-weights.R pins the
-    sharper form (retained rows bitwise, perturbed rows to 1e-12).
-    Same-climate A/B: run scenarios 0.85-0.95 (15% faster at n=10000
-    where the O(n) passes dominate, 5-6% at n=1000), nothing regressed.
-  variable availability in one ancestor walk, ORDER-PRESERVING: DONE
-    (c3f5915). numVariablesAvailable re-walked the ancestors once per
-    predictor, O(p x depth) at every node scored in a move; replaced by
-    Tree::hasAnyAvailableVariable (early-exit boolean for growthProbability
-    and the birth-node predicates) and Tree::collectAvailableVariables (one
-    walk narrowing every ordinal interval and inline-categorical mask,
-    O(p + depth); pooled >63-level columns fall back to the per-column
-    walk). splitVariableLogProbability/drawSplitVariable read the cached
-    array. Nested bounds make the extremum equal the nearest-wins bound, so
-    counts/sums/i-th draw are bitwise identical (equivalence identical on all
-    17); same-climate A/B 8-10% faster on the p=10 run scenarios (1.2% at
-    n=10000 where O(n) passes dominate). The order-changing half is DONE
-    with the running-residual batch: change/swap now score
-    treeLogProbability from the modified node instead of the root - prior
-    terms outside the subtree depend only on rules above it, so they are
-    identical on both sides of the ratio and cancel (availability walks
-    ancestors only; verified in tree.hpp collectAvailableVariables).
-  skip setNodeAverages under linear leaves, ORDER-PRESERVING: DONE
-    (44a9383). The constant-leaf per-node means are pure waste for linear
-    (vector) leaves, which accumulate their own statistics and never read
-    node.average; guarded with if constexpr (!hasVectorParams) so it still
-    runs for the constant leaf AND for gp (whose over-cap nodes delegate to
-    the constant leaf - a first guard that skipped gp too shifted the gp
-    component-test values and was caught before commit). Bitwise identical
-    (equivalence all 17 identical); same-climate A/B on a q=2 linear run
-    5.13s -> 4.31s (16% faster, tight distributions). STILL OPEN and NOT
-    pursued: caching the crossproduct across the linear-leaf score->draw
-    gap - the marginal and draw run on different node sets (the draw covers
-    all bottom nodes; move marginals only the touched branch), so a true
-    reuse needs a persistent per-node stats cache, which the design
-    deliberately avoids ("move rollbacks need no cache invalidation",
-    model.hpp:162-165). Not the free win the note implied.
+performance (measure before acting)
   rbart_vi custom-prior R loop pays a full bridge round trip per
     posterior sample (rbart.R: setOffset + run(0L, 1L), ~10 fresh
     SEXPs per call in bartcore_run); built-in priors already bypass
@@ -233,157 +52,55 @@ engine at the drop: run scenarios 25-30% less time per iteration.)
     intrinsics commented out (linearAlgebra_sse2.c:173-215 and
     siblings); dispatch tables and cpuid detection all wired; NEON
     arms live. Likely LOW impact - the scalar bodies autovectorize at
-    -O2 on modern compilers - so either restore the intrinsics after
-    measuring on x86 or simplify away the dead dispatch weight.
-    misc_setIndexedVectorToConstant never entered the dispatch table
-    at all. The SSR kernel has no SIMD leaf, unlike its mean/variance
-    neighbors.
-  threading: chains only (sampler.hpp std::thread); within-chain
-    tree-level parallelism is structurally blocked by backfitting, and
-    the observation-level htm machinery is dormant by design (all call
-    sites pass a null manager - the serial unrolled accumulators are the
-    fast path). Threaded within-tree reductions were ASSESSED AND
-    DEFERRED with the order-changing batch: backfitting serializes
+    -O2 - so either restore the intrinsics after measuring on x86 or
+    simplify away the dead dispatch weight.
+    misc_setIndexedVectorToConstant never entered the dispatch table.
+    The SSR kernel has no SIMD leaf, unlike its mean/variance neighbors.
+  within-chain threading: ASSESSED AND DEFERRED. Backfitting serializes
     trees, so parallelism lives inside each O(n) pass, costing ~3
     barrier syncs x numTrees per sweep (~300 at the defaults) against
     2.1 ms/iteration at n = 10^4 - overhead on the order of the win.
-    Measured headroom exists only at n >= 10^5, where the sweep goes
-    DRAM-bound (31 ms/iteration at n = 10^5, 14.6x the n = 10^4 time)
-    and extra cores add bandwidth. Wiring it also makes results depend
-    on n.threads (per-thread-count determinism at best), a new
-    reproducibility surface. Revisit if single-chain n ~ 10^5 workloads
-    materialize; the htm machinery and this analysis are the starting
-    point. Verified clean: the hot loop has no allocation churn
-    (scratch reused throughout).
+    Headroom exists only at n >= 10^5 (DRAM-bound, 31 ms/iteration),
+    and wiring it makes results depend on n.threads. Revisit if
+    single-chain n ~ 10^5 workloads materialize; the dormant htm
+    machinery is the starting point.
+  linear-leaf score->draw crossproduct reuse: needs a persistent
+    per-node stats cache the design deliberately avoids ("move
+    rollbacks need no cache invalidation", model.hpp:162-165); not the
+    free win the old note implied.
 
-internals (ALL landed 2026-07-06 as refactor-only commits: the
-equivalence gate reported identical draws on all 18 scenarios after
-each wave, suite 2477/0, speed flat)
-  chain.hpp leaf-shape hoisting: DONE (Vincent approved the
-    grouped-helper design over a policy object). Every scalar/vector/
-    function three-way now lives in exactly one method per concern; the
-    Chain class comment lists the checklist a fourth leaf shape would
-    touch. The real duplications went: recoverLeafParameters replaced
-    two copies of the recovery three-way, setTreeFits the repeated
-    scalar/vector fit-rewrite choice (function leaves excluded by
-    static_assert - their fits ARE the parameters and each flow handles
-    them deliberately: rebuild skips, applyNewData cold-starts through
-    the scalar broadcast, setState copies the slab), storeSavedTreeRecord
-    the run loop's inline flatten, and addFlatPredictions the
-    prediction-kernel dispatch shared by the saved and live predict
-    paths - predictFromCurrentTrees now flattens through flattenTree
-    instead of repeating it. leafTracksNodeAverages names the
-    node-average guard.
-  bridge: DONE. createHolder and bartcore_createFromHandle share
-    parseSamplerSpecification; the binary-weights mutation refusal is
-    one helper; bartcore_run roots each result column in its protected
-    container as allocated (no hand-counted UNPROTECT); getTrees is
-    validate -> gatherTrees -> emitTreeDataFrame.
-  bart/bart2/rbart_vi prior construction: DONE (buildSamplerPriors,
-    with nodeK keeping the evaluated/unevaluated asymmetry documented
-    at the call sites).
-  createClassicSampler rename + designation-check dedup: DONE
-    (createConstantLeafSampler; leafCovariateDesignationIsValid).
-  validateArgumentsInEnvironment messages: DONE (callers pass their
-    display name, so xbart errors no longer claim to be dbarts's).
-  partitionFlatIndices hardening: DONE (both category lookups clamp,
-    identity for valid codes).
-  Makevars.win ARFLAGS: DONE (mirrors Makevars.in's -crs fallback).
-
-tests (remaining gaps from the coverage review)
-  the equivalence gate now covers logistic, categorical, MIA, adaptive
-    DART, linear/gp leaves, sparse, and exact-zero weights (eight added
-    scenarios driven through the sampler API, baseline re-recorded at
-    19c499a); grouped rbart_vi fits stay out - their multi-chain result
-    shape does not fit the single-fit summary, so add a scenario only if
-    a grouped refactor is planned.
-  zero-weight fits for the constant and linear leaves: DONE
-    (test-zero-weights.R). Oracle: perturbing a zero-weight row's response
-    leaves the fit bitwise unchanged (it contributes nothing to any leaf's
-    sufficient statistics), for both constant and linear leaves. The
-    perturbation is kept inside the response range - extremes held by
-    non-zero-weight rows - because the gaussian transform is range-based
-    (fitMin/fitMax), so an out-of-range change legitimately shifts the fit.
+tests
+  grouped rbart_vi fits stay out of the equivalence gate (their
+    multi-chain result shape does not fit the single-fit summary); add
+    a scenario only if a grouped refactor is planned.
   post-mutation assertions are near-tautologies (is.finite only) in
-    the older linear/gp mutation tests; the new mutate-then-serialize
-    file covers the bitwise side, but comparing against a
-    from-scratch sampler after mutation would strengthen the rest.
-    (Note: setPredictor is NOT bitwise-equal to a fresh build even before
-    any run - it re-quantizes differently - so a from-scratch oracle must
-    be statistical, not identical; see the MIA setPredictor test.)
-  MIA setPredictor that moves NA patterns: DONE (test-data-missing.R). On
-    an incorporate sampler, setPredictor installs a replacement column whose
-    missingness carries the response signal; the refit recovers it (it was
-    unusable before), fits stay finite, and the installed column carries the
-    moved NA rows.
+    the older linear/gp mutation tests; mutate-then-serialize covers
+    the bitwise side, but a from-scratch comparison after mutation
+    would strengthen the rest. It must be statistical, not identical:
+    setPredictor re-quantizes differently from a fresh build (see the
+    MIA setPredictor test).
 
 docs
-  prose-level man-page pass before release: DONE. Audited every man page
-    against current behavior; fixed the stale logistic-weights claim
-    (dbarts/bart), two return-class typos (dbartControl/dbartData),
-    the undocumented setControl/setModel restrictions and binary-weight
-    policy in dbartsSampler-class, and the rbart_vi no-family/no-sparse
-    caveat. Remaining prose verified clean (no classic-engine or
-    R_C_interface references anywhere).
-  vignettes predate the rewrite: working_with_saved_trees.Rmd seed DONE.
-    seed = 2 no longer generated a deep tree under the new engine (5 nodes,
-    depth 3); changed to seed = 56 (13 nodes, 4 split variables, richer
-    interaction matrix), verified reproducible. All tree output is in live
-    knitr chunks and the prose is generic, so no other changes were needed.
-    The mixture vignette (gibbs_sampler_mixture_model.Rmd) was verified to
-    still hold: deterministic from set.seed(2793), 11.7% misclassification,
-    p recovered to 0.499 vs 0.5, tail-regression claim confirmed - no change
-    needed. STILL OPEN (optional polish): neither vignette mentions family,
-    dart, sparse, missing, or the new leaf models; the saved-trees traversal
-    code assumes constant leaves (linear/gp change the getTrees columns).
-  NEWS could consolidate an upgrade-path paragraph (the breaking
-    changes are documented but scattered across bullets).
+  vignette polish (optional): neither vignette mentions family, dart,
+    sparse, missing, or the new leaf models; the saved-trees traversal
+    code assumes constant leaves (linear/gp change the getTrees
+    columns).
 
-repo modernization (existing infra: r-lib R-CMD-check matrix now
-running on the bartcore branch, .lintr, air.toml, Authors@R modern)
-  keep the CI action pins current: actions/checkout bumped v4 -> v7 to
-    clear the Node 20 deprecation warning (r-lib/actions stays @v2, the
-    latest major, so it was never flagged); recheck on each push and bump
-    again when GitHub deprecates a runtime.
-  sanitizer coverage: .github/workflows/sanitizers.yaml runs the tinytest
-    suite on the r-hub clang-asan container (ASAN+UBSAN instrumented R),
-    widening past the local tests/cpp check. The engine is already clean
-    under a native ASAN+UBSAN build of tests/cpp (all 48 component tests,
-    zero findings); the CI job adds the bridge, the support libraries, and
-    the full scenario set on x86. Follow-ups: a gcc-asan/valgrind variant,
-    and gating it on pull_request once it has proven stable on the branch.
-  run tests/cpp in CI: DONE (.github/workflows/cpp-tests.yaml). Builds the
-    package in place and runs the C++ component tests on macos-latest
-    (arm64) - matching where the bitwise baselines are recorded, so the
-    tight-tolerance/determinism checks do not drift on last-ulp reduction
-    order; the test binary exits non-zero on failure so the job gates. On
-    push to bartcore + PR + workflow_dispatch. STILL OPEN: the equivalence
-    gate could ride CI too but needs its statistical (z-score) mode wired
-    cross-platform, since its bitwise baselines are ARM-recorded.
-  coverage measurement: DONE as a local run (Vincent chose this over
-    codecov wiring). covr::package_coverage measured 88 percent
-    package-wide - gcov instrumentation reached the engine headers
-    (chain.hpp 89, moves.hpp 99, tree.hpp 94) - and the gaps it
-    surfaced became tests (slice/rejection samplers, pd plots, prints,
-    six untested C API entry points). Re-run locally on demand; codecov
-    CI wiring remains optional if a public badge is ever wanted.
-  pkgdown site: DONE up to the repository setting. _pkgdown.yml groups
-    the reference by theme and renders to docs-site/ (docs/ holds the
-    design documents); .github/workflows/pkgdown.yaml deploys to
-    gh-pages on push. VINCENT: enable GitHub Pages (serve the gh-pages
-    branch) once the first workflow run has pushed it.
-  enforce .lintr/air in CI or drop them: DONE (2026-07-06, Vincent
-    chose enforce). The tree is air-formatted (bcf3318) and lintr is
-    at zero findings (afdbb26): layout linters ceded to air, name
-    styles extended to the existing conventions instead of renaming,
-    vignettes excluded as prose. .github/workflows/lint.yaml hard-
-    fails lintr (LINTR_ERROR_ON_LINT) and runs air format --check.
-    The enforcement pass found and fixed a real bug: both rbart_vi
-    seed restores assigned .Random.seed locally, a no-op (817fba6).
+repo modernization
+  keep the CI action pins current; recheck on each push and bump when
+    GitHub deprecates a runtime (r-lib/actions stays @v2, the latest
+    major).
+  sanitizer follow-ups: a gcc-asan/valgrind variant, and gating the
+    sanitizers workflow on pull_request once it has proven stable.
+  the equivalence gate could ride CI but needs its statistical
+    (z-score) mode wired cross-platform - the bitwise baselines are
+    ARM-recorded.
+  codecov CI wiring remains optional if a public badge is ever wanted
+    (coverage is measured locally on demand; 88 percent at last run).
   optional, larger, taste-dependent: roxygen2 migration (hand-written
     Rd is complete and codoc-clean today; migration buys inline
-    doc-next-to-code at the cost of a huge one-time diff);
-    NEWS.md instead of inst/NEWS.Rd (pkgdown renders it natively).
+    doc-next-to-code at the cost of a huge one-time diff); NEWS.md
+    instead of inst/NEWS.Rd (pkgdown renders it natively).
 
 decision-gated (design notes in docs/design/)
   integer-weight probit (post 1.0): Phi(f)^w is exactly tractable as w
@@ -401,12 +118,15 @@ decision-gated (design notes in docs/design/)
     the truncated-normal sum; Windle et al. large-b Polya-Gamma
     samplers) - O(1) per observation but perturbs the stationary
     distribution, so it must be a deliberate, documented switch.
+  arbitrary real logistic weights: needs a general real-shape PG
+    sampler; the survey/IPW use case wants it but is a
+    pseudo-likelihood trap (see docs/design/weighted-logistic.md).
   sampled gp lengthscales: gp-leaves.md stage-4 addendum - needs a
     theta prior choice, per-sample theta channels in state/flatten
     formats, and costs multiples of the draw phase per sweep; not the
-    mechanical follow-up the original proposal suggested
+    mechanical follow-up the original proposal suggested.
   public group.by exposure beyond rbart_vi: grouped-random-effects.md;
-    naming reserved
+    naming reserved.
 
 consumer-gated
   sparse extensions (sparse-columns.md landing notes): in-place
