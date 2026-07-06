@@ -35,12 +35,20 @@ release
     sublibrary Makefiles own the SIMD source lists cross-platform
 
 usability
-  thread cancellation (2018 carryover, still real): nothing calls
-    R_CheckUserInterrupt, so Ctrl-C during run() is deferred until the
-    C call returns, single- and multi-chain alike. Needs a main-thread
-    poll between iterations, a cooperative cancel flag the chains
-    check, and worker joins before the error propagates; touches the
-    hot loop, so speed and equivalence gates apply.
+  thread cancellation (2018 carryover): DONE. run() now polls a
+    cooperative cancel predicate between sweeps (chain.hpp returns early;
+    order-preserving so equivalence stays bitwise identical - all 18
+    scenarios). Single-chain polls R_CheckUserInterrupt inline (throttled
+    ~100ms via R_ToplevelExec so the longjmp is caught and threads can be
+    joined); multi-chain has the main thread poll and set an atomic flag the
+    workers read, with SIGINT blocked in workers (POSIX) so only the main
+    thread runs R's handler. The bridge turns a cancelled run into an
+    Rf_error after every worker is joined. Verified: pty Ctrl-C interrupts
+    both paths in ~0.3-0.5s with R healthy after; tests/cpp
+    testRunCancellation gates the engine mechanism; ASAN+UBSAN and TSAN
+    (zero races) clean. Interactive Ctrl-C can't be exercised in tinytest
+    (non-tty Rscript never sets the interrupt flag), so the pty check stays
+    out of CI - the C++ test covers the mechanism.
   weights + binary refusal fires at sampler creation in the bridge
     (good message, wrong layer): DONE, and extended. The refusal now lives
     in the R layer (dbarts.R, bridge backstops direct-API consumers) and is

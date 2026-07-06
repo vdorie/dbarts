@@ -12,6 +12,7 @@
 
 #include <external/Rinternals.h>
 #include <R_ext/Random.h> // GetRNGstate, PutRNGstate
+#include <R_ext/Utils.h>  // R_CheckUserInterrupt
 
 #include <external/random.h>
 #include <external/stats.h> // ext_quantileOfChiSquared and its inverse
@@ -1285,6 +1286,16 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   return result;
 }
 
+// R_CheckUserInterrupt longjmps when an interrupt is pending; running it
+// through R_ToplevelExec catches that jump so the sampler can join its worker
+// threads before the interrupt becomes an error (a bare longjmp would strand
+// them). Must be called only on the main R thread. R_ToplevelExec returns
+// FALSE when the wrapped call jumped, i.e. when an interrupt was pending.
+static void bartcore_checkInterrupt(void*) { R_CheckUserInterrupt(); }
+static bool bartcore_userInterrupted() {
+  return R_ToplevelExec(bartcore_checkInterrupt, nullptr) == FALSE;
+}
+
 SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
@@ -1302,8 +1313,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   if (numSamples == 0) {
     bartcore::Results empty;
     GetRNGstate();
-    sampler.run(numBurnIn, 0, empty);
+    bool cancelled = sampler.run(numBurnIn, 0, empty, bartcore_userInterrupted);
     PutRNGstate();
+    if (cancelled) Rf_error("sampler run interrupted");
     return R_NilValue;
   }
 
@@ -1388,8 +1400,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
 
   GetRNGstate();
-  sampler.run(numBurnIn, numSamples, results);
+  bool cancelled = sampler.run(numBurnIn, numSamples, results,
+                               bartcore_userInterrupted);
   PutRNGstate();
+  if (cancelled) Rf_error("sampler run interrupted");
 
   int* varcountOut = INTEGER(varcountExpr);
   for (size_t i = 0; i < numPredictors * numSamples * numChains; ++i)

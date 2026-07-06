@@ -6,8 +6,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <mutex>
+#ifndef _WIN32
+#include <csignal>  // block SIGINT in worker threads; see run()
+#endif
 #include <string>
 #include <thread>
 #include <vector>
@@ -172,7 +176,14 @@ public:
   /// Runs every chain numBurnIn + numSamples iterations, filling per-chain
   /// slabs of the (chain-major) results arrays; see Results. Chains execute
   /// on up to min(numThreads, numChains) worker threads.
-  void run(size_t numBurnIn, size_t numSamples, Results& results) {
+  ///
+  /// pollInterrupt, if set, is called only on this (the caller's) thread to
+  /// ask whether the user requested cancellation; run returns true if it
+  /// stopped early, having joined every worker first so nothing outlives the
+  /// call. It is called at most every ~100ms, so a normal run pays only a
+  /// clock read per sweep and stays bitwise identical.
+  bool run(size_t numBurnIn, size_t numSamples, Results& results,
+           const std::function<bool()>& pollInterrupt = {}) {
     size_t numChains = chains_.size();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     std::vector<Results> chainResults(numChains);
@@ -204,38 +215,82 @@ public:
 
     size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
                                                         : numChains;
+    bool cancelled = false;
     if (numWorkers <= 1) {
-      // chains run on the main thread, so progress prints directly
+      // chains run on the main thread, so progress prints directly and the
+      // interrupt poll runs inline between sweeps, throttled to ~100ms so a
+      // fast problem is not dominated by the poll
       DirectProgressSink progress;
-      for (size_t c = 0; c < numChains; ++c)
-        chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress, c);
+      // start one interval in the past so the first sweep polls immediately
+      auto lastPoll =
+        std::chrono::steady_clock::now() - std::chrono::milliseconds(100);
+      std::function<bool()> shouldCancel;
+      if (pollInterrupt) {
+        shouldCancel = [&pollInterrupt, &lastPoll]() -> bool {
+          auto now = std::chrono::steady_clock::now();
+          if (now - lastPoll < std::chrono::milliseconds(100)) return false;
+          lastPoll = now;
+          return pollInterrupt();
+        };
+      }
+      const std::function<bool()>* shouldCancelPtr =
+        shouldCancel ? &shouldCancel : nullptr;
+      for (size_t c = 0; c < numChains && !cancelled; ++c)
+        cancelled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+                                    &progress, c, shouldCancelPtr);
     } else {
       // workers never call into R: progress lines queue and the main thread
-      // flushes them every 0.1 seconds, as the classic engine does
+      // flushes them every 0.1 seconds and polls for interrupts, setting the
+      // cancel flag the workers read (a relaxed atomic load per sweep)
       QueuedProgressSink progress;
       std::atomic<size_t> numChainsRunning(numChains);
+      std::atomic<bool> cancelFlag(false);
+      std::function<bool()> workerCancel = [&cancelFlag]() {
+        return cancelFlag.load(std::memory_order_relaxed);
+      };
       std::vector<std::thread> workers;
       workers.reserve(numWorkers);
+#ifndef _WIN32
+      // spawn the workers with SIGINT blocked so they inherit the block and a
+      // Ctrl-C is delivered only to this (the main) thread, whose poll turns
+      // it into a cooperative cancel. A worker running R's interrupt handler
+      // could longjmp across threads. The main thread's mask is restored right
+      // after, before it polls. (On Windows R's console Ctrl-C already runs on
+      // the main thread, so no masking is needed.)
+      sigset_t interruptSet, previousSet;
+      sigemptyset(&interruptSet);
+      sigaddset(&interruptSet, SIGINT);
+      pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
+#endif
       for (size_t w = 0; w < numWorkers; ++w) {
         workers.emplace_back([this, w, numWorkers, numChains, numBurnIn,
                               numSamples, &chainResults, &progress,
-                              &numChainsRunning]() {
+                              &numChainsRunning, &workerCancel]() {
           for (size_t c = w; c < numChains; c += numWorkers) {
             chains_[c]->run(numBurnIn, numSamples, chainResults[c], &progress,
-                            c);
+                            c, &workerCancel);
             numChainsRunning.fetch_sub(1);
           }
         });
       }
-      if (options_.verbose) {
-        while (numChainsRunning.load() > 0) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          progress.flush();
-        }
+#ifndef _WIN32
+      pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+      while (numChainsRunning.load() > 0) {
+        if (pollInterrupt && !cancelFlag.load(std::memory_order_relaxed) &&
+            pollInterrupt())
+          cancelFlag.store(true, std::memory_order_relaxed);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (options_.verbose) progress.flush();
       }
       for (std::thread& worker : workers) worker.join();
-      progress.flush();
+      if (options_.verbose) progress.flush();
+      cancelled = cancelFlag.load(std::memory_order_relaxed);
     }
+
+    // a cancelled run is aborted by the caller, so skip the completion cursor
+    // advance and terminal summary that assume every requested sample landed
+    if (cancelled) return true;
 
     runningTime_ += std::chrono::duration<double>(
       std::chrono::steady_clock::now() - startTime).count();
@@ -245,6 +300,7 @@ public:
       currentSampleNum_ = (currentSampleNum_ + numSamples) % capacity;
 
     if (options_.verbose) printTerminalSummary();
+    return false;
   }
 
   /// The classic engine's end-of-run report: accumulated loop time, leaf
