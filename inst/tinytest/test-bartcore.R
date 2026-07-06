@@ -715,6 +715,28 @@ state.bad[[1L]]$tree.values[internal.nodes[1L]] <-
   state.bad[[1L]]$tree.values[internal.nodes[1L]] + 1e-3
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
+# a state from an incompatible format version refuses cleanly, naming both
+# versions, and mutates nothing; a current-version state still restores it
+sampler.version <- dbarts(x, y, control = control.state)
+invisible(sampler.version$run(30L, 2L))
+sampler.version$storeState()
+state.goodVersion <- sampler.version$state
+state.futureVersion <- state.goodVersion
+attr(state.futureVersion, "formatVersion") <-
+  attr(state.futureVersion, "formatVersion") + 1L
+
+sampler.reference <- dbarts(x, y, control = control.state)
+expect_error(
+  sampler.reference$setState(state.futureVersion),
+  pattern = "format version"
+)
+expect_null(sampler.reference$state)
+sampler.reference$setState(state.goodVersion)
+expect_identical(
+  sampler.version$run(0L, 3L),
+  sampler.reference$run(0L, 3L)
+)
+
 # prior sampling: tree structures and leaf parameters come from the CGM and
 # node priors
 control.prior.bc <- dbartsControl(
