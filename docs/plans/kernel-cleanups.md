@@ -48,3 +48,13 @@ kernel-vocabulary.md records.
   new names).
 - Full tinytest; equivalence exact.
 - benchmarks/kernels builds without the Rprintf stub.
+
+## Landing note (2026-07-06, 3cdbbbe)
+
+Landed as planned. Deviations: SSR call sites use the plain entry
+points (already the exact serial bodies); the slow plain moment
+variants stay (benchmarks/kernels links five). Diff ~360 lines vs the
+~200 budget - the excess is mechanical print-site renames. Gates:
+component tests pass, tinytest 2461 ok, equivalence exact 18/18 vs
+af04d0c, kernels build stub-free. bench-sampler compare deferred:
+maintainer gate (hot-path dispatch touched; expect neutral or better).

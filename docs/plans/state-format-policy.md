@@ -26,10 +26,13 @@ users will find it.
 
 ## Constraints
 
-- Policy recommendation: states load within a release series
-  (same format version); cross-version loads refuse with the version
-  pair named and "re-fit or use the release that wrote it". No
-  migration shims unless a future item buys one deliberately.
+- Scoped down (VD, 2026-07-06): nothing from the 1.0 branch is
+  released, so no cross-version guarantee apparatus and nothing for
+  binary formats - at most a read helper for serialized R state
+  objects. Realization: version-tag new states; setState/re-creation
+  refuses unversioned or mismatched states cleanly ("re-fit or use the
+  release that wrote it"). No migration shims. The shared version
+  scheme for the format-bumping items stands.
 - The version check must be cheap and precede any structural
   validation (refuse before touching content).
 - Out of scope: the format changes themselves (owned by the items
