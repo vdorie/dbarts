@@ -180,7 +180,7 @@
   }
 }
 \value{
-  For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}.
+  For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}. A run can be interrupted with \code{Ctrl-C}: it stops between iterations - joining any worker threads first - and signals an error, returning no samples from the interrupted run. The sampler's chains are left at the iteration they reached, which is a valid state to run again from.
 
   For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
 

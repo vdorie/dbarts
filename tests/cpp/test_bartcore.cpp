@@ -2,6 +2,7 @@
 // reference math. Exit code 0 on success.
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <cstdlib>
 #include <cstdarg>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -405,6 +407,83 @@ static void testEndToEndGaussian(ext_rng* rng) {
 
   printf("ok: end-to-end gaussian (sigma posterior mean %.3f, sse ratio %.3f)\n",
          sigmaPosteriorMean, sseFit / sseMean);
+}
+
+// The cooperative cancellation the R interrupt handler drives: run() polls the
+// supplied predicate and returns true when it stops early, on both the
+// single-chain (inline poll) and multi-chain (worker cancel flag) paths.
+static void testRunCancellation(ext_rng* rng) {
+  const size_t n = 300, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) y[i] = x[i] + 0.1 * runif01();
+
+  // a poll that never fires runs to completion and returns false, filling
+  // the results as usual
+  {
+    SamplerOptions options;
+    options.numTrees = 25;
+    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, &rng);
+    const size_t numSamples = 20;
+    std::vector<double> sigmaDraws(numSamples, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    std::function<bool()> never = []() { return false; };
+    bool cancelled = sampler.run(10, numSamples, results, never);
+    check(!cancelled, "cancellation: non-firing poll completes");
+    check(sigmaDraws[numSamples - 1] > 0.0,
+          "cancellation: completed run filled results");
+  }
+
+  // a firing poll stops the single-chain run and returns true, after
+  // consulting the predicate at least once
+  {
+    SamplerOptions options;
+    options.numTrees = 25;
+    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, &rng);
+    int calls = 0;
+    std::function<bool()> always = [&calls]() { ++calls; return true; };
+    std::vector<double> sigmaDraws(100000, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    bool cancelled = sampler.run(0, 100000, results, always);
+    check(cancelled, "cancellation: single-chain poll stops the run");
+    check(calls >= 1, "cancellation: poll consulted");
+  }
+
+  // multi-chain: the poll fires, every worker stops, and run returns true
+  {
+    const size_t numChains = 4;
+    std::vector<ext_rng*> rngs(numChains);
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], 2000 + static_cast<uint_least32_t>(c));
+    }
+    SamplerOptions options;
+    options.numTrees = 25;
+    options.numChains = numChains;
+    options.numThreads = numChains;
+    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, rngs.data());
+    std::atomic<int> calls(0);
+    std::function<bool()> always = [&calls]() {
+      calls.fetch_add(1);
+      return true;
+    };
+    std::vector<double> sigmaDraws(numChains * 100000, 0.0);
+    Results results;
+    results.sigma = sigmaDraws.data();
+    bool cancelled = sampler.run(0, 100000, results, always);
+    check(cancelled, "cancellation: multi-chain poll stops all workers");
+    for (size_t c = numChains; c > 0; --c) ext_rng_destroy(rngs[c - 1]);
+  }
+
+  printf("ok: run cancellation\n");
 }
 
 static void testEndToEndProbit(ext_rng* rng) {
@@ -5914,6 +5993,7 @@ int main() {
   testTreeMechanics();
   testTreePriorMath();
   testEndToEndGaussian(rng);
+  testRunCancellation(rng);
   testEndToEndProbit(rng);
   testDartUpdate(rng);
   testDartSparsityRecovery(rng);

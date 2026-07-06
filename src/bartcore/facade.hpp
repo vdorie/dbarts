@@ -2,6 +2,7 @@
 #define BARTCORE_FACADE_HPP
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -16,8 +17,9 @@ class SamplerBase {
 public:
   virtual ~SamplerBase() = default;
 
-  virtual void run(std::size_t numBurnIn, std::size_t numSamples,
-                   Results& results) = 0;
+  virtual bool run(std::size_t numBurnIn, std::size_t numSamples,
+                   Results& results,
+                   const std::function<bool()>& pollInterrupt = {}) = 0;
   virtual void setOffset(const double* offset, bool updateScale) = 0;
   virtual void setResponse(const double* y) = 0;
   virtual void setWeights(const double* weights) = 0;
@@ -118,9 +120,9 @@ public:
   template <typename... Args>
   explicit SamplerFacade(Args&&... args) : impl_(std::forward<Args>(args)...) {}
 
-  void run(std::size_t numBurnIn, std::size_t numSamples,
-           Results& results) override {
-    impl_.run(numBurnIn, numSamples, results);
+  bool run(std::size_t numBurnIn, std::size_t numSamples, Results& results,
+           const std::function<bool()>& pollInterrupt = {}) override {
+    return impl_.run(numBurnIn, numSamples, results, pollInterrupt);
   }
   void setOffset(const double* offset, bool updateScale) override {
     impl_.setOffset(offset, updateScale);

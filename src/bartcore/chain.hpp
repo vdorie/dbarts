@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -313,8 +314,13 @@ public:
   /// concurrently as long as each has its own rng that never calls into R.
   /// progress, when non-null under verbose, receives one formatted line per
   /// printEvery kept iterations.
-  void run(size_t numBurnIn, size_t numSamples, Results& results,
-           ProgressSink* progress = nullptr, size_t chainIndex = 0) {
+  /// Runs the chain, returning true if it stopped early because shouldCancel
+  /// (polled once per sweep, called only on the thread that owns this chain)
+  /// asked it to. The check touches no sampled state, so a run that is not
+  /// cancelled is bitwise identical to one without it.
+  bool run(size_t numBurnIn, size_t numSamples, Results& results,
+           ProgressSink* progress = nullptr, size_t chainIndex = 0,
+           const std::function<bool()>* shouldCancel = nullptr) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
@@ -324,6 +330,10 @@ public:
 
     size_t totalIterations = (numBurnIn + numSamples) * numThin;
     for (size_t iteration = 0; iteration < totalIterations; ++iteration) {
+      // cooperative cancellation: stop between sweeps so no draw is left
+      // half-applied. The results filled so far are discarded by the caller.
+      if (shouldCancel != nullptr && (*shouldCancel)()) return true;
+
       bool record = (iteration + 1) % numThin == 0 &&
                     iteration / numThin >= numBurnIn;
       size_t sampleNum = record ? iteration / numThin - numBurnIn : 0;
@@ -471,6 +481,7 @@ public:
 
       if (record) storeSample(results, sampleNum);
     }
+    return false;
   }
 
   // Between-sample mutation; new-vector lifetimes are the caller's problem.

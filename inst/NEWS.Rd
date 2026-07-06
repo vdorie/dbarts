@@ -196,6 +196,12 @@
             and `plotTree` is now a generic that plots a tree from a kept
             `bart` or `rbart` fit directly rather than through the stored
             sampler.
+      \item MCMC runs are now interruptible: pressing `Ctrl-C` during a
+            `bart`, `bart2`, `rbart_vi`, `xbart`, or sampler `run` stops it
+            between iterations - joining any worker threads first - and
+            returns to the prompt with an error, instead of deferring the
+            interrupt until the whole run finishes. The check is polled about
+            ten times a second and does not affect the draws.
       \item Under `factors = "categorical"`, splits send a subset of a
             factor's levels (at most 53) down each branch; ordered factors
             are coded as ordinal. Level tables are retained so test data
