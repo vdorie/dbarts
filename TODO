@@ -75,9 +75,17 @@ api surface
   dbarts() has no seed argument: DONE. dbarts() now takes seed, a
     convenience mirror of dbartsControl(rngSeed = ) as bart2/xbart expose;
     an explicit seed overrides the control's, NA leaves it untouched.
-  no summary() method or credible-interval API; intervals are computed
-    inline in plot.* and discarded. (Still open - a design decision on the
-    return shape and interval convention.) residuals link scale: DONE.
+  credible-interval API: DONE (Vincent confirmed the shape 2026-07-05).
+    fitted() and predict() take a scalar ci.level; when set they return a
+    per-observation matrix of est/ci.lower/ci.upper instead of the posterior
+    mean. The interval KIND rides the existing type axis rather than a new
+    flag: "ev" is a credible interval for the mean (probability for binary),
+    "ppd" a wider prediction interval that adds residual noise, "bart" the
+    latent scale - matching base R's confidence/prediction split and
+    rstanarm's epred/predict split (see the ecosystem survey in the session
+    notes; bartMachine splits it into two functions instead). A standalone
+    summary() method is still open but now trivial (it would just call this).
+    residuals link scale: DONE.
     residuals.bart/.rbart now take a type argument that flows to fitted
     (sample pinned to "train"), so type = "bart" gives link-scale
     residuals; default "ev" is unchanged. Fixed alongside: binary bart()

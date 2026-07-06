@@ -42,6 +42,7 @@ rbart_vi(
     object,
     type = c("ev", "ppd", "bart", "ranef"),
     sample = c("train", "test"),
+    ci.level = NULL,
     \dots)
 
 \S3method{extract}{rbart}(
@@ -55,6 +56,7 @@ rbart_vi(
     object, newdata, group.by, offset,
     type = c("ev", "ppd", "bart", "ranef"),
     combineChains = TRUE,
+    ci.level = NULL,
     \dots)
 
 \S3method{residuals}{rbart}(object, type = "ev", \dots)
@@ -92,6 +94,9 @@ rbart_vi(
   }
   \item{sample}{
     One of \code{"train"} or \code{"test"}, referring to the training or tests samples respectively.
+  }
+  \item{ci.level}{
+    For \code{fitted} and \code{predict}, an optional single number in \eqn{(0, 1)}. As in \code{\link{bart}}: \code{NULL} (the default) returns the posterior mean, while a level returns a matrix of \code{est}, \code{ci.lower}, and \code{ci.upper}, with the interval kind following \code{type}.
   }
   \item{x, plquants, cols}{
     Same as in \code{\link{plot.bart}}.

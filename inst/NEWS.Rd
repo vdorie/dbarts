@@ -183,6 +183,19 @@
             `extract`, `fitted`, and `plot` transform latent draws
             through that family's link; fits saved by earlier versions
             lack the element and are treated as probit.
+      \item `fitted` and `predict` gain a `ci.level` argument: given a
+            level in (0, 1) they return a matrix of `est`, `ci.lower`, and
+            `ci.upper` per observation rather than the posterior mean. The
+            interval kind follows `type` - `"ev"` gives a credible interval
+            for the mean (a probability for binary responses), `"ppd"` a
+            wider prediction interval that carries the residual noise, and
+            `"bart"` a credible interval on the latent scale.
+      \item `dbarts` gains a `seed` argument mirroring
+            `dbartsControl(rngSeed = )`; `residuals` gains a `type` argument
+            that reaches `fitted`, so link-scale residuals are available;
+            and `plotTree` is now a generic that plots a tree from a kept
+            `bart` or `rbart` fit directly rather than through the stored
+            sampler.
       \item Under `factors = "categorical"`, splits send a subset of a
             factor's levels (at most 53) down each branch; ordered factors
             are coded as ordinal. Level tables are retained so test data
