@@ -311,10 +311,9 @@ inline bool updatePredictorPerObservationJointly(
   return allValid;
 }
 
-/// The instantiation matrix, phase 3: one leaf model over the response
-/// families. rngs supplies one generator per chain (options.numChains of
-/// them).
-inline std::unique_ptr<SamplerBase> createClassicSampler(
+/// The constant-leaf instantiation over the response families. rngs supplies
+/// one generator per chain (options.numChains of them).
+inline std::unique_ptr<SamplerBase> createConstantLeafSampler(
   const double* x, const double* y, std::size_t numObservations,
   std::size_t numPredictors, const double* weights, const double* offset,
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
@@ -322,6 +321,26 @@ inline std::unique_ptr<SamplerBase> createClassicSampler(
   return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
     x, y, numObservations, numPredictors, weights, offset, family,
     sigmaEstimate, sigmaDf, sigmaRawScale, options, rngs);
+}
+
+/// Shared designation check for the leaf-covariate dispatchers: every
+/// designated column must be in range, non-categorical, and able to serve
+/// contiguous raw values - the callers differ only in how they answer those
+/// last two questions.
+template <typename IsCategorical, typename ServesRawValues>
+inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
+                                            std::size_t numPredictors,
+                                            IsCategorical isCategorical,
+                                            ServesRawValues servesRawValues) {
+  if (options.leafCovariateColumns == nullptr ||
+      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
+    return false;
+  for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
+    std::size_t j = options.leafCovariateColumns[k];
+    if (j >= numPredictors || isCategorical(j) || !servesRawValues(j))
+      return false;
+  }
+  return true;
 }
 
 /// Dispatch on the leaf model: designated leaf covariates select the
@@ -337,26 +356,25 @@ inline std::unique_ptr<SamplerBase> createSampler(
   ResponseFamily family, double sigmaEstimate, double sigmaDf,
   double sigmaRawScale, const SamplerOptions& options, ext_rng* const* rngs) {
   if (options.numLeafCovariates == 0)
-    return createClassicSampler(x, y, numObservations, numPredictors, weights,
-                                offset, family, sigmaEstimate, sigmaDf,
-                                sigmaRawScale, options, rngs);
+    return createConstantLeafSampler(x, y, numObservations, numPredictors,
+                                     weights, offset, family, sigmaEstimate,
+                                     sigmaDf, sigmaRawScale, options, rngs);
 
   // CSC-backed columns hold no contiguous raw values for a leaf model:
   // pure-CSC stores are refused outright, mixed builds per designated column
   if (options.cscColumnPointers != nullptr && options.columnSources == nullptr)
     return nullptr;
-  if (options.leafCovariateColumns == nullptr ||
-      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
+  if (!leafCovariateDesignationIsValid(
+        options, numPredictors,
+        [&](std::size_t j) {
+          return options.columnTypes != nullptr &&
+                 options.columnTypes[j] == ColumnType::categorical;
+        },
+        [&](std::size_t j) {
+          return options.columnSources == nullptr ||
+                 options.columnSources[j] >= 0;
+        }))
     return nullptr;
-  for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
-    std::size_t j = options.leafCovariateColumns[k];
-    if (j >= numPredictors) return nullptr;
-    if (options.columnTypes != nullptr &&
-        options.columnTypes[j] == ColumnType::categorical)
-      return nullptr;
-    if (options.columnSources != nullptr && options.columnSources[j] < 0)
-      return nullptr;
-  }
   if (options.gpLeaves)
     return std::make_unique<SamplerFacade<GPGaussianLeaf>>(
       x, y, numObservations, numPredictors, weights, offset, family,
@@ -385,15 +403,11 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
       std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
       sigmaRawScale, options, rngs);
 
-  if (options.leafCovariateColumns == nullptr ||
-      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
+  if (!leafCovariateDesignationIsValid(
+        options, store.numPredictors,
+        [&](std::size_t j) { return store.types[j] == ColumnType::categorical; },
+        [&](std::size_t j) { return store.rawColumn(j) != nullptr; }))
     return nullptr;
-  for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
-    std::size_t j = options.leafCovariateColumns[k];
-    if (j >= store.numPredictors) return nullptr;
-    if (store.types[j] == ColumnType::categorical) return nullptr;
-    if (store.rawColumn(j) == nullptr) return nullptr;
-  }
   if (options.gpLeaves)
     return std::make_unique<SamplerFacade<GPGaussianLeaf>>(
       std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
