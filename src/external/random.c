@@ -41,10 +41,7 @@ struct ext_rng {
   ext_rng_standardNormal_t standardNormalAlgorithm;
   void* state;
 
-  union {
-    double nextNormal; // used in BOX_MULLER
-    ext_rng_userFunction simulateNormal;
-  } normalState;
+  ext_rng_userFunction normalState;
   double gammaState[9];
 };
 

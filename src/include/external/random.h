@@ -17,24 +17,14 @@ extern "C" {
 typedef struct ext_rng ext_rng;
 
 typedef enum {
-  EXT_RNG_ALGORITHM_WICHMANN_HILL = 0,
-  EXT_RNG_ALGORITHM_MARSAGLIA_MULTICARRY,
-  EXT_RNG_ALGORITHM_SUPER_DUPER,
-  EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
-  EXT_RNG_ALGORITHM_KNUTH_TAOCP,
+  EXT_RNG_ALGORITHM_MERSENNE_TWISTER = 0,
   EXT_RNG_ALGORITHM_USER_UNIFORM,
-  EXT_RNG_ALGORITHM_KNUTH_TAOCP2,
-  EXT_RNG_ALGORITHM_LECUYER_CMRG,
   EXT_RNG_ALGORITHM_INVALID // must be last
 } ext_rng_algorithm_t;
 
 typedef enum {
-  EXT_RNG_STANDARD_NORMAL_BUGGY_KINDERMAN_RAMAGE = 0,
-  EXT_RNG_STANDARD_NORMAL_AHRENS_DIETER,
-  EXT_RNG_STANDARD_NORMAL_BOX_MULLER,
-  EXT_RNG_STANDARD_NORMAL_USER_NORM,
+  EXT_RNG_STANDARD_NORMAL_USER_NORM = 0,
   EXT_RNG_STANDARD_NORMAL_INVERSION,
-  EXT_RNG_STANDARD_NORMAL_KINDERMAN_RAMAGE,
   EXT_RNG_STANDARD_NORMAL_INVALID // must be last
 } ext_rng_standardNormal_t;
 
@@ -64,9 +54,7 @@ const char* ext_rng_getAlgorithmName(ext_rng_algorithm_t algorithm);
 bool ext_rng_seedsAreEqual(const ext_rng* rng1, const ext_rng* rng2);
 unsigned int ext_rng_getState0(const ext_rng* rng);
 
-// state can be null; for BOX_MULLER, it should point to a double that is the
-// next number, or 0.0 if that isn't set yet for USER_NORM, it should be a
-// userFunction outlined below
+// state can be null; for USER_NORM, it should be a userFunction outlined below
 int ext_rng_setStandardNormalAlgorithm(
   ext_rng* generator,
   ext_rng_standardNormal_t standardNormalAlgorithm,
@@ -157,15 +145,6 @@ void ext_rng_drawPermutation(
   misc_size_t* x,
   misc_size_t length
 );
-
-#define EXT_RNG_KNUTH_NUM_RANDOM 100
-#define EXT_RNG_KNUTH_QUALITY 1009
-
-typedef struct {
-  uint_least32_t state1[EXT_RNG_KNUTH_NUM_RANDOM];
-  int_least32_t info;
-  uint_least32_t state2[EXT_RNG_KNUTH_QUALITY];
-} ext_rng_knuthState;
 
 #define EXT_RNG_MERSENNE_TWISTER_NUM_RANDOM 624
 
