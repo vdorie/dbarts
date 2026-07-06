@@ -60,38 +60,17 @@ rbart_vi <- function(
 
   keepSampler <- keepSampler || control@keepTrees
   
-  if (inherits(dart, "dbartsDartPrior")) {
-    # a full spec overrides the power/base arguments with its own
-    tree.prior <- dart
-  } else if (isTRUE(dart)) {
-    if ("split.probs" %in% names(matchedCall))
-      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
-    tree.prior <- quote(dart(power, base))
-    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-  } else if (!isFALSE(dart)) {
-    stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
-  } else {
-    tree.prior <- quote(cgm(power, base, split.probs))
-    tree.prior[[2L]] <- power; tree.prior[[3L]] <- base
-    if ("split.probs" %in% names(matchedCall))
-      tree.prior[[4L]] <- matchedCall$split.probs
-    else
-      tree.prior[[4L]] <- formals(dbarts::rbart_vi)[["split.probs"]]
-  }
-
-  if (!is.null(matchedCall[["k"]])) {
-    # the EVALUATED value, unlike bart2: rbart forwards its arguments to
-    # dbarts through do.call from internal frames, where a stored symbol
-    # cannot resolve. Without dbarts attached, pass hyperpriors as strings
-    # (k = "chi(1.25)")
-    node.prior <- quote(normal(k))
-    node.prior[[2L]] <- k
-  } else {
-    node.prior <- NULL
-  }
-
-  resid.prior <- quote(chisq(sigdf, sigquant))
-  resid.prior[[2L]] <- sigdf; resid.prior[[3L]] <- sigquant
+  # k enters EVALUATED, unlike bart2: rbart forwards its arguments to
+  # dbarts through do.call from internal frames, where a stored symbol
+  # cannot resolve. Without dbarts attached, pass hyperpriors as strings
+  # (k = "chi(1.25)")
+  priors <- buildSamplerPriors(
+    matchedCall, power, base, sigdf, sigquant,
+    nodeK = if (!is.null(matchedCall[["k"]])) k else NULL, dart = dart,
+    splitProbsDefault = formals(dbarts::rbart_vi)[["split.probs"]])
+  tree.prior <- priors$tree.prior
+  node.prior <- priors$node.prior
+  resid.prior <- priors$resid.prior
     
   if (is.null(matchedCall[["group.by"]]))
     stop("'group.by' must be specified to use rbart_vi")
