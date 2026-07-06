@@ -102,6 +102,33 @@ expect_error(
   pattern = "probit models do not support weights"
 )
 
+# weights identically 1 are the unweighted likelihood and are treated as
+# absent (SuperLearner-style callers pass obsWeights = rep(1, n)
+# unconditionally); under the same creation seed the fit matches an
+# unweighted one draw for draw
+set.seed(7)
+fit.unweighted <- bart2(
+  y.binary ~ x,
+  n.samples = 5L,
+  n.burn = 5L,
+  n.trees = 25L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+set.seed(7)
+fit.unitWeights <- bart2(
+  y.binary ~ x,
+  weights = rep(1, n),
+  n.samples = 5L,
+  n.burn = 5L,
+  n.trees = 25L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(fit.unitWeights$yhat.train, fit.unweighted$yhat.train)
+
 # the wrappers record the family and transform through its link
 fit.probit <- bart2(
   y.binary ~ x,

@@ -200,17 +200,25 @@ dbarts <- function(
 
   # binary weight policy, enforced here in the R layer (the bridge keeps the
   # same checks as a backstop for direct-API consumers): a probit has no
-  # tractable weighted latent-variable form and is refused; a logistic model
-  # treats weights as observation counts (its Polya-Gamma latent is a sum of
-  # per-copy draws), so they must be positive integers. Gaussian weights,
-  # including a gaussian fit of a 0/1 response, are unrestricted.
+  # tractable weighted latent-variable form and is refused, except that
+  # weights identically 1 are the unweighted likelihood and are treated as
+  # absent (SuperLearner-style callers pass obsWeights = rep(1, n)
+  # unconditionally); a logistic model treats weights as observation counts
+  # (its Polya-Gamma latent is a sum of per-copy draws), so they must be
+  # positive integers. Gaussian weights, including a gaussian fit of a 0/1
+  # response, are unrestricted.
   if (!is.null(data@weights)) {
     if (control@family == "probit") {
-      stop(
-        "probit models do not support weights: a weighted probit has no ",
-        "tractable latent-variable form. Use family = \"logistic\" for ",
-        "weighted binary regression, or model the latents directly."
-      )
+      if (all(data@weights == 1)) {
+        data@weights <- NULL
+      } else {
+        stop(
+          "probit models do not support weights: a weighted probit has no ",
+          "tractable latent-variable form. Integer count weights can be ",
+          "fit exactly with family = \"logistic\"; for continuous weights, ",
+          "model the latents directly."
+        )
+      }
     }
     if (control@family == "logistic") {
       w <- data@weights
