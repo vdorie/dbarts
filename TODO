@@ -273,10 +273,14 @@ running on the bartcore branch, .lintr, air.toml, Authors@R modern)
     zero findings); the CI job adds the bridge, the support libraries, and
     the full scenario set on x86. Follow-ups: a gcc-asan/valgrind variant,
     and gating it on pull_request once it has proven stable on the branch.
-  run tests/cpp in CI alongside R CMD check; the equivalence gate can
-    ride too but needs its statistical mode cross-platform (bitwise
-    baselines are ARM-recorded; x86 SIMD changes last-ulp reduction
-    order).
+  run tests/cpp in CI: DONE (.github/workflows/cpp-tests.yaml). Builds the
+    package in place and runs the C++ component tests on macos-latest
+    (arm64) - matching where the bitwise baselines are recorded, so the
+    tight-tolerance/determinism checks do not drift on last-ulp reduction
+    order; the test binary exits non-zero on failure so the job gates. On
+    push to bartcore + PR + workflow_dispatch. STILL OPEN: the equivalence
+    gate could ride CI too but needs its statistical (z-score) mode wired
+    cross-platform, since its bitwise baselines are ARM-recorded.
   coverage measurement: covr supports tinytest; wiring it to codecov
     (badge + CI job) turns the tests section above from one-time
     review findings into a tracked number.
