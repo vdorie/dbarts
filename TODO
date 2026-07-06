@@ -239,16 +239,24 @@ tests (remaining gaps from the coverage review)
     moved NA rows.
 
 docs
-  prose-level man-page pass before release: codoc mismatches are
-    check-gated, prose drift is not (precedent: linear's stale
-    "unavailable in xbart" survived until the gp landing).
-  vignettes predate the rewrite: working_with_saved_trees.Rmd hangs
-    its prose on seed = 2 "chosen to generate a deep tree" under the
-    OLD engine's RNG stream (empty subsets degrade silently, not
-    loudly); the mixture vignette's qualitative claims are
-    realization-dependent too; neither mentions family, dart, sparse,
-    missing, or the new leaf models. Re-run, re-pick seeds, re-verify
-    prose.
+  prose-level man-page pass before release: DONE. Audited every man page
+    against current behavior; fixed the stale logistic-weights claim
+    (dbarts/bart), two return-class typos (dbartControl/dbartData),
+    the undocumented setControl/setModel restrictions and binary-weight
+    policy in dbartsSampler-class, and the rbart_vi no-family/no-sparse
+    caveat. Remaining prose verified clean (no classic-engine or
+    R_C_interface references anywhere).
+  vignettes predate the rewrite: working_with_saved_trees.Rmd seed DONE.
+    seed = 2 no longer generated a deep tree under the new engine (5 nodes,
+    depth 3); changed to seed = 56 (13 nodes, 4 split variables, richer
+    interaction matrix), verified reproducible. All tree output is in live
+    knitr chunks and the prose is generic, so no other changes were needed.
+    The mixture vignette (gibbs_sampler_mixture_model.Rmd) was verified to
+    still hold: deterministic from set.seed(2793), 11.7% misclassification,
+    p recovered to 0.499 vs 0.5, tail-regression claim confirmed - no change
+    needed. STILL OPEN (optional polish): neither vignette mentions family,
+    dart, sparse, missing, or the new leaf models; the saved-trees traversal
+    code assumes constant leaves (linear/gp change the getTrees columns).
   NEWS could consolidate an upgrade-path paragraph (the breaking
     changes are documented but scattered across bullets).
 
