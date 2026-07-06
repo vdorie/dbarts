@@ -171,7 +171,7 @@ extract(object, \dots)
      Logical; if \code{FALSE}, returned object will have \code{call} set to \code{call("NULL")}, otherwise the call used to instantiate BART.
    }
    \item{seed}{
-     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. It should not be needed when running single-threaded - \code{\link{set.seed}} will suffice, and can be used to obtain reproducible results when multi-threaded. See Reproducibility section below.
+     Optional integer specifying the desired pRNG \link[=set.seed]{seed}. A \code{\link{set.seed}} beforehand suffices for reproducibility; supplying \code{seed} instead gives reproducible results without touching R's stream. See Reproducibility section below.
    }
    \item{proposalprobs, proposal.probs}{
      Named numeric vector or \code{NULL}, optionally specifying the proposal rules and their probabilities. Elements should be \code{"birth_death"}, \code{"change"}, and \code{"swap"} to control tree change proposals, and \code{"birth"} to give the relative frequency of birth/death in the \code{"birth_death"} step. Defaults are 0.5, 0.1, 0.4, and 0.5 respectively.
@@ -259,11 +259,9 @@ extract(object, \dots)
   }
   
   \subsection{Reproducibility}{
-    Behavior differs when running multi- and single-threaded, as the pseudo random number generators (pRNG) used by R are not thread safe. When single-threaded, R's built-in generator is used; if set at the start, the global \code{\link{.Random.seed}} will be used and its value updated as samples are drawn. When multi-threaded, the default behavior is to draw new random seeds for each thread using the clock and use thread-specific pRNGs.
+    Every chain runs its own pseudo random number generator, so worker threads never touch R's generator and results do not depend on the thread count. Without a \code{seed}, chain generators are seeded from R's stream when the sampler is created, so calling \code{\link{set.seed}} beforehand makes results reproducible. Sampling itself never advances R's stream: after a fit, \code{\link{.Random.seed}} has moved only by the draws taken at creation.
 
-    This behavior can be modified by setting \code{seed}, or by using \code{\dots} to pass arguments to \code{\link{dbartsControl}}. For the single-threaded case, a new pRNG is built using that seed that is separate from R's native generator. As such, the global state will not be modified by subsequent calls to the generator. For multi-threaded, the seeds for threads are drawn sequentially using the supplied seed, and will again be separate from R's native generator.
-
-    Consequently, the \code{seed} argument is not needed when running single-threaded - \code{\link{set.seed}} will suffice. However, when multi-threaded the \code{seed} argument can be used to obtain reproducible results.
+    Setting \code{seed} makes results reproducible without involving R's stream at all: the seed drives a dedicated generator that hands each chain its own seed. A single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed.
   }
 
   \subsection{Extracting Trees}{

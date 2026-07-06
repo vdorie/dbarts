@@ -53,7 +53,7 @@ dbartsControl(
      A non-negative integer specifying how many of the decision rules for a variable are printed in verbose mode.
    }
    \item{rngSeed}{
-     Random number generator seed. With one chain, seeds R's generator exactly as \code{\link[=Random]{set.seed}} does. With several chains, seeds a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched; seeded results do not depend on the thread count. If equal to \code{NA}, a single chain draws through R's generator and several chains seed their generators from R's stream, so \code{set.seed} alone suffices for reproducibility.
+     Random number generator seed. Every chain runs its own generator; the seed drives a dedicated generator that in turn hands each chain its own seed, leaving R's stream untouched. Seeded results do not depend on the thread count, and a single-chain run with a given seed reproduces the first chain of a multi-chain run with the same seed. If equal to \code{NA}, chain generators are seeded from R's stream at creation, so \code{\link[=Random]{set.seed}} beforehand suffices for reproducibility; sampling itself never advances R's stream.
    }
    \item{updateState}{
      Logical setting the default behavior for many \link[=dbartsSampler-class]{sampler} methods with regards to the immediate updating of the cached state of the object. A current, cached state is only useful when \link[=save]{saving}/\link[=load]{loading} the sampler.
