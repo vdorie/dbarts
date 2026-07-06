@@ -60,7 +60,7 @@ dbartsControl(
    }
 }
 \value{
-  An object of class \code{dbartControl}.
+  An object of class \code{dbartsControl}.
 }
 \seealso{
   \code{\link{dbarts}}
