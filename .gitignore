@@ -22,3 +22,6 @@ scratch
 .clangd
 compile_commands.json
 .cache/
+
+# Claude Code local project directory
+.claude/
