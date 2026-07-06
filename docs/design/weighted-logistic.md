@@ -128,11 +128,15 @@ in-model IPW.
 - Tests: component test (deterministic under a fixed seed, recovers the
   monotone signal, positive omega) and test-weighted-logistic.R (fits,
   refusals, and a weight-w fit matching the physically replicated-rows fit
-  up to Monte Carlo error); new equivalence scenario "wtlogistic". NOTE:
-  all-ones weights are NOT bit-identical to the unweighted fit - even unit
-  weights take the weighted node-statistic reduction path, whose summation
-  order differs, the same as the gaussian family. Only a null weights
-  pointer reproduces the unweighted stream, so the existing unweighted
-  "logistic" equivalence scenario stays bit-identical.
-</content>
+  up to Monte Carlo error); new equivalence scenario "wtlogistic". The
+  unweighted path (null weights) is bit-identical to the pre-change code
+  (1.0 * x == x, coldStart omega = 0.25 * 1), so the existing "logistic"
+  equivalence scenario stays identical; all-ones weights are likewise
+  bit-identical to the unweighted fit through the engine (verified via the
+  R API across configs and seeds). The component test pins determinism
+  (same weights + seed) and signal recovery rather than a weight-1 ==
+  unweighted equality: an early two-sampler C++ harness comparison diverged,
+  but that traced to the codebase's known heap-layout / SIMD-reduction-split
+  sensitivity between two separately-constructed samplers, not real engine
+  behavior.
 </invoke>

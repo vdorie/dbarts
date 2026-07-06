@@ -604,11 +604,13 @@ static void testWeightedLogistic(ext_rng* rng) {
   options.nodeScale = 3.0;
 
   // integer-count weights: a count-w observation's Polya-Gamma latent is
-  // PG(w, psi), drawn as the sum of w PG(1, psi) variates. (There is no
-  // bit-for-bit reduction to the unweighted stream: even all-ones weights take
-  // the weighted node-statistic path, whose reduction order differs - the same
-  // is true of the gaussian family. Correctness is pinned statistically here
-  // and against the replicated-rows fit in test-weighted-logistic.R.)
+  // PG(w, psi), drawn as the sum of w PG(1, psi) variates. Correctness is
+  // pinned by determinism here and against the replicated-rows fit in
+  // test-weighted-logistic.R. (This does NOT assert weight-1 == unweighted:
+  // that equality holds through the engine, but comparing two separately-
+  // constructed samplers here is subject to the codebase's heap-layout /
+  // SIMD-reduction-split sensitivity, so a bitwise cross-sampler check is
+  // unreliable in this harness regardless of weights.)
   std::vector<double> w(n);
   for (size_t i = 0; i < n; ++i) w[i] = static_cast<double>(1 + (i % 3));
 
