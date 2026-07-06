@@ -21,11 +21,34 @@ release
     to CRAN together
   stan4bart follow-up: adopt categorical splits (pins factors =
     "indicators"); lockstep with the dbarts release
-  revdepcheck before submission: dbarts has CRAN reverse dependencies
-    (stan4bart, bartCause, ...) and 1.0-0 deletes an ABI header - run
-    revdepcheck::revdep_check(), coordinate the stan4bart lockstep
-    upload, and write cran-comments.md documenting the break and the
-    revdep status (no cran-comments.md exists)
+  revdepcheck before submission: FIRST PASS DONE (2026-07-06, manual
+    sweep on macOS arm64; re-run near submission). dbarts has 23 CRAN
+    reverse dependencies. Checked against 1.0-0: stan4bart 0.0-13 dev
+    sources OK (the lockstep partner); bartMan/EBcoBART/funcml/glossa/
+    nlfh/riAFTBART/voi OK (_R_CHECK_FORCE_SUGGESTS_=false); bartCause
+    FAILS 5 of 393 tests - hardcoded seeded expectations plus a
+    fixed-seed rng-semantics assertion (test-10-rng.R expects two
+    configs to differ; under 1.0-0 they draw identically) - REGENERATE
+    in a bartCause update and submit alongside; tidytreatment WARNS
+    (vignette loads the CRAN stan4bart binary = the documented ABI
+    break, resolves with 0.0-13); bartXViz not checkable locally
+    (needs its own gfortran runtime; R-level dbarts use only); the 12
+    Suggests-level packages were not individually checked.
+    cran-comments.md is DRAFTED with all of this; refresh the results
+    and check environments at submission time.
+  DISCOVERED during the coverage work (needs Vincent's decision):
+    single-chain samplers ride R's native stream even when rngSeed is
+    set (createChainRngs numChains == 1 -> ext_rng_createDefault(true),
+    a USER_UNIFORM wrapper), so (a) seeding a single-chain sampler
+    reseeds R's global stream, contradicting the NEWS/docs claim that
+    rngSeed works "without touching R's stream", and (b) a USER_UNIFORM
+    generator cannot serialize (length 0), so single-chain states carry
+    no rng and setState continuation is NOT bitwise for them (the
+    multi-chain dedicated-generator path is unaffected). Options: fix
+    the docs to scope the claims to n.chains > 1, or give seeded
+    single-chain samplers a dedicated Mersenne generator - the latter
+    is more consistent but shifts every seeded single-chain draw, which
+    would trigger a snapshot-regeneration wave in the test suite.
   Windows-arm64 runs scalar kernels: the .win config headers never
     define COMPILER_SUPPORTS_NEON and Makevars.win's ARCH check has no
     aarch64 branch; consider a NEON branch
@@ -322,12 +345,18 @@ running on the bartcore branch, .lintr, air.toml, Authors@R modern)
     push to bartcore + PR + workflow_dispatch. STILL OPEN: the equivalence
     gate could ride CI too but needs its statistical (z-score) mode wired
     cross-platform, since its bitwise baselines are ARM-recorded.
-  coverage measurement: covr supports tinytest; wiring it to codecov
-    (badge + CI job) turns the tests section above from one-time
-    review findings into a tracked number.
-  pkgdown site + GitHub Pages workflow: renders the man pages, NEWS,
-    and both vignettes into a browsable home for the 1.0-0 feature
-    set; near-zero maintenance once configured.
+  coverage measurement: DONE as a local run (Vincent chose this over
+    codecov wiring). covr::package_coverage measured 88 percent
+    package-wide - gcov instrumentation reached the engine headers
+    (chain.hpp 89, moves.hpp 99, tree.hpp 94) - and the gaps it
+    surfaced became tests (slice/rejection samplers, pd plots, prints,
+    six untested C API entry points). Re-run locally on demand; codecov
+    CI wiring remains optional if a public badge is ever wanted.
+  pkgdown site: DONE up to the repository setting. _pkgdown.yml groups
+    the reference by theme and renders to docs-site/ (docs/ holds the
+    design documents); .github/workflows/pkgdown.yaml deploys to
+    gh-pages on push. VINCENT: enable GitHub Pages (serve the gh-pages
+    branch) once the first workflow run has pushed it.
   enforce .lintr/air in CI or drop them: both configs exist but
     nothing runs them, so they silently rot.
   optional, larger, taste-dependent: roxygen2 migration (hand-written
