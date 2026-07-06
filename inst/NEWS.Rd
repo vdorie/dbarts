@@ -222,9 +222,13 @@
             response, and `"logistic"` fits a logistic latent model via
             Polya-Gamma augmentation. `xbart`'s built-in binary losses
             transform test predictions through the resolved family's link.
-            Binary
-            families do not support weights (the weighted probit the
-            classic engine fit was incorrect and is not carried forward).
+            A logistic
+            model accepts positive-integer count weights, a weight-w
+            observation contributing its likelihood to the w-th power;
+            a probit refuses weights (the weighted probit the classic
+            engine fit was incorrect and is not carried forward), except
+            that weights identically 1 are treated as absent, as
+            SuperLearner-style callers pass unit weights unconditionally.
             Fits returned by `bart`, `bart2`, and `rbart_vi` record the
             resolved family in a `family` element, and `predict`,
             `extract`, `fitted`, and `plot` transform latent draws

@@ -364,6 +364,21 @@ running on the bartcore branch, .lintr, air.toml, Authors@R modern)
     NEWS.md instead of inst/NEWS.Rd (pkgdown renders it natively).
 
 decision-gated (design notes in docs/design/)
+  integer-weight probit (post 1.0): Phi(f)^w is exactly tractable as w
+    replicated latent draws - the tree side stays O(n) because the
+    latent mean is a sufficient statistic (zbar_i ~ N(f_i, 1/w_i),
+    the existing weighted-gaussian machinery); only the latent-update
+    phase scales as Theta(sum w_i), i.e. linear in the UNAGGREGATED
+    count, which silently undoes the aggregation that motivates count
+    weights. The shipped weighted logistic has the same structure
+    (fbd2168 draws PG(w, psi) as a sum of w PG(1, psi) variates), so
+    replication would not be a regression - both families are exact
+    but linear in total counts. If large counts ever matter, the
+    standard fix is a threshold hybrid: exact summation for small w,
+    a large-w approximation above it (CLT normal approximation for
+    the truncated-normal sum; Windle et al. large-b Polya-Gamma
+    samplers) - O(1) per observation but perturbs the stationary
+    distribution, so it must be a deliberate, documented switch.
   sampled gp lengthscales: gp-leaves.md stage-4 addendum - needs a
     theta prior choice, per-sample theta channels in state/flatten
     formats, and costs multiples of the draw phase per sweep; not the
