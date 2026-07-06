@@ -52,4 +52,8 @@ expect_error(plotTree(fit.bart2, treeNum = 1L),
 expect_error(plotTree(pt.rbart, treeNum = 1L, chainNum = 5L),
              pattern = "chainNum must be a single chain index")
 
+# the print methods summarize a fit to the console
+expect_true(is.character(capture.output(print(fit.bart))))
+expect_true(is.character(capture.output(print(fit.rbart))))
+
 rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart, x, y.cont, z.bin, g, n)

@@ -63,6 +63,11 @@ expect_equal(pdb1$fd, pdb3$fd)
 expect_equal(pdb1$fd, pdb4$fd)
 expect_equal(pdb1$fd, pdb5$fd)
 
+# the plot method renders each requested predictor into a null device
+pdf(NULL)
+expect_silent(plot(pdb1))
+dev.off()
+
 rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 
 
@@ -123,6 +128,11 @@ expect_equal(pdb1$fd, pdb2$fd)
 expect_equal(pdb1$fd, pdb3$fd)
 expect_equal(pdb1$fd, pdb4$fd)
 expect_equal(pdb1$fd, pdb5$fd)
+
+# the contour plot renders into a null device
+pdf(NULL)
+expect_silent(plot(pdb1))
+dev.off()
 
 rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 

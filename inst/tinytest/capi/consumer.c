@@ -15,9 +15,17 @@ static dbarts_sampler* (*p_create)(SEXP, SEXP, SEXP, const char*);
 static void (*p_destroy)(dbarts_sampler*);
 static void (*p_run)(dbarts_sampler*, size_t, size_t, dbarts_results*);
 static void (*p_sampleTreesFromPrior)(dbarts_sampler*);
+static void (*p_sampleNodeParametersFromPrior)(dbarts_sampler*);
 static void (*p_setResponse)(dbarts_sampler*, const double*);
 static void (*p_setOffset)(dbarts_sampler*, const double*, int);
+static void (*p_setWeights)(dbarts_sampler*, const double*);
 static void (*p_setSigma)(dbarts_sampler*, double);
+static void (*p_setTestOffset)(dbarts_sampler*, const double*);
+static void (*p_printTrees)(dbarts_sampler*, const size_t*, size_t,
+                            const size_t*, size_t, const size_t*, size_t);
+static void (*p_setNumThreads)(dbarts_sampler*, size_t);
+static void (*p_setNumThin)(dbarts_sampler*, size_t);
+static void (*p_setVerbose)(dbarts_sampler*, int, uint32_t);
 static int (*p_getLatents)(const dbarts_sampler*, double*);
 static int (*p_setPredictor)(dbarts_sampler*, const double*, int, int);
 static int (*p_updatePredictor)(dbarts_sampler*, const double*, const size_t*,
@@ -50,12 +58,27 @@ static void initApi(void) {
          "dbarts_sampler_run");
   LOOKUP(void (*)(dbarts_sampler*), p_sampleTreesFromPrior,
          "dbarts_sampler_sampleTreesFromPrior");
+  LOOKUP(void (*)(dbarts_sampler*), p_sampleNodeParametersFromPrior,
+         "dbarts_sampler_sampleNodeParametersFromPrior");
   LOOKUP(void (*)(dbarts_sampler*, const double*), p_setResponse,
          "dbarts_sampler_setResponse");
   LOOKUP(void (*)(dbarts_sampler*, const double*, int), p_setOffset,
          "dbarts_sampler_setOffset");
+  LOOKUP(void (*)(dbarts_sampler*, const double*), p_setWeights,
+         "dbarts_sampler_setWeights");
   LOOKUP(void (*)(dbarts_sampler*, double), p_setSigma,
          "dbarts_sampler_setSigma");
+  LOOKUP(void (*)(dbarts_sampler*, const double*), p_setTestOffset,
+         "dbarts_sampler_setTestOffset");
+  LOOKUP(void (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
+                  size_t, const size_t*, size_t),
+         p_printTrees, "dbarts_sampler_printTrees");
+  LOOKUP(void (*)(dbarts_sampler*, size_t), p_setNumThreads,
+         "dbarts_sampler_setNumThreads");
+  LOOKUP(void (*)(dbarts_sampler*, size_t), p_setNumThin,
+         "dbarts_sampler_setNumThin");
+  LOOKUP(void (*)(dbarts_sampler*, int, uint32_t), p_setVerbose,
+         "dbarts_sampler_setVerbose");
   LOOKUP(int (*)(const dbarts_sampler*, double*), p_getLatents,
          "dbarts_sampler_getLatents");
   LOOKUP(int (*)(dbarts_sampler*, const double*, int, int), p_setPredictor,
@@ -205,8 +228,42 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   return resultExpr;
 }
 
+SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
+  p_sampleNodeParametersFromPrior(samplerFromExpr(ptrExpr));
+  return R_NilValue;
+}
+
 SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr) {
   p_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr));
+  return R_NilValue;
+}
+
+SEXP capi_set_weights(SEXP ptrExpr, SEXP weightsExpr) {
+  p_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr));
+  return R_NilValue;
+}
+
+SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
+  p_setTestOffset(samplerFromExpr(ptrExpr),
+                  Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr));
+  return R_NilValue;
+}
+
+/* prints the first tree of the first chain, exercising the entry point;
+ * the R side captures the console output */
+SEXP capi_print_trees(SEXP ptrExpr) {
+  size_t chainIndex = 0, treeIndex = 0;
+  p_printTrees(samplerFromExpr(ptrExpr), &chainIndex, 1, NULL, 0,
+               &treeIndex, 1);
+  return R_NilValue;
+}
+
+SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
+                           SEXP numThinExpr, SEXP verboseExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  p_setNumThreads(sampler, (size_t) Rf_asInteger(numThreadsExpr));
+  p_setNumThin(sampler, (size_t) Rf_asInteger(numThinExpr));
+  p_setVerbose(sampler, Rf_asLogical(verboseExpr) == TRUE, 100);
   return R_NilValue;
 }
 
