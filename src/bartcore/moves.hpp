@@ -408,7 +408,10 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
       newRule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
   }
 
-  double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+  // prior terms outside the changed subtree depend only on rules above it,
+  // so they are identical before and after and cancel in the ratio: scoring
+  // just the subtree replaces two whole-tree walks
+  double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, nodeToChange);
   double xLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
@@ -416,7 +419,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   tree.at(nodeToChange).rule = newRule;
   tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
 
-  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, nodeToChange);
   double yLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
   double alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
@@ -588,7 +591,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
     if (!swapIsSensible) return -1.0;
 
-    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+    // as in changeMove, prior terms outside the swapped subtree cancel
+    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
     tree.snapshotSubtree(parent, ctx.scratch.snapshot);
@@ -597,7 +601,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     tree.at(child).rule = parentRule;
     tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
 
-    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
     alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
@@ -625,7 +629,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
     if (!swapIsSensible) return -1.0;
 
-    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+    // as in changeMove, prior terms outside the swapped subtree cancel
+    double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double xLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
     tree.snapshotSubtree(parent, ctx.scratch.snapshot);
@@ -635,7 +640,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     tree.at(rightChild).rule = parentRule;
     tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
 
-    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data);
+    double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
 
     alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);

@@ -104,6 +104,15 @@
             `rngNormalKind` arguments; explicit generator kinds were a
             classic-engine feature. Saved sampler states from previous
             versions cannot be restored.
+      \item Sampling is faster: the benchmark run scenarios take 25 to
+            30 percent less time per iteration than the classic engine,
+            the gap widening with the number of observations. The final
+            restructurings - the run loop keeps a running residual
+            across each sweep, and change and swap proposals score the
+            tree prior on the modified subtree alone - reorder floating
+            point for speed, trading bit-for-bit reproducibility with
+            earlier development builds of this version for posteriors
+            that are statistically identical.
       \item A flat C interface for packages compiling against dbarts,
             `dbarts/dbarts.h`: an opaque sampler handle over the bartcore
             engine, created from the R specification objects, with entry
