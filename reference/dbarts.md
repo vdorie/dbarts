@@ -67,10 +67,11 @@ dbarts(
   gaussian response, BART fits a model with observations \\y \mid x \sim
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
   Binary responses differ: a `"probit"` model does not support weights
-  (a weighted probit has no tractable latent-variable form), while a
-  `"logistic"` model treats them as observation counts and so requires
-  positive integers (its Polya-Gamma latent for a count \\w\\ is a sum
-  of \\w\\ unit draws).
+  (a weighted probit has no tractable latent-variable form), except that
+  weights identically 1 are treated as absent; a `"logistic"` model
+  treats them as observation counts and so requires positive integers
+  (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
+  draws).
 
 - offset:
 

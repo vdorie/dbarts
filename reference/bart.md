@@ -197,8 +197,9 @@ residuals(object, type = "ev", ...)
   gaussian response, BART fits a model with observations \\y \mid x \sim
   N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function. A
   probit fit (`bart`, or `bart2` with the default binary family) does
-  not support weights; `bart2` with `family = "logistic"` treats them as
-  observation counts and requires positive integers.
+  not support weights, except that weights identically 1 are treated as
+  absent; `bart2` with `family = "logistic"` treats them as observation
+  counts and requires positive integers.
 
 - ntree, n.trees:
 
@@ -728,7 +729,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.270466
+#> total seconds in loop: 0.269577
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
@@ -794,7 +795,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001549
+#> total seconds in loop: 0.001495
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 
