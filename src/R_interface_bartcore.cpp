@@ -732,6 +732,28 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
   return bartcore::ResponseFamily::gaussian;
 }
 
+// Binary weight policy at sampler creation: a probit has no tractable
+// weighted latent-variable form and is refused; logistic treats weights as
+// observation counts (its PG(w, psi) latent is the sum of w PG(1, psi)
+// draws), so they must be positive integers; gaussian accepts any positive
+// weight and is validated elsewhere. The R layer mirrors this, so these
+// errors backstop direct-API consumers.
+void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
+                               const double* weights,
+                               size_t numObservations) {
+  if (weights == NULL) return;
+  if (family == bartcore::ResponseFamily::probit)
+    Rf_error("probit models do not support weights: a weighted probit has no "
+             "tractable latent-variable form; use family = \"logistic\" for "
+             "weighted binary regression, or model the latents directly");
+  if (family == bartcore::ResponseFamily::logistic)
+    for (size_t i = 0; i < numObservations; ++i)
+      if (!(weights[i] > 0.0) || weights[i] != std::floor(weights[i]))
+        Rf_error("logistic weights are observation counts and must be "
+                 "positive integers; drop zero-count rows, and use a gaussian "
+                 "model for continuous weights");
+}
+
 // Raw training values of column j, when a dense source serves them: the
 // x matrix, or the mixed container's dense slice via the source map.
 const double* rawTrainingColumn(const ParsedData& data, size_t j) {
@@ -1037,10 +1059,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // value, so sigma enters as sqrt(value) and is never drawn
     data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   }
-  if (control.responseIsBinary && data.weights != NULL)
-    Rf_error("binary response families do not support weights: the "
-             "weighted probit the classic engine fit was incorrect; "
-             "replicate rows or model the latents instead");
+  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
 
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -1173,10 +1192,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     // value, so sigma enters as sqrt(value) and is never drawn
     data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   }
-  if (control.responseIsBinary && data.weights != NULL)
-    Rf_error("binary response families do not support weights: the "
-             "weighted probit the classic engine fit was incorrect; "
-             "replicate rows or model the latents instead");
+  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
 
   if (!Rf_isInteger(trainRowsExpr) || Rf_xlength(trainRowsExpr) == 0)
     Rf_error("trainRows must be a non-empty integer vector");
@@ -1479,9 +1495,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     Rf_error("bartcore setData requires the same predictors");
   if (sampler.family() != bartcore::ResponseFamily::gaussian &&
       data.weights != NULL)
-    Rf_error("binary response families do not support weights: the "
-             "weighted probit the classic engine fit was incorrect; "
-             "replicate rows or model the latents instead");
+    Rf_error("weights on a binary response cannot be set after creation: "
+             "probit does not support weights, and logistic weights "
+             "(observation counts) are fixed when the sampler is created");
   for (size_t j = 0; j < data.numPredictors; ++j) {
     bool wasCategorical = sampler.data().types[j] ==
                           bartcore::ColumnType::categorical;
@@ -1609,9 +1625,9 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->family() != bartcore::ResponseFamily::gaussian)
-    Rf_error("binary response families do not support weights: the "
-             "weighted probit the classic engine fit was incorrect; "
-             "replicate rows or model the latents instead");
+    Rf_error("weights on a binary response cannot be set after creation: "
+             "probit does not support weights, and logistic weights "
+             "(observation counts) are fixed when the sampler is created");
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) !=
         holder.sampler->numObservations())

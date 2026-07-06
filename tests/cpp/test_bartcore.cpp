@@ -589,6 +589,83 @@ static void testLogisticMutation(ext_rng* rng) {
   printf("ok: logistic mutation\n");
 }
 
+static void testWeightedLogistic(ext_rng* rng) {
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = 4.0 * (x[i] - 0.5);
+    double probability = 1.0 / (1.0 + std::exp(-eta));
+    y[i] = runif01() < probability ? 1.0 : 0.0;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.nodeScale = 3.0;
+
+  // integer-count weights: a count-w observation's Polya-Gamma latent is
+  // PG(w, psi), drawn as the sum of w PG(1, psi) variates. (There is no
+  // bit-for-bit reduction to the unweighted stream: even all-ones weights take
+  // the weighted node-statistic path, whose reduction order differs - the same
+  // is true of the gaussian family. Correctness is pinned statistically here
+  // and against the replicated-rows fit in test-weighted-logistic.R.)
+  std::vector<double> w(n);
+  for (size_t i = 0; i < n; ++i) w[i] = static_cast<double>(1 + (i % 3));
+
+  // the weighted path is deterministic: identical weights and seed reproduce
+  // the draw bit for bit
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 908) != 0 ||
+      ext_rng_setSeed(rngB, 908) != 0) {
+    check(false, "weighted logistic: rng creation");
+    return;
+  }
+  ClassicSampler a(x.data(), y.data(), n, p, nullptr, w.data(),
+                   ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngA);
+  ClassicSampler b(x.data(), y.data(), n, p, nullptr, w.data(),
+                   ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngB);
+  const size_t numBurnIn = 20, numSamples = 30;
+  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  Results rA, rB;
+  rA.trainingFits = fitsA.data();
+  rB.trainingFits = fitsB.data();
+  a.run(numBurnIn, numSamples, rA);
+  b.run(numBurnIn, numSamples, rB);
+  bool identical = true;
+  for (size_t i = 0; i < n * numSamples && identical; ++i)
+    identical = fitsA[i] == fitsB[i];
+  check(identical, "weighted logistic is deterministic under a fixed seed");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+
+  // the weighted fit recovers the monotone signal and its omega latents stay
+  // positive and finite
+  ClassicSampler wsampler(x.data(), y.data(), n, p, nullptr, w.data(),
+                          ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rng);
+  const size_t wSamples = 200;
+  std::vector<double> wfits(n * wSamples);
+  Results wres;
+  wres.trainingFits = wfits.data();
+  wsampler.run(150, wSamples, wres);
+  double lowSum = 0.0, highSum = 0.0;
+  size_t lowCount = 0, highCount = 0;
+  for (size_t s = 0; s < wSamples; ++s)
+    for (size_t i = 0; i < n; ++i) {
+      if (x[i] < 0.25) { lowSum += wfits[i + s * n]; ++lowCount; }
+      if (x[i] > 0.75) { highSum += wfits[i + s * n]; ++highCount; }
+    }
+  check(highSum / (double) highCount > lowSum / (double) lowCount + 0.5,
+        "weighted logistic recovers monotone signal");
+  const double* omega = wsampler.latents(0);
+  bool omegaValid = omega != nullptr;
+  for (size_t i = 0; i < n && omegaValid; ++i)
+    omegaValid = omega[i] > 0.0 && std::isfinite(omega[i]);
+  check(omegaValid, "weighted logistic omega positive and finite");
+
+  printf("ok: weighted logistic\n");
+}
+
 static void testDartUpdate(ext_rng* rng) {
   const size_t p = 4;
   DartPrior dart;
@@ -5859,6 +5936,7 @@ int main() {
   testPolyaGamma(rng);
   testEndToEndLogistic(rng);
   testLogisticMutation(rng);
+  testWeightedLogistic(rng);
   testCategoricalMechanics();
   testCategoricalPriorMath(rng);
   testEndToEndCategorical(rng);

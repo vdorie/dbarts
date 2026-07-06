@@ -245,7 +245,7 @@ public:
       break;
     case ResponseFamily::logistic:
       response_ =
-        std::make_unique<LogisticResponse>(y, offset, numObservations);
+        std::make_unique<LogisticResponse>(y, offset, weights, numObservations);
       break;
     case ResponseFamily::gaussian:
       response_ = std::make_unique<GaussianResponse>(
