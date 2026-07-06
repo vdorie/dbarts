@@ -29,10 +29,16 @@ release
     UPDATE READY (branch dbarts-1.0 in ~/Repositories/bartCause,
     unpushed): snapshots regenerated, test-10-rng.R rewritten to the
     1.0-0 rng semantics, missing-response subsetting fixed, checks
-    Status OK - push and submit after dbarts is accepted. Decision
-    still open there: weighted BART propensity models now error
-    (weighted probit refused); route to family logistic or drop the
-    weights. Related: tmle's default SuperLearner wrappers pass unit
+    Status OK - push and submit after dbarts is accepted. Weighted
+    BART propensity DECIDED (2026-07-06): the dbarts-backed treatment
+    paths strip weights and message once ("propensity score model is
+    fit unweighted; weights enter the treatment-effect estimators") -
+    weights are realistically continuous so the logistic count route
+    could not cover them, and the estimators already carry the design
+    information. glm/stan4bart treatment paths untouched; a weighted
+    BINARY RESPONSE still errors through getBartResponseFit
+    (untested, acceptable). Related: tmle's default SuperLearner
+    wrappers pass unit
     obsWeights into probit bart unconditionally - handled dbarts-side
     by treating weights identically 1 as absent (6e1366b); genuinely
     weighted tmle analyses lose the dbarts learners by design (the
