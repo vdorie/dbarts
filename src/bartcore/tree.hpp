@@ -1,6 +1,7 @@
 #ifndef BARTCORE_TREE_HPP
 #define BARTCORE_TREE_HPP
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstddef>
@@ -1354,11 +1355,16 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types
       numCategories[flat.variable] > maxValueEncodableCategories) {
     const std::uint64_t* directions =
       maskWords + static_cast<size_t>(flat.value);
+    // callers validate codes against the training categories; the clamps
+    // here and below keep an out-of-range code a defined lookup instead of
+    // undefined behavior, so the tree layer is safe standalone
+    std::uint32_t maxCode = numCategories[flat.variable] - 1;
     for (size_t k = lo; k < hi; ++k) {
       double value = column[indices[k]];
       bool goesLeft = isNA(value)
         ? missingGoesLeft
-        : !maskTestBit(directions, static_cast<std::uint32_t>(value));
+        : !maskTestBit(directions,
+                       std::min(static_cast<std::uint32_t>(value), maxCode));
       if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
@@ -1372,7 +1378,8 @@ inline size_t partitionFlatIndices(const FlatNode& flat, const ColumnType* types
       double value = column[indices[k]];
       bool goesLeft = isNA(value)
         ? missingGoesLeft
-        : ((directions >> static_cast<std::uint32_t>(value)) & 1u) == 0;
+        : ((directions >>
+            (static_cast<std::uint32_t>(value) & 63u)) & 1u) == 0;
       if (goesLeft) {
         size_t temp = indices[mid];
         indices[mid] = indices[k];
