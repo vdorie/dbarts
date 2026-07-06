@@ -373,22 +373,28 @@ public:
         misc_setVectorToConstant(totalTestFits_.data(),
                                  data_.numTestObservations, 0.0);
 
+      // treeY_ carries a running residual across the sweep: entering tree
+      // t's body it holds y minus every other tree's current fits (new for
+      // trees already drawn, old for the rest) - exactly the residual tree
+      // t owns - so the draw can overwrite the slab in place. One fused
+      // pass per tree retires the previous tree's new fits and admits this
+      // tree's old ones; totalFits_ is stale until rebuilt after the loop.
       for (size_t t = 0; t < options_.numTrees; ++t) {
-        double* oldTreeFits = treeFits_.data() + t * n;
+        double* treeFits = treeFits_.data() + t * n;
 
-        // treeY = (y - totalFits) + oldTreeFits is the residual this tree owns,
-        // in the prior three-op order so it stays bitwise identical. The same
-        // pass strips this tree's old fits from the running total, so the draw
-        // can overwrite its slab in place: totalFits now holds every other tree.
-        {
+        if (t == 0) {
           const double* __restrict y_ = y;
-          double* __restrict total = totalFits_.data();
-          const double* __restrict oldFits = oldTreeFits;
-          double* __restrict treeY = treeY_.data();
-          for (size_t i = 0; i < n; ++i) {
-            treeY[i] = y_[i] - total[i] + oldFits[i];
-            total[i] -= oldFits[i];
-          }
+          const double* __restrict total = totalFits_.data();
+          const double* __restrict oldFits = treeFits;
+          double* __restrict resid = treeY_.data();
+          for (size_t i = 0; i < n; ++i)
+            resid[i] = y_[i] - total[i] + oldFits[i];
+        } else {
+          const double* __restrict prevFits = treeFits - n;
+          const double* __restrict oldFits = treeFits;
+          double* __restrict resid = treeY_.data();
+          for (size_t i = 0; i < n; ++i)
+            resid[i] += oldFits[i] - prevFits[i];
         }
 
         // constant-leaf node means, recomputed against this sweep's residual.
@@ -408,7 +414,7 @@ public:
           trees_[t].compactMaskPoolIfNeeded(data_);
 
         // the draw writes this tree's new fits straight into its slab
-        sampleParametersAndSetFits(t, oldTreeFits, record);
+        sampleParametersAndSetFits(t, treeFits, record);
 
         // flatten while the freshly drawn parameters are live
         if (record && savedTreeCapacity_ > 0) {
@@ -430,7 +436,7 @@ public:
             // reporting, the side channel carries the draw cache's alpha
             // weights plus covariate rows - the exact values the recorded
             // test fits used, so saved replays bit-match them
-            functionLeafValues(trees_[t], oldTreeFits, paramByNode_);
+            functionLeafValues(trees_[t], treeFits, paramByNode_);
             trees_[t].flatten(data_, paramByNode_.data(),
                               savedTrees_[slot * options_.numTrees + t],
                               nullptr, 1, nullptr, masks);
@@ -442,20 +448,22 @@ public:
           }
         }
 
-        // totalFits += this tree's new fits, restoring the running total. The
-        // old fits were already removed above, so this equals the prior
-        // (totalFits - oldFits) + newFits exactly: totalFits is bitwise
-        // identical, and the draw already left the new fits in the slab (no
-        // trailing memcpy).
-        {
-          double* __restrict total = totalFits_.data();
-          const double* __restrict newFits = oldTreeFits;
-          for (size_t i = 0; i < n; ++i)
-            total[i] += newFits[i];
-        }
         if (record && data_.numTestObservations > 0)
           misc_addVectorsInPlace(currTestFits_.data(), data_.numTestObservations,
                                  totalTestFits_.data());
+      }
+
+      // rebuild the running total for the latent/sigma updates and
+      // recording: the residual still includes the last tree's slab, whose
+      // new fits retire here instead of in a pass of their own
+      if (options_.numTrees > 0) {
+        const size_t last = options_.numTrees - 1;
+        const double* __restrict y_ = y;
+        const double* __restrict resid = treeY_.data();
+        const double* __restrict lastFits = treeFits_.data() + last * n;
+        double* __restrict total = totalFits_.data();
+        for (size_t i = 0; i < n; ++i)
+          total[i] = y_[i] - resid[i] + lastFits[i];
       }
 
       response_->refreshLatents(rng_, totalFits_.data(), sigma_);
