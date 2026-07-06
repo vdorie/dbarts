@@ -161,4 +161,3 @@ expect_error(
   dbarts::dbartsControl(rngKind = "default"),
   "unused argument"
 )
-

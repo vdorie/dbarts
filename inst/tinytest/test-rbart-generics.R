@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -26,9 +29,15 @@ g <- factor(testData$g)
 
 set.seed(0L)
 rbartFit <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, verbose = FALSE
+  y ~ x,
+  group.by = g,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  verbose = FALSE
 )
 expect_equal(
   dbarts::extract(rbartFit, type = "bart", combineChains = FALSE),
@@ -40,7 +49,7 @@ expect_equal(
 )
 expect_equal(
   dbarts::extract(rbartFit, type = "ev", combineChains = FALSE),
-  rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)])
+  rbartFit$yhat.train + unname(rbartFit$ranef[,, as.character(g)])
 )
 
 ppd <- dbarts::extract(rbartFit, type = "ppd", combineChains = FALSE)
@@ -52,13 +61,19 @@ sigma.hat <- apply(
 # silly test with 7 samples but we need something
 expect_true(
   cor(as.vector(sigma.hat), as.vector(rbartFit$sigma)) >= 0.85
-) 
+)
 
 set.seed(0L)
 rbartFit.2 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, combineChains = TRUE,
+  y ~ x,
+  group.by = g,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  combineChains = TRUE,
   verbose = FALSE
 )
 expect_equal(
@@ -73,7 +88,6 @@ expect_equal(
 rm(sigma.hat, ppd, rbartFit, g, y, x)
 
 
-
 # test that fitted works correctly
 x <- testData$x
 y <- testData$y
@@ -81,20 +95,37 @@ g <- factor(testData$g)
 
 
 rbartFit <- dbarts::rbart_vi(
-  y ~ x, group.by = g, test = x, group.by.test = g, offset.test = 5,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, verbose = FALSE
+  y ~ x,
+  group.by = g,
+  test = x,
+  group.by.test = g,
+  offset.test = 5,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  verbose = FALSE
 )
 expect_equal(
   as.vector(rbartFit$yhat.train),
   as.vector(rbartFit$yhat.test) - 5
 )
 expect_equal(
-  apply(rbartFit$yhat.train + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean),
+  apply(
+    rbartFit$yhat.train + unname(rbartFit$ranef[,, as.character(g)]),
+    3L,
+    mean
+  ),
   fitted(rbartFit)
 )
 expect_equal(
-  apply(rbartFit$yhat.test  + unname(rbartFit$ranef[,,as.character(g)]), 3L, mean),
+  apply(
+    rbartFit$yhat.test + unname(rbartFit$ranef[,, as.character(g)]),
+    3L,
+    mean
+  ),
   fitted(rbartFit, sample = "test")
 )
 expect_equal(fitted(rbartFit, type = "ranef"), rbartFit$ranef.mean)
@@ -109,18 +140,31 @@ g <- factor(testData$g)
 
 set.seed(0L)
 rbartFit.0 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 14L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-  n.trees = 25L, n.threads = 1L, keepTrees = TRUE,
+  y ~ x,
+  group.by = g,
+  n.samples = 14L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
   verbose = FALSE
 )
 expect_equal(fitted(rbartFit.0), apply(predict(rbartFit.0, x, g), 2L, mean))
 
 set.seed(0L)
 rbartFit.0 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = FALSE,
+  y ~ x,
+  group.by = g,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  combineChains = FALSE,
   verbose = FALSE
 )
 expect_equal(
@@ -130,10 +174,17 @@ expect_equal(
 
 set.seed(0L)
 rbartFit.1 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
- n.trees = 25L, n.threads = 1L, keepTrees = TRUE, combineChains = TRUE,
- verbose = FALSE
+  y ~ x,
+  group.by = g,
+  n.samples = 7L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 25L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  combineChains = TRUE,
+  verbose = FALSE
 )
 expect_equal(
   fitted(rbartFit.1),
@@ -149,4 +200,3 @@ rm(rbartFit.1, rbartFit.0, g, y, x)
 
 
 rm(testData)
-

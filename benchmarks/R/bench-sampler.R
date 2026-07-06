@@ -13,25 +13,31 @@
 
 suppressPackageStartupMessages(library(dbarts))
 
-args  <- commandArgs(trailingOnly = TRUE)
+args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-args  <- setdiff(args, "quick")
+args <- setdiff(args, "quick")
 # engine=new is accepted for compatibility with old invocations; the
 # installed package always runs the bartcore engine now (compare against
 # classic recordings made before its removal)
-args  <- setdiff(args, "engine=new")
-mode  <- if (length(args) >= 1L) args[[1L]] else "print"
+args <- setdiff(args, "engine=new")
+mode <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
   x <- matrix(runif(n * p), n, p)
-  f <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
-    10 * x[, 4L] + 5 * x[, 5L]
+  f <- 10 *
+    sin(pi * x[, 1L] * x[, 2L]) +
+    20 * (x[, 3L] - 0.5)^2 +
+    10 * x[, 4L] +
+    5 * x[, 5L]
   list(x = x, f = f, y = f + rnorm(n))
 }
 
 newSampler <- function(x, y, n.trees) {
   control <- dbartsControl(
-    verbose = FALSE, n.trees = n.trees, n.chains = 1L, n.threads = 1L,
+    verbose = FALSE,
+    n.trees = n.trees,
+    n.chains = 1L,
+    n.threads = 1L,
     updateState = FALSE
   )
   dbarts(x, y, control = control)
@@ -46,19 +52,25 @@ timeMedian <- function(fn, reps) {
 }
 
 runBenchmarks <- function(quick) {
-  reps    <- if (quick) 1L else 3L
+  reps <- if (quick) 1L else 3L
   n.samps <- if (quick) 50L else 500L
-  rows    <- data.frame()
-  addRow <- function(scenario, metric, value)
-    rows <<- rbind(rows, data.frame(scenario = scenario, metric = metric, value = value))
+  rows <- data.frame()
+  addRow <- function(scenario, metric, value) {
+    rows <<- rbind(
+      rows,
+      data.frame(scenario = scenario, metric = metric, value = value)
+    )
+  }
 
   # Plain run throughput.
   runScenarios <- list(
-    list(name = "run-n1000-p10-t75",   n = 1000L,  n.trees = 75L),
-    list(name = "run-n1000-p10-t200",  n = 1000L,  n.trees = 200L),
-    list(name = "run-n10000-p10-t75",  n = 10000L, n.trees = 75L)
+    list(name = "run-n1000-p10-t75", n = 1000L, n.trees = 75L),
+    list(name = "run-n1000-p10-t200", n = 1000L, n.trees = 200L),
+    list(name = "run-n10000-p10-t75", n = 10000L, n.trees = 75L)
   )
-  if (quick) runScenarios <- runScenarios[1L]
+  if (quick) {
+    runScenarios <- runScenarios[1L]
+  }
 
   for (scenario in runScenarios) {
     set.seed(4001L)
@@ -76,7 +88,11 @@ runBenchmarks <- function(quick) {
   sampler <- newSampler(data$x, y.binary, 75L)
   invisible(sampler$run(200L, 1L))
   elapsed <- timeMedian(function() invisible(sampler$run(0L, n.samps)), reps)
-  addRow("run-binary-n1000-p10-t75", "ms_per_iteration", 1000 * elapsed / n.samps)
+  addRow(
+    "run-binary-n1000-p10-t75",
+    "ms_per_iteration",
+    1000 * elapsed / n.samps
+  )
 
   # Embedded-Gibbs pattern: mutate offset, draw a single sample, repeat.
   set.seed(4003L)
@@ -87,13 +103,20 @@ runBenchmarks <- function(quick) {
   # long enough that system.time's millisecond granularity stays well under
   # the 5% regression threshold
   n.gibbs <- if (quick) 20L else 250L
-  elapsed <- timeMedian(function() {
-    for (i in seq_len(n.gibbs)) {
-      sampler$setOffset(offsets[, 1L + i %% 20L])
-      invisible(sampler$run(0L, 1L))
-    }
-  }, reps)
-  addRow("embedded-offset-run1-n1000-t75", "ms_per_gibbs_step", 1000 * elapsed / n.gibbs)
+  elapsed <- timeMedian(
+    function() {
+      for (i in seq_len(n.gibbs)) {
+        sampler$setOffset(offsets[, 1L + i %% 20L])
+        invisible(sampler$run(0L, 1L))
+      }
+    },
+    reps
+  )
+  addRow(
+    "embedded-offset-run1-n1000-t75",
+    "ms_per_gibbs_step",
+    1000 * elapsed / n.gibbs
+  )
 
   # Single-column predictor replacement with tree validation/rollback. The
   # accept/reject mix of random replacements depends on the chain state (one
@@ -107,22 +130,42 @@ runBenchmarks <- function(quick) {
   invisible(sampler$run(200L, 1L))
   n.updates <- if (quick) 40L else 500L
   x2 <- data$x[, 2L]
-  elapsed <- timeMedian(function() {
-    for (i in seq_len(n.updates))
-      invisible(sampler$setPredictor(x2, column = 2L, forceUpdate = FALSE))
-  }, reps)
-  addRow("setPredictor-accept-n1000-t75", "ms_per_update", 1000 * elapsed / n.updates)
+  elapsed <- timeMedian(
+    function() {
+      for (i in seq_len(n.updates)) {
+        invisible(sampler$setPredictor(x2, column = 2L, forceUpdate = FALSE))
+      }
+    },
+    reps
+  )
+  addRow(
+    "setPredictor-accept-n1000-t75",
+    "ms_per_update",
+    1000 * elapsed / n.updates
+  )
 
   x2.degenerate <- rep(0.5, 1000L)
-  elapsed <- timeMedian(function() {
-    for (i in seq_len(n.updates))
-      invisible(sampler$setPredictor(x2.degenerate, column = 2L, forceUpdate = FALSE))
-  }, reps)
-  addRow("setPredictor-reject-n1000-t75", "ms_per_update", 1000 * elapsed / n.updates)
+  elapsed <- timeMedian(
+    function() {
+      for (i in seq_len(n.updates)) {
+        invisible(sampler$setPredictor(
+          x2.degenerate,
+          column = 2L,
+          forceUpdate = FALSE
+        ))
+      }
+    },
+    reps
+  )
+  addRow(
+    "setPredictor-reject-n1000-t75",
+    "ms_per_update",
+    1000 * elapsed / n.updates
+  )
 
   rows$value <- round(rows$value, 4L)
-  rows$rev   <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
-  rows$date  <- format(Sys.Date())
+  rows$rev <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
+  rows$date <- format(Sys.Date())
   rows$quick <- quick
   rows
 }
@@ -135,16 +178,23 @@ if (mode == "record") {
   cat("wrote", nrow(results), "measurements to", out.file, "\n")
   print(results[c("scenario", "metric", "value")], row.names = FALSE)
 } else if (mode == "compare") {
-  if (length(args) < 2L) stop("usage: bench-sampler.R compare baseline.csv")
+  if (length(args) < 2L) {
+    stop("usage: bench-sampler.R compare baseline.csv")
+  }
   baseline <- read.csv(args[[2L]])
-  if (!identical(unique(baseline$quick), quick))
-    warning("comparing against a baseline recorded at a different quick setting")
+  if (!identical(unique(baseline$quick), quick)) {
+    warning(
+      "comparing against a baseline recorded at a different quick setting"
+    )
+  }
   merged <- merge(
-    baseline[c("scenario", "metric", "value")], results[c("scenario", "metric", "value")],
-    by = c("scenario", "metric"), suffixes = c(".base", ".curr")
+    baseline[c("scenario", "metric", "value")],
+    results[c("scenario", "metric", "value")],
+    by = c("scenario", "metric"),
+    suffixes = c(".base", ".curr")
   )
   merged$ratio <- round(merged$value.curr / merged$value.base, 3L)
-  merged$flag  <- ifelse(merged$ratio > 1.05, "REGRESSION", "")
+  merged$flag <- ifelse(merged$ratio > 1.05, "REGRESSION", "")
   print(merged, row.names = FALSE)
   if (any(merged$flag != "")) {
     cat("\nFAIL:", sum(merged$flag != ""), "metric(s) regressed more than 5%\n")

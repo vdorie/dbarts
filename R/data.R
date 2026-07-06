@@ -1,180 +1,274 @@
 ORDINAL_VARIABLE <- 0L
 CATEGORICAL_VARIABLE <- 1L
 
-methods::setMethod("initialize", "dbartsData",
-          function(.Object, modelMatrices, n.cuts = 100L, sigma = NA_real_)
-{
-  if (!missing(modelMatrices)) {
-    .Object@y <- modelMatrices$y
-    .Object@x <- modelMatrices$x
-    # makeCategoricalModelMatrix types its columns; everything else is ordinal
-    .Object@varTypes <- if (!is.null(attr(.Object@x, "varTypes")))
-      as.integer(attr(.Object@x, "varTypes"))
-    else
-      rep.int(ORDINAL_VARIABLE, ncol(.Object@x))
-    .Object@x.test <- modelMatrices$x.test
-    .Object@weights <- modelMatrices$weights
-    .Object@weights.test <- modelMatrices$weights.test
-    .Object@offset <- modelMatrices$offset
-    .Object@offset.test <- modelMatrices$offset.test
+methods::setMethod(
+  "initialize",
+  "dbartsData",
+  function(.Object, modelMatrices, n.cuts = 100L, sigma = NA_real_) {
+    if (!missing(modelMatrices)) {
+      .Object@y <- modelMatrices$y
+      .Object@x <- modelMatrices$x
+      # makeCategoricalModelMatrix types its columns; everything else is ordinal
+      .Object@varTypes <- if (!is.null(attr(.Object@x, "varTypes"))) {
+        as.integer(attr(.Object@x, "varTypes"))
+      } else {
+        rep.int(ORDINAL_VARIABLE, ncol(.Object@x))
+      }
+      .Object@x.test <- modelMatrices$x.test
+      .Object@weights <- modelMatrices$weights
+      .Object@weights.test <- modelMatrices$weights.test
+      .Object@offset <- modelMatrices$offset
+      .Object@offset.test <- modelMatrices$offset.test
 
-    .Object@testUsesRegularOffset <- modelMatrices$testUsesRegularOffset
+      .Object@testUsesRegularOffset <- modelMatrices$testUsesRegularOffset
+    }
+
+    .Object@n.cuts <- rep_len(as.integer(n.cuts), ncol(.Object@x))
+    .Object@sigma <- sigma
+
+    validObject(.Object)
+    .Object
   }
-  
-  .Object@n.cuts <- rep_len(as.integer(n.cuts), ncol(.Object@x))
-  .Object@sigma <- sigma
-
-  validObject(.Object)
-  .Object
-})
+)
 
 makeTestModelMatrix <- function(data, newdata) {
   validateXTest(newdata, data@x)
 }
 
-validateXTest <- function(x.test, x.train)
-{
-  termLabels     <- attr(x.train, "term.labels")
-  numPredictors  <- ncol(x.train)
+validateXTest <- function(x.test, x.train) {
+  termLabels <- attr(x.train, "term.labels")
+  numPredictors <- ncol(x.train)
   predictorNames <- colnames(x.train)
-  drop           <- attr(x.train, "drop")
-  factorLevels   <- attr(x.train, "factor.levels")
+  drop <- attr(x.train, "drop")
+  factorLevels <- attr(x.train, "factor.levels")
 
-  if (is.null(x.test)) return(x.test)
-  if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) x.test <- matrix(x.test, ncol = length(x.test))
-  if (is.numeric(x.test) && NCOL(x.test) == 0L) return(NULL)
+  if (is.null(x.test)) {
+    return(x.test)
+  }
+  if (is.numeric(x.test) && is.null(dim(x.test)) && length(x.test) > 0L) {
+    x.test <- matrix(x.test, ncol = length(x.test))
+  }
+  if (is.numeric(x.test) && NCOL(x.test) == 0L) {
+    return(NULL)
+  }
   if (is.data.frame(x.test)) {
-    if (!is.null(termLabels))
-      x.test <- model.frame(formula = as.formula(paste("~", paste(termLabels, collapse = " + "))), data = x.test,
-                            na.action = stats::na.pass)
+    if (!is.null(termLabels)) {
+      x.test <- model.frame(
+        formula = as.formula(paste("~", paste(termLabels, collapse = " + "))),
+        data = x.test,
+        na.action = stats::na.pass
+      )
+    }
     if (!is.null(factorLevels)) {
       # trained with factors unexpanded: code against the training levels
-      x.test <- mapFactorColumnsToTrainingLevels(x.test, predictorNames, factorLevels)
+      x.test <- mapFactorColumnsToTrainingLevels(
+        x.test,
+        predictorNames,
+        factorLevels
+      )
       x.test <- makeCategoricalModelMatrix(x.test)
     } else {
-      x.test <- makeModelMatrixFromDataFrame(x.test, if (!is.null(drop)) drop else TRUE)
+      x.test <- makeModelMatrixFromDataFrame(
+        x.test,
+        if (!is.null(drop)) drop else TRUE
+      )
     }
   }
-  if (!is.matrix(x.test)) x.test <- as.matrix(x.test)
+  if (!is.matrix(x.test)) {
+    x.test <- as.matrix(x.test)
+  }
 
-  if (!is.numeric(x.test))
+  if (!is.numeric(x.test)) {
     stop('test matrix must be numeric')
+  }
 
-  if (is.integer(x.test)) x.test <- matrix(as.double(x.test), nrow(x.test))
-  
-  if (!identical(NCOL(x.test), numPredictors))
+  if (is.integer(x.test)) {
+    x.test <- matrix(as.double(x.test), nrow(x.test))
+  }
+
+  if (!identical(NCOL(x.test), numPredictors)) {
     stop("number of columns in 'test' must be equal to that of 'x'")
+  }
   if (numPredictors > 1) {
-    xIsNamed    <- !is.null(predictorNames)
+    xIsNamed <- !is.null(predictorNames)
     testIsNamed <- !is.null(colnames(x.test))
-    
+
     columnIndices <- seq.int(numPredictors)
-    if ((xIsNamed && !testIsNamed) || (!xIsNamed && testIsNamed) || length(unique(predictorNames)) != length(predictorNames)) {
+    if (
+      (xIsNamed && !testIsNamed) ||
+        (!xIsNamed && testIsNamed) ||
+        length(unique(predictorNames)) != length(predictorNames)
+    ) {
       ## warning("'x' and 'test' are not both named; columns of test matrix will be selected by position")
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
       if (any(is.na(matchIndices))) {
-        warning("column names of 'test' does not equal that of 'x': '", toString(predictorNames),
-                "'; match will be made by position")
+        warning(
+          "column names of 'test' does not equal that of 'x': '",
+          toString(predictorNames),
+          "'; match will be made by position"
+        )
       } else {
         columnIndices <- matchIndices
       }
     }
-    
-    x.test <- x.test[,columnIndices,drop = FALSE]
+
+    x.test <- x.test[, columnIndices, drop = FALSE]
     if (xIsNamed) colnames(x.test) <- predictorNames
   }
-  
+
   x.test
 }
 
-findTermInFormulaData <- function(formula, data, term)
-{
+findTermInFormulaData <- function(formula, data, term) {
   formulaIsMissing <- missing(formula)
   dataIsMissing <- missing(data)
   matchedCall <- match.call()
-  
-  if (is.numeric(matchedCall$term)) return(term)
-  
+
+  if (is.numeric(matchedCall$term)) {
+    return(term)
+  }
+
   if (!dataIsMissing) {
     if (is.symbol(matchedCall$term)) {
-      if (any(names(data) == as.character(matchedCall$term))) return(data[[as.character(matchedCall$term)]])
+      if (any(names(data) == as.character(matchedCall$term))) {
+        return(data[[as.character(matchedCall$term)]])
+      }
     } else if (is.language(matchedCall$term)) {
       #attach(data, warn.conflicts = FALSE, name = ".dbartsData_data")
-      tryResult <- with(data, tryCatch(eval(matchedCall$term), error = function(e) e))
+      tryResult <- with(
+        data,
+        tryCatch(eval(matchedCall$term), error = function(e) e)
+      )
       #detach(data)
       if (!inherits(tryResult, "error")) return(tryResult)
     }
   }
   if (is.symbol(matchedCall$term)) {
-    if (any(ls(environment(formula)) == as.character(matchedCall$term))) return(get(as.character(matchedCall$term), envir = environment(formula)))
-    tryResult <- tryCatch(get(as.character(matchedCall$term)), error = function(e) e)
+    if (any(ls(environment(formula)) == as.character(matchedCall$term))) {
+      return(get(as.character(matchedCall$term), envir = environment(formula)))
+    }
+    tryResult <- tryCatch(
+      get(as.character(matchedCall$term)),
+      error = function(e) e
+    )
     if (!inherits(tryResult, "error") && !is.null(tryResult)) return(tryResult)
   } else if (is.language(matchedCall$term)) {
-    tryResult <- tryCatch(eval(matchedCall$term, environment(formula)), error = function(e) e)
-    if (!inherits(tryResult, "error")) return(tryResult)
+    tryResult <- tryCatch(
+      eval(matchedCall$term, environment(formula)),
+      error = function(e) e
+    )
+    if (!inherits(tryResult, "error")) {
+      return(tryResult)
+    }
     tryResult <- tryCatch(eval(matchedCall$term), error = function(e) e)
     if (!inherits(tryResult, "error")) return(tryResult)
   }
-  
+
   NULL
 }
 
 ## this used to be a function evaluated in the caller's frame, but
 ## that causes warnings in R check so now it is just a block of code
 getTestOffset <- quote({
-  if (is.numeric(matchedCall$offset.test))
+  if (is.numeric(matchedCall$offset.test)) {
     return(namedList(offset.test, testUsesRegularOffset = FALSE))
-  if (is.null(matchedCall$offset.test))
+  }
+  if (is.null(matchedCall$offset.test)) {
     return(list(offset.test = NULL, testUsesRegularOffset = FALSE))
-  
+  }
+
   if (is.symbol(matchedCall$offset.test)) {
     testOffsetName <- as.character(matchedCall$offset.test)
-    
-    if (identical(testOffsetName, "offset") && !is.null(offset))
-      return(list(offset.test = if (offsetGivenAsScalar == TRUE) offset[1] else offset, testUsesRegularOffset = TRUE))
-    
+
+    if (identical(testOffsetName, "offset") && !is.null(offset)) {
+      return(list(
+        offset.test = if (offsetGivenAsScalar == TRUE) offset[1] else offset,
+        testUsesRegularOffset = TRUE
+      ))
+    }
+
     if (is.formula(formula)) {
-      if (!dataIsMissing && any(names(data) == testOffsetName))
-        return(list(offset.test = data[[testOffsetName]], testUsesRegularOffset = FALSE))
-      if (any(ls(environment(formula)) == testOffsetName))
-        return(list(offset.test = get(testOffsetName, environment(formula)), testUsesRegularOffset = FALSE))
+      if (!dataIsMissing && any(names(data) == testOffsetName)) {
+        return(list(
+          offset.test = data[[testOffsetName]],
+          testUsesRegularOffset = FALSE
+        ))
+      }
+      if (any(ls(environment(formula)) == testOffsetName)) {
+        return(list(
+          offset.test = get(testOffsetName, environment(formula)),
+          testUsesRegularOffset = FALSE
+        ))
+      }
     }
     tryResult <- tryCatch(get(testOffsetName), error = function(e) e)
-    if (!inherits(tryResult, "error") && !is.null(tryResult))
+    if (!inherits(tryResult, "error") && !is.null(tryResult)) {
       return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
-    
+    }
+
     stop("cannot find test offset '", testOffsetName, "'")
   } else if (is.language(matchedCall$offset.test)) {
     ## test.offset could have been something like (offset + 0.5), or (offset + variable)
-    baseOffset <- if (is.null(offset)) NA_real_ else { if (offsetGivenAsScalar == TRUE) offset[1] else offset }
-    
-    if (identical(matchedCall$offset.test, quote(offset)))
+    baseOffset <- if (is.null(offset)) {
+      NA_real_
+    } else {
+      if (offsetGivenAsScalar == TRUE) offset[1] else offset
+    }
+
+    if (identical(matchedCall$offset.test, quote(offset))) {
       return(list(offset.test = baseOffset, testUsesRegularOffset = TRUE))
-    
-    testOffset <- subTermInLanguage(matchedCall$offset.test, quote(offset), baseOffset)
+    }
+
+    testOffset <- subTermInLanguage(
+      matchedCall$offset.test,
+      quote(offset),
+      baseOffset
+    )
 
     if (is.formula(formula)) {
       if (!dataIsMissing) {
         #attach(data)
-        tryResult <- with(data, tryCatch(eval(testOffset), error = function(e) e))
+        tryResult <- with(
+          data,
+          tryCatch(eval(testOffset), error = function(e) e)
+        )
         #detach(data)
-        if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+        if (!inherits(tryResult, "error")) {
+          return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+        }
       }
-      tryResult <- tryCatch(eval(testOffset, environment(formula)), error = function(e) e)
-      if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      tryResult <- tryCatch(
+        eval(testOffset, environment(formula)),
+        error = function(e) e
+      )
+      if (!inherits(tryResult, "error")) {
+        return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+      }
     }
-    tryResult <- tryCatch(eval(testOffset, parent.frame(3L)), error = function(e) e)
-    if (!inherits(tryResult, "error")) return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+    tryResult <- tryCatch(
+      eval(testOffset, parent.frame(3L)),
+      error = function(e) e
+    )
+    if (!inherits(tryResult, "error")) {
+      return(list(offset.test = tryResult, testUsesRegularOffset = FALSE))
+    }
   }
-  
+
   stop("cannot construct test offset")
 })
 
-dbartsData <- function(formula, data, test, subset, weights, offset, offset.test = offset,
-                       factors = c("categorical", "indicators"),
-                       missing = c("incorporate", "error"))
-{
+dbartsData <- function(
+  formula,
+  data,
+  test,
+  subset,
+  weights,
+  offset,
+  offset.test = offset,
+  factors = c("categorical", "indicators"),
+  missing = c("incorporate", "error")
+) {
   dataIsMissing <- missing(data)
   testIsMissing <- missing(test)
   offsetIsMissing <- missing(offset)
@@ -185,101 +279,139 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   # them as single columns split by category subset, which only the bartcore
   # engine runs
   factors <- match.arg(factors)
-  makeModelMatrix <- if (factors == "categorical")
+  makeModelMatrix <- if (factors == "categorical") {
     makeCategoricalModelMatrix
-  else
+  } else {
     makeModelMatrixFromDataFrame
+  }
   # "incorporate" keeps NAs in the predictors - the trees route them by
   # learned per-rule directions; "error" rejects them
   missing <- match.arg(missing)
-  
+
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
-  
-  if (missing(formula)) stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
-  
+
+  if (missing(formula)) {
+    stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
+  }
+
   if (inherits(formula, "dbartsData")) {
-    if (!dataIsMissing || !testIsMissing || !offsetIsMissing || !testOffsetIsMissing)
+    if (
+      !dataIsMissing ||
+        !testIsMissing ||
+        !offsetIsMissing ||
+        !testOffsetIsMissing
+    ) {
       warning("if data supplied as dbartsData, remaining arguments are ignored")
+    }
     return(formula)
   }
-  
+
   if (is.formula(formula)) {
-    if (!dataIsMissing && !is.data.frame(data) && !is.list(data) && !is.environment(data))
-      stop("for formula/data specification, data must be a data frame, list, or environment")
-    
+    if (
+      !dataIsMissing &&
+        !is.data.frame(data) &&
+        !is.list(data) &&
+        !is.environment(data)
+    ) {
+      stop(
+        "for formula/data specification, data must be a data frame, list, or environment"
+      )
+    }
+
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
-    
+
     ## extract offset prematurely, if necessary
     if (offsetIsMissing) {
       offset <- NULL
       modelFrameArgs <- c("formula", "data", "subset", "weights")
     } else {
       offsetCall <- matchedCall
-      offsetCall <- offsetCall[c(1L, match(c("formula", "data", "offset"), names(offsetCall), nomatch = 0L))]
+      offsetCall <- offsetCall[c(
+        1L,
+        match(c("formula", "data", "offset"), names(offsetCall), nomatch = 0L)
+      )]
       names(offsetCall)[which(names(offsetCall) == "offset")] <- "term"
       offsetCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
       offset <- eval(offsetCall, parent.frame())
-     
+
       if (!is.null(offset)) {
         offsetGivenAsScalar <- length(offset) == 1
-        if (offsetGivenAsScalar) modelFrameArgs <- c("formula", "data", "subset", "weights")
-      } 
+        if (offsetGivenAsScalar) {
+          modelFrameArgs <- c("formula", "data", "subset", "weights")
+        }
+      }
       originalOffset <- offset
-    }    
+    }
     modelFrameCall <- matchedCall
-    modelFrameCall <- modelFrameCall[c(1L, match(modelFrameArgs, names(modelFrameCall), nomatch = 0L))]
+    modelFrameCall <- modelFrameCall[c(
+      1L,
+      match(modelFrameArgs, names(modelFrameCall), nomatch = 0L)
+    )]
     modelFrameCall$drop.unused.levels <- FALSE
     # incomplete predictor rows stay; completeness is validated below
     # (previous versions silently na.omit-dropped them)
     modelFrameCall$na.action <- stats::na.pass
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
-    if (identical(offsetGivenAsScalar, FALSE)) modelFrameCall$offset <- offset
-    
+    if (identical(offsetGivenAsScalar, FALSE)) {
+      modelFrameCall$offset <- offset
+    }
+
     modelFrame <- eval(modelFrameCall, parent.frame())
     if (NROW(modelFrame) == 0) {
-      if (!is.null(matchedCall$subset)) stop("empty 'subset' specified")
+      if (!is.null(matchedCall$subset)) {
+        stop("empty 'subset' specified")
+      }
       stop("cannot construct model matrices from formula")
     }
-    
+
     ## pull out y
     y <- model.response(modelFrame, "numeric")
-    if (is.null(y)) y <- rep(0, NROW(modelFrame))
+    if (is.null(y)) {
+      y <- rep(0, NROW(modelFrame))
+    }
     numObservations <- NROW(y)
-    
+
     ## weights
     weights <- as.vector(model.weights(modelFrame))
     if (!is.null(weights)) {
-      if (!is.numeric(weights)) stop("'weights' must be of type numeric")
+      if (!is.numeric(weights)) {
+        stop("'weights' must be of type numeric")
+      }
       weights <- as.double(weights)
     }
-    
+
     ## offset, when in data frame
     if (identical(offsetGivenAsScalar, FALSE)) {
       offset <- as.vector(model.offset(modelFrame))
     } else if (identical(offsetGivenAsScalar, TRUE)) {
       offset <- rep_len(offset, numObservations)
     }
-    
+
     ## predictors
     modelTerms <- terms(modelFrame)
-    if (is.empty.model(modelTerms)) stop("predictors must be specified for regression tree analysis")
-    
+    if (is.empty.model(modelTerms)) {
+      stop("predictors must be specified for regression tree analysis")
+    }
+
     termLabels <- attr(modelTerms, "term.labels")
     badLabels <- grepl("`.* .*`", termLabels)
-    if (sum(badLabels) > 0)
+    if (sum(badLabels) > 0) {
       termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
-    
-    
+    }
+
     x <- makeModelMatrix(modelFrame[termLabels])
-    
+
     if (!testIsMissing) {
       testCall <- matchedCall
-      testCall <- testCall[c(1L, match(c("formula", "data", "test"), names(testCall), nomatch = 0L))]
+      testCall <- testCall[c(
+        1L,
+        match(c("formula", "data", "test"), names(testCall), nomatch = 0L)
+      )]
       names(testCall)[which(names(testCall) == "test")] <- "term"
       testCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
-      
+
       temp <- eval(testCall, parent.frame())
       if (!is.null(temp)) test <- temp
     }
@@ -287,115 +419,183 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     ## sparse designs enter through the x/y interface only; columns are all
     ## ordinal and missing values are stored NaN entries (the Matrix
     ## convention), so no complete-case filtering applies
-    if (dataIsMissing || is.null(data)) data <- rep(0, nrow(formula))
-    if (!is.numeric(data) && !is.factor(data))
+    if (dataIsMissing || is.null(data)) {
+      data <- rep(0, nrow(formula))
+    }
+    if (!is.numeric(data) && !is.factor(data)) {
       stop("when 'formula' is a sparse matrix, 'data' must be numeric")
+    }
 
-    y <- if (is.factor(data)) as.double(as.integer(data) - 1L) else as.double(data)
-    if (nrow(formula) != NROW(y))
+    y <- if (is.factor(data)) {
+      as.double(as.integer(data) - 1L)
+    } else {
+      as.double(data)
+    }
+    if (nrow(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
+    }
     initialNumObservations <- NROW(y)
 
-    if (missing(subset) || is.null(subset)) subset <- seq.int(length(y))
+    if (missing(subset) || is.null(subset)) {
+      subset <- seq.int(length(y))
+    }
     y <- y[subset]
     x <- formula[subset, , drop = FALSE]
 
-    if (missing(weights)) weights <- NULL
+    if (missing(weights)) {
+      weights <- NULL
+    }
     if (!is.null(weights)) {
-      if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
+      if (!is.numeric(weights)) {
+        stop("'weights' must be a numeric vector")
+      }
       weights <- as.double(weights)
-      if (length(weights) == 1L)
+      if (length(weights) == 1L) {
         weights <- rep_len(weights, initialNumObservations)
-      if (length(weights) != initialNumObservations)
+      }
+      if (length(weights) != initialNumObservations) {
         stop("length of 'weights' must equal length of 'y'")
+      }
       weights <- weights[subset]
     }
 
-    if (offsetIsMissing) offset <- NULL
+    if (offsetIsMissing) {
+      offset <- NULL
+    }
     if (!is.null(offset)) {
-      if (!is.numeric(offset)) stop("'offset' must be numeric")
+      if (!is.numeric(offset)) {
+        stop("'offset' must be numeric")
+      }
       if (length(offset) == 1L) {
         offset <- rep_len(offset, initialNumObservations)
         offsetGivenAsScalar <- TRUE
       } else {
         offsetGivenAsScalar <- FALSE
       }
-      if (length(offset) != initialNumObservations) stop("length of 'offset' must equal length of 'y'")
+      if (length(offset) != initialNumObservations) {
+        stop("length of 'offset' must equal length of 'y'")
+      }
       originalOffset <- offset
       offset <- offset[subset]
     }
-  } else if (is.numeric(formula) || is.data.frame(formula) || is.factor(formula)) {
+  } else if (
+    is.numeric(formula) || is.data.frame(formula) || is.factor(formula)
+  ) {
     ## backwards compatibility of bart(x.train, y.train, x.test)
-    if (dataIsMissing || is.null(data)) data <- rep(0, NROW(formula))
-    if (!is.numeric(data) && !is.data.frame(data) && !is.factor(data)) stop("when 'formula' is numeric, 'data' must be numeric as well")
-    
+    if (dataIsMissing || is.null(data)) {
+      data <- rep(0, NROW(formula))
+    }
+    if (!is.numeric(data) && !is.data.frame(data) && !is.factor(data)) {
+      stop("when 'formula' is numeric, 'data' must be numeric as well")
+    }
+
     if (is.factor(data)) {
       y <- as.double(as.integer(data) - 1L)
     } else {
       y <- as.double(data)
     }
-    if (NROW(formula) != NROW(y))
+    if (NROW(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
+    }
     initialNumObservations <- NROW(y)
-    
-    if (missing(subset) || is.null(subset)) subset <- seq.int(length(y))
+
+    if (missing(subset) || is.null(subset)) {
+      subset <- seq.int(length(y))
+    }
     y <- y[subset]
 
-    if (is.data.frame(formula)) formula <- makeModelMatrix(formula)
+    if (is.data.frame(formula)) {
+      formula <- makeModelMatrix(formula)
+    }
     xIsMixed <- inherits(formula, "dbartsMixedMatrix")
-    x <- if (is.matrix(formula) || xIsMixed) formula[subset,,drop=FALSE] else formula[subset]
-    
-    if (missing(weights)) weights <- NULL
+    x <- if (is.matrix(formula) || xIsMixed) {
+      formula[subset, , drop = FALSE]
+    } else {
+      formula[subset]
+    }
+
+    if (missing(weights)) {
+      weights <- NULL
+    }
     if (!is.null(weights)) {
-      if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
+      if (!is.numeric(weights)) {
+        stop("'weights' must be a numeric vector")
+      }
       weights <- as.double(weights)
-      if (length(weights) == 1L)
+      if (length(weights) == 1L) {
         weights <- rep_len(weights, initialNumObservations)
-      if (length(weights) != initialNumObservations)
+      }
+      if (length(weights) != initialNumObservations) {
         stop("length of 'weights' must equal length of 'y'")
+      }
       weights <- weights[subset]
     }
 
-    if (offsetIsMissing) offset <- NULL
+    if (offsetIsMissing) {
+      offset <- NULL
+    }
     if (!is.null(offset)) {
-      if (!is.numeric(offset)) stop("'offset' must be numeric")
+      if (!is.numeric(offset)) {
+        stop("'offset' must be numeric")
+      }
       if (length(offset) == 1L) {
         offset <- rep_len(offset, initialNumObservations)
         offsetGivenAsScalar <- TRUE
       } else {
         offsetGivenAsScalar <- FALSE
       }
-      if (length(offset) != initialNumObservations) stop("length of 'offset' must equal length of 'y'")
+      if (length(offset) != initialNumObservations) {
+        stop("length of 'offset' must equal length of 'y'")
+      }
       originalOffset <- offset
       offset <- offset[subset]
     }
-    
+
     # a mixed container keeps its rows and attributes: missing predictor
     # values are validated below, like the sparse-matrix branch above
     if (!xIsMixed) {
       completeCases <- stats::complete.cases(x, y)
 
       y <- y[completeCases]
-      x <- if (!is.matrix(x)) x[completeCases] else x[completeCases,,drop=FALSE]
-      if (length(attributes(formula)) > 0L) for (attributeName in names(attributes(formula))) {
-        if (attributeName == "dim") next
-        if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) next
-        attr(x, attributeName) <- attr(formula, attributeName)
+      x <- if (!is.matrix(x)) {
+        x[completeCases]
+      } else {
+        x[completeCases, , drop = FALSE]
       }
-      if (!is.null(weights)) weights <- weights[completeCases]
+      if (length(attributes(formula)) > 0L) {
+        for (attributeName in names(attributes(formula))) {
+          if (attributeName == "dim") {
+            next
+          }
+          if (attributeName == "dimnames" && !identical(dim(formula), dim(x))) {
+            next
+          }
+          attr(x, attributeName) <- attr(formula, attributeName)
+        }
+      }
+      if (!is.null(weights)) {
+        weights <- weights[completeCases]
+      }
       if (!is.null(offset)) offset <- offset[completeCases]
     }
   } else {
-    stop("unrecognized 'formula' type; must be coercible to numeric or a valid formula object")
+    stop(
+      "unrecognized 'formula' type; must be coercible to numeric or a valid formula object"
+    )
   }
-  
-  if (is.vector(x)) x <- as.matrix(x)
-  if (is.data.frame(x)) x <- makeModelMatrix(x)
+
+  if (is.vector(x)) {
+    x <- as.matrix(x)
+  }
+  if (is.data.frame(x)) {
+    x <- makeModelMatrix(x)
+  }
 
   x.test <- NULL
-  if (!testIsMissing && !is.null(test))
+  if (!testIsMissing && !is.null(test)) {
     x.test <- validateXTest(test, x)
-  
+  }
+
   if (!is.null(x.test)) {
     if (testOffsetIsMissing) {
       ## default is offset.test = offset
@@ -403,7 +603,11 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
         offset.test <- rep_len(offset[1L], nrow(x.test))
         testUsesRegularOffset <- TRUE
       } else if (identical(offsetGivenAsScalar, FALSE)) {
-        if (nrow(x.test) != length(y)) stop("vectored 'offset' cannot be directly applied to test data of unequal length")
+        if (nrow(x.test) != length(y)) {
+          stop(
+            "vectored 'offset' cannot be directly applied to test data of unequal length"
+          )
+        }
         offset.test <- offset
         testUsesRegularOffset <- TRUE
       }
@@ -411,11 +615,13 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       #environment(getTestOffset) <- sys.frame(sys.nframe())
       #testOffsetInfo <- getTestOffset()
       testOffsetInfo <- eval(getTestOffset)
-      
+
       offset.test <- testOffsetInfo$offset.test
       testUsesRegularOffset <- testOffsetInfo$testUsesRegularOffset
-      
-      if (!is.null(offset.test)) offset.test <- rep_len(offset.test, nrow(x.test))
+
+      if (!is.null(offset.test)) {
+        offset.test <- rep_len(offset.test, nrow(x.test))
+      }
     }
   } else {
     if (testOffsetIsMissing) offset.test <- NULL
@@ -424,7 +630,9 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
   weights.test <- NULL
   if (!is.null(x.test) && !is.null(matchedCall$weights)) {
     if (!is.formula(formula)) {
-      warning("'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data")
+      warning(
+        "'weights' are ignored for test data when model is not specified as a formula; this only impacts extracting samples from the posterior predictive distribution of the test data"
+      )
     } else {
       testFormula <- formula
       lhs <- testFormula[[2L]]
@@ -434,7 +642,10 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       environment(testFormula) <- environment(formula)
       modelFrameCall$formula <- testFormula
       modelFrameCall$data <- test
-      try_result <- tryCatch(testFrame <- eval(modelFrameCall, parent.frame()), error = function(e) e)
+      try_result <- tryCatch(
+        testFrame <- eval(modelFrameCall, parent.frame()),
+        error = function(e) e
+      )
       if (inherits(try_result, "error")) {
         warning("weights specified but not found in test data - ignoring")
       } else {
@@ -442,46 +653,81 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
       }
     }
   }
-  
+
   # missingness is a predictor-only feature: rules route NAs in x, but the
   # response side must be complete. In a sparse x, NAs live only among the
   # stored entries and implicit zeros are observed values, so the checks
   # work off the slots without densifying.
-  if (anyNA(y)) stop("response contains missing values")
+  if (anyNA(y)) {
+    stop("response contains missing values")
+  }
   sparseAllMissingCheck <- function(x.sparse) {
     columnNnz <- diff(x.sparse@p)
-    columnNumNA <- vapply(seq_len(ncol(x.sparse)), function(j)
-      sum(is.na(x.sparse@x[seq.int(x.sparse@p[j] + 1L, length.out = columnNnz[j])])),
-      0L)
-    if (any(columnNnz == nrow(x.sparse) & columnNumNA == nrow(x.sparse)))
+    columnNumNA <- vapply(
+      seq_len(ncol(x.sparse)),
+      function(j) {
+        sum(is.na(x.sparse@x[seq.int(
+          x.sparse@p[j] + 1L,
+          length.out = columnNnz[j]
+        )]))
+      },
+      0L
+    )
+    if (any(columnNnz == nrow(x.sparse) & columnNumNA == nrow(x.sparse))) {
       stop("predictor columns cannot be entirely missing")
+    }
   }
   if (is.matrix(x)) {
     xHasNA <- anyNA(x)
-    if (xHasNA && any(colSums(!is.na(x)) == 0L))
+    if (xHasNA && any(colSums(!is.na(x)) == 0L)) {
       stop("predictor columns cannot be entirely missing")
+    }
   } else if (inherits(x, "dbartsMixedMatrix")) {
     xHasNA <- (!is.null(x$dense) && anyNA(x$dense)) || anyNA(x$sparse@x)
     if (xHasNA) {
-      if (!is.null(x$dense) && any(colSums(!is.na(x$dense)) == 0L))
+      if (!is.null(x$dense) && any(colSums(!is.na(x$dense)) == 0L)) {
         stop("predictor columns cannot be entirely missing")
+      }
       sparseAllMissingCheck(x$sparse)
     }
   } else {
     xHasNA <- anyNA(x@x)
     if (xHasNA) sparseAllMissingCheck(x)
   }
-  if (!is.null(offset) && anyNA(offset)) stop("'offset' contains missing values")
-  if (!is.null(offset.test) && anyNA(offset.test)) stop("'offset.test' contains missing values")
+  if (!is.null(offset) && anyNA(offset)) {
+    stop("'offset' contains missing values")
+  }
+  if (!is.null(offset.test) && anyNA(offset.test)) {
+    stop("'offset.test' contains missing values")
+  }
   if (missing == "error") {
-    if (xHasNA)
-      stop("predictors contain missing values; use missing = \"incorporate\" to model them")
-    if (!is.null(x.test) && anyNA(x.test))
-      stop("test predictors contain missing values; use missing = \"incorporate\" to model them")
+    if (xHasNA) {
+      stop(
+        "predictors contain missing values; use missing = \"incorporate\" to model them"
+      )
+    }
+    if (!is.null(x.test) && anyNA(x.test)) {
+      stop(
+        "test predictors contain missing values; use missing = \"incorporate\" to model them"
+      )
+    }
   }
 
-  result <- methods::new("dbartsData", modelMatrices = namedList(y, x, x.test, weights, weights.test, offset, offset.test, testUsesRegularOffset), n.cuts = NA_integer_, sigma = NA_real_)
+  result <- methods::new(
+    "dbartsData",
+    modelMatrices = namedList(
+      y,
+      x,
+      x.test,
+      weights,
+      weights.test,
+      offset,
+      offset.test,
+      testUsesRegularOffset
+    ),
+    n.cuts = NA_integer_,
+    sigma = NA_real_
+  )
   result@missing <- missing
   result
 }
-

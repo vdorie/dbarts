@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -25,15 +28,27 @@ y <- testData$y
 g <- factor(testData$g)
 
 fit1 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 3L, n.threads = 2L, verbose = FALSE,
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 3L,
+  n.threads = 2L,
+  verbose = FALSE,
   seed = 0L
 )
 fit2 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-  n.trees = 3L, n.threads = 2L, verbose = FALSE,
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 2L,
+  n.trees = 3L,
+  n.threads = 2L,
+  verbose = FALSE,
   seed = 0L
 )
 
@@ -47,16 +62,28 @@ expect_true(any(fit1$yhat.train[1L, , ] != fit1$yhat.train[2L, , ]))
 # single-chain runs draw through R's generator and reproduce under set.seed
 set.seed(0L)
 fit3 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-  n.trees = 3L, n.threads = 1L, verbose = FALSE
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE
 )
 
 set.seed(0L)
 fit4 <- dbarts::rbart_vi(
-  y ~ x, group.by = g,
-  n.samples = 5L, n.burn = 0L, n.thin = 1L, n.chains = 1L,
-  n.trees = 3L, n.threads = 1L, verbose = FALSE
+  y ~ x,
+  group.by = g,
+  n.samples = 5L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE
 )
 
 expect_equal(fit3$yhat.train, fit4$yhat.train)
@@ -76,9 +103,15 @@ df$g <- testData$g
 
 set.seed(99L)
 rbartFit <- dbarts::rbart_vi(
-  y ~ . - g, df, group.by = g,
-  n.samples = 1L, n.burn = 5L, n.thin = 1L, n.chains = 1L,
-  n.trees = 25L, n.threads = 1L,
+  y ~ . - g,
+  df,
+  group.by = g,
+  n.samples = 1L,
+  n.burn = 5L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 25L,
+  n.threads = 1L,
   verbose = FALSE
 )
 
@@ -87,12 +120,14 @@ rbartFit <- dbarts::rbart_vi(
 expect_equal(
   as.numeric(rbartFit$ranef),
   c(
-    0.444899903844776, 0.0123115488354272, -0.867962446265253,
-    -0.2671481965021, 1.62505829754345
+    0.444899903844776,
+    0.0123115488354272,
+    -0.867962446265253,
+    -0.2671481965021,
+    1.62505829754345
   )
 )
 
 rm(rbartFit, df)
 
 rm(testData)
-

@@ -20,17 +20,27 @@ data.wide <- dbartsData(y ~ g + h + z, df)
 expect_equal(data.wide@varTypes, c(1L, 1L, 0L))
 expect_equal(length(attr(data.wide@x, "factor.levels")[[1L]]), 70L)
 
-control <- dbartsControl(n.chains = 2L, n.threads = 1L, n.trees = 50L,
-                         n.samples = 60L, keepTrees = TRUE,
-                         updateState = FALSE)
-sampler <- dbarts(y ~ g + h + z, df, test = df[seq_len(50L), ],
-                  control = control, factors = "categorical")
+control <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 50L,
+  n.samples = 60L,
+  keepTrees = TRUE,
+  updateState = FALSE
+)
+sampler <- dbarts(
+  y ~ g + h + z,
+  df,
+  test = df[seq_len(50L), ],
+  control = control,
+  factors = "categorical"
+)
 samples <- sampler$run(400L, 60L)
 
 # subset splits over 70 levels recover the signal
-fits <- rowMeans(samples$train[, , 1L]) - 0.5 * df$z
+fits <- rowMeans(samples$train[,, 1L]) - 0.5 * df$z
 contrast <- mean(fits[as.integer(df$g) %% 3L == 0L]) -
-            mean(fits[as.integer(df$g) %% 3L != 0L])
+  mean(fits[as.integer(df$g) %% 3L != 0L])
 expect_true(abs(contrast - 2) < 0.4)
 
 # getTrees: a wide rule's value is NA and its directions string covers the
@@ -46,8 +56,10 @@ expect_true(all(nchar(trees$directions[isRule.g]) == 70L))
 expect_true(all(nchar(trees$directions[isRule.h]) == 60L))
 expect_true(all(is.na(trees$directions[trees$var %in% c(-1L, 3L)])))
 # every mask leaves at least one observed level on each side
-expect_true(all(grepl("L", trees$directions[isRule.g]) &
-                grepl("R", trees$directions[isRule.g])))
+expect_true(all(
+  grepl("L", trees$directions[isRule.g]) &
+    grepl("R", trees$directions[isRule.g])
+))
 
 # the decode matches the engine's routing: at a categorical root split the
 # left child's n counts the training rows whose level decodes to L
@@ -66,10 +78,16 @@ expect_true(max(abs(predictions - samples$test)) < 1e-10)
 # the state round-trips bitwise, mask channels included
 invisible(sampler$storeState())
 state <- sampler$state
-expect_true(all(sapply(state, function(chain)
-  "tree.masks" %in% names(chain) && length(chain[["tree.masks"]]) > 0L)))
-sampler2 <- dbarts(y ~ g + h + z, df, test = df[seq_len(50L), ],
-                   control = control, factors = "categorical")
+expect_true(all(sapply(state, function(chain) {
+  "tree.masks" %in% names(chain) && length(chain[["tree.masks"]]) > 0L
+})))
+sampler2 <- dbarts(
+  y ~ g + h + z,
+  df,
+  test = df[seq_len(50L), ],
+  control = control,
+  factors = "categorical"
+)
 sampler2$setState(state)
 continued1 <- sampler$run(0L, 10L)
 continued2 <- sampler2$run(0L, 10L)
@@ -83,8 +101,12 @@ dev.off()
 # missing values compose: the NA pseudo-category routes like any level
 df.na <- df
 df.na$g[seq_len(70L)] <- NA
-sampler.na <- dbarts(y ~ g + h + z, df.na, control = control,
-                     factors = "categorical")
+sampler.na <- dbarts(
+  y ~ g + h + z,
+  df.na,
+  control = control,
+  factors = "categorical"
+)
 samples.na <- sampler.na$run(50L, 10L)
 expect_true(all(is.finite(samples.na$sigma)))
 trees.na <- sampler.na$getTrees()
@@ -93,7 +115,33 @@ naRules.g <- trees.na$var == 1L & !is.na(trees.na$missing)
 expect_true(any(naRules.g))
 expect_true(all(trees.na$missing[naRules.g] %in% c("L", "R")))
 
-rm(sampler, sampler2, sampler.na, samples, samples.na, continued1,
-   continued2, state, trees, trees.na, predictions, fits, contrast, roots.g,
-   isRule.g, isRule.h, naRules.g, data.wide, control, df, df.na, levels.g,
-   levels.h, signal.g, n, i, goesLeft, codes)
+rm(
+  sampler,
+  sampler2,
+  sampler.na,
+  samples,
+  samples.na,
+  continued1,
+  continued2,
+  state,
+  trees,
+  trees.na,
+  predictions,
+  fits,
+  contrast,
+  roots.g,
+  isRule.g,
+  isRule.h,
+  naRules.g,
+  data.wide,
+  control,
+  df,
+  df.na,
+  levels.g,
+  levels.h,
+  signal.g,
+  n,
+  i,
+  goesLeft,
+  codes
+)

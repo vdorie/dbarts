@@ -1,28 +1,54 @@
-xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
-                  method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
-                  n.reps = 40L, n.burn = c(200L, 150L, 50L), loss = c("rmse", "log", "mcr"),
-                  n.threads = dbarts::guessNumCores(),
-                  n.trees = 75L, k = NULL, power = 2, base = 0.95,
-                  split.probs = NULL, dart = FALSE, drop = TRUE,
-                  resid.prior = chisq, control = dbarts::dbartsControl(), sigma = NA_real_,
-                  seed = NA_integer_,
-                  factors = c("categorical", "indicators"),
-                  family = c("auto", "gaussian", "probit", "logistic"),
-                  missing = c("incorporate", "error"),
-                  node.prior = NULL)
-{
+xbart <- function(
+  formula,
+  data,
+  subset,
+  weights,
+  offset,
+  verbose = FALSE,
+  n.samples = 200L,
+  method = c("k-fold", "random subsample"),
+  n.test = c(5, 0.2),
+  n.reps = 40L,
+  n.burn = c(200L, 150L, 50L),
+  loss = c("rmse", "log", "mcr"),
+  n.threads = dbarts::guessNumCores(),
+  n.trees = 75L,
+  k = NULL,
+  power = 2,
+  base = 0.95,
+  split.probs = NULL,
+  dart = FALSE,
+  drop = TRUE,
+  resid.prior = chisq,
+  control = dbarts::dbartsControl(),
+  sigma = NA_real_,
+  seed = NA_integer_,
+  factors = c("categorical", "indicators"),
+  family = c("auto", "gaussian", "probit", "logistic"),
+  missing = c("incorporate", "error"),
+  node.prior = NULL
+) {
   matchedCall <- match.call()
 
   currEnv <- sys.frame(sys.nframe())
   evalEnv <- parent.frame(1L)
 
-  validateCall <- redirectCall(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), control, verbose, n.samples, sigma)
+  validateCall <- redirectCall(
+    matchedCall,
+    quoteInNamespace(validateArgumentsInEnvironment),
+    control,
+    verbose,
+    n.samples,
+    sigma
+  )
   validateCall <- addCallArgument(validateCall, 1L, currEnv)
   validateCall <- addCallArgument(validateCall, 2L, xbart)
   validateCall <- addCallArgument(validateCall, 3L, "xbart")
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
-  if (control@call != call("NA")[[1L]]) control@call <- matchedCall
+  if (control@call != call("NA")[[1L]]) {
+    control@call <- matchedCall
+  }
   control@n.chains <- 1L
   control@n.threads <- 1L
   control@keepTrees <- FALSE
@@ -30,10 +56,20 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@updateState <- FALSE
   control@verbose <- FALSE
 
-  dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData), formula, data, subset, weights, offset, factors, missing)
+  dataCall <- redirectCall(
+    matchedCall,
+    quoteInNamespace(dbartsData),
+    formula,
+    data,
+    subset,
+    weights,
+    offset,
+    factors,
+    missing
+  )
   data <- eval(dataCall, evalEnv)
   data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
-  data@sigma  <- sigma
+  data@sigma <- sigma
   attr(control, "n.cuts") <- NULL
 
   family <- match.arg(family)
@@ -50,28 +86,49 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   control@family <- family
   control@binary <- family != "gaussian"
 
-  if (is.na(data@sigma) && !control@binary)
+  if (is.na(data@sigma) && !control@binary) {
     data@sigma <- estimateSigmaFromLinearModel(data)
+  }
 
-  if (control@binary && is.null(matchedCall[["resid.prior"]]))
+  if (control@binary && is.null(matchedCall[["resid.prior"]])) {
     matchedCall[["resid.prior"]] <- quote(fixed(1))
+  }
 
-  if (!is.character(method) || method[1L] %not_in% eval(formals(xbart)$method))
-    stop("method must be in '", paste0(eval(formals(xbart)$method), collapse = "', '"), "'")
+  if (
+    !is.character(method) || method[1L] %not_in% eval(formals(xbart)$method)
+  ) {
+    stop(
+      "method must be in '",
+      paste0(eval(formals(xbart)$method), collapse = "', '"),
+      "'"
+    )
+  }
   method <- method[1L]
-  if (!is.null(matchedCall$method) && is.null(matchedCall$n.test))
-    n.test <- eval(formals(xbart)$n.test)[match(method, eval(formals(xbart)$method))]
+  if (!is.null(matchedCall$method) && is.null(matchedCall$n.test)) {
+    n.test <- eval(formals(xbart)$n.test)[match(
+      method,
+      eval(formals(xbart)$method)
+    )]
+  }
   n.test <- n.test[1L]
 
   if (is.null(matchedCall$loss)) {
     loss <- loss[if (!control@binary) 1L else 2L]
   } else if (is.function(loss)) {
-    if (length(formals(loss)) != 3L) stop("supplied loss function must take exactly three arguments")
+    if (length(formals(loss)) != 3L) {
+      stop("supplied loss function must take exactly three arguments")
+    }
     loss <- list(loss, evalEnv)
   } else if (is.list(loss)) {
-    if (!is.function(loss[[1L]])) stop("first member of loss-list must be a function")
-    if (length(formals(loss[[1L]])) != 3L) stop("supplied loss function must take exactly three arguments")
-    if (!is.environment(loss[[2L]])) stop("second member of loss-list must be an environment")
+    if (!is.function(loss[[1L]])) {
+      stop("first member of loss-list must be a function")
+    }
+    if (length(formals(loss[[1L]])) != 3L) {
+      stop("supplied loss function must take exactly three arguments")
+    }
+    if (!is.environment(loss[[2L]])) {
+      stop("second member of loss-list must be an environment")
+    }
   }
 
   if (is.null(matchedCall$n.trees) && "n.trees" %not_in% names(matchedCall)) {
@@ -79,8 +136,9 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   } else {
     n.trees <- coerceOrError(n.trees, "integer")
   }
-  if (anyNA(n.trees) || any(n.trees <= 0L))
+  if (anyNA(n.trees) || any(n.trees <= 0L)) {
     stop("'n.trees' must contain only positive integers")
+  }
 
   # a supplied node.prior contributes the leaf model shape - normal(k), the
   # default, linear(columns, k), or gp(columns, k, ...), whose designated
@@ -92,29 +150,38 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     priorEnv <- new.env(parent = evalEnv)
     priorEnv[["normal"]] <- getNamespace("dbarts")[["normal"]]
     priorEnv[["linear"]] <- getNamespace("dbarts")[["linear"]]
-    priorEnv[["gp"]]     <- getNamespace("dbarts")[["gp"]]
-    priorEnv[["chi"]]    <- getNamespace("dbarts")[["chi"]]
+    priorEnv[["gp"]] <- getNamespace("dbarts")[["gp"]]
+    priorEnv[["chi"]] <- getNamespace("dbarts")[["chi"]]
     node.spec <- eval(matchedCall[["node.prior"]], priorEnv)
-    if (is.function(node.spec)) node.spec <- node.spec()
-    if (!is.null(node.spec) && !is(node.spec, "dbartsNodePrior"))
+    if (is.function(node.spec)) {
+      node.spec <- node.spec()
+    }
+    if (!is.null(node.spec) && !is(node.spec, "dbartsNodePrior")) {
       stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
+    }
   }
 
   if (is.null(matchedCall[["k"]])) {
-    k <- if (!is.null(node.spec) && !is.null(node.spec@k)) node.spec@k
-         else eval(eval(quoteInNamespace(.kDefault)))
+    k <- if (!is.null(node.spec) && !is.null(node.spec@k)) {
+      node.spec@k
+    } else {
+      eval(eval(quoteInNamespace(.kDefault)))
+    }
   }
   kIsGrid <- is.numeric(k)
-  if (kIsGrid && (anyNA(k) || any(k <= 0)))
+  if (kIsGrid && (anyNA(k) || any(k <= 0))) {
     stop("'k' must contain only positive values")
+  }
 
-  power   <- coerceOrError(power, "numeric")
-  base    <- coerceOrError(base,  "numeric")
-  drop    <- coerceOrError(drop,  "logical")
-  if (anyNA(power) || any(power <= 0))
+  power <- coerceOrError(power, "numeric")
+  base <- coerceOrError(base, "numeric")
+  drop <- coerceOrError(drop, "logical")
+  if (anyNA(power) || any(power <= 0)) {
     stop("'power' must contain only positive values")
-  if (anyNA(base) || any(base <= 0 | base >= 1))
+  }
+  if (anyNA(base) || any(base <= 0 | base >= 1)) {
     stop("'base' must contain only values in (0, 1)")
+  }
 
   # the tree structure prior. DART (dart = TRUE or a dart() spec) samples its
   # own split probabilities; cgm takes a fixed split.probs. power and base are
@@ -124,8 +191,11 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   if (inherits(dart, "dbartsDartPrior")) {
     tree.prior <- dart
   } else if (isTRUE(dart)) {
-    if ("split.probs" %in% names(matchedCall))
-      stop("'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities")
+    if ("split.probs" %in% names(matchedCall)) {
+      stop(
+        "'split.probs' cannot be combined with 'dart': a DART prior samples its split probabilities"
+      )
+    }
     tree.prior <- dbartsPriors$dart(power[1L], base[1L])
   } else if (!isFALSE(dart)) {
     stop("'dart' must be TRUE, FALSE, or a prior created by dbartsPriors$dart")
@@ -141,23 +211,33 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     node.prior <- eval(node.prior)
   } else {
     kValue <- ifelse_3(is.numeric(k), is.list(k), k[1L], k[[1L]], k)
-    if (is.call(kValue)) kValue <- eval(kValue)
-    node.prior <- if (is(node.spec, "dbartsLinearPrior"))
+    if (is.call(kValue)) {
+      kValue <- eval(kValue)
+    }
+    node.prior <- if (is(node.spec, "dbartsLinearPrior")) {
       resolveLeafCovariates(linear(node.spec@columns, kValue), data)
-    else if (is(node.spec, "dbartsGPPrior"))
+    } else if (is(node.spec, "dbartsGPPrior")) {
       resolveLeafCovariates(
-        gp(node.spec@columns, kValue, node.spec@lengthscale,
-           node.spec@max.leaf.size),
-        data)
-    else
+        gp(
+          node.spec@columns,
+          kValue,
+          node.spec@lengthscale,
+          node.spec@max.leaf.size
+        ),
+        data
+      )
+    } else {
       normal(kValue)
+    }
   }
   # xbart cells always run a fixed k (the default 2, not the binary
   # hyperprior), as before the priors became objects
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, binary = FALSE)
 
   resid.prior <-
-    if (!is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)) {
+    if (
+      !is.null(matchedCall$resid.prior) || "resid.prior" %in% names(matchedCall)
+    ) {
       env <- new.env(parent = evalEnv)
       env[["chisq"]] <- getNamespace("dbarts")[["chisq"]]
       env[["fixed"]] <- getNamespace("dbarts")[["fixed"]]
@@ -165,43 +245,74 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
     } else {
       eval(formals(xbart)$resid.prior, getNamespace("dbarts"))()
     }
-  if (is.call(resid.prior)) resid.prior <- eval(resid.prior, getNamespace("dbarts"))
-  model <- new("dbartsModel", tree.prior, node.prior, node.hyperprior, resid.prior,
-               # the logistic scale is probit's default widened by the logistic
-               # latent's standard deviation, pi / sqrt(3)
-               node.scale = switch(control@family,
-                                   gaussian = 0.5,
-                                   probit   = 3.0,
-                                   logistic = pi * sqrt(3.0)))
+  if (is.call(resid.prior)) {
+    resid.prior <- eval(resid.prior, getNamespace("dbarts"))
+  }
+  model <- new(
+    "dbartsModel",
+    tree.prior,
+    node.prior,
+    node.hyperprior,
+    resid.prior,
+    # the logistic scale is probit's default widened by the logistic
+    # latent's standard deviation, pi / sqrt(3)
+    node.scale = switch(
+      control@family,
+      gaussian = 0.5,
+      probit = 3.0,
+      logistic = pi * sqrt(3.0)
+    )
+  )
 
   numObservations <- length(data@y)
   if (method == "k-fold") {
     n.test <- coerceOrError(n.test, "integer")
-    if (n.test < 2L || n.test > numObservations)
+    if (n.test < 2L || n.test > numObservations) {
       stop("for k-fold crossvalidation, n.test must be an integer in [2, N]")
+    }
     foldSizes <- rep.int(numObservations %/% n.test, n.test) +
-      rep.int(c(1L, 0L), c(numObservations %% n.test, n.test - numObservations %% n.test))
+      rep.int(
+        c(1L, 0L),
+        c(numObservations %% n.test, n.test - numObservations %% n.test)
+      )
     numTest <- 0L
   } else {
     n.test <- coerceOrError(n.test, "numeric")
-    if (n.test > 1) n.test <- n.test / numObservations
-    if (n.test <= 0 || n.test >= 1) stop("for random subsample crossvalidation, n.test must be in (0, 1)")
-    numTest <- max(1L, min(numObservations - 1L, as.integer(round(n.test * numObservations))))
+    if (n.test > 1) {
+      n.test <- n.test / numObservations
+    }
+    if (n.test <= 0 || n.test >= 1) {
+      stop("for random subsample crossvalidation, n.test must be in (0, 1)")
+    }
+    numTest <- max(
+      1L,
+      min(numObservations - 1L, as.integer(round(n.test * numObservations)))
+    )
     foldSizes <- integer()
   }
 
-  n.reps    <- coerceOrError(n.reps,    "integer")
-  if (is.na(n.reps) || n.reps <= 0L) stop("'n.reps' must be a positive integer")
-  n.burn    <- rep_len(coerceOrError(n.burn, "integer"), 3L)
-  if (anyNA(n.burn) || any(n.burn < 0L)) stop("'n.burn' must contain non-negative integers")
+  n.reps <- coerceOrError(n.reps, "integer")
+  if (is.na(n.reps) || n.reps <= 0L) {
+    stop("'n.reps' must be a positive integer")
+  }
+  n.burn <- rep_len(coerceOrError(n.burn, "integer"), 3L)
+  if (anyNA(n.burn) || any(n.burn < 0L)) {
+    stop("'n.burn' must contain non-negative integers")
+  }
   n.threads <- coerceOrError(n.threads, "integer")
-  if (is.na(n.threads) || n.threads <= 0L) stop("'n.threads' must be a positive integer")
+  if (is.na(n.threads) || n.threads <= 0L) {
+    stop("'n.threads' must be a positive integer")
+  }
 
   # DART holds its Dirichlet updates until the forest is likelihood-informed;
   # as the fitting functions default it to half the burn-in, default here to
   # half the fresh-sampler burn-in each cell runs
-  if (is(model@tree.prior, "dbartsDartPrior") && is.na(model@tree.prior@update.delay))
+  if (
+    is(model@tree.prior, "dbartsDartPrior") &&
+      is.na(model@tree.prior@update.delay)
+  ) {
     model@tree.prior@update.delay <- as.numeric(n.burn[1L] %/% 2L)
+  }
 
   lossFunction <- xbartLossFunction(loss, control)
 
@@ -214,15 +325,30 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   # Tree counts are fixed at a sampler's creation, so they vary slowest
   # and each count gets a fresh fit per split.
   kLength <- if (kIsGrid) length(k) else 1L
-  cells <- expand.grid(iBase = seq_along(base), iPower = seq_along(power),
-                       iK = seq_len(kLength), iTrees = seq_along(n.trees))
+  cells <- expand.grid(
+    iBase = seq_along(base),
+    iPower = seq_along(power),
+    iK = seq_len(kLength),
+    iTrees = seq_along(n.trees)
+  )
   numCells <- nrow(cells)
 
   spec <- namedList(
-    control, model, data, method, foldSizes, numTest,
-    n.samples = control@n.samples, n.burn, n.trees,
-    kValues = if (kIsGrid) k else NA_real_, kIsGrid, power, base,
-    cells, lossFunction
+    control,
+    model,
+    data,
+    method,
+    foldSizes,
+    numTest,
+    n.samples = control@n.samples,
+    n.burn,
+    n.trees,
+    kValues = if (kIsGrid) k else NA_real_,
+    kIsGrid,
+    power,
+    base,
+    cells,
+    lossFunction
   )
 
   numChunks <- max(1L, min(n.threads, n.reps))
@@ -232,31 +358,58 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   # caller's stream untouched; results are reproducible for a fixed
   # (seed, n.threads) pair, since the chunking changes with the latter
   if (!is.na(seed)) {
-    oldSeed <- if (exists(".Random.seed", globalenv())) get(".Random.seed", globalenv()) else NULL
+    oldSeed <- if (exists(".Random.seed", globalenv())) {
+      get(".Random.seed", globalenv())
+    } else {
+      NULL
+    }
     on.exit(
-      if (!is.null(oldSeed)) assign(".Random.seed", oldSeed, envir = globalenv())
-      else if (exists(".Random.seed", globalenv())) rm(".Random.seed", envir = globalenv()),
+      if (!is.null(oldSeed)) {
+        assign(".Random.seed", oldSeed, envir = globalenv())
+      } else if (exists(".Random.seed", globalenv())) {
+        rm(".Random.seed", envir = globalenv())
+      },
       add = TRUE
     )
     set.seed(seed)
   }
   chunkSeeds <- sample.int(.Machine$integer.max, numChunks)
 
-  if (verbose)
-    cat("running ", numCells, " parameter combination", if (numCells > 1L) "s" else "",
-        " x ", n.reps, " replication", if (n.reps > 1L) "s" else "",
-        " on ", numChunks, " worker", if (numChunks > 1L) "s" else "", "\n", sep = "")
+  if (verbose) {
+    cat(
+      "running ",
+      numCells,
+      " parameter combination",
+      if (numCells > 1L) "s" else "",
+      " x ",
+      n.reps,
+      " replication",
+      if (n.reps > 1L) "s" else "",
+      " on ",
+      numChunks,
+      " worker",
+      if (numChunks > 1L) "s" else "",
+      "\n",
+      sep = ""
+    )
+  }
 
   if (numChunks == 1L) {
-    chunkResults <- list(xbartRunChunk(spec, chunkIndices[[1L]], chunkSeeds[1L]))
+    chunkResults <- list(xbartRunChunk(
+      spec,
+      chunkIndices[[1L]],
+      chunkSeeds[1L]
+    ))
   } else {
     cluster <- parallel::makeCluster(numChunks)
     on.exit(parallel::stopCluster(cluster), add = TRUE)
     # passing the namespace function itself serializes it by reference,
     # loading dbarts on the workers without shipping this frame
     chunkResults <- parallel::clusterMap(
-      cluster, xbartRunChunk,
-      repIndices = chunkIndices, chunkSeed = chunkSeeds,
+      cluster,
+      xbartRunChunk,
+      repIndices = chunkIndices,
+      chunkSeed = chunkSeeds,
       MoreArgs = list(spec = spec)
     )
   }
@@ -268,20 +421,31 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   dims <- c(n.reps, length(n.trees), kLength, length(power), length(base))
   repIndex <- rep(seq_len(n.reps), each = numCells)
   cellIndex <- rep.int(seq_len(numCells), n.reps)
-  linearIndex <- repIndex + n.reps * (
-    (cells$iTrees[cellIndex] - 1L) + length(n.trees) * (
-      (cells$iK[cellIndex] - 1L) + kLength * (
-        (cells$iPower[cellIndex] - 1L) + length(power) * (cells$iBase[cellIndex] - 1L))))
+  linearIndex <- repIndex +
+    n.reps *
+      ((cells$iTrees[cellIndex] - 1L) +
+        length(n.trees) *
+          ((cells$iK[cellIndex] - 1L) +
+            kLength *
+              ((cells$iPower[cellIndex] - 1L) +
+                length(power) * (cells$iBase[cellIndex] - 1L))))
   result <- array(NA_real_, c(dims, numResults))
   cellCount <- prod(dims)
-  for (i in seq_len(numResults))
+  for (i in seq_len(numResults)) {
     result[linearIndex + (i - 1L) * cellCount] <- lossValues[, i]
+  }
 
   varNames <- c("n.trees", "k", "power", "base")
   dimIncluded <- c(
     TRUE,
     if (drop) length(n.trees) > 1L else TRUE,
-    if (!kIsGrid) FALSE else if (drop) length(k) > 1L else TRUE,
+    if (!kIsGrid) {
+      FALSE
+    } else if (drop) {
+      length(k) > 1L
+    } else {
+      TRUE
+    },
     if (drop) length(power) > 1L else TRUE,
     if (drop) length(base) > 1L else TRUE,
     numResults > 1L
@@ -292,11 +456,16 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   } else {
     dim(result) <- newDims
     dimNames <- vector("list", length(newDims))
-    names(dimNames) <- c("rep", varNames[dimIncluded[2L:5L]],
-                         if (numResults > 1L) "loss")
+    names(dimNames) <- c(
+      "rep",
+      varNames[dimIncluded[2L:5L]],
+      if (numResults > 1L) "loss"
+    )
     for (varName in varNames[dimIncluded[2L:5L]]) {
       x <- get(varName)
-      dimNames[[varName]] <- as.character(if (is.double(x)) signif(x, 2L) else x)
+      dimNames[[varName]] <- as.character(
+        if (is.double(x)) signif(x, 2L) else x
+      )
     }
     dimnames(result) <- dimNames
   }
@@ -308,41 +477,54 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
 ## testSamples is numTestObservations x numSamples, on the latent scale for
 ## binary responses. The built-in binary losses transform by the family's
 ## link.
-xbartLossFunction <- function(loss, control)
-{
+xbartLossFunction <- function(loss, control) {
   if (is.list(loss)) {
     result <- loss[[1L]]
     environment(result) <- loss[[2L]]
     return(result)
   }
 
-  if (!is.character(loss) || loss[1L] %not_in% c("rmse", "log", "mcr"))
+  if (!is.character(loss) || loss[1L] %not_in% c("rmse", "log", "mcr")) {
     stop("loss must be in 'rmse', 'log', 'mcr', or a function")
+  }
   loss <- loss[1L]
-  if (loss %in% c("log", "mcr") && !control@binary)
+  if (loss %in% c("log", "mcr") && !control@binary) {
     stop("loss '", loss, "' requires a binary response")
+  }
 
   probFromLatent <- if (identical(control@family, "logistic")) plogis else pnorm
 
-  switch(loss,
+  switch(
+    loss,
     rmse = function(y.test, testSamples, weights) {
       y.test.hat <- rowMeans(testSamples)
-      if (is.null(weights))
+      if (is.null(weights)) {
         sqrt(mean((y.test - y.test.hat)^2))
-      else
+      } else {
         sqrt(sum(weights * (y.test - y.test.hat)^2) / sum(weights))
+      }
     },
     log = function(y.test, testSamples, weights) {
       p.test <- rowMeans(probFromLatent(testSamples))
       logLikelihood <- ifelse(y.test > 0, log(p.test), log1p(-p.test))
-      if (is.null(weights)) -mean(logLikelihood)
-      else -sum(weights * logLikelihood) / sum(weights)
+      if (is.null(weights)) {
+        -mean(logLikelihood)
+      } else {
+        -sum(weights * logLikelihood) / sum(weights)
+      }
     },
     mcr = function(y.test, testSamples, weights) {
-      misclassified <- as.numeric(rowMeans(probFromLatent(testSamples)) > 0.5) != y.test
-      if (is.null(weights)) mean(misclassified)
-      else sum(weights * misclassified) / sum(weights)
-    })
+      misclassified <- as.numeric(
+        rowMeans(probFromLatent(testSamples)) > 0.5
+      ) !=
+        y.test
+      if (is.null(weights)) {
+        mean(misclassified)
+      } else {
+        sum(weights * misclassified) / sum(weights)
+      }
+    }
+  )
 }
 
 ## One worker's share of the replications. The predictor store (cuts +
@@ -354,8 +536,7 @@ xbartLossFunction <- function(loss, control)
 ## training data is unchanged. Chains never carry over between splits, whose
 ## held-out rows the previous training set contained; n.burn[3] is unused.
 ## Returns a (reps x cells) x numResults matrix, cells in spec$cells order.
-xbartRunChunk <- function(spec, repIndices, chunkSeed)
-{
+xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   set.seed(chunkSeed)
 
   data <- spec$data
@@ -371,9 +552,12 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
     result <- spec$model
     result@tree.prior@power <- spec$power[cells$iPower[cell]]
     result@tree.prior@base <- spec$base[cells$iBase[cell]]
-    if (spec$kIsGrid)
-      result@node.hyperprior <- new("dbartsFixedHyperprior",
-                                    k = spec$kValues[cells$iK[cell]])
+    if (spec$kIsGrid) {
+      result@node.hyperprior <- new(
+        "dbartsFixedHyperprior",
+        k = spec$kValues[cells$iK[cell]]
+      )
+    }
     result
   }
 
@@ -393,12 +577,20 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
     cellControl <- NULL
     currentTrees <- NA_integer_
     for (cell in seq_len(numCells)) {
-      if (is.null(sampler) || spec$n.trees[cells$iTrees[cell]] != currentTrees) {
+      if (
+        is.null(sampler) || spec$n.trees[cells$iTrees[cell]] != currentTrees
+      ) {
         cellControl <- spec$control
         cellControl@n.trees <- spec$n.trees[cells$iTrees[cell]]
-        sampler <- bartcoreSamplerFromHandle(handle, cellControl,
-                                             cellModel(cell), data,
-                                             trainRows, testRows, family)
+        sampler <- bartcoreSamplerFromHandle(
+          handle,
+          cellControl,
+          cellModel(cell),
+          data,
+          trainRows,
+          testRows,
+          family
+        )
         currentTrees <- spec$n.trees[cells$iTrees[cell]]
         numBurnIn <- spec$n.burn[1L]
       } else {
@@ -409,15 +601,20 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
       samples <- bartcoreRun(sampler, numBurnIn, spec$n.samples)
       lossValue <- spec$lossFunction(y.test, samples$test, weights.test)
 
-      if (!is.numeric(lossValue) || length(lossValue) == 0L || anyNA(lossValue))
+      if (
+        !is.numeric(lossValue) || length(lossValue) == 0L || anyNA(lossValue)
+      ) {
         stop("loss function must return non-missing numeric values")
-      if (is.null(numLossResults))
+      }
+      if (is.null(numLossResults)) {
         numLossResults <<- length(lossValue)
-      else if (length(lossValue) != numLossResults)
+      } else if (length(lossValue) != numLossResults) {
         stop("loss function must always return the same number of values")
+      }
 
-      if (is.null(lossValues))
+      if (is.null(lossValues)) {
         lossValues <- matrix(0.0, numCells, numLossResults)
+      }
       lossValues[cell, ] <- as.numeric(lossValue)
     }
     lossValues
@@ -430,7 +627,9 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed)
       repLoss <- NULL
       foldOffset <- 0L
       for (fold in seq_along(spec$foldSizes)) {
-        testRows <- sort(permutation[foldOffset + seq_len(spec$foldSizes[fold])])
+        testRows <- sort(permutation[
+          foldOffset + seq_len(spec$foldSizes[fold])
+        ])
         foldOffset <- foldOffset + spec$foldSizes[fold]
         foldLoss <- sweepCells(testRows)
         repLoss <- if (is.null(repLoss)) foldLoss else repLoss + foldLoss

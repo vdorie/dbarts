@@ -244,7 +244,9 @@ for (trial in 1:30) {
   trees <- sampler$getTrees() # live trees, all chains
   expect_false(any(trees$var == -1 & trees$n == 0)) # no empty leaf, any chain
 
-  if (any(!inst)) anyRolledBack <- TRUE
+  if (any(!inst)) {
+    anyRolledBack <- TRUE
+  }
 
   invisible(sampler$run(0L, 1L)) # reshape trees before the next update
 }

@@ -6,21 +6,21 @@ unpack <- dbarts:::unpack
 
 # test that multiple assignment works with missing arguments
 rh <- c(2, 5)
-massign[a,b] <- rh
+massign[a, b] <- rh
 expect_equal(a, 2)
 expect_equal(b, 5)
 rm(a, b)
 
-massign[a,] <- rh
+massign[a, ] <- rh
 expect_equal(a, 2)
 expect_error(b)
 rm(a)
-massign[,b] <- rh
+massign[, b] <- rh
 expect_equal(b, 5)
 expect_error(a)
 rm(b)
 
-expect_warning(massign[a = b,] <- rh)
+expect_warning(massign[a = b, ] <- rh)
 rm(a)
 
 rm(rh)
@@ -33,10 +33,10 @@ expect_equal(c, 5)
 expect_error(b)
 rm(a, c)
 
-massign[c = a,] <- rh
+massign[c = a, ] <- rh
 expect_equal(c, 2)
 
-expect_error(massign[c = d,] <- rh)
+expect_error(massign[c = d, ] <- rh)
 
 massign[c = a, d = a] <- rh
 expect_equal(c, 2)
@@ -74,4 +74,3 @@ rm(a)
 rm(rh)
 
 rm(list = c("[<-.named_lval", "unpack", "[<-.lval", "massign"))
-

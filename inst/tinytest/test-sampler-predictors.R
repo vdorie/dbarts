@@ -1,9 +1,13 @@
 source(system.file("common", "hillData.R", package = "dbarts"), local = TRUE)
 
 control <- dbarts::dbartsControl(
-  n.burn = 0L, n.samples = 1L, n.thin = 5L,
-  n.chains = 1L, n.threads = 1L,
-  updateState = FALSE, verbose = FALSE,
+  n.burn = 0L,
+  n.samples = 1L,
+  n.thin = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE,
+  verbose = FALSE,
 )
 
 # test that dbarts sampler updates predictors correctly
@@ -21,13 +25,13 @@ sampler$setOffset(NULL)
 expect_null(sampler$data@offset)
 
 invisible(sampler$setPredictor(numeric(n), 2L))
-expect_equal(as.numeric(sampler$data@x[,2L]), numeric(n))
+expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
 
 invisible(sampler$setPredictor(x = z, column = 2L))
-expect_equal(as.numeric(sampler$data@x[,2L]), z)
+expect_equal(as.numeric(sampler$data@x[, 2L]), z)
 
 sampler$setTestPredictor(x = 1 - z, column = 2L)
-expect_equal(as.numeric(sampler$data@x.test[,2L]), 1 - z)
+expect_equal(as.numeric(sampler$data@x.test[, 2L]), 1 - z)
 
 sampler$setTestPredictor(NULL)
 expect_null(sampler$data@x.test)
@@ -44,7 +48,6 @@ invisible(sampler$setPredictor(new.data))
 expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
 
 rm(new.data, new.z, new.x, z, n, sampler)
-
 
 
 # test that dbarts sampler shallow/deep copies
@@ -64,9 +67,9 @@ gc(verbose = FALSE)
 deepCopy <- sampler$copy(shallow = FALSE)
 
 invisible(sampler$setPredictor(1 - train$z, 2L))
-expect_false(all(sampler$data@x[,2L] == deepCopy$data@x[,2L]))
+expect_false(all(sampler$data@x[, 2L] == deepCopy$data@x[, 2L]))
 
-invisible(sampler$setPredictor(deepCopy$data@x[,2L], 2L))
+invisible(sampler$setPredictor(deepCopy$data@x[, 2L], 2L))
 expect_equal(sampler$data@x, deepCopy$data@x)
 
 rm(deepCopy, n, sampler)
@@ -75,35 +78,44 @@ rm(deepCopy, n, sampler)
 # a deep copy of a sampler with a stored state preserves the fitted trees and is
 # fully independent of the source (regression: copy() referenced removed state slots)
 stateControl <- dbarts::dbartsControl(
-  n.burn = 0L, n.samples = 1L, n.thin = 5L,
-  n.chains = 2L, n.threads = 1L,
-  updateState = TRUE, verbose = FALSE
+  n.burn = 0L,
+  n.samples = 1L,
+  n.thin = 5L,
+  n.chains = 2L,
+  n.threads = 1L,
+  updateState = TRUE,
+  verbose = FALSE
 )
 sampler <- dbarts::dbarts(y ~ x + z, train, control = stateControl)
 invisible(sampler$run(10L, 1L))
 
 stateCopy <- sampler$copy(shallow = FALSE)
-expect_equal(sampler$getTrees(), stateCopy$getTrees())          # trees carried over
+expect_equal(sampler$getTrees(), stateCopy$getTrees()) # trees carried over
 
 treesBefore <- sampler$getTrees()
-invisible(stateCopy$run(10L, 1L))                                # mutate only the copy
-expect_equal(sampler$getTrees(), treesBefore)                    # source unaffected
-expect_false(isTRUE(all.equal(stateCopy$getTrees(), treesBefore)))  # copy diverged
+invisible(stateCopy$run(10L, 1L)) # mutate only the copy
+expect_equal(sampler$getTrees(), treesBefore) # source unaffected
+expect_false(isTRUE(all.equal(stateCopy$getTrees(), treesBefore))) # copy diverged
 
 rm(stateControl, sampler, stateCopy, treesBefore)
 
 
 # the same, with keepTrees = TRUE, to exercise the savedTrees deep-copy branch
 keepControl <- dbarts::dbartsControl(
-  n.burn = 0L, n.samples = 3L, n.thin = 1L,
-  n.chains = 1L, n.threads = 1L,
-  keepTrees = TRUE, updateState = TRUE, verbose = FALSE
+  n.burn = 0L,
+  n.samples = 3L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  updateState = TRUE,
+  verbose = FALSE
 )
 sampler <- dbarts::dbarts(y ~ x + z, train, control = keepControl)
 invisible(sampler$run(5L, 3L))
 
 keepCopy <- sampler$copy(shallow = FALSE)
-expect_equal(sampler$getTrees(), keepCopy$getTrees())           # saved trees carried over
+expect_equal(sampler$getTrees(), keepCopy$getTrees()) # saved trees carried over
 
 rm(keepControl, sampler, keepCopy)
 
@@ -111,22 +123,23 @@ rm(keepControl, sampler, keepCopy)
 rm(test, train)
 
 
-
 # test that setPredictor with matrix specification doesn't change variables in parent frame
-x.train <- dbarts::makeModelMatrixFromDataFrame(data.frame(x = testData$x, z = testData$z))
+x.train <- dbarts::makeModelMatrixFromDataFrame(data.frame(
+  x = testData$x,
+  z = testData$z
+))
 y.train <- testData$y
 
 sampler <- dbarts::dbarts(x.train, y.train, control = control)
-  
+
 n <- testData$n
 z <- testData$z
-  
+
 invisible(sampler$setPredictor(numeric(n), 2L))
-expect_equal(as.numeric(sampler$data@x[,2L]), numeric(n))
-expect_equal(as.numeric(x.train[,2L]), z)
+expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
+expect_equal(as.numeric(x.train[, 2L]), z)
 
 rm(z, n, sampler, y.train, x.train)
-
 
 
 rm(testData)

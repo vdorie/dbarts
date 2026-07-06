@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that k-fold and random subsample are reproducible, roughly similar;
 # the driver draws its splits through R's generator, so the sampling kind
@@ -13,16 +16,25 @@ k <- c(4, 8)
 
 set.seed(0L)
 xval.kf <- dbarts::xbart(
-  x, y, method = "k-fold",
-  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+  x,
+  y,
+  method = "k-fold",
+  n.reps = 4L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  n.test = 5,
   k = k,
   n.threads = 1L
 )
 
 xval.rs <- dbarts::xbart(
-  x, y, method = "random subsample", 
-  n.reps = 20L, n.samples = 20L, n.burn = c(10L, 5L, 1L),
-  k = k, 
+  x,
+  y,
+  method = "random subsample",
+  n.reps = 20L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  k = k,
   n.threads = 1L
 )
 
@@ -45,17 +57,29 @@ y <- testData$y
 k <- c(4, 8)
 
 xval.1 <- dbarts::xbart(
-  x, y, method = "k-fold",
-  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+  x,
+  y,
+  method = "k-fold",
+  n.reps = 4L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  n.test = 5,
   k = k,
-  n.threads = 1L, seed = 0L
+  n.threads = 1L,
+  seed = 0L
 )
 
 xval.2 <- dbarts::xbart(
-  x, y, method = "k-fold",
-  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+  x,
+  y,
+  method = "k-fold",
+  n.reps = 4L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  n.test = 5,
   k = k,
-  n.threads = 1L, seed = 0L
+  n.threads = 1L,
+  seed = 0L
 )
 
 expect_true(all(!is.na(xval.1)))
@@ -63,17 +87,29 @@ expect_equal(dim(xval.1), c(4L, length(k)))
 expect_equal(xval.1, xval.2)
 
 xval.3 <- dbarts::xbart(
-  x, y, method = "k-fold",
-  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+  x,
+  y,
+  method = "k-fold",
+  n.reps = 4L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  n.test = 5,
   k = k,
-  n.threads = 2L, seed = 0L
+  n.threads = 2L,
+  seed = 0L
 )
 
 xval.4 <- dbarts::xbart(
-  x, y, method = "k-fold",
-  n.reps = 4L, n.samples = 20L, n.burn = c(10L, 5L, 1L), n.test = 5,
+  x,
+  y,
+  method = "k-fold",
+  n.reps = 4L,
+  n.samples = 20L,
+  n.burn = c(10L, 5L, 1L),
+  n.test = 5,
   k = k,
-  n.threads = 2L, seed = 0L
+  n.threads = 2L,
+  seed = 0L
 )
 
 expect_true(all(!is.na(xval.3)))
@@ -88,4 +124,3 @@ suppressWarnings(RNGkind(sample.kind = oldSampleKind))
 rm(oldSampleKind)
 
 rm(testData)
-

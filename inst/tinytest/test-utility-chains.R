@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that combine/uncombine chains and convert from/to bart style works correctly
 n.chains <- 3L
@@ -19,19 +22,22 @@ expect_equal(
   dimnames(dbartsSamples)
 )
 
-for (k in seq_len(n.chains))
-  expect_equal(t(bartSamples[k,,]), dbartsSamples[,,k])
+for (k in seq_len(n.chains)) {
+  expect_equal(t(bartSamples[k, , ]), dbartsSamples[,, k])
+}
 
 bartSamples.cc <- dbarts:::convertSamplesFromDbartsToBart(
-  dbartsSamples, n.chains, combineChains = TRUE
+  dbartsSamples,
+  n.chains,
+  combineChains = TRUE
 )
 expect_equal(dim(bartSamples.cc), c(n.chains * n.samples, n.obs))
 expect_equal(colnames(bartSamples.cc), dimnames(dbartsSamples)[[1L]])
 
 for (k in seq_len(n.chains)) {
   expect_equal(
-    bartSamples[k,,],
-    bartSamples.cc[seq_len(n.samples) + (k - 1L) * n.samples,]
+    bartSamples[k, , ],
+    bartSamples.cc[seq_len(n.samples) + (k - 1L) * n.samples, ]
   )
 }
 
@@ -48,7 +54,9 @@ expect_equal(
 )
 expect_equal(
   dbarts:::convertSamplesFromBartsToDbarts(
-    bartSamples.cc, n.chains, uncombineChains = TRUE
+    bartSamples.cc,
+    n.chains,
+    uncombineChains = TRUE
   ),
   dbartsSamples
 )
@@ -56,4 +64,3 @@ expect_equal(
 rm(k, bartSamples.cc, bartSamples, dbartsSamples, n.obs, n.samples, n.chains)
 
 rm(testData)
-

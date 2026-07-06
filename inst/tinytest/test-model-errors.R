@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 # test that non-prior, model arguments raise errors
 expect_error(
@@ -85,4 +88,3 @@ expect_error(
 )
 
 rm(testData)
-

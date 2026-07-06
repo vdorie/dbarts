@@ -1,4 +1,7 @@
-source(system.file("common", "friedmanData.R", package = "dbarts"), local = TRUE)
+source(
+  system.file("common", "friedmanData.R", package = "dbarts"),
+  local = TRUE
+)
 
 n.g <- 5L
 if (getRversion() >= "3.6.0") {
@@ -27,12 +30,17 @@ g <- factor(testData$g)
 set.seed(0)
 expect_inherits(
   dbarts::rbart_vi(
-    y ~ x, group.by = g,
-    n.samples = 7L, n.burn = 0L, n.thin = 1L, n.chains = 2L,
-    n.trees = 25L, n.threads = 2L, verbose = FALSE
+    y ~ x,
+    group.by = g,
+    n.samples = 7L,
+    n.burn = 0L,
+    n.thin = 1L,
+    n.chains = 2L,
+    n.trees = 25L,
+    n.threads = 2L,
+    verbose = FALSE
   ),
   "rbart"
 )
 
 rm(testData)
-

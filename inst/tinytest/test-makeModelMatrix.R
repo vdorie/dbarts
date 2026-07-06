@@ -1,8 +1,15 @@
 getTestDataFrame <- function() {
   set.seed(42)
-  df <- data.frame(iv = seq.int(10L), rv = runif(10),
-                   f = factor(sample(3L, 10L, TRUE), labels = c("a", "b", "c")))
-  df[[4L]] <- matrix(rbinom(20L, 3L, 0.5), 10L, dimnames = list(NULL, c("a", "b")))
+  df <- data.frame(
+    iv = seq.int(10L),
+    rv = runif(10),
+    f = factor(sample(3L, 10L, TRUE), labels = c("a", "b", "c"))
+  )
+  df[[4L]] <- matrix(
+    rbinom(20L, 3L, 0.5),
+    10L,
+    dimnames = list(NULL, c("a", "b"))
+  )
   df[[5L]] <- matrix(rnorm(20L), 10L, dimnames = list(NULL, c("a", "b")))
   names(df) <- c(names(df)[1L:3L], "im", "rm")
   df
@@ -17,15 +24,15 @@ expect_equal(
   colnames(mm),
   c("iv", "rv", "f.a", "f.b", "f.c", "im.a", "im.b", "rm.a", "rm.b")
 )
-expect_equal(mm[,"iv"], df$iv)
-expect_equal(mm[,"rv"], df$rv)
-expect_equal(mm[,"f.a"], ifelse(df$f == "a", 1L, 0L))
-expect_equal(mm[,"f.b"], ifelse(df$f == "b", 1L, 0L))
-expect_equal(mm[,"f.c"], ifelse(df$f == "c", 1L, 0L))
-expect_equal(mm[,"im.a"], df$im[,"a"])
-expect_equal(mm[,"im.b"], df$im[,"b"])
-expect_equal(mm[,"rm.a"], df$rm[,"a"])
-expect_equal(mm[,"rm.b"], df$rm[,"b"])
+expect_equal(mm[, "iv"], df$iv)
+expect_equal(mm[, "rv"], df$rv)
+expect_equal(mm[, "f.a"], ifelse(df$f == "a", 1L, 0L))
+expect_equal(mm[, "f.b"], ifelse(df$f == "b", 1L, 0L))
+expect_equal(mm[, "f.c"], ifelse(df$f == "c", 1L, 0L))
+expect_equal(mm[, "im.a"], df$im[, "a"])
+expect_equal(mm[, "im.b"], df$im[, "b"])
+expect_equal(mm[, "rm.a"], df$rm[, "a"])
+expect_equal(mm[, "rm.b"], df$rm[, "b"])
 
 rm(mm, df)
 
@@ -101,7 +108,7 @@ expect_equal(
 )
 
 df <- getTestDataFrame()
-df$im[,1L] <- rep(1L, 10L)
+df$im[, 1L] <- rep(1L, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df)
 expect_equal(ncol(mm), 8L)
 expect_equal(attr(mm, "drop")$im, c(TRUE, FALSE))
@@ -109,10 +116,11 @@ expect_equal(
   colnames(mm),
   c("iv", "rv", "f.a", "f.b", "f.c", "im.b", "rm.a", "rm.b")
 )
-expect_equal(as.double(mm[,7L:8L]), as.double(df$rm))
+expect_equal(as.double(mm[, 7L:8L]), as.double(df$rm))
 
 df <- getTestDataFrame()
-df$im[,1L] <- rep(1L, 10L); df$im[,2L] <- rep(2L, 10L)
+df$im[, 1L] <- rep(1L, 10L)
+df$im[, 2L] <- rep(2L, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df)
 expect_equal(ncol(mm), 7L)
 expect_equal(attr(mm, "drop")$im, c(TRUE, TRUE))
@@ -122,7 +130,7 @@ expect_equal(
 )
 
 df <- getTestDataFrame()
-df$rm[,2L] <- rep(pi, 10L)
+df$rm[, 2L] <- rep(pi, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df)
 expect_equal(ncol(mm), 8L)
 expect_equal(attr(mm, "drop")$rm, c(FALSE, TRUE))
@@ -130,7 +138,7 @@ expect_equal(
   colnames(mm),
   c("iv", "rv", "f.a", "f.b", "f.c", "im.a", "im.b", "rm.a")
 )
-expect_equal(as.integer(mm[,6L:7L]), as.integer(df$im))
+expect_equal(as.integer(mm[, 6L:7L]), as.integer(df$im))
 
 rm(mm, df)
 
@@ -140,12 +148,12 @@ df <- getTestDataFrame()
 df$iv <- rep(1L, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, FALSE)
 expect_equal(ncol(mm), 9L)
-expect_equal(mm[,"iv"], df$iv)
+expect_equal(mm[, "iv"], df$iv)
 
 df <- getTestDataFrame()
 df$rv <- rep(pi, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, FALSE)
-expect_equal(mm[,"rv"], df$rv)
+expect_equal(mm[, "rv"], df$rv)
 
 df <- getTestDataFrame()
 df$f <- factor(
@@ -153,19 +161,19 @@ df$f <- factor(
   labels = c("a", "b", "c")
 )[1L:10L]
 mm <- dbarts::makeModelMatrixFromDataFrame(df, FALSE)
-expect_equal(mm[,"f.a"], c(rep(1L, 5), rep(0L, 5)))
-expect_equal(mm[,"f.b"], c(rep(0L, 5), rep(1L, 5)))
-expect_equal(mm[,"f.c"], rep(0L, 10))
+expect_equal(mm[, "f.a"], c(rep(1L, 5), rep(0L, 5)))
+expect_equal(mm[, "f.b"], c(rep(0L, 5), rep(1L, 5)))
+expect_equal(mm[, "f.c"], rep(0L, 10))
 
 df <- getTestDataFrame()
-df$im[,1L] <- rep(1L, 10L)
+df$im[, 1L] <- rep(1L, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, FALSE)
-expect_equal(as.integer(mm[,6L:7L]), as.integer(df$im))
+expect_equal(as.integer(mm[, 6L:7L]), as.integer(df$im))
 
 df <- getTestDataFrame()
-df$rm[,2L] <- rep(pi, 10L)
+df$rm[, 2L] <- rep(pi, 10L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, FALSE)
-expect_equal(as.double(mm[,8L:9L]), as.double(df$rm))
+expect_equal(as.double(mm[, 8L:9L]), as.double(df$rm))
 
 rm(mm, df)
 
@@ -188,7 +196,8 @@ expect_equal(
   c("rv", "f.a", "f.b", "f.c", "im.a", "im.b", "rm.a", "rm.b")
 )
 
-drop$iv <- FALSE; drop$rv <- TRUE
+drop$iv <- FALSE
+drop$rv <- TRUE
 mm <- dbarts::makeModelMatrixFromDataFrame(df, drop)
 expect_equal(ncol(mm), 8L)
 expect_equal(
@@ -196,25 +205,28 @@ expect_equal(
   c("iv", "f.a", "f.b", "f.c", "im.a", "im.b", "rm.a", "rm.b")
 )
 
-drop$rv <- FALSE; drop$f <- c(1L, 0L, 1L)
+drop$rv <- FALSE
+drop$f <- c(1L, 0L, 1L)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, drop)
 expect_equal(ncol(mm), 7L)
 expect_equal(
   colnames(mm),
   c("iv", "rv", "f.c", "im.a", "im.b", "rm.a", "rm.b")
 )
-expect_equal(mm[,"f.c"], ifelse(df$f == "c", 1L, 0L))
+expect_equal(mm[, "f.c"], ifelse(df$f == "c", 1L, 0L))
 
-drop$f <- as.integer(table(df$f)); drop$im <- c(FALSE, TRUE)
+drop$f <- as.integer(table(df$f))
+drop$im <- c(FALSE, TRUE)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, drop)
 expect_equal(ncol(mm), 8L)
 expect_equal(
   colnames(mm),
   c("iv", "rv", "f.a", "f.b", "f.c", "im.a", "rm.a", "rm.b")
 )
-expect_equal(as.integer(mm[,"im.a"]), as.integer(df$im[,"a"]))
+expect_equal(as.integer(mm[, "im.a"]), as.integer(df$im[, "a"]))
 
-drop$im <- c(FALSE, FALSE); drop$rm <- c(TRUE, TRUE)
+drop$im <- c(FALSE, FALSE)
+drop$rm <- c(TRUE, TRUE)
 mm <- dbarts::makeModelMatrixFromDataFrame(df, drop)
 expect_equal(ncol(mm), 7L)
 expect_equal(
@@ -230,10 +242,10 @@ rm(getTestDataFrame)
 n <- 1000L
 if (getRversion() >= "3.6.0") {
   suppressWarnings(set.seed(
-      0L,
-      kind = "Mersenne-Twister",
-      normal.kind = "Inversion",
-      sample.kind = "Rounding"
+    0L,
+    kind = "Mersenne-Twister",
+    normal.kind = "Inversion",
+    sample.kind = "Rounding"
   ))
 } else {
   set.seed(0L, kind = "Mersenne-Twister", normal.kind = "Inversion")
@@ -255,20 +267,21 @@ drop <- attr(mm, "drop")
 expect_true(all(!is.null(drop)))
 expect_true(all(sapply(drop[sapply(drop, is.numeric)], sum) == n))
 
-factorCols <- which(sapply(mf, function(col) is.factor(col) || is.character(col)))
+factorCols <- which(sapply(mf, function(col) {
+  is.factor(col) || is.character(col)
+}))
 
 for (col in factorCols) {
-  col.table <- table(mf[,col])
-  col.name  <- colnames(mf)[col]
+  col.table <- table(mf[, col])
+  col.name <- colnames(mf)[col]
   col.nvals <- length(col.table)
-  
+
   expect_true(
-    sum(grepl(paste0("^", col.name, "\\."),
-    colnames(mm))) == (if (col.nvals > 2L) col.nvals else col.nvals - 1L)
+    sum(grepl(paste0("^", col.name, "\\."), colnames(mm))) ==
+      (if (col.nvals > 2L) col.nvals else col.nvals - 1L)
   )
   expect_true(all(drop[[col.name]] == col.table))
 }
 
 rm(col.nvals, col.name, col.table, col)
 rm(factorCols, drop, mm, mf, n)
-
