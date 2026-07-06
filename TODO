@@ -26,10 +26,18 @@ release
     reverse dependencies. Checked against 1.0-0: stan4bart 0.0-13 dev
     sources OK (the lockstep partner); bartMan/EBcoBART/funcml/glossa/
     nlfh/riAFTBART/voi OK (_R_CHECK_FORCE_SUGGESTS_=false); bartCause
-    FAILS 5 of 393 tests - hardcoded seeded expectations plus a
-    fixed-seed rng-semantics assertion (test-10-rng.R expects two
-    configs to differ; under 1.0-0 they draw identically) - REGENERATE
-    in a bartCause update and submit alongside; tidytreatment WARNS
+    UPDATE READY (branch dbarts-1.0 in ~/Repositories/bartCause,
+    unpushed): snapshots regenerated, test-10-rng.R rewritten to the
+    1.0-0 rng semantics, missing-response subsetting fixed, checks
+    Status OK - push and submit after dbarts is accepted. Decision
+    still open there: weighted BART propensity models now error
+    (weighted probit refused); route to family logistic or drop the
+    weights. Related: tmle's default SuperLearner wrappers pass unit
+    obsWeights into probit bart unconditionally - handled dbarts-side
+    by treating weights identically 1 as absent (6e1366b); genuinely
+    weighted tmle analyses lose the dbarts learners by design (the
+    ensemble falls back to weight-respecting learners); could notify
+    the tmle maintainers. tidytreatment WARNS
     (vignette loads the CRAN stan4bart binary = the documented ABI
     break, resolves with 0.0-13); bartXViz not checkable locally
     (needs its own gfortran runtime; R-level dbarts use only); the 12
@@ -74,7 +82,9 @@ usability
   weights + binary refusal fires at sampler creation in the bridge
     (good message, wrong layer): DONE, and extended. The refusal now lives
     in the R layer (dbarts.R, bridge backstops direct-API consumers) and is
-    split by family: probit is refused (no tractable weighted latent form),
+    split by family: probit is refused (no tractable weighted latent form)
+    except that weights identically 1 are treated as absent (6e1366b;
+    SuperLearner-style callers pass unit obsWeights unconditionally),
     logistic accepts positive-integer weights as observation counts (the
     Polya-Gamma latent PG(w, psi) is a sum of w PG(1, psi) draws), gaussian
     is unrestricted. See docs/design/weighted-logistic.md. Deferred there:
@@ -356,8 +366,14 @@ running on the bartcore branch, .lintr, air.toml, Authors@R modern)
     design documents); .github/workflows/pkgdown.yaml deploys to
     gh-pages on push. VINCENT: enable GitHub Pages (serve the gh-pages
     branch) once the first workflow run has pushed it.
-  enforce .lintr/air in CI or drop them: both configs exist but
-    nothing runs them, so they silently rot.
+  enforce .lintr/air in CI or drop them: DONE (2026-07-06, Vincent
+    chose enforce). The tree is air-formatted (bcf3318) and lintr is
+    at zero findings (afdbb26): layout linters ceded to air, name
+    styles extended to the existing conventions instead of renaming,
+    vignettes excluded as prose. .github/workflows/lint.yaml hard-
+    fails lintr (LINTR_ERROR_ON_LINT) and runs air format --check.
+    The enforcement pass found and fixed a real bug: both rbart_vi
+    seed restores assigned .Random.seed locally, a no-op (817fba6).
   optional, larger, taste-dependent: roxygen2 migration (hand-written
     Rd is complete and codoc-clean today; migration buys inline
     doc-next-to-code at the cost of a huge one-time diff);
