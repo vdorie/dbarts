@@ -8,6 +8,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include <external/Rinternals.h>
@@ -755,6 +756,16 @@ void enforceBinaryWeightPolicy(bartcore::ResponseFamily family,
                  "model for continuous weights");
 }
 
+// The post-creation half of the policy: weight changes on binary-response
+// samplers are refused outright, since probit never supports weights and
+// logistic weights enter the latent construction at creation.
+void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler) {
+  if (sampler.family() != bartcore::ResponseFamily::gaussian)
+    Rf_error("weights on a binary response cannot be set after creation: "
+             "probit does not support weights, and logistic weights "
+             "(observation counts) are fixed when the sampler is created");
+}
+
 // Raw training values of column j, when a dense source serves them: the
 // x matrix, or the mixed container's dense slice via the source map.
 const double* rawTrainingColumn(const ParsedData& data, size_t j) {
@@ -1026,6 +1037,34 @@ DataHandle& dataHandleFromExpression(SEXP ptrExpr) {
   return *handle;
 }
 
+// Roots a freshly allocated result column in its protected container and
+// hands it back, so run-result assembly needs no per-column PROTECT.
+SEXP installResult(SEXP resultExpr, int slot, SEXP value) {
+  SET_VECTOR_ELT(resultExpr, slot, value);
+  return value;
+}
+
+// Shared parse/validate prologue of the two sampler-creation paths: fills
+// the parsed views from the specification objects, resolves the response
+// family, applies the fixed-sigma variance semantics, and enforces the
+// binary weight policy at creation.
+bartcore::ResponseFamily parseSamplerSpecification(
+    SEXP controlExpr, SEXP modelExpr, SEXP dataExpr, const char* familyName,
+    ParsedControl& control, ParsedModel& model, ParsedData& data,
+    bool& sigmaIsFixed) {
+  parseControl(control, controlExpr);
+  parseData(data, dataExpr);
+  parseModel(model, modelExpr, data.numPredictors);
+
+  bartcore::ResponseFamily family = resolveFamily(control, familyName);
+  sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
+  // documented semantics: fixed(value) holds the residual variance at
+  // value, so sigma enters as sqrt(value) and is never drawn
+  if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
+  return family;
+}
+
 } // namespace
 
 namespace bartcore_bridge {
@@ -1047,20 +1086,11 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   ParsedControl control;
   ParsedData data;
   ParsedModel model;
-
-  parseControl(control, controlExpr);
-  parseData(data, dataExpr);
-  parseModel(model, modelExpr, data.numPredictors);
-
-  bartcore::ResponseFamily family = resolveFamily(control, familyName);
+  bool sigmaIsFixed;
+  bartcore::ResponseFamily family = parseSamplerSpecification(
+    controlExpr, modelExpr, dataExpr, familyName, control, model, data,
+    sigmaIsFixed);
   validateCategoricalPredictors(data);
-  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
-  if (sigmaIsFixed) {
-    // documented semantics: fixed(value) holds the residual variance at
-    // value, so sigma enters as sqrt(value) and is never drawn
-    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
-  }
-  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
 
   bartcore::SamplerOptions options =
     optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -1177,23 +1207,14 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   ParsedControl control;
   ParsedData data;
   ParsedModel model;
-  parseControl(control, controlExpr);
-  parseData(data, dataExpr);
-  parseModel(model, modelExpr, data.numPredictors);
+  bool sigmaIsFixed;
+  bartcore::ResponseFamily family = parseSamplerSpecification(
+    controlExpr, modelExpr, dataExpr, familyName, control, model, data,
+    sigmaIsFixed);
 
   if (data.numObservations != parent.numObservations ||
       data.numPredictors != parent.numPredictors)
     Rf_error("data does not match the shape the handle was built from");
-
-  bartcore::ResponseFamily family = resolveFamily(control, familyName);
-
-  bool sigmaIsFixed = !control.responseIsBinary && model.sigmaIsFixed;
-  if (sigmaIsFixed) {
-    // documented semantics: fixed(value) holds the residual variance at
-    // value, so sigma enters as sqrt(value) and is never drawn
-    data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
-  }
-  enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
 
   if (!Rf_isInteger(trainRowsExpr) || Rf_xlength(trainRowsExpr) == 0)
     Rf_error("trainRows must be a non-empty integer vector");
@@ -1320,71 +1341,71 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   }
 
   // several chains add a trailing chain dimension, as the classic engine's
-  // results do
+  // results do. Every column roots in the protected container the moment it
+  // is allocated (installResult), so there is no hand-counted PROTECT stack
+  // to keep in sync with the slot list.
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 8));
-  SEXP sigmaExpr = numChains == 1
-    ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
-    : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  SEXP trainExpr;
-  if (!holder.keepTrainingFits) {
-    trainExpr = PROTECT(R_NilValue);
-  } else if (numChains == 1) {
-    trainExpr = PROTECT(Rf_allocMatrix(
-      REALSXP, static_cast<int>(numObservations), numSamplesInt));
-  } else {
-    trainExpr = PROTECT(Rf_alloc3DArray(
-      REALSXP, static_cast<int>(numObservations), numSamplesInt,
-      numChainsInt));
-  }
-  SEXP testExpr;
-  if (numTestObservations > 0) {
-    testExpr = numChains == 1
-      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
-                               numSamplesInt))
-      : PROTECT(Rf_alloc3DArray(REALSXP,
-                                static_cast<int>(numTestObservations),
-                                numSamplesInt, numChainsInt));
-  } else {
-    testExpr = PROTECT(R_NilValue);
-  }
-  SEXP varcountExpr = numChains == 1
-    ? PROTECT(Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors),
-                             numSamplesInt))
-    : PROTECT(Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
-                              numSamplesInt, numChainsInt));
-  SEXP kExpr;
-  if (sampler.kIsSampled()) {
-    kExpr = numChains == 1
-      ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
-      : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-  } else {
-    kExpr = PROTECT(R_NilValue);
-  }
-  SEXP varprobsExpr;
-  if (sampler.usesDart()) {
-    varprobsExpr = numChains == 1
-      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numPredictors),
-                               numSamplesInt))
-      : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numPredictors),
-                                numSamplesInt, numChainsInt));
-  } else {
-    varprobsExpr = PROTECT(R_NilValue);
-  }
+  SEXP sigmaExpr = installResult(
+    resultExpr, 0,
+    numChains == 1
+      ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
+      : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+  SEXP trainExpr = installResult(
+    resultExpr, 1,
+    !holder.keepTrainingFits
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                         numSamplesInt)
+        : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
+                          numSamplesInt, numChainsInt));
+  SEXP testExpr = installResult(
+    resultExpr, 2,
+    numTestObservations == 0
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
+                         numSamplesInt)
+        : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
+                          numSamplesInt, numChainsInt));
+  SEXP varcountExpr = installResult(
+    resultExpr, 3,
+    numChains == 1
+      ? Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors), numSamplesInt)
+      : Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
+                        numSamplesInt, numChainsInt));
+  SEXP kExpr = installResult(
+    resultExpr, 4,
+    !sampler.kIsSampled()
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
+        : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+  SEXP varprobsExpr = installResult(
+    resultExpr, 5,
+    !sampler.usesDart()
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocMatrix(REALSXP, static_cast<int>(numPredictors),
+                         numSamplesInt)
+        : Rf_alloc3DArray(REALSXP, static_cast<int>(numPredictors),
+                          numSamplesInt, numChainsInt));
   size_t numGroups = sampler.numGroups();
-  SEXP tauExpr, ranefExpr;
-  if (numGroups > 0) {
-    tauExpr = numChains == 1
-      ? PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples)))
-      : PROTECT(Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
-    ranefExpr = numChains == 1
-      ? PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(numGroups),
-                               numSamplesInt))
-      : PROTECT(Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
-                                numSamplesInt, numChainsInt));
-  } else {
-    tauExpr = PROTECT(R_NilValue);
-    ranefExpr = PROTECT(R_NilValue);
-  }
+  SEXP tauExpr = installResult(
+    resultExpr, 6,
+    numGroups == 0
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocVector(REALSXP, static_cast<R_xlen_t>(numSamples))
+        : Rf_allocMatrix(REALSXP, numSamplesInt, numChainsInt));
+  SEXP ranefExpr = installResult(
+    resultExpr, 7,
+    numGroups == 0
+      ? R_NilValue
+      : numChains == 1
+        ? Rf_allocMatrix(REALSXP, static_cast<int>(numGroups), numSamplesInt)
+        : Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
+                          numSamplesInt, numChainsInt));
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numSamples *
                                             numChains);
@@ -1409,19 +1430,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   for (size_t i = 0; i < numPredictors * numSamples * numChains; ++i)
     varcountOut[i] = static_cast<int>(variableCounts[i]);
 
-  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
-  SET_VECTOR_ELT(resultExpr, 1, trainExpr);
-  SET_VECTOR_ELT(resultExpr, 2, testExpr);
-  SET_VECTOR_ELT(resultExpr, 3, varcountExpr);
-  SET_VECTOR_ELT(resultExpr, 4, kExpr);
-  SET_VECTOR_ELT(resultExpr, 5, varprobsExpr);
-  SET_VECTOR_ELT(resultExpr, 6, tauExpr);
-  SET_VECTOR_ELT(resultExpr, 7, ranefExpr);
-
   // named as the classic engine's run results are, so the engines are
   // drop-in replacements for each other; varprobs, tau, and ranef are
-  // bartcore extensions
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 8));
+  // bartcore extensions. The names vector roots through the container's
+  // attribute before the mkChar allocations fill it.
+  SEXP namesExpr = Rf_allocVector(STRSXP, 8);
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
   SET_STRING_ELT(namesExpr, 2, Rf_mkChar("test"));
@@ -1430,9 +1444,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_STRING_ELT(namesExpr, 5, Rf_mkChar("varprobs"));
   SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
   SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
-  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
-  UNPROTECT(10);
+  UNPROTECT(1);
   return resultExpr;
 }
 
@@ -1507,11 +1520,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
 
   if (data.numPredictors != sampler.numPredictors())
     Rf_error("bartcore setData requires the same predictors");
-  if (sampler.family() != bartcore::ResponseFamily::gaussian &&
-      data.weights != NULL)
-    Rf_error("weights on a binary response cannot be set after creation: "
-             "probit does not support weights, and logistic weights "
-             "(observation counts) are fixed when the sampler is created");
+  if (data.weights != NULL) refuseBinaryWeightChange(sampler);
   for (size_t j = 0; j < data.numPredictors; ++j) {
     bool wasCategorical = sampler.data().types[j] ==
                           bartcore::ColumnType::categorical;
@@ -1638,10 +1647,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // weighting was incorrect and was stripped rather than ported.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  if (holder.sampler->family() != bartcore::ResponseFamily::gaussian)
-    Rf_error("weights on a binary response cannot be set after creation: "
-             "probit does not support weights, and logistic weights "
-             "(observation counts) are fixed when the sampler is created");
+  refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) !=
         holder.sampler->numObservations())
@@ -2814,6 +2820,208 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     Rf_error("state is not consistent with this sampler");
 }
 
+// Column-major gather of the requested trees, plus the flags that decide
+// which data.frame columns exist.
+struct GatheredTrees {
+  bool includeChain, includeSample, anyWide, anyMissing;
+  size_t numSlopes;
+  std::vector<int> chain, sample, tree, count, variable, missing;
+  std::vector<double> value;
+  // wide categorical rules report their masks decoded, one L/R per
+  // observed category; the R wrapper pads to the declared level count
+  std::vector<std::string> directions;
+  // one column per leaf covariate, NA on internal nodes
+  std::vector<std::vector<double>> slopes;
+};
+
+// Walks the requested (chain, sample, tree) triples, flattening live trees
+// or reading saved records, and appends one row per node. replayData, when
+// non-null, re-routes its rows through each tree for the n column.
+void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
+                 size_t numChainIndices, const size_t* sampleIndices,
+                 size_t numSampleIndices, const size_t* treeIndices,
+                 size_t numTreeIndices, bool useSaved,
+                 const double* replayData, size_t replayNumRows,
+                 GatheredTrees& out) {
+  const bartcore::ColumnStore& store(sampler.data());
+
+  std::vector<bartcore::FlatNode> liveNodes;
+  std::vector<double> liveSlopes;
+  std::vector<std::uint64_t> liveMasks;
+  std::vector<std::uint32_t> counts;
+  std::vector<size_t> replayIndices(replayNumRows);
+  std::string directionsScratch;
+  bool functionLeaves = sampler.usesFunctionLeaves();
+
+  for (size_t i = 0; i < numChainIndices; ++i) {
+    size_t chainNum = chainIndices[i];
+    for (size_t j = 0; j < numSampleIndices; ++j) {
+      size_t sampleNum = useSaved ? sampleIndices[j] : 0;
+      for (size_t k = 0; k < numTreeIndices; ++k) {
+        size_t treeNum = treeIndices[k];
+
+        const std::vector<bartcore::FlatNode>* nodes;
+        const std::vector<double>* slopes = NULL;
+        const std::vector<std::uint64_t>* masks = NULL;
+        if (useSaved) {
+          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum);
+          if (out.numSlopes > 0)
+            slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum);
+          if (out.anyWide)
+            masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum);
+        } else {
+          sampler.flattenTree(chainNum, treeNum, liveNodes, counts,
+                              out.numSlopes > 0 ? &liveSlopes : NULL,
+                              out.anyWide ? &liveMasks : NULL);
+          nodes = &liveNodes;
+          if (out.numSlopes > 0) slopes = &liveSlopes;
+          if (out.anyWide) masks = &liveMasks;
+        }
+        if (replayData != NULL) {
+          counts.resize(nodes->size());
+          for (size_t l = 0; l < replayNumRows; ++l) replayIndices[l] = l;
+          bartcore::countFlatObservationsBelow(
+            nodes->data(), store.types.data(), replayData, replayNumRows,
+            replayIndices.data(), 0, replayNumRows, counts.data(),
+            out.anyWide ? store.numCuts.data() : NULL,
+            out.anyWide ? masks->data() : NULL);
+        }
+
+        size_t leafNum = 0;
+        for (size_t l = 0; l < nodes->size(); ++l) {
+          out.chain.push_back(static_cast<int>(chainNum + 1));
+          out.sample.push_back(static_cast<int>(sampleNum + 1));
+          out.tree.push_back(static_cast<int>(treeNum + 1));
+          out.count.push_back(static_cast<int>(counts[l]));
+          const bartcore::FlatNode& node((*nodes)[l]);
+          out.variable.push_back(
+            node.variable >= 0 ? node.variable + 1 : node.variable);
+          bool isWideRule =
+            node.variable >= 0 &&
+            store.columnHasWideMask(static_cast<size_t>(node.variable));
+          // a wide rule's value is a side-channel offset, meaningless
+          // outside the format; the directions column carries the decode
+          out.value.push_back(
+            isWideRule ||
+                (functionLeaves && node.variable == bartcore::invalidVariable)
+              ? NA_REAL : node.value);
+          if (out.anyWide) {
+            if (isWideRule) {
+              size_t variable = static_cast<size_t>(node.variable);
+              const std::uint64_t* words =
+                masks->data() + static_cast<size_t>(node.value);
+              directionsScratch.clear();
+              for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
+                directionsScratch.push_back(
+                  bartcore::maskTestBit(words, c) ? 'R' : 'L');
+              out.directions.push_back(directionsScratch);
+            } else {
+              out.directions.push_back(std::string());
+            }
+          }
+          if (out.anyMissing)
+            out.missing.push_back(
+              node.variable >= 0 &&
+                  store.hasMissing[static_cast<size_t>(node.variable)]
+                ? static_cast<int>(node.flags & bartcore::flatMissingGoesRight)
+                : NA_INTEGER);
+          if (out.numSlopes > 0) {
+            bool isLeaf = node.variable == bartcore::invalidVariable;
+            for (size_t s = 0; s < out.numSlopes; ++s)
+              out.slopes[s].push_back(
+                isLeaf ? (*slopes)[leafNum * out.numSlopes + s] : NA_REAL);
+            if (isLeaf) ++leafNum;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Appends an integer or numeric column to the data frame under
+// construction, copying from the gathered vector.
+template <typename T>
+void emitTreeColumn(SEXP resultExpr, SEXP namesExpr, R_xlen_t columnNum,
+                    const char* name, const std::vector<T>& column) {
+  R_xlen_t length = static_cast<R_xlen_t>(column.size());
+  if constexpr (std::is_same_v<T, int>) {
+    SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(INTSXP, length));
+    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)), column.data(),
+                column.size() * sizeof(int));
+  } else {
+    SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(REALSXP, length));
+    std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)), column.data(),
+                column.size() * sizeof(double));
+  }
+  SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar(name));
+}
+
+// Builds the classic-format data.frame from a gather: ([chain,] [sample,]
+// tree, n, var, value[, directions][, missing][, beta.*]).
+SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
+  R_xlen_t totalNumNodes = static_cast<R_xlen_t>(gathered.value.size());
+  R_xlen_t numColumns = 4 + (gathered.includeChain ? 1 : 0) +
+                        (gathered.includeSample ? 1 : 0) +
+                        (gathered.anyWide ? 1 : 0) +
+                        (gathered.anyMissing ? 1 : 0) +
+                        static_cast<R_xlen_t>(gathered.numSlopes);
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numColumns));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, numColumns));
+
+  R_xlen_t columnNum = 0;
+  if (gathered.includeChain)
+    emitTreeColumn(resultExpr, namesExpr, columnNum++, "chain",
+                   gathered.chain);
+  if (gathered.includeSample)
+    emitTreeColumn(resultExpr, namesExpr, columnNum++, "sample",
+                   gathered.sample);
+  emitTreeColumn(resultExpr, namesExpr, columnNum++, "tree", gathered.tree);
+  emitTreeColumn(resultExpr, namesExpr, columnNum++, "n", gathered.count);
+  emitTreeColumn(resultExpr, namesExpr, columnNum++, "var", gathered.variable);
+  emitTreeColumn(resultExpr, namesExpr, columnNum++, "value", gathered.value);
+  if (gathered.anyWide) {
+    SET_VECTOR_ELT(resultExpr, columnNum,
+                   Rf_allocVector(STRSXP, totalNumNodes));
+    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("directions"));
+    SEXP directionsExpr = VECTOR_ELT(resultExpr, columnNum);
+    for (R_xlen_t l = 0; l < totalNumNodes; ++l)
+      SET_STRING_ELT(directionsExpr, l,
+                     gathered.directions[static_cast<size_t>(l)].empty()
+                       ? NA_STRING
+                       : Rf_mkChar(gathered.directions[static_cast<size_t>(l)]
+                                     .c_str()));
+    ++columnNum;
+  }
+  if (gathered.anyMissing)
+    emitTreeColumn(resultExpr, namesExpr, columnNum++, "missing",
+                   gathered.missing);
+  // generically named here; the R wrapper renames to beta.<column name>
+  for (size_t s = 0; s < gathered.numSlopes; ++s) {
+    char slopeName[32];
+    snprintf(slopeName, sizeof(slopeName), "beta.%lu",
+             static_cast<unsigned long>(s + 1));
+    emitTreeColumn(resultExpr, namesExpr, columnNum++, slopeName,
+                   gathered.slopes[s]);
+  }
+
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+
+  SEXP rowNamesExpr = PROTECT(Rf_allocVector(STRSXP, totalNumNodes));
+  char buffer[32];
+  for (R_xlen_t l = 0; l < totalNumNodes; ++l) {
+    snprintf(buffer, sizeof(buffer), "%ld", static_cast<long>(l + 1));
+    SET_STRING_ELT(rowNamesExpr, l, Rf_mkChar(buffer));
+  }
+  Rf_setAttrib(resultExpr, R_RowNamesSymbol, rowNamesExpr);
+
+  SEXP classExpr = PROTECT(Rf_mkString("data.frame"));
+  Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
+
+  UNPROTECT(4);
+  return resultExpr;
+}
+
 // A data.frame of tree structure in the classic engine's format: pre-order
 // rows of ([chain,] [sample,] tree, n, var, value), var 1-based with -1
 // marking leaves, split values as data values (an ordinal rule's cut point,
@@ -2827,7 +3035,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
 // reports each rule's missing direction (0 left, 1 right; NA on leaves and
 // on columns without missing values). Saved trees replay the training
 // predictors for n unless newdata is supplied; live trees report their own
-// counts.
+// counts. Validates, gathers, and emits, in that order.
 SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t numChainIndices, const size_t* sampleIndices,
               size_t numSampleIndices, const size_t* treeIndices,
@@ -2853,219 +3061,37 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
       Rf_error("%s tree number out of range", caller);
   }
 
-  const double* replayData = store.x;
-  size_t replayNumRows = store.numObservations;
-  bool replay = useSaved;
+  // saved trees carry no counts of their own and replay the training rows;
+  // newdata replays its rows through live and saved trees alike
+  const double* replayData = NULL;
+  size_t replayNumRows = 0;
   if (newdata != NULL) {
     replayData = newdata;
     replayNumRows = newdataNumRows;
-    replay = true;
+  } else if (useSaved) {
+    replayData = store.x;
+    replayNumRows = store.numObservations;
   }
 
   bool anyMissing = false;
   for (size_t j = 0; j < store.numPredictors; ++j)
     if (store.hasMissing[j]) { anyMissing = true; break; }
-  bool anyWide = store.hasWideCategorical;
 
   // function-valued (gp) leaves report no per-leaf coefficients - the
   // function rides prediction only - and their leaves' values print NA
   // (a whole function per row does not fit a data frame)
-  bool functionLeaves = sampler.usesFunctionLeaves();
-  size_t numSlopes = functionLeaves ? 0 : sampler.numLeafCovariates();
+  size_t numSlopes =
+    sampler.usesFunctionLeaves() ? 0 : sampler.numLeafCovariates();
 
-  std::vector<int> chainColumn, sampleColumn, treeColumn, countColumn,
-    variableColumn, missingColumn;
-  std::vector<double> valueColumn;
-  // wide categorical rules report their masks decoded, one L/R per
-  // observed category; the R wrapper pads to the declared level count
-  std::vector<std::string> directionsColumn;
-  // one column per leaf covariate, NA on internal nodes
-  std::vector<std::vector<double>> slopeColumns(numSlopes);
-  std::vector<bartcore::FlatNode> liveNodes;
-  std::vector<double> liveSlopes;
-  std::vector<std::uint64_t> liveMasks;
-  std::vector<std::uint32_t> counts;
-  std::vector<size_t> replayIndices(replayNumRows);
-  std::string directionsScratch;
+  GatheredTrees gathered{sampler.numChains() > 1, useSaved,
+                         store.hasWideCategorical, anyMissing, numSlopes,
+                         {}, {}, {}, {}, {}, {}, {}, {}, {}};
+  gathered.slopes.resize(numSlopes);
+  gatherTrees(sampler, chainIndices, numChainIndices, sampleIndices,
+              numSampleIndices, treeIndices, numTreeIndices, useSaved,
+              replayData, replayNumRows, gathered);
 
-  for (size_t i = 0; i < numChainIndices; ++i) {
-    size_t chainNum = chainIndices[i];
-    for (size_t j = 0; j < numSampleIndices; ++j) {
-      size_t sampleNum = useSaved ? sampleIndices[j] : 0;
-      for (size_t k = 0; k < numTreeIndices; ++k) {
-        size_t treeNum = treeIndices[k];
-
-        const std::vector<bartcore::FlatNode>* nodes;
-        const std::vector<double>* slopes = NULL;
-        const std::vector<std::uint64_t>* masks = NULL;
-        if (useSaved) {
-          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum);
-          if (numSlopes > 0)
-            slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum);
-          if (anyWide)
-            masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum);
-        } else {
-          sampler.flattenTree(chainNum, treeNum, liveNodes, counts,
-                              numSlopes > 0 ? &liveSlopes : NULL,
-                              anyWide ? &liveMasks : NULL);
-          nodes = &liveNodes;
-          if (numSlopes > 0) slopes = &liveSlopes;
-          if (anyWide) masks = &liveMasks;
-        }
-        if (replay) {
-          counts.resize(nodes->size());
-          for (size_t l = 0; l < replayNumRows; ++l) replayIndices[l] = l;
-          bartcore::countFlatObservationsBelow(
-            nodes->data(), store.types.data(), replayData, replayNumRows,
-            replayIndices.data(), 0, replayNumRows, counts.data(),
-            anyWide ? store.numCuts.data() : NULL,
-            anyWide ? masks->data() : NULL);
-        }
-
-        size_t leafNum = 0;
-        for (size_t l = 0; l < nodes->size(); ++l) {
-          chainColumn.push_back(static_cast<int>(chainNum + 1));
-          sampleColumn.push_back(static_cast<int>(sampleNum + 1));
-          treeColumn.push_back(static_cast<int>(treeNum + 1));
-          countColumn.push_back(static_cast<int>(counts[l]));
-          const bartcore::FlatNode& node((*nodes)[l]);
-          variableColumn.push_back(
-            node.variable >= 0 ? node.variable + 1 : node.variable);
-          bool isWideRule =
-            node.variable >= 0 &&
-            store.columnHasWideMask(static_cast<size_t>(node.variable));
-          // a wide rule's value is a side-channel offset, meaningless
-          // outside the format; the directions column carries the decode
-          valueColumn.push_back(
-            isWideRule ||
-                (functionLeaves && node.variable == bartcore::invalidVariable)
-              ? NA_REAL : node.value);
-          if (anyWide) {
-            if (isWideRule) {
-              size_t variable = static_cast<size_t>(node.variable);
-              const std::uint64_t* words =
-                masks->data() + static_cast<size_t>(node.value);
-              directionsScratch.clear();
-              for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
-                directionsScratch.push_back(
-                  bartcore::maskTestBit(words, c) ? 'R' : 'L');
-              directionsColumn.push_back(directionsScratch);
-            } else {
-              directionsColumn.push_back(std::string());
-            }
-          }
-          if (anyMissing)
-            missingColumn.push_back(
-              node.variable >= 0 &&
-                  store.hasMissing[static_cast<size_t>(node.variable)]
-                ? static_cast<int>(node.flags & bartcore::flatMissingGoesRight)
-                : NA_INTEGER);
-          if (numSlopes > 0) {
-            bool isLeaf = node.variable == bartcore::invalidVariable;
-            for (size_t s = 0; s < numSlopes; ++s)
-              slopeColumns[s].push_back(
-                isLeaf ? (*slopes)[leafNum * numSlopes + s] : NA_REAL);
-            if (isLeaf) ++leafNum;
-          }
-        }
-      }
-    }
-  }
-
-  R_xlen_t totalNumNodes = static_cast<R_xlen_t>(valueColumn.size());
-  R_xlen_t numColumns = 4 + (sampler.numChains() > 1 ? 1 : 0) +
-                        (useSaved ? 1 : 0) + (anyWide ? 1 : 0) +
-                        (anyMissing ? 1 : 0) +
-                        static_cast<R_xlen_t>(numSlopes);
-
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numColumns));
-  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, numColumns));
-
-  R_xlen_t columnNum = 0;
-  if (sampler.numChains() > 1) {
-    SET_VECTOR_ELT(resultExpr, columnNum,
-                   Rf_allocVector(INTSXP, totalNumNodes));
-    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("chain"));
-    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)),
-                chainColumn.data(), chainColumn.size() * sizeof(int));
-    ++columnNum;
-  }
-  if (useSaved) {
-    SET_VECTOR_ELT(resultExpr, columnNum,
-                   Rf_allocVector(INTSXP, totalNumNodes));
-    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("sample"));
-    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)),
-                sampleColumn.data(), sampleColumn.size() * sizeof(int));
-    ++columnNum;
-  }
-  SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(INTSXP, totalNumNodes));
-  SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("tree"));
-  std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)), treeColumn.data(),
-              treeColumn.size() * sizeof(int));
-  ++columnNum;
-  SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(INTSXP, totalNumNodes));
-  SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("n"));
-  std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)), countColumn.data(),
-              countColumn.size() * sizeof(int));
-  ++columnNum;
-  SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(INTSXP, totalNumNodes));
-  SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("var"));
-  std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)),
-              variableColumn.data(), variableColumn.size() * sizeof(int));
-  ++columnNum;
-  SET_VECTOR_ELT(resultExpr, columnNum, Rf_allocVector(REALSXP, totalNumNodes));
-  SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("value"));
-  std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)), valueColumn.data(),
-              valueColumn.size() * sizeof(double));
-  if (anyWide) {
-    ++columnNum;
-    SET_VECTOR_ELT(resultExpr, columnNum,
-                   Rf_allocVector(STRSXP, totalNumNodes));
-    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("directions"));
-    SEXP directionsExpr = VECTOR_ELT(resultExpr, columnNum);
-    for (R_xlen_t l = 0; l < totalNumNodes; ++l)
-      SET_STRING_ELT(directionsExpr, l,
-                     directionsColumn[static_cast<size_t>(l)].empty()
-                       ? NA_STRING
-                       : Rf_mkChar(directionsColumn[static_cast<size_t>(l)]
-                                     .c_str()));
-  }
-  if (anyMissing) {
-    ++columnNum;
-    SET_VECTOR_ELT(resultExpr, columnNum,
-                   Rf_allocVector(INTSXP, totalNumNodes));
-    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("missing"));
-    std::memcpy(INTEGER(VECTOR_ELT(resultExpr, columnNum)),
-                missingColumn.data(), missingColumn.size() * sizeof(int));
-  }
-  // generically named here; the R wrapper renames to beta.<column name>
-  for (size_t s = 0; s < numSlopes; ++s) {
-    ++columnNum;
-    SET_VECTOR_ELT(resultExpr, columnNum,
-                   Rf_allocVector(REALSXP, totalNumNodes));
-    char slopeName[32];
-    snprintf(slopeName, sizeof(slopeName), "beta.%lu",
-             static_cast<unsigned long>(s + 1));
-    SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar(slopeName));
-    std::memcpy(REAL(VECTOR_ELT(resultExpr, columnNum)),
-                slopeColumns[s].data(), slopeColumns[s].size() * sizeof(double));
-  }
-
-  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
-
-  SEXP rowNamesExpr = PROTECT(Rf_allocVector(STRSXP, totalNumNodes));
-  char buffer[32];
-  for (R_xlen_t l = 0; l < totalNumNodes; ++l) {
-    snprintf(buffer, sizeof(buffer), "%ld", static_cast<long>(l + 1));
-    SET_STRING_ELT(rowNamesExpr, l, Rf_mkChar(buffer));
-  }
-  Rf_setAttrib(resultExpr, R_RowNamesSymbol, rowNamesExpr);
-
-  SEXP classExpr = PROTECT(Rf_mkString("data.frame"));
-  Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
-
-  UNPROTECT(4);
-  return resultExpr;
+  return emitTreeDataFrame(gathered);
 }
 
 } // namespace bartcore_bridge
