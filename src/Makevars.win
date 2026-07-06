@@ -18,6 +18,19 @@ CXX_STD = CXX20
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
 PKG_LIBS= external.a misc.a rc.a $(PTHREAD_LIBS)
 
+# as in Makevars.in: an empty ARFLAGS would run ar with no operation, so
+# fall back to -crs when Makeconf leaves it unset
+BOOL,true = true
+BOOL,false = false
+BOOL, = true
+arflags_set.test, = false
+arflags_set = $(BOOL,$(arflags_set.test,$(ARFLAGS)))
+
+arflags.true = $(ARFLAGS)
+arflags.false = -crs
+
+PKG_ARFLAGS = $(arflags.$(arflags_set))
+
 MkInclude = $(R_HOME)/etc${R_ARCH}/Makeconf
 
 SUBDIRS = external misc rc
@@ -33,7 +46,7 @@ sublibs:
 	   PTHREAD_CPPFLAGS="$(PTHREAD_CPPFLAGS)" INST_DIR="$(INST_DIR)" \
            SSE2_FLAG="$(SSE2_FLAG)" SSE4_1_FLAG="$(SSE4_1_FLAG)" AVX_FLAG="$(AVX_FLAG)" AVX2_FLAG="$(AVX2_FLAG)" \
            CC="$(CC)" CFLAGS="$(CFLAGS) $(CPICFLAGS)" CXX="$(CXX)" CXXFLAGS="$(CXXFLAGS) $(CXXPICFLAGS)" \
-           CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(ARFLAGS)" RANLIB="$(RANLIB)") \
+           CPPFLAGS="$(CPPFLAGS)" AR="$(AR)" ARFLAGS="$(PKG_ARFLAGS)" RANLIB="$(RANLIB)") \
            || exit 1; \
 	done
 
