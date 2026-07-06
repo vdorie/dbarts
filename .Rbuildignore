@@ -18,3 +18,7 @@
 ^benchmarks$
 ^tests/cpp$
 \.DS_Store$
+^_pkgdown\.yml$
+^pkgdown$
+^docs-site$
+^cran-comments\.md$

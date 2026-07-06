@@ -40,5 +40,5 @@ License: GPL (>= 2)
 SystemRequirements: C++20
 NeedsCompilation: yes
 Biarch: yes
-URL: https://github.com/vdorie/dbarts
+URL: https://vdorie.github.io/dbarts/, https://github.com/vdorie/dbarts
 BugReports: https://github.com/vdorie/dbarts/issues
