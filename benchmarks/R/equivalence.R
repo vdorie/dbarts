@@ -215,6 +215,17 @@ makeScenarios <- function() {
     samplerApi = TRUE, samplerArgs = list(family = "logistic")
   )
 
+  # logistic family with integer count weights: the weighted Polya-Gamma path,
+  # where a count-w observation's omega is the sum of w PG(1, psi) draws
+  set.seed(5121L)
+  x <- matrix(runif(600L * 10L), 600L)
+  result$wtlogistic <- list(
+    x = x, y = rbinom(600L, 1L, plogis(scale(friedman(x)))),
+    weights = sample(1:3, 600L, replace = TRUE),
+    x.test = matrix(runif(n.test * 10L), n.test), binary = TRUE,
+    samplerApi = TRUE, samplerArgs = list(family = "logistic")
+  )
+
   # exact-zero training weights: the constant-leaf no-likelihood path and the
   # collapseEmptyNodes weightTotal > 0 guard
   set.seed(5116L)

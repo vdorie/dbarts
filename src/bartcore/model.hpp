@@ -1998,9 +1998,15 @@ private:
 /// latents() exposes the omega draws.
 class LogisticResponse final : public ResponseModel {
 public:
+  /// weights are observation counts (positive integers) or null for unit
+  /// weights; the host validates integrality. A count-w observation's
+  /// Polya-Gamma latent is PG(w, psi), drawn exactly as the sum of w
+  /// independent PG(1, psi) variates, so null weights reproduce the
+  /// unweighted stream bit for bit.
   LogisticResponse(const double* y, const double* offset,
-                   std::size_t numObservations)
-    : y_(y), offset_(offset), numObservations_(numObservations) {
+                   const double* weights, std::size_t numObservations)
+    : y_(y), offset_(offset), weights_(weights),
+      numObservations_(numObservations) {
     omega_.resize(numObservations);
     working_.resize(numObservations);
     coldStart();
@@ -2014,8 +2020,14 @@ public:
                       double) override {
     for (std::size_t i = 0; i < numObservations_; ++i) {
       double offset = offset_ != nullptr ? offset_[i] : 0.0;
-      omega_[i] = ext_rng_simulatePolyaGamma(rng, totalFits[i] + offset);
-      working_[i] = (y_[i] - 0.5) / omega_[i] - offset;
+      double psi = totalFits[i] + offset;
+      long reps = weights_ != nullptr ? std::lround(weights_[i]) : 1L;
+      double omega = ext_rng_simulatePolyaGamma(rng, psi);
+      for (long c = 1; c < reps; ++c)
+        omega += ext_rng_simulatePolyaGamma(rng, psi);
+      omega_[i] = omega;
+      double weight = weights_ != nullptr ? weights_[i] : 1.0;
+      working_[i] = weight * (y_[i] - 0.5) / omega - offset;
     }
   }
 
@@ -2039,10 +2051,11 @@ public:
     offset_ = offset;
   }
 
-  void setData(const double* y, const double* offset, const double*,
+  void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double*) override {
     y_ = y;
     offset_ = offset;
+    weights_ = weights;
     numObservations_ = numObservations;
     omega_.resize(numObservations);
     working_.resize(numObservations);
@@ -2053,9 +2066,11 @@ public:
 
   void restoreLatents(const double* latents) override {
     std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
-    for (std::size_t i = 0; i < numObservations_; ++i)
-      working_[i] = (y_[i] - 0.5) / omega_[i] -
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double weight = weights_ != nullptr ? weights_[i] : 1.0;
+      working_[i] = weight * (y_[i] - 0.5) / omega_[i] -
                     (offset_ != nullptr ? offset_[i] : 0.0);
+    }
   }
 
   double initialSigma() const override { return 1.0; }
@@ -2064,12 +2079,14 @@ public:
   double sigmaScale() const override { return 1.0; }
 
 private:
-  /// Deterministic cold start, the analogue of probit's z = 2 y - 1:
-  /// omega at its PG(1, 0) mean of 1/4, so the working response starts at
-  /// 4 kappa = +/- 2; real draws replace it after the first tree sweep.
+  /// Deterministic cold start, the analogue of probit's z = 2 y - 1: omega
+  /// at PG(w, 0)'s mean of w/4, so the working response starts at
+  /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
+  /// after the first tree sweep.
   void coldStart() {
     for (std::size_t i = 0; i < numObservations_; ++i) {
-      omega_[i] = 0.25;
+      double weight = weights_ != nullptr ? weights_[i] : 1.0;
+      omega_[i] = 0.25 * weight;
       working_[i] =
         4.0 * (y_[i] - 0.5) - (offset_ != nullptr ? offset_[i] : 0.0);
     }
@@ -2077,6 +2094,7 @@ private:
 
   const double* y_;
   const double* offset_;
+  const double* weights_;
   std::size_t numObservations_;
   std::vector<double> omega_;
   std::vector<double> working_;

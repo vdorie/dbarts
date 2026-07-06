@@ -69,6 +69,15 @@ fit.bart2 <- bart2(y.binary ~ x, family = "gaussian", n.samples = 30L,
                    n.threads = 1L, verbose = FALSE)
 expect_true(!is.null(fit.bart2$sigma))
 
+# probit refuses weights at the R layer through the wrapper (the bridge keeps
+# the same refusal as a backstop for direct-API consumers): a weighted probit
+# has no tractable latent-variable form. Logistic weights are covered in
+# test-weighted-logistic.R
+expect_error(bart2(y.binary ~ x, weights = runif(n, 0.5, 1.5),
+                   n.samples = 5L, n.burn = 5L, n.trees = 25L,
+                   n.chains = 1L, n.threads = 1L, verbose = FALSE),
+             pattern = "probit models do not support weights")
+
 # the wrappers record the family and transform through its link
 fit.probit <- bart2(y.binary ~ x, n.samples = 40L, n.burn = 40L,
                     n.trees = 25L, n.chains = 1L, n.threads = 1L,

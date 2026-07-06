@@ -42,7 +42,14 @@ usability
     check, and worker joins before the error propagates; touches the
     hot loop, so speed and equivalence gates apply.
   weights + binary refusal fires at sampler creation in the bridge
-    (good message, wrong layer); add an early R-side check.
+    (good message, wrong layer): DONE, and extended. The refusal now lives
+    in the R layer (dbarts.R, bridge backstops direct-API consumers) and is
+    split by family: probit is refused (no tractable weighted latent form),
+    logistic accepts positive-integer weights as observation counts (the
+    Polya-Gamma latent PG(w, psi) is a sum of w PG(1, psi) draws), gaussian
+    is unrestricted. See docs/design/weighted-logistic.md. Deferred there:
+    arbitrary real logistic weights (needs a general real-shape PG sampler;
+    the survey/IPW use case wants it but is a pseudo-likelihood trap).
   rbart_vi's sparse refusal doesn't say why or point at dbarts/bart2,
     which do support sparse. DONE: the message now names them.
   bart/bart2 up-front numeric argument validation: MOSTLY ALREADY DONE.

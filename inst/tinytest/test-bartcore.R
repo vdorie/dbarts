@@ -386,11 +386,10 @@ expect_error(dbarts:::bartcoreSampler(sampler.logit.host, family = "cauchit"),
 expect_error(dbarts:::bartcoreSampler(sampler, family = "logistic"),
              pattern = "binary response")
 
-# binary weights are rejected rather than run with the classic engine's
-# incorrect latent scaling
+# probit weights are rejected: a weighted probit has no tractable form
 expect_error(dbarts(x, y.binary, weights = runif(n, 0.5, 1.5),
                     control = control),
-             pattern = "binary response families do not support weights")
+             pattern = "probit models do not support weights")
 
 # categorical predictors; no public surface marks matrix columns
 # categorical (factors = "categorical" applies to data.frames), so the type

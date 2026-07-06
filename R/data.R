@@ -250,7 +250,10 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     
     ## weights
     weights <- as.vector(model.weights(modelFrame))
-    if (!is.null(weights) && !is.numeric(weights)) stop("'weights' must be of type numeric")
+    if (!is.null(weights)) {
+      if (!is.numeric(weights)) stop("'weights' must be of type numeric")
+      weights <- as.double(weights)
+    }
     
     ## offset, when in data frame
     if (identical(offsetGivenAsScalar, FALSE)) {
@@ -300,6 +303,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
       if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
+      weights <- as.double(weights)
       if (length(weights) == 1L)
         weights <- rep_len(weights, initialNumObservations)
       if (length(weights) != initialNumObservations)
@@ -344,6 +348,7 @@ dbartsData <- function(formula, data, test, subset, weights, offset, offset.test
     if (missing(weights)) weights <- NULL
     if (!is.null(weights)) {
       if (!is.numeric(weights)) stop("'weights' must be a numeric vector")
+      weights <- as.double(weights)
       if (length(weights) == 1L)
         weights <- rep_len(weights, initialNumObservations)
       if (length(weights) != initialNumObservations)
