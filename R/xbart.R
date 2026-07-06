@@ -19,6 +19,7 @@ xbart <- function(formula, data, subset, weights, offset, verbose = FALSE, n.sam
   validateCall <- redirectCall(matchedCall, quoteInNamespace(validateArgumentsInEnvironment), control, verbose, n.samples, sigma)
   validateCall <- addCallArgument(validateCall, 1L, currEnv)
   validateCall <- addCallArgument(validateCall, 2L, xbart)
+  validateCall <- addCallArgument(validateCall, 3L, "xbart")
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (control@call != call("NA")[[1L]]) control@call <- matchedCall
