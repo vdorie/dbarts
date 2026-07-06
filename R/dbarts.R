@@ -129,6 +129,7 @@ dbarts <- function(
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
+  seed = NA_integer_,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
   missing = c("incorporate", "error")
@@ -149,6 +150,10 @@ dbarts <- function(
     control@call <- matchedCall
   }
   control@verbose <- verbose
+  # a convenience mirror of dbartsControl(rngSeed = ), as the wrappers expose;
+  # an explicit seed overrides the control's, NA leaves it untouched
+  seed <- coerceOrError(seed, "integer")
+  if (!is.na(seed)) control@rngSeed <- seed
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
   data <- eval(dataCall, evalEnv)

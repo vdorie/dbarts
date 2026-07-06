@@ -34,7 +34,23 @@ seedOnlyResults <- sampler$run(0L, 5L)
 
 expect_equal(builtInResults$train, seedOnlyResults$train)
 
-rm(sampler, control, seedOnlyResults, builtInResults)
+# the dbarts() seed argument mirrors dbartsControl(rngSeed = ) and, when
+# given, overrides a seed already set in the control
+control <- dbarts::dbartsControl(
+  n.trees = 5L, n.chains = 1L, n.threads = 1L,
+  verbose = FALSE, updateState = FALSE
+)
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
+seedArgResults <- sampler$run(0L, 5L)
+expect_equal(seedArgResults$train, seedOnlyResults$train)
+
+control@rngSeed <- 999L
+sampler <- dbarts::dbarts(y ~ x, testData, control = control, seed = 1234L)
+overrideResults <- sampler$run(0L, 5L)
+expect_equal(overrideResults$train, seedOnlyResults$train)
+
+rm(sampler, control, seedOnlyResults, builtInResults, seedArgResults,
+   overrideResults)
 
 
 # test that bart with fixed seed is reproducible
