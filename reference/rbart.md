@@ -295,28 +295,28 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000374
+#> total seconds in loop: 0.000371
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 2 3 2 3 2 2 2 1 2 3 2 3 2 2 3 3 
-#> 2 2 3 4 2 3 3 
+#> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
+#> 1 2 2 4 2 3 3 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 3) (2: 5) (3: 3) (4: 2) (5: 6) 
-#> (6: 3) (7: 3) (8: 1) (9: 7) (10: 2) 
+#> (1: 4) (2: 3) (3: 3) (4: 5) (5: 3) 
+#> (6: 3) (7: 4) (8: 4) (9: 0) (10: 4) 
 #> 
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001809
+#> total seconds in loop: 0.001932
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 3 3 4 2 2 3 2 3 2 3 2 2 2 1 4 2 
-#> 2 2 2 4 2 3 3 
+#> [1] 2 2 2 2 2 2 3 2 3 2 5 2 1 2 4 3 4 4 
+#> 3 3 2 3 2 4 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 9) (2: 4) (3: 4) (4: 4) (5: 4) 
-#> (6: 3) (7: 5) (8: 2) (9: 1) (10: 1) 
+#> (1: 8) (2: 3) (3: 4) (4: 7) (5: 4) 
+#> (6: 4) (7: 5) (8: 2) (9: 3) (10: 1) 
 #> 
 #> DONE BART
 #> 
@@ -353,28 +353,28 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000493
+#> total seconds in loop: 0.000471
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 3 2 3 3 3 2 2 2 3 2 4 2 1 3 2 2 3 
-#> 2 5 3 4 3 2 4 
+#> [1] 2 2 2 2 2 2 3 3 3 2 2 3 2 2 2 1 2 4 
+#> 2 3 2 4 3 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 3) (2: 2) (3: 5) (4: 8) (5: 4) 
-#> (6: 5) (7: 5) (8: 5) (9: 1) (10: 4) 
+#> (1: 5) (2: 2) (3: 11) (4: 6) (5: 4) 
+#> (6: 0) (7: 0) (8: 0) (9: 6) (10: 0) 
 #> 
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002335
+#> total seconds in loop: 0.002394
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 3 4 3 3 2 2 2 2 3 3 2 3 1 2 3 2 2 
-#> 3 2 2 2 2 1 3 
+#> [1] 2 2 1 4 3 4 2 2 3 2 2 2 2 2 2 4 3 1 
+#> 2 3 2 3 2 2 4 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 2) (2: 2) (3: 4) (4: 23) (5: 2) 
-#> (6: 0) (7: 1) (8: 0) (9: 0) (10: 0) 
+#> (1: 19) (2: 3) (3: 6) (4: 4) (5: 4) 
+#> (6: 0) (7: 0) (8: 0) (9: 0) (10: 0) 
 #> 
 #> DONE BART
 #> 

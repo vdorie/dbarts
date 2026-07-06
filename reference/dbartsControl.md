@@ -102,13 +102,15 @@ dbartsControl(
 
 - rngSeed:
 
-  Random number generator seed. With one chain, seeds R's generator
-  exactly as [`set.seed`](https://rdrr.io/r/base/Random.html) does. With
-  several chains, seeds a dedicated generator that in turn hands each
-  chain its own seed, leaving R's stream untouched; seeded results do
-  not depend on the thread count. If equal to `NA`, a single chain draws
-  through R's generator and several chains seed their generators from
-  R's stream, so `set.seed` alone suffices for reproducibility.
+  Random number generator seed. Every chain runs its own generator; the
+  seed drives a dedicated generator that in turn hands each chain its
+  own seed, leaving R's stream untouched. Seeded results do not depend
+  on the thread count, and a single-chain run with a given seed
+  reproduces the first chain of a multi-chain run with the same seed. If
+  equal to `NA`, chain generators are seeded from R's stream at
+  creation, so [`set.seed`](https://rdrr.io/r/base/Random.html)
+  beforehand suffices for reproducibility; sampling itself never
+  advances R's stream.
 
 - updateState:
 

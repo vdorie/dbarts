@@ -285,11 +285,11 @@ residuals(object, type = "ev", ...)
 - seed:
 
   Optional integer specifying the desired pRNG
-  [seed](https://rdrr.io/r/base/Random.html). It should not be needed
-  when running single-threaded -
-  [`set.seed`](https://rdrr.io/r/base/Random.html) will suffice, and can
-  be used to obtain reproducible results when multi-threaded. See
-  Reproducibility section below.
+  [seed](https://rdrr.io/r/base/Random.html). A
+  [`set.seed`](https://rdrr.io/r/base/Random.html) beforehand suffices
+  for reproducibility; supplying `seed` instead gives reproducible
+  results without touching R's stream. See Reproducibility section
+  below.
 
 - proposalprobs, proposal.probs:
 
@@ -494,27 +494,19 @@ object `bartFit`, execute `invisible(bartFit$fit$state)`.
 
 ### Reproducibility
 
-Behavior differs when running multi- and single-threaded, as the pseudo
-random number generators (pRNG) used by R are not thread safe. When
-single-threaded, R's built-in generator is used; if set at the start,
-the global [`.Random.seed`](https://rdrr.io/r/base/Random.html) will be
-used and its value updated as samples are drawn. When multi-threaded,
-the default behavior is to draw new random seeds for each thread using
-the clock and use thread-specific pRNGs.
+Every chain runs its own pseudo random number generator, so worker
+threads never touch R's generator and results do not depend on the
+thread count. Without a `seed`, chain generators are seeded from R's
+stream when the sampler is created, so calling
+[`set.seed`](https://rdrr.io/r/base/Random.html) beforehand makes
+results reproducible. Sampling itself never advances R's stream: after a
+fit, [`.Random.seed`](https://rdrr.io/r/base/Random.html) has moved only
+by the draws taken at creation.
 
-This behavior can be modified by setting `seed`, or by using `...` to
-pass arguments to
-[`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md).
-For the single-threaded case, a new pRNG is built using that seed that
-is separate from R's native generator. As such, the global state will
-not be modified by subsequent calls to the generator. For
-multi-threaded, the seeds for threads are drawn sequentially using the
-supplied seed, and will again be separate from R's native generator.
-
-Consequently, the `seed` argument is not needed when running
-single-threaded - [`set.seed`](https://rdrr.io/r/base/Random.html) will
-suffice. However, when multi-threaded the `seed` argument can be used to
-obtain reproducible results.
+Setting `seed` makes results reproducible without involving R's stream
+at all: the seed drives a dedicated generator that hands each chain its
+own seed. A single-chain run with a given seed reproduces the first
+chain of a multi-chain run with the same seed.
 
 ### Extracting Trees
 
@@ -736,24 +728,24 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.269821
+#> total seconds in loop: 0.269449
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 3 2 2 2 2 2 1 1 2 3 2 2 3 2 3 3 1 
-#> 3 3 4 2 3 2 3 3 2 2 2 2 2 2 2 2 2 2 2 3 
-#> 2 2 4 1 4 2 2 2 2 2 2 1 3 2 2 2 3 2 6 1 
-#> 3 4 2 3 3 1 3 2 4 2 2 2 2 3 2 2 1 2 3 2 
-#> 2 2 2 2 3 2 3 2 2 2 2 4 2 2 4 2 3 4 2 4 
-#> 2 2 3 3 3 2 2 2 2 3 3 3 3 2 2 2 2 2 2 2 
-#> 2 3 4 2 3 3 3 2 3 2 2 5 4 2 3 2 2 2 4 2 
-#> 2 2 2 3 4 3 2 2 3 2 5 2 4 3 2 3 2 3 2 1 
-#> 1 2 2 2 2 2 3 3 2 2 2 3 2 2 2 3 3 1 3 2 
-#> 3 2 2 3 2 2 2 2 3 2 1 3 3 2 2 2 2 2 2 2 
-#> 3 2 
+#> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
+#> 3 2 2 3 2 3 3 3 2 3 3 3 2 2 4 2 3 1 2 1 
+#> 1 3 3 2 3 2 5 2 2 2 1 3 2 2 2 3 2 3 2 3 
+#> 3 2 2 2 2 3 3 3 3 3 2 4 2 3 2 2 5 2 2 4 
+#> 3 2 3 3 2 2 1 2 3 3 2 2 2 2 2 2 3 2 2 3 
+#> 2 2 2 2 2 3 4 2 2 2 2 2 2 2 3 3 2 1 2 2 
+#> 5 4 4 2 2 2 3 2 2 2 2 2 2 2 7 3 2 4 2 2 
+#> 2 2 4 3 2 3 2 3 3 2 3 1 2 2 5 2 1 2 3 2 
+#> 3 3 2 2 4 2 2 3 3 2 2 5 2 5 3 2 3 2 2 3 
+#> 3 2 2 3 2 3 2 2 2 5 3 5 2 2 2 3 2 2 3 2 
+#> 2 1 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 33) (2: 28) (3: 29) (4: 24) (5: 30) 
-#> (6: 27) (7: 29) (8: 23) (9: 24) (10: 32) 
+#> (1: 37) (2: 32) (3: 36) (4: 37) (5: 32) 
+#> (6: 20) (7: 29) (8: 31) (9: 26) (10: 21) 
 #> 
 #> DONE BART
 #> 
@@ -768,10 +760,10 @@ fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 #>              y        Ey        lm      bart
-#> y    1.0000000 0.9847984 0.8841787 0.9984537
-#> Ey   0.9847984 1.0000000 0.9009389 0.9886330
-#> lm   0.8841787 0.9009389 1.0000000 0.8974910
-#> bart 0.9984537 0.9886330 0.8974910 1.0000000
+#> y    1.0000000 0.9847984 0.8841787 0.9983567
+#> Ey   0.9847984 1.0000000 0.9009389 0.9886957
+#> lm   0.8841787 0.9009389 1.0000000 0.8982339
+#> bart 0.9983567 0.9886957 0.8982339 1.0000000
 
 ## binary response with a logistic link, via bart2
 set.seed(0)
@@ -802,14 +794,14 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001503
+#> total seconds in loop: 0.001547
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 3 3 2 3 3 2 3 2 2 2 2 1 4 4 3 2 2 
-#> 4 2 
+#> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 
+#> 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 12) (2: 19) 
+#> (1: 14) (2: 15) 
 #> DONE BART
 #> 
 
