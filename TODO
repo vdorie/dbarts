@@ -37,10 +37,10 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  forest-split-bcf: steps 4-5 remain - multi-forest state formats,
-    then the exact-posterior gate + bcf calibration map (replacing
-    step 3's placeholder scales); the two-forest sampler itself
-    landed d1ffb92. bartCause is the named consumer.
+  forest-split-bcf: step 5 remains - the exact-posterior gate + bcf
+    calibration map (replacing
+    step 3's placeholder scales); the sampler landed d1ffb92, the
+    state format 4e6b206. bartCause is the named consumer.
   gpu-bart: a considered survey of innovative GPU uses for BART
     (VD 2026-07-07: wants the thinking to happen at some point; no
     clock). Memo-first; weighs grow-from-root and blocked-jacobi's

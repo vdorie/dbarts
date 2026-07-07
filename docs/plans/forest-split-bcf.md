@@ -113,3 +113,19 @@ single-forest sweep is pointer-identical when the BCF state is null.
 Steps 4-5 remain: serialization formats, then the exact-posterior
 gate and the bcf-constant calibration map (which also replaces the
 placeholder scales).
+
+Step 4 landed (4e6b206): ChainStateData splits into chain-level state
+plus a per-forest vector (ForestStateData: tree/saved/param/mask
+channels and k); the serialized object gains a per-chain "forests"
+list (length 1 off BCF) and an optional "bcf" glue vector
+(a, aVariance, b0, b1); stateFormatVersion 2 -> 3, version-2 states
+refused by name; the step-3 multi-forest refusals replaced by working
+round trips. Forest-count mismatches rejected in stateIsValid and
+setState. Gates (implementer's, re-run by reviewer): component tests
+incl. a 5-seed fuzzer pass over the new layout, tinytest 2492/0
+(8 new), equivalence exact 18/18, air/lintr clean. Deviation: the
+BCF fit round-trip test asserts to 1e-5 (setState is semantic
+continuation); glue equality exact. Step 5 remains: the two-forest
+exact-posterior gate + bcf calibration map. Reviewer note: run rchk
+locally over the new serialization code before release (zero-findings
+status last confirmed at c2d591a).
