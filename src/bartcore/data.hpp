@@ -75,9 +75,9 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
 /// Column types the store distinguishes. Ordinal columns quantize against
 /// cut points and split by threshold; categorical columns hold integer
 /// category codes 0..numCategories-1 directly and split by subset. Masks of
-/// up to 63 categories live inline in the rule word; wider columns pool
-/// their mask words per tree, and the flattened format moves masks past 53
-/// categories (the double-exactness bound) into a side channel (see
+/// up to 63 categories live inline in the rule word (and inline in the
+/// flattened node); wider columns pool their mask words per tree and the
+/// flattened format references them through a side channel (see
 /// docs/design/pooled-masks.md). Codes must fit xint_t, including the
 /// reserved missing code K of a pooled column.
 enum class ColumnType : std::uint8_t { ordinal, categorical };
@@ -115,10 +115,6 @@ struct CscColumnSlice {
   size_t numNonzero = 0;
 };
 
-/// The widest category count whose full direction mask a double represents
-/// exactly; the flattened format's value-encoding boundary.
-constexpr std::uint32_t maxValueEncodableCategories = 53;
-
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
 /// uniformly spaced over the column's range or at unique-value midpoints
@@ -155,29 +151,22 @@ struct ColumnStore {
   // missing-direction draw in rules and the NA-aware partition kernel, so
   // NA-free columns keep today's draws and code paths exactly
   std::vector<std::uint8_t> hasMissing;
-  // categorical tier flags, fixed once category counts are (they never
-  // change after build): wide columns (> 53 levels) need the flattened
-  // format's mask side channel, pooled ones (> 63) the per-tree mask pool
-  bool hasWideCategorical = false;
+  // categorical tier flag, fixed once category counts are (they never change
+  // after build): pooled columns (> 63 levels) need the per-tree mask pool
+  // and the flattened format's mask side channel; narrower masks are inline
   bool hasPooledCategorical = false;
 
-  /// Whether column j's flattened masks move to the side channel.
-  bool columnHasWideMask(size_t j) const {
-    return types[j] == ColumnType::categorical &&
-           numCuts[j] > maxValueEncodableCategories;
-  }
-  /// Whether column j's rules store pool offsets instead of inline masks.
+  /// Whether column j's rules store pool offsets instead of inline masks
+  /// (more than 63 categories, so the mask spans more than one word).
   bool columnIsPooled(size_t j) const {
     return types[j] == ColumnType::categorical &&
            maskWordsForCount(numCuts[j]) > 1;
   }
 
   void refreshCategoricalTiers() {
-    hasWideCategorical = hasPooledCategorical = false;
-    for (size_t j = 0; j < numPredictors; ++j) {
-      if (columnHasWideMask(j)) hasWideCategorical = true;
+    hasPooledCategorical = false;
+    for (size_t j = 0; j < numPredictors; ++j)
       if (columnIsPooled(j)) hasPooledCategorical = true;
-    }
   }
 
   size_t numTestObservations = 0;

@@ -711,8 +711,11 @@ expect_error(sampler.us$setState(list()), pattern = "bartcoreState")
 state.bad <- sampler.us$state
 internal.nodes <- which(state.bad[[1L]]$tree.vars > 0L)
 expect_true(length(internal.nodes) > 0L)
-state.bad[[1L]]$tree.values[internal.nodes[1L]] <-
-  state.bad[[1L]]$tree.values[internal.nodes[1L]] + 1e-3
+# tree.values is a tagged raw payload per node; x is all ordinal, so the
+# first internal node's word is a cut point. Nudge it off the grid.
+value.bytes <- (internal.nodes[1L] - 1L) * 8L + seq_len(8L)
+old.cut <- readBin(state.bad[[1L]]$tree.values[value.bytes], "double", 1L)
+state.bad[[1L]]$tree.values[value.bytes] <- writeBin(old.cut + 1e-3, raw())
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
 # a state from an incompatible format version refuses cleanly, naming both

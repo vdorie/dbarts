@@ -925,8 +925,8 @@ dbartsSampler <- setRefClass(
         current,
         newdata
       )
-      # categorical rules report their raw direction mask in 'value'; when any
-      # column can hold one, decode the masks into per-level L/R strings
+      # categorical rules report their split in 'directions' (value is NA);
+      # when any column can hold one, pad the decode to the declared levels
       if (any(data@varTypes == CATEGORICAL_VARIABLE)) {
         trees <- decodeCategoricalSplits(trees, data@x, data@varTypes)
       }

@@ -132,17 +132,8 @@ expect_equal(
   nchar(trees$directions[isCategoricalRule]),
   unname(numLevels[trees$var[isCategoricalRule]])
 )
-maskFromDirections <- function(directions) {
-  sum(2^(which(strsplit(directions, "")[[1L]] == "R") - 1L))
-}
-expect_equal(
-  sapply(
-    trees$directions[isCategoricalRule],
-    maskFromDirections,
-    USE.NAMES = FALSE
-  ),
-  trees$value[isCategoricalRule]
-)
+# a categorical rule reports its split in directions; value is NA
+expect_true(all(is.na(trees$value[isCategoricalRule])))
 # masks put at least one level on each side
 expect_true(all(
   grepl("L", trees$directions[isCategoricalRule]) &
