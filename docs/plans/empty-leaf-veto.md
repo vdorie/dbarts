@@ -60,3 +60,24 @@ finite, load-bearing constant.
 - Component tests (move reversibility on fixed inputs); full tinytest.
 - Equivalence z-mode vs prior baseline; bench-sampler compare (the
   min/max scan adds per-birth work).
+
+## Status (2026-07-07)
+
+Landed (f2f1120) as the plan's keep-and-document branch of step 1: the
+investigation stopped before the occupancy-aware kernel, and
+docs/design/empty-leaf-veto.md records why. Substantive findings:
+the veto has exactly one read site (moves.hpp logLikelihoodForBranch)
+and backstops CATEGORICAL proposals too - this plan's context was too
+generous; reachable is not occupied, so a reachable-but-unoccupied
+category alone on one side empties it (the DART port bug is the
+evidence). Vetoed-vs-vetoed is unreachable in the shipped engine (the
+chain state is never empty and GP over-cap now delegates to the
+constant leaf), so -inf would no longer NaN - the finite value is kept
+deliberately as defense and documented inline. Full removal was costed
+at 250-400 lines of posterior-changing kernel rewrite (birth density,
+variable-selection, and node-selection corrections; occupancy change
+and swap walks) - past the 1.5x stop threshold for one guard line.
+Diff: the design note plus a net-zero comment reword at the veto site.
+Gates: install clean, component tests all pass; snapshot/equivalence/
+exact-posterior/bench gates are no-ops for a comment-only change (the
+posterior-changing class applied only to the unimplemented branch).

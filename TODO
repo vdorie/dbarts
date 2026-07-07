@@ -26,11 +26,6 @@ items
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
     window: pre-release.
-  empty-leaf-veto: the -1e7 empty-leaf branch veto is a ported classic
-    hack, redundant with the categorical gauge invariant; either
-    occupancy-aware ordinal proposals or a documented, principled veto.
-    Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
-    on the finite value; the gp-leaves deadlock).
   gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
     frontier companion (docs/design/parallel-bart-frontier.md,
     2026-07-07: original constructions with exactness classes, the
