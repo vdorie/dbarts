@@ -34,3 +34,17 @@ migrations decided when someone wants them.
 - Workflows green on push after each change; for sanitizers, a known
   clean run plus one deliberately injected error caught in a scratch
   branch (then reverted).
+
+## Landing note (2026-07-07, 56e47f6): sub-items 1-2
+
+Pin audit: all 8 workflows checked against current majors; only
+sanitizers.yaml lagged (checkout@v5 -> v7); no deprecated runtimes.
+Sanitizer widening: the clang job became a fail-fast-off matrix over
+the r-hub clang-asan/gcc-asan containers; a new valgrind job runs the
+suite under R -d valgrind on the r-hub valgrind container (180-minute
+timeout, ERROR SUMMARY grep gate), same install/test/grep shape as
+the proven asan job. Triggers unchanged (push + dispatch; the
+pull_request gate stays deferred until stable). Gates: YAML parses;
+runtime behavior maintainer-deferred to the first push. Sub-item 3
+(codecov badge) awaits VD's call; sub-item 4 remains dormant by
+design.
