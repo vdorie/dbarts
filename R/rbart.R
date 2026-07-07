@@ -769,7 +769,10 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
       TRUE
     )
 
-    state$treeFit.train <- sampler$predict(sampler$data@x) - ranef.vec
+    # sweep the forest once before the first ranef draw so it absorbs the
+    # response mean: a prior fit predicts the response midpoint, and for a
+    # skewed response that offset would otherwise leak into the intercepts
+    state$treeFit.train <- as.vector(sampler$run(0L, 1L)$train) - ranef.vec
 
     run_result <- rbart_vi_run(
       sampler,
@@ -792,17 +795,23 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
       sampler$setControl(control)
     }
   } else {
+    oldKeepTrees <- control@keepTrees
+    if (oldKeepTrees) {
+      control@keepTrees <- FALSE
+      sampler$setControl(control)
+    }
+
     sampler$setOffset(
       ranef.vec + if (!is.null(offset.orig)) offset.orig else 0,
       TRUE
     )
 
-    state$treeFit.train <- (if (control@n.samples > 1L && control@keepTrees) {
-      sampler$predict(sampler$data@x)[, 1L]
-    } else {
-      sampler$predict(sampler$data@x)
-    }) -
-      ranef.vec
+    state$treeFit.train <- as.vector(sampler$run(0L, 1L)$train) - ranef.vec
+
+    if (oldKeepTrees) {
+      control@keepTrees <- TRUE
+      sampler$setControl(control)
+    }
 
     firstTau <- NULL
     firstSigma <- NULL
