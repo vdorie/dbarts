@@ -126,9 +126,10 @@ incl. a 5-seed fuzzer pass over the new layout, tinytest 2492/0
 (8 new), equivalence exact 18/18, air/lintr clean. Deviation: the
 BCF fit round-trip test asserts to 1e-5 (setState is semantic
 continuation); glue equality exact. Step 5 remains: the two-forest
-exact-posterior gate + bcf calibration map. Reviewer note: run rchk
-locally over the new serialization code before release (zero-findings
-status last confirmed at c2d591a).
+exact-posterior gate + bcf calibration map. Reviewer note: rchk was
+re-run locally 2026-07-07 over the step-4 serialization code (tarball
+at db96254): zero dbarts findings, same tool-noise-only output as the
+c2d591a baseline run.
 
 ## Step 5 spec (2026-07-07)
 
