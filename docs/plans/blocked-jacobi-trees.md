@@ -1,5 +1,14 @@
 # blocked-jacobi-trees
 
+Note (2026-07-07): docs/design/parallel-bart-frontier.md bears directly
+on this item. The precision tax is a conservation law (no Gaussian,
+sum-constrained, conditionally-independent augmentation escapes it);
+the exact variant that survives is UNEQUAL allocation - released/pinned
+rotation of the variance budget (frontier 3.5, with the b = 2
+falsifier). As a GPU strategy the mechanism is obviated by
+observation-axis parallelism at b = 1 (gpu-bart.md 2c); its remaining
+value is CPU within-chain threading.
+
 agent: opus
 rng: neutral at defaults (b = 1 is today's sampler); b > 1 is a new
      exact kernel, gated as posterior-changing
