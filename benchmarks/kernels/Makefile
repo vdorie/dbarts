@@ -8,8 +8,8 @@ MISC_LIB := ../../src/misc.a
 
 all: bench
 
-bench: bench.c $(MISC_LIB)
-	$(CC) $(OPT) $(CPPFLAGS) -o $@ bench.c $(MISC_LIB) -lpthread -lm
+bench: bench.c partition_u8.c partition_u8.h $(MISC_LIB)
+	$(CC) $(OPT) $(CPPFLAGS) -o $@ bench.c partition_u8.c $(MISC_LIB) -lpthread -lm
 
 sparse: sparse.c $(MISC_LIB)
 	$(CC) $(OPT) $(CPPFLAGS) -o $@ sparse.c $(MISC_LIB) -lpthread -lm
