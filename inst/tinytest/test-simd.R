@@ -111,6 +111,10 @@ source(
 # test that long data gets same result with various SIMD sets
 
 if (maxSIMDLevel > 0L) {
+  # a slice of the source set: odd length still straddles every kernel's
+  # vector width, at a fraction of the cost
+  testData$x <- testData$x[1:5001L, , drop = FALSE]
+  testData$y <- testData$y[1:5001L]
   n.burn <- 0L
   n.sims <- 10L
 

@@ -236,7 +236,10 @@ invisible(sampler$run(50L, 1L))
 
 cur <- as.numeric(sampler$data@x[, 1L])
 anyRolledBack <- FALSE
-for (trial in 1:30) {
+# 8 reps, not 30: n.chains = 2 makes every run() call thread-pool-bound, and at
+# sd = 1.5 every one of the original 30 reps already rolled back an observation
+# (checked by replay), so 8 keeps the interleave/rollback contract with margin.
+for (trial in 1:8) {
   xnew <- cur + rnorm(n, sd = 1.5) # aggressive proposal exercises rollback
   inst <- sampler$setPredictor(xnew, 1L, forceUpdate = "partial")
   cur[inst] <- xnew[inst]
