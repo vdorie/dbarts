@@ -105,9 +105,10 @@ items
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.
-  warm-starts: initialize a sampler's forest from a previous fit's
-    saved trees; the flat replay and cut-mapping machinery exist, the
-    verb does not.
+  warm-starts: LANDED 933eed8 (installTrees + bart2 warm.start;
+    same-grid v1, cross-grid refused). Remaining stretch: the
+    cross-grid remap over mapOldCutPointsOntoNew; reopen when a
+    consumer needs new-data warm starts.
   weighted-binary: integer-weight probit (exact via replicated latent
     draws, linear in total counts; threshold hybrid if that matters)
     and arbitrary real logistic weights (needs a real-shape PG sampler;
