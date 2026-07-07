@@ -25,6 +25,43 @@ the same additive API bump.
 - Entry points are name-looked-up CCallables, so evolution is additive;
   bump DBARTS_C_API_VERSION.
 
+## Decision (memo 2026-07-07; VD sign-off gates implementation)
+
+1. dbarts_results extension. The struct is caller-owned, so growing it
+   is safe only while nothing is released: stan4bart's
+   IterableBartResults (bart_util.hpp:27) holds it as an uninitialized
+   member and assigns the six fields by name - new fields would be
+   garbage pointers without a one-line fix (value-initialize
+   `current`). Post-release, growth is never safe: old-compiled
+   callers zero-init only the old sizeof, so the new library would
+   read stack garbage past the end. Recommendation: extend the struct
+   with tau/groupEffects NOW (both packages unreleased, lockstep
+   recompile; patch stan4bart's one line on its dbarts-1.0 branch),
+   and freeze the struct at release - post-1.0 additions use new
+   entry points or registration setters instead. Alternative: freeze
+   at six fields today and add
+   dbarts_sampler_setGroupedResultBuffers(sampler, tau, groupEffects)
+   - no stan4bart edit, but the grouped outputs live off-struct
+   forever.
+2. Callback contract. Signature int cb(void* userData,
+   dbarts_sampler*, size_t chainIndex, size_t sweepIndex, int
+   isBurnIn), return 0 to stop; invoked on the calling thread BEFORE
+   every sweep (unthrottled - pollInterrupt's 100ms throttle stays
+   separate), which reproduces the host's setState-then-run(0, 1)
+   loop exactly and serves the observer role (it sees the previous
+   sweep's state; final state is read after run returns).
+   Registration refused when chains run on worker threads. Caveat to
+   sign off: inline multi-chain runs chains SEQUENTIALLY (chain 0
+   completes all sweeps first) - per-chain RNG keeps draws identical
+   to the interleaved loop, but a callback cannot condition chain c
+   on chain c+1's progress; stan4bart's shape (one chain per sampler)
+   is unaffected. Recommendation: allow inline multi-chain with the
+   chainIndex argument and document the order; restricting v1 to
+   numChains == 1 is the conservative alternative.
+3. The rbart_vi custom-prior loop fix rides step 1's facade hook
+   (bridge-internal, not the public C API); its follow-up plan is
+   written when this lands.
+
 ## Constraints
 
 - Callback contract v1: invoked on the calling thread, between sweeps,
