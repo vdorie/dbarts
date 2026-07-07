@@ -96,8 +96,9 @@ items
   rbart-loop-profile: the custom-prior R loop pays a bridge round trip
     per posterior sample; profile before touching (built-in priors
     already bypass in-core).
-  rchk-ci: scheduled rchk run; the bridge hand-manages protection
-    slots and data-ownership will churn them.
+  rchk-triage: first dispatched rchk run after a push - triage its
+    findings (one unverified setAttrib candidate noted in
+    rchk-ci.md's landing note); maintainer-gated on the push.
   readability-review: the bartcore branch was agent-written end to end;
     rubric-driven human-readability pass over its code, comments, and
     design docs (core-generalization.md's landing-note accretion

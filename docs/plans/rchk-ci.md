@@ -40,3 +40,17 @@ bridge on a schedule, and its current findings are fixed or annotated.
 - The workflow runs green via workflow_dispatch; a deliberately
   unprotected allocation on a scratch branch is caught (then
   reverted).
+
+## Landing note (2026-07-07, 3b30cf5)
+
+Landed the workflow (weekly + dispatch; builds the tarball, runs
+kalibera/rchk in a container, fails on [PB]/[UP]/maacheck suspicious-
+call tags, tolerates the benign too-many-states bailout) and the
+README review-gate line. Step-2 triage DEFERRED: Docker Desktop's
+hub proxy on this machine blackholes pulls of non-cached images
+(hello-world included; registry auth itself answers), so no local
+rchk output was obtainable - first triage rides the first dispatched
+run after a push. One unverified candidate noted for that run:
+bartcore_run's namesExpr passed unprotected to Rf_setAttrib
+(R_interface_bartcore.cpp:~1434), matching rchk's documented
+setAttrib pattern; deliberately not fixed without tool confirmation.
