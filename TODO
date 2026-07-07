@@ -93,9 +93,6 @@ items
   repo-modernization: CI action pins current; gcc-asan/valgrind
     sanitizer variants and PR gating once stable; optional codecov
     badge; optional roxygen2 and NEWS.md migrations.
-  revdep-smoke-ci: monthly scheduled check of dev dbarts against
-    stan4bart and bartCause, so breakage surfaces before release
-    sweeps.
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
   sparse-extensions: in-place mutation, sparse x.test, streaming range

@@ -42,3 +42,18 @@ on stan4bart and bartCause.
 - workflow_dispatch run is green against current CRAN versions;
   a deliberate dbarts.h signature change on a scratch branch makes
   stan4bart's leg fail (then reverted).
+
+## Landing note (2026-07-07, 8721102)
+
+.github/workflows/revdep-smoke.yaml (65 lines): monthly cron + manual
+dispatch, ubuntu, fail-fast-off matrix over stan4bart and bartCause;
+each leg installs dev dbarts from the checkout, fetches the package's
+CRAN source tarball, installs hard dependencies only (dependencies =
+NA - suggests are skipped by the check via _R_CHECK_FORCE_SUGGESTS_,
+and bartCause suggests stan4bart, whose CRAN release cannot pair with
+dev dbarts; caught in review, the implementer had dependencies = TRUE),
+and runs R CMD check --no-manual. Neither package ships vignettes, so
+hard deps suffice. Gates: YAML parses (R yaml). Maintainer-deferred:
+first workflow_dispatch run after a push, and the deliberate-breakage
+verification. Dev-branch pairing left as a comment, not a toggle (no
+dev remotes are configured anywhere in the repo to wire up).
