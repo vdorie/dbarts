@@ -1,0 +1,48 @@
+# Statistical-equivalence gate (benchmarks/R/equivalence.R compare), z-mode
+# only: bitwise exactness is RNG- and machine-dependent and stays a local,
+# same-machine check (see benchmarks/README.md). Any runner OS works here,
+# so this runs on the cheaper ubuntu-latest rather than cpp-tests.yaml's
+# arch-pinned macos-latest. --strict-coverage turns a scenario the baseline
+# predates into a failure instead of a warning.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+name: equivalence
+
+permissions: read-all
+
+jobs:
+  equivalence:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      # Full (non-quick) scenario/seed grid, fork-parallelized so it still
+      # finishes quickly; quick's reduced seeds/iterations can't be compared
+      # against a baseline recorded at full settings (equivalence.R enforces
+      # matching settings).
+      - name: Set EQUIVALENCE_CORES to the runner's core count
+        run: echo "EQUIVALENCE_CORES=$(nproc)" >> "$GITHUB_ENV"
+
+      - name: Run the statistical equivalence gate
+        run: |
+          Rscript benchmarks/R/equivalence.R compare \
+            benchmarks/baselines/equivalence-235bebc.rds --strict-coverage

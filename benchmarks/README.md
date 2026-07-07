@@ -54,6 +54,15 @@ Baselines are RNG- and build-dependent; regenerate them rather than reusing
 across machines. Comparisons must use the same settings (seeds, iterations)
 as the recorded baseline; the script enforces this.
 
+`compare` prints a coverage line (scenarios compared / skipped) and warns -
+or, with `--strict-coverage`, fails - when the installed engine offers
+scenarios the baseline predates. baselines/MANIFEST records each baseline's
+role (current, historical, or historical-classic), recording commit,
+machine, and scenario list. The scheduled workflow
+(.github/workflows/equivalence.yaml) runs `compare` in this statistical
+mode against the current baseline; bitwise exactness stays a local,
+same-machine check.
+
 Passing `engine=new` runs the comparison side against the bartcore engine
 (src/bartcore/) through a standalone shim (tests/cpp/rshim.cpp, built on
 demand by benchmarks/R/bartcore-shim.R); this is the phase-1 correctness
