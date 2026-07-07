@@ -84,3 +84,9 @@ eligible column, which a single-column microbench cannot exercise but
 the DRAM-bound n >= 1e5 regime would feel. The owned-container design
 (docs/design/data-ownership.md) wants per-column widths regardless;
 phase 2 could ride that container work rather than retrofitting.
+
+Go/no-go (VD, 2026-07-07): NO standalone phase 2. Per-column widths
+fold into the owned-container implementation (data-ownership.md),
+where they are structural anyway; end-to-end memory effects get
+re-measured there. The phase-1 kernels stay in benchmarks/kernels as
+the reference for that work.

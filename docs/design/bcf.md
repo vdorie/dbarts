@@ -193,3 +193,12 @@ decision (public-surface.md section 5's handle deferral).
 3. The prognostic scalar a (half-Cauchy muscale): ship it with the b0/b1
    expansion, or defer at a = 1?
 4. Should tau see pihat by default (`"both"`), or stay moderator-only?
+
+## Resolutions (VD, 2026-07-07)
+
+Questions 1 and 2: keep range-anchoring and map bcf's sd(y) scales
+onto per-forest k hyperpriors (the approximate map); adopt bcf's
+200/50 tree convention for the BCF entry point, leaving dbarts's
+single-forest default at 75. Questions 3 (muscale expansion vs a = 1)
+and 4 (tau seeing pihat) remain open; neither blocks the Forest
+split, which is unblocked as of these resolutions.
