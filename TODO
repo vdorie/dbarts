@@ -53,6 +53,10 @@ items
   forest-split-bcf: split Forest out of Sampler (deferred since phase
     1) with BCF - prognostic + treatment forests - as the driving
     consumer; bartCause is the named consumer and VD maintains it.
+  fuzz-state-roundtrip: fix the two state-serialization edges the
+    mutation fuzzer found (degenerate uniform re-cut grid; non-canonical
+    categorical mask on flatten); setState must accept every state a
+    live sampler reaches. Triaged from mutation-fuzzing, 2026-07-07.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
@@ -76,10 +80,6 @@ items
     hook the design provisioned.
   multi-forest-models: multinomial, heteroscedastic, hurdle - queued
     behind forest-split-bcf; one design note each when picked.
-  fuzz-state-roundtrip: fix the two state-serialization edges the
-    mutation fuzzer found (degenerate uniform re-cut grid; non-canonical
-    categorical mask on flatten); setState must accept every state a
-    live sampler reaches. Triaged from mutation-fuzzing, 2026-07-07.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
