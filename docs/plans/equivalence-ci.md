@@ -54,3 +54,20 @@ Runner note (2026-07-06): scenario x seed units parallelized over
 forks (bitwise-verified against the serial equivalence-235bebc.rds,
 18/18 identical; ~11 min -> ~1.5 min). EQUIVALENCE_CORES overrides;
 Windows serial. CI wiring should set it to the runner core count.
+
+## Landing note (2026-07-07, e109261)
+
+Landed: compare mode prints a coverage line and warns on scenarios the
+baseline predates (--strict-coverage fails instead, demonstrated
+against the 9-scenario b354f3a baseline); benchmarks/baselines/
+MANIFEST records role/commit/arch/scenarios per file with three roles
+(current, historical, historical-classic - the bartcore-superseded
+recordings warranted their own); public-surface.md's "permanent
+cross-engine reference" phrasing softened to historical evidence;
+.github/workflows/equivalence.yaml runs weekly + on dispatch on
+ubuntu-latest in z-mode with EQUIVALENCE_CORES=nproc and
+--strict-coverage (statistical mode is what makes a cross-arch
+runner legitimate). Gates: local compare exact 18/18 with the
+coverage line; YAML parses; MANIFEST matches git ls-files.
+Deferred: maintainer gate - the workflow's first live run needs a
+push + workflow_dispatch.
