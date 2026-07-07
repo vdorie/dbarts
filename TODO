@@ -103,10 +103,6 @@ items
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.
-  test-suite-trim: the top four tinytest files carry half the suite's
-    wall time (per-observation rollback trials, simd size grid,
-    thread-pool setup); same contracts at ~20s. Added 2026-07-06 at
-    VD's request.
   warm-starts: initialize a sampler's forest from a previous fit's
     saved trees; the flat replay and cut-mapping machinery exist, the
     verb does not.

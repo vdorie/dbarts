@@ -49,3 +49,22 @@ asserted contracts at roughly 20s total.
 
 - tinytest::test_package("dbarts") all ok; per-file profile shows
   the top-four share materially reduced with case coverage intact.
+
+## Status (2026-07-07)
+
+Landed (190990b). Wall time 33.8s -> 20.3s (reviewer-timed), suite
+2497 -> 2409 assertions, 0 failures - the 88 fewer are loop-rep
+reductions only. Profiling found each file dominated by one cost,
+not the trial counts the Context predicted: the two per-observation
+files by a 30-rep interleaved run() loop under n.chains = 2
+(thread-pool spin-up per call; cut to 8 reps - every original rep
+already rolled back an observation, documented in the test comments)
+and multithreaded/simd by the 500k-row multithreadData set (sliced
+to 5001 rows in the test files; nthread does not change a
+single-chain fit's code path, and simd keeps every instruction set
+at two lengths - friedman-short and the odd 5001 straddling every
+vector width). inst/common untouched. Gates: tinytest 2409/0
+(reviewer re-ran, 20.3s), air/lintr clean. Observation for the
+record, pre-existing and unchanged by this item: chain.hpp's
+testFitParallelCutoff = 65536 threaded test-fit path has no tinytest
+coverage (the multithreaded section fits without a test matrix).
