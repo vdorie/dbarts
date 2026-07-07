@@ -90,9 +90,10 @@ items
     rubric-driven human-readability pass over its code, comments, and
     design docs (core-generalization.md's landing-note accretion
     especially). Also a standing review step in docs/plans/README.md.
-  repo-modernization: CI action pins current; gcc-asan/valgrind
-    sanitizer variants and PR gating once stable; optional codecov
-    badge; optional roxygen2 and NEWS.md migrations.
+  repo-modernization: standing hygiene bundle. Remaining: PR-gate the
+    sanitizers workflow once the new gcc-asan/valgrind legs prove
+    stable on pushes; optional codecov badge (VD's call); optional
+    roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
   sparse-extensions: in-place mutation, sparse x.test, streaming range
