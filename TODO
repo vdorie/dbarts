@@ -60,10 +60,10 @@ items
     re-measured end-to-end there.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
-  linear-leaf-reuse: MEASURED 2026-07-07 (table in the plan file,
-    harness af3222d): chol(V) reuse is NO-GO (< 0.06% of sweep);
-    a U'WU stats cache has a 34-46% realistic ceiling - GO candidate
-    awaiting VD's step-3 decision against the cache-coherence burden.
+  gp-cache-test-flake: testGPLeafKernelCache's warm-vs-cold-clone
+    bitwise check is allocation-layout dependent (SIMD reduction
+    splits) and fails deterministically in some builds at clean
+    HEAD; rework the comparison to be same-object. Found 2026-07-07.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
