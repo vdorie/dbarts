@@ -58,3 +58,28 @@ workflows, and - if grow-from-root lands - XBART-init-then-BART-refine.
 
 - Component tests; full tinytest; equivalence exact (defaults
   untouched).
+
+## Status (2026-07-07)
+
+Landed (933eed8). Chain::installForest seeds live trees, sigma, and k
+from a donor's flat state - rng, latents, group effects, and saved
+buffers stay fresh (a starting position, not a continuation) - via
+rebuildLiveForest, extracted from setState so both share the rebuild
+loop. Sampler::installForests cycles or user-maps donor samples onto
+chains (NULL spreads them for overdispersed starts) and refuses
+tree-count, cut-grid, and DART mismatches by name. R surface: the R5
+installTrees(donor, samples = NULL) method plus bart2's warm.start
+argument; the donor may be a sampler, a keepSampler fit, or a stored
+state. Cross-grid remap REFUSED for v1 ("cross-grid warm starts are
+not supported") - the stretch step stays open here. Deviations: the
+diff ran ~630 insertions vs the ~250 budget - the bridge state parser
+(mirroring setState's reader) and the test file account for it,
+reviewed line-for-line as in-scope; step 3's component tests landed
+as tinytest round-trips (getTrees/predict equality to 1.8e-14) since
+getTrees is R-level; BCF glue transfers when both fits are BCF,
+paralleling DART - a deliberate small superset of "sigma/k only".
+Gates (implementer ran, reviewer re-ran): component tests pass,
+tinytest 2469/0 (11 new), equivalence exact 18/18, air/lintr/checkRd
+clean. Reviewer note: the new bridge SEXP parser should ride the next
+local rchk run (zero-findings last confirmed over the step-4
+serialization at db96254).
