@@ -713,7 +713,7 @@ dbartsData <- function(
     }
   }
 
-  result <- methods::new(
+  result <- newValidated(
     "dbartsData",
     modelMatrices = namedList(
       y,

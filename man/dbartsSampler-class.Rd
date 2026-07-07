@@ -24,8 +24,6 @@
 \alias{\S4method{printTrees}{dbartsSampler}}
 \alias{\S4method{getTrees}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
-\alias{\S4method{startThreads}{dbartsSampler}}
-\alias{\S4method{stopThreads}{dbartsSampler}}
 \description{
   A reference class object that contains a Bayesian Additive Regression Trees sampler in such a way that it can be modified, stopped, and started all while maintaining its own state.
 }
@@ -59,8 +57,6 @@
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
   ...
 )
-\S4method{startThreads}{dbartsSampler}(n.threads = control@n.threads)
-\S4method{stopThreads}{dbartsSampler}()
 }
 \arguments{
   \item{numBurnIn}{

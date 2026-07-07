@@ -247,7 +247,7 @@ xbart <- function(
   if (is.call(resid.prior)) {
     resid.prior <- eval(resid.prior, getNamespace("dbarts"))
   }
-  model <- new(
+  model <- newValidated(
     "dbartsModel",
     tree.prior,
     node.prior,

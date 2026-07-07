@@ -466,7 +466,6 @@ bart2 <- function(
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
-    sampler$startThreads()
 
     samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
     if (!is.null(samples$sigma)) {
@@ -488,10 +487,8 @@ bart2 <- function(
 
     samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
-    sampler$startThreads()
     samples <- sampler$run(updateState = FALSE)
   }
-  sampler$stopThreads()
 
   result <- packageBartResults(
     sampler,
@@ -631,7 +628,6 @@ bart <- function(
     control@keepTrainingFits <- FALSE
     control@verbose <- FALSE
     sampler$setControl(control)
-    sampler$startThreads()
 
     samples <- sampler$run(0L, control@n.burn, updateState = FALSE)
     if (!is.null(samples$sigma)) {
@@ -653,10 +649,8 @@ bart <- function(
 
     samples <- sampler$run(0L, control@n.samples, updateState = FALSE)
   } else {
-    sampler$startThreads()
     samples <- sampler$run(updateState = FALSE)
   }
-  sampler$stopThreads()
 
   result <- packageBartResults(
     sampler,
