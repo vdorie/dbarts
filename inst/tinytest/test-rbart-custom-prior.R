@@ -21,8 +21,11 @@ p <- 5L
 set.seed(11L)
 x <- matrix(rnorm(n * p), n, p)
 colnames(x) <- paste0("x", seq_len(p))
-f <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 20 * (x[, 3L] - 0.5)^2 +
-  10 * x[, 4L] + 5 * x[, 5L]
+f <- 10 *
+  sin(pi * x[, 1L] * x[, 2L]) +
+  20 * (x[, 3L] - 0.5)^2 +
+  10 * x[, 4L] +
+  5 * x[, 5L]
 g <- factor(sample.int(n.g, n, replace = TRUE))
 y <- f + rnorm(n.g, 0, 1)[as.integer(g)] + rnorm(n, 0, 1)
 d <- data.frame(x, y = y, g = g)
@@ -32,15 +35,23 @@ d <- data.frame(x, y = y, g = g)
 customCauchy <- function(x, rel.scale) dcauchy(x, 0, rel.scale * 2.5, TRUE)
 
 rbartArgs <- list(
-  y ~ x1 + x2 + x3 + x4 + x5, data = d, group.by = g,
-  n.trees = 50L, n.chains = 1L, n.threads = 1L,
-  n.burn = 100L, n.samples = 100L, n.thin = 1L,
-  keepTrees = FALSE, verbose = FALSE
+  y ~ x1 + x2 + x3 + x4 + x5,
+  data = d,
+  group.by = g,
+  n.trees = 50L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = 100L,
+  n.samples = 100L,
+  n.thin = 1L,
+  keepTrees = FALSE,
+  verbose = FALSE
 )
 
 set.seed(11L)
 fit.loop <- do.call(
-  dbarts::rbart_vi, c(rbartArgs, list(prior = customCauchy))
+  dbarts::rbart_vi,
+  c(rbartArgs, list(prior = customCauchy))
 )
 set.seed(11L)
 fit.core <- do.call(dbarts::rbart_vi, rbartArgs)
@@ -56,5 +67,20 @@ expect_true(tau.loop < sd(y) / 5)
 expect_true(tau.loop / tau.core > 0.4 && tau.loop / tau.core < 2.5)
 
 suppressWarnings(RNGkind(oldKind[1L], oldKind[2L], oldKind[3L]))
-rm(x, f, g, y, d, customCauchy, rbartArgs, fit.loop, fit.core,
-   tau.loop, tau.core, n, n.g, p, oldKind)
+rm(
+  x,
+  f,
+  g,
+  y,
+  d,
+  customCauchy,
+  rbartArgs,
+  fit.loop,
+  fit.core,
+  tau.loop,
+  tau.core,
+  n,
+  n.g,
+  p,
+  oldKind
+)
