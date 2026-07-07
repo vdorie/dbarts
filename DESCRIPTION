@@ -31,7 +31,8 @@ Suggests:
   knitr,
   rmarkdown,
   tinytest,
-  Matrix
+  Matrix,
+  posterior
 VignetteBuilder: knitr, rmarkdown
 Config/Needs/check: rcmdcheck
 Config/Needs/dev: lintr, languageserver
