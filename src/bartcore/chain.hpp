@@ -173,15 +173,13 @@ struct Results {
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable
-/// form: value-encoded flattened trees, the saved-tree buffer, sigma, k,
-/// response latents, DART state, and the serialized rng. Three fields exist
-/// so a restored chain continues bitwise identically rather than merely
-/// equivalently: sigma is on the engine's internal scale (the original-scale
-/// round trip can drop a bit), totalFits carries the running total's
-/// floating-point accumulation history, and indices carries each tree's
-/// observation ordering, whose within-leaf order the sufficient-statistic
-/// sums depend on. totalFits and indices may be left empty; restoration then
-/// recomputes them canonically, exact only as far as the last ulp.
+/// form: value-encoded flattened trees, the saved-tree buffer, sigma
+/// (original scale), k, response latents, DART state, and the serialized
+/// rng. Restore rebuilds the rest canonically - partitions from the tree
+/// structure and cut points, totalFits by summing the tree fits, the
+/// variance prior by re-anchoring through the transform - so a restored
+/// chain continues equivalently, not bitwise: the last ulp of the dropped
+/// accumulation history is not reproduced.
 struct ChainStateData {
   std::vector<std::vector<FlatNode>> trees;
   std::vector<std::vector<FlatNode>> savedTrees;  // slot-major; empty unless kept
@@ -194,16 +192,10 @@ struct ChainStateData {
   // parallel to trees/savedTrees. Empty otherwise.
   std::vector<std::vector<std::uint64_t>> treeMasks;
   std::vector<std::vector<std::uint64_t>> savedTreeMasks;
-  std::vector<double> totalFits;      // numObservations, or empty
-  std::vector<size_t> indices;        // numObservations x numTrees, or empty
-  double sigma = 1.0;
+  double sigma = 1.0;  // original response scale
   double k = 2.0;
   // the gaussian response transform at capture; max <= min marks scale-free
   double fitMin = 0.0, fitMax = 0.0;
-  // the variance prior's internal-scale value; re-anchoring it through the
-  // transform is a multiply-divide round trip that can perturb the last
-  // bit, so a restore installs this exactly. Negative when not applicable.
-  double sigmaPriorScale = -1.0;
   std::vector<double> latents;            // empty for gaussian
   // grouped samplers only, internal scale so restores are exact
   std::vector<double> groupEffects;
@@ -1078,7 +1070,7 @@ public:
     } else {
       // function-valued leaves: records carry reporting means, and each
       // live tree's parameters ARE its fits - one slab per tree in
-      // observation order, restored by copy so continuation is bitwise
+      // observation order, restored by copy
       size_t n = data_.numObservations;
       std::vector<double> values;
       state.treeParams.resize(options_.numTrees);
@@ -1094,12 +1086,9 @@ public:
       state.savedTreeParams = savedTreeParams_;
     }
     state.savedTrees = savedTrees_;
-    state.totalFits = totalFits_;
-    state.indices = indexBuffer_;
-    state.sigma = sigma_;
+    state.sigma = sigma();
     state.k = k_;
     response_->getScale(state.fitMin, state.fitMax);
-    state.sigmaPriorScale = response_->sigmaPriorScaleInternal();
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
                            response_->latents() + data_.numObservations);
@@ -1188,10 +1177,6 @@ public:
         return false;
     }
     size_t n = data_.numObservations;
-    if (!state.totalFits.empty() && state.totalFits.size() != n) return false;
-    if (!state.indices.empty() &&
-        state.indices.size() != n * options_.numTrees)
-      return false;
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
       return false;
@@ -1206,7 +1191,6 @@ public:
 
     Tree scratch;
     std::vector<size_t> scratchIndices(n);
-    std::vector<bool> seen(n);
     std::vector<double> params;
     for (size_t t = 0; t < options_.numTrees; ++t) {
       scratch.initialize(scratchIndices.data(), n);
@@ -1218,20 +1202,7 @@ public:
                                  state.trees[t].size(), params, 1, nullptr,
                                  masks, numMaskWords))
         return false;
-      if (state.indices.empty()) {
-        scratch.repartitionSubtree(data_, 0);
-      } else {
-        // the stored ordering must permute the observations and respect
-        // every node's rule
-        const size_t* treeIndices = state.indices.data() + t * n;
-        seen.assign(n, false);
-        for (size_t i = 0; i < n; ++i) {
-          if (treeIndices[i] >= n || seen[treeIndices[i]]) return false;
-          seen[treeIndices[i]] = true;
-        }
-        std::memcpy(scratchIndices.data(), treeIndices, n * sizeof(size_t));
-        if (!scratch.setPartitionsFromOrderedIndices(data_, 0)) return false;
-      }
+      scratch.repartitionSubtree(data_, 0);
       if (!scratch.bottomNodesAreOccupied()) return false;
     }
     return true;
@@ -1241,12 +1212,11 @@ public:
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
     size_t n = data_.numObservations;
-    // internal-scale quantities below (tree parameters, fits, sigma) were
-    // recorded under this transform; scale-free states leave creation's
+    // the internal-scale tree parameters and fits below were recorded under
+    // this transform; scale-free states leave creation's. restoreScale
+    // re-anchors the variance prior through it.
     if (state.fitMax > state.fitMin)
       response_->restoreScale(state.fitMin, state.fitMax);
-    if (state.sigmaPriorScale >= 0.0)
-      response_->restoreSigmaPriorScaleInternal(state.sigmaPriorScale);
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
     std::vector<double> params;
     for (size_t t = 0; t < options_.numTrees; ++t) {
@@ -1268,13 +1238,7 @@ public:
                                      numMaskWords))
           return false;
       }
-      if (state.indices.empty()) {
-        trees_[t].repartitionSubtree(data_, 0);
-      } else {
-        std::memcpy(indexBuffer_.data() + t * n, state.indices.data() + t * n,
-                    n * sizeof(size_t));
-        if (!trees_[t].setPartitionsFromOrderedIndices(data_, 0)) return false;
-      }
+      trees_[t].repartitionSubtree(data_, 0);
       if constexpr (L::hasFunctionParams) {
         // the recorded slab IS the tree's parameters; copy restores bitwise
         std::memcpy(treeFits_.data() + t * n, state.treeParams[t].data(),
@@ -1284,9 +1248,6 @@ public:
       }
       misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
     }
-    if (!state.totalFits.empty())
-      std::memcpy(totalFits_.data(), state.totalFits.data(),
-                  n * sizeof(double));
     if (!state.savedTrees.empty()) {
       savedTrees_ = state.savedTrees;
       if constexpr (L::hasVectorParams || L::hasFunctionParams)
@@ -1299,7 +1260,7 @@ public:
           savedTreeMasks_ = state.savedTreeMasks;
       }
     }
-    sigma_ = state.sigma;
+    setSigma(state.sigma);
     k_ = state.k;
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());

@@ -2468,7 +2468,10 @@ namespace bartcore_bridge {
 // version; there are no migration shims. Version 2 tags each flat node and
 // stores its payload as a raw word - an inline categorical mask no longer
 // bit-casts through a double - so the side channel holds only pooled masks
-// (past 63 categories).
+// (past 63 categories). It also drops the accumulation-history slots
+// (total.fits, indices) and the variance prior's internal scale (the third
+// fit.scale element): restore rebuilds them from the trees, and sigma rides
+// on the original response scale.
 static const int stateFormatVersion = 2;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
@@ -2483,7 +2486,6 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_TREE_PARAMS, SLOT_TREE_MASKS, SLOT_SAVED_VARS,
     SLOT_SAVED_VALUES, SLOT_SAVED_SIZES, SLOT_SAVED_FLAGS, SLOT_SAVED_PARAMS,
     SLOT_SAVED_MASKS,
-    SLOT_TOTAL_FITS, SLOT_INDICES,
     SLOT_SIGMA, SLOT_K, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
@@ -2494,7 +2496,6 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     "tree.masks", "saved.vars",
     "saved.values", "saved.sizes", "saved.flags", "saved.params",
     "saved.masks",
-    "total.fits", "indices",
     "sigma", "k", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
@@ -2530,30 +2531,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                        chainState.savedTreeMasks);
     }
 
-    SET_VECTOR_ELT(chainExpr, SLOT_TOTAL_FITS,
-                   Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
-                                             chainState.totalFits.size())));
-    std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_TOTAL_FITS)),
-                chainState.totalFits.data(),
-                chainState.totalFits.size() * sizeof(double));
-
-    SET_VECTOR_ELT(chainExpr, SLOT_INDICES,
-                   Rf_allocVector(INTSXP, static_cast<R_xlen_t>(
-                                            chainState.indices.size())));
-    int* indices = INTEGER(VECTOR_ELT(chainExpr, SLOT_INDICES));
-    for (size_t i = 0; i < chainState.indices.size(); ++i)
-      indices[i] = static_cast<int>(chainState.indices[i]);
-
     SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
     SET_VECTOR_ELT(chainExpr, SLOT_K, Rf_ScalarReal(chainState.k));
 
-    // the third element carries the variance prior's internal scale, whose
-    // re-derivation through the transform can perturb the last bit
-    SET_VECTOR_ELT(chainExpr, SLOT_FIT_SCALE, Rf_allocVector(REALSXP, 3));
+    SET_VECTOR_ELT(chainExpr, SLOT_FIT_SCALE, Rf_allocVector(REALSXP, 2));
     REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[0] = chainState.fitMin;
     REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[1] = chainState.fitMax;
-    REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[2] =
-      chainState.sigmaPriorScale;
 
     if (!chainState.latents.empty()) {
       SET_VECTOR_ELT(chainExpr, SLOT_LATENTS,
@@ -2739,35 +2722,6 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
         break;
     }
 
-    SEXP totalFitsExpr = getListElement(chainExpr, "total.fits");
-    if (!Rf_isNull(totalFitsExpr)) {
-      if (!Rf_isReal(totalFitsExpr)) {
-        errorMessage = "malformed fits in bartcore state";
-        break;
-      }
-      chainState.totalFits.assign(
-        REAL(totalFitsExpr), REAL(totalFitsExpr) + Rf_xlength(totalFitsExpr));
-    }
-    SEXP indicesExpr = getListElement(chainExpr, "indices");
-    if (!Rf_isNull(indicesExpr)) {
-      if (!Rf_isInteger(indicesExpr)) {
-        errorMessage = "malformed indices in bartcore state";
-        break;
-      }
-      R_xlen_t numIndices = Rf_xlength(indicesExpr);
-      chainState.indices.resize(static_cast<size_t>(numIndices));
-      for (R_xlen_t i = 0; i < numIndices; ++i) {
-        int index = INTEGER(indicesExpr)[i];
-        if (index < 0) {
-          errorMessage = "malformed indices in bartcore state";
-          break;
-        }
-        chainState.indices[static_cast<size_t>(i)] =
-          static_cast<size_t>(index);
-      }
-      if (errorMessage != NULL) break;
-    }
-
     SEXP sigmaExpr = getListElement(chainExpr, "sigma");
     SEXP kExpr = getListElement(chainExpr, "k");
     if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1 ||
@@ -2779,17 +2733,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     chainState.k = REAL(kExpr)[0];
 
     SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
-    if (!Rf_isReal(fitScaleExpr) || (Rf_xlength(fitScaleExpr) != 2 &&
-                                     Rf_xlength(fitScaleExpr) != 3)) {
+    if (!Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
       errorMessage = "malformed fit scale in bartcore state";
       break;
     }
     chainState.fitMin = REAL(fitScaleExpr)[0];
     chainState.fitMax = REAL(fitScaleExpr)[1];
-    // older states lack the prior scale; the restore then re-derives it
-    // through the transform, exact only as far as the last ulp
-    if (Rf_xlength(fitScaleExpr) == 3)
-      chainState.sigmaPriorScale = REAL(fitScaleExpr)[2];
 
     SEXP latentsExpr = getListElement(chainExpr, "latents");
     if (!Rf_isNull(latentsExpr)) {

@@ -2,9 +2,9 @@
 # never-mutated sampler. Here a warm sampler runs, has a designated column
 # replaced (setPredictor forceUpdate), runs again, and stores its state; a cold
 # sampler built over the ORIGINAL data then takes the same mutation and the
-# stored state and must continue bitwise identically. Covered for linear and gp
-# leaves, plus the default constant leaf. n.chains = 2L keeps the draws off R's
-# global generator so the continuation is deterministic.
+# stored state and must reproduce the same model. Covered for linear and gp
+# leaves, plus the default constant leaf.
+source(system.file("common", "stateContinuation.R", package = "dbarts"))
 
 set.seed(99)
 n <- 150L
@@ -44,7 +44,8 @@ cold.lin <- dbarts(
 )
 cold.lin$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.lin$setState(warm.lin$state)
-expect_identical(warm.lin$run(0L, 3L), cold.lin$run(0L, 3L))
+cold.lin$storeState()
+expect_true(statesAgree(cold.lin$state, warm.lin$state))
 
 # gp leaf: same flow
 warm.gp <- dbarts(
@@ -66,7 +67,8 @@ cold.gp <- dbarts(
 )
 cold.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.gp$setState(warm.gp$state)
-expect_identical(warm.gp$run(0L, 3L), cold.gp$run(0L, 3L))
+cold.gp$storeState()
+expect_true(statesAgree(cold.gp$state, warm.gp$state))
 
 # default constant leaf: the mutation-then-restore flow with the base prior
 warm.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
@@ -78,7 +80,8 @@ warm.const$storeState()
 cold.const <- dbarts(y ~ x1 + x2 + x3, df, control = control)
 cold.const$setPredictor(x2.new, "x2", forceUpdate = TRUE)
 cold.const$setState(warm.const$state)
-expect_identical(warm.const$run(0L, 3L), cold.const$run(0L, 3L))
+cold.const$storeState()
+expect_true(statesAgree(cold.const$state, warm.const$state))
 
 rm(
   warm.lin,

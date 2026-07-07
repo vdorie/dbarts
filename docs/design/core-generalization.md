@@ -658,6 +658,11 @@ partitioning entirely; a different library sharing only the tree structure).
    DART) bitwise. Also fixed in passing: bartcore_setData retained a
    leftover ordinal-only check that made its categorical validation
    unreachable.
+   [Amended by state-continuation: the bitwise-exact contract was dropped
+   to semantic restore - sigma now rides the original scale, totalFits and
+   partitions rebuild canonically, and the index buffers, internal-scale
+   sigma, and stored prior scale are gone; the round-trip gates became
+   structural equality plus calibrated statistical agreement.]
 
    setWeights + test offsets (DONE 2026-07-02, cutover-parity cleanup):
    both mirror the classic engine exactly. setWeights is a bare pointer
