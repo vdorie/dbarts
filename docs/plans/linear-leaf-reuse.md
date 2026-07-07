@@ -74,3 +74,27 @@ bench-sampler is not implicated (its scenarios are constant-leaf).
 
 - Component tests; full tinytest; equivalence exact.
 - bench on the linear-leaves workload showing the measured win.
+
+## Status (2026-07-07)
+
+Step 3 landed (60a116c), closing the item. The U'WU crossproduct is
+cached per (tree, node arena index), validated on every lookup by
+comparing the stored ordered member list against
+tree.indices[begin..end] - rollback-stable by construction, no
+per-move hooks; misses run the identical fused scan and store.
+Wholesale clears on covariate regathers, reinitialize, setWeights,
+and (via the new ResponseModel::workingWeightsVaryPerSweep) the
+per-sweep Polya-Gamma weight refresh the plan's invalidation list
+had missed - a deviation in the correct direction, required for
+bitwise identity on latent families. Leaves under 32 members and
+entries past a 256MB budget (split across chains) rescan uncached.
+Measured on the step-1 harness: sweeps 18-35% faster (q = 8 configs
+32-35%, q = 4 ~18%; the memcmp validation and the always-rescanned
+residual terms account for the gap to the 34-46% ceiling). Gates
+(implementer ran, reviewer re-ran): component tests incl. the new
+warm-equals-cold bitwise test, tinytest 2419/0, equivalence exact
+18/18 - the linear scenario matches the pre-change baseline
+bitwise. Observation while gating: testGPLeafKernelCache's
+warm-vs-cold-clone bitwise check is build-layout flaky independent
+of this change (fails deterministically in some builds at clean
+HEAD); filed as gp-cache-test-flake.
