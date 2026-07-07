@@ -2,3 +2,5 @@ bench
 bench.dSYM/
 sparse
 sparse.dSYM/
+linear_leaf
+linear_leaf.dSYM/

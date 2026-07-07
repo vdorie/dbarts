@@ -36,6 +36,35 @@ within a sweep. Neither lands without numbers showing they matter.
 3. If go: cache keyed by (node, columns-epoch), invalidated on any
    mutation entry point; component test that mutation invalidates.
 
+## Measurement (steps 1-2, benchmarks/kernels/linear_leaf.cpp)
+
+Real sweeps, numTrees 50, single chain/thread, leaf basis capped at the
+engine's 8 covariates (so "10/50 columns" is infeasible; measured q in
+{4, 8}). Denominator is uninstrumented sweep wall time; the leaf-method
+time is clocked directly in a shadowing leaf (no cost model), then
+attributed by standalone chol and a with/without-U'WU crossproduct pass.
+R end-to-end sweep times agree within 3%.
+
+    config                crossproduct   chol(V)    cacheable U'WU -> ceiling
+    n=1e4 q=4 linear         91.5%       0.028%       37.0%  ->  33.9%
+    n=1e4 q=8 linear         93.0%       0.045%       49.3%  ->  45.9%
+    n=1e5 q=4 linear         88.7%       0.003%       39.4%  ->  35.0%
+    n=1e5 q=8 linear         91.6%       0.005%       50.1%  ->  45.9%
+    n=1e4 q=8 step (deep)    88.2%       0.054%       48.7%  ->  43.0%
+    n=1e5 q=8 step (deep)    90.6%       0.008%       49.0%  ->  44.4%
+
+Crossproduct accumulation is 88-93% of every sweep; chol(V) is under
+0.06%. BART trees stay shallow (1-3 leaves/tree), so the draw pass
+accumulates U'WU + U'Wz + z'Wz over nearly all n each sweep. Only U'WU is
+reusable (U'Wz and z'Wz need the observation pass every sweep, since the
+residual moves), and the strided u gather it shares is ~half the cost, so
+a persistent stats cache's realistic ceiling is 34-46%, not 90%.
+
+Recommendation: chol(V) reuse is NO-GO (< 0.06%, cannot clear 5%).
+Crossproduct (U'WU) reuse is GO: 34-46% ceiling, far above 5%, but bears
+the plan's cache-coherence burden under move rollback and mutation. VD
+decides step 3.
+
 ## Verification
 
 - Component tests; full tinytest; equivalence exact.
