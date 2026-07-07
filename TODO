@@ -22,11 +22,6 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  rbart-loop-fix: rbart_vi's custom-prior path drives one run() with
-    a bridge-registered per-sweep R closure instead of n run(0L, 1L)
-    round trips (the hook landed with capi-callbacks, e7fc71a);
-    bitwise equality with the loop is the gate. Reclaims the 15-76%
-    measured overhead.
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
@@ -84,10 +79,14 @@ items
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
-  rbart-loop-profile: MEASURED 2026-07-07, verdict GO (overhead 15-76%
-    across cells; table in the plan file). The fix is now its own
-    item, rbart-loop-fix. (The correctness bug this measurement
-    surfaced was fixed as rbart-custom-prior-divergence, c7fa0e4.)
+  rbart-loop-profile: CLOSED 2026-07-07. The callback rewrite landed
+    (rbart-loop-fix, 55ce4ba, bitwise-neutral) but reclaimed nothing:
+    the round trip was never the cost - the overhead over the in-core
+    floor is the R-side Gibbs blocks (O(n) group means, the tau
+    slice's per-draw optim). Moving those into C atop the callback
+    entry is the unpicked follow-up; tables in both plan files. (The
+    correctness bug the measurement surfaced was fixed as
+    rbart-custom-prior-divergence, c7fa0e4.)
   readability-review: the bartcore branch was agent-written end to end;
     rubric-driven human-readability pass over its code, comments, and
     design docs (core-generalization.md's landing-note accretion
