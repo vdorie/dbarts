@@ -54,8 +54,8 @@ double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
 
   double result = 0.0;
   for (int32_t i : bottoms) {
-    // the reference engine vetoes any branch containing an empty leaf, which
-    // keeps empty leaves out of the chain state entirely
+    // vetoing any branch with an empty leaf keeps empty leaves out of the
+    // chain state; the value is finite by design (docs/design/empty-leaf-veto.md)
     if (tree.at(i).numObservations() == 0) return -10000000.0;
     result += leaf.logIntegratedLikelihoodForNode(tree, y, ctx.weights, ctx.k,
                                                   sigma * sigma, i);
