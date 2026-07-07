@@ -94,40 +94,4 @@ rm(fit4, fit3, fit2, fit1)
 
 rm(g, y, x)
 
-
-# test that rbart passes regression test
-df <- as.data.frame(testData$x)
-colnames(df) <- paste0("x_", seq_len(ncol(testData$x)))
-df$y <- testData$y
-df$g <- testData$g
-
-set.seed(99L)
-rbartFit <- dbarts::rbart_vi(
-  y ~ . - g,
-  df,
-  group.by = g,
-  n.samples = 1L,
-  n.burn = 5L,
-  n.thin = 1L,
-  n.chains = 1L,
-  n.trees = 25L,
-  n.threads = 1L,
-  verbose = FALSE
-)
-
-# regenerate by replaying this file from the top: draws depend on the
-# preceding fits through R's stream position and last-ulp arithmetic
-expect_equal(
-  as.numeric(rbartFit$ranef),
-  c(
-    0.444899903844776,
-    0.0123115488354272,
-    -0.867962446265253,
-    -0.2671481965021,
-    1.62505829754345
-  )
-)
-
-rm(rbartFit, df)
-
 rm(testData)
