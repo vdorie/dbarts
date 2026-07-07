@@ -97,4 +97,7 @@ warm-equals-cold bitwise test, tinytest 2419/0, equivalence exact
 bitwise. Observation while gating: testGPLeafKernelCache's
 warm-vs-cold-clone bitwise check is build-layout flaky independent
 of this change (fails deterministically in some builds at clean
-HEAD); filed as gp-cache-test-flake.
+HEAD); filed as gp-cache-test-flake. Bench confirmed (2026-07-07
+evening, quiet machine, HEAD 55ce4ba): bench-sampler vs 235bebc
+clean, all constant-leaf scenarios at or under baseline - the cache
+plumbing and the capi-callbacks sweep branch cost nothing there.
