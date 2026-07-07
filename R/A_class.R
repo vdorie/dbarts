@@ -185,8 +185,6 @@ methods::setClass(
   "dbartsControl",
   slots = list(
     binary = "logical",
-    # "auto" until a fitting function resolves it against the response
-    family = "character",
     verbose = "logical",
     keepTrainingFits = "logical",
     useQuantiles = "logical",
@@ -205,7 +203,6 @@ methods::setClass(
   ),
   prototype = list(
     binary = FALSE,
-    family = "auto",
     verbose = FALSE,
     keepTrainingFits = TRUE,
     useQuantiles = FALSE,
@@ -225,15 +222,6 @@ methods::setClass(
 )
 
 methods::setValidity("dbartsControl", function(object) {
-  if (
-    length(object@family) != 1L ||
-      is.na(object@family) ||
-      !(object@family %in% c("auto", "gaussian", "probit", "logistic"))
-  ) {
-    return(
-      "'family' must be \"auto\", \"gaussian\", \"probit\", or \"logistic\""
-    )
-  }
   if (length(object@verbose) != 1L) {
     return("'verbose' must be of length 1")
   }
@@ -337,6 +325,8 @@ methods::setClass(
     p.birth = "numeric",
 
     node.scale = "numeric",
+    # "auto" until a fitting function resolves it against the response
+    family = "character",
 
     tree.prior = "dbartsTreePrior",
     node.prior = "dbartsNodePrior",
@@ -349,6 +339,7 @@ methods::setClass(
     p.change = 0.0,
     p.birth = 0.5,
     node.scale = 0.5,
+    family = "auto",
     tree.prior = new("dbartsCGMPrior"),
     node.prior = new("dbartsNormalPrior"),
     node.hyperprior = new("dbartsFixedHyperprior"),
@@ -370,6 +361,16 @@ methods::setValidity("dbartsModel", function(object) {
 
   if (object@node.scale <= 0.0) {
     return("node.scale must be > 0")
+  }
+
+  if (
+    length(object@family) != 1L ||
+      is.na(object@family) ||
+      !(object@family %in% c("auto", "gaussian", "probit", "logistic"))
+  ) {
+    return(
+      "'family' must be \"auto\", \"gaussian\", \"probit\", or \"logistic\""
+    )
   }
 
   TRUE

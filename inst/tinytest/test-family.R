@@ -17,10 +17,10 @@ control <- dbartsControl(
 
 # auto preserves the existing dispatch
 sampler.auto <- dbarts(y.binary ~ x, control = control)
-expect_equal(sampler.auto$control@family, "probit")
+expect_equal(sampler.auto$model@family, "probit")
 expect_true(sampler.auto$control@binary)
 expect_equal(
-  dbarts(y.continuous ~ x, control = control)$control@family,
+  dbarts(y.continuous ~ x, control = control)$model@family,
   "gaussian"
 )
 
@@ -41,7 +41,7 @@ expect_error(
 
 control.bc <- dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 50L)
 sampler.logit <- dbarts(y.binary ~ x, family = "logistic", control = control.bc)
-expect_equal(sampler.logit$control@family, "logistic")
+expect_equal(sampler.logit$model@family, "logistic")
 expect_inherits(sampler.logit$model@node.hyperprior, "dbartsChiHyperprior")
 expect_equal(sampler.logit$model@node.scale, pi * sqrt(3))
 
@@ -59,17 +59,23 @@ saveRDS(sampler.logit, serialized)
 set.seed(101)
 result.a <- sampler.logit$run(0L, 5L, updateState = FALSE)
 sampler.loaded <- readRDS(serialized)
-expect_equal(sampler.loaded$control@family, "logistic")
+expect_equal(sampler.loaded$model@family, "logistic")
 expect_true(all(sampler.loaded$getLatents() > 0)) # omega, not probit z
 set.seed(101)
 result.b <- sampler.loaded$run(0L, 5L, updateState = FALSE)
 expect_identical(result.a, result.b)
 unlink(serialized)
 
-# setControl cannot silently change the family
+# setControl does not touch the family
 newControl <- sampler.logit$control
 sampler.logit$setControl(newControl)
-expect_equal(sampler.logit$control@family, "logistic")
+expect_equal(sampler.logit$model@family, "logistic")
+
+# setModel cannot silently change the family either
+newModel <- sampler.logit$model
+newModel@family <- "gaussian"
+sampler.logit$setModel(newModel)
+expect_equal(sampler.logit$model@family, "logistic")
 
 # bart2 forwards the argument
 fit.bart2 <- bart2(

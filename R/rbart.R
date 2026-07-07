@@ -882,7 +882,7 @@ packageRbartResults <- function(
     call = control@call,
     y = data@y,
     group.by = group.by,
-    family = chainResults[[1L]]$sampler$control@family
+    family = chainResults[[1L]]$sampler$model@family
   )
   if (!responseIsBinary) {
     result$sigest <- chainResults[[1L]]$sampler$data@sigma

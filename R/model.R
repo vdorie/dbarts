@@ -13,7 +13,8 @@ setMethod(
       change = 0.4,
       birth = 0.5
     ),
-    node.scale = 0.5
+    node.scale = 0.5,
+    family = "auto"
   ) {
     if (
       !missing(tree.prior) &&
@@ -78,6 +79,7 @@ setMethod(
     .Object@p.birth <- probs[["birth"]]
 
     .Object@node.scale <- node.scale
+    .Object@family <- family
 
     validObject(.Object)
     .Object

@@ -25,7 +25,7 @@ sampler <- dbarts(
   offset = o,
   control = control
 )
-expect_equal(sampler$control@family, "logistic")
+expect_equal(sampler$model@family, "logistic")
 expect_equal(sampler$data@offset, o)
 
 samples <- sampler$run(200L, 200L)
@@ -63,7 +63,7 @@ sampler.probit <- dbarts(
   offset = o,
   control = control
 )
-expect_equal(sampler.probit$control@family, "probit")
+expect_equal(sampler.probit$model@family, "probit")
 samples.probit <- sampler.probit$run(200L, 200L)
 expect_true(all(is.finite(samples.probit$train)))
 p.hat.probit <- rowMeans(pnorm(samples.probit$train + o))
