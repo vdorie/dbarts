@@ -59,3 +59,23 @@ sanitizers workflow's valgrind leg (its first run, 2026-07-07, run id
 - Component tests and full tinytest green; equivalence exact 18/18.
 - Next push's valgrind leg: ERROR SUMMARY: 0 errors, definitely lost:
   0 bytes.
+
+## Landing note (2026-07-07, a41bd22)
+
+One file, src/R_interface_bartcore.cpp, net +56 (raw +499/-443, the
+churn is closure reindentation). An 18-line unwindProtect helper runs
+each owning scope as a heap-held closure under R_UnwindProtect; the
+cleanup deletes the closure on both the normal return and the error
+jump, so by-value-captured containers destruct instead of leaking.
+Ten entry points wrapped (creation, setData, setModel, the predictor
+updaters, setCutPoints, getTrees/printTrees); the hot paths
+(bartcore_run, per-observation update) free-then-error instead
+(shape 1) and stay wrapper-free. Audited-and-excluded: setControl
+(scalars only), pointer-only setters/getters/predict, setState
+(already accumulator-form). Destructor-on-jump was demonstrated with
+a temporary canary (removed). Gates: install, component 87/87,
+tinytest 2472/0, equivalence exact 18/18. Pending maintainer gates:
+the CI valgrind leg on this push is the authoritative zero-leak
+check; bench-sampler's setPredictor scenarios cover the wrapper's
+per-call allocation at the next quiet-machine run (expected
+negligible: one R alloc per mutation call).
