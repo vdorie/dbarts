@@ -53,3 +53,15 @@ users will find it.
 
 - Full tinytest incl. the refusal test; component tests unchanged;
   equivalence exact.
+
+## Landing note (2026-07-06, d3f992a)
+
+Landed at the scoped-down level: storeState stamps formatVersion (1)
+and the writing package version; setState refuses mismatched or
+unversioned states before structural parsing, naming both versions
+(unversioned reads as version 0, "written by dbarts unknown"); the
+guarantee paragraph sits in man/dbartsSampler-class.Rd and
+public-surface.md section 2. Refusal-without-mutation and
+bitwise-restore covered in test-bartcore.R. Gates: tinytest 2464 ok,
+component tests pass, equivalence exact 18/18 vs af04d0c, lint clean.
+No deviations; bench-sampler not applicable (cold path).
