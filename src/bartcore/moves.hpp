@@ -197,9 +197,10 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       // last pool allocation, so the mark reclaims it.
       tree.undoBirth(nodeToChange);
       tree.truncateMaskPool(maskPoolMark);
-      tree.at(nodeToChange).average = oldNode.average;
-      tree.at(nodeToChange).numEffectiveObservations =
-        oldNode.numEffectiveObservations;
+      tree.at(nodeToChange).sumWeights = oldNode.sumWeights;
+      tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
+      tree.at(nodeToChange).sumWeightedResponseSq =
+        oldNode.sumWeightedResponseSq;
       *stepTaken = false;
     }
   } else {

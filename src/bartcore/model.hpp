@@ -99,30 +99,37 @@ struct ConstantGaussianLeaf {
 
   double scale;  // nodeScale / sqrt(numTrees)
 
+  // The (sum w, sum wz, sum wz^2) sufficient statistic drives the marginal
+  // and the draw directly. This is the crossproduct form of the classic CGM
+  // formula: its centered response sum of squares is
+  // sumWZSq - sumWZ^2 / sumW and its posterior precision is sumW / sigma^2,
+  // so the two forms are algebraically equal and differ only in rounding.
   double logIntegratedLikelihood(double k, double residualVariance,
-                                 double average, double numEffectiveObservations,
-                                 double variance, std::size_t numObservations) const {
-    if (numObservations == 0) return 0.0;
+                                 double sumWeights, double sumWeightedResponse,
+                                 double sumWeightedResponseSq) const {
+    if (sumWeights == 0.0) return 0.0;
 
     double priorPrecision = (k / scale) * (k / scale);
-    double posteriorPrecision = numEffectiveObservations / residualVariance;
+    double posteriorPrecision = sumWeights / residualVariance;
+    double mean = sumWeightedResponse / sumWeights;
+    double centeredSumOfSquares =
+      sumWeightedResponseSq - sumWeightedResponse * mean;
 
     double result;
     result  = 0.5 * std::log(priorPrecision / (priorPrecision + posteriorPrecision));
-    result -= 0.5 * (variance / residualVariance) *
-              static_cast<double>(numObservations - 1);
-    result -= 0.5 * ((priorPrecision * average) * (posteriorPrecision * average)) /
+    result -= 0.5 * centeredSumOfSquares / residualVariance;
+    result -= 0.5 * ((priorPrecision * mean) * (posteriorPrecision * mean)) /
               (priorPrecision + posteriorPrecision);
     return result;
   }
 
-  double drawFromPosterior(ext_rng* rng, double k, double average,
-                           double numEffectiveObservations,
+  double drawFromPosterior(ext_rng* rng, double k, double sumWeights,
+                           double sumWeightedResponse,
                            double residualVariance) const {
     double priorPrecision = (k / scale) * (k / scale);
-    double posteriorPrecision = numEffectiveObservations / residualVariance;
-    double posteriorMean =
-      posteriorPrecision * average / (priorPrecision + posteriorPrecision);
+    double posteriorPrecision = sumWeights / residualVariance;
+    double posteriorMean = (sumWeightedResponse / residualVariance) /
+                           (priorPrecision + posteriorPrecision);
     double posteriorSd = 1.0 / std::sqrt(priorPrecision + posteriorPrecision);
     return posteriorMean + posteriorSd * ext_rng_simulateStandardNormal(rng);
   }
@@ -132,24 +139,24 @@ struct ConstantGaussianLeaf {
   }
 
   // The node-context interface the engine drives; delegates to the scalar
-  // math above against the node's cached statistics.
-  double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
-                                        const double* weights, double k,
+  // math above against the node's cached sufficient statistic. y and weights
+  // are unused now that the node caches the full triple.
+  double logIntegratedLikelihoodForNode(const Tree& tree, const double*,
+                                        const double*, double k,
                                         double residualVariance,
                                         int32_t nodeIndex) const {
     const Node& node(tree.at(nodeIndex));
-    double variance = tree.computeVariance(nodeIndex, y, weights);
-    return logIntegratedLikelihood(k, residualVariance, node.average,
-                                   node.numEffectiveObservations, variance,
-                                   node.numObservations());
+    return logIntegratedLikelihood(k, residualVariance, node.sumWeights,
+                                   node.sumWeightedResponse,
+                                   node.sumWeightedResponseSq);
   }
 
   double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree, double k,
                                   double residualVariance,
                                   int32_t nodeIndex) const {
     const Node& node(tree.at(nodeIndex));
-    return drawFromPosterior(rng, k, node.average,
-                             node.numEffectiveObservations, residualVariance);
+    return drawFromPosterior(rng, k, node.sumWeights,
+                             node.sumWeightedResponse, residualVariance);
   }
 };
 

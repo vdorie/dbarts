@@ -304,6 +304,38 @@ double misc_computeIndexedWeightedVarianceForKnownMeanFast(const double* restric
   return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
 }
 
+// Scalar reference for the fused (sum w, sum wx, sum wx^2) suffstat; a SIMD
+// specialization would slot in here behind the same signature if profiling
+// asked for one. The raw sums are order-insensitive, unlike the mean-then-
+// centered-variance pair these replace.
+void misc_computeSufficientStatisticsFast(const double* x, size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
+{
+  double sw = (double) length, swx = 0.0, swxSq = 0.0;
+  for (size_t i = 0; i < length; ++i) { swx += x[i]; swxSq += x[i] * x[i]; }
+  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+}
+
+void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const size_t* restrict indices, size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
+{
+  double sw = (double) length, swx = 0.0, swxSq = 0.0;
+  for (size_t i = 0; i < length; ++i) { double v = x[indices[i]]; swx += v; swxSq += v * v; }
+  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+}
+
+void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
+{
+  double sw = 0.0, swx = 0.0, swxSq = 0.0;
+  for (size_t i = 0; i < length; ++i) { double wi = w[i], v = x[i]; sw += wi; swx += wi * v; swxSq += wi * v * v; }
+  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+}
+
+void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
+{
+  double sw = 0.0, swx = 0.0, swxSq = 0.0;
+  for (size_t i = 0; i < length; ++i) { size_t j = indices[i]; double wi = w[j], v = x[j]; sw += wi; swx += wi * v; swxSq += wi * v * v; }
+  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+}
+
 // if the data for any thread would, by itself, trigger a fall-back to single threaded
 // and that single-threaded function equiv would prefer the non-online version, do that instead
 double misc_mt_computeMean(misc_mt_manager_t restrict threadManager, const double* restrict x, size_t length)
