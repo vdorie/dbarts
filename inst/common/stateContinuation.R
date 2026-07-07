@@ -10,11 +10,17 @@
 statesAgree <- function(reState, saved) {
   agree <- length(reState) == length(saved)
   for (ci in seq_along(saved)) {
+    reForests <- reState[[ci]]$forests
+    savedForests <- saved[[ci]]$forests
+    agree <- agree && length(reForests) == length(savedForests)
+    for (fi in seq_along(savedForests)) {
+      agree <- agree &&
+        identical(reForests[[fi]]$tree.vars, savedForests[[fi]]$tree.vars) &&
+        identical(reForests[[fi]]$tree.sizes, savedForests[[fi]]$tree.sizes) &&
+        identical(reForests[[fi]]$tree.flags, savedForests[[fi]]$tree.flags) &&
+        identical(reForests[[fi]]$tree.params, savedForests[[fi]]$tree.params)
+    }
     agree <- agree &&
-      identical(reState[[ci]]$tree.vars, saved[[ci]]$tree.vars) &&
-      identical(reState[[ci]]$tree.sizes, saved[[ci]]$tree.sizes) &&
-      identical(reState[[ci]]$tree.flags, saved[[ci]]$tree.flags) &&
-      identical(reState[[ci]]$tree.params, saved[[ci]]$tree.params) &&
       isTRUE(all.equal(
         reState[[ci]]$sigma,
         saved[[ci]]$sigma,

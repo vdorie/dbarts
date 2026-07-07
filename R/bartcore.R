@@ -411,9 +411,8 @@ bartcoreSamplerFromHandle <- function(
 # A BCF two-forest sampler (docs/design/bcf.md), internal and gaussian only:
 # the model spec is the prognostic forest mu(x, pihat) - the caller supplies
 # pihat as an ordinary predictor column - the arguments below the treatment
-# forest tau(x) and the glue. z is the 0/1 treatment. State serialization is
-# refused (multi-forest is step 4). The per-forest scales are interim (the
-# exact-posterior calibration lands with the step-5 gate).
+# forest tau(x) and the glue. z is the 0/1 treatment. The per-forest scales
+# are interim (the exact-posterior calibration lands with the step-5 gate).
 bartcoreBCFSampler <- function(
   sampler,
   z,

@@ -2474,23 +2474,13 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
   return true;
 }
 
-// The state format carries one forest per chain; multi-forest serialization
-// is step 4 (docs/plans/forest-split-bcf.md).
-static void refuseMultiForestState(const bartcore::SamplerBase& sampler) {
-  if (sampler.numForests() > 1)
-    Rf_error("state serialization for multi-forest samplers is not yet "
-             "implemented");
-}
-
 SEXP bartcore_storeState(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseMultiForestState(*holder.sampler);
   return bartcore_bridge::storeState(*holder.sampler);
 }
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseMultiForestState(*holder.sampler);
   // restoring cut points re-quantizes from raw values, which views lack
   refuseViewSamplerOnly(*holder.sampler, "bartcore_setState");
   bartcore_bridge::setState(*holder.sampler, stateExpr);
@@ -2695,8 +2685,11 @@ namespace bartcore_bridge {
 // (past 63 categories). It also drops the accumulation-history slots
 // (total.fits, indices) and the variance prior's internal scale (the third
 // fit.scale element): restore rebuilds them from the trees, and sigma rides
-// on the original response scale.
-static const int stateFormatVersion = 2;
+// on the original response scale. Version 3 gives each chain's tree channels a
+// forest dimension (docs/design/bcf.md): the tree/saved/param/mask/k slots
+// move into a per-chain "forests" list, and BCF adds a "bcf" glue slot
+// (a, aVariance, b0, b1). A single-forest state is a length-1 forest list.
+static const int stateFormatVersion = 3;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -2705,25 +2698,33 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   size_t numChains = state.chains.size();
   size_t numObservations = sampler.numObservations();
 
+  // per-forest tree channels (a length-1 list off BCF); the k rides here too
   enum {
-    SLOT_TREE_VARS = 0, SLOT_TREE_VALUES, SLOT_TREE_SIZES, SLOT_TREE_FLAGS,
-    SLOT_TREE_PARAMS, SLOT_TREE_MASKS, SLOT_SAVED_VARS,
-    SLOT_SAVED_VALUES, SLOT_SAVED_SIZES, SLOT_SAVED_FLAGS, SLOT_SAVED_PARAMS,
-    SLOT_SAVED_MASKS,
-    SLOT_SIGMA, SLOT_K, SLOT_FIT_SCALE, SLOT_LATENTS,
+    FSLOT_TREE_VARS = 0, FSLOT_TREE_VALUES, FSLOT_TREE_SIZES, FSLOT_TREE_FLAGS,
+    FSLOT_TREE_PARAMS, FSLOT_TREE_MASKS,
+    FSLOT_SAVED_VARS, FSLOT_SAVED_VALUES, FSLOT_SAVED_SIZES, FSLOT_SAVED_FLAGS,
+    FSLOT_SAVED_PARAMS, FSLOT_SAVED_MASKS,
+    FSLOT_K, FSLOT_COUNT
+  };
+  static const char* forestSlotNames[FSLOT_COUNT] = {
+    "tree.vars", "tree.values", "tree.sizes", "tree.flags", "tree.params",
+    "tree.masks",
+    "saved.vars", "saved.values", "saved.sizes", "saved.flags",
+    "saved.params", "saved.masks",
+    "k"
+  };
+
+  enum {
+    SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_COUNT
+    SLOT_RNG_STATE, SLOT_BCF, SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
-    "tree.vars", "tree.values", "tree.sizes", "tree.flags", "tree.params",
-    "tree.masks", "saved.vars",
-    "saved.values", "saved.sizes", "saved.flags", "saved.params",
-    "saved.masks",
-    "sigma", "k", "fit.scale",
+    "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state"
+    "rng.state", "bcf"
   };
 
   SEXP resultExpr =
@@ -2731,32 +2732,45 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   SEXP slotNamesExpr = PROTECT(Rf_allocVector(STRSXP, SLOT_COUNT));
   for (int slot = 0; slot < SLOT_COUNT; ++slot)
     SET_STRING_ELT(slotNamesExpr, slot, Rf_mkChar(slotNames[slot]));
+  SEXP forestSlotNamesExpr = PROTECT(Rf_allocVector(STRSXP, FSLOT_COUNT));
+  for (int slot = 0; slot < FSLOT_COUNT; ++slot)
+    SET_STRING_ELT(forestSlotNamesExpr, slot, Rf_mkChar(forestSlotNames[slot]));
 
   for (size_t c = 0; c < numChains; ++c) {
     const bartcore::ChainStateData& chainState(state.chains[c]);
     SEXP chainExpr = PROTECT(Rf_allocVector(VECSXP, SLOT_COUNT));
     Rf_setAttrib(chainExpr, R_NamesSymbol, slotNamesExpr);
 
-    storeFlatTrees(chainExpr, SLOT_TREE_VARS, SLOT_TREE_VALUES,
-                   SLOT_TREE_SIZES, SLOT_TREE_FLAGS, chainState.trees);
-    if (!chainState.treeParams.empty())
-      storeTreeParams(chainExpr, SLOT_TREE_PARAMS, chainState.treeParams);
-    if (!chainState.treeMasks.empty())
-      storeTreeMasks(chainExpr, SLOT_TREE_MASKS, chainState.treeMasks);
-    if (!chainState.savedTrees.empty()) {
-      storeFlatTrees(chainExpr, SLOT_SAVED_VARS, SLOT_SAVED_VALUES,
-                     SLOT_SAVED_SIZES, SLOT_SAVED_FLAGS,
-                     chainState.savedTrees);
-      if (!chainState.savedTreeParams.empty())
-        storeTreeParams(chainExpr, SLOT_SAVED_PARAMS,
-                        chainState.savedTreeParams);
-      if (!chainState.savedTreeMasks.empty())
-        storeTreeMasks(chainExpr, SLOT_SAVED_MASKS,
-                       chainState.savedTreeMasks);
+    size_t numForests = chainState.forests.size();
+    SEXP forestsExpr =
+      PROTECT(Rf_allocVector(VECSXP, static_cast<R_xlen_t>(numForests)));
+    for (size_t f = 0; f < numForests; ++f) {
+      const bartcore::ForestStateData& fs(chainState.forests[f]);
+      SEXP forestExpr = PROTECT(Rf_allocVector(VECSXP, FSLOT_COUNT));
+      Rf_setAttrib(forestExpr, R_NamesSymbol, forestSlotNamesExpr);
+
+      storeFlatTrees(forestExpr, FSLOT_TREE_VARS, FSLOT_TREE_VALUES,
+                     FSLOT_TREE_SIZES, FSLOT_TREE_FLAGS, fs.trees);
+      if (!fs.treeParams.empty())
+        storeTreeParams(forestExpr, FSLOT_TREE_PARAMS, fs.treeParams);
+      if (!fs.treeMasks.empty())
+        storeTreeMasks(forestExpr, FSLOT_TREE_MASKS, fs.treeMasks);
+      if (!fs.savedTrees.empty()) {
+        storeFlatTrees(forestExpr, FSLOT_SAVED_VARS, FSLOT_SAVED_VALUES,
+                       FSLOT_SAVED_SIZES, FSLOT_SAVED_FLAGS, fs.savedTrees);
+        if (!fs.savedTreeParams.empty())
+          storeTreeParams(forestExpr, FSLOT_SAVED_PARAMS, fs.savedTreeParams);
+        if (!fs.savedTreeMasks.empty())
+          storeTreeMasks(forestExpr, FSLOT_SAVED_MASKS, fs.savedTreeMasks);
+      }
+      SET_VECTOR_ELT(forestExpr, FSLOT_K, Rf_ScalarReal(fs.k));
+      SET_VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f), forestExpr);
+      UNPROTECT(1);
     }
+    SET_VECTOR_ELT(chainExpr, SLOT_FORESTS, forestsExpr);
+    UNPROTECT(1);
 
     SET_VECTOR_ELT(chainExpr, SLOT_SIGMA, Rf_ScalarReal(chainState.sigma));
-    SET_VECTOR_ELT(chainExpr, SLOT_K, Rf_ScalarReal(chainState.k));
 
     SET_VECTOR_ELT(chainExpr, SLOT_FIT_SCALE, Rf_allocVector(REALSXP, 2));
     REAL(VECTOR_ELT(chainExpr, SLOT_FIT_SCALE))[0] = chainState.fitMin;
@@ -2802,6 +2816,15 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     std::memcpy(INTEGER(VECTOR_ELT(chainExpr, SLOT_RNG_STATE)),
                 chainState.rngState.data(), chainState.rngState.size());
 
+    if (chainState.hasBCF) {
+      SET_VECTOR_ELT(chainExpr, SLOT_BCF, Rf_allocVector(REALSXP, 4));
+      double* bcf = REAL(VECTOR_ELT(chainExpr, SLOT_BCF));
+      bcf[0] = chainState.a;
+      bcf[1] = chainState.aVariance;
+      bcf[2] = chainState.b0;
+      bcf[3] = chainState.b1;
+    }
+
     SET_VECTOR_ELT(resultExpr, static_cast<R_xlen_t>(c), chainExpr);
     UNPROTECT(1);
   }
@@ -2827,7 +2850,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
 
-  UNPROTECT(4);
+  UNPROTECT(5);
   return resultExpr;
 }
 
@@ -2896,69 +2919,86 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
 
-    if (!readFlatTrees(getListElement(chainExpr, "tree.vars"),
-                       getListElement(chainExpr, "tree.values"),
-                       getListElement(chainExpr, "tree.sizes"),
-                       getListElement(chainExpr, "tree.flags"),
-                       sampler.data(), chainState.trees, &errorMessage))
+    SEXP forestsExpr = getListElement(chainExpr, "forests");
+    if (Rf_isNull(forestsExpr) || TYPEOF(forestsExpr) != VECSXP) {
+      errorMessage = "malformed forests in bartcore state";
       break;
-    SEXP savedSizesExpr = getListElement(chainExpr, "saved.sizes");
-    if (!Rf_isNull(savedSizesExpr) &&
-        !readFlatTrees(getListElement(chainExpr, "saved.vars"),
-                       getListElement(chainExpr, "saved.values"),
-                       savedSizesExpr,
-                       getListElement(chainExpr, "saved.flags"),
-                       sampler.data(), chainState.savedTrees, &errorMessage))
-      break;
-
-    // linear-leaf states must carry their slope arrays; function-valued
-    // states carry fits slabs and variable-length saved blocks instead
+    }
+    size_t numForests = static_cast<size_t>(Rf_xlength(forestsExpr));
+    chainState.forests.resize(numForests);
+    // every forest of a chain shares the leaf shape, so these dispatch flags
+    // are chain-level
     size_t numLeafCovariates = sampler.numLeafCovariates();
-    if (sampler.usesFunctionLeaves()) {
-      if (!readFunctionTreeParams(getListElement(chainExpr, "tree.params"),
-                                  chainState.trees.size(),
-                                  sampler.numObservations(),
-                                  chainState.treeParams, &errorMessage))
-        break;
-      if (!chainState.savedTrees.empty() &&
-          !readFunctionSavedParams(getListElement(chainExpr, "saved.params"),
-                                   chainState.savedTrees, numLeafCovariates,
-                                   chainState.savedTreeParams, &errorMessage))
-        break;
-    } else if (numLeafCovariates > 0) {
-      if (!readTreeParams(getListElement(chainExpr, "tree.params"),
-                          chainState.trees, numLeafCovariates,
-                          chainState.treeParams, &errorMessage))
-        break;
-      if (!chainState.savedTrees.empty() &&
-          !readTreeParams(getListElement(chainExpr, "saved.params"),
-                          chainState.savedTrees, numLeafCovariates,
-                          chainState.savedTreeParams, &errorMessage))
-        break;
-    }
+    for (size_t f = 0; f < numForests && errorMessage == NULL; ++f) {
+      SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
+      bartcore::ForestStateData& fs(chainState.forests[f]);
 
-    // pooled-categorical states must carry their mask channels
-    if (sampler.data().hasPooledCategorical) {
-      if (!readTreeMasks(getListElement(chainExpr, "tree.masks"),
-                         chainState.trees, sampler.data(),
-                         chainState.treeMasks, &errorMessage))
+      if (!readFlatTrees(getListElement(forestExpr, "tree.vars"),
+                         getListElement(forestExpr, "tree.values"),
+                         getListElement(forestExpr, "tree.sizes"),
+                         getListElement(forestExpr, "tree.flags"),
+                         sampler.data(), fs.trees, &errorMessage))
         break;
-      if (!chainState.savedTrees.empty() &&
-          !readTreeMasks(getListElement(chainExpr, "saved.masks"),
-                         chainState.savedTrees, sampler.data(),
-                         chainState.savedTreeMasks, &errorMessage))
+      SEXP savedSizesExpr = getListElement(forestExpr, "saved.sizes");
+      if (!Rf_isNull(savedSizesExpr) &&
+          !readFlatTrees(getListElement(forestExpr, "saved.vars"),
+                         getListElement(forestExpr, "saved.values"),
+                         savedSizesExpr,
+                         getListElement(forestExpr, "saved.flags"),
+                         sampler.data(), fs.savedTrees, &errorMessage))
         break;
+
+      // linear-leaf states must carry their slope arrays; function-valued
+      // states carry fits slabs and variable-length saved blocks instead
+      if (sampler.usesFunctionLeaves()) {
+        if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
+                                    fs.trees.size(), sampler.numObservations(),
+                                    fs.treeParams, &errorMessage))
+          break;
+        if (!fs.savedTrees.empty() &&
+            !readFunctionSavedParams(getListElement(forestExpr, "saved.params"),
+                                     fs.savedTrees, numLeafCovariates,
+                                     fs.savedTreeParams, &errorMessage))
+          break;
+      } else if (numLeafCovariates > 0) {
+        if (!readTreeParams(getListElement(forestExpr, "tree.params"),
+                            fs.trees, numLeafCovariates, fs.treeParams,
+                            &errorMessage))
+          break;
+        if (!fs.savedTrees.empty() &&
+            !readTreeParams(getListElement(forestExpr, "saved.params"),
+                            fs.savedTrees, numLeafCovariates,
+                            fs.savedTreeParams, &errorMessage))
+          break;
+      }
+
+      // pooled-categorical states must carry their mask channels
+      if (sampler.data().hasPooledCategorical) {
+        if (!readTreeMasks(getListElement(forestExpr, "tree.masks"), fs.trees,
+                           sampler.data(), fs.treeMasks, &errorMessage))
+          break;
+        if (!fs.savedTrees.empty() &&
+            !readTreeMasks(getListElement(forestExpr, "saved.masks"),
+                           fs.savedTrees, sampler.data(), fs.savedTreeMasks,
+                           &errorMessage))
+          break;
+      }
+
+      SEXP kExpr = getListElement(forestExpr, "k");
+      if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
+        errorMessage = "malformed parameters in bartcore state";
+        break;
+      }
+      fs.k = REAL(kExpr)[0];
     }
+    if (errorMessage != NULL) break;
 
     SEXP sigmaExpr = getListElement(chainExpr, "sigma");
-    SEXP kExpr = getListElement(chainExpr, "k");
-    if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1 ||
-        !Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
+    if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1) {
       errorMessage = "malformed parameters in bartcore state";
       break;
     }
     chainState.sigma = REAL(sigmaExpr)[0];
-    chainState.k = REAL(kExpr)[0];
 
     SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
     if (!Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
@@ -3021,6 +3061,19 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
         static_cast<size_t>(Rf_xlength(rngStateExpr)) * sizeof(int));
       std::memcpy(chainState.rngState.data(), INTEGER(rngStateExpr),
                   chainState.rngState.size());
+    }
+
+    SEXP bcfExpr = getListElement(chainExpr, "bcf");
+    if (!Rf_isNull(bcfExpr)) {
+      if (!Rf_isReal(bcfExpr) || Rf_xlength(bcfExpr) != 4) {
+        errorMessage = "malformed bcf glue in bartcore state";
+        break;
+      }
+      chainState.hasBCF = true;
+      chainState.a = REAL(bcfExpr)[0];
+      chainState.aVariance = REAL(bcfExpr)[1];
+      chainState.b0 = REAL(bcfExpr)[2];
+      chainState.b1 = REAL(bcfExpr)[3];
     }
   }
 

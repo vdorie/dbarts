@@ -626,7 +626,7 @@ static void testLinearLeafFormats(ext_rng* rng) {
 
   // a state with mismatched slope shapes is refused
   SamplerStateData malformed = state;
-  malformed.chains[0].treeParams[0].push_back(0.0);
+  malformed.chains[0].forests[0].treeParams[0].push_back(0.0);
   check(!sampler->setState(malformed),
         "a state with mismatched slopes is refused");
 
@@ -2353,10 +2353,10 @@ static void testGPLeafFormats(ext_rng* rng) {
 
   // malformed side channels refuse without mutating anything
   SamplerStateData malformed = state;
-  malformed.chains[0].savedTreeParams[0].pop_back();
+  malformed.chains[0].forests[0].savedTreeParams[0].pop_back();
   check(!restored.setState(malformed), "truncated gp side channel refused");
   malformed = state;
-  malformed.chains[0].treeParams[0].pop_back();
+  malformed.chains[0].forests[0].treeParams[0].pop_back();
   check(!restored.setState(malformed), "short gp fits slab refused");
 
   // the good state survived the rejected malformed loads and reproduces the

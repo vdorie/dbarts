@@ -96,7 +96,9 @@ sampler.state <- dbarts(
 )
 invisible(sampler.state$run(30L, 2L))
 sampler.state$storeState()
-expect_true("tree.params" %in% names(sampler.state$state[[1L]]))
+expect_true(
+  "tree.params" %in% names(sampler.state$state[[1L]]$forests[[1L]])
+)
 sampler.restored <- dbarts(
   y ~ x1 + x2 + x3,
   df,
