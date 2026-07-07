@@ -80,6 +80,7 @@ getTrees is R-level; BCF glue transfers when both fits are BCF,
 paralleling DART - a deliberate small superset of "sigma/k only".
 Gates (implementer ran, reviewer re-ran): component tests pass,
 tinytest 2469/0 (11 new), equivalence exact 18/18, air/lintr/checkRd
-clean. Reviewer note: the new bridge SEXP parser should ride the next
-local rchk run (zero-findings last confirmed over the step-4
-serialization at db96254).
+clean. Reviewer note (discharged 2026-07-07): rchk run over the 933eed8
+tree, zero dbarts findings (7729 functions analyzed; only the usual
+tool noise - SIMD flag warnings and R-internals abstraction errors).
+The bridge SEXP parser is clean.
