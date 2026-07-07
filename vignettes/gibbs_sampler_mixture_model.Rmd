@@ -195,6 +195,67 @@ legend("topright", c("true func", "est func", "group 0", "group 1",
        cex = 0.8, box.col = "white", bg = "white")
 ```
 
+## Response Families
+
+Everything above fits a continuous response, `dbarts`'s default (`family = "auto"`, which chooses `"gaussian"` for a continuous $y$ and `"probit"` for one coded 0/1). `family` can also be set to `"gaussian"`, `"probit"`, or `"logistic"` explicitly. The two binary families model $P(Y = 1 \mid x) = F(f(x))$ for a link $F$ and the sum-of-trees $f$, and report fits and predictions on that latent scale rather than as probabilities (`pnorm`/`plogis` recovers the probability from it). Probit takes $F$ to be the standard normal CDF; logistic uses Polya-Gamma augmentation and takes $F$ to be the logistic CDF, whose latent variable has heavier tails than probit's, so the leaf-value prior widens to match (`node.scale` becomes `pi * sqrt(3)` in place of probit's `3`, keeping the same span of $f(x)$ relative to the response).
+
+```{r family_example}
+set.seed(11)
+n.fam <- 60
+x.fam <- runif(n.fam)
+y.fam <- rbinom(n.fam, 1, plogis(3 * (x.fam - 0.5)))
+
+fit.logistic <- dbarts(y.fam ~ x.fam, family = "logistic",
+                       control = dbartsControl(n.trees = 10L, n.chains = 1L,
+                                                n.threads = 1L))
+samples.logistic <- fit.logistic$run(20L, 20L)
+```
+
+## DART
+
+When only a handful of predictors out of many are relevant, the CGM tree prior's uniform choice of split variable wastes proposals on the rest. `tree.prior = dart(...)` replaces it with a Dirichlet prior over split-variable probabilities (Linero 2018): the sampler learns which variables matter and increasingly proposes splits on them, which doubles as a variable-importance diagnostic.
+
+```{r dart_example}
+set.seed(12)
+n.dart <- 60
+x.dart <- matrix(runif(n.dart * 8), n.dart)
+y.dart <- 4 * x.dart[, 1] + rnorm(n.dart, 0, 0.2)
+
+fit.dart <- dbarts(y.dart ~ x.dart, tree.prior = dart(),
+                   control = dbartsControl(n.trees = 10L, n.burn = 100L,
+                                            n.chains = 1L, n.threads = 1L))
+samples.dart <- fit.dart$run(100L, 30L)
+
+# One row per predictor, averaged over the retained samples: only the first
+# column of x.dart drives y.dart, and its split probability dominates.
+round(rowMeans(samples.dart$varprobs), 3)
+```
+
+The Dirichlet concentration `alpha` is itself sampled by default (`update.alpha = TRUE`); a smaller `alpha` concentrates the split probabilities more aggressively. `?dbartsPriors` documents the rest of `dart`'s arguments.
+
+## Data Frames, Factors, and Missing Values
+
+`dbarts` and `bart2` take a `data.frame` directly, and (`factors = "categorical"`, the default for both) an unordered factor predictor becomes a single categorical column: its splits send a subset of levels down each branch, rather than the one-indicator-per-level expansion `bart` still uses. `factors = "indicators"` recovers that expansion on either function, useful for comparing the two. Ordered factors always code as ordinal, on their integer levels, regardless of `factors`.
+
+Missing predictor values need not be removed beforehand. The default `missing = "incorporate"` gives every split rule a learned direction for `NA`: an observation whose split variable is missing follows that rule's direction ("Missing Incorporated in Attributes", Twala et al. 2008), estimated jointly with the rest of the tree. `missing = "error"` instead rejects predictors containing `NA`, matching older versions.
+
+```{r missing_example}
+set.seed(13)
+n.miss <- 60
+g <- factor(sample(c("a", "b", "c"), n.miss, replace = TRUE))
+x.miss <- rnorm(n.miss)
+x.miss[sample(n.miss, 10)] <- NA
+y.miss <- ifelse(g == "a", 2, -1) +
+    ifelse(is.na(x.miss), 0, x.miss) + rnorm(n.miss, 0, 0.2)
+
+df.miss <- data.frame(y = y.miss, x = x.miss, g = g)
+fit.miss <- bart2(y ~ x + g, df.miss, n.trees = 10L, n.chains = 1L,
+                  n.threads = 1L, n.samples = 20L, n.burn = 20L,
+                  verbose = FALSE)
+```
+
+`g` above ingests as one categorical predictor with three levels rather than two indicator columns, and the ten missing values of `x` are incorporated rather than dropped.
+
 ## Multiple Threading
 
 When implementing a Gibbs sampler using `dbarts` in R, it is most often the case that multiple threads will need to handled by creating separate copies of the sampler and data. While `dbartsSampler`s are natively multithreaded, few of their slots are stored independently across chains. For an example of this approach and a more complete implementation of the principles in this document, consult the implementation of [rbart_vi](https://github.com/vdorie/dbarts/blob/master/R/rbart.R).
