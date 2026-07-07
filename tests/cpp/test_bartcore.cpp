@@ -2172,8 +2172,9 @@ static void testCategoricalMutation(ext_rng* rng) {
 }
 
 static void testWideCategorical(ext_rng* rng) {
-  // masks are 64 bits wide, capped at 53 categories by the flattened
-  // format's double encoding; exercise bit positions past 31 throughout
+  // an inline categorical column whose masks reach high bit positions (past
+  // 31, past the old 53-category double-encoding boundary); the mask rides
+  // the flattened node directly
   const size_t K = 53;
   const size_t n = 8 * K;
   std::vector<double> x(n), y(n);
@@ -2256,13 +2257,14 @@ static void testWideCategorical(ext_rng* rng) {
             -std::log(std::pow(2.0, 53.0) - 2.0), 1e-13,
             "wide rule probability");
 
-  // the widest valid mask round-trips through the double-valued flat format
+  // the widest valid mask round-trips through the inline flat payload
   std::vector<FlatNode> flat;
   std::vector<double> paramByNode(tree.nodes.size(), 0.0);
   tree.flatten(store, paramByNode.data(), flat);
-  check(flat[0].value == static_cast<double>(rule.categoryDirections()),
+  check(flatKindOf(flat[0]) == FlatKind::categoricalInline &&
+          flat[0].mask == rule.categoryDirections(),
         "wide mask flattens exactly");
-  flat[0].value = static_cast<double>(((1ull << K) - 1ull) & ~1ull);
+  flat[0].mask = ((1ull << K) - 1ull) & ~1ull;
   check(flatTreeIsWellFormed(store, flat.data(), flat.size()),
         "all-but-one mask is well formed");
   Tree rebuilt;
@@ -2273,9 +2275,9 @@ static void testWideCategorical(ext_rng* rng) {
         "wide mask rebuilds from flat");
   check(rebuilt.at(0).rule.categoryDirections() == (((1ull << K) - 1ull) & ~1ull),
         "wide mask round-trips exactly");
-  flat[0].value = 9007199254740992.0;  // 2^53: past the exact-integer bound
+  flat[0].mask = 1ull << K;  // a bit past the K categories
   check(!flatTreeIsWellFormed(store, flat.data(), flat.size()),
-        "mask past the double-exact bound is rejected");
+        "a mask bit past the categories is rejected");
 
   // end to end: category codes carry no order, so recovering the two
   // groups requires subset splits over high codes
@@ -2321,8 +2323,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   ColumnStore store;
   store.build(x.data(), n, 1, 10, false, types);
   check(store.numCuts[0] == K, "pooled column counts its categories");
-  check(store.columnIsPooled(0) && store.columnHasWideMask(0) &&
-          store.hasPooledCategorical && store.hasWideCategorical,
+  check(store.columnIsPooled(0) && store.hasPooledCategorical,
         "pooled tier predicates");
   check(maskWordsForCount(K) == 2, "70 categories need two words");
   check(missingCategoryCode(K) == 70 &&
@@ -2422,7 +2423,9 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   std::vector<double> paramByNode(tree.nodes.size(), 0.0);
   tree.flatten(store, paramByNode.data(), flat, nullptr, 1, nullptr,
                &flatMasks);
-  check(flat.size() == 3 && flatMasks.size() == 2 && flat[0].value == 0.0,
+  check(flat.size() == 3 && flatMasks.size() == 2 &&
+          flatKindOf(flat[0]) == FlatKind::categoricalPooled &&
+          flat[0].maskOffset == 0 && flat[0].numMaskWords == 2,
         "pooled flatten emits the side channel");
   check(maskEquals(flatMasks.data(), liveMask.data(), 2),
         "flattened words match the live mask");
@@ -2443,13 +2446,13 @@ static void testPooledMaskMechanics(ext_rng* rng) {
                    liveMask.data(), 2),
         "pooled mask round-trips exactly");
 
-  flat[0].value = 1.0;  // offsets must be the running cursor
+  flat[0].maskOffset = 1;  // offsets must be the running cursor
   rebuilt.initialize(rebuiltIndices.data(), n);
   check(!rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,
                                1, nullptr, flatMasks.data(),
                                flatMasks.size()),
         "a non-sequential mask offset is rejected");
-  flat[0].value = 0.0;
+  flat[0].maskOffset = 0;
   std::vector<std::uint64_t> badMasks(flatMasks);
   maskSetBit(badMasks.data(), 70);  // the missing position must stay clear
   rebuilt.initialize(rebuiltIndices.data(), n);
@@ -2476,10 +2479,9 @@ static void testPooledMaskMechanics(ext_rng* rng) {
 }
 
 static void testPooledMaskSampler(ext_rng* rng) {
-  // end to end over one pooled column (K = 70) and one inline-band column
-  // (K = 60, whose flattened masks also move to the side channel), with
-  // keepTrees, saved-tree replay, live prediction, and a bitwise state
-  // round trip mid-run
+  // end to end over one pooled column (K = 70, side-channel masks) and one
+  // inline column (K = 60, mask in the flat node), with keepTrees, saved-tree
+  // replay, live prediction, and a bitwise state round trip mid-run
   const size_t K = 70, K2 = 60;
   const size_t n = 10 * K;
   std::vector<double> x(2 * n), y(n);
@@ -2496,8 +2498,8 @@ static void testPooledMaskSampler(ext_rng* rng) {
   {
     ColumnStore probe;
     probe.build(x.data(), n, 2, 10, false, types);
-    check(!probe.columnIsPooled(1) && probe.columnHasWideMask(1),
-          "60 categories stay inline but flatten wide");
+    check(!probe.columnIsPooled(1) && probe.columnIsPooled(0),
+          "60 categories stay inline, 70 pool");
   }
 
   const size_t numSamples = 4, nTest = K;
@@ -2632,10 +2634,14 @@ static void testFlattenRoundTrip() {
   tree.flatten(store, params.data(), flat, &counts);
 
   check(flat.size() == 5 && counts.size() == 5, "flatten emits pre-order");
-  check(flat[0].variable == 0 && flat[0].value == 6.0,
-        "flatten value-encodes a categorical mask");
-  check(flat[1].variable == 1 && flat[1].value == store.cutPoints[1][4],
-        "flatten value-encodes an ordinal cut");
+  check(flat[0].variable == 0 &&
+          flatKindOf(flat[0]) == FlatKind::categoricalInline &&
+          flat[0].mask == 0x6,
+        "flatten tags an inline categorical mask");
+  check(flat[1].variable == 1 &&
+          flatKindOf(flat[1]) == FlatKind::ordinal &&
+          flat[1].value == store.cutPoints[1][4],
+        "flatten tags an ordinal cut");
   check(flat[2].variable == invalidVariable && flat[2].value == 1.0 &&
         flat[3].value == 2.0 && flat[4].value == 3.0,
         "flatten stores leaf parameters left-first");
@@ -2649,14 +2655,14 @@ static void testFlattenRoundTrip() {
   std::vector<std::uint32_t> replayed(flat.size());
   std::vector<size_t> replayIndices(n);
   for (size_t i = 0; i < n; ++i) replayIndices[i] = i;
-  countFlatObservationsBelow(flat.data(), store.types.data(), x.data(), n,
+  countFlatObservationsBelow(flat.data(), x.data(), n,
                              replayIndices.data(), 0, n, replayed.data());
   check(replayed == counts, "flat replay reproduces the live counts");
 
   // per-row prediction accumulates each row's leaf parameter
   std::vector<double> fits(n, 0.0);
   for (size_t i = 0; i < n; ++i) replayIndices[i] = i;
-  addFlatPredictionsBelow(flat.data(), store.types.data(), x.data(), n,
+  addFlatPredictionsBelow(flat.data(), x.data(), n,
                           replayIndices.data(), 0, n, fits.data());
   bool fitsMatch = true;
   for (size_t i = 0; i < n; ++i) {
@@ -2698,7 +2704,8 @@ static void testFlattenRoundTrip() {
         "buildFromFlat rejects a value off the cut grid");
   bad = flat;
   bad[1].variable = 0;
-  bad[1].value = 2.0;  // category 1 goes right, but 1 is unreachable here
+  setFlatKind(bad[1], FlatKind::categoricalInline);
+  bad[1].mask = 0x2;  // category 1 goes right, but 1 is unreachable here
   tree2.initialize(indices2.data(), n);
   check(!tree2.buildFromFlat(store, bad.data(), bad.size(), params2),
         "buildFromFlat rejects an out-of-gauge mask");
@@ -2710,6 +2717,75 @@ static void testFlattenRoundTrip() {
         "well-formedness check matches");
 
   printf("ok: flatten round trip\n");
+}
+
+static void testCategoricalFlattenBoundaries() {
+  // the inline (<= 63) / pooled (>= 64) edge: for K at and around 63/64 a
+  // flatten -> replay must reproduce the live routing, and a rebuild must
+  // restore partitions identically
+  const size_t Ks[] = {53, 54, 63, 64};
+  for (size_t K : Ks) {
+    const size_t n = 8 * K;
+    std::vector<double> x(n), y(n, 0.0);
+    for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i % K);
+    ColumnType types[] = {ColumnType::categorical};
+    ColumnStore store;
+    store.build(x.data(), n, 1, 10, false, types);
+    check(store.numCuts[0] == K && store.columnIsPooled(0) == (K >= 64),
+          "the pooling boundary is 64 categories");
+
+    std::vector<size_t> indices(n);
+    Tree tree;
+    tree.initialize(indices.data(), n);
+    Rule rule;
+    rule.variableIndex = 0;
+    // send a low category and the top one right, straddling a word top
+    if (store.columnIsPooled(0)) {
+      size_t offset =
+        tree.allocateMask(maskWordsForCount(static_cast<std::uint32_t>(K)));
+      std::uint64_t* words = tree.mutableMaskWordsFor(offset);
+      maskSetBit(words, 2);
+      maskSetBit(words, static_cast<std::uint32_t>(K - 1));
+      rule.setMaskOffset(offset);
+    } else {
+      rule.setCategoryDirections((1ull << 2) | (1ull << (K - 1)));
+    }
+    tree.birth(store, 0, rule, y.data(), nullptr);
+
+    std::vector<double> params(tree.nodes.size(), 0.0);
+    std::vector<FlatNode> flat;
+    std::vector<std::uint32_t> counts;
+    std::vector<std::uint64_t> masks;
+    tree.flatten(store, params.data(), flat, &counts, 1, nullptr, &masks);
+    check(store.columnIsPooled(0) ==
+            (flatKindOf(flat[0]) == FlatKind::categoricalPooled),
+          "the tag matches the pooling tier");
+
+    std::vector<std::uint32_t> replayed(flat.size());
+    std::vector<size_t> replayIndices(n);
+    for (size_t i = 0; i < n; ++i) replayIndices[i] = i;
+    countFlatObservationsBelow(flat.data(), x.data(), n, replayIndices.data(),
+                               0, n, replayed.data(), masks.data());
+    check(replayed == counts, "flatten -> replay reproduces live routing");
+    check(flatTreeIsWellFormed(store, flat.data(), flat.size(), masks.data(),
+                               masks.size()),
+          "boundary flat tree is well formed");
+
+    Tree rebuilt;
+    std::vector<size_t> rebuiltIndices(n);
+    rebuilt.initialize(rebuiltIndices.data(), n);
+    std::vector<double> rebuiltParams;
+    check(rebuilt.buildFromFlat(store, flat.data(), flat.size(), rebuiltParams,
+                                1, nullptr, masks.data(), masks.size()),
+          "boundary rule rebuilds from flat");
+    rebuilt.repartitionSubtree(store, 0);
+    bool partsMatch = tree.nodes.size() == rebuilt.nodes.size();
+    for (size_t i = 0; partsMatch && i < tree.nodes.size(); ++i)
+      partsMatch &= rebuilt.at(static_cast<int32_t>(i)).numObservations() ==
+                    tree.at(static_cast<int32_t>(i)).numObservations();
+    check(partsMatch, "boundary rebuilt tree partitions identically");
+  }
+  printf("ok: categorical flatten boundaries\n");
 }
 
 static void testKeepTrees(ext_rng* rng) {
@@ -3517,15 +3593,18 @@ static void testMissingMechanics() {
   std::vector<double> params(tree.nodes.size(), 0.0);
   std::vector<FlatNode> flat;
   tree.flatten(store, params.data(), flat);
-  check(flat[0].flags == flatMissingGoesRight &&
+  check((flat[0].flags & flatMissingGoesRight) != 0 &&
+          flatKindOf(flat[0]) == FlatKind::ordinal &&
           flat[0].value == store.cutPoints[0][4],
         "an ordinal flat node carries its missing direction in flags");
 
   std::vector<double> catParams(catTree.nodes.size(), 0.0);
   std::vector<FlatNode> catFlat;
   catTree.flatten(store, catParams.data(), catFlat);
-  check(catFlat[0].value == 0.0 && catFlat[0].flags == flatMissingGoesRight,
-        "a missing-only mask flattens to value zero plus the flag");
+  check(flatKindOf(catFlat[0]) == FlatKind::categoricalInline &&
+          catFlat[0].mask == 0 &&
+          (catFlat[0].flags & flatMissingGoesRight) != 0,
+        "a missing-only mask flattens to an empty mask plus the flag");
   check(flatTreeIsWellFormed(store, catFlat.data(), catFlat.size()),
         "the missing-only mask is well formed");
 
@@ -3543,7 +3622,7 @@ static void testMissingMechanics() {
   std::vector<std::uint32_t> counts(flat.size());
   std::vector<size_t> replayIndices(n);
   for (size_t i = 0; i < n; ++i) replayIndices[i] = i;
-  countFlatObservationsBelow(flat.data(), store.types.data(), x.data(), n,
+  countFlatObservationsBelow(flat.data(), x.data(), n,
                              replayIndices.data(), 0, n, counts.data());
   size_t expectedRight = 0;
   for (size_t i = 0; i < n; ++i)
@@ -3552,7 +3631,7 @@ static void testMissingMechanics() {
         "replay against raw values routes NaN by the stored direction");
 
   FlatNode bad = catFlat[0];
-  bad.flags = 0x2;
+  bad.flags |= 0x8u;  // a bit outside the missing flag and the kind field
   std::vector<FlatNode> badTree(catFlat);
   badTree[0] = bad;
   check(!flatTreeIsWellFormed(store, badTree.data(), badTree.size()),
@@ -6131,6 +6210,7 @@ int main() {
   testPooledMaskMechanics(rng);
   testPooledMaskSampler(rng);
   testFlattenRoundTrip();
+  testCategoricalFlattenBoundaries();
   testKeepTrees(rng);
   testPredictCurrentTrees(rng);
   testStateRoundTrip();

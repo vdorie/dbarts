@@ -1995,8 +1995,11 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 // that hold even when setOffset(updateScale) moved the scale after
 // creation.
 
-// flattened trees as three parallel R vectors: concatenated 1-based-with-(-1)
-// variables, values, and per-tree node counts
+// flattened trees as parallel R vectors: concatenated 1-based-with-(-1)
+// variables, tagged 8-byte payloads, per-tree node counts, and flags (the
+// missing direction plus the payload tag). The payload is a raw word rather
+// than a REALSXP because an inline categorical mask is a uint64 whose bits a
+// numeric might normalize; leaf and ordinal payloads are the doubles they were
 static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
                            int sizesSlot, int flagsSlot,
                            const std::vector<std::vector<bartcore::FlatNode>>& trees) {
@@ -2006,13 +2009,14 @@ static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
 
   SET_VECTOR_ELT(chainExpr, variablesSlot,
                  Rf_allocVector(INTSXP, totalNumNodes));
-  SET_VECTOR_ELT(chainExpr, valuesSlot, Rf_allocVector(REALSXP, totalNumNodes));
+  SET_VECTOR_ELT(chainExpr, valuesSlot,
+                 Rf_allocVector(RAWSXP, totalNumNodes * 8));
   SET_VECTOR_ELT(chainExpr, sizesSlot,
                  Rf_allocVector(INTSXP, static_cast<R_xlen_t>(trees.size())));
   SET_VECTOR_ELT(chainExpr, flagsSlot, Rf_allocVector(RAWSXP, totalNumNodes));
 
   int* variables = INTEGER(VECTOR_ELT(chainExpr, variablesSlot));
-  double* values = REAL(VECTOR_ELT(chainExpr, valuesSlot));
+  Rbyte* values = RAW(VECTOR_ELT(chainExpr, valuesSlot));
   int* sizes = INTEGER(VECTOR_ELT(chainExpr, sizesSlot));
   Rbyte* flags = RAW(VECTOR_ELT(chainExpr, flagsSlot));
   R_xlen_t offset = 0;
@@ -2021,7 +2025,7 @@ static void storeFlatTrees(SEXP chainExpr, int variablesSlot, int valuesSlot,
     for (const bartcore::FlatNode& node : trees[t]) {
       variables[offset] = node.variable >= 0 ? node.variable + 1
                                              : node.variable;
-      values[offset] = node.value;
+      std::memcpy(values + offset * 8, &node.value, 8);
       flags[offset] = node.flags;
       ++offset;
     }
@@ -2046,7 +2050,7 @@ static void storeTreeParams(SEXP chainExpr, int paramsSlot,
   }
 }
 
-// wide categorical mask channels as one raw vector, each word written
+// pooled categorical mask channels as one raw vector, each word written
 // explicitly little-endian (raw bytes serialize portably where NaN payloads
 // in a numeric might not), concatenated across trees; splittable by walking
 // each tree's rules against the store's category counts
@@ -2074,7 +2078,7 @@ static size_t maskWordsForFlatTree(
   for (const bartcore::FlatNode& node : tree) {
     if (node.variable < 0) continue;
     size_t j = static_cast<size_t>(node.variable);
-    if (j < store.numPredictors && store.columnHasWideMask(j))
+    if (j < store.numPredictors && store.columnIsPooled(j))
       numWords += bartcore::maskWordsForCount(store.numCuts[j]);
   }
   return numWords;
@@ -2203,14 +2207,15 @@ static bool readFunctionSavedParams(
 }
 
 // the inverse; errorMessage is set instead of erroring so callers can clean
-// up C++ state first
+// up C++ state first. A pooled node's numMaskWords is re-derived from the
+// store here so raw-value replay of a restored saved tree has its clamp
 static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
-                          SEXP flagsExpr,
+                          SEXP flagsExpr, const bartcore::ColumnStore& store,
                           std::vector<std::vector<bartcore::FlatNode>>& trees,
                           const char** errorMessage) {
-  if (!Rf_isInteger(variablesExpr) || !Rf_isReal(valuesExpr) ||
+  if (!Rf_isInteger(variablesExpr) || TYPEOF(valuesExpr) != RAWSXP ||
       !Rf_isInteger(sizesExpr) ||
-      Rf_xlength(variablesExpr) != Rf_xlength(valuesExpr) ||
+      Rf_xlength(valuesExpr) != Rf_xlength(variablesExpr) * 8 ||
       (!Rf_isNull(flagsExpr) &&
        (TYPEOF(flagsExpr) != RAWSXP ||
         Rf_xlength(flagsExpr) != Rf_xlength(variablesExpr)))) {
@@ -2220,7 +2225,7 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
   const Rbyte* flags = Rf_isNull(flagsExpr) ? NULL : RAW(flagsExpr);
   R_xlen_t numTrees = Rf_xlength(sizesExpr);
   const int* variables = INTEGER(variablesExpr);
-  const double* values = REAL(valuesExpr);
+  const Rbyte* values = RAW(valuesExpr);
   const int* sizes = INTEGER(sizesExpr);
 
   R_xlen_t totalNumNodes = 0;
@@ -2245,8 +2250,14 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
                                     [static_cast<size_t>(k)]);
       int variable = variables[offset];
       node.variable = variable >= 1 ? variable - 1 : bartcore::invalidVariable;
-      node.value = values[offset];
+      std::memcpy(&node.value, values + offset * 8, 8);
       node.flags = flags != NULL ? static_cast<std::uint8_t>(flags[offset]) : 0;
+      if (node.variable >= 0 &&
+          static_cast<size_t>(node.variable) < store.numPredictors &&
+          store.columnIsPooled(static_cast<size_t>(node.variable)))
+        node.numMaskWords = static_cast<std::uint32_t>(
+          bartcore::maskWordsForCount(
+            store.numCuts[static_cast<size_t>(node.variable)]));
       ++offset;
     }
   }
@@ -2454,8 +2465,11 @@ namespace bartcore_bridge {
 
 // Bumped by any change to the layout storeState/setState exchange (tree
 // encoding, per-chain slots, attributes). States load only within a format
-// version; there are no migration shims.
-static const int stateFormatVersion = 1;
+// version; there are no migration shims. Version 2 tags each flat node and
+// stores its payload as a raw word - an inline categorical mask no longer
+// bit-casts through a double - so the side channel holds only pooled masks
+// (past 63 categories).
+static const int stateFormatVersion = 2;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -2675,7 +2689,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
                        getListElement(chainExpr, "tree.values"),
                        getListElement(chainExpr, "tree.sizes"),
                        getListElement(chainExpr, "tree.flags"),
-                       chainState.trees, &errorMessage))
+                       sampler.data(), chainState.trees, &errorMessage))
       break;
     SEXP savedSizesExpr = getListElement(chainExpr, "saved.sizes");
     if (!Rf_isNull(savedSizesExpr) &&
@@ -2683,7 +2697,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
                        getListElement(chainExpr, "saved.values"),
                        savedSizesExpr,
                        getListElement(chainExpr, "saved.flags"),
-                       chainState.savedTrees, &errorMessage))
+                       sampler.data(), chainState.savedTrees, &errorMessage))
       break;
 
     // linear-leaf states must carry their slope arrays; function-valued
@@ -2712,8 +2726,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
         break;
     }
 
-    // wide-categorical states must carry their mask channels
-    if (sampler.data().hasWideCategorical) {
+    // pooled-categorical states must carry their mask channels
+    if (sampler.data().hasPooledCategorical) {
       if (!readTreeMasks(getListElement(chainExpr, "tree.masks"),
                          chainState.trees, sampler.data(),
                          chainState.treeMasks, &errorMessage))
@@ -2846,12 +2860,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
 // Column-major gather of the requested trees, plus the flags that decide
 // which data.frame columns exist.
 struct GatheredTrees {
-  bool includeChain, includeSample, anyWide, anyMissing;
+  bool includeChain, includeSample, anyCategorical, anyMissing;
   size_t numSlopes;
   std::vector<int> chain, sample, tree, count, variable, missing;
   std::vector<double> value;
-  // wide categorical rules report their masks decoded, one L/R per
-  // observed category; the R wrapper pads to the declared level count
+  // every categorical rule reports its mask decoded, one L/R per observed
+  // category (value is NA); the R wrapper pads to the declared level count
   std::vector<std::string> directions;
   // one column per leaf covariate, NA on internal nodes
   std::vector<std::vector<double>> slopes;
@@ -2875,6 +2889,10 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   std::vector<size_t> replayIndices(replayNumRows);
   std::string directionsScratch;
   bool functionLeaves = sampler.usesFunctionLeaves();
+  // the mask side channel exists only for pooled columns (past 63 levels)
+  bool anyPooled = false;
+  for (size_t j = 0; j < store.numPredictors; ++j)
+    if (store.columnIsPooled(j)) { anyPooled = true; break; }
 
   for (size_t i = 0; i < numChainIndices; ++i) {
     size_t chainNum = chainIndices[i];
@@ -2890,24 +2908,22 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
           nodes = &sampler.savedTree(chainNum, sampleNum, treeNum);
           if (out.numSlopes > 0)
             slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum);
-          if (out.anyWide)
+          if (anyPooled)
             masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum);
         } else {
           sampler.flattenTree(chainNum, treeNum, liveNodes, counts,
                               out.numSlopes > 0 ? &liveSlopes : NULL,
-                              out.anyWide ? &liveMasks : NULL);
+                              anyPooled ? &liveMasks : NULL);
           nodes = &liveNodes;
           if (out.numSlopes > 0) slopes = &liveSlopes;
-          if (out.anyWide) masks = &liveMasks;
+          if (anyPooled) masks = &liveMasks;
         }
         if (replayData != NULL) {
           counts.resize(nodes->size());
           for (size_t l = 0; l < replayNumRows; ++l) replayIndices[l] = l;
           bartcore::countFlatObservationsBelow(
-            nodes->data(), store.types.data(), replayData, replayNumRows,
-            replayIndices.data(), 0, replayNumRows, counts.data(),
-            out.anyWide ? store.numCuts.data() : NULL,
-            out.anyWide ? masks->data() : NULL);
+            nodes->data(), replayData, replayNumRows, replayIndices.data(), 0,
+            replayNumRows, counts.data(), masks != NULL ? masks->data() : NULL);
         }
 
         size_t leafNum = 0;
@@ -2919,24 +2935,30 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
           const bartcore::FlatNode& node((*nodes)[l]);
           out.variable.push_back(
             node.variable >= 0 ? node.variable + 1 : node.variable);
-          bool isWideRule =
+          bool isCategoricalRule =
             node.variable >= 0 &&
-            store.columnHasWideMask(static_cast<size_t>(node.variable));
-          // a wide rule's value is a side-channel offset, meaningless
-          // outside the format; the directions column carries the decode
+            store.types[static_cast<size_t>(node.variable)] ==
+              bartcore::ColumnType::categorical;
+          // a categorical rule's payload is a mask, not a data value; the
+          // directions column carries its decode and its value is NA
           out.value.push_back(
-            isWideRule ||
+            isCategoricalRule ||
                 (functionLeaves && node.variable == bartcore::invalidVariable)
               ? NA_REAL : node.value);
-          if (out.anyWide) {
-            if (isWideRule) {
+          if (out.anyCategorical) {
+            if (isCategoricalRule) {
               size_t variable = static_cast<size_t>(node.variable);
-              const std::uint64_t* words =
-                masks->data() + static_cast<size_t>(node.value);
               directionsScratch.clear();
-              for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
-                directionsScratch.push_back(
-                  bartcore::maskTestBit(words, c) ? 'R' : 'L');
+              if (store.columnIsPooled(variable)) {
+                const std::uint64_t* words = masks->data() + node.maskOffset;
+                for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
+                  directionsScratch.push_back(
+                    bartcore::maskTestBit(words, c) ? 'R' : 'L');
+              } else {
+                for (std::uint32_t c = 0; c < store.numCuts[variable]; ++c)
+                  directionsScratch.push_back(
+                    ((node.mask >> c) & 1u) != 0 ? 'R' : 'L');
+              }
               out.directions.push_back(directionsScratch);
             } else {
               out.directions.push_back(std::string());
@@ -2985,7 +3007,7 @@ SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
   R_xlen_t totalNumNodes = static_cast<R_xlen_t>(gathered.value.size());
   R_xlen_t numColumns = 4 + (gathered.includeChain ? 1 : 0) +
                         (gathered.includeSample ? 1 : 0) +
-                        (gathered.anyWide ? 1 : 0) +
+                        (gathered.anyCategorical ? 1 : 0) +
                         (gathered.anyMissing ? 1 : 0) +
                         static_cast<R_xlen_t>(gathered.numSlopes);
 
@@ -3003,7 +3025,7 @@ SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
   emitTreeColumn(resultExpr, namesExpr, columnNum++, "n", gathered.count);
   emitTreeColumn(resultExpr, namesExpr, columnNum++, "var", gathered.variable);
   emitTreeColumn(resultExpr, namesExpr, columnNum++, "value", gathered.value);
-  if (gathered.anyWide) {
+  if (gathered.anyCategorical) {
     SET_VECTOR_ELT(resultExpr, columnNum,
                    Rf_allocVector(STRSXP, totalNumNodes));
     SET_STRING_ELT(namesExpr, columnNum, Rf_mkChar("directions"));
@@ -3047,16 +3069,14 @@ SEXP emitTreeDataFrame(const GatheredTrees& gathered) {
 
 // A data.frame of tree structure in the classic engine's format: pre-order
 // rows of ([chain,] [sample,] tree, n, var, value), var 1-based with -1
-// marking leaves, split values as data values (an ordinal rule's cut point,
-// a categorical rule's mask over observed categories), leaf values on the
-// engine's internal response scale. A rule on a wide categorical column
-// (more than 53 levels) has no double-exact mask: its value is NA and a
-// 'directions' character column - present whenever the store has wide
-// columns - carries one L/R per observed category (NA elsewhere; the R
-// wrapper pads to the declared level count and fills the narrow rules).
-// When any predictor contains missing values a 'missing' integer column
-// reports each rule's missing direction (0 left, 1 right; NA on leaves and
-// on columns without missing values). Saved trees replay the training
+// marking leaves, an ordinal rule's value its cut point, leaf values on the
+// engine's internal response scale. A categorical rule carries no data value:
+// its value is NA and a 'directions' character column - present whenever the
+// store has any categorical column - carries one L/R per observed category
+// (NA on ordinal rules and leaves; the R wrapper pads to the declared level
+// count). When any predictor contains missing values a 'missing' integer
+// column reports each rule's missing direction (0 left, 1 right; NA on leaves
+// and on columns without missing values). Saved trees replay the training
 // predictors for n unless newdata is supplied; live trees report their own
 // counts. Validates, gathers, and emits, in that order.
 SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
@@ -3096,9 +3116,12 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     replayNumRows = store.numObservations;
   }
 
-  bool anyMissing = false;
-  for (size_t j = 0; j < store.numPredictors; ++j)
-    if (store.hasMissing[j]) { anyMissing = true; break; }
+  bool anyMissing = false, anyCategorical = false;
+  for (size_t j = 0; j < store.numPredictors; ++j) {
+    if (store.hasMissing[j]) anyMissing = true;
+    if (store.types[j] == bartcore::ColumnType::categorical)
+      anyCategorical = true;
+  }
 
   // function-valued (gp) leaves report no per-leaf coefficients - the
   // function rides prediction only - and their leaves' values print NA
@@ -3107,7 +3130,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     sampler.usesFunctionLeaves() ? 0 : sampler.numLeafCovariates();
 
   GatheredTrees gathered{sampler.numChains() > 1, useSaved,
-                         store.hasWideCategorical, anyMissing, numSlopes,
+                         anyCategorical, anyMissing, numSlopes,
                          {}, {}, {}, {}, {}, {}, {}, {}, {}};
   gathered.slopes.resize(numSlopes);
   gatherTrees(sampler, chainIndices, numChainIndices, sampleIndices,

@@ -1,7 +1,7 @@
-# categorical predictors past the old 53-level cap: 54..63 levels keep
-# inline rule masks, wider columns pool their mask words per tree; the
-# flattened format moves masks past 53 levels to a side channel and getTrees
-# reports them decoded (docs/design/pooled-masks.md)
+# wide categorical predictors: up to 63 levels keep inline rule masks (inline
+# in the flattened node too), wider columns pool their mask words per tree and
+# the flattened format references them through a side channel; getTrees reports
+# every categorical rule decoded (docs/design/pooled-masks.md)
 
 set.seed(4247)
 n <- 700L

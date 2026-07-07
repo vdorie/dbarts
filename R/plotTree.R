@@ -1,11 +1,9 @@
-## Decode the categorical direction masks in a getTrees data.frame into
-## per-level direction strings: character k of a rule's string sends the
-## variable's k'th level down the "L"eft or "R"ight child (bit k - 1 of the
-## mask set sends it right). Ordinal rules and leaves decode to NA. Rules on
-## columns of more than 53 levels arrive already decoded from C (their masks
-## are not double-exact, so value is NA) over the observed categories; those
-## strings are right-padded with "L" to the declared level count, exactly
-## what unobserved trailing levels decode to under the canonical gauge.
+## Pad the categorical direction strings a getTrees data.frame carries to the
+## declared level count. C reports every categorical rule already decoded over
+## its observed categories (character k sends the variable's k'th level down
+## the "L"eft or "R"ight child; the rule's value is NA); this right-pads with
+## "L" to the level count, exactly what unobserved trailing levels decode to
+## under the canonical gauge. Ordinal rules and leaves stay NA.
 decodeCategoricalSplits <- function(trees, x, varTypes) {
   factorLevels <- attr(x, "factor.levels")
   numLevels <- integer(ncol(x))
@@ -26,18 +24,12 @@ decodeCategoricalSplits <- function(trees, x, varTypes) {
   isCategoricalRule[isCategoricalRule] <-
     varTypes[trees$var[isCategoricalRule]] == CATEGORICAL_VARIABLE
   for (i in which(isCategoricalRule)) {
-    if (!is.na(directions[i])) {
-      padding <- numLevels[trees$var[i]] - nchar(directions[i])
-      if (padding > 0L) {
-        directions[i] <- paste0(
-          directions[i],
-          paste(rep.int("L", padding), collapse = "")
-        )
-      }
-    } else {
-      goesRight <-
-        (trees$value[i] %/% 2^(seq_len(numLevels[trees$var[i]]) - 1L)) %% 2
-      directions[i] <- paste(c("L", "R")[goesRight + 1], collapse = "")
+    padding <- numLevels[trees$var[i]] - nchar(directions[i])
+    if (padding > 0L) {
+      directions[i] <- paste0(
+        directions[i],
+        paste(rep.int("L", padding), collapse = "")
+      )
     }
   }
   trees$directions <- directions
