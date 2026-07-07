@@ -1639,6 +1639,70 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return resultExpr;
 }
 
+// rbart_vi's custom-prior Gibbs sampler: one run with a per-sweep R closure in
+// place of a run(0, 1) per kept sample. results is a named list of caller-owned
+// per-sweep buffers the engine fills (sigma, train, test, k, varprobs reals; an
+// integer varcount whose storage aliases the engine's uint32 slots, valid
+// because variable-use counts never approach 2^31); a null slot skips that
+// channel. Single chain only, so the closure runs inline.
+//
+// No GetRNGstate/PutRNGstate: the chain's generator never touches R's stream,
+// while the closure draws from it (the random intercepts and the tau slice
+// sampler), so R must own .Random.seed throughout. The closure is evaluated
+// under R_tryEval so an error cannot longjmp across Chain::run's C++ frames; it
+// becomes a cooperative stop, re-raised in R from the closure's own handler.
+SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
+                              SEXP numSamplesExpr, SEXP resultsExpr,
+                              SEXP callbackExpr, SEXP rhoExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  if (sampler.numChains() != 1)
+    Rf_error("dbarts_bartcore_runWithCallback requires a single chain");
+  if (!Rf_isFunction(callbackExpr)) Rf_error("callback must be a function");
+
+  size_t numBurnIn = static_cast<size_t>(Rf_asInteger(numBurnInExpr));
+  size_t numSamples = static_cast<size_t>(Rf_asInteger(numSamplesExpr));
+
+  SEXP sigmaExpr = getListElement(resultsExpr, "sigma");
+  SEXP trainExpr = getListElement(resultsExpr, "train");
+  SEXP testExpr = getListElement(resultsExpr, "test");
+  SEXP varcountExpr = getListElement(resultsExpr, "varcount");
+  SEXP kExpr = getListElement(resultsExpr, "k");
+  SEXP varprobsExpr = getListElement(resultsExpr, "varprobs");
+
+  bartcore::Results results;
+  results.sigma = Rf_isNull(sigmaExpr) ? NULL : REAL(sigmaExpr);
+  results.trainingFits = Rf_isNull(trainExpr) ? NULL : REAL(trainExpr);
+  results.testFits = Rf_isNull(testExpr) ? NULL : REAL(testExpr);
+  results.variableCounts = Rf_isNull(varcountExpr)
+    ? NULL : reinterpret_cast<uint32_t*>(INTEGER(varcountExpr));
+  results.k = Rf_isNull(kExpr) ? NULL : REAL(kExpr);
+  results.splitProbabilities = Rf_isNull(varprobsExpr) ? NULL : REAL(varprobsExpr);
+
+  bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
+  bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
+  bartcore::SweepCallback onSweep =
+    [&](size_t, size_t sweepIndex, bool) -> bool {
+      SEXP call = PROTECT(Rf_lang2(
+        callbackExpr, Rf_ScalarInteger(static_cast<int>(sweepIndex))));
+      int errorOccurred = 0;
+      SEXP res = R_tryEval(call, rhoExpr, &errorOccurred);
+      bool stop = errorOccurred == 0 && res != R_NilValue &&
+                  Rf_asLogical(res) == TRUE;
+      UNPROTECT(1);
+      if (errorOccurred) { callbackErrored = true; return true; }
+      closureStopped = stop;
+      return stop;
+    };
+
+  bool cancelled = sampler.run(numBurnIn, numSamples, results,
+                               bartcore_userInterrupted, onSweep);
+  if (callbackErrored)
+    Rf_error("error evaluating the rbart_vi sweep callback");
+  if (cancelled && !closureStopped) Rf_error("sampler run interrupted");
+  return R_NilValue;
+}
+
 SEXP bartcore_sampleTreesFromPrior(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   GetRNGstate();
