@@ -2478,11 +2478,11 @@ static void testGPLeafFormats(ext_rng* rng) {
 // The cross-sweep kernel cache must be invisible. A cold clone is built
 // over the ORIGINAL data (sharing the cut grid), restored from the warm
 // sampler's pre-mutation state, and given the identical mutation, so its
-// empty cache recomputes what the warm sampler serves from cache. Cycle
-// one perturbs the designated column WITHIN its quantization bins: members
-// stay identical, so only the regather-clears-the-cache path keeps stale
-// kernels from hitting. Cycle two moves the non-designated column across
-// bins: observations re-route and the member-list comparison must miss.
+// empty cache recomputes what the warm sampler serves from cache. The
+// mutation perturbs the designated column WITHIN its quantization bins:
+// members stay identical, so only the regather-clears-the-cache path keeps
+// stale kernels from hitting. Member re-routing is checked separately on
+// one leaf, where shared buffers keep the bitwise comparison sound.
 static void testGPLeafKernelCache(ext_rng* rng) {
   const size_t n = 150, p = 2;
   std::vector<double> x(n * p), y(n);
@@ -2558,11 +2558,37 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   mutateAndCompare(xCurrent, "gp designated-column mutation accepted",
                    "warm cache matches cold clone after designated mutation");
 
-  // cross-bin non-designated change: re-quantization re-routes members
-  for (size_t i = 0; i < n; ++i)
-    xCurrent[i + n] = 0.05 + 0.9 * xCurrent[i + n];
-  mutateAndCompare(xCurrent, "gp non-designated-column mutation accepted",
-                   "warm cache matches cold clone after member re-route");
+  // member re-route: a leaf warmed over one member set then routed onto a
+  // disjoint one must rebuild its kernel rather than serve the stale entry.
+  // Kept on a single leaf so the warm serve and the post-invalidate rescan
+  // share buffers and compare bitwise irrespective of allocation layout.
+  ColumnStore leafStore;
+  leafStore.build(x.data(), n, p, 100);
+  std::vector<size_t> leafIndices(n);
+  Tree leafTree;
+  leafTree.initialize(leafIndices.data(), n);
+  GPGaussianLeaf leaf;
+  leaf.scale = ySd / std::sqrt(5.0);
+  size_t leafColumns[] = {0};
+  leaf.initialize(leafStore, leafColumns, 1, nullptr, 60);
+  const size_t leafSize = 50;  // >= minCachedLeafSize so the cache engages
+  leafTree.at(0).end = leafSize;  // members [0, leafSize) of the identity index
+
+  const double k = 2.0, sigmaSq = 0.04;
+  double warmScore = leaf.logIntegratedLikelihoodForNode(leafTree, y.data(),
+                                                         nullptr, k, sigmaSq, 0);
+  double servedScore = leaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  check(warmScore == servedScore, "cached gp score is bitwise the scanned score");
+
+  for (size_t i = 0; i < leafSize; ++i) leafIndices[i] = i + (n - leafSize);
+  double reroutedScore = leaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  leaf.regatherTrainingCovariates(leafStore);  // drop the kernel cache
+  double rescannedScore = leaf.logIntegratedLikelihoodForNode(
+    leafTree, y.data(), nullptr, k, sigmaSq, 0);
+  check(reroutedScore != warmScore, "the re-routed members move the marginal");
+  check(reroutedScore == rescannedScore, "member re-route rebuilds the kernel");
 
   printf("ok: gp leaf kernel cache\n");
 }
