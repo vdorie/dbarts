@@ -51,9 +51,10 @@ items
     provisioned cut-scan kernel; the highest-ceiling large-n item and
     the realistic doorway to any GPU backend. memo + kernel prototype
     first.
-  hot-layer-u8: per-column u8/u16 code widths (default n.cuts = 100
-    fits u8); prototype the u8 partition kernel in benchmarks/kernels
-    first. RNG-neutral; attacks the DRAM-bound n >= 1e5 regime.
+  hot-layer-u8: FOLDED into data-ownership's owned container (VD
+    2026-07-07, after phase-1 kernel measurements showed no standalone
+    partition win); per-column widths land with the container and get
+    re-measured end-to-end there.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
   linear-leaf-reuse: score->draw crossproduct reuse (needs a per-node
