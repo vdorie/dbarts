@@ -44,3 +44,19 @@ count.
 - Component tests; full tinytest; equivalence exact.
 - bench-sampler compare: no regression at small numTest; recorded
   improvement at large.
+
+## Landing note (2026-07-07, see merge commit)
+
+Landed: routeTestRows splits test-fit routing across the chain's
+share of the thread budget via a lazy per-chain misc_mt pool
+(rebuilt on budget change, nothing allocated below the cutoff);
+all six per-row routing loops converted; setNumThreads now
+propagates to chains so setControl reaches the routing decision.
+Cutoff 65536 (2-thread break-even ~65k); measured 1.48x wall at
+numTest = n = 1e5 single-chain, 3.38x on the routing kernel at 8
+threads / 262k rows. Byte-identical at any thread count (component
+invariance test, 3e5 rows, 1/2/8 threads). Gates: full C++ suite +
+fuzzer, tinytest 2470 ok, equivalence exact 18/18. bench-sampler
+compare deferred: maintainer gate, expected no-op (its scenarios'
+n.test = 25 sits far below the cutoff, leaving the serial path
+untouched).

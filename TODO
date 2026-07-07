@@ -103,9 +103,6 @@ items
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.
-  test-fit-parallel: test-fit routing is serial over rows (findBottom
-    per row per tree); rows are independent so parallelizing is
-    order-preserving; matters when numTest ~ n.
   test-suite-trim: the top four tinytest files carry half the suite's
     wall time (per-observation rollback trials, simd size grid,
     thread-pool setup); same contracts at ~20s. Added 2026-07-06 at
