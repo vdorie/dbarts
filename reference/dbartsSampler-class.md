@@ -255,6 +255,13 @@ state object before saving, e.g. for the object `sampler`, execute
 control to an object with `updateState` as `TRUE` or passing `TRUE` as
 the `updateState` argument to any of the sampler's applicable methods.
 
+The state object is opaque and engine-specific, and carries a format
+version and the package version that wrote it. A state loads only within
+the format version of the `dbarts` that wrote it; loading it with an
+incompatible version refuses cleanly, naming both versions, rather than
+risk a silent misread. There is no cross-version migration: re-fit the
+model, or restore the state with the `dbarts` release that wrote it.
+
 ## Value
 
 For `run`, a named-list with contents `sigma`, `train`, `test`, and

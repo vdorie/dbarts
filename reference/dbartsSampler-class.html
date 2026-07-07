@@ -217,6 +217,7 @@
 <p></p><div class="section">
 <h3 id="saving">Saving<a class="anchor" aria-label="anchor" href="#saving"></a></h3>
 <p><code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code>-ing and <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>ing a <code>dbarts</code> sampler for future use requires that R's serialization mechanism be able to access the state of the sampler which, for memory purposes, is only made available to R on request. To do this, one must “touch” the sampler's state object before saving, e.g. for the object <code>sampler</code>, execute <code>invisible(sampler$state)</code>. This is in addition to guaranteeing that the <code>state</code> object is not <code>NULL</code>, which can be done by setting the sampler's control to an object with <code>updateState</code> as <code>TRUE</code> or passing <code>TRUE</code> as the <code>updateState</code> argument to any of the sampler's applicable methods.</p>
+<p>The state object is opaque and engine-specific, and carries a format version and the package version that wrote it. A state loads only within the format version of the <code>dbarts</code> that wrote it; loading it with an incompatible version refuses cleanly, naming both versions, rather than risk a silent misread. There is no cross-version migration: re-fit the model, or restore the state with the <code>dbarts</code> release that wrote it.</p>
 </div>
 
     </div>
