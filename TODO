@@ -37,9 +37,10 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  forest-split-bcf: split Forest out of Sampler (deferred since phase
-    1) with BCF - prognostic + treatment forests - as the driving
-    consumer; bartCause is the named consumer and VD maintains it.
+  forest-split-bcf: BCF - prognostic + treatment forests - on the
+    landed Forest split (steps 3-5: response model, formats, exact
+    gate); bartCause is the named consumer and VD maintains it. Open
+    questions 3-4 in docs/design/bcf.md gate the BCF model choices.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
