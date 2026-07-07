@@ -80,9 +80,13 @@ items
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
-  rbart-loop-profile: the custom-prior R loop pays a bridge round trip
-    per posterior sample; profile before touching (built-in priors
-    already bypass in-core).
+  rbart-loop-profile: MEASURED 2026-07-07, verdict GO (overhead 15-76%
+    across cells; table in the plan file). The fix rides
+    capi-callbacks' conditioning hook; write that follow-up plan when
+    capi-callbacks is picked. Separately, the measurement surfaced a
+    likely pre-existing correctness bug: custom-prior tau draws
+    diverge 15-25x from the in-core path at n >~ 300 (identical
+    model both arms) - needs its own investigation item.
   rchk-triage: first dispatched rchk run after a push - triage its
     findings (one unverified setAttrib candidate noted in
     rchk-ci.md's landing note); maintainer-gated on the push.
