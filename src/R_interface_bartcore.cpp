@@ -1183,6 +1183,65 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return holder;
 }
 
+BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
+                                SEXP dataExpr, SEXP zExpr,
+                                SEXP bcfParamsExpr) {
+  if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 7)
+    Rf_error("bcf parameters must be a length-7 numeric vector");
+
+  BartcoreHolder* holder = nullptr;
+  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
+                 z = std::vector<double>{}]() mutable -> SEXP {
+    bool sigmaIsFixed;
+    bartcore::ResponseFamily family = parseSamplerSpecification(
+      controlExpr, modelExpr, dataExpr, "", control, model, data, sigmaIsFixed);
+    validateCategoricalPredictors(data);
+    if (family != bartcore::ResponseFamily::gaussian)
+      Rf_error("BCF requires a continuous (gaussian) response");
+    if (data.x == NULL)
+      Rf_error("BCF requires dense predictors");
+    if (static_cast<size_t>(Rf_xlength(zExpr)) != data.numObservations)
+      Rf_error("treatment length must match the number of observations");
+
+    z.resize(data.numObservations);
+    for (size_t i = 0; i < data.numObservations; ++i)
+      z[i] = REAL(zExpr)[i] != 0.0 ? 1.0 : 0.0;
+
+    bartcore::SamplerOptions options =
+      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    rngs = createChainRngs(control, options.numChains);
+
+    const double* p = REAL(bcfParamsExpr);
+    bartcore::BCFSpec spec;
+    spec.mu.numTrees = options.numTrees;
+    spec.mu.base = model.base;
+    spec.mu.power = model.power;
+    spec.mu.nodeScale = model.nodeScale;
+    spec.mu.k = model.k;
+    spec.tau.numTrees = static_cast<size_t>(p[0]);
+    spec.tau.base = p[1];
+    spec.tau.power = p[2];
+    spec.tau.nodeScale = p[3];
+    spec.tau.k = p[4];
+    spec.aPriorScale = p[5];
+    spec.bPriorVariance = p[6];
+    spec.z = z.data();
+
+    std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(
+      data.x, data.y, data.numObservations, data.numPredictors, data.weights,
+      data.offset, data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale,
+      options, spec, rngs.data());
+
+    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
+                                control.keepTrainingFits, {}, {}, {}, {}};
+    // moving z keeps its buffer, so the chains' borrowed z stays valid
+    holder->ownedTreatment = std::move(z);
+    return R_NilValue;
+  });
+  return holder;
+}
+
 } // namespace bartcore_bridge
 
 extern "C" {
@@ -1370,6 +1429,69 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     UNPROTECT(2);
     return result;
   });
+}
+
+// A BCF two-forest sampler; internal, gaussian only (docs/design/bcf.md).
+// The model spec is the prognostic forest, bcfParams the treatment forest and
+// glue, z the 0/1 treatment. State serialization is refused until step 4.
+SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                        SEXP zExpr, SEXP bcfParamsExpr) {
+  BartcoreHolder* holder = bartcore_bridge::createBCFHolder(
+    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr);
+
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
+  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
+
+  UNPROTECT(2);
+  return result;
+}
+
+SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t n = holder.sampler->numObservations();
+  if (holder.sampler->numForests() < 2)
+    Rf_error("bartcore_setTreatment requires a BCF sampler");
+  if (static_cast<size_t>(Rf_xlength(zExpr)) != n)
+    Rf_error("treatment length must match the number of observations");
+  holder.ownedTreatment.resize(n);
+  for (size_t i = 0; i < n; ++i)
+    holder.ownedTreatment[i] = REAL(zExpr)[i] != 0.0 ? 1.0 : 0.0;
+  holder.sampler->setTreatment(holder.ownedTreatment.data());
+  return R_NilValue;
+}
+
+// The glue on the combining response, one column {a, b0, b1} per chain.
+SEXP bartcore_getBCFGlue(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t numChains = holder.sampler->numChains();
+  SEXP result =
+    PROTECT(Rf_allocMatrix(REALSXP, 3, static_cast<int>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    if (!holder.sampler->bcfGlue(c, REAL(result) + 3 * c)) {
+      UNPROTECT(1);
+      Rf_error("bartcore_getBCFGlue requires a BCF sampler");
+    }
+  UNPROTECT(1);
+  return result;
+}
+
+// One forest's internal-scale function values, numObservations x numChains
+// (forest 0 prognostic, 1 treatment).
+SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= holder.sampler->numForests())
+    Rf_error("forest index out of range");
+  size_t n = holder.sampler->numObservations();
+  size_t numChains = holder.sampler->numChains();
+  SEXP result = PROTECT(Rf_allocMatrix(REALSXP, static_cast<int>(n),
+                                       static_cast<int>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    holder.sampler->forestTotalFits(c, forestIndex, REAL(result) + c * n);
+  UNPROTECT(1);
+  return result;
 }
 
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
@@ -2352,13 +2474,23 @@ static bool readFlatTrees(SEXP variablesExpr, SEXP valuesExpr, SEXP sizesExpr,
   return true;
 }
 
+// The state format carries one forest per chain; multi-forest serialization
+// is step 4 (docs/plans/forest-split-bcf.md).
+static void refuseMultiForestState(const bartcore::SamplerBase& sampler) {
+  if (sampler.numForests() > 1)
+    Rf_error("state serialization for multi-forest samplers is not yet "
+             "implemented");
+}
+
 SEXP bartcore_storeState(SEXP ptrExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseMultiForestState(*holder.sampler);
   return bartcore_bridge::storeState(*holder.sampler);
 }
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseMultiForestState(*holder.sampler);
   // restoring cut points re-quantizes from raw values, which views lack
   refuseViewSamplerOnly(*holder.sampler, "bartcore_setState");
   bartcore_bridge::setState(*holder.sampler, stateExpr);

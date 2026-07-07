@@ -13,6 +13,11 @@ SEXP bartcore_createDataHandle(SEXP control, SEXP data);
 SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP handle, SEXP trainRows, SEXP testRows,
                                SEXP family);
+SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
+                        SEXP bcfParams);
+SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
+SEXP bartcore_getBCFGlue(SEXP ptr);
+SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale);

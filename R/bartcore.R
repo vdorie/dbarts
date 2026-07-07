@@ -408,6 +408,61 @@ bartcoreSamplerFromHandle <- function(
   result
 }
 
+# A BCF two-forest sampler (docs/design/bcf.md), internal and gaussian only:
+# the model spec is the prognostic forest mu(x, pihat) - the caller supplies
+# pihat as an ordinary predictor column - the arguments below the treatment
+# forest tau(x) and the glue. z is the 0/1 treatment. State serialization is
+# refused (multi-forest is step 4). The per-forest scales are interim (the
+# exact-posterior calibration lands with the step-5 gate).
+bartcoreBCFSampler <- function(
+  sampler,
+  z,
+  n.trees.treatment = 50L,
+  treatment.base = 0.25,
+  treatment.power = 3,
+  treatment.node.scale = 0.5,
+  treatment.k = 1,
+  a.prior.scale = 1,
+  b.prior.variance = 0.5
+) {
+  bcfParams <- as.double(c(
+    n.trees.treatment,
+    treatment.base,
+    treatment.power,
+    treatment.node.scale,
+    treatment.k,
+    a.prior.scale,
+    b.prior.variance
+  ))
+  result <- new.env(parent = emptyenv())
+  result$ptr <- .Call(
+    C_dbarts_bartcore_createBCF,
+    sampler$control,
+    sampler$model,
+    sampler$data,
+    as.double(z),
+    bcfParams
+  )
+  result
+}
+
+# The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and
+# both residuals on the next run.
+bartcoreSetTreatment <- function(bcSampler, z) {
+  invisible(.Call(C_dbarts_bartcore_setTreatment, bcSampler$ptr, as.double(z)))
+}
+
+# The glue on the combining response, a 3 x n.chains matrix of (a, b0, b1).
+bartcoreBCFGlue <- function(bcSampler) {
+  .Call(C_dbarts_bartcore_getBCFGlue, bcSampler$ptr)
+}
+
+# A forest's internal-scale function values (0 prognostic, 1 treatment),
+# n.observations x n.chains.
+bartcoreForestFits <- function(bcSampler, forest) {
+  .Call(C_dbarts_bartcore_getForestFits, bcSampler$ptr, as.integer(forest))
+}
+
 bartcoreSetModel <- function(bcSampler, model, control, data) {
   invisible(.Call(
     C_dbarts_bartcore_setModel,

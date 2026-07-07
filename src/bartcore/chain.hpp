@@ -266,6 +266,40 @@ struct Forest {
   size_t savedSlotBase = 0;
 };
 
+/// Per-forest calibration for a BCF sampler: the prognostic (mu) and
+/// treatment (tau) forests carry bcf's distinct tree counts and priors
+/// (docs/design/bcf.md). Node scales are fixed - the adaptive magnitude
+/// lives in the glue (a for mu, b0/b1 for tau), so no k hyperprior runs.
+struct BCFForestSpec {
+  std::size_t numTrees = 200;
+  double base = 0.95, power = 2.0;
+  double nodeScale = 0.5;
+  double k = 1.0;
+  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
+         changeProbability = 0.4, birthProbability = 0.5;
+};
+
+/// The two model specs plus the treatment vector a BCF chain is built from.
+struct BCFSpec {
+  BCFForestSpec mu, tau;
+  const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
+  double aPriorScale = 1.0;     // half-Cauchy median for the mu scalar a
+  double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
+};
+
+/// The combining response's glue (docs/design/bcf.md): the prognostic scalar
+/// a (half-Cauchy via the scale-mixture auxiliary aVariance) and the
+/// treatment scales b0/b1, plus the sweep's per-forest scratch. y = a mu +
+/// b_z tau + eps; a Chain holds one only in BCF mode.
+struct BCFState {
+  const double* z = nullptr;
+  double a = 1.0, b0 = 0.0, b1 = 1.0;
+  double aVariance = 1.0;
+  double aPriorScale = 1.0;
+  double bPriorVariance = 0.5;
+  std::vector<double> combined, forestResponse, forestWeights;
+};
+
 /// One MCMC chain of the conjugate backfitting sampler: one-or-more forests
 /// (trees, fits, per-forest prior), and its own response state and rng, over
 /// a shared read-only ColumnStore. Data mutation is orchestrated one level up
@@ -379,8 +413,54 @@ public:
     resizeTestStorage();
   }
 
+  /// Two-forest BCF chain (docs/design/bcf.md): a prognostic forest mu
+  /// (forest 0) and a treatment forest tau (forest 1) combined on a gaussian
+  /// response as y = a mu + b_z tau + eps. Constant leaves only; both forests
+  /// read the full store (the moderator subset arrives with data ownership).
+  Chain(const ColumnStore& data, const double* y, const double* weights,
+        const double* offset, double sigmaEstimate, double sigmaDf,
+        double sigmaRawScale, const SamplerOptions& options,
+        const BCFSpec& spec, ext_rng* rng)
+    : options_(options), data_(data), weights_(weights), rng_(rng) {
+    static_assert(!L::hasVectorParams && !L::hasFunctionParams,
+                  "BCF is a constant-leaf model");
+    options_.maxNumCutsPerVariable = nullptr;
+    options_.columnTypes = nullptr;
+    response_ = std::make_unique<GaussianResponse>(
+      y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
+      sigmaRawScale);
+    family_ = ResponseFamily::gaussian;
+    sigmaIsFixed_ = options.sigmaIsFixed;
+    sigma_ = response_->initialSigma();
+
+    buildBCFForest(spec.mu);
+    buildBCFForest(spec.tau);
+
+    bcf_ = std::make_unique<BCFState>();
+    bcf_->z = spec.z;
+    bcf_->aPriorScale = spec.aPriorScale;
+    bcf_->bPriorVariance = spec.bPriorVariance;
+    resizeTestStorage();
+  }
+
   ~Chain() {
     if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
+  }
+
+  std::size_t numForests() const { return forests_.size(); }
+  /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
+  void setTreatment(const double* z) { if (bcf_) bcf_->z = z; }
+  /// BCF glue on the combining response; false for a non-BCF chain.
+  bool bcfGlue(double& a, double& b0, double& b1) const {
+    if (!bcf_) return false;
+    a = bcf_->a; b0 = bcf_->b0; b1 = bcf_->b1;
+    return true;
+  }
+  /// The forest's constant-leaf function values on the internal scale (mu for
+  /// forest 0, tau for forest 1); numObservations doubles.
+  void forestTotalFits(std::size_t f, double* out) const {
+    std::memcpy(out, forests_[f].totalFits.data(),
+                data_.numObservations * sizeof(double));
   }
 
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
@@ -444,14 +524,25 @@ public:
         progress->report(line);
       }
 
-      for (Forest<L>& forest : forests_) {
+      for (size_t f = 0; f < forests_.size(); ++f) {
+        Forest<L>& forest = forests_[f];
+        // single-forest samplers backfit against the shared working response
+        // and weights unchanged; a BCF forest sees its residual net of the
+        // other forest's scaled contribution, divided by its own multiplier
+        const double* forestY = y;
+        const double* forestWeights = weights;
+        if (bcf_) {
+          formForestResponse(f, y, weights);
+          forestY = bcf_->forestResponse.data();
+          forestWeights = bcf_->forestWeights.data();
+        }
         MoveContext ctx{data_,
                         forest.treePrior,
                         forest.birthOrDeathProbability,
                         forest.swapProbability,
                         forest.changeProbability,
                         forest.birthProbability,
-                        weights,
+                        forestWeights,
                         forest.k,
                         forest.scratch};
 
@@ -472,7 +563,7 @@ public:
           double* treeFits = forest.treeFits.data() + t * n;
 
           if (t == 0) {
-            const double* __restrict y_ = y;
+            const double* __restrict y_ = forestY;
             const double* __restrict total = forest.totalFits.data();
             const double* __restrict oldFits = treeFits;
             double* __restrict resid = forest.treeY.data();
@@ -488,7 +579,7 @@ public:
 
           // constant-leaf node means, recomputed against this sweep's residual
           if constexpr (leafTracksNodeAverages)
-            forest.trees[t].setNodeAverages(forest.treeY.data(), weights);
+            forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
 
           bool stepTaken;
           StepType stepType;
@@ -521,7 +612,7 @@ public:
         // new fits retire here instead of in a pass of their own
         if (forest.numTrees > 0) {
           const size_t last = forest.numTrees - 1;
-          const double* __restrict y_ = y;
+          const double* __restrict y_ = forestY;
           const double* __restrict resid = forest.treeY.data();
           const double* __restrict lastFits = forest.treeFits.data() + last * n;
           double* __restrict total = forest.totalFits.data();
@@ -530,13 +621,16 @@ public:
         }
       }
 
-      response_->refreshLatents(rng_, forests_[0].totalFits.data(), sigma_);
+      // a single forest reports its own fits; BCF the a mu + b_z tau blend
+      const double* combined = combinedFits();
+      response_->refreshLatents(rng_, combined, sigma_);
       y = response_->workingResponse();
       weights = response_->workingWeights();
 
       if (!sigmaIsFixed_)
-        sigma_ = response_->drawSigma(rng_, forests_[0].totalFits.data(),
-                                      sigma_);
+        sigma_ = response_->drawSigma(rng_, combined, sigma_);
+
+      if (bcf_) drawGlue(y, weights);
 
       for (Forest<L>& forest : forests_) {
         // a zero sum of squares under an infinite prior scale would make the
@@ -1692,6 +1786,112 @@ private:
     }
   }
 
+  /// A BCF forest, built self-contained so the single-forest constructor
+  /// (the bitwise-gated path) is untouched: constant leaf, fixed k, no DART.
+  void buildBCFForest(const BCFForestSpec& spec) {
+    std::size_t n = data_.numObservations;
+    forests_.emplace_back();
+    Forest<L>& forest = forests_.back();
+    forest.numTrees = spec.numTrees;
+    forest.birthOrDeathProbability = spec.birthOrDeathProbability;
+    forest.swapProbability = spec.swapProbability;
+    forest.changeProbability = spec.changeProbability;
+    forest.birthProbability = spec.birthProbability;
+    forest.updateK = false;
+    forest.useDart = false;
+    forest.k = spec.k;
+    forest.leaf.scale =
+      spec.nodeScale / std::sqrt(static_cast<double>(spec.numTrees));
+    forest.treePrior.base = spec.base;
+    forest.treePrior.power = spec.power;
+    forest.indexBuffer.resize(n * spec.numTrees);
+    forest.trees.resize(spec.numTrees);
+    for (std::size_t t = 0; t < spec.numTrees; ++t)
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+    forest.treeFits.assign(n * spec.numTrees, 0.0);
+    forest.totalFits.assign(n, 0.0);
+    forest.treeY.resize(n);
+  }
+
+  double forestMultiplier(std::size_t f, std::size_t i) const {
+    if (f == 0) return bcf_->a;
+    return bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
+  }
+
+  /// Effective response and precision forest f's constant-leaf draws see so
+  /// that m_f * f_f explains the residual (y minus the other forests' scaled
+  /// contributions): response r_i / m_f, weight w_i m_f^2, which reproduce
+  /// the leaf's node sums without touching the leaf math. |m_f| is floored to
+  /// keep the division finite in the pathological near-zero-scale case.
+  void formForestResponse(std::size_t f, const double* y, const double* w) {
+    std::size_t n = data_.numObservations;
+    bcf_->forestResponse.resize(n);
+    bcf_->forestWeights.resize(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      double resid = y[i];
+      for (std::size_t g = 0; g < forests_.size(); ++g)
+        if (g != f) resid -= forestMultiplier(g, i) * forests_[g].totalFits[i];
+      double m = forestMultiplier(f, i);
+      if (std::fabs(m) < 1.0e-9) m = m < 0.0 ? -1.0e-9 : 1.0e-9;
+      bcf_->forestResponse[i] = resid / m;
+      bcf_->forestWeights[i] = (w == nullptr ? 1.0 : w[i]) * m * m;
+    }
+  }
+
+  const double* combinedFits() {
+    if (!bcf_) return forests_[0].totalFits.data();
+    std::size_t n = data_.numObservations;
+    bcf_->combined.resize(n);
+    const double* mu = forests_[0].totalFits.data();
+    const double* tau = forests_[1].totalFits.data();
+    for (std::size_t i = 0; i < n; ++i)
+      bcf_->combined[i] = bcf_->a * mu[i] +
+        (bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0) * tau[i];
+    return bcf_->combined.data();
+  }
+
+  /// The glue's Gaussian full conditionals (docs/design/bcf.md): a as the mu
+  /// coefficient (prior N(0, aVariance), whose half-Cauchy scale mixture is
+  /// refreshed after via an inverse-gamma auxiliary), b0/b1 as the tau
+  /// coefficients over control/treated (prior N(0, bPriorVariance)).
+  void drawGlue(const double* y, const double* w) {
+    std::size_t n = data_.numObservations;
+    const double* mu = forests_[0].totalFits.data();
+    const double* tau = forests_[1].totalFits.data();
+    double invSigmaSq = 1.0 / (sigma_ * sigma_);
+
+    double aPrec = 1.0 / bcf_->aVariance, aNum = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      double wi = w == nullptr ? 1.0 : w[i];
+      double bz = bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
+      double r = y[i] - bz * tau[i];
+      aPrec += wi * mu[i] * mu[i] * invSigmaSq;
+      aNum += wi * mu[i] * r * invSigmaSq;
+    }
+    bcf_->a =
+      aNum / aPrec + ext_rng_simulateStandardNormal(rng_) / std::sqrt(aPrec);
+
+    // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
+    // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
+    // inverse
+    double rate = 0.5 * bcf_->a * bcf_->a +
+                  0.5 * bcf_->aPriorScale * bcf_->aPriorScale;
+    bcf_->aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
+
+    double bPrec = 1.0 / bcf_->bPriorVariance;
+    double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      double wi = w == nullptr ? 1.0 : w[i];
+      double r = y[i] - bcf_->a * mu[i];
+      double prec = wi * tau[i] * tau[i] * invSigmaSq;
+      double num = wi * tau[i] * r * invSigmaSq;
+      if (bcf_->z[i] != 0.0) { p1 += prec; n1 += num; }
+      else { p0 += prec; n0 += num; }
+    }
+    bcf_->b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
+    bcf_->b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
+  }
+
   void storeSample(Results& results, size_t sampleNum) {
     Forest<L>& forest = forests_[0];
     size_t n = data_.numObservations;
@@ -1705,8 +1905,17 @@ private:
 
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n;
-      for (size_t i = 0; i < n; ++i)
-        out[i] = scale * forest.totalFits[i] + shift;
+      if (bcf_) {
+        const double* mu = forests_[0].totalFits.data();
+        const double* tau = forests_[1].totalFits.data();
+        for (size_t i = 0; i < n; ++i)
+          out[i] = scale * (bcf_->a * mu[i] +
+                            (bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0) * tau[i]) +
+                   shift;
+      } else {
+        for (size_t i = 0; i < n; ++i)
+          out[i] = scale * forest.totalFits[i] + shift;
+      }
       // original-scale convention, matching the classic engine and the
       // recorded test fits: any offset is part of the fit
       const double* offset = response_->offset();
@@ -1763,9 +1972,13 @@ private:
   bool sigmaIsFixed_ = false;
   double sigma_ = 1.0;
 
-  // one-or-more forests (size 1 for every current sampler); the sweep,
+  // one-or-more forests (size 1 for every non-BCF sampler); the sweep,
   // mutation fan-out, and prediction loop over them
   std::vector<Forest<L>> forests_;
+
+  // the BCF combining response's glue and sweep scratch; null off BCF, and
+  // the whole two-forest sweep collapses to the single-forest path when so
+  std::unique_ptr<BCFState> bcf_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The

@@ -108,6 +108,15 @@ public:
   virtual bool kIsSampled() const = 0;
   virtual bool usesDart() const = 0;
   virtual std::size_t numChains() const = 0;
+  /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
+  /// treatment). The bridge refuses state serialization above 1 (step 4).
+  virtual std::size_t numForests() const = 0;
+  /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
+  /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
+  virtual void setTreatment(const double* z) = 0;
+  virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
+  virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
+                               double* out) const = 0;
   virtual std::size_t numTrees() const = 0;
   virtual std::size_t numObservations() const = 0;
   virtual std::size_t numPredictors() const = 0;
@@ -263,6 +272,15 @@ public:
   bool kIsSampled() const override { return impl_.kIsSampled(); }
   bool usesDart() const override { return impl_.usesDart(); }
   std::size_t numChains() const override { return impl_.numChains(); }
+  std::size_t numForests() const override { return impl_.numForests(); }
+  void setTreatment(const double* z) override { impl_.setTreatment(z); }
+  bool bcfGlue(std::size_t chainNum, double* out) const override {
+    return impl_.bcfGlue(chainNum, out);
+  }
+  void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
+                       double* out) const override {
+    impl_.forestTotalFits(chainNum, forestIndex, out);
+  }
   std::size_t numTrees() const override { return impl_.numTrees(); }
   std::size_t numObservations() const override { return impl_.numObservations(); }
   std::size_t numPredictors() const override { return impl_.numPredictors(); }
@@ -417,6 +435,18 @@ inline std::unique_ptr<SamplerBase> createSamplerOverStore(
   return std::make_unique<SamplerFacade<LinearGaussianLeaf>>(
     std::move(store), y, weights, offset, family, sigmaEstimate, sigmaDf,
     sigmaRawScale, options, rngs);
+}
+
+/// A BCF two-forest sampler (docs/design/bcf.md): constant-leaf and gaussian
+/// only, so the single instantiation. rngs supplies one generator per chain.
+inline std::unique_ptr<SamplerBase> createBCFSampler(
+  const double* x, const double* y, std::size_t numObservations,
+  std::size_t numPredictors, const double* weights, const double* offset,
+  double sigmaEstimate, double sigmaDf, double sigmaRawScale,
+  const SamplerOptions& options, const BCFSpec& spec, ext_rng* const* rngs) {
+  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+    x, y, numObservations, numPredictors, weights, offset, sigmaEstimate,
+    sigmaDf, sigmaRawScale, options, spec, rngs);
 }
 
 }  // namespace bartcore
