@@ -1008,18 +1008,30 @@ private:
     int32_t maxIndex = maxIndices[varIndex];
 
     if (minIndex > maxIndex - 1) {
-      // no split of this variable remains below the ancestors: the node is
-      // fundamentally invalid, so its subtree's parameters carry little
-      // information and the merge is a plain mean, per coordinate
+      // no split of this variable remains below the ancestors: merge the
+      // subtree's leaf parameters by effective observation count, matching
+      // collapseEmptyNodesBelow; plain mean when the subtree holds no weight
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
+      double weightTotal = 0.0;
+      std::vector<double> paramTotals(paramStride, 0.0);
       std::vector<double> paramSums(paramStride, 0.0);
-      for (int32_t i : bottoms)
-        for (size_t j = 0; j < paramStride; ++j)
-          paramSums[j] += paramByNode[static_cast<size_t>(i) * paramStride + j];
+      for (int32_t i : bottoms) {
+        double weight = at(i).sumWeights;
+        weightTotal += weight;
+        const double* params =
+          paramByNode.data() + static_cast<size_t>(i) * paramStride;
+        for (size_t j = 0; j < paramStride; ++j) {
+          paramTotals[j] += weight * params[j];
+          paramSums[j] += params[j];
+        }
+      }
+      double* merged =
+        paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride;
       for (size_t j = 0; j < paramStride; ++j)
-        paramByNode[static_cast<size_t>(nodeIndex) * paramStride + j] =
-          paramSums[j] / static_cast<double>(bottoms.size());
+        merged[j] = weightTotal > 0.0
+          ? paramTotals[j] / weightTotal
+          : paramSums[j] / static_cast<double>(bottoms.size());
       collapseSubtreeToLeaf(nodeIndex);
       return;
     }
