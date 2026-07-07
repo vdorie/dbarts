@@ -22,11 +22,6 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  bridge-error-path-leaks: Rf_error longjmps past the destructors of
-    stack-owned C++ vectors in the bridge parsers/setters; found by
-    the sanitizers valgrind leg's first run (2026-07-07, 31 blocks
-    definitely lost across the suite's error-path tests). Fix so the
-    leg gates green; setState's accumulator is the house pattern.
   capi-callbacks: additive dbarts.h evolution - per-sweep conditioning
     callback and observer hook at the existing pollInterrupt dispatch
     point; tau/groupEffects fields on dbarts_results.
