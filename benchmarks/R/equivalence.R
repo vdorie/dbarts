@@ -13,8 +13,10 @@
 #
 # Usage:
 #   Rscript equivalence.R record [out.rds]
-#   Rscript equivalence.R compare baseline.rds
+#   Rscript equivalence.R compare baseline.rds [--strict-coverage]
 # Append 'quick' for a fast smoke test (not comparable to full runs).
+# --strict-coverage fails compare (instead of warning) when the installed
+# engine has scenarios the baseline predates.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -23,6 +25,8 @@ quick <- "quick" %in% args
 args <- setdiff(args, "quick")
 useNewEngine <- "engine=new" %in% args
 args <- setdiff(args, "engine=new")
+strictCoverage <- "--strict-coverage" %in% args
+args <- setdiff(args, "--strict-coverage")
 mode <- if (length(args) >= 1L) args[[1L]] else "record"
 
 if (useNewEngine) {
@@ -568,6 +572,7 @@ if (mode == "record") {
 
   results <- runAll(scenarios)
   anyFailure <- FALSE
+  compared <- character(0L)
   for (name in names(baseline$results)) {
     a <- baseline$results[[name]]
     b <- results[[name]]
@@ -576,6 +581,7 @@ if (mode == "record") {
       cat(sprintf("%-10s skipped (not produced this run)\n", name))
       next
     }
+    compared <- c(compared, name)
     if (identical(a, b)) {
       cat(sprintf("%-10s identical draws (same RNG stream)\n", name))
       next
@@ -608,6 +614,33 @@ if (mode == "record") {
       )
     }
   }
+  # scenarios the installed engine produces but the baseline predates (added
+  # after it was recorded); the loop above only ever walks baseline names, so
+  # these would otherwise go uncompared with no trace.
+  uncovered <- setdiff(names(results), names(baseline$results))
+  cat(sprintf(
+    "\ncoverage: %d compared / %d skipped (not in baseline)%s\n",
+    length(compared),
+    length(uncovered),
+    if (length(uncovered) > 0L) {
+      paste0(": ", paste(uncovered, collapse = ", "))
+    } else {
+      ""
+    }
+  ))
+  if (length(uncovered) > 0L) {
+    msg <- paste0(
+      "baseline predates these scenarios, so they were not compared: ",
+      paste(uncovered, collapse = ", ")
+    )
+    if (strictCoverage) {
+      anyFailure <- TRUE
+      cat(msg, "\n")
+    } else {
+      warning(msg, call. = FALSE)
+    }
+  }
+
   if (anyFailure) {
     quit(status = 1L)
   }

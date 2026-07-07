@@ -75,8 +75,11 @@ test-bartcore.R (prior-sampling KS test, byte-identical verbose creation
 summaries) became bartcore-only structural checks. The equivalence
 harness still accepts `engine=new` and compares the installed engine
 against saved classic baselines; re-recording under classic is no longer
-possible, so the existing baseline rds files are the permanent
-cross-engine reference. The classic C++ (src/dbarts/, R_C_interface,
+possible, so the existing classic-era baseline rds files (marked
+historical-classic in benchmarks/baselines/MANIFEST) are kept as
+permanent historical evidence of the cutover, not a live gate - the
+scheduled equivalence workflow compares against the current bartcore
+baseline instead. The classic C++ (src/dbarts/, R_C_interface,
 call tables) is unreachable and deleted in the next step.
 
 Landed 2026-07-03 (step 2, the flip): `dbartsControl` defaults to
