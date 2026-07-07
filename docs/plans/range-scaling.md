@@ -102,3 +102,19 @@ agent: opus; rng: shifting (mid-run setResponse tests only)
 
 - The design note exists and man/dbarts.Rd states the scaling and its
   caveat. No code change under the recommended outcome.
+
+## Landing note (2026-07-06, cf70fd5)
+
+The switch landed: ResponseModel::setResponse takes updateScale;
+gaussian's FALSE path reuses the stored transform (mirror of
+setOffset), binary/latent families no-op the flag, grouped threads it
+through; R5 setResponse(y, updateScale = FALSE, ...); man documents
+the burn-in-only guidance. Deviation, deliberate: the flat C API
+passes updateScale = true so dbarts.h consumers (stan4bart) keep
+historical re-anchoring bit-identically; exposing the switch there is
+a future additive change (capi-callbacks). Component test covers
+locked vs re-anchored; tinytest 2465 ok; equivalence statistical
+verdict OK (no scenario exercises mid-run setResponse; zeroweights
+2.20 inherited from e565326). No snapshot churn - no RNG-locked test
+calls setResponse mid-run. The keep-range documentation folds into
+prior-constants as planned.
