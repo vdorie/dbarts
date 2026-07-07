@@ -43,3 +43,15 @@ for every surviving rule.
 - Direct test + fuzzer >= 100 seeds with strict OP_STATE; full
   tinytest; equivalence vs current baseline (exact if the fix stays
   off live paths, else statistical + re-record).
+
+## Landing note (2026-07-07, see merge commit)
+
+Landed: collapseEmptyNodes also collapses ordinal splits whose index a
+shrunken grid no longer addresses (ruleIsUnrepresentable); the
+escaping path was missing values riding missingGoesRight keeping both
+children occupied, so the empty-child test alone spared the orphan.
+The fuzzer's OP_STATE round-trip assertion is now STRICT permanently.
+Gates: direct component test, fuzzer 100 seeds (reviewer re-ran),
+full suite, tinytest 2470 ok, equivalence exact 18/18 - the new
+collapse is a no-op everywhere numCuts never shrinks. Source diff 51
+lines. All three fuzzer-found edges are now closed.
