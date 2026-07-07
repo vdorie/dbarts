@@ -65,6 +65,11 @@ Crossproduct (U'WU) reuse is GO: 34-46% ceiling, far above 5%, but bears
 the plan's cache-coherence burden under move rollback and mutation. VD
 decides step 3.
 
+Resolution (VD, 2026-07-07): GO on the U'WU cache; step 3 is
+unblocked. chol(V) reuse is closed NO-GO. The step-1 harness
+(benchmarks/kernels/linear_leaf.cpp) is the win-verification bench;
+bench-sampler is not implicated (its scenarios are constant-leaf).
+
 ## Verification
 
 - Component tests; full tinytest; equivalence exact.

@@ -62,6 +62,16 @@ the same additive API bump.
    (bridge-internal, not the public C API); its follow-up plan is
    written when this lands.
 
+Resolved (VD, 2026-07-07): extend the struct now, with the
+release-time freeze (post-1.0 additions use new entry points);
+callback contract as recommended - inline multi-chain allowed with
+the chainIndex argument and the sequential order documented.
+Consequences: DBARTS_C_API_VERSION stays 1 (nothing has shipped;
+the extension is part of the initial contract, so step 2's "bump"
+is void), and stan4bart takes the one-line value-initialization fix
+(bart_util.hpp, `dbarts_results current;`) in lockstep before
+submission.
+
 ## Constraints
 
 - Callback contract v1: invoked on the calling thread, between sweeps,
