@@ -153,10 +153,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     maintainer); revdep summary as above; test environments; goal
     0 errors / 0 warnings / 0 notes.
   stan4bart follow-up: adopt categorical splits (it pins factors =
-    "indicators"); value-initialize its dbarts_results member (one
-    line, bart_util.hpp - required by the tau/groupEffects struct
-    extension, capi-callbacks Decision block); lockstep with the
-    dbarts release.
+    "indicators"); lockstep with the dbarts release. (The
+    dbarts_results value-initialization the tau/groupEffects
+    extension requires was applied by VD 2026-07-07 and the package
+    reinstalled.)
   optional courtesy: notify the tmle maintainers. Their default
     SuperLearner dbarts wrappers pass obsWeights unconditionally and
     pnorm() the latents; unit weights are handled dbarts-side now, but

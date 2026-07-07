@@ -131,7 +131,9 @@ zero) caught the pre-existing capi_run helper leaving the new
 tau/groupEffects members indeterminate - the exact hazard the
 Decision block flags for stan4bart, tripped by our own consumer.
 Fixed 68dae55: every consumer.c results struct is value-initialized
-and the dbarts.h comment mandates `= {0}` for callers. Remaining lockstep item, recorded
+and the dbarts.h comment mandates `= {0}` for callers. The stan4bart
+side (bart_util.hpp value-initialization) was applied by VD
+2026-07-07 and the package reinstalled; the lockstep item is closed. Remaining lockstep item, recorded
 in the Decision block: stan4bart value-initializes its
 dbarts_results member (one line, bart_util.hpp) before submission.
 The rbart_vi loop fix rides this hook; its plan is
