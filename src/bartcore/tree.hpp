@@ -809,14 +809,27 @@ public:
     return current;
   }
 
-  /// Collapse any node with an unoccupied child into a leaf whose parameter
-  /// is the effective-observation-weighted mean of its subtree's leaf
-  /// parameters, for forced predictor updates. paramByNode is indexed by
-  /// arena id, paramStride doubles per node, merged per coordinate; a
-  /// subtree with no observations at all gets the plain mean.
-  void collapseEmptyNodes(const double* weights, std::vector<double>& paramByNode,
+  /// Collapse any node with an unoccupied child, or an ordinal split the
+  /// current grid can no longer address (setCutPoints shrank the column below
+  /// its index; missing values riding the right child keep both children
+  /// occupied so the empty-child test alone would spare it), into a leaf whose
+  /// parameter is the effective-observation-weighted mean of its subtree's
+  /// leaf parameters, for forced predictor updates. paramByNode is indexed by
+  /// arena id, paramStride doubles per node, merged per coordinate; a subtree
+  /// with no observations at all gets the plain mean.
+  void collapseEmptyNodes(const ColumnStore& data, const double* weights,
+                          std::vector<double>& paramByNode,
                           size_t paramStride = 1) {
-    collapseEmptyNodesBelow(0, weights, paramByNode, paramStride);
+    collapseEmptyNodesBelow(0, data, weights, paramByNode, paramStride);
+  }
+
+  /// An ordinal rule whose index no longer addresses a cut after the grid
+  /// shrank; flatten would read past cutPoints[j]. Categorical masks stay
+  /// representable (setCutPoints leaves category counts alone).
+  bool ruleIsUnrepresentable(const ColumnStore& data, const Rule& rule) const {
+    size_t j = static_cast<size_t>(rule.variableIndex);
+    return data.types[j] != ColumnType::categorical &&
+           rule.splitIndex() >= static_cast<int32_t>(data.numCuts[j]);
   }
 
   /// Point the tree at a new observation buffer (whole-data replacement,
@@ -1098,13 +1111,15 @@ private:
     minIndices[varIndex] = minIndex;
   }
 
-  void collapseEmptyNodesBelow(int32_t nodeIndex, const double* weights,
+  void collapseEmptyNodesBelow(int32_t nodeIndex, const ColumnStore& data,
+                               const double* weights,
                                std::vector<double>& paramByNode,
                                size_t paramStride) {
     if (at(nodeIndex).isBottom()) return;
 
     if (at(at(nodeIndex).leftChild).numObservations() == 0 ||
-        at(at(nodeIndex).leftChild + 1).numObservations() == 0) {
+        at(at(nodeIndex).leftChild + 1).numObservations() == 0 ||
+        ruleIsUnrepresentable(data, at(nodeIndex).rule)) {
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
 
@@ -1134,9 +1149,9 @@ private:
 
       collapseSubtreeToLeaf(nodeIndex);
     } else {
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild, weights, paramByNode,
-                              paramStride);
-      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, weights,
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild, data, weights,
+                              paramByNode, paramStride);
+      collapseEmptyNodesBelow(at(nodeIndex).leftChild + 1, data, weights,
                               paramByNode, paramStride);
     }
   }

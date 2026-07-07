@@ -1253,6 +1253,54 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
   printf("ok: categorical missing round trip\n");
 }
 
+// setCutPoints shrinking an ordinal grid must not leave a split indexing past
+// the new cuts: a rule sending its column's missing values right keeps both
+// children occupied after the shrink, so an empty-child collapse alone would
+// spare it and flatten would then read past cutPoints[j].
+static void testSetCutPointsOrphan() {
+  const size_t n = 12;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < 8; ++i) x[i] = static_cast<double>(i + 1);  // 1..8
+  for (size_t i = 8; i < n; ++i) x[i] = std::nan("");
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, 7, true);  // quantile cuts {1.5, ..., 7.5}
+  check(store.hasMissing[0], "column carries missing values");
+
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rule;  rule.variableIndex = 0;  rule.setSplitIndex(6);
+  rule.setMissingGoesRight(true);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  check(tree.at(tree.at(0).leftChild).numObservations() > 0 &&
+        tree.at(tree.at(0).leftChild + 1).numObservations() > 0,
+        "both children occupied before the shrink");
+
+  // shrink below the split index; missing still routes right, so neither child
+  // empties and the empty-child collapse alone would leave the split orphaned
+  double newCuts[] = {2.0, 5.0};
+  store.setCutPointsForColumn(0, newCuts, 2);
+  check(store.hasMissing[0], "missing survives the re-quantize");
+
+  std::vector<double> params(tree.nodes.size(), 0.0);
+  tree.dropStaleMissingDirections(store);
+  tree.repartitionSubtree(store, 0);
+  tree.collapseEmptyNodes(store, nullptr, params);
+
+  bool inRange = true;
+  for (const Node& node : tree.nodes)
+    if (!node.isBottom() &&
+        store.types[static_cast<size_t>(node.rule.variableIndex)] !=
+          ColumnType::categorical)
+      inRange &= node.rule.splitIndex() <
+                 static_cast<int32_t>(store.numCuts[static_cast<size_t>(
+                   node.rule.variableIndex)]);
+  check(inRange, "no split indexes past the shrunken grid");
+
+  printf("ok: setCutPoints orphan\n");
+}
+
 static void testUpdatePredictorColumns(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -6645,22 +6693,18 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         break;
       }
       case OP_STATE: {
-        // Round trip through serialization. The degenerate-re-cut and
-        // category-changing-mutation edges now round-trip (fixed at their
-        // sources; see testDegenerateReCutRoundTrips and
-        // testCategoricalMissingRoundTrips); setState may still refuse an
-        // own-state whose rebuild it cannot represent, e.g. a cut-grid change
-        // that orphans a split, but only by leaving the sampler untouched.
+        // Own-state round trip through serialization: a state a live sampler
+        // reaches must restore into itself. All the mutation edges that once
+        // broke this are fixed at their sources.
         SamplerStateData st;
         s.getState(st);
         record("op state");
-        FuzzSnapshot<S> before = fuzzCapture(s);
-        if (s.setState(st)) {
+        if (!s.setState(st)) {
+          fail("setState refused own state");
+        } else {
           SamplerStateData st2;
           s.getState(st2);
           if (!statesAgree(st, st2)) fail("state round trip disagrees");
-        } else if (!fuzzSnapshotsEqual(before, fuzzCapture(s))) {
-          fail("refused setState mutated state");
         }
         break;
       }
@@ -6852,6 +6896,7 @@ int main(int argc, char** argv) {
   testSetPredictorForced(rng);
   testDegenerateReCutRoundTrips(rng);
   testCategoricalMissingRoundTrips(rng);
+  testSetCutPointsOrphan();
   testUpdatePredictorColumns(rng);
   testPerObservationUpdate(rng);
   testJointPerObservationUpdate();

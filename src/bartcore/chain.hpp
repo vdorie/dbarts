@@ -555,7 +555,7 @@ public:
       trees_[t].initialize(indexBuffer_.data() + t * n, n);
       growSubtreeFromPrior(trees_[t], 0, y, weights);
       paramByNode.assign(trees_[t].nodes.size(), 0.0);
-      trees_[t].collapseEmptyNodes(weights, paramByNode);
+      trees_[t].collapseEmptyNodes(data_, weights, paramByNode);
       // fresh structures carry zero parameter blocks until the next draw
       if constexpr (L::hasVectorParams)
         paramsByTree_[t].assign(trees_[t].nodes.size() * leaf_.numParams(),
@@ -758,7 +758,7 @@ public:
       if (numObservationsChanged)
         trees_[t].resetObservations(indexBuffer_.data() + t * n, n);
       trees_[t].repartitionSubtree(data_, 0);
-      trees_[t].collapseEmptyNodes(response_->workingWeights(), params[t],
+      trees_[t].collapseEmptyNodes(data_, response_->workingWeights(), params[t],
                                    paramStride);
       if constexpr (!L::hasVectorParams) {
         setTreeFitsFromParameters(t, params[t]);
@@ -794,7 +794,8 @@ public:
       for (size_t t = 0; t < options_.numTrees; ++t) {
         trees_[t].repartitionSubtree(data_, 0);
         dummyParams.assign(trees_[t].nodes.size(), 0.0);
-        trees_[t].collapseEmptyNodes(response_->workingWeights(), dummyParams);
+        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                     dummyParams);
         misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
       }
     } else if constexpr (!L::hasVectorParams) {
@@ -802,7 +803,8 @@ public:
       for (size_t t = 0; t < options_.numTrees; ++t) {
         recoverParametersFromFits(t, paramByNode);
         trees_[t].repartitionSubtree(data_, 0);
-        trees_[t].collapseEmptyNodes(response_->workingWeights(), paramByNode);
+        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                     paramByNode);
         setTreeFitsFromParameters(t, paramByNode);
         misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
       }
@@ -811,7 +813,7 @@ public:
       size_t numParams = leaf_.numParams();
       for (size_t t = 0; t < options_.numTrees; ++t) {
         trees_[t].repartitionSubtree(data_, 0);
-        trees_[t].collapseEmptyNodes(response_->workingWeights(),
+        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                      paramsByTree_[t], numParams);
         setTreeFitsFromParameterBlocks(t, paramsByTree_[t]);
         misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
