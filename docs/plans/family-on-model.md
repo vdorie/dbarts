@@ -52,3 +52,18 @@ touch the state format, keep it and record why. Signed off (VD,
   save/load re-creation).
 - R CMD check codoc clean.
 - Equivalence exact (neutral).
+
+## Landing note (2026-07-06, 3c02121)
+
+Landed: slot, prototype, and validity moved to dbartsModel; family
+resolution targets the model in dbarts()/xbart(); creation and both
+re-creation paths pass model@family to the bridge; setControl no
+longer carries it and setModel preserves it (tested both ways);
+consumers chased through bart/rbart/xbart result packaging and the
+xbart loss dispatch. Plan's man-page step proved a no-op: no Rd file
+documents slots and dbartsControl.Rd never mentioned family; the
+dbarts.Rd family item describes the argument, not storage. No show
+methods exist. Implementer hit a usage limit after the substance;
+reviewer ran the gates and landed: tinytest 2465 ok, codoc clean,
+equivalence exact vs af04d0c, lint zero; component tests vacuously
+unchanged (no C/C++ delta). State format untouched.
