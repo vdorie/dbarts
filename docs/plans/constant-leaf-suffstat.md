@@ -77,3 +77,18 @@ ripple; readability-review can pick it up). Deferred: maintainer
 gates - bench-sampler compare (mandatory, zero-regression bar) and
 the equivalence baseline re-record; run both on a quiet machine, the
 new baseline named by e565326 or its successor.
+
+## Bench amendment (2026-07-06, 235bebc)
+
+The landed scalar-reference kernels regressed sampling 12-18% on
+bench-sampler compare (single-accumulator loops; every add serialized
+on the previous one). Unrolled to the mean kernels' 5-way house
+pattern in 235bebc: compare vs bench-sampler-af04d0c.csv now reads
+0.81-0.87 on every sampling metric - the fused single pass beats the
+classic mean-plus-per-likelihood-variance arrangement by 13-19%, with
+the largest gain at n = 10000. The unroll reordered summation, so
+draws shifted once more; tinytest 2465 ok, equivalence statistical
+verdict OK vs cf70fd5. Maintainer gates are now RUN, not deferred;
+fresh baselines recorded at 235bebc. Lesson recorded: hot-path items
+bench before landing now that the maintainer has handed over the
+quiet machine.
