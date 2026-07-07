@@ -52,3 +52,19 @@ dedicated argument.
 
 - R CMD check: Rd cross-references and codoc clean.
 - No test or draw changes (git diff shows only .Rd/.md and comments).
+
+## Landing note (2026-07-07, 6d4f7d2)
+
+Landed: docs/design/prior-defaults.md records every default's source
+and interactions (k with the CGM variance derivation; power/base;
+sigdf/sigquant; node.scale incl. the logistic pi/sqrt(3) widening;
+n.trees 75 vs 200; dart update.delay; tau slice steps documented as
+n.thin-reused in grouped-random-effects.md - the plan's
+documentation-only default, no new argument). Absorbed the signed-off
+range-scaling documentation: lineage rationale, outlier caveat with
+the bartMachine log/winsorize workaround, the chi(1.25, Inf)
+hyperprior escape, and the updateScale locking semantics, mirrored as
+a Response scaling subsection in man/dbarts.Rd with provenance
+sentences in bart.Rd/dbartsControl.Rd/dbartsPriors.Rd. Docs/Rd only.
+Gates: tinytest 2470 ok, codoc clean, lint zero. Range-scaling's
+step-2 closure is complete with this landing.
