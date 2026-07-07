@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <time.h>
 
 #include <misc/stddef.h>
@@ -19,9 +20,11 @@
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 
+#include "partition_u8.h"
+
 static const size_t sizes[] = { 1024, 16384, 262144 };
 #define NUM_SIZES (sizeof(sizes) / sizeof(sizes[0]))
-#define MAX_N 262144
+#define MAX_N 1000000
 #define TARGET_ELEMS ((size_t) 1 << 25)
 #define MAX_CODE 250
 
@@ -73,6 +76,7 @@ static void report(const char* kernel, const char* variant, const char* inst,
 
 // Shared buffers, sized once.
 static misc_xint_t codes[MAX_N];
+static uint8_t codesU8[MAX_N];
 static size_t indices[MAX_N];
 static size_t pristineIndices[MAX_N];
 static double z[MAX_N], w[MAX_N], y2[MAX_N];
@@ -80,6 +84,7 @@ static double z[MAX_N], w[MAX_N], y2[MAX_N];
 static void fillInputs(void) {
   for (size_t i = 0; i < MAX_N; ++i) {
     codes[i] = (misc_xint_t) (nextRand() % (MAX_CODE + 1));
+    codesU8[i] = (uint8_t) codes[i];
     z[i] = nextUniform() - 0.5;
     w[i] = nextUniform() + 0.5;
     y2[i] = nextUniform();
@@ -92,6 +97,54 @@ static void fillInputs(void) {
     pristineIndices[i] = pristineIndices[j];
     pristineIndices[j] = temp;
   }
+}
+
+// u8 codes must split exactly like the u16 reference on the same values;
+// the NEON block-skip must agree with the u8 scalar walk it accelerates.
+static void checkU8Correctness(void) {
+  static size_t ref[4096], test[4096];
+  const size_t n = 4096;
+  const misc_xint_t cut16 = (misc_xint_t) (MAX_CODE / 3);
+  const uint8_t cut8 = (uint8_t) cut16;
+
+  misc_simd_setSIMDInstructionSet(MISC_INST_C);
+
+  size_t nRef = misc_partitionRange(codes, cut16, ref, n);
+  size_t nTest = partitionRange_u8_c(codesU8, cut8, test, n);
+  if (nRef != nTest || memcmp(ref, test, n * sizeof(size_t)) != 0) {
+    fprintf(stderr, "FAIL: partitionRange_u8 scalar diverges from u16 scalar reference\n");
+    exit(1);
+  }
+
+  memcpy(ref, pristineIndices, n * sizeof(size_t));
+  memcpy(test, pristineIndices, n * sizeof(size_t));
+  nRef = misc_partitionIndices(codes, cut16, ref, n);
+  nTest = partitionIndices_u8_c(codesU8, cut8, test, n);
+  if (nRef != nTest || memcmp(ref, test, n * sizeof(size_t)) != 0) {
+    fprintf(stderr, "FAIL: partitionIndices_u8 scalar diverges from u16 scalar reference\n");
+    exit(1);
+  }
+  printf("# check: partitionRange_u8/partitionIndices_u8 scalar == u16 scalar reference (n=%zu): OK\n", n);
+
+#if defined(__arm__) || defined(__aarch64__)
+  static size_t neon[4096];
+  size_t nNeon = partitionRange_u8_neon(codesU8, cut8, neon, n);
+  nTest = partitionRange_u8_c(codesU8, cut8, test, n);
+  if (nNeon != nTest || memcmp(neon, test, n * sizeof(size_t)) != 0) {
+    fprintf(stderr, "FAIL: partitionRange_u8 NEON diverges from u8 scalar\n");
+    exit(1);
+  }
+
+  memcpy(neon, pristineIndices, n * sizeof(size_t));
+  memcpy(test, pristineIndices, n * sizeof(size_t));
+  nNeon = partitionIndices_u8_neon(codesU8, cut8, neon, n);
+  nTest = partitionIndices_u8_c(codesU8, cut8, test, n);
+  if (nNeon != nTest || memcmp(neon, test, n * sizeof(size_t)) != 0) {
+    fprintf(stderr, "FAIL: partitionIndices_u8 NEON diverges from u8 scalar\n");
+    exit(1);
+  }
+  printf("# check: partitionRange_u8/partitionIndices_u8 NEON == u8 scalar (n=%zu): OK\n", n);
+#endif
 }
 
 static void benchPartition(const char* inst) {
@@ -130,6 +183,61 @@ static void benchPartition(const char* inst) {
       report("memcpyBaseline", cuts[c].name, inst, n, reps, nsecNow() - start);
     }
   }
+}
+
+// u8 vs u16 at matched n, from leaf scale up through the DRAM-bound regime
+// (docs/plans/hot-layer-u8.md); useNeon picks the u8 arm to match inst.
+static void benchPartitionWidths(const char* inst, bool useNeon) {
+  static const struct { const char* name; misc_xint_t cut16; uint8_t cut8; } cuts[] = {
+    { "balanced", (misc_xint_t) (MAX_CODE / 2),  (uint8_t) (MAX_CODE / 2)  },
+    { "skewed",   (misc_xint_t) (MAX_CODE / 10), (uint8_t) (MAX_CODE / 10) }
+  };
+  static const size_t leafSizes[] = { 32, 128, 512, 10000, 100000, 1000000 };
+#define NUM_LEAF_SIZES (sizeof(leafSizes) / sizeof(leafSizes[0]))
+
+  size_t (*rangeU8)(const uint8_t*, uint8_t, size_t*, size_t) = partitionRange_u8_c;
+  size_t (*indicesU8)(const uint8_t*, uint8_t, size_t*, size_t) = partitionIndices_u8_c;
+#if defined(__arm__) || defined(__aarch64__)
+  if (useNeon) { rangeU8 = partitionRange_u8_neon; indicesU8 = partitionIndices_u8_neon; }
+#endif
+
+  for (size_t c = 0; c < 2; ++c) {
+    for (size_t s = 0; s < NUM_LEAF_SIZES; ++s) {
+      size_t n = leafSizes[s], reps = repsFor(n);
+      uint64_t start;
+
+      misc_partitionRange(codes, cuts[c].cut16, indices, n);
+      start = nsecNow();
+      for (size_t r = 0; r < reps; ++r)
+        sink_s = misc_partitionRange(codes, cuts[c].cut16, indices, n);
+      report("partitionRange_u16", cuts[c].name, inst, n, reps, nsecNow() - start);
+
+      rangeU8(codesU8, cuts[c].cut8, indices, n);
+      start = nsecNow();
+      for (size_t r = 0; r < reps; ++r)
+        sink_s = rangeU8(codesU8, cuts[c].cut8, indices, n);
+      report("partitionRange_u8", cuts[c].name, inst, n, reps, nsecNow() - start);
+
+      memcpy(indices, pristineIndices, n * sizeof(size_t));
+      misc_partitionIndices(codes, cuts[c].cut16, indices, n);
+      start = nsecNow();
+      for (size_t r = 0; r < reps; ++r) {
+        memcpy(indices, pristineIndices, n * sizeof(size_t));
+        sink_s = misc_partitionIndices(codes, cuts[c].cut16, indices, n);
+      }
+      report("partitionIndices_u16", cuts[c].name, inst, n, reps, nsecNow() - start);
+
+      memcpy(indices, pristineIndices, n * sizeof(size_t));
+      indicesU8(codesU8, cuts[c].cut8, indices, n);
+      start = nsecNow();
+      for (size_t r = 0; r < reps; ++r) {
+        memcpy(indices, pristineIndices, n * sizeof(size_t));
+        sink_s = indicesU8(codesU8, cuts[c].cut8, indices, n);
+      }
+      report("partitionIndices_u8", cuts[c].name, inst, n, reps, nsecNow() - start);
+    }
+  }
+#undef NUM_LEAF_SIZES
 }
 
 static void benchMoments(const char* inst) {
@@ -200,12 +308,14 @@ int main(void) {
 
   printf("# xint bytes: %zu, max instruction set: %s\n",
          sizeof(misc_xint_t), instName(maxSet));
+  checkU8Correctness();
   printf("kernel,variant,inst,n,reps,ns_per_elem\n");
 
   for (size_t c = 0; c < numCandidates; ++c) {
     misc_simd_setSIMDInstructionSet(candidates[c]);
     const char* inst = instName(candidates[c]);
     benchPartition(inst);
+    benchPartitionWidths(inst, candidates[c] != MISC_INST_C);
     benchMoments(inst);
     benchVectorOps(inst);
   }
