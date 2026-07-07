@@ -15,7 +15,7 @@ SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP family);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
-SEXP bartcore_setResponse(SEXP ptr, SEXP y);
+SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
 SEXP bartcore_setData(SEXP ptr, SEXP data);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);

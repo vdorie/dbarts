@@ -484,8 +484,8 @@ public:
     weights_ = weights;
     response_->setWeights(weights);
   }
-  void setResponse(const double* y) {
-    response_->setResponse(y, rng_, totalFits_.data(), &sigma_);
+  void setResponse(const double* y, bool updateScale) {
+    response_->setResponse(y, rng_, totalFits_.data(), updateScale, &sigma_);
   }
   void setSigma(double sigmaOriginalScale) {
     sigma_ = sigmaOriginalScale / response_->sigmaScale();

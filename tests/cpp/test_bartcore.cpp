@@ -1645,6 +1645,53 @@ static void testSetData(ext_rng* rng) {
   printf("ok: setData\n");
 }
 
+static void testSetResponseScaleLock(ext_rng* rng) {
+  // setResponse defaults to locking the creation-time transform; updateScale
+  // re-anchors it like setData does, holding sigma on the original scale
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  // a linear transform doubling the range: the re-anchored path must double
+  // the transform width and halve the internal sigma, the locked path neither
+  std::vector<double> yScaled(n);
+  for (size_t i = 0; i < n; ++i) yScaled[i] = 2.0 * y[i] + 3.0;
+
+  std::unique_ptr<ClassicSampler> lockedPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& locked(*lockedPtr);
+  SamplerStateData before;
+  locked.getState(before);
+  double widthBefore = before.chains[0].fitMax - before.chains[0].fitMin;
+  double sigmaInternalBefore = before.chains[0].sigma;
+
+  locked.setResponse(yScaled.data(), false);
+  SamplerStateData afterLocked;
+  locked.getState(afterLocked);
+  checkNear(afterLocked.chains[0].fitMax - afterLocked.chains[0].fitMin,
+            widthBefore, 1e-12, "locked setResponse keeps the transform");
+  checkNear(afterLocked.chains[0].sigma, sigmaInternalBefore, 1e-12,
+            "locked setResponse keeps internal sigma");
+
+  std::unique_ptr<ClassicSampler> scaledPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& scaled(*scaledPtr);
+  SamplerStateData beforeScaled;
+  scaled.getState(beforeScaled);
+  double widthBeforeScaled =
+    beforeScaled.chains[0].fitMax - beforeScaled.chains[0].fitMin;
+  double sigmaOriginalBeforeScaled = scaled.sigma(0);
+  scaled.setResponse(yScaled.data(), true);
+  SamplerStateData afterScaled;
+  scaled.getState(afterScaled);
+  checkNear(afterScaled.chains[0].fitMax - afterScaled.chains[0].fitMin,
+            2.0 * widthBeforeScaled, 1e-12 * widthBeforeScaled,
+            "re-anchored setResponse doubles the transform");
+  checkNear(scaled.sigma(0), sigmaOriginalBeforeScaled,
+            1e-12 * sigmaOriginalBeforeScaled,
+            "re-anchored setResponse preserves sigma on the original scale");
+
+  printf("ok: setResponse scale lock\n");
+}
+
 static void testSetDataResize(ext_rng* rng) {
   const size_t n = 200, n2 = 320, nTest = 50, nTest2 = 30;
   std::vector<double> x, y;
@@ -6067,6 +6114,7 @@ int main() {
   testMultiChainMutation();
   testMapOldCutPointsOntoNew();
   testSetData(rng);
+  testSetResponseScaleLock(rng);
   testSetDataResize(rng);
   testSetDataQuantileShrink(rng);
   testSetDataProbit(rng);

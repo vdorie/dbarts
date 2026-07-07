@@ -41,7 +41,7 @@
 \S4method{setControl}{dbartsSampler}(control)
 \S4method{setModel}{dbartsSampler}(model)
 \S4method{setData}{dbartsSampler}(data)
-\S4method{setResponse}{dbartsSampler}(y, updateState = NA)
+\S4method{setResponse}{dbartsSampler}(y, updateScale = FALSE, updateState = NA)
 \S4method{setOffset}{dbartsSampler}(offset, updateScale = FALSE, updateState = NA)
 \S4method{setWeights}{dbartsSampler}(weights, updateState = NA)
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
@@ -97,7 +97,7 @@
     A numeric vector of length equal to that with which the sampler was created, or \code{NULL}. If \code{offset.test} was set from \code{offset}, will attempt to update that as well.
   }
   \item{updateScale}{
-    Logical indicating whether BART's internal scale should update with the new offset. Should only be \code{TRUE} during burn-in.
+    Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable.
   }
   \item{offset.test}{
     A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictors}.

@@ -166,9 +166,14 @@ bartcoreSamplerSetPredictor <- function(
   if (!forceUpdate) updateSuccessful else invisible(NULL)
 }
 
-bartcoreSamplerSetResponse <- function(sampler, y) {
+bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
   sampler$data@y <- as.double(y)
-  .Call(C_dbarts_bartcore_setResponse, sampler$getPointer(), sampler$data@y)
+  .Call(
+    C_dbarts_bartcore_setResponse,
+    sampler$getPointer(),
+    sampler$data@y,
+    updateScale
+  )
   invisible(NULL)
 }
 
@@ -434,8 +439,13 @@ bartcoreSetOffset <- function(bcSampler, offset, updateScale = FALSE) {
   ))
 }
 
-bartcoreSetResponse <- function(bcSampler, y) {
-  invisible(.Call(C_dbarts_bartcore_setResponse, bcSampler$ptr, as.double(y)))
+bartcoreSetResponse <- function(bcSampler, y, updateScale = FALSE) {
+  invisible(.Call(
+    C_dbarts_bartcore_setResponse,
+    bcSampler$ptr,
+    as.double(y),
+    as.logical(updateScale)
+  ))
 }
 
 bartcoreSetWeights <- function(bcSampler, weights) {

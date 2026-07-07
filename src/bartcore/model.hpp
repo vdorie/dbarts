@@ -1670,9 +1670,11 @@ public:
 
   // Between-sample mutation (the embedded-Gibbs API). sigmaInOut is the
   // chain's current sigma on the internal scale; models that rescale keep it
-  // fixed on the original scale across the change.
+  // fixed on the original scale across the change. updateScale re-anchors the
+  // transform to the new response, as setOffset does; false locks it.
   virtual void setResponse(const double* y, ext_rng* rng,
-                           const double* totalFits, double* sigmaInOut) = 0;
+                           const double* totalFits, bool updateScale,
+                           double* sigmaInOut) = 0;
   virtual void setOffset(const double* offset, bool updateScale,
                          double* sigmaInOut) = 0;
 
@@ -1766,17 +1768,29 @@ public:
       rng, yRescaled_.data(), totalFits, weights_, numObservations_));
   }
 
-  void setResponse(const double* y, ext_rng*, const double*,
+  void setResponse(const double* y, ext_rng*, const double*, bool updateScale,
                    double* sigmaInOut) override {
-    // sigma and the variance prior stay fixed on the original scale
-    double sigmaUnscaled = *sigmaInOut * range_;
-    double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
+    if (updateScale) {
+      // sigma and the variance prior stay fixed on the original scale
+      double sigmaUnscaled = *sigmaInOut * range_;
+      double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
 
-    y_ = y;
-    rescale();
+      y_ = y;
+      rescale();
 
-    sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
-    *sigmaInOut = sigmaUnscaled / range_;
+      sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
+      *sigmaInOut = sigmaUnscaled / range_;
+    } else {
+      // reuse the existing data scale
+      y_ = y;
+      std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
+      if (offset_ != nullptr)
+        misc_subtractVectorsInPlace(offset_, numObservations_, yRescaled_.data());
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+      misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
+                                       1.0 / range_);
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
+    }
   }
 
   void setData(const double* y, const double* offset, const double* weights,
@@ -1942,7 +1956,7 @@ public:
   }
 
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   double*) override {
+                   bool, double*) override {
     y_ = y;
     refreshLatents(rng, totalFits, 1.0);
   }
@@ -2041,7 +2055,7 @@ public:
   }
 
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   double*) override {
+                   bool, double*) override {
     y_ = y;
     refreshLatents(rng, totalFits, 1.0);
   }
@@ -2279,9 +2293,9 @@ public:
   }
 
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
-                   double* sigmaInOut) override {
+                   bool updateScale, double* sigmaInOut) override {
     shiftFits(totalFits);
-    base_->setResponse(y, rng, fitScratch_.data(), sigmaInOut);
+    base_->setResponse(y, rng, fitScratch_.data(), updateScale, sigmaInOut);
     rebuildWorking();
   }
 
