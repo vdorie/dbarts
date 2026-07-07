@@ -178,3 +178,32 @@ Budget ~550 lines. Three deliverables plus tests:
 Single-forest paths must stay untouched: equivalence exact 18/18 is
 the gate, plus component tests, full tinytest, the new gate in both
 modes, and air format + lintr on touched R files.
+
+Step 5 landed (c9fd2fe), closing the item. The calibration map
+replaces the placeholder scales: at creation s = sd of the
+range-scaled response anchors mu's leaf scale at s (aPriorScale =
+sd.control = 2 puts the prognostic total's half-Cauchy median at
+2 sd(y)) and tau's at sd.moderate s / 0.674 (so the effect
+(b1 - b0) tau, with b0/b1 ~ N(0, 1/2), sits at a median of one
+sd(y)); k is fixed at 1 and the derivation is bcf.md's Calibration
+subsection. BCFSpec gains updateA/updateB glue switches
+(creation-time config, re-supplied on restore - no state-format
+change needed). benchmarks/R/bcf-exact.R is the two-forest
+exact-posterior gate: ordinal enumeration per forest over a 3-cell
+design, closed-form Gaussian block marginals over the leaf
+parameters via a whitened eigendecomposition vectorized across the
+sigma grid, the chisq sigma calibration reproduced exactly, and
+three modes (glue fixed; a free against its Cauchy prior; b0/b1
+free on a Gaussian grid). One review fix round removed the dead
+nodeScale/k knobs the map had orphaned (BCFForestSpec, the bridge
+params, the R wrapper's treatment.k). Deviation: mode 2b's E[mu] is
+a slow-mixing target (mu couples to the weakly identified
+(b0 + b1) direction of the bscale ridge), so it carries a looser
+tolerance with more seeds and heavier thinning; the identified
+E[(b1 - b0) tau] stays tight, and the multi-seed mean matches the
+closed form, confirming mixing rather than bias. Gates (implementer
+ran all, reviewer re-ran all but the full-mode gate): component
+tests incl. the new fixed-glue test, tinytest 2497/0 (5 new),
+equivalence exact 18/18 identical draws vs 235bebc, bcf-exact.R
+quick (max gap 0.0009) and full (max gap 0.017 vs 0.035 on the
+2b E[mu], all others <= 0.0003), air/lintr clean.

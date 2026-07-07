@@ -37,10 +37,6 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  forest-split-bcf: step 5 remains - the exact-posterior gate + bcf
-    calibration map (replacing
-    step 3's placeholder scales); the sampler landed d1ffb92, the
-    state format 4e6b206. bartCause is the named consumer.
   gpu-bart: a considered survey of innovative GPU uses for BART
     (VD 2026-07-07: wants the thinking to happen at some point; no
     clock). Memo-first; weighs grow-from-root and blocked-jacobi's
@@ -67,8 +63,9 @@ items
     chol(V) reuse; measure before deciding.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
-  multi-forest-models: multinomial, heteroscedastic, hurdle - queued
-    behind forest-split-bcf; one design note each when picked.
+  multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
+    two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
+    the template; one design note each when picked.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
