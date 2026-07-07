@@ -1408,7 +1408,80 @@ static void testMissingEndToEnd() {
   printf("ok: missing end to end\n");
 }
 
+// BCF two-forest sampler: creation, a short run moving both forests, sane
+// glue (finite, b0 != b1), setTreatment refresh. Statistical validation is
+// the step-5 exact gate; this is sanity only.
+static void testBCFTwoForest(ext_rng* rng) {
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.mu.nodeScale = 0.5; spec.mu.k = 1.0;
+  spec.tau.numTrees = 25; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.tau.nodeScale = 0.5; spec.tau.k = 1.0;
+  spec.z = z.data();
+
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+  check(sampler.numForests() == 2, "BCF builds two forests");
+
+  const size_t numBurnIn = 200, numSamples = 200;
+  std::vector<double> sigma(numSamples), fits(n * numSamples);
+  Results results;
+  results.sigma = sigma.data();
+  results.trainingFits = fits.data();
+  sampler.run(numBurnIn, numSamples, results);
+
+  std::vector<double> muFits(n), tauFits(n);
+  sampler.forestTotalFits(0, 0, muFits.data());
+  sampler.forestTotalFits(0, 1, tauFits.data());
+  double muSS = 0.0, tauSS = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    muSS += muFits[i] * muFits[i];
+    tauSS += tauFits[i] * tauFits[i];
+  }
+  check(muSS > 0.0 && tauSS > 0.0, "both BCF forests move off zero");
+
+  double a, b0, b1;
+  bool haveGlue = sampler.chain(0).bcfGlue(a, b0, b1);
+  check(haveGlue && std::isfinite(a) && std::isfinite(b0) &&
+          std::isfinite(b1),
+        "BCF glue is finite");
+  check(b0 != b1, "BCF treatment scales separate");
+
+  bool sane = true;
+  for (size_t i = 0; i < n * numSamples && sane; ++i)
+    sane = std::isfinite(fits[i]);
+  for (size_t s = 0; s < numSamples && sane; ++s) sane = sigma[s] > 0.0;
+  check(sane, "BCF fits finite and sigma positive");
+
+  std::vector<double> zControl(n, 0.0);
+  sampler.setTreatment(zControl.data());
+  std::vector<double> sigma2(10), fits2(n * 10);
+  Results r2;
+  r2.sigma = sigma2.data();
+  r2.trainingFits = fits2.data();
+  sampler.run(0, 10, r2);
+  bool refreshed = true;
+  for (size_t i = 0; i < n * 10 && refreshed; ++i)
+    refreshed = std::isfinite(fits2[i]);
+  check(refreshed, "BCF setTreatment refresh runs");
+
+  printf("ok: BCF two-forest sampler\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
+  testBCFTwoForest(rng);
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);

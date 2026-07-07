@@ -152,6 +152,40 @@ public:
                      sigmaRawScale, rngs);
   }
 
+  /// A BCF two-forest sampler over dense predictors (docs/design/bcf.md):
+  /// gaussian only, one prognostic and one treatment forest per chain. The
+  /// CSC/mixed and view ingestion paths are not offered here (step 4).
+  Sampler(const double* x, const double* y, size_t numObservations,
+          size_t numPredictors, const double* weights, const double* offset,
+          double sigmaEstimate, double sigmaDf, double sigmaRawScale,
+          const SamplerOptions& options, const BCFSpec& spec,
+          ext_rng* const* rngs)
+    : options_(options), family_(ResponseFamily::gaussian) {
+    if (options.maxNumCutsPerVariable != nullptr)
+      data_.build(x, numObservations, numPredictors,
+                  options.maxNumCutsPerVariable, options.useQuantiles,
+                  options.columnTypes);
+    else
+      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
+                  options.useQuantiles, options.columnTypes);
+    options_.maxNumCutsPerVariable = nullptr;
+    options_.columnTypes = nullptr;
+    // single-forest queries (numTrees, savedTree, printTrees) address the
+    // prognostic forest
+    options_.numTrees = spec.mu.numTrees;
+
+    chains_.reserve(options_.numChains);
+    for (size_t c = 0; c < options_.numChains; ++c)
+      chains_.push_back(std::make_unique<Chain<L>>(
+        data_, y, weights, offset, sigmaEstimate, sigmaDf, sigmaRawScale,
+        options_, spec, rngs[c]));
+    if (options_.keepTrees) {
+      size_t capacity =
+        options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
+      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    }
+  }
+
   // chains reference the store member, so the sampler's address is pinned
   Sampler(const Sampler&) = delete;
   Sampler& operator=(const Sampler&) = delete;
@@ -781,6 +815,19 @@ public:
   const ColumnStore& data() const { return data_; }
   const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }
+
+  // BCF surface, fanned to every chain (docs/design/bcf.md); benign on
+  // single-forest samplers, where numForests() is 1 and bcfGlue reports none.
+  size_t numForests() const { return chains_[0]->numForests(); }
+  void setTreatment(const double* z) {
+    for (auto& chain : chains_) chain->setTreatment(z);
+  }
+  bool bcfGlue(size_t chainNum, double* out) const {
+    return chains_[chainNum]->bcfGlue(out[0], out[1], out[2]);
+  }
+  void forestTotalFits(size_t chainNum, size_t forestIndex, double* out) const {
+    chains_[chainNum]->forestTotalFits(forestIndex, out);
+  }
   size_t numTrees() const { return options_.numTrees; }
   size_t numObservations() const { return data_.numObservations; }
   size_t numPredictors() const { return data_.numPredictors; }

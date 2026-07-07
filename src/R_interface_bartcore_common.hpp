@@ -26,6 +26,10 @@ struct BartcoreHolder {
   std::vector<double> ownedResponse, ownedWeights, ownedOffset,
                       ownedTestOffset;
 
+  // BCF holds an owned copy of the 0/1 treatment the chains borrow, so
+  // setTreatment installs a replacement without a protection slot
+  std::vector<double> ownedTreatment;
+
   ~BartcoreHolder() {
     for (std::size_t c = rngs.size(); c > 0; --c)
       if (rngs[c - 1] != NULL) ext_rng_destroy(rngs[c - 1]);
@@ -38,6 +42,13 @@ struct BartcoreHolder {
 /// specifications after cleaning up.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName);
+
+/// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
+/// prognostic forest, bcfParams (length 7: tau tree count, base, power, node
+/// scale, k; a half-Cauchy median; b prior variance) the treatment forest and
+/// glue, z the 0/1 treatment. Gaussian only; raises R errors otherwise.
+BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
+                                SEXP dataExpr, SEXP zExpr, SEXP bcfParamsExpr);
 
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.
