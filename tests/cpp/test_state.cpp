@@ -478,7 +478,7 @@ static void testStateValidation(ext_rng* rng) {
 
   bad = state;
   bool corrupted = false;
-  for (std::vector<FlatNode>& tree : bad.chains[0].trees) {
+  for (std::vector<FlatNode>& tree : bad.chains[0].forests[0].trees) {
     if (tree.size() > 1) {
       tree[0].value += 1.0e-3;  // off the cut grid
       corrupted = true;

@@ -47,5 +47,36 @@ expect_true(all(is.finite(result.control$train)))
 # out-of-range forest index errors
 expect_error(dbarts:::bartcoreForestFits(bcSampler, 2L), "out of range")
 
-# state serialization refuses on a multi-forest sampler (step 4)
-expect_error(dbarts:::bartcoreStoreState(bcSampler), "multi-forest")
+# state round-trip: store, restore into a fresh BCF sampler, continue
+dbarts:::bartcoreSetTreatment(bcSampler, z)
+dbarts:::bartcoreRun(bcSampler, 0L, 5L)
+state <- dbarts:::bartcoreStoreState(bcSampler)
+expect_equal(length(state), 1L)
+expect_equal(length(state[[1L]]$forests), 2L)
+expect_false(is.null(state[[1L]]$bcf))
+
+glueBefore <- dbarts:::bartcoreBCFGlue(bcSampler)
+muBefore <- dbarts:::bartcoreForestFits(bcSampler, 0L)
+tauBefore <- dbarts:::bartcoreForestFits(bcSampler, 1L)
+
+restored <- dbarts:::bartcoreBCFSampler(sampler, z, n.trees.treatment = 25L)
+dbarts:::bartcoreSetState(restored, state)
+
+# the glue rides the state exactly; the forests restore to a continuation
+# (structural, not bitwise: the dropped accumulation history is not reproduced)
+expect_equal(dbarts:::bartcoreBCFGlue(restored), glueBefore)
+expect_equal(
+  dbarts:::bartcoreForestFits(restored, 0L),
+  muBefore,
+  tolerance = 1e-5
+)
+expect_equal(
+  dbarts:::bartcoreForestFits(restored, 1L),
+  tauBefore,
+  tolerance = 1e-5
+)
+
+result.restored <- dbarts:::bartcoreRun(restored, 0L, 50L)
+expect_equal(dim(result.restored$train), c(n, 50L))
+expect_true(all(is.finite(result.restored$train)))
+expect_true(all(result.restored$sigma > 0))

@@ -80,7 +80,8 @@ source(system.file("common", "stateContinuation.R", package = "dbarts"))
 invisible(sampler$storeState())
 state <- sampler$state
 expect_true(all(sapply(state, function(chain) {
-  "tree.masks" %in% names(chain) && length(chain[["tree.masks"]]) > 0L
+  forest <- chain$forests[[1L]]
+  "tree.masks" %in% names(forest) && length(forest[["tree.masks"]]) > 0L
 })))
 sampler2 <- dbarts(
   y ~ g + h + z,
@@ -93,7 +94,10 @@ sampler2$setState(state)
 sampler2$storeState()
 expect_true(statesAgree(sampler2$state, state))
 for (ci in seq_along(state)) {
-  expect_identical(sampler2$state[[ci]]$tree.masks, state[[ci]]$tree.masks)
+  expect_identical(
+    sampler2$state[[ci]]$forests[[1L]]$tree.masks,
+    state[[ci]]$forests[[1L]]$tree.masks
+  )
 }
 
 pdf(NULL)

@@ -719,13 +719,15 @@ unlink(serialized)
 # malformed and inconsistent states are refused
 expect_error(sampler.us$setState(list()), pattern = "bartcoreState")
 state.bad <- sampler.us$state
-internal.nodes <- which(state.bad[[1L]]$tree.vars > 0L)
+forest.bad <- state.bad[[1L]]$forests[[1L]]
+internal.nodes <- which(forest.bad$tree.vars > 0L)
 expect_true(length(internal.nodes) > 0L)
 # tree.values is a tagged raw payload per node; x is all ordinal, so the
 # first internal node's word is a cut point. Nudge it off the grid.
 value.bytes <- (internal.nodes[1L] - 1L) * 8L + seq_len(8L)
-old.cut <- readBin(state.bad[[1L]]$tree.values[value.bytes], "double", 1L)
-state.bad[[1L]]$tree.values[value.bytes] <- writeBin(old.cut + 1e-3, raw())
+old.cut <- readBin(forest.bad$tree.values[value.bytes], "double", 1L)
+forest.bad$tree.values[value.bytes] <- writeBin(old.cut + 1e-3, raw())
+state.bad[[1L]]$forests[[1L]] <- forest.bad
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
 # a state from an incompatible format version refuses cleanly, naming both

@@ -27,19 +27,29 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
   for (size_t c = 0; c < a.chains.size(); ++c) {
     const ChainStateData& x(a.chains[c]);
     const ChainStateData& y(b.chains[c]);
-    if (!sameFlatTrees(x.trees, y.trees) ||
-        !sameFlatTrees(x.savedTrees, y.savedTrees))
-      return false;
-    if (x.treeParams != y.treeParams ||
-        x.savedTreeParams != y.savedTreeParams ||
-        x.treeMasks != y.treeMasks || x.savedTreeMasks != y.savedTreeMasks ||
-        x.latents != y.latents || x.groupEffects != y.groupEffects ||
+    if (x.forests.size() != y.forests.size()) return false;
+    for (size_t f = 0; f < x.forests.size(); ++f) {
+      const ForestStateData& xf(x.forests[f]);
+      const ForestStateData& yf(y.forests[f]);
+      if (!sameFlatTrees(xf.trees, yf.trees) ||
+          !sameFlatTrees(xf.savedTrees, yf.savedTrees))
+        return false;
+      if (xf.treeParams != yf.treeParams ||
+          xf.savedTreeParams != yf.savedTreeParams ||
+          xf.treeMasks != yf.treeMasks ||
+          xf.savedTreeMasks != yf.savedTreeMasks || xf.k != yf.k)
+        return false;
+    }
+    if (x.latents != y.latents || x.groupEffects != y.groupEffects ||
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)
       return false;
-    if (x.k != y.k || x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
+    if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
+      return false;
+    if (x.hasBCF != y.hasBCF || x.a != y.a || x.aVariance != y.aVariance ||
+        x.b0 != y.b0 || x.b1 != y.b1)
       return false;
     if (std::fabs(x.sigma - y.sigma) > 1e-9 * (1.0 + std::fabs(x.sigma)))
       return false;

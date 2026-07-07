@@ -1016,7 +1016,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   // a stored state restores to an equivalent continuation
   SamplerStateData state;
   sampler.getState(state);
-  check(!state.chains[0].treeMasks.empty(),
+  check(!state.chains[0].forests[0].treeMasks.empty(),
         "wide-column states carry mask channels");
   ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng2, 4242);
