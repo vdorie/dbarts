@@ -1186,8 +1186,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP zExpr,
                                 SEXP bcfParamsExpr) {
-  if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 7)
-    Rf_error("bcf parameters must be a length-7 numeric vector");
+  if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 8)
+    Rf_error("bcf parameters must be a length-8 numeric vector");
 
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
@@ -1214,18 +1214,18 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 
     const double* p = REAL(bcfParamsExpr);
     bartcore::BCFSpec spec;
+    // node scales come from the calibration map, not the host model
     spec.mu.numTrees = options.numTrees;
     spec.mu.base = model.base;
     spec.mu.power = model.power;
-    spec.mu.nodeScale = model.nodeScale;
-    spec.mu.k = model.k;
     spec.tau.numTrees = static_cast<size_t>(p[0]);
     spec.tau.base = p[1];
     spec.tau.power = p[2];
-    spec.tau.nodeScale = p[3];
-    spec.tau.k = p[4];
-    spec.aPriorScale = p[5];
-    spec.bPriorVariance = p[6];
+    spec.aPriorScale = p[3];
+    spec.sdModerate = p[4];
+    spec.bPriorVariance = p[5];
+    spec.updateA = p[6] != 0.0;
+    spec.updateB = p[7] != 0.0;
     spec.z = z.data();
 
     std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(

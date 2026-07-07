@@ -80,3 +80,34 @@ result.restored <- dbarts:::bartcoreRun(restored, 0L, 50L)
 expect_equal(dim(result.restored$train), c(n, 50L))
 expect_true(all(is.finite(result.restored$train)))
 expect_true(all(result.restored$sigma > 0))
+
+# fixed-glue path: update.a = update.b = FALSE holds the glue at (1, 0, 1)
+bcFixed <- dbarts:::bartcoreBCFSampler(
+  sampler,
+  z,
+  n.trees.treatment = 25L,
+  update.a = FALSE,
+  update.b = FALSE
+)
+dbarts:::bartcoreRun(bcFixed, 50L, 50L)
+expect_equal(dbarts:::bartcoreBCFGlue(bcFixed)[, 1L], c(1, 0, 1))
+# the treatment forest still moves under the fixed z * tau model
+expect_true(sum(dbarts:::bartcoreForestFits(bcFixed, 1L)^2) > 0)
+
+# bartCause-style driver: pihat is a prognostic column; the treatment and the
+# propensity column are both swapped between runs through the mutation surface
+set.seed(7)
+pihat <- plogis(x[, 1L] - 0.5)
+x.pi <- cbind(x, pihat)
+sampler.pi <- dbarts(x.pi, y, control = control)
+bcPi <- dbarts:::bartcoreBCFSampler(sampler.pi, z, n.trees.treatment = 25L)
+dbarts:::bartcoreRun(bcPi, 100L, 20L)
+
+z2 <- rbinom(n, 1L, pihat)
+x.pi[, ncol(x.pi)] <- plogis(x[, 2L] - 0.5)
+dbarts:::bartcoreSetPredictor(bcPi, x.pi, forceUpdate = TRUE)
+dbarts:::bartcoreSetTreatment(bcPi, z2)
+result.pi <- dbarts:::bartcoreRun(bcPi, 0L, 20L)
+expect_equal(dim(result.pi$train), c(n, 20L))
+expect_true(all(is.finite(result.pi$train)))
+expect_true(all(result.pi$sigma > 0))
