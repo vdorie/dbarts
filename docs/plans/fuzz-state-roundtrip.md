@@ -46,3 +46,22 @@ sources.
 
 - tests/cpp full suite + fuzzer 100 seeds; full tinytest;
   equivalence exact vs current baseline (paths are degenerate-only).
+
+## Landing note (2026-07-07, a833c09)
+
+Both edges fixed at their sources. Bug A: refreshCutsForColumn refuses
+a degenerate uniform re-cut (valuesAreDegenerate) and keeps the old
+ascending grid - forced updates route new values through the retained
+grid and collapse what empties (the plan's single-cut alternative
+perturbed a live path, missing seed 21, and was dropped). Bug B:
+dropStaleMissingDirections clears a rule's missing-direction bit once
+its column stops holding missing values, called from the three
+post-success refresh paths; the non-forced rollback now also restores
+hasMissing so rejection stays gauge-consistent. Two direct component
+tests reproduce the edges without the fuzzer and fail with the fixes
+disabled. Gates: fuzzer clean over 100 seeds, full C++ suite,
+tinytest 2468 ok, equivalence EXACT 18/18 (reviewer re-verified).
+While probing a stricter round-trip assertion the agent surfaced a
+THIRD pre-existing edge, out of scope here: setCutPoints shrinking a
+grid can orphan a split whose out-of-range index makes flatten read a
+stale value. Triaged to cutpoints-shrink-orphan.

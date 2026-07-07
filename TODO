@@ -35,6 +35,11 @@ items
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
+  cutpoints-shrink-orphan: a grid-shrinking setCutPoints can orphan a
+    split whose out-of-range index makes flatten serialize a stale cut
+    value (user-facing via getTrees); characterize the escaping path,
+    fix, then tighten the fuzzer's round-trip assertion to strict.
+    Triaged from fuzz-state-roundtrip, 2026-07-07.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
@@ -50,10 +55,6 @@ items
   forest-split-bcf: split Forest out of Sampler (deferred since phase
     1) with BCF - prognostic + treatment forests - as the driving
     consumer; bartCause is the named consumer and VD maintains it.
-  fuzz-state-roundtrip: fix the two state-serialization edges the
-    mutation fuzzer found (degenerate uniform re-cut grid; non-canonical
-    categorical mask on flatten); setState must accept every state a
-    live sampler reaches. Triaged from mutation-fuzzing, 2026-07-07.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
