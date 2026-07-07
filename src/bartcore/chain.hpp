@@ -366,7 +366,7 @@ public:
 
     if constexpr (L::hasVectorParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
-                             options.numLeafCovariates);
+                             options.numLeafCovariates, options.numChains);
     else if constexpr (L::hasFunctionParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
                              options.numLeafCovariates, options.gpLengthscales,
@@ -665,6 +665,11 @@ public:
       response_->refreshLatents(rng_, combined, sigma_);
       y = response_->workingResponse();
       weights = response_->workingWeights();
+      // a latent family's refresh changes the weights U'WU is cached against
+      if constexpr (L::hasVectorParams)
+        if (response_->workingWeightsVaryPerSweep())
+          for (Forest<L>& forest : forests_)
+            forest.leaf.invalidateStatistics();
 
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, combined, sigma_);
@@ -699,10 +704,17 @@ public:
   void setWeights(const double* weights) {
     weights_ = weights;
     response_->setWeights(weights);
+    if constexpr (L::hasVectorParams)
+      forests_[0].leaf.invalidateStatistics();
   }
   void setResponse(const double* y, bool updateScale) {
     response_->setResponse(y, rng_, forests_[0].totalFits.data(), updateScale,
                            &sigma_);
+    // a latent family's setResponse refreshes the Polya-Gamma weights U'WU
+    // depends on; a gaussian one moves only the residual
+    if constexpr (L::hasVectorParams)
+      if (response_->workingWeightsVaryPerSweep())
+        forests_[0].leaf.invalidateStatistics();
   }
   void setSigma(double sigmaOriginalScale) {
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
