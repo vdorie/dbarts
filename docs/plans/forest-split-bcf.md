@@ -129,3 +129,51 @@ continuation); glue equality exact. Step 5 remains: the two-forest
 exact-posterior gate + bcf calibration map. Reviewer note: run rchk
 locally over the new serialization code before release (zero-findings
 status last confirmed at c2d591a).
+
+## Step 5 spec (2026-07-07)
+
+Budget ~550 lines. Three deliverables plus tests:
+
+1. Calibration map, replacing step 3's placeholder scales. At BCF
+   creation compute s = sd of the range-scaled response (y mapped to
+   [-0.5, 0.5]). Defaults per the bcf-parity resolution: mu forest
+   nodeScale = s with aPriorScale = 2 (half-Cauchy median of |a| = 2
+   puts the prognostic total at bcf's 2 sd(y); the map overrides the
+   host model's k/node prior for mu - note that on the wrapper); tau
+   forest nodeScale = s / 0.674 with bPriorVariance = 0.5 (b1 - b0 ~
+   N(0, 1), half-normal median 0.674, so the effect scale's median is
+   one sd(y) - bcf's use_tauscale correction). k stays 1. The R
+   wrapper's scale arguments become sd(y)-unit knobs (sd.control = 2,
+   sd.moderate = 1) converted internally. Record the derivation as a
+   short Calibration subsection in docs/design/bcf.md.
+2. Glue-fixing switches: BCFSpec gains updateA/updateB (default
+   true), threaded through the bridge params and R wrapper; false
+   skips the matching drawGlue block (and the aVariance refresh when
+   a is fixed).
+3. Exact-posterior gate, benchmarks/R/bcf-exact.R, following
+   categorical-exact.R's conventions (quick mode, tolerance, exit
+   status). One ordinal predictor over a handful of distinct values,
+   fixed 0/1 z balanced within each x cell, Gaussian response, two
+   single-tree forests (host n.trees = 1, n.trees.treatment = 1).
+   Enumerate each forest's tree space independently (the ordinal
+   analog, logistic-reference.R:63); the joint space is the product.
+   Conditional on (a, b0, b1, sigma) the leaf parameters integrate in
+   closed form (Gaussian block marginal); 1-D quadrature over sigma
+   against the sampler's actual prior on the scaled response -
+   reproduce dbarts's range scaling and chisq(df, quantile) sigma
+   calibration exactly (the one tricky reproduction), and reproduce
+   the deliverable-1 map for the leaf scales so the gate validates
+   the map's implementation end to end. Fits from bartcoreForestFits
+   are internal-scale; match on that scale at the distinct x cells,
+   to MC error over a few seeds. Modes: (1) glue fixed a = 1, b0 = 0,
+   b1 = 1, match E[mu] and E[tau]; (2a) a free (quadrature against
+   Cauchy(0, aPriorScale)), b fixed, match E[a mu] and E[tau];
+   (2b) b0/b1 free (N(0, bPriorVariance) grid), a fixed, match E[mu]
+   and E[(b1 - b0) tau]. A fully-free mode is not required.
+4. Tests: a component test for the fixed-glue path; tinytest
+   additions including a bartCause-style driver (setTreatment swap
+   plus a pihat column update through setPredictor between runs).
+
+Single-forest paths must stay untouched: equivalence exact 18/18 is
+the gate, plus component tests, full tinytest, the new gate in both
+modes, and air format + lintr on touched R files.
