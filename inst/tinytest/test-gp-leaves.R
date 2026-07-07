@@ -157,7 +157,10 @@ sampler.restored$storeState()
 expect_true(statesAgree(sampler.restored$state, sampler.state$state))
 
 # the mutable-data surface stays live under gp leaves, including the
-# designated column itself
+# designated column itself: a mutated sampler's continued fit agrees with
+# a from-scratch fit of the mutated data (setPredictor re-quantizes
+# differently from a fresh build, so the comparison is statistical, not
+# identical), and the live trees stay well-formed
 set.seed(1)
 sampler.mut <- dbarts(
   y ~ x1 + x2,
@@ -168,8 +171,27 @@ sampler.mut <- dbarts(
 invisible(sampler.mut$run(50L, 5L))
 x1.new <- pmin(df$x1 * 1.1, 1)
 expect_silent(sampler.mut$setPredictor(x1.new, "x1", forceUpdate = TRUE))
-more <- sampler.mut$run(0L, 5L)
-expect_true(all(is.finite(more$train)))
+more <- sampler.mut$run(0L, 200L)
+fits.mut <- rowMeans(more$train)
+liveTrees <- sampler.mut$getTrees(current = TRUE)
+expect_true(
+  all(is.na(liveTrees$value[liveTrees$var == -1L])) &&
+    all(!is.na(liveTrees$value[liveTrees$var > 0L]))
+)
+
+df.mut <- df
+df.mut$x1 <- x1.new
+set.seed(101)
+sampler.fresh <- dbarts(
+  y ~ x1 + x2,
+  df.mut,
+  node.prior = gp("x1", max.leaf.size = 100L),
+  control = control
+)
+fits.fresh <- rowMeans(sampler.fresh$run(150L, 200L)$train)
+# rmse between independently-seeded fits of the same mutated data, 30
+# seeds: mean 0.084, sd 0.0093; bound clears mean + 4 sd (0.121)
+expect_true(sqrt(mean((fits.mut - fits.fresh)^2)) < 0.15)
 
 # a probit response composes with gp leaves under an explicit fixed k
 set.seed(2)
@@ -256,10 +278,14 @@ rm(
   sampler.state,
   sampler.restored,
   sampler.mut,
+  sampler.fresh,
   sampler.binary,
   samples,
   samples.binary,
   more,
+  fits.mut,
+  fits.fresh,
+  liveTrees,
   trees,
   predictions,
   fits,
@@ -277,6 +303,7 @@ rm(
   samples.fold,
   xbart.gp,
   df,
+  df.mut,
   df.binary,
   x1,
   x2,
