@@ -207,10 +207,70 @@ struct ChainStateData {
   std::vector<unsigned char> rngState;
 };
 
-/// One MCMC chain of the conjugate backfitting sampler: trees, fits, chain
-/// parameters, and its own response state and rng, over a shared read-only
-/// ColumnStore. Data mutation is orchestrated one level up (Sampler), which
-/// calls the tree-refresh methods here; a chain never writes to the store.
+/// One ensemble of the backfitting sampler: its trees, their fits and working
+/// residual, the leaf model, the split selector, and the per-forest prior and
+/// options. A Chain holds one-or-more (BCF combines a prognostic and a
+/// treatment forest); everything a Forest omits - the rng, the response model,
+/// sigma, and the shared store - is chain-level and passed in by the methods
+/// that drive it.
+template <IntegrableLeafModel L>
+struct Forest {
+  // per-forest options: tree count, tree-move probabilities, the k
+  // hyperprior, and whether the split selector is DART
+  size_t numTrees = 200;
+  double birthOrDeathProbability = 0.5;
+  double swapProbability = 0.1;
+  double changeProbability = 0.4;
+  double birthProbability = 0.5;
+  bool updateK = false;
+  ChiKHyperprior kHyperprior;
+  bool useDart = false;
+
+  L leaf;
+  CGMTreePrior treePrior;
+  DartPrior dart;
+  std::vector<double> fixedSplitProbabilities;
+  std::vector<std::uint32_t> splitCounts;
+
+  // k is fixed unless updateK; the two accumulators gather the leaf sum of
+  // squares and count over a sweep, feeding the k hyperprior draw
+  double k = 2.0;
+  double kSumSquaredParams = 0.0;
+  double kNumLeaves = 0.0;
+
+  std::vector<Tree> trees;
+  std::vector<size_t> indexBuffer;
+  std::vector<double> treeFits;
+  std::vector<double> totalFits, totalTestFits;
+  std::vector<double> treeY, currTestFits;
+  std::vector<double> paramByNode;
+  // vector-parameter leaves: each live tree's parameter blocks, arena-
+  // indexed with stride numParams and kept consistent with the tree's
+  // structure between sweeps (fits are no longer constant per leaf, so
+  // parameters persist instead of being recovered); savedTreeParams holds
+  // the slopes of each saved tree, parallel to savedTrees. Both stay empty
+  // for scalar leaf models.
+  std::vector<std::vector<double>> paramsByTree;
+  MoveScratch scratch;
+
+  // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
+  // each one kept sample's forest in flattened form (slot-major, capacity x
+  // numTrees). The slot base is set by the sampler before every run so
+  // chains write consistent slots without sharing mutable state.
+  std::vector<std::vector<FlatNode>> savedTrees;
+  std::vector<std::vector<double>> savedTreeParams;
+  // pooled categorical columns (> 63 levels): each saved tree's flattened
+  // mask words, parallel to savedTrees; empty otherwise
+  std::vector<std::vector<std::uint64_t>> savedTreeMasks;
+  size_t savedTreeCapacity = 0;
+  size_t savedSlotBase = 0;
+};
+
+/// One MCMC chain of the conjugate backfitting sampler: one-or-more forests
+/// (trees, fits, per-forest prior), and its own response state and rng, over
+/// a shared read-only ColumnStore. Data mutation is orchestrated one level up
+/// (Sampler), which calls the tree-refresh methods here; a chain never writes
+/// to the store.
 ///
 /// The three leaf shapes (scalar, vector, function-valued parameters) each
 /// discriminate in exactly one method per concern. Adding a leaf shape
@@ -237,13 +297,24 @@ public:
     options_.maxNumCutsPerVariable = nullptr;  // consumed by the store build
     options_.columnTypes = nullptr;
 
+    forests_.emplace_back();
+    Forest<L>& forest = forests_.back();
+    forest.numTrees = options.numTrees;
+    forest.birthOrDeathProbability = options.birthOrDeathProbability;
+    forest.swapProbability = options.swapProbability;
+    forest.changeProbability = options.changeProbability;
+    forest.birthProbability = options.birthProbability;
+    forest.updateK = options.updateK;
+    forest.kHyperprior = options.kHyperprior;
+    forest.useDart = options.useDart;
+
     if constexpr (L::hasVectorParams)
-      leaf_.initialize(data, options.leafCovariateColumns,
-                       options.numLeafCovariates);
+      forest.leaf.initialize(data, options.leafCovariateColumns,
+                             options.numLeafCovariates);
     else if constexpr (L::hasFunctionParams)
-      leaf_.initialize(data, options.leafCovariateColumns,
-                       options.numLeafCovariates, options.gpLengthscales,
-                       options.gpMaxLeafSize, options.numChains);
+      forest.leaf.initialize(data, options.leafCovariateColumns,
+                             options.numLeafCovariates, options.gpLengthscales,
+                             options.gpMaxLeafSize, options.numChains);
     options_.leafCovariateColumns = nullptr;  // consumed above
     options_.gpLengthscales = nullptr;
 
@@ -270,41 +341,41 @@ public:
         options.tauSliceSteps, rng);
     options_.groupIndices = nullptr;  // consumed above
 
-    leaf_.scale =
-      options.nodeScale / std::sqrt(static_cast<double>(options.numTrees));
-    treePrior_.base = options.base;
-    treePrior_.power = options.power;
+    forest.leaf.scale =
+      options.nodeScale / std::sqrt(static_cast<double>(forest.numTrees));
+    forest.treePrior.base = options.base;
+    forest.treePrior.power = options.power;
     family_ = family;
     sigmaIsFixed_ = family != ResponseFamily::gaussian || options.sigmaIsFixed;
 
     if (options.useDart) {
-      dart_ = options.dart;
-      dart_.initialize(data.numPredictors);
-      treePrior_.splitProbabilities = dart_.probabilities.data();
-      splitCounts_.resize(data.numPredictors);
+      forest.dart = options.dart;
+      forest.dart.initialize(data.numPredictors);
+      forest.treePrior.splitProbabilities = forest.dart.probabilities.data();
+      forest.splitCounts.resize(data.numPredictors);
     } else if (options.splitProbabilities != nullptr) {
-      fixedSplitProbabilities_.assign(
+      forest.fixedSplitProbabilities.assign(
         options.splitProbabilities,
         options.splitProbabilities + data.numPredictors);
-      treePrior_.splitProbabilities = fixedSplitProbabilities_.data();
+      forest.treePrior.splitProbabilities = forest.fixedSplitProbabilities.data();
     }
 
     sigma_ = response_->initialSigma();
-    k_ = options.k;
+    forest.k = options.k;
 
-    indexBuffer_.resize(numObservations * options.numTrees);
-    trees_.resize(options.numTrees);
-    for (size_t t = 0; t < options.numTrees; ++t)
-      trees_[t].initialize(indexBuffer_.data() + t * numObservations,
-                           numObservations);
+    forest.indexBuffer.resize(numObservations * forest.numTrees);
+    forest.trees.resize(forest.numTrees);
+    for (size_t t = 0; t < forest.numTrees; ++t)
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * numObservations,
+                                 numObservations);
 
-    treeFits_.assign(numObservations * options.numTrees, 0.0);
-    totalFits_.assign(numObservations, 0.0);
-    treeY_.resize(numObservations);
-    paramByNode_.clear();
+    forest.treeFits.assign(numObservations * forest.numTrees, 0.0);
+    forest.totalFits.assign(numObservations, 0.0);
+    forest.treeY.resize(numObservations);
+    forest.paramByNode.clear();
     if constexpr (L::hasVectorParams)
-      paramsByTree_.assign(options.numTrees,
-                           std::vector<double>(leaf_.numParams(), 0.0));
+      forest.paramsByTree.assign(forest.numTrees,
+                                 std::vector<double>(forest.leaf.numParams(), 0.0));
     resizeTestStorage();
   }
 
@@ -318,10 +389,12 @@ public:
 
   /// Called after the shared store's test data changes.
   void resizeTestStorage() {
-    totalTestFits_.assign(data_.numTestObservations, 0.0);
-    currTestFits_.resize(data_.numTestObservations);
-    if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leaf_.rebuildTestCovariates(data_);
+    for (Forest<L>& forest : forests_) {
+      forest.totalTestFits.assign(data_.numTestObservations, 0.0);
+      forest.currTestFits.resize(data_.numTestObservations);
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
+        forest.leaf.rebuildTestCovariates(data_);
+    }
   }
 
   /// One thinning-free run; results slots may be null to skip recording.
@@ -371,105 +444,114 @@ public:
         progress->report(line);
       }
 
-      MoveContext ctx{data_,
-                      treePrior_,
-                      options_.birthOrDeathProbability,
-                      options_.swapProbability,
-                      options_.changeProbability,
-                      options_.birthProbability,
-                      weights,
-                      k_,
-                      scratch_};
+      for (Forest<L>& forest : forests_) {
+        MoveContext ctx{data_,
+                        forest.treePrior,
+                        forest.birthOrDeathProbability,
+                        forest.swapProbability,
+                        forest.changeProbability,
+                        forest.birthProbability,
+                        weights,
+                        forest.k,
+                        forest.scratch};
 
-      kSumSquaredParams_ = 0.0;
-      kNumLeaves_ = 0.0;
-
-      if (record && data_.numTestObservations > 0)
-        misc_setVectorToConstant(totalTestFits_.data(),
-                                 data_.numTestObservations, 0.0);
-
-      // treeY_ carries a running residual across the sweep: entering tree
-      // t's body it holds y minus every other tree's current fits (new for
-      // trees already drawn, old for the rest) - exactly the residual tree
-      // t owns - so the draw can overwrite the slab in place. One fused
-      // pass per tree retires the previous tree's new fits and admits this
-      // tree's old ones; totalFits_ is stale until rebuilt after the loop.
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        double* treeFits = treeFits_.data() + t * n;
-
-        if (t == 0) {
-          const double* __restrict y_ = y;
-          const double* __restrict total = totalFits_.data();
-          const double* __restrict oldFits = treeFits;
-          double* __restrict resid = treeY_.data();
-          for (size_t i = 0; i < n; ++i)
-            resid[i] = y_[i] - total[i] + oldFits[i];
-        } else {
-          const double* __restrict prevFits = treeFits - n;
-          const double* __restrict oldFits = treeFits;
-          double* __restrict resid = treeY_.data();
-          for (size_t i = 0; i < n; ++i)
-            resid[i] += oldFits[i] - prevFits[i];
-        }
-
-        // constant-leaf node means, recomputed against this sweep's residual
-        if constexpr (leafTracksNodeAverages)
-          trees_[t].setNodeAverages(treeY_.data(), weights);
-
-        bool stepTaken;
-        StepType stepType;
-        metropolisJumpForTree(ctx, leaf_, rng_, trees_[t], treeY_.data(), sigma_,
-                              &stepTaken, &stepType);
-        // accepted changes and deaths strand pooled mask words; no rule
-        // copies are live here, so this is a safe point to reclaim them
-        if (data_.hasPooledCategorical)
-          trees_[t].compactMaskPoolIfNeeded(data_);
-
-        // the draw writes this tree's new fits straight into its slab
-        sampleParametersAndSetFits(t, treeFits, record);
-
-        // flatten while the freshly drawn parameters are live
-        if (record && savedTreeCapacity_ > 0)
-          storeSavedTreeRecord(
-            t, (savedSlotBase_ + sampleNum) % savedTreeCapacity_, treeFits);
+        forest.kSumSquaredParams = 0.0;
+        forest.kNumLeaves = 0.0;
 
         if (record && data_.numTestObservations > 0)
-          misc_addVectorsInPlace(currTestFits_.data(), data_.numTestObservations,
-                                 totalTestFits_.data());
+          misc_setVectorToConstant(forest.totalTestFits.data(),
+                                   data_.numTestObservations, 0.0);
+
+        // treeY carries a running residual across the sweep: entering tree
+        // t's body it holds y minus every other tree's current fits (new for
+        // trees already drawn, old for the rest) - exactly the residual tree
+        // t owns - so the draw can overwrite the slab in place. One fused
+        // pass per tree retires the previous tree's new fits and admits this
+        // tree's old ones; totalFits is stale until rebuilt after the loop.
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          double* treeFits = forest.treeFits.data() + t * n;
+
+          if (t == 0) {
+            const double* __restrict y_ = y;
+            const double* __restrict total = forest.totalFits.data();
+            const double* __restrict oldFits = treeFits;
+            double* __restrict resid = forest.treeY.data();
+            for (size_t i = 0; i < n; ++i)
+              resid[i] = y_[i] - total[i] + oldFits[i];
+          } else {
+            const double* __restrict prevFits = treeFits - n;
+            const double* __restrict oldFits = treeFits;
+            double* __restrict resid = forest.treeY.data();
+            for (size_t i = 0; i < n; ++i)
+              resid[i] += oldFits[i] - prevFits[i];
+          }
+
+          // constant-leaf node means, recomputed against this sweep's residual
+          if constexpr (leafTracksNodeAverages)
+            forest.trees[t].setNodeAverages(forest.treeY.data(), weights);
+
+          bool stepTaken;
+          StepType stepType;
+          metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
+                                forest.treeY.data(), sigma_, &stepTaken,
+                                &stepType);
+          // accepted changes and deaths strand pooled mask words; no rule
+          // copies are live here, so this is a safe point to reclaim them
+          if (data_.hasPooledCategorical)
+            forest.trees[t].compactMaskPoolIfNeeded(data_);
+
+          // the draw writes this tree's new fits straight into its slab
+          sampleParametersAndSetFits(forest, t, treeFits, record);
+
+          // flatten while the freshly drawn parameters are live
+          if (record && forest.savedTreeCapacity > 0)
+            storeSavedTreeRecord(
+              forest, t,
+              (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity,
+              treeFits);
+
+          if (record && data_.numTestObservations > 0)
+            misc_addVectorsInPlace(forest.currTestFits.data(),
+                                   data_.numTestObservations,
+                                   forest.totalTestFits.data());
+        }
+
+        // rebuild the running total for the latent/sigma updates and
+        // recording: the residual still includes the last tree's slab, whose
+        // new fits retire here instead of in a pass of their own
+        if (forest.numTrees > 0) {
+          const size_t last = forest.numTrees - 1;
+          const double* __restrict y_ = y;
+          const double* __restrict resid = forest.treeY.data();
+          const double* __restrict lastFits = forest.treeFits.data() + last * n;
+          double* __restrict total = forest.totalFits.data();
+          for (size_t i = 0; i < n; ++i)
+            total[i] = y_[i] - resid[i] + lastFits[i];
+        }
       }
 
-      // rebuild the running total for the latent/sigma updates and
-      // recording: the residual still includes the last tree's slab, whose
-      // new fits retire here instead of in a pass of their own
-      if (options_.numTrees > 0) {
-        const size_t last = options_.numTrees - 1;
-        const double* __restrict y_ = y;
-        const double* __restrict resid = treeY_.data();
-        const double* __restrict lastFits = treeFits_.data() + last * n;
-        double* __restrict total = totalFits_.data();
-        for (size_t i = 0; i < n; ++i)
-          total[i] = y_[i] - resid[i] + lastFits[i];
-      }
-
-      response_->refreshLatents(rng_, totalFits_.data(), sigma_);
+      response_->refreshLatents(rng_, forests_[0].totalFits.data(), sigma_);
       y = response_->workingResponse();
       weights = response_->workingWeights();
 
       if (!sigmaIsFixed_)
-        sigma_ = response_->drawSigma(rng_, totalFits_.data(), sigma_);
+        sigma_ = response_->drawSigma(rng_, forests_[0].totalFits.data(),
+                                      sigma_);
 
-      // a zero sum of squares under an infinite prior scale would make the
-      // gamma rate zero and k infinite; with no information, keep k
-      if (options_.updateK && kSumSquaredParams_ > 0.0)
-        k_ = options_.kHyperprior.draw(rng_, kSumSquaredParams_, kNumLeaves_,
-                                       leaf_.scale);
+      for (Forest<L>& forest : forests_) {
+        // a zero sum of squares under an infinite prior scale would make the
+        // gamma rate zero and k infinite; with no information, keep k
+        if (forest.updateK && forest.kSumSquaredParams > 0.0)
+          forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
+                                             forest.kNumLeaves, forest.leaf.scale);
 
-      if (options_.useDart) {
-        std::memset(splitCounts_.data(), 0,
-                    splitCounts_.size() * sizeof(std::uint32_t));
-        for (size_t t = 0; t < options_.numTrees; ++t)
-          trees_[t].countVariableUses(splitCounts_.data());
-        dart_.update(rng_, splitCounts_.data());
+        if (forest.useDart) {
+          std::memset(forest.splitCounts.data(), 0,
+                      forest.splitCounts.size() * sizeof(std::uint32_t));
+          for (size_t t = 0; t < forest.numTrees; ++t)
+            forest.trees[t].countVariableUses(forest.splitCounts.data());
+          forest.dart.update(rng_, forest.splitCounts.data());
+        }
       }
 
       if (record) storeSample(results, sampleNum);
@@ -486,7 +568,8 @@ public:
     response_->setWeights(weights);
   }
   void setResponse(const double* y, bool updateScale) {
-    response_->setResponse(y, rng_, totalFits_.data(), updateScale, &sigma_);
+    response_->setResponse(y, rng_, forests_[0].totalFits.data(), updateScale,
+                           &sigma_);
   }
   void setSigma(double sigmaOriginalScale) {
     sigma_ = sigmaOriginalScale / response_->sigmaScale();
@@ -505,20 +588,21 @@ public:
   /// Install a replacement prior (the classic engine's setModel); see
   /// ModelParameters for the semantics.
   void setModel(const ModelParameters& model) {
-    treePrior_.base = model.base;
-    treePrior_.power = model.power;
-    options_.birthOrDeathProbability = model.birthOrDeathProbability;
-    options_.swapProbability = model.swapProbability;
-    options_.changeProbability = model.changeProbability;
-    options_.birthProbability = model.birthProbability;
-    leaf_.scale =
-      model.nodeScale / std::sqrt(static_cast<double>(options_.numTrees));
+    Forest<L>& forest = forests_[0];
+    forest.treePrior.base = model.base;
+    forest.treePrior.power = model.power;
+    forest.birthOrDeathProbability = model.birthOrDeathProbability;
+    forest.swapProbability = model.swapProbability;
+    forest.changeProbability = model.changeProbability;
+    forest.birthProbability = model.birthProbability;
+    forest.leaf.scale =
+      model.nodeScale / std::sqrt(static_cast<double>(forest.numTrees));
 
-    options_.updateK = model.updateK;
+    forest.updateK = model.updateK;
     if (model.updateK) {
-      options_.kHyperprior = model.kHyperprior;
+      forest.kHyperprior = model.kHyperprior;
     } else {
-      k_ = model.k;
+      forest.k = model.k;
     }
 
     if (family_ == ResponseFamily::gaussian) {
@@ -530,15 +614,16 @@ public:
                                  model.sigmaRawScale);
     }
 
-    if (!options_.useDart) {
+    if (!forest.useDart) {
       if (model.splitProbabilities == nullptr) {
-        fixedSplitProbabilities_.clear();
-        treePrior_.splitProbabilities = nullptr;
+        forest.fixedSplitProbabilities.clear();
+        forest.treePrior.splitProbabilities = nullptr;
       } else {
-        fixedSplitProbabilities_.assign(
+        forest.fixedSplitProbabilities.assign(
           model.splitProbabilities,
           model.splitProbabilities + data_.numPredictors);
-        treePrior_.splitProbabilities = fixedSplitProbabilities_.data();
+        forest.treePrior.splitProbabilities =
+          forest.fixedSplitProbabilities.data();
       }
     }
   }
@@ -547,7 +632,8 @@ public:
   /// scale (binary families report on the latent scale).
   double sumOfSquaredResiduals() {
     double result = misc_computeSumOfSquaredResiduals(
-      response_->workingResponse(), data_.numObservations, totalFits_.data());
+      response_->workingResponse(), data_.numObservations,
+      forests_[0].totalFits.data());
     return result * response_->sigmaScale() * response_->sigmaScale();
   }
 
@@ -560,72 +646,79 @@ public:
     const double* y = response_->workingResponse();
     const double* weights = response_->workingWeights();
     std::vector<double> paramByNode;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      trees_[t].initialize(indexBuffer_.data() + t * n, n);
-      growSubtreeFromPrior(trees_[t], 0, y, weights);
-      paramByNode.assign(trees_[t].nodes.size(), 0.0);
-      trees_[t].collapseEmptyNodes(data_, weights, paramByNode);
-      // fresh structures carry zero parameter blocks until the next draw
-      if constexpr (L::hasVectorParams)
-        paramsByTree_[t].assign(trees_[t].nodes.size() * leaf_.numParams(),
-                                0.0);
-    }
+    for (Forest<L>& forest : forests_)
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+        growSubtreeFromPrior(forest, forest.trees[t], 0, y, weights);
+        paramByNode.assign(forest.trees[t].nodes.size(), 0.0);
+        forest.trees[t].collapseEmptyNodes(data_, weights, paramByNode);
+        // fresh structures carry zero parameter blocks until the next draw
+        if constexpr (L::hasVectorParams)
+          forest.paramsByTree[t].assign(
+            forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
+      }
   }
 
   /// Replace every leaf parameter with a draw from the node prior and
   /// rebuild the tree, total, and test fits to match.
   void sampleNodeParametersFromPrior() {
     size_t n = data_.numObservations;
-    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
-    if (data_.numTestObservations > 0)
-      misc_setVectorToConstant(totalTestFits_.data(),
-                               data_.numTestObservations, 0.0);
+    for (Forest<L>& forest : forests_) {
+      misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+      if (data_.numTestObservations > 0)
+        misc_setVectorToConstant(forest.totalTestFits.data(),
+                                 data_.numTestObservations, 0.0);
 
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      Tree& tree(trees_[t]);
-      tree.bottomScratch.clear();
-      tree.fillBottom(0, tree.bottomScratch);
-      if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
-        paramByNode_.assign(tree.nodes.size(), 0.0);
-        for (int32_t i : tree.bottomScratch)
-          paramByNode_[static_cast<size_t>(i)] = leaf_.drawFromPrior(rng_, k_);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        Tree& tree(forest.trees[t]);
+        tree.bottomScratch.clear();
+        tree.fillBottom(0, tree.bottomScratch);
+        if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
+          forest.paramByNode.assign(tree.nodes.size(), 0.0);
+          for (int32_t i : tree.bottomScratch)
+            forest.paramByNode[static_cast<size_t>(i)] =
+              forest.leaf.drawFromPrior(rng_, forest.k);
 
-        setTreeFitsFromParameters(t, paramByNode_);
-        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-        routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          totalTestFits_[i] += paramByNode_[static_cast<size_t>(leafIndex)];
-        });
-      } else if constexpr (L::hasFunctionParams) {
-        // prior fits land directly in the tree's fit slab; the per-node
-        // prediction cache serves the routed test rows
-        double* treeFits = treeFits_.data() + t * n;
-        leaf_.beginTreeDraw(tree);
-        for (int32_t i : tree.bottomScratch)
-          leaf_.drawFromPriorForNode(rng_, tree, k_, i, treeFits);
-        misc_addVectorsInPlace(treeFits, n, totalFits_.data());
-        routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          totalTestFits_[i] +=
-            leaf_.fitForTestObservationForNode(tree, leafIndex, i);
-        });
-      } else {
-        size_t numParams = leaf_.numParams();
-        std::vector<double>& treeParams(paramsByTree_[t]);
-        treeParams.assign(tree.nodes.size() * numParams, 0.0);
-        for (int32_t i : tree.bottomScratch)
-          leaf_.drawFromPrior(rng_, k_,
-                              treeParams.data() +
-                                static_cast<size_t>(i) * numParams);
+          setTreeFitsFromParameters(forest, t, forest.paramByNode);
+          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                 forest.totalFits.data());
+          routeTestRows(data_.numTestObservations, [&](size_t i) {
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            forest.totalTestFits[i] +=
+              forest.paramByNode[static_cast<size_t>(leafIndex)];
+          });
+        } else if constexpr (L::hasFunctionParams) {
+          // prior fits land directly in the tree's fit slab; the per-node
+          // prediction cache serves the routed test rows
+          double* treeFits = forest.treeFits.data() + t * n;
+          forest.leaf.beginTreeDraw(tree);
+          for (int32_t i : tree.bottomScratch)
+            forest.leaf.drawFromPriorForNode(rng_, tree, forest.k, i, treeFits);
+          misc_addVectorsInPlace(treeFits, n, forest.totalFits.data());
+          routeTestRows(data_.numTestObservations, [&](size_t i) {
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            forest.totalTestFits[i] +=
+              forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
+          });
+        } else {
+          size_t numParams = forest.leaf.numParams();
+          std::vector<double>& treeParams(forest.paramsByTree[t]);
+          treeParams.assign(tree.nodes.size() * numParams, 0.0);
+          for (int32_t i : tree.bottomScratch)
+            forest.leaf.drawFromPrior(rng_, forest.k,
+                                      treeParams.data() +
+                                        static_cast<size_t>(i) * numParams);
 
-        setTreeFitsFromParameterBlocks(t, treeParams);
-        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-        routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          totalTestFits_[i] += leaf_.fitForTestObservation(
-            treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
-            i);
-        });
+          setTreeFitsFromParameterBlocks(forest, t, treeParams);
+          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                 forest.totalFits.data());
+          routeTestRows(data_.numTestObservations, [&](size_t i) {
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            forest.totalTestFits[i] += forest.leaf.fitForTestObservation(
+              treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
+              i);
+          });
+        }
       }
     }
   }
@@ -640,11 +733,12 @@ public:
   /// fits for scalar leaves, copied from the persisted blocks for vector
   /// ones; function-valued leaves keep their per-observation fits in place,
   /// so nothing is recovered.
-  void recoverLeafParameters(size_t t, std::vector<double>& params) {
+  void recoverLeafParameters(Forest<L>& forest, size_t t,
+                             std::vector<double>& params) {
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams)
-      recoverParametersFromFits(t, params);
+      recoverParametersFromFits(forest, t, params);
     else if constexpr (L::hasVectorParams)
-      params = paramsByTree_[t];
+      params = forest.paramsByTree[t];
     else
       params.clear();
   }
@@ -652,13 +746,14 @@ public:
   /// Rewrites tree t's fit slab from recovered parameters, persisting them
   /// for vector leaves; not a function-leaf flow (their fits ARE the
   /// parameters and every caller handles them separately).
-  void setTreeFits(size_t t, const std::vector<double>& params) {
+  void setTreeFits(Forest<L>& forest, size_t t,
+                   const std::vector<double>& params) {
     static_assert(!L::hasFunctionParams);
     if constexpr (!L::hasVectorParams) {
-      setTreeFitsFromParameters(t, params);
+      setTreeFitsFromParameters(forest, t, params);
     } else {
-      paramsByTree_[t] = params;
-      setTreeFitsFromParameterBlocks(t, params);
+      forest.paramsByTree[t] = params;
+      setTreeFitsFromParameterBlocks(forest, t, params);
     }
   }
 
@@ -668,12 +763,13 @@ public:
   /// tree against the store's current codes, and report whether all leaves
   /// stay occupied.
   bool revalidateTrees(TreeParameters& params) {
-    params.resize(options_.numTrees);
+    Forest<L>& forest = forests_[0];
+    params.resize(forest.numTrees);
     bool allValid = true;
-    for (size_t t = 0; t < options_.numTrees && allValid; ++t) {
-      recoverLeafParameters(t, params[t]);
-      trees_[t].repartitionSubtree(data_, 0);
-      allValid = trees_[t].bottomNodesAreOccupied();
+    for (size_t t = 0; t < forest.numTrees && allValid; ++t) {
+      recoverLeafParameters(forest, t, params[t]);
+      forest.trees[t].repartitionSubtree(data_, 0);
+      allValid = forest.trees[t].bottomNodesAreOccupied();
     }
     return allValid;
   }
@@ -685,20 +781,21 @@ public:
   /// per-observation fits are the parameters and stay in place (the next
   /// sweep's draws replace them under the new values).
   void rebuildFitsFromParameters(const TreeParameters& params) {
+    Forest<L>& forest = forests_[0];
     dropStaleMissingDirections();
     if constexpr (L::hasFunctionParams) {
       (void) params;
-      leaf_.regatherTrainingCovariates(data_);
+      forest.leaf.regatherTrainingCovariates(data_);
     } else {
       // vector leaves read raw covariate values: pick up the installed ones
       if constexpr (L::hasVectorParams)
-        leaf_.regatherTrainingCovariates(data_);
+        forest.leaf.regatherTrainingCovariates(data_);
       size_t n = data_.numObservations;
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        double* treeFits = treeFits_.data() + t * n;
-        misc_subtractVectorsInPlace(treeFits, n, totalFits_.data());
-        setTreeFits(t, params[t]);
-        misc_addVectorsInPlace(treeFits, n, totalFits_.data());
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        double* treeFits = forest.treeFits.data() + t * n;
+        misc_subtractVectorsInPlace(treeFits, n, forest.totalFits.data());
+        setTreeFits(forest, t, params[t]);
+        misc_addVectorsInPlace(treeFits, n, forest.totalFits.data());
       }
     }
   }
@@ -706,20 +803,23 @@ public:
   /// Rollback re-route: restore partitions consistent with the store after
   /// the sampler has restored its old codes.
   void repartitionTrees() {
-    // the restored raw values re-gather to exactly the old covariates
-    if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leaf_.regatherTrainingCovariates(data_);
-    for (size_t t = 0; t < options_.numTrees; ++t)
-      trees_[t].repartitionSubtree(data_, 0);
+    for (Forest<L>& forest : forests_) {
+      // the restored raw values re-gather to exactly the old covariates
+      if constexpr (L::hasVectorParams || L::hasFunctionParams)
+        forest.leaf.regatherTrainingCovariates(data_);
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].repartitionSubtree(data_, 0);
+    }
   }
 
   /// First phase of a whole-data replacement: recover every tree's leaf
   /// parameters against the current fits and partitions, before the store or
   /// any per-observation storage moves.
   void recoverTreeParameters(TreeParameters& params) {
-    params.resize(options_.numTrees);
-    for (size_t t = 0; t < options_.numTrees; ++t)
-      recoverLeafParameters(t, params[t]);
+    Forest<L>& forest = forests_[0];
+    params.resize(forest.numTrees);
+    for (size_t t = 0; t < forest.numTrees; ++t)
+      recoverLeafParameters(forest, t, params[t]);
   }
 
   /// Second phase, after the shared store holds the new predictors and
@@ -731,19 +831,21 @@ public:
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
                     TreeParameters& params) {
+    Forest<L>& forest = forests_[0];
     size_t n = data_.numObservations;
-    bool numObservationsChanged = n * options_.numTrees != indexBuffer_.size();
+    bool numObservationsChanged =
+      n * forest.numTrees != forest.indexBuffer.size();
 
     weights_ = weights;
     response_->setData(y, offset, weights, n, &sigma_);
 
     if (numObservationsChanged) {
-      indexBuffer_.resize(n * options_.numTrees);
-      treeFits_.resize(n * options_.numTrees);
-      totalFits_.resize(n);
-      treeY_.resize(n);
+      forest.indexBuffer.resize(n * forest.numTrees);
+      forest.treeFits.resize(n * forest.numTrees);
+      forest.totalFits.resize(n);
+      forest.treeY.resize(n);
     }
-    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
+    misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
 
     // fresh standardization constants over the replacement data, like the
     // rebuilt cut grid; the persisted parameters carry over as-is, the same
@@ -752,30 +854,31 @@ public:
     // cold-start at zero instead (the next sweep's draws replace them);
     // structures still carry through the split remap.
     if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leaf_.reinitialize(data_);
+      forest.leaf.reinitialize(data_);
     if constexpr (L::hasFunctionParams)
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        params[t].assign(trees_[t].nodes.size(), 0.0);
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        params[t].assign(forest.trees[t].nodes.size(), 0.0);
 
     size_t paramStride = 1;
-    if constexpr (L::hasVectorParams) paramStride = leaf_.numParams();
+    if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
 
     dropStaleMissingDirections();
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      trees_[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
-                                       paramStride);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      forest.trees[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
+                                             paramStride);
       if (numObservationsChanged)
-        trees_[t].resetObservations(indexBuffer_.data() + t * n, n);
-      trees_[t].repartitionSubtree(data_, 0);
-      trees_[t].collapseEmptyNodes(data_, response_->workingWeights(), params[t],
-                                   paramStride);
+        forest.trees[t].resetObservations(forest.indexBuffer.data() + t * n, n);
+      forest.trees[t].repartitionSubtree(data_, 0);
+      forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                         params[t], paramStride);
       if constexpr (!L::hasVectorParams) {
-        setTreeFitsFromParameters(t, params[t]);
+        setTreeFitsFromParameters(forest, t, params[t]);
       } else {
-        paramsByTree_[t] = params[t];
-        setTreeFitsFromParameterBlocks(t, params[t]);
+        forest.paramsByTree[t] = params[t];
+        setTreeFitsFromParameterBlocks(forest, t, params[t]);
       }
-      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                             forest.totalFits.data());
     }
 
     resizeTestStorage();
@@ -784,8 +887,9 @@ public:
   /// After a data mutation re-quantizes the store, drop every tree's stale
   /// missing directions so the live masks stay within the reachable gauge.
   void dropStaleMissingDirections() {
-    for (size_t t = 0; t < options_.numTrees; ++t)
-      trees_[t].dropStaleMissingDirections(data_);
+    for (Forest<L>& forest : forests_)
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].dropStaleMissingDirections(data_);
   }
 
   /// Unconditional refresh: re-route and collapse any node an empty leaf
@@ -795,37 +899,43 @@ public:
   void forceRefreshTrees() {
     size_t n = data_.numObservations;
     dropStaleMissingDirections();
-    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
 
-    if constexpr (L::hasFunctionParams) {
-      leaf_.regatherTrainingCovariates(data_);
-      std::vector<double> dummyParams;
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        trees_[t].repartitionSubtree(data_, 0);
-        dummyParams.assign(trees_[t].nodes.size(), 0.0);
-        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
-                                     dummyParams);
-        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-      }
-    } else if constexpr (!L::hasVectorParams) {
-      std::vector<double> paramByNode;
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        recoverParametersFromFits(t, paramByNode);
-        trees_[t].repartitionSubtree(data_, 0);
-        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
-                                     paramByNode);
-        setTreeFitsFromParameters(t, paramByNode);
-        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-      }
-    } else {
-      leaf_.regatherTrainingCovariates(data_);
-      size_t numParams = leaf_.numParams();
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        trees_[t].repartitionSubtree(data_, 0);
-        trees_[t].collapseEmptyNodes(data_, response_->workingWeights(),
-                                     paramsByTree_[t], numParams);
-        setTreeFitsFromParameterBlocks(t, paramsByTree_[t]);
-        misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+    for (Forest<L>& forest : forests_) {
+      misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+
+      if constexpr (L::hasFunctionParams) {
+        forest.leaf.regatherTrainingCovariates(data_);
+        std::vector<double> dummyParams;
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          forest.trees[t].repartitionSubtree(data_, 0);
+          dummyParams.assign(forest.trees[t].nodes.size(), 0.0);
+          forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                             dummyParams);
+          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                 forest.totalFits.data());
+        }
+      } else if constexpr (!L::hasVectorParams) {
+        std::vector<double> paramByNode;
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          recoverParametersFromFits(forest, t, paramByNode);
+          forest.trees[t].repartitionSubtree(data_, 0);
+          forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                             paramByNode);
+          setTreeFitsFromParameters(forest, t, paramByNode);
+          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                 forest.totalFits.data());
+        }
+      } else {
+        forest.leaf.regatherTrainingCovariates(data_);
+        size_t numParams = forest.leaf.numParams();
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          forest.trees[t].repartitionSubtree(data_, 0);
+          forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
+                                             forest.paramsByTree[t], numParams);
+          setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
+          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                 forest.totalFits.data());
+        }
       }
     }
   }
@@ -836,36 +946,43 @@ public:
   // sharing mutable state.
 
   void initializeSavedTrees(size_t capacity) {
-    savedTreeCapacity_ = capacity;
-    savedTrees_.assign(capacity * options_.numTrees,
-                       std::vector<FlatNode>(1));
-    // the default slot is a single zero leaf; its slopes are zero too, and
-    // a function-valued slot holds one zero-constant block
-    if constexpr (L::hasVectorParams)
-      savedTreeParams_.assign(
-        capacity * options_.numTrees,
-        std::vector<double>(leaf_.numParams() - 1, 0.0));
-    else if constexpr (L::hasFunctionParams)
-      savedTreeParams_.assign(capacity * options_.numTrees,
-                              std::vector<double>{0.0, 0.0});
-    if (data_.hasPooledCategorical)
-      savedTreeMasks_.assign(capacity * options_.numTrees,
-                             std::vector<std::uint64_t>());
+    for (Forest<L>& forest : forests_) {
+      forest.savedTreeCapacity = capacity;
+      forest.savedTrees.assign(capacity * forest.numTrees,
+                               std::vector<FlatNode>(1));
+      // the default slot is a single zero leaf; its slopes are zero too, and
+      // a function-valued slot holds one zero-constant block
+      if constexpr (L::hasVectorParams)
+        forest.savedTreeParams.assign(
+          capacity * forest.numTrees,
+          std::vector<double>(forest.leaf.numParams() - 1, 0.0));
+      else if constexpr (L::hasFunctionParams)
+        forest.savedTreeParams.assign(capacity * forest.numTrees,
+                                      std::vector<double>{0.0, 0.0});
+      if (data_.hasPooledCategorical)
+        forest.savedTreeMasks.assign(capacity * forest.numTrees,
+                                     std::vector<std::uint64_t>());
+    }
   }
-  void setSavedSlotBase(size_t base) { savedSlotBase_ = base; }
-  size_t savedTreeCapacity() const { return savedTreeCapacity_; }
+  void setSavedSlotBase(size_t base) {
+    for (Forest<L>& forest : forests_) forest.savedSlotBase = base;
+  }
+  size_t savedTreeCapacity() const { return forests_[0].savedTreeCapacity; }
   const std::vector<FlatNode>& savedTree(size_t slot, size_t t) const {
-    return savedTrees_[slot * options_.numTrees + t];
+    const Forest<L>& forest = forests_[0];
+    return forest.savedTrees[slot * forest.numTrees + t];
   }
   /// Slopes of one saved tree (vector-parameter leaves), parallel to
   /// savedTree's pre-order leaves.
   const std::vector<double>& savedTreeSlopes(size_t slot, size_t t) const {
-    return savedTreeParams_[slot * options_.numTrees + t];
+    const Forest<L>& forest = forests_[0];
+    return forest.savedTreeParams[slot * forest.numTrees + t];
   }
   /// Flattened mask words of one saved tree (wide categorical columns).
   const std::vector<std::uint64_t>& savedTreeMasks(size_t slot,
                                                    size_t t) const {
-    return savedTreeMasks_[slot * options_.numTrees + t];
+    const Forest<L>& forest = forests_[0];
+    return forest.savedTreeMasks[slot * forest.numTrees + t];
   }
 
   /// Flatten live tree t into saved slot `slot` while its freshly drawn
@@ -873,29 +990,30 @@ public:
   /// leaves' records carry per-leaf mean fits for reporting, and their side
   /// channel the draw cache's alpha weights plus covariate rows - the exact
   /// values the recorded test fits used, so saved replays bit-match them.
-  void storeSavedTreeRecord(size_t t, size_t slot, const double* treeFits) {
+  void storeSavedTreeRecord(Forest<L>& forest, size_t t, size_t slot,
+                            const double* treeFits) {
     std::vector<std::uint64_t>* masks = data_.hasPooledCategorical
-      ? &savedTreeMasks_[slot * options_.numTrees + t] : nullptr;
+      ? &forest.savedTreeMasks[slot * forest.numTrees + t] : nullptr;
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
-      trees_[t].flatten(data_, paramByNode_.data(),
-                        savedTrees_[slot * options_.numTrees + t],
-                        nullptr, 1, nullptr, masks);
+      forest.trees[t].flatten(data_, forest.paramByNode.data(),
+                              forest.savedTrees[slot * forest.numTrees + t],
+                              nullptr, 1, nullptr, masks);
     } else if constexpr (L::hasVectorParams) {
-      trees_[t].flatten(data_, paramsByTree_[t].data(),
-                        savedTrees_[slot * options_.numTrees + t],
-                        nullptr, leaf_.numParams(),
-                        &savedTreeParams_[slot * options_.numTrees + t],
-                        masks);
+      forest.trees[t].flatten(data_, forest.paramsByTree[t].data(),
+                              forest.savedTrees[slot * forest.numTrees + t],
+                              nullptr, forest.leaf.numParams(),
+                              &forest.savedTreeParams[slot * forest.numTrees + t],
+                              masks);
     } else {
-      functionLeafValues(trees_[t], treeFits, paramByNode_);
-      trees_[t].flatten(data_, paramByNode_.data(),
-                        savedTrees_[slot * options_.numTrees + t],
-                        nullptr, 1, nullptr, masks);
+      functionLeafValues(forest.trees[t], treeFits, forest.paramByNode);
+      forest.trees[t].flatten(data_, forest.paramByNode.data(),
+                              forest.savedTrees[slot * forest.numTrees + t],
+                              nullptr, 1, nullptr, masks);
       std::vector<double>& blocks(
-        savedTreeParams_[slot * options_.numTrees + t]);
+        forest.savedTreeParams[slot * forest.numTrees + t]);
       blocks.clear();
-      for (int32_t i : trees_[t].bottomScratch)
-        leaf_.appendLeafBlockFromCache(trees_[t], i, blocks);
+      for (int32_t i : forest.trees[t].bottomScratch)
+        forest.leaf.appendLeafBlockFromCache(forest.trees[t], i, blocks);
     }
   }
 
@@ -907,65 +1025,70 @@ public:
                    std::vector<std::uint32_t>& counts,
                    std::vector<double>* slopes = nullptr,
                    std::vector<std::uint64_t>* masks = nullptr) {
+    Forest<L>& forest = forests_[0];
     if constexpr (L::hasFunctionParams) {
       // records carry per-leaf mean fits; slopes, when requested, receives
       // the saved-format side-channel blocks recomputed from the fits
       size_t n = data_.numObservations;
       std::vector<double> values;
-      functionLeafValues(trees_[t], treeFits_.data() + t * n, values);
-      trees_[t].flatten(data_, values.data(), nodes, &counts, 1, nullptr,
-                        masks);
+      functionLeafValues(forest.trees[t], forest.treeFits.data() + t * n,
+                         values);
+      forest.trees[t].flatten(data_, values.data(), nodes, &counts, 1, nullptr,
+                              masks);
       if (slopes != nullptr) {
         slopes->clear();
-        for (int32_t i : trees_[t].bottomScratch)
-          leaf_.appendLeafBlock(trees_[t], i, treeFits_.data() + t * n,
-                                *slopes);
+        for (int32_t i : forest.trees[t].bottomScratch)
+          forest.leaf.appendLeafBlock(forest.trees[t], i,
+                                      forest.treeFits.data() + t * n, *slopes);
       }
     } else if constexpr (!L::hasVectorParams) {
       if (slopes != nullptr) slopes->clear();
       std::vector<double> params;
-      recoverParametersFromFits(t, params);
-      trees_[t].flatten(data_, params.data(), nodes, &counts, 1, nullptr,
-                        masks);
+      recoverParametersFromFits(forest, t, params);
+      forest.trees[t].flatten(data_, params.data(), nodes, &counts, 1, nullptr,
+                              masks);
     } else {
-      trees_[t].flatten(data_, paramsByTree_[t].data(), nodes, &counts,
-                        leaf_.numParams(), slopes, masks);
+      forest.trees[t].flatten(data_, forest.paramsByTree[t].data(), nodes,
+                              &counts, forest.leaf.numParams(), slopes, masks);
     }
   }
 
   /// Info dump of live tree t; function-valued leaves print their per-leaf
   /// mean fits.
   void printTree(size_t t, int indentation) {
+    Forest<L>& forest = forests_[0];
     if constexpr (L::hasFunctionParams) {
       std::vector<double> values;
-      functionLeafValues(trees_[t],
-                         treeFits_.data() + t * data_.numObservations,
+      functionLeafValues(forest.trees[t],
+                         forest.treeFits.data() + t * data_.numObservations,
                          values);
-      trees_[t].print(data_, values.data(), indentation);
+      forest.trees[t].print(data_, values.data(), indentation);
     } else if constexpr (!L::hasVectorParams) {
       std::vector<double> params;
-      recoverParametersFromFits(t, params);
-      trees_[t].print(data_, params.data(), indentation);
+      recoverParametersFromFits(forest, t, params);
+      forest.trees[t].print(data_, params.data(), indentation);
     } else {
-      trees_[t].print(data_, paramsByTree_[t].data(), indentation, 0,
-                      leaf_.numParams());
+      forest.trees[t].print(data_, forest.paramsByTree[t].data(), indentation, 0,
+                            forest.leaf.numParams());
     }
   }
 
   /// The same for one saved tree, in the reference engine's saved format;
   /// function-valued leaves print their recorded mean values.
   void printSavedTree(size_t slot, size_t t, int indentation) const {
-    const std::vector<FlatNode>& flat(savedTrees_[slot * options_.numTrees + t]);
+    const Forest<L>& forest = forests_[0];
+    const std::vector<FlatNode>& flat(
+      forest.savedTrees[slot * forest.numTrees + t]);
     const std::uint64_t* masks = data_.hasPooledCategorical
-      ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
+      ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
     if constexpr (!L::hasVectorParams) {
       printFlatSubtree(data_, flat.data(), indentation, 0, nullptr, 0, 0,
                        masks);
     } else {
       const std::vector<double>& slopes(
-        savedTreeParams_[slot * options_.numTrees + t]);
+        forest.savedTreeParams[slot * forest.numTrees + t]);
       printFlatSubtree(data_, flat.data(), indentation, 0, slopes.data(),
-                       leaf_.numParams() - 1, 0, masks);
+                       forest.leaf.numParams() - 1, 0, masks);
     }
   }
 
@@ -981,6 +1104,7 @@ public:
                           std::vector<size_t>& indices,
                           std::vector<size_t>& blockOffsets,
                           double* out) const {
+    const L& leaf = forests_[0].leaf;
     for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
       addFlatPredictionsBelow(flat.data(), x_test, numTestObservations,
@@ -990,19 +1114,19 @@ public:
       addFlatLinearPredictionsBelow(
         flat.data(), x_test, numTestObservations,
         indices.data(), 0, numTestObservations, out,
-        leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
-        leaf_.covariateSds().data(), leaf_.numParams() - 1,
+        leaf.covariateColumns().data(), leaf.covariateMeans().data(),
+        leaf.covariateSds().data(), leaf.numParams() - 1,
         sideChannel->data(), 0, masks);
     } else {
       computeFunctionBlockOffsets(sideChannel->data(), sideChannel->size(),
                                   (flat.size() + 1) / 2,
-                                  leaf_.numCovariates(), blockOffsets);
+                                  leaf.numCovariates(), blockOffsets);
       addFlatFunctionPredictionsBelow(
         flat.data(), x_test, numTestObservations,
         indices.data(), 0, numTestObservations, out,
-        leaf_.covariateColumns().data(), leaf_.covariateMeans().data(),
-        leaf_.covariateSds().data(), leaf_.lengthscales().data(),
-        leaf_.numCovariates(), sideChannel->data(), blockOffsets.data(), 0,
+        leaf.covariateColumns().data(), leaf.covariateMeans().data(),
+        leaf.covariateSds().data(), leaf.lengthscales().data(),
+        leaf.numCovariates(), sideChannel->data(), blockOffsets.data(), 0,
         masks);
     }
   }
@@ -1011,15 +1135,16 @@ public:
   /// the original response scale; offsets are the caller's problem.
   void predictFromSavedSample(size_t slot, const double* x_test,
                               size_t numTestObservations, double* out) const {
+    const Forest<L>& forest = forests_[0];
     misc_setVectorToConstant(out, numTestObservations, 0.0);
     std::vector<size_t> indices(numTestObservations);
     std::vector<size_t> blockOffsets;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
+    for (size_t t = 0; t < forest.numTrees; ++t) {
       const std::uint64_t* masks = data_.hasPooledCategorical
-        ? savedTreeMasks_[slot * options_.numTrees + t].data() : nullptr;
-      const std::vector<double>* sideChannel = savedTreeParams_.empty()
-        ? nullptr : &savedTreeParams_[slot * options_.numTrees + t];
-      addFlatPredictions(savedTrees_[slot * options_.numTrees + t],
+        ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
+      const std::vector<double>* sideChannel = forest.savedTreeParams.empty()
+        ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
+      addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                          sideChannel, masks, x_test, numTestObservations,
                          indices, blockOffsets, out);
     }
@@ -1043,7 +1168,7 @@ public:
     std::vector<std::uint64_t> maskBuffer;
     std::vector<std::uint64_t>* masks =
       data_.hasPooledCategorical ? &maskBuffer : nullptr;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
+    for (size_t t = 0; t < forests_[0].numTrees; ++t) {
       flattenTree(t, flat, counts, &slopes, masks);
       addFlatPredictions(flat, &slopes, maskBuffer.data(), x_test,
                          numTestObservations, indices, blockOffsets, out);
@@ -1061,54 +1186,57 @@ public:
   // their slopes in treeParams/savedTreeParams alongside the flat trees.
 
   void getState(ChainStateData& state) {
-    state.trees.resize(options_.numTrees);
+    Forest<L>& forest = forests_[0];
+    state.trees.resize(forest.numTrees);
     if (data_.hasPooledCategorical) {
-      state.treeMasks.resize(options_.numTrees);
-      state.savedTreeMasks = savedTreeMasks_;
+      state.treeMasks.resize(forest.numTrees);
+      state.savedTreeMasks = forest.savedTreeMasks;
     } else {
       state.treeMasks.clear();
       state.savedTreeMasks.clear();
     }
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
       std::vector<double> params;
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        recoverParametersFromFits(t, params);
-        trees_[t].flatten(data_, params.data(), state.trees[t], nullptr, 1,
-                          nullptr,
-                          data_.hasPooledCategorical ? &state.treeMasks[t]
-                                                   : nullptr);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        recoverParametersFromFits(forest, t, params);
+        forest.trees[t].flatten(data_, params.data(), state.trees[t], nullptr, 1,
+                                nullptr,
+                                data_.hasPooledCategorical ? &state.treeMasks[t]
+                                                         : nullptr);
       }
       state.treeParams.clear();
       state.savedTreeParams.clear();
     } else if constexpr (L::hasVectorParams) {
-      state.treeParams.resize(options_.numTrees);
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        trees_[t].flatten(data_, paramsByTree_[t].data(), state.trees[t],
-                          nullptr, leaf_.numParams(), &state.treeParams[t],
-                          data_.hasPooledCategorical ? &state.treeMasks[t]
-                                                   : nullptr);
-      state.savedTreeParams = savedTreeParams_;
+      state.treeParams.resize(forest.numTrees);
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].flatten(data_, forest.paramsByTree[t].data(),
+                                state.trees[t], nullptr, forest.leaf.numParams(),
+                                &state.treeParams[t],
+                                data_.hasPooledCategorical ? &state.treeMasks[t]
+                                                         : nullptr);
+      state.savedTreeParams = forest.savedTreeParams;
     } else {
       // function-valued leaves: records carry reporting means, and each
       // live tree's parameters ARE its fits - one slab per tree in
       // observation order, restored by copy
       size_t n = data_.numObservations;
       std::vector<double> values;
-      state.treeParams.resize(options_.numTrees);
-      for (size_t t = 0; t < options_.numTrees; ++t) {
-        functionLeafValues(trees_[t], treeFits_.data() + t * n, values);
-        trees_[t].flatten(data_, values.data(), state.trees[t], nullptr, 1,
-                          nullptr,
-                          data_.hasPooledCategorical ? &state.treeMasks[t]
-                                                   : nullptr);
-        state.treeParams[t].assign(treeFits_.data() + t * n,
-                                   treeFits_.data() + (t + 1) * n);
+      state.treeParams.resize(forest.numTrees);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        functionLeafValues(forest.trees[t], forest.treeFits.data() + t * n,
+                           values);
+        forest.trees[t].flatten(data_, values.data(), state.trees[t], nullptr, 1,
+                                nullptr,
+                                data_.hasPooledCategorical ? &state.treeMasks[t]
+                                                         : nullptr);
+        state.treeParams[t].assign(forest.treeFits.data() + t * n,
+                                   forest.treeFits.data() + (t + 1) * n);
       }
-      state.savedTreeParams = savedTreeParams_;
+      state.savedTreeParams = forest.savedTreeParams;
     }
-    state.savedTrees = savedTrees_;
+    state.savedTrees = forest.savedTrees;
     state.sigma = sigma();
-    state.k = k_;
+    state.k = forest.k;
     response_->getScale(state.fitMin, state.fitMax);
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
@@ -1125,10 +1253,10 @@ public:
       state.groupEffects.clear();
       state.groupTau = 0.0;
     }
-    if (options_.useDart) {
-      state.dartProbabilities = dart_.probabilities;
-      state.dartAlpha = dart_.alpha;
-      state.dartNumUpdatesSkipped = dart_.numUpdatesSkipped();
+    if (forest.useDart) {
+      state.dartProbabilities = forest.dart.probabilities;
+      state.dartAlpha = forest.dart.alpha;
+      state.dartNumUpdatesSkipped = forest.dart.numUpdatesSkipped();
     } else {
       state.dartProbabilities.clear();
     }
@@ -1138,14 +1266,15 @@ public:
   }
 
   bool stateIsValid(const ChainStateData& state) const {
-    if (state.trees.size() != options_.numTrees) return false;
+    const Forest<L>& forest = forests_[0];
+    if (state.trees.size() != forest.numTrees) return false;
     if (!state.savedTrees.empty() &&
-        state.savedTrees.size() != savedTrees_.size())
+        state.savedTrees.size() != forest.savedTrees.size())
       return false;
     // mask channels pair with their flat trees when present; trees holding
     // wide rules without a channel fail the rebuild below
     if (!state.treeMasks.empty() &&
-        state.treeMasks.size() != options_.numTrees)
+        state.treeMasks.size() != forest.numTrees)
       return false;
     if (!state.savedTreeMasks.empty() &&
         state.savedTreeMasks.size() != state.savedTrees.size())
@@ -1153,9 +1282,9 @@ public:
     if constexpr (L::hasVectorParams) {
       // the slope arrays must pair one-to-one with each flat tree's leaves
       // (a well-formed flat tree of m records has (m + 1) / 2 of them)
-      size_t numSlopes = leaf_.numParams() - 1;
-      if (state.treeParams.size() != options_.numTrees) return false;
-      for (size_t t = 0; t < options_.numTrees; ++t)
+      size_t numSlopes = forest.leaf.numParams() - 1;
+      if (state.treeParams.size() != forest.numTrees) return false;
+      for (size_t t = 0; t < forest.numTrees; ++t)
         if (state.treeParams[t].size() !=
             ((state.trees[t].size() + 1) / 2) * numSlopes)
           return false;
@@ -1171,8 +1300,8 @@ public:
     if constexpr (L::hasFunctionParams) {
       // one fits slab per live tree; saved side channels must walk cleanly
       // against their trees' leaf counts
-      if (state.treeParams.size() != options_.numTrees) return false;
-      for (size_t t = 0; t < options_.numTrees; ++t)
+      if (state.treeParams.size() != forest.numTrees) return false;
+      for (size_t t = 0; t < forest.numTrees; ++t)
         if (state.treeParams[t].size() != data_.numObservations) return false;
       if (!state.savedTrees.empty()) {
         if (state.savedTreeParams.size() != state.savedTrees.size())
@@ -1182,7 +1311,7 @@ public:
           if (!computeFunctionBlockOffsets(
                 state.savedTreeParams[s].data(),
                 state.savedTreeParams[s].size(),
-                (state.savedTrees[s].size() + 1) / 2, leaf_.numCovariates(),
+                (state.savedTrees[s].size() + 1) / 2, forest.leaf.numCovariates(),
                 blockOffsets))
             return false;
       }
@@ -1205,7 +1334,7 @@ public:
     // groups; ungrouped states and chains both hold zero of them
     if (state.groupEffects.size() != response_->numGroupEffects())
       return false;
-    if (options_.useDart && !state.dartProbabilities.empty() &&
+    if (forest.useDart && !state.dartProbabilities.empty() &&
         state.dartProbabilities.size() != data_.numPredictors)
       return false;
     if (state.fitMax < state.fitMin) return false;
@@ -1213,7 +1342,7 @@ public:
     Tree scratch;
     std::vector<size_t> scratchIndices(n);
     std::vector<double> params;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
+    for (size_t t = 0; t < forest.numTrees; ++t) {
       scratch.initialize(scratchIndices.data(), n);
       const std::uint64_t* masks =
         state.treeMasks.empty() ? nullptr : state.treeMasks[t].data();
@@ -1232,68 +1361,71 @@ public:
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
+    Forest<L>& forest = forests_[0];
     size_t n = data_.numObservations;
     // the internal-scale tree parameters and fits below were recorded under
     // this transform; scale-free states leave creation's. restoreScale
     // re-anchors the variance prior through it.
     if (state.fitMax > state.fitMin)
       response_->restoreScale(state.fitMin, state.fitMax);
-    misc_setVectorToConstant(totalFits_.data(), n, 0.0);
+    misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
     std::vector<double> params;
-    for (size_t t = 0; t < options_.numTrees; ++t) {
-      trees_[t].initialize(indexBuffer_.data() + t * n, n);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
       const std::uint64_t* masks =
         state.treeMasks.empty() ? nullptr : state.treeMasks[t].data();
       size_t numMaskWords =
         state.treeMasks.empty() ? 0 : state.treeMasks[t].size();
       if constexpr (!L::hasVectorParams) {
-        if (!trees_[t].buildFromFlat(data_, state.trees[t].data(),
-                                     state.trees[t].size(), params, 1,
-                                     nullptr, masks, numMaskWords))
+        if (!forest.trees[t].buildFromFlat(data_, state.trees[t].data(),
+                                           state.trees[t].size(), params, 1,
+                                           nullptr, masks, numMaskWords))
           return false;
       } else {
-        if (!trees_[t].buildFromFlat(data_, state.trees[t].data(),
-                                     state.trees[t].size(), params,
-                                     leaf_.numParams(),
-                                     state.treeParams[t].data(), masks,
-                                     numMaskWords))
+        if (!forest.trees[t].buildFromFlat(data_, state.trees[t].data(),
+                                           state.trees[t].size(), params,
+                                           forest.leaf.numParams(),
+                                           state.treeParams[t].data(), masks,
+                                           numMaskWords))
           return false;
       }
-      trees_[t].repartitionSubtree(data_, 0);
+      forest.trees[t].repartitionSubtree(data_, 0);
       if constexpr (L::hasFunctionParams) {
         // the recorded slab IS the tree's parameters; copy restores bitwise
-        std::memcpy(treeFits_.data() + t * n, state.treeParams[t].data(),
+        std::memcpy(forest.treeFits.data() + t * n, state.treeParams[t].data(),
                     n * sizeof(double));
       } else {
-        setTreeFits(t, params);
+        setTreeFits(forest, t, params);
       }
-      misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
+      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                             forest.totalFits.data());
     }
     if (!state.savedTrees.empty()) {
-      savedTrees_ = state.savedTrees;
+      forest.savedTrees = state.savedTrees;
       if constexpr (L::hasVectorParams || L::hasFunctionParams)
-        savedTreeParams_ = state.savedTreeParams;
+        forest.savedTreeParams = state.savedTreeParams;
       if (data_.hasPooledCategorical) {
         if (state.savedTreeMasks.empty())
-          savedTreeMasks_.assign(savedTrees_.size(),
-                                 std::vector<std::uint64_t>());
+          forest.savedTreeMasks.assign(forest.savedTrees.size(),
+                                       std::vector<std::uint64_t>());
         else
-          savedTreeMasks_ = state.savedTreeMasks;
+          forest.savedTreeMasks = state.savedTreeMasks;
       }
     }
     setSigma(state.sigma);
-    k_ = state.k;
+    forest.k = state.k;
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
     if (!state.groupEffects.empty())
       response_->restoreGroupEffects(state.groupEffects.data(),
                                      state.groupTau);
-    if (options_.useDart && !state.dartProbabilities.empty()) {
+    if (forest.useDart && !state.dartProbabilities.empty()) {
       // the tree prior points at this vector's storage; overwrite in place
-      std::memcpy(dart_.probabilities.data(), state.dartProbabilities.data(),
+      std::memcpy(forest.dart.probabilities.data(),
+                  state.dartProbabilities.data(),
                   state.dartProbabilities.size() * sizeof(double));
-      dart_.alpha = state.dartAlpha;
-      dart_.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
+      forest.dart.alpha = state.dartAlpha;
+      forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
     // a serialized generator of a different kind (a single-chain state
     // riding R's stream restored into a dedicated-generator chain, say)
@@ -1306,14 +1438,14 @@ public:
   }
 
   ext_rng* rng() const { return rng_; }
-  const L& leaf() const { return leaf_; }
+  const L& leaf() const { return forests_[0].leaf; }
   /// On the original response scale, symmetric with setSigma.
   double sigma() const { return sigma_ * response_->sigmaScale(); }
-  double k() const { return k_; }
-  size_t numTrees() const { return options_.numTrees; }
-  const Tree& tree(size_t t) const { return trees_[t]; }
-  const std::vector<double>& treeFits() const { return treeFits_; }
-  const std::vector<double>& totalFits() const { return totalFits_; }
+  double k() const { return forests_[0].k; }
+  size_t numTrees() const { return forests_[0].numTrees; }
+  const Tree& tree(size_t t) const { return forests_[0].trees[t]; }
+  const std::vector<double>& treeFits() const { return forests_[0].treeFits; }
+  const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
 
 private:
   template <typename F> struct TestFitRange { size_t begin, end; F* fn; };
@@ -1361,19 +1493,20 @@ private:
   /// depth-decayed prior probability, rules come from the prior, and empty
   /// children keep growing (availability is rule-based) until the caller
   /// collapses them.
-  void growSubtreeFromPrior(Tree& tree, int32_t nodeIndex, const double* y,
-                            const double* weights) {
+  void growSubtreeFromPrior(Forest<L>& forest, Tree& tree, int32_t nodeIndex,
+                            const double* y, const double* weights) {
     double growthProbability =
-      treePrior_.growthProbability(tree, data_, nodeIndex);
+      forest.treePrior.growthProbability(tree, data_, nodeIndex);
     if (growthProbability <= 0.0 ||
         ext_rng_simulateBernoulli(rng_, growthProbability) == 0)
       return;
 
-    Rule rule = treePrior_.drawRuleAndVariable(tree, data_, rng_, nodeIndex);
+    Rule rule =
+      forest.treePrior.drawRuleAndVariable(tree, data_, rng_, nodeIndex);
     tree.birth(data_, nodeIndex, rule, y, weights);
     int32_t leftChild = tree.at(nodeIndex).leftChild;
-    growSubtreeFromPrior(tree, leftChild, y, weights);
-    growSubtreeFromPrior(tree, leftChild + 1, y, weights);
+    growSubtreeFromPrior(forest, tree, leftChild, y, weights);
+    growSubtreeFromPrior(forest, tree, leftChild + 1, y, weights);
   }
 
   /// Leaf parameters recovered from a tree's fits, indexed by arena node id;
@@ -1381,9 +1514,11 @@ private:
   /// parameter. Must run against partitions consistent with the fits, i.e.
   /// before any re-route. Scalar leaves only: every vector-parameter caller
   /// is refused before reaching here (fits are no longer constant per leaf).
-  void recoverParametersFromFits(size_t t, std::vector<double>& paramByNode) {
-    Tree& tree(trees_[t]);
-    const double* treeFits = treeFits_.data() + t * data_.numObservations;
+  void recoverParametersFromFits(Forest<L>& forest, size_t t,
+                                 std::vector<double>& paramByNode) {
+    Tree& tree(forest.trees[t]);
+    const double* treeFits =
+      forest.treeFits.data() + t * data_.numObservations;
 
     paramByNode.assign(tree.nodes.size(), 0.0);
     tree.bottomScratch.clear();
@@ -1415,9 +1550,10 @@ private:
     }
   }
 
-  void setTreeFitsFromParameters(size_t t, const std::vector<double>& paramByNode) {
-    Tree& tree(trees_[t]);
-    double* treeFits = treeFits_.data() + t * data_.numObservations;
+  void setTreeFitsFromParameters(Forest<L>& forest, size_t t,
+                                 const std::vector<double>& paramByNode) {
+    Tree& tree(forest.trees[t]);
+    double* treeFits = forest.treeFits.data() + t * data_.numObservations;
 
     tree.bottomScratch.clear();
     tree.fillBottom(0, tree.bottomScratch);
@@ -1436,11 +1572,11 @@ private:
   /// The vector-parameter sibling of setTreeFitsFromParameters: each member
   /// observation's fit evaluates its leaf's block against the leaf model's
   /// current covariates.
-  void setTreeFitsFromParameterBlocks(size_t t,
+  void setTreeFitsFromParameterBlocks(Forest<L>& forest, size_t t,
                                       const std::vector<double>& paramByNode) {
-    Tree& tree(trees_[t]);
-    double* treeFits = treeFits_.data() + t * data_.numObservations;
-    size_t numParams = leaf_.numParams();
+    Tree& tree(forest.trees[t]);
+    double* treeFits = forest.treeFits.data() + t * data_.numObservations;
+    size_t numParams = forest.leaf.numParams();
 
     tree.bottomScratch.clear();
     tree.fillBottom(0, tree.bottomScratch);
@@ -1450,13 +1586,14 @@ private:
         paramByNode.data() + static_cast<size_t>(i) * numParams;
       for (size_t m = node.begin; m < node.end; ++m) {
         size_t obs = tree.indices[m];
-        treeFits[obs] = leaf_.fitForObservation(params, obs);
+        treeFits[obs] = forest.leaf.fitForObservation(params, obs);
       }
     }
   }
 
-  void sampleParametersAndSetFits(size_t t, double* fits, bool updateTestFits) {
-    Tree& tree(trees_[t]);
+  void sampleParametersAndSetFits(Forest<L>& forest, size_t t, double* fits,
+                                  bool updateTestFits) {
+    Tree& tree(forest.trees[t]);
     std::vector<int32_t>& bottoms(tree.bottomScratch);
     bottoms.clear();
     tree.fillBottom(0, bottoms);
@@ -1466,35 +1603,36 @@ private:
       // in `fits` (the fits ARE the parameters); the per-node prediction cache
       // filled by the draws serves the routed test rows while this tree's
       // partitions are unchanged
-      leaf_.beginTreeDraw(tree);
+      forest.leaf.beginTreeDraw(tree);
       for (int32_t i : bottoms) {
-        FunctionLeafDrawStats stats = leaf_.drawFromPosteriorForNode(
-          rng_, tree, treeY_.data(), response_->workingWeights(), k_,
-          sigma_ * sigma_, i, fits);
-        if (options_.updateK) {
-          kSumSquaredParams_ += stats.sumSquaredParams;
-          kNumLeaves_ += stats.numParams;
+        FunctionLeafDrawStats stats = forest.leaf.drawFromPosteriorForNode(
+          rng_, tree, forest.treeY.data(), response_->workingWeights(),
+          forest.k, sigma_ * sigma_, i, fits);
+        if (forest.updateK) {
+          forest.kSumSquaredParams += stats.sumSquaredParams;
+          forest.kNumLeaves += stats.numParams;
         }
       }
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          currTestFits_[i] =
-            leaf_.fitForTestObservationForNode(tree, leafIndex, i);
+          forest.currTestFits[i] =
+            forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
         });
     } else if constexpr (!L::hasVectorParams) {
-      paramByNode_.assign(tree.nodes.size(), 0.0);
+      forest.paramByNode.assign(tree.nodes.size(), 0.0);
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
         double param = node.numObservations() == 0
           ? 0.0
-          : leaf_.drawFromPosteriorForNode(rng_, tree, k_, sigma_ * sigma_, i);
-        paramByNode_[static_cast<size_t>(i)] = param;
+          : forest.leaf.drawFromPosteriorForNode(rng_, tree, forest.k,
+                                                 sigma_ * sigma_, i);
+        forest.paramByNode[static_cast<size_t>(i)] = param;
 
-        if (options_.updateK) {
-          kSumSquaredParams_ += param * param;
-          kNumLeaves_ += 1.0;
+        if (forest.updateK) {
+          forest.kSumSquaredParams += param * param;
+          forest.kNumLeaves += 1.0;
         }
 
         if (node.parent == invalidNode) {
@@ -1509,13 +1647,14 @@ private:
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          currTestFits_[i] = paramByNode_[static_cast<size_t>(leafIndex)];
+          forest.currTestFits[i] =
+            forest.paramByNode[static_cast<size_t>(leafIndex)];
         });
     } else {
-      size_t numParams = leaf_.numParams();
+      size_t numParams = forest.leaf.numParams();
       // draws land in the tree's persistent blocks: they are the source of
       // truth for flatten, state, prediction, and the mutation flows
-      std::vector<double>& treeParams(paramsByTree_[t]);
+      std::vector<double>& treeParams(forest.paramsByTree[t]);
       treeParams.assign(tree.nodes.size() * numParams, 0.0);
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
@@ -1524,28 +1663,29 @@ private:
         // empty leaves keep the zero block without consuming draws, matching
         // the scalar path's zero parameter
         if (node.numObservations() > 0)
-          leaf_.drawFromPosteriorForNode(rng_, tree, treeY_.data(),
-                                         response_->workingWeights(), k_,
-                                         sigma_ * sigma_, i, params);
+          forest.leaf.drawFromPosteriorForNode(rng_, tree, forest.treeY.data(),
+                                               response_->workingWeights(),
+                                               forest.k, sigma_ * sigma_, i,
+                                               params);
 
-        if (options_.updateK) {
+        if (forest.updateK) {
           // every coordinate shares the scale / k prior sd, so the scaled-chi
           // posterior accumulates them all, the leaf count scaled to match
           for (size_t j = 0; j < numParams; ++j)
-            kSumSquaredParams_ += params[j] * params[j];
-          kNumLeaves_ += static_cast<double>(numParams);
+            forest.kSumSquaredParams += params[j] * params[j];
+          forest.kNumLeaves += static_cast<double>(numParams);
         }
 
         for (size_t m = node.begin; m < node.end; ++m) {
           size_t obs = tree.indices[m];
-          fits[obs] = leaf_.fitForObservation(params, obs);
+          fits[obs] = forest.leaf.fitForObservation(params, obs);
         }
       }
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
-          currTestFits_[i] = leaf_.fitForTestObservation(
+          forest.currTestFits[i] = forest.leaf.fitForTestObservation(
             treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
             i);
         });
@@ -1553,6 +1693,7 @@ private:
   }
 
   void storeSample(Results& results, size_t sampleNum) {
+    Forest<L>& forest = forests_[0];
     size_t n = data_.numObservations;
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -1560,11 +1701,12 @@ private:
     if (results.sigma != nullptr)
       results.sigma[sampleNum] = sigma_ * response_->sigmaScale();
 
-    if (results.k != nullptr) results.k[sampleNum] = k_;
+    if (results.k != nullptr) results.k[sampleNum] = forest.k;
 
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n;
-      for (size_t i = 0; i < n; ++i) out[i] = scale * totalFits_[i] + shift;
+      for (size_t i = 0; i < n; ++i)
+        out[i] = scale * forest.totalFits[i] + shift;
       // original-scale convention, matching the classic engine and the
       // recorded test fits: any offset is part of the fit
       const double* offset = response_->offset();
@@ -1574,7 +1716,7 @@ private:
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
       double* out = results.testFits + sampleNum * data_.numTestObservations;
       for (size_t i = 0; i < data_.numTestObservations; ++i)
-        out[i] = scale * totalTestFits_[i] + shift;
+        out[i] = scale * forest.totalTestFits[i] + shift;
       if (data_.testOffset != nullptr)
         misc_addVectorsInPlace(data_.testOffset, data_.numTestObservations,
                                out);
@@ -1584,14 +1726,14 @@ private:
       std::uint32_t* out =
         results.variableCounts + sampleNum * data_.numPredictors;
       std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
-      for (size_t t = 0; t < options_.numTrees; ++t)
-        trees_[t].countVariableUses(out);
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].countVariableUses(out);
     }
 
-    if (results.splitProbabilities != nullptr && options_.useDart) {
+    if (results.splitProbabilities != nullptr && forest.useDart) {
       double* out =
         results.splitProbabilities + sampleNum * data_.numPredictors;
-      std::memcpy(out, dart_.probabilities.data(),
+      std::memcpy(out, forest.dart.probabilities.data(),
                   data_.numPredictors * sizeof(double));
     }
 
@@ -1616,43 +1758,18 @@ private:
   const double* weights_;
   ext_rng* rng_;
 
-  L leaf_;
-  CGMTreePrior treePrior_;
-  DartPrior dart_;
-  std::vector<double> fixedSplitProbabilities_;
-  std::vector<std::uint32_t> splitCounts_;
   std::unique_ptr<ResponseModel> response_;
   ResponseFamily family_ = ResponseFamily::gaussian;
   bool sigmaIsFixed_ = false;
   double sigma_ = 1.0;
-  double k_ = 2.0;
-  double kSumSquaredParams_ = 0.0;
-  double kNumLeaves_ = 0.0;
 
-  std::vector<Tree> trees_;
-  std::vector<std::vector<FlatNode>> savedTrees_;  // slot-major, capacity x numTrees
-  // vector-parameter leaves: each live tree's parameter blocks, arena-
-  // indexed with stride numParams and kept consistent with the tree's
-  // structure between sweeps (fits are no longer constant per leaf, so
-  // parameters persist instead of being recovered); savedTreeParams_ holds
-  // the slopes of each saved tree, parallel to savedTrees_. Both stay empty
-  // for scalar leaf models.
-  std::vector<std::vector<double>> paramsByTree_;
-  std::vector<std::vector<double>> savedTreeParams_;
-  // pooled categorical columns (> 63 levels): each saved tree's flattened
-  // mask words, parallel to savedTrees_; empty otherwise
-  std::vector<std::vector<std::uint64_t>> savedTreeMasks_;
-  size_t savedTreeCapacity_ = 0;
-  size_t savedSlotBase_ = 0;
-  std::vector<size_t> indexBuffer_;
-  std::vector<double> treeFits_;
-  std::vector<double> totalFits_, totalTestFits_;
-  std::vector<double> treeY_, currTestFits_;
-  std::vector<double> paramByNode_;
-  MoveScratch scratch_;
+  // one-or-more forests (size 1 for every current sampler); the sweep,
+  // mutation fan-out, and prediction loop over them
+  std::vector<Forest<L>> forests_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
-  // share of the thread budget; created lazily, never below the cutoff.
+  // share of the thread budget; created lazily, never below the cutoff. The
+  // forests borrow it through routeTestRows.
   misc_mt_manager_t testFitPool_ = nullptr;
   static constexpr size_t testFitParallelCutoff = 65536;
 };
