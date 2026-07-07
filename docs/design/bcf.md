@@ -216,3 +216,27 @@ the unit conversion only. The exact-posterior gate gains a low-
 dimensional quadrature over the glue (its first mode fixes a = 1,
 b0 = 0, b1 = 1; a second mode integrates the expansions). All BCF
 steps are unblocked.
+
+## Calibration (2026-07-07)
+
+The map converts bcf's sd(y)-unit scales to the engine's range unit at
+BCF creation. Let s be the sample sd of the range-scaled working
+response (y net of offset mapped to [-0.5, 0.5]); range-anchoring makes
+s the sd(y) magnitude in internal units.
+
+- Prognostic. The mu forest's node scale is s, so the leaves of its
+  trees sum to mu ~ N(0, s^2). The half-Cauchy scalar a has median
+  |a| = aPriorScale = sd.control (default 2), putting the prognostic
+  total a mu at a median sd.control sd(y) - bcf's use_muscale.
+- Treatment. The tau forest's node scale is sd.moderate s / 0.674, so
+  tau ~ N(0, (sd.moderate s / 0.674)^2). With b0, b1 ~ N(0, 1/2) the
+  contrast b1 - b0 ~ N(0, 1) has half-normal median 0.674, so the
+  effect (b1 - b0) tau sits at a median sd.moderate sd(y) - bcf's
+  use_tauscale correction.
+- Both forests fix k = 1; the map overrides the host model's node prior
+  and k for mu, since the adaptive magnitude lives entirely in the glue.
+
+The R wrapper exposes sd.control and sd.moderate (the two magnitudes in
+sd(y) units) and converts internally. benchmarks/R/bcf-exact.R
+reproduces the map and the range/sigma calibration to validate the
+implementation end to end.

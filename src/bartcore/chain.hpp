@@ -279,13 +279,12 @@ struct Forest {
 
 /// Per-forest calibration for a BCF sampler: the prognostic (mu) and
 /// treatment (tau) forests carry bcf's distinct tree counts and priors
-/// (docs/design/bcf.md). Node scales are fixed - the adaptive magnitude
-/// lives in the glue (a for mu, b0/b1 for tau), so no k hyperprior runs.
+/// (docs/design/bcf.md). Node scales are not spec'd: the calibration map
+/// derives them from the response sd at construction, and the adaptive
+/// magnitude lives in the glue (a for mu, b0/b1 for tau).
 struct BCFForestSpec {
   std::size_t numTrees = 200;
   double base = 0.95, power = 2.0;
-  double nodeScale = 0.5;
-  double k = 1.0;
   double birthOrDeathProbability = 0.5, swapProbability = 0.1,
          changeProbability = 0.4, birthProbability = 0.5;
 };
@@ -294,8 +293,10 @@ struct BCFForestSpec {
 struct BCFSpec {
   BCFForestSpec mu, tau;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
-  double aPriorScale = 1.0;     // half-Cauchy median for the mu scalar a
+  double aPriorScale = 2.0;     // half-Cauchy median for the mu scalar a
   double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
+  double sdModerate = 1.0;      // treatment effect scale in sd(y) units
+  bool updateA = true, updateB = true;  // false fixes the matching glue block
 };
 
 /// The combining response's glue (docs/design/bcf.md): the prognostic scalar
@@ -306,8 +307,9 @@ struct BCFState {
   const double* z = nullptr;
   double a = 1.0, b0 = 0.0, b1 = 1.0;
   double aVariance = 1.0;
-  double aPriorScale = 1.0;
+  double aPriorScale = 2.0;
   double bPriorVariance = 0.5;
+  bool updateA = true, updateB = true;  // false holds the block at its value
   std::vector<double> combined, forestResponse, forestWeights;
 };
 
@@ -444,13 +446,24 @@ public:
     sigmaIsFixed_ = options.sigmaIsFixed;
     sigma_ = response_->initialSigma();
 
-    buildBCFForest(spec.mu);
-    buildBCFForest(spec.tau);
+    // Calibration map (docs/design/bcf.md): s is the sample sd of the
+    // range-scaled response (y mapped to [-0.5, 0.5]). The prognostic total
+    // mu ~ N(0, s^2) so the half-Cauchy a (median aPriorScale) puts it at
+    // aPriorScale sd(y); the treatment total tau ~ N(0, (sdModerate s /
+    // 0.674)^2) so with b1 - b0 ~ N(0, 2 bPriorVariance) and half-normal
+    // median 0.674 the effect (b1 - b0) tau sits at sdModerate sd(y). The
+    // map fixes k at 1 and overrides the host node prior for both forests.
+    constexpr double kHalfNormalMedian = 0.674;
+    double s = scaledResponseSd();
+    buildBCFForest(spec.mu, s);
+    buildBCFForest(spec.tau, spec.sdModerate * s / kHalfNormalMedian);
 
     bcf_ = std::make_unique<BCFState>();
     bcf_->z = spec.z;
     bcf_->aPriorScale = spec.aPriorScale;
     bcf_->bPriorVariance = spec.bPriorVariance;
+    bcf_->updateA = spec.updateA;
+    bcf_->updateB = spec.updateB;
     resizeTestStorage();
   }
 
@@ -1819,9 +1832,26 @@ private:
     }
   }
 
+  /// Sample sd of the range-scaled working response, the anchor the BCF
+  /// calibration map states its per-forest leaf scales against.
+  double scaledResponseSd() const {
+    std::size_t n = data_.numObservations;
+    const double* yScaled = response_->workingResponse();
+    double mean = 0.0;
+    for (std::size_t i = 0; i < n; ++i) mean += yScaled[i];
+    mean /= static_cast<double>(n);
+    double sumSquares = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      double d = yScaled[i] - mean;
+      sumSquares += d * d;
+    }
+    return std::sqrt(sumSquares / static_cast<double>(n - 1));
+  }
+
   /// A BCF forest, built self-contained so the single-forest constructor
-  /// (the bitwise-gated path) is untouched: constant leaf, fixed k, no DART.
-  void buildBCFForest(const BCFForestSpec& spec) {
+  /// (the bitwise-gated path) is untouched: constant leaf, fixed k = 1
+  /// (the map's convention), no DART. nodeScale is the map-derived total.
+  void buildBCFForest(const BCFForestSpec& spec, double nodeScale) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
     Forest<L>& forest = forests_.back();
@@ -1832,9 +1862,9 @@ private:
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
     forest.useDart = false;
-    forest.k = spec.k;
+    forest.k = 1.0;
     forest.leaf.scale =
-      spec.nodeScale / std::sqrt(static_cast<double>(spec.numTrees));
+      nodeScale / std::sqrt(static_cast<double>(spec.numTrees));
     forest.treePrior.base = spec.base;
     forest.treePrior.power = spec.power;
     forest.indexBuffer.resize(n * spec.numTrees);
@@ -1893,36 +1923,40 @@ private:
     const double* tau = forests_[1].totalFits.data();
     double invSigmaSq = 1.0 / (sigma_ * sigma_);
 
-    double aPrec = 1.0 / bcf_->aVariance, aNum = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
-      double wi = w == nullptr ? 1.0 : w[i];
-      double bz = bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
-      double r = y[i] - bz * tau[i];
-      aPrec += wi * mu[i] * mu[i] * invSigmaSq;
-      aNum += wi * mu[i] * r * invSigmaSq;
-    }
-    bcf_->a =
-      aNum / aPrec + ext_rng_simulateStandardNormal(rng_) / std::sqrt(aPrec);
+    if (bcf_->updateA) {
+      double aPrec = 1.0 / bcf_->aVariance, aNum = 0.0;
+      for (std::size_t i = 0; i < n; ++i) {
+        double wi = w == nullptr ? 1.0 : w[i];
+        double bz = bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
+        double r = y[i] - bz * tau[i];
+        aPrec += wi * mu[i] * mu[i] * invSigmaSq;
+        aNum += wi * mu[i] * r * invSigmaSq;
+      }
+      bcf_->a =
+        aNum / aPrec + ext_rng_simulateStandardNormal(rng_) / std::sqrt(aPrec);
 
-    // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
-    // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
-    // inverse
-    double rate = 0.5 * bcf_->a * bcf_->a +
-                  0.5 * bcf_->aPriorScale * bcf_->aPriorScale;
-    bcf_->aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
-
-    double bPrec = 1.0 / bcf_->bPriorVariance;
-    double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
-    for (std::size_t i = 0; i < n; ++i) {
-      double wi = w == nullptr ? 1.0 : w[i];
-      double r = y[i] - bcf_->a * mu[i];
-      double prec = wi * tau[i] * tau[i] * invSigmaSq;
-      double num = wi * tau[i] * r * invSigmaSq;
-      if (bcf_->z[i] != 0.0) { p1 += prec; n1 += num; }
-      else { p0 += prec; n0 += num; }
+      // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
+      // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
+      // inverse
+      double rate = 0.5 * bcf_->a * bcf_->a +
+                    0.5 * bcf_->aPriorScale * bcf_->aPriorScale;
+      bcf_->aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
     }
-    bcf_->b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
-    bcf_->b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
+
+    if (bcf_->updateB) {
+      double bPrec = 1.0 / bcf_->bPriorVariance;
+      double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
+      for (std::size_t i = 0; i < n; ++i) {
+        double wi = w == nullptr ? 1.0 : w[i];
+        double r = y[i] - bcf_->a * mu[i];
+        double prec = wi * tau[i] * tau[i] * invSigmaSq;
+        double num = wi * tau[i] * r * invSigmaSq;
+        if (bcf_->z[i] != 0.0) { p1 += prec; n1 += num; }
+        else { p0 += prec; n0 += num; }
+      }
+      bcf_->b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
+      bcf_->b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
+    }
   }
 
   void storeSample(Results& results, size_t sampleNum) {

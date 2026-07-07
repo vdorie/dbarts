@@ -1425,9 +1425,7 @@ static void testBCFTwoForest(ext_rng* rng) {
   SamplerOptions options;
   BCFSpec spec;
   spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
-  spec.mu.nodeScale = 0.5; spec.mu.k = 1.0;
   spec.tau.numTrees = 25; spec.tau.base = 0.25; spec.tau.power = 3.0;
-  spec.tau.nodeScale = 0.5; spec.tau.k = 1.0;
   spec.z = z.data();
 
   Sampler<ConstantGaussianLeaf> sampler(
@@ -1480,8 +1478,49 @@ static void testBCFTwoForest(ext_rng* rng) {
   printf("ok: BCF two-forest sampler\n");
 }
 
+// updateA/updateB false hold the glue fixed at (a, b0, b1) = (1, 0, 1)
+// across a run, so the forests fit the a = 1, b_z = z model unchanged.
+static void testBCFFixedGlue(ext_rng* rng) {
+  const size_t n = 300, p = 2;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 20; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.tau.numTrees = 10; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.updateA = false; spec.updateB = false;
+  spec.z = z.data();
+
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+
+  Results results;
+  sampler.run(50, 50, results);
+
+  double a, b0, b1;
+  sampler.chain(0).bcfGlue(a, b0, b1);
+  check(a == 1.0 && b0 == 0.0 && b1 == 1.0, "BCF fixed glue holds");
+
+  std::vector<double> tauFits(n);
+  sampler.forestTotalFits(0, 1, tauFits.data());
+  double tauSS = 0.0;
+  for (size_t i = 0; i < n; ++i) tauSS += tauFits[i] * tauFits[i];
+  check(tauSS > 0.0, "BCF treatment forest moves under fixed glue");
+
+  printf("ok: BCF fixed glue\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testBCFTwoForest(rng);
+  testBCFFixedGlue(rng);
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);

@@ -411,27 +411,32 @@ bartcoreSamplerFromHandle <- function(
 # A BCF two-forest sampler (docs/design/bcf.md), internal and gaussian only:
 # the model spec is the prognostic forest mu(x, pihat) - the caller supplies
 # pihat as an ordinary predictor column - the arguments below the treatment
-# forest tau(x) and the glue. z is the 0/1 treatment. The per-forest scales
-# are interim (the exact-posterior calibration lands with the step-5 gate).
+# forest tau(x) and the glue. z is the 0/1 treatment. sd.control and
+# sd.moderate are the prognostic and effect magnitudes in sd(y) units; the
+# calibration map converts them to the per-forest leaf scales at creation,
+# overriding the host model's node prior and k for the mu forest. update.a /
+# update.b hold the matching glue block fixed when FALSE.
 bartcoreBCFSampler <- function(
   sampler,
   z,
   n.trees.treatment = 50L,
   treatment.base = 0.25,
   treatment.power = 3,
-  treatment.node.scale = 0.5,
-  treatment.k = 1,
-  a.prior.scale = 1,
-  b.prior.variance = 0.5
+  sd.control = 2,
+  sd.moderate = 1,
+  b.prior.variance = 0.5,
+  update.a = TRUE,
+  update.b = TRUE
 ) {
   bcfParams <- as.double(c(
     n.trees.treatment,
     treatment.base,
     treatment.power,
-    treatment.node.scale,
-    treatment.k,
-    a.prior.scale,
-    b.prior.variance
+    sd.control,
+    sd.moderate,
+    b.prior.variance,
+    update.a,
+    update.b
   ))
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
