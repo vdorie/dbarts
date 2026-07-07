@@ -42,9 +42,6 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  equivalence-ci: wire equivalence.R's statistical (z) mode into
-    scheduled CI; scenario-coverage manifest; mark the classic-era
-    baselines historical; CURRENT marker for benchmark baselines.
   forest-split-bcf: split Forest out of Sampler (deferred since phase
     1) with BCF - prognostic + treatment forests - as the driving
     consumer; bartCause is the named consumer and VD maintains it.
