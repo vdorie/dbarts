@@ -32,9 +32,6 @@ items
   capi-callbacks: additive dbarts.h evolution - per-sweep conditioning
     callback and observer hook at the existing pollInterrupt dispatch
     point; tau/groupEffects fields on dbarts_results.
-  collapse-merge: unify the two subtree-collapse parameter merges
-    (occupancy-weighted in collapseEmptyNodesBelow, plain mean in
-    mapCutPointsBelow) on the weighted form.
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
