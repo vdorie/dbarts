@@ -53,9 +53,6 @@ items
   equivalence-ci: wire equivalence.R's statistical (z) mode into
     scheduled CI; scenario-coverage manifest; mark the classic-era
     baselines historical; CURRENT marker for benchmark baselines.
-  family-on-model: family sits on dbartsControl by analogy to classic's
-    responseIsBinary flag; decide whether it belongs on dbartsModel.
-    window: pre-release (slot moves are free only until release).
   flat-format-v2: tagged split payload in FlatNode instead of
     mask-in-a-double; deletes the 53-category encoding boundary and the
     54-63-band side channel. Includes the getTrees narrow-mask value
