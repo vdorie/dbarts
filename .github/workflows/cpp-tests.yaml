@@ -38,8 +38,10 @@ jobs:
       - name: Build the package in place
         run: R CMD INSTALL --preclean .
 
+      # The trailing argument is the mutation-fuzzer seed count; 3 keeps CI
+      # quick, more run locally.
       - name: Build and run the C++ component tests
         run: |
           cd tests/cpp
           make
-          ./test_bartcore
+          ./test_bartcore 3
