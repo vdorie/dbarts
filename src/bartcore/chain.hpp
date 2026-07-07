@@ -11,6 +11,7 @@
 
 #include <external/random.h>
 #include <misc/linearAlgebra.h>
+#include <misc/thread.h>
 
 #include "data.hpp"
 #include "model.hpp"
@@ -307,6 +308,14 @@ public:
     resizeTestStorage();
   }
 
+  ~Chain() {
+    if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
+  }
+
+  /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
+  /// the new share of the budget on the next routing.
+  void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
+
   /// Called after the shared store's test data changes.
   void resizeTestStorage() {
     totalTestFits_.assign(data_.numTestObservations, 0.0);
@@ -583,10 +592,10 @@ public:
 
         setTreeFitsFromParameters(t, paramByNode_);
         misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           totalTestFits_[i] += paramByNode_[static_cast<size_t>(leafIndex)];
-        }
+        });
       } else if constexpr (L::hasFunctionParams) {
         // prior fits land directly in the tree's fit slab; the per-node
         // prediction cache serves the routed test rows
@@ -595,11 +604,11 @@ public:
         for (int32_t i : tree.bottomScratch)
           leaf_.drawFromPriorForNode(rng_, tree, k_, i, treeFits);
         misc_addVectorsInPlace(treeFits, n, totalFits_.data());
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           totalTestFits_[i] +=
             leaf_.fitForTestObservationForNode(tree, leafIndex, i);
-        }
+        });
       } else {
         size_t numParams = leaf_.numParams();
         std::vector<double>& treeParams(paramsByTree_[t]);
@@ -611,12 +620,12 @@ public:
 
         setTreeFitsFromParameterBlocks(t, treeParams);
         misc_addVectorsInPlace(treeFits_.data() + t * n, n, totalFits_.data());
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           totalTestFits_[i] += leaf_.fitForTestObservation(
             treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
             i);
-        }
+        });
       }
     }
   }
@@ -1307,6 +1316,47 @@ public:
   const std::vector<double>& totalFits() const { return totalFits_; }
 
 private:
+  template <typename F> struct TestFitRange { size_t begin, end; F* fn; };
+  template <typename F> static void runTestFitRange(void* data) {
+    TestFitRange<F>* r = static_cast<TestFitRange<F>*>(data);
+    for (size_t i = r->begin; i < r->end; ++i) (*r->fn)(i);
+  }
+
+  /// Apply fn to each test row. Routing draws no rng and each row writes its
+  /// own output slot, so splitting the range across this chain's share of the
+  /// thread budget yields byte-identical results at any thread count. Serial
+  /// below the cutoff, where dispatch outweighs the routing it saves.
+  template <typename F>
+  void routeTestRows(size_t numTest, F fn) {
+    size_t chains = options_.numChains > 0 ? options_.numChains : 1;
+    size_t budget = options_.numThreads / chains;
+    if (budget >= 2 && numTest >= testFitParallelCutoff) {
+      if (testFitPool_ == nullptr ||
+          misc_mt_getNumThreads(testFitPool_) != budget) {
+        if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
+        misc_mt_create(&testFitPool_, budget);
+      }
+      size_t numThreads, perThread, offByOne;
+      misc_mt_getNumThreadsForJob(testFitPool_, numTest,
+                                  testFitParallelCutoff / 2, &numThreads,
+                                  &perThread, &offByOne);
+      if (numThreads > 1) {
+        std::vector<TestFitRange<F>> ranges(numThreads);
+        std::vector<void*> ptrs(numThreads);
+        for (size_t w = 0, start = 0; w < numThreads; ++w) {
+          size_t count = perThread - (w < offByOne ? 0 : 1);
+          ranges[w] = TestFitRange<F>{start, start + count, &fn};
+          ptrs[w] = &ranges[w];
+          start += count;
+        }
+        misc_mt_runTasks(testFitPool_, &runTestFitRange<F>, ptrs.data(),
+                         numThreads);
+        return;
+      }
+    }
+    for (size_t i = 0; i < numTest; ++i) fn(i);
+  }
+
   /// The reference engine's recursion: growth is Bernoulli in the
   /// depth-decayed prior probability, rules come from the prior, and empty
   /// children keep growing (availability is rule-based) until the caller
@@ -1427,13 +1477,12 @@ private:
         }
       }
 
-      if (updateTestFits && data_.numTestObservations > 0) {
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+      if (updateTestFits && data_.numTestObservations > 0)
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           currTestFits_[i] =
             leaf_.fitForTestObservationForNode(tree, leafIndex, i);
-        }
-      }
+        });
     } else if constexpr (!L::hasVectorParams) {
       paramByNode_.assign(tree.nodes.size(), 0.0);
       for (int32_t i : bottoms) {
@@ -1457,12 +1506,11 @@ private:
         }
       }
 
-      if (updateTestFits && data_.numTestObservations > 0) {
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+      if (updateTestFits && data_.numTestObservations > 0)
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           currTestFits_[i] = paramByNode_[static_cast<size_t>(leafIndex)];
-        }
-      }
+        });
     } else {
       size_t numParams = leaf_.numParams();
       // draws land in the tree's persistent blocks: they are the source of
@@ -1494,14 +1542,13 @@ private:
         }
       }
 
-      if (updateTestFits && data_.numTestObservations > 0) {
-        for (size_t i = 0; i < data_.numTestObservations; ++i) {
+      if (updateTestFits && data_.numTestObservations > 0)
+        routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
           currTestFits_[i] = leaf_.fitForTestObservation(
             treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
             i);
-        }
-      }
+        });
     }
   }
 
@@ -1603,6 +1650,11 @@ private:
   std::vector<double> treeY_, currTestFits_;
   std::vector<double> paramByNode_;
   MoveScratch scratch_;
+
+  // Persistent pool for parallel test-fit routing, sized to this chain's
+  // share of the thread budget; created lazily, never below the cutoff.
+  misc_mt_manager_t testFitPool_ = nullptr;
+  static constexpr size_t testFitParallelCutoff = 65536;
 };
 
 }  // namespace bartcore

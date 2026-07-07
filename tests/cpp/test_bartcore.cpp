@@ -1675,6 +1675,57 @@ static void testMultiChain() {
   printf("ok: multi-chain run\n");
 }
 
+// Test-fit routing splits its rows across the thread budget above a size
+// cutoff; routing draws no rng and each row owns its output slot, so the
+// recorded test fits must be bitwise-identical at any thread count. nTest is
+// well past the cutoff so numThreads = 8 engages every worker.
+static void testTestFitThreadInvariance() {
+  const size_t n = 300, nTest = 300000, numSamples = 8;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  std::uint_least32_t st = 20260707u;
+  auto u01 = [&]() {
+    st = st * 1664525u + 1013904223u;
+    return static_cast<double>(st >> 8) * (1.0 / 16777216.0);
+  };
+  std::vector<double> xTest(nTest * 2);
+  for (double& v : xTest) v = u01();
+
+  auto runSampler = [&](size_t numThreads, std::vector<double>& testFits) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 2718);
+    SamplerOptions options;
+    options.numTrees = 25;
+    options.numChains = 1;
+    options.numThreads = numThreads;
+    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, &rng);
+    sampler.setTestPredictors(xTest.data(), nTest);
+
+    std::vector<double> sigma(numSamples);
+    testFits.assign(nTest * numSamples, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    results.testFits = testFits.data();
+    sampler.run(50, numSamples, results);
+    ext_rng_destroy(rng);
+  };
+
+  std::vector<double> serial, threaded2, threaded8;
+  runSampler(1, serial);
+  runSampler(2, threaded2);
+  runSampler(8, threaded8);
+  check(serial == threaded2, "2-thread test fits match serial bitwise");
+  check(serial == threaded8, "8-thread test fits match serial bitwise");
+
+  bool finite = true;
+  for (double f : serial) finite &= std::isfinite(f);
+  check(finite, "parallel test fits are finite");
+  printf("ok: test-fit thread-count invariance\n");
+}
+
 static void testMultiChainMutation() {
   const size_t n = 200, numChains = 2;
   std::vector<double> x, y;
@@ -6904,6 +6955,7 @@ int main(int argc, char** argv) {
   testQuantilePredictorUpdate(rng);
   testSetCutPoints(rng);
   testMultiChain();
+  testTestFitThreadInvariance();
   testMultiChainMutation();
   testMapOldCutPointsOntoNew();
   testMapOldCutPointsStarvedWeightedMerge();

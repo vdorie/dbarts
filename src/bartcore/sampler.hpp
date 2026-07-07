@@ -479,7 +479,10 @@ public:
   /// Between-run reconfiguration (the classic engine's setControl). Chain
   /// count, tree count, generators, and the cut grid are fixed at creation;
   /// the host refuses changes to those.
-  void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
+  void setNumThreads(size_t numThreads) {
+    options_.numThreads = numThreads;
+    for (auto& chain : chains_) chain->setNumThreads(numThreads);
+  }
   void setNumThin(size_t numThin) {
     options_.numThin = numThin;
     for (auto& chain : chains_) chain->setNumThin(numThin);
