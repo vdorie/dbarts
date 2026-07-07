@@ -90,9 +90,6 @@ items
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
-  r5-cleanup: remove the startThreads/stopThreads no-ops (all callers
-    internal); make the testUsesRegularOffset offset sync explicit or
-    documented; strip the S4 validity prefix from user-facing errors.
   rbart-loop-profile: the custom-prior R loop pays a bridge round trip
     per posterior sample; profile before touching (built-in priors
     already bypass in-core).
