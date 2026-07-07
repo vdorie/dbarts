@@ -45,3 +45,24 @@ depending on allocation layout.
 
 - tests/cpp passes repeatedly across a fresh rebuild (make clean,
   rebuild, run several times).
+
+## Status (2026-07-07)
+
+Landed (ee4d58c). The re-route check now runs on a single
+GPGaussianLeaf: warm the kernel cache over members [0, 50), re-route
+the node onto the disjoint [100, 150), and compare the memcmp-driven
+rebuild against a rescan taken after regatherTrainingCovariates drops
+the cache - shared buffers make the comparison bitwise-deterministic.
+Root cause confirmed: the GP leaf math is fully scalar; the flake was
+the two separately allocated samplers' misc SIMD fit reductions
+splitting differently, exactly the known layout-roulette mechanism.
+Poison check ran: a 1e-6 perturbation on the cache serve path made the
+reworked test fail, then was reverted (step 2 satisfied). The
+sampler-level designated-mutation check (warm vs cold clone) was left
+as-is per scope; if it ever flakes by the same mechanism, rework it
+the same way. Gates: baseline reproduced the failure 5/5 at HEAD;
+after the fix, the model suite passed 5x plus 3x on a clean rebuild
+(implementer) and 3x plus a full run on the main tree (reviewer).
+tinytest/equivalence skipped: the diff is tests/cpp-only, outside the
+installed package. Review fix: the function-head comment still
+described the deleted cold-clone cycle; rewritten in the landing.
