@@ -75,7 +75,8 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 ## Review (Fable)
 
 1. Diff vs plan: every step landed; nothing outside scope.
-2. Gates: re-run or verify transcripts; RNG class honored.
+2. Gates: re-run or verify transcripts; RNG class honored. Items touching
+   the bridge (src/R_interface*.cpp) note "rchk on next scheduled run".
 3. Brevity: comment/code delta, report length, no narration.
 4. Readability (standing): could a maintainer with no access to any
    agent conversation understand the diff from code and comments alone?
