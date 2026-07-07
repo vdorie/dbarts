@@ -47,7 +47,7 @@ dbarts(
     An expression of the form \code{cgm} or \code{cgm(power, base, split.probs)} setting the tree prior used in fitting, or a prior object built with \code{\link{dbartsPriors}}.
   }
   \item{node.prior}{
-    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes, or a prior object built with \code{\link{dbartsPriors}}. \code{linear(columns, k)} instead fits each leaf with an intercept plus a linear term in the designated continuous predictor columns (character names or numeric indices into the model matrix), standardized internally, all coefficients sharing the \code{normal(k)} prior; factor columns cannot be designated. \code{gp(columns, k, lengthscale, max.leaf.size)} fits each leaf with a smooth Gaussian-process function of the designated columns under a squared-exponential kernel; leaves larger than \code{max.leaf.size} fall back to constant fits. \code{\link{xbart}} accepts the same specifications through its own \code{node.prior} argument.
+    An expression of the form \code{normal} or \code{normal(k)} that sets the prior used on the averages within nodes, or a prior object built with \code{\link{dbartsPriors}}. \code{linear(columns, k)} instead fits each leaf with an intercept plus a linear term in the designated continuous predictor columns (character names or numeric indices into the model matrix), standardized internally, all coefficients sharing the \code{normal(k)} prior; factor columns cannot be designated. \code{gp(columns, k, lengthscale, max.leaf.size)} fits each leaf with a smooth Gaussian-process function of the designated columns under a squared-exponential kernel; leaves larger than \code{max.leaf.size} fall back to constant fits. \code{\link{xbart}} accepts the same specifications through its own \code{node.prior} argument. See \dQuote{Response scaling} below for how \code{k} interacts with the response's internal scaling.
   }
   \item{resid.prior}{
     An expression of the form \code{chisq} or \code{chisq(df, quant)} that sets the prior used on the residual/error variance, or a prior object built with \code{\link{dbartsPriors}}.
@@ -76,6 +76,10 @@ dbarts(
 
   \subsection{Test offset synchronization}{
     When \code{offset.test} is left at its default of tracking \code{offset}, the sampler links the two: the sampler's \code{setOffset} method re-derives \code{offset.test} from each new \code{offset} it is given. Calling the sampler's \code{setTestOffset} or \code{setTestPredictorAndOffset} methods breaks this link -- \code{offset.test} is set independently from then on, and the link never re-forms, even if the two are later set to equal values.
+  }
+
+  \subsection{Response scaling}{
+    Continuous responses are range-scaled internally: \code{y} (net of \code{offset}) is mapped to \eqn{[-0.5, 0.5]} by its observed minimum and maximum, the convention of the entire BART software lineage (BayesTree, BART, bartMachine), which is what lets \code{k} (see \code{node.prior} above) and its defaults transfer across packages and papers. The known caveat is outlier sensitivity: extreme \code{y} values stretch the range and compress the effective leaf prior for everything else; the published workaround is to log-transform or winsorize such values before fitting, or to let \code{k} adapt via the \code{chi} hyperprior (\code{\link{dbartsPriors}}). The scale is fixed when the sampler is created; the sampler's \code{setResponse} and \code{setOffset} methods only re-anchor it when called with \code{updateScale = TRUE}, intended for burn-in only, since re-anchoring mid-run makes fits across iterations no longer comparable (see \link{dbartsSampler-class}).
   }
 }
 \value{

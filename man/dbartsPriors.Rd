@@ -35,7 +35,13 @@
       Normal prior on the node means. \code{k} scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       \code{chi}, or \code{NULL} for the default: 2 for continuous
-      responses, \code{chi(1.25, Inf)} for binary ones.
+      responses, \code{chi(1.25, Inf)} for binary ones. The continuous
+      default follows Chipman, George, and McCulloch's argument that with
+      node standard deviation \code{sigma_mu = 0.5 / (k * sqrt(m))} for
+      \code{m} trees, \code{k} prior standard deviations of \eqn{f(x)}
+      span the whole response range regardless of \code{m}; see
+      \code{\link{dbarts}}'s Details for the response-scaling caveat this
+      relies on.
     }
     \item{\code{linear(columns, k = NULL)}}{
       Each leaf fits an intercept plus a linear term in the designated

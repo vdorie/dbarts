@@ -35,7 +35,7 @@ dbartsControl(
      A non-negative integer determining how many samples, if any, are thrown away at the beginning of a run of the sampler.
    }
    \item{n.trees}{
-     A positive integer giving the number of trees used in the sum-of-trees formulation.
+     A positive integer giving the number of trees used in the sum-of-trees formulation. Default 75, dbarts's own historical choice; BayesTree's and \code{\link{bart}}'s default is 200.
    }
    \item{n.chains}{
      A positive integer detailing the number of independent chains for the sampler to use.

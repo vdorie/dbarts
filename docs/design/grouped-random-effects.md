@@ -34,8 +34,10 @@ rbart_vi's order:
 4. tau | b: slice sampling (stepping-out + shrinkage, the R loop's
    sliceSample) on (0, Inf) of
        -J log(tau) - 0.5 sum(b^2) / tau^2 + log p(tau)
-   The R loop takes n.thin slice steps and keeps the last; in-core
-   reproduces that count.
+   The R loop takes n.thin slice steps and keeps the last, reusing the
+   thinning interval as the step count rather than deriving one -
+   tau then refreshes as many times as tree sweeps separate two kept
+   draws elsewhere in the chain; in-core reproduces that count.
 
 Built-in tau priors, on the original response scale with
 rel.scale = sd(y) (continuous) or 0.5 (binary):
