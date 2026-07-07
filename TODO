@@ -78,10 +78,6 @@ items
     machinery plus a cutpoint block.
   pointwise-loglik: per-observation log-likelihood as a Results field
     (null-skip), unlocking loo/WAIC integration.
-  prior-constants: record provenance/derivations for the adopted
-    defaults (k = 2, power = 2, base = 0.95, sigdf = 3, sigquant = 0.9,
-    node.scale 3.0, n.trees 75/200, dart update delay) and the
-    tau-steps = n.thin coupling.
   prior-predictive: R-level verbs over the already-ported prior
     sampling entry points, for prior calibration workflows.
   python-bindings: post kernel-cleanups the engine is R-free below the
