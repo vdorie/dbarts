@@ -43,3 +43,15 @@ weighted by effective observation count.
 - tests/cpp component tests pass, including the new one.
 - Full tinytest suite after snapshot regeneration.
 - Equivalence statistical mode passes against the prior baseline.
+
+## Landing note (2026-07-07, 786abd9)
+
+Landed: mapCutPointsBelow's starved-interval branch merges leaf
+parameters by sumWeights with the plain mean as the explicit
+zero-weight fallback, mirroring collapseEmptyNodesBelow; component
+test uses an asymmetric 1-vs-5 split so the forms differ. Gates: C++
+suite + fuzzer pass, tinytest 2468 ok, equivalence 18/18 identical
+draws INCLUDING setdata - the branch fires there only over
+equal-weight leaves, so the shifting classification never triggered
+and no snapshot or baseline churn occurred. bench-sampler not owed
+(setData path, cold).
