@@ -52,3 +52,16 @@ validity errors stop leaking internal class names.
 - R CMD check clean; no exported-method removal warnings (the no-ops
   were R5 methods, not S4 generics - confirm NAMESPACE untouched).
 - Equivalence exact (neutral).
+
+## Landing note (2026-07-07, af6cb5c)
+
+Landed: startThreads/stopThreads no-ops removed (methods, internal
+call sites, man aliases; revdeps checked - neither stan4bart nor
+bartCause calls them); the testUsesRegularOffset sync documented as a
+Test offset synchronization subsection in man/dbarts.Rd's details
+(the plan's named "sampler methods section" does not exist - closest
+fit taken); S4 validity boilerplate stripped from user-facing errors
+via newValidated/validateObject wrappers at the 9 construction sites
+(nested new() validation propagates, so call sites suffice); one
+expect_error pattern updated. Gates: tinytest 2468 ok, equivalence
+exact 18/18, codoc clean, lint zero. +42/-36 lines.
