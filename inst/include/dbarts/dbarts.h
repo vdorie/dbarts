@@ -58,6 +58,8 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// that quantity. k requires a k hyperprior (dbarts_sampler_kIsSampled),
 /// varprobs a DART tree prior (dbarts_sampler_usesDart), and tau/groupEffects
 /// a grouped random-intercept sampler; each is left untouched otherwise.
+/// Value-initialize the struct (dbarts_results results = {0}) so members you
+/// do not set are null - an indeterminate member is dereferenced as a buffer.
 typedef struct dbarts_results_t {
   double* sigma;      ///< numSamples x numChains
   double* train;      ///< numObservations x numSamples x numChains
