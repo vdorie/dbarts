@@ -22,8 +22,8 @@ totalFits and partitions on load); the contract is self-imposed
 O(n * numTrees) state size, and stan4bart's splice-and-predict workflow
 needs the same trees and sigma, not the same accumulation history.
 Evidence that would change it: a consumer whose correctness (not
-convenience) depends on run(saved) == run(never-saved) bitwise. VD
-signs off.
+convenience) depends on run(saved) == run(never-saved) bitwise.
+Signed off (VD, 2026-07-06): drop to semantic restore.
 
 ## Constraints
 
