@@ -318,6 +318,30 @@ dbarts <- function(
   result
 }
 
+# Coerces a warm-start donor (a sampler, a bart fit with a kept sampler, or a
+# raw state) to the stored "bartcoreState" its forests are read from.
+warmStartState <- function(donor) {
+  if (inherits(donor, "bartcoreState")) {
+    return(donor)
+  }
+  sampler <-
+    if (inherits(donor, "dbartsSampler")) {
+      donor
+    } else if (inherits(donor, "bart") && !is.null(donor$fit)) {
+      donor$fit
+    } else {
+      stop(
+        "'warm.start' must be a dbarts sampler, a bart fit made with ",
+        "keepSampler = TRUE, or a bartcore state"
+      )
+    }
+  sampler$storeState()
+  if (is.null(sampler$state)) {
+    stop("warm-start donor has no stored state")
+  }
+  sampler$state
+}
+
 
 dbartsSampler <- setRefClass(
   "dbartsSampler",
@@ -818,6 +842,19 @@ dbartsSampler <- setRefClass(
       "Updates the cached internal state used for saving/loading."
       selfEnv <- parent.env(environment())
       selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
+      invisible(NULL)
+    },
+    installTrees = function(donor, samples = NULL) {
+      "Warm-starts the forests from a donor sampler or bart fit over the same
+       predictors. 'samples' maps each chain to a 1-based donor-sample index;
+       NULL spreads the chains across the donor's kept samples."
+      donorState <- warmStartState(donor)
+      if (!is.null(samples)) {
+        samples <- as.integer(samples)
+      }
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_installForests, ptr, donorState, samples)
+      storeState(ptr)
       invisible(NULL)
     },
     printTrees = function(treeNums, chainNums, sampleNums) {

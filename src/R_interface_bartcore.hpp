@@ -46,6 +46,7 @@ SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata);
 SEXP bartcore_storeState(SEXP ptr);
 SEXP bartcore_setState(SEXP ptr, SEXP state);
+SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptr);
 SEXP bartcore_printTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,

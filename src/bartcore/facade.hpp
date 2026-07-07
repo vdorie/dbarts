@@ -76,6 +76,9 @@ public:
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
   virtual bool setState(const SamplerStateData& state) = 0;
+  virtual WarmStartResult installForests(
+      const SamplerStateData& donor,
+      const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
   virtual void setNumThreads(std::size_t numThreads) = 0;
@@ -224,6 +227,11 @@ public:
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state) override {
     return impl_.setState(state);
+  }
+  WarmStartResult installForests(
+      const SamplerStateData& donor,
+      const std::vector<std::pair<std::size_t, int>>& sampleMap) override {
+    return impl_.installForests(donor, sampleMap);
   }
   void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
   void sampleNodeParametersFromPrior() override {
