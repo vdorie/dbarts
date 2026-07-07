@@ -49,3 +49,8 @@ visible instead of being git archaeology.
 - Local: Rscript benchmarks/R/equivalence.R compare <current>.rds
   passes with the coverage line printed.
 - The workflow runs green via workflow_dispatch before merging.
+
+Runner note (2026-07-06): scenario x seed units parallelized over
+forks (bitwise-verified against the serial equivalence-235bebc.rds,
+18/18 identical; ~11 min -> ~1.5 min). EQUIVALENCE_CORES overrides;
+Windows serial. CI wiring should set it to the runner core count.

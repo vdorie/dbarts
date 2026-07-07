@@ -470,12 +470,51 @@ fitSummaries <- function(scenario, seed) {
   result
 }
 
+# The scenario x seed units are independent and fully self-seeded
+# (fitSummaries calls set.seed first), so fork-level parallelism reproduces
+# the serial results bitwise. EQUIVALENCE_CORES overrides the width; Windows
+# has no fork and runs serially.
+numCores <- local({
+  env <- Sys.getenv("EQUIVALENCE_CORES", "")
+  if (nzchar(env)) {
+    max(1L, as.integer(env))
+  } else if (.Platform$OS.type == "windows") {
+    1L
+  } else {
+    parallel::detectCores()
+  }
+})
+
 runAll <- function(scenarios) {
-  lapply(scenarios, function(scenario) {
-    do.call(
-      rbind,
-      lapply(seq_len(n.seeds), function(seed) fitSummaries(scenario, seed))
+  grid <- expand.grid(
+    seed = seq_len(n.seeds),
+    scenario = names(scenarios),
+    stringsAsFactors = FALSE
+  )
+  fitOne <- function(i) {
+    fitSummaries(scenarios[[grid$scenario[i]]], grid$seed[i])
+  }
+  rows <- if (numCores > 1L) {
+    parallel::mclapply(
+      seq_len(nrow(grid)),
+      fitOne,
+      mc.cores = numCores,
+      mc.preschedule = FALSE
     )
+  } else {
+    lapply(seq_len(nrow(grid)), fitOne)
+  }
+  failed <- vapply(rows, inherits, TRUE, "try-error")
+  if (any(failed)) {
+    stop(
+      "fit failed for ",
+      paste(grid$scenario[failed], grid$seed[failed], collapse = ", "),
+      ": ",
+      conditionMessage(attr(rows[[which(failed)[1L]]], "condition"))
+    )
+  }
+  lapply(setNames(names(scenarios), names(scenarios)), function(name) {
+    do.call(rbind, rows[grid$scenario == name])
   })
 }
 
