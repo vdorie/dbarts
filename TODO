@@ -78,9 +78,6 @@ items
     machinery plus a cutpoint block.
   pointwise-loglik: per-observation log-likelihood as a Results field
     (null-skip), unlocking loo/WAIC integration.
-  post-mutation-assertions: replace the is.finite near-tautologies in
-    the older linear/gp mutation tests with statistical from-scratch
-    comparisons (not identical: setPredictor re-quantizes differently).
   prior-constants: record provenance/derivations for the adopted
     defaults (k = 2, power = 2, base = 0.95, sigdf = 3, sigquant = 0.9,
     node.scale 3.0, n.trees 75/200, dart update delay) and the
