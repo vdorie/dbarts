@@ -60,3 +60,27 @@ Phase 2 (land):
 - Full tinytest unchanged (neutrality is the gate); equivalence exact.
 - bench-sampler compare at n in {1e4, 1e5}: no regression; record the
   n = 1e5 improvement in the phase-1 table.
+
+## Phase 1 results (2026-07-07; VD go/no-go pending)
+
+u8 scalar+NEON partition kernels prototyped in benchmarks/kernels
+(bitwise-correct vs the u16 scalar reference). Median u8/u16
+ns-per-element ratios on the arm64 dev box (<1 = u8 faster):
+
+  n        Range-C  Range-NEON  Indices-C  Indices-NEON
+  32        1.02      0.93        0.98        0.96
+  128       1.02      0.96        1.00        1.81
+  1e4       0.91      1.16        1.83        1.93
+  1e5       0.95      1.88        1.05        2.12
+  1e6       0.95      0.99*       0.99        2.00
+  (*NEON u8 used a coarser block-skip design, not a full port of the
+  u16 lane-interleave - it likely understates u8 NEON's ceiling for
+  Range; Indices gathers scalar loads regardless of width on NEON.)
+
+No partition-throughput win observed with this design. Unmeasured and
+still live for the go/no-go: x86 (SSE2 has native unsigned u8
+min/max), and the memory argument - half the hot-layer bytes per
+eligible column, which a single-column microbench cannot exercise but
+the DRAM-bound n >= 1e5 regime would feel. The owned-container design
+(docs/design/data-ownership.md) wants per-column widths regardless;
+phase 2 could ride that container work rather than retrofitting.
