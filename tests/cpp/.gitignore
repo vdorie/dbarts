@@ -1,4 +1,6 @@
 test_bartcore
+*.o
+*.d
 *.dSYM/
 rshim.o
 rshim.so
