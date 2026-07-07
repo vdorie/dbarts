@@ -297,6 +297,11 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
     names = PROTECT(names);
     ++protectCount;
   }
+  // one reusable slot keeps each factor column's levels protected across
+  // the allocating name setters without growing the stack per column
+  PROTECT_INDEX levelsIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &levelsIndex);
+  ++protectCount;
   double* result = REAL(resultExpr);
   SEXP resultNames = VECTOR_ELT(rc_getDimNames(resultExpr), 1);
   
@@ -387,7 +392,8 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       
       case FACTOR:
       {
-        SEXP levels = rc_getLevels(col);
+        SEXP levels;
+        REPROTECT(levels = rc_getLevels(col), levelsIndex);
         size_t levelsLength = rc_getLength(levels);
         int* colData = INTEGER(col);
         size_t numLevelsPerFactor;
@@ -432,7 +438,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
         }
       }
       break;
-      
+
       default:
       break;
     }

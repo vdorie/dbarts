@@ -13,8 +13,8 @@ using std::size_t;
 extern "C" {
 
 SEXP rbart_getFitted(SEXP yhatExpr, SEXP ranefExpr, SEXP groupByExpr, SEXP responseIsBinaryExpr) {
-  SEXP ranefDimsExpr = rc_getDims(ranefExpr);
-  SEXP yhatDimsExpr =  rc_getDims(yhatExpr);
+  SEXP ranefDimsExpr = PROTECT(rc_getDims(ranefExpr));
+  SEXP yhatDimsExpr = PROTECT(rc_getDims(yhatExpr));
 
   const int* ranefDims = INTEGER(ranefDimsExpr);
   const int* yhatDims = INTEGER(yhatDimsExpr);
@@ -68,7 +68,7 @@ SEXP rbart_getFitted(SEXP yhatExpr, SEXP ranefExpr, SEXP groupByExpr, SEXP respo
     }
   }
 
-  UNPROTECT(1);
+  UNPROTECT(3);
 
   return resultExpr;
 }
