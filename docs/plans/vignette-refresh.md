@@ -45,3 +45,13 @@ leaves.
 
 - R CMD build (vignettes execute); R CMD check clean.
 - Build time increase measured and kept small.
+
+## Landing note (2026-07-07, see merge commit)
+
+Landed: the Gibbs vignette gains Response Families, DART, and data
+frame/factor/missing sections; the saved-trees vignette documents the
+full getTrees column set (directions, missing, beta.*), adds a
+categorical-splits section, and rebuildTree handles linear leaves -
+every example verified against installed behavior before the prose
+was written. Build times grew < 0.1s per vignette. Gates: install,
+clean vignette builds, tinytest 2470 ok. 115 insertions.

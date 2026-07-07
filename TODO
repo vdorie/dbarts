@@ -112,9 +112,6 @@ items
     VD's request.
   tests-cpp-split: split the 6075-line test_bartcore.cpp monolith into
     per-area TUs with a test filter, when compile time hurts.
-  vignette-refresh: neither vignette mentions family, dart, sparse,
-    missing, or the new leaf models; the saved-trees traversal code
-    assumes constant leaves.
   warm-starts: initialize a sampler's forest from a previous fit's
     saved trees; the flat replay and cut-mapping machinery exist, the
     verb does not.
