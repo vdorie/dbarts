@@ -58,3 +58,22 @@ buffers.
 - Full tinytest after snapshot regeneration.
 - Equivalence z-mode vs prior baseline passes.
 - bench-sampler compare on a quiet machine: no metric > 5% slower.
+
+## Landing note (2026-07-06, e565326)
+
+Landed: Node carries (sumWeights, sumWeightedResponse,
+sumWeightedResponseSq); computeLeafStats is one fused pass over four
+kernel variants (scalar reference, no dispatch pointer per the
+vocabulary contract); computeVariance deleted; orphanChildren merges
+children's suffstats additively; birth-rejection restores the triple;
+the leaf math consumes the crossproduct form directly. Draws shifted
+as classified: equivalence fell to statistical mode on all
+constant-leaf scenarios, max |z| = 2.20 (zeroweights), everything
+else 0.00; linear stayed bitwise. RNG-locked tinytest literals held
+within tolerance over their short runs, so no regeneration was
+needed - reviewer replicated tinytest (2465 ok) and equivalence
+independently. setNodeAverages keeps its legacy name (rename would
+ripple; readability-review can pick it up). Deferred: maintainer
+gates - bench-sampler compare (mandatory, zero-regression bar) and
+the equivalence baseline re-record; run both on a quiet machine, the
+new baseline named by e565326 or its successor.
