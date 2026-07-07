@@ -31,13 +31,14 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a); awaiting
-    VD review per the plan. Verdict: nothing earns a prototype yet;
-    grow-from-root's cut-scan ranks first behind its CPU
-    prerequisite; bartz (Petrillo 2024) is the existence proof and
-    the pragmatic GPU answer today; blocked-jacobi is obviated as a
-    GPU strategy (observation-axis parallelism suffices at b = 1)
-    and survives only as a CPU threading candidate.
+  gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
+    frontier companion (docs/design/parallel-bart-frontier.md,
+    2026-07-07: original constructions with exactness classes, the
+    conservation laws, the CRAN conditional-backend axis, and a
+    ranked falsifier list - instrumentation first). Both await VD
+    review; the frontier's items 1-2 (field-fraction profile + atom
+    census) decide the flagship CPU candidate (block-fused
+    sub-sweeps) independently of any GPU decision.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
