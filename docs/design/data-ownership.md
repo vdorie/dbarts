@@ -84,14 +84,87 @@ reference level counted as n - nnz. Today's store-wide restrictions
 (mutation refused while any CSC column exists; test data densified)
 are per-source facts the owned container relaxes per column.
 
-## Still open
+## Container design (proposal, 2026-07-07)
 
-- data.frame ingestion surface: what dbartsData grows, and whether
-  formula processing can defer factor expansion to ingestion. Sparse
-  categorical columns declare themselves via a small wrapper class
-  carrying levels (decided, VD 2026-07-06); the wrapper's exact
-  surface is design detail.
-- getTrees saved-replay: route from codes vs refuse after grid change.
-- Relationship to hot-layer-u8 (same container decides code widths),
-  sparse-extensions, mutation-journal (journal lives on owned
-  storage), forest-split-bcf (first multi-model consumer of views).
+One owned BartData replaces ColumnStore's borrow. Per column: a kind
+(ordinal or categorical), a storage class (dense codes or CSC), a
+code width chosen by cardinality (u8 for <= 255 cuts - the default
+n.cuts = 100 fits - u16 above; hot-layer-u8's per-column widths land
+here, not as a separate retrofit), the cut table or level table, an
+NA policy, and three creation-time flags: mutable (engine keeps an
+owned raw column; the updateX family lands there in place,
+copy-on-write-free, O(changed cells)), re-cuttable (owned raw
+retained for setCutPoints/quantile refresh of the unchanged column),
+and leaf-covariate (linear/gp leaves gather their own raw + working
+buffers at designation, as today). No flag, no raw: the default
+column owns codes only. Undeclared capabilities refuse at the call
+with the declared-state error, the sparse precedent.
+
+Cut tables carry an epoch counter bumped by any re-cut. Saved trees
+record the epoch they flattened under; getTrees saved-replay routes
+from codes while the epoch matches and refuses (naming the re-cut)
+when it does not - raw retention is never a replay requirement.
+
+## Ingestion
+
+dbartsData ingests a data.frame directly: numeric -> dense ordinal,
+unordered factor -> dense categorical, ordered factor -> ordinal
+codes, I()-wrapped sparseVector / dgCMatrix columns -> CSC ordinal,
+and a small exported wrapper class (carrying levels + reference
+level) -> CSC categorical (decided: wrapper, VD 2026-07-06). The
+R-side double matrix never materializes for data-frame input;
+formula input defers factor expansion to ingestion (factors =
+"categorical" already avoids dummy columns; the model.matrix double
+detour goes away). Matrix input keeps a READ-ONLY borrow of REAL(x)
+as the fast path (panel 2/3; write-through dies regardless): borrow
+serves quantization and any declared raw retention copies only the
+flagged columns. data@x becomes a creation-time snapshot BY
+DEFINITION; an extraction verb returns owned current values for
+mutable columns and the snapshot otherwise - correct in both cases.
+
+## Sharing
+
+The standalone data handle (core-generalization.md:168-172) owns the
+container once; samplers and forests attach through column-subset
+views (a column-index list - kernels consume one column at a time, so
+views need no contiguity). Cut tables and codes are shared when grids
+match; a per-model grid override allocates only the diverging column.
+Mutation follows the single-writer rule and one update is visible to
+every attached model, collapsing bairrtt's setPredictorJointly
+two-copy workaround; BCF's prognostic/treatment forests are the
+first multi-model consumer (forest-split-bcf).
+
+## Compatibility
+
+- PROT_PREDICTORS/PROT_TEST_PREDICTORS retains reduce to the borrow
+  fast path's lifetime pin; the const_cast writers and rollback
+  write-back (sampler.hpp:684,869) are deleted with the write-through.
+- dbarts.h: no signature changes; the creation-contract comment
+  updates. The C API keeps matrix semantics (borrow fast path).
+- State format: the container serializes per-column metadata + codes;
+  one version bump when the first implementation lands.
+- mutation-journal's build-new-and-swap and cell-granular journal
+  operate on the owned codes + flagged raw columns; sparse-extensions'
+  per-column relaxations (mutation with CSC present, sparse x.test)
+  become flag questions instead of store-wide ones.
+
+## Implementation split (plans to be written when scheduled)
+
+1. container + dense ingestion + borrow fast path (engine core);
+2. data.frame-direct ingestion + wrapper class (R surface);
+3. flags + mutation surface rewire + data@x snapshot semantics;
+4. views/sharing + standalone handle (blocks forest-split-bcf's
+   multi-forest data story);
+5. sparse categorical kernel + test-side sparse (with
+   sparse-extensions).
+
+## Still open (for VD)
+
+- Whether the epoch-refusal for getTrees saved-replay after a re-cut
+  is acceptable, or replay should keep working via retained raw on
+  re-cuttable columns (only those columns can re-cut, so retaining
+  raw there covers it - cheaper than it sounds).
+- Wrapper class name and whether it ships exported from dbarts or
+  stays an ingestion-internal constructor.
+- Whether the extraction verb is a new generic or extract(sampler,
+  "predictors").
