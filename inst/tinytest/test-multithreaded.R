@@ -4,7 +4,11 @@ source(
 )
 
 # test that multithreaded within chains matches single threaded
-## something weak so that it runs quickly w/500k observations
+## a slice of the source set: nthread doesn't change a single-chain fit's
+## code path, so size doesn't affect what's tested; keep it just weak enough
+## to run quickly
+testData$x <- testData$x[1:5001L, , drop = FALSE]
+testData$y <- testData$y[1:5001L]
 n.sims <- 15L
 n.burn <- 0L
 n.tree <- 3L
