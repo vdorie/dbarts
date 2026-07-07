@@ -79,3 +79,6 @@ the CI valgrind leg on this push is the authoritative zero-leak
 check; bench-sampler's setPredictor scenarios cover the wrapper's
 per-call allocation at the next quiet-machine run (expected
 negligible: one R alloc per mutation call).
+
+Confirmed: the first post-fix valgrind leg (run 28871332412,
+2026-07-07) passed - zero findings; all three sanitizer legs green.
