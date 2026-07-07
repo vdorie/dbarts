@@ -82,3 +82,8 @@ negligible: one R alloc per mutation call).
 
 Confirmed: the first post-fix valgrind leg (run 28871332412,
 2026-07-07) passed - zero findings; all three sanitizer legs green.
+
+Bench confirmed (2026-07-07 evening, quiet machine, HEAD 55ce4ba):
+bench-sampler compare vs 235bebc clean - setPredictor accept/reject
+at ratios 0.99/0.93, every scenario at or under baseline, no flags.
+The unwindProtect cost is not measurable; this note is closed.
