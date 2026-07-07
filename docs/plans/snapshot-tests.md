@@ -57,3 +57,21 @@ reference objects, labeled as seeded-drift tripwires.
   the suite twice).
 - Running tools/regenerate-snapshots.R twice in a row produces a zero
   diff.
+
+## Landing note (2026-07-07, bddc81b)
+
+Landed: five per-family reproducibility files (binary, continuous
+single/multithreaded, rbart, xbart), each block independently
+reseeded with its reference list beside the fit, labeled drift
+tripwires; the three superseded regression files deleted; rbart/xbart
+reproducibility files keep only their behavioral checks;
+tools/regenerate-snapshots.R rewrites the reference lists from the
+installed package (byte-idempotent - reviewer re-verified by
+checksum). The regenerated literals differ from the old ones in
+trailing digits because the old ones predated this week's
+draw-shifting landings and survived on tolerance; the script pins
+current-build exact values. xbart's random-subsample block gained the
+per-block set.seed it lacked. Gates: suite twice at 2470/0,
+standalone run_test_file matches full-suite results per file, lint
+zero. 849 changed lines vs the 400 budget - whole-file moves, flagged
+by the implementer, accepted.

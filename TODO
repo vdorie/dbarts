@@ -105,9 +105,6 @@ items
     sweeps.
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
-  snapshot-tests: move the ~65 RNG-locked literals into per-family
-    reproducibility files with per-block reseeding and a regeneration
-    script; label them drift tripwires, not correctness tests.
   sparse-extensions: in-place mutation, sparse x.test, streaming range
     kernel, mutation on dense-backed mixed columns (sparse-columns.md
     landing notes). The u8 width entry moved to hot-layer-u8.
