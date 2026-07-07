@@ -19,6 +19,8 @@ SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
+SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
+                              SEXP results, SEXP callback, SEXP rho);
 SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);

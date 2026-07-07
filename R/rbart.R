@@ -435,6 +435,14 @@ rbart_vi <- function(
   )
 }
 
+# One sampler run drives every kept sample through a per-sweep R closure
+# instead of a run(0, 1) round trip apiece. The closure conditions each sweep
+# on a fresh random-intercept draw (setOffset before the sweep) and, once the
+# sweep lands, reads its fit back to update the residual and slice-sample tau -
+# the identical operations in the identical order the round-trip loop ran, so
+# the draws are unchanged. Under n.thin > 1 only the first sweep of each
+# thinning block sets the offset and only the last is recorded, matching a
+# run(0, 1) that internally thins.
 rbart_vi_run <- function(
   sampler,
   data,
@@ -455,10 +463,13 @@ rbart_vi_run <- function(
 
   kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
   posteriorClosure <- prior$posteriorClosure
-  evalEnv <- prior$evalEnv
+  # used via evalEnv$b.sq in the nested postStep, which the linter misses
+  evalEnv <- prior$evalEnv # nolint: object_usage_linter.
 
   numObservations <- length(sampler$data@y)
   numTestObservations <- NROW(sampler$data@x.test)
+  numPredictors <- ncol(sampler$data@x)
+  usesDart <- inherits(sampler$model@tree.prior, "dbartsDartPrior")
 
   samples <- list(tau = rep(NA_real_, n.samples))
   if (!control@binary) {
@@ -479,39 +490,65 @@ rbart_vi_run <- function(
       if (rbartArgs$keepTestFits) numTestObservations else 0L,
       n.samples
     )
-    samples$varcount <- matrix(NA_integer_, ncol(sampler$data@x), n.samples)
-    if (inherits(sampler$model@tree.prior, "dbartsDartPrior")) {
-      samples$varprobs <- matrix(NA_real_, ncol(sampler$data@x), n.samples)
+    samples$varcount <- matrix(NA_integer_, numPredictors, n.samples)
+    if (usesDart) {
+      samples$varprobs <- matrix(NA_real_, numPredictors, n.samples)
     }
   }
 
-  # order of update matters - need to store a ranef that goes with a prediction
-  # or else when they're added together they won't be consistent with `predict`
-  for (i in seq_len(n.samples)) {
-    # update ranef
-    resid <- with(state, y.st - treeFit.train)
+  # engine scratch the sweep callback reads: the same channels a run(0, 1)
+  # fills, so the per-sample reads differ from the loop only by column index.
+  # varcount aliases integer storage the engine writes as uint32 (see the
+  # bridge entry point). Channels no read needs are left null so the engine
+  # skips them.
+  raw <- list(
+    sigma = numeric(n.samples),
+    train = matrix(0.0, numObservations, n.samples)
+  )
+  if (kIsModeled) {
+    raw$k <- numeric(n.samples)
+  }
+  if (!isWarmup) {
+    raw$varcount <- matrix(0L, numPredictors, n.samples)
+    if (numTestObservations > 0L) {
+      raw$test <- matrix(0.0, numTestObservations, n.samples)
+    }
+    if (usesDart) {
+      raw$varprobs <- matrix(0.0, numPredictors, n.samples)
+    }
+  }
+
+  n.thin <- control@n.thin
+  ranef <- NULL
+  ranef.vec <- NULL
+  callbackError <- NULL
+
+  # drawn before the sweep it conditions
+  preStep <- function() {
+    resid <- state$y.st - state$treeFit.train
     post.var <- 1.0 / (n.g / state$sigma^2.0 + 1.0 / state$tau^2.0)
     post.mean <- (n.g / state$sigma^2.0) *
       sapply(seq_len(numRanef), function(j) mean(resid[g.sel[[j]]])) *
       post.var
-    ranef <- rnorm(numRanef, post.mean, sqrt(post.var))
-    ranef.vec <- ranef[g]
-
-    # update BART params
+    ranef <<- rnorm(numRanef, post.mean, sqrt(post.var))
+    ranef.vec <<- ranef[g]
     sampler$setOffset(
       ranef.vec + if (!is.null(offset.orig)) offset.orig else 0,
       isWarmup
     )
-    dbarts_samples <- sampler$run(0L, 1L)
-    state$treeFit.train <- as.vector(dbarts_samples$train) - ranef.vec
-    if (control@binary) {
-      sampler$getLatents(state$y.st)
-    }
-    state$sigma <- dbarts_samples$sigma[1L]
+  }
 
-    # update sd of ranef
+  # reads back the sweep recorded in column i, then updates tau and books the
+  # sample
+  postStep <- function(i) {
+    state$treeFit.train <<- raw$train[, i] - ranef.vec
+    if (control@binary) {
+      state$y.st <<- sampler$getLatents(state$y.st)
+    }
+    state$sigma <<- raw$sigma[i]
+
     evalEnv$b.sq <- sum(ranef^2.0)
-    state$tau <- sliceSample(
+    state$tau <<- sliceSample(
       posteriorClosure,
       state$tau,
       control@n.thin,
@@ -529,69 +566,82 @@ rbart_vi_run <- function(
       .Call(C_dbarts_assignInPlace, samples$yhat.train, i, state$treeFit.train)
     }
     if (!is.null(samples$varcount)) {
-      .Call(
-        C_dbarts_assignInPlace,
-        samples$varcount,
-        i,
-        dbarts_samples$varcount
-      )
+      .Call(C_dbarts_assignInPlace, samples$varcount, i, raw$varcount[, i])
     }
     if (!is.null(samples$varprobs)) {
-      .Call(
-        C_dbarts_assignInPlace,
-        samples$varprobs,
-        i,
-        dbarts_samples$varprobs
-      )
+      .Call(C_dbarts_assignInPlace, samples$varprobs, i, raw$varprobs[, i])
     }
     if (
       !is.null(samples$yhat.test) &&
         numTestObservations > 0L &&
         rbartArgs$keepTestFits
     ) {
-      .Call(C_dbarts_assignInPlace, samples$yhat.test, i, dbarts_samples$test)
+      .Call(C_dbarts_assignInPlace, samples$yhat.test, i, raw$test[, i])
     }
     if (!is.null(samples$k)) {
-      .Call(C_dbarts_assignInPlace, samples$k, i, dbarts_samples$k)
+      .Call(C_dbarts_assignInPlace, samples$k, i, raw$k[i])
     }
     if (!isWarmup && !is.null(rbartArgs$callback)) {
       names(ranef) <- data$g.levels
+      callback_i <- rbartArgs$callback(
+        state$treeFit.train,
+        raw$test[, i],
+        ranef,
+        state$sigma,
+        state$tau
+      )
       if (is.null(samples$callback)) {
-        callback_i <- rbartArgs$callback(
-          state$treeFit.train,
-          dbarts_samples$test,
-          ranef,
-          state$sigma,
-          state$tau
-        )
-        samples$callback <- matrix(
+        samples$callback <<- matrix(
           NA_real_,
           length(callback_i),
           control@n.samples,
           dimnames = list(names(callback_i), NULL)
         )
-        .Call(C_dbarts_assignInPlace, samples$callback, i, callback_i)
-        rm(callback_i)
-      } else {
-        .Call(
-          C_dbarts_assignInPlace,
-          samples$callback,
-          i,
-          rbartArgs$callback(
-            state$treeFit.train,
-            dbarts_samples$test,
-            ranef,
-            state$sigma,
-            state$tau
-          )
-        )
       }
+      .Call(C_dbarts_assignInPlace, samples$callback, i, callback_i)
     }
 
     if (verbose && i %% control@printEvery == 0L) {
       cat("iter: ", i, "\n", sep = "")
     }
   }
+
+  # fires before every sweep; the offset is held across a thinning block, so
+  # only its first sweep books the previous sample and draws the next intercept
+  runCallback <- function(sweepIndex) {
+    tryCatch(
+      {
+        if (sweepIndex %% n.thin == 0L) {
+          group <- sweepIndex %/% n.thin
+          if (group > 0L) {
+            postStep(group)
+          }
+          preStep()
+        }
+        FALSE
+      },
+      error = function(e) {
+        callbackError <<- e
+        TRUE
+      }
+    )
+  }
+
+  .Call(
+    C_dbarts_bartcore_runWithCallback,
+    sampler$getPointer(),
+    0L,
+    as.integer(n.samples),
+    raw,
+    runCallback,
+    environment()
+  )
+  if (!is.null(callbackError)) {
+    stop(callbackError)
+  }
+
+  # the last block's sweep landed after the final callback; book it now
+  postStep(n.samples)
 
   list(state = state, samples = samples)
 }
