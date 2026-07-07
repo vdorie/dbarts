@@ -22,9 +22,11 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  capi-callbacks: additive dbarts.h evolution - per-sweep conditioning
-    callback and observer hook at the existing pollInterrupt dispatch
-    point; tau/groupEffects fields on dbarts_results.
+  rbart-loop-fix: rbart_vi's custom-prior path drives one run() with
+    a bridge-registered per-sweep R closure instead of n run(0L, 1L)
+    round trips (the hook landed with capi-callbacks, e7fc71a);
+    bitwise equality with the loop is the gate. Reclaims the 15-76%
+    measured overhead.
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
@@ -83,9 +85,8 @@ items
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
   rbart-loop-profile: MEASURED 2026-07-07, verdict GO (overhead 15-76%
-    across cells; table in the plan file). The fix rides
-    capi-callbacks' conditioning hook; write that follow-up plan when
-    capi-callbacks is picked. (The correctness bug this measurement
+    across cells; table in the plan file). The fix is now its own
+    item, rbart-loop-fix. (The correctness bug this measurement
     surfaced was fixed as rbart-custom-prior-divergence, c7fa0e4.)
   readability-review: the bartcore branch was agent-written end to end;
     rubric-driven human-readability pass over its code, comments, and
@@ -152,7 +153,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     maintainer); revdep summary as above; test environments; goal
     0 errors / 0 warnings / 0 notes.
   stan4bart follow-up: adopt categorical splits (it pins factors =
-    "indicators"); lockstep with the dbarts release.
+    "indicators"); value-initialize its dbarts_results member (one
+    line, bart_util.hpp - required by the tau/groupEffects struct
+    extension, capi-callbacks Decision block); lockstep with the
+    dbarts release.
   optional courtesy: notify the tmle maintainers. Their default
     SuperLearner dbarts wrappers pass obsWeights unconditionally and
     pnorm() the latents; unit weights are handled dbarts-side now, but

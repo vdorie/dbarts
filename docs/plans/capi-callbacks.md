@@ -105,3 +105,28 @@ submission.
 - Full tinytest suite; component tests.
 - Callback path vs setter-loop path: identical draws (the equality
   assertion in the consumer test is the gate).
+
+## Status (2026-07-07)
+
+Landed (e7fc71a) per the resolved Decision block. dbarts.h gains
+dbarts_sampler_setCallback (int cb(userData, sampler, chainIndex,
+sweepIndex, isBurnIn), 0 stops; fires unthrottled on the calling
+thread before every sweep including thinned ones) and the
+tau/groupEffects results fields; DBARTS_C_API_VERSION stays 1.
+Engine-side a SweepCallback threads through chain/sampler/facade
+run() alongside pollInterrupt with the same true-to-stop convention;
+the worker-thread refusal is enforced at setCallback AND at run
+(guarding a setNumThreads-after-register race - a deliberate
+addition beyond the plan), and a numThreads() facade getter was
+added for it. The consumer test's bitwise assertion holds: a
+callback-driven run equals the setSigma + run(0, 1) loop
+expect_identical; early stop, refusal, and grouped tau/groupEffects
+reads exercised (grouped fit built via the bartcore.groups control
+attribute). Gates (implementer ran, reviewer re-ran): component
+tests pass, tinytest 2419/0 (10 new), equivalence exact 18/18
+identical draws vs 235bebc, test-capi.R compiled and exercised
+(not skipped), air/lintr clean. Remaining lockstep item, recorded
+in the Decision block: stan4bart value-initializes its
+dbarts_results member (one line, bart_util.hpp) before submission.
+The rbart_vi loop fix rides this hook; its plan is
+docs/plans/rbart-loop-fix.md.
