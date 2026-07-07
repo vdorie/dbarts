@@ -49,3 +49,27 @@ shape, and summary() reports R-hat/ESS for the scalar parameters.
 
 - Full tinytest with and without posterior installed.
 - R CMD check clean with posterior in Suggests.
+
+## Status (2026-07-07)
+
+Landed (b17a78f). summary.bart/.rbart report rank-normalized
+split-R-hat and bulk ESS for the scalar parameters via posterior
+when available (verified equal to posterior's own values on the
+extracted draws) and degrade to a plain quantile table with an
+install note otherwise (degrade path tested via a namespace stub);
+as_draws_array/as_draws_df map any chain-dimensioned field to
+posterior's conventions through a `vars` argument (scalars by name,
+array fields as "field[column]"), reconstructing chains from
+combineChains-flattened fits. posterior is Suggests-only: the
+methods register in .onLoad through setHook(packageEvent(...)) plus
+an isNamespaceLoaded check - a review fix replacing the implementer's
+requireNamespace form, which force-loaded posterior's dependency
+chain at dbarts load and missed mid-session installs; the hook form
+was verified end to end (dbarts load leaves posterior unloaded; a
+posterior loaded afterward still dispatches). The hook lives in
+R/hooks.R beside .onUnload (zzz.R folded in on review). Deviation:
+leaf-count/tree-depth summaries skipped - no cheap tree-walk helper
+exists and the plan made them conditional. Gates: tinytest 2458/0
+(33 new), both diagnostics paths exercised, air/lintr clean,
+checkRd clean, plain R CMD check at the pre-existing compiled-code
+NOTE only.

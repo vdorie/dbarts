@@ -22,9 +22,6 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  convergence-diagnostics: multi-chain fits return raw arrays with no
-    R-hat/ESS story; posterior-package-compatible draw accessors and a
-    summary that says whether the chains agree.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
