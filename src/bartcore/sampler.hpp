@@ -216,8 +216,14 @@ public:
   /// stopped early, having joined every worker first so nothing outlives the
   /// call. It is called at most every ~100ms, so a normal run pays only a
   /// clock read per sweep and stays bitwise identical.
+  ///
+  /// onSweep, if set, is the host's per-sweep conditioning hook; it runs only
+  /// when chains run inline (min(numThreads, numChains) <= 1), so the caller
+  /// must not set it alongside worker-thread chains. Chains then run
+  /// sequentially, so onSweep sees chain c completed before chain c + 1 begins.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
-           const std::function<bool()>& pollInterrupt = {}) {
+           const std::function<bool()>& pollInterrupt = {},
+           const SweepCallback& onSweep = {}) {
     size_t numChains = chains_.size();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
     std::vector<Results> chainResults(numChains);
@@ -269,9 +275,10 @@ public:
       }
       const std::function<bool()>* shouldCancelPtr =
         shouldCancel ? &shouldCancel : nullptr;
+      const SweepCallback* onSweepPtr = onSweep ? &onSweep : nullptr;
       for (size_t c = 0; c < numChains && !cancelled; ++c)
         cancelled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                    &progress, c, shouldCancelPtr);
+                                    &progress, c, shouldCancelPtr, onSweepPtr);
     } else {
       // workers never call into R: progress lines queue and the main thread
       // flushes them every 0.1 seconds and polls for interrupts, setting the
@@ -815,6 +822,7 @@ public:
   const ColumnStore& data() const { return data_; }
   const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }
+  size_t numThreads() const { return options_.numThreads; }
 
   // BCF surface, fanned to every chain (docs/design/bcf.md); benign on
   // single-forest samplers, where numForests() is 1 and bcfGlue reports none.

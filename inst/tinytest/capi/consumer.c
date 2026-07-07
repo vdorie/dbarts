@@ -20,6 +20,7 @@ static void (*p_setResponse)(dbarts_sampler*, const double*);
 static void (*p_setOffset)(dbarts_sampler*, const double*, int);
 static void (*p_setWeights)(dbarts_sampler*, const double*);
 static void (*p_setSigma)(dbarts_sampler*, double);
+static void (*p_setCallback)(dbarts_sampler*, dbarts_sampler_callback, void*);
 static void (*p_setTestOffset)(dbarts_sampler*, const double*);
 static void (*p_printTrees)(dbarts_sampler*, const size_t*, size_t,
                             const size_t*, size_t, const size_t*, size_t);
@@ -68,6 +69,8 @@ static void initApi(void) {
          "dbarts_sampler_setWeights");
   LOOKUP(void (*)(dbarts_sampler*, double), p_setSigma,
          "dbarts_sampler_setSigma");
+  LOOKUP(void (*)(dbarts_sampler*, dbarts_sampler_callback, void*),
+         p_setCallback, "dbarts_sampler_setCallback");
   LOOKUP(void (*)(dbarts_sampler*, const double*), p_setTestOffset,
          "dbarts_sampler_setTestOffset");
   LOOKUP(void (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
@@ -225,6 +228,133 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
 
   UNPROTECT(6);
+  return resultExpr;
+}
+
+/* per-sweep callback state: sets sigma[sweepIndex] when sigmas is non-null,
+ * counts invocations, and returns 0 (stop) once the count reaches stopAt */
+typedef struct {
+  const double* sigmas;
+  size_t numSigmas;
+  int stopAt; /* < 0 disables early stop */
+  int count;
+} callbackState;
+
+static int sweepCallback(void* userData, dbarts_sampler* sampler,
+                         size_t chainIndex, size_t sweepIndex, int isBurnIn) {
+  callbackState* state = (callbackState*) userData;
+  (void) chainIndex;
+  (void) isBurnIn;
+  ++state->count;
+  if (state->sigmas != NULL && sweepIndex < state->numSigmas)
+    p_setSigma(sampler, state->sigmas[sweepIndex]);
+  if (state->stopAt >= 0 && state->count >= state->stopAt) return 0;
+  return 1;
+}
+
+/* registers sweepCallback for one run then clears it, so the borrowed sigmas
+ * stay live throughout; returns sigma/train/varcount plus the invocation
+ * count. sigmasExpr may be NULL; stopAt < 0 disables early stop. */
+SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
+                            SEXP numSamplesExpr, SEXP sigmasExpr,
+                            SEXP stopAtExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t n = p_numObservations(sampler);
+  size_t p = p_numPredictors(sampler);
+  size_t chains = p_numChains(sampler);
+
+  callbackState state;
+  state.sigmas = Rf_isNull(sigmasExpr) ? NULL : REAL(sigmasExpr);
+  state.numSigmas =
+    Rf_isNull(sigmasExpr) ? 0 : (size_t) Rf_xlength(sigmasExpr);
+  state.stopAt = Rf_asInteger(stopAtExpr);
+  state.count = 0;
+
+  SEXP sigmaExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
+  SEXP trainExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (n * numSamples * chains)));
+  uint32_t* varcount =
+    (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
+
+  dbarts_results results;
+  results.sigma = REAL(sigmaExpr);
+  results.train = REAL(trainExpr);
+  results.test = NULL;
+  results.varcount = varcount;
+  results.k = NULL;
+  results.varprobs = NULL;
+  results.tau = NULL;
+  results.groupEffects = NULL;
+
+  p_setCallback(sampler, sweepCallback, &state);
+  p_run(sampler, numBurnIn, numSamples, &results);
+  p_setCallback(sampler, NULL, NULL);
+
+  SEXP varcountExpr = PROTECT(
+    Rf_allocVector(INTSXP, (R_xlen_t) (p * numSamples * chains)));
+  int* varcountOut = INTEGER(varcountExpr);
+  for (size_t i = 0; i < p * numSamples * chains; ++i)
+    varcountOut[i] = (int) varcount[i];
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 4));
+  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
+  SET_VECTOR_ELT(resultExpr, 1, trainExpr);
+  SET_VECTOR_ELT(resultExpr, 2, varcountExpr);
+  SET_VECTOR_ELT(resultExpr, 3, Rf_ScalarInteger(state.count));
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 4));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("varcount"));
+  SET_STRING_ELT(namesExpr, 3, Rf_mkChar("count"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+
+  UNPROTECT(5);
+  return resultExpr;
+}
+
+/* a grouped run: fills and returns tau (numSamples x chains) and groupEffects
+ * (numGroups x numSamples x chains), the buffers dbarts_results now carries */
+SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
+                      SEXP numGroupsExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t numGroups = (size_t) Rf_asInteger(numGroupsExpr);
+  size_t chains = p_numChains(sampler);
+
+  SEXP sigmaExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
+  SEXP tauExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
+  SEXP ranefExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numGroups * numSamples * chains)));
+
+  dbarts_results results;
+  results.sigma = REAL(sigmaExpr);
+  results.train = NULL;
+  results.test = NULL;
+  results.varcount = NULL;
+  results.k = NULL;
+  results.varprobs = NULL;
+  results.tau = REAL(tauExpr);
+  results.groupEffects = REAL(ranefExpr);
+
+  p_run(sampler, numBurnIn, numSamples, &results);
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
+  SET_VECTOR_ELT(resultExpr, 1, tauExpr);
+  SET_VECTOR_ELT(resultExpr, 2, ranefExpr);
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("tau"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("ranef"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+
+  UNPROTECT(5);
   return resultExpr;
 }
 

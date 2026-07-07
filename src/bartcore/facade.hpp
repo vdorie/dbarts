@@ -19,7 +19,8 @@ public:
 
   virtual bool run(std::size_t numBurnIn, std::size_t numSamples,
                    Results& results,
-                   const std::function<bool()>& pollInterrupt = {}) = 0;
+                   const std::function<bool()>& pollInterrupt = {},
+                   const SweepCallback& onSweep = {}) = 0;
   virtual void setOffset(const double* offset, bool updateScale) = 0;
   virtual void setResponse(const double* y, bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
@@ -108,6 +109,7 @@ public:
   virtual bool kIsSampled() const = 0;
   virtual bool usesDart() const = 0;
   virtual std::size_t numChains() const = 0;
+  virtual std::size_t numThreads() const = 0;
   /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
   /// treatment). The bridge refuses state serialization above 1 (step 4).
   virtual std::size_t numForests() const = 0;
@@ -130,8 +132,9 @@ public:
   explicit SamplerFacade(Args&&... args) : impl_(std::forward<Args>(args)...) {}
 
   bool run(std::size_t numBurnIn, std::size_t numSamples, Results& results,
-           const std::function<bool()>& pollInterrupt = {}) override {
-    return impl_.run(numBurnIn, numSamples, results, pollInterrupt);
+           const std::function<bool()>& pollInterrupt = {},
+           const SweepCallback& onSweep = {}) override {
+    return impl_.run(numBurnIn, numSamples, results, pollInterrupt, onSweep);
   }
   void setOffset(const double* offset, bool updateScale) override {
     impl_.setOffset(offset, updateScale);
@@ -272,6 +275,7 @@ public:
   bool kIsSampled() const override { return impl_.kIsSampled(); }
   bool usesDart() const override { return impl_.usesDart(); }
   std::size_t numChains() const override { return impl_.numChains(); }
+  std::size_t numThreads() const override { return impl_.numThreads(); }
   std::size_t numForests() const override { return impl_.numForests(); }
   void setTreatment(const double* z) override { impl_.setTreatment(z); }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
