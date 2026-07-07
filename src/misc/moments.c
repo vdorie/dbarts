@@ -304,36 +304,115 @@ double misc_computeIndexedWeightedVarianceForKnownMeanFast(const double* restric
   return computeIndexedUnrolledWeightedVarianceForKnownMean(x, indices, length, w, mean);
 }
 
-// Scalar reference for the fused (sum w, sum wx, sum wx^2) suffstat; a SIMD
-// specialization would slot in here behind the same signature if profiling
-// asked for one. The raw sums are order-insensitive, unlike the mean-then-
-// centered-variance pair these replace.
+// Fused (sum w, sum wx, sum wx^2) suffstat, unrolled like the mean kernels
+// above; a SIMD specialization would slot in behind the same signature if
+// profiling asked for one. The raw sums are order-insensitive, unlike the
+// mean-then-centered-variance pair these replace.
 void misc_computeSufficientStatisticsFast(const double* x, size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
 {
-  double sw = (double) length, swx = 0.0, swxSq = 0.0;
-  for (size_t i = 0; i < length; ++i) { swx += x[i]; swxSq += x[i] * x[i]; }
-  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+  *sumW = (double) length;
+
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double swx = 0.0, swxSq = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) { swx += x[i]; swxSq += x[i] * x[i]; }
+    if (length < 5) { *sumWX = swx; *sumWXSq = swxSq; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    swx += x[i] + x[i + 1] + x[i + 2] + x[i + 3] + x[i + 4];
+    swxSq += x[i] * x[i] + x[i + 1] * x[i + 1] + x[i + 2] * x[i + 2] +
+             x[i + 3] * x[i + 3] + x[i + 4] * x[i + 4];
+  }
+
+  *sumWX = swx;
+  *sumWXSq = swxSq;
 }
 
 void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const size_t* restrict indices, size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
 {
-  double sw = (double) length, swx = 0.0, swxSq = 0.0;
-  for (size_t i = 0; i < length; ++i) { double v = x[indices[i]]; swx += v; swxSq += v * v; }
-  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+  *sumW = (double) length;
+
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
+  double swx = 0.0, swxSq = 0.0;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) { double v = x[indices[i]]; swx += v; swxSq += v * v; }
+    if (length < 5) { *sumWX = swx; *sumWXSq = swxSq; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    double v0 = x[indices[i]], v1 = x[indices[i + 1]], v2 = x[indices[i + 2]],
+           v3 = x[indices[i + 3]], v4 = x[indices[i + 4]];
+    swx += v0 + v1 + v2 + v3 + v4;
+    swxSq += v0 * v0 + v1 * v1 + v2 * v2 + v3 * v3 + v4 * v4;
+  }
+
+  *sumWX = swx;
+  *sumWXSq = swxSq;
 }
 
 void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
 {
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
   double sw = 0.0, swx = 0.0, swxSq = 0.0;
-  for (size_t i = 0; i < length; ++i) { double wi = w[i], v = x[i]; sw += wi; swx += wi * v; swxSq += wi * v * v; }
-  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) {
+      double wi = w[i], v = x[i];
+      sw += wi; swx += wi * v; swxSq += wi * v * v;
+    }
+    if (length < 5) { *sumW = sw; *sumWX = swx; *sumWXSq = swxSq; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    double wv0 = w[i] * x[i], wv1 = w[i + 1] * x[i + 1],
+           wv2 = w[i + 2] * x[i + 2], wv3 = w[i + 3] * x[i + 3],
+           wv4 = w[i + 4] * x[i + 4];
+    sw += w[i] + w[i + 1] + w[i + 2] + w[i + 3] + w[i + 4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+    swxSq += wv0 * x[i] + wv1 * x[i + 1] + wv2 * x[i + 2] + wv3 * x[i + 3] +
+             wv4 * x[i + 4];
+  }
+
+  *sumW = sw;
+  *sumWX = swx;
+  *sumWXSq = swxSq;
 }
 
 void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const size_t* restrict indices, size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq)
 {
+  size_t i = 0;
+  size_t lengthMod5 = length % 5;
+
   double sw = 0.0, swx = 0.0, swxSq = 0.0;
-  for (size_t i = 0; i < length; ++i) { size_t j = indices[i]; double wi = w[j], v = x[j]; sw += wi; swx += wi * v; swxSq += wi * v * v; }
-  *sumW = sw; *sumWX = swx; *sumWXSq = swxSq;
+  if (lengthMod5 != 0) {
+    for ( ; i < lengthMod5; ++i) {
+      size_t j = indices[i];
+      double wi = w[j], v = x[j];
+      sw += wi; swx += wi * v; swxSq += wi * v * v;
+    }
+    if (length < 5) { *sumW = sw; *sumWX = swx; *sumWXSq = swxSq; return; }
+  }
+
+  for ( ; i < length; i += 5) {
+    size_t j0 = indices[i], j1 = indices[i + 1], j2 = indices[i + 2],
+           j3 = indices[i + 3], j4 = indices[i + 4];
+    double wv0 = w[j0] * x[j0], wv1 = w[j1] * x[j1], wv2 = w[j2] * x[j2],
+           wv3 = w[j3] * x[j3], wv4 = w[j4] * x[j4];
+    sw += w[j0] + w[j1] + w[j2] + w[j3] + w[j4];
+    swx += wv0 + wv1 + wv2 + wv3 + wv4;
+    swxSq += wv0 * x[j0] + wv1 * x[j1] + wv2 * x[j2] + wv3 * x[j3] +
+             wv4 * x[j4];
+  }
+
+  *sumW = sw;
+  *sumWX = swx;
+  *sumWXSq = swxSq;
 }
 
 // if the data for any thread would, by itself, trigger a fall-back to single threaded
