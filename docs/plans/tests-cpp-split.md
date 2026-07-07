@@ -40,3 +40,8 @@ units with dependency tracking and a name filter, replacing the
 
 - All 78 tests still run and pass (count them in the runner output).
 - Touching one engine header recompiles only dependent TUs.
+
+## Status
+
+Triggered by VD 2026-07-07 (the monolith passed 6400 lines and the
+BCF work will churn the engine headers it recompiles against).
