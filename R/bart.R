@@ -215,7 +215,7 @@ packageBartResults <- function(
   if (responseIsBinary) {
     result <- list(
       call = fit$control@call,
-      family = fit$control@family,
+      family = fit$model@family,
       yhat.train = yhat.train,
       yhat.test = yhat.test,
       varcount = varcount,
@@ -227,7 +227,7 @@ packageBartResults <- function(
   } else {
     result <- list(
       call = fit$control@call,
-      family = fit$control@family,
+      family = fit$model@family,
       first.sigma = burnInSigma,
       sigma = sigma,
       sigest = fit$data@sigma,

@@ -83,7 +83,6 @@ xbart <- function(
     # families need latent-variable coding
     stop("family \"", family, "\" requires a response coded 0/1")
   }
-  control@family <- family
   control@binary <- family != "gaussian"
 
   if (is.na(data@sigma) && !control@binary) {
@@ -254,10 +253,11 @@ xbart <- function(
     node.prior,
     node.hyperprior,
     resid.prior,
+    family = family,
     # the logistic scale is probit's default widened by the logistic
     # latent's standard deviation, pi / sqrt(3)
     node.scale = switch(
-      control@family,
+      family,
       gaussian = 0.5,
       probit = 3.0,
       logistic = pi * sqrt(3.0)
@@ -314,7 +314,7 @@ xbart <- function(
     model@tree.prior@update.delay <- as.numeric(n.burn[1L] %/% 2L)
   }
 
-  lossFunction <- xbartLossFunction(loss, control)
+  lossFunction <- xbartLossFunction(loss, control, family)
 
   # a replication draws a data split and sweeps every parameter cell over
   # it. Chains warm-start only across cells - the training data is
@@ -477,7 +477,7 @@ xbart <- function(
 ## testSamples is numTestObservations x numSamples, on the latent scale for
 ## binary responses. The built-in binary losses transform by the family's
 ## link.
-xbartLossFunction <- function(loss, control) {
+xbartLossFunction <- function(loss, control, family) {
   if (is.list(loss)) {
     result <- loss[[1L]]
     environment(result) <- loss[[2L]]
@@ -492,7 +492,7 @@ xbartLossFunction <- function(loss, control) {
     stop("loss '", loss, "' requires a binary response")
   }
 
-  probFromLatent <- if (identical(control@family, "logistic")) plogis else pnorm
+  probFromLatent <- if (identical(family, "logistic")) plogis else pnorm
 
   switch(
     loss,
@@ -544,7 +544,7 @@ xbartRunChunk <- function(spec, repIndices, chunkSeed) {
   numCells <- nrow(cells)
   numObservations <- length(data@y)
   hasWeights <- !is.null(data@weights)
-  family <- if (spec$control@family == "auto") "" else spec$control@family
+  family <- if (spec$model@family == "auto") "" else spec$model@family
 
   handle <- bartcoreDataHandle(spec$control, data)
 

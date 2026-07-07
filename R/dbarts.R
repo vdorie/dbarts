@@ -195,7 +195,6 @@ dbarts <- function(
     # families need latent-variable coding
     stop("family \"", family, "\" requires a response coded 0/1")
   }
-  control@family <- family
   control@binary <- family != "gaussian"
 
   # binary weight policy, enforced here in the R layer (the bridge keeps the
@@ -208,7 +207,7 @@ dbarts <- function(
   # positive integers. Gaussian weights, including a gaussian fit of a 0/1
   # response, are unrestricted.
   if (!is.null(data@weights)) {
-    if (control@family == "probit") {
+    if (family == "probit") {
       if (all(data@weights == 1)) {
         data@weights <- NULL
       } else {
@@ -220,7 +219,7 @@ dbarts <- function(
         )
       }
     }
-    if (control@family == "logistic") {
+    if (family == "logistic") {
       w <- data@weights
       if (anyNA(w) || any(w <= 0) || any(w != round(w))) {
         stop(
@@ -292,10 +291,11 @@ dbarts <- function(
     priors$node.hyperprior,
     priors$resid.prior,
     proposal.probs = proposal.probs,
+    family = family,
     # the logistic scale is probit's default widened by the logistic
     # latent's standard deviation, pi / sqrt(3)
     node.scale = switch(
-      control@family,
+      family,
       gaussian = 0.5,
       probit = 3.0,
       logistic = pi * sqrt(3.0)
@@ -343,13 +343,13 @@ dbartsSampler <- setRefClass(
       .self$model <- model
       .self$data <- data
 
-      # "auto" (a hand-built control) keeps the bridge's own dispatch
+      # "auto" (a hand-built model) keeps the bridge's own dispatch
       .self$pointer <- .Call(
         C_dbarts_bartcore_create,
         .self$control,
         .self$model,
         .self$data,
-        if (control@family == "auto") "" else control@family
+        if (model@family == "auto") "" else model@family
       )
       # materialized lazily on first access (forcing it before saveRDS
       # captures the sampler), or eagerly by storeState / updateState runs.
@@ -500,7 +500,6 @@ dbartsSampler <- setRefClass(
       selfEnv <- parent.env(environment())
 
       newControl@binary <- control@binary
-      newControl@family <- control@family
       newControl@call <- control@call
 
       # settings fixed at creation: the generators and anything shaping
@@ -545,6 +544,7 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
+      newModel@family <- model@family
       oldModel <- model
       selfEnv$model <- newModel
       tryResult <- tryCatch(
@@ -789,7 +789,7 @@ dbartsSampler <- setRefClass(
           control,
           model,
           data,
-          if (control@family == "auto") "" else control@family
+          if (model@family == "auto") "" else model@family
         )
         .Call(C_dbarts_bartcore_setState, pointer, state)
       }
@@ -807,7 +807,7 @@ dbartsSampler <- setRefClass(
           control,
           model,
           data,
-          if (control@family == "auto") "" else control@family
+          if (model@family == "auto") "" else model@family
         )
       }
       .Call(C_dbarts_bartcore_setState, pointer, newState)
