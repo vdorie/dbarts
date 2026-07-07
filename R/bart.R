@@ -366,6 +366,7 @@ bart2 <- function(
   seed = NA_integer_,
   proposal.probs = NULL,
   keepSampler = keepTrees,
+  warm.start = NULL,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic"),
   missing = c("incorporate", "error"),
@@ -449,7 +450,11 @@ bart2 <- function(
 
   control <- sampler$control
 
-  sampler$sampleTreesFromPrior(updateState = FALSE)
+  if (!is.null(warm.start)) {
+    sampler$installTrees(warm.start)
+  } else {
+    sampler$sampleTreesFromPrior(updateState = FALSE)
+  }
 
   burnInSigma <- NULL
   burnInK <- NULL

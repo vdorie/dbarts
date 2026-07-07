@@ -51,6 +51,7 @@ bart2(
     seed = NA_integer_,
     proposal.probs = NULL,
     keepSampler = keepTrees,
+    warm.start = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
@@ -178,6 +179,9 @@ extract(object, \dots)
    }
    \item{keepsampler, keepSampler}{
      Logical that can be used to save the underlying \code{\link{dbartsSampler-class}} object even if \code{keepTrees} is false.
+   }
+   \item{warm.start}{
+     \code{bart2} only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a \code{bart} object fit with \code{keepSampler = TRUE} or a \code{\link{dbartsSampler-class}}. The donor must share this fit's predictors, tree count, cut grid, and DART setting; only its trees, \code{sigma}, and \code{k} carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero \code{n.burn}. See \code{\link{dbartsSampler-class}}'s \code{installTrees} method for finer control.
    }
    \item{factors, family, missing}{
      As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors expand into indicator columns, binary responses are probit, and missing data are rejected.

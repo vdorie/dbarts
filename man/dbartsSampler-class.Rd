@@ -23,6 +23,7 @@
 \alias{\S4method{setTestOffset}{dbartsSampler}}
 \alias{\S4method{printTrees}{dbartsSampler}}
 \alias{\S4method{getTrees}{dbartsSampler}}
+\alias{\S4method{installTrees}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
 \description{
   A reference class object that contains a Bayesian Additive Regression Trees sampler in such a way that it can be modified, stopped, and started all while maintaining its own state.
@@ -52,6 +53,7 @@
 \S4method{getTrees}{dbartsSampler}(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
+\S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
 \S4method{plotTree}{dbartsSampler}(
   treeNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
@@ -164,6 +166,12 @@
   \item{treePlotPars}{
     A named numeric vector containing the quantities \code{nodeHeight}, \code{nodeWidth}, and \code{nodeGap}, all of which control aspects of the resulting plot.
   }
+  \item{donor}{
+    For \code{installTrees}, the fit whose forests seed this sampler: another \code{dbartsSampler}, or a \code{bart} object fit with \code{keepSampler = TRUE}. The donor must share this sampler's predictors, tree count, cut grid, and DART setting.
+  }
+  \item{samples}{
+    For \code{installTrees}, an optional integer vector with one entry per chain, each a 1-based index into the donor's pool of samples (its saved trees when it kept them, else its final trees per chain). \code{NULL} spreads the chains evenly across the pool.
+  }
   \item{...}{
     Extra arguments to \code{\link{plot}}.
   }
@@ -175,6 +183,10 @@
     \code{\link{save}}-ing and \code{\link{load}}ing a \code{dbarts} sampler for future use requires that R's serialization mechanism be able to access the state of the sampler which, for memory purposes, is only made available to R on request. To do this, one must \dQuote{touch} the sampler's state object before saving, e.g. for the object \code{sampler}, execute \code{invisible(sampler$state)}. This is in addition to guaranteeing that the \code{state} object is not \code{NULL}, which can be done by setting the sampler's control to an object with \code{updateState} as \code{TRUE} or passing \code{TRUE} as the \code{updateState} argument to any of the sampler's applicable methods.
 
     The state object is opaque and engine-specific, and carries a format version and the package version that wrote it. A state loads only within the format version of the \code{dbarts} that wrote it; loading it with an incompatible version refuses cleanly, naming both versions, rather than risk a silent misread. There is no cross-version migration: re-fit the model, or restore the state with the \code{dbarts} release that wrote it.
+  }
+
+  \subsection{Warm starts}{
+    \code{installTrees} seeds the sampler's forests from a \code{donor} instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, \code{sigma}, and \code{k} transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.
   }
 }
 \value{

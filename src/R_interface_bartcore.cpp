@@ -2551,6 +2551,14 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
   return R_NilValue;
 }
 
+SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
+                             SEXP samplesExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseViewSamplerOnly(*holder.sampler, "bartcore_installForests");
+  bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
+  return R_NilValue;
+}
+
 // Fits for new data on the original response scale (binary responses give
 // the latent scale, as the classic engine does). With keepTrees the saved
 // trees produce numTestObservations x numSamples (x numChains) fits; without,
@@ -3149,6 +3157,232 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (!restored)
     Rf_error("state is not consistent with this sampler");
+}
+
+// Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
+// validating flat trees against the destination sampler's data. Only the
+// channels a warm start consumes are read (trees, leaf params, masks, k,
+// sigma, the fit scale, DART, and BCF glue); latents, group effects, and the
+// rng are left for the destination to redraw. Function-leaf donors seed from
+// their live trees, so their saved channel is skipped. The donor's own chain
+// count is honored (a short donor may seed many chains). Returns an error
+// string, or NULL, rather than longjmping so the caller can free state first.
+static const char* readWarmStartState(SEXP stateExpr,
+                                      bartcore::SamplerBase& sampler,
+                                      bartcore::SamplerStateData& state) {
+  size_t numChains = static_cast<size_t>(Rf_xlength(stateExpr));
+  if (numChains == 0) return "warm-start donor holds no chains";
+
+  SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
+  if (Rf_isNull(cutPointsExpr) ||
+      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != sampler.numPredictors())
+    return "malformed cut points in warm-start donor";
+  state.cutPoints.resize(sampler.numPredictors());
+  for (size_t j = 0; j < sampler.numPredictors(); ++j) {
+    SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
+    if (Rf_isNull(cutsExpr)) continue;
+    if (!Rf_isReal(cutsExpr)) return "malformed cut points in warm-start donor";
+    state.cutPoints[j].assign(REAL(cutsExpr),
+                              REAL(cutsExpr) + Rf_xlength(cutsExpr));
+  }
+
+  const char* errorMessage = NULL;
+  state.chains.resize(numChains);
+  size_t numLeafCovariates = sampler.numLeafCovariates();
+  bool functionLeaves = sampler.usesFunctionLeaves();
+  for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
+    SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
+    bartcore::ChainStateData& chainState(state.chains[c]);
+
+    SEXP forestsExpr = getListElement(chainExpr, "forests");
+    if (Rf_isNull(forestsExpr) || TYPEOF(forestsExpr) != VECSXP) {
+      errorMessage = "malformed forests in warm-start donor";
+      break;
+    }
+    size_t numForests = static_cast<size_t>(Rf_xlength(forestsExpr));
+    chainState.forests.resize(numForests);
+    for (size_t f = 0; f < numForests && errorMessage == NULL; ++f) {
+      SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
+      bartcore::ForestStateData& fs(chainState.forests[f]);
+
+      if (!readFlatTrees(getListElement(forestExpr, "tree.vars"),
+                         getListElement(forestExpr, "tree.values"),
+                         getListElement(forestExpr, "tree.sizes"),
+                         getListElement(forestExpr, "tree.flags"),
+                         sampler.data(), fs.trees, &errorMessage))
+        break;
+      SEXP savedSizesExpr = getListElement(forestExpr, "saved.sizes");
+      if (!functionLeaves && !Rf_isNull(savedSizesExpr) &&
+          !readFlatTrees(getListElement(forestExpr, "saved.vars"),
+                         getListElement(forestExpr, "saved.values"),
+                         savedSizesExpr, getListElement(forestExpr,
+                         "saved.flags"), sampler.data(), fs.savedTrees,
+                         &errorMessage))
+        break;
+
+      if (functionLeaves) {
+        if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
+                                    fs.trees.size(), sampler.numObservations(),
+                                    fs.treeParams, &errorMessage))
+          break;
+      } else if (numLeafCovariates > 0) {
+        if (!readTreeParams(getListElement(forestExpr, "tree.params"),
+                            fs.trees, numLeafCovariates, fs.treeParams,
+                            &errorMessage))
+          break;
+        if (!fs.savedTrees.empty() &&
+            !readTreeParams(getListElement(forestExpr, "saved.params"),
+                            fs.savedTrees, numLeafCovariates,
+                            fs.savedTreeParams, &errorMessage))
+          break;
+      }
+
+      if (sampler.data().hasPooledCategorical) {
+        if (!readTreeMasks(getListElement(forestExpr, "tree.masks"), fs.trees,
+                           sampler.data(), fs.treeMasks, &errorMessage))
+          break;
+        if (!fs.savedTrees.empty() &&
+            !readTreeMasks(getListElement(forestExpr, "saved.masks"),
+                           fs.savedTrees, sampler.data(), fs.savedTreeMasks,
+                           &errorMessage))
+          break;
+      }
+
+      SEXP kExpr = getListElement(forestExpr, "k");
+      if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
+        errorMessage = "malformed parameters in warm-start donor";
+        break;
+      }
+      fs.k = REAL(kExpr)[0];
+    }
+    if (errorMessage != NULL) break;
+
+    SEXP sigmaExpr = getListElement(chainExpr, "sigma");
+    SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
+    if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1 ||
+        !Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
+      errorMessage = "malformed parameters in warm-start donor";
+      break;
+    }
+    chainState.sigma = REAL(sigmaExpr)[0];
+    chainState.fitMin = REAL(fitScaleExpr)[0];
+    chainState.fitMax = REAL(fitScaleExpr)[1];
+
+    SEXP dartProbabilitiesExpr =
+      getListElement(chainExpr, "dart.probabilities");
+    if (!Rf_isNull(dartProbabilitiesExpr)) {
+      SEXP dartAlphaExpr = getListElement(chainExpr, "dart.alpha");
+      SEXP dartSkippedExpr = getListElement(chainExpr, "dart.updates.skipped");
+      if (!Rf_isReal(dartProbabilitiesExpr) || !Rf_isReal(dartAlphaExpr) ||
+          Rf_xlength(dartAlphaExpr) != 1 || !Rf_isInteger(dartSkippedExpr) ||
+          Rf_xlength(dartSkippedExpr) != 1 || INTEGER(dartSkippedExpr)[0] < 0) {
+        errorMessage = "malformed dart state in warm-start donor";
+        break;
+      }
+      chainState.dartProbabilities.assign(
+        REAL(dartProbabilitiesExpr),
+        REAL(dartProbabilitiesExpr) + Rf_xlength(dartProbabilitiesExpr));
+      chainState.dartAlpha = REAL(dartAlphaExpr)[0];
+      chainState.dartNumUpdatesSkipped =
+        static_cast<size_t>(INTEGER(dartSkippedExpr)[0]);
+    }
+
+    SEXP bcfExpr = getListElement(chainExpr, "bcf");
+    if (!Rf_isNull(bcfExpr)) {
+      if (!Rf_isReal(bcfExpr) || Rf_xlength(bcfExpr) != 4) {
+        errorMessage = "malformed bcf glue in warm-start donor";
+        break;
+      }
+      chainState.hasBCF = true;
+      chainState.a = REAL(bcfExpr)[0];
+      chainState.aVariance = REAL(bcfExpr)[1];
+      chainState.b0 = REAL(bcfExpr)[2];
+      chainState.b1 = REAL(bcfExpr)[3];
+    }
+  }
+  return errorMessage;
+}
+
+void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
+                    SEXP samplesExpr) {
+  if (!Rf_inherits(donorStateExpr, "bartcoreState"))
+    Rf_error("'warm.start' must supply a bartcore state object");
+
+  SEXP formatVersionExpr =
+    PROTECT(Rf_getAttrib(donorStateExpr, Rf_install("formatVersion")));
+  int formatVersion = Rf_isInteger(formatVersionExpr) &&
+      Rf_xlength(formatVersionExpr) == 1 ? INTEGER(formatVersionExpr)[0] : 0;
+  UNPROTECT(1);
+  if (formatVersion != stateFormatVersion)
+    Rf_error("warm-start donor state format version %d is not compatible with "
+             "this dbarts's format version %d; re-fit the donor",
+             formatVersion, stateFormatVersion);
+
+  bartcore::SamplerStateData donor;
+  const char* errorMessage = readWarmStartState(donorStateExpr, sampler, donor);
+
+  // Donor pool of (chain, slot): every saved slot when the donor kept trees,
+  // otherwise each donor chain's live forest (slot -1).
+  std::vector<std::pair<size_t, int>> pool;
+  if (errorMessage == NULL) {
+    for (size_t dc = 0; dc < donor.chains.size(); ++dc) {
+      const bartcore::ForestStateData& f0 = donor.chains[dc].forests[0];
+      if (!f0.savedTrees.empty() && !f0.trees.empty()) {
+        size_t capacity = f0.savedTrees.size() / f0.trees.size();
+        for (size_t s = 0; s < capacity; ++s)
+          pool.emplace_back(dc, static_cast<int>(s));
+      } else {
+        pool.emplace_back(dc, -1);
+      }
+    }
+    if (pool.empty()) errorMessage = "warm-start donor holds no samples";
+  }
+
+  size_t numChains = sampler.numChains();
+  std::vector<std::pair<size_t, int>> sampleMap;
+  if (errorMessage == NULL) {
+    sampleMap.resize(numChains);
+    if (Rf_isNull(samplesExpr)) {
+      // spread the chains across the pool, so many chains from one donor draw
+      // overdispersed starts rather than the same forest
+      for (size_t c = 0; c < numChains; ++c)
+        sampleMap[c] = pool[(c * pool.size()) / numChains];
+    } else if (!Rf_isInteger(samplesExpr) ||
+               static_cast<size_t>(Rf_xlength(samplesExpr)) != numChains) {
+      errorMessage = "'samples' must be an integer vector, one per chain";
+    } else {
+      for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
+        int idx = INTEGER(samplesExpr)[c];
+        if (idx < 1 || static_cast<size_t>(idx) > pool.size())
+          errorMessage = "'samples' entries must index the donor pool";
+        else
+          sampleMap[c] = pool[static_cast<size_t>(idx) - 1];
+      }
+    }
+  }
+
+  bartcore::WarmStartResult result = bartcore::WarmStartResult::ok;
+  if (errorMessage == NULL)
+    result = sampler.installForests(donor, sampleMap);
+  {
+    bartcore::SamplerStateData empty;
+    std::swap(donor, empty);  // free before a potential longjmp
+  }
+  if (errorMessage != NULL) Rf_error("%s", errorMessage);
+  switch (result) {
+    case bartcore::WarmStartResult::ok:
+      break;
+    case bartcore::WarmStartResult::gridMismatch:
+      Rf_error("warm-start donor was fit on a different cut grid (predictors, "
+               "n.cuts, or useQuantiles differ); cross-grid warm starts are "
+               "not supported");
+    case bartcore::WarmStartResult::dartMismatch:
+      Rf_error("DART state transfers only between two DART fits; the donor and "
+               "destination disagree on dart");
+    case bartcore::WarmStartResult::shapeMismatch:
+      Rf_error("warm-start donor is not shape-compatible with this sampler "
+               "(number of trees, forests, or predictors differ)");
+  }
 }
 
 // Column-major gather of the requested trees, plus the flags that decide

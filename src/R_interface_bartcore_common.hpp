@@ -58,6 +58,13 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// errors on malformed or inconsistent states.
 void setState(bartcore::SamplerBase& sampler, SEXP stateExpr);
 
+/// Warm start: seed the sampler's live forests from a donor "bartcoreState"
+/// over the same predictors. samplesExpr, when non-null, maps each chain to a
+/// 1-based donor-sample index; NULL spreads chains across the donor pool.
+/// Raises R errors on malformed states or an incompatible donor.
+void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
+                    SEXP samplesExpr);
+
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then
 /// ignored); newdata, when non-null, replays its newdataNumRows rows for

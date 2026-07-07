@@ -14,6 +14,7 @@
 #endif
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <external/random.h>
@@ -64,6 +65,10 @@ struct SamplerStateData {
   std::vector<std::vector<double>> cutPoints;  // empty vector per categorical column
   size_t currentSampleNum = 0;
 };
+
+/// Why a warm start (installForests) refused; ok on success. A single donor
+/// forest can seed several chains, so the donor's chain count need not match.
+enum class WarmStartResult { ok, shapeMismatch, gridMismatch, dartMismatch };
 
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
@@ -494,6 +499,80 @@ public:
     size_t capacity = savedTreeCapacity();
     currentSampleNum_ = capacity > 0 ? state.currentSampleNum % capacity : 0;
     return true;
+  }
+
+  /// Warm start: seed each chain's live forest from a donor sample. sampleMap
+  /// selects, for destination chain c, a donor (chain, slot); slot < 0 takes
+  /// the donor chain's live trees, else its saved slot (slot-major, one forest
+  /// per slot). Only trees, sigma, k, and DART transfer - rng and auxiliary
+  /// state stay fresh, so each chain evolves independently from its own
+  /// stream. The donor must share this sampler's cut grid, per-forest tree
+  /// counts, and DART mode; on any mismatch nothing is touched.
+  WarmStartResult installForests(
+      const SamplerStateData& donor,
+      const std::vector<std::pair<size_t, int>>& sampleMap) {
+    if (sampleMap.size() != chains_.size())
+      return WarmStartResult::shapeMismatch;
+    if (donor.cutPoints != data_.cutPoints)
+      return WarmStartResult::gridMismatch;
+
+    std::vector<ChainStateData> install(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      size_t dc = sampleMap[c].first;
+      int slot = sampleMap[c].second;
+      if (dc >= donor.chains.size()) return WarmStartResult::shapeMismatch;
+      const ChainStateData& src = donor.chains[dc];
+      if (src.forests.size() != chains_[c]->numForests())
+        return WarmStartResult::shapeMismatch;
+      if (chains_[c]->usesDart() != !src.dartProbabilities.empty())
+        return WarmStartResult::dartMismatch;
+
+      ChainStateData& dst = install[c];
+      dst.forests.resize(src.forests.size());
+      for (size_t f = 0; f < src.forests.size(); ++f) {
+        const ForestStateData& sfs = src.forests[f];
+        ForestStateData& dfs = dst.forests[f];
+        size_t nt = chains_[c]->numTreesInForest(f);
+        // the donor's tree count sets the saved slot's stride, so it must
+        // match this forest's before either path proceeds
+        if (sfs.trees.size() != nt) return WarmStartResult::shapeMismatch;
+        if (slot < 0) {
+          dfs.trees = sfs.trees;
+          dfs.treeParams = sfs.treeParams;
+          dfs.treeMasks = sfs.treeMasks;
+        } else {
+          size_t base = static_cast<size_t>(slot) * nt;
+          if (sfs.savedTrees.size() < base + nt)
+            return WarmStartResult::shapeMismatch;
+          dfs.trees.assign(sfs.savedTrees.begin() + base,
+                           sfs.savedTrees.begin() + base + nt);
+          if (!sfs.savedTreeParams.empty())
+            dfs.treeParams.assign(sfs.savedTreeParams.begin() + base,
+                                  sfs.savedTreeParams.begin() + base + nt);
+          if (!sfs.savedTreeMasks.empty())
+            dfs.treeMasks.assign(sfs.savedTreeMasks.begin() + base,
+                                 sfs.savedTreeMasks.begin() + base + nt);
+        }
+        dfs.k = sfs.k;
+      }
+      dst.sigma = src.sigma;
+      dst.fitMin = src.fitMin;
+      dst.fitMax = src.fitMax;
+      dst.dartProbabilities = src.dartProbabilities;
+      dst.dartAlpha = src.dartAlpha;
+      dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
+      dst.hasBCF = src.hasBCF;
+      dst.a = src.a;
+      dst.aVariance = src.aVariance;
+      dst.b0 = src.b0;
+      dst.b1 = src.b1;
+    }
+
+    for (size_t c = 0; c < chains_.size(); ++c)
+      if (!chains_[c]->installForest(install[c]))
+        return WarmStartResult::shapeMismatch;
+    currentSampleNum_ = 0;
+    return WarmStartResult::ok;
   }
 
   // Between-sample mutation, fanned out to every chain; new-vector lifetimes

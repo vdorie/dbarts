@@ -481,6 +481,10 @@ public:
   }
 
   std::size_t numForests() const { return forests_.size(); }
+  std::size_t numTreesInForest(std::size_t f) const {
+    return forests_[f].numTrees;
+  }
+  bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
   void setTreatment(const double* z) { if (bcf_) bcf_->z = z; }
   /// BCF glue on the combining response; false for a non-BCF chain.
@@ -1514,11 +1518,86 @@ public:
     return true;
   }
 
+  /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
+  /// live channel against the current cut grid, zeroing and re-accumulating
+  /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
+  /// the warm-start installForest.
+  bool rebuildLiveForest(size_t f, const ForestStateData& fs,
+                         std::vector<double>& params) {
+    Forest<L>& forest = forests_[f];
+    size_t n = data_.numObservations;
+    misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+      const std::uint64_t* masks =
+        fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+      size_t numMaskWords =
+        fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+      if constexpr (!L::hasVectorParams) {
+        if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
+                                           fs.trees[t].size(), params, 1,
+                                           nullptr, masks, numMaskWords))
+          return false;
+      } else {
+        if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
+                                           fs.trees[t].size(), params,
+                                           forest.leaf.numParams(),
+                                           fs.treeParams[t].data(), masks,
+                                           numMaskWords))
+          return false;
+      }
+      forest.trees[t].repartitionSubtree(data_, 0);
+      if constexpr (L::hasFunctionParams) {
+        // the recorded slab IS the tree's parameters; copy restores bitwise
+        std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
+                    n * sizeof(double));
+      } else {
+        setTreeFits(forest, t, params);
+      }
+      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                             forest.totalFits.data());
+    }
+    return true;
+  }
+
+  /// Warm start: seed the live forest(s), sigma, and k from a donor's flat
+  /// trees, leaving this chain's rng, latents, group effects, and saved-tree
+  /// buffer untouched - the donor supplies a starting position, not a
+  /// continuation. Callers guarantee shape and cut-grid compatibility; false
+  /// signals only a flat tree that failed to rebuild.
+  bool installForest(const ChainStateData& state) {
+    if (state.forests.size() != forests_.size()) return false;
+    if (state.fitMax > state.fitMin)
+      response_->restoreScale(state.fitMin, state.fitMax);
+    std::vector<double> params;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const ForestStateData& fs = state.forests[f];
+      if (fs.trees.size() != forests_[f].numTrees) return false;
+      if (!rebuildLiveForest(f, fs, params)) return false;
+      forests_[f].k = fs.k;
+    }
+    setSigma(state.sigma);
+    Forest<L>& forest = forests_[0];
+    if (forest.useDart && !state.dartProbabilities.empty()) {
+      std::memcpy(forest.dart.probabilities.data(),
+                  state.dartProbabilities.data(),
+                  state.dartProbabilities.size() * sizeof(double));
+      forest.dart.alpha = state.dartAlpha;
+      forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
+    }
+    if (bcf_ && state.hasBCF) {
+      bcf_->a = state.a;
+      bcf_->aVariance = state.aVariance;
+      bcf_->b0 = state.b0;
+      bcf_->b1 = state.b1;
+    }
+    return true;
+  }
+
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild.
   bool setState(const ChainStateData& state) {
     if (state.forests.size() != forests_.size()) return false;
-    size_t n = data_.numObservations;
     // the internal-scale tree parameters and fits below were recorded under
     // this transform; scale-free states leave creation's. restoreScale
     // re-anchors the variance prior through it.
@@ -1528,37 +1607,7 @@ public:
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L>& forest = forests_[f];
       const ForestStateData& fs = state.forests[f];
-      misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
-        const std::uint64_t* masks =
-          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-        size_t numMaskWords =
-          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        if constexpr (!L::hasVectorParams) {
-          if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
-                                             fs.trees[t].size(), params, 1,
-                                             nullptr, masks, numMaskWords))
-            return false;
-        } else {
-          if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
-                                             fs.trees[t].size(), params,
-                                             forest.leaf.numParams(),
-                                             fs.treeParams[t].data(), masks,
-                                             numMaskWords))
-            return false;
-        }
-        forest.trees[t].repartitionSubtree(data_, 0);
-        if constexpr (L::hasFunctionParams) {
-          // the recorded slab IS the tree's parameters; copy restores bitwise
-          std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
-                      n * sizeof(double));
-        } else {
-          setTreeFits(forest, t, params);
-        }
-        misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                               forest.totalFits.data());
-      }
+      if (!rebuildLiveForest(f, fs, params)) return false;
       if (!fs.savedTrees.empty()) {
         forest.savedTrees = fs.savedTrees;
         if constexpr (L::hasVectorParams || L::hasFunctionParams)
