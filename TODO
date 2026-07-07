@@ -28,11 +28,6 @@ items
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
-  cutpoints-shrink-orphan: a grid-shrinking setCutPoints can orphan a
-    split whose out-of-range index makes flatten serialize a stale cut
-    value (user-facing via getTrees); characterize the escaping path,
-    fix, then tighten the fuzzer's round-trip assertion to strict.
-    Triaged from fuzz-state-roundtrip, 2026-07-07.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
