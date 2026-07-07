@@ -64,3 +64,13 @@ lands as the first two-forest sampler. bartCause consumes it.
 - Step 2: equivalence compare reports exact; full tinytest unchanged.
 - Steps 3-5: the new exact-posterior gate to MC error; component
   tests; bench-sampler no regression on single-forest paths.
+
+## Status (2026-07-07)
+
+Step 1 drafted: docs/design/bcf.md (proposal, verified against the
+paper and the bcf package source) awaits VD review - the plan gates
+all code, including the neutral Forest split, behind it. Highest-
+stakes items flagged there: sd- vs range-anchoring for the treatment
+forest (VD scoped that question to this item), prognostic-forest tree
+count (bcf's 200 vs dbarts's 75 default), and the bscale parameter
+expansion. Steps 2-5 untouched.
