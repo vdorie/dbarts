@@ -41,6 +41,10 @@ items
     landed Forest split (steps 3-5: response model, formats, exact
     gate); bartCause is the named consumer and VD maintains it. Open
     questions 3-4 in docs/design/bcf.md gate the BCF model choices.
+  gpu-bart: a considered survey of innovative GPU uses for BART
+    (VD 2026-07-07: wants the thinking to happen at some point; no
+    clock). Memo-first; weighs grow-from-root and blocked-jacobi's
+    b = m form among others but is not limited to them.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
