@@ -676,6 +676,7 @@ public:
   /// per-observation fits are the parameters and stay in place (the next
   /// sweep's draws replace them under the new values).
   void rebuildFitsFromParameters(const TreeParameters& params) {
+    dropStaleMissingDirections();
     if constexpr (L::hasFunctionParams) {
       (void) params;
       leaf_.regatherTrainingCovariates(data_);
@@ -750,6 +751,7 @@ public:
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = leaf_.numParams();
 
+    dropStaleMissingDirections();
     for (size_t t = 0; t < options_.numTrees; ++t) {
       trees_[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
                                        paramStride);
@@ -770,12 +772,20 @@ public:
     resizeTestStorage();
   }
 
+  /// After a data mutation re-quantizes the store, drop every tree's stale
+  /// missing directions so the live masks stay within the reachable gauge.
+  void dropStaleMissingDirections() {
+    for (size_t t = 0; t < options_.numTrees; ++t)
+      trees_[t].dropStaleMissingDirections(data_);
+  }
+
   /// Unconditional refresh: re-route and collapse any node an empty leaf
   /// leaves behind, merging leaf parameters into the collapsed node.
   /// Function-valued leaves keep their per-observation fits (they remain a
   /// coherent state under any partition) and collapse structure only.
   void forceRefreshTrees() {
     size_t n = data_.numObservations;
+    dropStaleMissingDirections();
     misc_setVectorToConstant(totalFits_.data(), n, 0.0);
 
     if constexpr (L::hasFunctionParams) {

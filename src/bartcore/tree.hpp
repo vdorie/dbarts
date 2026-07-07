@@ -842,6 +842,16 @@ public:
                       maxIndices.data(), paramStride);
   }
 
+  /// Drop a rule's missing direction after a data mutation stops its column
+  /// routing a missing value: hasMissing false puts the bit outside
+  /// reachableCategories, so buildFromFlat's gauge check would reject an
+  /// otherwise valid rule. The bit routes nothing without missing
+  /// observations, so clearing it moves nothing. Pooled masks keep the bit in
+  /// their words under their own scheme, so pass through.
+  void dropStaleMissingDirections(const ColumnStore& data) {
+    dropStaleMissingDirectionsBelow(0, data);
+  }
+
   void countVariableUses(std::uint32_t* counts) const {
     countVariableUsesBelow(0, counts);
   }
@@ -981,6 +991,18 @@ private:
     releasePair(node.leftChild);
     node.leftChild = invalidNode;
     node.rule = Rule();
+  }
+
+  void dropStaleMissingDirectionsBelow(int32_t nodeIndex,
+                                       const ColumnStore& data) {
+    Node& node(at(nodeIndex));
+    if (node.isBottom()) return;
+    size_t j = static_cast<size_t>(node.rule.variableIndex);
+    if (!data.hasMissing[j] && !data.columnIsPooled(j) &&
+        node.rule.missingGoesRight())
+      node.rule.setMissingGoesRight(false);
+    dropStaleMissingDirectionsBelow(node.leftChild, data);
+    dropStaleMissingDirectionsBelow(node.leftChild + 1, data);
   }
 
   /// minIndices are inclusive, maxIndices exclusive; both are saved and

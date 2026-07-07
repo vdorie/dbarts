@@ -609,9 +609,13 @@ public:
 
     const double* oldX = data_.x;
     std::vector<xint_t> oldCodes;
+    std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     if (!forceUpdate) {
       oldCodes = data_.codes;
+      // re-quantizing recomputes hasMissing; a rollback must restore it too so
+      // rules stay consistent with the reachable gauge
+      oldHasMissing = data_.hasMissing;
       if (updateCutPoints) oldCuts = data_.cutPoints;
     }
 
@@ -628,6 +632,7 @@ public:
     if (!revalidateAllChains()) {
       data_.x = oldX;
       data_.codes = std::move(oldCodes);
+      data_.hasMissing = std::move(oldHasMissing);
       if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
       for (auto& chain : chains_) chain->repartitionTrees();
       return PredictorUpdateResult::rolledBack;
@@ -655,10 +660,12 @@ public:
 
     std::vector<double> oldValues;
     std::vector<xint_t> oldCodes;
+    std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     if (!forceUpdate) {
       oldValues.resize(n * numColumns);
       oldCodes.resize(n * numColumns);
+      oldHasMissing.resize(numColumns);
       if (updateCutPoints) oldCuts.resize(numColumns);
       for (size_t k = 0; k < numColumns; ++k) {
         std::memcpy(oldValues.data() + k * n, data_.x + columns[k] * n,
@@ -666,6 +673,9 @@ public:
         std::memcpy(oldCodes.data() + k * n,
                     data_.codes.data() + data_.codeOffsets[columns[k]],
                     n * sizeof(xint_t));
+        // re-quantizing rebuilds hasMissing; a rollback must restore it too so
+        // rules stay consistent with the reachable gauge
+        oldHasMissing[k] = data_.hasMissing[columns[k]];
         if (updateCutPoints) oldCuts[k] = data_.cutPoints[columns[k]];
       }
     }
@@ -688,6 +698,7 @@ public:
                     n * sizeof(double));
         std::memcpy(data_.codes.data() + data_.codeOffsets[j],
                     oldCodes.data() + k * n, n * sizeof(xint_t));
+        data_.hasMissing[j] = oldHasMissing[k];
         if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
       }
       for (auto& chain : chains_) chain->repartitionTrees();
