@@ -45,3 +45,18 @@ units with dependency tracking and a name filter, replacing the
 
 Triggered by VD 2026-07-07 (the monolith passed 6400 lines and the
 BCF work will churn the engine headers it recompiles against).
+
+## Landing note (2026-07-07, 72f2246)
+
+The 7028-line monolith (87 tests by landing day) became per-area TUs:
+test_{data,tree,moves,model,sampler,state,fuzz}.cpp, main.cpp
+(registration + argv), assert.{hpp,cpp} (zero-dependency micro-asserts,
+kept off the engine stack so data/tree TUs skip full rebuilds), and
+common.{hpp,cpp} (full-stack fixtures). Makefile gains per-TU objects,
+-MMD -MP dependency files, and clean. CLI preserved and extended:
+numeric argument = fuzz seed count (CI's form), name argument = suite
+prefix filter, order-independent. cpp-tests.yaml and rshim.cpp
+untouched. Gates (implementer's, re-run by reviewer): clean build; 87/87
+ok lines identical to the pre-split set; filter and seed forms verified;
+chain.hpp touch rebuilds 7 TUs and skips data/tree/assert; single-TU
+touch rebuilds only itself; repo-tree rebuild after landing green.

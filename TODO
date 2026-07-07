@@ -92,9 +92,6 @@ items
     likely pre-existing correctness bug: custom-prior tau draws
     diverge 15-25x from the in-core path at n >~ 300 (identical
     model both arms) - needs its own investigation item.
-  rchk-triage: first dispatched rchk run after a push - triage its
-    findings (one unverified setAttrib candidate noted in
-    rchk-ci.md's landing note); maintainer-gated on the push.
   readability-review: the bartcore branch was agent-written end to end;
     rubric-driven human-readability pass over its code, comments, and
     design docs (core-generalization.md's landing-note accretion
@@ -116,8 +113,6 @@ items
     wall time (per-observation rollback trials, simd size grid,
     thread-pool setup); same contracts at ~20s. Added 2026-07-06 at
     VD's request.
-  tests-cpp-split: split the 6075-line test_bartcore.cpp monolith into
-    per-area TUs with a test filter, when compile time hurts.
   warm-starts: initialize a sampler's forest from a previous fit's
     saved trees; the flat replay and cut-mapping machinery exist, the
     verb does not.
@@ -137,6 +132,11 @@ items
     dispatch table; SSR SIMD leaf; Windows-arm64 NEON config.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
+  note: the schedule/dispatch-only workflows (equivalence, rchk,
+    revdep-smoke) cannot register or run until they exist on the
+    default branch - GitHub binds schedules and dispatch to it. Their
+    first live runs happen when bartcore merges to main; validate them
+    then. (Push-triggered workflows shook out green 2026-07-07.)
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
     to CRAN together. bartCause is ready on branch dbarts-1.0 in
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
