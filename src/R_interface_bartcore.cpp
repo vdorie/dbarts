@@ -176,6 +176,26 @@ struct ParsedModel {
 #define REPROTECT_SLOT(target, parent, name, index) \
   REPROTECT((target) = Rf_getAttrib((parent), Rf_install(name)), (index))
 
+// Rf_error longjmps past C++ destructors, so an entry point that holds owning
+// C++ containers across an Rf_error-capable call (the rc_ validators error
+// internally) would leak them. Running that owning scope as a heap-held
+// closure under R_UnwindProtect destroys the closure - and the containers it
+// captures by value - on the error jump as well as the normal return, so
+// deliberate error paths free their buffers instead of leaking. This is the
+// only place the longjmp constraint is stated; the wrapped scopes below just
+// capture their owning locals into the closure.
+template <typename Body>
+SEXP unwindProtect(Body body) {
+  Body* held = new Body(std::move(body));
+  SEXP continuation = PROTECT(R_MakeUnwindCont());
+  SEXP result = R_UnwindProtect(
+    [](void* p) -> SEXP { return (*static_cast<Body*>(p))(); }, held,
+    [](void* p, Rboolean) { delete static_cast<Body*>(p); }, held,
+    continuation);
+  UNPROTECT(1);
+  return result;
+}
+
 void parseControl(ParsedControl& control, SEXP controlExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -1116,47 +1136,51 @@ void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
 // Continuous responses are gaussian and accept only "" or "gaussian".
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName) {
-  ParsedControl control;
-  ParsedData data;
-  ParsedModel model;
-  bool sigmaIsFixed;
-  bartcore::ResponseFamily family = parseSamplerSpecification(
-    controlExpr, modelExpr, dataExpr, familyName, control, model, data,
-    sigmaIsFixed);
-  validateCategoricalPredictors(data);
+  BartcoreHolder* holder = nullptr;
+  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                 model = ParsedModel{},
+                 groupIndices = std::vector<std::uint32_t>{},
+                 rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
+    bool sigmaIsFixed;
+    bartcore::ResponseFamily family = parseSamplerSpecification(
+      controlExpr, modelExpr, dataExpr, familyName, control, model, data,
+      sigmaIsFixed);
+    validateCategoricalPredictors(data);
 
-  bartcore::SamplerOptions options =
-    optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    bartcore::SamplerOptions options =
+      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
 
-  // grouped random intercepts (rbart_vi's in-core path) arrive on an
-  // internal control attribute; the chains copy the indices at construction
-  std::vector<std::uint32_t> groupIndices;
-  applyGroupAttribute(controlExpr, data.numObservations, options,
-                      groupIndices);
+    // grouped random intercepts (rbart_vi's in-core path) arrive on an
+    // internal control attribute; the chains copy the indices at construction
+    applyGroupAttribute(controlExpr, data.numObservations, options,
+                        groupIndices);
 
-  std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
+    rngs = createChainRngs(control, options.numChains);
 
-  // dispatches on the leaf model: a linear node prior's designated columns
-  // select the linear-leaf instantiation, everything else the constant leaf
-  std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createSampler(
-    data.x, data.y, data.numObservations, data.numPredictors, data.weights,
-    data.offset, family, data.sigmaEstimate, model.sigmaDf,
-    model.sigmaRawScale, options, rngs.data());
-  if (sampler == NULL) {
-    // R-side resolution validates first, so only an invariant breach lands
-    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-    Rf_error("invalid leaf covariate designation");
-  }
+    // dispatches on the leaf model: a linear node prior's designated columns
+    // select the linear-leaf instantiation, everything else the constant leaf
+    std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createSampler(
+      data.x, data.y, data.numObservations, data.numPredictors, data.weights,
+      data.offset, family, data.sigmaEstimate, model.sigmaDf,
+      model.sigmaRawScale, options, rngs.data());
+    if (sampler == NULL) {
+      // R-side resolution validates first, so only an invariant breach lands
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("invalid leaf covariate designation");
+    }
 
-  if (data.numTestObservations > 0) {
-    sampler->setTestPredictors(data.x_test, data.numTestObservations);
-    sampler->setTestOffset(data.testOffset);
-  }
+    if (data.numTestObservations > 0) {
+      sampler->setTestPredictors(data.x_test, data.numTestObservations);
+      sampler->setTestOffset(data.testOffset);
+    }
 
-  if (control.verbose) printInitialSummary(control, model, data, *sampler);
+    if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
-  return new BartcoreHolder{std::move(sampler), std::move(rngs),
-                            control.keepTrainingFits, {}, {}, {}, {}};
+    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
+                                control.keepTrainingFits, {}, {}, {}, {}};
+    return R_NilValue;
+  });
+  return holder;
 }
 
 } // namespace bartcore_bridge
@@ -1187,37 +1211,38 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 // x, the column types, and n.cuts. Internal, with no serialization;
 // see public-surface.md section 5.
 SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
-  ParsedControl control;
-  ParsedData data;
-  parseControl(control, controlExpr);
-  parseData(data, dataExpr);
-  validateCategoricalPredictors(data);
+  return unwindProtect([&, control = ParsedControl{},
+                        data = ParsedData{}]() mutable -> SEXP {
+    parseControl(control, controlExpr);
+    parseData(data, dataExpr);
+    validateCategoricalPredictors(data);
 
-  DataHandle* handle = new DataHandle;
-  if (data.xIsMixed) {
-    handle->store.buildMixed(data.mixedDenseValues, data.cscColumnPointers,
-                             data.cscRowIndices, data.cscValues,
-                             data.columnSources.data(), data.numObservations,
-                             data.numPredictors, data.maxNumCuts.data(), 0,
-                             control.useQuantiles,
-                             data.anyCategorical ? data.columnTypes.data()
-                                                 : NULL);
-  } else if (data.xIsSparse) {
-    handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
-                               data.cscValues, data.numObservations,
+    DataHandle* handle = new DataHandle;
+    if (data.xIsMixed) {
+      handle->store.buildMixed(data.mixedDenseValues, data.cscColumnPointers,
+                               data.cscRowIndices, data.cscValues,
+                               data.columnSources.data(), data.numObservations,
                                data.numPredictors, data.maxNumCuts.data(), 0,
-                               control.useQuantiles);
-  } else {
-    handle->store.build(data.x, data.numObservations, data.numPredictors,
-                        data.maxNumCuts.data(), control.useQuantiles,
-                        data.anyCategorical ? data.columnTypes.data() : NULL);
-  }
+                               control.useQuantiles,
+                               data.anyCategorical ? data.columnTypes.data()
+                                                   : NULL);
+    } else if (data.xIsSparse) {
+      handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
+                                 data.cscValues, data.numObservations,
+                                 data.numPredictors, data.maxNumCuts.data(), 0,
+                                 control.useQuantiles);
+    } else {
+      handle->store.build(data.x, data.numObservations, data.numPredictors,
+                          data.maxNumCuts.data(), control.useQuantiles,
+                          data.anyCategorical ? data.columnTypes.data() : NULL);
+    }
 
-  SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
-  R_RegisterCFinalizerEx(result, dataHandleFinalizer,
-                         static_cast<Rboolean>(FALSE));
-  UNPROTECT(1);
-  return result;
+    SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
+    R_RegisterCFinalizerEx(result, dataHandleFinalizer,
+                           static_cast<Rboolean>(FALSE));
+    UNPROTECT(1);
+    return result;
+  });
 }
 
 // A sampler over a row-subset view of a data handle: the view copies the
@@ -1237,107 +1262,114 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
 
-  ParsedControl control;
-  ParsedData data;
-  ParsedModel model;
-  bool sigmaIsFixed;
-  bartcore::ResponseFamily family = parseSamplerSpecification(
-    controlExpr, modelExpr, dataExpr, familyName, control, model, data,
-    sigmaIsFixed);
+  return unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                        model = ParsedModel{},
+                        trainRows = std::vector<size_t>{},
+                        testRows = std::vector<size_t>{},
+                        response = std::vector<double>{},
+                        weights = std::vector<double>{},
+                        offset = std::vector<double>{},
+                        testOffset = std::vector<double>{},
+                        store = bartcore::ColumnStore{},
+                        rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
+    bool sigmaIsFixed;
+    bartcore::ResponseFamily family = parseSamplerSpecification(
+      controlExpr, modelExpr, dataExpr, familyName, control, model, data,
+      sigmaIsFixed);
 
-  if (data.numObservations != parent.numObservations ||
-      data.numPredictors != parent.numPredictors)
-    Rf_error("data does not match the shape the handle was built from");
+    if (data.numObservations != parent.numObservations ||
+        data.numPredictors != parent.numPredictors)
+      Rf_error("data does not match the shape the handle was built from");
 
-  if (!Rf_isInteger(trainRowsExpr) || Rf_xlength(trainRowsExpr) == 0)
-    Rf_error("trainRows must be a non-empty integer vector");
-  if (!Rf_isNull(testRowsExpr) && !Rf_isInteger(testRowsExpr))
-    Rf_error("testRows must be an integer vector or NULL");
-  size_t numTrainRows = static_cast<size_t>(Rf_xlength(trainRowsExpr));
-  size_t numTestRows = Rf_isNull(testRowsExpr)
-    ? 0 : static_cast<size_t>(Rf_xlength(testRowsExpr));
+    if (!Rf_isInteger(trainRowsExpr) || Rf_xlength(trainRowsExpr) == 0)
+      Rf_error("trainRows must be a non-empty integer vector");
+    if (!Rf_isNull(testRowsExpr) && !Rf_isInteger(testRowsExpr))
+      Rf_error("testRows must be an integer vector or NULL");
+    size_t numTrainRows = static_cast<size_t>(Rf_xlength(trainRowsExpr));
+    size_t numTestRows = Rf_isNull(testRowsExpr)
+      ? 0 : static_cast<size_t>(Rf_xlength(testRowsExpr));
 
-  std::vector<size_t> trainRows(numTrainRows), testRows(numTestRows);
-  const int* i_trainRows = INTEGER(trainRowsExpr);
-  for (size_t i = 0; i < numTrainRows; ++i) {
-    if (i_trainRows[i] < 1 ||
-        static_cast<size_t>(i_trainRows[i]) > parent.numObservations)
-      Rf_error("train row out of range");
-    trainRows[i] = static_cast<size_t>(i_trainRows[i] - 1);
-  }
-  for (size_t i = 0; i < numTestRows; ++i) {
-    int row = INTEGER(testRowsExpr)[i];
-    if (row < 1 || static_cast<size_t>(row) > parent.numObservations)
-      Rf_error("test row out of range");
-    testRows[i] = static_cast<size_t>(row - 1);
-  }
-
-  std::vector<double> response(numTrainRows);
-  for (size_t i = 0; i < numTrainRows; ++i)
-    response[i] = data.y[trainRows[i]];
-  std::vector<double> weights, offset, testOffset;
-  if (data.weights != NULL) {
-    weights.resize(numTrainRows);
-    for (size_t i = 0; i < numTrainRows; ++i)
-      weights[i] = data.weights[trainRows[i]];
-  }
-  if (data.offset != NULL) {
-    offset.resize(numTrainRows);
-    for (size_t i = 0; i < numTrainRows; ++i)
-      offset[i] = data.offset[trainRows[i]];
-    if (numTestRows > 0) {
-      testOffset.resize(numTestRows);
-      for (size_t i = 0; i < numTestRows; ++i)
-        testOffset[i] = data.offset[testRows[i]];
+    trainRows.resize(numTrainRows);
+    testRows.resize(numTestRows);
+    const int* i_trainRows = INTEGER(trainRowsExpr);
+    for (size_t i = 0; i < numTrainRows; ++i) {
+      if (i_trainRows[i] < 1 ||
+          static_cast<size_t>(i_trainRows[i]) > parent.numObservations)
+        Rf_error("train row out of range");
+      trainRows[i] = static_cast<size_t>(i_trainRows[i] - 1);
     }
-  }
+    for (size_t i = 0; i < numTestRows; ++i) {
+      int row = INTEGER(testRowsExpr)[i];
+      if (row < 1 || static_cast<size_t>(row) > parent.numObservations)
+        Rf_error("test row out of range");
+      testRows[i] = static_cast<size_t>(row - 1);
+    }
 
-  // a linear node prior's designated columns have the view gather their raw
-  // values, with standardization constants from the handle's full data - the
-  // same calibration inheritance as the copied cut grid
-  bartcore::ColumnStore store;
-  store.buildFromParent(parent, trainRows.data(), numTrainRows,
-                        testRows.data(), numTestRows,
-                        model.leafCovariateColumns.empty()
-                          ? NULL : model.leafCovariateColumns.data(),
-                        model.leafCovariateColumns.size());
+    response.resize(numTrainRows);
+    for (size_t i = 0; i < numTrainRows; ++i)
+      response[i] = data.y[trainRows[i]];
+    if (data.weights != NULL) {
+      weights.resize(numTrainRows);
+      for (size_t i = 0; i < numTrainRows; ++i)
+        weights[i] = data.weights[trainRows[i]];
+    }
+    if (data.offset != NULL) {
+      offset.resize(numTrainRows);
+      for (size_t i = 0; i < numTrainRows; ++i)
+        offset[i] = data.offset[trainRows[i]];
+      if (numTestRows > 0) {
+        testOffset.resize(numTestRows);
+        for (size_t i = 0; i < numTestRows; ++i)
+          testOffset[i] = data.offset[testRows[i]];
+      }
+    }
 
-  bartcore::SamplerOptions options =
-    optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
-  std::vector<ext_rng*> rngs = createChainRngs(control, options.numChains);
+    // a linear node prior's designated columns have the view gather their raw
+    // values, with standardization constants from the handle's full data - the
+    // same calibration inheritance as the copied cut grid
+    store.buildFromParent(parent, trainRows.data(), numTrainRows,
+                          testRows.data(), numTestRows,
+                          model.leafCovariateColumns.empty()
+                            ? NULL : model.leafCovariateColumns.data(),
+                          model.leafCovariateColumns.size());
 
-  std::unique_ptr<bartcore::SamplerBase> sampler =
-    bartcore::createSamplerOverStore(
-      std::move(store), response.data(),
-      data.weights != NULL ? weights.data() : NULL,
-      data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
-      model.sigmaDf, model.sigmaRawScale, options, rngs.data());
-  if (sampler == NULL) {
-    // R-side resolution validates first, so only an invariant breach lands
-    for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-    Rf_error("invalid leaf covariate designation");
-  }
+    bartcore::SamplerOptions options =
+      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    rngs = createChainRngs(control, options.numChains);
 
-  BartcoreHolder* holder = new BartcoreHolder{
-    std::move(sampler), std::move(rngs), control.keepTrainingFits,
-    {}, {}, {}, {}};
-  // moving the vectors keeps their buffers, so the chains' borrowed
-  // pointers stay valid for the holder's lifetime
-  holder->ownedResponse = std::move(response);
-  holder->ownedWeights = std::move(weights);
-  holder->ownedOffset = std::move(offset);
-  holder->ownedTestOffset = std::move(testOffset);
-  if (!holder->ownedTestOffset.empty())
-    holder->sampler->setTestOffset(holder->ownedTestOffset.data());
+    std::unique_ptr<bartcore::SamplerBase> sampler =
+      bartcore::createSamplerOverStore(
+        std::move(store), response.data(),
+        data.weights != NULL ? weights.data() : NULL,
+        data.offset != NULL ? offset.data() : NULL, family, data.sigmaEstimate,
+        model.sigmaDf, model.sigmaRawScale, options, rngs.data());
+    if (sampler == NULL) {
+      // R-side resolution validates first, so only an invariant breach lands
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("invalid leaf covariate designation");
+    }
 
-  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
-  R_RegisterCFinalizerEx(result, holderFinalizer,
-                         static_cast<Rboolean>(FALSE));
+    BartcoreHolder* holder = new BartcoreHolder{
+      std::move(sampler), std::move(rngs), control.keepTrainingFits,
+      {}, {}, {}, {}};
+    // moving the vectors keeps their buffers, so the chains' borrowed
+    // pointers stay valid for the holder's lifetime
+    holder->ownedResponse = std::move(response);
+    holder->ownedWeights = std::move(weights);
+    holder->ownedOffset = std::move(offset);
+    holder->ownedTestOffset = std::move(testOffset);
+    if (!holder->ownedTestOffset.empty())
+      holder->sampler->setTestOffset(holder->ownedTestOffset.data());
 
-  UNPROTECT(2);
-  return result;
+    SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+    SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+    SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
+    R_RegisterCFinalizerEx(result, holderFinalizer,
+                           static_cast<Rboolean>(FALSE));
+
+    UNPROTECT(2);
+    return result;
+  });
 }
 
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
@@ -1457,7 +1489,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
                                bartcore_userInterrupted);
   PutRNGstate();
-  if (cancelled) Rf_error("sampler run interrupted");
+  if (cancelled) {
+    std::vector<std::uint32_t>().swap(variableCounts);  // free before longjmp
+    Rf_error("sampler run interrupted");
+  }
 
   int* varcountOut = INTEGER(varcountExpr);
   for (size_t i = 0; i < numPredictors * numSamples * numChains; ++i)
@@ -1546,49 +1581,50 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
 
-  ParsedData data;
-  parseData(data, dataExpr);
-  if (data.xIsSparse || data.xIsMixed)
-    Rf_error("bartcore setData requires a dense predictor matrix; sparse "
-             "predictors fix the design at creation");
+  return unwindProtect([&, data = ParsedData{}]() mutable -> SEXP {
+    parseData(data, dataExpr);
+    if (data.xIsSparse || data.xIsMixed)
+      Rf_error("bartcore setData requires a dense predictor matrix; sparse "
+               "predictors fix the design at creation");
 
-  if (data.numPredictors != sampler.numPredictors())
-    Rf_error("bartcore setData requires the same predictors");
-  if (data.weights != NULL) refuseBinaryWeightChange(sampler);
-  for (size_t j = 0; j < data.numPredictors; ++j) {
-    bool wasCategorical = sampler.data().types[j] ==
-                          bartcore::ColumnType::categorical;
-    bool isCategorical = data.columnTypes[j] ==
-                         bartcore::ColumnType::categorical;
-    if (isCategorical != wasCategorical)
-      Rf_error("bartcore setData requires the same predictor types");
-    if (!wasCategorical) continue;
-    // category counts are fixed at creation; new values must be existing
-    // codes, in the training and test data both
-    for (size_t i = 0; i < data.numObservations; ++i)
-      if (!sampler.data().categoricalValueIsValid(
-            j, data.x[i + j * data.numObservations]))
-        Rf_error("categorical predictor values must be existing category "
-                 "codes");
-    for (size_t i = 0; i < data.numTestObservations; ++i)
-      if (!sampler.data().categoricalValueIsValid(
-            j, data.x_test[i + j * data.numTestObservations]))
-        Rf_error("categorical predictor values must be existing category "
-                 "codes");
-  }
+    if (data.numPredictors != sampler.numPredictors())
+      Rf_error("bartcore setData requires the same predictors");
+    if (data.weights != NULL) refuseBinaryWeightChange(sampler);
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      bool wasCategorical = sampler.data().types[j] ==
+                            bartcore::ColumnType::categorical;
+      bool isCategorical = data.columnTypes[j] ==
+                           bartcore::ColumnType::categorical;
+      if (isCategorical != wasCategorical)
+        Rf_error("bartcore setData requires the same predictor types");
+      if (!wasCategorical) continue;
+      // category counts are fixed at creation; new values must be existing
+      // codes, in the training and test data both
+      for (size_t i = 0; i < data.numObservations; ++i)
+        if (!sampler.data().categoricalValueIsValid(
+              j, data.x[i + j * data.numObservations]))
+          Rf_error("categorical predictor values must be existing category "
+                   "codes");
+      for (size_t i = 0; i < data.numTestObservations; ++i)
+        if (!sampler.data().categoricalValueIsValid(
+              j, data.x_test[i + j * data.numTestObservations]))
+          Rf_error("categorical predictor values must be existing category "
+                   "codes");
+    }
 
-  sampler.setData(data.x, data.y, data.numObservations, data.weights,
-                  data.offset, data.x_test, data.numTestObservations,
-                  data.testOffset);
+    sampler.setData(data.x, data.y, data.numObservations, data.weights,
+                    data.offset, data.x_test, data.numTestObservations,
+                    data.testOffset);
 
-  // everything the sampler borrows now comes from the new data object
-  retain(ptrExpr, PROT_DATA, dataExpr);
-  retain(ptrExpr, PROT_RESPONSE, R_NilValue);
-  retain(ptrExpr, PROT_OFFSET, R_NilValue);
-  retain(ptrExpr, PROT_PREDICTORS, R_NilValue);
-  retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
+    // everything the sampler borrows now comes from the new data object
+    retain(ptrExpr, PROT_DATA, dataExpr);
+    retain(ptrExpr, PROT_RESPONSE, R_NilValue);
+    retain(ptrExpr, PROT_OFFSET, R_NilValue);
+    retain(ptrExpr, PROT_PREDICTORS, R_NilValue);
+    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
 
-  return R_NilValue;
+    return R_NilValue;
+  });
 }
 
 SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
@@ -1738,59 +1774,60 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
 
   (void) controlExpr; // arity fixed by the call table; nothing read from it
 
-  ParsedModel model;
-  parseModel(model, modelExpr, sampler.numPredictors());
+  return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
+    parseModel(model, modelExpr, sampler.numPredictors());
 
-  // the leaf model is a template instantiation: the designation and its
-  // kind are fixed at creation, so a replacement prior must carry the same
-  bool designationMatches =
-    model.leafCovariateColumns.size() == sampler.numLeafCovariates() &&
-    model.gpLeaves == sampler.usesFunctionLeaves();
-  for (size_t j = 0; designationMatches &&
-       j < model.leafCovariateColumns.size(); ++j)
-    designationMatches =
-      model.leafCovariateColumns[j] == sampler.leafCovariateColumns()[j];
-  if (!designationMatches)
-    Rf_error("the leaf covariate designation is fixed when a sampler is "
-             "created; make a new sampler instead");
+    // the leaf model is a template instantiation: the designation and its
+    // kind are fixed at creation, so a replacement prior must carry the same
+    bool designationMatches =
+      model.leafCovariateColumns.size() == sampler.numLeafCovariates() &&
+      model.gpLeaves == sampler.usesFunctionLeaves();
+    for (size_t j = 0; designationMatches &&
+         j < model.leafCovariateColumns.size(); ++j)
+      designationMatches =
+        model.leafCovariateColumns[j] == sampler.leafCovariateColumns()[j];
+    if (!designationMatches)
+      Rf_error("the leaf covariate designation is fixed when a sampler is "
+               "created; make a new sampler instead");
 
-  bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
+    bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
 
-  bartcore::ModelParameters parameters;
-  parameters.base = model.base;
-  parameters.power = model.power;
-  parameters.splitProbabilities = model.splitProbabilities;
-  parameters.birthOrDeathProbability = model.birthOrDeathProbability;
-  parameters.swapProbability = model.swapProbability;
-  parameters.changeProbability = model.changeProbability;
-  parameters.birthProbability = model.birthProbability;
-  parameters.nodeScale = model.nodeScale;
-  parameters.updateK = model.updateK;
-  if (parameters.updateK) {
-    parameters.kHyperprior.degreesOfFreedom = model.kDf;
-    parameters.kHyperprior.scale = model.kScale;
-  } else {
-    parameters.k = model.k;
-  }
-  if (isGaussian) {
-    if (model.sigmaIsFixed) {
-      // documented semantics: fixed(value) holds the residual variance
-      parameters.sigmaIsFixed = true;
-      parameters.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+    bartcore::ModelParameters parameters;
+    parameters.base = model.base;
+    parameters.power = model.power;
+    parameters.splitProbabilities = model.splitProbabilities;
+    parameters.birthOrDeathProbability = model.birthOrDeathProbability;
+    parameters.swapProbability = model.swapProbability;
+    parameters.changeProbability = model.changeProbability;
+    parameters.birthProbability = model.birthProbability;
+    parameters.nodeScale = model.nodeScale;
+    parameters.updateK = model.updateK;
+    if (parameters.updateK) {
+      parameters.kHyperprior.degreesOfFreedom = model.kDf;
+      parameters.kHyperprior.scale = model.kScale;
     } else {
-      parameters.sigmaEstimate = rc_getDouble(
-        Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
-        RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
-        RC_VALUE | RC_GT, 0.0, RC_END);
-      parameters.sigmaDf = model.sigmaDf;
-      parameters.sigmaRawScale = model.sigmaRawScale;
+      parameters.k = model.k;
     }
-  }
+    if (isGaussian) {
+      if (model.sigmaIsFixed) {
+        // documented semantics: fixed(value) holds the residual variance
+        parameters.sigmaIsFixed = true;
+        parameters.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
+      } else {
+        parameters.sigmaEstimate = rc_getDouble(
+          Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
+          RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
+          RC_VALUE | RC_GT, 0.0, RC_END);
+        parameters.sigmaDf = model.sigmaDf;
+        parameters.sigmaRawScale = model.sigmaRawScale;
+      }
+    }
 
-  // split probabilities are copied per chain before the model goes away
-  sampler.setModel(parameters);
+    // split probabilities are copied per chain before the model goes away
+    sampler.setModel(parameters);
 
-  return R_NilValue;
+    return R_NilValue;
+  });
 }
 
 SEXP bartcore_isValidPointer(SEXP ptrExpr) {
@@ -1853,78 +1890,84 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
 
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSampler(*holder.sampler, "bartcore_updatePredictor");
-  size_t numObservations = holder.sampler->numObservations();
-  size_t numPredictors = holder.sampler->numPredictors();
+  return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
+    BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    refuseViewSampler(*holder.sampler, "bartcore_updatePredictor");
+    size_t numObservations = holder.sampler->numObservations();
+    size_t numPredictors = holder.sampler->numPredictors();
 
-  size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
-  if (numColumns == 0 ||
-      static_cast<size_t>(Rf_xlength(xExpr)) != numObservations * numColumns)
-    Rf_error("bartcore_updatePredictor requires numObservations values per column");
+    size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
+    if (numColumns == 0 ||
+        static_cast<size_t>(Rf_xlength(xExpr)) != numObservations * numColumns)
+      Rf_error("bartcore_updatePredictor requires numObservations values per column");
 
-  std::vector<size_t> columns(numColumns);
-  for (size_t k = 0; k < numColumns; ++k) {
-    int column = INTEGER(columnsExpr)[k];
-    if (column < 1 || static_cast<size_t>(column) > numPredictors)
-      Rf_error("bartcore_updatePredictor column out of range");
-    columns[k] = static_cast<size_t>(column - 1);
-  }
+    columns.resize(numColumns);
+    for (size_t k = 0; k < numColumns; ++k) {
+      int column = INTEGER(columnsExpr)[k];
+      if (column < 1 || static_cast<size_t>(column) > numPredictors)
+        Rf_error("bartcore_updatePredictor column out of range");
+      columns[k] = static_cast<size_t>(column - 1);
+    }
 
-  for (size_t k = 0; k < numColumns; ++k)
-    validateColumnValues(holder.sampler->data(), columns[k],
-                         REAL(xExpr) + k * numObservations, numObservations);
+    for (size_t k = 0; k < numColumns; ++k)
+      validateColumnValues(holder.sampler->data(), columns[k],
+                           REAL(xExpr) + k * numObservations, numObservations);
 
-  bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
-    REAL(xExpr), columns.data(), numColumns,
-    Rf_asLogical(forceUpdateExpr) == TRUE,
-    Rf_asLogical(updateCutPointsExpr) == TRUE);
-  if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
-    Rf_error("number of induced cut points in new predictor less than "
-             "previous: old splits would be invalid");
-  return Rf_ScalarLogical(
-    result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+    bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
+      REAL(xExpr), columns.data(), numColumns,
+      Rf_asLogical(forceUpdateExpr) == TRUE,
+      Rf_asLogical(updateCutPointsExpr) == TRUE);
+    if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
+      Rf_error("number of induced cut points in new predictor less than "
+               "previous: old splits would be invalid");
+    return Rf_ScalarLogical(
+      result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+  });
 }
 
 SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
                            SEXP columnsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  refuseViewSamplerOnly(*holder.sampler, "bartcore_setCutPoints");
-  size_t numPredictors = holder.sampler->numPredictors();
+  return unwindProtect([&, cutPoints = std::vector<const double*>{},
+                        numCutPoints = std::vector<std::uint32_t>{},
+                        columns = std::vector<size_t>{}]() mutable -> SEXP {
+    BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    refuseViewSamplerOnly(*holder.sampler, "bartcore_setCutPoints");
+    size_t numPredictors = holder.sampler->numPredictors();
 
-  size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
-  if (numColumns == 0 ||
-      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numColumns)
-    Rf_error("bartcore_setCutPoints requires one cut point vector per column");
+    size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
+    if (numColumns == 0 ||
+        static_cast<size_t>(Rf_xlength(cutPointsExpr)) != numColumns)
+      Rf_error("bartcore_setCutPoints requires one cut point vector per column");
 
-  std::vector<const double*> cutPoints(numColumns);
-  std::vector<std::uint32_t> numCutPoints(numColumns);
-  std::vector<size_t> columns(numColumns);
-  for (size_t k = 0; k < numColumns; ++k) {
-    int column = INTEGER(columnsExpr)[k];
-    if (column < 1 || static_cast<size_t>(column) > numPredictors)
-      Rf_error("bartcore_setCutPoints column out of range");
-    columns[k] = static_cast<size_t>(column - 1);
-    if (holder.sampler->data().types[columns[k]] ==
-        bartcore::ColumnType::categorical)
-      Rf_error("cannot set cut points for a categorical predictor");
+    cutPoints.resize(numColumns);
+    numCutPoints.resize(numColumns);
+    columns.resize(numColumns);
+    for (size_t k = 0; k < numColumns; ++k) {
+      int column = INTEGER(columnsExpr)[k];
+      if (column < 1 || static_cast<size_t>(column) > numPredictors)
+        Rf_error("bartcore_setCutPoints column out of range");
+      columns[k] = static_cast<size_t>(column - 1);
+      if (holder.sampler->data().types[columns[k]] ==
+          bartcore::ColumnType::categorical)
+        Rf_error("cannot set cut points for a categorical predictor");
 
-    SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
-    R_xlen_t numCuts = Rf_xlength(cutsExpr);
-    if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
-      Rf_error("bartcore_setCutPoints cut point vector too long");
-    const double* cuts = REAL(cutsExpr);
-    for (R_xlen_t i = 1; i < numCuts; ++i)
-      if (cuts[i] <= cuts[i - 1])
-        Rf_error("bartcore_setCutPoints requires strictly increasing cut "
-                 "points");
-    cutPoints[k] = cuts;
-    numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
-  }
+      SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
+      R_xlen_t numCuts = Rf_xlength(cutsExpr);
+      if (numCuts > 65535)  // codes must fit xint_t, including numCuts itself
+        Rf_error("bartcore_setCutPoints cut point vector too long");
+      const double* cuts = REAL(cutsExpr);
+      for (R_xlen_t i = 1; i < numCuts; ++i)
+        if (cuts[i] <= cuts[i - 1])
+          Rf_error("bartcore_setCutPoints requires strictly increasing cut "
+                   "points");
+      cutPoints[k] = cuts;
+      numCutPoints[k] = static_cast<std::uint32_t>(numCuts);
+    }
 
-  holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
-                               columns.data(), numColumns);
-  return R_NilValue;
+    holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
+                                 columns.data(), numColumns);
+    return R_NilValue;
+  });
 }
 
 SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
@@ -1954,9 +1997,11 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   // The sequential guard admits no empty leaves, so an invalid rebuild is an
   // internal invariant violation; fail loudly rather than leave the sampler
   // in an invalid state.
-  if (!treesAreValid)
+  if (!treesAreValid) {
+    installed.reset();  // free before longjmp
     Rf_error("bartcore updatePredictorPerObservation produced a tree with an "
              "empty leaf");
+  }
 
   SEXP result = PROTECT(
     Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
@@ -1968,57 +2013,64 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
 
 SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
                                                    SEXP columnsExpr) {
-  size_t numSamplers = static_cast<size_t>(Rf_xlength(ptrsExpr));
-  if (numSamplers == 0 ||
-      static_cast<size_t>(Rf_xlength(columnsExpr)) != numSamplers)
-    Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
-             "column per sampler");
+  return unwindProtect(
+    [&, samplers = std::vector<bartcore::SamplerBase*>{},
+     columns = std::vector<size_t>{}]() mutable -> SEXP {
+    size_t numSamplers = static_cast<size_t>(Rf_xlength(ptrsExpr));
+    if (numSamplers == 0 ||
+        static_cast<size_t>(Rf_xlength(columnsExpr)) != numSamplers)
+      Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
+               "column per sampler");
 
-  std::vector<bartcore::SamplerBase*> samplers(numSamplers);
-  std::vector<size_t> columns(numSamplers);
-  for (size_t k = 0; k < numSamplers; ++k) {
-    BartcoreHolder& holder(
-      holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
-    refuseViewSampler(*holder.sampler,
-                      "bartcore_updatePredictorPerObservationJointly");
-    samplers[k] = holder.sampler.get();
-    int column = INTEGER(columnsExpr)[k];
-    if (column < 1 ||
-        static_cast<size_t>(column) > samplers[k]->numPredictors())
-      Rf_error("bartcore_updatePredictorPerObservationJointly column out of "
-               "range");
-    columns[k] = static_cast<size_t>(column - 1);
-  }
+    samplers.resize(numSamplers);
+    columns.resize(numSamplers);
+    for (size_t k = 0; k < numSamplers; ++k) {
+      BartcoreHolder& holder(
+        holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
+      refuseViewSampler(*holder.sampler,
+                        "bartcore_updatePredictorPerObservationJointly");
+      samplers[k] = holder.sampler.get();
+      int column = INTEGER(columnsExpr)[k];
+      if (column < 1 ||
+          static_cast<size_t>(column) > samplers[k]->numPredictors())
+        Rf_error("bartcore_updatePredictorPerObservationJointly column out of "
+                 "range");
+      columns[k] = static_cast<size_t>(column - 1);
+    }
 
-  size_t numObservations = samplers[0]->numObservations();
-  for (size_t k = 1; k < numSamplers; ++k)
-    if (samplers[k]->numObservations() != numObservations)
-      Rf_error("bartcore_updatePredictorPerObservationJointly requires "
-               "index-aligned samplers");
-  if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
-    Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
-             "value per observation");
-  for (size_t k = 0; k < numSamplers; ++k)
-    validateColumnValues(samplers[k]->data(), columns[k], REAL(xExpr),
-                         numObservations);
+    size_t numObservations = samplers[0]->numObservations();
+    for (size_t k = 1; k < numSamplers; ++k)
+      if (samplers[k]->numObservations() != numObservations)
+        Rf_error("bartcore_updatePredictorPerObservationJointly requires "
+                 "index-aligned samplers");
+    if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
+      Rf_error("bartcore_updatePredictorPerObservationJointly requires one "
+               "value per observation");
+    for (size_t k = 0; k < numSamplers; ++k)
+      validateColumnValues(samplers[k]->data(), columns[k], REAL(xExpr),
+                           numObservations);
 
-  std::unique_ptr<bool[]> installed(new bool[numObservations]);
+    std::unique_ptr<bool[]> installed(new bool[numObservations]);
 
-  GetRNGstate();  // scan-order permutation
-  bool treesAreValid = bartcore::updatePredictorPerObservationJointly(
-    samplers.data(), numSamplers, REAL(xExpr), columns.data(), installed.get());
-  PutRNGstate();
+    GetRNGstate();  // scan-order permutation
+    bool treesAreValid = bartcore::updatePredictorPerObservationJointly(
+      samplers.data(), numSamplers, REAL(xExpr), columns.data(),
+      installed.get());
+    PutRNGstate();
 
-  if (!treesAreValid)
-    Rf_error("bartcore updatePredictorPerObservationJointly produced a tree "
-             "with an empty leaf");
+    if (!treesAreValid) {
+      installed.reset();  // free before longjmp
+      Rf_error("bartcore updatePredictorPerObservationJointly produced a tree "
+               "with an empty leaf");
+    }
 
-  SEXP result = PROTECT(
-    Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
-  for (size_t i = 0; i < numObservations; ++i)
-    LOGICAL(result)[i] = installed[i] ? TRUE : FALSE;
-  UNPROTECT(1);
-  return result;
+    SEXP result = PROTECT(
+      Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
+    for (size_t i = 0; i < numObservations; ++i)
+      LOGICAL(result)[i] = installed[i] ? TRUE : FALSE;
+    UNPROTECT(1);
+    return result;
+  });
 }
 
 // State serialization. The returned object is engine-specific and opaque:
@@ -2371,97 +2423,101 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 // data.frame produced
 SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                        SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
+  return unwindProtect([&, chainIndices = std::vector<size_t>{},
+                        sampleIndices = std::vector<size_t>{},
+                        treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
+    BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    bartcore::SamplerBase& sampler(*holder.sampler);
 
-  bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
-  bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
+    bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
+    bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
 
-  std::vector<size_t> chainIndices(
-    static_cast<size_t>(Rf_xlength(chainNumsExpr)));
-  for (size_t i = 0; i < chainIndices.size(); ++i) {
-    int chainNum = INTEGER(chainNumsExpr)[i];
-    if (chainNum < 1) Rf_error("bartcore_getTrees chain number out of range");
-    chainIndices[i] = static_cast<size_t>(chainNum - 1);
-  }
-  std::vector<size_t> sampleIndices;
-  if (useSaved) {
-    sampleIndices.resize(static_cast<size_t>(Rf_xlength(sampleNumsExpr)));
-    for (size_t i = 0; i < sampleIndices.size(); ++i) {
-      int sampleNum = INTEGER(sampleNumsExpr)[i];
-      if (sampleNum < 1)
-        Rf_error("bartcore_getTrees sample number out of range");
-      sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
+    chainIndices.resize(static_cast<size_t>(Rf_xlength(chainNumsExpr)));
+    for (size_t i = 0; i < chainIndices.size(); ++i) {
+      int chainNum = INTEGER(chainNumsExpr)[i];
+      if (chainNum < 1) Rf_error("bartcore_getTrees chain number out of range");
+      chainIndices[i] = static_cast<size_t>(chainNum - 1);
     }
-  }
-  std::vector<size_t> treeIndices(
-    static_cast<size_t>(Rf_xlength(treeNumsExpr)));
-  for (size_t i = 0; i < treeIndices.size(); ++i) {
-    int treeNum = INTEGER(treeNumsExpr)[i];
-    if (treeNum < 1) Rf_error("bartcore_getTrees tree number out of range");
-    treeIndices[i] = static_cast<size_t>(treeNum - 1);
-  }
+    if (useSaved) {
+      sampleIndices.resize(static_cast<size_t>(Rf_xlength(sampleNumsExpr)));
+      for (size_t i = 0; i < sampleIndices.size(); ++i) {
+        int sampleNum = INTEGER(sampleNumsExpr)[i];
+        if (sampleNum < 1)
+          Rf_error("bartcore_getTrees sample number out of range");
+        sampleIndices[i] = static_cast<size_t>(sampleNum - 1);
+      }
+    }
+    treeIndices.resize(static_cast<size_t>(Rf_xlength(treeNumsExpr)));
+    for (size_t i = 0; i < treeIndices.size(); ++i) {
+      int treeNum = INTEGER(treeNumsExpr)[i];
+      if (treeNum < 1) Rf_error("bartcore_getTrees tree number out of range");
+      treeIndices[i] = static_cast<size_t>(treeNum - 1);
+    }
 
-  const double* newdata = NULL;
-  size_t newdataNumRows = 0;
-  if (!Rf_isNull(newdataExpr)) {
-    newdataNumRows =
-      validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
-    newdata = REAL(newdataExpr);
-  }
+    const double* newdata = NULL;
+    size_t newdataNumRows = 0;
+    if (!Rf_isNull(newdataExpr)) {
+      newdataNumRows =
+        validatePredictorMatrix(sampler, newdataExpr, "bartcore_getTrees");
+      newdata = REAL(newdataExpr);
+    }
 
-  return bartcore_bridge::getTrees(
-    sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
-    sampleIndices.size(), treeIndices.data(), treeIndices.size(),
-    useLiveTrees, newdata, newdataNumRows, "bartcore_getTrees");
+    return bartcore_bridge::getTrees(
+      sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
+      sampleIndices.size(), treeIndices.data(), treeIndices.size(),
+      useLiveTrees, newdata, newdataNumRows, "bartcore_getTrees");
+  });
 }
 
 SEXP bartcore_printTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                          SEXP treeNumsExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerBase& sampler(*holder.sampler);
+  return unwindProtect([&, chainIndices = std::vector<size_t>{},
+                        sampleIndices = std::vector<size_t>{},
+                        treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
+    BartcoreHolder& holder(holderFromExpression(ptrExpr));
+    bartcore::SamplerBase& sampler(*holder.sampler);
 
-  size_t capacity = sampler.savedTreeCapacity();
+    size_t capacity = sampler.savedTreeCapacity();
 
-  std::vector<size_t> chainIndices, sampleIndices, treeIndices;
-  if (Rf_isNull(chainNumsExpr)) {
-    for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
-  } else {
-    for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
-      int chainNum = INTEGER(chainNumsExpr)[i];
-      if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
-        Rf_error("bartcore_printTrees chain number out of range");
-      chainIndices.push_back(static_cast<size_t>(chainNum - 1));
-    }
-  }
-  if (capacity > 0) {
-    if (Rf_isNull(sampleNumsExpr)) {
-      for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
+    if (Rf_isNull(chainNumsExpr)) {
+      for (size_t i = 0; i < sampler.numChains(); ++i) chainIndices.push_back(i);
     } else {
-      for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
-        int sampleNum = INTEGER(sampleNumsExpr)[i];
-        if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
-          Rf_error("bartcore_printTrees sample number out of range");
-        sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
+      for (R_xlen_t i = 0; i < Rf_xlength(chainNumsExpr); ++i) {
+        int chainNum = INTEGER(chainNumsExpr)[i];
+        if (chainNum < 1 || static_cast<size_t>(chainNum) > sampler.numChains())
+          Rf_error("bartcore_printTrees chain number out of range");
+        chainIndices.push_back(static_cast<size_t>(chainNum - 1));
       }
     }
-  }
-  if (Rf_isNull(treeNumsExpr)) {
-    for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
-  } else {
-    for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
-      int treeNum = INTEGER(treeNumsExpr)[i];
-      if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
-        Rf_error("bartcore_printTrees tree number out of range");
-      treeIndices.push_back(static_cast<size_t>(treeNum - 1));
+    if (capacity > 0) {
+      if (Rf_isNull(sampleNumsExpr)) {
+        for (size_t i = 0; i < capacity; ++i) sampleIndices.push_back(i);
+      } else {
+        for (R_xlen_t i = 0; i < Rf_xlength(sampleNumsExpr); ++i) {
+          int sampleNum = INTEGER(sampleNumsExpr)[i];
+          if (sampleNum < 1 || static_cast<size_t>(sampleNum) > capacity)
+            Rf_error("bartcore_printTrees sample number out of range");
+          sampleIndices.push_back(static_cast<size_t>(sampleNum - 1));
+        }
+      }
     }
-  }
+    if (Rf_isNull(treeNumsExpr)) {
+      for (size_t i = 0; i < sampler.numTrees(); ++i) treeIndices.push_back(i);
+    } else {
+      for (R_xlen_t i = 0; i < Rf_xlength(treeNumsExpr); ++i) {
+        int treeNum = INTEGER(treeNumsExpr)[i];
+        if (treeNum < 1 || static_cast<size_t>(treeNum) > sampler.numTrees())
+          Rf_error("bartcore_printTrees tree number out of range");
+        treeIndices.push_back(static_cast<size_t>(treeNum - 1));
+      }
+    }
 
-  sampler.printTrees(chainIndices.data(), chainIndices.size(),
-                     sampleIndices.data(), sampleIndices.size(),
-                     treeIndices.data(), treeIndices.size());
+    sampler.printTrees(chainIndices.data(), chainIndices.size(),
+                       sampleIndices.data(), sampleIndices.size(),
+                       treeIndices.data(), treeIndices.size());
 
-  return R_NilValue;
+    return R_NilValue;
+  });
 }
 
 // resultExpr, when non-null, is a preallocated numeric filled in place (the
