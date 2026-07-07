@@ -1,11 +1,12 @@
-# ASAN + UBSAN over the compiled engine and the .Call bridge, on the
-# r-hub clang-asan container (an AddressSanitizer/UndefinedBehaviorSanitizer
-# instrumented R-devel with libc++). The rewritten pointer-heavy C++20 engine
-# is exactly the kind of code CRAN's clang-san/gcc-san rebuilds bite, so
-# catching a finding here is much cheaper than a CRAN bounce. The component
-# tests (tests/cpp) already pass a native ASAN+UBSAN build locally; this
-# widens coverage to the bridge, the support libraries, and the full tinytest
-# scenario set on x86 under an instrumented R.
+# ASAN + UBSAN (clang and gcc builds) and valgrind memcheck over the
+# compiled engine and the .Call bridge, on the r-hub sanitizer containers
+# (instrumented R-devel builds). The rewritten pointer-heavy C++20 engine is
+# exactly the kind of code CRAN's clang-san/gcc-san/valgrind rebuilds bite,
+# so catching a finding here is much cheaper than a CRAN bounce. The
+# component tests (tests/cpp) already pass native ASAN+UBSAN builds locally;
+# this widens coverage to the bridge, the support libraries, and the full
+# tinytest scenario set under instrumented R builds. Push-only for now;
+# pull_request gating is deferred until this has proven stable.
 name: sanitizers
 
 on:
@@ -16,18 +17,24 @@ on:
 permissions: read-all
 
 jobs:
-  clang-asan-ubsan:
+  asan-ubsan:
     runs-on: ubuntu-latest
-    name: clang ASAN+UBSAN
+    name: ${{ matrix.container }} ASAN+UBSAN
+
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [clang-asan, gcc-asan]
+
     container:
-      image: ghcr.io/r-hub/containers/clang-asan:latest
+      image: ghcr.io/r-hub/containers/${{ matrix.container }}:latest
     env:
       # leak detection is noisy against an uninstrumented R runtime; the
       # target here is memory-access errors and undefined behavior
       ASAN_OPTIONS: detect_leaks=0
       UBSAN_OPTIONS: print_stacktrace=1
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install test dependencies
         shell: Rscript {0}
@@ -54,4 +61,47 @@ jobs:
           # "runtime error:" printed during an otherwise-passing test) still fails
           if grep -Eq "runtime error:|AddressSanitizer|SUMMARY: .*Sanitizer" sanitizer-tests.log; then
             echo "::error::sanitizer reported a finding"; exit 1
+          fi
+
+  valgrind:
+    runs-on: ubuntu-latest
+    name: valgrind
+    # memcheck's instruction-level emulation runs 20-50x slower than native;
+    # a generous explicit timeout keeps a genuine hang from just riding out
+    # the default job timeout unexplained
+    timeout-minutes: 180
+
+    container:
+      image: ghcr.io/r-hub/containers/valgrind:latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install test dependencies
+        shell: Rscript {0}
+        run: |
+          need <- setdiff(c("tinytest", "Matrix"), rownames(installed.packages()))
+          if (length(need)) install.packages(need, repos = "https://cloud.r-project.org")
+
+      - name: Install dbarts
+        run: R CMD INSTALL --preclean .
+
+      # VALGRIND_OPTS (--track-origins=yes --leak-check=full) is set in the
+      # container image; -d valgrind wraps the R binary itself, not the
+      # package under test
+      - name: Unit tests under valgrind
+        shell: bash
+        run: |
+          set -eo pipefail
+          R -d valgrind --vanilla -e '
+            res <- tinytest::test_package("dbarts")
+            print(res)
+            ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
+            if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
+          ' 2>&1 | tee valgrind-tests.log
+          # --leak-check=full folds definitely/indirectly-lost blocks into
+          # the error count, so a nonzero ERROR SUMMARY covers both
+          # memory-access errors and leaks
+          if grep -Eq "ERROR SUMMARY: [1-9]" valgrind-tests.log; then
+            echo "::error::valgrind reported a finding"; exit 1
           fi
