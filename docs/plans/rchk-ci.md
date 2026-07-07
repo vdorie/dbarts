@@ -54,3 +54,21 @@ run after a push. One unverified candidate noted for that run:
 bartcore_run's namesExpr passed unprotected to Rf_setAttrib
 (R_interface_bartcore.cpp:~1434), matching rchk's documented
 setAttrib pattern; deliberately not fixed without tool confirmation.
+
+## Triage note (2026-07-07, c2d591a)
+
+First real rchk run (kalibera/rchk locally under amd64 emulation, after
+the Docker image became pullable): ~50 findings across 10 functions,
+all one class - attribute/slot temporaries used across allocating calls
+unprotected - in the creation parsers (parseControl/parseData/
+parseModel/parseCscMatrix/optionsFromParsed), setState, createMatrix,
+the randomBase seed readers, and rbart_getFitted. All cold-path.
+Fixed by protecting the temporaries: a REPROTECT_SLOT macro + one
+reprotect slot per parser, plain PROTECT elsewhere, and a reusable
+reprotect slot for createMatrix's factor levels (a counted PROTECT in
+the column loop broke rchk's counter model - "unsupported form of
+unprotect"; constant-depth reprotection is the loop-safe form).
+Re-run reports ZERO findings. The landing note's unverified
+bartcore_run/namesExpr setAttrib candidate did not appear in any run:
+cleared by the tool, no fix needed. Gates: install, component tests,
+tinytest 2470/0, equivalence exact 18/18 identical draws.
