@@ -147,10 +147,6 @@ items
     (classic rebuilt scratch state on load); decide whether to keep it,
     else drop the indices/totalFits/internal-scale state fields.
     Depends on constant-leaf-suffstat.
-  state-format-policy: decide and document the cross-version guarantee
-    for saved sampler states; refuse-cleanly tested. Shares one version
-    scheme with flat-format-v2 and state-continuation.
-    window: pre-release.
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.
