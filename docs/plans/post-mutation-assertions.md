@@ -43,3 +43,16 @@ from-scratch fit on the post-mutation data, instead of is.finite.
 - New assertions pass across 20 local seeds (documented in the test
   comment only if the bound needs justification).
 - Full tinytest runtime increase measured and reported.
+
+## Landing note (2026-07-07, fb7bceb)
+
+Landed: the one is.finite-only mutation assertion in each of
+test-linear-leaves.R and test-gp-leaves.R replaced by a structural
+getTrees well-formedness check plus an RMSE comparison of the
+mutated-continued fit against a fresh fit on the same mutated data;
+bounds calibrated over 60/30 seeds with mean+4sd headroom, basis
+recorded in test comments. Sabotage demonstration: a misaligned
+(shuffled) predictor fails the new assertion cleanly - a stale-scale
+sabotage does NOT, because linear leaves absorb a scale mutation into
+beta, which is why the RMSE form was needed. Gates: suite twice at
+2470/0, diff confined to inst/tinytest, lint zero. ~67 lines.
