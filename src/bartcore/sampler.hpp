@@ -460,8 +460,8 @@ public:
   void setOffset(const double* offset, bool updateScale) {
     for (auto& chain : chains_) chain->setOffset(offset, updateScale);
   }
-  void setResponse(const double* y) {
-    for (auto& chain : chains_) chain->setResponse(y);
+  void setResponse(const double* y, bool updateScale) {
+    for (auto& chain : chains_) chain->setResponse(y, updateScale);
   }
   /// Case weights, gaussian only (the host rejects binary families): a bare
   /// pointer swap like the classic engine's, entering the next iteration's

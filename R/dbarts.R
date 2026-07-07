@@ -580,9 +580,9 @@ dbartsSampler <- setRefClass(
       }
       bartcoreSamplerSetData(.self, newData)
     },
-    setResponse = function(y, updateState = NA) {
+    setResponse = function(y, updateScale = FALSE, updateState = NA) {
       "Changes the response against which the sampler is fitted."
-      bartcoreSamplerSetResponse(.self, y)
+      bartcoreSamplerSetResponse(.self, y, updateScale)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
       "Changes the offset slot used to adjust the response."

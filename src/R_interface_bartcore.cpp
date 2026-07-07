@@ -1475,7 +1475,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   return R_NilValue;
 }
 
-SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr) {
+SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (holder.sampler->numGroups() > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
@@ -1486,7 +1486,8 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr) {
     Rf_error("y must be of length equal to %lu",
              static_cast<unsigned long>(holder.sampler->numObservations()));
   GetRNGstate(); // probit latent redraw
-  holder.sampler->setResponse(REAL(yExpr));
+  holder.sampler->setResponse(REAL(yExpr),
+                              Rf_asLogical(updateScaleExpr) == TRUE);
   PutRNGstate();
   retain(ptrExpr, PROT_RESPONSE, yExpr);
   return R_NilValue;

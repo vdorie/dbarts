@@ -21,7 +21,7 @@ public:
                    Results& results,
                    const std::function<bool()>& pollInterrupt = {}) = 0;
   virtual void setOffset(const double* offset, bool updateScale) = 0;
-  virtual void setResponse(const double* y) = 0;
+  virtual void setResponse(const double* y, bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
@@ -127,7 +127,9 @@ public:
   void setOffset(const double* offset, bool updateScale) override {
     impl_.setOffset(offset, updateScale);
   }
-  void setResponse(const double* y) override { impl_.setResponse(y); }
+  void setResponse(const double* y, bool updateScale) override {
+    impl_.setResponse(y, updateScale);
+  }
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);
   }

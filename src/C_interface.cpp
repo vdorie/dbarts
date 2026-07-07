@@ -85,7 +85,7 @@ void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler) {
 
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y) {
   GetRNGstate(); // probit latent redraw
-  samplerOf(sampler).setResponse(y);
+  samplerOf(sampler).setResponse(y, true); // flat ABI keeps re-anchoring
   PutRNGstate();
 }
 
