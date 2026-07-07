@@ -35,9 +35,6 @@ items
   collapse-merge: unify the two subtree-collapse parameter merges
     (occupancy-weighted in collapseEmptyNodesBelow, plain mean in
     mapCutPointsBelow) on the weighted form.
-  constant-leaf-suffstat: move ConstantGaussianLeaf to the design's
-    (sum w, sum wz, sum wz^2) single-pass sufficient statistic;
-    order-insensitive, prerequisite for state-continuation.
   convergence-diagnostics: multi-chain fits return raw arrays with no
     R-hat/ESS story; posterior-package-compatible draw accessors and a
     summary that says whether the chains agree.
