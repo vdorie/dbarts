@@ -80,6 +80,11 @@ items
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
+  rbart-custom-prior-divergence: the custom-prior R loop's tau draws
+    settle 15-25x above the in-core path's at n >~ 300 with an
+    identical model (found 2026-07-07 during rbart-loop-profile);
+    likely a scale mismatch in the loop's Gibbs blocks. Shipped-
+    feature defect; investigation approved by VD 2026-07-07.
   rbart-loop-profile: MEASURED 2026-07-07, verdict GO (overhead 15-76%
     across cells; table in the plan file). The fix rides
     capi-callbacks' conditioning hook; write that follow-up plan when

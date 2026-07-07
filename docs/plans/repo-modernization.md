@@ -48,3 +48,6 @@ pull_request gate stays deferred until stable). Gates: YAML parses;
 runtime behavior maintainer-deferred to the first push. Sub-item 3
 (codecov badge) awaits VD's call; sub-item 4 remains dormant by
 design.
+
+Sub-item 3 resolved (VD, 2026-07-07): no codecov badge; coverage
+stays local-on-demand. Closed as a documented no.

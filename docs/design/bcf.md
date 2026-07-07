@@ -202,3 +202,17 @@ onto per-forest k hyperpriors (the approximate map); adopt bcf's
 single-forest default at 75. Questions 3 (muscale expansion vs a = 1)
 and 4 (tau seeing pihat) remain open; neither blocks the Forest
 split, which is unblocked as of these resolutions.
+
+Questions 3 and 4 (VD, 2026-07-07): ship the half-Cauchy prognostic
+scalar a - parity with bcf is the goal, so both expansions
+(use_muscale and use_tauscale equivalents) are defaults, as in bcf.
+tau stays moderator-only by default (bcf's include_pi = "control");
+pihat in tau's view is opt-in through the moderator subset. With both
+expansions shipped, the adaptive per-forest scaling lives in the glue
+(a for mu, b0/b1 for tau), which refines question 1's mechanism: the
+per-forest k values are FIXED constants converted from bcf's range
+units - no k hyperprior runs for BCF defaults; the approximate map is
+the unit conversion only. The exact-posterior gate gains a low-
+dimensional quadrature over the glue (its first mode fixes a = 1,
+b0 = 0, b1 = 1; a second mode integrates the expansions). All BCF
+steps are unblocked.
