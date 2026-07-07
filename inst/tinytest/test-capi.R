@@ -216,7 +216,84 @@ expect_equal(names(treesLive), c("tree", "n", "var", "value"))
 # every tree's root row sees all observations
 expect_true(all(treesLive$n[!duplicated(treesLive$tree)] == n))
 
+# a per-sweep callback that sets sigma reproduces the setSigma + run(0, 1)
+# loop bitwise (fixed residual prior, so a set sigma is held and recorded)
+sigmas <- runif(6L, 0.2, 0.9)
+specFixed2 <- dbarts(x, y, resid.prior = fixed(1), control = control)
+ptrCbA <- CALL(
+  "capi_create",
+  specFixed2$control,
+  specFixed2$model,
+  specFixed2$data,
+  ""
+)
+ptrCbB <- CALL(
+  "capi_create",
+  specFixed2$control,
+  specFixed2$model,
+  specFixed2$data,
+  ""
+)
+rCbA <- CALL("capi_run_with_callback", ptrCbA, 0L, 6L, sigmas, -1L)
+expect_equal(rCbA$sigma, sigmas)
+
+sigmaB <- numeric(0)
+trainB <- numeric(0)
+varcountB <- integer(0)
+for (i in seq_len(6L)) {
+  CALL("capi_set_sigma", ptrCbB, sigmas[i])
+  rb <- CALL("capi_run", ptrCbB, 0L, 1L, TRUE, FALSE)
+  sigmaB <- c(sigmaB, rb$sigma)
+  trainB <- c(trainB, rb$train)
+  varcountB <- c(varcountB, rb$varcount)
+}
+expect_identical(rCbA$sigma, sigmaB)
+expect_identical(rCbA$train, trainB)
+expect_identical(rCbA$varcount, varcountB)
+
+# returning 0 halts the run early: the callback stops on its third invocation
+ptrStop <- CALL(
+  "capi_create",
+  specFixed2$control,
+  specFixed2$model,
+  specFixed2$data,
+  ""
+)
+rStop <- CALL("capi_run_with_callback", ptrStop, 0L, 10L, NULL, 3L)
+expect_equal(rStop$count, 3L)
+
+# registration is refused while chains would run on worker threads
+controlMT <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 2L,
+  n.trees = 25L,
+  updateState = FALSE,
+  rngSeed = 99L
+)
+specMT <- dbarts(x, y, control = controlMT)
+ptrMT <- CALL("capi_create", specMT$control, specMT$model, specMT$data, "")
+expect_error(CALL("capi_run_with_callback", ptrMT, 0L, 2L, NULL, -1L))
+
+# tau/groupEffects on a grouped random-intercept fit, configured through the
+# internal control attribute rbart_vi's in-core path sets
+numGroups <- 3L
+controlG <- spec$control
+attr(controlG, "bartcore.groups") <- list(
+  indices = as.integer(rep_len(seq_len(numGroups), n)),
+  n.groups = numGroups,
+  prior = "cauchy",
+  rel.scale = sd(y),
+  n.steps = 1L
+)
+ptrG <- CALL("capi_create", controlG, spec$model, spec$data, "")
+rG <- CALL("capi_run_grouped", ptrG, 5L, 4L, numGroups)
+expect_equal(length(rG$tau), 4L)
+expect_true(all(is.finite(rG$tau)) && all(rG$tau > 0))
+expect_equal(length(rG$ranef), numGroups * 4L)
+expect_true(all(is.finite(rG$ranef)))
+
 # destruction runs through the finalizer
 rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed)
+rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG)
 invisible(gc(FALSE))
 expect_true(TRUE)

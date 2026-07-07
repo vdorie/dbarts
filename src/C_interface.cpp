@@ -23,6 +23,8 @@ using bartcore_bridge::validateColumnValues;
 struct dbarts_sampler_t {
   BartcoreHolder* holder;
   SEXP data; // preserved against collection for the columns it lends
+  dbarts_sampler_callback callback = NULL; // per-sweep conditioning hook
+  void* callbackData = NULL;
 };
 
 namespace {
@@ -65,10 +67,41 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     engineResults.variableCounts = results->varcount;
     engineResults.k = results->k;
     engineResults.splitProbabilities = results->varprobs;
+    engineResults.tau = results->tau;
+    engineResults.groupEffects = results->groupEffects;
   }
+
+  bartcore::SweepCallback onSweep;
+  if (sampler->callback != NULL) {
+    bartcore::SamplerBase& engine(samplerOf(sampler));
+    if (engine.numThreads() > 1 && engine.numChains() > 1)
+      Rf_error("dbarts_sampler_run: a per-sweep callback cannot run while "
+               "chains execute on worker threads");
+    dbarts_sampler_callback fn = sampler->callback;
+    void* userData = sampler->callbackData;
+    onSweep = [sampler, fn, userData](size_t chainIndex, size_t sweepIndex,
+                                      bool isBurnIn) -> bool {
+      return fn(userData, sampler, chainIndex, sweepIndex,
+                isBurnIn ? 1 : 0) == 0;
+    };
+  }
+
   GetRNGstate();
-  samplerOf(sampler).run(numBurnIn, numSamples, engineResults);
+  samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, onSweep);
   PutRNGstate();
+}
+
+void dbarts_sampler_setCallback(dbarts_sampler* sampler,
+                                dbarts_sampler_callback callback,
+                                void* userData) {
+  if (callback != NULL) {
+    const bartcore::SamplerBase& engine(samplerOf(sampler));
+    if (engine.numThreads() > 1 && engine.numChains() > 1)
+      Rf_error("dbarts_sampler_setCallback: a per-sweep callback requires "
+               "chains to run inline (numThreads == 1 or numChains == 1)");
+  }
+  sampler->callback = callback;
+  sampler->callbackData = userData;
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {

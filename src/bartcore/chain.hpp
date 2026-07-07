@@ -173,6 +173,15 @@ struct Results {
   double* groupEffects = nullptr;
 };
 
+/// A host's per-sweep conditioning hook, invoked before every sweep on the
+/// running thread with the chain index, the 0-based sweep counter, and whether
+/// the sweep is discarded burn-in; returns true to stop the run early, exactly
+/// as shouldCancel does. Only set when chains run inline: worker-thread chains
+/// must not call into R.
+using SweepCallback =
+  std::function<bool(std::size_t chainIndex, std::size_t sweepIndex,
+                     bool isBurnIn)>;
+
 /// One forest's serializable tree channels: value-encoded flattened live and
 /// saved trees, their slope/mask side channels, and the per-forest k. A
 /// ChainStateData holds one-or-more (BCF's prognostic and treatment forests);
@@ -508,11 +517,12 @@ public:
   /// printEvery kept iterations.
   /// Runs the chain, returning true if it stopped early because shouldCancel
   /// (polled once per sweep, called only on the thread that owns this chain)
-  /// asked it to. The check touches no sampled state, so a run that is not
-  /// cancelled is bitwise identical to one without it.
+  /// or onSweep asked it to. Both touch no sampled state, so a run with neither
+  /// set is bitwise identical to one without them.
   bool run(size_t numBurnIn, size_t numSamples, Results& results,
            ProgressSink* progress = nullptr, size_t chainIndex = 0,
-           const std::function<bool()>* shouldCancel = nullptr) {
+           const std::function<bool()>* shouldCancel = nullptr,
+           const SweepCallback* onSweep = nullptr) {
     size_t n = data_.numObservations;
     size_t numThin = options_.numThin;
     double* y = response_->workingResponse();
@@ -525,6 +535,11 @@ public:
       // cooperative cancellation: stop between sweeps so no draw is left
       // half-applied. The results filled so far are discarded by the caller.
       if (shouldCancel != nullptr && (*shouldCancel)()) return true;
+      // the host's conditioning hook fires unthrottled before the sweep it
+      // conditions; returning true stops as shouldCancel does
+      if (onSweep != nullptr &&
+          (*onSweep)(chainIndex, iteration, iteration / numThin < numBurnIn))
+        return true;
 
       bool record = (iteration + 1) % numThin == 0 &&
                     iteration / numThin >= numBurnIn;

@@ -264,6 +264,7 @@ static C_CallMethodDef C_callMethods[] = {
   DEF_FUNC("dbarts_sampler_setOffset", dbarts_sampler_setOffset),
   DEF_FUNC("dbarts_sampler_setWeights", dbarts_sampler_setWeights),
   DEF_FUNC("dbarts_sampler_setSigma", dbarts_sampler_setSigma),
+  DEF_FUNC("dbarts_sampler_setCallback", dbarts_sampler_setCallback),
   DEF_FUNC("dbarts_sampler_getLatents", dbarts_sampler_getLatents),
   DEF_FUNC("dbarts_sampler_setPredictor", dbarts_sampler_setPredictor),
   DEF_FUNC("dbarts_sampler_updatePredictor", dbarts_sampler_updatePredictor),

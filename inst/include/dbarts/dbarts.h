@@ -55,9 +55,9 @@ extern "C" {
 typedef struct dbarts_sampler_t dbarts_sampler;
 
 /// Caller-owned output buffers for dbarts_sampler_run. A null member skips
-/// that quantity. k requires a k hyperprior (dbarts_sampler_kIsSampled) and
-/// varprobs a DART tree prior (dbarts_sampler_usesDart); they are left
-/// untouched otherwise.
+/// that quantity. k requires a k hyperprior (dbarts_sampler_kIsSampled),
+/// varprobs a DART tree prior (dbarts_sampler_usesDart), and tau/groupEffects
+/// a grouped random-intercept sampler; each is left untouched otherwise.
 typedef struct dbarts_results_t {
   double* sigma;      ///< numSamples x numChains
   double* train;      ///< numObservations x numSamples x numChains
@@ -65,6 +65,8 @@ typedef struct dbarts_results_t {
   uint32_t* varcount; ///< numPredictors x numSamples x numChains
   double* k;          ///< numSamples x numChains
   double* varprobs;   ///< numPredictors x numSamples x numChains
+  double* tau;        ///< numSamples x numChains
+  double* groupEffects; ///< numGroups x numSamples x numChains
 } dbarts_results;
 
 /// Returns DBARTS_C_API_VERSION of the installed package.
@@ -86,6 +88,29 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler);
+
+/// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
+/// calling thread before every sweep - each of the (numBurnIn + numSamples) x
+/// numThin iterations - passing the chain index, the 0-based sweep counter,
+/// and 1 while the sweep is discarded burn-in. Mutate conditioning state
+/// (dbarts_sampler_setSigma, dbarts_sampler_setOffset, ...) from inside it to
+/// reproduce a setState-then-run(0, 1) loop exactly, at no per-sweep R round
+/// trip; return 0 to stop the run early (the results filled so far are then
+/// undefined). It fires before dbarts_sampler_setSigma's held sigma or the
+/// gaussian sigma draw enters the sweep, so a value set here conditions it.
+typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
+                                       size_t chainIndex, size_t sweepIndex,
+                                       int isBurnIn);
+/// Registers callback for subsequent runs, or clears it when null; userData is
+/// passed back unchanged and its lifetime is the caller's. Raises an error
+/// while chains would run on worker threads (numThreads > 1 and numChains > 1),
+/// which must never call into R. Inline multi-chain runs execute chains
+/// sequentially - chain 0 completes all its sweeps before chain 1 starts - so
+/// the callback conditions each chain to completion in turn and cannot see one
+/// chain's progress while advancing another.
+void dbarts_sampler_setCallback(dbarts_sampler* sampler,
+                                dbarts_sampler_callback callback,
+                                void* userData);
 
 /// y has numObservations values; for binary families they must be 0/1.
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y);
