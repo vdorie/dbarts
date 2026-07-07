@@ -144,8 +144,12 @@ struct Node {
   int32_t leftChild = invalidNode;
   Rule rule;
   size_t begin = 0, end = 0;
-  double average = 0.0;
-  double numEffectiveObservations = 0.0;
+  // Constant-leaf sufficient statistic (sum w, sum wz, sum wz^2). sumWeights
+  // is the effective count (n when unweighted); the leaf math derives the
+  // mean and centered variance from these when it needs them.
+  double sumWeights = 0.0;
+  double sumWeightedResponse = 0.0;
+  double sumWeightedResponseSq = 0.0;
 
   bool isBottom() const { return leftChild == invalidNode; }
   size_t numObservations() const { return end - begin; }
@@ -458,50 +462,32 @@ public:
     return count;
   }
 
-  /// Leaf sufficient statistics. The root intentionally uses the non-indexed
-  /// kernels like the reference engine (identical values, cheaper access).
+  /// Leaf sufficient statistic (sum w, sum wz, sum wz^2) in one pass. The
+  /// root intentionally uses the non-indexed kernels like the reference
+  /// engine (identical values, cheaper access).
   void computeLeafStats(int32_t nodeIndex, const double* y, const double* weights) {
     Node& node(at(nodeIndex));
     bool isRoot = node.parent == invalidNode;
-    if (isRoot) {
-      if (weights == nullptr) {
-        node.average = misc_computeMeanFast(y, node.numObservations());
-        node.numEffectiveObservations = static_cast<double>(node.numObservations());
-      } else {
-        node.average = misc_computeWeightedMeanFast(
-          y, node.numObservations(), weights, &node.numEffectiveObservations);
-      }
+    if (weights == nullptr) {
+      if (isRoot)
+        misc_computeSufficientStatisticsFast(
+          y, node.numObservations(), &node.sumWeights,
+          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
+      else
+        misc_computeIndexedSufficientStatisticsFast(
+          y, indices + node.begin, node.numObservations(), &node.sumWeights,
+          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
     } else {
-      if (weights == nullptr) {
-        node.average = misc_computeIndexedMeanFast(y, indices + node.begin,
-                                                   node.numObservations());
-        node.numEffectiveObservations = static_cast<double>(node.numObservations());
-      } else {
-        node.average = misc_computeIndexedWeightedMeanFast(
+      if (isRoot)
+        misc_computeWeightedSufficientStatisticsFast(
+          y, node.numObservations(), weights, &node.sumWeights,
+          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
+      else
+        misc_computeIndexedWeightedSufficientStatisticsFast(
           y, indices + node.begin, node.numObservations(), weights,
-          &node.numEffectiveObservations);
-      }
+          &node.sumWeights, &node.sumWeightedResponse,
+          &node.sumWeightedResponseSq);
     }
-  }
-
-  double computeVariance(int32_t nodeIndex, const double* y,
-                         const double* weights) const {
-    const Node& node(at(nodeIndex));
-    bool isRoot = node.parent == invalidNode;
-    if (isRoot) {
-      return weights == nullptr
-        ? misc_computeVarianceForKnownMeanFast(y, node.numObservations(),
-                                               node.average)
-        : misc_computeWeightedVarianceForKnownMeanFast(
-            y, node.numObservations(), weights, node.average);
-    }
-    return weights == nullptr
-      ? misc_computeIndexedVarianceForKnownMeanFast(y, indices + node.begin,
-                                                    node.numObservations(),
-                                                    node.average)
-      : misc_computeIndexedWeightedVarianceForKnownMeanFast(
-          y, indices + node.begin, node.numObservations(), weights,
-          node.average);
   }
 
   void setNodeAverages(const double* y, const double* weights) {
@@ -749,12 +735,11 @@ public:
     Node& node(at(nodeIndex));
     const Node& left(at(node.leftChild));
     const Node& right(at(node.leftChild + 1));
-    double numEffective =
-      left.numEffectiveObservations + right.numEffectiveObservations;
-    node.average =
-      left.average * (left.numEffectiveObservations / numEffective) +
-      right.average * (right.numEffectiveObservations / numEffective);
-    node.numEffectiveObservations = numEffective;
+    node.sumWeights = left.sumWeights + right.sumWeights;
+    node.sumWeightedResponse =
+      left.sumWeightedResponse + right.sumWeightedResponse;
+    node.sumWeightedResponseSq =
+      left.sumWeightedResponseSq + right.sumWeightedResponseSq;
     node.leftChild = invalidNode;
   }
 

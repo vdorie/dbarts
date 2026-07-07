@@ -202,37 +202,40 @@ static void testViewSamplerMatchesFull() {
 static void testIntegratedLikelihood() {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(200.0)};
   double k = 2.0, sigmaSq = 0.01;
-  double average = 0.031, numEff = 47.0, variance = 0.0042;
-  size_t numObs = 47;
+  // raw weighted suffstat over three responses (2 * 0.5 + 1 * -0.2 + 3 * 0.1)
+  double sumW = 6.0, sumWZ = 1.1, sumWZSq = 0.61;
 
-  // independent transcription of the CGM marginal likelihood
+  // independent transcription of the CGM marginal in crossproduct form
   double priorPrecision = (k / leaf.scale) * (k / leaf.scale);
-  double posteriorPrecision = numEff / sigmaSq;
+  double posteriorPrecision = sumW / sigmaSq;
+  double mean = sumWZ / sumW;
+  double centered = sumWZSq - sumWZ * mean;
   double expected = 0.5 * std::log(priorPrecision / (priorPrecision + posteriorPrecision))
-    - 0.5 * (variance / sigmaSq) * (double) (numObs - 1)
-    - 0.5 * ((priorPrecision * average) * (posteriorPrecision * average)) /
+    - 0.5 * centered / sigmaSq
+    - 0.5 * ((priorPrecision * mean) * (posteriorPrecision * mean)) /
         (priorPrecision + posteriorPrecision);
 
-  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, average, numEff, variance, numObs),
+  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq),
             expected, 1e-13, "integrated likelihood formula");
-  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, average, numEff, variance, 0),
+  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, 0.0, 0.0, 0.0),
             0.0, 0.0, "empty leaf contributes zero");
   printf("ok: integrated likelihood\n");
 }
 
 static void testPosteriorDraw(ext_rng* rng) {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(50.0)};
-  double k = 2.0, sigmaSq = 0.02, average = 0.12, numEff = 30.0;
+  double k = 2.0, sigmaSq = 0.02, sumW = 30.0, sumWZ = 3.6;
 
   double priorPrecision = (k / leaf.scale) * (k / leaf.scale);
-  double posteriorPrecision = numEff / sigmaSq;
-  double expectedMean = posteriorPrecision * average / (priorPrecision + posteriorPrecision);
+  double posteriorPrecision = sumW / sigmaSq;
+  double expectedMean =
+    (sumWZ / sigmaSq) / (priorPrecision + posteriorPrecision);
   double expectedSd = 1.0 / std::sqrt(priorPrecision + posteriorPrecision);
 
   const int numDraws = 200000;
   double sum = 0.0, sumSq = 0.0;
   for (int i = 0; i < numDraws; ++i) {
-    double draw = leaf.drawFromPosterior(rng, k, average, numEff, sigmaSq);
+    double draw = leaf.drawFromPosterior(rng, k, sumW, sumWZ, sigmaSq);
     sum += draw;
     sumSq += draw * draw;
   }
@@ -242,6 +245,73 @@ static void testPosteriorDraw(ext_rng* rng) {
             "posterior draw mean");
   checkNear(sd, expectedSd, 0.01 * expectedSd, "posterior draw sd");
   printf("ok: posterior draws\n");
+}
+
+// The suffstat marginal must equal the classic (mean, effective count,
+// centered variance) form the leaf used to consume, on the same raw data,
+// weighted and unweighted, and against the node-context path.
+static void testConstantLeafSuffstatEquivalence() {
+  ConstantGaussianLeaf leaf{0.5 / std::sqrt(20.0)};
+  double k = 1.7, sigmaSq = 0.05;
+  const size_t n = 6;
+  double z[n] = {0.35, -0.10, 0.22, 0.55, -0.42, 0.16};
+  double w[n] = {1.0, 2.0, 0.5, 1.3, 0.8, 1.1};
+
+  for (int weighted = 0; weighted < 2; ++weighted) {
+    double sumW = 0.0, sumWZ = 0.0, sumWZSq = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double wi = weighted ? w[i] : 1.0;
+      sumW += wi; sumWZ += wi * z[i]; sumWZSq += wi * z[i] * z[i];
+    }
+    double average = sumWZ / sumW;
+    double variance = (sumWZSq - sumW * average * average) / (double) (n - 1);
+
+    // the classic three-argument form, transcribed here
+    double priorPrecision = (k / leaf.scale) * (k / leaf.scale);
+    double posteriorPrecision = sumW / sigmaSq;
+    double classic =
+      0.5 * std::log(priorPrecision / (priorPrecision + posteriorPrecision))
+      - 0.5 * (variance / sigmaSq) * (double) (n - 1)
+      - 0.5 * ((priorPrecision * average) * (posteriorPrecision * average)) /
+          (priorPrecision + posteriorPrecision);
+
+    checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq),
+              classic, 1e-12,
+              weighted ? "suffstat marginal equals classic, weighted"
+                       : "suffstat marginal equals classic, unweighted");
+  }
+
+  // and through the node-context path, over a split's two children
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = (double) i;
+  ColumnStore store;
+  store.build(x.data(), n, 1, 100);
+  std::vector<size_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  std::vector<double> zv(z, z + n), wv(w, w + n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(2);
+  tree.birth(store, 0, rule, zv.data(), wv.data());
+  int32_t left = tree.at(0).leftChild;
+
+  auto reference = [&](int32_t nodeIndex) {
+    const Node& node = tree.at(nodeIndex);
+    double sumW = 0.0, sumWZ = 0.0, sumWZSq = 0.0;
+    for (size_t m = node.begin; m < node.end; ++m) {
+      size_t i = tree.indices[m];
+      sumW += wv[i]; sumWZ += wv[i] * zv[i]; sumWZSq += wv[i] * zv[i] * zv[i];
+    }
+    return leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq);
+  };
+  checkNear(leaf.logIntegratedLikelihoodForNode(tree, zv.data(), wv.data(), k,
+                                                sigmaSq, left),
+            reference(left), 1e-12, "node-context marginal, left child");
+  checkNear(leaf.logIntegratedLikelihoodForNode(tree, zv.data(), wv.data(), k,
+                                                sigmaSq, left + 1),
+            reference(left + 1), 1e-12, "node-context marginal, right child");
+  printf("ok: constant leaf suffstat equivalence\n");
 }
 
 // Build x with a known partition structure and verify splitting mechanics.
@@ -261,7 +331,8 @@ static void testTreeMechanics() {
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
   tree.computeLeafStats(0, y.data(), nullptr);
-  checkNear(tree.at(0).average, 2.0, 1e-12, "root average");
+  checkNear(tree.at(0).sumWeightedResponse / tree.at(0).sumWeights, 2.0, 1e-12,
+            "root average");
 
   // split at the median cut
   Rule rule;
@@ -283,10 +354,8 @@ static void testTreeMechanics() {
   double leftSum = 0.0, rightSum = 0.0;
   for (size_t i = 0; i < n; ++i)
     (store.codes[i] <= 49 ? leftSum : rightSum) += y[i];
-  checkNear(left.average, leftSum / (double) left.numObservations(), 1e-12,
-            "left child average");
-  checkNear(right.average, rightSum / (double) right.numObservations(), 1e-12,
-            "right child average");
+  checkNear(left.sumWeightedResponse, leftSum, 1e-12, "left child sum wz");
+  checkNear(right.sumWeightedResponse, rightSum, 1e-12, "right child sum wz");
 
   // split interval of the left child is bounded by the parent's rule
   int32_t lo, hi;
@@ -295,14 +364,11 @@ static void testTreeMechanics() {
   tree.splitInterval(store, tree.at(0).leftChild + 1, 0, &lo, &hi);
   check(lo == 50 && hi == 99, "right child split interval");
 
-  // orphanChildren merges with effective-observation weighting
-  double expectedMerged =
-    left.average * (left.numEffectiveObservations /
-                    (left.numEffectiveObservations + right.numEffectiveObservations)) +
-    right.average * (right.numEffectiveObservations /
-                     (left.numEffectiveObservations + right.numEffectiveObservations));
+  // orphanChildren sums the children's sufficient statistics
+  double mergedSumWZ = left.sumWeightedResponse + right.sumWeightedResponse;
   tree.orphanChildren(0);
-  checkNear(tree.at(0).average, expectedMerged, 1e-12, "orphan merge average");
+  checkNear(tree.at(0).sumWeightedResponse, mergedSumWZ, 1e-12,
+            "orphan merge sum wz");
   check(tree.at(0).isBottom(), "orphan clears children");
 
   printf("ok: tree mechanics\n");
@@ -1804,7 +1870,8 @@ static void testCategoricalMechanics() {
     sidesMatch &= category == 0 || category == 2;
   }
   check(sidesMatch, "left side holds only left-bound categories");
-  checkNear(left.average, (0.0 + 2.0) / 2.0, 1e-12, "left average by category");
+  checkNear(left.sumWeightedResponse / left.sumWeights, (0.0 + 2.0) / 2.0, 1e-12,
+            "left average by category");
 
   // reachability filters through nested rules
   check(tree.reachableCategories(store, 0, 0) == 0xfu,
@@ -5978,6 +6045,7 @@ int main() {
   testViewSamplerMatchesFull();
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
+  testConstantLeafSuffstatEquivalence();
   testTreeMechanics();
   testTreePriorMath();
   testEndToEndGaussian(rng);
