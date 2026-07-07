@@ -89,4 +89,27 @@ duplicated on Forest while SamplerOptions stays the unsplit bridge
 struct - Sampler-level options_ was already stale after setModel
 pre-split (kIsSampled), unchanged and noted for step 3.
 
-Steps 3-5 remain.
+Step 3 landed (d1ffb92): the BCF two-forest sampler behind an
+internal-only surface. Chain gains a BCF constructor (constant leaf,
+Gaussian response): per-forest backfitting against the residual net
+of the other forest's scaled contribution (response r/m with weight
+w m^2, the exact weighted reduction), the combined a mu + b_z tau
+fit feeding latents/sigma, and the glue draws - both expansions per
+the resolutions (b0/b1 Gaussian conditionals over the treatment
+partition; the prognostic a with its half-Cauchy via the t_1
+inverse-gamma scale mixture). setTreatment, per-forest fits and glue
+accessors fan through Sampler/facade/bridge to internal .Call entry
+points and R wrappers; no dbarts.h change, nothing exported.
+Multi-forest state serialization refuses cleanly (step 4's).
+Interims recorded: both forests read the full store (the moderator
+subset waits on data-ownership's views); per-forest scales are
+placeholder constants pending step 5's exact map; single-forest
+queries address forest 0. Review fixed one defect: the scale-mixture
+rate carried 1/scale^2 instead of scale^2 (invisible at the default
+scale 1; wrong anywhere else). Gates: component tests incl. the new
+BCF test, tinytest 2484/0 (12 new), equivalence exact 18/18 - the
+single-forest sweep is pointer-identical when the BCF state is null.
+
+Steps 4-5 remain: serialization formats, then the exact-posterior
+gate and the bcf-constant calibration map (which also replaces the
+placeholder scales).
