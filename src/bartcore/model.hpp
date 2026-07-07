@@ -195,9 +195,11 @@ struct LinearGaussianLeaf {
   /// values alone; a constant (or all-missing) column keeps sd 1 and
   /// degrades to an extra intercept the ridge prior absorbs.
   void initialize(const ColumnStore& data, const std::size_t* columns,
-                  std::size_t numColumns) {
+                  std::size_t numColumns, std::size_t numChains = 1) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
+    statisticsCacheBudget_ =
+      statisticsCacheTotalBudgetBytes / (numChains == 0 ? 1 : numChains);
     reinitialize(data);
   }
 
@@ -208,6 +210,7 @@ struct LinearGaussianLeaf {
   /// from the parent's full data - the same calibration inheritance as the
   /// copied cut grid, so every fold runs the prior a full-data fit would.
   void reinitialize(const ColumnStore& data) {
+    clearStatisticsCache();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
@@ -234,6 +237,7 @@ struct LinearGaussianLeaf {
   /// cut count. Whole-data replacement re-initializes instead, refreshing
   /// the constants the way setData rebuilds the cut grid.
   void regatherTrainingCovariates(const ColumnStore& data) {
+    clearStatisticsCache();
     for (std::size_t j = 0; j < numCovariates_; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double* u = u_.data() + j * numObservations_;
@@ -241,6 +245,12 @@ struct LinearGaussianLeaf {
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
     }
   }
+
+  /// Drop the crossproduct cache when U'WU's other inputs change: the case
+  /// weights (setWeights) or the per-sweep Polya-Gamma refresh of a latent
+  /// family. Covariate and whole-data mutations clear it through the two
+  /// regather paths above.
+  void invalidateStatistics() const { clearStatisticsCache(); }
 
   /// Regather the test covariates under the training standardization; called
   /// whenever the store's test data changes.
@@ -351,19 +361,43 @@ private:
 
   /// One pass over the node's index segment: crossproduct receives the full
   /// symmetric U'WU (row-major (q+1) x (q+1), leading intercept column),
-  /// projection U'Wz, and responseSumOfSquares z'Wz.
+  /// projection U'Wz, and responseSumOfSquares z'Wz. U'WU is served from the
+  /// crossproduct cache when the node's member list matches an entry; the
+  /// residual-dependent projection and z'Wz always rescan. A served value is
+  /// bitwise the fresh scan's, since the entry was built by the identical
+  /// fused loop over the same members, covariates, and weights.
   void accumulateNodeStatistics(const Tree& tree, const double* y,
                                 const double* weights, int32_t nodeIndex,
                                 double* crossproduct, double* projection,
                                 double* responseSumOfSquares) const {
     const Node& node(tree.at(nodeIndex));
     std::size_t p = numParams();
+    double row[maxNumCovariates + 1];
+    row[0] = 1.0;
+
+    const double* cached = lookupCrossproduct(tree, node, nodeIndex);
+    if (cached != nullptr) {
+      for (std::size_t a = 0; a < p; ++a) projection[a] = 0.0;
+      *responseSumOfSquares = 0.0;
+      for (std::size_t m = node.begin; m < node.end; ++m) {
+        std::size_t i = tree.indices[m];
+        double w = weights == nullptr ? 1.0 : weights[i];
+        double z = y[i];
+        for (std::size_t j = 0; j < numCovariates_; ++j)
+          row[j + 1] = u_[i + j * numObservations_];
+        for (std::size_t a = 0; a < p; ++a) {
+          double scaled = w * row[a];
+          projection[a] += scaled * z;
+        }
+        *responseSumOfSquares += w * z * z;
+      }
+      std::memcpy(crossproduct, cached, p * p * sizeof(double));
+      return;
+    }
+
     for (std::size_t a = 0; a < p * p; ++a) crossproduct[a] = 0.0;
     for (std::size_t a = 0; a < p; ++a) projection[a] = 0.0;
     *responseSumOfSquares = 0.0;
-
-    double row[maxNumCovariates + 1];
-    row[0] = 1.0;
     for (std::size_t m = node.begin; m < node.end; ++m) {
       std::size_t i = tree.indices[m];
       double w = weights == nullptr ? 1.0 : weights[i];
@@ -381,6 +415,7 @@ private:
     for (std::size_t a = 0; a < p; ++a)
       for (std::size_t b = a + 1; b < p; ++b)
         crossproduct[b * p + a] = crossproduct[a * p + b];
+    storeCrossproduct(tree, node, nodeIndex, crossproduct);
   }
 
   /// In-place lower Cholesky of a symmetric positive-definite matrix; the
@@ -418,6 +453,89 @@ private:
     }
   }
 
+  /// One leaf's cached U'WU (row-major p x p), tagged with the exact ordered
+  /// member list that built it. Coherence: every lookup re-validates by
+  /// comparing that list against tree.indices[begin..end], so any structural
+  /// move or rejected-move rollback that alters membership fails the compare
+  /// and rebuilds - the key is rollback-stable with no per-move hook. U'WU's
+  /// other inputs (covariates, weights) are held fixed within a cache
+  /// lifetime by clearing wholesale from the two covariate regathers and from
+  /// invalidateStatistics (weights); within a sweep the score and draw phases
+  /// see identical weights, so a served value is bitwise the fresh scan's.
+  struct CachedNodeStatistics {
+    std::vector<std::size_t> members;
+    double crossproduct[maxStatisticSize];
+  };
+  struct TreeStatisticsCache {
+    const Tree* tree = nullptr;
+    std::vector<CachedNodeStatistics> nodes;  // arena-indexed
+  };
+
+  /// Leaves below this rescan; their U'WU is cheap and churns fast.
+  static constexpr std::size_t minCachedLeafSize = 32;
+  /// Byte ceiling over cached member lists, split across chains at initialize;
+  /// when spent, further leaves rescan (still correct, just uncached).
+  static constexpr std::size_t statisticsCacheTotalBudgetBytes =
+    static_cast<std::size_t>(256) << 20;
+
+  static std::size_t statisticsEntryBytes(std::size_t numObs) {
+    return numObs * sizeof(std::size_t);
+  }
+
+  TreeStatisticsCache& statisticsCacheForTree(const Tree& tree) const {
+    for (TreeStatisticsCache& cache : statisticsCaches_)
+      if (cache.tree == &tree) return cache;
+    statisticsCaches_.emplace_back();
+    statisticsCaches_.back().tree = &tree;
+    return statisticsCaches_.back();
+  }
+
+  void clearStatisticsCache() const {
+    statisticsCaches_.clear();
+    statisticsCacheUsedBytes_ = 0;
+  }
+
+  /// The node's cached U'WU when its ordered member list matches, else null.
+  const double* lookupCrossproduct(const Tree& tree, const Node& node,
+                                   int32_t nodeIndex) const {
+    std::size_t numObs = node.numObservations();
+    if (numObs < minCachedLeafSize) return nullptr;
+    TreeStatisticsCache& cache = statisticsCacheForTree(tree);
+    std::size_t index = static_cast<std::size_t>(nodeIndex);
+    if (index >= cache.nodes.size()) return nullptr;
+    const CachedNodeStatistics& entry = cache.nodes[index];
+    if (entry.members.size() == numObs &&
+        std::memcmp(entry.members.data(), tree.indices + node.begin,
+                    numObs * sizeof(std::size_t)) == 0)
+      return entry.crossproduct;
+    return nullptr;
+  }
+
+  /// Record the freshly scanned U'WU for the node, subject to the byte budget.
+  void storeCrossproduct(const Tree& tree, const Node& node, int32_t nodeIndex,
+                         const double* crossproduct) const {
+    std::size_t numObs = node.numObservations();
+    if (numObs < minCachedLeafSize) return;
+    std::size_t p = numParams();
+    TreeStatisticsCache& cache = statisticsCacheForTree(tree);
+    std::size_t index = static_cast<std::size_t>(nodeIndex);
+    if (index >= cache.nodes.size()) cache.nodes.resize(index + 1);
+    CachedNodeStatistics& entry = cache.nodes[index];
+    std::size_t oldBytes = statisticsEntryBytes(entry.members.size());
+    std::size_t newBytes = statisticsEntryBytes(numObs);
+    if (statisticsCacheUsedBytes_ - oldBytes + newBytes >
+        statisticsCacheBudget_) {
+      if (!entry.members.empty()) {
+        statisticsCacheUsedBytes_ -= oldBytes;
+        entry.members.clear();
+      }
+      return;
+    }
+    statisticsCacheUsedBytes_ += newBytes - oldBytes;
+    entry.members.assign(tree.indices + node.begin, tree.indices + node.end);
+    std::memcpy(entry.crossproduct, crossproduct, p * p * sizeof(double));
+  }
+
   std::size_t numCovariates_ = 0;
   std::size_t numObservations_ = 0;
   std::size_t numTestObservations_ = 0;
@@ -425,6 +543,9 @@ private:
   std::vector<double> means_, sds_;
   std::vector<double> u_;      // standardized, column-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q
+  mutable std::vector<TreeStatisticsCache> statisticsCaches_;
+  mutable std::size_t statisticsCacheUsedBytes_ = 0;
+  std::size_t statisticsCacheBudget_ = statisticsCacheTotalBudgetBytes;
 };
 
 static_assert(VectorLeafModel<LinearGaussianLeaf>);
@@ -1658,6 +1779,11 @@ public:
   /// working response.
   virtual const double* workingWeights() const = 0;
 
+  /// Whether workingWeights() changes across iterations (the latent
+  /// Polya-Gamma refresh). Cross-sweep sufficient-statistic caches drop on
+  /// each refresh when true; false families weight by fixed user values.
+  virtual bool workingWeightsVaryPerSweep() const { return false; }
+
   /// Called once per iteration after all trees update; sigma is the chain's
   /// current residual sd on the internal scale (1 for the binary families),
   /// which only the grouped decorator's conjugate update consumes.
@@ -2020,6 +2146,7 @@ public:
 
   double* workingResponse() override { return working_.data(); }
   const double* workingWeights() const override { return omega_.data(); }
+  bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
 
   void refreshLatents(ext_rng* rng, const double* totalFits,
@@ -2238,6 +2365,9 @@ public:
   double* workingResponse() override { return workingResponse_.data(); }
   const double* workingWeights() const override {
     return base_->workingWeights();
+  }
+  bool workingWeightsVaryPerSweep() const override {
+    return base_->workingWeightsVaryPerSweep();
   }
   const double* offset() const override { return base_->offset(); }
 

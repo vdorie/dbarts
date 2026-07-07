@@ -409,6 +409,101 @@ static void testLinearLeafDraw(ext_rng* rng) {
   printf("ok: linear leaf draw\n");
 }
 
+// The U'WU crossproduct cache must be invisible: a warm score or draw is
+// bitwise a cold one, and the covariate (setPredictor/setData) and weight
+// (setWeights) mutation hooks must drop it, or a later leaf reuses a stale
+// U'WU. A single root over 80 > minCachedLeafSize observations is cacheable.
+static void testLinearLeafStatisticsCache() {
+  const size_t n = 80, p = 2;  // column 0 splits, column 1 is the leaf basis
+  std::vector<double> xV0(n * p), xV1(n * p), z(n), w0(n), w1(n);
+  for (size_t i = 0; i < n; ++i) {
+    double t = (double) i / (double) n;
+    xV0[i] = t;
+    xV1[i] = t;  // split column identical across V0 and V1
+    xV0[i + n] = std::sin(3.0 * t);
+    xV1[i + n] = std::sin(3.0 * t) + 0.5 * t;  // leaf covariate differs
+    z[i] = 0.3 * t - 0.15;
+    w0[i] = 0.5 + (i % 4 == 0 ? 1.0 : 0.25);
+    w1[i] = 0.5 + (i % 3 == 0 ? 0.8 : 0.4);  // weights differ
+  }
+  const double scale = 0.5 / std::sqrt(10.0), k = 2.0, sigmaSq = 0.04;
+  size_t columns[] = {1};
+
+  ColumnStore storeV0, storeV1;
+  storeV0.build(xV0.data(), n, p, 100);
+  storeV1.build(xV1.data(), n, p, 100);
+  std::vector<size_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+
+  LinearGaussianLeaf leaf;
+  leaf.scale = scale;
+  leaf.initialize(storeV0, columns, 1);
+  double cold = leaf.logIntegratedLikelihoodForNode(tree, z.data(), w0.data(),
+                                                    k, sigmaSq, 0);
+  double warm = leaf.logIntegratedLikelihoodForNode(tree, z.data(), w0.data(),
+                                                    k, sigmaSq, 0);
+  check(cold == warm, "cached linear score is bitwise the scanned score");
+
+  ext_rng* rngWarm = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngCold = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngWarm, 8123u);
+  ext_rng_setSeed(rngCold, 8123u);
+  double drawWarm[2], drawCold[2];
+  leaf.drawFromPosteriorForNode(rngWarm, tree, z.data(), w0.data(), k, sigmaSq,
+                                0, drawWarm);
+  LinearGaussianLeaf coldLeaf;
+  coldLeaf.scale = scale;
+  coldLeaf.initialize(storeV0, columns, 1);
+  coldLeaf.drawFromPosteriorForNode(rngCold, tree, z.data(), w0.data(), k,
+                                    sigmaSq, 0, drawCold);
+  check(drawWarm[0] == drawCold[0] && drawWarm[1] == drawCold[1],
+        "cached linear draw is bitwise the scanned draw");
+  ext_rng_destroy(rngWarm);
+  ext_rng_destroy(rngCold);
+
+  // covariate mutation: a leaf warmed under V0 then regathered onto V1 scores
+  // exactly like one that only ever scanned V1
+  LinearGaussianLeaf regathered;
+  regathered.scale = scale;
+  regathered.initialize(storeV0, columns, 1);
+  regathered.logIntegratedLikelihoodForNode(tree, z.data(), w0.data(), k,
+                                            sigmaSq, 0);
+  regathered.regatherTrainingCovariates(storeV1);
+  double afterRegather = regathered.logIntegratedLikelihoodForNode(
+    tree, z.data(), w0.data(), k, sigmaSq, 0);
+  LinearGaussianLeaf scanV1;
+  scanV1.scale = scale;
+  scanV1.initialize(storeV0, columns, 1);
+  scanV1.regatherTrainingCovariates(storeV1);
+  double scannedV1 = scanV1.logIntegratedLikelihoodForNode(tree, z.data(),
+                                                           w0.data(), k, sigmaSq,
+                                                           0);
+  check(afterRegather != cold, "the V1 covariates move the marginal");
+  check(afterRegather == scannedV1, "regather drops the covariate U'WU cache");
+
+  // weight mutation: a leaf warmed under w0 then invalidated scores under w1
+  // exactly like a cold scan under w1
+  LinearGaussianLeaf reweighted;
+  reweighted.scale = scale;
+  reweighted.initialize(storeV0, columns, 1);
+  reweighted.logIntegratedLikelihoodForNode(tree, z.data(), w0.data(), k,
+                                            sigmaSq, 0);
+  reweighted.invalidateStatistics();
+  double afterInvalidate = reweighted.logIntegratedLikelihoodForNode(
+    tree, z.data(), w1.data(), k, sigmaSq, 0);
+  LinearGaussianLeaf scanW1;
+  scanW1.scale = scale;
+  scanW1.initialize(storeV0, columns, 1);
+  double scannedW1 = scanW1.logIntegratedLikelihoodForNode(tree, z.data(),
+                                                          w1.data(), k, sigmaSq,
+                                                          0);
+  check(afterInvalidate != cold, "the w1 weights move the marginal");
+  check(afterInvalidate == scannedW1, "invalidateStatistics drops the cache");
+
+  printf("ok: linear leaf statistics cache\n");
+}
+
 static void testLinearLeafEndToEnd(ext_rng* rng) {
   const size_t n = 400, p = 2;
   std::vector<double> x(n * p), f(n), y(n);
@@ -2481,6 +2576,7 @@ void runModelTests(ext_rng* rng) {
   testSampleFromPrior(rng);
   testLinearLeafMarginal();
   testLinearLeafDraw(rng);
+  testLinearLeafStatisticsCache();
   testLinearLeafEndToEnd(rng);
   testLinearLeafFormats(rng);
   testLinearLeafViews();
