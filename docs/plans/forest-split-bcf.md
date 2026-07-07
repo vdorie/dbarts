@@ -67,10 +67,26 @@ lands as the first two-forest sampler. bartCause consumes it.
 
 ## Status (2026-07-07)
 
-Step 1 drafted: docs/design/bcf.md (proposal, verified against the
-paper and the bcf package source) awaits VD review - the plan gates
-all code, including the neutral Forest split, behind it. Highest-
-stakes items flagged there: sd- vs range-anchoring for the treatment
-forest (VD scoped that question to this item), prognostic-forest tree
-count (bcf's 200 vs dbarts's 75 default), and the bscale parameter
-expansion. Steps 2-5 untouched.
+Step 1 landed: docs/design/bcf.md reviewed by VD; resolutions recorded
+there (range-anchoring kept with the approximate sd(y) map onto
+per-forest k hyperpriors; bcf's 200/50 tree convention for the BCF
+entry point). Open questions 3 (muscale expansion vs a = 1) and 4
+(tau seeing pihat) block only steps 3-5.
+
+Step 2 landed (e6e5e7a): Forest<L> struct in chain.hpp holding the
+per-forest members per the design note's member split; Chain holds a
+size-1 std::vector<Forest>; sweep, mutation fan-out, and prediction
+loop over it. ChainStateData and every serialized format unchanged
+(getState/setState address forests_[0]; the forest-dimension bump is
+step 4's). One file, +628/-511, all relocation and loop-wrapping.
+Gates: component tests pass, tinytest 2470/0, equivalence exact
+18/18 identical draws vs 235bebc, bench-sampler vs 235bebc clean
+(no metric regressed; ratios 0.91-0.97). Deviations: Forest lives in
+chain.hpp rather than a new header; the param-carrying mutation
+methods (revalidateTrees and kin) address forests_[0] directly until
+TreeParameters gains a forest dimension; per-forest option fields are
+duplicated on Forest while SamplerOptions stays the unsplit bridge
+struct - Sampler-level options_ was already stale after setModel
+pre-split (kIsSampled), unchanged and noted for step 3.
+
+Steps 3-5 remain.
