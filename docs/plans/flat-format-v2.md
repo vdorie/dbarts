@@ -76,3 +76,19 @@ unify.
   draw snapshot diff is a failure.
 - Equivalence compare: exact match (bitwise-neutral claim is the gate).
 - stan4bart consumer test (test-capi.R) passes unchanged.
+
+## Landing note (2026-07-06, cb25c09)
+
+Landed: FlatNode carries a FlatKind tag (flags bits 1-2) over a
+value/mask/maskOffset union plus numMaskWords; the 53-category
+boundary, its side channel for 54-63, and the numCategories/types
+threading are gone (the real 63/64 pooled tier remains); state
+serializes the payload as raw words and stateFormatVersion bumped to
+2; getTrees reports value = NA + directions for every categorical
+rule (the signed-off unify). Gates: component tests incl. new
+53/54/63/64 boundary cases; tinytest 0/2465 failures with only the
+mandated reporting and state-plumbing test edits; equivalence EXACT
+18/18 identical draws vs 235bebc (reviewer re-verified); test-capi.R
+untouched and passing; lint clean. Diff 704 lines vs 900 budget.
+bench-sampler not owed (flatten/replay/state only; no hot-path
+change). state-continuation shares format version 2.
