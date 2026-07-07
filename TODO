@@ -34,10 +34,13 @@ items
     occupancy-aware ordinal proposals or a documented, principled veto.
     Caution: -inf is not a drop-in (vetoed-vs-vetoed comparisons rely
     on the finite value; the gp-leaves deadlock).
-  gpu-bart: a considered survey of innovative GPU uses for BART
-    (VD 2026-07-07: wants the thinking to happen at some point; no
-    clock). Memo-first; weighs grow-from-root and blocked-jacobi's
-    b = m form among others but is not limited to them.
+  gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a); awaiting
+    VD review per the plan. Verdict: nothing earns a prototype yet;
+    grow-from-root's cut-scan ranks first behind its CPU
+    prerequisite; bartz (Petrillo 2024) is the existence proof and
+    the pragmatic GPU answer today; blocked-jacobi is obviated as a
+    GPU strategy (observation-axis parallelism suffices at b = 1)
+    and survives only as a CPU threading candidate.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
