@@ -52,18 +52,16 @@ expect_true(cor(p.hat, plogis(f)) > 0.8)
 expect_true(mean(p.hat[y.binary == 1L]) > mean(p.hat[y.binary == 0L]))
 
 # the family survives save/load: the pointer is recreated from the stored
-# state with the same response model (a single chain draws through R's
-# generator, so bitwise continuation needs the seed reset)
+# state with the same response model, reproducing its trees and latents
+source(system.file("common", "stateContinuation.R", package = "dbarts"))
 serialized <- tempfile(fileext = ".rds")
+state.logit <- sampler.logit$state
 saveRDS(sampler.logit, serialized)
-set.seed(101)
-result.a <- sampler.logit$run(0L, 5L, updateState = FALSE)
 sampler.loaded <- readRDS(serialized)
 expect_equal(sampler.loaded$model@family, "logistic")
 expect_true(all(sampler.loaded$getLatents() > 0)) # omega, not probit z
-set.seed(101)
-result.b <- sampler.loaded$run(0L, 5L, updateState = FALSE)
-expect_identical(result.a, result.b)
+sampler.loaded$storeState()
+expect_true(statesAgree(sampler.loaded$state, state.logit))
 unlink(serialized)
 
 # setControl does not touch the family

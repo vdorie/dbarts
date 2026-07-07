@@ -75,7 +75,8 @@ predictions <- sampler$predict(df[seq_len(50L), c("g", "h", "z")])
 expect_equal(dim(predictions), dim(samples$test))
 expect_true(max(abs(predictions - samples$test)) < 1e-10)
 
-# the state round-trips bitwise, mask channels included
+source(system.file("common", "stateContinuation.R", package = "dbarts"))
+# the state round-trips, mask channels included
 invisible(sampler$storeState())
 state <- sampler$state
 expect_true(all(sapply(state, function(chain) {
@@ -89,10 +90,11 @@ sampler2 <- dbarts(
   factors = "categorical"
 )
 sampler2$setState(state)
-continued1 <- sampler$run(0L, 10L)
-continued2 <- sampler2$run(0L, 10L)
-expect_identical(continued1$sigma, continued2$sigma)
-expect_identical(continued1$train, continued2$train)
+sampler2$storeState()
+expect_true(statesAgree(sampler2$state, state))
+for (ci in seq_along(state)) {
+  expect_identical(sampler2$state[[ci]]$tree.masks, state[[ci]]$tree.masks)
+}
 
 pdf(NULL)
 expect_silent(sampler$plotTree(1L, chainNum = 1L))
@@ -121,8 +123,6 @@ rm(
   sampler.na,
   samples,
   samples.na,
-  continued1,
-  continued2,
   state,
   trees,
   trees.na,

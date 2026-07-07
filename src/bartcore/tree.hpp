@@ -672,38 +672,6 @@ public:
     right.end = node.end;
   }
 
-  /// For state restore: indices already hold each node's segment as a left
-  /// block followed by a right block; set the children's ranges accordingly
-  /// without disturbing the stored order, whose floating-point accumulation
-  /// history a bitwise-exact continuation depends on. Returns false when a
-  /// segment is not actually partitioned by its node's rule.
-  bool setPartitionsFromOrderedIndices(const ColumnStore& data,
-                                       int32_t nodeIndex) {
-    Node& node(at(nodeIndex));
-    if (node.isBottom()) return true;
-
-    size_t variable = static_cast<size_t>(node.rule.variableIndex);
-    size_t numOnLeft = 0;
-    while (numOnLeft < node.numObservations() &&
-           !ruleSendsRight(data, node.rule,
-                           data.codeAt(variable,
-                                       indices[node.begin + numOnLeft])))
-      ++numOnLeft;
-    for (size_t k = numOnLeft; k < node.numObservations(); ++k)
-      if (!ruleSendsRight(data, node.rule,
-                          data.codeAt(variable, indices[node.begin + k])))
-        return false;
-
-    Node& left(at(node.leftChild));
-    Node& right(at(node.leftChild + 1));
-    left.begin = node.begin;
-    left.end = node.begin + numOnLeft;
-    right.begin = left.end;
-    right.end = node.end;
-    return setPartitionsFromOrderedIndices(data, node.leftChild) &&
-           setPartitionsFromOrderedIndices(data, node.leftChild + 1);
-  }
-
   /// Structure-only re-route of a subtree's observations, for predictor
   /// mutation; leaf stats are left stale and refreshed by the next run().
   void repartitionSubtree(const ColumnStore& data, int32_t nodeIndex) {

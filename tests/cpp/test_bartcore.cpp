@@ -46,6 +46,70 @@ static double runif01() {
   return (double) (rngState >> 11) * 0x1.0p-53;
 }
 
+// Structural round-trip gate for the state tests. With bitwise continuation
+// dropped, a restored sampler must reconstruct the model - trees, leaf
+// parameters, saved trees, latents, dart, rng - exactly, sigma to within the
+// original-scale round trip. A flat split's payload (cut point or mask word)
+// compares as its raw word; a leaf's compares to the last ulp, since a
+// function leaf's value is a reporting mean whose sum order the canonical
+// rebuild does not preserve.
+static bool sameFlatTrees(const std::vector<std::vector<FlatNode>>& a,
+                          const std::vector<std::vector<FlatNode>>& b) {
+  if (a.size() != b.size()) return false;
+  for (size_t t = 0; t < a.size(); ++t) {
+    if (a[t].size() != b[t].size()) return false;
+    for (size_t i = 0; i < a[t].size(); ++i) {
+      const FlatNode& x(a[t][i]);
+      const FlatNode& y(b[t][i]);
+      if (x.variable != y.variable || x.numMaskWords != y.numMaskWords ||
+          x.flags != y.flags)
+        return false;
+      if (x.variable == invalidVariable) {
+        if (std::fabs(x.value - y.value) > 1e-9 * (1.0 + std::fabs(x.value)))
+          return false;
+      } else if (x.mask != y.mask) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+static bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
+  if (a.chains.size() != b.chains.size()) return false;
+  for (size_t c = 0; c < a.chains.size(); ++c) {
+    const ChainStateData& x(a.chains[c]);
+    const ChainStateData& y(b.chains[c]);
+    if (!sameFlatTrees(x.trees, y.trees) ||
+        !sameFlatTrees(x.savedTrees, y.savedTrees))
+      return false;
+    if (x.treeParams != y.treeParams ||
+        x.savedTreeParams != y.savedTreeParams ||
+        x.treeMasks != y.treeMasks || x.savedTreeMasks != y.savedTreeMasks ||
+        x.latents != y.latents || x.groupEffects != y.groupEffects ||
+        x.dartProbabilities != y.dartProbabilities ||
+        x.rngState != y.rngState)
+      return false;
+    if (x.k != y.k || x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
+        x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
+        x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
+      return false;
+    if (std::fabs(x.sigma - y.sigma) > 1e-9 * (1.0 + std::fabs(x.sigma)))
+      return false;
+  }
+  return true;
+}
+
+// Gate (a): a state re-captured from the restored sampler reproduces the
+// saved one, so restore reconstructs the model, not the accumulation history.
+template <typename S>
+static void checkStructuralRoundTrip(const SamplerStateData& saved,
+                                     S& restored, const char* label) {
+  SamplerStateData reState;
+  restored.getState(reState);
+  check(statesAgree(saved, reState), label);
+}
+
 static void testColumnStoreCodes() {
   const size_t n = 500, p = 3;
   std::vector<double> x(n * p);
@@ -2549,7 +2613,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   check(predicted == testFits,
         "pooled saved-tree predictions equal the run's test fits");
 
-  // a stored state restores to a bitwise-identical continuation
+  // a stored state restores to an equivalent continuation
   SamplerStateData state;
   sampler.getState(state);
   check(!state.chains[0].treeMasks.empty(),
@@ -2562,17 +2626,8 @@ static void testPooledMaskSampler(ext_rng* rng) {
   restored.setTestPredictors(xTest.data(), nTest);
   check(restored.setState(state), "a pooled state restores");
 
-  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
-  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
-  Results resultsA, resultsB;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  sampler.run(0, numSamples, resultsA);
-  restored.run(0, numSamples, resultsB);
-  check(sigmaA == sigmaB && trainA == trainB,
-        "restored pooled chains continue bitwise");
+  checkStructuralRoundTrip(state, restored,
+                           "restored pooled state reproduces the model");
 
   // live-tree prediction agrees with the final tree fits
   std::vector<double> livePredict(n);
@@ -2875,7 +2930,7 @@ static void testStateRoundTripScaledOffset() {
   // creation; the state must carry it or a restored sampler mis-scales
   // every internal quantity (the classic engine forced hosts to export the
   // scale themselves)
-  const size_t n = 200, numSamples = 5;
+  const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
   std::vector<double> offset(n);
@@ -2914,20 +2969,11 @@ static void testStateRoundTripScaledOffset() {
   restored.setOffset(offset.data(), false);
   check(restored.setState(state), "scaled state restores");
 
-  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  original.run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB, "scaled restore continues sigma bitwise");
-  check(trainA == trainB, "scaled restore continues fits bitwise");
+  // the moved transform round-trips: the restored model matches the source,
+  // and its live-tree predictions land on the original scale, both before
+  // either chain continues past the save point
+  checkStructuralRoundTrip(state, restored,
+                           "scaled restore reproduces the moved-scale model");
 
   std::vector<double> xTest(20 * 2);
   for (double& v : xTest) v = runif01();
@@ -2943,9 +2989,9 @@ static void testStateRoundTripScaledOffset() {
 }
 
 static void testStateRoundTrip() {
-  // the strong gate: store the state, continue the original, and continue a
-  // fresh sampler restored from the state; the draws must agree bitwise
-  const size_t n = 200, numChains = 2, numSamples = 5;
+  // store the state, restore it into a fresh sampler, and gate the round trip
+  // structurally (gate a) and by continued-vs-uninterrupted agreement (gate b)
+  const size_t n = 200, numChains = 2;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
 
@@ -2983,24 +3029,11 @@ static void testStateRoundTrip() {
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a stored state restores");
 
-  std::vector<double> sigmaA(numSamples * numChains);
-  std::vector<double> trainA(n * numSamples * numChains);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  original.run(0, numSamples, resultsA);
+  checkStructuralRoundTrip(state, restored,
+                           "restored state reproduces the saved model");
 
-  std::vector<double> sigmaB(numSamples * numChains);
-  std::vector<double> trainB(n * numSamples * numChains);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB, "restored chains draw identical sigmas");
-  check(trainA == trainB, "restored chains draw identical fits");
-
-  // saved trees also round-tripped: predictions agree
+  // saved trees round-tripped: predictions from the copied buffer agree
+  // exactly, before either chain continues past the save point
   std::vector<double> xTest(20 * 2);
   for (double& v : xTest) v = runif01();
   size_t capacity = original.savedTreeCapacity();
@@ -3009,6 +3042,27 @@ static void testStateRoundTrip() {
   original.predict(xTest.data(), 20, predictA.data());
   restored.predict(xTest.data(), 20, predictB.data());
   check(predictA == predictB, "saved trees ride along with the state");
+
+  // gate (b): draws diverge in the last ulp and then chaotically, but a
+  // continued chain and the uninterrupted original track the same posterior
+  // well inside Monte Carlo error
+  const size_t window = 300, total = window * numChains;
+  std::vector<double> sigmaA(total), sigmaB(total);
+  Results resultsA, resultsB;
+  resultsA.sigma = sigmaA.data();
+  resultsB.sigma = sigmaB.data();
+  original.run(0, window, resultsA);
+  restored.run(0, window, resultsB);
+  double sumA = 0.0, sumB = 0.0, sumSqA = 0.0;
+  for (size_t i = 0; i < total; ++i) {
+    sumA += sigmaA[i];
+    sumB += sigmaB[i];
+    sumSqA += sigmaA[i] * sigmaA[i];
+  }
+  double meanA = sumA / total, meanB = sumB / total;
+  double mcse = std::sqrt((sumSqA / total - meanA * meanA) / total);
+  check(std::fabs(meanA - meanB) < 8.0 * mcse,
+        "restored chain continues the same posterior");
 
   for (size_t c = 0; c < numChains; ++c) {
     ext_rng_destroy(rngs[c]);
@@ -3019,7 +3073,7 @@ static void testStateRoundTrip() {
 
 static void testStateRoundTripLatents(ext_rng* rng) {
   // logistic Polya-Gamma latents and dart state must ride along too
-  const size_t n = 150, numSamples = 4;
+  const size_t n = 150;
   std::vector<double> x(n * 2), y(n);
   for (double& v : x) v = runif01();
   for (size_t i = 0; i < n; ++i)
@@ -3051,13 +3105,8 @@ static void testStateRoundTripLatents(ext_rng* rng) {
                           &rngB);
   check(restored.setState(state), "a binary+dart state restores");
 
-  std::vector<double> trainA(n * numSamples), trainB(n * numSamples);
-  Results resultsA, resultsB;
-  resultsA.trainingFits = trainA.data();
-  resultsB.trainingFits = trainB.data();
-  original.run(0, numSamples, resultsA);
-  restored.run(0, numSamples, resultsB);
-  check(trainA == trainB, "restored logistic + dart chains draw identically");
+  checkStructuralRoundTrip(state, restored,
+                           "restored logistic + dart state reproduces the model");
 
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
@@ -3701,7 +3750,7 @@ static void testMissingEndToEnd() {
           observedFit / static_cast<double>(capacity) > 1.0,
         "prediction routes NaN rows by the learned directions");
 
-  // bitwise state round trip carries the missing directions along
+  // the state round trip carries the missing directions along
   SamplerStateData state;
   sampler.getState(state);
   ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -3711,20 +3760,8 @@ static void testMissingEndToEnd() {
                           0.37804942330213542, options, &rng2);
   check(restored.setState(state), "a state with missing directions restores");
 
-  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  sampler.run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB && trainA == trainB,
-        "restored chains continue bitwise with missing data");
+  checkStructuralRoundTrip(state, restored,
+                           "restored state reproduces the missing directions");
 
   ext_rng_destroy(rng);
   ext_rng_destroy(rng2);
@@ -4086,22 +4123,9 @@ static void testLinearLeafFormats(ext_rng* rng) {
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     1.0, 3.0, 0.37804942330213542, options, &rng2);
   check(restored->setState(state), "a linear-leaf state restores");
-  restored->setTestPredictors(xTest.data(), numTest);
 
-  std::vector<double> sigmaA(numSamples), trainA(n * numSamples);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  sampler->run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples), trainB(n * numSamples);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored->run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB && trainA == trainB,
-        "restored linear-leaf chains continue bitwise");
+  checkStructuralRoundTrip(state, *restored,
+                           "restored linear-leaf state reproduces the model");
 
   // a state with mismatched slope shapes is refused
   SamplerStateData malformed = state;
@@ -4703,7 +4727,7 @@ static void testGroupedStateRoundTrip() {
   // grouped state (b, tau) rides the chain state: a restored sampler
   // continues bitwise identically, and mismatched effect vectors are
   // refused
-  const size_t n = 200, numGroups = 6, numChains = 2, numSamples = 5;
+  const size_t n = 200, numGroups = 6, numChains = 2;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
   std::vector<std::uint32_t> groups(n);
@@ -4746,27 +4770,8 @@ static void testGroupedStateRoundTrip() {
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a grouped state restores");
 
-  std::vector<double> sigmaA(numSamples * numChains);
-  std::vector<double> tauA(numSamples * numChains);
-  std::vector<double> trainA(n * numSamples * numChains);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.tau = tauA.data();
-  resultsA.trainingFits = trainA.data();
-  original.run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples * numChains);
-  std::vector<double> tauB(numSamples * numChains);
-  std::vector<double> trainB(n * numSamples * numChains);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.tau = tauB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB, "restored grouped chains draw identical sigmas");
-  check(tauA == tauB, "restored grouped chains draw identical taus");
-  check(trainA == trainB, "restored grouped chains draw identical fits");
+  checkStructuralRoundTrip(state, restored,
+                           "restored grouped state reproduces the effects and tau");
 
   // an effects vector of the wrong length must be refused before anything
   // is overwritten
@@ -5072,7 +5077,7 @@ static void testSparseEndToEnd() {
 }
 
 static void testSparseStateRoundTrip() {
-  const size_t n = 240, numChains = 2, numSamples = 5;
+  const size_t n = 240, numChains = 2;
   CscFixture fixture;
   fixture.build(n, {0.1, 0.5, 0.08});
   // missing entries on a rank column ride the state round trip too
@@ -5115,22 +5120,8 @@ static void testSparseStateRoundTrip() {
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a sparse-store state restores");
 
-  std::vector<double> sigmaA(numSamples * numChains);
-  std::vector<double> trainA(n * numSamples * numChains);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  original.run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples * numChains);
-  std::vector<double> trainB(n * numSamples * numChains);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB, "restored sparse chains draw identical sigmas");
-  check(trainA == trainB, "restored sparse chains draw identical fits");
+  checkStructuralRoundTrip(state, restored,
+                           "restored sparse-store state reproduces the model");
 
   for (size_t c = 0; c < numChains; ++c) {
     ext_rng_destroy(rngs[c]);
@@ -5414,7 +5405,7 @@ static void testMixedLinearLeaves() {
 }
 
 static void testMixedStateRoundTrip() {
-  const size_t n = 240, numChains = 2, numSamples = 5;
+  const size_t n = 240, numChains = 2;
   MixedFixture fixture;
   // both CSC tiers, missing entries, and a dense-backed categorical ride
   // the state round trip
@@ -5454,22 +5445,8 @@ static void testMixedStateRoundTrip() {
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a mixed-store state restores");
 
-  std::vector<double> sigmaA(numSamples * numChains);
-  std::vector<double> trainA(n * numSamples * numChains);
-  Results resultsA;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  original.run(0, numSamples, resultsA);
-
-  std::vector<double> sigmaB(numSamples * numChains);
-  std::vector<double> trainB(n * numSamples * numChains);
-  Results resultsB;
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  restored.run(0, numSamples, resultsB);
-
-  check(sigmaA == sigmaB, "restored mixed chains draw identical sigmas");
-  check(trainA == trainB, "restored mixed chains draw identical fits");
+  checkStructuralRoundTrip(state, restored,
+                           "restored mixed-store state reproduces the model");
 
   for (size_t c = 0; c < numChains; ++c) {
     ext_rng_destroy(rngs[c]);
@@ -6031,23 +6008,10 @@ static void testGPLeafFormats(ext_rng* rng) {
   malformed.chains[0].treeParams[0].pop_back();
   check(!restored.setState(malformed), "short gp fits slab refused");
 
-  const size_t numContinued = 10;
-  std::vector<double> sigmaA(numContinued), sigmaB(numContinued);
-  std::vector<double> trainA(n * numContinued), trainB(n * numContinued);
-  std::vector<double> testA(numTest * numContinued),
-                      testB(numTest * numContinued);
-  Results resultsA, resultsB;
-  resultsA.sigma = sigmaA.data();
-  resultsA.trainingFits = trainA.data();
-  resultsA.testFits = testA.data();
-  resultsB.sigma = sigmaB.data();
-  resultsB.trainingFits = trainB.data();
-  resultsB.testFits = testB.data();
-  sampler.run(0, numContinued, resultsA);
-  restored.run(0, numContinued, resultsB);
-  check(sigmaA == sigmaB, "restored gp chain draws identical sigmas");
-  check(trainA == trainB, "restored gp chain draws identical fits");
-  check(testA == testB, "restored gp chain draws identical test fits");
+  // the good state survived the rejected malformed loads and reproduces the
+  // model (its fits slabs, saved side channels, and rng)
+  checkStructuralRoundTrip(state, restored,
+                           "restored gp state reproduces the model");
 
   // flattened live trees emit walkable side-channel blocks
   std::vector<FlatNode> nodes;

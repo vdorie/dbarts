@@ -1716,12 +1716,6 @@ public:
   /// (0, 0) and ignore restoration.
   virtual void getScale(double& min, double& max) const { min = max = 0.0; }
   virtual void restoreScale(double /*min*/, double /*max*/) {}
-  /// The variance prior's internal-scale value, for exact state carry:
-  /// re-anchoring the prior through the transform (restoreScale) is a
-  /// multiply-divide round trip that can perturb the last bit, so restores
-  /// install the recorded value directly. Negative when not applicable.
-  virtual double sigmaPriorScaleInternal() const { return -1.0; }
-  virtual void restoreSigmaPriorScaleInternal(double /*scale*/) {}
 
   virtual double initialSigma() const = 0;
 
@@ -1875,13 +1869,6 @@ public:
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
 
     sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
-  }
-
-  double sigmaPriorScaleInternal() const override {
-    return sigmaSqPrior_.scale;
-  }
-  void restoreSigmaPriorScaleInternal(double scale) override {
-    sigmaSqPrior_.scale = scale;
   }
 
 private:
@@ -2339,12 +2326,6 @@ public:
   void restoreScale(double min, double max) override {
     base_->restoreScale(min, max);
     rebuildWorking();
-  }
-  double sigmaPriorScaleInternal() const override {
-    return base_->sigmaPriorScaleInternal();
-  }
-  void restoreSigmaPriorScaleInternal(double scale) override {
-    base_->restoreSigmaPriorScaleInternal(scale);
   }
 
   double initialSigma() const override { return base_->initialSigma(); }

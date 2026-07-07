@@ -127,8 +127,9 @@ expect_error(
   pattern = "fixed when a sampler is created"
 )
 
+source(system.file("common", "stateContinuation.R", package = "dbarts"))
 # state serialization carries the fits slabs and saved blocks: a restored
-# sampler continues bitwise identically
+# sampler reproduces the model
 control.state <- dbartsControl(
   n.chains = 2L,
   n.threads = 1L,
@@ -152,7 +153,8 @@ sampler.restored <- dbarts(
   control = control.state
 )
 sampler.restored$setState(sampler.state$state)
-expect_identical(sampler.state$run(0L, 3L), sampler.restored$run(0L, 3L))
+sampler.restored$storeState()
+expect_true(statesAgree(sampler.restored$state, sampler.state$state))
 
 # the mutable-data surface stays live under gp leaves, including the
 # designated column itself
