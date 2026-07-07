@@ -1,0 +1,64 @@
+# Monthly smoke test against the two tightest reverse dependencies:
+# stan4bart (the only compiled-boundary dbarts.h consumer; lockstep
+# releases, same maintainer) and bartCause (same maintainer). Between
+# releases nothing else watches them; this surfaces breakage before the
+# next lockstep release rather than at the full manual revdep sweep.
+# stan4bart's build against dbarts.h takes tens of minutes, hence the
+# generous timeout and monthly (not per-push) cadence.
+on:
+  schedule:
+    - cron: '0 8 1 * *'
+  workflow_dispatch:
+
+name: revdep-smoke
+
+permissions: read-all
+
+jobs:
+  revdep-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    name: revdep-smoke (${{ matrix.package }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [stan4bart, bartCause]
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      _R_CHECK_FORCE_SUGGESTS_: false
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::remotes
+          needs: check
+
+      - name: Install dev dbarts from this checkout
+        run: R CMD INSTALL .
+
+      - name: Fetch ${{ matrix.package }} source from CRAN
+        run: |
+          Rscript -e '
+            path <- download.packages("${{ matrix.package }}", destdir = ".",
+              repos = "https://cloud.r-project.org", type = "source")[, 2]
+            untar(path, exdir = ".")
+          '
+
+      # hard dependencies only: suggested packages are skipped by the check
+      # (_R_CHECK_FORCE_SUGGESTS_), and bartCause suggests stan4bart, whose
+      # CRAN release cannot pair with the dev dbarts installed above
+      - name: Install ${{ matrix.package }} dependencies
+        run: Rscript -e 'remotes::install_deps("${{ matrix.package }}", dependencies = NA)'
+
+      - name: R CMD check ${{ matrix.package }}
+        run: R CMD check --no-manual "${{ matrix.package }}"
