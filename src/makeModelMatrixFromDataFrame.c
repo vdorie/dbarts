@@ -438,7 +438,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
         }
       }
       break;
-      
+
       default:
       break;
     }

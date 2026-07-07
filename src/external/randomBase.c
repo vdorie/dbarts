@@ -347,7 +347,7 @@ ext_rng_algorithm_t ext_rng_getDefaultAlgorithmType(void)
     seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
-  
+
   if (seedsExpr == R_UnboundValue) return EXT_RNG_ALGORITHM_MERSENNE_TWISTER;
   PROTECT(seedsExpr);
   if (!Rf_isInteger(seedsExpr)) {
@@ -370,7 +370,7 @@ ext_rng_standardNormal_t ext_rng_getDefaultStandardNormalType(void)
     seedsExpr = rc_getVariableInEnvironment(R_GlobalEnv, R_SeedsSymbol);
   }
   if (TYPEOF(seedsExpr) == PROMSXP) seedsExpr = Rf_eval(R_SeedsSymbol, R_GlobalEnv);
-  
+
   if (seedsExpr == R_UnboundValue) return EXT_RNG_STANDARD_NORMAL_INVERSION;
   PROTECT(seedsExpr);
   if (!Rf_isInteger(seedsExpr)) {

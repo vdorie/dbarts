@@ -170,62 +170,72 @@ struct ParsedModel {
   size_t gpMaxLeafSize = 256;
 };
 
+// Slot temporaries feed rc_ validators and further attribute reads, both of
+// which can allocate; reprotecting each read keeps the temporary live over
+// its use window without per-site protection stack churn.
+#define REPROTECT_SLOT(target, parent, name, index) \
+  REPROTECT((target) = Rf_getAttrib((parent), Rf_install(name)), (index))
+
 void parseControl(ParsedControl& control, SEXP controlExpr) {
-  SEXP slotExpr = Rf_getAttrib(controlExpr, Rf_install("binary"));
+  SEXP slotExpr;
+  PROTECT_INDEX slotIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "binary", slotIndex);
   control.responseIsBinary =
     rc_getBool(slotExpr, "binary response signifier", RC_LENGTH | RC_GEQ,
                rc_asRLength(1), RC_END);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("verbose"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "verbose", slotIndex);
   control.verbose = rc_getBool(slotExpr, "verbose", RC_LENGTH | RC_GEQ,
                                rc_asRLength(1), RC_END);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrainingFits"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "keepTrainingFits", slotIndex);
   control.keepTrainingFits =
     rc_getBool(slotExpr, "keep training fits", RC_LENGTH | RC_EQ,
                rc_asRLength(1), RC_END);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("useQuantiles"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "useQuantiles", slotIndex);
   control.useQuantiles = rc_getBool(slotExpr, "use quantiles",
                                     RC_LENGTH | RC_EQ, rc_asRLength(1),
                                     RC_END);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("keepTrees"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "keepTrees", slotIndex);
   control.keepTrees = rc_getBool(slotExpr, "keep trees", RC_LENGTH | RC_EQ,
                                  rc_asRLength(1), RC_END);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.samples"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "n.samples", slotIndex);
   control.defaultNumSamples = static_cast<size_t>(
     rc_getInt(slotExpr, "number of samples", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.trees"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "n.trees", slotIndex);
   control.numTrees = static_cast<size_t>(
     rc_getInt(slotExpr, "number of trees", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.chains"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "n.chains", slotIndex);
   control.numChains = static_cast<size_t>(
     rc_getInt(slotExpr, "number of chains", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.threads"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "n.threads", slotIndex);
   control.numThreads = static_cast<size_t>(
     rc_getInt(slotExpr, "number of threads", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END));
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.thin"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "n.thin", slotIndex);
   control.treeThinningRate = static_cast<uint32_t>(
     rc_getInt(slotExpr, "tree thinning rate", RC_LENGTH | RC_EQ,
               rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_END));
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("printEvery"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "printEvery", slotIndex);
   int i_temp = rc_getInt(slotExpr, "print every", RC_LENGTH | RC_EQ,
                          rc_asRLength(1), RC_VALUE | RC_GEQ, 1,
                          RC_NA | RC_YES, RC_END);
   if (i_temp != NA_INTEGER) control.printEvery = static_cast<uint32_t>(i_temp);
 
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("printCutoffs"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "printCutoffs", slotIndex);
   i_temp = rc_getInt(slotExpr, "print cutoffs", RC_LENGTH | RC_EQ,
                      rc_asRLength(1), RC_VALUE | RC_GEQ, 0, RC_NA | RC_YES,
                      RC_END);
@@ -234,12 +244,14 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
 
   // rngKind and rngNormalKind are classic-only; the R side refuses them
   // before creation, so they are not read here
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("rngSeed"));
+  REPROTECT_SLOT(slotExpr, controlExpr, "rngSeed", slotIndex);
   if (rc_getLength(slotExpr) != 1)
     Rf_error("slot 'rngSeed' must be of length 1");
   control.haveRngSeed = INTEGER(slotExpr)[0] != NA_INTEGER;
   if (control.haveRngSeed)
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
+
+  UNPROTECT(1);
 }
 
 struct CscSlots {
@@ -253,16 +265,16 @@ struct CscSlots {
 // the engine trusts it (rows unique, ascending, and in range per column).
 CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations) {
   CscSlots result;
-  SEXP dimExpr = Rf_getAttrib(matrixExpr, Rf_install("Dim"));
+  SEXP dimExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("Dim")));
   if (!Rf_isInteger(dimExpr) || rc_getLength(dimExpr) != 2)
     Rf_error("malformed sparse predictor matrix");
   if (static_cast<size_t>(INTEGER(dimExpr)[0]) != numObservations)
     Rf_error("number of rows of 'x' must equal length of 'y'");
   result.numColumns = static_cast<size_t>(INTEGER(dimExpr)[1]);
 
-  SEXP pointersExpr = Rf_getAttrib(matrixExpr, Rf_install("p"));
-  SEXP rowsExpr = Rf_getAttrib(matrixExpr, Rf_install("i"));
-  SEXP valuesExpr = Rf_getAttrib(matrixExpr, Rf_install("x"));
+  SEXP pointersExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("p")));
+  SEXP rowsExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("i")));
+  SEXP valuesExpr = PROTECT(Rf_getAttrib(matrixExpr, Rf_install("x")));
   if (!Rf_isInteger(pointersExpr) || !Rf_isInteger(rowsExpr) ||
       !Rf_isReal(valuesExpr) ||
       static_cast<size_t>(rc_getLength(pointersExpr)) !=
@@ -288,18 +300,23 @@ CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations) {
   result.pointers = pointers;
   result.rows = rows;
   result.values = REAL(valuesExpr);
+  UNPROTECT(4);
   return result;
 }
 
 void parseData(ParsedData& data, SEXP dataExpr) {
-  SEXP slotExpr = Rf_getAttrib(dataExpr, Rf_install("y"));
+  SEXP slotExpr;
+  PROTECT_INDEX slotIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+  REPROTECT_SLOT(slotExpr, dataExpr, "y", slotIndex);
   if (!Rf_isReal(slotExpr)) Rf_error("y must be of type real");
   if (rc_getLength(slotExpr) <= 0)
     Rf_error("length of y must be greater than 0");
   data.y = REAL(slotExpr);
   data.numObservations = rc_getLength(slotExpr);
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "x", slotIndex);
   if (Rf_inherits(slotExpr, "dgCMatrix")) {
     CscSlots csc = parseCscMatrix(slotExpr, data.numObservations);
     data.numPredictors = csc.numColumns;
@@ -312,9 +329,9 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     // the internal mixed container (R/mixedMatrix.R): a dense matrix, a
     // dgCMatrix, and a 1-based map - positive k names dense column k,
     // negative -k sparse column k, which is the engine's ~(k - 1)
-    SEXP denseExpr = getListElement(slotExpr, "dense");
-    SEXP sparseExpr = getListElement(slotExpr, "sparse");
-    SEXP mapExpr = getListElement(slotExpr, "map");
+    SEXP denseExpr = PROTECT(getListElement(slotExpr, "dense"));
+    SEXP sparseExpr = PROTECT(getListElement(slotExpr, "sparse"));
+    SEXP mapExpr = PROTECT(getListElement(slotExpr, "map"));
     if (!Rf_inherits(sparseExpr, "dgCMatrix") || !Rf_isInteger(mapExpr) ||
         rc_getLength(mapExpr) == 0)
       Rf_error("malformed mixed predictor container");
@@ -351,6 +368,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.cscRowIndices = csc.rows;
     data.cscValues = csc.values;
     data.x = NULL;
+    UNPROTECT(3);
   } else {
     if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");
     rc_assertDimConstraints(slotExpr, "dimensions of x", RC_LENGTH | RC_EQ,
@@ -361,7 +379,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.numPredictors = static_cast<size_t>(dims[1]);
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("varTypes"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "varTypes", slotIndex);
   rc_assertIntConstraints(slotExpr, "variable types", RC_LENGTH | RC_EQ,
                           rc_asRLength(data.numPredictors), RC_END);
   int* i_variableTypes = INTEGER(slotExpr);
@@ -380,7 +398,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         Rf_error("sparse predictor columns must be ordinal");
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("x.test"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "x.test", slotIndex);
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
       rc_getLength(slotExpr) == 0) {
     data.x_test = NULL;
@@ -396,7 +414,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.numTestObservations = static_cast<size_t>(testDims[0]);
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("weights"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "weights", slotIndex);
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
       rc_getLength(slotExpr) == 0) {
     data.weights = NULL;
@@ -406,7 +424,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.weights = REAL(slotExpr);
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "offset", slotIndex);
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
       rc_getLength(slotExpr) == 0) {
     data.offset = NULL;
@@ -416,7 +434,7 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.offset = REAL(slotExpr);
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("offset.test"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "offset.test", slotIndex);
   if (rc_isS4Null(slotExpr) || Rf_isNull(slotExpr) ||
       rc_getLength(slotExpr) == 0) {
     data.testOffset = NULL;
@@ -427,12 +445,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.testOffset = REAL(slotExpr);
   }
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("sigma"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "sigma", slotIndex);
   data.sigmaEstimate = rc_getDouble(
     slotExpr, "sigma estimate", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
 
-  slotExpr = Rf_getAttrib(dataExpr, Rf_install("n.cuts"));
+  REPROTECT_SLOT(slotExpr, dataExpr, "n.cuts", slotIndex);
   rc_assertIntConstraints(slotExpr, "maximum number of cuts",
                           RC_LENGTH | RC_EQ,
                           rc_asRLength(data.numPredictors), RC_END);
@@ -440,20 +458,26 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   data.maxNumCuts.resize(data.numPredictors);
   for (size_t j = 0; j < data.numPredictors; ++j)
     data.maxNumCuts[j] = static_cast<uint32_t>(i_maxNumCuts[j]);
+
+  UNPROTECT(1);
 }
 
 void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
-  SEXP slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth_death"));
+  SEXP slotExpr;
+  PROTECT_INDEX slotIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &slotIndex);
+
+  REPROTECT_SLOT(slotExpr, modelExpr, "p.birth_death", slotIndex);
   model.birthOrDeathProbability = rc_getDouble(
     slotExpr, "probability of birth/death rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.swap"));
+  REPROTECT_SLOT(slotExpr, modelExpr, "p.swap", slotIndex);
   model.swapProbability = rc_getDouble(
     slotExpr, "probability of swap rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.change"));
+  REPROTECT_SLOT(slotExpr, modelExpr, "p.change", slotIndex);
   model.changeProbability = rc_getDouble(
     slotExpr, "probability of change rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
@@ -462,12 +486,12 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
                 model.changeProbability - 1.0) >= 1.0e-10)
     Rf_error("rule proposal probabilities must sum to 1.0");
 
-  slotExpr = Rf_getAttrib(modelExpr, Rf_install("p.birth"));
+  REPROTECT_SLOT(slotExpr, modelExpr, "p.birth", slotIndex);
   model.birthProbability = rc_getDouble(
     slotExpr, "probability of birth in birth/death rule", RC_LENGTH | RC_EQ,
     rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_VALUE | RC_LT, 1.0, RC_END);
 
-  slotExpr = Rf_getAttrib(modelExpr, Rf_install("node.scale"));
+  REPROTECT_SLOT(slotExpr, modelExpr, "node.scale", slotIndex);
   model.nodeScale = rc_getDouble(
     slotExpr, "scale of node prior", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_VALUE | RC_GT, 0.0, RC_END);
@@ -477,13 +501,15 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   // constant leaf and carries nothing beyond node.scale/node.hyperprior.
   // gp priors add per-column lengthscales (NULL for the median-distance
   // heuristic; the R side validates and recycles) and the leaf-size cap.
-  SEXP nodePriorExpr = Rf_getAttrib(modelExpr, Rf_install("node.prior"));
+  SEXP nodePriorExpr =
+    PROTECT(Rf_getAttrib(modelExpr, Rf_install("node.prior")));
   bool isLinearPrior = !Rf_isNull(nodePriorExpr) &&
                        Rf_inherits(nodePriorExpr, "dbartsLinearPrior");
   bool isGPPrior = !Rf_isNull(nodePriorExpr) &&
                    Rf_inherits(nodePriorExpr, "dbartsGPPrior");
   if (isLinearPrior || isGPPrior) {
-    SEXP columnsExpr = Rf_getAttrib(nodePriorExpr, Rf_install("columns"));
+    SEXP columnsExpr =
+      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("columns")));
     if (!Rf_isInteger(columnsExpr) || Rf_xlength(columnsExpr) < 1)
       Rf_error("node prior columns must be resolved integer indices");
     R_xlen_t numColumns = Rf_xlength(columnsExpr);
@@ -495,13 +521,14 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
       model.leafCovariateColumns[static_cast<size_t>(j)] =
         static_cast<size_t>(column - 1);
     }
+    UNPROTECT(1);
   }
   if (isGPPrior) {
     model.gpLeaves = true;
     // a NULL slot arrives as S4's pseudo-NULL symbol, not R_NilValue, so
     // test positively for the resolved numeric vector
     SEXP lengthscaleExpr =
-      Rf_getAttrib(nodePriorExpr, Rf_install("lengthscale"));
+      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("lengthscale")));
     if (Rf_isReal(lengthscaleExpr)) {
       if (static_cast<size_t>(Rf_xlength(lengthscaleExpr)) !=
           model.leafCovariateColumns.size())
@@ -514,24 +541,29 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
         lengthscales, lengthscales + model.leafCovariateColumns.size());
     }
     SEXP maxLeafSizeExpr =
-      Rf_getAttrib(nodePriorExpr, Rf_install("max.leaf.size"));
+      PROTECT(Rf_getAttrib(nodePriorExpr, Rf_install("max.leaf.size")));
     int maxLeafSize = rc_getInt(
       maxLeafSizeExpr, "gp node prior maximum leaf size", RC_LENGTH | RC_EQ,
       rc_asRLength(1), RC_VALUE | RC_GEQ, 1, RC_END);
     model.gpMaxLeafSize = static_cast<size_t>(maxLeafSize);
+    UNPROTECT(2);
   }
 
-  SEXP priorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
-  slotExpr = Rf_getAttrib(priorExpr, Rf_install("power"));
+  SEXP priorExpr;
+  PROTECT_INDEX priorIndex;
+  PROTECT_WITH_INDEX(R_NilValue, &priorIndex);
+
+  REPROTECT_SLOT(priorExpr, modelExpr, "tree.prior", priorIndex);
+  REPROTECT_SLOT(slotExpr, priorExpr, "power", slotIndex);
   model.power = rc_getDouble(slotExpr, "tree prior power", RC_LENGTH | RC_EQ,
                              rc_asRLength(1), RC_VALUE | RC_GT, 0.0, RC_END);
 
-  slotExpr = Rf_getAttrib(priorExpr, Rf_install("base"));
+  REPROTECT_SLOT(slotExpr, priorExpr, "base", slotIndex);
   model.base = rc_getDouble(slotExpr, "tree prior base", RC_LENGTH | RC_EQ,
                             rc_asRLength(1), RC_VALUE | RC_GT, 0.0,
                             RC_VALUE | RC_LT, 1.0, RC_END);
 
-  slotExpr = Rf_getAttrib(priorExpr, Rf_install("splitProbabilities"));
+  REPROTECT_SLOT(slotExpr, priorExpr, "splitProbabilities", slotIndex);
   if (rc_getLength(slotExpr) == 0) {
     model.splitProbabilities = NULL;
   } else {
@@ -549,7 +581,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
       Rf_error("split probabilities must sum to 1.0");
   }
 
-  priorExpr = Rf_getAttrib(modelExpr, Rf_install("node.hyperprior"));
+  REPROTECT_SLOT(priorExpr, modelExpr, "node.hyperprior", priorIndex);
   const char* classStr = CHAR(STRING_ELT(rc_getClass(priorExpr), 0));
   if (std::strcmp(classStr, "dbartsChiHyperprior") == 0) {
     model.updateK = true;
@@ -568,7 +600,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     Rf_error("unsupported k prior type '%s'", classStr);
   }
 
-  priorExpr = Rf_getAttrib(modelExpr, Rf_install("resid.prior"));
+  REPROTECT_SLOT(priorExpr, modelExpr, "resid.prior", priorIndex);
   classStr = CHAR(STRING_ELT(rc_getClass(priorExpr), 0));
   if (std::strcmp(classStr, "dbartsChiSqPrior") == 0) {
     model.sigmaDf = rc_getDouble(
@@ -591,6 +623,8 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   } else {
     Rf_error("unsupported residual variance prior type '%s'", classStr);
   }
+
+  UNPROTECT(3);
 }
 
 // The classic engine's BARTFit::printInitialSummary, line for line, printed
@@ -855,7 +889,8 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
 
   // the generic slot parse above reads the CGM structure a DART prior
   // contains; the Dirichlet configuration comes off the R object directly
-  SEXP treePriorExpr = Rf_getAttrib(modelExpr, Rf_install("tree.prior"));
+  SEXP treePriorExpr =
+    PROTECT(Rf_getAttrib(modelExpr, Rf_install("tree.prior")));
   if (Rf_inherits(treePriorExpr, "dbartsDartPrior")) {
     options.useDart = true;
     options.dart.betaA = rc_getDouble(
@@ -876,6 +911,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
       Rf_getAttrib(treePriorExpr, Rf_install("update.delay")), "dart update.delay",
       RC_LENGTH | RC_EQ, rc_asRLength(1), RC_VALUE | RC_GEQ, 0.0, RC_END));
   }
+  UNPROTECT(1);
   options.updateK = model.updateK;
   options.kHyperprior.degreesOfFreedom = model.kDf;
   options.kHyperprior.scale = model.kScale;
@@ -2611,9 +2647,11 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
 
-  SEXP formatVersionExpr = Rf_getAttrib(stateExpr, Rf_install("formatVersion"));
+  SEXP formatVersionExpr =
+    PROTECT(Rf_getAttrib(stateExpr, Rf_install("formatVersion")));
   int formatVersion = Rf_isInteger(formatVersionExpr) &&
       Rf_xlength(formatVersionExpr) == 1 ? INTEGER(formatVersionExpr)[0] : 0;
+  UNPROTECT(1);
   if (formatVersion != stateFormatVersion) {
     SEXP packageVersionExpr =
       Rf_getAttrib(stateExpr, Rf_install("packageVersion"));
@@ -2655,7 +2693,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     }
   }
 
-  SEXP sampleNumExpr = Rf_getAttrib(stateExpr, Rf_install("currentSampleNum"));
+  SEXP sampleNumExpr =
+    PROTECT(Rf_getAttrib(stateExpr, Rf_install("currentSampleNum")));
   if (errorMessage == NULL) {
     if (!Rf_isInteger(sampleNumExpr) || Rf_xlength(sampleNumExpr) != 1 ||
         INTEGER(sampleNumExpr)[0] < 0)
@@ -2663,6 +2702,7 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     else
       state.currentSampleNum = static_cast<size_t>(INTEGER(sampleNumExpr)[0]);
   }
+  UNPROTECT(1);
 
   for (size_t c = 0; c < sampler.numChains() && errorMessage == NULL; ++c) {
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
