@@ -46,8 +46,7 @@ mixing cost of b-fold precision on structure moves?
 - The experiment precedes any engine integration; a "b > 1 never
   wins" outcome closes this item and is recorded in
   within-chain-threading.md as well.
-- Out of scope: GPU anything (the b = m observation is recorded, not
-  pursued); DART/grouped interactions beyond noting them in the memo.
+- Out of scope: DART/grouped interactions beyond noting them in the memo.
 
 ## Steps
 
