@@ -335,7 +335,7 @@ resolveSplitProbabilities <- function(prior, data) {
 
   prior@splitProbabilities <- split.probs
   prior@splitProbabilitiesSpec <- NULL
-  validObject(prior)
+  validateObject(prior)
   prior
 }
 
@@ -347,7 +347,7 @@ resolveNodeHyperprior <- function(k, binary) {
     k <- if (binary) chi(1.25, Inf) else 2.0
   }
   if (is.numeric(k)) {
-    return(new("dbartsFixedHyperprior", k = k))
+    return(newValidated("dbartsFixedHyperprior", k = k))
   }
   if (is(k, "dbartsNodeHyperprior")) {
     return(k)
@@ -357,7 +357,7 @@ resolveNodeHyperprior <- function(k, binary) {
 
 num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
-  result <- new(
+  result <- newValidated(
     "dbartsCGMPrior",
     power = power,
     base = base,
@@ -441,15 +441,19 @@ normal <- function(k = NULL) {
 }
 
 chisq <- function(df = 3, quant = 0.9) {
-  new("dbartsChiSqPrior", df = df, quantile = quant)
+  newValidated("dbartsChiSqPrior", df = df, quantile = quant)
 }
 
 fixed <- function(value = 1.0) {
-  new("dbartsFixedPrior", value = value)
+  newValidated("dbartsFixedPrior", value = value)
 }
 
 chi <- function(degreesOfFreedom = 1.25, scale = Inf) {
-  new("dbartsChiHyperprior", degreesOfFreedom = degreesOfFreedom, scale = scale)
+  newValidated(
+    "dbartsChiHyperprior",
+    degreesOfFreedom = degreesOfFreedom,
+    scale = scale
+  )
 }
 
 dart <- function(
@@ -462,7 +466,7 @@ dart <- function(
   update.alpha = TRUE,
   update.delay = NULL
 ) {
-  new(
+  newValidated(
     "dbartsDartPrior",
     power = power,
     base = base,

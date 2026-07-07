@@ -73,6 +73,10 @@ dbarts(
 }
 \details{
   \dQuote{Discrete sampler} refers to that \code{dbarts} is implemented using \link{ReferenceClasses}, so that there exists a mutable object constructed in C++ that is largely obscured from R. The \code{dbarts} function is the primary way of creating a \code{\link[=dbartsSampler-class]{dbartsSampler}}, for which a variety of methods exist.
+
+  \subsection{Test offset synchronization}{
+    When \code{offset.test} is left at its default of tracking \code{offset}, the sampler links the two: the sampler's \code{setOffset} method re-derives \code{offset.test} from each new \code{offset} it is given. Calling the sampler's \code{setTestOffset} or \code{setTestPredictorAndOffset} methods breaks this link -- \code{offset.test} is set independently from then on, and the link never re-forms, even if the two are later set to equal values.
+  }
 }
 \value{
   A reference object of \code{\link[=dbartsSampler-class]{dbartsSampler}}.

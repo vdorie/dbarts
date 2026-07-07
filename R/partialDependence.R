@@ -14,7 +14,6 @@ pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   keepTrainingFits <- control@keepTrainingFits
   control@verbose <- control@keepTrainingFits <- FALSE
   sampler$setControl(control)
-  sampler$startThreads()
 
   samples <- sampler$run(0L, sampler$control@n.burn, updateState = FALSE)
   fit <- list(first.sigma = samples$sigma)
@@ -205,7 +204,6 @@ pdbart <- function(
       offset <- offset + numObservations * numLevels[j]
     }
   }
-  sampler$stopThreads()
 
   if (is.null(colnames(sampler$data@x))) {
     xLabels <- paste0("x", xind)
@@ -436,7 +434,6 @@ pd2bart <- function(
       fit[["yhat.test"]] <- NULL
     }
   }
-  sampler$stopThreads()
 
   if (is.null(colnames(sampler$data@x))) {
     xLabels <- paste0("x", xind)

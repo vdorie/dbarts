@@ -759,8 +759,6 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     evalEnv = evalEnv
   )
 
-  sampler$startThreads()
-
   if (control@n.burn > 0L) {
     oldKeepTrees <- control@keepTrees
     control@keepTrees <- FALSE
@@ -822,8 +820,6 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     rbartArgs
   )
   # state <- run_result$state
-
-  sampler$stopThreads()
 
   tau <- run_result$samples$tau
   sigma <- run_result$samples$sigma

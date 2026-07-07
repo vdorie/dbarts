@@ -1,3 +1,25 @@
+## validObject()'s default failure message is prefixed with S4 boilerplate
+## ("invalid class \"...\" object: ") that leaks the internal class name;
+## strip it so the sampler's user-facing validation errors read as plain
+## sentences. Any other error is re-signaled unchanged.
+rethrowValidityError <- function(e) {
+  msg <- conditionMessage(e)
+  cleaned <- sub("^invalid class [^ ]+ object: ", "", msg)
+  if (identical(cleaned, msg)) {
+    stop(e)
+  }
+  stop(cleaned, call. = FALSE)
+}
+
+newValidated <- function(Class, ...) {
+  tryCatch(new(Class, ...), error = rethrowValidityError)
+}
+
+validateObject <- function(object) {
+  tryCatch(validObject(object), error = rethrowValidityError)
+  invisible(object)
+}
+
 coerceOrError <- function(x, type) {
   mc <- match.call()
 

@@ -50,7 +50,7 @@ expect_error(
 )
 expect_error(
   dbarts::dbartsData(modelFormula, testData_df, weights = offset),
-  " 'weights' must all be non-negative"
+  "'weights' must all be non-negative"
 )
 
 rm(modelFormula, testData_df)

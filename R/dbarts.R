@@ -25,7 +25,7 @@ dbartsControl <- function(
   rngSeed = NA_integer_,
   updateState = TRUE
 ) {
-  result <- new(
+  result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
@@ -284,7 +284,7 @@ dbarts <- function(
   }
   priors <- eval(parsePriorsCall)
 
-  model <- new(
+  model <- newValidated(
     "dbartsModel",
     priors$tree.prior,
     priors$node.prior,
@@ -1007,13 +1007,6 @@ dbartsSampler <- setRefClass(
       )
       plotNode(tree, .self, treePlotPars)
 
-      invisible(NULL)
-    },
-    startThreads = function(n.threads = control@n.threads) {
-      # the engine manages worker threads within each run
-      invisible(NULL)
-    },
-    stopThreads = function() {
       invisible(NULL)
     }
   )
