@@ -129,10 +129,6 @@ items
     kernel, mutation on dense-backed mixed columns (sparse-columns.md
     landing notes). The u8 width entry moved to hot-layer-u8.
     consumer-gated.
-  state-continuation: bitwise-exact restore is a self-imposed contract
-    (classic rebuilt scratch state on load); decide whether to keep it,
-    else drop the indices/totalFits/internal-scale state fields.
-    Depends on constant-leaf-suffstat.
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.

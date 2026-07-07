@@ -58,3 +58,21 @@ Signed off (VD, 2026-07-06): drop to semantic restore.
 - Component tests as restructured; full tinytest.
 - Equivalence exact on fresh runs (nothing outside restore changed).
 - stan4bart consumer test passes.
+
+## Landing note (2026-07-07, 799bb05)
+
+Landed per the signed-off drop: ChainStateData loses totalFits,
+indices, and sigmaPriorScale; sigma rides the original scale; restore
+repartitions from tree structure + cuts and resums totalFits from
+tree fits; validation keeps reject-with-nothing-changed via scratch
+repartition + occupancy. Format stays version 2 (shared with
+flat-format-v2; doc comment extended). The 19 C++ and 9 R bitwise-
+continuation assertions restructured to structural equality (shared
+statesAgree predicate in inst/common/stateContinuation.R) plus one
+calibrated statistical continuation gate; test-capi.R's
+predictions-identical round trip unweakened. Gates: component tests
+pass, tinytest 2468 ok, equivalence EXACT 18/18 vs 235bebc (fresh
+runs untouched; reviewer re-verified), lint clean. Gross diff 586
+lines (over the 450 soft cap; all mandated assertion restructuring),
+net -150. Suite lesson: tinytest silently drops expect_* calls nested
+in helpers - use top-level expect_true over a logical predicate.
