@@ -79,7 +79,13 @@
 <dd><p>Normal prior on the node means. <code>k</code> scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       <code>chi</code>, or <code>NULL</code> for the default: 2 for continuous
-      responses, <code>chi(1.25, Inf)</code> for binary ones.</p></dd>
+      responses, <code>chi(1.25, Inf)</code> for binary ones. The continuous
+      default follows Chipman, George, and McCulloch's argument that with
+      node standard deviation <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for
+      <code>m</code> trees, <code>k</code> prior standard deviations of \(f(x)\)
+      span the whole response range regardless of <code>m</code>; see
+      <code><a href="dbarts.html">dbarts</a></code>'s Details for the response-scaling caveat this
+      relies on.</p></dd>
 
     <dt><code>linear(columns, k = NULL)</code></dt>
 <dd><p>Each leaf fits an intercept plus a linear term in the designated

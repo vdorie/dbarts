@@ -167,14 +167,63 @@ New Data” below)</li>
 <code>var</code> - either the index of the variable used for
 splitting or -1 if the node is a leaf</li>
 <li>
-<code>value</code> - either the value such that observations less
-than or equal to it are sent down the left path of the tree or the
-predicted value for a leaf node</li>
+<code>value</code> - the cut point for an ordinal split
+(observations less than or equal to it go left); <code>NA</code> for a
+categorical split (see “Categorical Splits” below); otherwise the leaf’s
+fitted value, which is its intercept under a linear leaf and
+<code>NA</code> under a Gaussian-process leaf (its fit is a function of
+the leaf’s covariates rather than a scalar - see <code>predict</code>
+for those)</li>
+<li>
+<code>directions</code> - present when the sampler has any
+categorical predictor: for a categorical split, one
+<code>"L"</code>/<code>"R"</code> character per level in level order,
+giving the branch that level is sent down; <code>NA</code> for ordinal
+splits and for leaves</li>
+<li>
+<code>missing</code> - present when any predictor has missing
+values: <code>"L"</code>/<code>"R"</code> giving the branch an
+<code>NA</code> on the split variable follows; <code>NA</code> where the
+rule has no missing values to route</li>
+<li>
+<code>beta.&lt;column&gt;</code> - one per covariate designated by a
+<code>linear</code> or <code>gp</code> node prior, holding that leaf’s
+coefficient; <code>NA</code> on internal nodes, absent entirely under
+the default constant leaf</li>
 </ul>
 <p>The mapping between the values of <code>var</code> and the variable
 names can be looked up in the internal copy of the data that the sampler
 stores. This can be found in a fitted model as the element
 <code>fit$data@x</code>, as seen below.</p>
+</div>
+<div class="section level2">
+<h2 id="categorical-splits">Categorical Splits<a class="anchor" aria-label="anchor" href="#categorical-splits"></a>
+</h2>
+<p>A categorical predictor’s rule sends a subset of its levels down each
+branch rather than cutting at a threshold, so it cannot be summarized by
+a single cut point: <code>value</code> is <code>NA</code> for these
+rules, and the split instead appears in <code>directions</code>.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">77</span><span class="op">)</span></span>
+<span><span class="va">n.cat</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>
+<span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="va">letters</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">]</span>, <span class="va">n.cat</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">y.cat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">g</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span><span class="op">)</span>, <span class="fl">5</span>, <span class="op">-</span><span class="fl">5</span><span class="op">)</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n.cat</span>, <span class="fl">0</span>, <span class="fl">0.5</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">catFit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">bart2</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">g</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>y <span class="op">=</span> <span class="va">y.cat</span>, g <span class="op">=</span> <span class="va">g</span><span class="op">)</span>,</span>
+<span>               n.trees <span class="op">=</span> <span class="fl">3L</span>, n.samples <span class="op">=</span> <span class="fl">1L</span>, n.burn <span class="op">=</span> <span class="fl">20L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>               n.threads <span class="op">=</span> <span class="fl">1L</span>, keepTrees <span class="op">=</span> <span class="cn">TRUE</span>, seed <span class="op">=</span> <span class="fl">0</span>, verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="va">catTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">catFit</span>, <span class="st">"trees"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">catTrees</span>, <span class="va">var</span> <span class="op">!=</span> <span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">##   sample tree  n var value directions</span></span>
+<span><span class="co">## 1      1    1 60   1    NA       LLRR</span></span>
+<span><span class="co">## 4      1    2 60   1    NA       RLLR</span></span>
+<span><span class="co">## 7      1    3 60   1    NA       LRRL</span></span></code></pre>
+<p><code>g</code>’s levels are <code>"a"</code>, <code>"b"</code>,
+<code>"c"</code>, <code>"d"</code>, in that order, so the first tree’s
+<code>directions</code> of <code>"LLRR"</code> sends <code>a</code> and
+<code>b</code> left and <code>c</code> and <code>d</code> right;
+<code>plotTree</code> labels the same rule with the levels its left
+branch takes, <code>"g in {a,b}"</code>.</p>
 </div>
 <div class="section level2">
 <h2 id="tree-traversal">Tree Traversal<a class="anchor" aria-label="anchor" href="#tree-traversal"></a>
@@ -183,10 +232,14 @@ stores. This can be found in a fitted model as the element
 By having the function return the number of nodes it has processed, it
 is possible to advance from the left-hand-side to the right by skipping
 ahead the appropriate number of rows. For example:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Turns a flatted tree data frame into a list of lists, or a "natural" tree</span></span>
 <span><span class="co"># structure.</span></span>
 <span><span class="va">rebuildTree</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">object</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="co"># A linear leaf's beta.&lt;column&gt; columns ride along automatically; a</span></span>
+<span>    <span class="co"># constant leaf has none.</span></span>
+<span>    <span class="va">slopeColumns</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">tree</span><span class="op">)</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/startsWith.html" class="external-link">startsWith</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">tree</span><span class="op">)</span>, <span class="st">"beta."</span><span class="op">)</span><span class="op">]</span></span>
+<span></span>
 <span>    <span class="co"># Define a worker function that will be recursively called on every node.</span></span>
 <span>    <span class="va">rebuildTreeRecurse</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span><span class="op">)</span> <span class="op">{</span></span>
 <span>        <span class="va">node</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -195,32 +248,35 @@ ahead the appropriate number of rows. For example:</p>
 <span>        <span class="op">)</span></span>
 <span>        <span class="co"># Check node if is a leaf, and if so return early.</span></span>
 <span>        <span class="kw">if</span> <span class="op">(</span><span class="va">tree</span><span class="op">$</span><span class="va">var</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span> <span class="op">==</span> <span class="op">-</span><span class="fl">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span>            <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">slopeColumns</span><span class="op">)</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span>                <span class="va">node</span><span class="op">$</span><span class="va">beta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">tree</span><span class="op">[</span><span class="fl">1</span>, <span class="va">slopeColumns</span><span class="op">]</span><span class="op">)</span></span>
+<span>            <span class="op">}</span></span>
 <span>            <span class="va">node</span><span class="op">$</span><span class="va">n_nodes</span> <span class="op">&lt;-</span> <span class="fl">1</span></span>
 <span>            <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="va">node</span><span class="op">)</span></span>
 <span>        <span class="op">}</span></span>
-<span>        </span>
+<span></span>
 <span>        <span class="va">node</span><span class="op">$</span><span class="va">var</span> <span class="op">&lt;-</span> <span class="va">variableNames</span><span class="op">[</span><span class="va">tree</span><span class="op">$</span><span class="va">var</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
-<span>        </span>
+<span></span>
 <span>        <span class="co"># By removing the current row, we can recurse down the left branch.</span></span>
 <span>        <span class="va">headOfLeftBranch</span> <span class="op">&lt;-</span> <span class="va">tree</span><span class="op">[</span><span class="op">-</span><span class="fl">1</span>,<span class="op">]</span></span>
 <span>        <span class="va">left</span> <span class="op">&lt;-</span> <span class="fu">rebuildTreeRecurse</span><span class="op">(</span><span class="va">headOfLeftBranch</span><span class="op">)</span></span>
 <span>        <span class="va">n_nodes.left</span> <span class="op">&lt;-</span> <span class="va">left</span><span class="op">$</span><span class="va">n_nodes</span></span>
 <span>        <span class="va">left</span><span class="op">$</span><span class="va">n_nodes</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
 <span>        <span class="va">node</span><span class="op">$</span><span class="va">left</span> <span class="op">&lt;-</span> <span class="va">left</span></span>
-<span>        </span>
+<span></span>
 <span>        <span class="co"># The right branch is obtained by advancing past the left nodes.</span></span>
 <span>        <span class="va">headOfRightBranch</span> <span class="op">&lt;-</span> <span class="va">tree</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq.int</a></span><span class="op">(</span><span class="fl">2</span> <span class="op">+</span> <span class="va">n_nodes.left</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">tree</span><span class="op">)</span><span class="op">)</span>,<span class="op">]</span></span>
 <span>        <span class="va">right</span> <span class="op">&lt;-</span> <span class="fu">rebuildTreeRecurse</span><span class="op">(</span><span class="va">headOfRightBranch</span><span class="op">)</span></span>
 <span>        <span class="va">n_nodes.right</span> <span class="op">&lt;-</span> <span class="va">right</span><span class="op">$</span><span class="va">n_nodes</span></span>
 <span>        <span class="va">right</span><span class="op">$</span><span class="va">n_nodes</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
 <span>        <span class="va">node</span><span class="op">$</span><span class="va">right</span> <span class="op">&lt;-</span> <span class="va">right</span></span>
-<span>        </span>
+<span></span>
 <span>        <span class="va">node</span><span class="op">$</span><span class="va">n_nodes</span> <span class="op">&lt;-</span> <span class="fl">1L</span> <span class="op">+</span> <span class="va">n_nodes.left</span> <span class="op">+</span> <span class="va">n_nodes.right</span></span>
-<span>        </span>
+<span></span>
 <span>        <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="va">node</span><span class="op">)</span></span>
 <span>    <span class="op">}</span></span>
 <span>    <span class="va">variableNames</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">object</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">x</span><span class="op">)</span></span>
-<span>    </span>
+<span></span>
 <span>    <span class="va">result</span> <span class="op">&lt;-</span> <span class="fu">rebuildTreeRecurse</span><span class="op">(</span><span class="va">tree</span><span class="op">)</span></span>
 <span>    <span class="va">result</span><span class="op">$</span><span class="va">n_nodes</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span>
 <span>    <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
@@ -345,9 +401,54 @@ ahead the appropriate number of rows. For example:</p>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$right$n</span></span>
 <span><span class="co">## [1] 47</span></span></code></pre>
+<p>Under a <code>linear</code> node prior, the same function attaches
+each leaf’s slopes as <code>$beta</code>:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">21</span><span class="op">)</span></span>
+<span><span class="va">n.lin</span> <span class="op">&lt;-</span> <span class="fl">60</span></span>
+<span><span class="va">x1.lin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n.lin</span><span class="op">)</span>; <span class="va">x2.lin</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n.lin</span><span class="op">)</span></span>
+<span><span class="va">y.lin</span> <span class="op">&lt;-</span> <span class="fl">3</span> <span class="op">*</span> <span class="va">x1.lin</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n.lin</span>, <span class="fl">0</span>, <span class="fl">0.2</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">linearFit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/dbarts.html">dbarts</a></span><span class="op">(</span></span>
+<span>    <span class="va">y.lin</span> <span class="op">~</span> <span class="va">x1.lin</span> <span class="op">+</span> <span class="va">x2.lin</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="va">x1.lin</span>, <span class="va">x2.lin</span>, <span class="va">y.lin</span><span class="op">)</span>,</span>
+<span>    node.prior <span class="op">=</span> <span class="fu">linear</span><span class="op">(</span><span class="st">"x1.lin"</span><span class="op">)</span>,</span>
+<span>    control <span class="op">=</span> <span class="fu"><a href="../reference/dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.trees <span class="op">=</span> <span class="fl">3L</span>, n.chains <span class="op">=</span> <span class="fl">1L</span>, n.threads <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>                            keepTrees <span class="op">=</span> <span class="cn">TRUE</span>, n.samples <span class="op">=</span> <span class="fl">2L</span>, n.burn <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="va">linearFit</span><span class="op">$</span><span class="fu">run</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">linearTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">linearFit</span><span class="op">$</span><span class="fu">getTrees</span><span class="op">(</span><span class="op">)</span>, <span class="va">sample</span> <span class="op">==</span> <span class="fl">1</span> <span class="op">&amp;</span> <span class="va">tree</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu">rebuildTree</span><span class="op">(</span><span class="va">linearTrees</span>, <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>fit <span class="op">=</span> <span class="va">linearFit</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">## $value</span></span>
+<span><span class="co">## [1] 0.85091</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $n</span></span>
+<span><span class="co">## [1] 60</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $var</span></span>
+<span><span class="co">## [1] "x1.lin"</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $left</span></span>
+<span><span class="co">## $left$value</span></span>
+<span><span class="co">## [1] -0.09040705</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $left$n</span></span>
+<span><span class="co">## [1] 50</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $left$beta</span></span>
+<span><span class="co">## [1] 0.193001</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $right</span></span>
+<span><span class="co">## $right$value</span></span>
+<span><span class="co">## [1] 0.1956038</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $right$n</span></span>
+<span><span class="co">## [1] 10</span></span>
+<span><span class="co">## </span></span>
+<span><span class="co">## $right$beta</span></span>
+<span><span class="co">## [1] -0.01612203</span></span></code></pre>
 <p>Using a <code>by</code> statement, it is possible to “rebuild” all
 trees at once:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">allTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/by.html" class="external-link">by</a></span><span class="op">(</span></span>
 <span>    data    <span class="op">=</span> <span class="va">trees</span>,</span>
 <span>    INDICES <span class="op">=</span> <span class="va">trees</span><span class="op">[</span>,<span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"chain"</span>, <span class="st">"sample"</span>, <span class="st">"tree"</span><span class="op">)</span><span class="op">]</span>,</span>
@@ -362,7 +463,7 @@ trees at once:</p>
 </h2>
 <p><code>dbartsSampler</code> objects have a <code>plotTree</code>
 method that can be used to visualize single trees:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">bartFit</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="fu">plotTree</span><span class="op">(</span>chainNum <span class="op">=</span> <span class="fl">1</span>, sampleNum <span class="op">=</span> <span class="fl">3</span>, treeNum <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
 <p><img src="working_with_saved_trees_files/figure-html/plotTree-1.png" class="r-plt" alt="" width="700"></p>
 </div>
@@ -372,9 +473,13 @@ method that can be used to visualize single trees:</p>
 <p>The following function traverses a flattened tree, splits
 observations while going the branches, and populates a vector giving the
 predicted value of that tree on input data. It requires a data in the
-same format as the fitted bart model so that it can evaluate the
-splits.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+same format as the fitted bart model so that it can evaluate the splits.
+As written it assumes an ordinal split and a constant leaf; a
+categorical split’s condition instead reads <code>directions</code>, and
+a linear or gp leaf’s fitted value depends on the leaf’s covariates
+rather than being a single number - use <code>predict</code> for
+those.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">getPredictionsForTree</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">x</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="va">predictions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="cn">NA_real_</span>, <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">x</span><span class="op">)</span><span class="op">)</span></span>
 <span>    </span>
@@ -417,7 +522,7 @@ structure, split rules, and leaf predictions are unchanged, and only the
 <code>n</code> column is recomputed by routing that data through each
 tree. The predictors are supplied in the same form as for
 <code>predict</code>.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">newData</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,<span class="op">]</span></span>
 <span><span class="va">newTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span>, newdata <span class="op">=</span> <span class="va">newData</span>, sampleNums <span class="op">=</span> <span class="fl">3</span>, treeNums <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
@@ -441,7 +546,7 @@ tree. The predictors are supplied in the same form as for
 </h2>
 <p>The following function can be used to map an arbitrary function over
 a tree.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mapOverNodes</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">f</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="va">mapOverNodesRecurse</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">depth</span>, <span class="va">f</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>        <span class="va">node</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -483,7 +588,7 @@ R environment - it keeps track of the current state of traversal. This
 includes the variables that have been used for splits above the current
 node and also includes the current node’s depth, which is used to detect
 backtracking.</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">observeInteractions</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">node</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">node</span><span class="op">$</span><span class="va">var</span><span class="op">)</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="cn">NULL</span><span class="op">)</span></span>
 <span></span>
@@ -536,7 +641,7 @@ backtracking.</p>
 <p>After execution, the boolean matrix in the interaction data
 environment will contain all ancestor/descendant relationships in this
 tree.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">interactionData</span><span class="op">$</span><span class="va">hasInteraction</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##         descendant</span></span>
 <span><span class="co">## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10</span></span>

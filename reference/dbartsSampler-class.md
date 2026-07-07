@@ -28,7 +28,7 @@ setModel(model)
 # S4 method for class 'dbartsSampler'
 setData(data)
 # S4 method for class 'dbartsSampler'
-setResponse(y, updateState = NA)
+setResponse(y, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setOffset(offset, updateScale = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
@@ -57,10 +57,6 @@ plotTree(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
   ...
 )
-# S4 method for class 'dbartsSampler'
-startThreads(n.threads = control@n.threads)
-# S4 method for class 'dbartsSampler'
-stopThreads()
 ```
 
 ## Arguments
@@ -134,8 +130,11 @@ stopThreads()
 
 - updateScale:
 
-  Logical indicating whether BART's internal scale should update with
-  the new offset. Should only be `TRUE` during burn-in.
+  Logical indicating whether BART's internal scale should re-anchor to
+  the new offset (`setOffset`) or response (`setResponse`). Defaults to
+  `FALSE`, locking the scale set at creation; should only be `TRUE`
+  during burn-in, as re-anchoring mid-run makes the fits across
+  iterations no longer comparable.
 
 - offset.test:
 
@@ -297,20 +296,18 @@ depth-first, left-hand-side pre-order, with columns `chain`, `sample`
 observations in the node), `var` (the splitting variable, or -1 at a
 leaf), and `value` (the split value, or the leaf prediction). An ordinal
 rule's value is its cut point and observations with values less than or
-equal to it go left; a categorical rule's value is its direction mask,
-in which bit `k - 1` being set sends the variable's `k`th level right,
-except that a rule on a factor of more than 53 levels has no
-double-exact mask and its value is `NA` (the `directions` column still
-carries its decode). When the sampler has any categorical predictors the
-result gains a `directions` column decoding each categorical rule into
-one `"L"`/`"R"` character per level, in level order; ordinal rules and
-leaves are `NA`. When any predictor contains missing values the result
-gains a `missing` column giving the branch (`"L"`/`"R"`) each rule sends
-missing values down; rules on complete columns and leaves are `NA`.
-Under a `linear` node prior each leaf's `value` is its intercept and the
-result gains one `beta.<column>` column per designated covariate holding
-that leaf's slope on the internal standardized scale; internal nodes are
-`NA`.
+equal to it go left; a categorical rule carries no data value (its
+`value` is `NA`) and its split is reported in the `directions` column
+instead. When the sampler has any categorical predictors the result
+gains a `directions` column decoding each categorical rule into one
+`"L"`/`"R"` character per level, in level order (level `k` goes right
+when its character is `"R"`); ordinal rules and leaves are `NA`. When
+any predictor contains missing values the result gains a `missing`
+column giving the branch (`"L"`/`"R"`) each rule sends missing values
+down; rules on complete columns and leaves are `NA`. Under a `linear`
+node prior each leaf's `value` is its intercept and the result gains one
+`beta.<column>` column per designated covariate holding that leaf's
+slope on the internal standardized scale; internal nodes are `NA`.
 
 ## See also
 

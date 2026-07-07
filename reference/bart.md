@@ -126,7 +126,8 @@ residuals(object, type = "ev", ...)
 - sigdf:
 
   Degrees of freedom for error variance prior. Not applicable when \\y\\
-  is binary.
+  is binary. Default 3, Chipman, George, and McCulloch's calibration
+  (see References); an aggressive choice rather than a derived one.
 
 - sigquant:
 
@@ -134,7 +135,8 @@ residuals(object, type = "ev", ...)
   (`sigest`) is placed at. The closer the quantile is to 1, the more
   aggresive the fit will be as you are putting more prior weight on
   error standard deviations (\\\sigma\\) less than the rough estimate.
-  Not applicable when \\y\\ is binary.
+  Not applicable when \\y\\ is binary. Default 0.90, from the same
+  source as `sigdf`.
 
 - k:
 
@@ -151,15 +153,29 @@ residuals(object, type = "ev", ...)
   `chi(degreesOfFreedom = 1.25, scale = Inf)`. For `bart2`, the default
   of `NULL` uses the value 2 for continuous reponses and a `chi`
   hyperprior for binary ones. The default `chi` hyperprior is improper,
-  and slightly penalizes small values of `k`.
+  and slightly penalizes small values of `k`. The default of 2 for
+  continuous responses follows Chipman, George, and McCulloch's argument
+  (see References) that with node prior standard deviation \\\sigma\_\mu
+  = 0.5 / (k \sqrt{m})\\ for \\m\\ trees, \\k\\ prior standard
+  deviations of \\f(x)\\ span the whole coded response range regardless
+  of \\m\\ – so \\k = 2\\ places that range at roughly a 95% prior
+  interval. The range scaling itself is an outlier-sensitive convention
+  shared with BayesTree/bartMachine: extreme \\y\\ values compress the
+  effective prior on everything else, for which the published workaround
+  is to log-transform or winsorize such values before fitting, or to let
+  `k` adapt via the `chi` hyperprior.
 
 - power:
 
-  Power parameter for tree prior.
+  Power parameter for tree prior. Default 2, Chipman, George, and
+  McCulloch's empirical recommendation (see References) for the
+  split-probability decay \\base (1 + depth)^{-power}\\, not derived
+  from a formula.
 
 - base:
 
-  Base parameter for tree prior.
+  Base parameter for tree prior. Default 0.95, from the same source as
+  `power`.
 
 - splitprobs, split.probs:
 
@@ -729,7 +745,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.254964
+#> total seconds in loop: 0.230247
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
@@ -795,7 +811,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001420
+#> total seconds in loop: 0.001396
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 

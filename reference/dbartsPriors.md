@@ -35,7 +35,13 @@ A list of functions:
   Normal prior on the node means. `k` scales the standard deviation and
   can be a positive scalar, a hyperprior built with `chi`, or `NULL` for
   the default: 2 for continuous responses, `chi(1.25, Inf)` for binary
-  ones.
+  ones. The continuous default follows Chipman, George, and McCulloch's
+  argument that with node standard deviation
+  `sigma_mu = 0.5 / (k * sqrt(m))` for `m` trees, `k` prior standard
+  deviations of \\f(x)\\ span the whole response range regardless of
+  `m`; see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  Details for the response-scaling caveat this relies on.
 
 - `linear(columns, k = NULL)`:
 

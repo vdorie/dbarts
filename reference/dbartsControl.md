@@ -67,7 +67,9 @@ dbartsControl(
 - n.trees:
 
   A positive integer giving the number of trees used in the sum-of-trees
-  formulation.
+  formulation. Default 75, dbarts's own historical choice; BayesTree's
+  and [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  default is 200.
 
 - n.chains:
 

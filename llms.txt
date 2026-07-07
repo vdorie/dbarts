@@ -112,8 +112,6 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`printTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`startThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  [`stopThreads(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   : Class "dbartsSampler" of Discrete Bayesian Additive Regression Trees
   Sampler
 - [`dbartsControl()`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)

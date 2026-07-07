@@ -120,7 +120,9 @@ dbarts(
   squared-exponential kernel; leaves larger than `max.leaf.size` fall
   back to constant fits.
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
-  the same specifications through its own `node.prior` argument.
+  the same specifications through its own `node.prior` argument. See
+  “Response scaling” below for how `k` interacts with the response's
+  internal scaling.
 
 - resid.prior:
 
@@ -198,6 +200,33 @@ C++ that is largely obscured from R. The `dbarts` function is the
 primary way of creating a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
 for which a variety of methods exist.
+
+### Test offset synchronization
+
+When `offset.test` is left at its default of tracking `offset`, the
+sampler links the two: the sampler's `setOffset` method re-derives
+`offset.test` from each new `offset` it is given. Calling the sampler's
+`setTestOffset` or `setTestPredictorAndOffset` methods breaks this link
+– `offset.test` is set independently from then on, and the link never
+re-forms, even if the two are later set to equal values.
+
+### Response scaling
+
+Continuous responses are range-scaled internally: `y` (net of `offset`)
+is mapped to \\\[-0.5, 0.5\]\\ by its observed minimum and maximum, the
+convention of the entire BART software lineage (BayesTree, BART,
+bartMachine), which is what lets `k` (see `node.prior` above) and its
+defaults transfer across packages and papers. The known caveat is
+outlier sensitivity: extreme `y` values stretch the range and compress
+the effective leaf prior for everything else; the published workaround
+is to log-transform or winsorize such values before fitting, or to let
+`k` adapt via the `chi` hyperprior
+([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
+The scale is fixed when the sampler is created; the sampler's
+`setResponse` and `setOffset` methods only re-anchor it when called with
+`updateScale = TRUE`, intended for burn-in only, since re-anchoring
+mid-run makes fits across iterations no longer comparable (see
+[dbartsSampler-class](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 
 ## Value
 

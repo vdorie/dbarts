@@ -96,14 +96,58 @@ The columns refer to:
   `newdata` when it is supplied; see “Counts for New Data” below)
 - `var` - either the index of the variable used for splitting or -1 if
   the node is a leaf
-- `value` - either the value such that observations less than or equal
-  to it are sent down the left path of the tree or the predicted value
-  for a leaf node
+- `value` - the cut point for an ordinal split (observations less than
+  or equal to it go left); `NA` for a categorical split (see
+  “Categorical Splits” below); otherwise the leaf’s fitted value, which
+  is its intercept under a linear leaf and `NA` under a Gaussian-process
+  leaf (its fit is a function of the leaf’s covariates rather than a
+  scalar - see `predict` for those)
+- `directions` - present when the sampler has any categorical predictor:
+  for a categorical split, one `"L"`/`"R"` character per level in level
+  order, giving the branch that level is sent down; `NA` for ordinal
+  splits and for leaves
+- `missing` - present when any predictor has missing values: `"L"`/`"R"`
+  giving the branch an `NA` on the split variable follows; `NA` where
+  the rule has no missing values to route
+- `beta.<column>` - one per covariate designated by a `linear` or `gp`
+  node prior, holding that leaf’s coefficient; `NA` on internal nodes,
+  absent entirely under the default constant leaf
 
 The mapping between the values of `var` and the variable names can be
 looked up in the internal copy of the data that the sampler stores. This
 can be found in a fitted model as the element `fit$data@x`, as seen
 below.
+
+## Categorical Splits
+
+A categorical predictor’s rule sends a subset of its levels down each
+branch rather than cutting at a threshold, so it cannot be summarized by
+a single cut point: `value` is `NA` for these rules, and the split
+instead appears in `directions`.
+
+``` r
+
+set.seed(77)
+n.cat <- 60
+g <- factor(sample(letters[1:4], n.cat, replace = TRUE))
+y.cat <- ifelse(g %in% c("a", "b"), 5, -5) + rnorm(n.cat, 0, 0.5)
+
+catFit <- bart2(y ~ g, data.frame(y = y.cat, g = g),
+               n.trees = 3L, n.samples = 1L, n.burn = 20L, n.chains = 1L,
+               n.threads = 1L, keepTrees = TRUE, seed = 0, verbose = FALSE)
+catTrees <- extract(catFit, "trees")
+print(subset(catTrees, var != -1))
+```
+
+    ##   sample tree  n var value directions
+    ## 1      1    1 60   1    NA       LLRR
+    ## 4      1    2 60   1    NA       RLLR
+    ## 7      1    3 60   1    NA       LRRL
+
+`g`’s levels are `"a"`, `"b"`, `"c"`, `"d"`, in that order, so the first
+tree’s `directions` of `"LLRR"` sends `a` and `b` left and `c` and `d`
+right; `plotTree` labels the same rule with the levels its left branch
+takes, `"g in {a,b}"`.
 
 ## Tree Traversal
 
@@ -118,6 +162,10 @@ ahead the appropriate number of rows. For example:
 # Turns a flatted tree data frame into a list of lists, or a "natural" tree
 # structure.
 rebuildTree <- function(tree, object) {
+    # A linear leaf's beta.<column> columns ride along automatically; a
+    # constant leaf has none.
+    slopeColumns <- names(tree)[startsWith(names(tree), "beta.")]
+
     # Define a worker function that will be recursively called on every node.
     rebuildTreeRecurse <- function(tree) {
         node <- list(
@@ -126,32 +174,35 @@ rebuildTree <- function(tree, object) {
         )
         # Check node if is a leaf, and if so return early.
         if (tree$var[1] == -1) {
+            if (length(slopeColumns) > 0) {
+                node$beta <- unlist(tree[1, slopeColumns])
+            }
             node$n_nodes <- 1
             return(node)
         }
-        
+
         node$var <- variableNames[tree$var[1]]
-        
+
         # By removing the current row, we can recurse down the left branch.
         headOfLeftBranch <- tree[-1,]
         left <- rebuildTreeRecurse(headOfLeftBranch)
         n_nodes.left <- left$n_nodes
         left$n_nodes <- NULL
         node$left <- left
-        
+
         # The right branch is obtained by advancing past the left nodes.
         headOfRightBranch <- tree[seq.int(2 + n_nodes.left, nrow(tree)),]
         right <- rebuildTreeRecurse(headOfRightBranch)
         n_nodes.right <- right$n_nodes
         right$n_nodes <- NULL
         node$right <- right
-        
+
         node$n_nodes <- 1L + n_nodes.left + n_nodes.right
-        
+
         return(node)
     }
     variableNames <- colnames(object$fit$data@x)
-    
+
     result <- rebuildTreeRecurse(tree)
     result$n_nodes <- NULL
     return(result)
@@ -279,6 +330,56 @@ print(rebuildTree(treeOfInterest, bartFit))
     ## $right$right$n
     ## [1] 47
 
+Under a `linear` node prior, the same function attaches each leaf’s
+slopes as `$beta`:
+
+``` r
+
+set.seed(21)
+n.lin <- 60
+x1.lin <- runif(n.lin); x2.lin <- runif(n.lin)
+y.lin <- 3 * x1.lin + rnorm(n.lin, 0, 0.2)
+
+linearFit <- dbarts(
+    y.lin ~ x1.lin + x2.lin, data.frame(x1.lin, x2.lin, y.lin),
+    node.prior = linear("x1.lin"),
+    control = dbartsControl(n.trees = 3L, n.chains = 1L, n.threads = 1L,
+                            keepTrees = TRUE, n.samples = 2L, n.burn = 10L))
+invisible(linearFit$run())
+linearTrees <- subset(linearFit$getTrees(), sample == 1 & tree == 1)
+print(rebuildTree(linearTrees, list(fit = linearFit)))
+```
+
+    ## $value
+    ## [1] 0.85091
+    ## 
+    ## $n
+    ## [1] 60
+    ## 
+    ## $var
+    ## [1] "x1.lin"
+    ## 
+    ## $left
+    ## $left$value
+    ## [1] -0.09040705
+    ## 
+    ## $left$n
+    ## [1] 50
+    ## 
+    ## $left$beta
+    ## [1] 0.193001
+    ## 
+    ## 
+    ## $right
+    ## $right$value
+    ## [1] 0.1956038
+    ## 
+    ## $right$n
+    ## [1] 10
+    ## 
+    ## $right$beta
+    ## [1] -0.01612203
+
 Using a `by` statement, it is possible to “rebuild” all trees at once:
 
 ``` r
@@ -310,7 +411,11 @@ bartFit$fit$plotTree(chainNum = 1, sampleNum = 3, treeNum = 1)
 The following function traverses a flattened tree, splits observations
 while going the branches, and populates a vector giving the predicted
 value of that tree on input data. It requires a data in the same format
-as the fitted bart model so that it can evaluate the splits.
+as the fitted bart model so that it can evaluate the splits. As written
+it assumes an ordinal split and a constant leaf; a categorical split’s
+condition instead reads `directions`, and a linear or gp leaf’s fitted
+value depends on the leaf’s covariates rather than being a single
+number - use `predict` for those.
 
 ``` r
 
