@@ -1664,6 +1664,60 @@ static void testMapOldCutPointsOntoNew() {
   printf("ok: mapOldCutPointsOntoNew\n");
 }
 
+static void testMapOldCutPointsStarvedWeightedMerge() {
+  // an interval-starved collapse merges its occupied leaves by effective
+  // observation count, not the plain mean: split unevenly so the two leaves
+  // carry unequal weight, then starve the subtree and check the merged param
+  const size_t n = 8;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i + 1);
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, 7, true);
+  std::vector<std::vector<double>> oldCuts(store.cutPoints);
+
+  std::vector<size_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  Rule rootRule;  rootRule.variableIndex = 0;  rootRule.setSplitIndex(5);
+  tree.birth(store, 0, rootRule, y.data(), nullptr);
+  Rule leftRule;  leftRule.variableIndex = 0;  leftRule.setSplitIndex(0);
+  tree.birth(store, tree.at(0).leftChild, leftRule, y.data(), nullptr);
+  int32_t leftChild = tree.at(0).leftChild;
+
+  std::vector<int32_t> bottoms;
+  tree.fillBottom(leftChild, bottoms);
+  check(bottoms.size() == 2, "starved subtree has two occupied leaves");
+  std::vector<double> params(tree.nodes.size(), 0.0);
+  double num = 0.0, den = 0.0;
+  for (size_t k = 0; k < bottoms.size(); ++k) {
+    double p = static_cast<double>(2 * k);
+    params[static_cast<size_t>(bottoms[k])] = p;
+    double w = tree.at(bottoms[k]).sumWeights;
+    num += w * p;
+    den += w;
+  }
+  double weightedMean = num / den;
+  double plainMean = (params[static_cast<size_t>(bottoms[0])] +
+                      params[static_cast<size_t>(bottoms[1])]) / 2.0;
+  check(tree.at(bottoms[0]).sumWeights != tree.at(bottoms[1]).sumWeights,
+        "leaves carry unequal weight");
+  check(weightedMean != plainMean, "weighted and plain merges differ");
+
+  // shift the grid entirely above the old cuts: the root clamps to index 0,
+  // leaving the left child no interval, so its subtree collapses
+  std::vector<double> x2(n);
+  for (size_t i = 0; i < n; ++i) x2[i] = 20.0 + 2.0 * static_cast<double>(i);
+  store.setData(x2.data(), n);
+
+  tree.mapOldCutPointsOntoNew(store, oldCuts, params);
+  check(tree.at(leftChild).isBottom(), "interval-starved subtree collapses");
+  checkNear(params[static_cast<size_t>(leftChild)], weightedMean, 1e-15,
+            "collapsed subtree takes the effective-count-weighted mean");
+
+  printf("ok: mapOldCutPointsStarvedWeightedMerge\n");
+}
+
 static void testSetData(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -6719,6 +6773,7 @@ int main(int argc, char** argv) {
   testMultiChain();
   testMultiChainMutation();
   testMapOldCutPointsOntoNew();
+  testMapOldCutPointsStarvedWeightedMerge();
   testSetData(rng);
   testSetResponseScaleLock(rng);
   testSetDataResize(rng);
