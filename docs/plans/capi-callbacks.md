@@ -125,7 +125,13 @@ reads exercised (grouped fit built via the bartcore.groups control
 attribute). Gates (implementer ran, reviewer re-ran): component
 tests pass, tinytest 2419/0 (10 new), equivalence exact 18/18
 identical draws vs 235bebc, test-capi.R compiled and exercised
-(not skipped), air/lintr clean. Remaining lockstep item, recorded
+(not skipped), air/lintr clean. Postscript: sanitizers CI (run
+28888138253, valgrind + clang-asan; gcc-asan's stack happened to be
+zero) caught the pre-existing capi_run helper leaving the new
+tau/groupEffects members indeterminate - the exact hazard the
+Decision block flags for stan4bart, tripped by our own consumer.
+Fixed 68dae55: every consumer.c results struct is value-initialized
+and the dbarts.h comment mandates `= {0}` for callers. Remaining lockstep item, recorded
 in the Decision block: stan4bart value-initializes its
 dbarts_results member (one line, bart_util.hpp) before submission.
 The rbart_vi loop fix rides this hook; its plan is
