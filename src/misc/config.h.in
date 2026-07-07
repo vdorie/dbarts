@@ -27,9 +27,6 @@
 /* Define to 1 if you have the alloca header file. */
 #undef HAVE_ALLOCA_H
 
-/* Define to 1 if you have the malloc header file. */
-#undef HAVE_MALLOC_H
-
 /* Define to 1 if you have the function ffs. */
 #undef HAVE_FFS
 
@@ -51,28 +48,3 @@
 /* Define to the integer type to be used to map the floating point x to
    integer types. Essentially limits the number of cut points allowable. */
 #undef XINT_TYPE
-
-/* Define 1 to if your processor supports Altivec. */
-#undef HAVE_ALTIVEC
-
-/* Define for Solaris 2.5.1 so the uint64_t typedef from <sys/synch.h>,
-   <pthread.h>, or <semaphore.h> is not used. If the typedef was allowed, the
-   #define below would cause a syntax error. */
-#undef _UINT64_T
-
-/* Define to the type of a signed integer type of width exactly 64 bits if
-   such a type exists and the standard includes do not define it. */
-#undef int64_t
-
-/* Define to the type of an unsigned integer type of width exactly 64 bits if
-   such a type exists and the standard includes do not define it. */
-#undef uint64_t
-
-/* Define to 1 if words are stored in a big-endian format. */
-#undef WORDS_BIGENDIAN
-
-/* Define to 1 if `posix_memalign' works. */
-#undef HAVE_POSIX_MEMALIGN
-
-#undef SIZEOF_SIZE_T
-#undef ALIGNOF_VOIDP

@@ -10,19 +10,15 @@ INST_DIR=../inst
 # us and re-use the preprocessor and linker flags depending on which compiler is being used
 #
 # specifically, gcc/clang have to reuse the compiler flag for linking as the lib flag is empty
-# while oracle developer studio has to use both flags in all places
-COMPILER.sun=sun
 COMPILER.clang=clang
 COMPILER.gnu=gnu
 COMPILER.=default
 COMPILER=$(COMPILER.@COMPILER_VENDOR@)
 
-PTHREAD_CPPFLAGS.sun = @PTHREAD_CFLAGS@ @PTHREAD_LIBS@
 PTHREAD_CPPFLAGS.clang = @PTHREAD_CFLAGS@
 PTHREAD_CPPFLAGS.gnu = @PTHREAD_CFLAGS@
 PTHREAD_CPPFLAGS.default = @PTHREAD_CFLAGS@
 
-PTHREAD_LIBS.sun = @PTHREAD_CFLAGS@ @PTHREAD_LIBS@
 PTHREAD_LIBS.clang = @PTHREAD_CFLAGS@
 PTHREAD_LIBS.gnu = @PTHREAD_CFLAGS@
 PTHREAD_LIBS.default = @PTHREAD_LIBS@
@@ -35,9 +31,7 @@ PTHREAD_LIBS = $(PTHREAD_LIBS.$(COMPILER))
 CXX_STD = CXX20
 
 PKG_CPPFLAGS=-I$(INST_DIR)/include -Iinclude $(PTHREAD_CPPFLAGS)
-# on Solaris, we need to include a flag to the linker
-# since there is no PKG_LDFLAGS, we include that here
-PKG_LIBS=@MAPFILE_FLAG@ external.a misc.a rc.a $(PTHREAD_LIBS)
+PKG_LIBS=external.a misc.a rc.a $(PTHREAD_LIBS)
 
 BOOL,true = true
 BOOL,false = false

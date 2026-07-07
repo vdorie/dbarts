@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 #include <vector>
 
 #include <external/io.h>
@@ -612,6 +613,10 @@ public:
     }
     return lo;
   }
+
+  // pins the misc partition kernels' integer width; a mismatch would
+  // silently truncate the cut-index casts below
+  static_assert(std::is_same_v<misc_xint_t, std::uint16_t>);
 
   /// Partition a node's observations between its children by its rule.
   void partitionChildren(const ColumnStore& data, int32_t nodeIndex) {
