@@ -201,7 +201,7 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   uint32_t* varcount =
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
-  dbarts_results results;
+  dbarts_results results = {0};
   results.sigma = REAL(sigmaExpr);
   results.train = keepTrain ? REAL(trainExpr) : NULL;
   results.test = keepTest && nTest > 0 ? REAL(testExpr) : NULL;
@@ -279,7 +279,7 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   uint32_t* varcount =
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
-  dbarts_results results;
+  dbarts_results results = {0};
   results.sigma = REAL(sigmaExpr);
   results.train = REAL(trainExpr);
   results.test = NULL;
@@ -332,7 +332,7 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   SEXP ranefExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numGroups * numSamples * chains)));
 
-  dbarts_results results;
+  dbarts_results results = {0};
   results.sigma = REAL(sigmaExpr);
   results.train = NULL;
   results.test = NULL;
