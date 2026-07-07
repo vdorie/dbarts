@@ -50,8 +50,8 @@ simd.source.neon = $(simd.source.neon.$(have.neon))
 simd.sources = $(simd.source.avx2) $(simd.source.neon)
 simd.objects = $(simd.sources:.c=.o)
 
-LOCAL_SOURCES=adaptiveRadixTree.c binaryIO.c blockingThreadManager.c hierarchicalThreadManager.c io.c linearAlgebra.c moments.c partition.c simd.c string.c thread.c $(simd.sources)
-LOCAL_OBJECTS=adaptiveRadixTree.o binaryIO.o blockingThreadManager.o hierarchicalThreadManager.o io.o linearAlgebra.o moments.o partition.o simd.o string.o thread.o $(simd.objects)
+LOCAL_SOURCES=blockingThreadManager.c hierarchicalThreadManager.c io.c linearAlgebra.c moments.c partition.c simd.c thread.c $(simd.sources)
+LOCAL_OBJECTS=blockingThreadManager.o hierarchicalThreadManager.o io.o linearAlgebra.o moments.o partition.o simd.o thread.o $(simd.objects)
 
 all : library
 
@@ -65,9 +65,7 @@ clean :
 
 rebuild : clean all
 
-$(INCLUDE_DIR)/misc/adaptiveRadixTree.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/alloca.h : $(INCLUDE_DIR)/misc/stddef.h
-$(INCLUDE_DIR)/misc/binaryIO.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/intrinsic.h :
 $(INCLUDE_DIR)/misc/io.h :
 $(INCLUDE_DIR)/misc/linearAlgebra.h : $(INCLUDE_DIR)/misc/stddef.h
@@ -75,14 +73,7 @@ $(INCLUDE_DIR)/misc/partition.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/simd.h :
 $(INCLUDE_DIR)/misc/stats.h : $(INCLUDE_DIR)/misc/stddef.h $(INCLUDE_DIR)/misc/thread.h
 $(INCLUDE_DIR)/misc/stddef.h :
-$(INCLUDE_DIR)/misc/string.h : $(INCLUDE_DIR)/misc/stddef.h
 $(INCLUDE_DIR)/misc/thread.h : $(INCLUDE_DIR)/misc/stddef.h
-
-adaptiveRadixTree.o : adaptiveRadixTree.c $(INCLUDE_DIR)/misc/adaptiveRadixTree.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) $(SSE2_FLAG) -c adaptiveRadixTree.c -o adaptiveRadixTree.o
-
-binaryIO.o : binaryIO.c $(INCLUDE_DIR)/misc/binaryIO.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c binaryIO.c -o binaryIO.o
 
 blockingThreadManager.o : blockingThreadManager.c $(INCLUDE_DIR)/misc/thread.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c blockingThreadManager.c -o blockingThreadManager.o
@@ -168,9 +159,6 @@ partition_neon.o : partition_neon.c $(INCLUDE_DIR)/misc/partition.h partition_bo
 
 simd.o : simd.c $(INCLUDE_DIR)/misc/simd.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c simd.c -o simd.o
-
-string.o : string.c $(INCLUDE_DIR)/misc/string.h
-	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c string.c -o string.o
 
 thread.o : thread.c $(INCLUDE_DIR)/misc/thread.h pthread.h
 	$(CC) $(ALL_CPPFLAGS) $(ALL_CFLAGS) -c thread.c -o thread.o
