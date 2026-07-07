@@ -1167,6 +1167,92 @@ static void testSetPredictorForced(ext_rng* rng) {
   printf("ok: forced setPredictor\n");
 }
 
+// A forced re-cut over a near-constant column once built a non-ascending
+// uniform grid getState serialized and setState then refused. The re-cut now
+// refuses, keeping the old ascending grid, so the own-state round-trips.
+static void testDegenerateReCutRoundTrips(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ClassicSampler& sampler(*samplerPtr);
+
+  std::vector<double> cutsBefore(sampler.data().cutPoints[0]);
+  std::vector<double> xDegenerate(x);
+  for (size_t i = 0; i < n; ++i) xDegenerate[i] = 0.5;  // column 0 constant
+  check(sampler.setPredictor(xDegenerate.data(), true, true) ==
+          PredictorUpdateResult::accepted,
+        "forced re-cut over a constant column accepted");
+  check(sampler.data().cutPoints[0] == cutsBefore,
+        "degenerate re-cut keeps the old ascending grid");
+
+  SamplerStateData st, st2;
+  sampler.getState(st);
+  check(sampler.setState(st), "state over a degenerate column restores");
+  sampler.getState(st2);
+  check(statesAgree(st, st2), "degenerate-column state round trip agrees");
+  printf("ok: degenerate re-cut round trip\n");
+}
+
+static int countCatMissingRight(const Tree& t, int32_t i, size_t col) {
+  const Node& nd(t.at(i));
+  if (nd.isBottom()) return 0;
+  int here = (static_cast<size_t>(nd.rule.variableIndex) == col &&
+              nd.rule.missingGoesRight()) ? 1 : 0;
+  return here + countCatMissingRight(t, nd.leftChild, col) +
+         countCatMissingRight(t, nd.leftChild + 1, col);
+}
+
+// A category-changing mutation once left a live rule routing a missing value
+// right after its column stopped holding one, so getState emitted a mask
+// outside the reachable gauge and setState refused. The mutation now drops the
+// stale direction, so the own-state round-trips.
+static void testCategoricalMissingRoundTrips(ext_rng* rng) {
+  const size_t n = 300, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    bool missing = runif01() < 0.25;
+    x[i] = missing ? std::nan("")
+                   : static_cast<double>(static_cast<int>(runif01() * 3.0) % 3);
+    x[i + n] = runif01();
+    double cat = missing ? 1.5 : x[i];
+    y[i] = 3.0 * (cat - 1.0) + 2.0 * (x[i + n] - 0.5) + 0.2 * (runif01() - 0.5);
+  }
+  x[0] = 0.0; x[1] = 1.0; x[2] = 2.0;  // every category present
+
+  std::vector<ColumnType> types = {ColumnType::categorical,
+                                   ColumnType::ordinal};
+  SamplerOptions options;
+  options.numTrees = 50;
+  options.columnTypes = types.data();
+  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(200, 0, empty);
+
+  int missingRight = 0;
+  for (size_t t = 0; t < options.numTrees; ++t)
+    missingRight += countCatMissingRight(sampler.chain(0).tree(t), 0, 0);
+  check(missingRight > 0, "burn-in routes a categorical missing value right");
+
+  // drop every missing value: hasMissing flips false, leaving those rules
+  // routing a category the column no longer reaches
+  std::vector<double> noMissing(x.begin(), x.begin() + n);
+  for (double& v : noMissing) if (std::isnan(v)) v = 1.0;
+  size_t col0 = 0;
+  check(sampler.updatePredictor(noMissing.data(), &col0, 1, true, false) ==
+          PredictorUpdateResult::accepted,
+        "forced drop of the categorical missing values accepted");
+
+  SamplerStateData st, st2;
+  sampler.getState(st);
+  check(sampler.setState(st), "categorical state restores after missing drop");
+  sampler.getState(st2);
+  check(statesAgree(st, st2), "categorical missing-drop round trip agrees");
+  printf("ok: categorical missing round trip\n");
+}
+
 static void testUpdatePredictorColumns(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -6559,12 +6645,12 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         break;
       }
       case OP_STATE: {
-        // Round trip through serialization. setState may legitimately refuse
-        // an own-state that its rebuild cannot represent (a degenerate
-        // uniform-cut grid, or a categorical mask left non-canonical by a
-        // category-changing mutation - both triaged, not rollback bugs); its
-        // contract is only that a refusal leaves the sampler untouched, like a
-        // rejected transaction, while a restore reproduces the model.
+        // Round trip through serialization. The degenerate-re-cut and
+        // category-changing-mutation edges now round-trip (fixed at their
+        // sources; see testDegenerateReCutRoundTrips and
+        // testCategoricalMissingRoundTrips); setState may still refuse an
+        // own-state whose rebuild it cannot represent, e.g. a cut-grid change
+        // that orphans a split, but only by leaving the sampler untouched.
         SamplerStateData st;
         s.getState(st);
         record("op state");
@@ -6764,6 +6850,8 @@ int main(int argc, char** argv) {
   testColumnStoreMutation();
   testSetPredictorTransaction(rng);
   testSetPredictorForced(rng);
+  testDegenerateReCutRoundTrips(rng);
+  testCategoricalMissingRoundTrips(rng);
   testUpdatePredictorColumns(rng);
   testPerObservationUpdate(rng);
   testJointPerObservationUpdate();

@@ -389,11 +389,26 @@ struct ColumnStore {
     }
   }
 
+  /// No two observed values differ, so a fixed-count uniform grid of two or
+  /// more cuts would repeat a value rather than strictly ascend.
+  bool valuesAreDegenerate(const double* values) const {
+    size_t i = 0;
+    while (i < numObservations && isNA(values[i])) ++i;
+    if (i >= numObservations) return true;
+    double first = values[i];
+    for (++i; i < numObservations; ++i)
+      if (!isNA(values[i]) && values[i] != first) return false;
+    return true;
+  }
+
   /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
-  /// In quantile mode fewer induced cuts than existing would leave splits
-  /// invalid: returns false, having changed nothing (extra induced cuts are
-  /// silently thinned, as in the reference engine). Categorical columns have
-  /// nothing to refresh; the caller pre-checked value validity.
+  /// Refuses (returns false, keeping the old grid) when the fixed count cannot
+  /// yield a strictly ascending grid: quantile mode with fewer induced cuts
+  /// than existing (extra induced cuts are silently thinned, as in the
+  /// reference engine), or a degenerate range under two or more uniform cuts
+  /// (a re-cut there would repeat a value). A forced update then routes the
+  /// new values through the retained grid and collapses what empties.
+  /// Categorical columns have nothing to refresh; the caller pre-checked.
   bool refreshCutsForColumn(size_t j) {
     if (types[j] == ColumnType::categorical) return true;
     if (useQuantiles) {
@@ -401,6 +416,8 @@ struct ColumnStore {
       if (grid.inducedNumCuts < numCuts[j]) return false;
       fillCutsFromQuantileGrid(j, grid);
     } else {
+      if (numCuts[j] >= 2 && valuesAreDegenerate(denseSourceColumn(j)))
+        return false;
       fillCutsUniformly(j);
     }
     return true;
