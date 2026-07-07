@@ -12,6 +12,12 @@ name: sanitizers
 on:
   push:
     branches: [bartcore]
+    # instrumented rebuilds cost ~an hour; documentation-only pushes
+    # cannot change what they test
+    paths-ignore:
+      - 'docs/**'
+      - 'TODO'
+      - '**.md'
   workflow_dispatch:
 
 permissions: read-all
