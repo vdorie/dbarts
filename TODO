@@ -17,13 +17,6 @@ items
     the current engine design (layers, dispatch tiers, concepts, data
     model, mutation surface) out of the design docs' landing-note
     history; seeds from readability-review's current-state section.
-  autoconf-dead-code: drop the --with-xint-size knob (non-default
-    widths no longer compile: bartcore pins xint_t = uint16_t and
-    passes pointers uncast into the misc kernels), pin misc_xint_t with
-    a boundary static_assert; delete the Solaris/sun machinery,
-    consumerless configure checks, and the dead misc.a members
-    (binaryIO, adaptiveRadixTree, string). Thread managers stay
-    (within-chain-threading's substrate).
   blocked-jacobi-trees: exact parallel tree updates via noise-splitting
     augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
     sum-constrained): b trees update independently per barrier at the

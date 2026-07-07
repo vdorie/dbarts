@@ -67,3 +67,23 @@ must stay in sync with the pruned set.
 - cd tests/cpp && make && ./test_bartcore passes.
 - tinytest::test_package("dbarts") passes.
 - Equivalence compare vs current baseline reports exact (neutral).
+
+## Landing note (2026-07-07, 091ffb9)
+
+Landed: binaryIO/adaptiveRadixTree/string (and memalign.h) deleted;
+the --with-xint-size knob removed with the width pinned by
+AC_DEFINE(XINT_TYPE, uint16_t) plus a static_assert at tree.hpp's
+first kernel use (mirrored on the .win types path); Solaris block,
+MAPFILE_FLAG, and the consumerless checks pruned from configure.ac
+and the config templates (.win kept in sync); seven m4 files deleted
+(the plan's four Solaris ones by the implementer; three more left
+orphaned by the pruning - posix_memalign and the two namespace-std
+probes - removed by the reviewer after a zero-reference grep).
+autoreconf regenerated configure (-2500 lines net). Net deletion
+~-3700 non-generated lines vs the ~-800 estimate: an estimate miss,
+not scope creep (the radix tree and binaryIO alone are 2200). Gates:
+fresh cleanup/autoreconf/configure/preclean install; zero-hit greps
+over the deleted symbols; component tests + fuzzer; tinytest 2468 ok;
+equivalence exact 18/18. Windows parity is template-synced but only
+compile-verified by CI after the next push. CLAUDE.local.md's misc.a
+description updated at landing (step 6, orchestrator-applied).
