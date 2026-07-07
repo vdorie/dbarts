@@ -76,10 +76,10 @@ items
     hook the design provisioned.
   multi-forest-models: multinomial, heteroscedastic, hurdle - queued
     behind forest-split-bcf; one design note each when picked.
-  mutation-fuzzing: property test driving random mutation-op sequences
-    and asserting well-formedness, fit consistency, and rollback
-    integrity; the transactional surface is the package's most
-    state-heavy code.
+  fuzz-state-roundtrip: fix the two state-serialization edges the
+    mutation fuzzer found (degenerate uniform re-cut grid; non-canonical
+    categorical mask on flatten); setState must accept every state a
+    live sampler reaches. Triaged from mutation-fuzzing, 2026-07-07.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.

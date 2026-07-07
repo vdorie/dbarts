@@ -57,3 +57,22 @@ surface before users find them.
 - The fuzzer passes clean over >= 20 seeds locally, 3 in CI.
 - Deliberately breaking a rollback path (locally, reverted) makes it
   fail with a usable trace - prove the harness can catch.
+
+## Landing note (2026-07-07, 44cee98)
+
+Landed: testMutationFuzzer in tests/cpp - 8 configurations x 13
+weighted ops with invariants after every op (well-formed trees with
+exact range nesting and occupancy, totalFits resum, rejected
+transactions bitwise-stable via fingerprint, run finite, semantic
+state round-trip); replayable seed + op trace on failure; main takes
+a seed count (CI runs 3, default 20, clean at 100; whole binary
+~2.4s). Sabotage-proofed: a removed rollback restore fails with a
+usable trace. Deviations: setCell is store-level, not on the Sampler
+surface, so not fuzzed; quantile-infeasible cuts exercised via
+invalid categorical codes. FOUND two latent state-serialization
+edges, triaged to fuzz-state-roundtrip (not fixed in-band): forced
+re-cut of a near-constant column installs a non-ascending uniform
+grid, and a category-mutated live mask fails the canonical-gauge
+check on flatten - both make setState refuse the sampler's own state
+(cleanly; nothing corrupts). Gates: full C++ suite + fuzzer 20 seeds,
+diff confined to tests/cpp + cpp-tests.yaml, tinytest All ok 2468.
