@@ -65,6 +65,16 @@ items
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked.
+  change-move-balance: correctness-audit block-2 finding, numerically
+    CONFIRMED (z = +479 vs the exact posterior; benchmarks/R/
+    change-balance.R; full record in docs/plans/correctness-audit.md).
+    The change move omits its proposal-density ratio, so tree
+    structures over-weight low-cardinality / descendant-constrained
+    split variables whenever effective cut counts are unequal.
+    INHERITED from the classic engine (and its CGM lineage); not a
+    rewrite regression. AWAITING VD: fix decision (posterior-changing
+    class; candidate shapes in the audit plan; changes 15-year-old
+    semantics and invalidates draw-for-draw comparisons to 0.9-x).
   moves-degenerate-root-guard: correctness-audit block-1 finding. A
     single-node tree with no available split variable forces a birth
     (drawBirthableNode's hasSingleNode branch skips the availability
