@@ -184,6 +184,45 @@ validation messages package-wide; standardize message register;
 centralize deprecation shims; threaded prediction; announce
 character-to-factor promotion.
 
+TASTE CALLS DECIDED (VD, 2026-07-08): "Now is the time to do these
+updates. It took 15 years to get to 1.0, there's no good reason to
+defer." Nothing moves to 2.0.
+T1. Unify combineChains NOW (stored-object default FALSE family-
+    wide, accessors keep TRUE).
+T2. Chain-first trees column order everywhere (extract.rbart
+    changes to match bart/getTrees).
+T3. Thread weights into rbart's PPD draws.
+T4. Investigate the delayedAssign interaction first (an unforced
+    state promise already materializes CURRENT state at first
+    access, so mutate-then-first-save is covered; staleness arises
+    only after the promise was forced/stored, then mutated). Then
+    wire updateState in the seven mutators as an OPT-IN store
+    (explicit TRUE stores; the default must not tax Gibbs loops).
+    If the NA-default semantics get murky against run()'s
+    NA -> control@updateState convention, ask VD before landing.
+T5. Per recommendation: decide the rbart_vi k default with
+    chi-default-research; doc-only for now (rbart.Rd stops claiming
+    k matches bart2).
+T6. bart2 defaults factors = "categorical", matching dbartsData.
+    NOTE: posterior-changing for bart2 fits with factor predictors
+    (model-matrix representation changes); needs the statistical
+    equivalence verdict and snapshot care, not just identical-draw
+    gates.
+T7. Flip plot.pdbart cols to c("blue", "black").
+T8. pdbart/pd2bart: stop silently clobbering samplerOnly - error
+    (or warn) when the user explicitly supplies it, since the
+    override is structurally required.
+T9. Upgrade mismatched-name/same-count test-column positional
+    matching from warning to error.
+T10. The saved-trees vignette used to ship - investigate why it no
+    longer does (build config or lost directory on the bartcore
+    branch) and restore it.
+T11. Make n.cuts a real dbartsControl slot now (pre-release, class
+    change is free).
+Implementation PAUSED at VD's request pending his usage
+assessment; the in-flight uncontroversial-fixes implementer
+completes but does not land until VD resumes.
+
 Reader logs: walkthrough scripts under the session tmp; full
 reports in the orchestration transcript. Positive findings worth
 keeping: setPredictor rollback semantics verified exactly right

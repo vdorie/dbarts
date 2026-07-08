@@ -126,8 +126,16 @@ items
     dbarts.Rd offset rewrite, rbart/xbart doc slips, trees order
     text, residuals + binary fields, sigma/sigest cross-refs.
     RNG-neutral, R-only; tinytest + equivalence identical expected.
-    Taste-gated remainder (T1-T11) awaits VD's calls in
-    interface-review.md.
+    Taste calls T1-T11 ALL DECIDED by VD 2026-07-08 (nothing
+    deferred to 2.0; decisions recorded in interface-review.md):
+    unify combineChains, chain-first trees, thread rbart PPD
+    weights, wire updateState opt-in after checking the lazy-state
+    interaction, rbart_vi k doc-only pending chi-default-research,
+    bart2 factors="categorical" (posterior-changing for factor
+    fits - statistical gates), flip pdbart cols, reject explicit
+    samplerOnly in pdbart, positional-match error, restore the
+    saved-trees vignette, n.cuts becomes a real slot. PAUSED at
+    VD's request before further implementation.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
