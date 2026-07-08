@@ -14,10 +14,8 @@
 #include "model.hpp"
 #include "tree.hpp"
 
-// Faithful port of the classic conjugate Metropolis-Hastings tree moves
-// (birth/death, change, swap) from src/dbarts/{birthDeathRule,changeRule,
-// swapRule}.cpp. Deviations from the reference are noted inline; everything
-// else preserves the reference's math and proposal structure.
+// The conjugate Metropolis-Hastings tree moves: birth/death, change, and swap
+// proposals with their acceptance ratios.
 
 namespace bartcore {
 

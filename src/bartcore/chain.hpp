@@ -514,7 +514,9 @@ public:
     }
   }
 
-  /// One thinning-free run; results slots may be null to skip recording.
+  /// One run of (numBurnIn + numSamples) * numThin sweeps, recording the
+  /// numSamples post-burn-in kept draws; results slots may be null to skip
+  /// recording.
   /// Touches only chain state and the read-only store: safe to run chains
   /// concurrently as long as each has its own rng that never calls into R.
   /// progress, when non-null under verbose, receives one formatted line per

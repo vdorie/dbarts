@@ -114,7 +114,7 @@ public:
   virtual std::size_t numChains() const = 0;
   virtual std::size_t numThreads() const = 0;
   /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
-  /// treatment). The bridge refuses state serialization above 1 (step 4).
+  /// treatment).
   virtual std::size_t numForests() const = 0;
   /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
   /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.

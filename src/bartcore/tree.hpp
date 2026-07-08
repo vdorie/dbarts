@@ -311,8 +311,7 @@ public:
   }
 
   /// Ancestor-constrained cut interval for an ordinal variable at a node;
-  /// the split nearest the node on each side wins, exactly as
-  /// setSplitInterval does.
+  /// the split nearest the node on each side wins.
   void splitInterval(const ColumnStore& data, int32_t nodeIndex,
                      int32_t variableIndex, int32_t* left, int32_t* right) const {
     *left = 0;
@@ -874,12 +873,12 @@ public:
     countVariableUsesBelow(0, counts);
   }
 
-  /// Info dump in the reference engine's Node::print format: one line per
-  /// node in pre-order, indented by depth, with occupancy, top/bottom flags,
-  /// per-variable availability, and the rule or the leaf parameter (taken
-  /// from paramByNode, indexed by arena id with paramStride doubles per
-  /// node, on the internal scale); vector-parameter leaves append their
-  /// slopes after the intercept.
+  /// Info dump; the per-node output format is R-visible and pinned by tests.
+  /// One line per node in pre-order, indented by depth, with occupancy,
+  /// top/bottom flags, per-variable availability, and the rule or the leaf
+  /// parameter (taken from paramByNode, indexed by arena id with paramStride
+  /// doubles per node, on the internal scale); vector-parameter leaves append
+  /// their slopes after the intercept.
   void print(const ColumnStore& data, const double* paramByNode,
              int indentation, int32_t nodeIndex = 0,
              size_t paramStride = 1) const {
@@ -1665,11 +1664,11 @@ inline size_t flatSubtreeLength(const FlatNode* flatNodes) {
   return 1 + numOnLeft + flatSubtreeLength(flatNodes + 1 + numOnLeft);
 }
 
-/// Info dump of a flattened (saved) tree in the reference engine's
-/// SavedNode::print format: no occupancy or availability, ordinal splits by
-/// value, leaf predictions on the internal scale. slopes, when non-null,
-/// holds numSlopes per leaf in pre-order (vector-parameter leaves);
-/// leafOffset counts the leaves consumed before this subtree.
+/// Info dump of a flattened (saved) tree; the output format is R-visible and
+/// pinned by tests: no occupancy or availability, ordinal splits by value,
+/// leaf predictions on the internal scale. slopes, when non-null, holds
+/// numSlopes per leaf in pre-order (vector-parameter leaves); leafOffset
+/// counts the leaves consumed before this subtree.
 inline void printFlatSubtree(const ColumnStore& data, const FlatNode* flatNodes,
                              int indentation, size_t depth = 0,
                              const double* slopes = nullptr,
