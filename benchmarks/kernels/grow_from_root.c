@@ -236,7 +236,6 @@ static void correctnessCheck(void) {
   double swD, swzD, swz2D;
   misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch, nLeaf, w, &swD, &swzD, &swz2D);
   // histogram totals for column 0
-  const misc_xint_t* col = codes;
   double tW = 0, tWZ = 0, tWZ2 = 0;
   for (size_t i = 0; i < nLeaf; ++i) {
     size_t obs = idxGather[i];
