@@ -118,3 +118,47 @@ Findings routed onward:
    backstop term; any future proposal that deviates from the live
    prior silently breaks birth/death. Worth a comment or an assert
    when that surface is next touched.
+
+Block 2, change/swap (2026-07-08): SWAP CONFIRMED by both derivers
+(deterministic involution, symmetric proposal - the swappable set and
+child coin are topology-only - so the subtree pi-ratio is exactly the
+MH acceptance; validity walk and mask-pool restore clean). Veto
+composition and rejected-move state restoration CONFIRMED. Block-1's
+targeted >54-category question RESOLVED as a false alarm by both: the
+"approximate" closed form is an exact algebraic rewrite of
+-log(2^R - 2) (error O(2^(1-R)), sub-epsilon), so no cross-move
+target divergence exists there.
+
+MAJOR FINDING (both derivers independently, opposite orientations;
+orchestrator re-derived and concurs): the CHANGE move's acceptance
+(moves.hpp changeMove, the exp(yLogPi + yLogL - xLogPi - xLogL) with
+no transition term) omits the proposal-density ratio. The proposal
+draws the new variable from the prior but the new RULE uniformly over
+the descendant-valid good set (ordinal: findGoodOrdinalRules;
+categorical: reject-until-valid), while the acceptance retains the
+node's local rule prior normalized over the ancestor-only interval.
+These cancel only for same-variable redraws. Cross-variable changes
+are mis-weighted by [p_var(v')/p_var(v)] * [|Valid(v)|/|Valid(v')|]:
+the chain's stationary distribution carries an effectively SQUARED
+rule prior at changed nodes, biased toward low-cardinality /
+descendant-constrained variables. Invisible when all variables have
+equal cut counts and trees are shallow - which is exactly the
+existing exact-posterior gates' regime. INHERITED: the deleted
+classic engine's changeRule.cpp computes the identical
+pure-pi-ratio acceptance (verified in git history at b354f3a~1), so
+this is a CGM-lineage defect dbarts has carried since its origin, not
+a rewrite regression. Deriver B's toy check shows detailed balance
+failing by exactly 2x in a 4-vs-2-cut config; deriver A's analysis
+predicts stationary rule-prior mass ~ 1/a_v^2 rather than 1/a_v.
+Fragility notes (no action): swap's correctness rests on the unstated
+lemma that a child can never carry its parent's exact rule; the
+64-attempt categorical abort is variable-dependent and compounds the
+asymmetry.
+
+Verification in flight: engine-level exact-enumeration test
+(single tree, two ordinal predictors with unequal cut counts;
+engine long-run root-split frequencies vs the exact posterior AND vs
+the predicted wrong target) - the protocol's numerical step before
+the finding becomes a fix decision for VD. Fix would be
+posterior-changing (strictest gates) and changes 15-year-old
+sampler semantics; VD decides with the evidence.
