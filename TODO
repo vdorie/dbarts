@@ -107,6 +107,17 @@ items
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
+  sigma-df-zero-weights: correctness-audit block-4 finding, verified
+    z = -264. The gaussian sigma posterior df adds the TOTAL
+    observation count while zero-weight rows (documented "ignored",
+    dropped from the SSR and every leaf conditional) still count,
+    over-concentrating and deflating sigma - catastrophically in
+    stationarity (mean sigma 0.365 -> 0.048 at 50% zero-weight rows;
+    feedback loop, trees absorb the residual). Fix: posterior df
+    uses the positive-weight count (track it where weights are set).
+    Posterior-changing only for zero-weight fits; the zeroweights
+    equivalence scenario shifts and the anchor re-records; add an
+    exact-df regression test. Queued after the change-move landing.
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.

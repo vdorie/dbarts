@@ -219,3 +219,60 @@ no valid-set counting - counting is infeasible for wide categorical
 masks - and removes the 64-try asymmetry), or (b) restricted
 proposals with explicit |Valid| ratios where countable. The
 change-balance.R test becomes the regression gate either way.
+(Resolved 2026-07-08: VD picked the hybrid after the change-move-fix
+stage-2 measurements; see that plan.)
+
+Block 4, response models (2026-07-08): CONFIRMED on every mainline
+path by both derivers except one adjudicated zero-weight defect.
+Jointly confirmed: the gaussian sigma^2 Gibbs step is the exact
+conjugate update for the documented scaled-inverse-chi-squared prior
+- lambda = sigest^2 qchisq(1-quant, df)/df computed at the bridge,
+posterior draw (df lambda + S)/chisq(df + n) with the weighted
+S = sum w_i r_i^2, internal range scaling coherent in and out, n = 0
+reproducing the prior; fixed-sigma reaches every consumer (moves,
+leaf draws, latents, BCF glue, recording) through the single chain
+sigma_ with the draw gated off; probit latents are exact Albert-Chib
+(sign-folded lower-truncation gives the correct upper/lower
+truncated N(fits + offset, 1); working response strips the offset;
+sigma pinned to 1); logistic is the exact binomial Polya-Gamma
+update (omega ~ PG(w, psi) by integer replication, working response
+kappa/omega - offset with kappa = w(y - 0.5); the leaf update's
+omega * working recovers kappa exactly, so user weights compose
+through PG without double-counting); weights appear in the correct
+place in every family (constant/linear/GP suffstats, sigma SSR,
+grouped-intercept precision; probit correctly weightless with the
+R-level guard).
+
+ADJUDICATED FINDING (deriver B; deriver A had graded the df term
+only as a fragility note; orchestrator verified numerically): the
+sigma posterior's degrees of freedom count ALL n observations
+(model.hpp drawSigmaSqFromPosterior, df + numObservations) while
+zero-weight rows contribute nothing to S, nothing to any leaf
+conditional, and are documented as "ignored" (the weights validator
+warns exactly that). The draw is not the conjugate update of any
+coherent model once w_i = 0 rows exist: df is over-counted by their
+number, deflating sigma. Verification: paired fits, 50 real rows vs
+the same 50 plus 50 EXACT DUPLICATE rows at w = 0 (duplicates cannot
+alter cut points, the y scaling, the leaf prior, or leaf-emptiness
+patterns, so the df term is the only open channel): mean sigma
+0.365 -> 0.048, z = -264 against the promised equality. The
+first-order df ratio predicts 0.72; the observed collapse is the
+stationary feedback loop (deflated sigma lets trees absorb residual
+as structure, shrinking S, deflating sigma further). Filed as fix
+item sigma-df-zero-weights: use the positive-weight count in the
+posterior df. Posterior-changing only for fits with zero weights
+(the zeroweights equivalence scenario shifts; no default touched).
+Gate-blindspot note: the zeroweights equivalence scenario compares
+the code to its own baseline and no exact-posterior gate covers
+zero weights, which is how this survived.
+
+Fragility notes (no action): the base GaussianResponse::drawSigma
+always draws - only the chain's sigmaIsFixed_ gate keeps fixed sigma
+fixed; logistic omega uses lround(w) while kappa uses raw w, an
+integer-weights invariant enforced only by the R validator (direct
+dbarts.h consumers can pass non-integer w and get a silent
+omega/kappa mismatch); the probit truncated-normal sampler's NaN
+fallback substitutes a sign-correct DBL_EPSILON latent on extreme
+tail failure; logistic setOffset reshifts the working response
+against omega drawn at the old psi (repaired by the next sweep's
+refreshLatents - the standard embedded-Gibbs pattern).
