@@ -9,36 +9,12 @@ historical reference; update it when decisions change.
 ## Current architecture (as shipped)
 
 The engine is a header-only C++20 library, `src/bartcore/*.hpp` (umbrella
-include `bartcore.hpp`):
+include `bartcore.hpp`).
 
-- `data.hpp`: `ColumnStore`, the predictor container (hot per-column bin
-  codes, cold typed columns, sparse column support).
-- `tree.hpp`: `Rule`, `Node`, `Tree` - the tree storage.
-- `moves.hpp`: birth/death/change/swap move machinery.
-- `model.hpp`: leaf models (`ConstantGaussianLeaf`, `LinearGaussianLeaf`,
-  `GPGaussianLeaf`, ...), each a compile-time concept-constrained type, and
-  response models (`GaussianResponse`, `ProbitResponse`,
-  `LogisticResponse`, `GroupedResponse`), a runtime-polymorphic
-  `ResponseModel` hierarchy; also the tree prior and hyperpriors.
-- `chain.hpp`: `Chain` - one MCMC chain's trees, fits, response state, and
-  own RNG - plus its supporting structs (`Forest`, `ModelParameters`,
-  `Results`).
-- `sampler.hpp`: `Sampler`, the coordinator over the shared `ColumnStore`
-  and one or more `Chain`s (fans mutation out, runs chains on worker
-  threads).
-- `facade.hpp`: `SamplerBase` / `SamplerFacade`, the type-erased virtual
-  interface a factory selects into from the R-side model spec exactly
-  once, at allocation.
+The full contributor orientation is docs/architecture.md.
 
-Above the engine: the `.Call` bridge (`src/R_interface_bartcore.cpp`) drives
-the facade for the R5 `dbartsSampler` surface; the flat C API
-(`inst/include/dbarts/dbarts.h`) is the only shipped header and what
-`LinkingTo` consumers (stan4bart) build against; the R surface (`R/`) is the
-high-level `bart`/`bart2`/`dbarts` wrappers plus the `dbartsSampler`
-reference class.
-
-History below records how it got here; where they disagree, this section
-wins.
+History below records how it got here; where they disagree,
+docs/architecture.md wins.
 
 ## Goals and scope decisions
 

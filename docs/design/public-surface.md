@@ -4,7 +4,8 @@ Status: reviewed 2026-07-03; updated through 2026-07-06. Decisions from that
 review are recorded inline as DECIDED. Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
 equivalence, and the zero-regression speed bar all gated at 209c09b), so
-what remains is what the major version exposes.
+what remains is what the major version exposes. For the shipped engine's
+layering and mechanisms, see docs/architecture.md.
 
 Standing decisions this builds on: the next release is a major version with
 no backwards-compatibility requirement on internal surfaces; the classic
