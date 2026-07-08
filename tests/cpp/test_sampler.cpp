@@ -700,7 +700,7 @@ static void testSetDataProbit(ext_rng* rng) {
   sampler.setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr, 0);
   check(sampler.numObservations() == n2, "probit setData resizes");
 
-  // latents cold-initialize to 2 y - 1, as the reference engine does
+  // latents cold-initialize to 2 y - 1
   bool latentsMatch = true;
   for (size_t i = 0; i < n2; ++i)
     latentsMatch &= sampler.latents(0)[i] == 2.0 * y2[i] - 1.0;
@@ -867,8 +867,8 @@ static void testWideCategorical(ext_rng* rng) {
   check(ordinalA.equals(ordinalB), "fresh ordinal rules compare equal");
 
   // each pattern bit is marginally exactly 1/2 under the uniform prior on
-  // nonempty assignments; the single range draw this replaced pinned low
-  // pattern bits for wide masks
+  // nonempty assignments; guards against draw schemes that pin low bits
+  // for wide masks
   Tree drawTree;
   drawTree.initialize(indices.data(), n);
   CGMTreePrior prior;
@@ -1410,7 +1410,7 @@ static void testMissingEndToEnd() {
 
 // BCF two-forest sampler: creation, a short run moving both forests, sane
 // glue (finite, b0 != b1), setTreatment refresh. Statistical validation is
-// the step-5 exact gate; this is sanity only.
+// benchmarks/R/bcf-exact.R; this is sanity only.
 static void testBCFTwoForest(ext_rng* rng) {
   const size_t n = 400, p = 3;
   std::vector<double> x(n * p), y(n), z(n);

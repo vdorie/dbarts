@@ -274,8 +274,7 @@ static void testPredictCurrentTrees(ext_rng* rng) {
 static void testStateRoundTripScaledOffset() {
   // setOffset(updateScale) moves the gaussian response transform after
   // creation; the state must carry it or a restored sampler mis-scales
-  // every internal quantity (the classic engine forced hosts to export the
-  // scale themselves)
+  // every internal quantity
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);

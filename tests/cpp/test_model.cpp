@@ -266,8 +266,8 @@ static void testSampleFromPrior(ext_rng* rng) {
 }
 
 // Shared fixture for the linear-leaf component tests; the reference
-// constants come from an independent R implementation
-// (scratchpad linear_leaf_reference.R).
+// constants were computed in R by independently evaluating the same
+// marginal-likelihood and posterior formulas at these inputs.
 struct LinearLeafFixture {
   static constexpr size_t n = 8;
   std::vector<double> x, z, w;
@@ -611,8 +611,8 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
   check(std::fabs(slope[0]) < 0.25, "flat side has near-zero slope");
   check(slope[1] > 0.75 && slope[1] < 1.25, "steep side recovers unit slope");
 
-  // the format-dependent surfaces work post-stage 3: an identical
-  // predictor matrix revalidates, and a state round-trips into itself
+  // the format-dependent surfaces: an identical predictor matrix
+  // revalidates, and a state round-trips into itself
   check(sampler->setPredictor(x.data(), false, true) ==
           PredictorUpdateResult::accepted,
         "reinstalling identical predictors is accepted");
@@ -931,9 +931,9 @@ static void testLinearLeafViews() {
 }
 
 static void testGroupedMath(ext_rng* rng) {
-  // built-in tau priors and the tau posterior against R constants
-  // (scratchpad grouped_reference.R): dcauchy/dgamma at scale 0.55, then
-  // the R loop's posterior closure at J = 5, b.sq = 0.8
+  // built-in tau priors and the tau posterior against constants computed
+  // in R: dcauchy/dgamma at scale 0.55, then the posterior density
+  // evaluated at J = 5, b.sq = 0.8
   checkNear(logTauPrior(TauPriorKind::cauchy, 0.55, 0.05),
             -0.55512338423029517, 1.0e-12, "cauchy tau prior at 0.05");
   checkNear(logTauPrior(TauPriorKind::cauchy, 0.55, 0.30),
@@ -1936,7 +1936,8 @@ static void testGPLeafMarginal() {
   leaf.initialize(f.store, columns, 1, f.theta, 256);
   check(leaf.numCovariates() == 1, "gp leaf covariate count");
 
-  // root marginals against the R reference (gp_leaf_reference.R)
+  // root marginals against constants computed in R by direct evaluation
+  // of the GP integrated likelihood at the fixture's kernel and inputs
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, 0),
             -8.4818528980077694, 1e-9, "gp marginal, weighted root");
@@ -2331,8 +2332,8 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
     kSane = kSane && std::isfinite(kDraw) && kDraw > 0.05 && kDraw < 50.0;
   check(kSane, "sampled k stays finite and positive under gp leaves");
 
-  // the format surfaces work post-stage 2: a captured state restores into
-  // its own sampler and flatten emits records
+  // the format surfaces: a captured state restores into its own sampler
+  // and flatten emits records
   SamplerStateData state;
   gpSampler.getState(state);
   check(gpSampler.setState(state), "a gp state restores into its own sampler");

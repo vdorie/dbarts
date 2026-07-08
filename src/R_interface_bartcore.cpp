@@ -90,10 +90,9 @@ SEXP getListElement(SEXP listExpr, const char* name) {
 }
 
 // The subset of the R specification objects (dbartsControl, dbartsData,
-// dbartsModel) the bartcore engine consumes, parsed without the classic
-// engine's types. Pointers borrow from the expressions; error paths may
-// leak the parse vectors (Rf_error longjmps past destructors), matching
-// the classic parse layer's behavior.
+// dbartsModel) the engine consumes. Pointers borrow from the expressions;
+// error paths may leak the parse vectors - Rf_error longjmps past
+// destructors, so the leak is deliberate and bounded by the R error.
 
 struct ParsedControl {
   bool responseIsBinary = false;
@@ -1433,7 +1432,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 
 // A BCF two-forest sampler; internal, gaussian only (docs/design/bcf.md).
 // The model spec is the prognostic forest, bcfParams the treatment forest and
-// glue, z the 0/1 treatment. State serialization is refused until step 4.
+// glue, z the 0/1 treatment.
 SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                         SEXP zExpr, SEXP bcfParamsExpr) {
   BartcoreHolder* holder = bartcore_bridge::createBCFHolder(

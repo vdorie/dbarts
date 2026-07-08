@@ -44,9 +44,10 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName);
 
 /// A BCF two-forest sampler (docs/design/bcf.md): the model spec supplies the
-/// prognostic forest, bcfParams (length 7: tau tree count, base, power, node
-/// scale, k; a half-Cauchy median; b prior variance) the treatment forest and
-/// glue, z the 0/1 treatment. Gaussian only; raises R errors otherwise.
+/// prognostic forest, bcfParams (length 8: tau tree count, base, power;
+/// aPriorScale; sdModerate; bPriorVariance; updateA and updateB flags) the
+/// treatment forest and glue, z the 0/1 treatment. Gaussian only; raises R
+/// errors otherwise.
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP zExpr, SEXP bcfParamsExpr);
 
