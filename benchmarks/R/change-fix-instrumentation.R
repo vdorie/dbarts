@@ -47,18 +47,21 @@ seed <- 20260708L
 runLogged <- function(sampler, ntree) {
   detailPath <- tempfile("changefix-detail-", fileext = ".csv")
   summaryPath <- tempfile("changefix-summary-", fileext = ".csv")
-  on.exit({
-    Sys.unsetenv("DBARTS_CHANGE_LOG")
-    Sys.unsetenv("DBARTS_MOVE_SUMMARY")
-    unlink(c(detailPath, summaryPath))
-  }, add = TRUE)
+  on.exit(
+    {
+      Sys.unsetenv("DBARTS_CHANGE_LOG")
+      Sys.unsetenv("DBARTS_MOVE_SUMMARY")
+      unlink(c(detailPath, summaryPath))
+    },
+    add = TRUE
+  )
 
   Sys.unsetenv("DBARTS_CHANGE_LOG")
   Sys.unsetenv("DBARTS_MOVE_SUMMARY")
-  invisible(sampler$run(nBurn, 0L))                 # burn-in, NOT logged
+  invisible(sampler$run(nBurn, 0L)) # burn-in, NOT logged
 
   Sys.setenv(DBARTS_CHANGE_LOG = detailPath, DBARTS_MOVE_SUMMARY = summaryPath)
-  invisible(sampler$run(0L, nSweeps))               # sampling, logged
+  invisible(sampler$run(0L, nSweeps)) # sampling, logged
   Sys.unsetenv("DBARTS_CHANGE_LOG")
   Sys.unsetenv("DBARTS_MOVE_SUMMARY")
 
@@ -73,7 +76,7 @@ runLogged <- function(sampler, ntree) {
 
 summarizeConfig <- function(name, res) {
   d <- res$detail
-  d <- d[stats::complete.cases(d), , drop = FALSE]  # defensive
+  d <- d[stats::complete.cases(d), , drop = FALSE] # defensive
   counts <- res$counts
   totalMoves <- sum(counts)
   nChange <- nrow(d)
@@ -93,43 +96,72 @@ summarizeConfig <- function(name, res) {
   deep <- d$childrenLeaves == 0L
   deepNoop <- noop[deep]
 
-  q <- function(v, p) if (length(v)) as.numeric(quantile(v, p, na.rm = TRUE)) else NA_real_
-  overallPerProp <- mean(noop)                       # includes zero-waste leaves
+  q <- function(v, p) {
+    if (length(v)) as.numeric(quantile(v, p, na.rm = TRUE)) else NA_real_
+  }
+  overallPerProp <- mean(noop) # includes zero-waste leaves
   changePerSweep <- nChange / nSweeps
-  noopPerSweep <- overallPerProp * changePerSweep    # exp. no-op changes / sweep
+  noopPerSweep <- overallPerProp * changePerSweep # exp. no-op changes / sweep
 
   # pooled categorical draw-level cross-check (successes / draws)
   catPooled <- if (any(cat)) {
     1 - sum(d$found[cat]) / sum(d$attempts[cat])
-  } else NA_real_
+  } else {
+    NA_real_
+  }
 
   cat(sprintf("\n=== %s ===\n", name))
-  cat(sprintf("  moves: birth %.3f death %.3f swap %.3f change %.3f (n=%d)\n",
-    counts["birth"] / totalMoves, counts["death"] / totalMoves,
-    counts["swap"] / totalMoves, counts["change"] / totalMoves, totalMoves))
-  cat(sprintf("  change proposals: %d  (%.1f per sweep, %.3f of moves)\n",
-    nChange, changePerSweep, nChange / totalMoves))
-  cat(sprintf("  frac ordinal / categorical: %.3f / %.3f\n",
-    mean(ord), mean(cat)))
+  cat(sprintf(
+    "  moves: birth %.3f death %.3f swap %.3f change %.3f (n=%d)\n",
+    counts["birth"] / totalMoves,
+    counts["death"] / totalMoves,
+    counts["swap"] / totalMoves,
+    counts["change"] / totalMoves,
+    totalMoves
+  ))
+  cat(sprintf(
+    "  change proposals: %d  (%.1f per sweep, %.3f of moves)\n",
+    nChange,
+    changePerSweep,
+    nChange / totalMoves
+  ))
+  cat(sprintf(
+    "  frac ordinal / categorical: %.3f / %.3f\n",
+    mean(ord),
+    mean(cat)
+  ))
   cat(sprintf("  leaf-children traffic share (zero-waste): %.3f\n", leafShare))
-  cat(sprintf("  deep-node no-op fraction: mean %.4f median %.4f p90 %.4f (n=%d)\n",
+  cat(sprintf(
+    "  deep-node no-op fraction: mean %.4f median %.4f p90 %.4f (n=%d)\n",
     if (length(deepNoop)) mean(deepNoop) else NA_real_,
-    q(deepNoop, 0.5), q(deepNoop, 0.9), length(deepNoop)))
-  cat(sprintf("  OVERALL variant-(a) no-op rate: %.4f per change proposal\n",
-    overallPerProp))
-  cat(sprintf("                                  %.4f no-op changes per sweep\n",
-    noopPerSweep))
-  if (!is.na(catPooled))
+    q(deepNoop, 0.5),
+    q(deepNoop, 0.9),
+    length(deepNoop)
+  ))
+  cat(sprintf(
+    "  OVERALL variant-(a) no-op rate: %.4f per change proposal\n",
+    overallPerProp
+  ))
+  cat(sprintf(
+    "                                  %.4f no-op changes per sweep\n",
+    noopPerSweep
+  ))
+  if (!is.na(catPooled)) {
     cat(sprintf("  [categorical pooled draw-level no-op: %.4f]\n", catPooled))
+  }
 
   data.frame(
-    config = name, ntree = res$ntree, moves = totalMoves,
+    config = name,
+    ntree = res$ntree,
+    moves = totalMoves,
     changeFracOfMoves = nChange / totalMoves,
     changePerSweep = changePerSweep,
-    fracOrdinal = mean(ord), fracCategorical = mean(cat),
+    fracOrdinal = mean(ord),
+    fracCategorical = mean(cat),
     leafChildrenShare = leafShare,
     deepNoopMean = if (length(deepNoop)) mean(deepNoop) else NA_real_,
-    deepNoopMedian = q(deepNoop, 0.5), deepNoopP90 = q(deepNoop, 0.9),
+    deepNoopMedian = q(deepNoop, 0.5),
+    deepNoopP90 = q(deepNoop, 0.9),
     overallNoopPerProposal = overallPerProp,
     noopChangesPerSweep = noopPerSweep,
     catPooledNoop = catPooled,
@@ -139,9 +171,15 @@ summarizeConfig <- function(name, res) {
 
 baseControl <- function(ntree) {
   dbartsControl(
-    n.chains = 1L, n.threads = 1L, n.trees = ntree,
-    n.samples = nSweeps, n.burn = nBurn, n.thin = 1L,
-    keepTrees = FALSE, updateState = FALSE, rngSeed = seed
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = ntree,
+    n.samples = nSweeps,
+    n.burn = nBurn,
+    n.thin = 1L,
+    keepTrees = FALSE,
+    updateState = FALSE,
+    rngSeed = seed
   )
 }
 
@@ -152,8 +190,12 @@ baseControl <- function(ntree) {
 makeFriedman <- function(n, p = 10L, s = 1L) {
   set.seed(s)
   x <- matrix(runif(n * p), n, p)
-  y <- 10 * sin(pi * x[, 1] * x[, 2]) + 20 * (x[, 3] - 0.5)^2 +
-    10 * x[, 4] + 5 * x[, 5] + rnorm(n)
+  y <- 10 *
+    sin(pi * x[, 1] * x[, 2]) +
+    20 * (x[, 3] - 0.5)^2 +
+    10 * x[, 4] +
+    5 * x[, 5] +
+    rnorm(n)
   list(x = x, y = y)
 }
 
@@ -167,8 +209,13 @@ makeMixed <- function(n, s = 2L) {
   # continuous signal plus categorical effects that reward same-variable stacking
   eff8 <- (as.integer(c8) - 4.5) * 0.6
   eff16 <- (as.integer(c16) %% 4L) * 1.0
-  y <- 10 * sin(pi * cont$c1 * cont$c2) + 10 * cont$c3 +
-    (as.integer(c4) == 1L) * 4 + eff8 + eff16 + rnorm(n)
+  y <- 10 *
+    sin(pi * cont$c1 * cont$c2) +
+    10 * cont$c3 +
+    (as.integer(c4) == 1L) * 4 +
+    eff8 +
+    eff16 +
+    rnorm(n)
   x <- cbind(cont, c4 = c4, c8 = c8, c16 = c16)
   list(x = x, y = y)
 }
@@ -207,12 +254,22 @@ runOne("Mixed n=1e4 m=75", mx$x, mx$y, 75L)
 
 # (3) deep single-tree stress: ntree=1, power=1, n=1e3
 fr3 <- makeFriedman(1000L)
-runOne("Deep single-tree n=1e3 ntree=1 power=1",
-  fr3$x, fr3$y, 1L, treePriorExpr = quote(cgm(power = 1, base = 0.95)))
+runOne(
+  "Deep single-tree n=1e3 ntree=1 power=1",
+  fr3$x,
+  fr3$y,
+  1L,
+  treePriorExpr = quote(cgm(power = 1, base = 0.95))
+)
 
 # (4) config (2) with DART enabled
-runOne("Mixed+DART n=1e4 m=75", mx$x, mx$y, 75L,
-  treePriorExpr = quote(dart(power = 2, base = 0.95)))
+runOne(
+  "Mixed+DART n=1e4 m=75",
+  mx$x,
+  mx$y,
+  75L,
+  treePriorExpr = quote(dart(power = 2, base = 0.95))
+)
 
 # ---------------------------------------------------------------------------
 # combined table

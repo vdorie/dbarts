@@ -66,7 +66,9 @@ nodeScale <- 0.5 # gaussian node.scale default; scale = nodeScale / sqrt(ntree=1
 
 logSumExp <- function(v) {
   m <- max(v)
-  if (!is.finite(m)) return(m)
+  if (!is.finite(m)) {
+    return(m)
+  }
   m + log(sum(exp(v - m)))
 }
 
@@ -75,13 +77,17 @@ logSumExp <- function(v) {
 makeLogIL <- function(residVar) {
   priorPrecision <- (kLeaf / nodeScale)^2
   function(n, S, SS) {
-    if (n == 0) return(0)
+    if (n == 0) {
+      return(0)
+    }
     posteriorPrecision <- n / residVar
     mean <- S / n
     centeredSumOfSquares <- SS - S * mean
-    0.5 * log(priorPrecision / (priorPrecision + posteriorPrecision)) -
+    0.5 *
+      log(priorPrecision / (priorPrecision + posteriorPrecision)) -
       0.5 * centeredSumOfSquares / residVar -
-      0.5 * ((priorPrecision * mean) * (posteriorPrecision * mean)) /
+      0.5 *
+        ((priorPrecision * mean) * (posteriorPrecision * mean)) /
         (priorPrecision + posteriorPrecision)
   }
 }
@@ -98,7 +104,14 @@ makeLogIL <- function(residVar) {
 # wrong-target arm. The root layer is kept split-by-split for the marginals.
 
 buildPosterior <- function(
-  vals1, vals2, cellN, cellS, cellSS, residVar, maxDepth, computeWrong = TRUE
+  vals1,
+  vals2,
+  cellN,
+  cellS,
+  cellSS,
+  residVar,
+  maxDepth,
+  computeWrong = TRUE
 ) {
   K1 <- length(vals1)
   K2 <- length(vals2)
@@ -128,7 +141,9 @@ buildPosterior <- function(
     M <- function(a1, b1, a2, b2, depth) {
       key <- paste(a1, b1, a2, b2, depth, sep = ",")
       hit <- memo[[key]]
-      if (!is.null(hit)) return(hit)
+      if (!is.null(hit)) {
+        return(hit)
+      }
       st <- query(a1, b1, a2, b2)
       lLeaf <- logIL(st$n, st$S, st$SS)
       avail1 <- b1 > a1
@@ -144,10 +159,16 @@ buildPosterior <- function(
           for (c in a1:(b1 - 1L)) {
             nL <- query(a1, c, a2, b2)$n
             nR <- query(c + 1L, b1, a2, b2)$n
-            if (nL == 0 || nR == 0) next
-            terms <- c(terms, logGrowth + ruleLP +
-              M(a1, c, a2, b2, depth + 1L) +
-              M(c + 1L, b1, a2, b2, depth + 1L))
+            if (nL == 0 || nR == 0) {
+              next
+            }
+            terms <- c(
+              terms,
+              logGrowth +
+                ruleLP +
+                M(a1, c, a2, b2, depth + 1L) +
+                M(c + 1L, b1, a2, b2, depth + 1L)
+            )
           }
         }
         if (avail2) {
@@ -156,10 +177,16 @@ buildPosterior <- function(
           for (c in a2:(b2 - 1L)) {
             nL <- query(a1, b1, a2, c)$n
             nR <- query(a1, b1, c + 1L, b2)$n
-            if (nL == 0 || nR == 0) next
-            terms <- c(terms, logGrowth + ruleLP +
-              M(a1, b1, a2, c, depth + 1L) +
-              M(a1, b1, c + 1L, b2, depth + 1L))
+            if (nL == 0 || nR == 0) {
+              next
+            }
+            terms <- c(
+              terms,
+              logGrowth +
+                ruleLP +
+                M(a1, b1, a2, c, depth + 1L) +
+                M(a1, b1, c + 1L, b2, depth + 1L)
+            )
           }
         }
       }
@@ -185,26 +212,43 @@ buildPosterior <- function(
     if (K1 > 1L) {
       ruleLP <- ruleMult * (-log(numAvail0) - log(K1 - 1L))
       for (c in 1:(K1 - 1L)) {
-        addSplit(1L, c, log(growth0) + ruleLP +
-          M(1L, c, 1L, K2, 1L) + M(c + 1L, K1, 1L, K2, 1L))
+        addSplit(
+          1L,
+          c,
+          log(growth0) +
+            ruleLP +
+            M(1L, c, 1L, K2, 1L) +
+            M(c + 1L, K1, 1L, K2, 1L)
+        )
       }
     }
     if (K2 > 1L) {
       ruleLP <- ruleMult * (-log(numAvail0) - log(K2 - 1L))
       for (c in 1:(K2 - 1L)) {
-        addSplit(2L, c, log(growth0) + ruleLP +
-          M(1L, K1, 1L, c, 1L) + M(1L, K1, c + 1L, K2, 1L))
+        addSplit(
+          2L,
+          c,
+          log(growth0) +
+            ruleLP +
+            M(1L, K1, 1L, c, 1L) +
+            M(1L, K1, c + 1L, K2, 1L)
+        )
       }
     }
     logZ <- logSumExp(logNum)
     data.frame(
-      label = labels, variable = variable, cutIndex = cutIndex,
-      prob = exp(logNum - logZ), stringsAsFactors = FALSE
+      label = labels,
+      variable = variable,
+      cutIndex = cutIndex,
+      prob = exp(logNum - logZ),
+      stringsAsFactors = FALSE
     )
   }
 
   out <- list(exact = runArm(1), cuts1 = cuts1, cuts2 = cuts2)
-  if (computeWrong) out$wrong <- runArm(2)
+  if (computeWrong) {
+    out$wrong <- runArm(2)
+  }
   out
 }
 
@@ -230,13 +274,23 @@ rootMarginals <- function(tab) {
 # over level indices; no wrong-target arm (the defective correction here mixes
 # omitted terms with out-of-domain ones, so no clean closed form exists).
 
-buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth) {
+buildMixedPosterior <- function(
+  K1,
+  L,
+  cellN,
+  cellS,
+  cellSS,
+  residVar,
+  maxDepth
+) {
   logIL <- makeLogIL(residVar)
   fullMask <- 2L^L - 1L
   levelBits <- 2L^(seq_len(L) - 1L)
   maskCols <- lapply(0:fullMask, function(S) which(bitwAnd(S, levelBits) != 0L))
   properSubsets <- lapply(0:fullMask, function(S) {
-    if (S < 3L) return(integer(0)) # fewer than two levels: no split
+    if (S < 3L) {
+      return(integer(0))
+    } # fewer than two levels: no split
     cand <- seq_len(S - 1L)
     cand[bitwAnd(cand, S) == cand]
   })
@@ -254,7 +308,9 @@ buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth)
   M <- function(a1, b1, S, depth) {
     key <- paste(a1, b1, S, depth, sep = ",")
     hit <- memo[[key]]
-    if (!is.null(hit)) return(hit)
+    if (!is.null(hit)) {
+      return(hit)
+    }
     st <- query(a1, b1, S)
     sizeS <- length(maskCols[[S + 1L]])
     avail1 <- b1 > a1
@@ -267,18 +323,32 @@ buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth)
       if (avail1) {
         ruleLP <- -log(numAvail) - log(b1 - a1)
         for (c in a1:(b1 - 1L)) {
-          if (query(a1, c, S)$n == 0 || query(c + 1L, b1, S)$n == 0) next
-          terms <- c(terms, logGrowth + ruleLP +
-            M(a1, c, S, depth + 1L) + M(c + 1L, b1, S, depth + 1L))
+          if (query(a1, c, S)$n == 0 || query(c + 1L, b1, S)$n == 0) {
+            next
+          }
+          terms <- c(
+            terms,
+            logGrowth +
+              ruleLP +
+              M(a1, c, S, depth + 1L) +
+              M(c + 1L, b1, S, depth + 1L)
+          )
         }
       }
       if (avail2) {
         ruleLP <- -log(numAvail) - log(2^sizeS - 2)
         for (D in properSubsets[[S + 1L]]) {
           left <- S - D # D is a subset of S, so mask difference is set difference
-          if (query(a1, b1, left)$n == 0 || query(a1, b1, D)$n == 0) next
-          terms <- c(terms, logGrowth + ruleLP +
-            M(a1, b1, left, depth + 1L) + M(a1, b1, D, depth + 1L))
+          if (query(a1, b1, left)$n == 0 || query(a1, b1, D)$n == 0) {
+            next
+          }
+          terms <- c(
+            terms,
+            logGrowth +
+              ruleLP +
+              M(a1, b1, left, depth + 1L) +
+              M(a1, b1, D, depth + 1L)
+          )
         }
       }
     }
@@ -302,21 +372,32 @@ buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth)
   if (K1 > 1L) {
     ruleLP <- -log(numAvail0) - log(K1 - 1L)
     for (c in 1:(K1 - 1L)) {
-      addSplit(1L, paste0("x1.c", c), log(growth0) + ruleLP +
-        M(1L, c, fullMask, 1L) + M(c + 1L, K1, fullMask, 1L))
+      addSplit(
+        1L,
+        paste0("x1.c", c),
+        log(growth0) +
+          ruleLP +
+          M(1L, c, fullMask, 1L) +
+          M(c + 1L, K1, fullMask, 1L)
+      )
     }
   }
   if (L > 1L) {
     ruleLP <- -log(numAvail0) - log(2^L - 2)
     for (D in properSubsets[[fullMask + 1L]]) {
-      addSplit(2L, paste0("x2.d", D), log(growth0) + ruleLP +
-        M(1L, K1, fullMask - D, 1L) + M(1L, K1, D, 1L))
+      addSplit(
+        2L,
+        paste0("x2.d", D),
+        log(growth0) + ruleLP + M(1L, K1, fullMask - D, 1L) + M(1L, K1, D, 1L)
+      )
     }
   }
   logZ <- logSumExp(logNum)
   data.frame(
-    label = labels, variable = variable,
-    prob = exp(logNum - logZ), stringsAsFactors = FALSE
+    label = labels,
+    variable = variable,
+    prob = exp(logNum - logZ),
+    stringsAsFactors = FALSE
   )
 }
 
@@ -324,14 +405,24 @@ buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth)
 
 runEngine <- function(x, y, nCutsVec) {
   ctl <- dbartsControl(
-    n.chains = 1L, n.threads = 1L, n.trees = 1L,
-    useQuantiles = TRUE, keepTrees = TRUE,
-    n.samples = batchSize, n.burn = nBurn, n.thin = nThin,
-    updateState = TRUE, rngSeed = engineSeed, n.cuts = nCutsVec
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 1L,
+    useQuantiles = TRUE,
+    keepTrees = TRUE,
+    n.samples = batchSize,
+    n.burn = nBurn,
+    n.thin = nThin,
+    updateState = TRUE,
+    rngSeed = engineSeed,
+    n.cuts = nCutsVec
   )
   s <- dbarts(
-    x, y, control = ctl,
-    tree.prior = cgm(power, base), node.prior = normal(kLeaf),
+    x,
+    y,
+    control = ctl,
+    tree.prior = cgm(power, base),
+    node.prior = normal(kLeaf),
     resid.prior = fixed(1)
   )
   stopifnot(is.null(s$data@offset))
@@ -403,20 +494,46 @@ runScenario <- function(name, x1, x2, y, maxDepth, nCutsVec) {
     x2 = batchMeanSE(eng$var == 2L)
   )
 
-  cat(sprintf("\n=== %s (n=%d, x1 %d cuts, x2 %d cuts, engine N=%d) ===\n",
-    name, length(y), K1 - 1L, K2 - 1L, N))
-  cat(sprintf("%-10s %10s %10s %10s %10s\n",
-    "root", "engine", "exact", "wrong", "MCse"))
+  cat(sprintf(
+    "\n=== %s (n=%d, x1 %d cuts, x2 %d cuts, engine N=%d) ===\n",
+    name,
+    length(y),
+    K1 - 1L,
+    K2 - 1L,
+    N
+  ))
+  cat(sprintf(
+    "%-10s %10s %10s %10s %10s\n",
+    "root",
+    "engine",
+    "exact",
+    "wrong",
+    "MCse"
+  ))
   for (q in c("rootOnly", "x1", "x2")) {
-    cat(sprintf("%-10s %10.4f %10.4f %10.4f %10.5f\n",
-      q, enM[q], exM[q], wrM[q], se[q]))
+    cat(sprintf(
+      "%-10s %10.4f %10.4f %10.4f %10.5f\n",
+      q,
+      enM[q],
+      exM[q],
+      wrM[q],
+      se[q]
+    ))
   }
   zEx <- (enM - exM) / se
   zWr <- (enM - wrM) / se
-  cat(sprintf("z(uncond) vs exact : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
-    zEx["rootOnly"], zEx["x1"], zEx["x2"]))
-  cat(sprintf("z(uncond) vs wrong : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
-    zWr["rootOnly"], zWr["x1"], zWr["x2"]))
+  cat(sprintf(
+    "z(uncond) vs exact : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
+    zEx["rootOnly"],
+    zEx["x1"],
+    zEx["x2"]
+  ))
+  cat(sprintf(
+    "z(uncond) vs wrong : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
+    zWr["rootOnly"],
+    zWr["x1"],
+    zWr["x2"]
+  ))
 
   # Conditional on the root being split: the change move governs only the
   # among-variables/among-cuts distribution, and for a stump the squared-rule
@@ -433,10 +550,25 @@ runScenario <- function(name, x1, x2, y, maxDepth, nCutsVec) {
   zExC <- (enC - exC) / seC
   zWrC <- (enC - wrC) / seC
   frac <- (enC - exC) / (wrC - exC)
-  cat(sprintf(paste0("P(root=x2 | split): engine %.4f  exact %.4f  wrong %.4f",
-    "  (MCse %.5f)\n"), enC, exC, wrC, seC))
-  cat(sprintf(paste0("  z vs exact %+.1f, z vs wrong %+.1f; engine sits %.0f%%",
-    " of the way exact->wrong\n"), zExC, zWrC, 100 * frac))
+  cat(sprintf(
+    paste0(
+      "P(root=x2 | split): engine %.4f  exact %.4f  wrong %.4f",
+      "  (MCse %.5f)\n"
+    ),
+    enC,
+    exC,
+    wrC,
+    seC
+  ))
+  cat(sprintf(
+    paste0(
+      "  z vs exact %+.1f, z vs wrong %+.1f; engine sits %.0f%%",
+      " of the way exact->wrong\n"
+    ),
+    zExC,
+    zWrC,
+    100 * frac
+  ))
 
   # cut distribution within each root variable (engine vs exact vs wrong)
   cutReport <- function(v, cuts) {
@@ -446,9 +578,12 @@ runScenario <- function(name, x1, x2, y, maxDepth, nCutsVec) {
     exCut <- exCut / sum(exCut)
     wrCut <- post$wrong$prob[post$wrong$variable == v]
     wrCut <- wrCut / sum(wrCut)
-    cat(sprintf("cut dist x%d (engine/exact/wrong) max|eng-exact|=%.4f%s\n",
-      v, max(abs(engCut - exCut)),
-      if (length(cuts) <= 3L) "" else " (per-cut arrays suppressed)"))
+    cat(sprintf(
+      "cut dist x%d (engine/exact/wrong) max|eng-exact|=%.4f%s\n",
+      v,
+      max(abs(engCut - exCut)),
+      if (length(cuts) <= 3L) "" else " (per-cut arrays suppressed)"
+    ))
     if (length(cuts) <= 3L) {
       cat("  engine:", sprintf("%.3f", engCut), "\n")
       cat("  exact :", sprintf("%.3f", exCut), "\n")
@@ -459,22 +594,36 @@ runScenario <- function(name, x1, x2, y, maxDepth, nCutsVec) {
   cutReport(2L, post$cuts2)
 
   list(
-    engine = enM, exact = exM, wrong = wrM, se = se, zEx = zEx, zWr = zWr,
-    condEngine = enC, condExact = exC, condWrong = wrC, condSe = seC,
-    condZex = zExC, condZwr = zWrC
+    engine = enM,
+    exact = exM,
+    wrong = wrM,
+    se = se,
+    zEx = zEx,
+    zWr = zWr,
+    condEngine = enC,
+    condExact = exC,
+    condWrong = wrC,
+    condSe = seC,
+    condZex = zExC,
+    condZwr = zWrC
   )
 }
 
 # ---- truncation check ----
 
 truncationCheck <- function(x1, x2, y, depths) {
-  vals1 <- sort(unique(x1)); vals2 <- sort(unique(x2))
-  K1 <- length(vals1); K2 <- length(vals2)
+  vals1 <- sort(unique(x1))
+  vals2 <- sort(unique(x2))
+  K1 <- length(vals1)
+  K2 <- length(vals2)
   yRange <- max(y) - min(y)
   yScaled <- (y - min(y)) / yRange - 0.5
   residVar <- (1 / yRange)^2
-  i1 <- match(x1, vals1); i2 <- match(x2, vals2)
-  cellN <- matrix(0, K1, K2); cellS <- matrix(0, K1, K2); cellSS <- matrix(0, K1, K2)
+  i1 <- match(x1, vals1)
+  i2 <- match(x2, vals2)
+  cellN <- matrix(0, K1, K2)
+  cellS <- matrix(0, K1, K2)
+  cellSS <- matrix(0, K1, K2)
   for (o in seq_along(y)) {
     cellN[i1[o], i2[o]] <- cellN[i1[o], i2[o]] + 1
     cellS[i1[o], i2[o]] <- cellS[i1[o], i2[o]] + yScaled[o]
@@ -482,12 +631,24 @@ truncationCheck <- function(x1, x2, y, depths) {
   }
   prev <- NULL
   for (d in depths) {
-    p <- buildPosterior(vals1, vals2, cellN, cellS, cellSS, residVar, d,
-      computeWrong = FALSE)
+    p <- buildPosterior(
+      vals1,
+      vals2,
+      cellN,
+      cellS,
+      cellSS,
+      residVar,
+      d,
+      computeWrong = FALSE
+    )
     m <- rootMarginals(p$exact)
     if (!is.null(prev)) {
-      cat(sprintf("  depth %d -> %d: max root-marginal shift %.2e\n",
-        prev$d, d, max(abs(m - prev$m))))
+      cat(sprintf(
+        "  depth %d -> %d: max root-marginal shift %.2e\n",
+        prev$d,
+        d,
+        max(abs(m - prev$m))
+      ))
     }
     prev <- list(d = d, m = m)
   }
@@ -511,14 +672,27 @@ mixedCellStats <- function(x1, x2f, y) {
     cellS[i1[o], i2[o]] <- cellS[i1[o], i2[o]] + yScaled[o]
     cellSS[i1[o], i2[o]] <- cellSS[i1[o], i2[o]] + yScaled[o]^2
   }
-  list(K1 = K1, L = L, cellN = cellN, cellS = cellS, cellSS = cellSS,
-    residVar = (1 / yRange)^2)
+  list(
+    K1 = K1,
+    L = L,
+    cellN = cellN,
+    cellS = cellS,
+    cellSS = cellSS,
+    residVar = (1 / yRange)^2
+  )
 }
 
 runMixedScenario <- function(name, x1, x2f, y, maxDepth) {
   cs <- mixedCellStats(x1, x2f, y)
-  post <- buildMixedPosterior(cs$K1, cs$L, cs$cellN, cs$cellS, cs$cellSS,
-    cs$residVar, maxDepth)
+  post <- buildMixedPosterior(
+    cs$K1,
+    cs$L,
+    cs$cellN,
+    cs$cellS,
+    cs$cellSS,
+    cs$residVar,
+    maxDepth
+  )
   eng <- runEngine(data.frame(x1 = x1, x2 = x2f), y, c(100L, 100L))
 
   exM <- rootMarginals(post)
@@ -536,14 +710,23 @@ runMixedScenario <- function(name, x1, x2f, y, maxDepth) {
 
   cat(sprintf(
     "\n=== %s (n=%d, x1 %d cuts, x2 %d levels, engine N=%d) ===\n",
-    name, length(y), cs$K1 - 1L, cs$L, N))
+    name,
+    length(y),
+    cs$K1 - 1L,
+    cs$L,
+    N
+  ))
   cat(sprintf("%-10s %10s %10s %10s\n", "root", "engine", "exact", "MCse"))
   for (q in c("rootOnly", "x1", "x2")) {
     cat(sprintf("%-10s %10.4f %10.4f %10.5f\n", q, enM[q], exM[q], se[q]))
   }
   zEx <- (enM - exM) / se
-  cat(sprintf("z(uncond) vs exact : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
-    zEx["rootOnly"], zEx["x1"], zEx["x2"]))
+  cat(sprintf(
+    "z(uncond) vs exact : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
+    zEx["rootOnly"],
+    zEx["x1"],
+    zEx["x2"]
+  ))
 
   condX2 <- function(m) m["x2"] / (m["x1"] + m["x2"])
   enC <- condX2(enM)
@@ -551,12 +734,23 @@ runMixedScenario <- function(name, x1, x2f, y, maxDepth) {
   split <- eng$var != -1L
   seC <- batchMeanSE(eng$var[split] == 2L)
   zExC <- (enC - exC) / seC
-  cat(sprintf("P(root=x2 | split): engine %.4f  exact %.4f  (MCse %.5f)  z %+.1f\n",
-    enC, exC, seC, zExC))
+  cat(sprintf(
+    "P(root=x2 | split): engine %.4f  exact %.4f  (MCse %.5f)  z %+.1f\n",
+    enC,
+    exC,
+    seC,
+    zExC
+  ))
 
   list(
-    engine = enM, exact = exM, se = se, zEx = zEx,
-    condEngine = enC, condExact = exC, condSe = seC, condZex = zExC
+    engine = enM,
+    exact = exM,
+    se = se,
+    zEx = zEx,
+    condEngine = enC,
+    condExact = exC,
+    condSe = seC,
+    condZex = zExC
   )
 }
 
@@ -564,12 +758,23 @@ mixedTruncationCheck <- function(x1, x2f, y, depths) {
   cs <- mixedCellStats(x1, x2f, y)
   prev <- NULL
   for (d in depths) {
-    p <- buildMixedPosterior(cs$K1, cs$L, cs$cellN, cs$cellS, cs$cellSS,
-      cs$residVar, d)
+    p <- buildMixedPosterior(
+      cs$K1,
+      cs$L,
+      cs$cellN,
+      cs$cellS,
+      cs$cellSS,
+      cs$residVar,
+      d
+    )
     m <- rootMarginals(p)
     if (!is.null(prev)) {
-      cat(sprintf("  depth %d -> %d: max root-marginal shift %.2e\n",
-        prev$d, d, max(abs(m - prev$m))))
+      cat(sprintf(
+        "  depth %d -> %d: max root-marginal shift %.2e\n",
+        prev$d,
+        d,
+        max(abs(m - prev$m))
+      ))
     }
     prev <- list(d = d, m = m)
   }
@@ -587,8 +792,13 @@ cat("truncation check (exact root marginals vs depth), MAIN:\n")
 truncationCheck(x1, x2, yMain, c(4L, 5L, 6L))
 
 resMain <- runScenario(
-  "MAIN: unequal cut counts (19 vs 2)", x1, x2, yMain, maxDepthMain,
-  c(100L, 100L))
+  "MAIN: unequal cut counts (19 vs 2)",
+  x1,
+  x2,
+  yMain,
+  maxDepthMain,
+  c(100L, 100L)
+)
 
 # ================= CONTROL scenario (equal cut counts) =================
 
@@ -601,8 +811,13 @@ cat("\ntruncation check (exact root marginals vs depth), CONTROL:\n")
 truncationCheck(x1c, x2c, yCtrl, c(5L, 6L))
 
 resCtrl <- runScenario(
-  "CONTROL: equal cut counts (19 vs 19)", x1c, x2c, yCtrl, maxDepthCtrl,
-  c(100L, 100L))
+  "CONTROL: equal cut counts (19 vs 19)",
+  x1c,
+  x2c,
+  yCtrl,
+  maxDepthCtrl,
+  c(100L, 100L)
+)
 
 # ================= MIXED scenario (ordinal vs categorical) =================
 # x2 is a 4-level factor exactly aligned with x1's step blocks, so both
@@ -626,7 +841,12 @@ cat("\ntruncation check (exact root marginals vs depth), MIXED:\n")
 mixedTruncationCheck(x1m, x2m, yMix, c(4L, 5L, 6L))
 
 resMix <- runMixedScenario(
-  "MIXED: ordinal (9 cuts) vs categorical (4 levels)", x1m, x2m, yMix, 6L)
+  "MIXED: ordinal (9 cuts) vs categorical (4 levels)",
+  x1m,
+  x2m,
+  yMix,
+  6L
+)
 
 # ================= verdict =================
 # Gate: the engine must MATCH the exact posterior (|z| < 4) on MAIN and MIXED
@@ -634,27 +854,54 @@ resMix <- runMixedScenario(
 # (equal cut counts) must match up to the honest deep-node residual (|z| < 30).
 
 cat("\n================ VERDICT ================\n")
-cat(sprintf("%-26s %10s %10s %10s %10s %8s\n",
-  "scenario", "P(x2|spl)", "exact", "wrong", "z-exact", "gate"))
+cat(sprintf(
+  "%-26s %10s %10s %10s %10s %8s\n",
+  "scenario",
+  "P(x2|spl)",
+  "exact",
+  "wrong",
+  "z-exact",
+  "gate"
+))
 mainZ <- resMain$condZex
 mainOk <- abs(mainZ) < 4
-cat(sprintf("%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
-  "MAIN (unequal 19 vs 2)", resMain$condEngine, resMain$condExact,
-  resMain$condWrong, mainZ, if (mainOk) "PASS" else "FAIL"))
+cat(sprintf(
+  "%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
+  "MAIN (unequal 19 vs 2)",
+  resMain$condEngine,
+  resMain$condExact,
+  resMain$condWrong,
+  mainZ,
+  if (mainOk) "PASS" else "FAIL"
+))
 cat(sprintf("  (engine z vs wrong target %+.1f)\n", resMain$condZwr))
 ctrlZ <- resCtrl$condZex
 ctrlOk <- abs(ctrlZ) < 30
-cat(sprintf("%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
-  "CONTROL (equal 19 vs 19)", resCtrl$condEngine, resCtrl$condExact,
-  resCtrl$condWrong, ctrlZ, if (ctrlOk) "match" else "MISMATCH"))
+cat(sprintf(
+  "%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
+  "CONTROL (equal 19 vs 19)",
+  resCtrl$condEngine,
+  resCtrl$condExact,
+  resCtrl$condWrong,
+  ctrlZ,
+  if (ctrlOk) "match" else "MISMATCH"
+))
 mixZ <- resMix$condZex
 mixOk <- abs(mixZ) < 4
-cat(sprintf("%-26s %10.4f %10.4f %10s %+10.1f %8s\n",
-  "MIXED (ordinal vs categ.)", resMix$condEngine, resMix$condExact,
-  "-", mixZ, if (mixOk) "PASS" else "FAIL"))
+cat(sprintf(
+  "%-26s %10.4f %10.4f %10s %+10.1f %8s\n",
+  "MIXED (ordinal vs categ.)",
+  resMix$condEngine,
+  resMix$condExact,
+  "-",
+  mixZ,
+  if (mixOk) "PASS" else "FAIL"
+))
 
 cat(sprintf(
   "\nBALANCE GATE: %s (MAIN matches exact: %s; CONTROL clean: %s; MIXED matches exact: %s)\n",
   if (mainOk && ctrlOk && mixOk) "PASS" else "FAIL",
-  if (mainOk) "yes" else "NO", if (ctrlOk) "yes" else "NO",
-  if (mixOk) "yes" else "NO"))
+  if (mainOk) "yes" else "NO",
+  if (ctrlOk) "yes" else "NO",
+  if (mixOk) "yes" else "NO"
+))
