@@ -128,18 +128,18 @@
             with `keepSampler` the `fit` element holds one multi-chain
             sampler instead of one sampler per chain, and save/load of
             such fits continues to work.
-      \item The bartcore engine replaces the classic engine: every
+      \item The rewritten engine replaces the pre-1.0 engine: every
             fitting function runs on it. Fits are statistically
-            equivalent to the classic engine's but not draw-for-draw
+            equivalent to the pre-1.0 engine's but not draw-for-draw
             identical, so seeded results change. `bart` keeps its
             historical behavior apart from the engine (indicator
             expansion of factors, probit for binary responses).
             `dbartsControl` loses the `engine`, `rngKind`, and
             `rngNormalKind` arguments; explicit generator kinds were a
-            classic-engine feature. Saved sampler states from previous
+            pre-1.0-engine feature. Saved sampler states from previous
             versions cannot be restored.
       \item Sampling is faster: the benchmark run scenarios take 25 to
-            30 percent less time per iteration than the classic engine,
+            30 percent less time per iteration than the pre-1.0 engine,
             the gap widening with the number of observations. The final
             restructurings - the run loop keeps a running residual
             across each sweep, and change and swap proposals score the
@@ -148,7 +148,7 @@
             earlier development builds of this version for posteriors
             that are statistically identical.
       \item A flat C interface for packages compiling against dbarts,
-            `dbarts/dbarts.h`: an opaque sampler handle over the bartcore
+            `dbarts/dbarts.h`: an opaque sampler handle over the rewritten
             engine, created from the R specification objects, with entry
             points for running into caller-owned buffers, the mutation
             surface (response, offset, weights, sigma, predictors, test
@@ -164,13 +164,13 @@
             chain 0 of a multi-chain run with the same seed. Without a
             seed, chain generators are seeded from R's stream at
             creation, so `set.seed` alone suffices for reproducibility
-            and sampling itself never advances R's stream (the classic
+            and sampling itself never advances R's stream (the pre-1.0
             engine ran single chains through R's generator and seeded
             multiple chains from the clock).
       \item `resid.prior = fixed(value)` now follows its documentation:
             the residual standard deviation holds at `sqrt(value)`, at
             creation and through `setModel` alike. The
-            classic engine ignored the value at creation (holding sigma
+            pre-1.0 engine ignored the value at creation (holding sigma
             at its starting estimate) and installed it as a standard
             deviation in `setModel`.
       \item Factor columns in data frames now default to
@@ -225,7 +225,7 @@
             A logistic
             model accepts positive-integer count weights, a weight-w
             observation contributing its likelihood to the w-th power;
-            a probit refuses weights (the weighted probit the classic
+            a probit refuses weights (the weighted probit the pre-1.0
             engine fit was incorrect and is not carried forward), except
             that weights identically 1 are treated as absent, as
             SuperLearner-style callers pass unit weights unconditionally.
@@ -277,7 +277,7 @@
             column and `plotTree` appends it to rule labels. `bart` keeps
             rejecting missing data. Fits on complete data are unchanged,
             drawing the same random stream as before.
-      \item The bartcore engine implements the full `dbartsSampler`
+      \item The rewritten engine implements the full `dbartsSampler`
             interface: every method works, including `keepTrees`,
             `getTrees`, `predict`, `plotTree`, `setWeights`, test offsets,
             `printTrees`, sampling from the prior, `setControl`,
@@ -305,7 +305,7 @@
   \subsection{C API}{
     \itemize{
       \item The C++ interface in `dbarts/R_C_interface.hpp` is removed with
-            the classic engine it exposed; packages compiling against
+            the pre-1.0 engine it exposed; packages compiling against
             dbarts use the flat C interface in `dbarts/dbarts.h` instead.
     }
   }

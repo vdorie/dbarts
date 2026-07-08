@@ -42,7 +42,7 @@ pd2bart(
     Dependent variable for training (in sample) data. Can be a numeric vector or, when passing \code{x.train} as a formula, a \code{data.frame} or other object used to find variables. Not required if \code{x.train} is a fitted model or sampler.
   }
   \item{xind}{
-    Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In \code{pdbart}, corresponds to the variables (columns of \code{x.train}) for which a plot is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indicies of a pair of variables (columns of \code{x.train}) to plot. If \code{NULL} a default of all columns is used for \code{pdbart} and the first two columns is used for \code{pd2bart}.
+    Integer, character vector, or the right-hand side of a formula indicating which variables are to be plotted. In \code{pdbart}, corresponds to the variables (columns of \code{x.train}) for which a plot is to be constructed. In \code{plot.pdbart}, corresponds to the indices in list returned by \code{pdbart} for which plot is to be constructed. In \code{pd2bart}, the indices of a pair of variables (columns of \code{x.train}) to plot. If \code{NULL} a default of all columns is used for \code{pdbart} and the first two columns is used for \code{pd2bart}.
   }
    \item{levs}{
      Gives the values of a variable at which the plot is to be constructed. Must be a list, where the \eqn{i}th component gives the values for the \eqn{i}th variable. In \code{pdbart}, it should have same length as \code{xind}. In \code{pd2bart}, it should have length 2. See also argument \code{levquants}.

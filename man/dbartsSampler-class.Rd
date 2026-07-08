@@ -46,10 +46,10 @@
 \S4method{setSigma}{dbartsSampler}(sigma, updateState = NA)
 \S4method{setPredictor}{dbartsSampler}(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 \S4method{setCutPoints}{dbartsSampler}(cuts, column, updateState = NA)
-\S4method{setTestPredictor}{dbartsSampler}(x.test, column, updateState = NA)
-\S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test, updateState = NA)
-\S4method{setTestOffset}{dbartsSampler}(offset.test, updateState = NA)
-\S4method{printTrees}{dbartsSampler}(treeNums)
+\S4method{setTestPredictor}{dbartsSampler}(x.test, column)
+\S4method{setTestPredictorAndOffset}{dbartsSampler}(x.test, offset.test)
+\S4method{setTestOffset}{dbartsSampler}(offset.test)
+\S4method{printTrees}{dbartsSampler}(treeNums, chainNums, sampleNums)
 \S4method{getTrees}{dbartsSampler}(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
@@ -98,7 +98,7 @@
     Logical indicating whether BART's internal scale should re-anchor to the new offset (\code{setOffset}) or response (\code{setResponse}). Defaults to \code{FALSE}, locking the scale set at creation; should only be \code{TRUE} during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable.
   }
   \item{offset.test}{
-    A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictors}.
+    A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}.
   }
   \item{n.threads}{
     If greater than one, chain predictions will take place in parallel.
@@ -107,7 +107,7 @@
     Numeric vector of residual standard deviations, one for each chain.
   }
   \item{weights}{
-    A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. This gaussian interpretation is the general case; a logistic-family sampler treats weights as observation counts and requires positive integers, and a probit-family sampler does not accept weights at all.
+    A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. \code{setWeights} only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See \code{\link{dbarts}} for the family-specific weight rules that apply at creation time.
   }
   \item{cuts}{
     Vector of cut points for use with \code{setCutPoints}.
@@ -127,8 +127,8 @@
     observations whose value would empty a leaf, returning a per-observation
     logical of what was installed. \code{"partial"} requires a single \code{column}
     and cannot be combined with \code{updateCutPoints}. When missing, defaults to
-    \code{TRUE} if the replacement predictor is a matrix and \code{FALSE}
-    otherwise.
+    \code{TRUE} when the whole predictor matrix is being replaced (\code{column}
+    is missing) and \code{FALSE} when a single column is being replaced.
   }
   \item{updateCutPoints}{
     For \code{setPredictor}, a logical; when \code{TRUE} the cut points (split
@@ -192,7 +192,7 @@
 \value{
   For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}. A run can be interrupted with \code{Ctrl-C}: it stops between iterations - joining any worker threads first - and signals an error, returning no samples from the interrupted run. The sampler's chains are left at the iteration they reached, which is a valid state to run again from.
 
-  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
+  For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, the update is rolled back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
 
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is \code{TRUE}, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to \code{setPredictor} if the step is accepted.
 
