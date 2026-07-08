@@ -72,9 +72,10 @@ items
     structures over-weight low-cardinality / descendant-constrained
     split variables whenever effective cut counts are unequal.
     INHERITED from the classic engine (and its CGM lineage); not a
-    rewrite regression. AWAITING VD: fix decision (posterior-changing
-    class; candidate shapes in the audit plan; changes 15-year-old
-    semantics and invalidates draw-for-draw comparisons to 0.9-x).
+    rewrite regression. VD wants it fixed; variant chosen by
+    experiment - see change-move-fix (stage 1 instrumentation, then
+    dual-prototype ESS comparison; VD leans the hybrid on the
+    silent-mixing-cost argument). Queued behind audit block 3.
   moves-degenerate-root-guard: correctness-audit block-1 finding. A
     single-node tree with no available split variable forces a birth
     (drawBirthableNode's hasSingleNode branch skips the availability
