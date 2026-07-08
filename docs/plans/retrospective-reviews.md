@@ -6,11 +6,13 @@ rng: neutral unless a review surfaces a fix (fixes ride their own
 budget: program of six reviews; each gets its own plan file and lands
         its findings as a design note or plan resolution
 
-Greenlit by VD 2026-07-08 ("All 6, in any order you please"), with a
-binding execution constraint: reviews run STRICTLY SEQUENTIALLY - one
+Greenlit by VD 2026-07-08 ("All 6, in any order you please"), with
+binding execution constraints: reviews run STRICTLY SEQUENTIALLY - one
 review at a time, modest fan-out inside a review, sub-agent spawning
 by readers forbidden (the 2026-07-07 session-limit exhaustion came
-from a reader fan-out of fan-outs).
+from a reader fan-out of fan-outs) - and all delegated work runs on
+Opus (engine/numerics/derivations) or Sonnet (mechanical/R/docs),
+with meta review by the orchestrating Fable session (VD, 2026-07-08).
 
 ## The program
 
