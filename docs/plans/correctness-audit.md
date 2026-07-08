@@ -171,6 +171,42 @@ match (z = -2.2) validating the enumeration, with a small honest
 residual (z = -27, 19x smaller) from depth >= 1 changes whose
 descendant-constrained intervals still differ - the same mechanism.
 
+Block 3, hyperpriors and DART (2026-07-08): CONFIRMED throughout by
+both derivers except one adjudicated labeling defect. Jointly
+confirmed: the k draw's rate (0.5 * sum(param^2)/leafScale^2 + the
+finite-scale 0.5/scale^2 term; infinite-scale limit clean; the leaf
+sum accumulated raw on the internal scale, no k^2-vs-k^4 error, reset
+per sweep); the full DART machinery (Dirichlet alpha/p + m_j with
+counts recounted over all trees each sweep; normalized-gamma with a
+1e-300 floor and uniform fallback; the alpha grid living in lambda
+space with the Beta prior expressed in lambda so NO Jacobian is owed,
+normalizer constants exact; alpha conditions on s not counts - the
+correct Linero step; updateDelay holds s uniform then consumes fresh
+counts); tau priors (cauchy and gamma parameterizations match R
+exactly, scale-family internal conversion owes no Jacobian), the tau
+posterior conditioning only on the group effects (correct block), the
+weighted per-group conjugate intercept update (reduces to R's
+unweighted form at unit weights), offset plumbing and recording
+de-scaling coherent end to end.
+
+ADJUDICATED FINDING (both derivers, same math, framing reconciled):
+the k posterior shape is 0.5(M + 2 nu - 1), the exact Gibbs step for
+a chi(2 nu - 1) prior on k - NOT the chi(nu) the degreesOfFreedom
+argument and docs describe. chi(1.25) delivers chi(1.5); the two
+coincide only at nu = 1. Bit-identical to classic parameterPrior.cpp
+(a Jacobian slip in the original k^2 derivation, inherited). The
+sampler is internally valid for its own prior; the defect is the
+LABEL. Filed as chi-hyperprior-df: VD picks doc-fix (document the
+implemented density) or code-fix (make chi(nu) mean chi(nu);
+posterior-changing but only for opt-in k = chi(...) fits - defaults
+fix k and are untouched).
+
+Targeted-test note for the SBC/blindspot reviews: the 1e-300
+normalized-gamma floor feeds log(1e-300) into the alpha grid's
+sum-log-s under extreme sparsity (alpha/p << 1, many zero-count
+variables), plausibly biasing alpha low; worth a high-sparsity
+calibration check.
+
 CONSEQUENCE: dbarts' tree-structure posterior over-weights
 low-cardinality and descendant-constrained split variables in every
 configuration with unequal effective cut counts (mixed continuous/

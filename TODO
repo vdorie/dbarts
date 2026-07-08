@@ -65,6 +65,15 @@ items
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked.
+  chi-hyperprior-df: correctness-audit block-3 finding. The k
+    hyperprior's Gibbs step implements a chi(2*nu - 1) prior while
+    the degreesOfFreedom argument and docs say chi(nu) - chi(1.25)
+    delivers chi(1.5); coincide only at nu = 1. Inherited verbatim
+    from classic parameterPrior.cpp (a Jacobian slip in the original
+    derivation). Sampler valid for its own prior; the label is wrong.
+    AWAITING VD: doc-fix (document the implemented density) vs
+    code-fix (one line, posterior-changing, but only for opt-in
+    k = chi(...) fits - the fixed-k default is untouched).
   change-move-balance: correctness-audit block-2 finding, numerically
     CONFIRMED (z = +479 vs the exact posterior; benchmarks/R/
     change-balance.R; full record in docs/plans/correctness-audit.md).
