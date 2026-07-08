@@ -13,9 +13,9 @@ namespace bartcore {
 
 using std::size_t;
 
-/// Predictor code type; per-column widths (u8 hot layers) remain planned
-/// (see docs/design/core-generalization.md), uint16_t matches the classic
-/// engine.
+/// Predictor code type: the per-cell quantized ordinal rank or categorical
+/// code. uint16_t caps a column at maxNumCutsRepresentable cuts, keeping every
+/// real code below naCode (0xFFFF), the reserved missing marker.
 using xint_t = std::uint16_t;
 
 /// Reserved code for a missing ordinal value; cut counts cap below it so

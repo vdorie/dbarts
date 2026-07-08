@@ -159,7 +159,7 @@ public:
 
   /// A BCF two-forest sampler over dense predictors (docs/design/bcf.md):
   /// gaussian only, one prognostic and one treatment forest per chain. The
-  /// CSC/mixed and view ingestion paths are not offered here (step 4).
+  /// CSC/mixed and view ingestion paths are not offered here.
   Sampler(const double* x, const double* y, size_t numObservations,
           size_t numPredictors, const double* weights, const double* offset,
           double sigmaEstimate, double sigmaDf, double sigmaRawScale,
@@ -596,8 +596,8 @@ public:
     return chains_[chainNum]->latents();
   }
 
-  /// Between-run reconfiguration (the classic engine's setControl). Chain
-  /// count, tree count, generators, and the cut grid are fixed at creation;
+  /// Between-run reconfiguration. Chain count, tree count, generators, and the
+  /// cut grid are fixed at creation;
   /// the host refuses changes to those.
   void setNumThreads(size_t numThreads) {
     options_.numThreads = numThreads;
@@ -649,9 +649,9 @@ public:
     for (auto& chain : chains_) chain->sampleNodeParametersFromPrior();
   }
 
-  /// Info dump matching the reference engine's BARTFit::printTrees: without
-  /// keepTrees the live trees print and sample indices are ignored; with it,
-  /// the requested saved slots print in the saved-tree format.
+  /// Info dump; the per-node output format is R-visible and pinned by tests.
+  /// Without keepTrees the live trees print and sample indices are ignored;
+  /// with it, the requested saved slots print in the saved-tree format.
   void printTrees(const size_t* chainIndices, size_t numChainIndices,
                   const size_t* sampleIndices, size_t numSampleIndices,
                   const size_t* treeIndices, size_t numTreeIndices) {
@@ -958,10 +958,9 @@ private:
     return true;
   }
 
-  /// Port of the classic engine's InPlacePredictorUpdater: caches each
-  /// observation's leaf and per-leaf occupancy for every tree of every
-  /// chain by routing codes through the split structure, so staging a move
-  /// is a descent and a count check per tree.
+  /// Caches each observation's leaf and per-leaf occupancy for every tree of
+  /// every chain by routing codes through the split structure, so staging a
+  /// move is a descent and a count check per tree.
   class UpdateSessionImpl final : public PredictorUpdateSession {
   public:
     UpdateSessionImpl(Sampler& sampler, const double* newColumn, size_t column)

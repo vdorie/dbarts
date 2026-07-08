@@ -1,8 +1,11 @@
 #ifndef BARTCORE_BARTCORE_HPP
 #define BARTCORE_BARTCORE_HPP
 
-// Generalized BART core, phase 1: conjugate constant-leaf engine, ordinal
-// rules, Gaussian and probit responses. See docs/design/core-generalization.md.
+// Header-only conjugate BART MCMC engine: constant, linear, and
+// Gaussian-process leaves; ordinal and categorical split rules; Gaussian,
+// probit, and logistic response families; grouped random intercepts; DART
+// split-variable selection; BCF two-forest samplers; and sparse-column
+// ingestion. See docs/design/core-generalization.md.
 
 // IWYU pragma: begin_exports
 #include "data.hpp"

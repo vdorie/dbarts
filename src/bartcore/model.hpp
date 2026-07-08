@@ -29,8 +29,8 @@ namespace bartcore {
 /// vector models write numParams() doubles per leaf and evaluate fits per
 /// observation, function-valued models draw one value per member observation
 /// directly into the fit vector (the fits ARE the parameters). Chain code
-/// branches on the shape traits at compile time, so the scalar paths compile
-/// exactly as they always have.
+/// branches on the shape traits at compile time, so a scalar leaf model
+/// never instantiates the vector or function paths.
 template <typename L>
 concept LeafModelCore =
   requires(const L leaf, const Tree& tree, const double* v, double d,
@@ -1720,8 +1720,7 @@ private:
 
 /// Chi hyperprior on the end-node precision parameter k. The posterior of
 /// k^2 is gamma in the sum of squared leaf parameters across the forest;
-/// a finite prior scale adds 0.5 / scale^2 to the rate (classic
-/// ChiHyperprior::drawFromPosterior).
+/// a finite prior scale adds 0.5 / scale^2 to the rate.
 struct ChiKHyperprior {
   double degreesOfFreedom = 1.25;
   double scale = HUGE_VAL;  // infinite = flat in the rate term
@@ -2086,7 +2085,7 @@ public:
     numObservations_ = numObservations;
     latents_.resize(numObservations);
     working_.resize(numObservations);
-    // cold init, z = 2 y - 1, as the reference engine's initializeLatents
+    // cold init, z = 2 y - 1
     misc_setVectorToConstant(latents_.data(), numObservations, -1.0);
     misc_addVectorsInPlaceWithMultiplier(y, numObservations, 2.0,
                                          latents_.data());
