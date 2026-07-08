@@ -79,15 +79,15 @@ print(head(trees, n = 10))
 
     ##    chain sample tree   n var        value
     ## 1      1      1    1 100   5  0.172099022
-    ## 2      1      1    1  19  -1 -0.152703748
-    ## 3      1      1    1  81   2  0.553265862
-    ## 4      1      1    1  34   2  0.218104606
-    ## 5      1      1    1   9   3  0.706622887
-    ## 6      1      1    1   7  -1 -0.222561794
-    ## 7      1      1    1   2  -1 -0.004843434
-    ## 8      1      1    1  25   5  0.897998292
-    ## 9      1      1    1  23  -1  0.011393382
-    ## 10     1      1    1   2  -1  0.008832009
+    ## 2      1      1    1  19  -1 -0.161987541
+    ## 3      1      1    1  81   2  0.415258286
+    ## 4      1      1    1  20  -1 -0.067348401
+    ## 5      1      1    1  61  -1  0.060031278
+    ## 6      1      1    2 100   4  0.849325015
+    ## 7      1      1    2  82   4  0.571833524
+    ## 8      1      1    2  51  -1 -0.008752156
+    ## 9      1      1    2  31  -1  0.192449201
+    ## 10     1      1    2  18  -1  0.315472253
 
 The columns refer to:
 
@@ -223,7 +223,7 @@ print(rebuildTree(treeOfInterest, bartFit))
     ## 
     ## $left
     ## $left$value
-    ## [1] -0.125139
+    ## [1] -0.1603787
     ## 
     ## $left$n
     ## [1] 19
@@ -231,7 +231,7 @@ print(rebuildTree(treeOfInterest, bartFit))
     ## 
     ## $right
     ## $right$value
-    ## [1] 0.5532659
+    ## [1] 0.4152583
     ## 
     ## $right$n
     ## [1] 81
@@ -241,94 +241,18 @@ print(rebuildTree(treeOfInterest, bartFit))
     ## 
     ## $right$left
     ## $right$left$value
-    ## [1] 0.2181046
+    ## [1] -0.1087984
     ## 
     ## $right$left$n
-    ## [1] 34
-    ## 
-    ## $right$left$var
-    ## [1] "X2"
-    ## 
-    ## $right$left$left
-    ## $right$left$left$value
-    ## [1] 0.7066229
-    ## 
-    ## $right$left$left$n
-    ## [1] 9
-    ## 
-    ## $right$left$left$var
-    ## [1] "X3"
-    ## 
-    ## $right$left$left$left
-    ## $right$left$left$left$value
-    ## [1] 0.2277311
-    ## 
-    ## $right$left$left$left$n
-    ## [1] 7
-    ## 
-    ## $right$left$left$left$var
-    ## [1] "X9"
-    ## 
-    ## $right$left$left$left$left
-    ## $right$left$left$left$left$value
-    ## [1] -0.1986161
-    ## 
-    ## $right$left$left$left$left$n
-    ## [1] 2
-    ## 
-    ## 
-    ## $right$left$left$left$right
-    ## $right$left$left$left$right$value
-    ## [1] -0.2271963
-    ## 
-    ## $right$left$left$left$right$n
-    ## [1] 5
-    ## 
-    ## 
-    ## 
-    ## $right$left$left$right
-    ## $right$left$left$right$value
-    ## [1] -0.003246283
-    ## 
-    ## $right$left$left$right$n
-    ## [1] 2
-    ## 
-    ## 
-    ## 
-    ## $right$left$right
-    ## $right$left$right$value
-    ## [1] 0.8979983
-    ## 
-    ## $right$left$right$n
-    ## [1] 25
-    ## 
-    ## $right$left$right$var
-    ## [1] "X5"
-    ## 
-    ## $right$left$right$left
-    ## $right$left$right$left$value
-    ## [1] 0.02943045
-    ## 
-    ## $right$left$right$left$n
-    ## [1] 23
-    ## 
-    ## 
-    ## $right$left$right$right
-    ## $right$left$right$right$value
-    ## [1] 0.04386729
-    ## 
-    ## $right$left$right$right$n
-    ## [1] 2
-    ## 
-    ## 
+    ## [1] 20
     ## 
     ## 
     ## $right$right
     ## $right$right$value
-    ## [1] 0.1121237
+    ## [1] 0.05573811
     ## 
     ## $right$right$n
-    ## [1] 47
+    ## [1] 61
 
 Under a `linear` node prior, the same function attaches each leaf’s
 slopes as `$beta`:
@@ -449,7 +373,7 @@ getPredictionsForTree <- function(tree, x) {
 getPredictionsForTree(treeOfInterest, bartFit$fit$data@x[1:5,])
 ```
 
-    ## [1] -0.2271963  0.1121237  0.1121237 -0.1251390 -0.1251390
+    ## [1] -0.10879844  0.05573811  0.05573811 -0.16037867 -0.16037867
 
 A `by` statement can be used to obtain all predictions for all trees.
 
@@ -469,20 +393,12 @@ newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNum
 print(subset(newTrees, chain == 1))
 ```
 
-    ##    chain sample tree n var        value
-    ## 1      1      3    1 5   5  0.172099022
-    ## 2      1      3    1 2  -1 -0.125139008
-    ## 3      1      3    1 3   2  0.553265862
-    ## 4      1      3    1 1   2  0.218104606
-    ## 5      1      3    1 1   3  0.706622887
-    ## 6      1      3    1 1   9  0.227731139
-    ## 7      1      3    1 0  -1 -0.198616087
-    ## 8      1      3    1 1  -1 -0.227196258
-    ## 9      1      3    1 0  -1 -0.003246283
-    ## 10     1      3    1 0   5  0.897998292
-    ## 11     1      3    1 0  -1  0.029430446
-    ## 12     1      3    1 0  -1  0.043867291
-    ## 13     1      3    1 2  -1  0.112123719
+    ##   chain sample tree n var       value
+    ## 1     1      3    1 5   5  0.17209902
+    ## 2     1      3    1 2  -1 -0.16037867
+    ## 3     1      3    1 3   2  0.41525829
+    ## 4     1      3    1 1  -1 -0.10879844
+    ## 5     1      3    1 2  -1  0.05573811
 
 ## Advanced Traversal
 
@@ -599,10 +515,10 @@ print(interactionData$hasInteraction)
     ##         descendant
     ## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10
     ##      X1  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X2  FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE
-    ##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE  TRUE FALSE
+    ##      X2  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+    ##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X4  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
-    ##      X5  FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE
+    ##      X5  FALSE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X6  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X7  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
     ##      X8  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE

@@ -79,7 +79,7 @@
 <dd><p>Normal prior on the node means. <code>k</code> scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       <code>chi</code>, or <code>NULL</code> for the default: 2 for continuous
-      responses, <code>chi(1.25, Inf)</code> for binary ones. The continuous
+      responses, <code>chi(1.5, Inf)</code> for binary ones. The continuous
       default follows Chipman, George, and McCulloch's argument that with
       node standard deviation <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for
       <code>m</code> trees, <code>k</code> prior standard deviations of \(f(x)\)
@@ -117,9 +117,10 @@
       leaf sizes. <code><a href="xbart.html">xbart</a></code> accepts the same specification
       through its own <code>node.prior</code> argument.</p></dd>
 
-    <dt><code>chi(degreesOfFreedom = 1.25, scale = Inf)</code></dt>
+    <dt><code>chi(degreesOfFreedom = 1.5, scale = Inf)</code></dt>
 <dd><p>Chi hyperprior over <code>k</code>, sampled along with the rest of the
-      model.</p></dd>
+      model: <code>k</code> is given a chi distribution with the stated degrees
+      of freedom and scale.</p></dd>
 
     <dt><code>chisq(df = 3, quant = 0.9)</code></dt>
 <dd><p>Chi-squared prior on the residual variance, scaled so that an
@@ -135,7 +136,7 @@
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>Inside the prior arguments of the fitting functions the same constructors
   are available by bare name, so <code>dbarts(..., node.prior =
-  normal(chi(1.25)))</code> works regardless of what packages are attached: those
+  normal(chi(1.5)))</code> works regardless of what packages are attached: those
   arguments are evaluated with this vocabulary layered over the calling
   environment, along with <code>num.vars</code>, the number of predictor columns.
   A prior object built ahead of time with <code>dbartsPriors$...</code> can be
@@ -154,7 +155,7 @@
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">prior</span> <span class="op">&lt;-</span> <span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">normal</span><span class="op">(</span><span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">chi</span><span class="op">(</span><span class="fl">1.25</span><span class="op">)</span><span class="op">)</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">prior</span> <span class="op">&lt;-</span> <span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">normal</span><span class="op">(</span><span class="va">dbartsPriors</span><span class="op">$</span><span class="fu">chi</span><span class="op">(</span><span class="fl">1.5</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">x</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">y</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span>, <span class="fl">1</span><span class="op">]</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">100</span>, <span class="fl">0</span>, <span class="fl">0.5</span><span class="op">)</span></span></span>

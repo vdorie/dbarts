@@ -145,15 +145,15 @@ left-hand-side tree traversal.</p>
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">trees</span>, n <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##    chain sample tree   n var        value</span></span>
 <span><span class="co">## 1      1      1    1 100   5  0.172099022</span></span>
-<span><span class="co">## 2      1      1    1  19  -1 -0.152703748</span></span>
-<span><span class="co">## 3      1      1    1  81   2  0.553265862</span></span>
-<span><span class="co">## 4      1      1    1  34   2  0.218104606</span></span>
-<span><span class="co">## 5      1      1    1   9   3  0.706622887</span></span>
-<span><span class="co">## 6      1      1    1   7  -1 -0.222561794</span></span>
-<span><span class="co">## 7      1      1    1   2  -1 -0.004843434</span></span>
-<span><span class="co">## 8      1      1    1  25   5  0.897998292</span></span>
-<span><span class="co">## 9      1      1    1  23  -1  0.011393382</span></span>
-<span><span class="co">## 10     1      1    1   2  -1  0.008832009</span></span></code></pre>
+<span><span class="co">## 2      1      1    1  19  -1 -0.161987541</span></span>
+<span><span class="co">## 3      1      1    1  81   2  0.415258286</span></span>
+<span><span class="co">## 4      1      1    1  20  -1 -0.067348401</span></span>
+<span><span class="co">## 5      1      1    1  61  -1  0.060031278</span></span>
+<span><span class="co">## 6      1      1    2 100   4  0.849325015</span></span>
+<span><span class="co">## 7      1      1    2  82   4  0.571833524</span></span>
+<span><span class="co">## 8      1      1    2  51  -1 -0.008752156</span></span>
+<span><span class="co">## 9      1      1    2  31  -1  0.192449201</span></span>
+<span><span class="co">## 10     1      1    2  18  -1  0.315472253</span></span></code></pre>
 <p>The columns refer to:</p>
 <ul>
 <li>
@@ -295,7 +295,7 @@ ahead the appropriate number of rows. For example:</p>
 <span><span class="co">## </span></span>
 <span><span class="co">## $left</span></span>
 <span><span class="co">## $left$value</span></span>
-<span><span class="co">## [1] -0.125139</span></span>
+<span><span class="co">## [1] -0.1603787</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## $left$n</span></span>
 <span><span class="co">## [1] 19</span></span>
@@ -303,7 +303,7 @@ ahead the appropriate number of rows. For example:</p>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right</span></span>
 <span><span class="co">## $right$value</span></span>
-<span><span class="co">## [1] 0.5532659</span></span>
+<span><span class="co">## [1] 0.4152583</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$n</span></span>
 <span><span class="co">## [1] 81</span></span>
@@ -313,94 +313,18 @@ ahead the appropriate number of rows. For example:</p>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$left</span></span>
 <span><span class="co">## $right$left$value</span></span>
-<span><span class="co">## [1] 0.2181046</span></span>
+<span><span class="co">## [1] -0.1087984</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$left$n</span></span>
-<span><span class="co">## [1] 34</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$var</span></span>
-<span><span class="co">## [1] "X2"</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left</span></span>
-<span><span class="co">## $right$left$left$value</span></span>
-<span><span class="co">## [1] 0.7066229</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$n</span></span>
-<span><span class="co">## [1] 9</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$var</span></span>
-<span><span class="co">## [1] "X3"</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left</span></span>
-<span><span class="co">## $right$left$left$left$value</span></span>
-<span><span class="co">## [1] 0.2277311</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$n</span></span>
-<span><span class="co">## [1] 7</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$var</span></span>
-<span><span class="co">## [1] "X9"</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$left</span></span>
-<span><span class="co">## $right$left$left$left$left$value</span></span>
-<span><span class="co">## [1] -0.1986161</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$left$n</span></span>
-<span><span class="co">## [1] 2</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$right</span></span>
-<span><span class="co">## $right$left$left$left$right$value</span></span>
-<span><span class="co">## [1] -0.2271963</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$left$right$n</span></span>
-<span><span class="co">## [1] 5</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$right</span></span>
-<span><span class="co">## $right$left$left$right$value</span></span>
-<span><span class="co">## [1] -0.003246283</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$left$right$n</span></span>
-<span><span class="co">## [1] 2</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right</span></span>
-<span><span class="co">## $right$left$right$value</span></span>
-<span><span class="co">## [1] 0.8979983</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$n</span></span>
-<span><span class="co">## [1] 25</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$var</span></span>
-<span><span class="co">## [1] "X5"</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$left</span></span>
-<span><span class="co">## $right$left$right$left$value</span></span>
-<span><span class="co">## [1] 0.02943045</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$left$n</span></span>
-<span><span class="co">## [1] 23</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$right</span></span>
-<span><span class="co">## $right$left$right$right$value</span></span>
-<span><span class="co">## [1] 0.04386729</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## $right$left$right$right$n</span></span>
-<span><span class="co">## [1] 2</span></span>
-<span><span class="co">## </span></span>
-<span><span class="co">## </span></span>
+<span><span class="co">## [1] 20</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$right</span></span>
 <span><span class="co">## $right$right$value</span></span>
-<span><span class="co">## [1] 0.1121237</span></span>
+<span><span class="co">## [1] 0.05573811</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">## $right$right$n</span></span>
-<span><span class="co">## [1] 47</span></span></code></pre>
+<span><span class="co">## [1] 61</span></span></code></pre>
 <p>Under a <code>linear</code> node prior, the same function attaches
 each leaf’s slopes as <code>$beta</code>:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
@@ -508,7 +432,7 @@ those.</p>
 <span><span class="op">}</span></span>
 <span></span>
 <span><span class="fu">getPredictionsForTree</span><span class="op">(</span><span class="va">treeOfInterest</span>, <span class="va">bartFit</span><span class="op">$</span><span class="va">fit</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">x</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,<span class="op">]</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## [1] -0.2271963  0.1121237  0.1121237 -0.1251390 -0.1251390</span></span></code></pre>
+<pre><code><span><span class="co">## [1] -0.10879844  0.05573811  0.05573811 -0.16037867 -0.16037867</span></span></code></pre>
 <p>A <code>by</code> statement can be used to obtain all predictions for
 all trees.</p>
 </div>
@@ -526,20 +450,12 @@ tree. The predictors are supplied in the same form as for
 <code class="sourceCode R"><span><span class="va">newData</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,<span class="op">]</span></span>
 <span><span class="va">newTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span>, newdata <span class="op">=</span> <span class="va">newData</span>, sampleNums <span class="op">=</span> <span class="fl">3</span>, treeNums <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">##    chain sample tree n var        value</span></span>
-<span><span class="co">## 1      1      3    1 5   5  0.172099022</span></span>
-<span><span class="co">## 2      1      3    1 2  -1 -0.125139008</span></span>
-<span><span class="co">## 3      1      3    1 3   2  0.553265862</span></span>
-<span><span class="co">## 4      1      3    1 1   2  0.218104606</span></span>
-<span><span class="co">## 5      1      3    1 1   3  0.706622887</span></span>
-<span><span class="co">## 6      1      3    1 1   9  0.227731139</span></span>
-<span><span class="co">## 7      1      3    1 0  -1 -0.198616087</span></span>
-<span><span class="co">## 8      1      3    1 1  -1 -0.227196258</span></span>
-<span><span class="co">## 9      1      3    1 0  -1 -0.003246283</span></span>
-<span><span class="co">## 10     1      3    1 0   5  0.897998292</span></span>
-<span><span class="co">## 11     1      3    1 0  -1  0.029430446</span></span>
-<span><span class="co">## 12     1      3    1 0  -1  0.043867291</span></span>
-<span><span class="co">## 13     1      3    1 2  -1  0.112123719</span></span></code></pre>
+<pre><code><span><span class="co">##   chain sample tree n var       value</span></span>
+<span><span class="co">## 1     1      3    1 5   5  0.17209902</span></span>
+<span><span class="co">## 2     1      3    1 2  -1 -0.16037867</span></span>
+<span><span class="co">## 3     1      3    1 3   2  0.41525829</span></span>
+<span><span class="co">## 4     1      3    1 1  -1 -0.10879844</span></span>
+<span><span class="co">## 5     1      3    1 2  -1  0.05573811</span></span></code></pre>
 </div>
 <div class="section level2">
 <h2 id="advanced-traversal">Advanced Traversal<a class="anchor" aria-label="anchor" href="#advanced-traversal"></a>
@@ -646,10 +562,10 @@ tree.</p>
 <pre><code><span><span class="co">##         descendant</span></span>
 <span><span class="co">## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10</span></span>
 <span><span class="co">##      X1  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
-<span><span class="co">##      X2  FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE</span></span>
-<span><span class="co">##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE  TRUE FALSE</span></span>
+<span><span class="co">##      X2  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
+<span><span class="co">##      X3  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
 <span><span class="co">##      X4  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
-<span><span class="co">##      X5  FALSE  TRUE  TRUE FALSE  TRUE FALSE FALSE FALSE  TRUE FALSE</span></span>
+<span><span class="co">##      X5  FALSE  TRUE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
 <span><span class="co">##      X6  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
 <span><span class="co">##      X7  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>
 <span><span class="co">##      X8  FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE</span></span>

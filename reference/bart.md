@@ -151,7 +151,7 @@ residuals(object, type = "ev", ...)
   latent variable. In both cases, the bigger \\k\\ is, the more
   conservative the fitting will be. The value can be either a fixed
   number, or the a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.25, scale = Inf)`. For `bart2`, the default
+  `chi(degreesOfFreedom = 1.5, scale = Inf)`. For `bart2`, the default
   of `NULL` uses the value 2 for continuous reponses and a `chi`
   hyperprior for binary ones. The default `chi` hyperprior is improper,
   and slightly penalizes small values of `k`. The default of 2 for
@@ -487,7 +487,7 @@ is 1 and \\s\\ is \\\infty\\, the prior is “flat”.
 
 For BART on binary outcomes, the degree of overfitting can be highly
 sensitive to `k` so it is encouraged to consider a number of values. The
-default hyperprior for binary BART, `chi(1.25, Inf)`, has been shown to
+default hyperprior for binary BART, `chi(1.5, Inf)`, has been shown to
 work well in a large number of datasets, however crossvalidation may be
 helpful. Running for a short time with a flat prior may be helpful to
 see the range of values of `k` that are consistent with the data.
@@ -764,24 +764,24 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.230514
+#> total seconds in loop: 0.226069
 #> 
 #> Tree sizes, last iteration:
-#> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
-#> 3 2 2 3 2 3 3 3 2 3 3 3 2 2 4 2 3 1 2 1 
-#> 1 3 3 2 3 2 5 2 2 2 1 3 2 2 2 3 2 3 2 3 
-#> 3 2 2 2 2 3 3 3 3 3 2 4 2 3 2 2 5 2 2 4 
-#> 3 2 3 3 2 2 1 2 3 3 2 2 2 2 2 2 3 2 2 3 
-#> 2 2 2 2 2 3 4 2 2 2 2 2 2 2 3 3 2 1 2 2 
-#> 5 4 4 2 2 2 3 2 2 2 2 2 2 2 7 3 2 4 2 2 
-#> 2 2 4 3 2 3 2 3 3 2 3 1 2 2 5 2 1 2 3 2 
-#> 3 3 2 2 4 2 2 3 3 2 2 5 2 5 3 2 3 2 2 3 
-#> 3 2 2 3 2 3 2 2 2 5 3 5 2 2 2 3 2 2 3 2 
-#> 2 1 
+#> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
+#> 2 2 4 2 2 3 3 2 2 2 2 3 2 2 2 1 3 3 2 2 
+#> 2 2 3 4 2 2 2 4 3 2 2 3 1 2 3 2 2 3 3 2 
+#> 3 2 2 2 2 3 2 2 3 2 2 2 2 2 2 2 2 3 2 2 
+#> 2 2 2 2 3 5 2 2 3 2 2 2 1 3 2 2 2 3 2 2 
+#> 1 2 5 1 3 3 3 4 2 2 2 2 3 2 2 2 2 2 2 1 
+#> 2 4 2 2 2 2 3 2 2 2 2 4 2 2 3 2 2 2 2 3 
+#> 2 3 2 2 2 2 2 1 2 4 4 3 2 4 4 3 2 1 2 3 
+#> 3 4 3 2 3 2 2 2 2 2 2 4 2 3 2 3 3 2 2 2 
+#> 3 2 2 3 2 2 2 4 4 2 3 1 3 2 2 2 1 3 2 4 
+#> 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 37) (2: 32) (3: 36) (4: 37) (5: 32) 
-#> (6: 20) (7: 29) (8: 31) (9: 26) (10: 21) 
+#> (1: 34) (2: 29) (3: 29) (4: 30) (5: 25) 
+#> (6: 25) (7: 36) (8: 21) (9: 28) (10: 16) 
 #> 
 #> DONE BART
 #> 
@@ -796,10 +796,10 @@ fitmat <- cbind(y, Ey, lmFit$fitted, bartFit$yhat.train.mean)
 colnames(fitmat) <- c('y', 'Ey', 'lm', 'bart')
 print(cor(fitmat))
 #>              y        Ey        lm      bart
-#> y    1.0000000 0.9847984 0.8841787 0.9983567
-#> Ey   0.9847984 1.0000000 0.9009389 0.9886957
-#> lm   0.8841787 0.9009389 1.0000000 0.8982339
-#> bart 0.9983567 0.9886957 0.8982339 1.0000000
+#> y    1.0000000 0.9847984 0.8841787 0.9984931
+#> Ey   0.9847984 1.0000000 0.9009389 0.9886903
+#> lm   0.8841787 0.9009389 1.0000000 0.8975062
+#> bart 0.9984931 0.9886903 0.8975062 1.0000000
 
 ## binary response with a logistic link, via bart2
 set.seed(0)
@@ -817,7 +817,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> number of chains: 1, default number of threads 1
 #> tree thinning rate: 1
 #> Prior:
-#>  prior on k: chi with 1.250000 degrees of freedom and inf scale
+#>  prior on k: chi with 1.500000 degrees of freedom and inf scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
@@ -830,14 +830,14 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001373
+#> total seconds in loop: 0.001344
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 
+#> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 
 #> 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 14) (2: 15) 
+#> (1: 16) (2: 12) 
 #> DONE BART
 #> 
 

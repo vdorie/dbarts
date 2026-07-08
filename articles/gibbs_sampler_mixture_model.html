@@ -387,7 +387,7 @@ which doubles as a variable-importance diagnostic.</p>
 <span><span class="co"># One row per predictor, averaged over the retained samples: only the first</span></span>
 <span><span class="co"># column of x.dart drives y.dart, and its split probability dominates.</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowMeans</a></span><span class="op">(</span><span class="va">samples.dart</span><span class="op">$</span><span class="va">varprobs</span><span class="op">)</span>, <span class="fl">3</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## [1] 0.971 0.001 0.010 0.003 0.005 0.006 0.003 0.002</span></span></code></pre>
+<pre><code><span><span class="co">## [1] 0.681 0.117 0.008 0.013 0.007 0.017 0.012 0.145</span></span></code></pre>
 <p>The Dirichlet concentration <code>alpha</code> is itself sampled by
 default (<code>update.alpha = TRUE</code>); a smaller <code>alpha</code>
 concentrates the split probabilities more aggressively.

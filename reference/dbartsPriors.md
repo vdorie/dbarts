@@ -34,7 +34,7 @@ A list of functions:
 
   Normal prior on the node means. `k` scales the standard deviation and
   can be a positive scalar, a hyperprior built with `chi`, or `NULL` for
-  the default: 2 for continuous responses, `chi(1.25, Inf)` for binary
+  the default: 2 for continuous responses, `chi(1.5, Inf)` for binary
   ones. The continuous default follows Chipman, George, and McCulloch's
   argument that with node standard deviation
   `sigma_mu = 0.5 / (k * sqrt(m))` for `m` trees, `k` prior standard
@@ -73,9 +73,11 @@ A list of functions:
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specification through its own `node.prior` argument.
 
-- `chi(degreesOfFreedom = 1.25, scale = Inf)`:
+- `chi(degreesOfFreedom = 1.5, scale = Inf)`:
 
-  Chi hyperprior over `k`, sampled along with the rest of the model.
+  Chi hyperprior over `k`, sampled along with the rest of the model: `k`
+  is given a chi distribution with the stated degrees of freedom and
+  scale.
 
 - `chisq(df = 3, quant = 0.9)`:
 
@@ -90,7 +92,7 @@ A list of functions:
 
 Inside the prior arguments of the fitting functions the same
 constructors are available by bare name, so
-`dbarts(..., node.prior = normal(chi(1.25)))` works regardless of what
+`dbarts(..., node.prior = normal(chi(1.5)))` works regardless of what
 packages are attached: those arguments are evaluated with this
 vocabulary layered over the calling environment, along with `num.vars`,
 the number of predictor columns. A prior object built ahead of time with
@@ -110,7 +112,7 @@ American Statistical Association*, **103**(483), 1119–1130.
 ## Examples
 
 ``` r
-prior <- dbartsPriors$normal(dbartsPriors$chi(1.25))
+prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
