@@ -74,3 +74,52 @@ that killed it" is a complete outcome.
 - Three numbers with configs, seeds, and kill conditions applied;
   frontier note updated; the engine tree diff-clean apart from
   benchmarks/ and docs/.
+
+## Status (DONE 2026-07-08)
+
+All three measured; both flagship candidates SURVIVE (nothing killed).
+Driver: benchmarks/R/parallel-falsifiers.R (e1|e2|e3|all). It drives an
+INSTRUMENTED engine build - counters compiled into src/bartcore
+(falsifier.hpp + chain/tree hooks, read via BC_FALSIFIER_MODE, CSV out to
+BC_FALSIFIER_OUT) - that is reverted before commit and never lands, so the
+script is inert against the shipped engine and only reproduces numbers on
+a checkout that re-adds the instrumentation. Common config: constant-leaf
+bart, m = 75, Friedman-1 (p = 10, data seed 11), sampler seed 99, single
+thread/chain, n in {1e4, 1e5}; two forests - default (k 2, base 0.95,
+power 2) and deep (power 1). Raw CSVs are regenerable (not committed);
+`Rscript benchmarks/R/parallel-falsifiers.R all <outdir>` reprints them.
+
+E2 field-fraction profile (kills 3.4 if field < ~70%). Config: ndpost 200,
+nskip 200 (bart splits keepTrees=FALSE into two run() calls of 200 sweeps
+each; both rows measured). Per-sweep DRAM-byte model: FIELD = residual
+roll (32 B/obs/tree) + whole-tree suffstat recompute + fit scatter +
+totalFits rebuild + change/swap index-segment snapshot/restore; SCAN =
+partition (x + index reads, index-swap writes as an upper band) +
+affected-subtree suffstat recompute. Result: field share 82-88% across all
+n/config (scan 12-18%), stable, +2pt as n rises 1e4->1e5. Dominant, clear
+of the 70% floor, below the ~93% model; removable field ~85% => DRAM drop
+~5.5-6.6x (scan-upper band). VERDICT: SURVIVES (does not kill 3.4).
+
+E1 atom census (kills 3.4 if atoms approach n at b in {4,8}). Config:
+keeptrees, ndpost 10, nskip 200, keepevery 20 (10 post-burn kept forests),
+block starts {0, m-16}, b in {4,8,16}; leaf tuples via
+findBottomNodeForObservation on the live post-draw forest, distinct count
+per block. Mean atoms (atoms/n): b=4 43-113 (0.0007-0.005); b=8 312-1596
+(0.011-0.031); b=16 2196-20755 (0.126-0.229). Atoms 2-4 orders below n at
+b in {4,8}; atoms/n FALLS with n (sub-linear growth); saturation only past
+b=16. VERDICT: SURVIVES decisively. 3.4 needs BOTH E1 and E2 => SURVIVES.
+
+E3 stale-residual agreement (kills 3.2a if disagree often OR survivors
+near 1). Config: ndpost 100, nskip 100. Per move, decision under frozen
+start-of-sweep residual (y - totalFits_start + oldFit_t) vs true rolled
+residual, same proposal randomness (rng serialized-state save/restore
+around a full tree snapshot; the true decision is the stock chain).
+Overall agreement 0.966-0.978 (birth 0.92-0.98 low, change 0.98-0.996
+high); stage-1 survivor rate 0.068-0.125 (~= true accept rate), below the
+modeled 20-40%. High agreement AND far-from-universal survivors => neither
+kill trips. VERDICT: SURVIVES; batched-scoring delayed acceptance earns a
+prototype.
+
+Instrumentation reverted (git checkout src/bartcore + rm falsifier.hpp)
+before commit; pristine tree rebuilt and gated (R CMD INSTALL --preclean;
+tests/cpp make && ./test_bartcore). Only benchmarks/ and docs/ land.

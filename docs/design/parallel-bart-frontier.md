@@ -241,11 +241,57 @@ before knowing which kernels matter is how the wrong interface ships.
 Instrumentation before prototypes; each item names its kill condition.
 
 1. E2 field-fraction profile of the current sweep (hours; kills or
-   confirms 3.4's ceiling).
+   confirms 3.4's ceiling). DONE 2026-07-08. SURVIVES (does not kill
+   3.4). Measured per-sweep DRAM-byte split, constant-leaf sweep,
+   m = 75, Friedman-1 (p = 10), n in {1e4, 1e5}, default (base 0.95,
+   power 2) and deep (power 1) configs; driver
+   benchmarks/R/parallel-falsifiers.R. Field maintenance (residual roll
+   + whole-tree suffstat recompute + fit scatter + totalFits rebuild +
+   change/swap index-segment snapshot/restore) = 82-88% of traffic;
+   per-move scan work (partition + affected-subtree suffstat) = 12-18%
+   (scan reported as a [lower, upper] band on the index-swap writes).
+   Dominant and clear of the ~70% collapse floor, but below the note's
+   ~93% model: the biggest correction is that shallow-tree change/swap
+   moves re-partition near the root, so scan is ~2x the modeled 7%. The
+   removable field is ~85%, so the atom map's DRAM drop is ~5.5-6.6x
+   (scan-upper band), i.e. the 7-10x claim lands at its low end / just
+   under. Stable across n and config (field share drifts +2pt from
+   n = 1e4 to 1e5 as trees settle). Field is dominant: E2 clears.
 2. E1 atom census on real fitted forests, b in {4, 8, 16} (hours; kills
-   3.4 if real atoms saturate at small b).
+   3.4 if real atoms saturate at small b). DONE 2026-07-08. SURVIVES
+   decisively. Distinct per-observation leaf-assignment tuples over
+   consecutive tree blocks, 10 post-burn-in kept forests (nskip 200,
+   keepevery 20), two block positions, same configs/data as E2, seed 99.
+   Mean distinct atoms (atoms/n; occupancy n/atoms):
+     b = 4 : default n1e4 43 (0.004; 233), n1e5 74 (0.0007; 1355);
+             deep n1e4 51, n1e5 113 (0.001; 886).
+     b = 8 : default n1e4 312 (0.031; 32), n1e5 1120 (0.011; 89);
+             deep n1e4 318, n1e5 1596 (0.016; 63).
+     b = 16: default n1e4 2196 (0.220), n1e5 12618 (0.126);
+             deep n1e4 2293, n1e5 20755 (0.208).
+   At b in {4, 8} atoms sit 2-4 orders of magnitude below n and atoms/n
+   FALLS as n grows (sub-linear atom growth: 10x n gives ~1.7x atoms at
+   b = 4, ~3.6x at b = 8), so the confirmed-common n >= 1e5 regime is the
+   best case. Saturation toward n only begins past b = 16 (atoms/n ~0.13-
+   0.23, occupancy still 4-8), exactly the ceiling the simulated census
+   predicted. Real correlated forests do NOT saturate at small b: E1
+   clears. The deep config raises atoms only marginally (same order).
 3. Stale-residual agreement logging on a stock run (hours; kills 3.2a if
-   the surrogate disagrees often or survivors are near-universal).
+   the surrogate disagrees often or survivors are near-universal). DONE
+   2026-07-08. SURVIVES. Per proposed move, the accept decision under the
+   frozen start-of-sweep residual (batched-scoring surrogate,
+   y - totalFits_start + oldFit_t) vs the true rolled residual, SAME
+   proposal randomness (rng state saved/restored around a snapshot
+   excursion; the true decision drives the stock chain). Same configs;
+   nskip 100, ndpost 100. Frozen-vs-true agreement 0.966-0.978 overall
+   (birth lowest at 0.92-0.98, change highest at 0.98-0.996); stage-1
+   survivor (frozen-accept) rate 0.068-0.125 overall, ~= the true accept
+   rate. High agreement (surrogate rarely misdirects) AND survivors far
+   below universal - in fact BELOW the note's modeled 20-40%, so the
+   serial-path shrink is if anything larger than 2.5-6x. Neither kill
+   trips: 3.2a clears. (Caveat: agreement is a sweep average; it is worst
+   for late-in-sweep trees carrying the most accumulated drift - a
+   per-position refinement was not run, but the 0.97 average bounds it.)
 4. Single-tree informed-kernel prototype vs an enumerated posterior,
    then ESS-per-sweep vs cost (days; decides 3.1 and by extension the
    scan trio).
@@ -257,6 +303,19 @@ Instrumentation before prototypes; each item names its kill condition.
 If 3.4 survives E1/E2, it is the flagship engine item (CPU-first, exact
 sweep, DRAM-bound workload) and proceeds independently of any GPU
 decision. The backend seam is designed after items 1-5 report.
+
+Verdict (2026-07-08, items 1-3 measured; drivers under benchmarks/R and
+raw records in docs/plans/parallel-falsifiers.md). 3.4 needed BOTH E1 and
+E2: both cleared, so 3.4 SURVIVES and is the flagship engine candidate,
+with one correction to the cost model - measured field share is ~85% not
+~93%, so the realized DRAM drop is ~6x (7-10x low end) rather than the top
+of that range; the gap is shallow-tree change/swap moves re-partitioning
+near the root, which enlarges the surviving scan term. 3.2a needed the
+stale-residual logging to clear (high agreement AND sub-universal
+survivors): it did, comfortably, so 3.2a SURVIVES and the batched-scoring
+delayed-acceptance path earns a prototype. Both flagship CPU candidates
+live; neither was killed. Next: items 4-5 (informed-kernel and CG-leaf
+prototypes) before the backend seam.
 
 ## References
 
