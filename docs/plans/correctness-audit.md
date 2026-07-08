@@ -276,3 +276,58 @@ fallback substitutes a sign-correct DBL_EPSILON latent on extreme
 tail failure; logistic setOffset reshifts the working response
 against omega drawn at the old psi (repaired by the next sweep's
 refreshLatents - the standard embedded-Gibbs pattern).
+
+Block 5, leaf marginals and draws (2026-07-08): CONFIRMED throughout
+by both derivers; no surviving DISCREPANCY. Jointly confirmed, term
+by term including constants and determinants: the constant leaf's
+integrated likelihood and conjugate mu draw (shared tau0 = (k/scale)^2,
+the retained prior normalizer that birth/death needs, empty/single-
+observation/all-zero-weight edges all coherent); the linear leaf's
+U'WU marginal (ridge = tau0 sigma^2, Cholesky determinant and
+half-solve quadratic form, exact q = 0 reduction to the constant
+form on the same dropped-constant convention) and its
+N(M^-1 b, sigma^2 M^-1) draw, with calibration inherited from the
+constant leaf's k for every coefficient; the GP leaf's nugget
+marginal (observation noise sigma^2/w_i on V's diagonal, distinct
+from the 1e-6 conditioning jitter inside C), its Matheron-rule draw
+(covariance verified equal to the exact posterior), and the correct
+chi-k sufficient statistic f'C^-1 f. The 60a116c U'WU cache
+preserves the right invariant: the crossproduct depends only on
+(ordered member list, covariates, weights); the memcmp member-list
+key auto-misses on any structural change or rollback, covariate
+mutations clear via regather on every setPredictor/setData path,
+weight mutations via invalidateStatistics at setWeights/PG-refresh/
+latent setResponse, and the residual-dependent pieces always rescan
+- no path serves a stale crossproduct. The over-cap fallback and
+zero-weight routing branch on identical predicates in score and
+draw, and all three leaf models drop the same additive observation
+constant, so it cancels in every MH ratio including size-switched
+births across the GP cap - score and draw target one coherent model
+per node everywhere.
+
+Findings routed onward:
+1. Empty-leaf chi-k count inconsistency (deriver A, latent):
+   forced-to-zero empty leaves contribute to the k hyperprior's leaf
+   count inconsistently across leaf models - constant adds 1, linear
+   adds q+1, GP adds 0 - while all three add nothing to the sum of
+   squares. Counting a forced zero as a genuine N(0, sigma_mu^2)
+   draw inflates the shape without a matching rate term, deflating
+   k. GP's not-counting is the coherent choice given forced-zero
+   params. Latent (the empty-leaf veto keeps empty leaves out of
+   normal fits; reachable only via mid-sampler data/weight/state
+   mutations that strand one). Filed as fix item
+   chi-k-empty-leaf-count: make constant/linear match GP;
+   draw-neutral whenever no empty leaf exists.
+
+Fragility notes (no action): the constant leaf's centered
+sum-of-squares is a catastrophic-cancellation form under a large
+shared residual offset (score-side rounding only; flagged for the
+numerical-robustness review); the cache invariant (U'WU/kernel
+depend only on members/covariates/weights and every mutation path
+clears) is enforced by convention with no backstop assert - a
+future response family with per-sweep weights that misreports
+workingWeightsVaryPerSweep, or a covariate path skipping regather,
+would silently serve stale statistics; zero-weight rows count
+toward the GP max.leaf.size cap (consistent between score and draw,
+a calibration surprise only); the 1e-6 jitter makes the realized GP
+prior s^2(C + 1e-6 I), identically in score and draw.

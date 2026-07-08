@@ -94,6 +94,15 @@ items
     control + mixed-type arms) is the permanent exact-posterior gate.
     bench-sampler and the equivalence anchor re-record ride the
     landing.
+  chi-k-empty-leaf-count: correctness-audit block-5 finding, latent.
+    Forced-to-zero empty leaves feed the chi-k hyperprior's leaf
+    count inconsistently (constant leaf +1, linear +q+1, GP +0)
+    while contributing nothing to the sum of squares, inflating the
+    posterior shape and deflating k when empty leaves exist. GP's
+    behavior is the coherent one for forced-zero params. Fix: skip
+    empty leaves in the constant/linear k stats; bit-identical for
+    any fit without stranded empty leaves (normal fits - the
+    empty-leaf veto). Small, engine.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
