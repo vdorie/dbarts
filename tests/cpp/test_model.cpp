@@ -191,6 +191,63 @@ static void testChiKHyperprior(ext_rng* rng) {
   printf("ok: chi-k hyperprior\n");
 }
 
+// A leaf that a data mutation strands empty is forced to a zero parameter; it
+// is not a draw from the k-scaled prior, so it must not enter the chi-k count
+// or sum of squares (the function-leaf path already excludes it, returning
+// FunctionLeafDrawStats{0, 0}). No public mutation strands an empty leaf -
+// collapse bubbles up while n > 0 - so the chain hook fabricates one and runs
+// the real per-sweep accounting; here we confirm only the populated leaves
+// count. Both leaf shapes with inline accounting (scalar and vector) are
+// exercised; before the fix each counted the empty leaf too.
+static void testChiKEmptyLeafAccounting(ext_rng* rng) {
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n), weights(n, 1.0);
+  for (size_t i = 0; i < n; ++i) {
+    double t = static_cast<double>(i) / static_cast<double>(n);
+    x[i] = t;                  // split column
+    x[i + n] = 2.0 * t - 1.0;  // linear-leaf covariate
+    y[i] = (t > 0.5 ? 1.0 : -1.0) + 0.1 * (runif01() - 0.5);
+  }
+  ColumnStore store;
+  store.build(x.data(), n, p, 100);
+
+  // splitIndex 50 keeps the left child populated; the hook strands the right
+  const int32_t splitVar = 0, splitIndex = 50;
+
+  auto checkAccounting = [&](auto& chain, size_t stride, const char* what) {
+    FunctionLeafDrawStats stats =
+      chain.accountStrandedLeafKStatsForTesting(splitVar, splitIndex);
+    std::vector<int32_t> bottoms;
+    chain.tree(0).fillBottom(0, bottoms);
+    size_t populated = 0, empty = 0;
+    for (int32_t i : bottoms)
+      (chain.tree(0).at(i).numObservations() > 0 ? populated : empty) += 1;
+    check(populated >= 1 && empty >= 1,
+          "fabricated a populated leaf beside a stranded empty one");
+    // fixed: exactly the populated leaves' parameters count; before the fix
+    // the empty leaf added another stride, so this held populated + empty
+    check(stats.numParams == static_cast<double>(populated * stride), what);
+  };
+
+  SamplerOptions options;
+  options.numTrees = 1;
+  options.updateK = true;
+  Chain<ConstantGaussianLeaf> scalarChain(
+    store, y.data(), weights.data(), nullptr, ResponseFamily::gaussian, 1.0,
+    3.0, 0.37804942330213542, options, rng);
+  checkAccounting(scalarChain, 1, "constant leaf excludes the empty leaf");
+
+  size_t covariates[] = {1};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 1;
+  Chain<LinearGaussianLeaf> vectorChain(
+    store, y.data(), weights.data(), nullptr, ResponseFamily::gaussian, 1.0,
+    3.0, 0.37804942330213542, options, rng);  // numParams == 2 per leaf
+  checkAccounting(vectorChain, 2, "linear leaf excludes the empty leaf");
+
+  printf("ok: chi-k empty-leaf accounting\n");
+}
+
 // The sigma^2 posterior df must count only positive-weight rows: zero-weight
 // rows drop from the weighted SSR and every leaf conditional, so they cannot
 // inflate the df. With n = 20, n_pos = 10, prior df = 3 the draw is scaled
@@ -2654,6 +2711,7 @@ void runModelTests(ext_rng* rng) {
   testPosteriorDraw(rng);
   testConstantLeafSuffstatEquivalence();
   testChiKHyperprior(rng);
+  testChiKEmptyLeafAccounting(rng);
   testSigmaPosteriorDf(rng);
   testPolyaGamma(rng);
   testSampleFromPrior(rng);
