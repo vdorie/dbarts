@@ -83,4 +83,9 @@ tinytest 2469/0 (11 new), equivalence exact 18/18, air/lintr/checkRd
 clean. Reviewer note (discharged 2026-07-07): rchk run over the 933eed8
 tree, zero dbarts findings (7729 functions analyzed; only the usual
 tool noise - SIMD flag warnings and R-internals abstraction errors).
-The bridge SEXP parser is clean.
+The bridge SEXP parser is clean. Post-landing fix (2026-07-08): CI's
+valgrind leg caught installForests leaking its pool/sampleMap vectors
+on every refusal path - the code freed the donor state before the
+Rf_error longjmp but not the mapping vectors; they now live in a scope
+that closes first (rchk could not see this: it checks PROTECT balance,
+not C++ heap lifetimes).
