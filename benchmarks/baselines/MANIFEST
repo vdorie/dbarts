@@ -12,7 +12,8 @@
 #                          docs/design/public-surface.md), not a gate.
 #
 # file                                role                 commit   machine/arch    scenarios
-equivalence-bcdcc07.rds               current              bcdcc07  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-31a4c01.rds               current              31a4c01  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-bcdcc07.rds               historical           bcdcc07  arm64 (macOS)   18: same as current; pre change-move balance fix (31a4c01) - vprop/sigma summaries in unequal-cut scenarios diverge from it by design
 equivalence-235bebc.rds               historical           693d864  arm64 (macOS)   18: same as current; pre chi-df fix (bcdcc07) - linear and gp set manual chi(1.25) and diverge statistically from it
 equivalence-cf70fd5.rds               historical           cf70fd5  arm64 (macOS)   18: same as current
 equivalence-af04d0c.rds               historical           af04d0c  arm64 (macOS)   18: same as current
@@ -21,7 +22,8 @@ equivalence-b354f3a.rds               historical           b354f3a  arm64 (macOS
 equivalence-fbd2168.rds               historical-classic   fbd2168  arm64 (macOS)   18: same as current
 equivalence-19c499a.rds               historical-classic   19c499a  arm64 (macOS)   17: same as current minus wtlogistic
 equivalence-5430fdb.rds               historical-classic   5430fdb  arm64 (macOS)   9: same as b354f3a
-bench-sampler-235bebc.csv             current              693d864  arm64 (macOS)   speed baseline (bench-sampler.R); not an equivalence scenario set
+bench-sampler-31a4c01.csv             current              31a4c01  arm64 (macOS)   speed baseline (bench-sampler.R); not an equivalence scenario set
+bench-sampler-235bebc.csv             historical           693d864  arm64 (macOS)   speed baseline, superseded
 bench-sampler-733be46.csv             historical           733be46  arm64 (macOS)   speed baseline, superseded
 bench-sampler-2677d86.csv             historical           2677d86  arm64 (macOS)   speed baseline, superseded
 bench-sampler-af04d0c.csv             historical           af04d0c  arm64 (macOS)   speed baseline, superseded
