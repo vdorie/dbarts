@@ -27,9 +27,11 @@ items
     window: pre-release.
   gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
     frontier companion (docs/design/parallel-bart-frontier.md).
-    VD greenlit falsifiers 1-3 (2026-07-08) - running as
-    parallel-falsifiers; the backend-seam design waits on items 1-5
-    of the frontier's list reporting.
+    Falsifiers 1-3 REPORTED (2026-07-08, parallel-falsifiers): 3.4 and
+    3.2a both SURVIVE (E2 field share 82-88% => DRAM drop ~6x; E1 atoms
+    2-4 orders below n at b in {4,8}; E3 agreement 0.97, survivor
+    0.07-0.12). Both flagship CPU candidates live. Backend-seam design
+    still waits on items 4-5 (informed-kernel + CG-leaf prototypes).
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
@@ -61,11 +63,14 @@ items
     integer vs real shape - a caveat shared with weighted-binary.
   ordinal-outcomes: cumulative probit on the existing truncated-normal
     machinery plus a cutpoint block.
-  parallel-falsifiers: measured verdicts on the frontier note's
-    falsifiers 1-3 (field-fraction profile, atom census,
-    stale-residual agreement) with kill conditions applied; decides
-    constructions 3.4 and 3.2a before any prototype. GREENLIT by VD
-    2026-07-08; in flight.
+  parallel-falsifiers: DONE 2026-07-08. Measured verdicts on frontier
+    falsifiers 1-3 (field-fraction profile, atom census, stale-residual
+    agreement), kill conditions applied. Both SURVIVE: 3.4 (E1 + E2 both
+    clear; field ~85%, atoms << n at b in {4,8}) and 3.2a (agreement
+    0.97, survivor 0.07-0.12). See docs/design/parallel-bart-frontier.md
+    section 5 and docs/plans/parallel-falsifiers.md Status; driver
+    benchmarks/R/parallel-falsifiers.R. Instrumentation reverted, not
+    landed. Successors: frontier items 4-5.
   pointwise-loglik: per-observation log-likelihood as a Results field
     (null-skip), unlocking loo/WAIC integration.
   prior-predictive: R-level verbs over the already-ported prior
