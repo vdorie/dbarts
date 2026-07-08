@@ -65,6 +65,15 @@ items
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked.
+  moves-degenerate-root-guard: correctness-audit block-1 finding. A
+    single-node tree with no available split variable forces a birth
+    (drawBirthableNode's hasSingleNode branch skips the availability
+    check) and drawRuleForVariable then reads data.types[(size_t)-1];
+    the death branch is equally unguarded. Latent (constant columns
+    still quantize to >= 1 cut; the veto rejects those births) but
+    reachable via zero-cut columns, e.g. setCutPoints on a root-only
+    sampler. Fix: such a tree's move is a no-op; guard both branches.
+    Small, engine, neutral on non-degenerate data.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.

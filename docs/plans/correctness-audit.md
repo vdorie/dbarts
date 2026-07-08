@@ -78,3 +78,43 @@ and run first.
 - Per-block verdict tables recorded in this file's Status; real
   findings become fix items with the exact-posterior gates as
   arbiter.
+
+## Status
+
+Block 1, birth/death (2026-07-08): CONFIRMED by both derivers
+independently - every factor of the implemented acceptance ratio is
+exactly pi(T')q(T|T') / pi(T)q(T'|T) for the proposal the code draws.
+Jointly confirmed: likelihood ratio over the changed branch; growth
+and no-split tree-prior factors at the correct depths; the rule
+prior/proposal cancellation (ordinal interval, categorical gauge
+pattern, missing-direction coin - proposal IS the live prior, both
+omitted); node-selection counts recomputed on the post-move tree in
+both directions; p_birth/p_death boundary handling (root forces
+birth, reverse density uses P_birth(T) = 1 not the constant);
+move-class probability cancels; DART weights enter proposal and prior
+identically over the same available set and cancel; the empty-leaf
+veto defines one consistent surrogate target across all moves.
+
+Findings routed onward:
+1. Degenerate-root guard gap (deriver A #17, adjudicated REAL but
+   latent): drawBirthableNode's single-node branch skips the
+   availability check, so a root-only tree with NO available variable
+   forces a birth and drawRuleForVariable indexes
+   data.types[(size_t)-1] - out-of-bounds. The all-constant-column
+   case does not trigger it empirically (a constant column still
+   quantizes to >= 1 cut; births propose, hit the empty-leaf veto,
+   reject - verified by running bart on constant x), but zero-cut
+   columns are reachable at least via setCutPoints on a root-only
+   sampler (invalidCutPoints only protects existing splits), and the
+   death branch is equally unguarded for single-node trees. Filed as
+   fix item moves-degenerate-root-guard.
+2. Cross-move categorical prior flag (deriver B): for > 54 reachable
+   pooled categories, ruleForVariableLogProbability uses an
+   approximate closed form while the draw density is exactly
+   1/(2^R - 2); birth/death never evaluates the prior (cancellation)
+   but change/swap may - routed to block 2 as a targeted question.
+3. Deriver A fragility note (no action): the entire rule prior incl.
+   DART rests on the exact proposal-equals-prior identity with no
+   backstop term; any future proposal that deviates from the live
+   prior silently breaks birth/death. Worth a comment or an assert
+   when that surface is next touched.
