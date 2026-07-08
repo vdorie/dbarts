@@ -138,6 +138,16 @@ template <IntegrableLeafModel L>
 double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                         Tree& tree, const double* y, double sigma,
                         bool* stepTaken, bool* stepWasBirth) {
+  // A root-only tree whose lone leaf admits no split variable can neither birth
+  // (no rule to draw) nor die (no children); its move is a no-op this sweep.
+  // The single-node branch below would otherwise force a birth and draw a rule
+  // for invalidVariable. A movable tree never reaches here, so RNG is untouched.
+  if (tree.hasSingleNode() && !birthableNodeExists(ctx, tree)) {
+    *stepTaken = false;
+    *stepWasBirth = false;
+    return 0.0;
+  }
+
   double ratio;
 
   double transitionProbabilityOfSelectingNodeForBirth;
