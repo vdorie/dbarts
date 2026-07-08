@@ -317,7 +317,12 @@ Findings routed onward:
    normal fits; reachable only via mid-sampler data/weight/state
    mutations that strand one). Filed as fix item
    chi-k-empty-leaf-count: make constant/linear match GP;
-   draw-neutral whenever no empty leaf exists.
+   draw-neutral whenever no empty leaf exists. (Landing refinement:
+   the mutation paths all collapse empty leaves - applyNewData and
+   forceRefreshTrees collapse, revalidateTrees rejects - so no
+   public path strands one; the defect was pure-latent, reachable
+   only by fabrication. Fixed and landed with a fabrication-based
+   tests/cpp regression; see chi-k-empty-leaf-count.md.)
 
 Fragility notes (no action): the constant leaf's centered
 sum-of-squares is a catastrophic-cancellation form under a large
@@ -397,3 +402,60 @@ at floored weight (warm-up transient only); recorded sigma
 conditions on the previous sweep's glue while trainingFits uses the
 new glue (valid Gibbs, half-step phase when eyeballing single
 draws).
+
+Block 7, cross-cutting algebra (2026-07-08): CONFIRMED throughout
+by both derivers; the sole DISCREPANCY both found independently is
+the BCF testFits gap already filed from block 6 (bcf-testfits-guard
+- now upgraded: deriver B traced a concrete route, the unguarded
+bartcore_setTestPredictor entry accepts test predictors on a BCF
+pointer, verified by orchestrator at R_interface_bartcore.cpp:1815;
+the item's recommended fix gains "guard setTestPredictor on
+numForests >= 2"). Jointly confirmed by full symbolic trace: the
+fused residual roll (per-tree treeY is exactly the response net of
+all other trees' current fits, accept/reject-agnostic because
+parameters are always redrawn and rejected moves restore node
+sufficient statistics exactly - birth/death/change/swap all
+verified); totalFits maintenance (telescoped through the roll in a
+pure run, re-anchored by direct summation on every mutation and
+restore path); the two-forest roll (each forest's transformed
+response/weights recomputed from the other's fresh totals every
+sweep); every mutation entry point leaves membership, params, fits,
+totals, residuals, scaling, and latents mutually consistent before
+the next sweep or read (setData recovers params before the store
+moves; setPredictor validates all trees across all chains two-phase
+before any rebuild, and its per-observation session commits
+all-or-none; setCutPoints force-refreshes unconditionally by
+design); the affine scale map and its inverse are exact, sigma
+lives internally and is original-scale at every boundary (draw,
+record, serialize, restore), and the prior re-anchors on every
+range change; state store/restore is symmetric and validates cuts
+and occupancy all-or-none before mutating (semantic, documented
+non-bitwise); keepTrees flatten/unflatten indexing is uniform
+across store, read, and predict including circular wrap; the
+per-sweep callback observes the previous sweep's fully-coherent
+end state.
+
+Fragility notes (no action): totalFits is never exactly re-anchored
+inside a pure run - the telescoped rounding error random-walks
+(empirically ~1e-12 relative at the 1e5-sweep workload; treeFits
+and state export stay exact; never assert bitwise totalFits ==
+sum(treeFits) in the pure-run path), and rebuildFitsFromParameters
+updates incrementally so it preserves entry drift where the other
+mutation paths zero-and-resum; BCF correctness is silently coupled
+to constant leaves (vector/function branches draw against
+response workingWeights, not the forest-transformed weights - the
+static_assert is the only guard); setState accepts an
+observation-count-mismatched gaussian state when occupancy happens
+to validate (caller contract, unguarded); range-changing mutations
+leave leaf params on the old internal scale until the next sweep
+re-adapts (documented approximate continuation; no read occurs
+before a sweep on the normal path); installForest applies the
+donor's scale anchor to the destination's response (correct for
+the multi-start use case only); zero-weight rows influence tree
+STRUCTURE though not the numeric posterior (the empty-leaf veto
+keys on numObservations, so zero-weight-only leaves are legal
+split outcomes and enter varcounts/DART probabilities - routed to
+the SBC and gate-blindspot reviews); an under-filled savedTrees
+buffer (numSamples < capacity) leaves default slots that predict
+iterates over; the callback's sweepIndex is the raw iteration
+index including thinned sub-iterations.

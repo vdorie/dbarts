@@ -93,10 +93,12 @@ items
     test treatment vector exists to blend with. Fix: reject or NA
     the testFits channel for BCF samplers instead of filling it
     wrong; document that k/variableCounts/splitProbabilities are
-    mu-forest diagnostics under BCF. Unreached by the R wrapper
-    (prediction recombines via forestTotalFits + bcfGlue); a
-    dbarts.h consumer passing testFits would get silent garbage.
-    Small, engine + docs.
+    mu-forest diagnostics under BCF. Block-7 upgrade: reachable via
+    the unguarded bartcore_setTestPredictor on a BCF pointer
+    (R_interface_bartcore.cpp:1815), so also guard setTestPredictor
+    on numForests >= 2. Unreached by the R wrapper (prediction
+    recombines via forestTotalFits + bcfGlue); a dbarts.h consumer
+    passing testFits would get silent garbage. Small, engine + docs.
   change-move-balance: LANDED 2026-07-08 - the hybrid change kernel
     (VD's pick after the stage-2 measurements; cross-type correction
     caught and fixed in review) is now THE change move; its acceptance
@@ -105,15 +107,14 @@ items
     control + mixed-type arms) is the permanent exact-posterior gate.
     bench-sampler and the equivalence anchor re-record ride the
     landing.
-  chi-k-empty-leaf-count: correctness-audit block-5 finding, latent.
-    Forced-to-zero empty leaves feed the chi-k hyperprior's leaf
-    count inconsistently (constant leaf +1, linear +q+1, GP +0)
-    while contributing nothing to the sum of squares, inflating the
-    posterior shape and deflating k when empty leaves exist. GP's
-    behavior is the coherent one for forced-zero params. Fix: skip
-    empty leaves in the constant/linear k stats; bit-identical for
-    any fit without stranded empty leaves (normal fits - the
-    empty-leaf veto). Small, engine.
+  chi-k-empty-leaf-count: LANDED 2026-07-08 - the constant and
+    linear branches now skip empty leaves in the chi-k accounting,
+    matching GP. Pure-latent (landing refinement: every public
+    mutation path collapses or rejects empty leaves, so only
+    fabrication reached the branch); all gates bit-identical,
+    equivalence 18/18. tests/cpp testChiKEmptyLeafAccounting via a
+    chain fabrication hook is the regression;
+    chi-k-empty-leaf-count.md has the record.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
