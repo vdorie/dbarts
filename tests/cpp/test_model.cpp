@@ -191,6 +191,54 @@ static void testChiKHyperprior(ext_rng* rng) {
   printf("ok: chi-k hyperprior\n");
 }
 
+// The sigma^2 posterior df must count only positive-weight rows: zero-weight
+// rows drop from the weighted SSR and every leaf conditional, so they cannot
+// inflate the df. With n = 20, n_pos = 10, prior df = 3 the draw is scaled
+// inverse-chi-squared with posterior df = 13 (not 23), separating n_pos from n
+// decisively.
+static void testSigmaPosteriorDf(ext_rng* rng) {
+  const std::size_t n = 20, nPositive = 10;
+  const double priorDf = 3.0, scale = 0.7, residual = 0.7;
+
+  std::vector<double> y(n), fits(n, 0.0), weights(n, 0.0);
+  for (std::size_t i = 0; i < nPositive; ++i) {
+    weights[i] = 1.0;
+    y[i] = residual;  // residual r on each positive row: SSR = nPositive r^2
+  }
+  for (std::size_t i = nPositive; i < n; ++i)
+    y[i] = 1.0e6;  // ignored: w = 0 zeroes its SSR contribution
+
+  ChiSquaredScalePrior prior;
+  prior.degreesOfFreedom = priorDf;
+  prior.scale = scale;
+
+  double ssr = static_cast<double>(nPositive) * residual * residual;
+  double posteriorScale = priorDf * scale + ssr;
+  double posteriorDf = priorDf + static_cast<double>(nPositive);
+  // scaled inverse-chi-squared X = posteriorScale / chisq(posteriorDf)
+  double meanExpected = posteriorScale / (posteriorDf - 2.0);
+  double varExpected =
+    2.0 * posteriorScale * posteriorScale /
+    ((posteriorDf - 2.0) * (posteriorDf - 2.0) * (posteriorDf - 4.0));
+
+  const int numDraws = 400000;
+  double sum = 0.0, sumOfSquares = 0.0;
+  for (int i = 0; i < numDraws; ++i) {
+    double s2 = prior.drawSigmaSqFromPosterior(rng, y.data(), fits.data(),
+                                               weights.data(), n, nPositive);
+    sum += s2;
+    sumOfSquares += s2 * s2;
+  }
+  double mean = sum / numDraws;
+  double var = sumOfSquares / numDraws - mean * mean;
+  checkNear(mean, meanExpected, 0.01 * meanExpected,
+            "sigma^2 posterior mean, positive-weight df");
+  checkNear(var, varExpected, 0.05 * varExpected,
+            "sigma^2 posterior variance, positive-weight df");
+
+  printf("ok: sigma posterior positive-weight df\n");
+}
+
 static void testSampleFromPrior(ext_rng* rng) {
   const size_t n = 200, numTrees = 50, numReplications = 200;
   std::vector<double> x, y;
@@ -2606,6 +2654,7 @@ void runModelTests(ext_rng* rng) {
   testPosteriorDraw(rng);
   testConstantLeafSuffstatEquivalence();
   testChiKHyperprior(rng);
+  testSigmaPosteriorDf(rng);
   testPolyaGamma(rng);
   testSampleFromPrior(rng);
   testLinearLeafMarginal();

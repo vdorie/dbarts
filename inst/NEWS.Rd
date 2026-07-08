@@ -347,6 +347,15 @@
             designs and under DART. All seeded results change, and
             variable-inclusion summaries in unequal-cut designs shift
             accordingly.
+      \item The residual-variance (`sigma`) posterior no longer counts
+            zero-weight observations in its degrees of freedom. Such rows
+            are documented as ignored and contribute nothing to the
+            weighted residual sum of squares or any leaf, but the
+            posterior degrees of freedom still counted them, which
+            over-concentrated `sigma` and biased it low - severely when
+            zero-weight rows were numerous. Fits that pass `weights` of 0
+            change accordingly; all-positive-weight fits, including the
+            unweighted default, are unaffected.
     }
   }
 }
