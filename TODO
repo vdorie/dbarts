@@ -86,24 +86,14 @@ items
     log-loss, AUC, calibration, and interval coverage. Output: a
     design note + recommendation; any default change is its own
     posterior-changing item with VD's sign-off.
-  change-move-balance: correctness-audit block-2 finding, numerically
-    CONFIRMED (z = +479 vs the exact posterior; benchmarks/R/
-    change-balance.R; full record in docs/plans/correctness-audit.md).
-    The change move omits its proposal-density ratio, so tree
-    structures over-weight low-cardinality / descendant-constrained
-    split variables whenever effective cut counts are unequal.
-    INHERITED from the classic engine (and its CGM lineage); not a
-    rewrite regression. VD wants it fixed; variant chosen by
-    experiment - see change-move-fix. DECIDED 2026-07-08: VD picked
-    the HYBRID (b) after stage 2 (both variants exact - balance z
-    -0.7/-1.2 vs current +255; hybrid keeps ~3x prior's varcount ESS
-    under DART; its extra reverse-count enumeration is tree metadata
-    only, sweep rates within noise, so the only cost is carrying two
-    mechanisms). Landing = its own posterior-changing item from
-    branch wt/change-move-stage2: strip the switch to the hybrid
-    kernel, snapshot regen, equivalence anchor re-record,
-    exact-posterior gates with change-balance.R permanent, design
-    note, NEWS; bench-sampler needs a quiet-machine grant.
+  change-move-balance: LANDED 2026-07-08 - the hybrid change kernel
+    (VD's pick after the stage-2 measurements; cross-type correction
+    caught and fixed in review) is now THE change move; its acceptance
+    satisfies detailed balance. Design note
+    docs/design/change-move-balance.md; change-balance.R (main +
+    control + mixed-type arms) is the permanent exact-posterior gate.
+    bench-sampler and the equivalence anchor re-record ride the
+    landing.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.

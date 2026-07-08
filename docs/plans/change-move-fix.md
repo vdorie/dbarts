@@ -142,3 +142,172 @@ to lengthen chains for. The concern is real but concentrated in the
 deep/DART regime, not the default. This does not decide (a) vs (b); it
 scopes the mixing cost stage 2 must measure with change-balance.R-gated
 prototypes.
+
+## Stage 2 results
+
+Prototype: src/bartcore/moves.hpp changeMove behind a runtime switch
+(DBARTS_CHANGE_KERNEL in {current, prior, hybrid}, read once when the C++
+sampler is built and stored in MoveContext; all three kernels build
+together). Default "current" is bit-identical: the full tinytest suite
+(2473 results) and tests/cpp both pass unchanged, so unset behavior is
+untouched. Env-gated change-move counters (DBARTS_CHANGE_STATS, a no-op
+that never touches the RNG when unset) report acceptance/no-op rates.
+Balance driver benchmarks/R/change-balance.R extended to loop the switch;
+ESS driver benchmarks/R/change-fix-stage2.R reuses the stage-1
+generators. Raw: benchmarks/results/change-fix-stage2.csv (+ .txt) and
+change-balance-stage2.txt. ESS estimator: coda::effectiveSize throughout
+(single-chain spectral); ESS/sweep = ESS / nSamples at n.thin=1.
+
+Derivations. Both variants drop the changed node's own split-variable and
+rule-prior factors; growth(node) and every factor above the node cancel
+between T and T' as in birth/death, leaving the prior of the subtree
+STRICTLY BELOW the node, B(T) = treeLogProbability(leftChild) +
+treeLogProbability(leftChild+1), plus the branch likelihood.
+
+- (a) prior. The proposal draws v' from p_var and the rule from the
+  unrestricted node prior over the ancestor-only interval, so q(T'|T) =
+  p_var(v') * p_ruleprior(newRule) is exactly the node's own prior factor
+  in pi(T'); likewise q(T|T') is the node factor in pi(T). Substituting
+  into alpha = [pi(T') L(T') q(T|T')] / [pi(T) L(T) q(T'|T)] cancels both
+  node factors AND the variable prior identically, giving
+    alpha = exp( B(T') - B(T) + yLogL - xLogL ).
+  A draw whose descendant good set is empty makes pi(T') = 0: an automatic
+  no-op that restores state. Ordinal: uniform over the whole splitInterval
+  + missing coin, rejected iff the split falls outside findGoodOrdinalRules'
+  range. Categorical: one unrestricted gauge draw (density 1/(2^R - 2)
+  cancels the closed-form rule prior to sub-epsilon, as in birth/death),
+  rejected iff a descendant loses its gauge. Removes the 64-try asymmetry.
+
+- (b) hybrid. Ordinals keep the restricted good-set proposal, so
+  q(T'|T) = p_var(v') / |Valid_T(v')| and q(T|T') = p_var(v) /
+  |Valid_T'(v)| (missing coin symmetric). The variable prior and missing
+  coin cancel against the node's rule prior; what survives multiplies the
+  (a) form by |SI(v)|/|SI(v')| (ancestor-only interval sizes, from the
+  node rule prior) times |Valid_T(v')|/|Valid_T'(v)| (good-set counts):
+    alpha = exp( B(T')-B(T) + yLogL - xLogL
+                 + log|SI(v)| - log|SI(v')|
+                 + log|Valid_T(v')| - log|Valid_T'(v)| ).
+  Since findGoodOrdinalRules and splitInterval both ignore the node's own
+  rule, the reverse count re-enumerates the OLD variable on the changed
+  tree and always contains the old rule (>= 1, never zero); same-variable
+  and equal-cut changes give correction 1 (the defect's cancelling case).
+  Categoricals in hybrid use mechanism (a) - counting descendant-valid
+  gauge patterns is exponential for wide masks.
+
+Balance gate (change-balance.R, 300k kept draws, P(root=x2 | root split)
+vs the exact-enumeration arbiter; MCse ~ 5e-4):
+
+  kernel   P(x2|split)  exact   z vs exact   verdict
+  current    0.2978    0.0774    +255.0      FAIL - reproduces the defect
+  prior      0.0770    0.0774     -0.7       MATCH
+  hybrid     0.0768    0.0774     -1.2       MATCH
+  control (equal 19-vs-19 cut counts): current z = -15.7 (the honest
+  deep-node residual the audit noted), prior +1.2, hybrid -0.8 - all
+  match, and the repairs also remove current's residual. Both repairs
+  pass; the defect fails decisively. Gate cleared, ESS run below.
+
+ESS (1000 burn + 3000 sweeps, n.thin=1, single chain/thread, seed
+20260708, serial, otherwise-idle machine). acc = change-acceptance rate;
+noop = realized silent-no-op rate (prior's is the quantity stage 1
+predicted); S = ESS/sec, W = ESS/sweep, for sigma / mean over 6 fixed
+train-fit coords / mean over per-variable varcount traces (k fixed in
+every config, so not sampled):
+
+  config             kernel   acc   noop  |  sigS  trnS  varS | sigW   trnW   varW
+  Friedman 1e3 m75   current 0.109 0.0005 | 173.7  74.2 149.3 |0.033 0.014 0.029
+                     prior   0.105 0.0123 | 100.2  86.7 179.4 |0.019 0.016 0.034
+                     hybrid  0.103 0.0002 | 101.8  88.8 157.0 |0.020 0.017 0.030
+  Friedman 1e3 m200  current 0.164 0.0005 |  37.5  65.2  46.4 |0.019 0.034 0.024
+                     prior   0.156 0.0106 |  35.4  65.3  41.7 |0.018 0.032 0.021
+                     hybrid  0.160 0.0003 |  20.6  58.0  45.2 |0.010 0.029 0.023
+  Friedman 1e4 m75   current 0.024 0.0014 |  55.0  10.6  24.9 |0.114 0.022 0.052
+                     prior   0.022 0.0177 |  23.8  14.7  26.3 |0.048 0.030 0.053
+                     hybrid  0.026 0.0012 |   7.9   6.0  17.3 |0.016 0.012 0.036
+  Friedman 1e4 m200  current 0.080 0.0006 |  30.8   3.1   4.1 |0.160 0.016 0.021
+                     prior   0.083 0.0085 |  37.6   4.0   4.6 |0.192 0.020 0.024
+                     hybrid  0.085 0.0005 |  35.0   4.2   5.5 |0.186 0.022 0.030
+  Mixed 1e4 m75      current 0.020 0.0029 |  17.6   8.2  14.5 |0.038 0.018 0.031
+                     prior   0.018 0.0187 |  18.7   6.7  15.1 |0.041 0.015 0.033
+                     hybrid  0.018 0.0039 |   7.0   8.5  18.3 |0.015 0.019 0.040
+  Deep 1-tree 1e3    current 0.071 0.0394 | 322  4519  1130  |0.002 0.028 0.007
+                     prior   0.057 0.1099 | 467  1117  1044  |0.003 0.006 0.006
+                     hybrid  0.075 0.0233 | 567   955  1628  |0.003 0.005 0.009
+  Mixed+DART 1e4 m75 current 0.024 0.0042 |  27.9   6.2  34.8 |0.059 0.013 0.073
+                     prior   0.019 0.0420 |  17.0   4.2   5.8 |0.035 0.009 0.012
+                     hybrid  0.023 0.0041 |  35.1   6.5  15.5 |0.075 0.014 0.033
+
+Reading. The realized prior no-op rates reproduce stage 1's forecast
+(~1-2% on the flat Friedman/Mixed configs, 11% on the deep single tree,
+4.2% under DART); current and hybrid stay below 0.4% everywhere except
+the deep tree. Change-acceptance rates are indistinguishable across the
+three kernels in every config, so the correction reweights which
+proposals stand, not how often a change lands. On the flat default
+configs the three kernels' ESS/sweep for train fits and varcount are
+comparable, with no consistent ordering and sigma ESS too noisy at a
+single 3000-draw chain to separate them. In exactly the two regimes stage
+1 flagged, the cost surfaces: on the deep single tree prior and hybrid
+lose train-fit ESS/sweep against current (0.028 -> 0.006 / 0.005), and
+under DART prior's varcount ESS/sweep collapses (0.073 -> 0.012) while
+hybrid - which spends no-ops only on categoricals - sits between (0.033).
+Caveat: "current" targets the wrong stationary distribution, so its ESS
+measures mixing on a different (incorrect) target and is only loosely
+comparable to the repairs'; single-chain ESS at 3000 draws, sigma
+especially, carries large variance. No recommendation - measurements
+only.
+
+## Status: landed (2026-07-08)
+
+VD picked variant (b), the hybrid, from the stage-2 measurements. It is
+now THE change move: the DBARTS_CHANGE_KERNEL switch, the "current" and
+"prior" code paths, and the DBARTS_CHANGE_STATS counters are gone;
+changeMove carries the hybrid acceptance unconditionally (moves.hpp).
+Ordinals keep the restricted good-set proposal with the counted
+log|SI(v)|/|SI(v')| + log|Valid_T(v')|/|Valid_T'(v)| correction;
+categoricals propose from the node prior (drawCategoricalRuleFromPrior).
+change-fix-stage2.R and its result files are kept unchanged as the
+experiment record; change-balance.R is restored to a single-engine form
+and is now the permanent exact-posterior gate. Design note:
+docs/design/change-move-balance.md.
+
+Gate results at the landing. change-balance.R: MAIN engine matches
+exact at z = -1.2, CONTROL z = -0.8 (the defect's deep-node residual is
+gone), gate PASS. logistic-reference.R OK (max gap 0.0003, tol 0.005);
+categorical-exact.R OK (max gap 0.0008 - the propose-from-prior
+categorical mechanism is exact); bcf-exact.R OK (mode 2b at its
+documented looser tolerance). tests/cpp all pass. Full tinytest suite
+green (2489 results) after regenerating the RNG-locked snapshots
+(reproducibility singleThreaded/binaryResponse/xbart, rbart-loop-
+callback) and re-tuning four seed-fragile statistical assertions
+(binaryResponse-hyperprior cor/median-k bounds, sampler-splitProbabilities
+run length, capi transactional-mutation column seed). equivalence.R vs
+equivalence-bcdcc07.rds: fit-level summaries stay |z| < 4 across all 18
+scenarios; the variable-proportion (vprop.*) and sigma summaries exceed
+it exactly in the unequal-cut designs (splitprobs, quants, categorical,
+dart) - the between-variable reweighting the fix intends. Baseline NOT
+re-recorded here; the maintainer re-records after landing. bench-sampler
+deferred to a quiet-machine grant.
+
+Review catch before release: the landed correction branched on the NEW
+variable's type only, but the proposal-density ratio composes per side
+(forward = new variable's mechanism, reverse = old variable's), so both
+MIXED cases were wrong - ordinal-to-categorical dropped the old
+ordinal side's counted terms, and categorical-to-ordinal ran
+splitInterval/findGoodOrdinalRules on a categorical column (meaningless
+gauge-mask arithmetic feeding the logs). Fixed to the per-side form
+  (v' ordinal ? log|Valid_T(v')| - log|SI(v')| : 0)
+    + (v ordinal ? log|SI(v)| - log|Valid_T'(v)| : 0);
+all-ordinal fits are bit-identical to the first landing build (verified
+against saved oracles), categorical-fit draws shift. change-balance.R
+gained a MIXED arm built to see exactly this defect - a 9-cut ordinal
+against a 4-level factor aligned with its step blocks, so cross-type
+changes at stacked nodes are likelihood-neutral and carry the root
+balance: the one-sided kernel fails it at z = -8.0 (300k draws), the
+per-side kernel passes at z = +0.7, and MAIN/CONTROL reproduce
+bit-for-bit (z = -1.2 / -0.8). Re-run after the fix: categorical-exact,
+logistic-reference, bcf-exact all OK unchanged; tests/cpp pass; tinytest
+green at 2464 results (the count moved from 2489 because
+test-data-categorical*'s per-sampled-root assertion loops see different
+draws; no snapshot regeneration was needed and no all-ordinal file
+changed); equivalence vs bcdcc07 identical verdicts except the
+categorical scenario's offenders moved (max |z| 52.25 -> 53.99, still
+vprop/sigma only).

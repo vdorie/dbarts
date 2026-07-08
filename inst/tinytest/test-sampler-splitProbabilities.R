@@ -183,7 +183,9 @@ sampler <- dbarts::dbarts(
   control = control,
   tree.prior = cgm(split.probs = c(X6 = 2, .default = 1))
 )
-samples <- sampler$run(200L, 100L)
+# 1000 burn + 1000 samples: the 2x prior split weight on X6 only clears the
+# per-variable varcount noise over a run this long
+samples <- sampler$run(1000L, 1000L)
 
 
 varcounts <- apply(samples$varcount, 1L, mean)
@@ -191,8 +193,8 @@ names(varcounts) <- colnames(sampler$data@x)
 
 expect_true(all(varcounts[["X6"]] <= varcounts[paste0("X", 1:5)]))
 # X6 carries twice the prior split weight of the other noise variables, so
-# it should out-split their average; per-variable counts are too noisy at
-# this run length for a max comparison
+# it should out-split their average; per-variable counts stay too noisy for a
+# max comparison
 expect_true(
   varcounts[["X6"]] >=
     mean(varcounts[setdiff(names(varcounts), paste0("X", 1:6))])
