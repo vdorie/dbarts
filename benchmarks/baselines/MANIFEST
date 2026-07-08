@@ -12,7 +12,8 @@
 #                          docs/design/public-surface.md), not a gate.
 #
 # file                                role                 commit   machine/arch    scenarios
-equivalence-31a4c01.rds               current              31a4c01  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-cf99a00.rds               current              cf99a00  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-31a4c01.rds               historical           31a4c01  arm64 (macOS)   18: same as current; pre zero-weight sigma df fix (cf99a00) - only the zeroweights scenario diverges from it
 equivalence-bcdcc07.rds               historical           bcdcc07  arm64 (macOS)   18: same as current; pre change-move balance fix (31a4c01) - vprop/sigma summaries in unequal-cut scenarios diverge from it by design
 equivalence-235bebc.rds               historical           693d864  arm64 (macOS)   18: same as current; pre chi-df fix (bcdcc07) - linear and gp set manual chi(1.25) and diverge statistically from it
 equivalence-cf70fd5.rds               historical           cf70fd5  arm64 (macOS)   18: same as current
