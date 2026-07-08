@@ -54,11 +54,16 @@
   \code{summary} returns an object of class \code{summary.bart} with
   elements \code{call}, \code{stats} (a data frame with one row per
   requested scalar, or \code{NULL} if none of \code{vars} are present
-  on the fit; \code{rhat}, \code{ess_bulk}, and \code{ess_tail} columns
-  are added when \pkg{posterior} is installed), and \code{posterior}
-  (whether those columns were computed). Its print method notes when
-  \pkg{posterior} is missing, and separately when any R-hat exceeds
-  1.01; neither withholds the rest of the summary or errors.
+  on the fit), and \code{posterior} (whether \pkg{posterior} produced
+  \code{stats}). When \pkg{posterior} is installed, \code{stats} is
+  produced by its \code{summarise_draws} function, whose columns
+  include \code{mean}, \code{median}, \code{sd}, \code{mad}, \code{q5},
+  \code{q95}, \code{rhat}, \code{ess_bulk}, and \code{ess_tail};
+  otherwise a built-in summary supplies \code{mean}, \code{sd},
+  \code{q2.5}, \code{median}, and \code{q97.5}, with no convergence
+  diagnostics. Its print method notes when \pkg{posterior} is missing,
+  and separately when any R-hat exceeds 1.01; neither withholds the
+  rest of the summary or errors.
 
   \code{as_draws_array} and \code{as_draws_df} return a \pkg{posterior}
   \code{draws_array}/\code{draws_df}: the fit's native (chain, sample[,
