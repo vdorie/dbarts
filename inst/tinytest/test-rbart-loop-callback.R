@@ -48,7 +48,8 @@ runFit <- function() {
 
 fit <- runFit()
 
-# pinned draws from the deleted loop
+# pinned draws from the deleted loop, recorded on one platform; SIMD/BLAS
+# reduction order shifts the last bits elsewhere, hence the 1e-8 tolerance
 tau5 <- c(
   0.587105085592134,
   0.54133055365073,
@@ -71,12 +72,12 @@ yhatMeans <- c(
   1.13271808791647
 )
 
-expect_equal(unname(fit$tau[1:5]), tau5, tolerance = 1e-10)
-expect_equal(unname(fit$ranef[1L, 1:5]), ranefRow1, tolerance = 1e-10)
+expect_equal(unname(fit$tau[1:5]), tau5, tolerance = 1e-8)
+expect_equal(unname(fit$ranef[1L, 1:5]), ranefRow1, tolerance = 1e-8)
 expect_equal(
   unname(colMeans(fit$yhat.train)[1:5]),
   yhatMeans,
-  tolerance = 1e-10
+  tolerance = 1e-8
 )
 
 # a single chain draws through R's generator, so the path reproduces exactly

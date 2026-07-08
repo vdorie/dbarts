@@ -25,6 +25,10 @@ reference:
   - dbartsData
   - dbartsPriors
   - updatePredictorPerObservationJointly
+- title: Diagnostics
+  desc: Convergence summaries and posterior draw extraction.
+  contents:
+  - summary.bart
 - title: Utilities
   contents:
   - plotTree
