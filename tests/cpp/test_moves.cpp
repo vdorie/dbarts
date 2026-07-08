@@ -578,6 +578,57 @@ static void testSetCutPoints(ext_rng* rng) {
   printf("ok: explicit setCutPoints\n");
 }
 
+// Stripping every column to zero cut points leaves the trees root-only with no
+// available split variable anywhere. Birth/death must no-op each tree's move;
+// unfixed, the forced birth draws a rule for invalidVariable and reads
+// data.types out of bounds. A private rng and deterministic data leave both
+// the shared ext_rng stream and the global runif01 state untouched, so the
+// downstream suites' draws do not shift.
+static void testDegenerateRootGuard() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 3000);
+
+  const size_t n = 200;
+  std::vector<double> x(n * 2), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i) / static_cast<double>(n);
+    x[i + n] = static_cast<double>((i * 7) % n) / static_cast<double>(n);
+    y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n];
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, size_t(2), nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+
+  const double* noCuts[] = {nullptr, nullptr};
+  std::uint32_t numCuts[] = {0, 0};
+  size_t columns[] = {0, 1};
+  sampler.setCutPoints(noCuts, numCuts, columns, 2);
+
+  bool rootOnly = true;
+  for (size_t t = 0; t < options.numTrees; ++t)
+    rootOnly &= sampler.chain(0).tree(t).hasSingleNode();
+  check(rootOnly, "zero cuts leave every tree at its root");
+
+  std::vector<double> sigmaDraws(5);
+  Results results;
+  results.sigma = sigmaDraws.data();
+  sampler.run(0, 5, results);
+  bool sigmaFinite = true;
+  for (double s : sigmaDraws) sigmaFinite &= std::isfinite(s) && s > 0.0;
+  check(sigmaFinite, "sampler runs with every column at zero cuts");
+
+  bool stillRoots = true;
+  for (size_t t = 0; t < options.numTrees; ++t)
+    stillRoots &= sampler.chain(0).tree(t).hasSingleNode();
+  check(stillRoots, "degenerate trees stay root-only across the run");
+
+  ext_rng_destroy(rng);
+  printf("ok: degenerate root guard\n");
+}
+
 static void testMultiChainMutation() {
   const size_t n = 200, numChains = 2;
   std::vector<double> x, y;
@@ -856,6 +907,7 @@ void runMovesTests(ext_rng* rng) {
   testJointPerObservationUpdate();
   testQuantilePredictorUpdate(rng);
   testSetCutPoints(rng);
+  testDegenerateRootGuard();
   testMultiChainMutation();
   testLogisticMutation(rng);
   testCategoricalMutation(rng);
