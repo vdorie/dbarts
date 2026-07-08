@@ -74,3 +74,33 @@ rm(
   lin.pert,
   n
 )
+
+# The sigma posterior must ignore zero-weight rows in its degrees of freedom,
+# as the weights validator documents. Paired design: fit A on n rows all
+# w = 1; fit B on the same rows plus exact duplicates at w = 0. The duplicates
+# cannot change the cut points, the response scaling, the leaf prior, or any
+# leaf conditional, so the two sigma posteriors coincide - unless the df
+# over-counts the zero-weight rows, which deflates fit B's sigma (the unfixed
+# code gives a ratio near 0.13).
+set.seed(20260708)
+n <- 60L
+x <- matrix(runif(n * 3L), n, 3L)
+y <- rowSums(x) + rnorm(n, 0, 0.5)
+
+x2 <- rbind(x, x)
+y2 <- c(y, y)
+w2 <- c(rep(1, n), rep(0, n))
+
+set.seed(1L)
+fitA <- bart(x, y, ntree = 50L, ndpost = 1500L, nskip = 500L, verbose = FALSE)
+set.seed(1L)
+fitB <- suppressWarnings(bart(
+  x2, y2, weights = w2, ntree = 50L, ndpost = 1500L, nskip = 500L,
+  verbose = FALSE
+))
+
+sigmaRatio <- mean(fitB$sigma) / mean(fitA$sigma)
+expect_true(sigmaRatio > 0.7 && sigmaRatio < 1.4,
+            info = paste0("zero-weight sigma ratio B/A = ", round(sigmaRatio, 3)))
+
+rm(n, x, y, x2, y2, w2, fitA, fitB, sigmaRatio)

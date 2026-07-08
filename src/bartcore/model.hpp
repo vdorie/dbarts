@@ -1741,15 +1741,19 @@ struct ChiSquaredScalePrior {
   double degreesOfFreedom = 3.0;
   double scale = 1.0;
 
+  /// numPositiveWeights is the count of rows with weight > 0 (== numObservations
+  /// when unweighted): zero-weight rows drop from the weighted SSR and every
+  /// leaf conditional, so they must not inflate the posterior df either.
   double drawSigmaSqFromPosterior(ext_rng* rng, const double* y,
                                   const double* totalFits, const double* weights,
-                                  std::size_t numObservations) const {
+                                  std::size_t numObservations,
+                                  std::size_t numPositiveWeights) const {
     double sumOfSquaredResiduals = weights == nullptr
       ? misc_computeSumOfSquaredResiduals(y, numObservations, totalFits)
       : misc_computeWeightedSumOfSquaredResiduals(y, numObservations, weights,
                                                   totalFits);
     double posteriorDegreesOfFreedom =
-      degreesOfFreedom + static_cast<double>(numObservations);
+      degreesOfFreedom + static_cast<double>(numPositiveWeights);
     double posteriorScale = degreesOfFreedom * scale + sumOfSquaredResiduals;
     return posteriorScale /
            ext_rng_simulateChiSquared(rng, posteriorDegreesOfFreedom);
@@ -1866,7 +1870,8 @@ public:
                    std::size_t numObservations, double sigmaEstimate,
                    double sigmaDf, double sigmaRawScale)
     : y_(y), offset_(offset), weights_(weights),
-      numObservations_(numObservations) {
+      numObservations_(numObservations),
+      numPositiveWeights_(countPositiveWeights(weights, numObservations)) {
     yRescaled_.resize(numObservations);
     rescale();
 
@@ -1882,7 +1887,8 @@ public:
 
   double drawSigma(ext_rng* rng, const double* totalFits, double) override {
     return std::sqrt(sigmaSqPrior_.drawSigmaSqFromPosterior(
-      rng, yRescaled_.data(), totalFits, weights_, numObservations_));
+      rng, yRescaled_.data(), totalFits, weights_, numObservations_,
+      numPositiveWeights_));
   }
 
   void setResponse(const double* y, ext_rng*, const double*, bool updateScale,
@@ -1920,6 +1926,7 @@ public:
     offset_ = offset;
     weights_ = weights;
     numObservations_ = numObservations;
+    numPositiveWeights_ = countPositiveWeights(weights, numObservations);
     yRescaled_.resize(numObservations);
     rescale();
 
@@ -1927,7 +1934,10 @@ public:
     *sigmaInOut = sigmaUnscaled / range_;
   }
 
-  void setWeights(const double* weights) override { weights_ = weights; }
+  void setWeights(const double* weights) override {
+    weights_ = weights;
+    numPositiveWeights_ = countPositiveWeights(weights, numObservations_);
+  }
 
   void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
                      double rawScale) override {
@@ -1995,6 +2005,17 @@ public:
   }
 
 private:
+  /// Zero-weight rows are documented as ignored; the sigma posterior df counts
+  /// only positive-weight rows (all n when unweighted).
+  static std::size_t countPositiveWeights(const double* weights,
+                                          std::size_t numObservations) {
+    if (weights == nullptr) return numObservations;
+    std::size_t count = 0;
+    for (std::size_t i = 0; i < numObservations; ++i)
+      if (weights[i] > 0.0) ++count;
+    return count;
+  }
+
   void rescale() {
     if (offset_ != nullptr) {
       misc_subtractVectors(offset_, numObservations_, y_, yRescaled_.data());
@@ -2021,6 +2042,7 @@ private:
   const double* offset_;
   const double* weights_;
   std::size_t numObservations_;
+  std::size_t numPositiveWeights_;
   std::vector<double> yRescaled_;
   double min_ = 0.0, max_ = 0.0, range_ = 1.0;
   double initialSigma_ = 1.0;
