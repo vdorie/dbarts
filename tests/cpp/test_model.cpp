@@ -191,7 +191,7 @@ static void testSampleFromPrior(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = numTrees;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   const ColumnStore& store(sampler.data());
@@ -1064,7 +1064,7 @@ static void testGroupedEndToEnd(ext_rng* rng) {
   ext_rng* chainRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
                                      NULL);
   ext_rng_setSeed(chainRng, 2026);
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, ySd, 3.0,
                          0.37804942330213542, options, &chainRng);
 
@@ -1169,7 +1169,7 @@ static void testGroupedBinary(ext_rng* rng) {
     ext_rng* chainRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER,
                                        NULL);
     ext_rng_setSeed(chainRng, 3000 + pass);
-    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                            family, 1.0, 3.0, 1.0, options, &chainRng);
 
     std::vector<double> tauSamples(numSamples);
@@ -1234,7 +1234,7 @@ static void testGroupedStateRoundTrip() {
 
   std::vector<ext_rng*> rngs(numChains, nullptr);
   makeRngs(rngs, 4242);
-  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs.data());
   Results empty;
@@ -1248,7 +1248,7 @@ static void testGroupedStateRoundTrip() {
 
   std::vector<ext_rng*> rngs2(numChains, nullptr);
   makeRngs(rngs2, 1111);
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a grouped state restores");
@@ -1416,7 +1416,7 @@ static void testSparseEndToEnd() {
 
     SamplerOptions options;
     options.numTrees = 25;
-    ClassicSampler dense(fixture.dense.data(), y.data(), n, p, nullptr,
+    ConstantLeafSampler dense(fixture.dense.data(), y.data(), n, p, nullptr,
                          nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rngA);
 
@@ -1424,7 +1424,7 @@ static void testSparseEndToEnd() {
     cscOptions.cscColumnPointers = fixture.pointers.data();
     cscOptions.cscRowIndices = fixture.rows.data();
     cscOptions.cscValues = fixture.values.data();
-    ClassicSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
+    ConstantLeafSampler sparse(nullptr, y.data(), n, p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, cscOptions, &rngB);
     check(!sparse.data().hasSparse && sparse.data().builtFromCsc,
@@ -1485,7 +1485,7 @@ static void testSparseEndToEnd() {
     options.cscColumnPointers = fixture.pointers.data();
     options.cscRowIndices = fixture.rows.data();
     options.cscValues = fixture.values.data();
-    ClassicSampler sampler(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+    ConstantLeafSampler sampler(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                            ResponseFamily::gaussian, ySd, 3.0,
                            0.37804942330213542, options, &rng);
     check(sampler.data().hasSparse, "rank-tier sampler holds rank columns");
@@ -1550,7 +1550,7 @@ static void testSparseStateRoundTrip() {
 
   std::vector<ext_rng*> rngs(numChains, nullptr);
   makeRngs(rngs, 4242);
-  ClassicSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+  ConstantLeafSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs.data());
   Results empty;
@@ -1561,7 +1561,7 @@ static void testSparseStateRoundTrip() {
 
   std::vector<ext_rng*> rngs2(numChains, nullptr);
   makeRngs(rngs2, 1111);
-  ClassicSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+  ConstantLeafSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a sparse-store state restores");
@@ -1739,14 +1739,14 @@ static void testMixedEndToEnd() {
   SamplerOptions options;
   options.numTrees = 25;
   options.columnTypes = fixture.types.data();
-  ClassicSampler dense(fixture.full.data(), y.data(), n, fixture.p, nullptr,
+  ConstantLeafSampler dense(fixture.full.data(), y.data(), n, fixture.p, nullptr,
                        nullptr, ResponseFamily::gaussian, 1.0, 3.0,
                        0.37804942330213542, options, &rngA);
 
   SamplerOptions mixedOptions;
   mixedOptions.numTrees = 25;
   fixture.applyOptions(mixedOptions);
-  ClassicSampler mixed(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+  ConstantLeafSampler mixed(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                        ResponseFamily::gaussian, 1.0, 3.0,
                        0.37804942330213542, mixedOptions, &rngB);
   check(!mixed.data().hasSparse && mixed.data().builtFromCsc,
@@ -1875,7 +1875,7 @@ static void testMixedStateRoundTrip() {
 
   std::vector<ext_rng*> rngs(numChains, nullptr);
   makeRngs(rngs, 6161);
-  ClassicSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+  ConstantLeafSampler original(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs.data());
   Results empty;
@@ -1886,7 +1886,7 @@ static void testMixedStateRoundTrip() {
 
   std::vector<ext_rng*> rngs2(numChains, nullptr);
   makeRngs(rngs2, 2323);
-  ClassicSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
+  ConstantLeafSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a mixed-store state restores");

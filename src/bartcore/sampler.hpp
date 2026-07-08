@@ -53,7 +53,7 @@ private:
 
 /// Outcome of a transactional predictor change. invalidCutPoints reports a
 /// quantile-mode cut refresh whose new column would induce fewer cuts than
-/// existing splits require; unlike the reference engine, which errors midway
+/// existing splits require; unlike the pre-1.0 engine, which errored midway
 /// through installation, nothing has been modified.
 enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 
@@ -90,8 +90,7 @@ public:
 /// The sampler proper: a shared column store and one or more chains over it.
 /// Chains run independently (optionally on worker threads) and hold all
 /// per-chain state; the sampler owns the data and orchestrates transactions,
-/// which are all-or-none across every tree of every chain, exactly as the
-/// classic engine's were.
+/// which are all-or-none across every tree of every chain.
 template <IntegrableLeafModel L>
 class Sampler {
 public:
@@ -206,8 +205,8 @@ public:
   }
 
   /// Borrowed, length numTestObservations (the caller validates); null
-  /// clears. Added to recorded test fits, exactly as the classic engine
-  /// does; predictions take their offset as an argument instead.
+  /// clears. Added to recorded test fits; predictions take their offset as
+  /// an argument instead.
   void setTestOffset(const double* testOffset) {
     data_.testOffset = testOffset;
   }
@@ -349,8 +348,8 @@ public:
     return false;
   }
 
-  /// The classic engine's end-of-run report: accumulated loop time, leaf
-  /// counts per tree, and split-variable usage, all from the current state.
+  /// End-of-run report: accumulated loop time, leaf counts per tree, and
+  /// split-variable usage, all from the current state.
   void printTerminalSummary() const {
     ext_printf("total seconds in loop: %f\n", runningTime_);
 
@@ -358,7 +357,7 @@ public:
     std::vector<int32_t> bottoms;
     for (size_t c = 0; c < chains_.size(); ++c) {
       size_t linePrintCount = 0;
-      // the classic engine prefixes unconditionally; mirrored
+      // prefix every chain's line unconditionally
       ext_printf("[%lu] ", static_cast<unsigned long>(c + 1));
       linePrintCount += 2;
       for (size_t t = 0; t < options_.numTrees; ++t) {
@@ -584,8 +583,8 @@ public:
     for (auto& chain : chains_) chain->setResponse(y, updateScale);
   }
   /// Case weights, gaussian only (the host rejects binary families): a bare
-  /// pointer swap like the classic engine's, entering the next iteration's
-  /// node statistics and sigma draw with nothing rescaled.
+  /// pointer swap, entering the next iteration's node statistics and sigma
+  /// draw with nothing rescaled.
   void setWeights(const double* weights) {
     for (auto& chain : chains_) chain->setWeights(weights);
   }
@@ -630,8 +629,7 @@ public:
     currentSampleNum_ = 0;
   }
 
-  /// Install a replacement prior on every chain (the classic engine's
-  /// setModel); see ModelParameters.
+  /// Install a replacement prior on every chain; see ModelParameters.
   void setModel(const ModelParameters& model) {
     for (auto& chain : chains_) chain->setModel(model);
   }
@@ -689,8 +687,8 @@ public:
   /// of observations (all borrowed; the predictor count is fixed). Not
   /// transactional: cut points are rebuilt from scratch, existing splits are
   /// remapped onto the value-nearest new cuts, and any subtree left invalid
-  /// or empty collapses, as in the classic engine. Gaussian chains keep
-  /// sigma and the variance prior fixed on the original scale.
+  /// or empty collapses. Gaussian chains keep sigma and the variance prior
+  /// fixed on the original scale.
   void setData(const double* x, const double* y, size_t numObservations,
                const double* weights, const double* offset,
                const double* x_test, size_t numTestObservations,
@@ -1049,7 +1047,7 @@ private:
   double runningTime_ = 0.0;     // seconds accumulated across runs
 };
 
-using ClassicSampler = Sampler<ConstantGaussianLeaf>;
+using ConstantLeafSampler = Sampler<ConstantGaussianLeaf>;
 
 }  // namespace bartcore
 

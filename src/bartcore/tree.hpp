@@ -278,7 +278,7 @@ public:
     return result;
   }
 
-  // Node collectors walk left-first, matching the reference engine's order.
+  // Node collectors walk left-first.
   void fillBottom(int32_t i, std::vector<int32_t>& out) const {
     if (at(i).isBottom()) { out.push_back(i); return; }
     fillBottom(at(i).leftChild, out);
@@ -487,8 +487,8 @@ public:
   }
 
   /// Leaf sufficient statistic (sum w, sum wz, sum wz^2) in one pass. The
-  /// root intentionally uses the non-indexed kernels like the reference
-  /// engine (identical values, cheaper access).
+  /// root intentionally uses the non-indexed kernels (identical values,
+  /// cheaper access).
   void computeLeafStats(int32_t nodeIndex, const double* y, const double* weights) {
     Node& node(at(nodeIndex));
     bool isRoot = node.parent == invalidNode;
@@ -685,8 +685,8 @@ public:
     repartitionSubtree(data, at(nodeIndex).leftChild + 1);
   }
 
-  /// The classic engine's validity criterion after a predictor change: no
-  /// bottom node may be left without observations.
+  /// Validity criterion after a predictor change: no bottom node may be left
+  /// without observations.
   bool bottomNodesAreOccupied() const {
     return bottomNodesAreOccupiedBelow(0);
   }
@@ -844,9 +844,8 @@ public:
   /// After a from-scratch cut rebuild, remap every rule's splitIndex onto the
   /// new cut whose value is nearest the old cut, restricted to the ancestor-
   /// constrained interval; a subtree whose interval empties collapses to a
-  /// leaf with the plain mean of its leaf parameters (the reference engine's
-  /// mapOldCutPointsOntoNew). paramByNode is indexed by arena id,
-  /// paramStride doubles per node, merged per coordinate.
+  /// leaf with the plain mean of its leaf parameters. paramByNode is indexed
+  /// by arena id, paramStride doubles per node, merged per coordinate.
   void mapOldCutPointsOntoNew(const ColumnStore& data,
                               const std::vector<std::vector<double>>& oldCutPoints,
                               std::vector<double>& paramByNode,
@@ -1023,9 +1022,9 @@ private:
   }
 
   /// minIndices are inclusive, maxIndices exclusive; both are saved and
-  /// restored around the recursion, exactly as the reference walker does.
-  /// Categorical rules have nothing to remap (category counts are fixed
-  /// across data replacement) and pass through to their children.
+  /// restored around the recursion. Categorical rules have nothing to remap
+  /// (category counts are fixed across data replacement) and pass through to
+  /// their children.
   void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
                          const std::vector<std::vector<double>>& oldCutPoints,
                          std::vector<double>& paramByNode,

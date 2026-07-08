@@ -18,7 +18,7 @@ static void testViewSamplerMatchesFull() {
   SamplerOptions options;
   options.numTrees = 25;
 
-  ClassicSampler full(x.data(), y.data(), n, p, nullptr, nullptr,
+  ConstantLeafSampler full(x.data(), y.data(), n, p, nullptr, nullptr,
                       ResponseFamily::gaussian, 1.0, 3.0,
                       0.37804942330213542, options, &rngA);
 
@@ -28,7 +28,7 @@ static void testViewSamplerMatchesFull() {
   for (size_t i = 0; i < n; ++i) rows[i] = i;
   ColumnStore store;
   store.buildFromParent(parent, rows.data(), n, nullptr, 0);
-  ClassicSampler view(std::move(store), y.data(), nullptr, nullptr,
+  ConstantLeafSampler view(std::move(store), y.data(), nullptr, nullptr,
                       ResponseFamily::gaussian, 1.0, 3.0,
                       0.37804942330213542, options, &rngB);
 
@@ -74,7 +74,7 @@ static void testEndToEndGaussian(ext_rng* rng) {
 
   SamplerOptions options;
   options.numTrees = 75;
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
                          ySd, 3.0, 0.37804942330213542 /* qchisq(0.1, 3)/3 */,
                          options, &rng);
 
@@ -122,7 +122,7 @@ static void testRunCancellation(ext_rng* rng) {
   {
     SamplerOptions options;
     options.numTrees = 25;
-    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
                            0.37804942330213542, options, &rng);
     const size_t numSamples = 20;
@@ -141,7 +141,7 @@ static void testRunCancellation(ext_rng* rng) {
   {
     SamplerOptions options;
     options.numTrees = 25;
-    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
                            0.37804942330213542, options, &rng);
     int calls = 0;
@@ -166,7 +166,7 @@ static void testRunCancellation(ext_rng* rng) {
     options.numTrees = 25;
     options.numChains = numChains;
     options.numThreads = numChains;
-    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
                            0.37804942330213542, options, rngs.data());
     std::atomic<int> calls(0);
@@ -198,7 +198,7 @@ static void testEndToEndProbit(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::probit,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::probit,
                          1.0, 3.0, 1.0, options, &rng);
 
   const size_t numBurnIn = 150, numSamples = 200;
@@ -235,7 +235,7 @@ static void testEndToEndLogistic(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                          ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
                          &rng);
 
@@ -313,9 +313,9 @@ static void testWeightedLogistic(ext_rng* rng) {
     check(false, "weighted logistic: rng creation");
     return;
   }
-  ClassicSampler a(x.data(), y.data(), n, p, nullptr, w.data(),
+  ConstantLeafSampler a(x.data(), y.data(), n, p, nullptr, w.data(),
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngA);
-  ClassicSampler b(x.data(), y.data(), n, p, nullptr, w.data(),
+  ConstantLeafSampler b(x.data(), y.data(), n, p, nullptr, w.data(),
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngB);
   const size_t numBurnIn = 20, numSamples = 30;
   std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
@@ -333,7 +333,7 @@ static void testWeightedLogistic(ext_rng* rng) {
 
   // the weighted fit recovers the monotone signal and its omega latents stay
   // positive and finite
-  ClassicSampler wsampler(x.data(), y.data(), n, p, nullptr, w.data(),
+  ConstantLeafSampler wsampler(x.data(), y.data(), n, p, nullptr, w.data(),
                           ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rng);
   const size_t wSamples = 200;
   std::vector<double> wfits(n * wSamples);
@@ -379,7 +379,7 @@ static void testMultiChain() {
     options.numTrees = 25;
     options.numChains = numChains;
     options.numThreads = numThreads;
-    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                            1.0, 3.0, 0.37804942330213542, options,
                            rngs.data());
 
@@ -457,7 +457,7 @@ static void testTestFitThreadInvariance() {
     options.numTrees = 25;
     options.numChains = 1;
     options.numThreads = numThreads;
-    ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
                            0.37804942330213542, options, &rng);
     sampler.setTestPredictors(xTest.data(), nTest);
@@ -488,8 +488,8 @@ static void testSetData(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   double sigmaBefore = sampler.sigma(0);
   std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
@@ -542,8 +542,8 @@ static void testSetResponseScaleLock(ext_rng* rng) {
   std::vector<double> yScaled(n);
   for (size_t i = 0; i < n; ++i) yScaled[i] = 2.0 * y[i] + 3.0;
 
-  std::unique_ptr<ClassicSampler> lockedPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& locked(*lockedPtr);
+  std::unique_ptr<ConstantLeafSampler> lockedPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& locked(*lockedPtr);
   SamplerStateData before;
   locked.getState(before);
   double widthBefore = before.chains[0].fitMax - before.chains[0].fitMin;
@@ -557,8 +557,8 @@ static void testSetResponseScaleLock(ext_rng* rng) {
   checkNear(afterLocked.chains[0].sigma, sigmaInternalBefore, 1e-12,
             "locked setResponse keeps internal sigma");
 
-  std::unique_ptr<ClassicSampler> scaledPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& scaled(*scaledPtr);
+  std::unique_ptr<ConstantLeafSampler> scaledPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& scaled(*scaledPtr);
   SamplerStateData beforeScaled;
   scaled.getState(beforeScaled);
   double widthBeforeScaled =
@@ -581,8 +581,8 @@ static void testSetDataResize(ext_rng* rng) {
   const size_t n = 200, n2 = 320, nTest = 50, nTest2 = 30;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   std::vector<double> xTest(nTest * 2);
   for (double& v : xTest) v = runif01();
@@ -645,7 +645,7 @@ static void testSetDataQuantileShrink(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.useQuantiles = true;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(100, 0, empty);
@@ -687,7 +687,7 @@ static void testSetDataProbit(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::probit,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::probit,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(50, 0, empty);
@@ -730,7 +730,7 @@ static void testMultiChainSetData() {
   SamplerOptions options;
   options.numTrees = 25;
   options.numChains = numChains;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, rngs.data());
   Results empty;
   sampler.run(100, 0, empty);
@@ -780,7 +780,7 @@ static void testEndToEndCategorical(ext_rng* rng) {
   options.columnTypes = nullptr;  // set via ctor path below
   ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
   options.columnTypes = types;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
 
@@ -920,7 +920,7 @@ static void testWideCategorical(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.columnTypes = types;
-  ClassicSampler sampler(x.data(), y.data(), n, 1, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 1, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   const size_t numSamples = 100;
@@ -978,7 +978,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   options.columnTypes = types;
   options.keepTrees = true;
   options.numSamplesToStore = numSamples;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   sampler.setTestPredictors(xTest.data(), nTest);
@@ -1020,7 +1020,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
         "wide-column states carry mask channels");
   ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng2, 4242);
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng2);
   restored.setTestPredictors(xTest.data(), nTest);
@@ -1032,7 +1032,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
   // live-tree prediction agrees with the final tree fits
   std::vector<double> livePredict(n);
   {
-    ClassicSampler live(x.data(), y.data(), n, 2, nullptr, nullptr,
+    ConstantLeafSampler live(x.data(), y.data(), n, 2, nullptr, nullptr,
                         ResponseFamily::gaussian, 1.0, 3.0,
                         0.37804942330213542, options, &rng2);
     Results liveResults;
@@ -1079,11 +1079,11 @@ static void testSetWeightsAndTestOffset() {
   // setWeights before any run is indistinguishable from creating with the
   // new weights: a bare pointer swap, nothing rescales
   ext_rng* rngA = makeSeededRng();
-  ClassicSampler samplerA(x.data(), y.data(), n, 2, w2.data(), nullptr,
+  ConstantLeafSampler samplerA(x.data(), y.data(), n, 2, w2.data(), nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngA);
   ext_rng* rngB = makeSeededRng();
-  ClassicSampler samplerB(x.data(), y.data(), n, 2, w1.data(), nullptr,
+  ConstantLeafSampler samplerB(x.data(), y.data(), n, 2, w1.data(), nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngB);
   samplerB.setWeights(w2.data());
@@ -1102,14 +1102,14 @@ static void testSetWeightsAndTestOffset() {
   // a test offset shifts recorded test fits by exactly itself and leaves
   // everything else alone
   ext_rng* rngC = makeSeededRng();
-  ClassicSampler samplerC(x.data(), y.data(), n, 2, w2.data(), nullptr,
+  ConstantLeafSampler samplerC(x.data(), y.data(), n, 2, w2.data(), nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngC);
   samplerC.setTestPredictors(xTest.data(), nTest);
   samplerC.setTestOffset(testOffset.data());
 
   ext_rng* rngD = makeSeededRng();
-  ClassicSampler samplerD(x.data(), y.data(), n, 2, w2.data(), nullptr,
+  ConstantLeafSampler samplerD(x.data(), y.data(), n, 2, w2.data(), nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngD);
   samplerD.setTestPredictors(xTest.data(), nTest);
@@ -1175,14 +1175,14 @@ static void testSetControlAndModel() {
   optionsA.birthProbability = 0.4;
   optionsA.splitProbabilities = splitProbabilities;
   ext_rng* rngA = makeSeededRng();
-  ClassicSampler samplerA(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerA(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 5.0, 0.9, optionsA,
                           &rngA);
 
   SamplerOptions optionsB;
   optionsB.numTrees = 25;
   ext_rng* rngB = makeSeededRng();
-  ClassicSampler samplerB(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerB(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsB, &rngB);
   ModelParameters model;
@@ -1218,12 +1218,12 @@ static void testSetControlAndModel() {
   optionsC.kHyperprior.degreesOfFreedom = 2.0;
   optionsC.kHyperprior.scale = 5.0;
   ext_rng* rngC = makeSeededRng();
-  ClassicSampler samplerC(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerC(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsC, &rngC);
 
   ext_rng* rngD = makeSeededRng();
-  ClassicSampler samplerD(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerD(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsB, &rngD);
   ModelParameters modelK;
@@ -1279,11 +1279,11 @@ static void testSetControlAndModel() {
   optionsE.numTrees = 25;
   optionsE.numThin = 3;
   ext_rng* rngE = makeSeededRng();
-  ClassicSampler samplerE(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerE(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsE, &rngE);
   ext_rng* rngF = makeSeededRng();
-  ClassicSampler samplerF(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler samplerF(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsB, &rngF);
   samplerF.setNumThin(3);
@@ -1304,7 +1304,7 @@ static void testSetControlAndModel() {
   SamplerOptions optionsG;
   optionsG.numTrees = 25;
   ext_rng* rngG = makeSeededRng();
-  ClassicSampler samplerG(x.data(), y.data(), n, 2, nullptr, offset.data(),
+  ConstantLeafSampler samplerG(x.data(), y.data(), n, 2, nullptr, offset.data(),
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, optionsG, &rngG);
   std::vector<double> train(n);
@@ -1355,7 +1355,7 @@ static void testMissingEndToEnd() {
 
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, 5150);
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   std::vector<double> sigma(numSamples), train(n * numSamples);
@@ -1395,7 +1395,7 @@ static void testMissingEndToEnd() {
   sampler.getState(state);
   ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng2, 999);
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng2);
   check(restored.setState(state), "a state with missing directions restores");

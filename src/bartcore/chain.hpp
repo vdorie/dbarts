@@ -27,7 +27,7 @@ struct SamplerOptions {
   // numChains) are used, and every chain needs its own non-R rng when > 1
   size_t numThreads = 1;
   // every numThin-th iteration is kept; numBurnIn and numSamples count at
-  // the kept rate, as in the classic engine
+  // the kept rate
   size_t numThin = 1;
   double k = 2.0;
   double nodeScale = 0.5;  // 3.0 for binary responses
@@ -110,12 +110,12 @@ struct SamplerOptions {
 
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
-  // reporting after the run; the classic engine's keepTrees
+  // reporting after the run
   bool keepTrees = false;
   size_t numSamplesToStore = 0;
 
-  // progress reporting during runs, in the classic engine's format: one
-  // "iteration: k (of N)" line every printEvery kept iterations
+  // progress reporting during runs: one "iteration: k (of N)" line every
+  // printEvery kept iterations
   bool verbose = false;
   std::uint32_t printEvery = 100;
 };
@@ -128,11 +128,11 @@ struct ProgressSink {
   virtual void report(const char* line) = 0;
 };
 
-/// A between-run prior replacement, the classic engine's setModel: every
-/// field is applied unconditionally except that DART samplers keep their
-/// Dirichlet split machinery (a dbartsModel cannot express DART) and the
-/// fixed-sigma binary families ignore the variance prior. Installing a model
-/// before any run matches creating with it.
+/// A between-run prior replacement: every field is applied unconditionally
+/// except that DART samplers keep their Dirichlet split machinery (a
+/// dbartsModel cannot express DART) and the fixed-sigma binary families
+/// ignore the variance prior. Installing a model before any run matches
+/// creating with it.
 struct ModelParameters {
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.5;
@@ -736,8 +736,7 @@ public:
   /// scale: the response range for gaussian, 1 for the binary families.
   double fitScale() const { return response_->fitScale(); }
 
-  /// Install a replacement prior (the classic engine's setModel); see
-  /// ModelParameters for the semantics.
+  /// Install a replacement prior; see ModelParameters for the semantics.
   void setModel(const ModelParameters& model) {
     Forest<L>& forest = forests_[0];
     forest.treePrior.base = model.base;
@@ -789,9 +788,8 @@ public:
   }
 
   /// Replace every tree's structure with a draw from the tree prior over the
-  /// current cut grid, empty leaves collapsed, exactly as the reference
-  /// engine: fits are left stale, which run() tolerates because totalFits
-  /// still sums the per-tree fits.
+  /// current cut grid, empty leaves collapsed. Fits are left stale, which
+  /// run() tolerates because totalFits still sums the per-tree fits.
   void sampleTreesFromPrior() {
     size_t n = data_.numObservations;
     const double* y = response_->workingResponse();
@@ -1224,8 +1222,8 @@ public:
     }
   }
 
-  /// The same for one saved tree, in the reference engine's saved format;
-  /// function-valued leaves print their recorded mean values.
+  /// The same for one saved tree; function-valued leaves print their
+  /// recorded mean values.
   void printSavedTree(size_t slot, size_t t, int indentation) const {
     const Forest<L>& forest = forests_[0];
     const std::vector<FlatNode>& flat(
@@ -1707,7 +1705,7 @@ private:
     for (size_t i = 0; i < numTest; ++i) fn(i);
   }
 
-  /// The reference engine's recursion: growth is Bernoulli in the
+  /// Recursive growth from the prior: growth is Bernoulli in the
   /// depth-decayed prior probability, rules come from the prior, and empty
   /// children keep growing (availability is rule-based) until the caller
   /// collapses them.
@@ -1927,8 +1925,9 @@ private:
   }
 
   /// A BCF forest, built self-contained so the single-forest constructor
-  /// (the bitwise-gated path) is untouched: constant leaf, fixed k = 1
-  /// (the map's convention), no DART. nodeScale is the map-derived total.
+  /// (covered by the draw-for-draw equivalence benchmark) is untouched:
+  /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
+  /// the map-derived total.
   void buildBCFForest(const BCFForestSpec& spec, double nodeScale) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
@@ -2061,8 +2060,8 @@ private:
         for (size_t i = 0; i < n; ++i)
           out[i] = scale * forest.totalFits[i] + shift;
       }
-      // original-scale convention, matching the classic engine and the
-      // recorded test fits: any offset is part of the fit
+      // original-scale convention, matching the recorded test fits: any
+      // offset is part of the fit
       const double* offset = response_->offset();
       if (offset != nullptr) misc_addVectorsInPlace(offset, n, out);
     }

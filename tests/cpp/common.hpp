@@ -51,7 +51,7 @@ static void checkStructuralRoundTrip(const SamplerStateData& saved,
 
 // A burned-in sampler for mutation tests: strong signal in both columns so
 // trees certainly split.
-std::unique_ptr<ClassicSampler> makeBurnedInSampler(
+std::unique_ptr<ConstantLeafSampler> makeBurnedInSampler(
   std::vector<double>& x, std::vector<double>& y, size_t n, ext_rng* rng);
 void makeMutationData(std::vector<double>& x, std::vector<double>& y,
                        size_t n);

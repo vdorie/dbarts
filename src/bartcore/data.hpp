@@ -404,8 +404,8 @@ struct ColumnStore {
   /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
   /// Refuses (returns false, keeping the old grid) when the fixed count cannot
   /// yield a strictly ascending grid: quantile mode with fewer induced cuts
-  /// than existing (extra induced cuts are silently thinned, as in the
-  /// reference engine), or a degenerate range under two or more uniform cuts
+  /// than existing (extra induced cuts are silently thinned), or a degenerate
+  /// range under two or more uniform cuts
   /// (a re-cut there would repeat a value). A forced update then routes the
   /// new values through the retained grid and collapses what empties.
   /// Categorical columns have nothing to refresh; the caller pre-checked.
