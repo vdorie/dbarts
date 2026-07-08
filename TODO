@@ -88,8 +88,10 @@ items
   retrospective-reviews: GREENLIT program of six reviews (correctness
     derivation audit, interface, gate blind spots, SBC calibration,
     field roadmap survey, architecture critique + numerical
-    robustness), strictly sequential, queued behind the two
-    experiments; order and scope in the plan file.
+    robustness), strictly sequential; order and scope in the plan
+    file. IN PROGRESS 2026-07-08: review 1 running as
+    correctness-audit (paired independent derivers per formula
+    block).
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
