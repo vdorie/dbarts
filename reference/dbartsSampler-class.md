@@ -40,13 +40,13 @@ setPredictor(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NA)
 # S4 method for class 'dbartsSampler'
 setCutPoints(cuts, column, updateState = NA)
 # S4 method for class 'dbartsSampler'
-setTestPredictor(x.test, column, updateState = NA)
+setTestPredictor(x.test, column)
 # S4 method for class 'dbartsSampler'
-setTestPredictorAndOffset(x.test, offset.test, updateState = NA)
+setTestPredictorAndOffset(x.test, offset.test)
 # S4 method for class 'dbartsSampler'
-setTestOffset(offset.test, updateState = NA)
+setTestOffset(offset.test)
 # S4 method for class 'dbartsSampler'
-printTrees(treeNums)
+printTrees(treeNums, chainNums, sampleNums)
 # S4 method for class 'dbartsSampler'
 getTrees(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
@@ -141,7 +141,7 @@ plotTree(
 - offset.test:
 
   A numeric vector of length equal to that of the test matrix, or
-  `NULL`. Can be missing for `setTestPredictors`.
+  `NULL`. Can be missing for `setTestPredictorAndOffset`.
 
 - n.threads:
 
@@ -155,10 +155,13 @@ plotTree(
 
   A numeric vector of non-negative case weights, of length equal to that
   with which the sampler was created. Weights of zero exclude an
-  observation from the likelihood while keeping its fitted values. This
-  gaussian interpretation is the general case; a logistic-family sampler
-  treats weights as observation counts and requires positive integers,
-  and a probit-family sampler does not accept weights at all.
+  observation from the likelihood while keeping its fitted values.
+  `setWeights` only applies to a gaussian-family sampler; calling it on
+  a probit- or logistic-family sampler is refused, since a weighted
+  probit has no tractable latent-variable form and logistic weights
+  (observation counts) are fixed when the sampler is created. See
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
+  the family-specific weight rules that apply at creation time.
 
 - cuts:
 
@@ -181,8 +184,9 @@ plotTree(
   and rolls back only those observations whose value would empty a leaf,
   returning a per-observation logical of what was installed. `"partial"`
   requires a single `column` and cannot be combined with
-  `updateCutPoints`. When missing, defaults to `TRUE` if the replacement
-  predictor is a matrix and `FALSE` otherwise.
+  `updateCutPoints`. When missing, defaults to `TRUE` when the whole
+  predictor matrix is being replaced (`column` is missing) and `FALSE`
+  when a single column is being replaced.
 
 - updateCutPoints:
 
@@ -302,7 +306,7 @@ from.
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
 results in a tree with an empty leaf-node. If only single columns were
-replaced, on the update is rolled-back so that the sampler remains in a
+replaced, the update is rolled back so that the sampler remains in a
 valid state. When `forceUpdate` is `"partial"`, instead returns a
 logical vector of length equal to the number of observations, `TRUE`
 where that observation's new value was installed and `FALSE` where it

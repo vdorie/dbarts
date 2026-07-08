@@ -118,11 +118,11 @@ residuals(object, type = "ev", ...)
 
 - sigest:
 
-  For continuous response models, an estimate of the error variance,
-  \\\sigma^2\\, used to calibrate an inverse-chi-squared prior used on
-  that parameter. If not supplied, the least-squares estimate is derived
-  instead. See `sigquant` for more information. Not applicable when
-  \\y\\ is binary.
+  For continuous response models, an estimate of the residual standard
+  deviation (residual standard error), \\\sigma\\, used to calibrate an
+  inverse-chi-squared prior on the error variance. If not supplied, the
+  least-squares estimate is derived instead. See `sigquant` for more
+  information. Not applicable when \\y\\ is binary.
 
 - sigdf:
 
@@ -134,7 +134,7 @@ residuals(object, type = "ev", ...)
 
   The quantile of the error variance prior that the rough estimate
   (`sigest`) is placed at. The closer the quantile is to 1, the more
-  aggresive the fit will be as you are putting more prior weight on
+  aggressive the fit will be as you are putting more prior weight on
   error standard deviations (\\\sigma\\) less than the rough estimate.
   Not applicable when \\y\\ is binary. Default 0.90, from the same
   source as `sigdf`.
@@ -268,7 +268,7 @@ residuals(object, type = "ev", ...)
 
 - verbose:
 
-  Logical; if `FALSE` supress printing.
+  Logical; if `FALSE` suppress printing.
 
 - nchain, n.chains:
 
@@ -362,7 +362,7 @@ residuals(object, type = "ev", ...)
 
 - subset:
 
-  A vector of logicals or indicies used to subset of the data. Can be
+  A vector of logicals or indices used to subset of the data. Can be
   missing.
 
 - offset:
@@ -668,12 +668,15 @@ Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 \| x)\\, apply the family's inverse link to these values: the normal cdf
 (`pnorm`) for `"probit"` fits, `plogis` for `"logistic"` ones.
 
-The `plot` method sets `mfrow` to `c(1, 2)` and makes two plots. The
-first plot is the sequence of kept draws of \\\sigma\\ including the
-burn-in draws. Initially these draws will decline as BART finds a good
-fit and then level off when the MCMC has burnt in. The second plot has
-\\y\\ on the horizontal axis and posterior intervals for the
-corresponding \\f(x)\\ on the vertical axis.
+For continuous response fits, the `plot` method sets `mfrow` to
+`c(1, 2)` and makes two plots. The first plot is the sequence of kept
+draws of \\\sigma\\ including the burn-in draws. Initially these draws
+will decline as BART finds a good fit and then level off when the MCMC
+has burnt in. The second plot has \\y\\ on the horizontal axis and
+posterior intervals for the corresponding \\f(x)\\ on the vertical axis.
+For binary response fits, only this second kind of plot is drawn, with
+the posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and
+its posterior interval on the vertical axis.
 
 ## References
 
@@ -761,7 +764,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.235904
+#> total seconds in loop: 0.239339
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
@@ -827,7 +830,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001403
+#> total seconds in loop: 0.001428
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 

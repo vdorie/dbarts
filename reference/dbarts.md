@@ -76,7 +76,7 @@ dbarts(
 - offset:
 
   An optional vector specifying an offset from 0 for the relationship
-  between the underyling function, \\f(x)\\, and the response \\y\\.
+  between the underlying function, \\f(x)\\, and the response \\y\\.
   Only is useful for binary responses, in which case the model fit is to
   assume \\P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\\, where
   \\\Phi\\ is the standard normal cumulative distribution function.

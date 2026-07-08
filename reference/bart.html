@@ -143,13 +143,13 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Explanatory variables for test (out of sample) data. Should have same column structure as <code>x.train</code>. <code>bart</code> will generate draws of \(f(x)\) for each \(x\) which is a row of <code>x.test</code>.</p></dd>
 
    <dt id="arg-sigest">sigest<a class="anchor" aria-label="anchor" href="#arg-sigest"></a></dt>
-<dd><p>For continuous response models, an estimate of the error variance, \(\sigma^2\), used to calibrate an inverse-chi-squared prior used on that parameter. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary.</p></dd>
+<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary.</p></dd>
 
    <dt id="arg-sigdf">sigdf<a class="anchor" aria-label="anchor" href="#arg-sigdf"></a></dt>
 <dd><p>Degrees of freedom for error variance prior. Not applicable when \(y\) is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.</p></dd>
 
    <dt id="arg-sigquant">sigquant<a class="anchor" aria-label="anchor" href="#arg-sigquant"></a></dt>
-<dd><p>The quantile of the error variance prior that the rough estimate (<code>sigest</code>) is placed at. The closer the quantile is to 1, the more aggresive the fit will be as you are putting more prior weight on error standard deviations (\(\sigma\)) less than the rough estimate. Not applicable when \(y\) is binary. Default 0.90, from the same source as <code>sigdf</code>.</p></dd>
+<dd><p>The quantile of the error variance prior that the rough estimate (<code>sigest</code>) is placed at. The closer the quantile is to 1, the more aggressive the fit will be as you are putting more prior weight on error standard deviations (\(\sigma\)) less than the rough estimate. Not applicable when \(y\) is binary. Default 0.90, from the same source as <code>sigdf</code>.</p></dd>
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
 <dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), the standard deviation of the standard logistic latent variable. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or the a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.25, scale = Inf)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous reponses and a <code>chi</code> hyperprior for binary ones. The default <code>chi</code> hyperprior is improper, and slightly penalizes small values of <code>k</code>. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
@@ -200,7 +200,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>The number of cutoff rules to printed to screen before the MCMC is run. Given a single integer, the same value will be used for all variables. If 0, nothing is printed.</p></dd>
 
    <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
-<dd><p>Logical; if <code>FALSE</code> supress printing.</p></dd>
+<dd><p>Logical; if <code>FALSE</code> suppress printing.</p></dd>
 
    <dt id="arg-nchain-n-chains">nchain, n.chains<a class="anchor" aria-label="anchor" href="#arg-nchain-n-chains"></a></dt>
 <dd><p>Integer specifying how many independent tree sets and fits should be calculated.</p></dd>
@@ -242,7 +242,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>The same as <code>x.train</code>. Can be missing.</p></dd>
 
    <dt id="arg-subset">subset<a class="anchor" aria-label="anchor" href="#arg-subset"></a></dt>
-<dd><p>A vector of logicals or indicies used to subset of the data. Can be missing.</p></dd>
+<dd><p>A vector of logicals or indices used to subset of the data. Can be missing.</p></dd>
 
    <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
 <dd><p>The same as <code>binaryOffset</code>. Can be missing.</p></dd>
@@ -374,7 +374,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 
 </dl><p>In the binary \(y\) case, the returned list has the components <code>yhat.train</code>, <code>yhat.test</code>, and <code>varcount</code> as above.  In addition the list has a <code>binaryOffset</code> component giving the value used.</p>
 <p>Note that in the binary \(y\), case <code>yhat.train</code> and <code>yhat.test</code> are \(f(x) + \mathrm{binaryOffset}\). For draws of the probability \(P(Y = 1 | x)\), apply the family's inverse link to these values: the normal cdf (<code>pnorm</code>) for <code>"probit"</code> fits, <code>plogis</code> for <code>"logistic"</code> ones.</p>
-<p>The <code>plot</code> method sets <code>mfrow</code> to <code>c(1, 2)</code> and makes two plots. The first plot is the sequence of kept draws of \(\sigma\) including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \(y\) on the horizontal axis and posterior intervals for the corresponding \(f(x)\) on the vertical axis.</p>
+<p>For continuous response fits, the <code>plot</code> method sets <code>mfrow</code> to <code>c(1, 2)</code> and makes two plots. The first plot is the sequence of kept draws of \(\sigma\) including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \(y\) on the horizontal axis and posterior intervals for the corresponding \(f(x)\) on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \(P(Y = 1 \mid x)\) on the horizontal axis and its posterior interval on the vertical axis.</p>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>
@@ -462,7 +462,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.235904</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.239339</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 </span>
@@ -528,7 +528,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001403</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001428</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 </span>

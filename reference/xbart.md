@@ -3,7 +3,7 @@
 Fits the BART model against varying `k`, `power`, `base`, and `ntree`
 parameters using \\K\\-fold or repeated random subsampling
 crossvalidation, sharing burn-in between parameter settings. Results are
-given an array of evalulations of a loss functions on the held-out sets.
+given an array of evaluations of a loss function on the held-out sets.
 
 ## Usage
 
@@ -49,14 +49,20 @@ xbart(
 
 - weights:
 
-  An optional vector of weights to be used in the fitting process. When
-  present, BART fits a model with observations \\y \mid x \sim N(f(x),
-  \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
+  An optional vector of weights to be used in the fitting process. For a
+  gaussian response, BART fits a model with observations \\y \mid x \sim
+  N(f(x), \sigma^2 / w)\\, where \\f(x)\\ is the unknown function.
+  Binary responses differ: a `"probit"` model does not support weights
+  (a weighted probit has no tractable latent-variable form), except that
+  weights identically 1 are treated as absent; a `"logistic"` model
+  treats them as observation counts and so requires positive integers
+  (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
+  draws).
 
 - offset:
 
   An optional vector specifying an offset from 0 for the relationship
-  between the underyling function, \\f(x)\\, and the response \\y\\.
+  between the underlying function, \\f(x)\\, and the response \\y\\.
   Only is useful for binary responses, in which case the model fit is to
   assume \\P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\\, where
   \\\Phi\\ is the standard normal cumulative distribution function.
@@ -104,7 +110,7 @@ xbart(
 - loss:
 
   Either a one of the pre-set loss functions as character-strings
-  (`mcr` - missclassification rate for binary responses, `rmse` -
+  (`mcr` - misclassification rate for binary responses, `rmse` -
   root-mean-squared-error for continuous response), `log` - negative
   log-loss for binary response (`rmse` serves this purpose for
   continuous responses), a function, or a function-evaluation
@@ -237,7 +243,7 @@ the `loss` function.
 
 `loss` functions are either the default of average negative log-loss for
 binary outcomes and root-mean-squared error for continuous outcomes,
-missclassification rates for binary outcomes, or a `function` with
+misclassification rates for binary outcomes, or a `function` with
 arguments `y.test` and `y.test.hat`. `y.test.hat` is of dimensions equal
 to `length(y.test)` \\\times\\ `n.samples`, on the latent scale for
 binary outcomes. A third option is to pass a list of

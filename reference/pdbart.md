@@ -63,7 +63,7 @@ plot(
   to the variables (columns of `x.train`) for which a plot is to be
   constructed. In `plot.pdbart`, corresponds to the indices in list
   returned by `pdbart` for which plot is to be constructed. In
-  `pd2bart`, the indicies of a pair of variables (columns of `x.train`)
+  `pd2bart`, the indices of a pair of variables (columns of `x.train`)
   to plot. If `NULL` a default of all columns is used for `pdbart` and
   the first two columns is used for `pd2bart`.
 

@@ -76,13 +76,13 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setCutPoints</span><span class="op">(</span><span class="va">cuts</span>, <span class="va">column</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setTestPredictor</span><span class="op">(</span><span class="va">x.test</span>, <span class="va">column</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
+<span><span class="fu">setTestPredictor</span><span class="op">(</span><span class="va">x.test</span>, <span class="va">column</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setTestPredictorAndOffset</span><span class="op">(</span><span class="va">x.test</span>, <span class="va">offset.test</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
+<span><span class="fu">setTestPredictorAndOffset</span><span class="op">(</span><span class="va">x.test</span>, <span class="va">offset.test</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">setTestOffset</span><span class="op">(</span><span class="va">offset.test</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
+<span><span class="fu">setTestOffset</span><span class="op">(</span><span class="va">offset.test</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">printTrees</span><span class="op">(</span><span class="va">treeNums</span><span class="op">)</span></span>
+<span><span class="fu">printTrees</span><span class="op">(</span><span class="va">treeNums</span>, <span class="va">chainNums</span>, <span class="va">sampleNums</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">getTrees</span><span class="op">(</span></span>
 <span>  <span class="va">treeNums</span>, <span class="va">chainNums</span>, <span class="va">sampleNums</span>, current <span class="op">=</span> <span class="cn">FALSE</span>, newdata <span class="op">=</span> <span class="cn">NULL</span></span>
@@ -137,7 +137,7 @@
 <dd><p>Logical indicating whether BART's internal scale should re-anchor to the new offset (<code>setOffset</code>) or response (<code>setResponse</code>). Defaults to <code>FALSE</code>, locking the scale set at creation; should only be <code>TRUE</code> during burn-in, as re-anchoring mid-run makes the fits across iterations no longer comparable.</p></dd>
 
   <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
-<dd><p>A numeric vector of length equal to that of the test matrix, or <code>NULL</code>. Can be missing for <code>setTestPredictors</code>.</p></dd>
+<dd><p>A numeric vector of length equal to that of the test matrix, or <code>NULL</code>. Can be missing for <code>setTestPredictorAndOffset</code>.</p></dd>
 
   <dt id="arg-n-threads">n.threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
 <dd><p>If greater than one, chain predictions will take place in parallel.</p></dd>
@@ -146,7 +146,7 @@
 <dd><p>Numeric vector of residual standard deviations, one for each chain.</p></dd>
 
   <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
-<dd><p>A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. This gaussian interpretation is the general case; a logistic-family sampler treats weights as observation counts and requires positive integers, and a probit-family sampler does not accept weights at all.</p></dd>
+<dd><p>A numeric vector of non-negative case weights, of length equal to that with which the sampler was created. Weights of zero exclude an observation from the likelihood while keeping its fitted values. <code>setWeights</code> only applies to a gaussian-family sampler; calling it on a probit- or logistic-family sampler is refused, since a weighted probit has no tractable latent-variable form and logistic weights (observation counts) are fixed when the sampler is created. See <code><a href="dbarts.html">dbarts</a></code> for the family-specific weight rules that apply at creation time.</p></dd>
 
   <dt id="arg-cuts">cuts<a class="anchor" aria-label="anchor" href="#arg-cuts"></a></dt>
 <dd><p>Vector of cut points for use with <code>setCutPoints</code>.</p></dd>
@@ -166,8 +166,8 @@
     observations whose value would empty a leaf, returning a per-observation
     logical of what was installed. <code>"partial"</code> requires a single <code>column</code>
     and cannot be combined with <code>updateCutPoints</code>. When missing, defaults to
-    <code>TRUE</code> if the replacement predictor is a matrix and <code>FALSE</code>
-    otherwise.</p></dd>
+    <code>TRUE</code> when the whole predictor matrix is being replaced (<code>column</code>
+    is missing) and <code>FALSE</code> when a single column is being replaced.</p></dd>
 
   <dt id="arg-updatecutpoints">updateCutPoints<a class="anchor" aria-label="anchor" href="#arg-updatecutpoints"></a></dt>
 <dd><p>For <code>setPredictor</code>, a logical; when <code>TRUE</code> the cut points (split
@@ -233,7 +233,7 @@
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>For <code>run</code>, a named-list with contents <code>sigma</code>, <code>train</code>, <code>test</code>, and <code>varcount</code>. A run can be interrupted with <code>Ctrl-C</code>: it stops between iterations - joining any worker threads first - and signals an error, returning no samples from the interrupted run. The sampler's chains are left at the iteration they reached, which is a valid state to run again from.</p>
-<p>For <code>setPredictor</code>, <code>TRUE</code>/<code>FALSE</code> depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, on the update is rolled-back so that the sampler remains in a valid state. When <code>forceUpdate</code> is <code>"partial"</code>, instead returns a logical vector of length equal to the number of observations, <code>TRUE</code> where that observation's new value was installed and <code>FALSE</code> where it was rolled back to its previous value to keep every tree valid.</p>
+<p>For <code>setPredictor</code>, <code>TRUE</code>/<code>FALSE</code> depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, the update is rolled back so that the sampler remains in a valid state. When <code>forceUpdate</code> is <code>"partial"</code>, instead returns a logical vector of length equal to the number of observations, <code>TRUE</code> where that observation's new value was installed and <code>FALSE</code> where it was rolled back to its previous value to keep every tree valid.</p>
 <p><code>predict</code> keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when <code>keepTrees</code> of <code><a href="dbartsControl.html">dbartsControl</a></code> is <code>TRUE</code>, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When <code>keepTrees</code> is <code>FALSE</code>, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to <code>setPredictor</code> if the step is accepted.</p>
 <p>For <code>getTrees</code>, a <code>data.frame</code> with one row per tree node in depth-first, left-hand-side pre-order, with columns <code>chain</code>, <code>sample</code> (present only for saved samples), <code>tree</code>, <code>n</code> (the number of observations in the node), <code>var</code> (the splitting variable, or -1 at a leaf), and <code>value</code> (the split value, or the leaf prediction). An ordinal rule's value is its cut point and observations with values less than or equal to it go left; a categorical rule carries no data value (its <code>value</code> is <code>NA</code>) and its split is reported in the <code>directions</code> column instead. When the sampler has any categorical predictors the result gains a <code>directions</code> column decoding each categorical rule into one <code>"L"</code>/<code>"R"</code> character per level, in level order (level <code>k</code> goes right when its character is <code>"R"</code>); ordinal rules and leaves are <code>NA</code>. When any predictor contains missing values the result gains a <code>missing</code> column giving the branch (<code>"L"</code>/<code>"R"</code>) each rule sends missing values down; rules on complete columns and leaves are <code>NA</code>. Under a <code>linear</code> node prior each leaf's <code>value</code> is its intercept and the result gains one <code>beta.&lt;column&gt;</code> column per designated covariate holding that leaf's slope on the internal standardized scale; internal nodes are <code>NA</code>.</p>
     </div>

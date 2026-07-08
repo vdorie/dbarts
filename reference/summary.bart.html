@@ -120,11 +120,16 @@ as_draws_array and as_draws_df convert a fit's
     <p><code>summary</code> returns an object of class <code>summary.bart</code> with
   elements <code>call</code>, <code>stats</code> (a data frame with one row per
   requested scalar, or <code>NULL</code> if none of <code>vars</code> are present
-  on the fit; <code>rhat</code>, <code>ess_bulk</code>, and <code>ess_tail</code> columns
-  are added when <span class="pkg">posterior</span> is installed), and <code>posterior</code>
-  (whether those columns were computed). Its print method notes when
-  <span class="pkg">posterior</span> is missing, and separately when any R-hat exceeds
-  1.01; neither withholds the rest of the summary or errors.</p>
+  on the fit), and <code>posterior</code> (whether <span class="pkg">posterior</span> produced
+  <code>stats</code>). When <span class="pkg">posterior</span> is installed, <code>stats</code> is
+  produced by its <code>summarise_draws</code> function, whose columns
+  include <code>mean</code>, <code>median</code>, <code>sd</code>, <code>mad</code>, <code>q5</code>,
+  <code>q95</code>, <code>rhat</code>, <code>ess_bulk</code>, and <code>ess_tail</code>;
+  otherwise a built-in summary supplies <code>mean</code>, <code>sd</code>,
+  <code>q2.5</code>, <code>median</code>, and <code>q97.5</code>, with no convergence
+  diagnostics. Its print method notes when <span class="pkg">posterior</span> is missing,
+  and separately when any R-hat exceeds 1.01; neither withholds the
+  rest of the summary or errors.</p>
 <p><code>as_draws_array</code> and <code>as_draws_df</code> return a <span class="pkg">posterior</span>
   <code>draws_array</code>/<code>draws_df</code>: the fit's native (chain, sample[,
   variable]) storage, transposed to <span class="pkg">posterior</span>'s (iteration,

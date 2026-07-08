@@ -62,11 +62,14 @@ as_draws_df(x, vars = c("sigma", "k", "tau"), ...)
 
 `summary` returns an object of class `summary.bart` with elements
 `call`, `stats` (a data frame with one row per requested scalar, or
-`NULL` if none of `vars` are present on the fit; `rhat`, `ess_bulk`, and
-`ess_tail` columns are added when posterior is installed), and
-`posterior` (whether those columns were computed). Its print method
-notes when posterior is missing, and separately when any R-hat exceeds
-1.01; neither withholds the rest of the summary or errors.
+`NULL` if none of `vars` are present on the fit), and `posterior`
+(whether posterior produced `stats`). When posterior is installed,
+`stats` is produced by its `summarise_draws` function, whose columns
+include `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`,
+and `ess_tail`; otherwise a built-in summary supplies `mean`, `sd`,
+`q2.5`, `median`, and `q97.5`, with no convergence diagnostics. Its
+print method notes when posterior is missing, and separately when any
+R-hat exceeds 1.01; neither withholds the rest of the summary or errors.
 
 `as_draws_array` and `as_draws_df` return a posterior
 `draws_array`/`draws_df`: the fit's native (chain, sample\[, variable\])
