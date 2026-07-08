@@ -764,7 +764,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.233108
+#> total seconds in loop: 0.233977
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
@@ -830,7 +830,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001421
+#> total seconds in loop: 0.001372
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 
