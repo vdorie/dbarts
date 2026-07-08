@@ -3320,49 +3320,53 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
   bartcore::SamplerStateData donor;
   const char* errorMessage = readWarmStartState(donorStateExpr, sampler, donor);
 
-  // Donor pool of (chain, slot): every saved slot when the donor kept trees,
-  // otherwise each donor chain's live forest (slot -1).
-  std::vector<std::pair<size_t, int>> pool;
-  if (errorMessage == NULL) {
-    for (size_t dc = 0; dc < donor.chains.size(); ++dc) {
-      const bartcore::ForestStateData& f0 = donor.chains[dc].forests[0];
-      if (!f0.savedTrees.empty() && !f0.trees.empty()) {
-        size_t capacity = f0.savedTrees.size() / f0.trees.size();
-        for (size_t s = 0; s < capacity; ++s)
-          pool.emplace_back(dc, static_cast<int>(s));
-      } else {
-        pool.emplace_back(dc, -1);
-      }
-    }
-    if (pool.empty()) errorMessage = "warm-start donor holds no samples";
-  }
-
-  size_t numChains = sampler.numChains();
-  std::vector<std::pair<size_t, int>> sampleMap;
-  if (errorMessage == NULL) {
-    sampleMap.resize(numChains);
-    if (Rf_isNull(samplesExpr)) {
-      // spread the chains across the pool, so many chains from one donor draw
-      // overdispersed starts rather than the same forest
-      for (size_t c = 0; c < numChains; ++c)
-        sampleMap[c] = pool[(c * pool.size()) / numChains];
-    } else if (!Rf_isInteger(samplesExpr) ||
-               static_cast<size_t>(Rf_xlength(samplesExpr)) != numChains) {
-      errorMessage = "'samples' must be an integer vector, one per chain";
-    } else {
-      for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
-        int idx = INTEGER(samplesExpr)[c];
-        if (idx < 1 || static_cast<size_t>(idx) > pool.size())
-          errorMessage = "'samples' entries must index the donor pool";
-        else
-          sampleMap[c] = pool[static_cast<size_t>(idx) - 1];
-      }
-    }
-  }
-
+  // The mapping vectors live in a scope that closes before any Rf_error, so
+  // the longjmp cannot leak them.
   bartcore::WarmStartResult result = bartcore::WarmStartResult::ok;
-  if (errorMessage == NULL)
-    result = sampler.installForests(donor, sampleMap);
+  {
+    // Donor pool of (chain, slot): every saved slot when the donor kept trees,
+    // otherwise each donor chain's live forest (slot -1).
+    std::vector<std::pair<size_t, int>> pool;
+    if (errorMessage == NULL) {
+      for (size_t dc = 0; dc < donor.chains.size(); ++dc) {
+        const bartcore::ForestStateData& f0 = donor.chains[dc].forests[0];
+        if (!f0.savedTrees.empty() && !f0.trees.empty()) {
+          size_t capacity = f0.savedTrees.size() / f0.trees.size();
+          for (size_t s = 0; s < capacity; ++s)
+            pool.emplace_back(dc, static_cast<int>(s));
+        } else {
+          pool.emplace_back(dc, -1);
+        }
+      }
+      if (pool.empty()) errorMessage = "warm-start donor holds no samples";
+    }
+
+    size_t numChains = sampler.numChains();
+    std::vector<std::pair<size_t, int>> sampleMap;
+    if (errorMessage == NULL) {
+      sampleMap.resize(numChains);
+      if (Rf_isNull(samplesExpr)) {
+        // spread the chains across the pool, so many chains from one donor
+        // draw overdispersed starts rather than the same forest
+        for (size_t c = 0; c < numChains; ++c)
+          sampleMap[c] = pool[(c * pool.size()) / numChains];
+      } else if (!Rf_isInteger(samplesExpr) ||
+                 static_cast<size_t>(Rf_xlength(samplesExpr)) != numChains) {
+        errorMessage = "'samples' must be an integer vector, one per chain";
+      } else {
+        for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
+          int idx = INTEGER(samplesExpr)[c];
+          if (idx < 1 || static_cast<size_t>(idx) > pool.size())
+            errorMessage = "'samples' entries must index the donor pool";
+          else
+            sampleMap[c] = pool[static_cast<size_t>(idx) - 1];
+        }
+      }
+    }
+
+    if (errorMessage == NULL)
+      result = sampler.installForests(donor, sampleMap);
+  }
   {
     bartcore::SamplerStateData empty;
     std::swap(donor, empty);  // free before a potential longjmp
