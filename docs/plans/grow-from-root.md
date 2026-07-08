@@ -5,6 +5,16 @@ rng: posterior-changing (a different sampler, same model)
 budget: memo + kernel prototype first; implementation planned on
         approval
 
+Note (2026-07-08): VD greenlit steps 1-2. Two corrections since this
+plan was written: MoveStrategy is design vocabulary with no code
+symbol (docs/architecture.md) - the memo must name the actual
+insertion seam (the move dispatch in Chain::metropolisJumpForTree and
+the CGMTreePrior/DartPrior structs are what exist); and the cut-scan
+kernel is the shared primitive of parallel-bart-frontier.md 3.1
+(informed proposals), so the prototype's cost table should report the
+numbers that falsifier needs too (cost multiplier vs the current
+single-cut move).
+
 ## Goal
 
 A recorded, measured decision on adding XBART-style root-down tree

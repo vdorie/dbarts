@@ -26,13 +26,10 @@ items
     changes the documented aliasing of per-observation updates.
     window: pre-release.
   gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
-    frontier companion (docs/design/parallel-bart-frontier.md,
-    2026-07-07: original constructions with exactness classes, the
-    conservation laws, the CRAN conditional-backend axis, and a
-    ranked falsifier list - instrumentation first). Both await VD
-    review; the frontier's items 1-2 (field-fraction profile + atom
-    census) decide the flagship CPU candidate (block-fused
-    sub-sweeps) independently of any GPU decision.
+    frontier companion (docs/design/parallel-bart-frontier.md).
+    VD greenlit falsifiers 1-3 (2026-07-08) - running as
+    parallel-falsifiers; the backend-seam design waits on items 1-5
+    of the frontier's list reporting.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
@@ -43,7 +40,8 @@ items
   grow-from-root: XBART-style root-down tree sampling on the
     provisioned cut-scan kernel; the highest-ceiling large-n item and
     the realistic doorway to any GPU backend. memo + kernel prototype
-    first.
+    first - GREENLIT by VD 2026-07-08 (steps 1-2); queued behind
+    parallel-falsifiers.
   hot-layer-u8: FOLDED into data-ownership's owned container (VD
     2026-07-07, after phase-1 kernel measurements showed no standalone
     partition win); per-column widths land with the container and get
@@ -63,6 +61,11 @@ items
     integer vs real shape - a caveat shared with weighted-binary.
   ordinal-outcomes: cumulative probit on the existing truncated-normal
     machinery plus a cutpoint block.
+  parallel-falsifiers: measured verdicts on the frontier note's
+    falsifiers 1-3 (field-fraction profile, atom census,
+    stale-residual agreement) with kill conditions applied; decides
+    constructions 3.4 and 3.2a before any prototype. GREENLIT by VD
+    2026-07-08; in flight.
   pointwise-loglik: per-observation log-likelihood as a Results field
     (null-skip), unlocking loo/WAIC integration.
   prior-predictive: R-level verbs over the already-ported prior
