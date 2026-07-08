@@ -95,12 +95,19 @@ set.seed(1L)
 fitA <- bart(x, y, ntree = 50L, ndpost = 1500L, nskip = 500L, verbose = FALSE)
 set.seed(1L)
 fitB <- suppressWarnings(bart(
-  x2, y2, weights = w2, ntree = 50L, ndpost = 1500L, nskip = 500L,
+  x2,
+  y2,
+  weights = w2,
+  ntree = 50L,
+  ndpost = 1500L,
+  nskip = 500L,
   verbose = FALSE
 ))
 
 sigmaRatio <- mean(fitB$sigma) / mean(fitA$sigma)
-expect_true(sigmaRatio > 0.7 && sigmaRatio < 1.4,
-            info = paste0("zero-weight sigma ratio B/A = ", round(sigmaRatio, 3)))
+expect_true(
+  sigmaRatio > 0.7 && sigmaRatio < 1.4,
+  info = paste0("zero-weight sigma ratio B/A = ", round(sigmaRatio, 3))
+)
 
 rm(n, x, y, x2, y2, w2, fitA, fitB, sigmaRatio)

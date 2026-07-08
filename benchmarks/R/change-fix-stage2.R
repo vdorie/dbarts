@@ -38,8 +38,12 @@ kernels <- c("current", "prior", "hybrid")
 makeFriedman <- function(n, p = 10L, s = 1L) {
   set.seed(s)
   x <- matrix(runif(n * p), n, p)
-  y <- 10 * sin(pi * x[, 1] * x[, 2]) + 20 * (x[, 3] - 0.5)^2 +
-    10 * x[, 4] + 5 * x[, 5] + rnorm(n)
+  y <- 10 *
+    sin(pi * x[, 1] * x[, 2]) +
+    20 * (x[, 3] - 0.5)^2 +
+    10 * x[, 4] +
+    5 * x[, 5] +
+    rnorm(n)
   list(x = x, y = y)
 }
 
@@ -53,8 +57,13 @@ makeMixed <- function(n, s = 2L) {
   # continuous signal plus categorical effects that reward same-variable stacking
   eff8 <- (as.integer(c8) - 4.5) * 0.6
   eff16 <- (as.integer(c16) %% 4L) * 1.0
-  y <- 10 * sin(pi * cont$c1 * cont$c2) + 10 * cont$c3 +
-    (as.integer(c4) == 1L) * 4 + eff8 + eff16 + rnorm(n)
+  y <- 10 *
+    sin(pi * cont$c1 * cont$c2) +
+    10 * cont$c3 +
+    (as.integer(c4) == 1L) * 4 +
+    eff8 +
+    eff16 +
+    rnorm(n)
   x <- cbind(cont, c4 = c4, c8 = c8, c16 = c16)
   list(x = x, y = y)
 }
@@ -65,8 +74,9 @@ makeMixed <- function(n, s = 2L) {
 
 # effectiveSize of one trace, guarding constant / degenerate series
 essOne <- function(v) {
-  if (length(v) < 8L || !is.finite(stats::var(v)) || stats::var(v) <= 0)
+  if (length(v) < 8L || !is.finite(stats::var(v)) || stats::var(v) <= 0) {
     return(NA_real_)
+  }
   as.numeric(coda::effectiveSize(v))
 }
 
@@ -89,9 +99,15 @@ essRowsMin <- function(m) {
 
 baseControl <- function(ntree) {
   dbartsControl(
-    n.chains = 1L, n.threads = 1L, n.trees = ntree,
-    n.samples = nSamples, n.burn = nBurn, n.thin = 1L,
-    keepTrainingFits = TRUE, keepTrees = FALSE, updateState = FALSE,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = ntree,
+    n.samples = nSamples,
+    n.burn = nBurn,
+    n.thin = 1L,
+    keepTrainingFits = TRUE,
+    keepTrees = FALSE,
+    updateState = FALSE,
     rngSeed = seed
   )
 }
@@ -100,11 +116,14 @@ runFit <- function(name, x, y, ntree, kernel, treePriorExpr = NULL) {
   statsPath <- tempfile("changefix2-stats-", fileext = ".csv")
   Sys.setenv(DBARTS_CHANGE_KERNEL = kernel)
   Sys.setenv(DBARTS_CHANGE_STATS = statsPath)
-  on.exit({
-    Sys.unsetenv("DBARTS_CHANGE_KERNEL")
-    Sys.unsetenv("DBARTS_CHANGE_STATS")
-    unlink(statsPath)
-  }, add = TRUE)
+  on.exit(
+    {
+      Sys.unsetenv("DBARTS_CHANGE_KERNEL")
+      Sys.unsetenv("DBARTS_CHANGE_STATS")
+      unlink(statsPath)
+    },
+    add = TRUE
+  )
 
   ctl <- baseControl(ntree)
   s <- if (is.null(treePriorExpr)) {
@@ -113,9 +132,9 @@ runFit <- function(name, x, y, ntree, kernel, treePriorExpr = NULL) {
     eval(bquote(dbarts(x, y, control = ctl, tree.prior = .(treePriorExpr))))
   }
 
-  invisible(s$run(nBurn, 0L))            # burn-in, not timed; stats overwritten
+  invisible(s$run(nBurn, 0L)) # burn-in, not timed; stats overwritten
   t0 <- Sys.time()
-  samp <- s$run(0L, nSamples)            # sampling run; its stats are dumped
+  samp <- s$run(0L, nSamples) # sampling run; its stats are dumped
   seconds <- as.numeric(Sys.time() - t0, units = "secs")
 
   stats <- utils::read.csv(statsPath)
@@ -140,29 +159,51 @@ runFit <- function(name, x, y, ntree, kernel, treePriorExpr = NULL) {
 
   cat(sprintf(
     "  %-8s %6.2fs  accept=%.3f noop=%.4f | ESS/s sigma=%.1f train=%.1f var=%.1f\n",
-    kernel, seconds, acceptRate, noopRate,
-    perSec(essSigma), perSec(essTrainMean), perSec(essVarMean)))
+    kernel,
+    seconds,
+    acceptRate,
+    noopRate,
+    perSec(essSigma),
+    perSec(essTrainMean),
+    perSec(essVarMean)
+  ))
 
   data.frame(
-    config = name, kernel = kernel, ntree = ntree,
-    nBurn = nBurn, nSamples = nSamples, seconds = seconds,
-    changeProposals = proposals, changeAcceptRate = acceptRate,
+    config = name,
+    kernel = kernel,
+    ntree = ntree,
+    nBurn = nBurn,
+    nSamples = nSamples,
+    seconds = seconds,
+    changeProposals = proposals,
+    changeAcceptRate = acceptRate,
     noopRate = noopRate,
-    essSigma = essSigma, essSigmaPerSec = perSec(essSigma),
+    essSigma = essSigma,
+    essSigmaPerSec = perSec(essSigma),
     essSigmaPerSweep = perSweep(essSigma),
-    essK = essK, essKPerSec = perSec(essK), essKPerSweep = perSweep(essK),
-    essTrainMean = essTrainMean, essTrainMeanPerSec = perSec(essTrainMean),
-    essTrainMeanPerSweep = perSweep(essTrainMean), essTrainMin = essTrainMin,
-    essVarMean = essVarMean, essVarMeanPerSec = perSec(essVarMean),
-    essVarMeanPerSweep = perSweep(essVarMean), essVarMin = essVarMin,
+    essK = essK,
+    essKPerSec = perSec(essK),
+    essKPerSweep = perSweep(essK),
+    essTrainMean = essTrainMean,
+    essTrainMeanPerSec = perSec(essTrainMean),
+    essTrainMeanPerSweep = perSweep(essTrainMean),
+    essTrainMin = essTrainMin,
+    essVarMean = essVarMean,
+    essVarMeanPerSec = perSec(essVarMean),
+    essVarMeanPerSweep = perSweep(essVarMean),
+    essVarMin = essVarMin,
     stringsAsFactors = FALSE
   )
 }
 
 runConfig <- function(name, x, y, ntree, treePriorExpr = NULL) {
   cat(sprintf("\n=== %s (ntree=%d) ===\n", name, ntree))
-  do.call(rbind, lapply(kernels, function(kn)
-    runFit(name, x, y, ntree, kn, treePriorExpr)))
+  do.call(
+    rbind,
+    lapply(kernels, function(kn) {
+      runFit(name, x, y, ntree, kn, treePriorExpr)
+    })
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -175,8 +216,9 @@ add <- function(df) rows[[length(rows) + 1L]] <<- df
 # (1) Friedman-1, continuous-only, defaults
 for (n in c(1000L, 10000L)) {
   fr <- makeFriedman(n)
-  for (m in c(75L, 200L))
+  for (m in c(75L, 200L)) {
     add(runConfig(sprintf("Friedman n=%d m=%d", n, m), fr$x, fr$y, m))
+  }
 }
 
 # (2) mixed 5 continuous + 3 categorical (4,8,16 levels), n=1e4, m=75
@@ -185,12 +227,22 @@ add(runConfig("Mixed n=1e4 m=75", mx$x, mx$y, 75L))
 
 # (3) deep single-tree stress: ntree=1, power=1, n=1e3
 fr3 <- makeFriedman(1000L)
-add(runConfig("Deep single-tree n=1e3 power=1", fr3$x, fr3$y, 1L,
-  treePriorExpr = quote(cgm(power = 1, base = 0.95))))
+add(runConfig(
+  "Deep single-tree n=1e3 power=1",
+  fr3$x,
+  fr3$y,
+  1L,
+  treePriorExpr = quote(cgm(power = 1, base = 0.95))
+))
 
 # (4) config (2) with DART enabled
-add(runConfig("Mixed+DART n=1e4 m=75", mx$x, mx$y, 75L,
-  treePriorExpr = quote(dart(power = 2, base = 0.95))))
+add(runConfig(
+  "Mixed+DART n=1e4 m=75",
+  mx$x,
+  mx$y,
+  75L,
+  treePriorExpr = quote(dart(power = 2, base = 0.95))
+))
 
 # ---------------------------------------------------------------------------
 # combined table + CSV
@@ -198,13 +250,26 @@ add(runConfig("Mixed+DART n=1e4 m=75", mx$x, mx$y, 75L,
 
 tab <- do.call(rbind, rows)
 cat("\n================ STAGE 2 ESS SUMMARY (per second) ================\n")
-compact <- tab[, c("config", "kernel", "seconds", "changeAcceptRate",
-  "noopRate", "essSigmaPerSec", "essTrainMeanPerSec", "essVarMeanPerSec")]
+compact <- tab[, c(
+  "config",
+  "kernel",
+  "seconds",
+  "changeAcceptRate",
+  "noopRate",
+  "essSigmaPerSec",
+  "essTrainMeanPerSec",
+  "essVarMeanPerSec"
+)]
 print(compact, digits = 4, row.names = FALSE)
 
 cat("\n================ per sweep ================\n")
-compactSweep <- tab[, c("config", "kernel", "essSigmaPerSweep",
-  "essTrainMeanPerSweep", "essVarMeanPerSweep")]
+compactSweep <- tab[, c(
+  "config",
+  "kernel",
+  "essSigmaPerSweep",
+  "essTrainMeanPerSweep",
+  "essVarMeanPerSweep"
+)]
 print(compactSweep, digits = 4, row.names = FALSE)
 
 outCsv <- file.path("benchmarks", "results", "change-fix-stage2.csv")
