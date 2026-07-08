@@ -56,3 +56,11 @@ and any code fix becomes its own gated item.
 ## Status
 
 - 2026-07-08: program recorded; parallel-falsifiers in flight.
+- 2026-07-08: review 1 (correctness-audit) COMPLETE - all seven
+  blocks adjudicated; three defects found and fixed (change-move
+  balance, chi hyperprior df, zero-weight sigma df), two latent
+  items filed and one already landed (chi-k-empty-leaf-count) with
+  bcf-testfits-guard remaining; full records in
+  correctness-audit.md.
+- 2026-07-08: review 2 (interface-review) started; plan authored
+  (interface-review.md).
