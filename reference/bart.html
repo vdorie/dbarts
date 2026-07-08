@@ -89,6 +89,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    proposal.probs <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    keepSampler <span class="op">=</span> <span class="va">keepTrees</span>,</span>
+<span>    warm.start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
@@ -224,6 +225,9 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 
    <dt id="arg-keepsampler-keepsampler">keepsampler, keepSampler<a class="anchor" aria-label="anchor" href="#arg-keepsampler-keepsampler"></a></dt>
 <dd><p>Logical that can be used to save the underlying <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code> object even if <code>keepTrees</code> is false.</p></dd>
+
+   <dt id="arg-warm-start">warm.start<a class="anchor" aria-label="anchor" href="#arg-warm-start"></a></dt>
+<dd><p><code>bart2</code> only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a <code>bart</code> object fit with <code>keepSampler = TRUE</code> or a <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>. The donor must share this fit's predictors, tree count, cut grid, and DART setting; only its trees, <code>sigma</code>, and <code>k</code> carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero <code>n.burn</code>. See <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>'s <code>installTrees</code> method for finer control.</p></dd>
 
    <dt id="arg-factors-family-missing">factors, family, missing<a class="anchor" aria-label="anchor" href="#arg-factors-family-missing"></a></dt>
 <dd><p>As in <code><a href="dbarts.html">dbarts</a></code>; <code>bart2</code> only. <code>bart</code> keeps the historical behavior: factors expand into indicator columns, binary responses are probit, and missing data are rejected.</p></dd>
@@ -458,7 +462,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.238892</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.235904</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 </span>
@@ -524,7 +528,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001372</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001403</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 </span>

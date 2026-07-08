@@ -52,6 +52,8 @@ getTrees(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
 # S4 method for class 'dbartsSampler'
+installTrees(donor, samples = NULL)
+# S4 method for class 'dbartsSampler'
 plotTree(
   treeNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
@@ -228,6 +230,20 @@ plotTree(
   `nodeWidth`, and `nodeGap`, all of which control aspects of the
   resulting plot.
 
+- donor:
+
+  For `installTrees`, the fit whose forests seed this sampler: another
+  `dbartsSampler`, or a `bart` object fit with `keepSampler = TRUE`. The
+  donor must share this sampler's predictors, tree count, cut grid, and
+  DART setting.
+
+- samples:
+
+  For `installTrees`, an optional integer vector with one entry per
+  chain, each a 1-based index into the donor's pool of samples (its
+  saved trees when it kept them, else its final trees per chain). `NULL`
+  spreads the chains evenly across the pool.
+
 - ...:
 
   Extra arguments to
@@ -260,6 +276,19 @@ the format version of the `dbarts` that wrote it; loading it with an
 incompatible version refuses cleanly, naming both versions, rather than
 risk a silent misread. There is no cross-version migration: re-fit the
 model, or restore the state with the `dbarts` release that wrote it.
+
+### Warm starts
+
+`installTrees` seeds the sampler's forests from a `donor` instead of
+drawing trees from the prior, for scaling to more chains or embedding a
+fit in a larger sampler. Only the donor's trees, `sigma`, and `k`
+transfer; each chain keeps its own random-number stream and redraws
+everything else, so several chains seeded from one donor stay
+overdispersed. A donor with a different tree count, cut grid, or DART
+setting is refused rather than silently reshaped. A warm start biases
+the early draws toward the donor, so it shortens burn-in rather than
+removing it; keep drawing a non-zero number of burn-in samples before
+treating the chain as converged.
 
 ## Value
 

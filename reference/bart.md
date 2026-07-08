@@ -46,6 +46,7 @@ bart2(
     seed = NA_integer_,
     proposal.probs = NULL,
     keepSampler = keepTrees,
+    warm.start = NULL,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic"),
     missing = c("incorporate", "error"),
@@ -322,6 +323,21 @@ residuals(object, type = "ev", ...)
   Logical that can be used to save the underlying
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   object even if `keepTrees` is false.
+
+- warm.start:
+
+  `bart2` only. A previous fit whose forests seed the initial state
+  instead of drawing trees from the prior: either a `bart` object fit
+  with `keepSampler = TRUE` or a
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+  The donor must share this fit's predictors, tree count, cut grid, and
+  DART setting; only its trees, `sigma`, and `k` carry over, and each
+  chain starts from a different donor sample so multiple chains stay
+  overdispersed. A warm start biases early draws toward the donor, so it
+  shortens burn-in rather than removing it; keep a non-zero `n.burn`.
+  See
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `installTrees` method for finer control.
 
 - factors, family, missing:
 
@@ -745,7 +761,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.238892
+#> total seconds in loop: 0.235904
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 3 2 2 3 3 2 2 2 3 4 2 2 2 2 3 3 
@@ -811,7 +827,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001372
+#> total seconds in loop: 0.001403
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 5 3 2 1 1 4 2 3 4 2 2 3 3 2 2 2 2 

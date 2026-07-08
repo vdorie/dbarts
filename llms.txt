@@ -111,6 +111,7 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`setTestOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`printTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   : Class "dbartsSampler" of Discrete Bayesian Additive Regression Trees
   Sampler
@@ -122,6 +123,19 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Prior Specification Constructors
 - [`updatePredictorPerObservationJointly()`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
   : Jointly Update a Shared Predictor per Observation Across Samplers
+
+## Diagnostics
+
+Convergence summaries and posterior draw extraction.
+
+- [`summary(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`summary(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`print(`*`<summary.bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`as_draws_array(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`as_draws_array(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`as_draws_df(`*`<bart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  [`as_draws_df(`*`<rbart>`*`)`](https://vdorie.github.io/dbarts/reference/summary.bart.md)
+  : Convergence Diagnostics and Posterior-Package Draws for BART Fits
 
 ## Utilities
 

@@ -332,3 +332,12 @@ chains. For an example of this approach and a more complete
 implementation of the principles in this document, consult the
 implementation of
 [rbart_vi](https://github.com/vdorie/dbarts/blob/master/R/rbart.R).
+
+This custom-loop bookkeeping is only needed when embedding BART in a
+larger sampler. A plain multi-chain `bart2`/`rbart_vi` fit already
+tracks its chain dimension:
+[`summary()`](https://rdrr.io/r/base/summary.html) reports split-R-hat
+and effective sample size for the scalar parameters (`sigma`, `k`, and,
+for `rbart_vi`, `tau`) when the `posterior` package is installed, and
+`as_draws_array`/`as_draws_df` convert its chain-dimensioned draws to
+`posterior`’s array/data frame conventions.

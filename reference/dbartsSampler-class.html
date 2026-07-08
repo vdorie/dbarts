@@ -88,6 +88,8 @@
 <span>  <span class="va">treeNums</span>, <span class="va">chainNums</span>, <span class="va">sampleNums</span>, current <span class="op">=</span> <span class="cn">FALSE</span>, newdata <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu"><a href="plotTree.html">plotTree</a></span><span class="op">(</span></span>
 <span>  <span class="va">treeNum</span>, treePlotPars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>    nodeHeight <span class="op">=</span> <span class="fl">12</span>, nodeWidth <span class="op">=</span> <span class="fl">40</span>, nodeGap <span class="op">=</span> <span class="fl">8</span><span class="op">)</span>,</span>
@@ -203,6 +205,12 @@
   <dt id="arg-treeplotpars">treePlotPars<a class="anchor" aria-label="anchor" href="#arg-treeplotpars"></a></dt>
 <dd><p>A named numeric vector containing the quantities <code>nodeHeight</code>, <code>nodeWidth</code>, and <code>nodeGap</code>, all of which control aspects of the resulting plot.</p></dd>
 
+  <dt id="arg-donor">donor<a class="anchor" aria-label="anchor" href="#arg-donor"></a></dt>
+<dd><p>For <code>installTrees</code>, the fit whose forests seed this sampler: another <code>dbartsSampler</code>, or a <code>bart</code> object fit with <code>keepSampler = TRUE</code>. The donor must share this sampler's predictors, tree count, cut grid, and DART setting.</p></dd>
+
+  <dt id="arg-samples">samples<a class="anchor" aria-label="anchor" href="#arg-samples"></a></dt>
+<dd><p>For <code>installTrees</code>, an optional integer vector with one entry per chain, each a 1-based index into the donor's pool of samples (its saved trees when it kept them, else its final trees per chain). <code>NULL</code> spreads the chains evenly across the pool.</p></dd>
+
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Extra arguments to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.</p></dd>
 
@@ -214,6 +222,11 @@
 <h3 id="saving">Saving<a class="anchor" aria-label="anchor" href="#saving"></a></h3>
 <p><code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code>-ing and <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>ing a <code>dbarts</code> sampler for future use requires that R's serialization mechanism be able to access the state of the sampler which, for memory purposes, is only made available to R on request. To do this, one must “touch” the sampler's state object before saving, e.g. for the object <code>sampler</code>, execute <code>invisible(sampler$state)</code>. This is in addition to guaranteeing that the <code>state</code> object is not <code>NULL</code>, which can be done by setting the sampler's control to an object with <code>updateState</code> as <code>TRUE</code> or passing <code>TRUE</code> as the <code>updateState</code> argument to any of the sampler's applicable methods.</p>
 <p>The state object is opaque and engine-specific, and carries a format version and the package version that wrote it. A state loads only within the format version of the <code>dbarts</code> that wrote it; loading it with an incompatible version refuses cleanly, naming both versions, rather than risk a silent misread. There is no cross-version migration: re-fit the model, or restore the state with the <code>dbarts</code> release that wrote it.</p>
+</div>
+
+<p></p><div class="section">
+<h3 id="warm-starts">Warm starts<a class="anchor" aria-label="anchor" href="#warm-starts"></a></h3>
+<p><code>installTrees</code> seeds the sampler's forests from a <code>donor</code> instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, <code>sigma</code>, and <code>k</code> transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.</p>
 </div>
 
     </div>

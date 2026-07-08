@@ -441,6 +441,16 @@ creating separate copies of the sampler and data. While
 slots are stored independently across chains. For an example of this
 approach and a more complete implementation of the principles in this
 document, consult the implementation of <a href="https://github.com/vdorie/dbarts/blob/master/R/rbart.R" class="external-link">rbart_vi</a>.</p>
+<p>This custom-loop bookkeeping is only needed when embedding BART in a
+larger sampler. A plain multi-chain
+<code>bart2</code>/<code>rbart_vi</code> fit already tracks its chain
+dimension: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports split-R-hat and effective
+sample size for the scalar parameters (<code>sigma</code>,
+<code>k</code>, and, for <code>rbart_vi</code>, <code>tau</code>) when
+the <code>posterior</code> package is installed, and
+<code>as_draws_array</code>/<code>as_draws_df</code> convert its
+chain-dimensioned draws to <code>posterior</code>’s array/data frame
+conventions.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
