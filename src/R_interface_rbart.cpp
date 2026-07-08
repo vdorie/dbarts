@@ -25,7 +25,6 @@ SEXP rbart_getFitted(SEXP yhatExpr, SEXP ranefExpr, SEXP groupByExpr, SEXP respo
   const int* groupBy = INTEGER(groupByExpr);
 
   size_t n;
-  // size_t q;
   size_t numTotalSamples;
 
   bool responseIsBinary = INTEGER(responseIsBinaryExpr)[0] != 0;
@@ -35,11 +34,9 @@ SEXP rbart_getFitted(SEXP yhatExpr, SEXP ranefExpr, SEXP groupByExpr, SEXP respo
     // ranef: (n.chains * n.samples) x n.groups
     // yhat:  (n.chains * n.samples) x n.obs
 
-    // q = static_cast<size_t>(ranefDims[1]);
     n = static_cast<size_t>(yhatDims[1]);
     numTotalSamples = static_cast<size_t>(ranefDims[0]);
   } else {
-    // q = static_cast<size_t>(ranefDims[2]);
     n = static_cast<size_t>(yhatDims[2]);
     numTotalSamples = static_cast<size_t>(ranefDims[0] * ranefDims[1]);
   }

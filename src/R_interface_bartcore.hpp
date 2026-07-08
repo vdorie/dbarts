@@ -2,7 +2,7 @@
 #define R_INTERFACE_BARTCORE_HPP
 
 // internal bridge to the generalized core (bartcore/); see
-// docs/design/core-generalization.md, phase 2
+// docs/design/core-generalization.md
 
 #include <external/Rinternals.h> // SEXP
 

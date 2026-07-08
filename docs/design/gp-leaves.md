@@ -1,9 +1,10 @@
 # GP leaves and the non-conjugate move strategy (phase 6)
 
-Proposal, 2026-07-04. Phase 6 of docs/design/core-generalization.md is
+Proposal, 2026-07-04; since LANDED through stage 4 - see ## Status at
+the end. Phase 6 of docs/design/core-generalization.md is
 "Non-conjugate MoveStrategy: GP leaves, general likelihoods". This
 document separates those two axes, argues they land in that order, and
-stages the work. Nothing here is implemented.
+stages the work; the proposal text is preserved as written.
 
 ## The two axes are separable
 
@@ -164,7 +165,7 @@ for existing models, speed, check)
 1. Engine: FunctionLeafModel concept + GPGaussianLeaf (marginal, draw,
    fit paths; span suffstats; size cap; fixed theta/k). Component
    tests against R reference GP math (mvtnorm-style constants
-   hardcoded, the linear_leaf_reference.R pattern); recovery test on a
+   hardcoded, computed by an independent R implementation); recovery test on a
    smooth 1-d function where constant-leaf BART visibly steps.
 2. Formats: flatten/state/keepTrees/predict with per-leaf counts;
    bitwise state round trip; saved-replay == recorded test fits.
@@ -276,7 +277,8 @@ Deltas and facts vs the plan above:
   printSavedTree come back empty or print nothing, and both predict
   paths zero their output. Sampler::numLeafCovariates and
   leafCovariateColumns serve function leaves.
-- Tests (tests/cpp, constants from scratchpad gp_leaf_reference.R):
+- Tests (tests/cpp, constants computed in R by direct evaluation of the
+  GP marginal and posterior formulas):
   testGPLeafMarginal (five marginals + median thetas vs R at 1e-9 /
   1e-12, constant-kernel limit, over-cap bitwise), testGPLeafDraw
   (posterior mean/variance vs R, E[f' C^-1 f], prior moments,
