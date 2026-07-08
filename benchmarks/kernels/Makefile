@@ -18,6 +18,9 @@ all: bench
 bench: bench.c partition_u8.c partition_u8.h $(MISC_LIB)
 	$(CC) $(OPT) $(CPPFLAGS) -o $@ bench.c partition_u8.c $(MISC_LIB) -lpthread -lm
 
+grow_from_root: grow_from_root.c $(MISC_LIB)
+	$(CC) $(OPT) $(CPPFLAGS) -o $@ grow_from_root.c $(MISC_LIB) -lpthread -lm
+
 sparse: sparse.c $(MISC_LIB)
 	$(CC) $(OPT) $(CPPFLAGS) -o $@ sparse.c $(MISC_LIB) -lpthread -lm
 
@@ -28,6 +31,6 @@ $(MISC_LIB):
 	@echo "error: $(MISC_LIB) not found; run 'R CMD INSTALL .' from the package root first" >&2; exit 1
 
 clean:
-	rm -f bench sparse linear_leaf
+	rm -f bench sparse linear_leaf grow_from_root
 
 .PHONY: all clean

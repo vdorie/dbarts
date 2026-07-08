@@ -63,3 +63,23 @@ planned list.
 ## Verification
 
 - The bench table and memo exist; TODO updated with the outcome.
+
+## Status
+
+Memo and kernel prototype LANDED 2026-07-08. Driver:
+benchmarks/kernels/grow_from_root.c (standalone, builds from that
+Makefile: `make grow_from_root && ./grow_from_root`; links src/misc.a
+for the single-cut baseline). Tables live in docs/design/grow-from-root.md.
+
+Verdict: GO on the cut-scan kernel as a shared engine primitive and on
+grow-from-root as a WARM-START tree producer (role a: feeds installTrees/
+warm.start, needs no posterior guarantee, reuses the scan, matches XBART's
+own usage). NO-GO on shipping it as a standalone posterior sampler; the
+exact-sampler use of the scan is frontier 3.1's informed proposal, which
+preserves MH. Cut-scan on M1 Max: seq root scan histogram-update-bound
+(~13.6 GB/s, not DRAM-bound), scattered-leaf scan DRAM/cache-line-bound
+(~0.7x the 52 GB/s roofline); multiplier scan-vs-single-cut ~p scattered
+(10x p=10, 53x p=50), ~p/4 root-order; column-parallel threading 2.9x at
+4 threads. Awaiting VD approval of the follow-up implementation item
+"grow-from-root warm-start producer" (shares its one new primitive with
+frontier item 4).
