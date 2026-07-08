@@ -84,7 +84,7 @@ extern "C" SEXP bartcore_fit(SEXP xExpr, SEXP yExpr, SEXP xTestExpr,
     Rf_error("could not create rng");
   }
 
-  bartcore::ClassicSampler sampler(
+  bartcore::ConstantLeafSampler sampler(
     REAL(xExpr), REAL(yExpr), n, p, optionalReal(weightsExpr),
     optionalReal(offsetExpr),
     binary ? bartcore::ResponseFamily::probit

@@ -59,11 +59,11 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
 
 // A burned-in sampler for mutation tests: strong signal in both columns so
 // trees certainly split.
-std::unique_ptr<ClassicSampler> makeBurnedInSampler(
+std::unique_ptr<ConstantLeafSampler> makeBurnedInSampler(
   std::vector<double>& x, std::vector<double>& y, size_t n, ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
-  auto sampler = std::make_unique<ClassicSampler>(
+  auto sampler = std::make_unique<ConstantLeafSampler>(
     x.data(), y.data(), n, size_t(2), nullptr, nullptr, ResponseFamily::gaussian, 1.0, 3.0,
     0.37804942330213542, options, &rng);
   Results empty;

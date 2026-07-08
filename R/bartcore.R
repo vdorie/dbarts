@@ -2,12 +2,12 @@
 # delegate to the bartcoreSampler* functions below; the C side borrows
 # vectors and pins them in the external pointer's protection slot.
 #
-# Not supported (methods error): weights with binary responses (the classic
-# engine's probit weighting was incorrect and was stripped rather than
-# ported), and setControl changes to anything fixed at creation (chain/tree
-# counts, generators, and the cut grid).
+# Not supported (methods error): weights with binary responses (weighted
+# probit has no coherent latent-variable form), and setControl changes to
+# anything fixed at creation (chain/tree counts, generators, and the cut
+# grid).
 #
-# keepTrees/getTrees/predict follow the classic formats. State serialization
+# keepTrees/getTrees/predict use test-pinned formats. State serialization
 # (storeState/setState, or runs with updateState) produces an engine-specific
 # opaque object; restoring it into a sampler over the same data - including
 # the transparent re-creation getPointer performs after save/load - continues
@@ -178,7 +178,7 @@ bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
-  # a synced test offset follows the regular one, as in the classic method;
+  # a synced test offset follows the regular one;
   # NA marks "leave the test offset alone"
   offset.test <- NA
   if (is.null(offset)) {
@@ -554,7 +554,7 @@ bartcoreSetPredictor <- function(
 }
 
 # In-place overwrite of columns in the matrix the sampler borrows, visible
-# through the originating data object, exactly like the classic engine.
+# through the originating data object.
 bartcoreUpdatePredictor <- function(
   bcSampler,
   x,

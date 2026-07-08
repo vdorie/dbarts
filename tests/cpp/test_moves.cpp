@@ -11,7 +11,7 @@ static void testLogisticMutation(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.nodeScale = 3.0;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
                          &rng);
   Results empty;
@@ -101,7 +101,7 @@ static void testDartSparsityRecovery(ext_rng* rng) {
     options.numTrees = 50;
     options.useDart = useDart;
     options.dart.updateDelay = 100;  // half of burn-in, BART-package style
-    ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
                            1.0, 3.0, 0.37804942330213542, options, &rng);
     const size_t numSamples = 300;
     std::vector<uint32_t> varcount(p * numSamples);
@@ -154,8 +154,8 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   std::vector<xint_t> codesBefore(sampler.data().codes);
   std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
@@ -207,8 +207,8 @@ static void testSetPredictorForced(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   // force-install degenerate predictors: every split empties a side, so all
   // trees collapse to their roots with merged parameters
@@ -249,8 +249,8 @@ static void testDegenerateReCutRoundTrips(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   std::vector<double> cutsBefore(sampler.data().cutPoints[0]);
   std::vector<double> xDegenerate(x);
@@ -300,7 +300,7 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 50;
   options.columnTypes = types.data();
-  ClassicSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   Results empty;
@@ -332,8 +332,8 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   std::vector<xint_t> codesBefore(sampler.data().codes);
 
@@ -373,8 +373,8 @@ static void testPerObservationUpdate(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   // identity: every observation trivially remains in its leaf
   std::vector<double> identity(x.begin(), x.begin() + n);
@@ -497,7 +497,7 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
   SamplerOptions options;
   options.numTrees = 25;
   options.useQuantiles = true;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, &rng);
   Results empty;
   sampler.run(100, 0, empty);
@@ -537,8 +537,8 @@ static void testSetCutPoints(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   // shrink column 0 to three cuts: codes re-quantize, out-of-range splits
   // collapse, and the fit identity holds
@@ -592,7 +592,7 @@ static void testMultiChainMutation() {
   SamplerOptions options;
   options.numTrees = 25;
   options.numChains = numChains;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr, ResponseFamily::gaussian,
                          1.0, 3.0, 0.37804942330213542, options, rngs.data());
   Results empty;
   sampler.run(100, 0, empty);
@@ -662,7 +662,7 @@ static void testCategoricalMutation(ext_rng* rng) {
   options.numTrees = 25;
   ColumnType types[] = {ColumnType::categorical, ColumnType::ordinal};
   options.columnTypes = types;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   Results empty;

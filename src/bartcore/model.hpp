@@ -25,7 +25,7 @@ namespace bartcore {
 /// a closed-form log marginal over their parameters, scored through node
 /// context - (tree, working response, weights, node) - which is all the
 /// moves ever see. Parameter shape splits the hierarchy below that: scalar
-/// models (one parameter per leaf) keep the classic scalar draw interface,
+/// models (one parameter per leaf) keep the scalar draw interface,
 /// vector models write numParams() doubles per leaf and evaluate fits per
 /// observation, function-valued models draw one value per member observation
 /// directly into the fit vector (the fits ARE the parameters). Chain code
@@ -1379,8 +1379,7 @@ static_assert(FunctionLeafModel<GPGaussianLeaf>);
 /// Chipman-George-McCulloch tree structure prior. Split-variable selection
 /// is uniform over available variables when splitProbabilities is null;
 /// otherwise proportional to the supplied weights restricted to available
-/// variables (the classic engine's splitprobs semantics). DART points this
-/// at its Gibbs-updated probability vector.
+/// variables. DART points this at its Gibbs-updated probability vector.
 struct CGMTreePrior {
   double base = 0.95;
   double power = 2.0;
@@ -1737,7 +1736,7 @@ struct ChiKHyperprior {
 
 /// Conjugate chi-squared residual variance prior; scale arrives already
 /// derived (qchisq(1 - quantile, df) / df, then multiplied by the initial
-/// sigma^2 estimate at initialization, as in the classic engine).
+/// sigma^2 estimate at initialization).
 struct ChiSquaredScalePrior {
   double degreesOfFreedom = 3.0;
   double scale = 1.0;
@@ -1810,24 +1809,23 @@ public:
                        const double* weights, std::size_t numObservations,
                        double* sigmaInOut) = 0;
 
-  /// Replace the case weights (borrowed). Like the classic engine's, a bare
-  /// pointer swap: nothing rescales, and the weighted residuals enter the
-  /// next iteration's node statistics and sigma draw. Only gaussian
-  /// responses carry weights; elsewhere a no-op (the host rejects earlier).
+  /// Replace the case weights (borrowed). A bare pointer swap: nothing
+  /// rescales, and the weighted residuals enter the next iteration's node
+  /// statistics and sigma draw. Only gaussian responses carry weights;
+  /// elsewhere a no-op (the host rejects earlier).
   virtual void setWeights(const double*) {}
 
-  /// Replace the residual-variance prior (the classic engine's setModel):
-  /// re-anchors to the supplied original-scale sigma estimate exactly as
-  /// construction does, so a swap before any run matches creating with the
-  /// new prior. A no-op for the fixed-sigma binary families.
+  /// Replace the residual-variance prior: re-anchors to the supplied
+  /// original-scale sigma estimate exactly as construction does, so a swap
+  /// before any run matches creating with the new prior. A no-op for the
+  /// fixed-sigma binary families.
   virtual void setSigmaPrior(double /*sigmaEstimate*/, double /*degreesOfFreedom*/,
                              double /*rawScale*/) {}
 
   virtual const double* latents() const { return nullptr; }
 
   /// The current training offset (borrowed), or null. Recorded training
-  /// fits add it back, matching the classic engine's original-scale
-  /// convention.
+  /// fits add it back, keeping them on the original scale.
   virtual const double* offset() const = 0;
 
   /// State restoration: overwrite the latent state with previously stored
@@ -2029,10 +2027,10 @@ private:
   ChiSquaredScalePrior sigmaSqPrior_;
 };
 
-/// Weights are deliberately unsupported: the reference engine scales the
-/// latent draws by 1 / sqrt(w), which does not correspond to a coherent
-/// weighted-likelihood model, so the behavior was stripped rather than
-/// ported.
+/// Weights are deliberately unsupported: weighted probit has no exact
+/// latent-variable form, so latent draws are unweighted by design. The
+/// pre-1.0 engine instead scaled the latents by 1 / sqrt(w), which is not a
+/// coherent weighted-likelihood model; that scaling was dropped.
 class ProbitResponse final : public ResponseModel {
 public:
   ProbitResponse(const double* y, const double* offset,

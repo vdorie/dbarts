@@ -200,7 +200,7 @@ static void testKeepTrees(ext_rng* rng) {
   options.numTrees = 25;
   options.keepTrees = true;
   options.numSamplesToStore = numSamples;
-  ClassicSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler sampler(x.data(), y.data(), n, 2, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, &rng);
   sampler.setTestPredictors(xTest.data(), nTest);
@@ -248,8 +248,8 @@ static void testPredictCurrentTrees(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   check(sampler.savedTreeCapacity() == 0, "keepTrees defaults off");
 
@@ -293,7 +293,7 @@ static void testStateRoundTripScaledOffset() {
     return;
   }
 
-  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngA);
   Results empty;
@@ -306,7 +306,7 @@ static void testStateRoundTripScaledOffset() {
   check(state.chains[0].fitMax > state.chains[0].fitMin,
         "gaussian state captures the response transform");
 
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rngB);
   // a host reinstalls the current offset but cannot reproduce the scale
@@ -355,7 +355,7 @@ static void testStateRoundTrip() {
 
   std::vector<ext_rng*> rngs(numChains, nullptr);
   makeRngs(rngs, 1001);
-  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs.data());
   Results empty;
@@ -369,7 +369,7 @@ static void testStateRoundTrip() {
   // different seeds on purpose: the serialized rng state must win
   std::vector<ext_rng*> rngs2(numChains, nullptr);
   makeRngs(rngs2, 9999);
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
   check(restored.setState(state), "a stored state restores");
@@ -432,7 +432,7 @@ static void testStateRoundTripLatents(ext_rng* rng) {
 
   ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngA, 555);
-  ClassicSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
                           &rngA);
   Results empty;
@@ -445,7 +445,7 @@ static void testStateRoundTripLatents(ext_rng* rng) {
 
   ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngB, 777);
-  ClassicSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+  ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
                           &rngB);
   check(restored.setState(state), "a binary+dart state restores");
@@ -463,8 +463,8 @@ static void testStateValidation(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
-  std::unique_ptr<ClassicSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
-  ClassicSampler& sampler(*samplerPtr);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
+  ConstantLeafSampler& sampler(*samplerPtr);
 
   SamplerStateData state;
   sampler.getState(state);

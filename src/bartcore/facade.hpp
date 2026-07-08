@@ -377,7 +377,7 @@ inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
 
 /// Dispatch on the leaf model: designated leaf covariates select the
 /// linear-leaf instantiation - or the GP one under options.gpLeaves -
-/// anything else the classic constant leaf. Returns null on an invalid
+/// anything else the constant leaf. Returns null on an invalid
 /// designation - more than maxNumCovariates columns (both leaf models share
 /// the bound), a column out of range, or a categorical column (category
 /// codes are unordered; interact through splits instead) - which the host
