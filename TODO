@@ -115,6 +115,19 @@ items
     equivalence 18/18. tests/cpp testChiKEmptyLeafAccounting via a
     chain fabrication hook is the regression;
     chi-k-empty-leaf-count.md has the record.
+  interface-fixes-1.0: interface-review deliverable (plan file has
+    the full F/D lists). Code: weigths PPD typo, single-chain
+    extract-trees crash, dead missing="error" net + silent row
+    drop, keepTrainingFits=FALSE guards, train-type vs test-type
+    validation, reinstated positional-match warning, xbart "[2, N]"
+    literal, bart() coercion messages, weights/offset length
+    pre-validation, run numThreads->n.threads, print synopsis.
+    Docs: dbartsSampler-class examples + $-usage + run dims,
+    dbarts.Rd offset rewrite, rbart/xbart doc slips, trees order
+    text, residuals + binary fields, sigma/sigest cross-refs.
+    RNG-neutral, R-only; tinytest + equivalence identical expected.
+    Taste-gated remainder (T1-T11) awaits VD's calls in
+    interface-review.md.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
