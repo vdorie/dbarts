@@ -155,10 +155,31 @@ lemma that a child can never carry its parent's exact rule; the
 64-attempt categorical abort is variable-dependent and compounds the
 asymmetry.
 
-Verification in flight: engine-level exact-enumeration test
-(single tree, two ordinal predictors with unequal cut counts;
-engine long-run root-split frequencies vs the exact posterior AND vs
-the predicted wrong target) - the protocol's numerical step before
-the finding becomes a fix decision for VD. Fix would be
-posterior-changing (strictest gates) and changes 15-year-old
-sampler semantics; VD decides with the evidence.
+Verification (2026-07-08): CONFIRMED empirically. Engine-level
+exact-enumeration test, benchmarks/R/change-balance.R: n = 100,
+single tree, x1 with 19 cuts vs x2 with 2 cuts, fixed sigma, 1M kept
+draws vs a depth-6 memoized region DP for the exact posterior and for
+the predicted wrong target (rule prior squared); truncation moves
+root marginals < 3e-7. Result: P(root = x2 | split) engine 0.2988 vs
+exact 0.0774 vs wrong-target 0.3704 - the engine fails the exact arm
+at z = +479 and sits 76% of the way to the wrong target (between the
+arms as predicted, since birth/death still target the correct pi).
+Within-variable cut distributions match the exact posterior (max gap
+0.02), so the corruption is purely between-variable - exactly the
+predicted channel. Control with equal root cut counts: root margins
+match (z = -2.2) validating the enumeration, with a small honest
+residual (z = -27, 19x smaller) from depth >= 1 changes whose
+descendant-constrained intervals still differ - the same mechanism.
+
+CONSEQUENCE: dbarts' tree-structure posterior over-weights
+low-cardinality and descendant-constrained split variables in every
+configuration with unequal effective cut counts (mixed continuous/
+categorical predictors especially), and has since the package's
+origin. Fix decision is VD's: posterior-changing class, changes
+15-year-old semantics. Candidate fix shapes for the fix item's plan:
+(a) propose change rules from the unrestricted prior and let invalid
+descendants reject via pi = 0 (restores the exact cancellation with
+no valid-set counting - counting is infeasible for wide categorical
+masks - and removes the 64-try asymmetry), or (b) restricted
+proposals with explicit |Valid| ratios where countable. The
+change-balance.R test becomes the regression gate either way.
