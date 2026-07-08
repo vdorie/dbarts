@@ -79,10 +79,6 @@ items
     entry is the unpicked follow-up; tables in both plan files. (The
     correctness bug the measurement surfaced was fixed as
     rbart-custom-prior-divergence, c7fa0e4.)
-  readability-review: the bartcore branch was agent-written end to end;
-    rubric-driven human-readability pass over its code, comments, and
-    design docs (core-generalization.md's landing-note accretion
-    especially). Also a standing review step in docs/plans/README.md.
   repo-modernization: standing hygiene bundle. Remaining: PR-gate the
     sanitizers workflow once the new gcc-asan/valgrind legs prove
     stable on pushes; optional codecov badge (VD's call); optional
