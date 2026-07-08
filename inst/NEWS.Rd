@@ -352,6 +352,15 @@
       \item `rbart_vi` accepts a custom prior function passed by name;
             any symbol-valued `prior` used to enter the built-in lookup
             and fail.
+      \item The `chi(degreesOfFreedom = nu)` hyperprior on `k` now samples
+            a chi distribution with `nu` degrees of freedom as documented;
+            its Gibbs update used a shape corresponding to `chi(2 * nu - 1)`,
+            a dropped Jacobian in the k-squared transform. The binary
+            default is relabeled from `chi(1.25, Inf)` to `chi(1.5, Inf)`,
+            which draws identically under the corrected shape, so seeded
+            default binary fits are unchanged; fits that set `k` to a
+            non-default `chi()` now draw the degrees of freedom requested
+            and their results change accordingly.
     }
   }
 }

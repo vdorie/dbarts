@@ -1717,16 +1717,16 @@ private:
   std::size_t numUpdatesSkipped_ = 0;
 };
 
-/// Chi hyperprior on the end-node precision parameter k. The posterior of
-/// k^2 is gamma in the sum of squared leaf parameters across the forest;
-/// a finite prior scale adds 0.5 / scale^2 to the rate.
+/// Chi hyperprior on the end-node precision parameter k. Since k ~ chi(nu)
+/// gives k^2 ~ Gamma(nu/2, 1/2), the posterior of k^2 is gamma with shape
+/// 0.5 (M + nu); a finite prior scale adds 0.5 / scale^2 to the rate.
 struct ChiKHyperprior {
-  double degreesOfFreedom = 1.25;
+  double degreesOfFreedom = 1.5;
   double scale = HUGE_VAL;  // infinite = flat in the rate term
 
   double draw(ext_rng* rng, double sumSquaredParams, double totalNumLeaves,
               double leafScale) const {
-    double shape = 0.5 * (totalNumLeaves + 2.0 * degreesOfFreedom - 1.0);
+    double shape = 0.5 * (totalNumLeaves + degreesOfFreedom);
     // classic form: numTrees * s_sq / nodeScale^2 == s_sq / leafScale^2
     double rate = 0.5 * sumSquaredParams / (leafScale * leafScale);
     if (std::fabs(scale) <= DBL_MAX) rate += 0.5 / (scale * scale);

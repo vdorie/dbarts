@@ -35,7 +35,7 @@
       Normal prior on the node means. \code{k} scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       \code{chi}, or \code{NULL} for the default: 2 for continuous
-      responses, \code{chi(1.25, Inf)} for binary ones. The continuous
+      responses, \code{chi(1.5, Inf)} for binary ones. The continuous
       default follows Chipman, George, and McCulloch's argument that with
       node standard deviation \code{sigma_mu = 0.5 / (k * sqrt(m))} for
       \code{m} trees, \code{k} prior standard deviations of \eqn{f(x)}
@@ -73,9 +73,10 @@
       leaf sizes. \code{\link{xbart}} accepts the same specification
       through its own \code{node.prior} argument.
     }
-    \item{\code{chi(degreesOfFreedom = 1.25, scale = Inf)}}{
+    \item{\code{chi(degreesOfFreedom = 1.5, scale = Inf)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
-      model.
+      model: \code{k} is given a chi distribution with the stated degrees
+      of freedom and scale.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
       Chi-squared prior on the residual variance, scaled so that an
@@ -90,14 +91,14 @@
 \details{
   Inside the prior arguments of the fitting functions the same constructors
   are available by bare name, so \code{dbarts(..., node.prior =
-  normal(chi(1.25)))} works regardless of what packages are attached: those
+  normal(chi(1.5)))} works regardless of what packages are attached: those
   arguments are evaluated with this vocabulary layered over the calling
   environment, along with \code{num.vars}, the number of predictor columns.
   A prior object built ahead of time with \code{dbartsPriors$...} can be
   passed to the same arguments.
 }
 \examples{
-prior <- dbartsPriors$normal(dbartsPriors$chi(1.25))
+prior <- dbartsPriors$normal(dbartsPriors$chi(1.5))
 
 x <- matrix(runif(200), ncol = 2)
 y <- x[, 1] + rnorm(100, 0, 0.5)
