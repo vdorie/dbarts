@@ -50,3 +50,23 @@ the engine works today from one document: docs/architecture.md.
   correctly answer five orientation questions (where do moves live,
   what is a facade, which layer owns cut points, what gates a
   sampling change, where does dispatch happen) - run that check.
+
+## Status (2026-07-08)
+
+Landed. docs/architecture.md (360 lines vs the ~300 budget; reviewed
+line-for-line as load-bearing): layering diagram with the dbarts.h
+side path, the four dispatch tiers, leaf concepts vs the runtime
+ResponseFamily switch (incl. the GroupedResponse decorator), tree
+moves + the rule/mask machinery, ColumnStore's real layout, the
+transactional mutation surface, the three tree storage forms, RNG and
+threading (incl. the callback restriction), and the gates table. The
+implementer verified claims against code and correctly refused three
+doc-borne aspirations (per-column code widths, arena allocation, the
+MoveStrategy/SplitSelector names, which have no code symbols).
+core-generalization.md's current-architecture section trimmed to a
+pointer; kernel-vocabulary.md and public-surface.md gained pointer
+lines. The five-orientation-questions check ran against a fresh
+reader given only the doc: all five answered correctly. One review
+fix: a "header-first" thinko about misc.a reworded to "stays a
+compiled library". CLAUDE.local.md's cross-link is left to VD (his
+private file). AWAITING: VD's skim for wrongness.

@@ -5,7 +5,8 @@ The contract between the generic BART core and the compiled kernel library
 as calls into this vocabulary; the generic layer only decides which kernel to
 run on which column over which index set, a decision made once per node
 operation. This document is normative for the generalized core: adding or
-changing a kernel requires updating it and running benchmarks/kernels.
+changing a kernel requires updating it and running benchmarks/kernels. For
+where the engine calls into this vocabulary, see docs/architecture.md.
 
 ## Dispatch mechanism
 
