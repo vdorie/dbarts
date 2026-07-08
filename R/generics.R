@@ -98,7 +98,7 @@ predict.bart <- function(
   ) {
     stop(
       "type must be in '",
-      paste0(eval(formals(predict.rbart)$type), collapse = "', '"),
+      paste0(eval(formals(predict.bart)$type), collapse = "', '"),
       "'"
     )
   }
@@ -484,7 +484,10 @@ predict.rbart <- function(
     length(dim(nonParametricPart)) != length(dim(ranef)) ||
       any(dim(nonParametricPart) != dim(ranef))
   ) {
-    browser()
+    stop(
+      "internal error: fixed and random effect predictions have ",
+      "mismatched dimensions"
+    )
   }
   result <- nonParametricPart + ranef
 
