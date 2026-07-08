@@ -1,5 +1,7 @@
 # Weighted logistic responses
 
+Status: LANDED 2026-07-05.
+
 ## Motivation
 
 dbarts accepts observation `weights` for gaussian responses (the residual
@@ -139,4 +141,3 @@ in-model IPW.
   but that traced to the codebase's known heap-layout / SIMD-reduction-split
   sensitivity between two separately-constructed samplers, not real engine
   behavior.
-</invoke>

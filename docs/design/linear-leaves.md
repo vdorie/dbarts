@@ -12,7 +12,31 @@ xbart/view support - landed the same day (stage 5 below). The four open
 decisions at the end of this doc were implemented per their
 recommendations (explicit column designation, slope sd = intercept sd,
 chi-k over all coordinates, beta.<name> reporting) - any can be revisited
-before release. Stage-4 (R surface) notes:
+before release.
+
+## Model
+
+A designated, small set of q predictor columns u(x) enters every leaf:
+leaf fit = b0 + b'u(x), with conjugate normal priors on (b0, b), so the
+marginal over the parameters stays closed-form and the existing
+conjugate MH moves apply unchanged. The constant leaf is the q = 0
+special case and keeps its own code path untouched.
+
+- Leaf covariates are ordinal (continuous) columns only; a categorical
+  column in the set is an error (its codes are unordered - interact via
+  splits instead). Leaf models consume raw column values, never codes.
+- Internally the leaf covariates are standardized (training mean and sd,
+  stored on the store) so the prior is expressed on a comparable scale;
+  reported parameters stay on the internal standardized scale like leaf
+  values today.
+- Priors: b0 ~ N(0, (scale / k)^2) exactly as the constant leaf;
+  b_j ~ N(0, (scale / k)^2) on the standardized covariates. scale is
+  node.scale / sqrt(numTrees) as today. No cross-coordinate prior
+  correlation; the posterior is the usual ridge normal with
+  V = (U'WU / sigma^2 + P)^-1 solved by Cholesky of a (q+1) x (q+1)
+  block.
+
+Stage-4 (R surface) notes:
 
 - node.prior = linear(columns, k) on dbarts(): a dbartsLinearPrior
   whose raw designation (names or indices) resolves against the model
@@ -145,28 +169,6 @@ Deltas from the proposal discovered while landing:
   zero on the flat side) plus a sampled-k smoke test.
 
 Original proposal follows.
-
-## Model
-
-A designated, small set of q predictor columns u(x) enters every leaf:
-leaf fit = b0 + b'u(x), with conjugate normal priors on (b0, b), so the
-marginal over the parameters stays closed-form and the existing
-conjugate MH moves apply unchanged. The constant leaf is the q = 0
-special case and keeps its own code path untouched.
-
-- Leaf covariates are ordinal (continuous) columns only; a categorical
-  column in the set is an error (its codes are unordered - interact via
-  splits instead). Leaf models consume raw column values, never codes.
-- Internally the leaf covariates are standardized (training mean and sd,
-  stored on the store) so the prior is expressed on a comparable scale;
-  reported parameters stay on the internal standardized scale like leaf
-  values today.
-- Priors: b0 ~ N(0, (scale / k)^2) exactly as the constant leaf;
-  b_j ~ N(0, (scale / k)^2) on the standardized covariates. scale is
-  node.scale / sqrt(numTrees) as today. No cross-coordinate prior
-  correlation; the posterior is the usual ridge normal with
-  V = (U'WU / sigma^2 + P)^-1 solved by Cholesky of a (q+1) x (q+1)
-  block.
 
 ## Engine
 
