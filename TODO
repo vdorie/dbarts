@@ -72,19 +72,6 @@ items
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked.
-  chi-hyperprior-df: correctness-audit block-3 finding. The k
-    hyperprior's Gibbs step implements a chi(2*nu - 1) prior while
-    the degreesOfFreedom argument and docs say chi(nu) - chi(1.25)
-    delivers chi(1.5); coincide only at nu = 1. Inherited verbatim
-    from classic parameterPrior.cpp (a Jacobian slip in the original
-    derivation). VD 2026-07-08: code must be correct and expectations
-    honored. RESOLUTION (VD greenlit 2026-07-08): fix the shape to
-    0.5(M + nu) AND relabel the binary default to chi(1.5, Inf) -
-    bit-identical to today's default binary behavior (2*1.25 - 1 =
-    1.5), so defaults are draw-neutral and the empirically-validated
-    default is preserved under an honest name; manual chi() users get
-    exactly what they specify. NEWS + doc note; only non-default chi
-    snapshots regenerate. Queued after moves-degenerate-root-guard.
   chi-default-research: staged by VD 2026-07-08 alongside the
     chi-hyperprior-df fix. The chi(1.25, Inf) binary default came
     from a simulation showing good binary-outcome performance; with

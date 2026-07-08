@@ -97,7 +97,7 @@ parsePriors <- function(
   matchedCall <- match.call()
 
   # the prior vocabulary shadows the caller's environment inside these
-  # arguments only: bare names like normal(chi(1.25)) resolve here no matter
+  # arguments only: bare names like normal(chi(1.5)) resolve here no matter
   # what packages are attached, and nothing is exported under generic names
   evalEnv <- new.env(parent = parentEnv)
   for (name in names(dbartsPriors)) {
@@ -340,11 +340,11 @@ resolveSplitProbabilities <- function(prior, data) {
 }
 
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
-## family default (2 for continuous responses, chi(1.25, Inf) for binary),
+## family default (2 for continuous responses, chi(1.5, Inf) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through.
 resolveNodeHyperprior <- function(k, binary) {
   if (is.null(k)) {
-    k <- if (binary) chi(1.25, Inf) else 2.0
+    k <- if (binary) chi(1.5, Inf) else 2.0
   }
   if (is.numeric(k)) {
     return(newValidated("dbartsFixedHyperprior", k = k))
@@ -416,7 +416,7 @@ gp <- function(columns, k = NULL, lengthscale = NULL, max.leaf.size = 256L) {
 
 normal <- function(k = NULL) {
   if (is.character(k)) {
-    # compatibility with string specifications like "chi(1.25)" or "2"
+    # compatibility with string specifications like "chi(1.5)" or "2"
     if (startsWith(k, "chi")) {
       kExpr <- parse(text = k)[[1L]]
       if (!is.call(kExpr)) {
@@ -448,7 +448,7 @@ fixed <- function(value = 1.0) {
   newValidated("dbartsFixedPrior", value = value)
 }
 
-chi <- function(degreesOfFreedom = 1.25, scale = Inf) {
+chi <- function(degreesOfFreedom = 1.5, scale = Inf) {
   newValidated(
     "dbartsChiHyperprior",
     degreesOfFreedom = degreesOfFreedom,

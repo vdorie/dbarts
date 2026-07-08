@@ -151,7 +151,7 @@ struct ParsedModel {
   const double* splitProbabilities = NULL;
   bool updateK = false;
   double k = 2.0;
-  double kDf = 1.25;
+  double kDf = 1.5;
   double kScale = HUGE_VAL;
   bool sigmaIsFixed = false;
   double fixedSigmaSq = 1.0; // the residual variance fixed() holds

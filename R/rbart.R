@@ -102,7 +102,7 @@ rbart_vi <- function(
   # k enters EVALUATED, unlike bart2: rbart forwards its arguments to
   # dbarts through do.call from internal frames, where a stored symbol
   # cannot resolve. Without dbarts attached, pass hyperpriors as strings
-  # (k = "chi(1.25)")
+  # (k = "chi(1.5)")
   priors <- buildSamplerPriors(
     matchedCall,
     power,
