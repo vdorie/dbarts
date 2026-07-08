@@ -71,13 +71,27 @@ items
     delivers chi(1.5); coincide only at nu = 1. Inherited verbatim
     from classic parameterPrior.cpp (a Jacobian slip in the original
     derivation). VD 2026-07-08: code must be correct and expectations
-    honored. RESOLUTION (pending VD's nod on the relabel): fix the
-    shape to 0.5(M + nu) AND relabel the binary default to
-    chi(1.5, Inf) - bit-identical to today's default binary behavior
-    (2*1.25 - 1 = 1.5), so defaults are draw-neutral and the
-    empirically-validated default is preserved under an honest name;
-    manual chi() users get exactly what they specify. NEWS + doc
-    note; only non-default chi snapshots regenerate.
+    honored. RESOLUTION (VD greenlit 2026-07-08): fix the shape to
+    0.5(M + nu) AND relabel the binary default to chi(1.5, Inf) -
+    bit-identical to today's default binary behavior (2*1.25 - 1 =
+    1.5), so defaults are draw-neutral and the empirically-validated
+    default is preserved under an honest name; manual chi() users get
+    exactly what they specify. NEWS + doc note; only non-default chi
+    snapshots regenerate. Queued after moves-degenerate-root-guard.
+  chi-default-research: staged by VD 2026-07-08 alongside the
+    chi-hyperprior-df fix. The chi(1.25, Inf) binary default came
+    from a simulation showing good binary-outcome performance; with
+    the label now honest (chi(1.5)), re-derive the default from
+    evidence. Two parts: (1) survey what other BART implementations
+    use for binary leaf-prior scaling defaults (BART, bartMachine,
+    stochtree/XBART, bartz, pymc-bart, softbart - fixed k vs
+    hyperprior, values, any published rationale); (2) a broad
+    simulation over binary scenarios (n, p, prevalence, signal
+    strength/sparsity, friedman + linear + interaction DGPs)
+    comparing k defaults and chi hyperprior settings on held-out
+    log-loss, AUC, calibration, and interval coverage. Output: a
+    design note + recommendation; any default change is its own
+    posterior-changing item with VD's sign-off.
   change-move-balance: correctness-audit block-2 finding, numerically
     CONFIRMED (z = +479 vs the exact posterior; benchmarks/R/
     change-balance.R; full record in docs/plans/correctness-audit.md).
