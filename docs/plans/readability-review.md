@@ -58,3 +58,38 @@ per-review check lives in docs/plans/README.md.
   comment-only).
 - git diff --stat shows only comments/docs/man (spot-check any .R/.hpp
   hunks).
+
+## Status (2026-07-08)
+
+CLOSED. Six readers (opus on the engine headers, sonnet elsewhere)
+swept the R surface, engine, bridge + C API + touched support-lib
+hunks, tests, design docs, and man/README/NEWS; benchmarks scripts, CI
+workflows, and the build system were excluded and recorded as such.
+Landings, in order: feda8fe (two REAL pre-existing R bugs the reader
+surfaced: a live browser() in predict.rbart and predict.bart's error
+message listing predict.rbart's type options), 3477c57 (engine header
+contracts: deleted-symbol references, plan-step leaks, the stale
+phase-1 scope line, a false "thinning-free" claim), c0d482d (bridge
+bcfParams length-8 contract, stale step-4 refusal claim, tests'
+scratchpad cites restated as inline derivations, gp-leaves.md status +
+dead references), 0b66a15 (design docs: core-generalization.md gained
+a verified "Current architecture (as shipped)" section and in-place
+corrections incl. BartData -> ColumnStore; linear-leaves.md's Model
+moved above its deltas; public-surface.md orphan fragment + mislabeled
+section; weighted-logistic.md stray tool-call tag), 6bfca8a (VD-
+directed sweep: 31 classic-engine attributions deleted, 3 reworded to
+the real constraint, 2 kept as "the pre-1.0 engine", CGM literature
+reference preserved; ClassicSampler renamed ConstantLeafSampler, the
+only code-token change, equivalence exact 18/18), 7498154 (seven
+code-verified Rd accuracy bugs, typos, xbart weights completeness,
+summary.bart precision, NEWS.Rd codenames -> user-facing wording,
+checkRd 14/14 clean). VD taste rulings: sweep aggressively (done),
+restate scratchpad derivations inline (done), rename ClassicSampler
+(done), leave the bartcoreSampler*/bartcore* R naming, no
+core-generalization restructure beyond the new section, leave
+mia-missingness ordering. Dropped mid-review by CI rather than a
+reader: the warm-start installForests refusal-path leak (a91e5d4) and
+the pinned-rbart-draws cross-platform tolerance + missing pkgdown
+index entry (29b6243). The standing per-review check in
+docs/plans/README.md continues; architecture-doc inherits the
+current-architecture section as its seed.
