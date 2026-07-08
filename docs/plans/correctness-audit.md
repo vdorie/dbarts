@@ -331,3 +331,69 @@ would silently serve stale statistics; zero-weight rows count
 toward the GP max.leaf.size cap (consistent between score and draw,
 a calibration surprise only); the 1e-6 jitter makes the realized GP
 prior s^2(C + 1e-6 I), identically in score and draw.
+
+Block 6, BCF and grouped (2026-07-08): CONFIRMED throughout by both
+derivers; no surviving DISCREPANCY. Jointly confirmed: the
+calibration map (s = n-1 sample sd of the range-scaled net-offset
+working response; mu forest total N(0, s^2) and tau forest total
+N(0, (sdModerate s / 0.674)^2) via the engine's nodeScale/sqrt(T)
+leaf convention with k fixed at 1); the glue draws (a conjugate
+against residual y* - b_z tau with precision 1/aVariance +
+sum w mu^2/sigma^2; b0/b1 per-arm conjugates against y* - a mu with
+an empty arm falling back to its prior; the half-Cauchy auxiliary
+aVariance ~ IG(1, (a^2 + aPriorScale^2)/2), Monte-Carlo verified to
+marginalize a to Cauchy(0, aPriorScale)); the two-forest residual
+accounting (per-forest response resid/m and weights w m^2 with
+per-observation m = a or b_z, whose crossproduct sufficient
+statistics are exactly the untransformed problem's - deriver B
+verified numerically that the 1e-9 multiplier floor reduces a
+zero-coefficient arm's contribution to the informative-arm-only
+posterior to machine precision); the sigma feed (combined
+a mu + b_z tau fit with ORIGINAL user weights and the
+positive-weight df); updateA/updateB gating; the grouped-intercept
+Gibbs (precision sum-of-weights/sigma^2 + 1/tauG^2 - a weight sum,
+not a count: the block-4 sigma-df bug class is absent here);
+grouped offset plumbing (forests backfit z - b, shiftFits feeds
+F + b + offset to the base latent refresh, so probit/logistic
+latents and PG weights compose correctly); zero-weight rows inert
+in every posterior block; recording de-scales sigma/tau/group
+effects by sigmaScale and blends trainingFits with the live glue;
+state save/restore round-trips a, aVariance, b0, b1, groupEffects,
+groupTau on the internal scale with scratch rebuilt per sweep.
+Sweep order (mu -> tau -> latents -> sigma -> glue -> intercepts)
+is a coherent blocked Gibbs scan on one joint. BCF and grouping are
+mutually exclusive by construction (the BCF ctor hardwires
+GaussianResponse), so that interaction cannot arise.
+
+Findings routed onward:
+1. BCF testFits single-forest (deriver B, adjudicated REAL but
+   latent; verified by orchestrator at chain.hpp:2069-2076):
+   results.trainingFits has an explicit BCF blend but
+   results.testFits unconditionally reports scale *
+   forests_[0].totalTestFits + shift (+ testOffset) - the bare mu
+   forest with the combined-response centering, no a, no b_z tau.
+   A correct test-row blend is ill-defined without a test treatment
+   vector (the API carries none; R-side prediction recombines
+   through the facade's forestTotalFits/bcfGlue channels), so the
+   channel cannot silently emit mu-only numbers dressed as fits.
+   Filed as fix item bcf-testfits-guard: reject/NA the testFits
+   channel under BCF rather than fill it wrong; document that
+   results.k/variableCounts/splitProbabilities are mu-forest
+   diagnostics under BCF.
+
+Fragility notes (no action): kHalfNormalMedian is the truncated
+literal 0.674 (exact value 0.67449; ~0.07 percent tau-scale
+inflation, and the design note itself states 0.674); the 0.674
+constant is decoupled from bPriorVariance, so a host setting
+bPriorVariance != 1/2 silently breaks the median-effect
+calibration; BCFSpec carries no initial a/b0/b1, so updateA/B =
+false can only pin the defaults 1.0/0.0/1.0; the 1e-9 multiplier
+floor is a magic constant unrelated to data scale (verified benign
+for the sufficient statistics); scaledResponseSd includes
+zero-weight rows in the prior anchor s - the single place a
+zero-weight row participates anywhere (prior calibration only);
+with b0 initialized to 0 the sweep-0 tau forest sees control rows
+at floored weight (warm-up transient only); recorded sigma
+conditions on the previous sweep's glue while trainingFits uses the
+new glue (valid Gibbs, half-step phase when eyeballing single
+draws).

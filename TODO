@@ -86,6 +86,17 @@ items
     log-loss, AUC, calibration, and interval coverage. Output: a
     design note + recommendation; any default change is its own
     posterior-changing item with VD's sign-off.
+  bcf-testfits-guard: correctness-audit block-6 finding, latent.
+    results.testFits under BCF reports the bare mu forest with the
+    combined-response shift (chain.hpp storeSample; trainingFits has
+    the BCF blend, testFits does not) - no a, no b_z tau, and no
+    test treatment vector exists to blend with. Fix: reject or NA
+    the testFits channel for BCF samplers instead of filling it
+    wrong; document that k/variableCounts/splitProbabilities are
+    mu-forest diagnostics under BCF. Unreached by the R wrapper
+    (prediction recombines via forestTotalFits + bcfGlue); a
+    dbarts.h consumer passing testFits would get silent garbage.
+    Small, engine + docs.
   change-move-balance: LANDED 2026-07-08 - the hybrid change kernel
     (VD's pick after the stage-2 measurements; cross-type correction
     caught and fixed in review) is now THE change move; its acceptance
@@ -114,7 +125,8 @@ items
     fits bit-identical. sigma-df-zero-weights.md has the derivation and
     gate results; tests/cpp testSigmaPosteriorDf and test-zero-weights.R
     are the regression gates. The zeroweights equivalence scenario
-    shifts legitimately (sigma.mean z = -61.74); baseline NOT re-recorded.
+    shifts legitimately (sigma.mean z = -61.74); anchor re-recorded as
+    equivalence-cf99a00.rds (commit 7b79623, MANIFEST updated).
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
