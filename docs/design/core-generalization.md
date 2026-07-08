@@ -1,7 +1,44 @@
 # Generalized BART core: design
 
-Status: accepted plan, 2026-07-02. This document is the reference for the
-core-generalization work; update it when decisions change.
+Status: accepted plan, 2026-07-02; cutover (phase 7) complete 2026-07-03 and
+phases 0-5 are DONE, so most of this plan has shipped - see "Current
+architecture" below for what exists now. Phase 6 (GP leaves, non-conjugate
+moves) is still open (docs/design/gp-leaves.md). This document remains the
+historical reference; update it when decisions change.
+
+## Current architecture (as shipped)
+
+The engine is a header-only C++20 library, `src/bartcore/*.hpp` (umbrella
+include `bartcore.hpp`):
+
+- `data.hpp`: `ColumnStore`, the predictor container (hot per-column bin
+  codes, cold typed columns, sparse column support).
+- `tree.hpp`: `Rule`, `Node`, `Tree` - the tree storage.
+- `moves.hpp`: birth/death/change/swap move machinery.
+- `model.hpp`: leaf models (`ConstantGaussianLeaf`, `LinearGaussianLeaf`,
+  `GPGaussianLeaf`, ...), each a compile-time concept-constrained type, and
+  response models (`GaussianResponse`, `ProbitResponse`,
+  `LogisticResponse`, `GroupedResponse`), a runtime-polymorphic
+  `ResponseModel` hierarchy; also the tree prior and hyperpriors.
+- `chain.hpp`: `Chain` - one MCMC chain's trees, fits, response state, and
+  own RNG - plus its supporting structs (`Forest`, `ModelParameters`,
+  `Results`).
+- `sampler.hpp`: `Sampler`, the coordinator over the shared `ColumnStore`
+  and one or more `Chain`s (fans mutation out, runs chains on worker
+  threads).
+- `facade.hpp`: `SamplerBase` / `SamplerFacade`, the type-erased virtual
+  interface a factory selects into from the R-side model spec exactly
+  once, at allocation.
+
+Above the engine: the `.Call` bridge (`src/R_interface_bartcore.cpp`) drives
+the facade for the R5 `dbartsSampler` surface; the flat C API
+(`inst/include/dbarts/dbarts.h`) is the only shipped header and what
+`LinkingTo` consumers (stan4bart) build against; the R surface (`R/`) is the
+high-level `bart`/`bart2`/`dbarts` wrappers plus the `dbartsSampler`
+reference class.
+
+History below records how it got here; where they disagree, this section
+wins.
 
 ## Goals and scope decisions
 
@@ -30,7 +67,7 @@ Decisions:
   correlated observations/random effects, and GP leaves are designed-for but
   implemented later.
 
-## Current-state constraints (what the design starts from)
+## Starting-point constraints (the pre-rewrite engine, since deleted)
 
 - Predictors are quantized once into per-column integer codes
   (`xint_t`, configure-selected width, default uint16); all tree-structure
@@ -71,7 +108,11 @@ Layers, bottom to top:
    (run, setPredictor, setOffset, ...). A factory maps the R-side model spec
    to an instantiation exactly once, at allocation.
 5. **R package and C ABI**: `.Call` bridge and `R_C_interface.hpp` wrap the
-   facade; LinkingTo consumers never see templates.
+   facade; LinkingTo consumers never see templates. (Updated at cutover:
+   `R_C_interface.hpp` was deleted along with the classic engine; the
+   `.Call` bridge is `src/R_interface_bartcore.cpp` and LinkingTo consumers
+   build against the flat C API, `inst/include/dbarts/dbarts.h` - see
+   phase 7 and the "Current architecture" section above.)
 
 ### Dispatch tiers
 
@@ -143,7 +184,10 @@ template instantiation plus a factory registry entry.
   hurdle models all reduce to several forests plus a response model that
   combines them.
 
-### Data model: BartData
+### Data model: BartData (shipped as ColumnStore)
+
+BartData was this proposal's working name; the container that shipped is
+`ColumnStore` (`src/bartcore/data.hpp`) - see "Current architecture" above.
 
 A purpose-built container (analogous to XGBoost's DMatrix); ingestion from R
 types is a real step and the sampler never sees R types.
@@ -752,8 +796,10 @@ partitioning entirely; a different library sharing only the tree structure).
    built-in tau priors (LANDED, grouped-random-effects.md). Wave 2 is
    complete.
 6. **Non-conjugate MoveStrategy**: GP leaves, general likelihoods.
-7. **Cutover**: new core default, R_C_interface mapped onto it, old engine
-   deleted, headers published for LinkingTo.
+7. **Cutover** (DONE 2026-07-03): new core is the only engine, the classic
+   engine deleted, and the flat C API (`dbarts.h`) published for LinkingTo -
+   the full record is under phase 4 above, "Classic removal, C++ deletion
+   (... THE CUTOVER IS COMPLETE)".
 
 ## Risks
 

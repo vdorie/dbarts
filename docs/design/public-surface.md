@@ -1,10 +1,10 @@
 # Public surface for the major version
 
-Status: reviewed 2026-07-03; decisions from that review are recorded inline
-as DECIDED. Companion to core-generalization.md: the engine reached cutover
-readiness (full R5 parity, statistical equivalence, and the zero-regression
-speed bar all gated at 209c09b), so what remains is what the major version
-exposes.
+Status: reviewed 2026-07-03; updated through 2026-07-06. Decisions from that
+review are recorded inline as DECIDED. Companion to core-generalization.md:
+the engine reached cutover readiness (full R5 parity, statistical
+equivalence, and the zero-regression speed bar all gated at 209c09b), so
+what remains is what the major version exposes.
 
 Standing decisions this builds on: the next release is a major version with
 no backwards-compatibility requirement on internal surfaces; the classic
@@ -45,6 +45,14 @@ stan4bart port.
 DECIDED: break freely now and patch at the end; xbart may be redesigned
 around the new data layer rather than accommodated, or shelved and
 completed later - it does not gate the rest.
+
+Landed 2026-07-03 (step 1, xbart port): the C++ crossvalidation monolith
+(crossvalidate.cpp, R_interface_crossvalidate.cpp) is deleted; xbart is now
+an R-level driver over the dbartsSampler mutation API (setData for splits,
+setModel for cells), so it runs on either engine and inherits every engine
+feature, and gets the shared data handle (section 5) for free (one handle
+per worker chunk, no per-fold re-sort). Details and the parity findings
+this port turned up are in core-generalization.md phase 4.
 
 Landed 2026-07-03 (step 3, C++ deletion): src/dbarts/ is gone, along with
 R_interface_sampler.cpp, R_interface_common.cpp, R_C_interface.cpp, and
@@ -397,7 +405,6 @@ verbose summary replaces printInitialSummary. stan4bart pins
 factors = "indicators" against the new categorical default, and its one
 seed-pinned stochastic test was lengthened past trajectory luck. Suite:
 206 passing, 0 failing.
-before freezing the header. RESOLVED above, 2026-07-03.
 
 Landed 2026-07-03: dbarts.h v1 with all entry points registered as
 CCallables; the bridge's creation/state/tree cores extracted into
@@ -409,7 +416,7 @@ availability). Remaining for this section: the stan4bart port, observer
 callbacks when a consumer exists, and retiring R_C_interface.hpp with the
 classic engine.
 
-## 7. Deferred, with their blockers
+## 7. Initially deferred - since landed
 
 - Pooled category masks (K > 53): LANDED 2026-07-04 (design and landing
   notes in pooled-masks.md; the cap is now 65535, masks up to 63
