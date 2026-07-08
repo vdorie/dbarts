@@ -12,7 +12,8 @@
 #                          docs/design/public-surface.md), not a gate.
 #
 # file                                role                 commit   machine/arch    scenarios
-equivalence-235bebc.rds               current              693d864  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-bcdcc07.rds               current              bcdcc07  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
+equivalence-235bebc.rds               historical           693d864  arm64 (macOS)   18: same as current; pre chi-df fix (bcdcc07) - linear and gp set manual chi(1.25) and diverge statistically from it
 equivalence-cf70fd5.rds               historical           cf70fd5  arm64 (macOS)   18: same as current
 equivalence-af04d0c.rds               historical           af04d0c  arm64 (macOS)   18: same as current
 equivalence-2677d86.rds               historical           2677d86  arm64 (macOS)   18: same as current
