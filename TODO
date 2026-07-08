@@ -41,9 +41,19 @@ items
     only if a grouped refactor is planned.
   grow-from-root: XBART-style root-down tree sampling on the
     provisioned cut-scan kernel; the highest-ceiling large-n item and
-    the realistic doorway to any GPU backend. memo + kernel prototype
-    first - GREENLIT by VD 2026-07-08 (steps 1-2); queued behind
-    parallel-falsifiers.
+    the realistic doorway to any GPU backend. MEMO + KERNEL LANDED
+    2026-07-08 (grow-from-root.md; driver benchmarks/kernels/
+    grow_from_root.c). Cut-scan measured on M1 Max: seq root scan
+    histogram-bound ~13.6 GB/s (not DRAM-bound), scattered-leaf scan
+    DRAM/cache-line-bound ~0.7x the 52 GB/s roofline; multiplier
+    scan-vs-single-cut ~p on a scattered leaf (10x p=10, 53x p=50),
+    ~p/4 root-order. Recommendation: GO on the shared scan primitive
+    and grow-from-root as a WARM-START producer (feeds installTrees/
+    warm.start, sidesteps validity); NO-GO on shipping it as a
+    standalone posterior sampler - the exact-sampler use of the scan
+    belongs to frontier 3.1's informed proposal. Awaiting VD approval
+    of the follow-up "grow-from-root warm-start producer" (shares the
+    scan primitive with frontier item 4).
   hot-layer-u8: FOLDED into data-ownership's owned container (VD
     2026-07-07, after phase-1 kernel measurements showed no standalone
     partition win); per-column widths land with the container and get
