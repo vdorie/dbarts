@@ -109,9 +109,16 @@ CALL("capi_set_sigma", ptrFixed, 0.37)
 rFixed <- CALL("capi_run", ptrFixed, 0L, 3L, FALSE, FALSE)
 expect_equal(unique(rFixed$sigma), 0.37)
 
-# transactional predictor mutation
+# transactional predictor mutation: the replacement column is drawn from a
+# fixed local seed so it stays compatible with ptr2's current tree state (a
+# fully random column can strand a split and be rejected); the stream is
+# restored so later draws in this file are unaffected
 xNew <- x
+savedSeed <- .Random.seed
+set.seed(1L)
 xNew[, 3L] <- runif(n)
+assign(".Random.seed", savedSeed, envir = globalenv())
+rm(savedSeed)
 expect_true(CALL("capi_set_predictor", ptr2, xNew))
 expect_true(CALL("capi_update_predictor", ptr2, matrix(x[, 3L], n), 2L))
 

@@ -1,16 +1,22 @@
 #!/usr/bin/env Rscript
 
-# Numerical verification of the correctness-audit block-2 change-move finding
-# (docs/plans/correctness-audit.md Status). The change move's acceptance is
-# exp(yLogPi + yLogL - xLogPi - xLogL) with no proposal-density ratio: the
-# proposal draws a new variable from the prior and a new rule uniformly over
-# the descendant-valid good set, but the acceptance keeps only the pi ratio.
-# For a cross-variable change at the root of a single-split "stump" the omitted
-# ratio is exactly a_{v'}/a_v (a_v = number of available cuts of the split
-# variable), so the chain's stationary distribution carries the rule prior
-# SQUARED, ~ (p_var / a_v)^2 instead of p_var / a_v, biasing the root toward
-# low-cardinality variables when cut counts are unequal. It cancels when they
-# are equal.
+# Permanent exact-posterior gate for the change move (docs/design/
+# change-move-balance.md). The move redraws a node's split variable from the
+# prior and a new rule over the descendant-valid good set; its acceptance now
+# carries the proposal-density ratio, composed per side (an ordinal side
+# contributes its counted good-set/interval ratio; a categorical side proposes
+# from the node prior, whose density cancels outright), so it satisfies
+# detailed balance. The omitted ratio was a CGM-lineage defect: for a
+# cross-variable change at the root of a single-split "stump" it is exactly
+# a_{v'}/a_v (a_v = number of available cuts of the split variable), which left
+# the stationary distribution carrying the rule prior SQUARED, ~ (p_var / a_v)^2
+# instead of p_var / a_v, biasing the root toward low-cardinality variables when
+# cut counts are unequal (it cancels when they are equal).
+#
+# Three scenarios: MAIN (unequal ordinal cut counts, the original defect),
+# CONTROL (equal ordinal cut counts, must stay clean), and MIXED (ordinal vs
+# categorical: cross-type changes exercise BOTH sides of the correction, so a
+# kernel whose correction branches on only one variable's type fails it).
 #
 # Three arms, all sharing one integrated-likelihood / tree-prior machinery:
 #   engine       : a long single-tree dbarts run, root-split frequencies;
@@ -43,7 +49,9 @@ suppressPackageStartupMessages(library(dbarts))
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 
-nKept <- if (quick) 100000L else 1000000L
+# three engine arms x two scenarios share this budget; 300k keeps the variant
+# arms' |z| < 4 a tight test while the current arm's failure stays z >> 10
+nKept <- if (quick) 100000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
 nThin <- 20L
 nBurn <- 2000L
@@ -206,6 +214,109 @@ rootMarginals <- function(tab) {
     rootOnly = sum(tab$prob[tab$variable == 0L]),
     x1 = sum(tab$prob[tab$variable == 1L]),
     x2 = sum(tab$prob[tab$variable == 2L])
+  )
+}
+
+# ---- exact posterior, mixed ordinal x categorical (region DP) ----
+#
+# x1 ordinal with K1 values (K1 - 1 cuts), x2 categorical with L levels. A
+# node's reachable set is an x1 value interval [a1,b1] times a level subset S
+# (ancestor-filtered and occupancy-blind, as the engine's reachableCategories).
+# Ordinal splits as in buildPosterior. A categorical split assigns directions:
+# each of the 2^|S| - 2 nonempty proper subsets D of S is an equally likely
+# rule under the node prior, sending D right and S \ D left (ordered - the
+# mirrored assignment is a distinct rule, as in the engine's gauge). Empty
+# children are skipped (the engine's -1e7 branch veto). Subsets are bitmasks
+# over level indices; no wrong-target arm (the defective correction here mixes
+# omitted terms with out-of-domain ones, so no clean closed form exists).
+
+buildMixedPosterior <- function(K1, L, cellN, cellS, cellSS, residVar, maxDepth) {
+  logIL <- makeLogIL(residVar)
+  fullMask <- 2L^L - 1L
+  levelBits <- 2L^(seq_len(L) - 1L)
+  maskCols <- lapply(0:fullMask, function(S) which(bitwAnd(S, levelBits) != 0L))
+  properSubsets <- lapply(0:fullMask, function(S) {
+    if (S < 3L) return(integer(0)) # fewer than two levels: no split
+    cand <- seq_len(S - 1L)
+    cand[bitwAnd(cand, S) == cand]
+  })
+
+  query <- function(a1, b1, S) {
+    cols <- maskCols[[S + 1L]]
+    list(
+      n = sum(cellN[a1:b1, cols]),
+      S = sum(cellS[a1:b1, cols]),
+      SS = sum(cellSS[a1:b1, cols])
+    )
+  }
+
+  memo <- new.env(parent = emptyenv())
+  M <- function(a1, b1, S, depth) {
+    key <- paste(a1, b1, S, depth, sep = ",")
+    hit <- memo[[key]]
+    if (!is.null(hit)) return(hit)
+    st <- query(a1, b1, S)
+    sizeS <- length(maskCols[[S + 1L]])
+    avail1 <- b1 > a1
+    avail2 <- sizeS >= 2L
+    numAvail <- avail1 + avail2
+    growth <- if (numAvail > 0L) base / (1 + depth)^power else 0
+    terms <- log(1 - growth) + logIL(st$n, st$S, st$SS)
+    if (numAvail > 0L && depth < maxDepth) {
+      logGrowth <- log(growth)
+      if (avail1) {
+        ruleLP <- -log(numAvail) - log(b1 - a1)
+        for (c in a1:(b1 - 1L)) {
+          if (query(a1, c, S)$n == 0 || query(c + 1L, b1, S)$n == 0) next
+          terms <- c(terms, logGrowth + ruleLP +
+            M(a1, c, S, depth + 1L) + M(c + 1L, b1, S, depth + 1L))
+        }
+      }
+      if (avail2) {
+        ruleLP <- -log(numAvail) - log(2^sizeS - 2)
+        for (D in properSubsets[[S + 1L]]) {
+          left <- S - D # D is a subset of S, so mask difference is set difference
+          if (query(a1, b1, left)$n == 0 || query(a1, b1, D)$n == 0) next
+          terms <- c(terms, logGrowth + ruleLP +
+            M(a1, b1, left, depth + 1L) + M(a1, b1, D, depth + 1L))
+        }
+      }
+    }
+    res <- logSumExp(terms)
+    memo[[key]] <- res
+    res
+  }
+
+  # root layer, kept split-by-split
+  numAvail0 <- (K1 > 1L) + (L > 1L)
+  growth0 <- base / (1 + 0)^power
+  stFull <- query(1L, K1, fullMask)
+  labels <- "root-only"
+  variable <- 0L
+  logNum <- log(1 - growth0) + logIL(stFull$n, stFull$S, stFull$SS)
+  addSplit <- function(v, lab, ln) {
+    labels[[length(labels) + 1L]] <<- lab
+    variable[[length(variable) + 1L]] <<- v
+    logNum[[length(logNum) + 1L]] <<- ln
+  }
+  if (K1 > 1L) {
+    ruleLP <- -log(numAvail0) - log(K1 - 1L)
+    for (c in 1:(K1 - 1L)) {
+      addSplit(1L, paste0("x1.c", c), log(growth0) + ruleLP +
+        M(1L, c, fullMask, 1L) + M(c + 1L, K1, fullMask, 1L))
+    }
+  }
+  if (L > 1L) {
+    ruleLP <- -log(numAvail0) - log(2^L - 2)
+    for (D in properSubsets[[fullMask + 1L]]) {
+      addSplit(2L, paste0("x2.d", D), log(growth0) + ruleLP +
+        M(1L, K1, fullMask - D, 1L) + M(1L, K1, D, 1L))
+    }
+  }
+  logZ <- logSumExp(logNum)
+  data.frame(
+    label = labels, variable = variable,
+    prob = exp(logNum - logZ), stringsAsFactors = FALSE
   )
 }
 
@@ -382,6 +493,88 @@ truncationCheck <- function(x1, x2, y, depths) {
   }
 }
 
+# ---- the mixed scenario end to end ----
+
+mixedCellStats <- function(x1, x2f, y) {
+  vals1 <- sort(unique(x1))
+  K1 <- length(vals1)
+  L <- nlevels(x2f)
+  yRange <- max(y) - min(y)
+  yScaled <- (y - min(y)) / yRange - 0.5
+  i1 <- match(x1, vals1)
+  i2 <- as.integer(x2f)
+  cellN <- matrix(0, K1, L)
+  cellS <- matrix(0, K1, L)
+  cellSS <- matrix(0, K1, L)
+  for (o in seq_along(y)) {
+    cellN[i1[o], i2[o]] <- cellN[i1[o], i2[o]] + 1
+    cellS[i1[o], i2[o]] <- cellS[i1[o], i2[o]] + yScaled[o]
+    cellSS[i1[o], i2[o]] <- cellSS[i1[o], i2[o]] + yScaled[o]^2
+  }
+  list(K1 = K1, L = L, cellN = cellN, cellS = cellS, cellSS = cellSS,
+    residVar = (1 / yRange)^2)
+}
+
+runMixedScenario <- function(name, x1, x2f, y, maxDepth) {
+  cs <- mixedCellStats(x1, x2f, y)
+  post <- buildMixedPosterior(cs$K1, cs$L, cs$cellN, cs$cellS, cs$cellSS,
+    cs$residVar, maxDepth)
+  eng <- runEngine(data.frame(x1 = x1, x2 = x2f), y, c(100L, 100L))
+
+  exM <- rootMarginals(post)
+  N <- length(eng$var)
+  enM <- c(
+    rootOnly = mean(eng$var == -1L),
+    x1 = mean(eng$var == 1L),
+    x2 = mean(eng$var == 2L)
+  )
+  se <- c(
+    rootOnly = batchMeanSE(eng$var == -1L),
+    x1 = batchMeanSE(eng$var == 1L),
+    x2 = batchMeanSE(eng$var == 2L)
+  )
+
+  cat(sprintf(
+    "\n=== %s (n=%d, x1 %d cuts, x2 %d levels, engine N=%d) ===\n",
+    name, length(y), cs$K1 - 1L, cs$L, N))
+  cat(sprintf("%-10s %10s %10s %10s\n", "root", "engine", "exact", "MCse"))
+  for (q in c("rootOnly", "x1", "x2")) {
+    cat(sprintf("%-10s %10.4f %10.4f %10.5f\n", q, enM[q], exM[q], se[q]))
+  }
+  zEx <- (enM - exM) / se
+  cat(sprintf("z(uncond) vs exact : rootOnly %+.1f  x1 %+.1f  x2 %+.1f\n",
+    zEx["rootOnly"], zEx["x1"], zEx["x2"]))
+
+  condX2 <- function(m) m["x2"] / (m["x1"] + m["x2"])
+  enC <- condX2(enM)
+  exC <- condX2(exM)
+  split <- eng$var != -1L
+  seC <- batchMeanSE(eng$var[split] == 2L)
+  zExC <- (enC - exC) / seC
+  cat(sprintf("P(root=x2 | split): engine %.4f  exact %.4f  (MCse %.5f)  z %+.1f\n",
+    enC, exC, seC, zExC))
+
+  list(
+    engine = enM, exact = exM, se = se, zEx = zEx,
+    condEngine = enC, condExact = exC, condSe = seC, condZex = zExC
+  )
+}
+
+mixedTruncationCheck <- function(x1, x2f, y, depths) {
+  cs <- mixedCellStats(x1, x2f, y)
+  prev <- NULL
+  for (d in depths) {
+    p <- buildMixedPosterior(cs$K1, cs$L, cs$cellN, cs$cellS, cs$cellSS,
+      cs$residVar, d)
+    m <- rootMarginals(p)
+    if (!is.null(prev)) {
+      cat(sprintf("  depth %d -> %d: max root-marginal shift %.2e\n",
+        prev$d, d, max(abs(m - prev$m))))
+    }
+    prev <- list(d = d, m = m)
+  }
+}
+
 # ================= MAIN scenario =================
 
 set.seed(101L)
@@ -393,8 +586,9 @@ yMain <- 0.2 * as.vector(scale(x1)) + rnorm(n) # weak x1 signal, x2 noise
 cat("truncation check (exact root marginals vs depth), MAIN:\n")
 truncationCheck(x1, x2, yMain, c(4L, 5L, 6L))
 
-resMain <- runScenario("MAIN: unequal cut counts (19 vs 2)",
-  x1, x2, yMain, maxDepthMain, c(100L, 100L))
+resMain <- runScenario(
+  "MAIN: unequal cut counts (19 vs 2)", x1, x2, yMain, maxDepthMain,
+  c(100L, 100L))
 
 # ================= CONTROL scenario (equal cut counts) =================
 
@@ -406,37 +600,61 @@ yCtrl <- 0.2 * as.vector(scale(x1c)) + rnorm(n) # signal on x1c only
 cat("\ntruncation check (exact root marginals vs depth), CONTROL:\n")
 truncationCheck(x1c, x2c, yCtrl, c(5L, 6L))
 
-resCtrl <- runScenario("CONTROL: equal cut counts (19 vs 19)",
-  x1c, x2c, yCtrl, maxDepthCtrl, c(100L, 100L))
+resCtrl <- runScenario(
+  "CONTROL: equal cut counts (19 vs 19)", x1c, x2c, yCtrl, maxDepthCtrl,
+  c(100L, 100L))
+
+# ================= MIXED scenario (ordinal vs categorical) =================
+# x2 is a 4-level factor exactly aligned with x1's step blocks, so both
+# variables encode the same 4-level response and every mixed tree shape has a
+# likelihood-neutral cross-type partner: change proposals swapping x1 cuts for
+# x2 level subsets (and back) at STACKED nodes flow freely, and the acceptance
+# there is pure proposal-density correction. A one-sided kernel mis-weights
+# exactly those transitions - ord->cat omits the constrained old ordinal
+# side's counted ratio (|Valid| < |SI| whenever a same-variable descendant
+# split sits below), cat->ord feeds a categorical column through the ordinal
+# counters - so the x1-vs-x2 root balance drifts from the exact posterior.
+
+set.seed(303L)
+nMix <- 120L
+x1m <- as.double(rep(1:10, each = 12L)) # 10 distinct -> 9 cuts
+blockMix <- c(0, 0, 1, 1, 1, 2, 2, 2, 3, 3) # steps at x1 cuts 2, 5, 8
+x2m <- factor(letters[blockMix[x1m] + 1L]) # a..d, one level per block
+yMix <- blockMix[x1m] + rnorm(nMix)
+
+cat("\ntruncation check (exact root marginals vs depth), MIXED:\n")
+mixedTruncationCheck(x1m, x2m, yMix, c(4L, 5L, 6L))
+
+resMix <- runMixedScenario(
+  "MIXED: ordinal (9 cuts) vs categorical (4 levels)", x1m, x2m, yMix, 6L)
 
 # ================= verdict =================
+# Gate: the engine must MATCH the exact posterior (|z| < 4) on MAIN and MIXED
+# and sit far from the wrong (squared-rule-prior) target on MAIN; CONTROL
+# (equal cut counts) must match up to the honest deep-node residual (|z| < 30).
 
 cat("\n================ VERDICT ================\n")
-# headline test: P(root=x2 | root split), where the squared-rule wrong target
-# is a stump-exact prediction and the arms bracket
-zMainC <- resMain$condZex
-biasDir <- resMain$condEngine > resMain$condExact &&
-  resMain$condWrong > resMain$condExact
-bracket <- resMain$condEngine <= resMain$condWrong + 3 * resMain$condSe
-mainShift <- resMain$condEngine - resMain$condExact
-ctrlShift <- resCtrl$condEngine - resCtrl$condExact
-if (abs(zMainC) > 4 && biasDir) {
-  cat(sprintf(paste0(
-    "CONFIRMED. Unequal cut counts (19 vs 2): engine P(root=x2|split)=%.3f is\n",
-    "inconsistent with the exact posterior %.3f (z=%+.0f), shifted +%.3f toward\n",
-    "the low-cardinality variable %s the squared-rule wrong target %.3f - the\n",
-    "exact direction the omitted change-move proposal ratio predicts.\n"),
-    resMain$condEngine, resMain$condExact, zMainC, mainShift,
-    if (bracket) "and bounded above by" else "past", resMain$condWrong))
-} else {
-  cat(sprintf("REFUTED / inconclusive: main z vs exact (cond) = %+.1f\n", zMainC))
-}
-cat(sprintf(paste0(
-  "CONTROL (equal cut counts 19 vs 19): engine P(root=x2|split)=%.3f vs exact\n",
-  "%.3f, shift %+.3f - about %.0fx smaller than the main shift %.3f. The tiny\n",
-  "residual has the sign of a deeper-node cut disparity (after a split one\n",
-  "variable's interval shrinks), consistent with the mechanism and validating\n",
-  "the enumeration: equalizing the ROOT cut counts removes ~%.0f%% of the bias.\n"),
-  resCtrl$condEngine, resCtrl$condExact, ctrlShift,
-  abs(mainShift / ctrlShift), mainShift,
-  100 * (1 - abs(ctrlShift / mainShift))))
+cat(sprintf("%-26s %10s %10s %10s %10s %8s\n",
+  "scenario", "P(x2|spl)", "exact", "wrong", "z-exact", "gate"))
+mainZ <- resMain$condZex
+mainOk <- abs(mainZ) < 4
+cat(sprintf("%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
+  "MAIN (unequal 19 vs 2)", resMain$condEngine, resMain$condExact,
+  resMain$condWrong, mainZ, if (mainOk) "PASS" else "FAIL"))
+cat(sprintf("  (engine z vs wrong target %+.1f)\n", resMain$condZwr))
+ctrlZ <- resCtrl$condZex
+ctrlOk <- abs(ctrlZ) < 30
+cat(sprintf("%-26s %10.4f %10.4f %10.4f %+10.1f %8s\n",
+  "CONTROL (equal 19 vs 19)", resCtrl$condEngine, resCtrl$condExact,
+  resCtrl$condWrong, ctrlZ, if (ctrlOk) "match" else "MISMATCH"))
+mixZ <- resMix$condZex
+mixOk <- abs(mixZ) < 4
+cat(sprintf("%-26s %10.4f %10.4f %10s %+10.1f %8s\n",
+  "MIXED (ordinal vs categ.)", resMix$condEngine, resMix$condExact,
+  "-", mixZ, if (mixOk) "PASS" else "FAIL"))
+
+cat(sprintf(
+  "\nBALANCE GATE: %s (MAIN matches exact: %s; CONTROL clean: %s; MIXED matches exact: %s)\n",
+  if (mainOk && ctrlOk && mixOk) "PASS" else "FAIL",
+  if (mainOk) "yes" else "NO", if (ctrlOk) "yes" else "NO",
+  if (mixOk) "yes" else "NO"))

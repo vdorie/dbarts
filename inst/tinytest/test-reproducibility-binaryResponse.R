@@ -22,13 +22,13 @@ bartFit <- dbarts::bart(
 
 referenceBase <- list(
   yhatTrain = c(
-    -0.135254389899304,
-    0.305296648320592,
-    0.667004345507011,
-    0.627483394905247,
-    -0.152297510506958
+    0.103021425098473,
+    0.467048094413092,
+    0.514231624032174,
+    0.329182361876731,
+    -0.343432894333084
   ),
-  varcount = c(17L, 21L, 27L)
+  varcount = c(23L, 23L, 25L)
 )
 
 expect_equal(bartFit$yhat.train[n.sims, 1L:5L], referenceBase$yhatTrain)
@@ -57,13 +57,13 @@ n.sims <- nrow(bartFit$yhat.train)
 
 referenceOffset <- list(
   yhatTrain = c(
-    0.283145614996885,
-    0.00876684849456576,
-    0.471386423757719,
-    0.484111685661707,
-    0.0461271758169887
+    -0.0621219392664618,
+    0.232716454999863,
+    0.93920504537748,
+    0.34807156045297,
+    -0.0336669290684089
   ),
-  varcount = c(21L, 27L, 26L)
+  varcount = c(25L, 19L, 28L)
 )
 
 expect_equal(bartFit$yhat.train[n.sims, 1L:5L], referenceOffset$yhatTrain)

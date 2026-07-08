@@ -1,0 +1,129 @@
+
+=== Friedman n=1000 m=75 (ntree=75) ===
+  current    0.57s  accept=0.109 noop=0.0005 | ESS/s sigma=173.7 train=74.2 var=149.3
+  prior      0.57s  accept=0.105 noop=0.0123 | ESS/s sigma=100.2 train=86.7 var=179.4
+  hybrid     0.58s  accept=0.103 noop=0.0002 | ESS/s sigma=101.8 train=88.8 var=157.0
+
+=== Friedman n=1000 m=200 (ntree=200) ===
+  current    1.54s  accept=0.164 noop=0.0005 | ESS/s sigma=37.5 train=65.2 var=46.4
+  prior      1.48s  accept=0.156 noop=0.0106 | ESS/s sigma=35.4 train=65.3 var=41.7
+  hybrid     1.52s  accept=0.160 noop=0.0003 | ESS/s sigma=20.6 train=58.0 var=45.2
+
+=== Friedman n=10000 m=75 (ntree=75) ===
+  current    6.20s  accept=0.024 noop=0.0014 | ESS/s sigma=55.0 train=10.6 var=24.9
+  prior      6.07s  accept=0.022 noop=0.0177 | ESS/s sigma=23.8 train=14.7 var=26.3
+  hybrid     6.16s  accept=0.026 noop=0.0012 | ESS/s sigma=7.9 train=6.0 var=17.3
+
+=== Friedman n=10000 m=200 (ntree=200) ===
+  current   15.53s  accept=0.080 noop=0.0006 | ESS/s sigma=30.8 train=3.1 var=4.1
+  prior     15.33s  accept=0.083 noop=0.0085 | ESS/s sigma=37.6 train=4.0 var=4.6
+  hybrid    15.96s  accept=0.085 noop=0.0005 | ESS/s sigma=35.0 train=4.2 var=5.5
+
+=== Mixed n=1e4 m=75 (ntree=75) ===
+  current    6.50s  accept=0.020 noop=0.0029 | ESS/s sigma=17.6 train=8.2 var=14.5
+  prior      6.57s  accept=0.018 noop=0.0187 | ESS/s sigma=18.7 train=6.7 var=15.1
+  hybrid     6.52s  accept=0.018 noop=0.0039 | ESS/s sigma=7.0 train=8.5 var=18.3
+
+=== Deep single-tree n=1e3 power=1 (ntree=1) ===
+  current    0.02s  accept=0.071 noop=0.0394 | ESS/s sigma=322.1 train=4519.1 var=1129.5
+  prior      0.02s  accept=0.057 noop=0.1099 | ESS/s sigma=466.7 train=1116.6 var=1043.5
+  hybrid     0.02s  accept=0.075 noop=0.0233 | ESS/s sigma=566.7 train=955.4 var=1627.6
+
+=== Mixed+DART n=1e4 m=75 (ntree=75) ===
+  current    6.28s  accept=0.024 noop=0.0042 | ESS/s sigma=27.9 train=6.2 var=34.8
+  prior      6.10s  accept=0.019 noop=0.0420 | ESS/s sigma=17.0 train=4.2 var=5.8
+  hybrid     6.37s  accept=0.023 noop=0.0041 | ESS/s sigma=35.1 train=6.5 var=15.5
+
+================ STAGE 2 ESS SUMMARY (per second) ================
+                         config  kernel  seconds changeAcceptRate  noopRate
+           Friedman n=1000 m=75 current  0.57170          0.10907 0.0005399
+           Friedman n=1000 m=75   prior  0.56672          0.10467 0.0123062
+           Friedman n=1000 m=75  hybrid  0.58050          0.10329 0.0001772
+          Friedman n=1000 m=200 current  1.54085          0.16421 0.0004953
+          Friedman n=1000 m=200   prior  1.47830          0.15635 0.0106209
+          Friedman n=1000 m=200  hybrid  1.51749          0.16050 0.0003089
+          Friedman n=10000 m=75 current  6.19887          0.02426 0.0014223
+          Friedman n=10000 m=75   prior  6.07123          0.02169 0.0176723
+          Friedman n=10000 m=75  hybrid  6.15814          0.02624 0.0011646
+         Friedman n=10000 m=200 current 15.53443          0.07982 0.0006365
+         Friedman n=10000 m=200   prior 15.33199          0.08348 0.0084835
+         Friedman n=10000 m=200  hybrid 15.96068          0.08454 0.0005357
+               Mixed n=1e4 m=75 current  6.49927          0.02021 0.0029269
+               Mixed n=1e4 m=75   prior  6.56717          0.01823 0.0186544
+               Mixed n=1e4 m=75  hybrid  6.52468          0.01850 0.0039385
+ Deep single-tree n=1e3 power=1 current  0.01864          0.07143 0.0394089
+ Deep single-tree n=1e3 power=1   prior  0.01655          0.05705 0.1098993
+ Deep single-tree n=1e3 power=1  hybrid  0.01642          0.07500 0.0233333
+          Mixed+DART n=1e4 m=75 current  6.28300          0.02390 0.0042451
+          Mixed+DART n=1e4 m=75   prior  6.09963          0.01928 0.0420007
+          Mixed+DART n=1e4 m=75  hybrid  6.37448          0.02327 0.0041388
+ essSigmaPerSec essTrainMeanPerSec essVarMeanPerSec
+        173.732             74.173          149.329
+        100.195             86.666          179.363
+        101.767             88.831          157.012
+         37.500             65.211           46.426
+         35.435             65.314           41.661
+         20.564             57.988           45.248
+         54.993             10.578           24.933
+         23.829             14.710           26.288
+          7.914              6.031           17.289
+         30.827              3.106            4.081
+         37.588              3.972            4.643
+         34.993              4.168            5.537
+         17.575              8.238           14.483
+         18.688              6.734           15.122
+          6.968              8.521           18.286
+        322.146           4519.134         1129.514
+        466.748           1116.603         1043.492
+        566.732            955.402         1627.613
+         27.923              6.206           34.780
+         16.975              4.175            5.768
+         35.065              6.543           15.547
+
+================ per sweep ================
+                         config  kernel essSigmaPerSweep essTrainMeanPerSweep
+           Friedman n=1000 m=75 current         0.033107             0.014135
+           Friedman n=1000 m=75   prior         0.018927             0.016372
+           Friedman n=1000 m=75  hybrid         0.019692             0.017189
+          Friedman n=1000 m=200 current         0.019260             0.033493
+          Friedman n=1000 m=200   prior         0.017461             0.032185
+          Friedman n=1000 m=200  hybrid         0.010402             0.029332
+          Friedman n=10000 m=75 current         0.113632             0.021858
+          Friedman n=10000 m=75   prior         0.048224             0.029769
+          Friedman n=10000 m=75  hybrid         0.016246             0.012380
+         Friedman n=10000 m=200 current         0.159629             0.016085
+         Friedman n=10000 m=200   prior         0.192098             0.020299
+         Friedman n=10000 m=200  hybrid         0.186170             0.022172
+               Mixed n=1e4 m=75 current         0.038074             0.017848
+               Mixed n=1e4 m=75   prior         0.040908             0.014741
+               Mixed n=1e4 m=75  hybrid         0.015154             0.018532
+ Deep single-tree n=1e3 power=1 current         0.002001             0.028073
+ Deep single-tree n=1e3 power=1   prior         0.002575             0.006159
+ Deep single-tree n=1e3 power=1  hybrid         0.003102             0.005230
+          Mixed+DART n=1e4 m=75 current         0.058480             0.012997
+          Mixed+DART n=1e4 m=75   prior         0.034515             0.008488
+          Mixed+DART n=1e4 m=75  hybrid         0.074507             0.013903
+ essVarMeanPerSweep
+           0.028457
+           0.033883
+           0.030382
+           0.023845
+           0.020529
+           0.022888
+           0.051518
+           0.053201
+           0.035489
+           0.021132
+           0.023731
+           0.029460
+           0.031376
+           0.033102
+           0.039771
+           0.007017
+           0.005756
+           0.008910
+           0.072841
+           0.011728
+           0.033035
+
+wrote benchmarks/results/change-fix-stage2.csv

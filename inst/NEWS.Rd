@@ -337,6 +337,16 @@
             default binary fits are unchanged; fits that set `k` to a
             non-default `chi()` now draw the degrees of freedom requested
             and their results change accordingly.
+      \item The tree change move's acceptance now satisfies detailed
+            balance. It previously omitted the proposal-density ratio, a
+            defect inherited from the original CGM-lineage implementation,
+            which biased the tree-structure posterior toward
+            low-cardinality and descendant-constrained split variables
+            whenever a design's effective cut counts were unequal. Variable
+            selection is now correct for mixed continuous and categorical
+            designs and under DART. All seeded results change, and
+            variable-inclusion summaries in unequal-cut designs shift
+            accordingly.
     }
   }
 }

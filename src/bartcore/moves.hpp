@@ -318,6 +318,89 @@ inline bool categoricalSubtreeIsValidWide(const Tree& tree, int32_t nodeIndex,
                                           size_t numWords,
                                           std::uint64_t* arena, size_t depth);
 
+/// Draw a categorical assignment straight from the node prior (mechanism (a)
+/// of change-move-fix): a single unrestricted gauge-pattern draw over the
+/// reachable set, with no descendant-validity rejection loop. Returns true and
+/// fills newRule when the draw leaves every same-variable descendant
+/// satisfiable; returns false (pi(T') = 0, an automatic no-op) otherwise. The
+/// prior density 1/(2^R - 2) cancels the node's rule prior exactly, so the
+/// acceptance keeps only the subtree-below and likelihood ratios.
+inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
+                                         Tree& tree, int32_t nodeToChange,
+                                         int32_t newVariableIndex, Rule& newRule,
+                                         size_t maskPoolMark) {
+  int32_t leftChild = tree.at(nodeToChange).leftChild;
+  if (ctx.data.columnIsPooled(static_cast<size_t>(newVariableIndex))) {
+    size_t numWords = maskWordsForCount(
+      ctx.data.numCuts[static_cast<size_t>(newVariableIndex)]);
+    std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
+    reachable.resize(numWords);
+    tree.reachableCategoriesWide(ctx.data, nodeToChange, newVariableIndex,
+                                 reachable.data());
+    size_t numReachable = maskPopcount(reachable.data(), numWords);
+    ctx.scratch.patternWords.resize(numWords);
+    ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
+    size_t offset = tree.allocateMask(numWords);
+    CGMTreePrior::drawCategoryPatternWide(
+      rng, numReachable, ctx.scratch.patternWords.data(), numWords);
+    std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
+    CGMTreePrior::categoryDirectionsForPatternWide(
+      reachable.data(), ctx.scratch.patternWords.data(), directions, numWords);
+    std::uint64_t* leftReachable = ctx.scratch.maskArena.data();
+    maskAndNot(reachable.data(), directions, leftReachable, numWords);
+    if (!categoricalSubtreeIsValidWide(tree, leftChild, newVariableIndex,
+                                       leftReachable, numWords,
+                                       ctx.scratch.maskArena.data(), 1) ||
+        !categoricalSubtreeIsValidWide(tree, leftChild + 1, newVariableIndex,
+                                       directions, numWords,
+                                       ctx.scratch.maskArena.data(), 1)) {
+      tree.truncateMaskPool(maskPoolMark);
+      return false;
+    }
+    newRule.setMaskOffset(offset);
+    return true;
+  }
+
+  std::uint64_t reachable =
+    tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
+  int numReachable = std::popcount(reachable);
+  std::uint64_t pattern = CGMTreePrior::drawCategoryPattern(rng, numReachable);
+  std::uint64_t directions =
+    CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
+  if (!categoricalSubtreeIsValid(tree, leftChild, newVariableIndex,
+                                 reachable & ~directions) ||
+      !categoricalSubtreeIsValid(tree, leftChild + 1, newVariableIndex,
+                                 directions))
+    return false;  // narrow columns allocate no pool words to reclaim
+  newRule.setCategoryDirections(directions);
+  return true;
+}
+
+/// Change-move proposal kernel: redraw the split variable and rule at an
+/// internal node, keeping the subtree below in place. The acceptance satisfies
+/// detailed balance,
+///   alpha = exp( B(T') - B(T) + yLogL - xLogL + logProposalCorrection ),
+/// where B is the tree-prior log-probability of the subtree STRICTLY BELOW the
+/// changed node; every prior factor at or above the node cancels between T and
+/// T', as in birth/death. The correction is the surviving proposal-density
+/// ratio q(T|T')/q(T'|T) and composes PER SIDE, because the forward density
+/// uses the new variable v''s mechanism and the reverse the old variable v's:
+///   logProposalCorrection =
+///       (v' ordinal ? log|Valid_T(v')| - log|SI(v')| : 0)
+///     + (v  ordinal ? log|SI(v)| - log|Valid_T'(v)| : 0).
+/// An ordinal side draws uniformly over the descendant-valid good set while
+/// the node's rule prior normalizes over the ancestor-only interval, leaving
+/// the counted ratio (|SI| the interval size, |Valid| the good-set count; the
+/// variable prior and missing coin cancel within the side). A categorical side
+/// draws straight from the node prior (drawCategoricalRuleFromPrior), whose
+/// density cancels its side's prior factor exactly and contributes nothing; a
+/// forward draw that strands a descendant split is an automatic no-op
+/// (pi(T') = 0). findGoodOrdinalRules and splitInterval both ignore the node's
+/// OWN rule, so the reverse ordinal count, re-enumerated on the current tree,
+/// equals its value on the changed tree and always contains the old rule
+/// (>= 1, never zero); a same-variable redraw gives correction 1. Omitting the
+/// correction is the CGM-lineage defect this repairs
+/// (docs/design/change-move-balance.md).
 template <IntegrableLeafModel L>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
                   const double* y, double sigma, bool* stepTaken) {
@@ -342,69 +425,26 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   // replaced rule's words become garbage the chain compacts later)
   size_t maskPoolMark = tree.maskPoolMark();
 
-  if (ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
-      ColumnType::categorical) {
-    // Rejection-sample an assignment that keeps the descendant splits on
-    // this variable satisfiable: uniform over that good set, which depends
-    // only on the tree above and below the node, so the forward and reverse
-    // proposals cancel; the abort probability is likewise invariant, so an
-    // exhausted draw backs the move out symmetrically.
-    bool found = false;
-    if (ctx.data.columnIsPooled(static_cast<size_t>(newVariableIndex))) {
-      size_t numWords = maskWordsForCount(
-        ctx.data.numCuts[static_cast<size_t>(newVariableIndex)]);
-      std::vector<std::uint64_t>& reachable(ctx.scratch.reachableWords);
-      reachable.resize(numWords);
-      tree.reachableCategoriesWide(ctx.data, nodeToChange, newVariableIndex,
-                                   reachable.data());
-      size_t numReachable = maskPopcount(reachable.data(), numWords);
-      ctx.scratch.patternWords.resize(numWords);
-      // slot 0 holds the proposal's left-side mask; deeper slots serve the
-      // validity walk (one per matching-rule level, bounded by the arena)
-      ctx.scratch.maskArena.resize((tree.nodes.size() + 1) * numWords);
-      size_t offset = tree.allocateMask(numWords);
-      for (int attempt = 0; attempt < 64 && !found; ++attempt) {
-        CGMTreePrior::drawCategoryPatternWide(
-          rng, numReachable, ctx.scratch.patternWords.data(), numWords);
-        std::uint64_t* directions = tree.mutableMaskWordsFor(offset);
-        CGMTreePrior::categoryDirectionsForPatternWide(
-          reachable.data(), ctx.scratch.patternWords.data(), directions,
-          numWords);
-        std::uint64_t* leftReachable = ctx.scratch.maskArena.data();
-        maskAndNot(reachable.data(), directions, leftReachable, numWords);
-        if (categoricalSubtreeIsValidWide(
-              tree, tree.at(nodeToChange).leftChild, newVariableIndex,
-              leftReachable, numWords, ctx.scratch.maskArena.data(), 1) &&
-            categoricalSubtreeIsValidWide(
-              tree, tree.at(nodeToChange).leftChild + 1, newVariableIndex,
-              directions, numWords, ctx.scratch.maskArena.data(), 1)) {
-          newRule.setMaskOffset(offset);
-          found = true;
-        }
-      }
-    } else {
-      std::uint64_t reachable =
-        tree.reachableCategories(ctx.data, nodeToChange, newVariableIndex);
-      int numReachable = std::popcount(reachable);
-      for (int attempt = 0; attempt < 64 && !found; ++attempt) {
-        std::uint64_t pattern =
-          CGMTreePrior::drawCategoryPattern(rng, numReachable);
-        std::uint64_t directions =
-          CGMTreePrior::categoryDirectionsForPattern(reachable, pattern);
-        if (categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild,
-                                      newVariableIndex, reachable & ~directions) &&
-            categoricalSubtreeIsValid(tree, tree.at(nodeToChange).leftChild + 1,
-                                      newVariableIndex, directions)) {
-          newRule.setCategoryDirections(directions);
-          found = true;
-        }
-      }
-    }
-    if (!found) {
-      tree.truncateMaskPool(maskPoolMark);
-      return -1.0;
-    }
+  const bool newIsCategorical =
+    ctx.data.types[static_cast<size_t>(newVariableIndex)] ==
+    ColumnType::categorical;
+  int32_t oldVariableIndex = tree.at(nodeToChange).rule.variableIndex;
+  const bool oldIsCategorical =
+    ctx.data.types[static_cast<size_t>(oldVariableIndex)] ==
+    ColumnType::categorical;
+  int32_t forwardValid = 0, forwardInterval = 0;  // new-side ordinal counts
+  int32_t reverseValid = 0, reverseInterval = 0;  // old-side ordinal counts
+
+  if (newIsCategorical) {
+    // counting descendant-valid gauge patterns is exponential for wide masks,
+    // so a categorical proposal draws from the prior; the density cancels the
+    // node's rule prior and its side contributes no correction
+    if (!drawCategoricalRuleFromPrior(ctx, rng, tree, nodeToChange,
+                                      newVariableIndex, newRule, maskPoolMark))
+      return -1.0;  // pi(T') = 0: an unsatisfiable prior draw is a no-op
   } else {
+    int32_t left, right;
+    tree.splitInterval(ctx.data, nodeToChange, newVariableIndex, &left, &right);
     int32_t lower, upper;
     findGoodOrdinalRules(ctx, tree, nodeToChange, newVariableIndex, &lower, &upper);
     if (upper - lower + 1 <= 0) return -1.0;
@@ -415,12 +455,50 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     // whenever the column can route a missing value
     if (ctx.data.hasMissing[static_cast<size_t>(newVariableIndex)])
       newRule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
+
+    forwardValid = upper - lower + 1;
+    forwardInterval = right - left + 1;
   }
 
-  // prior terms outside the changed subtree depend only on rules above it,
-  // so they are identical before and after and cancel in the ratio: scoring
-  // just the subtree replaces two whole-tree walks
-  double xLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, nodeToChange);
+  if (!oldIsCategorical) {
+    // the reverse count re-enumerates the OLD variable on the current tree;
+    // splitInterval and findGoodOrdinalRules both ignore the node's own rule,
+    // so it always contains the old rule and never vanishes. Never run these
+    // ordinal counters on a categorical column - a categorical reverse side
+    // is a prior draw whose density cancels, contributing nothing.
+    int32_t oldLeft, oldRight, oldLower, oldUpper;
+    tree.splitInterval(ctx.data, nodeToChange, oldVariableIndex, &oldLeft,
+                       &oldRight);
+    findGoodOrdinalRules(ctx, tree, nodeToChange, oldVariableIndex, &oldLower,
+                         &oldUpper);
+    reverseValid = oldUpper - oldLower + 1;
+    reverseInterval = oldRight - oldLeft + 1;
+  }
+
+  double logProposalCorrection = 0.0;
+  if (!newIsCategorical && !oldIsCategorical) {
+    logProposalCorrection =
+      std::log(static_cast<double>(reverseInterval)) -
+      std::log(static_cast<double>(forwardInterval)) +
+      std::log(static_cast<double>(forwardValid)) -
+      std::log(static_cast<double>(reverseValid));
+  } else if (!newIsCategorical) {
+    logProposalCorrection =
+      std::log(static_cast<double>(forwardValid)) -
+      std::log(static_cast<double>(forwardInterval));
+  } else if (!oldIsCategorical) {
+    logProposalCorrection =
+      std::log(static_cast<double>(reverseInterval)) -
+      std::log(static_cast<double>(reverseValid));
+  }
+
+  // the node's own split-variable and rule-prior factors cancel against the
+  // proposal (or are carried by logProposalCorrection), so the pi ratio
+  // reduces to the subtree strictly below the changed node
+  int32_t leftChild = tree.at(nodeToChange).leftChild;
+  double belowX =
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
   double xLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
@@ -428,10 +506,13 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   tree.at(nodeToChange).rule = newRule;
   tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
 
-  double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, nodeToChange);
+  double belowY =
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
+    ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild + 1);
   double yLogL = logLikelihoodForBranch(ctx, leaf, tree, nodeToChange, y, sigma);
 
-  double alpha = std::exp(yLogPi + yLogL - xLogPi - xLogL);
+  double alpha =
+    std::exp((belowY - belowX) + (yLogL - xLogL) + logProposalCorrection);
   alpha = alpha > 1.0 ? 1.0 : alpha;
 
   if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
@@ -440,7 +521,6 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     tree.restoreSubtree(ctx.scratch.snapshot);
     tree.truncateMaskPool(maskPoolMark);
   }
-
   return alpha;
 }
 
