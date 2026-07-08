@@ -51,9 +51,16 @@ items
     and grow-from-root as a WARM-START producer (feeds installTrees/
     warm.start, sidesteps validity); NO-GO on shipping it as a
     standalone posterior sampler - the exact-sampler use of the scan
-    belongs to frontier 3.1's informed proposal. Awaiting VD approval
-    of the follow-up "grow-from-root warm-start producer" (shares the
-    scan primitive with frontier item 4).
+    belongs to frontier 3.1's informed proposal. APPROVED by VD
+    2026-07-08 as grow-from-root-warm-start: promote the scan kernel
+    into the engine as a shared primitive (constant leaf first,
+    reading the leaf model's suffstats), add growTreeFromRoot
+    alongside metropolisJumpForTree, wire it to emit a starting
+    forest through the installTrees/warm.start surface (user surface
+    - bart2 argument vs explicit producer - decided in the plan).
+    Shares the scan primitive with frontier item 4, so schedule to
+    land the scan once. Queued after the correctness arc (chi fix,
+    change-move stage 2, audit blocks 4-7).
   hot-layer-u8: FOLDED into data-ownership's owned container (VD
     2026-07-07, after phase-1 kernel measurements showed no standalone
     partition win); per-column widths land with the container and get
