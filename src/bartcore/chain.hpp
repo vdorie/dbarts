@@ -1663,6 +1663,40 @@ public:
   const std::vector<double>& treeFits() const { return forests_[0].treeFits; }
   const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
 
+  /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
+  /// strand its right child empty, then run tree 0's parameter draw exactly
+  /// as a sweep does (updateK forced on) and report the k accounting the
+  /// chi-k draw consumes. The stranded empty leaf must contribute nothing to
+  /// the leaf count or the sum of squares, matching the function-leaf path.
+  /// No public mutation strands an empty leaf, so this fabricates one.
+  FunctionLeafDrawStats accountStrandedLeafKStatsForTesting(int32_t variableIndex,
+                                                            int32_t splitIndex) {
+    Forest<L>& forest = forests_[0];
+    Tree& tree = forest.trees[0];
+    const double* residual = response_->workingResponse();
+    const double* weights = response_->workingWeights();
+    size_t n = data_.numObservations;
+
+    Rule rule;
+    rule.variableIndex = variableIndex;
+    rule.setSplitIndex(splitIndex);
+    tree.birth(data_, 0, rule, residual, weights);
+    int32_t rightChild = tree.at(0).leftChild + 1;
+    tree.at(rightChild).begin = tree.at(rightChild).end;
+
+    forest.updateK = true;
+    forest.kSumSquaredParams = 0.0;
+    forest.kNumLeaves = 0.0;
+    if constexpr (leafTracksNodeAverages)
+      tree.setNodeAverages(residual, weights);
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      std::copy(residual, residual + n, forest.treeY.begin());
+
+    std::vector<double> fits(n, 0.0);
+    sampleParametersAndSetFits(forest, 0, fits.data(), false);
+    return FunctionLeafDrawStats{forest.kSumSquaredParams, forest.kNumLeaves};
+  }
+
 private:
   template <typename F> struct TestFitRange { size_t begin, end; F* fn; };
   template <typename F> static void runTestFitRange(void* data) {
@@ -1846,7 +1880,9 @@ private:
                                                  sigma_ * sigma_, i);
         forest.paramByNode[static_cast<size_t>(i)] = param;
 
-        if (forest.updateK) {
+        // a forced-zero empty leaf is not a draw from the k-scaled prior, so
+        // it carries no information about k; skip it as the function path does
+        if (forest.updateK && node.numObservations() > 0) {
           forest.kSumSquaredParams += param * param;
           forest.kNumLeaves += 1.0;
         }
@@ -1884,7 +1920,9 @@ private:
                                                forest.k, sigma_ * sigma_, i,
                                                params);
 
-        if (forest.updateK) {
+        // a forced-zero empty leaf is not a draw from the k-scaled prior, so
+        // it carries no information about k; skip it as the function path does
+        if (forest.updateK && node.numObservations() > 0) {
           // every coordinate shares the scale / k prior sd, so the scaled-chi
           // posterior accumulates them all, the leaf count scaled to match
           for (size_t j = 0; j < numParams; ++j)
