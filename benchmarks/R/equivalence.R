@@ -17,6 +17,12 @@
 # Append 'quick' for a fast smoke test (not comparable to full runs).
 # --strict-coverage fails compare (instead of warning) when the installed
 # engine has scenarios the baseline predates.
+# EQUIVALENCE_SCENARIOS (comma-separated names) restricts a run to a subset
+# of scenarios, for targeted record/compare passes; unset runs everything.
+# Compare treats scenarios missing on either side gracefully: baseline-only
+# ones report "skipped", run-only ones report as uncovered (a warning unless
+# --strict-coverage), and the exit code stays 0 when every compared scenario
+# is clean.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -325,18 +331,93 @@ makeScenarios <- function() {
     )
   }
 
+  # --- gate-hardening-1.0 scenarios (poison-sweep blind spots; see
+  # docs/plans/gate-blindspot-audit.md and gate-hardening-1.0.md) ---
+
+  # GP leaves under NON-UNIT weights: the weighted GP nugget
+  # residualVariance / w_i (poison 16 was blind to every R gate because the
+  # gp scenario is unweighted). All weights strictly positive so the score
+  # path's nugget - not the zero-weight fallback - is exercised.
+  set.seed(5118L)
+  x <- matrix(runif(300L * 10L), 300L)
+  weights <- runif(300L, 0.5, 2)
+  result$wtgp <- list(
+    x = x,
+    y = friedman(x) + rnorm(300L) / sqrt(weights),
+    weights = weights,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(
+      node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25), max.leaf.size = 100L)
+    )
+  )
+
+  # grouped random intercepts (rbart_vi's in-core Gibbs blocks) under
+  # NON-UNIT weights: the weighted group-precision accumulation (poison 12
+  # was cpp-only; no grouped scenario existed and the tinytest "catch" was a
+  # hang). The gamma tau prior, NOT the half-Cauchy default: an SBC
+  # experiment found the half-Cauchy tail can stall the tau slice sampler at
+  # extreme draws. Weights spread over [0.5, 3] so the per-group weight sum
+  # differs materially from the member count.
+  set.seed(5119L)
+  x <- matrix(runif(400L * 10L), 400L)
+  groups <- factor(sample(8L, 400L, replace = TRUE))
+  groupEffects <- rnorm(8L, 0, 1.5)
+  weights <- runif(400L, 0.5, 3)
+  result$grouped <- list(
+    x = x,
+    y = friedman(x) +
+      groupEffects[as.integer(groups)] +
+      rnorm(400L) / sqrt(weights),
+    weights = weights,
+    group.by = groups,
+    group.by.test = factor(
+      sample(8L, n.test, replace = TRUE),
+      levels = levels(groups)
+    ),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    rbart = TRUE
+  )
+
+  # chi hyperprior with a df where the chi-k SHAPE term is statistically
+  # separable (poison 8, the shape mislabel 0.5(M + 2 nu - 1) for
+  # 0.5(M + nu), was invisible at nu = 1.5: a +0.25 shift against M ~ 500
+  # leaves). With nu = 50 and 20 trees (M ~ 60 leaves at this n), the
+  # mislabel's +0.5(nu - 1) = +24.5 on a posterior shape of ~55 lifts
+  # k.mean from 4.14 (across-seed sd 0.16) to 5.2-6.3 - zero across-seed
+  # overlap - and can run away entirely (the k feedback turns unstable), so
+  # the compare's disjoint-range channel catches it even when a diverged
+  # seed degenerates the Welch z.
+  set.seed(5120L)
+  x <- matrix(runif(400L * 10L), 400L)
+  result$chik2 <- list(
+    x = x,
+    y = friedman(x) + rnorm(400L),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    nTrees = 20L,
+    samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50)))
+  )
+
   result
 }
 
 # benign warnings the fitting paths emit for legitimate scenarios: test-data
-# weights (no posterior-predictive use here) and zero training weights
-# (deliberate in the zero-weight scenario). Muffle only these so real ones stay
-# visible.
+# weights (no posterior-predictive use here), zero training weights
+# (deliberate in the zero-weight scenario), and the rbart_vi formula path's
+# positional test-column matching and test-weight handling (the grouped
+# scenario's test data carries no weights by design). Muffle only these so
+# real ones stay visible.
 muffleBenignWarning <- function(w) {
   msg <- conditionMessage(w)
   if (
     grepl("'weights' are ignored for test data", msg) ||
-      grepl("'weights' of 0 will be ignored", msg)
+      grepl("'weights' of 0 will be ignored", msg) ||
+      grepl("columns of 'test' will be matched by position", msg) ||
+      grepl("weights specified but not found in test data", msg)
   ) {
     invokeRestart("muffleWarning")
   }
@@ -351,7 +432,7 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   control <- dbartsControl(
     n.chains = n.chains,
     n.threads = 1L,
-    n.trees = ntree,
+    n.trees = if (!is.null(scenario$nTrees)) scenario$nTrees else ntree,
     updateState = FALSE
   )
   dbartsArgs <- list(
@@ -403,12 +484,48 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   )
 }
 
+# runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
+# single chain, no thinning, the harness's global budget. Draw matrices come
+# back sample-major except varcount (predictor x sample), transposed here so
+# fitSummaries sees the bart() orientation.
+fitViaRbart <- function(scenario) {
+  fit <- withCallingHandlers(
+    rbart_vi(
+      scenario$y ~ scenario$x,
+      test = scenario$x.test,
+      weights = scenario$weights,
+      group.by = scenario$group.by,
+      group.by.test = scenario$group.by.test,
+      prior = gamma,
+      n.samples = ndpost,
+      n.burn = nskip,
+      n.thin = 1L,
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = ntree,
+      keepTrees = FALSE,
+      keepTestFits = TRUE,
+      verbose = FALSE
+    ),
+    warning = muffleBenignWarning
+  )
+  list(
+    yhat.test = fit$yhat.test,
+    varcount = t(fit$varcount),
+    sigma = as.vector(fit$sigma),
+    tau = as.vector(fit$tau),
+    ranef = fit$ranef
+  )
+}
+
 fitSummaries <- function(scenario, seed) {
   set.seed(seed)
   # Test-data weights are irrelevant here (no posterior-predictive use);
   # muffle only that warning so real ones stay visible.
   splitprobs <- scenario$splitprobs
-  fit <- if (!is.null(scenario$samplerApi)) {
+  fit <- if (!is.null(scenario$rbart)) {
+    fitViaRbart(scenario)
+  } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
     bartcore_bart(
@@ -471,6 +588,15 @@ fitSummaries <- function(scenario, seed) {
   if (!is.null(fit$k)) {
     result <- c(result, k.mean = mean(fit$k), k.sd = sd(fit$k))
   }
+  if (!is.null(fit$tau)) {
+    result <- c(result, tau.mean = mean(fit$tau), tau.sd = sd(fit$tau))
+  }
+  if (!is.null(fit$ranef)) {
+    result <- c(
+      result,
+      setNames(colMeans(fit$ranef), paste0("ranef.", seq_len(ncol(fit$ranef))))
+    )
+  }
   result
 }
 
@@ -523,6 +649,16 @@ runAll <- function(scenarios) {
 }
 
 scenarios <- makeScenarios()
+
+scenarioFilter <- Sys.getenv("EQUIVALENCE_SCENARIOS", "")
+if (nzchar(scenarioFilter)) {
+  wanted <- trimws(strsplit(scenarioFilter, ",", fixed = TRUE)[[1L]])
+  unknown <- setdiff(wanted, names(scenarios))
+  if (length(unknown) > 0L) {
+    stop("unknown scenario(s): ", paste(unknown, collapse = ", "))
+  }
+  scenarios <- scenarios[wanted]
+}
 
 if (mode == "record") {
   out.file <- if (length(args) >= 2L) args[[2L]] else "equivalence-baseline.rds"
@@ -588,15 +724,39 @@ if (mode == "record") {
     }
     z <- (colMeans(a) - colMeans(b)) /
       sqrt(apply(a, 2L, var) / nrow(a) + apply(b, 2L, var) / nrow(b))
+    # The Welch z is DEGENERATE when a run diverges: one blown-up seed
+    # inflates the variance so much that |z| caps near sqrt(n.seeds)
+    # (observed while poisoning the chi-k shape: 19/20 seeds cleanly
+    # shifted plus one at 1e153 passed the z gate). Disjoint seed ranges
+    # are an exact, parameter-free complement: under exchangeability
+    # P(disjoint) = 2 / choose(2n, n) per summary, negligible at the full
+    # 20 seeds; skipped for small-n quick runs where it is uninformative.
+    disjoint <- rep(FALSE, ncol(a))
+    if (2 / choose(nrow(a) + nrow(b), nrow(a)) < 1e-8) {
+      disjoint <- vapply(
+        seq_len(ncol(a)),
+        function(j) {
+          isTRUE(max(a[, j]) < min(b[, j])) ||
+            isTRUE(max(b[, j]) < min(a[, j]))
+        },
+        TRUE
+      )
+    }
     n.warn <- sum(abs(z) > 3, na.rm = TRUE)
     n.fail <- sum(abs(z) > 4, na.rm = TRUE)
+    n.disjoint <- sum(disjoint)
     cat(sprintf(
-      "%-10s %d summaries, max |z| = %.2f%s%s\n",
+      "%-10s %d summaries, max |z| = %.2f%s%s%s\n",
       name,
       length(z),
       max(abs(z), na.rm = TRUE),
       if (n.warn > 0L) sprintf(", %d with |z| > 3", n.warn) else "",
-      if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else ""
+      if (n.fail > 0L) sprintf(", %d with |z| > 4 <- FAIL", n.fail) else "",
+      if (n.disjoint > 0L) {
+        sprintf(", %d with disjoint seed ranges <- FAIL", n.disjoint)
+      } else {
+        ""
+      }
     ))
     if (n.fail > 0L) {
       anyFailure <- TRUE
@@ -607,6 +767,22 @@ if (mode == "record") {
           names(z)[failed],
           " (z=",
           round(z[failed], 2L),
+          ")",
+          collapse = ", "
+        ),
+        "\n"
+      )
+    }
+    if (n.disjoint > 0L) {
+      anyFailure <- TRUE
+      cat(
+        "  disjoint ranges:",
+        paste0(
+          names(z)[disjoint],
+          " (",
+          signif(colMeans(a)[disjoint], 3L),
+          " vs ",
+          signif(colMeans(b)[disjoint], 3L),
           ")",
           collapse = ", "
         ),
