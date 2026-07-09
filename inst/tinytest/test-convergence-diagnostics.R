@@ -8,6 +8,11 @@ source(
 # as_draws_array/as_draws_df and summary() build on. No posterior
 # dependency, so this runs unconditionally.
 
+## combineChains = FALSE pinned deliberately: this fit exercises
+## bartDrawsArray's reconstruction of the chain axis from an uncombined
+## (n.chains x n.samples[ x n.vars]) stored shape, now that bart2's own
+## stored-object default is combined (see the TRUE/FALSE pair below for the
+## combined-shape side of the same reconstruction)
 fit <- dbarts::bart2(
   testData$y ~ testData$x,
   n.chains = 3L,
@@ -16,7 +21,8 @@ fit <- dbarts::bart2(
   n.thin = 1L,
   n.trees = 5L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 
 arr <- dbarts:::bartDrawsArray(fit, "sigma")
@@ -102,6 +108,8 @@ expect_null(s0$stats)
 expect_error(dbarts:::bartDrawsArray(noScalarFit, c("sigma", "k", "tau")))
 
 # rbart_vi contributes tau alongside sigma
+# combineChains = FALSE pinned deliberately, same reason as the bart2 fit
+# above: this checks the uncombined (n.chains x n.samples) tau shape
 n.g <- 5L
 g <- factor(sample(n.g, length(testData$y), replace = TRUE))
 y.grouped <- testData$y + rnorm(n.g, 0, 1)[g]
@@ -114,7 +122,8 @@ rfit <- dbarts::rbart_vi(
   n.chains = 2L,
   n.trees = 5L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 expect_equal(dim(rfit$tau), c(2L, 15L))
 rArr <- dbarts:::bartDrawsArray(rfit, c("sigma", "tau"))

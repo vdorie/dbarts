@@ -22,6 +22,9 @@ allTrees <- dbarts::extract(fit, "trees")
 
 expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
 expect_true(!("chain" %in% colnames(allTrees)))
+# chain-first column order (trivially satisfied here: no chain column, so
+# sample leads), matching getTrees/extract.rbart's convention
+expect_equal(colnames(allTrees)[1:2], c("sample", "tree"))
 
 combinations <- data.frame(
   sample = rep(seq_len(n.samples), each = n.trees),
@@ -76,6 +79,8 @@ fit <- dbarts::rbart_vi(
 allTrees <- dbarts::extract(fit, "trees")
 
 expect_true(all(c("sample", "chain", "tree") %in% colnames(allTrees)))
+# chain-first column order everywhere (matches extract.bart/getTrees)
+expect_equal(colnames(allTrees)[1:3], c("chain", "sample", "tree"))
 
 combinations <- data.frame(
   chain = rep(seq_len(n.chains), each = n.trees * n.samples),
@@ -121,6 +126,7 @@ allTrees <- dbarts::extract(fit, "trees")
 
 expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
 expect_true(!("chain" %in% colnames(allTrees)))
+expect_equal(colnames(allTrees)[1:2], c("sample", "tree"))
 
 combinations <- data.frame(
   sample = rep(seq_len(n.samples), each = n.trees),

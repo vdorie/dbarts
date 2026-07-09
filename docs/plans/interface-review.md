@@ -305,3 +305,249 @@ casual bart() path well documented.
     sampling.
   - air format --check .: clean. lintr on every touched R file:
     no lints found.
+
+- 2026-07-08: interface-taste-1.0 landed. All eleven taste calls
+  (T1-T11) done; two (T6, T10) turned out to already be resolved by
+  prior work and needed verification plus doc polish rather than a
+  functional fix - reported below rather than silently no-op'd.
+
+  Per-item status:
+  - T1 done. bart2/rbart_vi's combineChains default flipped
+    FALSE -> TRUE (R/bart.R, R/rbart.R); man/bart.Rd and man/rbart.Rd
+    updated. RNG-neutral as scoped (shapes only).
+  - T2 done. extract.rbart's varOrder (R/generics.R) reordered to
+    chain-first; getTrees' own C-level emission was already
+    chain-first (verified in src/R_interface_bartcore.cpp's
+    emitTreeDataFrame), so this was the one place still emitting
+    sample-first. Single-chain crash fix (F2) untouched - "chain" is
+    still dropped from knownOrder when absent from colnames.
+  - T3 done. extract.rbart/predict.rbart/fitted.rbart's PPD paths now
+    thread weights. rbart_vi's fit object did not store weights/
+    weights.test at all (checked, per the task's instruction to
+    verify) - added the same "needed to extract ppd" block bart2 has
+    to packageRbartResults (R/rbart.R), fed by the `data` argument
+    already passed in. extract.rbart/fitted.rbart (which shares a
+    sample = "train"/"test" argument) now compute
+    `weights <- if (sample == "train") object$weights else object$weights.test`
+    exactly like extract.bart's F1 fix. predict.rbart has no
+    train/test sample of its own (it always predicts fresh newdata),
+    so mirroring extract.bart's sample-keyed weights would not have
+    applied; instead gave it a `weights` argument mirroring
+    predict.bart's own (user-supplies weights for the newdata,
+    missing -> NULL) - the literal task wording ("weights.test for
+    test") assumed a sample argument predict.rbart does not have;
+    resolved as the closer parity target (predict.bart) rather than
+    invented from scratch. man/rbart.Rd's usage block gained the new
+    formal; no new \arguments entry needed since "weights" is already
+    in the shared bart2-bundle item.
+  - T4 done. Lazy-state analysis (delayedAssign at R/dbarts.R
+    ~370-396, confirmed by reading and by the live check below):
+    the "state" field is bound with delayedAssign; its expression
+    reads control@updateState and, if TRUE, calls storeState() on
+    first *access* of $state, capturing whatever the sampler's state
+    is AT THAT MOMENT. So mutate-then-first-access is always covered:
+    an unforced promise fires after the mutation and captures current
+    state, promise or no opt-in wiring needed. Staleness is only
+    possible once the promise has already been forced (by an earlier
+    $state read, an explicit storeState(), or a run()/
+    sampleTreesFromPrior()/sampleNodeParametersFromPrior() call that
+    itself stores) and a later mutator call is not followed by
+    another store - state then keeps referring to the pre-mutation
+    snapshot. Wired all seven mutators (setData, setResponse,
+    setOffset, setWeights, setSigma, setPredictor, setCutPoints in
+    R/dbarts.R) as OPT-IN: `if (identical(updateState, TRUE))
+    storeState()` after the mutation succeeds; NA (default) and
+    FALSE store nothing, deliberately NOT following run()'s
+    NA -> control@updateState convention (mutators run per-sweep in
+    Gibbs loops; the default must stay free). No ambiguity surfaced
+    that needed asking VD - the "opt-in only" reading was unambiguous
+    once the delayedAssign behavior was confirmed. setPredictor's
+    wrapper had to preserve its return value's visibility (invisible
+    NULL vs a visible logical) explicitly, since capturing the result
+    in a local and returning the local strips invisibility. Documented
+    in man/dbartsSampler-class.Rd's shared updateState \item, split by
+    method family. New test file test-sampler-updateState.R: since
+    most of the seven mutators change `data`, not tree/RNG structure,
+    $state's *content* is unaffected by them regardless of storing
+    (verified empirically for setWeights); setCutPoints prunes empty
+    leaves and so is the one used to demonstrate an actual content
+    change, plus a smoke test that all seven accept updateState = TRUE
+    without error.
+  - T5 done, doc-only. man/rbart.Rd: removed k from the bart2 "same
+    as" bundle; added its own \item{k} noting rbart_vi's fixed 2.0
+    default vs. bart2's NULL (chi hyperprior on binary responses only
+    in bart2). No default-value research beyond what's already in
+    man/bart.Rd's existing k documentation was needed to write this.
+  - T6 ALREADY RESOLVED before this task started; no functional
+    change made. Traced the redirectCall/match.call chain (R/bart.R,
+    R/dbarts.R, R/data.R): bart2's own `factors` formal default
+    (`c("categorical", "indicators")`) is dead unless the caller
+    passes it explicitly - redirectCall only forwards args present in
+    the caller's *actual* call, so an omitted `factors` falls through
+    to dbarts()'s default, which falls through to dbartsData()'s,
+    both already `"categorical"` first. Verified live: `bart2(y ~ x
+    + f, ...)` with a 3-level factor `f` and no `factors` argument
+    produces a single categorical column (verified against explicit
+    `factors = "indicators"` giving the expected 3 dummy columns).
+    Git blame traces this to b33d40b3 ("Flip the default engine to
+    bartcore", 2026-07-03), which predates the interface-review
+    finding this task is based on - the review's finding text was
+    stale by the time this task was written. bart()'s own hardcoded
+    `factors = "indicators"` (R/bart.R, BayesTree-compat shim,
+    non-overridable) is unaffected and correct as scoped ("xbart
+    untouched" also holds - not touched). Only change: sharpened
+    man/bart.Rd's `factors, family, missing` entry for bart2 to spell
+    out the model-matrix-representation difference from bart(), since
+    the doc gap (not the behavior) was real.
+    Gate fallout (as instructed, reported even though empty): no
+    tinytest failures traceable to bart2's factors default (there
+    was nothing to change); equivalence gate's `categorical` scenario
+    exercises factor predictors through `dbarts()` directly (
+    samplerApi = TRUE, not bart2), so it does not directly probe this
+    default, but it is included in the 18/18 identical-draws result
+    below regardless, and no code touching bart2's factors resolution
+    changed, so nothing could have diverged. No baseline touched.
+  - T7 done. plot.pdbart's cols default flipped to c("blue", "black")
+    (R/plot.R, man/pdbart.Rd). No test asserted the old order.
+  - T8 done. pdbart.getAndInitializeSampler (R/partialDependence.R,
+    shared by pdbart and pd2bart) now stops with "'<name>' is set
+    internally by pdbart/pd2bart and cannot be overridden" if
+    sampleronly/samplerOnly is already present in the redirected call
+    before it is set - i.e. only when the immediate caller (or, on the
+    bart-fit-object refit path, the original fit-time call) passed it
+    explicitly. Untouched when not passed. Regression tests added to
+    test-pdbart.R for both pdbart and pd2bart.
+  - T9 done. validateXTest's (R/data.R) both-named/mismatched-names
+    branch now stop()s, naming the 'x' columns missing from 'test'
+    and 'test's full column set. The not-both-named branch's warning
+    (reinstated by F6) is untouched. Updated test-data-errors.R's
+    expect_warning to expect_error with the new message; no other
+    test hit this path.
+  - T10 ALREADY RESOLVED before this task started; no restoration
+    needed. `git log --all --oneline -- vignettes` shows the
+    directory is not lost: vignettes/working_with_saved_trees.Rmd
+    (and gibbs_sampler_mixture_model.Rmd) are checked in, current,
+    and NOT in .Rbuildignore; DESCRIPTION's VignetteBuilder/Suggests
+    are correctly wired. Prior commits 4e6106a ("Re-seed the
+    saved-trees vignette for the new engine", 2026-07-05), d2a658b
+    ("Bring the vignettes up to the 1.0-0 surface", 2026-07-07), and
+    b17a78f (2026-07-07) - all ancestors of this worktree's base
+    (8744e77) and all predating the interface-review's recorded
+    finding (2026-07-08) - already updated the vignette's content and
+    fixed whatever build-config gap once caused it to drop (same
+    stale-finding pattern as T6: the review read an earlier tree
+    state). Verified directly: `R CMD build .` succeeds and the
+    tarball contains vignettes/working_with_saved_trees.Rmd,
+    inst/doc/working_with_saved_trees.{Rmd,R,pdf} - the code chunks
+    already execute against the installed package (knitr runs during
+    build) and already reflect current API, including this task's own
+    T2 fix (the vignette's "Flattened Trees" section documents
+    chain-first columns and its examples use chain-first subsetting).
+    No stop-and-report-only situation arose since there was nothing
+    stale to find; reporting the investigation as instructed.
+  - T11 done. n.cuts is now a real integer slot on dbartsControl
+    (R/A_class.R), prototype 100L, with a validity check
+    (`anyNA(...) || any(... <= 0L)`) deliberately not constrained to
+    length 1 (n.cuts can be a per-predictor vector, recycled later).
+    dbartsControl()'s constructor (R/dbarts.R) now passes
+    `n.cuts = coerceOrError(n.cuts, "integer")` straight into
+    newValidated() like every other slot, instead of a manual
+    stop() plus attr() stash; rethrowValidityError already strips the
+    S4 "invalid class ... object:" prefix, so both prior error
+    messages ("must be coercible to type: integer" from
+    coerceOrError, "must contain only positive integers" from the new
+    validity check) are byte-identical to before - confirmed against
+    test-control-errors.R without editing it. Removed the attr(control,
+    "n.cuts") <- NULL strip in both read sites (R/dbarts.R's dbarts(),
+    R/xbart.R) since there is no longer a transient attribute to
+    clear; both now read control@n.cuts directly. Grepped all of R/
+    for `"n.cuts"` in quotes to confirm no other attr(., "n.cuts")
+    reader was missed. Constructor signature unchanged. setControl's
+    "settings fixed at creation" guard list (n.trees/n.chains/
+    useQuantiles/rngSeed) deliberately NOT extended to n.cuts: it was
+    never consulted after data-object construction even as an
+    attribute (data@n.cuts, a real dbartsData slot, is what the
+    engine actually reads), so a setControl() call with a different
+    n.cuts was already a silent no-op before this change and remains
+    one now - adding a guard would be a behavior change outside this
+    item's scope. man/dbartsControl.Rd never mentioned the attribute
+    exception, so nothing to strike there.
+
+  Ambiguities resolved (see per-item notes above for the reasoning):
+  T3's predict.rbart weights source (predict.bart parity, not a
+  sample argument that does not exist); T6 and T10 being no-ops
+  (verified live rather than assumed from the task text).
+
+  Tests updated (deliberate, not silent workarounds), all because
+  bart2/rbart_vi's combineChains default flip (T1) changed the shape
+  of fields these tests index directly - each pinned
+  combineChains = FALSE explicitly to keep asserting the *uncombined*
+  shape it was actually testing, rather than rewriting the assertions
+  to the new combined shape:
+  - test-convergence-diagnostics.R: the bart2 fit feeding
+    bartDrawsArray's reconstruction check, and the rbart_vi fit
+    feeding the same for tau.
+  - test-rbart-bartcore.R: the built-in-tau-prior fit whose
+    dim(fit$tau)/dimnames(fit$ranef) are asserted directly.
+  - test-rbart-generics.R: both rbart_vi fits that index $ranef/
+    $yhat.train/$yhat.test as raw 3-d arrays (bart-type and
+    fitted-type comparisons).
+  - test-rbart-groupby.R: the missing-levels fit whose $ranef is
+    indexed 3-d.
+  - test-rbart-reproducibility.R: both fit1/fit2, whose
+    per-chain-independence check indexes $yhat.train[1L,,] and
+    [2L,,] directly.
+  - test-model-priors.R: the DART fit whose $varprobs shape/sum
+    are asserted directly.
+  - test-rbart-example.R: the canonical two-chain rbart_vi example,
+    whose entire point is asserting the raw per-field shapes.
+  Also found and fixed a genuine latent bug this default flip
+  unmasked (not a test-only issue): predict.rbart's unmeasured-level
+  branch (R/generics.R, in the code building ranef for test levels
+  absent from training) branched on `length(dim(object$ranef)) == 2L`
+  - the fit's *stored* shape - to decide whether to cbind or
+  array-rebuild the newly-drawn unmeasured-level ranef into the
+  already-locally-reshaped `ranef` variable, instead of branching on
+  `length(dim(ranef))` (the local variable, already reshaped earlier
+  in the same call to match *this call's* combineChains argument).
+  The two disagreed whenever a fit's own stored combineChains default
+  differed from the value requested at predict() time - previously
+  impossible to hit by accident because both defaulted the same way
+  (FALSE); T1 unifying the family default to TRUE exposed the gap the
+  first time a test called predict(..., combineChains = FALSE) against
+  a now-combined-by-default fit with an unmeasured test level. Fixed
+  by branching on the local `ranef` instead.
+
+  New regression tests added: T3 (rbart_vi weighted-PPD variance
+  contrast for extract/fitted/predict.rbart's `weights` argument,
+  test-generics-posteriorPredictiveDistribution.R), T4
+  (test-sampler-updateState.R, new file), T8 (sampleronly/samplerOnly
+  override errors for both pdbart and pd2bart, test-pdbart.R), plus
+  explicit chain-first column-order assertions added to
+  test-sampler-trees.R for T2.
+
+  Gates (from the worktree; C++ untouched - only R/, inst/tinytest/,
+  man/, docs/):
+  - R CMD INSTALL . (--preclean once, out of caution for the
+    dbartsControl slot addition; ordinary R CMD INSTALL . confirmed
+    clean afterward too): clean.
+  - tinytest::test_package("dbarts"): All ok, 2496 results (up from
+    2477 at the interface-fixes-1.0 baseline; +19 from the new/
+    strengthened regressions listed above). Every deliberate test
+    edit is listed above; no other file needed changes.
+  - benchmarks/R/equivalence.R compare
+    benchmarks/baselines/equivalence-cf99a00.rds: 18/18 identical
+    draws (same RNG stream) - no scenario diverged; T6 required no
+    RNG-affecting change (see above), so there was no
+    bart2-with-factors statistical-verdict case to report. Baseline
+    left untouched.
+  - R CMD build .: succeeds; tarball contains vignettes/*.Rmd,
+    vignettes/references.bib, and inst/doc/*.{Rmd,R,pdf} for both
+    vignettes (T10 - already shipping, reconfirmed).
+  - air format --check on every touched file: clean. lintr on every
+    touched R file (via lint() with the project .lintr config): 0
+    lints. tools::checkDocFiles(dir = "."): 0 issues (Rd usage vs.
+    formals, including predict.rbart's new `weights` argument).
+    Touched Rd files (man/bart.Rd, man/rbart.Rd,
+    man/dbartsSampler-class.Rd, man/pdbart.Rd) contain no non-ASCII
+    bytes and parse cleanly under tools::parse_Rd.

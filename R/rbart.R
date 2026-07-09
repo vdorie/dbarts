@@ -30,7 +30,7 @@ rbart_vi <- function(
   n.burn = 1500L,
   n.chains = 4L,
   n.threads = min(dbarts::guessNumCores(), n.chains),
-  combineChains = FALSE,
+  combineChains = TRUE,
   n.cuts = 100L,
   useQuantiles = FALSE,
   n.thin = 5L,
@@ -944,6 +944,13 @@ packageRbartResults <- function(
   }
   if (!is.null(group.by.test)) {
     result[["group.by.test"]] <- group.by.test
+  }
+  # needed to extract ppd; mirrors bart2's packageBartResults
+  if (!is.null(data@weights) && length(data@weights) > 0L) {
+    result$weights <- data@weights
+    if (!is.null(data@weights.test) && length(data@weights.test) > 0L) {
+      result$weights.test <- data@weights.test
+    }
   }
 
   if (n.chains > 1L) {

@@ -24,6 +24,9 @@ g <- factor(g)
 
 # the built-in priors run in-core: one multi-chain sampler with the chain
 # count on the object, tau and ranef channels filled
+# combineChains = FALSE pinned deliberately: the assertions below check the
+# uncombined (n.chains x n.samples[ x n.groups]) stored shapes directly,
+# now that rbart_vi's own stored-object default is combined
 fit <- dbarts::rbart_vi(
   y ~ x,
   group.by = g,
@@ -35,7 +38,8 @@ fit <- dbarts::rbart_vi(
   n.threads = 1L,
   keepTrees = TRUE,
   verbose = FALSE,
-  seed = 2L
+  seed = 2L,
+  combineChains = FALSE
 )
 expect_equal(length(fit$fit), 1L)
 expect_equal(fit$fit[[1L]]$control@n.chains, 2L)

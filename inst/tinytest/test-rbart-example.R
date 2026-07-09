@@ -23,6 +23,8 @@ testData$b <- b
 rm(b, sigma.b, g, n.g)
 
 # test that rbart runs example
+# combineChains = FALSE pinned deliberately: the shape assertions below
+# expect the raw uncombined (n.chains x n.samples[ x ...]) stored shapes
 rbartFit <- dbarts::rbart_vi(
   y ~ x,
   testData,
@@ -33,7 +35,8 @@ rbartFit <- dbarts::rbart_vi(
   n.chains = 2L,
   n.trees = 25L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 expect_equal(
   dim(rbartFit$yhat.train),

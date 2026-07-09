@@ -90,6 +90,25 @@ pdf(NULL)
 expect_silent(plot(pdb1))
 dev.off()
 
+# sampleronly is set internally (pdbart always needs the sampler, not just
+# its result); an explicit user value must error rather than be silently
+# clobbered
+expect_error(
+  dbarts::pdbart(
+    x,
+    y,
+    xind = c(1, 2),
+    pl = FALSE,
+    levs = list(seq(-1, 1, 0.2), seq(-1, 1, 0.2)),
+    ntree = 5L,
+    ndpost = 10L,
+    nskip = 5L,
+    sampleronly = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "set internally"
+)
+
 rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 
 
@@ -180,6 +199,23 @@ expect_equal(pdb1$fd, pdb5$fd)
 pdf(NULL)
 expect_silent(plot(pdb1))
 dev.off()
+
+# same guard as pdbart: sampleronly is set internally
+expect_error(
+  dbarts::pd2bart(
+    x,
+    y,
+    xind = c(2, 3),
+    pl = FALSE,
+    levquants = c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95),
+    ntree = 5L,
+    ndpost = 10L,
+    nskip = 5L,
+    sampleronly = TRUE,
+    verbose = FALSE
+  ),
+  pattern = "set internally"
+)
 
 rm(pdb5, sampler, pdb4, control, pdb3, bartFit, pdb2, pdb1, y, x)
 

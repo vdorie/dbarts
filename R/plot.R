@@ -214,7 +214,7 @@ plot.pdbart <- function(
   x,
   xind = seq_along(x$fd),
   plquants = c(0.05, 0.95),
-  cols = c("black", "blue"),
+  cols = c("blue", "black"),
   ...
 ) {
   rgy <- range(x$fd)

@@ -21,7 +21,7 @@ rbart_vi(
     n.trees = 75L,
     n.samples = 1500L, n.burn = 1500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
-    combineChains = FALSE,
+    combineChains = TRUE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 5L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
@@ -53,7 +53,7 @@ rbart_vi(
     \dots)
 
 \S3method{predict}{rbart}(
-    object, newdata, group.by, offset,
+    object, newdata, group.by, offset, weights,
     type = c("ev", "ppd", "bart", "ranef"),
     combineChains = TRUE,
     ci.level = NULL,
@@ -80,8 +80,11 @@ rbart_vi(
   \item{callback}{
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
-  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
+  \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
     Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} has no \code{family} argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
+  }
+  \item{k}{
+    As in \code{\link{bart2}}, except that \code{rbart_vi} fixes the default at \code{2.0} for both continuous and binary responses; unlike \code{bart2}, a \code{NULL} default (and thus the \code{chi} hyperprior on binary fits) is not available here.
   }
   \item{object}{
     A fitted \code{rbart} model.

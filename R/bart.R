@@ -352,7 +352,7 @@ bart2 <- function(
   n.burn = 500L,
   n.chains = 4L,
   n.threads = min(dbarts::guessNumCores(), n.chains),
-  combineChains = FALSE,
+  combineChains = TRUE,
   n.cuts = 100L,
   useQuantiles = FALSE,
   n.thin = 1L,
