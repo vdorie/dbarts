@@ -122,7 +122,7 @@
 <dd><p>Optional function of <code>trainFits</code>, <code>testFits</code>, <code>ranef</code>, <code>sigma</code>, and <code>tau</code>. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.</p></dd>
 
   <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-k-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-k-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-"></a></dt>
-<dd><p>Same as in <code><a href="bart.html">bart2</a></code>. With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> has no <code>family</code> argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
+<dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> has no <code>family</code> argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
 
   <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A fitted <code>rbart</code> model.</p></dd>
@@ -131,7 +131,7 @@
 <dd><p>Same as <code>test</code>, but named to match <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></code> generic.</p></dd>
 
   <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
-<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"value"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
+<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
 
   <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
 <dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or tests samples respectively.</p></dd>
@@ -260,7 +260,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001593</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001547</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 </span>
@@ -305,7 +305,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000398</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000393</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 </span>
@@ -318,7 +318,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002017</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001972</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 </span>

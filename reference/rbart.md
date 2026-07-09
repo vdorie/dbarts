@@ -111,12 +111,13 @@ residuals(object, type = "ev", ...)
   keepTrees, keepCall, seed, keepSampler, factors, missing, ...:
 
   Same as in
-  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md). With
-  `dart`, split probability samples appear as `varprobs` on the fit.
-  Unlike `bart2`, `rbart_vi` has no `family` argument - the response
-  family is always resolved automatically as gaussian or probit, with no
-  logistic option - and does not accept sparse (`Matrix::dgCMatrix`)
-  predictors.
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), with one
+  default difference: `keepTrees` defaults to `TRUE` here (`bart2`'s
+  default is `FALSE`). With `dart`, split probability samples appear as
+  `varprobs` on the fit. Unlike `bart2`, `rbart_vi` has no `family`
+  argument - the response family is always resolved automatically as
+  gaussian or probit, with no logistic option - and does not accept
+  sparse (`Matrix::dgCMatrix`) predictors.
 
 - object:
 
@@ -136,8 +137,8 @@ residuals(object, type = "ev", ...)
   the random effects, while the posterior predictive distribution is a
   response sampled with that mean. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
-  `"response"` can be used as a synonym for `"value"` and `"link"` can
-  be used as a synonym for `"bart"`. For additional details on tree
+  `"response"` can be used as a synonym for `"ev"` and `"link"` can be
+  used as a synonym for `"bart"`. For additional details on tree
   extraction, see the corresponding subsection in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md).
 
@@ -308,7 +309,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001593
+#> total seconds in loop: 0.001547
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 
@@ -353,7 +354,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000398
+#> total seconds in loop: 0.000393
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 
@@ -366,7 +367,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002017
+#> total seconds in loop: 0.001972
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 

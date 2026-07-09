@@ -448,8 +448,11 @@ tree. The predictors are supplied in the same form as for
 <code>predict</code>.</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">newData</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,<span class="op">]</span></span>
-<span><span class="va">newTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span>, newdata <span class="op">=</span> <span class="va">newData</span>, sampleNums <span class="op">=</span> <span class="fl">3</span>, treeNums <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">newTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span>, newdata <span class="op">=</span> <span class="va">newData</span>, sampleNums <span class="op">=</span> <span class="fl">3</span>, treeNums <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+<pre><code><span><span class="co">## Warning in validateXTest(newdata, data@x): 'x' and 'test' are not both named;</span></span>
+<span><span class="co">## columns of 'test' will be matched by position</span></span></code></pre>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##   chain sample tree n var       value</span></span>
 <span><span class="co">## 1     1      3    1 5   5  0.17209902</span></span>
 <span><span class="co">## 2     1      3    1 2  -1 -0.16037867</span></span>
@@ -462,7 +465,7 @@ tree. The predictors are supplied in the same form as for
 </h2>
 <p>The following function can be used to map an arbitrary function over
 a tree.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mapOverNodes</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">f</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="va">mapOverNodesRecurse</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">tree</span>, <span class="va">depth</span>, <span class="va">f</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>        <span class="va">node</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -504,7 +507,7 @@ R environment - it keeps track of the current state of traversal. This
 includes the variables that have been used for splits above the current
 node and also includes the current node’s depth, which is used to detect
 backtracking.</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">observeInteractions</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">node</span>, <span class="va">...</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">node</span><span class="op">$</span><span class="va">var</span><span class="op">)</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="cn">NULL</span><span class="op">)</span></span>
 <span></span>
@@ -557,7 +560,7 @@ backtracking.</p>
 <p>After execution, the boolean matrix in the interaction data
 environment will contain all ancestor/descendant relationships in this
 tree.</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">interactionData</span><span class="op">$</span><span class="va">hasInteraction</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##         descendant</span></span>
 <span><span class="co">## ancestor    X1    X2    X3    X4    X5    X6    X7    X8    X9   X10</span></span>

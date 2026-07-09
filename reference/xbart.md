@@ -98,14 +98,16 @@ xbart(
 
 - n.burn:
 
-  Between one and three non-negative integers, specifying 1) the burn-in
-  when a chain is freshly started against a data split and 2) the
-  burn-in when moving from one parameter setting to another over the
-  same split. Chains are never carried between data splits or folds -
-  the held-out observations of one were training observations of the
-  previous, so continuing a chain lets slowly-mixing settings score
-  against data they have effectively seen. A third element is accepted
-  for backwards compatibility and ignored.
+  Unlike the single-scalar `n.burn` of
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+  `bart2`, and `rbart_vi`, here it is between one and three non-negative
+  integers, specifying 1) the burn-in when a chain is freshly started
+  against a data split and 2) the burn-in when moving from one parameter
+  setting to another over the same split. Chains are never carried
+  between data splits or folds - the held-out observations of one were
+  training observations of the previous, so continuing a chain lets
+  slowly-mixing settings score against data they have effectively seen.
+  A third element is accepted for backwards compatibility and ignored.
 
 - loss:
 
@@ -191,6 +193,11 @@ xbart(
 
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
+  Same as
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
+  `sigma`; the same concept is named `sigest` in
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
+  and [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md).
 
 - seed:
 
@@ -288,9 +295,9 @@ x  <- matrix(runif(n * 10), n, 10)
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-mad <- function(y.train, y.train.hat, weights) {
+mad <- function(y.test, y.test.hat, weights) {
     # note, weights are ignored
-    mean(abs(y.train - apply(y.train.hat, 1L, mean)))
+    mean(abs(y.test - apply(y.test.hat, 1L, mean)))
 }
 
 

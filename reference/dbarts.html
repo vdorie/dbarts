@@ -74,7 +74,7 @@
 <dd><p>An optional vector of weights to be used in the fitting process. For a gaussian response, BART fits a model with observations \(y \mid x \sim N(f(x), \sigma^2 / w)\), where \(f(x)\) is the unknown function. Binary responses differ: a <code>"probit"</code> model does not support weights (a weighted probit has no tractable latent-variable form), except that weights identically 1 are treated as absent; a <code>"logistic"</code> model treats them as observation counts and so requires positive integers (its Polya-Gamma latent for a count \(w\) is a sum of \(w\) unit draws).</p></dd>
 
   <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
-<dd><p>An optional vector specifying an offset from 0 for the relationship between the underlying function, \(f(x)\), and the response \(y\). Only is useful for binary responses, in which case the model fit is to assume \(P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\), where \(\Phi\) is the standard normal cumulative distribution function.</p></dd>
+<dd><p>An optional vector specifying an offset from 0 for the relationship between the underlying function, \(f(x)\), and the response \(y\). Useful for both response families, though the two apply it differently. For a gaussian response, \(y = f(x) + \mathrm{offset} + \epsilon\): the offset is netted out of \(y\) before BART's internal range-scaling (see ‘Details’), so it acts as a fixed component of the mean rather than a free parameter. For binary responses it enters the link directly: a <code>"probit"</code> fit assumes \(P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\), where \(\Phi\) is the standard normal cumulative distribution function, and a <code>"logistic"</code> fit the analogous model on the logistic link.</p></dd>
 
   <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
 <dd><p>The equivalent of <code>offset</code> for test observations. Will attempt to use <code>offset</code> when applicable.</p></dd>
@@ -100,7 +100,7 @@
   <dt id="arg-control">control<a class="anchor" aria-label="anchor" href="#arg-control"></a></dt>
 <dd><p>An object inheriting from <code>dbartsControl</code>, created by the <code><a href="dbartsControl.html">dbartsControl</a></code> function.</p></dd>
  <dt id="arg-sigma">sigma<a class="anchor" aria-label="anchor" href="#arg-sigma"></a></dt>
-<dd><p>A positive numeric estimate of the residual standard deviation. If <code>NA</code>, a linear model is used with all of the predictors to obtain one.</p></dd>
+<dd><p>A positive numeric estimate of the residual standard deviation. If <code>NA</code>, a linear model is used with all of the predictors to obtain one. Same concept as <code>sigest</code> in <code><a href="bart.html">bart</a></code>/<code>bart2</code> and <code><a href="rbart.html">rbart_vi</a></code>; <code><a href="xbart.html">xbart</a></code> uses this function's <code>sigma</code> name directly.</p></dd>
 
   <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
 <dd><p>Optional integer seed for the random number generator, a convenience mirror of <code>dbartsControl(rngSeed = )</code>. When not <code>NA</code> it overrides the seed in <code>control</code>; the fitting-function wrappers (<code><a href="bart.html">bart2</a></code>, <code><a href="xbart.html">xbart</a></code>) accept the same argument.</p></dd>

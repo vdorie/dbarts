@@ -55,11 +55,19 @@ getTrees(
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
 plotTree(
-  treeNum, treePlotPars = c(
+  treeNum, chainNum, sampleNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
   ...
 )
 ```
+
+## Note
+
+`dbartsSampler` is a reference class: its methods are not called as free
+functions but as `$`-dispatched calls on a sampler instance, e.g.
+`sampler$run(100, 100)` or `sampler$setResponse(newY)`. The S4-method
+notation in ‘Usage’ below is an artifact of how reference-class methods
+are documented and does not reflect the calling syntax; see ‘Examples’.
 
 ## Arguments
 
@@ -145,7 +153,11 @@ plotTree(
 
 - n.threads:
 
-  If greater than one, chain predictions will take place in parallel.
+  Currently has no effect: `run` and `predict` both execute serially
+  regardless of the value passed here. The sampler's own thread count is
+  fixed when it is created, from the `n.threads` of its
+  [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  object; this argument is reserved for a future per-call override.
 
 - sigma:
 
@@ -228,6 +240,19 @@ plotTree(
 
   An integer listing the indices of the tree to plot.
 
+- chainNum:
+
+  For `plotTree`, an integer giving the chain to plot from. Required
+  when the sampler has more than one chain; defaults to `1` when there
+  is only one.
+
+- sampleNum:
+
+  For `plotTree`, an integer giving the saved sample to plot. Applies
+  only when `keepTrees` is `TRUE`, in which case it defaults to the most
+  recently drawn sample; ignored (with the live working trees plotted
+  instead) when `keepTrees` is `FALSE`.
+
 - treePlotPars:
 
   A named numeric vector containing the quantities `nodeHeight`,
@@ -297,11 +322,17 @@ treating the chain as converged.
 ## Value
 
 For `run`, a named-list with contents `sigma`, `train`, `test`, and
-`varcount`. A run can be interrupted with `Ctrl-C`: it stops between
-iterations - joining any worker threads first - and signals an error,
-returning no samples from the interrupted run. The sampler's chains are
-left at the iteration they reached, which is a valid state to run again
-from.
+`varcount` (plus `k`, `varprobs`, `tau`, and `ranef` when applicable).
+`train` is an array of dimension n.obs x n.samples x n.chains, and
+likewise `test` (or `NULL` if the sampler has no test data) and
+`varcount` are n.predictors x n.samples x n.chains; `sigma` is n.samples
+x n.chains. When `n.chains` is `1` the trailing chain dimension is
+dropped, so `train` is a plain n.obs x n.samples matrix and `sigma` a
+plain vector of length n.samples. A run can be interrupted with
+`Ctrl-C`: it stops between iterations - joining any worker threads
+first - and signals an error, returning no samples from the interrupted
+run. The sampler's chains are left at the iteration they reached, which
+is a valid state to run again from.
 
 For `setPredictor`, `TRUE`/`FALSE` depending on whether or not the
 operation was successful. The operation can fail if the new predictor
@@ -347,3 +378,39 @@ slope on the internal standardized scale; internal nodes are `NA`.
 [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
 for applying a shared per-observation predictor update across several
 samplers at once.
+
+## Examples
+
+``` r
+# the embedded-Gibbs pattern: BART as a conditional model inside a larger
+# sampler, alternating its own draws with updates to its response between
+# calls to run()
+n <- 100
+x <- matrix(runif(n * 2), n, 2)
+y <- x[, 1] - x[, 2] + rnorm(n, 0, 0.1)
+
+sampler <- dbarts(
+  y ~ x,
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.burn = 0L,
+    n.samples = 1L,
+    updateState = TRUE
+  )
+)
+
+## first draw: response as given at creation
+samples <- sampler$run()
+str(samples$train) # a plain n.obs x n.samples matrix (n.chains == 1)
+#>  num [1:100, 1] -0.8207 0.8956 0.2326 -0.3679 0.0244 ...
+
+## an outer Gibbs step changes the response (e.g. after updating some
+## other part of a joint model); the sampler picks the new target up on
+## the next run() without being recreated
+newY <- y + rnorm(n, 0, 0.05)
+sampler$setResponse(newY)
+samples <- sampler$run()
+str(samples$train)
+#>  num [1:100, 1] -0.6833 0.6015 0.3523 -0.4685 -0.0563 ...
+```

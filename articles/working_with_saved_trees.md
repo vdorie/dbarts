@@ -390,6 +390,13 @@ same form as for `predict`.
 
 newData <- x[1:5,]
 newTrees <- extract(bartFit, "trees", newdata = newData, sampleNums = 3, treeNums = 1)
+```
+
+    ## Warning in validateXTest(newdata, data@x): 'x' and 'test' are not both named;
+    ## columns of 'test' will be matched by position
+
+``` r
+
 print(subset(newTrees, chain == 1))
 ```
 

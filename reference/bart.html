@@ -143,7 +143,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Explanatory variables for test (out of sample) data. Should have same column structure as <code>x.train</code>. <code>bart</code> will generate draws of \(f(x)\) for each \(x\) which is a row of <code>x.test</code>.</p></dd>
 
    <dt id="arg-sigest">sigest<a class="anchor" aria-label="anchor" href="#arg-sigest"></a></dt>
-<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary.</p></dd>
+<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary. Same concept as <code>sigma</code> in <code><a href="dbarts.html">dbarts</a></code> and <code><a href="xbart.html">xbart</a></code>.</p></dd>
 
    <dt id="arg-sigdf">sigdf<a class="anchor" aria-label="anchor" href="#arg-sigdf"></a></dt>
 <dd><p>Degrees of freedom for error variance prior. Not applicable when \(y\) is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.</p></dd>
@@ -203,13 +203,13 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Logical; if <code>FALSE</code> suppress printing.</p></dd>
 
    <dt id="arg-nchain-n-chains">nchain, n.chains<a class="anchor" aria-label="anchor" href="#arg-nchain-n-chains"></a></dt>
-<dd><p>Integer specifying how many independent tree sets and fits should be calculated.</p></dd>
+<dd><p>Integer specifying how many independent tree sets and fits should be calculated. Default 1 for <code>bart</code>, BayesTree's historical single-chain convention; <code>bart2</code>'s (and <code><a href="rbart.html">rbart_vi</a></code>'s) default is 4.</p></dd>
 
    <dt id="arg-nthread-n-threads">nthread, n.threads<a class="anchor" aria-label="anchor" href="#arg-nthread-n-threads"></a></dt>
 <dd><p>Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.</p></dd>
 
    <dt id="arg-combinechains-combinechains">combinechains, combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains-combinechains"></a></dt>
-<dd><p>Logical; if <code>TRUE</code>, samples will be returned in arrays of dimensions equal to <code>nchain</code> \(\times\) <code>ndpost</code> \(\times\) number of observations.</p></dd>
+<dd><p>Logical; if <code>TRUE</code>, samples will be returned in arrays of dimensions equal to <code>nchain</code> \(\times\) <code>ndpost</code> \(\times\) number of observations. Default <code>TRUE</code> for <code>bart</code>; <code>bart2</code>'s (and <code><a href="rbart.html">rbart_vi</a></code>'s) default is <code>FALSE</code>, tracked instead on the returned object's <code>n.chains</code> component (see ‘Value’).</p></dd>
 
    <dt id="arg-keeptrees-keeptrees">keeptrees, keepTrees<a class="anchor" aria-label="anchor" href="#arg-keeptrees-keeptrees"></a></dt>
 <dd><p>Logical; must be <code>TRUE</code> in order to use <code>predict</code> with the result of a <code>bart</code> fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.</p></dd>
@@ -248,7 +248,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>The same as <code>binaryOffset</code>. Can be missing.</p></dd>
 
    <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
-<dd><p>A vector of offsets to be used with test data, in case it is different than the training offset. If <code>offest</code> is missing, defaults to <code>NULL</code>.</p></dd>
+<dd><p>A vector of offsets to be used with test data, in case it is different than the training offset. If <code>offset.test</code> is missing, defaults to <code>NULL</code>.</p></dd>
 
    <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>An object of class <code>bart</code>, returned from either the function <code>bart</code> or <code>bart2</code>.</p></dd>
@@ -298,6 +298,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <p><code>bart</code> and <code><a href="rbart.html">rbart_vi</a></code> support <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted</a></code> to return the posterior mean of a predicted quantity, as well as <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></code> to return a set of posterior samples for a different sample. In addition, the <code>extract</code> generic can be used to obtain the posterior samples for the training data or test data supplied during the initial fit.</p>
 <p>Using <code>predict</code> with a <code>bart</code> object requires that it be fitted with the option <code>keeptrees</code>/<code>keepTrees</code> as <code>TRUE</code>. Keeping the trees for a fit can require a sizeable amount of memory and is off by default.</p>
 <p>All generics return values on the scale of expected value of the response by default. This means that <code>predict</code>, <code>extract</code>, and <code>fitted</code> for binary outcomes return probabilities unless specifically the sum-of-trees component is requested (<code>type = "bart"</code>). This is in contrast to <code>yhat.train</code>/<code>yhat.test</code> that are returned with the fitted model.</p>
+<p><code>residuals</code> returns \(y\) minus <code>fitted(object, type = type, sample = "train")</code>; the default <code>type = "ev"</code> gives ordinary response-scale residuals, so for a binary fit this is \(y - P(Y = 1 \mid x)\). Binary fits do not have <code>yhat.train.mean</code>/<code>yhat.test.mean</code> components (see ‘Value’); use <code>fitted</code> to obtain the equivalent posterior-mean probabilities directly.</p>
 </div>
 
 <p></p><div class="section">
@@ -314,7 +315,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <p></p><div class="section">
 <h3 id="extracting-trees">Extracting Trees<a class="anchor" aria-label="anchor" href="#extracting-trees"></a></h3>
 <p>When a model is fit with <code>keeptrees</code> (<code>bart</code>) or <code>keepTrees</code> (<code>bart2</code>) equal to <code>TRUE</code>, the generic <code>extract</code> can be used to retrieve a data frame containing the tree fit information. In this case, <code>extract</code> will accept the additional, optional arguments: <code>chainNums</code>, <code>sampleNums</code>, and <code>treeNums</code>. Each should be an integer vector detailing the desired trees to be returned. A further optional argument <code>newdata</code> routes a new set of predictors (in the same form accepted by <code>predict</code>) through the frozen trees so that the <code>n</code> column counts those observations instead of the training data.</p>
-<p>The result of <code>extract</code> will be a data frame with columns:</p><ul><li><p><code>sample</code>, <code>chain</code>, <code>tree</code> - index variables</p></li>
+<p>The result of <code>extract</code> will be a data frame with columns:</p><ul><li><p><code>chain</code>, <code>sample</code>, <code>tree</code> - index variables</p></li>
 <li><p><code>n</code> - number of observations in node, drawn from the training data or from <code>newdata</code> when supplied</p></li>
 <li><p><code>var</code> - either the index of the variable used for splitting or -1 if the node is a leaf</p></li>
 <li><p><code>value</code> - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node</p></li>
@@ -372,7 +373,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>The resolved response family (<code>"gaussian"</code>, <code>"probit"</code>, or <code>"logistic"</code>). <code>predict</code>, <code>extract</code>, <code>fitted</code>, and <code>plot</code> use it to transform latent draws to probabilities.</p></dd>
 
 
-</dl><p>In the binary \(y\) case, the returned list has the components <code>yhat.train</code>, <code>yhat.test</code>, and <code>varcount</code> as above.  In addition the list has a <code>binaryOffset</code> component giving the value used.</p>
+</dl><p>In the binary \(y\) case, the returned list has the components <code>yhat.train</code>, <code>yhat.test</code>, and <code>varcount</code> as above, but not <code>yhat.train.mean</code>/<code>yhat.test.mean</code> - use <code>fitted</code> to get the posterior mean of \(P(Y = 1 \mid x)\) instead. In addition the list has a <code>binaryOffset</code> component giving the value used.</p>
 <p>Note that in the binary \(y\), case <code>yhat.train</code> and <code>yhat.test</code> are \(f(x) + \mathrm{binaryOffset}\). For draws of the probability \(P(Y = 1 | x)\), apply the family's inverse link to these values: the normal cdf (<code>pnorm</code>) for <code>"probit"</code> fits, <code>plogis</code> for <code>"logistic"</code> ones.</p>
 <p>For continuous response fits, the <code>plot</code> method sets <code>mfrow</code> to <code>c(1, 2)</code> and makes two plots. The first plot is the sequence of kept draws of \(\sigma\) including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \(y\) on the horizontal axis and posterior intervals for the corresponding \(f(x)\) on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \(P(Y = 1 \mid x)\) on the horizontal axis and its posterior interval on the vertical axis.</p>
     </div>
@@ -462,7 +463,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.225337</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.224545</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -528,7 +529,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001448</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001355</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 </span>

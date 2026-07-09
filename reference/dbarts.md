@@ -77,9 +77,15 @@ dbarts(
 
   An optional vector specifying an offset from 0 for the relationship
   between the underlying function, \\f(x)\\, and the response \\y\\.
-  Only is useful for binary responses, in which case the model fit is to
-  assume \\P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\\, where
-  \\\Phi\\ is the standard normal cumulative distribution function.
+  Useful for both response families, though the two apply it
+  differently. For a gaussian response, \\y = f(x) + \mathrm{offset} +
+  \epsilon\\: the offset is netted out of \\y\\ before BART's internal
+  range-scaling (see ‘Details’), so it acts as a fixed component of the
+  mean rather than a free parameter. For binary responses it enters the
+  link directly: a `"probit"` fit assumes \\P(Y = 1 \mid X = x) =
+  \Phi(f(x) + \mathrm{offset})\\, where \\\Phi\\ is the standard normal
+  cumulative distribution function, and a `"logistic"` fit the analogous
+  model on the logistic link.
 
 - offset.test:
 
@@ -149,6 +155,11 @@ dbarts(
 
   A positive numeric estimate of the residual standard deviation. If
   `NA`, a linear model is used with all of the predictors to obtain one.
+  Same concept as `sigest` in
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)/`bart2`
+  and [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md);
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) uses
+  this function's `sigma` name directly.
 
 - seed:
 

@@ -122,7 +122,10 @@ residuals(object, type = "ev", ...)
   deviation (residual standard error), \\\sigma\\, used to calibrate an
   inverse-chi-squared prior on the error variance. If not supplied, the
   least-squares estimate is derived instead. See `sigquant` for more
-  information. Not applicable when \\y\\ is binary.
+  information. Not applicable when \\y\\ is binary. Same concept as
+  `sigma` in
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
+  [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
 
 - sigdf:
 
@@ -273,7 +276,10 @@ residuals(object, type = "ev", ...)
 - nchain, n.chains:
 
   Integer specifying how many independent tree sets and fits should be
-  calculated.
+  calculated. Default 1 for `bart`, BayesTree's historical single-chain
+  convention; `bart2`'s (and
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
+  default is 4.
 
 - nthread, n.threads:
 
@@ -286,7 +292,10 @@ residuals(object, type = "ev", ...)
 
   Logical; if `TRUE`, samples will be returned in arrays of dimensions
   equal to `nchain` \\\times\\ `ndpost` \\\times\\ number of
-  observations.
+  observations. Default `TRUE` for `bart`; `bart2`'s (and
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
+  default is `FALSE`, tracked instead on the returned object's
+  `n.chains` component (see ‘Value’).
 
 - keeptrees, keepTrees:
 
@@ -372,7 +381,8 @@ residuals(object, type = "ev", ...)
 - offset.test:
 
   A vector of offsets to be used with test data, in case it is different
-  than the training offset. If `offest` is missing, defaults to `NULL`.
+  than the training offset. If `offset.test` is missing, defaults to
+  `NULL`.
 
 - object:
 
@@ -514,6 +524,13 @@ sum-of-trees component is requested (`type = "bart"`). This is in
 contrast to `yhat.train`/`yhat.test` that are returned with the fitted
 model.
 
+`residuals` returns \\y\\ minus
+`fitted(object, type = type, sample = "train")`; the default
+`type = "ev"` gives ordinary response-scale residuals, so for a binary
+fit this is \\y - P(Y = 1 \mid x)\\. Binary fits do not have
+`yhat.train.mean`/`yhat.test.mean` components (see ‘Value’); use
+`fitted` to obtain the equivalent posterior-mean probabilities directly.
+
 ### Saving
 
 [`save`](https://rdrr.io/r/base/save.html)ing and
@@ -555,7 +572,7 @@ the training data.
 
 The result of `extract` will be a data frame with columns:
 
-- `sample`, `chain`, `tree` - index variables
+- `chain`, `sample`, `tree` - index variables
 
 - `n` - number of observations in node, drawn from the training data or
   from `newdata` when supplied
@@ -660,8 +677,10 @@ numeric \\y\\ case, the list has components:
   transform latent draws to probabilities.
 
 In the binary \\y\\ case, the returned list has the components
-`yhat.train`, `yhat.test`, and `varcount` as above. In addition the list
-has a `binaryOffset` component giving the value used.
+`yhat.train`, `yhat.test`, and `varcount` as above, but not
+`yhat.train.mean`/`yhat.test.mean` - use `fitted` to get the posterior
+mean of \\P(Y = 1 \mid x)\\ instead. In addition the list has a
+`binaryOffset` component giving the value used.
 
 Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 \\f(x) + \mathrm{binaryOffset}\\. For draws of the probability \\P(Y = 1
@@ -764,7 +783,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.225337
+#> total seconds in loop: 0.224545
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -830,7 +849,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001448
+#> total seconds in loop: 0.001355
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 
