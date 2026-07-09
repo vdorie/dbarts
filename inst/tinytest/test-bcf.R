@@ -47,6 +47,18 @@ expect_true(all(is.finite(result.control$train)))
 # out-of-range forest index errors
 expect_error(dbarts:::bartcoreForestFits(bcSampler, 2L), "out of range")
 
+# the single-forest test-fit and prediction surface is undefined under BCF (no
+# test treatment vector): setTestPredictor and predict are refused, pointing at
+# the per-forest channels (bcf-testfits-guard)
+expect_error(
+  dbarts:::bartcoreSetTestPredictor(bcSampler, x[1:5, , drop = FALSE]),
+  "BCF"
+)
+expect_error(
+  dbarts:::bartcorePredict(bcSampler, x[1:5, , drop = FALSE]),
+  "BCF"
+)
+
 # state round-trip: store, restore into a fresh BCF sampler, continue
 dbarts:::bartcoreSetTreatment(bcSampler, z)
 dbarts:::bartcoreRun(bcSampler, 0L, 5L)

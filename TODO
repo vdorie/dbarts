@@ -86,19 +86,18 @@ items
     log-loss, AUC, calibration, and interval coverage. Output: a
     design note + recommendation; any default change is its own
     posterior-changing item with VD's sign-off.
-  bcf-testfits-guard: correctness-audit block-6 finding, latent.
-    results.testFits under BCF reports the bare mu forest with the
-    combined-response shift (chain.hpp storeSample; trainingFits has
-    the BCF blend, testFits does not) - no a, no b_z tau, and no
-    test treatment vector exists to blend with. Fix: reject or NA
-    the testFits channel for BCF samplers instead of filling it
-    wrong; document that k/variableCounts/splitProbabilities are
-    mu-forest diagnostics under BCF. Block-7 upgrade: reachable via
-    the unguarded bartcore_setTestPredictor on a BCF pointer
-    (R_interface_bartcore.cpp:1815), so also guard setTestPredictor
-    on numForests >= 2. Unreached by the R wrapper (prediction
-    recombines via forestTotalFits + bcfGlue); a dbarts.h consumer
-    passing testFits would get silent garbage. Small, engine + docs.
+  bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
+    testFits channel under BCF (chain.hpp) instead of recording the
+    bare mu forest, and the bridge refuses the single-forest test
+    surface on a BCF sampler (numForests >= 2): setTestPredictor,
+    setTestOffset, setTestPredictorAndOffset, and predict all
+    Rf_error, pointing at the per-forest channels (getForestFits +
+    bcfGlue). Confirmed createBCFHolder wires no test data, so the
+    setters were the only reach. Results doc records that
+    k/variableCounts/splitProbabilities are mu-forest diagnostics
+    under BCF. tests/cpp BCF case + test-bcf.R error pair; all gates
+    bit-identical (equivalence 18/18, bcf-exact matches). Design note
+    docs/plans/bcf-testfits-guard.md.
   change-move-balance: LANDED 2026-07-08 - the hybrid change kernel
     (VD's pick after the stage-2 measurements; cross-type correction
     caught and fixed in review) is now THE change move; its acceptance
