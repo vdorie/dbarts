@@ -44,4 +44,32 @@ for (i in seq_len(n.obs)) {
 
 rm(i, samples.pm, samples.ppd, bartFit, n.obs, n.chains, n.samples)
 
+# extract(type = "ppd", sample = "train") must weight its noise draws by
+# the fit's case weights (object$weights, not the "weigths" typo it used to
+# read): a row with a large weight gets a tight PPD, a small-weight row a
+# wide one, even though every row shares the same posterior sigma draws
+set.seed(0L)
+n <- 200L
+x <- matrix(runif(n * 2L), n, 2L)
+y <- x[, 1L] + rnorm(n, 0, 0.3)
+w <- rep(c(100, 0.01), each = n / 2L)
+weightedFit <- dbarts::bart2(
+  x,
+  y,
+  weights = w,
+  n.samples = 200L,
+  n.burn = 100L,
+  n.trees = 25L,
+  n.chains = 1L,
+  n.threads = 1L,
+  combineChains = TRUE,
+  verbose = FALSE
+)
+ppd.weighted <- extract(weightedFit, type = "ppd", sample = "train")
+sd.highWeight <- apply(ppd.weighted[, w > 1, drop = FALSE], 2L, sd)
+sd.lowWeight <- apply(ppd.weighted[, w < 1, drop = FALSE], 2L, sd)
+expect_true(all(sd.highWeight < sd.lowWeight))
+
+rm(n, x, y, w, weightedFit, ppd.weighted, sd.highWeight, sd.lowWeight)
+
 rm(testData)

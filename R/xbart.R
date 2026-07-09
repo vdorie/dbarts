@@ -268,7 +268,11 @@ xbart <- function(
   if (method == "k-fold") {
     n.test <- coerceOrError(n.test, "integer")
     if (n.test < 2L || n.test > numObservations) {
-      stop("for k-fold crossvalidation, n.test must be an integer in [2, N]")
+      stop(
+        "for k-fold crossvalidation, n.test must be an integer in [2, ",
+        numObservations,
+        "]"
+      )
     }
     foldSizes <- rep.int(numObservations %/% n.test, n.test) +
       rep.int(

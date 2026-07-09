@@ -51,7 +51,7 @@ xbart(
     A positive integer setting the number of cross validation steps that will be taken. For \code{"k-fold"}, each replication corresponds to fitting each of the \eqn{K} folds in turn, while for \code{"random subsample"} a replication is a single fit.
   }
   \item{n.burn}{
-    Between one and three non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen. A third element is accepted for backwards compatibility and ignored.
+    Unlike the single-scalar \code{n.burn} of \code{\link{dbarts}}, \code{bart2}, and \code{rbart_vi}, here it is between one and three non-negative integers, specifying 1) the burn-in when a chain is freshly started against a data split and 2) the burn-in when moving from one parameter setting to another over the same split. Chains are never carried between data splits or folds - the held-out observations of one were training observations of the previous, so continuing a chain lets slowly-mixing settings score against data they have effectively seen. A third element is accepted for backwards compatibility and ignored.
   }
   \item{loss}{
     Either a one of the pre-set loss functions as character-strings (\code{mcr} - misclassification rate for binary responses, \code{rmse} - root-mean-squared-error for continuous response), \code{log} - negative log-loss for binary response (\code{rmse} serves this purpose for continuous responses), a function, or a function-evaluation environment list-pair. Functions should have prototypes of the form \code{function(y.test, y.test.hat, weights)}, where \code{y.test} is the held out test subsample, \code{y.test.hat} is a matrix of dimension \code{length(y.test) * n.samples}, and \code{weights} are an optional vector of user-supplied weights. See examples.
@@ -87,7 +87,7 @@ xbart(
      An object inheriting from \code{dbartsControl}, created by the \code{\link{dbartsControl}} function.
    }
    \item{sigma}{
-     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one.
+     A positive numeric estimate of the residual standard deviation. If \code{NA}, a linear model is used with all of the predictors to obtain one. Same as \code{\link{dbarts}}'s \code{sigma}; the same concept is named \code{sigest} in \code{\link{bart}}/\code{bart2} and \code{\link{rbart_vi}}.
    }
    \item{seed}{
      Optional integer specifying the desired pRNG \link[=set.seed]{seed}. Results are reproducible for a fixed pair of \code{seed} and \code{n.threads}; the caller's random stream is left untouched when a seed is given. Without one, \code{\link{set.seed}} beforehand suffices.
@@ -136,9 +136,9 @@ x  <- matrix(runif(n * 10), n, 10)
 Ey <- f(x)
 y  <- rnorm(n, Ey, sigma)
 
-mad <- function(y.train, y.train.hat, weights) {
+mad <- function(y.test, y.test.hat, weights) {
     # note, weights are ignored
-    mean(abs(y.train - apply(y.train.hat, 1L, mean)))
+    mean(abs(y.test - apply(y.test.hat, 1L, mean)))
 }
 
 

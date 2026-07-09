@@ -99,7 +99,9 @@ validateXTest <- function(x.test, x.train) {
         (!xIsNamed && testIsNamed) ||
         length(unique(predictorNames)) != length(predictorNames)
     ) {
-      ## warning("'x' and 'test' are not both named; columns of test matrix will be selected by position")
+      warning(
+        "'x' and 'test' are not both named; columns of 'test' will be matched by position"
+      )
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
       if (any(is.na(matchIndices))) {
@@ -343,6 +345,46 @@ dbartsData <- function(
       }
       originalOffset <- offset # nolint: object_usage_linter.
     }
+
+    # pre-validate lengths against a known y/data length so a mismatch reads
+    # as our own message rather than model.frame's "variable lengths differ
+    # (found for '(weights)')"; a data.frame is the only case where the
+    # eventual length is known this early without duplicating model.frame's
+    # own work
+    dataLength <- if (!dataIsMissing && is.data.frame(data)) {
+      nrow(data)
+    } else {
+      NA_integer_
+    }
+    if (!is.na(dataLength)) {
+      if (
+        !is.null(offset) &&
+          !isTRUE(offsetGivenAsScalar) &&
+          length(offset) != dataLength
+      ) {
+        stop("length of 'offset' must equal length of 'y'")
+      }
+      if (!missing(weights)) {
+        weightsCall <- matchedCall[c(
+          1L,
+          match(
+            c("formula", "data", "weights"),
+            names(matchedCall),
+            nomatch = 0L
+          )
+        )]
+        names(weightsCall)[names(weightsCall) == "weights"] <- "term"
+        weightsCall[[1L]] <- quoteInNamespace(findTermInFormulaData)
+        weightsValue <- tryCatch(
+          eval(weightsCall, parent.frame()),
+          error = function(e) NULL
+        )
+        if (!is.null(weightsValue) && length(weightsValue) != dataLength) {
+          stop("length of 'weights' must equal length of 'y'")
+        }
+      }
+    }
+
     modelFrameCall <- matchedCall
     modelFrameCall <- modelFrameCall[c(
       1L,
@@ -555,6 +597,28 @@ dbartsData <- function(
     # values are validated below, like the sparse-matrix branch above
     if (!xIsMixed) {
       completeCases <- stats::complete.cases(x, y)
+
+      # the drop below happens before xHasNA is evaluated further down, so
+      # missing = "error" must be checked against the pre-filter state here
+      # or its request is silently defeated
+      if (missing == "error") {
+        if (anyNA(y)) {
+          stop("response contains missing values")
+        }
+        if (anyNA(x)) {
+          stop(
+            "predictors contain missing values; use missing = \"incorporate\" to model them"
+          )
+        }
+      } else {
+        numDropped <- sum(!completeCases)
+        if (numDropped > 0L) {
+          warning(
+            numDropped,
+            " row(s) dropped due to missing values in 'x' or 'y'"
+          )
+        }
+      }
 
       y <- y[completeCases]
       x <- if (!is.matrix(x)) {

@@ -341,8 +341,15 @@ expect_identical(r.to1$train, r.to2$train)
 expect_identical(r.to1$test + 2, r.to2$test)
 
 # replacing test predictors alone keeps the offset only when the row count
-# still matches; the combined setter changes both
-expect_silent(sampler.to2$setTestPredictor(matrix(runif(10L * p), 10L, p)))
+# still matches; the combined setter changes both. Named like x.engine so
+# the named/unnamed column-matching diagnostic does not fire here.
+newTestPredictor <- matrix(
+  runif(10L * p),
+  10L,
+  p,
+  dimnames = list(NULL, colnames(x.engine))
+)
+expect_silent(sampler.to2$setTestPredictor(newTestPredictor))
 expect_error(
   sampler.to2$setTestPredictor(matrix(runif(5L * p), 5L, p)),
   pattern = "together"

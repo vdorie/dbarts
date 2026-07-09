@@ -99,6 +99,40 @@ expect_equal(allTrees, individualSamples)
 rm(individualSamples, combinations, allTrees, fit)
 rm(n.chains, n.samples, n.trees)
 
+# extract(rbartFit, "trees") for a single-chain fit: getTrees omits the
+# "chain" column entirely (there is only one), so the varOrder reorder must
+# not require it - this used to raise "undefined columns selected"
+n.trees <- 3L
+n.samples <- 4L
+fit <- dbarts::rbart_vi(
+  y ~ .,
+  df,
+  group.by = g,
+  n.threads = 1L,
+  n.trees = n.trees,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.samples = n.samples,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+allTrees <- dbarts::extract(fit, "trees")
+
+expect_true(all(c("sample", "tree") %in% colnames(allTrees)))
+expect_true(!("chain" %in% colnames(allTrees)))
+
+combinations <- data.frame(
+  sample = rep(seq_len(n.samples), each = n.trees),
+  tree = rep(seq_len(n.trees), times = n.samples)
+)
+expect_true(all(
+  paste0(combinations$sample, ";", combinations$tree) %in%
+    paste0(allTrees$sample, ";", allTrees$tree)
+))
+
+rm(fit, allTrees, combinations, n.trees, n.samples)
+
 
 ## ---------------------------------------------------------------------------
 ## getTrees(current = TRUE) returns the live working trees even for a keepTrees

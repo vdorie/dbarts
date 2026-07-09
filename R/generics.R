@@ -193,9 +193,20 @@ extract.bart <- function(
       "cannot extract test sample predictions if no test data exists; use `predict` instead"
     )
   }
+  if (sample == "train" && is.null(object[["yhat.train"]])) {
+    if (as.character(object$call[[1L]]) == "bart2") {
+      stop(
+        "cannot extract train sample predictions; bart2 must be called with 'keepTrainingFits' == TRUE"
+      )
+    } else {
+      stop(
+        "cannot extract train sample predictions; bart must be called with 'keeptrainfits' == TRUE"
+      )
+    }
+  }
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
-  weights <- if (sample == "train") object$weigths else object$weights.test
+  weights <- if (sample == "train") object$weights else object$weights.test
 
   n.chains <- if (!is.null(object[["fit"]])) {
     object$fit$control@n.chains
@@ -574,7 +585,11 @@ extract.rbart <- function(
       if (n.chains > 1L) {
         result_i$chain <- i
       }
-      result_i[, match(varOrder, colnames(result_i))]
+      # varOrder's "chain" is absent for single-chain fits (getTrees omits
+      # it); reorder only the columns that exist and keep any others
+      # (directions/missing/beta.*) trailing in their original order
+      knownOrder <- varOrder[varOrder %in% colnames(result_i)]
+      result_i[, c(knownOrder, setdiff(colnames(result_i), knownOrder))]
     })
     if (length(allTrees) > 1L) {
       allTrees <- Reduce(rbind, allTrees)
@@ -623,6 +638,12 @@ extract.rbart <- function(
     }
 
     return(ranef)
+  }
+
+  if (sample == "train" && is.null(object[["yhat.train"]])) {
+    stop(
+      "cannot extract train sample predictions; rbart_vi must be called with 'keepTrainingFits' == TRUE"
+    )
   }
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
@@ -713,6 +734,12 @@ fitted.rbart <- function(
     )
   }
   sample <- sample[1L]
+
+  if (sample == "train" && type != "ranef" && is.null(object[["yhat.train"]])) {
+    stop(
+      "cannot extract train sample predictions; rbart_vi must be called with 'keepTrainingFits' == TRUE"
+    )
+  }
 
   # ci.level routes through the draws (extract) rather than the mean-only C
   # fast path below, then summarizes to est + credible band (kind follows type)
@@ -909,22 +936,83 @@ sampleFromPPD <- function(ev, object, weights) {
   result
 }
 
+# family/chain-count/tree-count/burn-in/kept-draws synopsis for print.bart
+# and print.rbart, built only from fields that exist regardless of
+# keepCall, keepSampler, and (for rbart) whether one sampler is kept per
+# chain or a single in-core Gibbs sampler handles them all - so a fit
+# created with keepCall = FALSE still prints something useful. n.trees and
+# n.burn are only recoverable when the sampler itself was kept (keepTrees/
+# keepSampler = TRUE); they are omitted otherwise, since the fit object
+# does not retain them on its own.
+fitSynopsis <- function(x) {
+  fit <- x[["fit"]]
+  fitIsList <- !is.null(fit) && is.list(fit)
+
+  n.chains <- if (fitIsList) {
+    # rbart: object$n.chains, when present, is authoritative even when the
+    # kept sampler list has only one element - the in-core Gibbs path keeps
+    # one multi-chain sampler and stores n.chains alongside it (matches the
+    # n.chains idiom in predict.rbart/extract.rbart/plotTree.rbart)
+    if (is.null(x[["n.chains"]])) length(fit) else x$n.chains
+  } else if (!is.null(fit)) {
+    fit$control@n.chains
+  } else {
+    x$n.chains
+  }
+
+  control <- if (!is.null(fit)) {
+    if (fitIsList) fit[[1L]]$control else fit$control
+  } else {
+    NULL
+  }
+
+  varcountDims <- dim(x[["varcount"]])
+  n.kept <- if (!is.null(control)) {
+    control@n.samples
+  } else if (is.null(varcountDims)) {
+    NA_integer_
+  } else if (length(varcountDims) == 3L) {
+    varcountDims[2L]
+  } else if (n.chains > 1L) {
+    varcountDims[1L] %/% n.chains
+  } else {
+    varcountDims[1L]
+  }
+
+  cat("family: ", x$family, "\n", sep = "")
+  cat("n.chains: ", n.chains, "\n", sep = "")
+  if (!is.null(control)) {
+    cat("n.trees: ", control@n.trees, "\n", sep = "")
+    cat("n.burn: ", control@n.burn, "\n", sep = "")
+  }
+  if (!is.na(n.kept)) {
+    cat("kept draws (per chain): ", n.kept, "\n", sep = "")
+  }
+  invisible(NULL)
+}
+
 print.bart <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  fitSynopsis(x)
   invisible(x)
 }
 
 print.rbart <- function(x, ...) {
-  cat(
-    "\nCall:\n",
-    paste(deparse(x$call), sep = "\n", collapse = "\n"),
-    "\n\n",
-    sep = ""
-  )
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  fitSynopsis(x)
   invisible(x)
 }

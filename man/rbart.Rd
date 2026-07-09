@@ -81,7 +81,7 @@ rbart_vi(
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
   \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
-    Same as in \code{\link{bart2}}. With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} has no \code{family} argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
+    Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} has no \code{family} argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{object}{
     A fitted \code{rbart} model.
@@ -90,7 +90,7 @@ rbart_vi(
     Same as \code{test}, but named to match \code{\link{predict}} generic.
   }
   \item{type}{
-    One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"value"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
+    One of \code{"ev"}, \code{"ppd"}, \code{"bart"}, \code{"ranef"}, or \code{"trees"} for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For additional details on tree extraction, see the corresponding subsection in \code{\link{bart}}.
   }
   \item{sample}{
     One of \code{"train"} or \code{"test"}, referring to the training or tests samples respectively.

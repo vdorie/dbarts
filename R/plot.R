@@ -4,6 +4,14 @@ plot.bart <- function(
   cols = c("blue", "black"),
   ...
 ) {
+  if (is.null(x[["yhat.train"]])) {
+    if (as.character(x$call[[1L]]) == "bart2") {
+      stop("plot requires bart2 to be called with 'keepTrainingFits' == TRUE")
+    } else {
+      stop("plot requires bart to be called with 'keeptrainfits' == TRUE")
+    }
+  }
+
   if ("sigma" %in% names(x)) {
     par(mfrow = c(1L, 2L))
     if (!is.null(dim(x$sigma))) {
@@ -100,6 +108,10 @@ plot.rbart <- function(
   cols = c("blue", "black"),
   ...
 ) {
+  if (is.null(x[["yhat.train"]])) {
+    stop("plot requires rbart_vi to be called with 'keepTrainingFits' == TRUE")
+  }
+
   if ("sigma" %in% names(x)) {
     par(mfrow = c(1L, 2L))
     if (!is.null(dim(x$sigma))) {

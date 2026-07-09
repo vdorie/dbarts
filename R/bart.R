@@ -550,17 +550,30 @@ bart <- function(
   proposalprobs = NULL,
   keepsampler = keeptrees
 ) {
+  # coerce eagerly, naming the argument as the caller typed it - dbartsControl
+  # re-coerces its own (already-integer) inputs and would otherwise blame its
+  # internal slot names (n.burn/n.trees/...) for a bad ntree/nskip/... value
+  ntree <- coerceOrError(ntree, "integer")
+  nskip <- coerceOrError(nskip, "integer")
+  nchain <- coerceOrError(nchain, "integer")
+  nthread <- coerceOrError(nthread, "integer")
+  keepevery <- coerceOrError(keepevery, "integer")
+  printevery <- coerceOrError(printevery, "integer")
+  printcutoffs <- coerceOrError(printcutoffs, "integer")
+  numcut <- coerceOrError(numcut, "integer")
+  ndpost <- coerceOrError(ndpost, "integer")
+
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
     useQuantiles = as.logical(usequants),
     keepTrees = FALSE,
-    n.burn = as.integer(nskip),
-    n.trees = as.integer(ntree),
-    n.chains = as.integer(nchain),
-    n.threads = as.integer(nthread),
-    n.thin = as.integer(keepevery),
-    printEvery = as.integer(printevery),
-    printCutoffs = as.integer(printcutoffs),
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = nchain,
+    n.threads = nthread,
+    n.thin = keepevery,
+    printEvery = printevery,
+    printCutoffs = printcutoffs,
     n.cuts = numcut,
     rngSeed = as.integer(seed)
   )
@@ -575,7 +588,7 @@ bart <- function(
   if (control@n.burn > 0L) {
     control@keepTrees <- FALSE
   }
-  ndpost <- as.integer(ndpost) %/% control@n.thin
+  ndpost <- ndpost %/% control@n.thin
 
   priors <- buildSamplerPriors(
     matchedCall,
