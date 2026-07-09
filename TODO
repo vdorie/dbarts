@@ -106,6 +106,28 @@ items
     log-loss, AUC, calibration, and interval coverage. Output: a
     design note + recommendation; any default change is its own
     posterior-changing item with VD's sign-off.
+  bcf-glue-sigma-calibration: sbc-calibration (review 4) finding,
+    tier A. Standard BCF (n=200) with the glue UPDATING shows a
+    systematic sigma miscalibration under SBC - posterior sigma too
+    large (rank mean 63.6 vs 75, ecdf 0.134 vs band 0.092, chisqP
+    0.000 at thin=120/burn=18000, chosen from measured |a| ACF).
+    LOCALIZED: the fixed-glue control (updateA=updateB=FALSE, same
+    everything) passes ALL functionals, so the two-forest backfit is
+    exact and the defect is in the glue-on path only. The glue full
+    conditionals verified algebraically exact (consistent with audit
+    block 6). Prior-dominant n=40 config PASSES sigma dead-centre -
+    an algebra error would show MORE when the prior dominates, so
+    the n-pattern favors SLOW MIXING along the (a, mu-amplitude)
+    scale ridge (a*mu invariant under (a/c, c*mu); its relaxation
+    time can far exceed the |a| marginal ACF) over an exactness gap.
+    Next step: a targeted experiment - (1) rerun the n=200 config at
+    several multiples of chain length to see whether the sigma rank
+    bias shrinks toward zero (mixing) or plateaus (defect); (2) if
+    mixing confirmed, the standard remedy is an ancillarity-
+    sufficiency interweaving (ASIS) or joint rescaling move on the
+    (a, mu) ridge - posterior-preserving, its own gated item; (3) if
+    plateau, deep-dive the glue-scaled forest update path. Repro:
+    runSbcBCF in benchmarks/R/sbc.R (rides the review-4 landing).
   bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
     testFits channel under BCF (chain.hpp) instead of recording the
     bare mu forest, and the bridge refuses the single-forest test
