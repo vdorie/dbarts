@@ -111,3 +111,69 @@ SBC targeting from the uncovered combinations.
   serialization not posterior continuation. GOOD tight oracles
   (categorical-exact, logistic-reference pt1, bcf-exact) are all
   tiny single-tree problems - none gates realistic multi-tree scale.
+- 2026-07-09: POISON SWEEP complete (16 single-site kernel
+  breakages; opus, throwaway worktree, nothing landed; ended clean
+  and green). Full detail in the session tmp poison-sweep-results.md.
+  Columns: cpp = tests/cpp, tt = tinytest, equiv = equivalence
+  statistical verdict, exact = the relevant exact-posterior gate;
+  F = caught, P = passed-blind.
+    1 bd depth off-by-one (model.hpp:1398)        cpp F tt F equiv F  exact change/cat F
+    2 bd reverse count wrong tree (moves ~245)    cpp P tt F equiv weak(8/18) change PASS cat F
+    3 change FORWARD corr dropped (moves:459)     cpp P tt F equiv P   change F(MIXED arm) cat P
+    4 change REVERSE corr dropped (moves:474)     cpp P tt F equiv P   change F(MAIN arm)  cat P
+    5 swap validity walk skipped (moves:634)      cpp F(crash) tt F    equiv P change CRASH cat P
+    6 sigma df counts all rows (model:1756)       cpp F tt F equiv F(zeroweights)
+    7 sigma SSR drops w_i (model:1751)            cpp F tt F equiv F(weighted)
+    8 chi-k shape mislabel (model:1729)           cpp F tt P equiv P
+    9 chi-k rate drops /leafScale^2 (model:1731)  cpp F tt F equiv F(chik/linear/gp/logistic)
+    10 DART counts+1 (model:1680)                 cpp F tt F equiv F(dart)
+    11 Polya-Gamma weight omega^2 (model:2180)    cpp F tt F equiv F(logistic) logistic-ref F
+    12 grouped precision count (model:2334)       cpp F tt HANG equiv P (no exact gate)
+    13 BCF glue drops 1/aVariance (chain:2049)    cpp P tt P equiv P  bcf-exact PASS
+    14 BCF forest weight w*m not w*m^2 (chain:2022) cpp F tt F equiv P bcf-exact F
+    15 linear ridge drops sigma^2 (model:304)     cpp F tt P equiv F(linear) (no exact gate)
+    16 GP nugget drops /w_i (model:721)           cpp F tt P equiv P  (no exact gate)
+
+  SURVIVORS / single-point-of-failure (the findings):
+  - Poison 13 BCF a-glue PRIOR PRECISION (1/aVariance) - TRUE
+    SURVIVOR, ZERO gates. Verified by orchestrator: chain.hpp:2049
+    correctly carries the term (block-6 CONFIRMED); at bcf-exact's
+    data size the data precision swamps the prior so dropping it
+    shifts E[a*mu] by 0.0001. Needs a prior-dominated bcf-exact mode
+    or an a-posterior-VARIANCE check (mean-only is blind).
+  - Poison 8 chi-k SHAPE - only one cpp unit test; tt+equiv blind
+    (nu=1.5 shifts shape by only +0.5, invisible; the chik
+    equivalence scenario df is too small to separate).
+  - Poison 16 GP nugget /w_i - only cpp; both R gates blind to
+    WEIGHTED-GP (equivalence gp scenario is unweighted; test-gp-
+    leaves is finiteness-only and its non-unit-weight fit routes a
+    different, unpoisoned path).
+  - Poison 12 grouped precision - only cpp catches cleanly; tinytest
+    "catch" is merely a CI HANG (extreme weights blow up the ranef
+    and stall the tau slice sampler); equivalence fully blind (NO
+    grouped/rbart scenario exists). The hang is itself a robustness
+    finding -> numerical-robustness review.
+  - Poison 15 linear ridge - no exact gate; cpp + the single linear
+    equivalence scenario only; tt blind.
+  - Poison 2 birth/death reverse count - cpp AND change-balance both
+    blind (change-balance targets the change move); only categorical
+    -exact, tt reproducibility, and a barely-significant equivalence
+    catch it. No detailed-balance oracle for birth/death exists.
+  - Confirmed load-bearing: poisons 3/4 (change one-sided
+    corrections) are INVISIBLE to equivalence (|z|<=3.4 at 20 seeds
+    x1000 draws); only change-balance's MIXED arm (fwd) and MAIN arm
+    (rev) catch them - each individually necessary, vindicating the
+    mixed-type arm added at the change-move landing.
+
+  METHODOLOGY finding (dev/CI footgun): R CMD INSTALL WITHOUT
+  --preclean reuses stale .o and leaves the installed .so SILENTLY
+  UNPOISONED after a bartcore header edit - tinytest/equivalence
+  falsely passed against a clean .so until --preclean was used.
+  Vindicates the standing "--preclean after header edits" rule;
+  tinytest/equivalence cannot be trusted after a header edit without
+  it. Candidate: a CI build-stamp guard.
+
+  DELIVERABLES: gate-hardening items filed as gate-hardening-1.0
+  (TODO). SBC targets = the coverage-matrix uncovered combos above
+  (linear/GP x missing highest), carried into review 4. Review 3
+  COMPLETE.

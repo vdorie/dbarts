@@ -68,3 +68,10 @@ and any code fix becomes its own gated item.
   by orchestrator (one refuted), F1-F11/D1-D6 landed 8744e77, all
   eleven VD taste decisions landed c1ea79a (both draw-neutral,
   equivalence identical). Full record in interface-review.md.
+- 2026-07-09: review 3 (gate-blindspot-audit) COMPLETE - coverage
+  matrix + 16-poison sweep. One TRUE survivor (BCF a-glue prior
+  precision, zero gates) plus 5 single-point-of-failure gaps and a
+  --preclean stale-.so footgun; deliverables filed as
+  gate-hardening-1.0 and the SBC target list. Full record in
+  gate-blindspot-audit.md. (Orchestrator downgraded Fable->Opus
+  mid-review at VD's Fable-limit; no work lost.)
