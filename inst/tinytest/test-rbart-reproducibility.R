@@ -27,6 +27,8 @@ x <- testData$x
 y <- testData$y
 g <- factor(testData$g)
 
+## combineChains = FALSE pinned deliberately: the per-chain independence
+## check below indexes fit1$yhat.train as a raw uncombined 3-d array
 fit1 <- dbarts::rbart_vi(
   y ~ x,
   group.by = g,
@@ -37,7 +39,8 @@ fit1 <- dbarts::rbart_vi(
   n.trees = 3L,
   n.threads = 2L,
   verbose = FALSE,
-  seed = 0L
+  seed = 0L,
+  combineChains = FALSE
 )
 fit2 <- dbarts::rbart_vi(
   y ~ x,
@@ -49,7 +52,8 @@ fit2 <- dbarts::rbart_vi(
   n.trees = 3L,
   n.threads = 2L,
   verbose = FALSE,
-  seed = 0L
+  seed = 0L,
+  combineChains = FALSE
 )
 
 expect_equal(fit1$yhat.train, fit2$yhat.train)

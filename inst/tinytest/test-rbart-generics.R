@@ -27,6 +27,10 @@ x <- testData$x
 y <- testData$y
 g <- factor(testData$g)
 
+## combineChains = FALSE pinned deliberately: the assertions below index
+## rbartFit$ranef/$yhat.train as raw uncombined (n.chains x n.samples x ...)
+## arrays, and are contrasted against rbartFit.2's explicit TRUE below - now
+## that rbart_vi's own stored-object default is combined
 set.seed(0L)
 rbartFit <- dbarts::rbart_vi(
   y ~ x,
@@ -37,7 +41,8 @@ rbartFit <- dbarts::rbart_vi(
   n.chains = 2L,
   n.trees = 25L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 expect_equal(
   dbarts::extract(rbartFit, type = "bart", combineChains = FALSE),
@@ -94,6 +99,8 @@ y <- testData$y
 g <- factor(testData$g)
 
 
+## combineChains = FALSE pinned deliberately: the assertions below index
+## rbartFit$ranef/$yhat.train/$yhat.test as raw uncombined 3-d arrays
 rbartFit <- dbarts::rbart_vi(
   y ~ x,
   group.by = g,
@@ -106,7 +113,8 @@ rbartFit <- dbarts::rbart_vi(
   n.chains = 2L,
   n.trees = 25L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 expect_equal(
   as.vector(rbartFit$yhat.train),

@@ -6,8 +6,6 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
 })
 
 ## we don't actually use these defaults; see class definition
-## this is only provided for UI hints. Exception is n.cuts, which
-## isn't part of class
 dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
@@ -25,13 +23,14 @@ dbartsControl <- function(
   rngSeed = NA_integer_,
   updateState = TRUE
 ) {
-  result <- newValidated(
+  newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
     keepTrainingFits = as.logical(keepTrainingFits),
     useQuantiles = as.logical(useQuantiles),
     keepTrees = as.logical(keepTrees),
     n.samples = coerceOrError(n.samples, "integer"),
+    n.cuts = coerceOrError(n.cuts, "integer"),
     n.burn = coerceOrError(n.burn, "integer"),
     n.trees = coerceOrError(n.trees, "integer"),
     n.chains = coerceOrError(n.chains, "integer"),
@@ -42,14 +41,6 @@ dbartsControl <- function(
     rngSeed = coerceOrError(rngSeed, "integer"),
     updateState = as.logical(updateState)
   )
-
-  n.cuts <- coerceOrError(n.cuts, "integer")
-  if (anyNA(n.cuts) || any(n.cuts <= 0L)) {
-    stop("'n.cuts' must contain only positive integers")
-  }
-  attr(result, "n.cuts") <- n.cuts
-
-  result
 }
 
 validateArgumentsInEnvironment <- function(
@@ -180,9 +171,8 @@ dbarts <- function(
   #   sep = ""
   # )
 
-  data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
+  data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
-  attr(control, "n.cuts") <- NULL
 
   family <- match.arg(family)
   uniqueResponses <- unique(data@y)
@@ -592,7 +582,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setData = function(newData, updateState = NA) {
-      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots."
+      "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState is opt-in: only explicit TRUE stores state afterwards (NA/FALSE store nothing) - mutators are called per-sweep in Gibbs loops, so the default must stay free of that cost; contrast run()'s NA -> control@updateState convention."
       if (
         data@missing == "error" &&
           (anyNA(newData@x) ||
@@ -603,17 +593,29 @@ dbartsSampler <- setRefClass(
         )
       }
       bartcoreSamplerSetData(.self, newData)
+      if (identical(updateState, TRUE)) {
+        storeState()
+      }
+      invisible(NULL)
     },
     setResponse = function(y, updateScale = FALSE, updateState = NA) {
-      "Changes the response against which the sampler is fitted."
+      "Changes the response against which the sampler is fitted. updateState is opt-in; see setData."
       bartcoreSamplerSetResponse(.self, y, updateScale)
+      if (identical(updateState, TRUE)) {
+        storeState()
+      }
+      invisible(NULL)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NA) {
-      "Changes the offset slot used to adjust the response."
+      "Changes the offset slot used to adjust the response. updateState is opt-in; see setData."
       bartcoreSamplerSetOffset(.self, offset, updateScale)
+      if (identical(updateState, TRUE)) {
+        storeState()
+      }
+      invisible(NULL)
     },
     setWeights = function(weights, updateState = NA) {
-      "Changes the weights with which the sampler is fitted."
+      "Changes the weights with which the sampler is fitted. updateState is opt-in; see setData."
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
@@ -630,12 +632,18 @@ dbartsSampler <- setRefClass(
         stop(tryResult)
       }
 
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
       invisible(NULL)
     },
     setSigma = function(sigma, updateState = NA) {
-      "Changes the residual standard deviation parameter for each chain."
+      "Changes the residual standard deviation parameter for each chain. updateState is opt-in; see setData."
       ptr <- getPointer()
       .Call(C_dbarts_bartcore_setSigma, ptr, as.double(sigma))
+      if (identical(updateState, TRUE)) {
+        storeState(ptr)
+      }
       invisible(NULL)
     },
     setPredictor = function(
@@ -645,29 +653,39 @@ dbartsSampler <- setRefClass(
       updateCutPoints = FALSE,
       updateState = NA
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
 
       if (data@missing == "error" && anyNA(x)) {
         stop(
           "new predictors contain missing values and the sampler was built with missing = \"error\""
         )
       }
-      bartcoreSamplerSetPredictor(
+      result <- bartcoreSamplerSetPredictor(
         .self,
         x,
         column = if (missing(column)) NULL else column,
         forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
         updateCutPoints = updateCutPoints
       )
+      if (identical(updateState, TRUE)) {
+        storeState()
+      }
+      # bartcoreSamplerSetPredictor returns invisible(NULL) or a visible
+      # logical; preserve that (a bare 'result' would always be visible)
+      if (is.null(result)) invisible(NULL) else result
     },
     setCutPoints = function(cuts, column, updateState = NA) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty."
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing. Forces the change by pruning any leaves that end up empty. updateState is opt-in; see setData."
 
       bartcoreSamplerSetCutPoints(
         .self,
         cuts,
         column = if (missing(column)) NULL else column
       )
+      if (identical(updateState, TRUE)) {
+        storeState()
+      }
+      invisible(NULL)
     },
     setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."

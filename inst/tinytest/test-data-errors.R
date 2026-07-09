@@ -83,9 +83,9 @@ expect_error(
 
 test <- testData$x[11:20, ]
 colnames(test) <- paste0("x", c(1:9, 11))
-expect_warning(
+expect_error(
   dbarts::dbartsData(y ~ x, testData, test),
-  "column names of 'test' does not equal that of 'x'"
+  "column names of 'test' do not match those of 'x'"
 )
 rm(test)
 

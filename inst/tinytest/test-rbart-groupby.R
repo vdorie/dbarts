@@ -92,6 +92,8 @@ g.test <- factor(testData$g[seq.int(n.train + 1L, nrow(testData$x))], levels(g))
 levels(g.test)[5L] <- "6"
 
 # check that predict works when we've fit with missing levels
+# combineChains = FALSE pinned deliberately: rbartFit$ranef is indexed as a
+# raw uncombined 3-d array below
 rbartFit <- suppressWarnings(dbarts::rbart_vi(
   y ~ x,
   group.by = g,
@@ -104,7 +106,8 @@ rbartFit <- suppressWarnings(dbarts::rbart_vi(
   n.trees = 25L,
   n.threads = 1L,
   keepTrees = TRUE,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 ))
 expect_equal(
   apply(predict(rbartFit, x.test, g.test), 2L, mean),

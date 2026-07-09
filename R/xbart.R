@@ -68,9 +68,8 @@ xbart <- function(
     missing
   )
   data <- eval(dataCall, evalEnv)
-  data@n.cuts <- rep_len(attr(control, "n.cuts"), ncol(data@x))
+  data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
-  attr(control, "n.cuts") <- NULL
 
   family <- match.arg(family)
   uniqueResponses <- unique(data@y)

@@ -42,7 +42,7 @@ bart2(
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
-    combineChains = FALSE,
+    combineChains = TRUE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
@@ -163,7 +163,7 @@ extract(object, \dots)
      Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
    }
    \item{combinechains, combineChains}{
-     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} for \code{bart}; \code{bart2}'s (and \code{\link{rbart_vi}}'s) default is \code{FALSE}, tracked instead on the returned object's \code{n.chains} component (see \sQuote{Value}).
+     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} across \code{bart}, \code{bart2}, and \code{\link{rbart_vi}}; the number of chains is tracked regardless on the returned object's \code{n.chains} component (see \sQuote{Value}).
    }
    \item{keeptrees, keepTrees}{
      Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
@@ -184,7 +184,7 @@ extract(object, \dots)
      \code{bart2} only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a \code{bart} object fit with \code{keepSampler = TRUE} or a \code{\link{dbartsSampler-class}}. The donor must share this fit's predictors, tree count, cut grid, and DART setting; only its trees, \code{sigma}, and \code{k} carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero \code{n.burn}. See \code{\link{dbartsSampler-class}}'s \code{installTrees} method for finer control.
    }
    \item{factors, family, missing}{
-     As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors expand into indicator columns, binary responses are probit, and missing data are rejected.
+     As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors always expand into indicator columns (\code{bart2}'s default, \code{"categorical"}, instead keeps each unordered factor as a single predictor - a different model-matrix representation, so a factor-predictor fit changes if moved from one interface to the other), binary responses are probit, and missing data are rejected.
    }
    \item{formula}{
      The same as \code{x.train}, the name reflecting that a formula object can be used instead.

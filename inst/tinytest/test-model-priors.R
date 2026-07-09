@@ -149,6 +149,8 @@ expect_error(
 )
 
 # bart2 exposes DART through the dart flag and packages varprobs
+# combineChains = FALSE pinned deliberately: the shape assertions below
+# expect the raw uncombined (n.chains x n.samples x n.vars) array
 fit.dart <- bart2(
   y.dart ~ x.dart,
   dart = TRUE,
@@ -157,7 +159,8 @@ fit.dart <- bart2(
   n.trees = 25L,
   n.chains = 2L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  combineChains = FALSE
 )
 expect_equal(dim(fit.dart$varprobs), c(2L, 25L, 10L))
 expect_equal(

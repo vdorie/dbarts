@@ -297,6 +297,7 @@ predict.rbart <- function(
   newdata,
   group.by,
   offset,
+  weights,
   type = c("ev", "ppd", "bart", "ranef"),
   combineChains = TRUE,
   ci.level = NULL,
@@ -339,6 +340,9 @@ predict.rbart <- function(
 
   if (missing(offset)) {
     offset <- NULL
+  }
+  if (missing(weights)) {
+    weights <- NULL
   }
 
   n.chains <- if (is.null(object$n.chains)) {
@@ -442,7 +446,12 @@ predict.rbart <- function(
             dimnames = list(NULL, ranefNames.test[!measuredLevels])
           )
         }
-        if (length(dim(object$ranef)) == 2L) {
+        # branch on ranef's current shape (already reshaped above to match
+        # this call's combineChains, which is what unmeasuredRanef was just
+        # built against) rather than object$ranef's stored shape - those two
+        # can disagree whenever the fit's own combineChains default differs
+        # from the one requested here
+        if (length(dim(ranef)) == 2L) {
           ranef <- cbind(ranef, unmeasuredRanef)
         } else {
           # ranef are n.chains x n.samples x n.group
@@ -508,7 +517,7 @@ predict.rbart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, NULL)
+    result <- sampleFromPPD(result, object, weights)
   }
 
   if (!is.null(ci.level)) {
@@ -579,7 +588,7 @@ extract.rbart <- function(
     } else {
       seq_len(n.chains)
     }
-    varOrder <- c("sample", "chain", "tree", "n", "var", "value")
+    varOrder <- c("chain", "sample", "tree", "n", "var", "value")
     allTrees <- lapply(chainNums, function(i) {
       result_i <- eval(subTermInLanguage(treesCall, quote(i), i), evalEnv)
       if (n.chains > 1L) {
@@ -647,6 +656,7 @@ extract.rbart <- function(
   }
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
+  weights <- if (sample == "train") object$weights else object$weights.test
   # if necessary, recover chain information or throw it away
   if (n.chains > 1L) {
     if (length(dim(result)) > 2L && combineChains) {
@@ -692,7 +702,7 @@ extract.rbart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, NULL)
+    result <- sampleFromPPD(result, object, weights)
   }
 
   result

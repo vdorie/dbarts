@@ -105,10 +105,12 @@ validateXTest <- function(x.test, x.train) {
     } else if (xIsNamed && testIsNamed) {
       matchIndices <- match(predictorNames, colnames(x.test))
       if (any(is.na(matchIndices))) {
-        warning(
-          "column names of 'test' does not equal that of 'x': '",
-          toString(predictorNames),
-          "'; match will be made by position"
+        stop(
+          "column names of 'test' do not match those of 'x': '",
+          toString(predictorNames[is.na(matchIndices)]),
+          "' present in 'x' but not in 'test' (whose columns are '",
+          toString(colnames(x.test)),
+          "')"
         )
       } else {
         columnIndices <- matchIndices

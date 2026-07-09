@@ -1,11 +1,15 @@
 pdbart.getAndInitializeSampler <- function(bartCall, evalEnv) {
   isBart2 <- bartCall[[1L]] == quote(bart2) ||
     bartCall[[1L]] == quote(dbarts::bart2)
-  if (isBart2) {
-    bartCall[["samplerOnly"]] <- TRUE
-  } else {
-    bartCall[["sampleronly"]] <- TRUE
+  samplerOnlyName <- if (isBart2) "samplerOnly" else "sampleronly"
+  if (!is.null(bartCall[[samplerOnlyName]])) {
+    stop(
+      "'",
+      samplerOnlyName,
+      "' is set internally by pdbart/pd2bart and cannot be overridden"
+    )
   }
+  bartCall[[samplerOnlyName]] <- TRUE
 
   sampler <- eval(bartCall, evalEnv)
 
