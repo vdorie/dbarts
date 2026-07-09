@@ -180,6 +180,14 @@ items
     2026-07-08: F/D list 8744e77, taste calls c1ea79a (equivalence
     18/18 identical both; suite 2496/0). Interface review COMPLETE;
     records in interface-review.md.
+  missing-incorporate-matrix-interface: sbc-calibration (review 4)
+    tier-B finding. The matrix (xy) interface drops NA rows even
+    under missing = "incorporate" - the raw branch's complete-cases
+    filter runs regardless, so incorporation is only reachable
+    through the formula interface (na.action = na.pass). Either make
+    the matrix path honor "incorporate" (keep NA rows) or error
+    that incorporate requires the formula interface; silent
+    dropping contradicts the argument. Small, R validation/docs.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
