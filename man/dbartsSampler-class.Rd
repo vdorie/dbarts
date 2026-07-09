@@ -28,6 +28,9 @@
 \description{
   A reference class object that contains a Bayesian Additive Regression Trees sampler in such a way that it can be modified, stopped, and started all while maintaining its own state.
 }
+\note{
+  \code{dbartsSampler} is a \link[=ReferenceClasses]{reference class}: its methods are not called as free functions but as \code{$}-dispatched calls on a sampler instance, e.g. \code{sampler$run(100, 100)} or \code{sampler$setResponse(newY)}. The S4-method notation in \sQuote{Usage} below is an artifact of how reference-class methods are documented and does not reflect the calling syntax; see \sQuote{Examples}.
+}
 \usage{
 \S4method{run}{dbartsSampler}(
   numBurnIn, numSamples, updateState = NA, n.threads = control@n.threads
@@ -55,7 +58,7 @@
 )
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
 \S4method{plotTree}{dbartsSampler}(
-  treeNum, treePlotPars = c(
+  treeNum, chainNum, sampleNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
   ...
 )
@@ -101,7 +104,11 @@
     A numeric vector of length equal to that of the test matrix, or \code{NULL}. Can be missing for \code{setTestPredictorAndOffset}.
   }
   \item{n.threads}{
-    If greater than one, chain predictions will take place in parallel.
+    Currently has no effect: \code{run} and \code{predict} both execute
+    serially regardless of the value passed here. The sampler's own thread
+    count is fixed when it is created, from the \code{n.threads} of its
+    \code{\link[=dbartsControl]{control}} object; this argument is reserved
+    for a future per-call override.
   }
   \item{sigma}{
     Numeric vector of residual standard deviations, one for each chain.
@@ -163,6 +170,17 @@
   \item{treeNum}{
     An integer listing the indices of the tree to plot.
   }
+  \item{chainNum}{
+    For \code{plotTree}, an integer giving the chain to plot from. Required
+    when the sampler has more than one chain; defaults to \code{1} when
+    there is only one.
+  }
+  \item{sampleNum}{
+    For \code{plotTree}, an integer giving the saved sample to plot.
+    Applies only when \code{keepTrees} is \code{TRUE}, in which case it
+    defaults to the most recently drawn sample; ignored (with the live
+    working trees plotted instead) when \code{keepTrees} is \code{FALSE}.
+  }
   \item{treePlotPars}{
     A named numeric vector containing the quantities \code{nodeHeight}, \code{nodeWidth}, and \code{nodeGap}, all of which control aspects of the resulting plot.
   }
@@ -190,7 +208,7 @@
   }
 }
 \value{
-  For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount}. A run can be interrupted with \code{Ctrl-C}: it stops between iterations - joining any worker threads first - and signals an error, returning no samples from the interrupted run. The sampler's chains are left at the iteration they reached, which is a valid state to run again from.
+  For \code{run}, a named-list with contents \code{sigma}, \code{train}, \code{test}, and \code{varcount} (plus \code{k}, \code{varprobs}, \code{tau}, and \code{ranef} when applicable). \code{train} is an array of dimension n.obs x n.samples x n.chains, and likewise \code{test} (or \code{NULL} if the sampler has no test data) and \code{varcount} are n.predictors x n.samples x n.chains; \code{sigma} is n.samples x n.chains. When \code{n.chains} is \code{1} the trailing chain dimension is dropped, so \code{train} is a plain n.obs x n.samples matrix and \code{sigma} a plain vector of length n.samples. A run can be interrupted with \code{Ctrl-C}: it stops between iterations - joining any worker threads first - and signals an error, returning no samples from the interrupted run. The sampler's chains are left at the iteration they reached, which is a valid state to run again from.
 
   For \code{setPredictor}, \code{TRUE}/\code{FALSE} depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, the update is rolled back so that the sampler remains in a valid state. When \code{forceUpdate} is \code{"partial"}, instead returns a logical vector of length equal to the number of observations, \code{TRUE} where that observation's new value was installed and \code{FALSE} where it was rolled back to its previous value to keep every tree valid.
 
@@ -200,4 +218,35 @@
 }
 \seealso{
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.
+}
+\examples{
+# the embedded-Gibbs pattern: BART as a conditional model inside a larger
+# sampler, alternating its own draws with updates to its response between
+# calls to run()
+n <- 100
+x <- matrix(runif(n * 2), n, 2)
+y <- x[, 1] - x[, 2] + rnorm(n, 0, 0.1)
+
+sampler <- dbarts(
+  y ~ x,
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.burn = 0L,
+    n.samples = 1L,
+    updateState = TRUE
+  )
+)
+
+## first draw: response as given at creation
+samples <- sampler$run()
+str(samples$train) # a plain n.obs x n.samples matrix (n.chains == 1)
+
+## an outer Gibbs step changes the response (e.g. after updating some
+## other part of a joint model); the sampler picks the new target up on
+## the next run() without being recreated
+newY <- y + rnorm(n, 0, 0.05)
+sampler$setResponse(newY)
+samples <- sampler$run()
+str(samples$train)
 }

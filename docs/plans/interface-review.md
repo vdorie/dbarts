@@ -228,3 +228,80 @@ reports in the orchestration transcript. Positive findings worth
 keeping: setPredictor rollback semantics verified exactly right
 under adversarial probing; per-chain RNG documentation precise;
 casual bart() path well documented.
+
+- 2026-07-08: interface-fixes-1.0 landed. All eleven code items
+  (F1-F11) and all six doc items (D1-D6) done; nothing deferred.
+  Taste calls (T1-T11) and the 2.0-wishlist untouched, as scoped.
+
+  Notable calls made while implementing:
+  - F2: the trees data.frame's column selection previously used a
+    fixed varOrder match, which for fits with directions/missing/
+    beta.* columns silently dropped them even in the working
+    multi-chain case; fixed to reorder only the known columns
+    present and keep any others trailing, incidentally fixing that
+    too (not just the single-chain crash).
+  - F3: scoped to the raw-matrix/data.frame (non-formula) branch
+    per the finding; response-NA and predictor-NA under
+    missing = "error" get separate, existing-wording stops; the
+    default-path warning names a row count via warning() (the
+    codebase's established idiom; no message() calls exist
+    elsewhere in R/).
+  - F4: fitted()/residuals() needed the guard in two places -
+    extract.bart/extract.rbart (the shared path) and
+    fitted.rbart's type = "ev" fast path, which calls the C
+    routine directly on yhat.train and bypasses extract() entirely.
+  - F8: scoped to the integer coercions (ntree/ndpost/nskip/
+    nchain/nthread/keepevery/printevery/printcutoffs/numcut).
+    Logicals (keeptrainfits, usequants, ...) share the
+    wrong-internal-name failure mode but not the coercion
+    mechanism - as.logical() never warns on bad input, so
+    coerceOrError can't catch it there; left alone as out of scope
+    for this fix.
+  - F9: pre-validation only fires when 'data' is a literal
+    data.frame, the case where the eventual row count is known
+    without duplicating model.frame's own NSE resolution; weights
+    is re-resolved early via the same findTermInFormulaData helper
+    offset already uses, wrapped in tryCatch so any resolution
+    mismatch falls back to the prior (leakier) behavior rather than
+    introducing a new failure mode. list/environment 'data' still
+    falls through to model.frame's message, unchanged.
+  - F10/D1: verified both run() and predict()'s thread-count
+    formals are fully inert, not merely "serial" - passing any
+    value has zero effect; the sampler's real thread count is
+    fixed at creation from control@n.threads. Documented the
+    stronger claim.
+  - F11: n.trees/n.burn only print when the sampler was kept
+    (keepSampler/keepTrees = TRUE); dbarts does not otherwise
+    retain them on the returned object. Kept-draws-per-chain falls
+    back to varcount's dimensions when the sampler isn't kept.
+  - D1: run()'s $train dimension order (n.obs x n.samples x
+    n.chains, collapsing to a plain matrix at n.chains = 1)
+    verified empirically on small fits before writing it up.
+
+  Tests updated (deliberate, not silent workarounds):
+  - test-bartcore.R: setTestPredictor's replacement-matrix regression
+    (~line 345) built an unnamed matrix against a named x.engine,
+    which used to pass expect_silent() only because F6's warning
+    was dead code. Named the replacement matrix like x.engine so
+    the test still isolates its actual subject (offset-sync on
+    predictor replacement) rather than turning it into a naming
+    test.
+  - No existing test relied on F3's silent drop-then-missing="error"
+    -never-fires bug; none needed updating for F3 itself.
+
+  New regression tests added: F1 (weighted-PPD variance contrast,
+  test-generics-posteriorPredictiveDistribution.R), F2 (single-chain
+  rbart trees extraction, test-sampler-trees.R), F4 (keepTrainingFits
+  = FALSE early stops for plot/fitted/residuals on both bart and
+  rbart, plus a keepCall = FALSE print smoke test, test-plot-generics.R).
+
+  Gates (from the worktree, R changes only, no C++ touched):
+  - R CMD INSTALL .: clean.
+  - tinytest::test_package("dbarts"): All ok, 2477 results (up from
+    2465 at the pre-fix baseline; +12 from the new regressions).
+  - benchmarks/R/equivalence.R compare
+    benchmarks/baselines/equivalence-cf99a00.rds: 18/18 identical
+    draws (same RNG stream); R-surface-only changes did not touch
+    sampling.
+  - air format --check .: clean. lintr on every touched R file:
+    no lints found.

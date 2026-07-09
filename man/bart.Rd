@@ -97,7 +97,7 @@ extract(object, \dots)
      Explanatory variables for test (out of sample) data. Should have same column structure as \code{x.train}. \code{bart} will generate draws of \eqn{f(x)} for each \eqn{x} which is a row of \code{x.test}.
    }
    \item{sigest}{
-     For continuous response models, an estimate of the residual standard deviation (residual standard error), \eqn{\sigma}, used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See \code{sigquant} for more information. Not applicable when \eqn{y} is binary.
+     For continuous response models, an estimate of the residual standard deviation (residual standard error), \eqn{\sigma}, used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. See \code{sigquant} for more information. Not applicable when \eqn{y} is binary. Same concept as \code{sigma} in \code{\link{dbarts}} and \code{\link{xbart}}.
    }
    \item{sigdf}{
      Degrees of freedom for error variance prior. Not applicable when \eqn{y} is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.
@@ -157,13 +157,13 @@ extract(object, \dots)
      Logical; if \code{FALSE} suppress printing.
    }
    \item{nchain, n.chains}{
-     Integer specifying how many independent tree sets and fits should be calculated.
+     Integer specifying how many independent tree sets and fits should be calculated. Default 1 for \code{bart}, BayesTree's historical single-chain convention; \code{bart2}'s (and \code{\link{rbart_vi}}'s) default is 4.
    }
    \item{nthread, n.threads}{
      Integer specifying how many threads to use. Depending on the CPU architecture, using more than the number of chains can degrade performance for small/medium data sets. As such some calculations may be executed single threaded regardless.
    }
    \item{combinechains, combineChains}{
-     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations.
+     Logical; if \code{TRUE}, samples will be returned in arrays of dimensions equal to \code{nchain} \eqn{\times} \code{ndpost} \eqn{\times} number of observations. Default \code{TRUE} for \code{bart}; \code{bart2}'s (and \code{\link{rbart_vi}}'s) default is \code{FALSE}, tracked instead on the returned object's \code{n.chains} component (see \sQuote{Value}).
    }
    \item{keeptrees, keepTrees}{
      Logical; must be \code{TRUE} in order to use \code{predict} with the result of a \code{bart} fit. Note that for models with a large number of observations or a large number of trees, keeping the trees can be very memory intensive.
@@ -202,7 +202,7 @@ extract(object, \dots)
      The same as \code{binaryOffset}. Can be missing.
    }
    \item{offset.test}{
-     A vector of offsets to be used with test data, in case it is different than the training offset. If \code{offest} is missing, defaults to \code{NULL}.
+     A vector of offsets to be used with test data, in case it is different than the training offset. If \code{offset.test} is missing, defaults to \code{NULL}.
    }
    \item{object}{
      An object of class \code{bart}, returned from either the function \code{bart} or \code{bart2}.
@@ -256,6 +256,8 @@ extract(object, \dots)
     Using \code{predict} with a \code{bart} object requires that it be fitted with the option \code{keeptrees}/\code{keepTrees} as \code{TRUE}. Keeping the trees for a fit can require a sizeable amount of memory and is off by default.
 
     All generics return values on the scale of expected value of the response by default. This means that \code{predict}, \code{extract}, and \code{fitted} for binary outcomes return probabilities unless specifically the sum-of-trees component is requested (\code{type = "bart"}). This is in contrast to \code{yhat.train}/\code{yhat.test} that are returned with the fitted model.
+
+    \code{residuals} returns \eqn{y} minus \code{fitted(object, type = type, sample = "train")}; the default \code{type = "ev"} gives ordinary response-scale residuals, so for a binary fit this is \eqn{y - P(Y = 1 \mid x)}{y - P(Y = 1 | x)}. Binary fits do not have \code{yhat.train.mean}/\code{yhat.test.mean} components (see \sQuote{Value}); use \code{fitted} to obtain the equivalent posterior-mean probabilities directly.
   }
   
   \subsection{Saving}{
@@ -273,7 +275,7 @@ extract(object, \dots)
 
     The result of \code{extract} will be a data frame with columns:
     \itemize{
-      \item \code{sample}, \code{chain}, \code{tree} - index variables
+      \item \code{chain}, \code{sample}, \code{tree} - index variables
       \item \code{n} - number of observations in node, drawn from the training data or from \code{newdata} when supplied
       \item \code{var} - either the index of the variable used for splitting or -1 if the node is a leaf
       \item \code{value} - either the value such that observations less than or equal to it are sent down the left path of the tree or the predicted value for a leaf node
@@ -330,7 +332,7 @@ extract(object, \dots)
     The resolved response family (\code{"gaussian"}, \code{"probit"}, or \code{"logistic"}). \code{predict}, \code{extract}, \code{fitted}, and \code{plot} use it to transform latent draws to probabilities.
   }
 
-  In the binary \eqn{y} case, the returned list has the components \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above.  In addition the list has a \code{binaryOffset} component giving the value used.
+  In the binary \eqn{y} case, the returned list has the components \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above, but not \code{yhat.train.mean}/\code{yhat.test.mean} - use \code{fitted} to get the posterior mean of \eqn{P(Y = 1 \mid x)}{P(Y = 1 | x)} instead. In addition the list has a \code{binaryOffset} component giving the value used.
 
   Note that in the binary \eqn{y}, case \code{yhat.train} and \code{yhat.test} are \eqn{f(x) + \mathrm{binaryOffset}}{f(x) + binaryOffset}. For draws of the probability \eqn{P(Y = 1 | x)}, apply the family's inverse link to these values: the normal cdf (\code{pnorm}) for \code{"probit"} fits, \code{plogis} for \code{"logistic"} ones.
 

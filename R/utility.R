@@ -375,10 +375,27 @@ mapFactorColumnsToTrainingLevels <- function(
 ) {
   for (name in names(x.test)) {
     j <- match(name, predictorNames)
-    if (is.na(j) || is.null(factorLevels[[j]])) {
+    if (is.na(j)) {
       next
     }
     column <- x.test[[name]]
+    if (is.null(factorLevels[[j]])) {
+      # the training column was numeric; a factor/character test column
+      # here would otherwise fall through to makeCategoricalModelMatrix,
+      # which recodes it against the test set's own level order instead
+      if (is.factor(column) || is.character(column)) {
+        stop(
+          "test column '",
+          name,
+          "' is ",
+          class(column)[1L],
+          " but the training column '",
+          name,
+          "' is numeric"
+        )
+      }
+      next
+    }
     if (!is.factor(column) && !is.character(column)) {
       next
     }

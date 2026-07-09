@@ -98,8 +98,60 @@ expect_error(
   pattern = "chainNum must be a single chain index"
 )
 
-# the print methods summarize a fit to the console
+# the print methods summarize a fit to the console, and keep doing so with
+# keepCall = FALSE (previously just "NULL()")
 expect_true(is.character(capture.output(print(fit.bart))))
 expect_true(is.character(capture.output(print(fit.rbart))))
+fit.noCall <- bart2(
+  x,
+  y.cont,
+  n.trees = 10L,
+  n.burn = 5L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepCall = FALSE
+)
+noCallOutput <- capture.output(print(fit.noCall))
+expect_true(!any(grepl("NULL()", noCallOutput, fixed = TRUE)))
+expect_true(any(grepl("^family:", noCallOutput)))
+rm(fit.noCall, noCallOutput)
+
+# keepTrainingFits = FALSE: plot/fitted/residuals must stop early and name
+# the control flag, instead of dying inside apply() on a NULL yhat.train
+# (plot) or silently returning NA (fitted/residuals)
+fit.noTrainFits <- bart2(
+  x,
+  y.cont,
+  n.trees = 10L,
+  n.burn = 5L,
+  n.samples = 5L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrainingFits = FALSE
+)
+expect_error(plot(fit.noTrainFits), pattern = "keepTrainingFits")
+expect_error(fitted(fit.noTrainFits), pattern = "keepTrainingFits")
+expect_error(residuals(fit.noTrainFits), pattern = "keepTrainingFits")
+
+fit.rbart.noTrainFits <- rbart_vi(
+  y.cont ~ x,
+  group.by = g,
+  n.samples = 8L,
+  n.burn = 5L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 10L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrainingFits = FALSE
+)
+expect_error(plot(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
+expect_error(fitted(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
+expect_error(residuals(fit.rbart.noTrainFits), pattern = "keepTrainingFits")
+
+rm(fit.noTrainFits, fit.rbart.noTrainFits)
 
 rm(fit.bart, fit.bart2, fit.rbart, pt.bart2, pt.rbart, x, y.cont, z.bin, g, n)

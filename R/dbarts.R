@@ -401,7 +401,7 @@ dbartsSampler <- setRefClass(
       numBurnIn,
       numSamples,
       updateState = NA,
-      numThreads = control@n.threads
+      n.threads = control@n.threads
     ) {
       "Runs the posterior sampler and returns a list with the results."
       if (missing(numBurnIn)) {
