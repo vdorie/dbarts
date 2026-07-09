@@ -25,26 +25,25 @@ items
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
     window: pre-release.
-  gate-hardening-1.0: gate-blindspot-audit (review 3) deliverable;
-    the poison sweep found gaps where a deliberate kernel breakage
-    slips all gates or hangs on a single test. Add, each RNG-neutral
-    (new tests/scenarios do not change existing draws; adding
-    equivalence scenarios EXTENDS the baseline .rds - existing 18
-    stay bit-identical, new ones recorded fresh, so the anchor
-    re-records as a superset): (1) a prior-dominated bcf-exact mode
-    or an a-posterior-VARIANCE check - the BCF a-glue prior
-    precision 1/aVariance is caught by NO gate (TRUE survivor); (2)
-    a weighted-GP oracle (equivalence gp scenario is unweighted, so
-    the GP nugget /w_i is cpp-only); (3) a grouped/rbart equivalence
-    scenario (none exists; grouped precision is cpp-only and its tt
-    "catch" is only a hang); (4) a linear-leaf exact-posterior gate
-    (linear ridge has no exact gate); (5) a birth/death detailed-
-    balance arm (poison 2 slipped cpp AND change-balance); (6) bump
-    the chik equivalence scenario df so the chi-k shape is
-    separable (currently cpp-only). Separately routed: the tau slice
-    sampler HANG under extreme ranef weights -> numerical-robustness
-    review; the --preclean-or-stale-.so footgun -> CI build-stamp
-    guard candidate. Plan/matrix in gate-blindspot-audit.md.
+  gate-hardening-1.0: LANDED 2026-07-09 (0e9ccca + anchor 3ef0308) -
+    all six poison-sweep blind spots gated, each with a
+    fail-on-poisoned proof: bcf-exact-weak.R (prior-dominated n=40
+    mode, quadrature over the Cauchy glue; catches the 1/aVariance
+    TRUE survivor, gap 0.82 poisoned vs 0.004 clean), wtgp + grouped
+    + chik2 equivalence scenarios ADDED (grouped uses the gamma tau
+    prior - the half-Cauchy tail can stall the tau slice sampler;
+    chik2 at nu=50 with a new disjoint-seed-range compare channel
+    because a diverged seed degenerates the Welch z into a false
+    pass), linear-exact.R (enumerated 15-tree space, leaf-count
+    distribution is the sensitive statistic), bd-balance.R
+    (birth/death detailed-balance over enumerable partitions).
+    Anchor re-recorded as equivalence-0e9ccca.rds (21 scenarios; the
+    18 shared are draw-identical to cf99a00); MANIFEST +
+    equivalence.yaml updated. Record in gate-hardening-1.0.md.
+    Still routed elsewhere: the tau slice sampler HANG under extreme
+    ranef weights -> numerical-robustness review; the
+    --preclean-or-stale-.so footgun -> CI build-stamp guard
+    candidate.
   gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
     frontier companion (docs/design/parallel-bart-frontier.md).
     Falsifiers 1-3 REPORTED (2026-07-08, parallel-falsifiers): 3.4 and
