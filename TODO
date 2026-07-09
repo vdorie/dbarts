@@ -131,11 +131,14 @@ items
     unify combineChains, chain-first trees, thread rbart PPD
     weights, wire updateState opt-in after checking the lazy-state
     interaction, rbart_vi k doc-only pending chi-default-research,
-    bart2 factors="categorical" (posterior-changing for factor
-    fits - statistical gates), flip pdbart cols, reject explicit
-    samplerOnly in pdbart, positional-match error, restore the
-    saved-trees vignette, n.cuts becomes a real slot. PAUSED at
-    VD's request before further implementation.
+    bart2 factors="categorical" (was already the default - reader
+    claim overbroad, no gate fallout), flip pdbart cols, reject
+    explicit samplerOnly in pdbart, positional-match error,
+    vignette (already ships in built tarballs; absent only from
+    directory installs), n.cuts becomes a real slot. ALL LANDED
+    2026-07-08: F/D list 8744e77, taste calls c1ea79a (equivalence
+    18/18 identical both; suite 2496/0). Interface review COMPLETE;
+    records in interface-review.md.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
