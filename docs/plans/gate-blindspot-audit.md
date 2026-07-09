@@ -66,3 +66,48 @@ SBC targeting from the uncovered combinations.
 ## Status
 
 - 2026-07-08: started; sweeper and matrix reader dispatched.
+- 2026-07-09: FEATURE x GATE MATRIX complete (sonnet reader; the
+  poison sweep is still running - this is an interim record of the
+  coverage half, to be finalized with the poison matrix). Uncovered
+  combinations, ranked by posterior-relevant code routed through
+  (each becomes an SBC-review target and/or a gate item):
+  1. Linear/GP leaf x missing (NA) leaf-covariate values. The
+     imputation "NAs enter at the standardized mean (zero)"
+     (model.hpp:57,77,92,173-179) is live deliberate code no gate
+     anywhere executes, sitting directly behind the just-landed
+     linear crossproduct cache and the GP kernel cache (both
+     cache-invalidation sensitive). HIGHEST priority.
+  2. BCF x {weights, missing, keepTrees, DART, grouped, linear/GP
+     forests, logistic}. Every BCF gate uses one identical minimal
+     composition (gaussian, constant leaves, no weights, single
+     chain); the glue-precision, per-forest weight transform, and
+     calibration code has never run under any other config. BCF is
+     the narrowest-composed subsystem in the battery.
+  3. Grouped intercepts x zero-weight rows - the SAME
+     self-consistency class as the sigma-df defect, unguarded on
+     the grouped-tau side (does the group-effect effective count
+     exclude zero-weight members?).
+  4. Per-observation setPredictor x probit/logistic - the finalize
+     step re-derives leaf stats from the family working response
+     (PG omega z / probit latent), a path never executed under a
+     latent family. Directly relevant to the IRT/bairrtt joint-
+     sampler use case.
+  5. DART x linear/GP leaf; 6. missing x grouped, missing x BCF;
+     7. wide/pooled categorical x {DART, grouped, linear/GP, BCF};
+     8. installTrees warm start x {grouped, BCF, linear/GP, missing,
+     categorical, multi-chain}; 9. setCutPoints x {categorical,
+     missing, grouped, BCF, leaf-covariate cols}; 10. multi-chain
+     posterior check x {BCF, DART, linear/GP}.
+  Assertion-QUALITY gaps (paths executed but a wrong posterior
+  would not be detected): test-dart-mixed-columns.R and
+  test-rbart-options.R (DART: dims/simplex-sum only, no signal
+  concentration); test-rbart-weighted-binary.R / -weights.R
+  (grouped x weights: finite-only); test-bcf.R (blend recovered
+  from the same sample = tautology; all real BCF burden on
+  bcf-exact.R's single-tree 3-cell kernel); linear/GP probit
+  compose blocks (finite-only); thread-invariance tests (bitwise
+  across threads, not posterior correctness); change-balance.R
+  CONTROL arm (|z|<30 loosened); most state round-trips assert
+  serialization not posterior continuation. GOOD tight oracles
+  (categorical-exact, logistic-reference pt1, bcf-exact) are all
+  tiny single-tree problems - none gates realistic multi-tree scale.
