@@ -1433,12 +1433,28 @@ static void testBCFTwoForest(ext_rng* rng) {
     0.37804942330213542, options, spec, &rng);
   check(sampler.numForests() == 2, "BCF builds two forests");
 
+  // A BCF sampler carries no test treatment vector, so a test blend is
+  // ill-defined: the engine must record NaN test fits rather than the bare
+  // prognostic forest (bcf-testfits-guard).
+  const size_t nTest = 40;
+  std::vector<double> xTest(nTest * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < nTest; ++i)
+      xTest[i + j * nTest] = x[i + j * n];
+  sampler.setTestPredictors(xTest.data(), nTest);
+
   const size_t numBurnIn = 200, numSamples = 200;
-  std::vector<double> sigma(numSamples), fits(n * numSamples);
+  std::vector<double> sigma(numSamples), fits(n * numSamples),
+    testFits(nTest * numSamples);
   Results results;
   results.sigma = sigma.data();
   results.trainingFits = fits.data();
+  results.testFits = testFits.data();
   sampler.run(numBurnIn, numSamples, results);
+
+  bool testFitsNaN = true;
+  for (double f : testFits) testFitsNaN &= std::isnan(f);
+  check(testFitsNaN, "BCF test fits come back NaN");
 
   std::vector<double> muFits(n), tauFits(n);
   sampler.forestTotalFits(0, 0, muFits.data());
@@ -1462,6 +1478,21 @@ static void testBCFTwoForest(ext_rng* rng) {
     sane = std::isfinite(fits[i]);
   for (size_t s = 0; s < numSamples && sane; ++s) sane = sigma[s] > 0.0;
   check(sane, "BCF fits finite and sigma positive");
+
+  // The final recorded training fits must be the fitScale * (a * mu + b_z * tau)
+  // + shift blend, not the bare mu forest: recover the shift from one row and
+  // confirm the linear structure over the rest against the current per-forest
+  // fits and glue (the last sample reflects the post-run state).
+  double fitScale = sampler.fitScale();
+  const double* lastFit = fits.data() + (numSamples - 1) * n;
+  auto blend = [&](size_t i) {
+    return fitScale * (a * muFits[i] + (z[i] != 0.0 ? b1 : b0) * tauFits[i]);
+  };
+  double blendShift = lastFit[0] - blend(0);
+  bool blendOk = true;
+  for (size_t i = 0; i < n && blendOk; ++i)
+    blendOk = std::fabs(lastFit[i] - (blend(i) + blendShift)) < 1.0e-8;
+  check(blendOk, "BCF training fits are the a*mu + b_z*tau blend");
 
   std::vector<double> zControl(n, 0.0);
   sampler.setTreatment(zControl.data());

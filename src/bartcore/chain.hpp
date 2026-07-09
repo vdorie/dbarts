@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -159,6 +160,12 @@ struct ModelParameters {
 /// With several chains the arrays hold one slab per chain, chain-major:
 /// sigma and k are numSamples x numChains, fits and counts add their leading
 /// dimension (e.g. trainingFits is numObservations x numSamples x numChains).
+///
+/// Under BCF (two forests) trainingFits carries the a * mu + b_z * tau blend,
+/// but testFits is filled with NaN (no test treatment vector to blend), and
+/// k, variableCounts, and splitProbabilities report the PROGNOSTIC (mu) forest
+/// only; the treatment forest is reached through the per-forest channels
+/// (forestTotalFits + bcfGlue, docs/design/bcf.md).
 struct Results {
   double* sigma = nullptr;          // numSamples
   double* trainingFits = nullptr;   // numObservations x numSamples, or null
@@ -2106,11 +2113,21 @@ private:
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
       double* out = results.testFits + sampleNum * data_.numTestObservations;
-      for (size_t i = 0; i < data_.numTestObservations; ++i)
-        out[i] = scale * forest.totalTestFits[i] + shift;
-      if (data_.testOffset != nullptr)
-        misc_addVectorsInPlace(data_.testOffset, data_.numTestObservations,
-                               out);
+      if (bcf_) {
+        // A BCF test blend a * mu + b_z * tau is ill-defined here: the API
+        // carries no test treatment vector, so only the bare prognostic
+        // forest could be recorded, which silently misreports the fit.
+        // Flag the channel as unusable; BCF consumers recombine per forest
+        // via forestTotalFits + the bcfGlue coefficients (docs/design/bcf.md).
+        for (size_t i = 0; i < data_.numTestObservations; ++i)
+          out[i] = std::numeric_limits<double>::quiet_NaN();
+      } else {
+        for (size_t i = 0; i < data_.numTestObservations; ++i)
+          out[i] = scale * forest.totalTestFits[i] + shift;
+        if (data_.testOffset != nullptr)
+          misc_addVectorsInPlace(data_.testOffset, data_.numTestObservations,
+                                 out);
+      }
     }
 
     if (results.variableCounts != nullptr) {

@@ -1068,6 +1068,20 @@ void refuseViewSamplerOnly(const bartcore::SamplerBase& sampler,
              "views hold none", caller);
 }
 
+// The single-forest test-fit and prediction surface has no meaning under BCF:
+// with two forests and no test treatment vector, a blend a * mu + b_z * tau is
+// ill-defined, so the engine would fall back to the bare prognostic forest and
+// silently misreport. Reject test data and out-of-sample prediction on a BCF
+// sampler; consumers recombine per forest via getForestFits + the BCF glue
+// (docs/design/bcf.md).
+void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
+                          const char* caller) {
+  if (sampler.numForests() >= 2)
+    Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
+             "fits are undefined; predict per forest with getForestFits and "
+             "the BCF glue instead", caller);
+}
+
 // A built column store (cuts + codes) shared by row-subset view samplers
 // (public-surface.md section 5; internal). The external pointer's
 // protection slot pins the data expression whose x the store borrows.
@@ -1822,6 +1836,7 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
+  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictor");
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
@@ -1848,6 +1863,7 @@ SEXP bartcore_setTestOffset(SEXP ptrExpr, SEXP offsetExpr) {
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
+  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestOffset");
   if (holder.sampler->numTestObservations() == 0)
     Rf_error("cannot set a test offset without test predictors");
   if (!Rf_isReal(offsetExpr) ||
@@ -1874,6 +1890,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
+  refuseBCFTestSurface(*holder.sampler, "bartcore_setTestPredictorAndOffset");
   SEXP dims = Rf_getAttrib(xTestExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[1]) != holder.sampler->numPredictors())
@@ -2566,6 +2583,11 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
 SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
+
+  // predict() sums only the prognostic forest, so a BCF prediction would drop
+  // the treatment forest and the glue; refuse it for the same reason recorded
+  // BCF test fits are undefined.
+  refuseBCFTestSurface(sampler, "bartcore_predict");
 
   size_t numTestObservations =
     validatePredictorMatrix(sampler, xTestExpr, "bartcore_predict");
