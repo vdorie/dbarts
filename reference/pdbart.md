@@ -20,7 +20,7 @@ pdbart(
 plot(
     x,
     xind = seq_along(x$fd),
-    plquants = c(0.05, 0.95), cols = c('black', 'blue'),
+    plquants = c(0.05, 0.95), cols = c('blue', 'black'),
     ...)
 
 pd2bart(

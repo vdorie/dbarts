@@ -37,7 +37,7 @@ bart2(
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
-    combineChains = FALSE,
+    combineChains = TRUE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
@@ -292,9 +292,9 @@ residuals(object, type = "ev", ...)
 
   Logical; if `TRUE`, samples will be returned in arrays of dimensions
   equal to `nchain` \\\times\\ `ndpost` \\\times\\ number of
-  observations. Default `TRUE` for `bart`; `bart2`'s (and
-  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md)'s)
-  default is `FALSE`, tracked instead on the returned object's
+  observations. Default `TRUE` across `bart`, `bart2`, and
+  [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md); the
+  number of chains is tracked regardless on the returned object's
   `n.chains` component (see ‘Value’).
 
 - keeptrees, keepTrees:
@@ -351,9 +351,12 @@ residuals(object, type = "ev", ...)
 - factors, family, missing:
 
   As in [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md);
-  `bart2` only. `bart` keeps the historical behavior: factors expand
-  into indicator columns, binary responses are probit, and missing data
-  are rejected.
+  `bart2` only. `bart` keeps the historical behavior: factors always
+  expand into indicator columns (`bart2`'s default, `"categorical"`,
+  instead keeps each unordered factor as a single predictor - a
+  different model-matrix representation, so a factor-predictor fit
+  changes if moved from one interface to the other), binary responses
+  are probit, and missing data are rejected.
 
 - formula:
 
@@ -783,7 +786,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.224545
+#> total seconds in loop: 0.227997
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -849,7 +852,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001355
+#> total seconds in loop: 0.001394
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 

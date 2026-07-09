@@ -16,7 +16,7 @@ rbart_vi(
     n.trees = 75L,
     n.samples = 1500L, n.burn = 1500L,
     n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
-    combineChains = FALSE,
+    combineChains = TRUE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 5L, keepTrainingFits = TRUE,
     printEvery = 100L, printCutoffs = 0L,
@@ -52,7 +52,7 @@ extract(
 
 # S3 method for class 'rbart'
 predict(
-    object, newdata, group.by, offset,
+    object, newdata, group.by, offset, weights,
     type = c("ev", "ppd", "bart", "ranef"),
     combineChains = TRUE,
     ci.level = NULL,
@@ -105,10 +105,10 @@ residuals(object, type = "ev", ...)
   which are collected and stored in the final object.
 
 - formula, data, test, subset, weights, offset, offset.test, sigest,
-  sigdf, sigquant, k, power, base, split.probs, dart, n.trees,
-  n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts,
-  useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose,
-  keepTrees, keepCall, seed, keepSampler, factors, missing, ...:
+  sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples,
+  n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles,
+  keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees,
+  keepCall, seed, keepSampler, factors, missing, ...:
 
   Same as in
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), with one
@@ -118,6 +118,13 @@ residuals(object, type = "ev", ...)
   argument - the response family is always resolved automatically as
   gaussian or probit, with no logistic option - and does not accept
   sparse (`Matrix::dgCMatrix`) predictors.
+
+- k:
+
+  As in [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+  except that `rbart_vi` fixes the default at `2.0` for both continuous
+  and binary responses; unlike `bart2`, a `NULL` default (and thus the
+  `chi` hyperprior on binary fits) is not available here.
 
 - object:
 
@@ -296,7 +303,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000306
+#> total seconds in loop: 0.000312
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
@@ -309,7 +316,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001547
+#> total seconds in loop: 0.001598
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 
@@ -354,7 +361,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000393
+#> total seconds in loop: 0.000396
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 
@@ -367,7 +374,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001972
+#> total seconds in loop: 0.002074
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 

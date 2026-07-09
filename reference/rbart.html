@@ -54,7 +54,7 @@
 <span>    n.trees <span class="op">=</span> <span class="fl">75L</span>,</span>
 <span>    n.samples <span class="op">=</span> <span class="fl">1500L</span>, n.burn <span class="op">=</span> <span class="fl">1500L</span>,</span>
 <span>    n.chains <span class="op">=</span> <span class="fl">4L</span>, n.threads <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">min</a></span><span class="op">(</span><span class="fu">dbarts</span><span class="fu">::</span><span class="fu"><a href="guessNumCores.html">guessNumCores</a></span><span class="op">(</span><span class="op">)</span>, <span class="va">n.chains</span><span class="op">)</span>,</span>
-<span>    combineChains <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    n.cuts <span class="op">=</span> <span class="fl">100L</span>, useQuantiles <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    n.thin <span class="op">=</span> <span class="fl">5L</span>, keepTrainingFits <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    printEvery <span class="op">=</span> <span class="fl">100L</span>, printCutoffs <span class="op">=</span> <span class="fl">0L</span>,</span>
@@ -90,7 +90,7 @@
 <span></span>
 <span><span class="co"># S3 method for class 'rbart'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span></span>
-<span>    <span class="va">object</span>, <span class="va">newdata</span>, <span class="va">group.by</span>, <span class="va">offset</span>,</span>
+<span>    <span class="va">object</span>, <span class="va">newdata</span>, <span class="va">group.by</span>, <span class="va">offset</span>, <span class="va">weights</span>,</span>
 <span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"ranef"</span><span class="op">)</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    ci.level <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -121,8 +121,11 @@
   <dt id="arg-callback">callback<a class="anchor" aria-label="anchor" href="#arg-callback"></a></dt>
 <dd><p>Optional function of <code>trainFits</code>, <code>testFits</code>, <code>ranef</code>, <code>sigma</code>, and <code>tau</code>. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.</p></dd>
 
-  <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-k-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, k, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-k-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-"></a></dt>
+  <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-"></a></dt>
 <dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> has no <code>family</code> argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
+
+  <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
+<dd><p>As in <code><a href="bart.html">bart2</a></code>, except that <code>rbart_vi</code> fixes the default at <code>2.0</code> for both continuous and binary responses; unlike <code>bart2</code>, a <code>NULL</code> default (and thus the <code>chi</code> hyperprior on binary fits) is not available here.</p></dd>
 
   <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A fitted <code>rbart</code> model.</p></dd>
@@ -247,7 +250,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000306</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000312</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 </span>
@@ -260,7 +263,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001547</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001598</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 </span>
@@ -305,7 +308,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000393</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000396</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 </span>
@@ -318,7 +321,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001972</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002074</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 </span>

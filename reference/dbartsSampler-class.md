@@ -88,8 +88,24 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - updateState:
 
   A logical determining if the local cache of the sampler's state should
-  be updated after the completion of the run. If `NA`, the default is
-  also filled in from the control object.
+  be updated after the call completes. Two conventions apply, by method:
+  for `run`, `sampleTreesFromPrior`, and
+  `sampleNodeParametersFromPrior`, `NA` (the default) fills in the
+  sampler's
+  [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
+  object's `updateState`, and explicit `TRUE`/`FALSE` override it. For
+  the mutators - `setData`, `setResponse`, `setOffset`, `setWeights`,
+  `setSigma`, `setPredictor`, and `setCutPoints` - the state is stored
+  only on explicit `TRUE`; `NA` (the default) and `FALSE` both store
+  nothing, regardless of `control@updateState`. These are typically
+  called once per sweep inside a larger Gibbs/MH loop (as
+  `dbartsSampler` is designed for), where storing state on every
+  mutation would be wasted work whenever the loop only reads `state`
+  occasionally (or never); an unforced `state` promise materializes the
+  sampler's *current* state on first access regardless, so a
+  mutate-then-first-read sequence needs no explicit store. Pass `TRUE`
+  explicitly when `state` was already forced (read or saved) earlier and
+  a later mutation must be reflected in the next save.
 
 - shallow:
 
