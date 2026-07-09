@@ -64,3 +64,7 @@ and any code fix becomes its own gated item.
   correctness-audit.md.
 - 2026-07-08: review 2 (interface-review) started; plan authored
   (interface-review.md).
+- 2026-07-08: review 2 COMPLETE - four readers, findings verified
+  by orchestrator (one refuted), F1-F11/D1-D6 landed 8744e77, all
+  eleven VD taste decisions landed c1ea79a (both draw-neutral,
+  equivalence identical). Full record in interface-review.md.
