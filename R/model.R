@@ -340,11 +340,11 @@ resolveSplitProbabilities <- function(prior, data) {
 }
 
 ## Turn a normal prior's raw k into the model's node hyperprior: NULL is the
-## family default (2 for continuous responses, chi(1.5, Inf) for binary),
+## family default (2 for continuous responses, chi(1.5, 2) for binary),
 ## a positive scalar is fixed, and a hyperprior object passes through.
 resolveNodeHyperprior <- function(k, binary) {
   if (is.null(k)) {
-    k <- if (binary) chi(1.5, Inf) else 2.0
+    k <- if (binary) chi(1.5, 2.0) else 2.0
   }
   if (is.numeric(k)) {
     return(newValidated("dbartsFixedHyperprior", k = k))
@@ -448,7 +448,7 @@ fixed <- function(value = 1.0) {
   newValidated("dbartsFixedPrior", value = value)
 }
 
-chi <- function(degreesOfFreedom = 1.5, scale = Inf) {
+chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
   newValidated(
     "dbartsChiHyperprior",
     degreesOfFreedom = degreesOfFreedom,

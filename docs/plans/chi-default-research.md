@@ -131,4 +131,33 @@ loaded 48 cells, 7680 rows
         strong      0.5 2000    1.025 1.42e+00    0.00
           weak      0.5 2000    6.367 1.12e+01    0.00
 
-wrote /Users/vdorie/.claude/jobs/7fe13675/tmp/chi-default/all_results.rds 
+wrote /Users/vdorie/.claude/jobs/7fe13675/tmp/chi-default/all_results.rds
+
+## Status (2026-07-10)
+
+Decision implemented: chi()'s scale default is Inf -> 2 (R/model.R), so
+bare chi(df) and the binary NULL-k default (R/model.R resolveNodeHyperprior,
+R/bart.R .kDefault) now resolve to chi(1.5, 2). Inf remains a legal explicit
+scale. Docs updated: man/dbartsPriors.Rd (normal() and chi() entries),
+man/bart.Rd (k argument, End-node prior parameter k subsection). rbart_vi
+keeps its own fixed k = 2.0 default (R/rbart.R), unaffected; its doc
+(man/rbart.Rd) already stated that and needed no change.
+
+Snapshot fallout: full tinytest suite (92 files, 2610 tests) passes with 0
+failures against the new default - no test hardcodes draws from a
+default-k binary fit. Only inst/tinytest/test-binaryResponse-hyperprior.R
+needed a comment fix (a comment mislabeled explicit chi(1.5, Inf) as "the
+default"); no numeric snapshot regeneration was required.
+
+Equivalence: 7 of 21 scenarios in benchmarks/R/equivalence.R rode the chi
+default and were pinned to their historical explicit settings so the anchor
+stays byte-identical (the scenarios exist to detect engine changes, not
+default changes; riding a default was a latent fragility). chik, logistic,
+and wtlogistic gained the old binary default explicitly (node.prior =
+normal(chi(1.5, Inf)); the logistic pair rode the same default through
+dbarts()'s binary NULL-k path, confirmed by k.mean in their baseline
+summaries), and linear/gp/wtgp/chik2 added the formerly-implicit scale
+(chi(1.25, Inf) / chi(50, Inf)). A comment at the first pin records the
+convention: scenarios pin ALL prior settings explicitly. Compare vs
+benchmarks/baselines/equivalence-de67cbb.rds after pinning: all 21
+scenarios identical draws (same RNG stream).

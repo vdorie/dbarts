@@ -266,7 +266,7 @@ packageBartResults <- function(
   invisible(result)
 }
 
-.kDefault <- quote(if (control@binary) quote(chi(1.5, Inf)) else 2)
+.kDefault <- quote(if (control@binary) quote(chi(1.5, 2.0)) else 2)
 
 ## Builds the quoted tree/node/resid prior calls that bart, bart2, and
 ## rbart_vi hand to dbarts. nodeK is the node prior's k argument exactly as

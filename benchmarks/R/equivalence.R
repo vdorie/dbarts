@@ -100,9 +100,10 @@ makeScenarios <- function() {
     splitprobs = c(rep(0.15, 5L), rep(0.05, 5L))
   )
 
-  # binary with the default chi hyperprior on k; driven through the sampler
+  # binary with a chi hyperprior on k; driven through the sampler
   # API (old engine) and the package's bartcore bridge (new engine), since
-  # bart() cannot express an adaptive k
+  # bart() cannot express an adaptive k. Scenarios pin ALL prior settings
+  # explicitly so package default changes cannot shift the anchor.
   set.seed(5105L)
   x <- matrix(runif(600L * 10L), 600L)
   result$chik <- list(
@@ -110,7 +111,10 @@ makeScenarios <- function() {
     y = rbinom(600L, 1L, pnorm(scale(friedman(x)))),
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = TRUE,
-    samplerApi = TRUE
+    samplerApi = TRUE,
+    samplerArgs = list(
+      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+    )
   )
 
   # two chains pooled, driven through the sampler API of both engines; each
@@ -255,7 +259,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25))
+      node.prior = dbarts:::linear(c(1L, 4L), k = dbarts:::chi(1.25, Inf))
     )
   )
 
@@ -269,7 +273,11 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25), max.leaf.size = 100L)
+      node.prior = dbarts:::gp(
+        1L,
+        k = dbarts:::chi(1.25, Inf),
+        max.leaf.size = 100L
+      )
     )
   )
 
@@ -282,7 +290,10 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = TRUE,
     samplerApi = TRUE,
-    samplerArgs = list(family = "logistic")
+    samplerArgs = list(
+      family = "logistic",
+      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+    )
   )
 
   # logistic family with integer count weights: the weighted Polya-Gamma path,
@@ -296,7 +307,10 @@ makeScenarios <- function() {
     x.test = matrix(runif(n.test * 10L), n.test),
     binary = TRUE,
     samplerApi = TRUE,
-    samplerArgs = list(family = "logistic")
+    samplerArgs = list(
+      family = "logistic",
+      node.prior = dbarts:::normal(dbarts:::chi(1.5, Inf))
+    )
   )
 
   # exact-zero training weights: the constant-leaf no-likelihood path and the
@@ -349,7 +363,11 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     samplerArgs = list(
-      node.prior = dbarts:::gp(1L, k = dbarts:::chi(1.25), max.leaf.size = 100L)
+      node.prior = dbarts:::gp(
+        1L,
+        k = dbarts:::chi(1.25, Inf),
+        max.leaf.size = 100L
+      )
     )
   )
 
@@ -399,7 +417,7 @@ makeScenarios <- function() {
     binary = FALSE,
     samplerApi = TRUE,
     nTrees = 20L,
-    samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50)))
+    samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50, Inf)))
   )
 
   result

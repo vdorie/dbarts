@@ -126,8 +126,9 @@ expect_true(all(is.finite(bartFit.runaway$k)))
 expect_true(all(bartFit.runaway$k <= 1e6))
 expect_true(any(bartFit.runaway$k == 1e6))
 
-# the same default chi hyperprior (chi(1.5, Inf)) with a healthy number of
-# trees never approaches the cap, so the cap is behavior-neutral here
+# the same improper hyperprior (chi(1.5, Inf), the old default, still legal)
+# with a healthy number of trees never approaches the cap, so the cap is
+# behavior-neutral here
 set.seed(99L)
 bartFit.healthy <- dbarts::bart(
   testData$x[fitSubset, ],
