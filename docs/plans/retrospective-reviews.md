@@ -111,3 +111,23 @@ and any code fix becomes its own gated item.
   Everything else accepted-risk or doc-noted with measurements.
   Full record in architecture-numerical-review.md. Remaining:
   review 5 (roadmap survey) only.
+- 2026-07-10: review 5 (roadmap-survey) COMPLETE - THE PROGRAM IS
+  DONE, all six reviews. Package matrix, binary-k-default table
+  (chi-default-research part 1 fulfilled: the field is fixed k=2;
+  dbarts's hyperprior default is unique and unpublished),
+  literature traction ranking, demand-ranked backlog (random-
+  effects breadth is the strongest issue cluster; interaction-
+  constraints has two named asks; #79 weighted-binary is a
+  correctness complaint), and the headline gap: SURVIVAL - the
+  existing survival-models.md plan should be promoted to first
+  tier (AFT log-normal first, riAFTBART as consumer). dbarts
+  leads on integration and CRAN reach; the embedding niche is now
+  contested (stochtree). Full record in roadmap-survey.md.
+  Program totals: 4 engine defects found+fixed (change-move
+  balance, chi df, zero-weight sigma df, chi-k empty leaves),
+  1 calibration defect found+filed (BCF glue-on sigma), 2
+  numerical hazards found (tau slice hang -> cap in flight;
+  chi-k runaway -> VD decision), the R surface overhauled
+  (interface review), the gate battery hardened (6 new gates,
+  21-scenario anchor, SBC harness), and the roadmap re-ranked on
+  evidence.

@@ -134,16 +134,21 @@ items
     chi-hyperprior-df fix. The chi(1.25, Inf) binary default came
     from a simulation showing good binary-outcome performance; with
     the label now honest (chi(1.5)), re-derive the default from
-    evidence. Two parts: (1) survey what other BART implementations
-    use for binary leaf-prior scaling defaults (BART, bartMachine,
-    stochtree/XBART, bartz, pymc-bart, softbart - fixed k vs
-    hyperprior, values, any published rationale); (2) a broad
-    simulation over binary scenarios (n, p, prevalence, signal
-    strength/sparsity, friedman + linear + interaction DGPs)
-    comparing k defaults and chi hyperprior settings on held-out
-    log-loss, AUC, calibration, and interval coverage. Output: a
-    design note + recommendation; any default change is its own
-    posterior-changing item with VD's sign-off.
+    evidence. PART 1 DONE (roadmap-survey rider, 2026-07-10,
+    detailed table in roadmap-survey.md): dbarts is the ONLY
+    package with a hyperprior-on-k binary default; the field is
+    fixed k=2 (BART, bartMachine, bartz), SoftBart alone at fixed
+    k=1 (unexplained), stochtree samples leaf VARIANCE via IG (not
+    k), pymc-bart exposes no knob; NO published rationale anywhere
+    for a non-2 default. PART 2 remains: a broad simulation over
+    binary scenarios (n, p, prevalence, signal strength/sparsity,
+    friedman + linear + interaction DGPs) comparing k defaults and
+    chi hyperprior settings on held-out log-loss, AUC, calibration,
+    and interval coverage - now also deciding the chi-k-runaway
+    remedy's default-scale half and rbart_vi's k default (interface
+    taste call T5). Output: a design note + recommendation; any
+    default change is its own posterior-changing item with VD's
+    sign-off.
   bcf-glue-sigma-calibration: sbc-calibration (review 4) finding,
     tier A. Standard BCF (n=200) with the glue UPDATING shows a
     systematic sigma miscalibration under SBC - posterior sigma too
