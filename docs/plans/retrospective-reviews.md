@@ -97,3 +97,17 @@ and any code fix becomes its own gated item.
   robustness) started BEFORE review 5 (roadmap survey needs
   sustained web access; the machine is on plane WiFi - VD
   authorized any order). Plan: architecture-numerical-review.md.
+- 2026-07-09: review 6 COMPLETE. Architecture: grow-from-root/
+  NB+ordinal/data-ownership/blocked-jacobi FIT their seams;
+  multi-forest STRAINS on the missing ForestCombiner (filed);
+  gpu-bart BLOCKED as its own memo concluded. Two pre-release
+  decision windows surfaced: the frozen dbarts_results growth
+  path and the additive state format (filed as
+  dbarts-results-growth, VD decision). Numerical: two REAL
+  findings, both verified in source - the uncapped tau slice
+  step-out (tau-slice-stepout-cap, hang reachable with legal
+  inputs) and the improper chi(scale=Inf) default's k runaway
+  (chi-k-runaway, silent forest collapse; remedy is VD's call).
+  Everything else accepted-risk or doc-noted with measurements.
+  Full record in architecture-numerical-review.md. Remaining:
+  review 5 (roadmap survey) only.

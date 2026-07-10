@@ -95,3 +95,94 @@ B. NUMERICAL AUDITOR: where does the arithmetic degrade first.
 ## Status
 
 - 2026-07-09: plan authored; both readers dispatched.
+- 2026-07-09: both reports in; adjudicated. Review COMPLETE.
+
+READER A (architecture) verdicts:
+- grow-from-root-warm-start FITS: rides installForests/
+  sampleTreesFromPrior, never enters the MH kernel (so the
+  proposal-equals-prior identity is untouched by construction).
+  Net-new: the per-cut scan primitive (benchmark-only today), which
+  must be OCCUPANCY-AWARE - the empty-leaf veto lives in
+  logLikelihoodForBranch's finite penalty and does not transfer to
+  a scan-based builder (noted on the TODO entry).
+- multi-forest-models STRAINS (deepest): the Forest split moved
+  state, not combining - BCF is a hardcoded bcf_ special case
+  (sweep branches, drawGlue, combinedFits, formForestResponse all
+  two-forest-literal; no ForestCombiner abstraction), sigma_ is a
+  chain-level scalar, and 36 forests_[0] reporting hardcodings are
+  per-forest quantities for K-way models. Heteroscedastic
+  additionally forces a FOURTH leaf kind (multiplicative-positive,
+  non-integrable) bundled with a non-conjugate MoveStrategy that
+  does not exist. Filed: forest-combiner (TODO).
+- negative-binomial + ordinal FIT engine-side (ResponseModel is the
+  right seam; GroupedResponse's weighted update composes with PG/
+  probit latents). The strain is the FROZEN dbarts_results struct:
+  it cannot gain fields (consumers stack-allocate against the
+  compiled layout), so NB's r trace / ordinal cutpoints need a
+  decided growth path BEFORE 1.0-0 (VD decision window).
+- data-ownership FITS (borrow isolated in ColumnStore; C ABI
+  unaffected) but there is NO column-subset view - a hard
+  prerequisite for BCF moderators and per-forest predictors (noted
+  on the TODO entry).
+- blocked-jacobi FITS behind the move surface; gpu-bart BLOCKED
+  (representational; correctly sequenced behind the scan
+  primitive).
+Cross-cutting: GroupedResponse decoration is the right pattern on
+the wrong side of the Chain/combiner boundary - grouped x BCF (and
+grouped x any multi-forest) is impossible until combining becomes a
+ResponseModel-side object. Ranked debts: (1) ForestCombiner,
+(2) dbarts_results growth path [pre-release decision],
+(3) additive/optional-block state format [pre-release; flat-format-
+v2 is the existing item], (4) column-subset views, (5) per-
+observation residual variance convention, (6) occupancy-aware scan.
+
+READER B (numerical) verdicts, measured (scripts in session tmp):
+- REAL, high: grouped tau slice sampler step-out is UNCAPPED in
+  BOTH directions (model.hpp:2299-2301; only shrinkage has the
+  1000 cap; verified by orchestrator). Step-outs ~ tau/width:
+  >1e5 iterations at tau > ~2.5e5, indefinite hang at tau > ~1e8.
+  Reachable legally: empty groups draw effects ~N(0, tau^2) with
+  no mean-reversion (mostly-empty groupings let tau random-walk
+  up); heavy-tail excursions at small J. Fix: Neal's m cap both
+  directions (~1e4) - never engages in normal runs, bit-identical.
+  Filed: tau-slice-stepout-cap.
+- REAL, high (headline): chi-k Gibbs runaway - chi()'s scale=Inf
+  DEFAULT (R/model.R:451, verified) is an improper prior; when
+  leaves are prior-dominated the fixed-point factor
+  (1 + df/numLeaves) > 1 always. Legal chi(100, Inf) runs away
+  deterministically (k -> 1e25; leaf sd -> 0; forest fits NOTHING;
+  sigma -> marginal sd; NO error raised); few-tree df=1.5 runs away
+  stochastically (k to 1e21 observed). chi(100, scale=2) stabilizes
+  healthily at k~21. The default 200-tree chi(1.5) survives only
+  because data usually overcome a 1.0037 per-sweep factor. Remedy
+  is VD's call (sentinel cap / finite default scale / warn) -
+  filed chi-k-runaway; interacts with chi-default-research.
+- ACCEPTED RISK: constant-leaf centered-SS cancellation (garbage
+  at shared offset ~1e6-1e8, but the response is pre-standardized
+  to [-0.5, 0.5], 0 decision flips through offset 1e6; the BCF
+  resid/m scaling cancels in the suffstat products); totalFits
+  drift (sqrt-growth, ~1e-13 at 1e5 sweeps, invisible vs sigma;
+  optional re-anchor not needed); BCF 1e-9 floor (m cancels to
+  full precision in w*z products; sub-floor leaves draw from the
+  prior, immaterial); extreme uniform response scales (1e15/1e-15
+  round-trip clean); setState gaussian n-mismatch (accepted but
+  benign: repartition + re-accumulation yields healthy fits, only
+  donor sigma/scale linger and burn-in absorbs them; the guard IS
+  load-bearing for latent/function-leaf/grouped states, which are
+  n-checked).
+- DOC NOTES: GP predict at training rows re-krigs WITHOUT the
+  self-term nugget, landing nugget*|K^-1 f| ~ 2-3e-3 below the
+  recorded (jittered) fit - predict interpolates the jitter-free
+  mean; affects predict/test only, never MCMC; huge-offset/
+  tiny-range responses quantize in DOUBLE PRECISION before the
+  engine sees them (y in [1e15, 1e15+1e-3] collapses to 1 distinct
+  value; engine copes, models a degenerate response silently) -
+  R-boundary warning filed as input-precision-validation.
+- FORWARD GUARDRAIL (ties A to B): seeds 1 and 5 are safe ONLY
+  because responses reach the constant leaf pre-standardized to
+  O(1); the data-ownership container or any family bypassing
+  rescale() re-exposes the cancellation and the floor's scale
+  assumption (noted on the data-ownership TODO entry).
+Overall: numerically trustworthy at the documented envelope; the
+two uncapped/improper objects (slice step-out, improper chi) are
+the trust boundary, both cheap to guard.
