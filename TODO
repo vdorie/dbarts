@@ -128,24 +128,18 @@ items
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
     workingWeights channel vs a sigma vector).
-  chi-default-research: PART 2 DONE 2026-07-10 (simulation study;
-    full record in chi-default-research.md, part 1 in
-    roadmap-survey.md). 48 cells (dgp x n x p x base rate) x 8
-    arms x 20 paired reps: the chi hyperprior with FINITE scale
-    dominates every fixed k on worst-cell regret (chi(1.5,2) ~5x
-    better than fixed k=2); fixed k=2 fails strong-separation
-    small-n outright (coverage 0.51 - it cannot adapt down);
-    chi(1.5, Inf)'s only pathology is the improper scale (weak
-    balanced cells drift k to ~1e3-1e5, 2 runaways; base-rate-0.1
-    cells never drift); finite scales kept k in [0.8, 5.3]
-    everywhere, making the 1e6 sentinel a dead backstop.
-    chi(1.5, 2) has prior median k = 1.91 - the field's k = 2,
-    sampled. RECOMMENDED DEFAULT CHANGE (AWAITING VD): bart2/
-    dbarts binary + rbart_vi default chi(1.5, Inf) -> chi(1.5, 2);
-    bart() keeps fixed k=2 for BayesTree compatibility.
-    Posterior-changing for default binary bart2 fits (snapshot
-    regens; equivalence scenarios pin their settings explicitly -
-    verify none rides the default).
+  chi-default-research: COMPLETE and IMPLEMENTED 2026-07-10
+    (study record chi-default-research.md; landing 5b6e482). VD
+    approved chi(1.5, 2) as the binary default: chi()'s scale
+    default is now 2.0 (Inf still accepted, sentinel cap the
+    backstop), .kDefault and resolveNodeHyperprior updated, Rd
+    frames it as the field's k = 2 sampled (prior median 1.9;
+    pass k = 2 for the fixed BART default). rbart_vi already
+    pinned k = 2 (unchanged). No snapshots rode the old default;
+    SEVEN equivalence scenarios did (chik, linear, gp, wtgp,
+    chik2, logistic, wtlogistic) and are now pinned to their
+    historical explicit settings, so the anchor stays
+    byte-identical (21/21 identical draws post-change).
 
   bcf-glue-sigma-calibration: RESOLVED 2026-07-10 as H-MIX (slow
     mixing), not a defect - the chain-length experiment (three
