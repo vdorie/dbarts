@@ -111,16 +111,14 @@ items
     on the SplitSelector seam. consumer-gated.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
-  input-precision-validation: review-6 numerical finding (seed 7).
-    A response with huge offset and tiny range quantizes in double
-    precision BEFORE the engine sees it (y in [1e15, 1e15+1e-3] is
-    1 distinct value); the engine copes but silently models a
-    degenerate response. Add an R-boundary warning when
-    range(y)/|median(y)| < ~1e-10 or distinct(y) << n. Also fold
-    in the GP doc note: predict() at training rows interpolates
-    the jitter-free mean, landing ~2-3e-3 below the recorded
-    (jittered) fits - document in the GP man/design text. Small, R
-    + docs.
+  input-precision-validation: LANDED 2026-07-10 with
+    missing-incorporate-matrix-interface (de67cbb). dbartsData warns
+    when range(y)/max(abs(y)) < 1e-10 (0/0 guarded); deliberately NO
+    cardinality check backs it up - a genuine double-precision
+    collapse always trips the ratio, while anything cardinality-only
+    is well-separated legitimate discrete data (subsumption argument
+    in small-validation-fixes.md). GP predict-vs-recorded-fit note
+    landed in man/dbartsPriors.Rd and gp-leaves.md.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked. Review-6
@@ -241,14 +239,14 @@ items
     2026-07-08: F/D list 8744e77, taste calls c1ea79a (equivalence
     18/18 identical both; suite 2496/0). Interface review COMPLETE;
     records in interface-review.md.
-  missing-incorporate-matrix-interface: sbc-calibration (review 4)
-    tier-B finding. The matrix (xy) interface drops NA rows even
-    under missing = "incorporate" - the raw branch's complete-cases
-    filter runs regardless, so incorporation is only reachable
-    through the formula interface (na.action = na.pass). Either make
-    the matrix path honor "incorporate" (keep NA rows) or error
-    that incorporate requires the formula interface; silent
-    dropping contradicts the argument. Small, R validation/docs.
+  missing-incorporate-matrix-interface: LANDED 2026-07-10 with
+    input-precision-validation (de67cbb). The matrix branch now
+    honors missing = "incorporate": no complete-cases drop, NA rows
+    reach the shared MIA machinery, and matrix and formula fits are
+    bit-identical (test-data-missing-matrix.R). Shifting: the
+    equivalence "missing" scenario legitimately moved (57% of its
+    rows had been silently dropped); anchor re-recorded as
+    equivalence-de67cbb.rds.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.

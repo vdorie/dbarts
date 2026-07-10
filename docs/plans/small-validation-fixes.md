@@ -160,3 +160,12 @@ scenarios remain byte-identical (same RNG stream) - fix is precisely
 scoped. This matches the repo's established "shifting" RNG-class
 precedent (sigma-df-zero-weights re-recorded the anchor after a
 similar legitimate single-scenario shift; see MANIFEST).
+
+- 2026-07-10: LANDED as de67cbb (squash of wt/small-validation-fixes;
+  reviewer stripped a process reference from the R/data.R comment).
+  Reviewer re-ran the gates from a private library while the shared
+  install stayed on the previous build: tinytest 2526/0; equivalence
+  vs 0e9ccca reproduced 20/21 identical with the adjudicated missing
+  shift (sigma.mean 1.48 -> 0.68, the fuller dataset fitting better).
+  Anchor re-recorded as equivalence-de67cbb.rds (21 scenarios,
+  self-compare clean); MANIFEST and the equivalence workflow updated.
