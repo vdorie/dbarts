@@ -1724,13 +1724,22 @@ struct ChiKHyperprior {
   double degreesOfFreedom = 1.5;
   double scale = HUGE_VAL;  // infinite = flat in the rate term
 
+  /// Sentinel ceiling on the sampled k. An improper or weak prior scale leaves
+  /// the prior-dominated k Gibbs fixed point with a growth factor above 1, so
+  /// k can run away toward a leaf sd that is already statistically zero on the
+  /// standardized [-0.5, 0.5] response scale; capping the draw bounds the
+  /// excursion. Behavior-neutral outside that runaway regime: healthy draws
+  /// sit far below it, so the cap never engages.
+  static constexpr double maxDraw = 1.0e6;
+
   double draw(ext_rng* rng, double sumSquaredParams, double totalNumLeaves,
               double leafScale) const {
     double shape = 0.5 * (totalNumLeaves + degreesOfFreedom);
     // classic form: numTrees * s_sq / nodeScale^2 == s_sq / leafScale^2
     double rate = 0.5 * sumSquaredParams / (leafScale * leafScale);
     if (std::fabs(scale) <= DBL_MAX) rate += 0.5 / (scale * scale);
-    return std::sqrt(ext_rng_simulateGamma(rng, shape, 1.0 / rate));
+    double k = std::sqrt(ext_rng_simulateGamma(rng, shape, 1.0 / rate));
+    return k > maxDraw ? maxDraw : k;
   }
 };
 

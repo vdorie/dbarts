@@ -109,6 +109,36 @@ expect_true(cor(mu.hat.bart, mu.hat.bart.flat) > 0.95)
 expect_true(length(unique(bartFit.flat$k)) > 100L)
 expect_true(median(bartFit.flat$k) < 15)
 
+# An improper scale (chi's scale = Inf) with few trees drives the k Gibbs
+# fixed point past any finite bound; the sampler caps the sampled k at 1e6, so
+# the fit runs to completion with a finite, bounded k trace instead of running
+# away.
+set.seed(99L)
+bartFit.runaway <- dbarts::bart(
+  testData$x[fitSubset, ],
+  testData$y[fitSubset],
+  binaryOffset = testData$offset,
+  ntree = 5L,
+  k = chi(100, Inf),
+  verbose = FALSE
+)
+expect_true(all(is.finite(bartFit.runaway$k)))
+expect_true(all(bartFit.runaway$k <= 1e6))
+expect_true(any(bartFit.runaway$k == 1e6))
+
+# the same default chi hyperprior (chi(1.5, Inf)) with a healthy number of
+# trees never approaches the cap, so the cap is behavior-neutral here
+set.seed(99L)
+bartFit.healthy <- dbarts::bart(
+  testData$x[fitSubset, ],
+  testData$y[fitSubset],
+  binaryOffset = testData$offset,
+  k = chi(1.5, Inf),
+  verbose = FALSE
+)
+expect_true(length(bartFit.healthy$k) > 0L && all(bartFit.healthy$k < 1e6))
+rm(bartFit.healthy, bartFit.runaway)
+
 rm(
   mu.hat.bart.flat,
   bartFit.flat,
