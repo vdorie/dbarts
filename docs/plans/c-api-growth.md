@@ -584,3 +584,34 @@ window. Record this in the release note (TODO L445-449 area).
   (structSize pinned to offsetof(test) with poisoned slots past it) and
   every consumer.c run call site sets structSize - the in-repo lockstep
   rebuild. Gates re-run after the rework; results recorded below.
+- 2026-07-10: DEFERRED CHANNEL LANDED (the logLikelihood follow-up this
+  plan named). dbarts_results gains a ninth pointer, logLikelihood
+  (numObservations x numSamples x numChains), appended INSIDE the born v1
+  layout - 1.0-0 is unreleased, so it ships below groupEffects with the
+  "1.0-0 field boundary" comment moved beneath it and DBARTS_C_API_VERSION
+  left at 1 (the same in-repo lockstep the size-first rework already took).
+  C_interface.cpp maps it through the FILL guard and the exact-sizeof
+  static_assert grew to 9 pointers (its message reworded: appends AFTER
+  1.0-0 bump the version; this pre-release append does not). Engine:
+  bartcore::Results gains logLikelihood (default null = skip, zero work);
+  storeSample fills it per non-BCF observation via a new
+  ResponseModel::computeLogLikelihood virtual. Family coverage: gaussian
+  (dnorm(y, f(x)+offset, sigma/sqrt(w)) via Rf_dnorm4), probit
+  (log dbinom(y, 1, Phi(eta)) via the stable Rf_pnorm5 log-tail), and
+  logistic (w * log dbinom(y, 1, plogis(eta)) via a stable log1pExp, integer
+  count weights). GROUPED samplers are FILLED, not NaN'd: the GroupedResponse
+  decorator adds the per-observation intercept (the shiftFits pattern, ~6
+  lines) then defers to the base family, matching rbart_vi's extract "ev" +
+  ranef location - the <= 30-line clean threading the scope allowed. NaN
+  POLICY: BCF NaN-fills the channel (the two-forest blended location is
+  invisible to the response model, exactly the testFits precedent); the base
+  ResponseModel default NaN-fills so any future family reports "unavailable"
+  rather than a wrong value. The R bridge never sets Results::logLikelihood
+  (default-initialized null), so R-side memory and every draw are unchanged;
+  equivalence stays byte-identical. Verification: test-capi.R asserts the C
+  channel == dnorm(y, train, sigma, log) recomputed in R (gaussian, exact to
+  1e-12, same Rf_dnorm4) and == the stable/dbinom probit forms; tests/cpp
+  testLogLikelihood asserts NULL costs nothing (bitwise sigma/train with and
+  without the channel, same seed) and the per-family math on a fixed input;
+  the write-guard canary still pins structSize below the new field and
+  passes. Gates recorded below.

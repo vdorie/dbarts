@@ -8,11 +8,13 @@
 #include <cstddef>
 #include <cstring>
 #include <cfloat>
+#include <limits>
 #include <memory>
 #include <numbers>
 #include <vector>
 
 #include <external/random.h>
+#include <external/stats.h> // Rf_dnorm4, Rf_pnorm5 for the log-likelihood channel
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 
@@ -1773,6 +1775,12 @@ struct ChiSquaredScalePrior {
 /// directly, the binary families fit a latent working response.
 enum class ResponseFamily { gaussian, probit, logistic };
 
+/// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
+/// block, guarding against overflow for large x.
+inline double logOnePlusExp(double x) {
+  return x > 0.0 ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
+}
+
 /// Response models own the working response the backfitting engine sees and
 /// any per-iteration latent refresh; concrete classes own their O(n) loops.
 /// Response/offset pointers are borrowed: the caller keeps them alive.
@@ -1859,6 +1867,19 @@ public:
   virtual double fitScale() const = 0;
   virtual double fitShift() const = 0;
   virtual double sigmaScale() const = 0;
+
+  /// Per-observation log-likelihood of the training response under the
+  /// current fit, into out (numObservations values). totalFits is the forest
+  /// sum on the internal scale and sigma the internal residual sd; each family
+  /// applies its own transform and density. The default NaN-fills, so a family
+  /// without a defined channel reports "unavailable" rather than a wrong value.
+  virtual void computeLogLikelihood(const double* /*totalFits*/,
+                                    double /*sigma*/,
+                                    std::size_t numObservations,
+                                    double* out) const {
+    for (std::size_t i = 0; i < numObservations; ++i)
+      out[i] = std::numeric_limits<double>::quiet_NaN();
+  }
 
   /// Grouped random effects, when the model carries them (the GroupedResponse
   /// decorator): the per-group intercepts and tau, on the internal scale.
@@ -1983,6 +2004,23 @@ public:
   double fitScale() const override { return range_; }
   double fitShift() const override { return range_ * 0.5 + min_; }
   double sigmaScale() const override { return range_; }
+
+  /// dnorm(y_i, mu_i, sigma_i) with mu the original-scale fit (fits carry any
+  /// offset) and sigma_i the residual sd scaled by the precision weight:
+  /// y | x ~ N(f(x) + offset, sigma^2 / w_i).
+  void computeLogLikelihood(const double* totalFits, double sigma,
+                            std::size_t numObservations,
+                            double* out) const override {
+    double shift = range_ * 0.5 + min_;
+    double sigmaOriginal = sigma * range_;
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double mu = range_ * totalFits[i] + shift +
+                  (offset_ != nullptr ? offset_[i] : 0.0);
+      double sd = weights_ != nullptr ? sigmaOriginal / std::sqrt(weights_[i])
+                                      : sigmaOriginal;
+      out[i] = Rf_dnorm4(y_[i], mu, sd, 1);
+    }
+  }
 
   void getScale(double& min, double& max) const override {
     min = min_;
@@ -2133,6 +2171,18 @@ public:
   double fitShift() const override { return 0.0; }
   double sigmaScale() const override { return 1.0; }
 
+  /// log dbinom(y_i, 1, Phi(eta_i)) with eta the latent location f(x) + offset,
+  /// via the stable log lower/upper normal tail: log Phi(eta) for a success,
+  /// log Phi(-eta) for a failure.
+  void computeLogLikelihood(const double* totalFits, double,
+                            std::size_t numObservations,
+                            double* out) const override {
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      out[i] = Rf_pnorm5(eta, 0.0, 1.0, y_[i] != 0.0 ? 1 : 0, 1);
+    }
+  }
+
 private:
   void rebuildWorking() {
     std::memcpy(working_.data(), latents_.data(),
@@ -2238,6 +2288,19 @@ public:
   double fitScale() const override { return 1.0; }
   double fitShift() const override { return 0.0; }
   double sigmaScale() const override { return 1.0; }
+
+  /// w_i log dbinom(y_i, 1, plogis(eta_i)) with eta the log-odds f(x) + offset
+  /// and w_i the integer trial count (1 unweighted): -log(1 + exp(-eta)) for a
+  /// success, -log(1 + exp(eta)) for a failure.
+  void computeLogLikelihood(const double* totalFits, double,
+                            std::size_t numObservations,
+                            double* out) const override {
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      double ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
+      out[i] = (weights_ != nullptr ? weights_[i] : 1.0) * ll;
+    }
+  }
 
 private:
   /// Deterministic cold start, the analogue of probit's z = 2 y - 1: omega
@@ -2501,6 +2564,18 @@ public:
   double fitScale() const override { return base_->fitScale(); }
   double fitShift() const override { return base_->fitShift(); }
   double sigmaScale() const override { return base_->sigmaScale(); }
+
+  /// The per-observation location is f(x_i) + b_g(i); add the group intercept
+  /// on the base's internal scale (as shiftFits does) and defer to the base
+  /// family's density, so the log-likelihood conditions on the drawn effects.
+  void computeLogLikelihood(const double* totalFits, double sigma,
+                            std::size_t numObservations,
+                            double* out) const override {
+    std::vector<double> shifted(numObservations);
+    for (std::size_t i = 0; i < numObservations; ++i)
+      shifted[i] = totalFits[i] + groupEffects_[groupIndex_[i]];
+    base_->computeLogLikelihood(shifted.data(), sigma, numObservations, out);
+  }
 
   const double* groupEffects() const override {
     return groupEffects_.data();

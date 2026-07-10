@@ -52,8 +52,11 @@ static_assert(offsetof(dbarts_results, k) < offsetof(dbarts_results, varprobs));
 static_assert(offsetof(dbarts_results, varprobs) < offsetof(dbarts_results, tau));
 static_assert(offsetof(dbarts_results, tau) <
               offsetof(dbarts_results, groupEffects));
-static_assert(sizeof(dbarts_results) == sizeof(size_t) + 8 * sizeof(double*),
-              "dbarts_results grew; update this size and DBARTS_C_API_VERSION");
+static_assert(offsetof(dbarts_results, groupEffects) <
+              offsetof(dbarts_results, logLikelihood));
+static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
+              "dbarts_results layout changed; update this size, and bump "
+              "DBARTS_C_API_VERSION if a field was appended after 1.0-0");
 
 extern "C" {
 
@@ -92,6 +95,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     FILL(varprobs, splitProbabilities);
     FILL(tau, tau);
     FILL(groupEffects, groupEffects);
+    FILL(logLikelihood, logLikelihood);
 #undef FILL
   }
 

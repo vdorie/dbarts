@@ -1672,6 +1672,134 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
   printf("ok: BCF interweave keepTrees saved slot\n");
 }
 
+// The per-observation log-likelihood channel: requesting it draws no rng and
+// mutates no state (computed post-hoc at storeSample), so sigma/train are
+// bitwise unchanged, and each family's values equal the closed-form density of
+// the recorded fit and sigma on a tiny fixed input.
+static void testLogLikelihood() {
+  const size_t n = 200, p = 3;
+  std::vector<double> x(n * p), yGaussian(n), yBinary(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double eta = 2.0 * (x[i] - 0.5) + x[i + n];
+    yGaussian[i] = eta + 0.3 * (runif01() - 0.5);
+    yBinary[i] =
+      runif01() < 0.5 * std::erfc(-eta / std::sqrt(2.0)) ? 1.0 : 0.0;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  const size_t numBurnIn = 30, numSamples = 20;
+
+  // (1) NULL costs nothing: an identical seeded run with the channel off draws
+  // the same sigma/train as one with it on
+  auto runGaussian = [&](bool withLogLik, std::vector<double>& sigma,
+                         std::vector<double>& fits,
+                         std::vector<double>& loglik) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 4242);
+    ConstantLeafSampler sampler(x.data(), yGaussian.data(), n, p, nullptr,
+                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &rng);
+    sigma.assign(numSamples, 0.0);
+    fits.assign(n * numSamples, 0.0);
+    loglik.assign(n * numSamples, 0.0);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+    if (withLogLik) results.logLikelihood = loglik.data();
+    sampler.run(numBurnIn, numSamples, results);
+    ext_rng_destroy(rng);
+  };
+
+  std::vector<double> sigmaOff, fitsOff, llOff, sigmaOn, fitsOn, llOn;
+  runGaussian(false, sigmaOff, fitsOff, llOff);
+  runGaussian(true, sigmaOn, fitsOn, llOn);
+  check(sigmaOff == sigmaOn && fitsOff == fitsOn,
+        "requesting logLikelihood leaves sigma and train bitwise unchanged");
+
+  // (2) gaussian: dnorm(y, fit, sigma, log)
+  const double logSqrt2Pi = 0.5 * std::log(2.0 * 3.141592653589793);
+  bool gaussianOk = true;
+  for (size_t s = 0; s < numSamples && gaussianOk; ++s)
+    for (size_t i = 0; i < n; ++i) {
+      double z = (yGaussian[i] - fitsOn[i + s * n]) / sigmaOn[s];
+      double expected = -logSqrt2Pi - std::log(sigmaOn[s]) - 0.5 * z * z;
+      if (std::fabs(llOn[i + s * n] - expected) > 1e-9) {
+        gaussianOk = false;
+        break;
+      }
+    }
+  check(gaussianOk, "gaussian logLikelihood equals the normal log density");
+
+  // (3) probit: log dbinom(y, 1, Phi(eta)); the fit is the latent location
+  {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 909);
+    ConstantLeafSampler sampler(x.data(), yBinary.data(), n, p, nullptr,
+                                nullptr, ResponseFamily::probit, 1.0, 3.0, 1.0,
+                                options, &rng);
+    std::vector<double> fits(n * numSamples), loglik(n * numSamples);
+    Results results;
+    results.trainingFits = fits.data();
+    results.logLikelihood = loglik.data();
+    sampler.run(numBurnIn, numSamples, results);
+    ext_rng_destroy(rng);
+
+    const double sqrtHalf = 1.0 / std::sqrt(2.0);
+    bool probitOk = true;
+    for (size_t s = 0; s < numSamples && probitOk; ++s)
+      for (size_t i = 0; i < n; ++i) {
+        double eta = fits[i + s * n];
+        double expected = yBinary[i] != 0.0
+          ? std::log(0.5 * std::erfc(-eta * sqrtHalf))
+          : std::log(0.5 * std::erfc(eta * sqrtHalf));
+        if (std::fabs(loglik[i + s * n] - expected) > 1e-8) {
+          probitOk = false;
+          break;
+        }
+      }
+    check(probitOk, "probit logLikelihood equals log dbinom(y, 1, Phi(eta))");
+  }
+
+  // (4) weighted logistic: w * log dbinom(y, 1, plogis(eta))
+  {
+    std::vector<double> w(n);
+    for (size_t i = 0; i < n; ++i) w[i] = static_cast<double>(1 + (i % 3));
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 707);
+    // the constructor takes (x, y, n, p, weights, offset, family, ...)
+    ConstantLeafSampler sampler(x.data(), yBinary.data(), n, p, w.data(),
+                                nullptr, ResponseFamily::logistic, 1.0, 3.0,
+                                1.0, options, &rng);
+    std::vector<double> fits(n * numSamples), loglik(n * numSamples);
+    Results results;
+    results.trainingFits = fits.data();
+    results.logLikelihood = loglik.data();
+    sampler.run(numBurnIn, numSamples, results);
+    ext_rng_destroy(rng);
+
+    // stable per-trial log-prob: -log(1 + exp(-eta)) for a success,
+    // -log(1 + exp(eta)) for a failure; the weighted channel is w times it
+    bool logisticOk = true;
+    for (size_t s = 0; s < numSamples && logisticOk; ++s)
+      for (size_t i = 0; i < n; ++i) {
+        double eta = fits[i + s * n];
+        if (std::fabs(eta) > 30.0) continue; // avoid exp overflow in the ref
+        double perTrial = -std::log1p(std::exp(yBinary[i] != 0.0 ? -eta : eta));
+        double expected = w[i] * perTrial;
+        if (std::fabs(loglik[i + s * n] - expected) > 1e-8) {
+          logisticOk = false;
+          break;
+        }
+      }
+    check(logisticOk,
+          "weighted logistic logLikelihood equals w * log dbinom(y, 1, p)");
+  }
+
+  printf("ok: per-observation log-likelihood channel\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testBCFTwoForest(rng);
   testBCFFixedGlue(rng);
@@ -1697,4 +1825,5 @@ void runSamplerTests(ext_rng* rng) {
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testMissingEndToEnd();
+  testLogLikelihood();
 }
