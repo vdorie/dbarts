@@ -175,25 +175,24 @@ items
     (sigma rank mean ~67-69/75), and sigma IACT (~40) << thin, so
     the residual is NOT (a, mu) autocorrelation - see
     bcf-sigma-residual.
-  bcf-sigma-residual: LOCALIZED 2026-07-10 - a BURN TRANSIENT,
-    not a mixing mode. Controls (R=200, thin=120): fixed-b
-    (updateB off) FLAGS WORSE (rank 61.7/75, ecdf 0.136) - the
-    b-ridge is exonerated; burn doubled (150 -> 300 thinned units)
-    PASSES (rank 72.1/75, ecdf 0.089 < band 0.092). Mechanism:
-    strong-|a0| Cauchy-tail reps under-fit within burn, leaving
-    sigma high; A4e's thin=1000 pass was really longer ABSOLUTE
-    burn (the confound it named). REMEDY (next implementer):
-    amplitude-aware a/mu initialization (kill the transient at the
-    source) and/or a BCF burn guidance note; harness-side, bump
-    the SBC BCF config's burn. ACCEPTANCE: n=200 glue-on, thin=120,
-    R >= 400 - sigma ecdf inside the ~0.066 band, rank ~75,
-    controls still PASS (burn=300 cleared R=200 but NOT proven at
-    the R=400 band - tune up and verify there). The derived b-move
-    (bcf-b-ridge.md: v = c^2 ~ GIG((Lt-2)/2, Mt/leafVar_tau,
-    (b0^2+b1^2)/0.5), prototype-validated incl. rejecting the
-    off-by-one Jacobian at KS 1.6e-21, commutes with the a-move,
-    no auxiliary) is SHELVED as its own optional treatment-ridge
-    mixing item - judge on IACT payoff, not sigma.
+  bcf-sigma-residual: RESOLVED 2026-07-10 (record in
+    bcf-sigma-residual.md; corrects the earlier burn-transient
+    framing). Measured anatomy: the a*mu amplitude is right by
+    sweep ~10; the slow variable is mu-forest tree STRUCTURE
+    mixing at high SNR, with sigma carrying the shape misfit
+    (bias up to ~1.2x for |a0| > 5 at burn 18k). Candidate
+    remedies MEASURED: data-informed a-init and no-glue warm
+    start both REJECTED (no gain; higher early SNR freezes
+    structure); burn length is the only working lever (settle
+    ~72k sweeps at the tail). FIX LANDED: runSbcBCF's burn
+    default now pins absolute sweeps (ceiling(72000/thin));
+    burn note added to bcf.md. ACCEPTANCE MET at full R=400:
+    sigma rank 74.5/75, ecdf 0.0325 vs band 0.0656, chisqP 0.91,
+    all controls PASS (vs 67.6/0.1003 FLAG at burn=150). The
+    |a0| >= 40 frozen tail (~3% of prior) is a structure-mixing
+    limit no burn fixes - an engine remedy (tempered early
+    sweeps) would be its own item, decoupled from the shelved
+    b-ridge move (bcf-b-ridge.md).
 
   bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
     testFits channel under BCF (chain.hpp) instead of recording the
