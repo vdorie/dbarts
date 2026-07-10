@@ -315,8 +315,29 @@ items
     section 5 and docs/plans/parallel-falsifiers.md Status; driver
     benchmarks/R/parallel-falsifiers.R. Instrumentation reverted, not
     landed. Successors: frontier items 4-5.
-  pointwise-loglik: per-observation log-likelihood as a Results field
-    (null-skip), unlocking loo/WAIC integration.
+  pointwise-loglik: LANDED 2026-07-10 (8688e12). extract(fit,
+    type = "loglik") for bart/bart2/rbart_vi: R-side S x n
+    training log-likelihood from stored draws (gaussian dnorm
+    with sigma/sqrt(w) precision weights; probit dbinom; weighted
+    logistic w * dbinom trial counts; rbart location includes the
+    drawn intercepts), consumed directly by loo/WAIC (smoke
+    verified). Draw-dimension conventions via the existing ev
+    machinery; sigma paired on chains-split ev (as.vector is
+    chain-fastest in both stored layouts, locked by
+    layout-invariance tests). The engine-side Results field
+    version rides c-api-growth.
+  ppd-sigma-pairing: pre-existing defect surfaced by
+    pointwise-loglik (2026-07-10). For multi-chain
+    combineChains=TRUE gaussian fits, sampleFromPPD recycles
+    object$sigma (chain-INTERLEAVED in the combined layout,
+    verified empirically) against ev rows that are chain-BLOCKED,
+    so PPD noise pairs sigma draws with the wrong posterior draws.
+    Marginal mean/scale barely move (draws are exchangeable) but
+    the within-draw (f, sigma) coupling is lost - PPD intervals
+    subtly miscalibrated for multi-chain combined fits only. Fix:
+    pair on chains-split ev like pointwiseLogLikelihood does (or
+    reorder sigma); small R fix + a layout-invariance regression
+    test mirroring test-pointwise-loglik.R's.
   prior-predictive: LANDED 2026-07-10 (c37ec3b). Exported
     samplePriorPredictive(sampler, x.test, n.samples, type =
     ev/ppd): fresh private sampler per call (NOT copy() - that

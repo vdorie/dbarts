@@ -122,3 +122,12 @@ Gates, worktree at .claude/worktrees/pointwise-loglik, private library
   files; bart.Rd/rbart.Rd parse, all touched files ASCII-clean;
   loo::waic consumed the combined 400 x 100 loglik matrix of a 2-chain
   gaussian smoke fit directly).
+
+- 2026-07-10: LANDED as 8688e12 (squash of wt/pointwise-loglik).
+  Reviewer independently verified the layout claim underpinning the
+  sigma pairing (combined sigma IS chain-interleaved while combined
+  yhat is chain-blocked; probed empirically on same-seed 2-chain
+  fits) and re-ran gates on the landed shared-library build:
+  tinytest 2581/0, equivalence 21/21 identical. The pre-existing
+  sampleFromPPD gaussian sigma misalignment this work surfaced is
+  filed as TODO ppd-sigma-pairing.
