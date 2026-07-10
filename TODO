@@ -147,28 +147,36 @@ items
     taste call T5). Output: a design note + recommendation; any
     default change is its own posterior-changing item with VD's
     sign-off.
-  bcf-glue-sigma-calibration: sbc-calibration (review 4) finding,
-    tier A. Standard BCF (n=200) with the glue UPDATING shows a
-    systematic sigma miscalibration under SBC - posterior sigma too
-    large (rank mean 63.6 vs 75, ecdf 0.134 vs band 0.092, chisqP
-    0.000 at thin=120/burn=18000, chosen from measured |a| ACF).
-    LOCALIZED: the fixed-glue control (updateA=updateB=FALSE, same
-    everything) passes ALL functionals, so the two-forest backfit is
-    exact and the defect is in the glue-on path only. The glue full
-    conditionals verified algebraically exact (consistent with audit
-    block 6). Prior-dominant n=40 config PASSES sigma dead-centre -
-    an algebra error would show MORE when the prior dominates, so
-    the n-pattern favors SLOW MIXING along the (a, mu-amplitude)
-    scale ridge (a*mu invariant under (a/c, c*mu); its relaxation
-    time can far exceed the |a| marginal ACF) over an exactness gap.
-    Next step: a targeted experiment - (1) rerun the n=200 config at
-    several multiples of chain length to see whether the sigma rank
-    bias shrinks toward zero (mixing) or plateaus (defect); (2) if
-    mixing confirmed, the standard remedy is an ancillarity-
-    sufficiency interweaving (ASIS) or joint rescaling move on the
-    (a, mu) ridge - posterior-preserving, its own gated item; (3) if
-    plateau, deep-dive the glue-scaled forest update path. Repro:
-    runSbcBCF in benchmarks/R/sbc.R (rides the review-4 landing).
+  bcf-glue-sigma-calibration: RESOLVED 2026-07-10 as H-MIX (slow
+    mixing), not a defect - the chain-length experiment (three
+    points spanning 8.3x: thin 120/360/1000, R=200, L=150) shows
+    the sigma rank bias shrinking monotonically into PASS (rank
+    mean 65.8 -> 67.8 -> 69.7 toward 75; ecdf 0.113 -> 0.107 ->
+    0.065 vs band 0.092; chisqP 0.0002 -> 0.105 -> 0.617), where a
+    defect would plateau; all controls pass at every point. The
+    glue-scaled forest-update path is exonerated: the stationary
+    distribution is correct within SBC resolution. Mechanism
+    measured directly: sigma and the (a, mu) ridge co-relax with
+    IACT scaling steeply in the prognostic amplitude |a0| (IACT 4
+    at a0 ~ 0 to ~5000-6000 sweeps at |a0| ~ 7-13, the Cauchy(0,2)
+    tail), so fixed thinning leaves the strong-signal minority
+    correlated and sigma biased high in finite chains. Remedy
+    routed to bcf-ridge-interweaving (below). Full record in
+    sbc-calibration.md; artifacts in the session tmp.
+  bcf-ridge-interweaving: remedy for bcf-glue-sigma-calibration
+    (H-mix confirmed 2026-07-10). Add a posterior-preserving
+    ASIS/interweaving rescale move on the (a, mu-amplitude) ridge:
+    after the conjugate a draw and per-tree leaf draws, jointly
+    rescale (a, mu) -> (a/c, c*mu) with c drawn from its full
+    conditional (equivalently interweave centered (a, mu) with the
+    sufficient a*mu parameterization). Collapses the slow mode
+    independently of |a0|, so BCF calibration stops depending on
+    brute-force thinning. Draw-changing for every BCF run (anchor
+    re-record) though posterior-preserving; engine work with its
+    own derivation + gates (bcf-exact, bcf-exact-weak, SBC rerun:
+    the n=200 glue-on config at thin=120 should then pass sigma
+    and strong-signal |a| IACT should drop 1-2 orders). VD
+    sign-off before implementation.
   bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
     testFits channel under BCF (chain.hpp) instead of recording the
     bare mu forest, and the bridge refuses the single-forest test

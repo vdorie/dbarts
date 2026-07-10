@@ -604,3 +604,43 @@ scale ridge, A4c/A4d). One tooling finding: SBC of the default half-Cauchy
 grouped tau is intractable via the engine's slice sampler (A3; gamma prior
 used instead). Remaining for tiers B/C: linear leaf +/- NA, GP leaf +/- NA,
 weighted GP (harness extensions: NA-covariate draw, function-leaf handling).
+
+## A4e. chain-length diagnostic (2026-07-10): VERDICT H-MIX
+
+The A4b follow-up experiment ran three points spanning 8.3x chain
+length on the standard n=200 glue-on config (R=200, L=150, burn=150
+thinned units, thin 120/360/1000, so longer points get strictly more
+burn-in and spacing - conservative for a defect verdict):
+
+    point  thin  sweeps/rep  sigma rank mean  sigma ecdf  chisqP  verdict
+    A       120     36k         65.8 / 75       0.1127    0.0002  FLAG
+    B       360    108k         67.8 / 75       0.1066    0.105   FLAG(marg)
+    C      1000    300k         69.7 / 75       0.0652    0.617   PASS
+
+The bias shrinks monotonically and crosses INTO the band (a defect
+would plateau at ecdf ~0.13); every control (abs.a, prog1-5, eff1-5)
+passes at every point; raw a and b1-b0 stay sign-ill-posed by design.
+VERDICT: slow mixing, and the glue-scaled forest-update path is
+EXONERATED - the stationary distribution is correct within SBC
+resolution (consistent with A4c fixed-glue-exact and A4d n=40).
+
+Mechanism, measured directly on long unthinned chains (IACT via
+Geyer): sigma and the (a, mu-amplitude) ridge coordinate co-relax,
+and the relaxation time scales steeply with the prognostic amplitude
+|a0| ~ Cauchy(0, 2): IACT ~4 sweeps at a0 near 0, ~240-630 at
+moderate |a0|, ~2500-6600 at the tail (|a0| ~ 7-13; sigma ACF at lag
+1000 still 0.48-0.77 there). At thin=120 the strong-signal reps'
+L=150 retained draws are one correlated blob, biasing their sigma
+ranks; at thin=1000 the moderate reps decorrelate but the Cauchy-tail
+minority does not, which is exactly why point C passes while sitting
+at 69.7 rather than 75. Bias direction (posterior sigma high) fits:
+from the overdispersed init the (a, mu) block relaxes downward toward
+the true amplitude over thousands of sweeps.
+
+Routing: remedy filed as TODO bcf-ridge-interweaving (an ASIS/
+interweaving joint rescale (a, mu) -> (a/c, c*mu) with c from its
+full conditional; posterior-preserving, draw-changing, VD sign-off) -
+the acceptance test is this same n=200 config at the cheap thin=120
+setting passing sigma after the move lands. No glue-path exactness
+dive is warranted. Artifacts (per-chunk rank .rds, scratch.log, IACT
+scripts) in the session tmp directory.
