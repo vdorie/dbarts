@@ -260,18 +260,16 @@ items
     are the regression gates. The zeroweights equivalence scenario
     shifts legitimately (sigma.mean z = -61.74); anchor re-recorded as
     equivalence-cf99a00.rds (commit 7b79623, MANIFEST updated).
-  tau-slice-stepout-cap: review-6 numerical finding (seed 4), REAL.
-    sliceSampleOnce's step-out while loops are uncapped in BOTH
-    directions (model.hpp:2299-2301; only shrinkage caps at 1000).
-    Step-outs ~ tau/width: >1e5 iterations at tau > ~2.5e5,
-    indefinite hang at tau > ~1e8. Reachable legally: empty groups
-    draw effects ~N(0, tau^2) with no mean-reversion (mostly-empty
-    groupings random-walk tau up); heavy-tail excursions at small
-    J; also the cause of the review-3 poison hang and the review-4
-    half-Cauchy SBC intractability. Fix: Neal's m cap on both
-    directions (~1e4) - never engages in normal runs so all gates
-    stay bit-identical; when it engages, shrinkage still samples
-    correctly inside the bracket. Small, engine.
+  tau-slice-stepout-cap: LANDED 2026-07-10 (7c1c7c9) - both
+    step-out loops now carry Neal's m cap (10^4 expansions/side,
+    an integer countdown short-circuiting ahead of the FP
+    conditions, so bit-identity holds whenever the cap does not
+    engage - which is every healthy run; the poison-hang regime
+    returns in ~2e4 evaluations instead of never). Hang-on-unfixed
+    verified (>2.5 min unbounded spin vs 1.21s fixed suite); all
+    gates green, equivalence 21/21 identical. tests/cpp
+    testGroupedMath gained the stall-regime case;
+    tau-slice-stepout-cap.md has the record.
   dbarts-results-growth: review-6 architecture debt #2, DECISION,
     window: pre-release. The frozen dbarts_results struct
     (dbarts.h) cannot gain fields - consumers stack-allocate
