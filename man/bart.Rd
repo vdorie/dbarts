@@ -73,7 +73,7 @@ bart2(
 extract(object, \dots)
 \method{extract}{bart}(
     object,
-    type = c("ev", "ppd", "bart", "trees"),
+    type = c("ev", "ppd", "bart", "loglik", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE, \dots)
 
@@ -223,7 +223,7 @@ extract(object, \dots)
      Vector of two colors. First color is used to plot the median of \eqn{f(x)} and the second color is used to plot the lower and upper quantiles.
    }
    \item{type}{
-     The quantity to be returned by generic functions. Options are \code{"ev"} - samples from the posterior of the individual level expected value, \code{"bart"} - the sum of trees component; same as \code{"ev"} for linear models but on the latent scale (probit or logistic, matching the fit's family) for binary ones, \code{"ppd"} - samples from the posterior predictive distribution, and \code{"trees"} - a data frame with tree information for when model was fit with \code{keepTrees} equal to \code{TRUE}. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For information on extracting trees, see the subsection below.
+     The quantity to be returned by generic functions. Options are \code{"ev"} - samples from the posterior of the individual level expected value, \code{"bart"} - the sum of trees component; same as \code{"ev"} for linear models but on the latent scale (probit or logistic, matching the fit's family) for binary ones, \code{"ppd"} - samples from the posterior predictive distribution, \code{"loglik"} - for \code{extract} only, the log-likelihood of each training observation at each posterior draw, and \code{"trees"} - a data frame with tree information for when model was fit with \code{keepTrees} equal to \code{TRUE}. For \code{"loglik"}, gaussian fits evaluate \eqn{y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)}{y_i | x_i ~ N(f(x_i), sigma^2 / w_i)} in logs at each draw of \eqn{f} and \eqn{\sigma}{sigma}, while binary fits evaluate the Bernoulli log-likelihood of the fitted probability, multiplied for a weighted logistic fit by the observation-count weight \eqn{w_i}. When chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the \pkg{loo} package. To synergize with \code{\link{predict.glm}}, \code{"response"} can be used as a synonym for \code{"ev"} and \code{"link"} can be used as a synonym for \code{"bart"}. For information on extracting trees, see the subsection below.
    }
    \item{sample}{
      Either \code{"train"} or \code{"test"}.

@@ -14,6 +14,39 @@ probabilityFromLatents <- function(latents, object) {
   }
 }
 
+# per-draw, per-observation log-likelihood of the stored training response.
+# ev enters with chains split ((n.chains x) n.samples x n.obs), so that
+# as.vector(ev) enumerates draws chain-fastest - the order as.vector on the
+# stored sigma yields in both of its layouts (n.chains x n.samples matrix or
+# chain-interleaved combined vector) - and the sigma draws pair by plain
+# recycling. Weights enter as precision for gaussian fits (y | x ~ N(f(x),
+# sigma^2 / w)) and as trial counts for weighted logistic ones; probit fits
+# never store weights.
+pointwiseLogLikelihood <- function(object, ev) {
+  y <- object[["y"]]
+  if (is.null(y)) {
+    stop(
+      "cannot compute the log-likelihood; fit does not store the training response"
+    )
+  }
+  weights <- object[["weights"]]
+  n.draws <- length(ev) %/% length(y)
+  y <- rep(y, each = n.draws)
+  if (is.null(object[["sigma"]])) {
+    result <- dbinom(y, 1L, as.vector(ev), log = TRUE)
+    if (!is.null(weights)) {
+      result <- rep(weights, each = n.draws) * result
+    }
+  } else {
+    sd <- rep_len(as.vector(object$sigma), length(ev))
+    if (!is.null(weights)) {
+      sd <- sd / rep(sqrt(weights), each = n.draws)
+    }
+    result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+  }
+  array(result, dim(ev))
+}
+
 # per-observation posterior summary for the interval-returning generics: est
 # (the posterior mean) plus a symmetric ci.level credible band from the draw
 # quantiles, pooled over all samples and chains (observations are the last
@@ -132,7 +165,7 @@ predict.bart <- function(
 
 extract.bart <- function(
   object,
-  type = c("ev", "ppd", "bart", "trees"),
+  type = c("ev", "ppd", "bart", "loglik", "trees"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
@@ -188,6 +221,12 @@ extract.bart <- function(
   }
   sample <- sample[1L]
 
+  # the log-likelihood is against the stored training response; there is no
+  # test response to evaluate
+  if (type == "loglik" && sample == "test") {
+    stop("cannot extract a test sample log-likelihood; no test response exists")
+  }
+
   if (sample == "test" && is.null(object[["yhat.test"]])) {
     stop(
       "cannot extract test sample predictions if no test data exists; use `predict` instead"
@@ -205,14 +244,25 @@ extract.bart <- function(
     }
   }
 
-  result <- if (sample == "train") object$yhat.train else object$yhat.test
-  weights <- if (sample == "train") object$weights else object$weights.test
-
   n.chains <- if (!is.null(object[["fit"]])) {
     object$fit$control@n.chains
   } else {
     object$n.chains
   }
+
+  if (type == "loglik") {
+    ev <- extract.bart(
+      object,
+      type = "ev",
+      sample = "train",
+      combineChains = FALSE
+    )
+    result <- pointwiseLogLikelihood(object, ev)
+    return(combineOrUncombineChains(result, n.chains, combineChains))
+  }
+
+  result <- if (sample == "train") object$yhat.train else object$yhat.test
+  weights <- if (sample == "train") object$weights else object$weights.test
   #n.samples <- if (length(dim(result)) > 2L) dim(result)[2L] else dim(result)[1L] %/% n.chains
   #n.obs     <- if (length(dim(result)) > 2L) dim(result)[3L] else dim(result)[2L]
 
@@ -533,7 +583,7 @@ predict.rbart <- function(
 
 extract.rbart <- function(
   object,
-  type = c("ev", "ppd", "bart", "ranef", "trees"),
+  type = c("ev", "ppd", "bart", "loglik", "ranef", "trees"),
   sample = c("train", "test"),
   combineChains = TRUE,
   ...
@@ -621,6 +671,12 @@ extract.rbart <- function(
   }
   sample <- sample[1L]
 
+  # the log-likelihood is against the stored training response; there is no
+  # test response to evaluate
+  if (type == "loglik" && sample == "test") {
+    stop("cannot extract a test sample log-likelihood; no test response exists")
+  }
+
   if (sample == "test" && is.null(object[["yhat.test"]])) {
     stop(
       "cannot extract test sample predictions if no test data exists; use `predict` instead"
@@ -653,6 +709,19 @@ extract.rbart <- function(
     stop(
       "cannot extract train sample predictions; rbart_vi must be called with 'keepTrainingFits' == TRUE"
     )
+  }
+
+  # the "ev" draws are the fit's per-draw location (BART component plus the
+  # drawn group intercepts), so the log-likelihood conditions on both
+  if (type == "loglik") {
+    ev <- extract.rbart(
+      object,
+      type = "ev",
+      sample = "train",
+      combineChains = FALSE
+    )
+    result <- pointwiseLogLikelihood(object, ev)
+    return(combineOrUncombineChains(result, n.chains, combineChains))
   }
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
