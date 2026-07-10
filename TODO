@@ -270,22 +270,27 @@ items
     gates green, equivalence 21/21 identical. tests/cpp
     testGroupedMath gained the stall-regime case;
     tau-slice-stepout-cap.md has the record.
-  c-api-growth: DECIDED (VD, 2026-07-10), window: pre-release -
-    both frozen-surface extensibility jobs as one item. (1) Output
-    channels: a new-named dbarts_sampler_run2 taking an extended
-    results struct whose FIRST member is a caller-set size/version;
-    the library never writes past the declared size; fields append
-    monotonically (version = layout revision, NOT model type);
-    per-model variability stays on the existing null-pointer
-    opt-in convention (irrelevant channels simply never fill).
-    (2) State format: additive by-name blocks - the state is
-    already marshaled as named R objects, so the reader looks up
-    blocks by name, defaults absent OPTIONAL blocks, and refuses
-    (naming the block) only when a REQUIRED one is missing; the
-    version stamp stays for provenance, not gatekeeping. Preserves
-    the never-silently-misinterpret safety while ending the
-    every-change-orphans-all-states behavior. Absorbs
-    flat-format-v2. Medium; land before 1.0-0 submission.
+  c-api-growth: LANDED 2026-07-10 (0254f10 output surface,
+    2d09768 state format; plan + design-change record in
+    c-api-growth.md). VD revised the decided design mid-flight:
+    since nothing on CRAN links against the unreleased 1.0-0
+    header, there is NO second entry point - dbarts_results itself
+    is size-first (leading caller-set structSize; the library
+    fills a field only when present-by-size and non-null; fields
+    append monotonically below a marked boundary and bump
+    DBARTS_C_API_VERSION, which stays 1 at introduction). Layout
+    locked by static asserts; write guard proven by a compiled
+    C-consumer canary with poisoned out-of-bounds slots. State
+    format: version stamp demoted to an encoding floor
+    (minReadableStateFormatVersion = 3) over the by-name block
+    reader; required blocks refused BY NAME (missing vs
+    malformed); append-only registry rule in public-surface.md.
+    Absorbs flat-format-v2. LOCKSTEP ACTION at 1.0-0: stan4bart's
+    port adds r.structSize = sizeof r at its dbarts_results
+    allocations. The engine-side logLikelihood channel was
+    deferred (per-family producer needs a new response-model
+    virtual + group plumbing) - append it when built; the
+    boundary comment marks the spot.
   sbc-ci-gate: LANDED 2026-07-10 (ed34eea). .github/workflows/
     sbc.yaml runs the gaussian SBC baseline (R=100, ~27s local) on
     a weekly cron + workflow_dispatch only - no PR triggers, so a
