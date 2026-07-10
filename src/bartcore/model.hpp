@@ -1772,8 +1772,9 @@ struct ChiSquaredScalePrior {
 };
 
 /// Response families the sampler can run; gaussian fits the response
-/// directly, the binary families fit a latent working response.
-enum class ResponseFamily { gaussian, probit, logistic };
+/// directly, the binary families fit a latent working response, aft fits
+/// log survival times (right-censored observations carry latent log-times).
+enum class ResponseFamily { gaussian, probit, logistic, aft };
 
 /// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
 /// block, guarding against overflow for large x.
@@ -2322,6 +2323,175 @@ private:
   std::size_t numObservations_;
   std::vector<double> omega_;
   std::vector<double> working_;
+};
+
+/// Accelerated failure time, log-normal error (docs/design/survival.md):
+///   log T_i = f(x_i) + offset_i + sigma * eps_i,   eps_i ~ N(0, 1).
+/// The forest fits log T on the log scale exactly as GaussianResponse, which
+/// this contains over a mutable log-time buffer it borrows to that Gaussian
+/// as the response. Right-censored observations (status 0) carry a latent
+/// log-time redrawn each sweep from the normal truncated below at the observed
+/// log censoring time, so it enters the conjugate sigma draw as data;
+/// uncensored ones (status 1) are fixed Gaussian data. With no censored
+/// observations refreshLatents is a no-op and every hook delegates, so the fit
+/// is BIT-IDENTICAL to a Gaussian fit on log T (the reduction gate). Weights
+/// are unsupported (a weighted truncated-latent draw is not a coherent
+/// likelihood; the host rejects them). State rides the existing `latents`
+/// (logT_) and `fit.scale` (the Gaussian scale) blocks unchanged.
+class AFTResponse final : public ResponseModel {
+public:
+  /// logTime holds log of the observed time (event or censoring time);
+  /// status[i] != 0 marks an uncensored event, 0 a right-censored observation
+  /// whose logTime is its truncation lower bound. offset may be null.
+  AFTResponse(const double* logTime, const double* status, const double* offset,
+              std::size_t numObservations, double sigmaEstimate, double sigmaDf,
+              double sigmaRawScale)
+    : numObservations_(numObservations),
+      logT_(logTime, logTime + numObservations) {
+    for (std::size_t i = 0; i < numObservations; ++i)
+      if (status == nullptr || status[i] == 0.0) {
+        censoredIndices_.push_back(i);
+        censorBound_.push_back(logTime[i]);
+      }
+    gaussian_ = std::make_unique<GaussianResponse>(
+      logT_.data(), offset, nullptr, numObservations, sigmaEstimate, sigmaDf,
+      sigmaRawScale);
+  }
+
+  double* workingResponse() override { return gaussian_->workingResponse(); }
+  const double* workingWeights() const override {
+    return gaussian_->workingWeights();
+  }
+  const double* offset() const override { return gaussian_->offset(); }
+
+  /// Redraw each censored log-time from N(f + offset, sigma^2) truncated below
+  /// at its log censoring time, mapping the internal-scale fit back to the log
+  /// scale through the public accessors, then rebuild the working response
+  /// under the fixed scale. A no-op with no censored observations.
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double sigma) override {
+    if (censoredIndices_.empty()) return;
+    double scale = gaussian_->fitScale();
+    double shift = gaussian_->fitShift();
+    double sd = sigma * scale;
+    const double* offset = gaussian_->offset();
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
+      std::size_t i = censoredIndices_[k];
+      double mean = scale * totalFits[i] + shift +
+                    (offset != nullptr ? offset[i] : 0.0);
+      double draw =
+        ext_rng_simulateLowerTruncatedNormal(rng, mean, sd, censorBound_[k]);
+      logT_[i] = !std::isnan(draw) ? draw : censorBound_[k];
+    }
+    rebuildWorking();
+  }
+
+  double drawSigma(ext_rng* rng, const double* totalFits,
+                   double sigma) override {
+    return gaussian_->drawSigma(rng, totalFits, sigma);
+  }
+
+  /// Replaces the observed log-times; the censoring structure is fixed at
+  /// creation, so bounds refresh from the new times and the censored latents
+  /// redraw against the current fit (the probit pattern).
+  void setResponse(const double* logTime, ext_rng* rng, const double* totalFits,
+                   bool updateScale, double* sigmaInOut) override {
+    std::memcpy(logT_.data(), logTime, numObservations_ * sizeof(double));
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
+      censorBound_[k] = logT_[censoredIndices_[k]];
+    gaussian_->setResponse(logT_.data(), rng, totalFits, updateScale,
+                           sigmaInOut);
+    if (!censoredIndices_.empty()) refreshLatents(rng, totalFits, *sigmaInOut);
+  }
+
+  /// Offset shifts the fit location, not the (offset-independent) log-times, so
+  /// the Gaussian re-anchors its scale and rebuilds the working response while
+  /// the latents keep their values (redrawn next sweep).
+  void setOffset(const double* offset, bool updateScale,
+                 double* sigmaInOut) override {
+    gaussian_->setOffset(offset, updateScale, sigmaInOut);
+  }
+
+  /// Whole-data replacement keeps the censoring structure by index (no new
+  /// status is expressible through this signature; the host refuses a public
+  /// setData on AFT). Only a length-preserving replacement is coherent; a
+  /// shrink drops censored indices that fell off the end.
+  void setData(const double* logTime, const double* offset, const double*,
+               std::size_t numObservations, double* sigmaInOut) override {
+    logT_.assign(logTime, logTime + numObservations);
+    numObservations_ = numObservations;
+    while (!censoredIndices_.empty() &&
+           censoredIndices_.back() >= numObservations) {
+      censoredIndices_.pop_back();
+      censorBound_.pop_back();
+    }
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
+      censorBound_[k] = logT_[censoredIndices_[k]];
+    gaussian_->setData(logT_.data(), offset, nullptr, numObservations,
+                       sigmaInOut);
+  }
+
+  void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
+                     double rawScale) override {
+    gaussian_->setSigmaPrior(sigmaEstimate, degreesOfFreedom, rawScale);
+  }
+
+  const double* latents() const override { return logT_.data(); }
+  void restoreLatents(const double* latents) override {
+    std::memcpy(logT_.data(), latents, numObservations_ * sizeof(double));
+    rebuildWorking();
+  }
+
+  void getScale(double& min, double& max) const override {
+    gaussian_->getScale(min, max);
+  }
+  void restoreScale(double min, double max) override {
+    gaussian_->restoreScale(min, max);
+  }
+
+  double initialSigma() const override { return gaussian_->initialSigma(); }
+  double fitScale() const override { return gaussian_->fitScale(); }
+  double fitShift() const override { return gaussian_->fitShift(); }
+  double sigmaScale() const override { return gaussian_->sigmaScale(); }
+
+  /// log density of the observed log event time for an event, log survival
+  /// past the log censoring bound for a censored observation, both on the log
+  /// scale with mu the original-scale fit and sigma the log-scale residual sd.
+  void computeLogLikelihood(const double* totalFits, double sigma,
+                            std::size_t numObservations,
+                            double* out) const override {
+    double scale = gaussian_->fitScale();
+    double shift = gaussian_->fitShift();
+    double sigmaLog = sigma * scale;
+    const double* offset = gaussian_->offset();
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double mu =
+        scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
+      out[i] = Rf_dnorm4(logT_[i], mu, sigmaLog, 1);
+    }
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k) {
+      std::size_t i = censoredIndices_[k];
+      double mu =
+        scale * totalFits[i] + shift + (offset != nullptr ? offset[i] : 0.0);
+      // log P(log T > log C) = log upper normal tail
+      out[i] = Rf_pnorm5(censorBound_[k], mu, sigmaLog, 0, 1);
+    }
+  }
+
+private:
+  /// Rebuild the Gaussian working response from the current log-times under the
+  /// fixed scale (updateScale = false), the only side effect the redrawn
+  /// latents need.
+  void rebuildWorking() {
+    double unused = 0.0;
+    gaussian_->setResponse(logT_.data(), nullptr, nullptr, false, &unused);
+  }
+
+  std::unique_ptr<GaussianResponse> gaussian_;
+  std::size_t numObservations_;
+  std::vector<double> logT_;             // log survival times; latent when censored
+  std::vector<std::size_t> censoredIndices_;
+  std::vector<double> censorBound_;      // log censoring time, per censored index
 };
 
 /// Tau priors the in-core grouped sampler supports (rbart.priors); custom

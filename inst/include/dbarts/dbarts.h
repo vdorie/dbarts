@@ -100,8 +100,12 @@ int dbarts_apiVersion(void);
 /// Creates a sampler from the R specification objects (dbartsControl,
 /// dbartsModel, dbartsData). family selects the response model for binary
 /// responses: "" or "probit" give probit latents, "logistic" the
-/// Polya-Gamma sampler; continuous responses are gaussian and accept only
-/// "" or "gaussian". A verbose control prints the initial summary here.
+/// Polya-Gamma sampler; continuous responses are gaussian and accept "" or
+/// "gaussian", or "aft" for an accelerated failure time (log-normal) survival
+/// fit, in which case the response holds log survival/censoring times and a
+/// numeric status vector (1 = event, 0 = right-censored) is read from the
+/// control's "bartcore.survival" attribute. A verbose control prints the
+/// initial summary here.
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family);
 void dbarts_sampler_destroy(dbarts_sampler* sampler);

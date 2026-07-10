@@ -26,6 +26,10 @@ reference:
   - dbartsPriors
   - samplePriorPredictive
   - updatePredictorPerObservationJointly
+- title: Survival
+  desc: Accelerated failure time survival curves.
+  contents:
+  - survivalProbabilities
 - title: Diagnostics
   desc: Convergence summaries and posterior draw extraction.
   contents:

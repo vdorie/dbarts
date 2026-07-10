@@ -781,8 +781,12 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
       return bartcore::ResponseFamily::probit;
     Rf_error("unrecognized response family for a binary response");
   }
+  // aft fits a continuous response (log survival times) with truncated latents
+  // for right-censored observations; the status arrives on a control attribute
+  if (std::strcmp(familyName, "aft") == 0)
+    return bartcore::ResponseFamily::aft;
   if (familyName[0] != '\0' && std::strcmp(familyName, "gaussian") != 0)
-    Rf_error("response families other than gaussian require a binary "
+    Rf_error("response families other than gaussian and aft require a binary "
              "response");
   return bartcore::ResponseFamily::gaussian;
 }
@@ -1045,6 +1049,38 @@ void applyGroupAttribute(SEXP controlExpr, size_t numObservations,
   options.tauSliceSteps = static_cast<size_t>(numSteps);
 }
 
+// AFT survival status arrives on an internal control attribute alongside the
+// log-time response (the y creation argument): a per-observation numeric
+// vector, 1 for an uncensored event, 0 for a right-censored observation. Only
+// full creation reads it, and only for family aft. status outlives the options
+// borrow: the response copies it during construction. The public surface sets
+// the attribute from a Surv or (time, status) ingest (docs/design/survival.md).
+void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
+                            bartcore::ResponseFamily family,
+                            bartcore::SamplerOptions& options,
+                            std::vector<double>& status) {
+  SEXP statusExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.survival"));
+  if (family != bartcore::ResponseFamily::aft) {
+    if (!Rf_isNull(statusExpr))
+      Rf_error("survival status supplied for a non-aft response family");
+    return;
+  }
+  if (Rf_isNull(statusExpr))
+    Rf_error("aft (survival) models require a status vector");
+  if (!Rf_isReal(statusExpr) ||
+      static_cast<size_t>(Rf_xlength(statusExpr)) != numObservations)
+    Rf_error("survival status must be a numeric vector of length equal to the "
+             "number of observations");
+  const double* raw = REAL(statusExpr);
+  status.resize(numObservations);
+  for (size_t i = 0; i < numObservations; ++i) {
+    if (raw[i] != 0.0 && raw[i] != 1.0)
+      Rf_error("survival status must be 0 (censored) or 1 (event)");
+    status[i] = raw[i];
+  }
+  options.survivalStatus = status.data();
+}
+
 // A sampler created over a data handle holds no raw predictor values, so
 // the raw-x mutation surface has nothing to work from; a CSC-built sampler
 // holds only borrowed slices and refuses the same surface by design
@@ -1128,6 +1164,10 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // value, so sigma enters as sqrt(value) and is never drawn
   if (sigmaIsFixed) data.sigmaEstimate = std::sqrt(model.fixedSigmaSq);
   enforceBinaryWeightPolicy(family, data.weights, data.numObservations);
+  // a weighted truncated-latent draw is not a coherent likelihood; AFT v1
+  // rejects weights (docs/design/survival.md)
+  if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
+    Rf_error("aft (survival) models do not support case weights");
   return family;
 }
 
@@ -1153,6 +1193,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{},
                  groupIndices = std::vector<std::uint32_t>{},
+                 survivalStatus = std::vector<double>{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -1167,6 +1208,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // internal control attribute; the chains copy the indices at construction
     applyGroupAttribute(controlExpr, data.numObservations, options,
                         groupIndices);
+    // AFT survival status arrives the same way; the response copies it
+    applySurvivalAttribute(controlExpr, data.numObservations, family, options,
+                           survivalStatus);
 
     rngs = createChainRngs(control, options.numChains);
 
@@ -1776,6 +1820,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   if (sampler.numGroups() > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
              "sampler instead");
+  if (sampler.family() == bartcore::ResponseFamily::aft)
+    Rf_error("aft (survival) models fix the censoring structure at creation; "
+             "make a new sampler instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("'data' argument to bartcore_setData not of class 'dbartsData'");
@@ -1992,7 +2039,10 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
       Rf_error("the leaf covariate designation is fixed when a sampler is "
                "created; make a new sampler instead");
 
-    bool isGaussian = sampler.family() == bartcore::ResponseFamily::gaussian;
+    // gaussian and aft both draw sigma from a variance prior; the binary
+    // families fix it, so setModel leaves their sigma alone
+    bool drawsSigma = sampler.family() == bartcore::ResponseFamily::gaussian ||
+                      sampler.family() == bartcore::ResponseFamily::aft;
 
     bartcore::ModelParameters parameters;
     parameters.base = model.base;
@@ -2010,7 +2060,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP controlExpr,
     } else {
       parameters.k = model.k;
     }
-    if (isGaussian) {
+    if (drawsSigma) {
       if (model.sigmaIsFixed) {
         // documented semantics: fixed(value) holds the residual variance
         parameters.sigmaIsFixed = true;
