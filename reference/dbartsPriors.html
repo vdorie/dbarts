@@ -127,7 +127,8 @@
     <dt><code>chi(degreesOfFreedom = 1.5, scale = Inf)</code></dt>
 <dd><p>Chi hyperprior over <code>k</code>, sampled along with the rest of the
       model: <code>k</code> is given a chi distribution with the stated degrees
-      of freedom and scale.</p></dd>
+      of freedom and scale. The sampled <code>k</code> is capped at 1e6, the
+      regime an improper (infinite) scale can otherwise drift toward.</p></dd>
 
     <dt><code>chisq(df = 3, quant = 0.9)</code></dt>
 <dd><p>Chi-squared prior on the residual variance, scaled so that an

@@ -84,7 +84,8 @@ A list of functions:
 
   Chi hyperprior over `k`, sampled along with the rest of the model: `k`
   is given a chi distribution with the stated degrees of freedom and
-  scale.
+  scale. The sampled `k` is capped at 1e6, the regime an improper
+  (infinite) scale can otherwise drift toward.
 
 - `chisq(df = 3, quant = 0.9)`:
 
