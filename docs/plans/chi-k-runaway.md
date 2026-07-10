@@ -87,3 +87,9 @@ lives only where the runaway is generated.
 
 - 2026-07-10: fix + tests + doc landed on wt/chi-k-runaway; setState left
   uncapped per the recorded reasoning; all gates green.
+- 2026-07-10: LANDED as 4797bc0 (squash of wt/chi-k-runaway).
+  Reviewer approved the setState no-cap reasoning and re-ran the
+  gates independently on the landed tree from a private library:
+  preclean install clean, tests/cpp clean rebuild all pass,
+  tinytest 2530/0, equivalence 21/21 identical draws vs
+  equivalence-de67cbb.rds.
