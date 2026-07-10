@@ -29,11 +29,16 @@ y.n2 <- c(1.0, -1.0)
 expect_error(dbarts(y.n2 ~ x.n2, control = control), pattern = "sigma estimate")
 
 # a constant response: the fit runs, sigma collapses to ~0, and the train
-# fits equal the constant. Finite throughout.
+# fits equal the constant. Finite throughout. A constant response is exactly
+# the precision-degenerate case dbartsData now warns about (see
+# test-data-precision-warning.R), so the warning is expected here too.
 set.seed(1)
 x.const <- matrix(runif(n * 2L), n, 2L)
 y.const <- rep(3.0, n)
-sampler.const <- dbarts(y.const ~ x.const, control = control)
+expect_warning(
+  sampler.const <- dbarts(y.const ~ x.const, control = control),
+  pattern = "indistinguishable"
+)
 samples.const <- sampler.const$run(30L, 30L)
 expect_true(all(is.finite(samples.const$train)))
 expect_true(all(is.finite(samples.const$sigma)))

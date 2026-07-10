@@ -72,6 +72,14 @@
       \code{NA} leaf values, and \code{keepTrees} storage grows with the
       leaf sizes. \code{\link{xbart}} accepts the same specification
       through its own \code{node.prior} argument.
+
+      \code{predict} at a training row re-krigs the jitter-free
+      posterior mean from the cached kernel and drawn training values,
+      while the fit recorded during sampling includes a small
+      conditioning nugget on the kernel diagonal; the two differ by
+      roughly 2e-3 to 3e-3 at training locations (never during MCMC,
+      which reads the recorded fit directly - only \code{predict} and
+      test-data prediction re-krig).
     }
     \item{\code{chi(degreesOfFreedom = 1.5, scale = Inf)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
