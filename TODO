@@ -163,21 +163,34 @@ items
     correlated and sigma biased high in finite chains. Remedy
     routed to bcf-ridge-interweaving (below). Full record in
     sbc-calibration.md; artifacts in the session tmp.
-  bcf-ridge-interweaving: remedy for bcf-glue-sigma-calibration
-    (H-mix confirmed 2026-07-10; VD approved, sequencing after
-    c-api-growth). DERIVATION COMPLETE and prototype-validated
-    (bcf-ridge-interweaving.md): the rescale (a, mu) -> (a/c,
-    c*mu) is an exact Gibbs update with c^2 ~ GIG((L-1)/2,
-    M/leafVar, a0^2/aVariance) conditioned on the IG auxiliary;
-    weights/sigma/y drop out, sign never flips, gate on updateA
-    with L>=2 && M>0. State rescale: a, forests_[0] treeFits,
-    totalFits, test fits, and the keepTrees saved leaves (sharp
-    edge: they flatten BEFORE drawGlue, chain.hpp:651). NO anchor
-    re-record needed (equivalence has no BCF scenario; move is
-    BCF-gated, all baselines stay bitwise identical). Cost <1%
-    per sweep when the c multiply fuses into the residual roll
-    (5-15% naive). Gates: bcf-exact + bcf-exact-weak stay exact;
-    acceptance = A4e n=200 glue-on SBC at thin=120 passes sigma.
+  bcf-ridge-interweaving: LANDED 2026-07-10 (9617c94) as a mixing
+    win; acceptance RE-SCOPED. The a-ridge rescale (c^2 ~
+    GIG((L-1)/2, M/leafVar, a0^2/aVariance) after drawGlue;
+    aVariance held - refreshing it measurably hurt mixing) is
+    posterior-preserving (bcf-exact + bcf-exact-weak PASS),
+    off-path bit-identical, ~3.9%/sweep, |a| IACT 2.5x better.
+    New ext_rng_simulateGeneralizedInverseGaussian (Dagpunar
+    noshift ROU, moment-tested) in external. BUT the thin=120
+    sigma SBC flag persists in BOTH base and new builds at R=400
+    (sigma rank mean ~67-69/75), and sigma IACT (~40) << thin, so
+    the residual is NOT (a, mu) autocorrelation - see
+    bcf-sigma-residual.
+  bcf-sigma-residual: successor to bcf-glue-sigma-calibration
+    (2026-07-10). At R=400 SBC both pre- and post-interweave
+    builds flag sigma (rank mean ~67-69/75, ecdf ~0.10 vs band
+    0.066) at thin=120 on the n=200 glue-on config; the a-ridge
+    move did not clear it and sigma's marginal IACT is well under
+    the thinning, so the bias rides another slow mode or a burn
+    transient. PRIME SUSPECT: the treatment-side (b0, b1,
+    tau-amplitude) scale ridge (b0/b1 ~ N(0, 1/2), tau forest;
+    same non-identifiability as the a-ridge). Next steps: (1)
+    derive the analogous b-ridge interweave (the a-move memo in
+    bcf-ridge-interweaving.md is the template; GIG machinery now
+    ships); (2) a fixed-b control SBC (updateB off) to localize,
+    mirroring A4c; (3) a burn-only sweep to split transient from
+    autocorrelation. The A4e thin=1000 PASS is consistent with a
+    long transient (burn scales with thin in that design).
+
   bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
     testFits channel under BCF (chain.hpp) instead of recording the
     bare mu forest, and the bridge refuses the single-forest test

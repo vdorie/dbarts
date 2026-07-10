@@ -530,3 +530,18 @@ Net compute for a target accuracy drops sharply.
   flag; the ecdf gap is confounded by the move shifting each build's
   theta0 sequence, since the SBC harness shares one rng for prior draws
   and fitting).
+
+- 2026-07-10: LANDED as 9617c94 (squash of wt/bcf-ridge-interweaving),
+  adjudicated as a standalone mixing win with the acceptance
+  RE-SCOPED: the move is posterior-preserving (bcf-exact +
+  bcf-exact-weak PASS, implementer verbatim), off-path bit-identical,
+  ~3.9%/sweep, |a| IACT 2.5x / sigma 1.7x better - but the thin=120
+  sigma flag persists in BOTH builds at R=400, so the residual bias
+  is a different slow mode (prime suspect: the treatment-side
+  (b, tau-amplitude) ridge). Reviewer verified the GIG
+  ratio-of-uniforms algebra and the move's guards/state rescale;
+  landed-tree gates tinytest 2606/0, equivalence 21/21 identical,
+  tests/cpp green. Follow-up filed on the TODO as
+  bcf-sigma-residual (b-ridge derivation + fixed-b control), NOT
+  yet started - orchestrator paused on VD's usage call before
+  dispatching it.
