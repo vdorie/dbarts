@@ -10,7 +10,9 @@
 /// R_GetCCallable("dbarts", "<name>") and cast the DL_FUNC to the matching
 /// signature. Check dbarts_apiVersion() against DBARTS_C_API_VERSION before
 /// using the rest. The interface only ever grows: names and signatures
-/// below are stable, additions arrive under new names.
+/// below are stable and function additions arrive under new names, while
+/// dbarts_results grows in place by appending fields - its leading
+/// structSize keeps callers compiled against an older layout safe.
 ///
 /// Contracts common to all entry points:
 /// - Invalid arguments raise R errors (Rf_error), which longjmp through the
@@ -54,13 +56,21 @@ extern "C" {
 /// Opaque sampler handle.
 typedef struct dbarts_sampler_t dbarts_sampler;
 
-/// Caller-owned output buffers for dbarts_sampler_run. A null member skips
-/// that quantity. k requires a k hyperprior (dbarts_sampler_kIsSampled),
-/// varprobs a DART tree prior (dbarts_sampler_usesDart), and tau/groupEffects
-/// a grouped random-intercept sampler; each is left untouched otherwise.
-/// Value-initialize the struct (dbarts_results results = {0}) so members you
-/// do not set are null - an indeterminate member is dereferenced as a buffer.
+/// Caller-owned, growable output buffers for dbarts_sampler_run. The caller
+/// MUST set structSize to sizeof(dbarts_results) as the caller compiled it;
+/// the library fills only fields whose end offset falls within structSize,
+/// so a caller built against an older (smaller) header is never written
+/// past. Fields append monotonically below the marked boundary and never
+/// reorder across releases; an append bumps DBARTS_C_API_VERSION. A field is
+/// filled only when both present-by-size and non-null: a null member skips
+/// that quantity, and a zero structSize skips everything. k requires a k
+/// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
+/// (dbarts_sampler_usesDart), and tau/groupEffects a grouped
+/// random-intercept sampler; each is left untouched otherwise.
+/// Value-initialize and set the size:
+///   dbarts_results results = {0}; results.structSize = sizeof results;
 typedef struct dbarts_results_t {
+  size_t structSize;  ///< caller sets to sizeof(dbarts_results)
   double* sigma;      ///< numSamples x numChains
   double* train;      ///< numObservations x numSamples x numChains
   double* test;       ///< numTestObservations x numSamples x numChains
@@ -69,7 +79,15 @@ typedef struct dbarts_results_t {
   double* varprobs;   ///< numPredictors x numSamples x numChains
   double* tau;        ///< numSamples x numChains
   double* groupEffects; ///< numGroups x numSamples x numChains
+  /* 1.0-0 field boundary: every future append goes below this line, never
+     above, and bumps DBARTS_C_API_VERSION. */
 } dbarts_results;
+
+/// True when the caller's struct (per structSize) actually carries `field`.
+/// The sizeof operand is unevaluated, so this never dereferences past the
+/// caller's buffer.
+#define DBARTS_RESULTS_HAS(r, field) \
+  ((r)->structSize >= offsetof(dbarts_results, field) + sizeof((r)->field))
 
 /// Returns DBARTS_C_API_VERSION of the installed package.
 int dbarts_apiVersion(void);
@@ -84,8 +102,10 @@ dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
 void dbarts_sampler_destroy(dbarts_sampler* sampler);
 
 /// Runs numBurnIn discarded then numSamples recorded iterations per chain,
-/// recording into results (which may be null when numSamples is 0).
-/// Thinning applies within recorded iterations at the rate the control set.
+/// recording into results (which may be null when numSamples is 0). Set
+/// results->structSize before calling; fields whose end offset exceeds it
+/// are skipped (never read, never written). Thinning applies within
+/// recorded iterations at the rate the control set.
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results);
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);

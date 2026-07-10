@@ -171,6 +171,14 @@ VD to confirm loglik-now vs mechanism-only.
 
 ### Part 1: dbarts_sampler_run2 and dbarts_results2
 
+[SUPERSEDED by the 2026-07-10 design change in Status: no run2/results2
+duality ships. dbarts_results itself became size-first (structSize as its
+first member) and dbarts_sampler_run absorbed the guarded core directly;
+the macro is DBARTS_RESULTS_HAS and DBARTS_C_API_VERSION stays 1. The
+write-guard idiom, static_asserts, boundary comment, and append rules
+below carry over unchanged - read "dbarts_results2" as "dbarts_results"
+and ignore the shim. The text below is kept as drafted for the record.]
+
 Header additions (inst/include/dbarts/dbarts.h), after the `dbarts_results`
 block, leaving `dbarts_results` and `dbarts_sampler_run` UNTOUCHED:
 
@@ -518,3 +526,61 @@ window. Record this in the release note (TODO L445-449 area).
   plus the one exact sizeof assert. (3) keep the encoding floor.
   Two-landing split (A: output channels; B: state blocks) accepted;
   land as separate commits under this plan.
+- 2026-07-10: LANDED as two commits on wt/c-api-growth.
+  Commit A "Add a growable results struct and run2 entry point":
+  dbarts.h (dbarts_results2 + DBARTS_RESULTS2_HAS + run2 prototype +
+  DBARTS_C_API_VERSION 2); C_interface.cpp (runCore factoring, run
+  as a v1-boundary shim, run2, and the monotonic-order + exact-sizeof
+  static_asserts); R_interface.cpp registration; consumer.c capi_run2
+  + capi_run2_guard canary; test-capi.R (apiVersion 1L->2L, run2==run
+  bit-identity, guard).
+  Commit B "Read sampler state blocks by name behind an encoding floor":
+  minReadableStateFormatVersion floor replacing the two equality gates
+  in setState/installForests; missing-vs-malformed block-name refusals
+  on forests/tree.vars/tree.params/tree.masks/k/sigma/fit.scale; the
+  registry-rule comment at storeState; the public-surface.md addition;
+  new test-sampler-state-format.R; and test-bartcore.R's future-version
+  refusal test retargeted to a below-floor refusal (the equality gate it
+  asserted no longer exists).
+  DEVIATION (judgment call 1, adjudicated fallback taken): shipped
+  MECHANISM-ONLY, NOT loglik-now. The engine-side per-family loglik
+  producer balloons past budget - it needs a new virtual across all four
+  response classes (Gaussian/Probit/Logistic + the GroupedResponse
+  decorator) with distinct family-specific math that must exactly match
+  the just-landed R-side pointwiseLogLikelihood, plus per-observation
+  group-index plumbing into storeSample for rbart (trainingFits omit the
+  intercepts) and BCF NaN handling, with no gate verifying the numeric
+  values. Per the adjudication, dbarts_results2 ships size + the eight v1
+  fields; logLikelihood is deferred to pointwise-loglik's engine-side
+  follow-up. The write guard is still proven end-to-end: capi_run2_guard
+  pins structSize below `test`/`varcount` (fields the gaussian sampler
+  DOES produce) and poisons those slots, so a size-blind write would
+  crash - a stronger canary than a null field. Judgment calls 2
+  (monotonic + one sizeof) and 3 (keep the floor) landed as recommended.
+  Gates: preclean install clean; tests/cpp all green; test-capi 58/58
+  (run2==run sigma/train/varcount, guard TRUE); tinytest 2602/0;
+  equivalence 21/21 identical draws; air + lintr clean; dbarts.h ASCII
+  and C99-clean (consumer compiles+runs as C).
+- 2026-07-10: DESIGN CHANGE (VD), superseding Part 1's run2/results2
+  duality. Nothing on CRAN links against the unreleased 1.0-0 header, so
+  dbarts_results is still editable: it becomes size-first ITSELF (a
+  leading size_t structSize, shifting the eight pointers), and the one
+  lockstep stan4bart rebuild already planned for 1.0-0 absorbs the layout
+  change. dbarts_results2, dbarts_sampler_run2, and the run shim are
+  dropped; the macro is DBARTS_RESULTS_HAS; DBARTS_C_API_VERSION stays 1
+  (the struct is BORN size-first at 1.0-0 - there is no prior layout to
+  distinguish; appends bump it from here). The write-guard idiom, the
+  static_asserts (structSize at 0, monotonic order, one exact sizeof), the
+  boundary comment, and the mechanism-only adjudication (logLikelihood
+  deferred to the engine-side follow-up) all carry over verbatim into
+  dbarts_sampler_run, which absorbs runCore's body directly. A zero
+  structSize is an all-skip no-op (documented in the header).
+  stan4bart lockstep action: its port adds r.structSize = sizeof r at its
+  dbarts_results allocations and gates on dbarts_apiVersion() >= 1 as
+  before.
+  Commit B was approved unchanged and landed on bartcore as 2d09768
+  (cherry-picked verbatim; gates re-run clean). Commit A reworked in place
+  per the above; the guard canary retargets dbarts_sampler_run itself
+  (structSize pinned to offsetof(test) with poisoned slots past it) and
+  every consumer.c run call site sets structSize - the in-repo lockstep
+  rebuild. Gates re-run after the rework; results recorded below.

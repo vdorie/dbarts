@@ -202,6 +202,7 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
   dbarts_results results = {0};
+  results.structSize = sizeof results;
   results.sigma = REAL(sigmaExpr);
   results.train = keepTrain ? REAL(trainExpr) : NULL;
   results.test = keepTest && nTest > 0 ? REAL(testExpr) : NULL;
@@ -229,6 +230,43 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 
   UNPROTECT(6);
   return resultExpr;
+}
+
+/* the write-guard canary: simulate an OLD, smaller caller by pinning
+ * structSize to the offset of `test`, so only sigma and train are present-by-
+ * size. Every field past that boundary is set to a poisoned pointer; the
+ * gaussian sampler would produce varcount (and test), so a guard that wrote
+ * through those slots by size-blindly trusting the pointers would dereference
+ * the poison and crash. Returns TRUE iff the run completed (guard skipped the
+ * out-of-bounds fields) with sigma still filled. */
+SEXP capi_run_guard(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t n = p_numObservations(sampler);
+  size_t chains = p_numChains(sampler);
+
+  double* sigma = (double*) R_alloc(numSamples * chains, sizeof(double));
+  double* train = (double*) R_alloc(n * numSamples * chains, sizeof(double));
+  double* poison = (double*) (uintptr_t) 0x1;
+
+  dbarts_results results = {0};
+  results.structSize = offsetof(dbarts_results, test);
+  results.sigma = sigma;
+  results.train = train;
+  results.test = poison;
+  results.varcount = (uint32_t*) poison;
+  results.k = poison;
+  results.varprobs = poison;
+  results.tau = poison;
+  results.groupEffects = poison;
+
+  p_run(sampler, numBurnIn, numSamples, &results);
+
+  int ok = 1;
+  for (size_t i = 0; i < numSamples * chains; ++i)
+    if (!(sigma[i] > 0.0) || sigma[i] != sigma[i]) ok = 0;
+  return Rf_ScalarLogical(ok);
 }
 
 /* per-sweep callback state: sets sigma[sweepIndex] when sigmas is non-null,
@@ -280,6 +318,7 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
     (uint32_t*) R_alloc(p * numSamples * chains, sizeof(uint32_t));
 
   dbarts_results results = {0};
+  results.structSize = sizeof results;
   results.sigma = REAL(sigmaExpr);
   results.train = REAL(trainExpr);
   results.test = NULL;
@@ -333,6 +372,7 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     Rf_allocVector(REALSXP, (R_xlen_t) (numGroups * numSamples * chains)));
 
   dbarts_results results = {0};
+  results.structSize = sizeof results;
   results.sigma = REAL(sigmaExpr);
   results.train = NULL;
   results.test = NULL;

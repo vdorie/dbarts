@@ -38,6 +38,23 @@ inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
 
 } // namespace
 
+// Layout lock for dbarts_results (dbarts.h): the growable ABI. Fields append
+// monotonically and never reorder, so the library's offsetof matches every
+// caller's; the exact-size assert forces an author who appends a field to
+// update it (and, by convention, bump DBARTS_C_API_VERSION).
+static_assert(offsetof(dbarts_results, structSize) == 0);
+static_assert(offsetof(dbarts_results, sigma) == sizeof(size_t));
+static_assert(offsetof(dbarts_results, sigma) < offsetof(dbarts_results, train));
+static_assert(offsetof(dbarts_results, train) < offsetof(dbarts_results, test));
+static_assert(offsetof(dbarts_results, test) < offsetof(dbarts_results, varcount));
+static_assert(offsetof(dbarts_results, varcount) < offsetof(dbarts_results, k));
+static_assert(offsetof(dbarts_results, k) < offsetof(dbarts_results, varprobs));
+static_assert(offsetof(dbarts_results, varprobs) < offsetof(dbarts_results, tau));
+static_assert(offsetof(dbarts_results, tau) <
+              offsetof(dbarts_results, groupEffects));
+static_assert(sizeof(dbarts_results) == sizeof(size_t) + 8 * sizeof(double*),
+              "dbarts_results grew; update this size and DBARTS_C_API_VERSION");
+
 extern "C" {
 
 int dbarts_apiVersion(void) { return DBARTS_C_API_VERSION; }
@@ -61,14 +78,21 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results) {
   bartcore::Results engineResults;
   if (results != NULL && numSamples > 0) {
-    engineResults.sigma = results->sigma;
-    engineResults.trainingFits = results->train;
-    engineResults.testFits = results->test;
-    engineResults.variableCounts = results->varcount;
-    engineResults.k = results->k;
-    engineResults.splitProbabilities = results->varprobs;
-    engineResults.tau = results->tau;
-    engineResults.groupEffects = results->groupEffects;
+    // A field is filled only when present-by-size AND non-null; a zero
+    // structSize (caller forgot to set it) is an all-skip no-op. offsetof is
+    // against the library's (newest) layout; fields only append, so it
+    // equals the caller's offset and structSize bounds the buffer.
+#define FILL(field, member) \
+  engineResults.member = DBARTS_RESULTS_HAS(results, field) ? results->field : NULL
+    FILL(sigma, sigma);
+    FILL(train, trainingFits);
+    FILL(test, testFits);
+    FILL(varcount, variableCounts);
+    FILL(k, k);
+    FILL(varprobs, splitProbabilities);
+    FILL(tau, tau);
+    FILL(groupEffects, groupEffects);
+#undef FILL
   }
 
   bartcore::SweepCallback onSweep;
