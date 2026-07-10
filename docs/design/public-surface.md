@@ -157,6 +157,23 @@ format version; there is no cross-version migration. This is the one
 version scheme flat-format-v2, state-continuation, and forest-split-bcf
 all bump.
 
+Landed (2026-07-10, c-api-growth): the format version stamp is demoted
+from an equality gate to an encoding FLOOR (minReadableStateFormatVersion,
+currently 3), so state evolution is additive rather than orphaning. setState
+already reads every per-chain block BY NAME (getListElement) and defaults an
+absent OPTIONAL block, so the registry rule is: block names are append-only
+and a shipped name's on-disk encoding is FROZEN; a new capability adds a NEW
+optional block name (an old reader ignores it, a new reader defaults it), so
+an additive addition does NOT bump the version or the floor. Only a
+non-additive change to an existing block's encoding - one that cannot be
+expressed as a new name - bumps both. A REQUIRED block (or one required for
+the sampler's configuration: tree.params for vector leaves, tree.masks for
+pooled categoricals, latents for binary) is refused NAMING the block when the
+sampler needs it but the state omits it. The stamp stays for provenance and as
+the floor's input; a state at or past the floor loads, only a genuinely older
+encoding is refused. Pre-1.0 states are not a compat target and cannot even
+structurally reach the by-name reader (they lack the forests block).
+
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a
 double and `getTrees` keeps the raw mask in the `value` column; when the
