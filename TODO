@@ -24,7 +24,13 @@ items
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
-    window: pre-release.
+    window: pre-release. Review-6 notes: add COLUMN-SUBSET views
+    (buildFromParent is row-subset only - hard prerequisite for BCF
+    moderators and per-forest predictors); guardrail - the constant
+    leaf's centered-SS and the BCF 1e-9 floor are numerically safe
+    ONLY because responses arrive pre-standardized to O(1); the
+    owned container must not create a path that feeds raw-scale
+    residuals to the leaves.
   gate-hardening-1.0: LANDED 2026-07-09 (0e9ccca + anchor 3ef0308) -
     all six poison-sweep blind spots gated, each with a
     fail-on-poisoned proof: bcf-exact-weak.R (prior-dominated n=40
@@ -51,6 +57,18 @@ items
     2-4 orders below n at b in {4,8}; E3 agreement 0.97, survivor
     0.07-0.12). Both flagship CPU candidates live. Backend-seam design
     still waits on items 4-5 (informed-kernel + CG-leaf prototypes).
+  forest-combiner: review-6 architecture debt #1, the multi-forest
+    prerequisite. Promote the BCF glue out of Chain (bcf_ pointer,
+    drawGlue, combinedFits, formForestResponse, forestMultiplier,
+    the if(bcf_) sweep branches) into a polymorphic ForestCombiner
+    on the ResponseModel side owning per-forest residual formation,
+    the coupling draw, combined fits, and per-forest reporting
+    addressing; BCF becomes its first instance. Unblocks
+    multinomial/heteroscedastic/hurdle AND grouped-x-multi-forest
+    composition (GroupedResponse is on the wrong side of the
+    Chain/combiner boundary today). RNG-neutral refactor, gated by
+    the equivalence anchor + bcf-exact. Medium-large; land BEFORE
+    any multi-forest model.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
@@ -79,7 +97,12 @@ items
     - bart2 argument vs explicit producer - decided in the plan).
     Shares the scan primitive with frontier item 4, so schedule to
     land the scan once. Queued after the correctness arc (chi fix,
-    change-move stage 2, audit blocks 4-7).
+    change-move stage 2, audit blocks 4-7). Review-6 note: the
+    promoted scan must be OCCUPANCY-AWARE - the empty-leaf veto
+    lives in logLikelihoodForBranch's finite penalty, which a
+    scan-based builder never calls; empty-side cuts get zero
+    weight in the scan itself, and that contract needs its own
+    gate.
   hot-layer-u8: FOLDED into data-ownership's owned container (VD
     2026-07-07, after phase-1 kernel measurements showed no standalone
     partition win); per-column widths land with the container and get
@@ -88,9 +111,25 @@ items
     on the SplitSelector seam. consumer-gated.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
+  input-precision-validation: review-6 numerical finding (seed 7).
+    A response with huge offset and tiny range quantizes in double
+    precision BEFORE the engine sees it (y in [1e15, 1e15+1e-3] is
+    1 distinct value); the engine copes but silently models a
+    degenerate response. Add an R-boundary warning when
+    range(y)/|median(y)| < ~1e-10 or distinct(y) << n. Also fold
+    in the GP doc note: predict() at training rows interpolates
+    the jitter-free mean, landing ~2-3e-3 below the recorded
+    (jittered) fits - document in the GP man/design text. Small, R
+    + docs.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
-    the template; one design note each when picked.
+    the template; one design note each when picked. Review-6
+    prerequisites: forest-combiner FIRST (all three bend on it);
+    heteroscedastic additionally needs a fourth leaf kind
+    (multiplicative-positive, non-integrable) plus the non-conjugate
+    MoveStrategy the design anticipated but never built, and a
+    decision on per-observation residual variance (fold into the
+    workingWeights channel vs a sigma vector).
   chi-default-research: staged by VD 2026-07-08 alongside the
     chi-hyperprior-df fix. The chi(1.25, Inf) binary default came
     from a simulation showing good binary-outcome performance; with
@@ -155,6 +194,22 @@ items
     equivalence 18/18. tests/cpp testChiKEmptyLeafAccounting via a
     chain fabrication hook is the regression;
     chi-k-empty-leaf-count.md has the record.
+  chi-k-runaway: review-6 numerical finding (seed 6), REAL. chi()'s
+    scale = Inf DEFAULT (R/model.R:451) is an improper prior; when
+    leaves are prior-dominated the k-Gibbs fixed-point factor
+    (1 + df/numLeaves) exceeds 1, so legal settings run away: chi
+    (100, Inf) deterministically (k -> 1e25+, leaf sd -> 0, the
+    forest fits NOTHING, sigma -> marginal sd, NO error); few-tree
+    df=1.5 stochastically (k to 1e21 observed). chi(100, scale=2)
+    stabilizes at k~21 with a healthy fit. The default 200-tree
+    chi(1.5) survives only because data usually overcome the
+    1.0037 per-sweep factor. REMEDY IS VD'S CALL: (a) sentinel cap
+    on k (~1e6 = leaf sd statistically zero; nearly behavior-
+    neutral, catches both modes), (b) finite default scale
+    (posterior-changing for every chi user; belongs with
+    chi-default-research), (c) warn on updateK + scale=Inf.
+    Orchestrator recommends (a) now + fold the default question
+    into chi-default-research.
   interface-fixes-1.0: interface-review deliverable (plan file has
     the full F/D lists). Code: weigths PPD typo, single-chain
     extract-trees crash, dead missing="error" net + silent row
@@ -200,6 +255,29 @@ items
     are the regression gates. The zeroweights equivalence scenario
     shifts legitimately (sigma.mean z = -61.74); anchor re-recorded as
     equivalence-cf99a00.rds (commit 7b79623, MANIFEST updated).
+  tau-slice-stepout-cap: review-6 numerical finding (seed 4), REAL.
+    sliceSampleOnce's step-out while loops are uncapped in BOTH
+    directions (model.hpp:2299-2301; only shrinkage caps at 1000).
+    Step-outs ~ tau/width: >1e5 iterations at tau > ~2.5e5,
+    indefinite hang at tau > ~1e8. Reachable legally: empty groups
+    draw effects ~N(0, tau^2) with no mean-reversion (mostly-empty
+    groupings random-walk tau up); heavy-tail excursions at small
+    J; also the cause of the review-3 poison hang and the review-4
+    half-Cauchy SBC intractability. Fix: Neal's m cap on both
+    directions (~1e4) - never engages in normal runs so all gates
+    stay bit-identical; when it engages, shrinkage still samples
+    correctly inside the bracket. Small, engine.
+  dbarts-results-growth: review-6 architecture debt #2, DECISION,
+    window: pre-release. The frozen dbarts_results struct
+    (dbarts.h) cannot gain fields - consumers stack-allocate
+    against the compiled layout - but NB's r trace, ordinal
+    cutpoints, and multinomial per-category fits all need output
+    channels. Pick the policy before 1.0-0: a new-named run2 +
+    extended results struct, or new-named per-channel getters.
+    Related debt #3: flat-format-v2 should become an additive/
+    optional-block state format ONCE before the family wave (each
+    new family otherwise bumps stateFormatVersion and orphans all
+    saved states serially). VD decision.
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
