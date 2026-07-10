@@ -1,0 +1,44 @@
+# Simulation-based calibration gate (benchmarks/R/sbc.R), gaussian config
+# only, at R=100: a statistical rank-uniformity test that will occasionally
+# false-alarm at its nominal level, so this deliberately does NOT gate pull
+# requests -- only a scheduled, workflow_dispatch-triggered run that turns
+# visibly red on a FLAG. Runs on the cheaper ubuntu-latest, same as
+# equivalence.yaml.
+#
+# Known defect: the BCF glue-on sigma config (benchmarks/R/sbc.R bcf /
+# bcf-weak) is under investigation and is NOT part of this workflow;
+# gaussian only.
+on:
+  schedule:
+    - cron: '0 3 * * 3'
+  workflow_dispatch:
+
+name: sbc
+
+permissions: read-all
+
+jobs:
+  sbc:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      SBC_FAIL_ON_FLAG: 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          needs: check
+
+      - name: Install the package
+        run: R CMD INSTALL .
+
+      - name: Run the SBC calibration check (gaussian, R=100)
+        run: Rscript benchmarks/R/sbc.R gaussian 100 200 30
