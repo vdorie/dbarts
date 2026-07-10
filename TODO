@@ -128,25 +128,25 @@ items
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
     workingWeights channel vs a sigma vector).
-  chi-default-research: staged by VD 2026-07-08 alongside the
-    chi-hyperprior-df fix. The chi(1.25, Inf) binary default came
-    from a simulation showing good binary-outcome performance; with
-    the label now honest (chi(1.5)), re-derive the default from
-    evidence. PART 1 DONE (roadmap-survey rider, 2026-07-10,
-    detailed table in roadmap-survey.md): dbarts is the ONLY
-    package with a hyperprior-on-k binary default; the field is
-    fixed k=2 (BART, bartMachine, bartz), SoftBart alone at fixed
-    k=1 (unexplained), stochtree samples leaf VARIANCE via IG (not
-    k), pymc-bart exposes no knob; NO published rationale anywhere
-    for a non-2 default. PART 2 remains: a broad simulation over
-    binary scenarios (n, p, prevalence, signal strength/sparsity,
-    friedman + linear + interaction DGPs) comparing k defaults and
-    chi hyperprior settings on held-out log-loss, AUC, calibration,
-    and interval coverage - now also deciding the chi-k-runaway
-    remedy's default-scale half and rbart_vi's k default (interface
-    taste call T5). Output: a design note + recommendation; any
-    default change is its own posterior-changing item with VD's
-    sign-off.
+  chi-default-research: PART 2 DONE 2026-07-10 (simulation study;
+    full record in chi-default-research.md, part 1 in
+    roadmap-survey.md). 48 cells (dgp x n x p x base rate) x 8
+    arms x 20 paired reps: the chi hyperprior with FINITE scale
+    dominates every fixed k on worst-cell regret (chi(1.5,2) ~5x
+    better than fixed k=2); fixed k=2 fails strong-separation
+    small-n outright (coverage 0.51 - it cannot adapt down);
+    chi(1.5, Inf)'s only pathology is the improper scale (weak
+    balanced cells drift k to ~1e3-1e5, 2 runaways; base-rate-0.1
+    cells never drift); finite scales kept k in [0.8, 5.3]
+    everywhere, making the 1e6 sentinel a dead backstop.
+    chi(1.5, 2) has prior median k = 1.91 - the field's k = 2,
+    sampled. RECOMMENDED DEFAULT CHANGE (AWAITING VD): bart2/
+    dbarts binary + rbart_vi default chi(1.5, Inf) -> chi(1.5, 2);
+    bart() keeps fixed k=2 for BayesTree compatibility.
+    Posterior-changing for default binary bart2 fits (snapshot
+    regens; equivalence scenarios pin their settings explicitly -
+    verify none rides the default).
+
   bcf-glue-sigma-calibration: RESOLVED 2026-07-10 as H-MIX (slow
     mixing), not a defect - the chain-length experiment (three
     points spanning 8.3x: thin 120/360/1000, R=200, L=150) shows
