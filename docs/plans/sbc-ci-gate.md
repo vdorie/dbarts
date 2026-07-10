@@ -109,3 +109,8 @@ R CMD INSTALL run in this worktree (shared library owned by another job).
   wt/sbc-ci-gate. Verification above run against the shared private library
   at the worktree's base commit; no package code touched (R/, src/, man/,
   inst/ untouched, per the item's scope).
+- 2026-07-10: LANDED as ed34eea (squash of wt/sbc-ci-gate).
+  Reviewer confirmed sbcReport already returns invisible(verdicts)
+  (the CLI hook reads a real value) and independently re-ran the
+  exact workflow command from a private library: all 7 functionals
+  PASS, exit 0.
