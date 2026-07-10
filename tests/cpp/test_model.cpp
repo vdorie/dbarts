@@ -188,6 +188,35 @@ static void testChiKHyperprior(ext_rng* rng) {
   checkMoments(leafRate + 0.5 / (prior.scale * prior.scale),
                "chi-k posterior k^2 moments, finite prior scale");
 
+  // A prior-dominated leaf under an improper scale would draw k far past any
+  // finite bound; the sentinel caps it at exactly maxDraw. A tiny leaf scale
+  // and a tiny sum of squares put the gamma rate near zero, so the raw draw
+  // dwarfs the cap and every draw must clamp to it.
+  ChiKHyperprior runaway;
+  runaway.degreesOfFreedom = 1000.0;  // shape dominated by df, not by leaves
+  for (int i = 0; i < 1000; ++i) {
+    double k = runaway.draw(rng, 1e-30, 1.0, 1e-6);
+    check(k == ChiKHyperprior::maxDraw, "chi-k runaway draw capped at maxDraw");
+  }
+
+  // A healthy draw returns the uncapped sqrt-of-gamma verbatim, unclamped.
+  // Seed a private rng, read the inlined formula off it, rewind to the same
+  // seed, and confirm draw() reproduces that value exactly and stays below
+  // the cap.
+  ext_rng* healthyRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ChiKHyperprior healthy;  // df 1.5, infinite scale
+  double healthyShape = 0.5 * (numLeaves + healthy.degreesOfFreedom);
+  double healthyRate = 0.5 * sumSquaredParams / (leafScale * leafScale);
+
+  ext_rng_setSeed(healthyRng, 42);
+  double expectedK = std::sqrt(
+    ext_rng_simulateGamma(healthyRng, healthyShape, 1.0 / healthyRate));
+  ext_rng_setSeed(healthyRng, 42);
+  double gotK = healthy.draw(healthyRng, sumSquaredParams, numLeaves, leafScale);
+  check(gotK < ChiKHyperprior::maxDraw, "chi-k healthy draw below the cap");
+  checkNear(gotK, expectedK, 0.0, "chi-k healthy draw equals uncapped formula");
+  ext_rng_destroy(healthyRng);
+
   printf("ok: chi-k hyperprior\n");
 }
 

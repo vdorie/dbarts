@@ -84,7 +84,8 @@
     \item{\code{chi(degreesOfFreedom = 1.5, scale = Inf)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
       model: \code{k} is given a chi distribution with the stated degrees
-      of freedom and scale.
+      of freedom and scale. The sampled \code{k} is capped at 1e6, the
+      regime an improper (infinite) scale can otherwise drift toward.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
       Chi-squared prior on the residual variance, scaled so that an
