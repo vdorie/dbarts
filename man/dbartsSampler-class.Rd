@@ -218,6 +218,8 @@
 }
 \seealso{
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.
+
+  \code{\link{samplePriorPredictive}} for repeated \code{sampleTreesFromPrior}/\code{sampleNodeParametersFromPrior}/\code{predict} draws on a private sampler, for calibrating priors before fitting.
 }
 \examples{
 # the embedded-Gibbs pattern: BART as a conditional model inside a larger

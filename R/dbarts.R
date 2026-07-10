@@ -332,6 +332,106 @@ warmStartState <- function(donor) {
   sampler$state
 }
 
+# Draws from the BART prior (issue #31): repeatedly redraws trees and node
+# parameters on a private sampler and evaluates the resulting forest at
+# x.test, for calibrating priors before fitting - e.g. the prior
+# distribution of a treatment effect via f(x1) - f(x0). Never touches the
+# caller's sampler: a fresh construction gets its own external pointer, and
+# while it borrows the caller's data object, nothing here mutates it.
+samplePriorPredictive <- function(
+  sampler,
+  x.test = NULL,
+  n.samples = 200L,
+  type = c("ev", "ppd"),
+  offset.test = NULL,
+  n.threads = sampler$control@n.threads
+) {
+  if (!inherits(sampler, "dbartsSampler")) {
+    stop("'sampler' must inherit from dbartsSampler")
+  }
+  type <- match.arg(type)
+  n.samples <- as.integer(n.samples)[1L]
+  if (is.na(n.samples) || n.samples <= 0L) {
+    stop("'n.samples' must be a positive integer")
+  }
+
+  # a fresh sampler, not sampler$copy(): copy() installs the caller's saved
+  # state - including the engine RNG - so successive calls would replay one
+  # frozen stream. Fresh creation seeds the chain RNGs from R's stream when
+  # control@rngSeed is NA (or pins them when it is set), giving independent
+  # draws across calls by default with set.seed governing reproducibility.
+  # The prior draws overwrite all tree state, so no donor state is needed.
+  # keepTrees is forced off: it makes predict() serve saved posterior
+  # samples instead of the live trees this function just drew.
+  newControl <- sampler$control
+  newControl@keepTrees <- FALSE
+  draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
+
+  xt <- if (is.null(x.test)) draw$data@x else x.test
+  responseIsBinary <- draw$control@binary
+
+  sigmaDraws <- NULL
+  if (type == "ppd" && !responseIsBinary) {
+    residPrior <- draw$model@resid.prior
+    if (inherits(residPrior, "dbartsChiSqPrior")) {
+      # reported-scale scaled-inverse-chi-squared, matching the engine's own
+      # sigma-prior calibration (P(sigma < sigest) == quantile)
+      sigest <- draw$data@sigma
+      df <- residPrior@df
+      rawScale <- qchisq(1 - residPrior@quantile, df) / df
+      sigmaDraws <- sqrt(df * sigest^2 * rawScale / rchisq(n.samples, df))
+    } else if (inherits(residPrior, "dbartsFixedPrior")) {
+      # no distributional uncertainty in sigma; getSigmas() already reports
+      # the fixed value on the original scale
+      sigmaDraws <- rep_len(draw$getSigmas()[1L], n.samples)
+    } else {
+      stop(
+        "samplePriorPredictive does not support residual variance prior ",
+        "class '",
+        class(residPrior)[1L],
+        "'"
+      )
+    }
+  }
+
+  results <- vector("list", n.samples)
+  for (i in seq_len(n.samples)) {
+    draw$sampleTreesFromPrior(updateState = FALSE)
+    draw$sampleNodeParametersFromPrior(updateState = FALSE)
+    fit <- draw$predict(xt, offset.test, n.threads)
+    # multi-chain samplers draw an independent prior stream per chain; prior
+    # draws are chain-free, so only the first chain's stream is kept
+    if (length(dim(fit)) > 1L) {
+      fit <- fit[, 1L]
+    }
+    results[[i]] <- fit
+  }
+  result <- do.call(rbind, results)
+
+  if (responseIsBinary) {
+    result <- probabilityFromLatents(result, list(family = draw$model@family))
+  }
+
+  if (type == "ppd") {
+    if (responseIsBinary) {
+      result <- matrix(
+        rbinom(length(result), 1L, result),
+        nrow(result),
+        ncol(result)
+      )
+    } else {
+      result <- result +
+        matrix(
+          rnorm(length(result), 0, rep(sigmaDraws, ncol(result))),
+          nrow(result),
+          ncol(result)
+        )
+    }
+  }
+
+  result
+}
+
 
 dbartsSampler <- setRefClass(
   "dbartsSampler",
