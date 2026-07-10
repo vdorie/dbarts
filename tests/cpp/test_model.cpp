@@ -1138,6 +1138,29 @@ static void testGroupedMath(ext_rng* rng) {
     checkNear(sd, sliceSd[pass], 0.01, "slice-sampled tau sd");
   }
 
+  // step-out cap: a tau posterior with mode ~1e12 (J = 5, sum b^2 = 5e24;
+  // the regime mostly-empty groupings random-walk into) stepped out
+  // ~mode/width times before the cap - an indefinite hang. Capped, the
+  // bracket stops at x + (m + 1) * width and the draw returns promptly
+  // inside it. A dedicated rng keeps the shared stream untouched.
+  {
+    ext_rng* capRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (capRng == NULL || ext_rng_setSeed(capRng, 8271) != 0) {
+      check(false, "step-out cap: rng creation");
+      return;
+    }
+    auto stallDensity = [](double t) {
+      return logTauPosterior(t, 5.0, 5.0e24, TauPriorKind::cauchy, 0.55);
+    };
+    double draw =
+      sliceSampleOnce(capRng, stallDensity, 0.45, 0.55, 0.0, HUGE_VAL);
+    check(std::isfinite(draw) && draw > 0.0 &&
+            draw <= 0.45 + 0.55 * 10001.0,
+          "capped step-out returns a finite draw inside the bracket");
+    ext_rng_destroy(capRng);
+  }
+
   printf("ok: grouped math\n");
 }
 
