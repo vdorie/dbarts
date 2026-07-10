@@ -35,7 +35,7 @@
       Normal prior on the node means. \code{k} scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       \code{chi}, or \code{NULL} for the default: 2 for continuous
-      responses, \code{chi(1.5, Inf)} for binary ones. The continuous
+      responses, \code{chi(1.5, 2)} for binary ones. The continuous
       default follows Chipman, George, and McCulloch's argument that with
       node standard deviation \code{sigma_mu = 0.5 / (k * sqrt(m))} for
       \code{m} trees, \code{k} prior standard deviations of \eqn{f(x)}
@@ -81,11 +81,14 @@
       which reads the recorded fit directly - only \code{predict} and
       test-data prediction re-krig).
     }
-    \item{\code{chi(degreesOfFreedom = 1.5, scale = Inf)}}{
+    \item{\code{chi(degreesOfFreedom = 1.5, scale = 2)}}{
       Chi hyperprior over \code{k}, sampled along with the rest of the
       model: \code{k} is given a chi distribution with the stated degrees
-      of freedom and scale. The sampled \code{k} is capped at 1e6, the
-      regime an improper (infinite) scale can otherwise drift toward.
+      of freedom and scale. The default, \code{chi(1.5, 2)}, centers the
+      sampled \code{k} near the field-standard fixed value of 2 (prior
+      median 1.9) while letting it adapt to the data. \code{scale = Inf}
+      remains accepted for the old improper prior; the sampled \code{k} is
+      capped at 1e6, a backstop that only engages at that improper scale.
     }
     \item{\code{chisq(df = 3, quant = 0.9)}}{
       Chi-squared prior on the residual variance, scaled so that an
