@@ -22,11 +22,17 @@ samples.ppd <- extract(bartFit, type = "ppd")
 
 set.seed(0L)
 samples.pm <- extract(bartFit)
+# combined rows are chain blocks (all of chain 1's samples, then chain 2's);
+# the noise is drawn in bartFit$sigma's own chain-fastest order and then
+# reshaped (not redrawn) to match, mirroring sampleFromPPD
 for (i in seq_len(n.obs)) {
-  expect_equal(
-    samples.pm[, i] + rnorm(n.samples * n.chains, 0, bartFit$sigma),
-    samples.ppd[, i]
+  noise <- rnorm(
+    n.samples * n.chains,
+    0,
+    rep_len(bartFit$sigma, n.samples * n.chains)
   )
+  noise <- dbarts:::combineChains(array(noise, c(n.chains, n.samples, 1L)))
+  expect_equal(samples.pm[, i] + as.vector(noise), samples.ppd[, i])
 }
 
 set.seed(0L)
@@ -42,7 +48,7 @@ for (i in seq_len(n.obs)) {
   )
 }
 
-rm(i, samples.pm, samples.ppd, bartFit, n.obs, n.chains, n.samples)
+rm(i, noise, samples.pm, samples.ppd, bartFit, n.obs, n.chains, n.samples)
 
 # extract(type = "ppd", sample = "train") must weight its noise draws by
 # the fit's case weights (object$weights, not the "weigths" typo it used to
