@@ -24,6 +24,7 @@ reference:
   - dbartsControl
   - dbartsData
   - dbartsPriors
+  - samplePriorPredictive
   - updatePredictorPerObservationJointly
 - title: Diagnostics
   desc: Convergence summaries and posterior draw extraction.
