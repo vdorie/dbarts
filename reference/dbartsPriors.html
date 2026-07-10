@@ -115,7 +115,14 @@
       Function-valued fits ride prediction only: <code>getTrees</code> reports
       <code>NA</code> leaf values, and <code>keepTrees</code> storage grows with the
       leaf sizes. <code><a href="xbart.html">xbart</a></code> accepts the same specification
-      through its own <code>node.prior</code> argument.</p></dd>
+      through its own <code>node.prior</code> argument.</p>
+<p><code>predict</code> at a training row re-krigs the jitter-free
+      posterior mean from the cached kernel and drawn training values,
+      while the fit recorded during sampling includes a small
+      conditioning nugget on the kernel diagonal; the two differ by
+      roughly 2e-3 to 3e-3 at training locations (never during MCMC,
+      which reads the recorded fit directly - only <code>predict</code> and
+      test-data prediction re-krig).</p></dd>
 
     <dt><code>chi(degreesOfFreedom = 1.5, scale = Inf)</code></dt>
 <dd><p>Chi hyperprior over <code>k</code>, sampled along with the rest of the

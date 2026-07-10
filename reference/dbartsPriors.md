@@ -73,6 +73,13 @@ A list of functions:
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specification through its own `node.prior` argument.
 
+  `predict` at a training row re-krigs the jitter-free posterior mean
+  from the cached kernel and drawn training values, while the fit
+  recorded during sampling includes a small conditioning nugget on the
+  kernel diagonal; the two differ by roughly 2e-3 to 3e-3 at training
+  locations (never during MCMC, which reads the recorded fit directly -
+  only `predict` and test-data prediction re-krig).
+
 - `chi(degreesOfFreedom = 1.5, scale = Inf)`:
 
   Chi hyperprior over `k`, sampled along with the rest of the model: `k`
