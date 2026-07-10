@@ -395,6 +395,11 @@ slope on the internal standardized scale; internal nodes are `NA`.
 for applying a shared per-observation predictor update across several
 samplers at once.
 
+[`samplePriorPredictive`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
+for repeated
+`sampleTreesFromPrior`/`sampleNodeParametersFromPrior`/`predict` draws
+on a private sampler, for calibrating priors before fitting.
+
 ## Examples
 
 ``` r

@@ -114,7 +114,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <span><span class="co"># S3 method for class 'bart'</span></span>
 <span><span class="fu">extract</span><span class="op">(</span></span>
 <span>    <span class="va">object</span>,</span>
-<span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"trees"</span><span class="op">)</span>,</span>
+<span>    type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ev"</span>, <span class="st">"ppd"</span>, <span class="st">"bart"</span>, <span class="st">"loglik"</span>, <span class="st">"trees"</span><span class="op">)</span>,</span>
 <span>    sample <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"train"</span>, <span class="st">"test"</span><span class="op">)</span>,</span>
 <span>    combineChains <span class="op">=</span> <span class="cn">TRUE</span>, <span class="va">...</span><span class="op">)</span></span>
 <span></span>
@@ -170,7 +170,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Used for binary \(y\). When present, the model is \(P(Y = 1 \mid x) = \Phi(f(x) + \mathrm{binaryOffset})\), allowing fits with probabilities shrunk towards values other than \(0.5\). \(\Phi\) is the link for the default probit family; <code>bart2</code> fits with <code>family = "logistic"</code> use <code>plogis</code> instead, as noted in the value section below.</p></dd>
 
    <dt id="arg-weights">weights<a class="anchor" aria-label="anchor" href="#arg-weights"></a></dt>
-<dd><p>An optional vector of weights to be used in the fitting process. For a gaussian response, BART fits a model with observations \(y \mid x \sim N(f(x), \sigma^2 / w)\), where \(f(x)\) is the unknown function. A probit fit (<code>bart</code>, or <code>bart2</code> with the default binary family) does not support weights, except that weights identically 1 are treated as absent; <code>bart2</code> with <code>family = "logistic"</code> treats them as observation counts and requires positive integers.</p></dd>
+<dd><p>An optional vector of weights to be used in the fitting process. For a gaussian response, BART fits a model with observations \(y \mid x \sim N(f(x), \sigma^2 / w)\), where \(f(x)\) is the unknown function. A probit fit (<code>bart</code>, or <code>bart2</code> with the default binary family) does not support weights, except that weights identically 1 are treated as absent; <code>bart2</code> with <code>family = "logistic"</code> treats them as observation counts and requires positive integers. For a weighted logistic fit, the <code>"ppd"</code> draw at an observation with weight \(w\) is the number of successes among \(w\) trials, \(\mathrm{Binomial}(w, p)\) with \(p\) the fitted probability.</p></dd>
 
    <dt id="arg-ntree-n-trees">ntree, n.trees<a class="anchor" aria-label="anchor" href="#arg-ntree-n-trees"></a></dt>
 <dd><p>The number of trees in the sum-of-trees formulation.</p></dd>
@@ -269,7 +269,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Vector of two colors. First color is used to plot the median of \(f(x)\) and the second color is used to plot the lower and upper quantiles.</p></dd>
 
    <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
-<dd><p>The quantity to be returned by generic functions. Options are <code>"ev"</code> - samples from the posterior of the individual level expected value, <code>"bart"</code> - the sum of trees component; same as <code>"ev"</code> for linear models but on the latent scale (probit or logistic, matching the fit's family) for binary ones, <code>"ppd"</code> - samples from the posterior predictive distribution, and <code>"trees"</code> - a data frame with tree information for when model was fit with <code>keepTrees</code> equal to <code>TRUE</code>. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For information on extracting trees, see the subsection below.</p></dd>
+<dd><p>The quantity to be returned by generic functions. Options are <code>"ev"</code> - samples from the posterior of the individual level expected value, <code>"bart"</code> - the sum of trees component; same as <code>"ev"</code> for linear models but on the latent scale (probit or logistic, matching the fit's family) for binary ones, <code>"ppd"</code> - samples from the posterior predictive distribution, <code>"loglik"</code> - for <code>extract</code> only, the log-likelihood of each training observation at each posterior draw, and <code>"trees"</code> - a data frame with tree information for when model was fit with <code>keepTrees</code> equal to <code>TRUE</code>. For <code>"loglik"</code>, gaussian fits evaluate \(y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\) in logs at each draw of \(f\) and \(\sigma\), while binary fits evaluate the Bernoulli log-likelihood of the fitted probability, multiplied for a weighted logistic fit by the observation-count weight \(w_i\). When chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the <span class="pkg">loo</span> package. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For information on extracting trees, see the subsection below.</p></dd>
 
    <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
 <dd><p>Either <code>"train"</code> or <code>"test"</code>.</p></dd>
@@ -463,7 +463,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.224586</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.224815</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -529,7 +529,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001369</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001320</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 </span>

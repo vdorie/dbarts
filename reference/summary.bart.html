@@ -156,7 +156,9 @@ as_draws_array and as_draws_df convert a fit's
 <span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 1 × 10</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> sigma     1.05   1.04 0.072<span style="text-decoration: underline;">5</span> 0.081<span style="text-decoration: underline;">5</span> 0.942  1.16 0.983     39.4     56.9</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> sigma     1.00  0.986 0.058<span style="text-decoration: underline;">2</span> 0.042<span style="text-decoration: underline;">9</span> 0.938  1.11  1.05     36.7     21.4</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Note: some R-hat values exceed 1.01; chains may not have converged.</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/ns-load.html" class="external-link">requireNamespace</a></span><span class="op">(</span><span class="st">"posterior"</span>, quietly <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span></span>
 <span class="r-in"><span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://mc-stan.org/posterior/" class="external-link">posterior</a></span><span class="op">)</span></span></span>
@@ -176,11 +178,11 @@ as_draws_array and as_draws_df convert a fit's
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>          chain</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration    1    2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         1 1.01 1.01</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         2 0.92 1.16</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         3 1.11 0.99</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         4 1.16 1.02</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>         5 0.99 1.06</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         1 0.95 0.96</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         2 1.10 1.12</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         3 0.98 1.11</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         4 1.02 1.04</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>         5 1.01 1.01</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> # ... with 15 more iterations</span>
 <span class="r-in"><span><span class="co"># }</span></span></span>

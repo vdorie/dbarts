@@ -71,7 +71,7 @@ extract(object, ...)
 # S3 method for class 'bart'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "trees"),
+    type = c("ev", "ppd", "bart", "loglik", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE, ...)
 
@@ -219,7 +219,10 @@ residuals(object, type = "ev", ...)
   probit fit (`bart`, or `bart2` with the default binary family) does
   not support weights, except that weights identically 1 are treated as
   absent; `bart2` with `family = "logistic"` treats them as observation
-  counts and requires positive integers.
+  counts and requires positive integers. For a weighted logistic fit,
+  the `"ppd"` draw at an observation with weight \\w\\ is the number of
+  successes among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\
+  the fitted probability.
 
 - ntree, n.trees:
 
@@ -426,9 +429,17 @@ residuals(object, type = "ev", ...)
   `"bart"` - the sum of trees component; same as `"ev"` for linear
   models but on the latent scale (probit or logistic, matching the fit's
   family) for binary ones, `"ppd"` - samples from the posterior
-  predictive distribution, and `"trees"` - a data frame with tree
-  information for when model was fit with `keepTrees` equal to `TRUE`.
-  To synergize with
+  predictive distribution, `"loglik"` - for `extract` only, the
+  log-likelihood of each training observation at each posterior draw,
+  and `"trees"` - a data frame with tree information for when model was
+  fit with `keepTrees` equal to `TRUE`. For `"loglik"`, gaussian fits
+  evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs
+  at each draw of \\f\\ and \\\sigma\\, while binary fits evaluate the
+  Bernoulli log-likelihood of the fitted probability, multiplied for a
+  weighted logistic fit by the observation-count weight \\w_i\\. When
+  chains are combined the result is a samples-by-observations matrix
+  directly consumable by WAIC/PSIS-LOO implementations such as those in
+  the loo package. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
@@ -786,7 +797,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.224586
+#> total seconds in loop: 0.224815
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -852,7 +863,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001369
+#> total seconds in loop: 0.001320
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 

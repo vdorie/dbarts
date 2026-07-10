@@ -45,7 +45,7 @@ fitted(
 # S3 method for class 'rbart'
 extract(
     object,
-    type = c("ev", "ppd", "bart", "ranef", "trees"),
+    type = c("ev", "ppd", "bart", "loglik", "ranef", "trees"),
     sample = c("train", "test"),
     combineChains = TRUE,
     ...)
@@ -137,12 +137,18 @@ residuals(object, type = "ev", ...)
 
 - type:
 
-  One of `"ev"`, `"ppd"`, `"bart"`, `"ranef"`, or `"trees"` for the
-  posterior of the expected value, posterior predictive distribution,
-  non-parametric/BART component, random effect, or saved trees
-  respectively. The expected value is the sum of the BART component and
-  the random effects, while the posterior predictive distribution is a
-  response sampled with that mean. To synergize with
+  One of `"ev"`, `"ppd"`, `"bart"`, `"loglik"`, `"ranef"`, or `"trees"`
+  for the posterior of the expected value, posterior predictive
+  distribution, non-parametric/BART component, training log-likelihood
+  (`extract` only), random effect, or saved trees respectively. The
+  expected value is the sum of the BART component and the random
+  effects, while the posterior predictive distribution is a response
+  sampled with that mean. `"loglik"` evaluates the log-likelihood of
+  each training observation at each posterior draw, conditioning on the
+  drawn random intercepts as well as \\\sigma\\ (gaussian) or the fitted
+  probability (binary); when chains are combined the result is a
+  samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
+  implementations such as those in the loo package. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For additional details on tree
@@ -303,7 +309,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000305
+#> total seconds in loop: 0.000303
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
@@ -316,7 +322,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001555
+#> total seconds in loop: 0.001549
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 
@@ -374,7 +380,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001954
+#> total seconds in loop: 0.002120
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 
