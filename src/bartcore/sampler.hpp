@@ -898,6 +898,7 @@ public:
   bool usesDart() const { return options_.useDart; }
   const ColumnStore& data() const { return data_; }
   const Chain<L>& chain(size_t chainNum) const { return *chains_[chainNum]; }
+  Chain<L>& chain(size_t chainNum) { return *chains_[chainNum]; }
   size_t numChains() const { return chains_.size(); }
   size_t numThreads() const { return options_.numThreads; }
 

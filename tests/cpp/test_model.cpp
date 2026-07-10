@@ -152,6 +152,66 @@ static void testPolyaGamma(ext_rng* rng) {
   printf("ok: polya-gamma sampler\n");
 }
 
+// K_nu(x), R's reference Bessel (libc++ lacks std::cyl_bessel_k). The _ex form
+// takes a caller-owned work buffer (length >= floor(nu) + 1) so it never calls
+// R_alloc - the tests link libR but do not initialize its runtime. expo == 2
+// returns exp(x) K_nu(x); scaled ratios cancel the exponential, so the moment
+// reference stays finite even at the large-order / large-argument BCF regime.
+extern "C" double Rf_bessel_k_ex(double x, double nu, double expo, double* bk);
+
+static void testGeneralizedInverseGaussian(ext_rng* rng) {
+  // GIG(p, A, B) has E[v] = sqrt(B/A) K_{p+1}(w)/K_p(w) and E[v^2] =
+  // (B/A) K_{p+2}(w)/K_p(w), w = sqrt(A B). The grid covers p = 0.5, 1, 5, 50
+  // at small and large w, plus the a-near-0 Gamma limit (B = 0), where
+  // v ~ Gamma(p, rate A/2) so E[v] = 2p/A and Var[v] = 4p/A^2.
+  struct Case { double p, A, B; };
+  const Case cases[] = {
+    {2.5, 4.0, 0.0},   // gamma limit
+    {0.5, 1.0, 1.0},   {0.5, 2.0, 8.0},
+    {1.0, 1.0, 1.0},   {1.0, 4.0, 16.0},
+    {5.0, 2.0, 8.0},   {5.0, 10.0, 10.0},
+    {50.0, 20.0, 20.0}, {50.0, 100.0, 25.0}, {50.0, 200.0, 98.0}
+  };
+  const int numDraws = 200000;
+
+  for (const Case& c : cases) {
+    double expectedMean, expectedVar;
+    if (c.B == 0.0) {
+      expectedMean = 2.0 * c.p / c.A;
+      expectedVar = 4.0 * c.p / (c.A * c.A);
+    } else {
+      double w = std::sqrt(c.A * c.B);
+      double eta = std::sqrt(c.B / c.A);
+      double bk[80];  // >= floor(p + 2) + 1 for the grid's largest order
+      double k0 = Rf_bessel_k_ex(w, c.p, 2.0, bk);
+      double r1 = Rf_bessel_k_ex(w, c.p + 1.0, 2.0, bk) / k0;
+      double r2 = Rf_bessel_k_ex(w, c.p + 2.0, 2.0, bk) / k0;
+      expectedMean = eta * r1;
+      expectedVar = eta * eta * r2 - expectedMean * expectedMean;
+    }
+
+    double sum = 0.0, sumSq = 0.0;
+    bool positive = true;
+    for (int i = 0; i < numDraws; ++i) {
+      double draw =
+        ext_rng_simulateGeneralizedInverseGaussian(rng, c.p, c.A, c.B);
+      if (!(draw > 0.0) || !std::isfinite(draw)) { positive = false; break; }
+      sum += draw;
+      sumSq += draw * draw;
+    }
+    check(positive, "GIG draw positive and finite");
+    if (!positive) continue;
+
+    double mean = sum / numDraws;
+    double variance = sumSq / numDraws - mean * mean;
+    double meanSe = std::sqrt(expectedVar / (double) numDraws);
+    checkNear(mean, expectedMean, 6.0 * meanSe, "GIG mean");
+    checkNear(variance, expectedVar, 0.08 * expectedVar, "GIG variance");
+  }
+
+  printf("ok: generalized inverse gaussian sampler\n");
+}
+
 static void testChiKHyperprior(ext_rng* rng) {
   // k ~ chi(nu) means k^2 ~ chi-squared(nu) = Gamma(nu/2, 1/2), so given M
   // conditionally-normal leaves the posterior of k^2 is Gamma with shape
@@ -2766,6 +2826,7 @@ void runModelTests(ext_rng* rng) {
   testChiKEmptyLeafAccounting(rng);
   testSigmaPosteriorDf(rng);
   testPolyaGamma(rng);
+  testGeneralizedInverseGaussian(rng);
   testSampleFromPrior(rng);
   testLinearLeafMarginal();
   testLinearLeafDraw(rng);

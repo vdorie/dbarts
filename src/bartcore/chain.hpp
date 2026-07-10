@@ -507,6 +507,97 @@ public:
                 data_.numObservations * sizeof(double));
   }
 
+  /// Forest f's per-tree fit slabs, tree-major (numObservations x numTrees); a
+  /// consistency read of the cached fits for tests.
+  void forestTreeFits(std::size_t f, double* out) const {
+    const Forest<L>& forest = forests_[f];
+    std::memcpy(out, forest.treeFits.data(),
+                data_.numObservations * forest.numTrees * sizeof(double));
+  }
+
+  /// Interweaving (ASIS, Yu & Meng 2011) rescale of the prognostic glue ridge.
+  /// After the conjugate a draw and the mu leaf draws, jointly rescale the L+1
+  /// prognostic-scale coordinates (a, mu_1..mu_L) -> (a/c, c mu_l) along the
+  /// likelihood-invariant orbit a mu(x) = (a/c)(c mu(x)), so the move updates
+  /// only the amplitude coordinate and preserves the posterior. c = sqrt(v),
+  /// v ~ GIG((L-1)/2, M/leafVar, a^2/aVariance) conditioned on the inverse-
+  /// gamma auxiliary (exact); L and M are the count and squared sum of the
+  /// occupied prognostic leaves. Collapses the slow (a, mu-amplitude) mode
+  /// (docs/plans/bcf-ridge-interweaving.md). A no-op consuming no rng off BCF,
+  /// with a pinned (updateA false), or with fewer than two occupied leaves;
+  /// returns the applied c (1.0 when skipped). record/sampleNum locate the
+  /// keepTrees saved slot whose mu leaves, flattened before this move, need the
+  /// same c so a stored * mu_saved keeps the identified product.
+  double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
+    if (!bcf_ || !bcf_->updateA) return 1.0;
+    Forest<L>& forest = forests_[0];
+    std::size_t n = data_.numObservations;
+
+    // L, M over the occupied prognostic leaves. Recomputed unconditionally:
+    // the k-accumulator that would hold these is gated on updateK, which BCF
+    // leaves false. A forced-zero empty leaf is not a prior draw, so skip it.
+    double M = 0.0;
+    std::size_t numLeaves = 0;
+    for (std::size_t t = 0; t < forest.numTrees; ++t) {
+      Tree& tree = forest.trees[t];
+      const double* treeFits = forest.treeFits.data() + t * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t nodeIndex : tree.bottomScratch) {
+        const Node& node = tree.at(nodeIndex);
+        if (node.numObservations() == 0) continue;
+        double value = treeFits[tree.indices[node.begin]];
+        M += value * value;
+        ++numLeaves;
+      }
+    }
+    if (numLeaves < 2 || !(M > 0.0)) return 1.0;
+
+    // GIG parameters (memo section 2.3): A = M (k/scale)^2, B = a0^2/aVariance
+    double a0 = bcf_->a;
+    double leafPrecision = (forest.k / forest.leaf.scale) *
+                           (forest.k / forest.leaf.scale);  // 1 / leafVar
+    double gigP = 0.5 * (static_cast<double>(numLeaves) - 1.0);
+    double gigA = M * leafPrecision;
+    double gigB = a0 * a0 / bcf_->aVariance;
+
+    double v = ext_rng_simulateGeneralizedInverseGaussian(rng_, gigP, gigA,
+                                                          gigB);
+    if (!std::isfinite(v) || v <= 0.0) return 1.0;
+    double c = std::sqrt(v);
+    if (!std::isfinite(c) || c <= 0.0) return 1.0;
+
+    // travel the ridge: a shrinks, the prognostic fits grow by c
+    bcf_->a = a0 / c;
+    misc_scalarMultiplyVectorInPlace(forest.treeFits.data(),
+                                     n * forest.numTrees, c);
+    misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
+    // aVariance is held: the move conditions on it (ASIS), so refreshing it
+    // here re-randomizes the coordinate we just conditioned on and measurably
+    // throttles the mixing gain (IACT check, docs/plans Status). The one-sweep
+    // lag is benign - the next drawGlue refreshes it | a_new.
+
+    // recorded sweeps carry a live test surface (dead under BCF, but kept
+    // self-consistent) and, under keepTrees, this sweep's saved mu slot
+    if (record && data_.numTestObservations > 0) {
+      misc_scalarMultiplyVectorInPlace(forest.totalTestFits.data(),
+                                       data_.numTestObservations, c);
+      misc_scalarMultiplyVectorInPlace(forest.currTestFits.data(),
+                                       data_.numTestObservations, c);
+    }
+    if (record && forest.savedTreeCapacity > 0) {
+      std::size_t slot =
+        (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity;
+      for (std::size_t t = 0; t < forest.numTrees; ++t) {
+        std::vector<FlatNode>& flat =
+          forest.savedTrees[slot * forest.numTrees + t];
+        for (FlatNode& node : flat)
+          if (node.variable == invalidVariable) node.value *= c;
+      }
+    }
+    return c;
+  }
+
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
   /// the new share of the budget on the next routing.
   void setNumThreads(size_t numThreads) { options_.numThreads = numThreads; }
@@ -687,7 +778,10 @@ public:
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, combined, sigma_);
 
-      if (bcf_) drawGlue(y, weights);
+      if (bcf_) {
+        drawGlue(y, weights);
+        interweaveGlueRidge(record, sampleNum);
+      }
 
       for (Forest<L>& forest : forests_) {
         // a zero sum of squares under an infinite prior scale would make the

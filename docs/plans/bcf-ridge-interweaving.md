@@ -424,3 +424,109 @@ Net compute for a target accuracy drops sharply.
   ordering changed. VD approved the remedy in principle 2026-07-10;
   sequencing (orchestrator's call): after c-api-growth.
   NOT YET IMPLEMENTED.
+
+- 2026-07-10: IMPLEMENTED (branch wt/bcf-ridge-interweaving off bartcore
+  1a23cd0). Correctness FULLY delivered and gated; the sigma-SBC
+  ACCEPTANCE is NOT met (details below) - the a-ridge move is correct
+  and improves mixing but does not flip the thin=120 sigma verdict.
+  STOP-and-report for a sequencing/scope decision.
+
+  Files:
+  * src/external/random.{h,c}: ext_rng_simulateGeneralizedInverseGaussian
+    (p, a, b), density x^(p-1) exp(-(a x + b/x)/2). Ratio-of-uniforms
+    without mode shift (Dagpunar 1988, the noshift branch of the GIGrvg
+    reference), ONE region for every p (region built against the density
+    normalized to 1 at the mode, so acceptance is overflow-free at large
+    p or sqrt(ab) - the BCF regime); b==0 -> Gamma(p, rate a/2), a==0 ->
+    inverse-gamma. Consumes only ext_rng draws. (Not Hormann-Leydold or
+    Devroye as the memo named, but the same GIGrvg family and efficient
+    in the large-(p, omega) BCF regime; the moment test validates it.)
+  * src/bartcore/chain.hpp: interweaveGlueRidge(record, sampleNum), public,
+    called after drawGlue in the single shared sweep body (burn-in and
+    recording), inside `if (bcf_)`. Gated `!bcf_ || !updateA` then
+    `L>=2 && M>0` (both before any rng draw). L, M recomputed
+    unconditionally over occupied forests_[0] leaves. Naive rescale:
+    a/=c; treeFits*=c (n*T_mu); totalFits*=c; when recording,
+    total/currTestFits*=c and this sweep's saved mu slot's leaf FlatNodes
+    *=c (memo option (i), the sharp edge). aVariance HELD (see refresh
+    note). forestTreeFits accessor added; Sampler gained a non-const
+    chain() overload for the tests.
+  * tests/cpp: GIG moment case (test_model.cpp) - mean/variance vs
+    K_{p+1}/K_p over p={0.5,1,5,50} x small/large sqrt(ab) + the b=0
+    Gamma limit; uses Rf_bessel_k_ex (libc++ lacks std::cyl_bessel_k;
+    the _ex form takes a caller buffer so it never R_allocs in the
+    R-uninitialized test). Move cases (test_sampler.cpp): invariance
+    (combined fit before/after < 1e-11), consistency (a=a0/c, treeFits
+    scaled by exactly c, totalFits==sum of slabs), and keepTrees
+    saved-slot (predict-from-saved tracks the rescaled live fit).
+  * inst/tinytest/test-bcf.R: +7 checks (move-active + keepTrees smoke).
+
+  Gates (R_LIBS=Rlib-land, --preclean):
+  * R CMD INSTALL --preclean: OK.
+  * tests/cpp (clean rebuild): all pass, 0 failures (incl. the GIG +
+    3 move cases).
+  * tinytest full suite: 2606 checks, 0 fail (2599 baseline + 7).
+  * equivalence compare vs equivalence-de67cbb.rds: 21/21 identical
+    draws (same rng stream), 0 skipped - confirms no BCF scenario, no
+    re-record, non-BCF paths bitwise unchanged.
+  * bcf-exact.R (full): PASS. Mode 2a (a free, move ACTIVE) E[a mu] gap
+    0.0001; mode 1/2b (a pinned, move gated off) unchanged. bcf-exact-weak
+    (full): PASS, |a| tail probs gap 0.0043. => move is posterior-
+    preserving.
+  * off-path bit-identity: built the pre-change base (1a23cd0) into a
+    separate lib and compared a fixed-seed BCF fit. update.a=FALSE:
+    train/sigma/glue BITWISE identical (max delta 0). update.a=TRUE:
+    differs (max|dtrain| 0.85) - the move is active and shifts the
+    seeded stream, as expected.
+
+  Cost: 2000 BCF sweeps, n=500, T_mu=200, T_tau=50: base 0.717s, new
+  0.745s -> ~3.9% per-sweep (below the memo's 5-15%; well under the
+  n*T_mu backfit budget). Left NAIVE: the fused-roll optimization is
+  delicate (memo section 6) and ~1% is irrelevant next to the move's
+  payoff.
+
+  aVariance-refresh experiment: the memo's optional "redraw aVariance |
+  a_new" was tried and REVERTED - it re-randomizes the coordinate the
+  move conditions on (ASIS) and measurably HURT |a| mixing (IACT
+  69 -> 196 on a fixed dataset). aVariance stays held; the one-sweep lag
+  is benign (next drawGlue refreshes it).
+
+  Mixing (initial-monotone IACT, mean over 4 seeds, strong prognostic
+  signal, n=200): the move IMPROVES both channels and cuts the worst-case
+  tail - |a| IACT 321 -> 130 (2.5x; base spread 198-544, new 100-156),
+  sigma IACT 64 -> 37 (1.7x; base 17-112, new 28-50). Directionally the
+  memo is right; the magnitude is ~2x, not the asserted 1-2 orders (the
+  synthetic datasets do not reach the extreme |a0| ~ 7-13 tail; a single-
+  run estimate can flip sign - the estimator is noisy at these lengths).
+
+  ACCEPTANCE (runSbcBCF, config bcf n=200, L=150, thin=120, burn=150;
+  pooled 4x50 per build, then extended to R=400):
+      build   R    sigma mean  ecdf    band    chisqP   verdict
+      base   200   68.3/75     0.0815  0.0924  0.0599   PASS
+      base   400   69.3/75     0.0801  0.0656  0.0011   FLAG
+      new    200   66.2/75     0.1013  0.0924  0.0010   FLAG
+      new    400   67.6/75     0.1003  0.0656  0.0000   FLAG
+    Controls stay PASS both builds (abs.a ~76/75 ecdf ~0.04-0.07,
+    abs.diff ~72-74/75). The sigma verdict at R=200 is noise-dominated
+    (it straddles the band; A4e's own pre-fix 65.8/0.1127 is one seed
+    draw of the same wobble). At R=400 the band tightens and BOTH base
+    and new FLAG sigma, both biased low (~67-69/75). The move does NOT
+    resolve the sigma flag. Diagnosis: at thin=120 sigma IACT (~40) is
+    already << thin, so sigma draws are near-independent and the residual
+    low bias is NOT the (a, mu-amplitude) autocorrelation the a-ridge
+    move collapses; it is a systematic tail bias from a different slow
+    mode (the b-scale / bscale ridge, cf. bcf-exact.R mode-2b, is the
+    prime suspect - it is out of scope for this a-only derivation). The
+    move is a correct, beneficial, necessary step but is INSUFFICIENT for
+    the thin=120 sigma calibration alone.
+
+  Judgment / open question for VD/orchestrator: the move is correct and
+  ships cleanly (all correctness gates green, mixing improved, cost ~4%).
+  But the reason-for-existence acceptance (thin=120 sigma passes) is not
+  achieved by the a-ridge alone. Options: (a) add the analogous b-scale
+  interweave and re-test sigma; (b) accept a higher thin for the
+  Cauchy-tail reps; (c) keep the a-move as a mixing win and re-scope the
+  sigma-calibration defect. No harmful effect found (base and new both
+  flag; the ecdf gap is confounded by the move shifting each build's
+  theta0 sequence, since the SBC harness shares one rng for prior draws
+  and fitting).

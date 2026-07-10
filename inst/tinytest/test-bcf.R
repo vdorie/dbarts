@@ -123,3 +123,53 @@ result.pi <- dbarts:::bartcoreRun(bcPi, 0L, 20L)
 expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))
 expect_true(all(result.pi$sigma > 0))
+
+# --- interweaving glue-ridge move (docs/plans/bcf-ridge-interweaving.md) ---
+# The move rescales (a, mu) -> (a/c, c mu) along the likelihood ridge after
+# every glue draw under update.a = TRUE (the default), so the runs above
+# already exercise it. It is posterior-preserving; these checks pin its
+# behaviour through the R stack. The off path (update.a = FALSE) consumes no
+# rng and was verified bitwise identical to the pre-change build cross-build
+# (docs/plans/bcf-ridge-interweaving.md Status); update.a = FALSE sanity is
+# covered by bcFixed above. The exact invariance and keepTrees saved-slot
+# correctness are the C++ gates (tests/cpp).
+set.seed(101)
+n.m <- 200L
+x.m <- matrix(runif(n.m * 3L), n.m, 3L)
+z.m <- rbinom(n.m, 1L, 0.5)
+y.m <- (2 * sin(pi * x.m[, 1L]) + x.m[, 2L]) +
+  z.m * (1 + 2 * x.m[, 3L]) +
+  rnorm(n.m, sd = 0.2)
+control.m <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 60L,
+  updateState = FALSE
+)
+sampler.m <- dbarts(x.m, y.m, control = control.m)
+
+# move active: a longer run stays sane and the glue stays finite
+bcMove <- dbarts:::bartcoreBCFSampler(sampler.m, z.m, n.trees.treatment = 30L)
+res.move <- dbarts:::bartcoreRun(bcMove, 200L, 100L)
+expect_true(all(is.finite(res.move$train)))
+expect_true(all(res.move$sigma > 0))
+expect_true(all(is.finite(dbarts:::bartcoreBCFGlue(bcMove))))
+muMove <- dbarts:::bartcoreForestFits(bcMove, 0L)
+expect_true(all(is.finite(muMove)) && sum(muMove^2) > 0)
+
+# keepTrees with the move: storing the mu forest's saved slots (each rescaled
+# by the sweep's c) leaves the run sane through the R stack
+control.k <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 60L,
+  updateState = FALSE,
+  keepTrees = TRUE,
+  n.samples = 50L
+)
+sampler.k <- dbarts(x.m, y.m, control = control.k)
+bcKeep <- dbarts:::bartcoreBCFSampler(sampler.k, z.m, n.trees.treatment = 30L)
+res.keep <- dbarts:::bartcoreRun(bcKeep, 100L, 50L)
+expect_equal(dim(res.keep$train), c(n.m, 50L))
+expect_true(all(is.finite(res.keep$train)))
+expect_true(all(res.keep$sigma > 0))
