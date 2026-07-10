@@ -397,6 +397,16 @@ items
     kernel, mutation on dense-backed mixed columns (sparse-columns.md
     landing notes). The u8 width entry moved to hot-layer-u8.
     consumer-gated.
+  survival-grouped-surface: filed 2026-07-10 from the survival design
+    panel. NO R entry point composes AFT with grouping: rbart_vi has
+    no family argument and uses the formula interface, where Surv
+    dispatch is disabled - so the riAFTBART migration (random
+    intercepts + AFT, the marquee consumer case) is aspirational
+    until rbart_vi grows family = "aft". survivalProbabilities is
+    already a generic with an rbart method that errors informatively,
+    so the surface slot exists. Scope: rbart_vi family plumbing +
+    the rbart survivalProbabilities method computing S(t | x, group)
+    draws. Post survival-models landing.
   survival-models: AFT log-normal (censoring via truncated-normal
     latents; riAFTBART is the named consumer) and discrete-time hazard
     (person-period ingestion); the design note picks which lands first.
