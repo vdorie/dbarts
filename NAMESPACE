@@ -15,6 +15,7 @@ export(dbartsPriors)
 exportClasses(dbartsSampler)
 export(extract)
 export(plotTree)
+export(samplePriorPredictive)
 
 S3method(plot, bart)
 S3method(plot, rbart)
@@ -50,5 +51,6 @@ importFrom(stats, as.formula, setNames)
 
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)
 importFrom(stats, sd, rnorm, rexp, runif, rbinom, optim, optimHess, dnorm)
+importFrom(stats, qchisq, rchisq)
 
 importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)
