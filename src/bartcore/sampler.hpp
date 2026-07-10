@@ -934,7 +934,8 @@ private:
       chains_.push_back(std::make_unique<Chain<L>>(
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
-    options_.groupIndices = nullptr;  // borrowed; consumed by the chains
+    options_.groupIndices = nullptr;    // borrowed; consumed by the chains
+    options_.survivalStatus = nullptr;  // borrowed; consumed by the chains
 
     if (options_.keepTrees) {
       size_t capacity =

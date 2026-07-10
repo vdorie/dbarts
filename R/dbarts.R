@@ -5,6 +5,57 @@ setMethod("initialize", "dbartsControl", function(.Object, ...) {
   .Object
 })
 
+# Accelerated failure time ingestion (docs/design/survival.md): a survival
+# response is a survival::Surv object (recognized by inherits(), so survival
+# need not be imported; right-censoring only in v1) or a plain two-column
+# (time, status) matrix or data frame. Returns the log event/censoring time
+# as the working response and the 0/1 status vector, or NULL when the value
+# is not a survival response. Errors on a non-right Surv (with a factor-
+# status hint for "mright"), a non-two-column matrix, non-positive times, or
+# a status outside {0, 1}; a Surv-like object with no type attribute is
+# treated as right-censored.
+extractSurvivalResponse <- function(value) {
+  if (inherits(value, "Surv")) {
+    type <- attr(value, "type")
+    if (identical(type, "mright")) {
+      # survival::Surv codes a factor status as multi-state
+      stop(
+        "multi-state survival responses are not supported; the Surv status ",
+        "must be 0/1 or logical, not a factor"
+      )
+    }
+    if (!is.null(type) && type != "right") {
+      stop("survival responses support only right-censoring in this version")
+    }
+    # unclass before extraction so [.Surv (or any classed-matrix method)
+    # cannot re-wrap the columns
+    value <- unclass(value)
+    time <- as.double(value[, 1L])
+    status <- as.double(value[, 2L])
+  } else if ((is.matrix(value) || is.data.frame(value)) && NCOL(value) == 2L) {
+    if (is.data.frame(value)) {
+      if (is.factor(value[[2L]])) {
+        stop("survival status must be 0/1 or logical, not a factor")
+      }
+      time <- as.double(value[[1L]])
+      status <- as.double(value[[2L]])
+    } else {
+      value <- unclass(value)
+      time <- as.double(value[, 1L])
+      status <- as.double(value[, 2L])
+    }
+  } else {
+    return(NULL)
+  }
+  if (any(!is.finite(time)) || any(time <= 0.0)) {
+    stop("survival times must be finite and positive")
+  }
+  if (any(status != 0.0 & status != 1.0)) {
+    stop("survival status must be 0 (censored) or 1 (event)")
+  }
+  list(log.time = log(time), status = status)
+}
+
 ## we don't actually use these defaults; see class definition
 dbartsControl <- function(
   verbose = FALSE,
@@ -135,12 +186,63 @@ dbarts <- function(
   sigma = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic"),
+  family = c("auto", "gaussian", "probit", "logistic", "aft"),
   missing = c("incorporate", "error")
 ) {
   matchedCall <- match.call()
 
   evalEnv <- parent.frame(1L)
+
+  family <- match.arg(family)
+
+  # survival response ingestion (docs/design/survival.md): a survival::Surv
+  # object or an explicit family = "aft" with a two-column (time, status)
+  # response fits the AFT log-normal model. The matrix (x.train, y.train)
+  # interface is supported here, the response being the second positional
+  # argument; the log event/censoring time replaces it and the status rides
+  # the control attribute the bartcore survival family reads. Formula-LHS Surv
+  # and a subset argument are deferred to a later surface pass.
+  survivalStatus <- NULL
+  directResponse <- !is.formula(formula) &&
+    !inherits(formula, "dbartsData") &&
+    !inherits(formula, "dgCMatrix") &&
+    !missing(data)
+  responseIsSurv <- directResponse && inherits(data, "Surv")
+  # a Surv response declares the model, so it auto-dispatches to aft - but
+  # only from "auto"; an explicit conflicting family is an error, never a
+  # silent override
+  if (responseIsSurv && family %not_in% c("auto", "aft")) {
+    stop(
+      "a survival (Surv) response cannot be fit with family \"",
+      family,
+      "\"; use family \"aft\" or \"auto\""
+    )
+  }
+  # aft is reachable only through the direct-response form; refuse the
+  # formula interface (and anything else indirect) up front, before the
+  # response is materialized, rather than failing hostilely downstream
+  if (family == "aft" && !directResponse) {
+    stop(
+      "survival (aft) fits currently use the matrix interface - ",
+      "dbarts(x.train, y.train) or bart2(x.train, y.train) with a ",
+      "survival::Surv or two-column (time, status) response"
+    )
+  }
+  if (directResponse && (family == "aft" || responseIsSurv)) {
+    survival <- extractSurvivalResponse(data)
+    if (is.null(survival)) {
+      stop(
+        "family \"aft\" needs a survival::Surv or two-column ",
+        "(time, status) response"
+      )
+    }
+    if (!missing(subset)) {
+      stop("survival responses do not support 'subset' in this version")
+    }
+    family <- "aft"
+    matchedCall$data <- survival$log.time
+    survivalStatus <- survival$status
+  }
 
   validateCall <- redirectCall(
     matchedCall,
@@ -174,18 +276,19 @@ dbarts <- function(
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
 
-  family <- match.arg(family)
   uniqueResponses <- unique(data@y)
   responseIsBinary <- length(uniqueResponses) == 2 &&
     all(sort(uniqueResponses) == c(0, 1))
   if (family == "auto") {
     family <- if (responseIsBinary) "probit" else "gaussian"
-  } else if (family != "gaussian" && !responseIsBinary) {
+  } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
     # gaussian on a 0/1 response is a legitimate request; the binary
-    # families need latent-variable coding
+    # families need latent-variable coding. aft fits continuous log-times.
     stop("family \"", family, "\" requires a response coded 0/1")
   }
-  control@binary <- family != "gaussian"
+  # aft draws sigma and rescales like gaussian; only the binary families are
+  # latent-variable models on a fixed unit scale
+  control@binary <- family %in% c("probit", "logistic")
 
   # binary weight policy, enforced here in the R layer (the bridge keeps the
   # same checks as a backstop for direct-API consumers): a probit has no
@@ -287,10 +390,20 @@ dbarts <- function(
     node.scale = switch(
       family,
       gaussian = 0.5,
+      aft = 0.5,
       probit = 3.0,
       logistic = pi * sqrt(3.0)
     )
   )
+
+  # the AFT survival family reads its per-observation status off this control
+  # attribute (the bartcore.groups precedent); the C bridge validates it
+  if (!is.null(survivalStatus)) {
+    if (length(survivalStatus) != length(data@y)) {
+      stop("survival status length does not match the response")
+    }
+    attr(control, "bartcore.survival") <- survivalStatus
+  }
 
   result <- new("dbartsSampler", control, model, data)
   # cat(

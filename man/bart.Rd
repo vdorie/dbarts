@@ -53,7 +53,7 @@ bart2(
     keepSampler = keepTrees,
     warm.start = NULL,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"),
     \dots)
 
@@ -329,7 +329,7 @@ extract(object, \dots)
     Burn-in draws of \code{k}, if modeled.
   }
   \item{\code{family}}{
-    The resolved response family (\code{"gaussian"}, \code{"probit"}, or \code{"logistic"}). \code{predict}, \code{extract}, \code{fitted}, and \code{plot} use it to transform latent draws to probabilities.
+    The resolved response family (\code{"gaussian"}, \code{"probit"}, \code{"logistic"}, or \code{"aft"}). \code{predict}, \code{extract}, \code{fitted}, and \code{plot} use it to transform latent draws to probabilities. For an \code{"aft"} fit, predictions and fitted values are on the LOG-TIME scale: these functions return the linear predictor \eqn{E[\log T \mid x]}, exactly as for a gaussian fit of \eqn{\log T}, and never the time scale that \code{survreg} or \code{flexsurv} users might expect. The \code{type} aliases \code{"response"} and \code{"link"} are inert for \code{"aft"} - both return the same log-scale linear predictor; neither exponentiates. The posterior-median survival time is \code{exp} of the linear predictor, and \code{\link{survivalProbabilities}} gives survival-probability draws.
   }
 
   In the binary \eqn{y} case, the returned list has the components \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above, but not \code{yhat.train.mean}/\code{yhat.test.mean} - use \code{fitted} to get the posterior mean of \eqn{P(Y = 1 \mid x)}{P(Y = 1 | x)} instead. In addition the list has a \code{binaryOffset} component giving the value used.

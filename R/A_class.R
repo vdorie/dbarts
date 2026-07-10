@@ -374,10 +374,14 @@ methods::setValidity("dbartsModel", function(object) {
   if (
     length(object@family) != 1L ||
       is.na(object@family) ||
-      !(object@family %in% c("auto", "gaussian", "probit", "logistic"))
+      !(object@family %in%
+        c("auto", "gaussian", "probit", "logistic", "aft"))
   ) {
     return(
-      "'family' must be \"auto\", \"gaussian\", \"probit\", or \"logistic\""
+      paste0(
+        "'family' must be \"auto\", \"gaussian\", \"probit\", ",
+        "\"logistic\", or \"aft\""
+      )
     )
   }
 

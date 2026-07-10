@@ -2818,6 +2818,184 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   printf("ok: gp leaf kernel cache\n");
 }
 
+// AFT log-normal survival (docs/design/survival.md): the free reduction gate
+// (uncensored == gaussian, bitwise), the censored-latent refresh moments
+// (draws above the truncation bound, empirical mean at the truncated-normal
+// mean), and a censored state round trip through the latents + fit.scale
+// blocks.
+static double standardNormalPdf(double z) {
+  return std::exp(-0.5 * z * z) / std::sqrt(2.0 * 3.141592653589793);
+}
+static double standardNormalCdf(double z) {
+  return 0.5 * std::erfc(-z * 0.7071067811865476);
+}
+
+static void testAFTReduction(ext_rng*) {
+  // an all-uncensored aft fit is bit-identical to a gaussian fit on log T
+  const size_t n = 180, p = 3;
+  std::vector<double> x(n * p), logT(n);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) *
+               std::cos(6.283185307179586 * u2);
+    logT[i] = 1.5 * x[i] + 0.5 * z;
+  }
+  std::vector<double> statusAll(n, 1.0);  // every observation an event
+
+  SamplerOptions optG;
+  optG.numTrees = 25;
+  SamplerOptions optA = optG;
+  optA.survivalStatus = statusAll.data();
+
+  auto seededRng = [](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    return r;
+  };
+  ext_rng* rngG = seededRng(31337);
+  ext_rng* rngA = seededRng(31337);
+
+  std::unique_ptr<SamplerBase> sampG = createSampler(
+    x.data(), logT.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, optG, &rngG);
+  std::unique_ptr<SamplerBase> sampA = createSampler(
+    x.data(), logT.data(), n, p, nullptr, nullptr, ResponseFamily::aft,
+    1.0, 3.0, 0.37804942330213542, optA, &rngA);
+
+  const size_t numBurnIn = 60, numSamples = 80;
+  std::vector<double> fitG(n * numSamples), fitA(n * numSamples);
+  std::vector<double> sigmaG(numSamples), sigmaA(numSamples);
+  Results rG, rA;
+  rG.trainingFits = fitG.data();
+  rG.sigma = sigmaG.data();
+  rA.trainingFits = fitA.data();
+  rA.sigma = sigmaA.data();
+  sampG->run(numBurnIn, numSamples, rG);
+  sampA->run(numBurnIn, numSamples, rA);
+
+  bool identical = fitG == fitA && sigmaG == sigmaA;
+  check(identical, "aft reduction: uncensored fit is bitwise gaussian");
+
+  ext_rng_destroy(rngG);
+  ext_rng_destroy(rngA);
+  printf("ok: aft reduction to gaussian\n");
+}
+
+static void testAFTCensoredMoments(ext_rng* rng) {
+  // one censored observation, its latent redrawn from the log-scale normal
+  // truncated below at its log censoring time: draws stay above the bound and
+  // average at the analytic truncated-normal mean
+  const size_t m = 5;
+  std::vector<double> logTime = {0.2, 0.5, 1.0, 1.5, 2.0};
+  std::vector<double> status = {1.0, 1.0, 0.0, 1.0, 1.0};  // index 2 censored
+  AFTResponse resp(logTime.data(), status.data(), nullptr, m, 1.0, 3.0,
+                   0.37804942330213542);
+
+  const size_t censored = 2;
+  double scale = resp.fitScale();
+  double shift = resp.fitShift();
+  double sigma = 0.4;  // internal-scale residual sd
+  std::vector<double> totalFits(m, 0.0);
+  totalFits[censored] = -0.5;  // pushes the fit well below the bound
+
+  double meanLog = scale * totalFits[censored] + shift;
+  double sdLog = sigma * scale;
+  double bound = logTime[censored];
+  double alpha = (bound - meanLog) / sdLog;
+  double truncatedMean =
+    meanLog + sdLog * standardNormalPdf(alpha) / (1.0 - standardNormalCdf(alpha));
+
+  const size_t reps = 40000;
+  double sum = 0.0;
+  bool allAbove = true;
+  for (size_t r = 0; r < reps; ++r) {
+    resp.refreshLatents(rng, totalFits.data(), sigma);
+    double v = resp.latents()[censored];
+    if (v < bound - 1e-9) allAbove = false;
+    sum += v;
+    // the events keep their observed log-times untouched
+    if (resp.latents()[0] != logTime[0]) allAbove = false;
+  }
+  check(allAbove, "aft censored latents stay above the bound; events fixed");
+  checkNear(sum / static_cast<double>(reps), truncatedMean, 0.02,
+            "aft censored latent mean at the truncated-normal mean");
+  printf("ok: aft censored latent moments\n");
+}
+
+static void testAFTStateRoundTrip() {
+  // a censored aft state rides the latents (logT_) and fit.scale blocks; a
+  // restored sampler reconstructs them, and a mismatched latents vector is
+  // refused
+  const size_t n = 240, p = 2, numChains = 2;
+  std::vector<double> x(n * p), obsLogT(n), status(n);
+  uint64_t seed = 20260710u;
+  auto localUnif = [&seed]() {
+    seed = seed * 6364136223846793005ull + 1442695040888963407ull;
+    return static_cast<double>(seed >> 11) / 9007199254740992.0;
+  };
+  size_t numCensored = 0;
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = localUnif();
+    double f = 1.2 * x[i] - 0.6 * x[i + n];
+    double logT = f + 0.5 * (localUnif() - 0.5) * 3.464;  // rough spread
+    double censTime = f + 0.5 + 0.5 * (localUnif() - 0.5) * 3.464;
+    if (logT <= censTime) {
+      status[i] = 1.0;
+      obsLogT[i] = logT;
+    } else {
+      status[i] = 0.0;
+      obsLogT[i] = censTime;
+      ++numCensored;
+    }
+  }
+  check(numCensored > 0, "aft round trip: some observations censored");
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  options.survivalStatus = status.data();
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t base) {
+    for (size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], base + static_cast<std::uint32_t>(c));
+    }
+  };
+  std::vector<ext_rng*> rngs(numChains, nullptr);
+  makeRngs(rngs, 5150);
+  ConstantLeafSampler original(x.data(), obsLogT.data(), n, p, nullptr, nullptr,
+                               ResponseFamily::aft, 1.0, 3.0,
+                               0.37804942330213542, options, rngs.data());
+  Results empty;
+  original.run(50, 0, empty);
+
+  SamplerStateData state;
+  original.getState(state);
+  check(state.chains[0].latents.size() == n, "aft state carries the log-times");
+  check(state.chains[0].fitMax > state.chains[0].fitMin,
+        "aft state carries the fit scale");
+
+  std::vector<ext_rng*> rngs2(numChains, nullptr);
+  makeRngs(rngs2, 9999);
+  ConstantLeafSampler restored(x.data(), obsLogT.data(), n, p, nullptr, nullptr,
+                               ResponseFamily::aft, 1.0, 3.0,
+                               0.37804942330213542, options, rngs2.data());
+  check(restored.setState(state), "an aft state restores");
+  checkStructuralRoundTrip(state, restored,
+                           "restored aft state reproduces the latents and scale");
+
+  SamplerStateData badState(state);
+  badState.chains[0].latents.resize(n - 1);
+  check(!restored.setState(badState), "a mismatched aft latents vector is refused");
+
+  for (size_t c = 0; c < numChains; ++c) {
+    ext_rng_destroy(rngs[c]);
+    ext_rng_destroy(rngs2[c]);
+  }
+  printf("ok: aft state round trip\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
@@ -2838,6 +3016,9 @@ void runModelTests(ext_rng* rng) {
   testGroupedEndToEnd(rng);
   testGroupedBinary(rng);
   testGroupedStateRoundTrip();
+  testAFTReduction(rng);
+  testAFTCensoredMoments(rng);
+  testAFTStateRoundTrip();
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();

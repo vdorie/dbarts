@@ -94,6 +94,12 @@ struct SamplerOptions {
   double tauPriorScale = 1.0;
   std::size_t tauSliceSteps = 1;
 
+  // AFT survival: per-observation status (1 = uncensored event, 0 = right-
+  // censored) required when family is aft, ignored otherwise. Borrowed; the
+  // response copies it during construction (see AFTResponse). The y creation
+  // argument then holds the log survival/censoring times.
+  const double* survivalStatus = nullptr;
+
   // split-variable selection: fixed weights (borrowed; normalized over
   // available variables at each node) or DART; both null/false = uniform
   const double* splitProbabilities = nullptr;
@@ -399,7 +405,14 @@ public:
         y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
         sigmaRawScale);
       break;
+    case ResponseFamily::aft:
+      // y holds the log survival/censoring times; status marks the censored
+      response_ = std::make_unique<AFTResponse>(
+        y, options.survivalStatus, offset, numObservations, sigmaEstimate,
+        sigmaDf, sigmaRawScale);
+      break;
     }
+    options_.survivalStatus = nullptr;  // consumed above
     // grouped random intercepts decorate the base family; initialization
     // draws b from its prior through this chain's generator
     if (options.numGroups > 0)
@@ -414,7 +427,10 @@ public:
     forest.treePrior.base = options.base;
     forest.treePrior.power = options.power;
     family_ = family;
-    sigmaIsFixed_ = family != ResponseFamily::gaussian || options.sigmaIsFixed;
+    // aft draws sigma conjugately like gaussian; only the binary families fix it
+    sigmaIsFixed_ = (family != ResponseFamily::gaussian &&
+                     family != ResponseFamily::aft) ||
+                    options.sigmaIsFixed;
 
     if (options.useDart) {
       forest.dart = options.dart;
@@ -861,7 +877,7 @@ public:
       forest.k = model.k;
     }
 
-    if (family_ == ResponseFamily::gaussian) {
+    if (family_ == ResponseFamily::gaussian || family_ == ResponseFamily::aft) {
       sigmaIsFixed_ = model.sigmaIsFixed;
       if (model.sigmaIsFixed)
         setSigma(model.sigmaEstimate);

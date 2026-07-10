@@ -4,6 +4,10 @@ extract <- function(object, ...) UseMethod("extract")
 
 plotTree <- function(object, ...) UseMethod("plotTree")
 
+survivalProbabilities <- function(object, ...) {
+  UseMethod("survivalProbabilities")
+}
+
 # latent-scale draws to probabilities for a binary fit; fits saved before
 # the family element existed are all probit
 probabilityFromLatents <- function(latents, object) {

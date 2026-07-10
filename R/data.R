@@ -412,6 +412,17 @@ dbartsData <- function(
 
     ## pull out y
     y <- model.response(modelFrame, "numeric")
+    # a Surv response reaches here only through the formula interface, which
+    # survival (aft) fits do not support; refuse with the supported surface
+    # before any arithmetic trips survival's Ops.Surv guard
+    if (inherits(y, "Surv")) {
+      stop(
+        "survival (Surv) responses are not supported by the formula ",
+        "interface; use the matrix interface - dbarts(x.train, y.train) or ",
+        "bart2(x.train, y.train) with a Surv or two-column (time, status) ",
+        "response and family = \"aft\""
+      )
+    }
     if (is.null(y)) {
       y <- rep(0, NROW(modelFrame))
     }

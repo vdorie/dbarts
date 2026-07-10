@@ -13,7 +13,7 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"))}
 \arguments{
   \item{formula}{
@@ -65,7 +65,7 @@ dbarts(
     How factor columns in a data frame enter the model. The default \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels (at most 65535) down each branch, and codes ordered factors as ordinal; level tables are retained so that test data are coded identically. \code{"indicators"} expands each factor into binary indicator columns, as previous versions always did and as \code{\link{bart}} still does.
   }
   \item{family}{
-    The response model. \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, as always. \code{"gaussian"} forces a continuous fit even for a 0/1 response; \code{"probit"} and \code{"logistic"} require a 0/1 response and fit latent-variable models, with fits and predictions on the latent scale. \code{"logistic"} uses Polya-Gamma augmentation. See \code{weights} for how the families differ in their support for weights.
+    The response model. \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, as always. \code{"gaussian"} forces a continuous fit even for a 0/1 response; \code{"probit"} and \code{"logistic"} require a 0/1 response and fit latent-variable models, with fits and predictions on the latent scale. \code{"logistic"} uses Polya-Gamma augmentation. \code{"aft"} fits an accelerated failure time (log-normal) survival model: the response is a \code{Surv} object (from the \pkg{survival} package) or a two-column \code{(time, status)} matrix or data frame (status 1 an event, 0 right-censored; logical status also works, factor status does not), and \code{\link{survivalProbabilities}} produces survival-probability draws. Fits and predictions are on the log-time scale (\eqn{E[\log T \mid x]}), not the time scale. A \code{Surv} response selects \code{"aft"} automatically when \code{family} is \code{"auto"}; an explicitly conflicting family (e.g. \code{"gaussian"}) with a \code{Surv} response is an error. A \code{Surv}-like object carrying no \code{type} attribute is treated as right-censored; \code{type}s other than \code{"right"} are rejected. Survival fits currently use the matrix (\code{x.train}/\code{y.train}) interface and do not support \code{subset} or case weights. See \code{weights} for how the families differ in their support for weights.
   }
   \item{missing}{
     How missing values in the predictors enter the model. The default \code{"incorporate"} keeps them: every split rule learns a direction for missing values on its variable, so an observation whose split value is \code{NA} follows that rule's chosen branch (\dQuote{Missingness Incorporated in Attributes}, Twala et al. 2008), in training and test data alike. \code{"error"} rejects predictors containing \code{NA}. The response, \code{weights}, and \code{offset} must always be complete; note that previous versions silently dropped incomplete rows for formula inputs.

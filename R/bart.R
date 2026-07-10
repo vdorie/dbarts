@@ -368,7 +368,7 @@ bart2 <- function(
   keepSampler = keepTrees,
   warm.start = NULL,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic"),
+  family = c("auto", "gaussian", "probit", "logistic", "aft"),
   missing = c("incorporate", "error"),
   ...
 ) {
@@ -515,6 +515,95 @@ bart2 <- function(
   }
 
   result
+}
+
+# Survival-probability draws from an AFT fit (docs/design/survival.md).
+# Under the log-normal model log T = f(x) + sigma eps, S(t | x) =
+# 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
+# and sigma. Returns draws per the package's three-tier convention
+# (extract = draws, fitted = mean, ci.level = interval): users take means
+# and quantiles over the draw margin themselves. newdata predicts out of
+# sample (requires a fit kept with keepTrees); NULL uses the training fits.
+survivalProbabilities.bart <- function(
+  object,
+  times,
+  newdata = NULL,
+  combineChains = TRUE,
+  ...
+) {
+  if (!identical(object[["family"]], "aft")) {
+    stop("survivalProbabilities requires an aft (survival) fit")
+  }
+  times <- as.double(times)
+  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
+    stop("'times' must be finite and positive")
+  }
+
+  n.chains <- if (!is.null(object[["fit"]])) {
+    object$fit$control@n.chains
+  } else {
+    object$n.chains
+  }
+
+  # work in the uncombined convention (chains x samples x observations),
+  # where the sigma draws align with the fit draws unambiguously - the
+  # loglik channel's approach; combine the chain margin at the end
+  linearPredictor <- if (is.null(newdata)) {
+    extract(object, type = "bart", sample = "train", combineChains = FALSE)
+  } else {
+    predict(object, newdata, type = "bart", combineChains = FALSE)
+  }
+  sigma <- object[["sigma"]]
+  if (is.null(dim(sigma))) {
+    sigma <- uncombineChains(as.vector(sigma), n.chains)
+  }
+
+  lpDims <- dim(linearPredictor)
+  drawDims <- lpDims[-length(lpDims)]
+  numObservations <- lpDims[length(lpDims)]
+  numTimes <- length(times)
+  if (prod(drawDims) != length(sigma)) {
+    stop("the fit's draw count does not match its sigma draws")
+  }
+
+  result <- array(0, c(drawDims, numTimes, numObservations))
+  # in column-major order the draw margins vary fastest, so the sigma draws
+  # recycle across observations exactly as pointwiseLogLikelihood's do
+  scale <- as.vector(sigma)
+  if (length(drawDims) == 1L) {
+    for (j in seq_len(numTimes)) {
+      result[, j, ] <- pnorm(
+        (log(times[j]) - linearPredictor) / scale,
+        lower.tail = FALSE
+      )
+    }
+  } else {
+    for (j in seq_len(numTimes)) {
+      result[,, j, ] <- pnorm(
+        (log(times[j]) - as.vector(linearPredictor)) / scale,
+        lower.tail = FALSE
+      )
+    }
+  }
+
+  if (combineChains && length(drawDims) > 1L) {
+    # merge the chain and sample margins as combineChains() does, samples
+    # varying fastest within each chain
+    result <- aperm(result, c(2L, 1L, 3L, 4L))
+    dim(result) <- c(prod(drawDims), numTimes, numObservations)
+  }
+  result
+}
+
+# Grouped (random-intercept) AFT fits are not yet reachable from R:
+# rbart_vi has no 'family' argument, so an rbart fit is never an aft model,
+# and a survival curve that dropped the fitted intercepts would be wrong.
+survivalProbabilities.rbart <- function(object, ...) {
+  stop(
+    "survival probabilities are not available for rbart fits: rbart_vi ",
+    "has no 'family' argument, so it cannot fit an aft (survival) model; ",
+    "grouped survival support is planned"
+  )
 }
 
 bart <- function(
