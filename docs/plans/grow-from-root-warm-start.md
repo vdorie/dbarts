@@ -1,0 +1,87 @@
+# grow-from-root-warm-start
+
+agent: opus
+rng: neutral - existing paths draw unchanged; the producer consumes RNG
+  only when invoked, yielding a different valid STARTING state (the
+  warm-starts.md precedent). Default fits stay bit-identical.
+budget: ~700-900 lines across ~10-12 files, staged into four
+  commit-sized steps. Full review draft with seam anchors:
+  the session scratch gfr-warm-start-plan-draft.md (this file is the
+  trimmed shipped form).
+window: the cut-scan is the shared primitive of
+  parallel-bart-frontier.md items 3.1/4; it lands ONCE here (step 1)
+  as a self-contained header that frontier work includes unchanged.
+
+## Goal
+
+Build an initial forest by XBART-style root-down stochastic tree
+construction (He, Yalov and Hahn 2019) as a WARM START: promote the
+cut-scan kernel from benchmarks/kernels/grow_from_root.c into the
+engine as an occupancy-aware, leaf-model-templated header; add
+growTreeFromRoot recursing on the scan's per-cut integrated
+likelihoods; run k grow sweeps in place, then the exact MH sampler
+owns the forest. The posterior is UNCHANGED once sampling begins
+(memo role (a), docs/design/grow-from-root.md); warm-start only,
+never a standalone posterior sampler (memo NO-GO stands).
+
+## Constraints
+
+- Default path FROZEN: no grow request => zero new RNG draws and the
+  chain.hpp run sweep untouched. The grow phase is a SEPARATE sweep
+  function (duplicated body, not a policy branch in the hot loop);
+  that keeps bench-sampler unnecessary - argue from the diff.
+- The promoted scan is OCCUPANCY-AWARE: any cut with an empty side
+  gets exactly zero selection weight (the MH -1e7 empty-leaf veto in
+  logLikelihoodForBranch never runs on this path - TODO's review-6
+  note). This contract gets its own component gate.
+- The scan omits sumWZ2 (dead weight for the constant leaf: additive
+  over any partition, cancels in every within-node comparison).
+  Templated on the leaf suffstat so linear/GP adopt it later;
+  constant-leaf specialization only in v1. Other leaves fall back to
+  prior-grown init.
+- Grown trees satisfy the SAME structural invariants MH enforces
+  (non-empty leaves, rules in gauge, availability/depth vetoes); a
+  grown forest is a legal chain state.
+- Split weights use MH's own CGM prior factors (growthProbability,
+  P(var), P(cut)) times exp of the leaf's integrated log-likelihood;
+  no-split weight (1 - growthProbability) * L(node). Categorical
+  handling (prior-mixed vs ordinal-only scan) is the implementer's
+  call, documented and gated.
+
+## Steps
+
+1. scan.hpp: leaf-model-templated cut-scan (per-code histogram of
+   (count, sumW, sumWZ), prefix-scan to per-cut collapsed left/right
+   suffstats, per-cut integrated log-likelihood). Occupancy-aware.
+   Component tests: scan == brute-force per-cut recompute (bitwise);
+   empty-side cut weight is the never-selected sentinel. RNG-free.
+2. grow.hpp growTreeFromRoot (draw {no-split, (var,cut)} from the
+   assembled weights on the chain's own rng_, missing-direction coin
+   as drawRuleForVariable, birth, recurse) + Chain::growForestFromRoot
+   (numSweeps): a separate sweep loop mirroring the run sweep
+   (residual roll, grow in place of metropolisJumpForTree,
+   sampleParametersAndSetFits, sigma/k/DART updates). Component
+   tests: seeded determinism with documented draw count; grown
+   forest well-formed and legal; grow-then-MH consistency.
+3. Sampler::growFromRoot(numSweeps) across chains on the thread pool
+   + facade virtual + bridge entry + R5 method growFromRoot(n.sweeps,
+   updateState = FALSE) mirroring sampleTreesFromPrior. tinytest:
+   grow/continue/well-formed; cross-sampler donor$growFromRoot ->
+   target$installTrees(donor) round trip (no new install code).
+4. bart2 surface at the bart.R:453 init fork + Rd + end-to-end
+   tests (grow-initialized fit converges and beats prior-init on
+   early-iteration train RMSE; seeded reproducibility) + landing
+   note in docs/design/grow-from-root.md. BLOCKED ON VD: the exact
+   bart2 spelling - recommended n.grow.sweeps = 0L count argument
+   (0 = today's prior init) vs an init = "grow-from-root" strategy
+   string - and the R5 default sweep count (recommended 2). Steps
+   1-3 are spelling-independent and proceed.
+
+## Verification
+
+- tests/cpp component gates above; full tinytest; benchmarks/R/
+  equivalence.R vs equivalence-de67cbb.rds must stay IDENTICAL
+  (confirmation the default path is untouched - no re-record).
+- No exact-posterior gates (posterior unchanged once MH starts);
+  bench-sampler not required while the grow sweep stays a separate
+  duplicated function off the hot path.
