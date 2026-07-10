@@ -110,6 +110,17 @@ double ext_rng_simulateUpperTruncatedNormal(
 double ext_rng_simulateExponential(ext_rng* generator, double scale);
 double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale);
 
+// Generalized inverse Gaussian GIG(p, a, b): density proportional to
+// x^(p - 1) exp(-(a x + b / x) / 2), x > 0. b == 0 is the Gamma(p, rate a/2)
+// limit (needs p > 0), a == 0 the inverse-gamma limit (needs p < 0); general
+// a, b > 0 uses one ratio-of-uniforms region for all p (see random.c).
+double ext_rng_simulateGeneralizedInverseGaussian(
+  ext_rng* generator,
+  double p,
+  double a,
+  double b
+);
+
 // Polya-Gamma PG(1, psi), using the exact alternating-series method of
 // Devroye (2009) as adapted by Polson, Scott, and Windle (2013)
 double ext_rng_simulatePolyaGamma(ext_rng* generator, double psi);

@@ -1549,9 +1549,134 @@ static void testBCFFixedGlue(ext_rng* rng) {
   printf("ok: BCF fixed glue\n");
 }
 
+// The interweaving glue-ridge rescale (docs/plans/bcf-ridge-interweaving.md):
+// after a burn-in that gives the prognostic forest real leaf values, one move
+// must (a) leave the combined fit a*mu + b_z*tau invariant to ~1e-12 and (b)
+// keep the cached fits self-consistent - a = a0/c, treeFits scaled by exactly
+// c, and totalFits still the sum of the tree slabs.
+static void testBCFInterweave(ext_rng* rng) {
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 50;
+  spec.tau.numTrees = 25;
+  spec.z = z.data();
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+
+  Results results;
+  sampler.run(200, 0, results);  // burn in so mu has real leaf values
+
+  size_t muTrees = spec.mu.numTrees;
+  std::vector<double> mu0(n), tau0(n), treeFits0(n * muTrees);
+  sampler.forestTotalFits(0, 0, mu0.data());
+  sampler.forestTotalFits(0, 1, tau0.data());
+  sampler.chain(0).forestTreeFits(0, treeFits0.data());
+  double a0, b0, b1;
+  sampler.chain(0).bcfGlue(a0, b0, b1);
+
+  double c = sampler.chain(0).interweaveGlueRidge();
+  check(c > 0.0 && std::isfinite(c), "interweave draws a positive finite c");
+
+  std::vector<double> mu1(n), treeFits1(n * muTrees);
+  sampler.forestTotalFits(0, 0, mu1.data());
+  sampler.chain(0).forestTreeFits(0, treeFits1.data());
+  double a1, b0p, b1p;
+  sampler.chain(0).bcfGlue(a1, b0p, b1p);
+
+  // (a) combined fit a*mu + b_z*tau invariant (tau, b0, b1 untouched)
+  double maxCombinedDelta = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double before = a0 * mu0[i] + (z[i] != 0.0 ? b1 : b0) * tau0[i];
+    double after = a1 * mu1[i] + (z[i] != 0.0 ? b1p : b0p) * tau0[i];
+    maxCombinedDelta = std::max(maxCombinedDelta, std::fabs(after - before));
+  }
+  check(maxCombinedDelta < 1.0e-11, "interweave leaves the combined fit invariant");
+  check(b0p == b0 && b1p == b1, "interweave leaves the b glue untouched");
+
+  // (b) a = a0/c and each tree slab scaled by exactly c
+  check(std::fabs(a1 - a0 / c) <= 1.0e-13 * std::fabs(a0 / c) + 1.0e-15,
+        "interweave sets a = a0 / c");
+  double maxScaleDelta = 0.0;
+  for (size_t j = 0; j < n * muTrees; ++j)
+    maxScaleDelta =
+      std::max(maxScaleDelta, std::fabs(treeFits1[j] - c * treeFits0[j]));
+  check(maxScaleDelta <= 1.0e-12, "interweave scales tree fits by c");
+
+  // (b) totalFits still equals the sum of the tree slabs
+  double maxSumDelta = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double sum = 0.0;
+    for (size_t t = 0; t < muTrees; ++t) sum += treeFits1[i + t * n];
+    maxSumDelta = std::max(maxSumDelta, std::fabs(sum - mu1[i]));
+  }
+  check(maxSumDelta < 1.0e-9, "interweave keeps totalFits the sum of tree fits");
+
+  printf("ok: BCF interweave rescale move\n");
+}
+
+// The sharp edge (memo section 4): under keepTrees the saved mu leaves are
+// flattened before the move, so the move must rescale this sweep's saved slot
+// by the same c. Prediction from the saved slot reconstructs the prognostic
+// total mu; scale * mu_saved + shift must therefore track scale * mu_live +
+// shift, i.e. their difference is a constant shift for every row. An unscaled
+// saved slot (mu_saved = mu_live / c) would make that difference row-dependent.
+static void testBCFInterweaveKeepTrees(ext_rng* rng) {
+  const size_t n = 300, p = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  options.keepTrees = true;
+  options.numSamplesToStore = 1;
+  BCFSpec spec;
+  spec.mu.numTrees = 40;
+  spec.tau.numTrees = 20;
+  spec.z = z.data();
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+
+  Results results;
+  sampler.run(150, 1, results);  // one recorded sweep fills the single slot
+
+  double scale = sampler.fitScale();
+  std::vector<double> muLive(n), pred(n);
+  sampler.forestTotalFits(0, 0, muLive.data());
+  sampler.predict(x.data(), n, pred.data());  // scale * mu_saved + shift
+
+  double d0 = pred[0] - scale * muLive[0];
+  double maxSpread = 0.0;
+  for (size_t i = 0; i < n; ++i)
+    maxSpread =
+      std::max(maxSpread, std::fabs((pred[i] - scale * muLive[i]) - d0));
+  check(maxSpread < 1.0e-9,
+        "keepTrees saved mu slot tracks the rescaled live fit after the move");
+
+  printf("ok: BCF interweave keepTrees saved slot\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testBCFTwoForest(rng);
   testBCFFixedGlue(rng);
+  testBCFInterweave(rng);
+  testBCFInterweaveKeepTrees(rng);
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);

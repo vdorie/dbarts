@@ -254,6 +254,59 @@ double ext_rng_simulateGamma(ext_rng* generator, double shape, double scale) {
 #undef si
 #undef c
 
+// Generalized inverse Gaussian, density f(x) proportional to
+// x^(p - 1) exp(-(a x + b / x) / 2) on x > 0.
+//
+// Ratio-of-uniforms without a mode shift (Dagpunar 1988, the noshift branch of
+// the GIGrvg reference and its efficient choice for large p or large
+// sqrt(a b) - the BCF glue-ridge regime). Standardizing x = sqrt(b / a) * t
+// leaves t with the one-parameter density t^(p - 1) exp(-(omega / 2)(t + 1/t)),
+// omega = sqrt(a b); a single ROU region samples t for every p. The region is
+// built against the density normalized to 1 at its mode, so the acceptance
+// test stays overflow-free when p or omega is large. b == 0 and a == 0 are the
+// gamma and inverse-gamma boundary limits.
+double ext_rng_simulateGeneralizedInverseGaussian(
+  ext_rng* generator,
+  double p,
+  double a,
+  double b
+) {
+  if (!isfinite(p) || !isfinite(a) || !isfinite(b) || a < 0.0 || b < 0.0)
+    return NAN;
+  if (b == 0.0) // gamma limit (a x term only)
+    return p > 0.0 ? ext_rng_simulateGamma(generator, p, 2.0 / a) : NAN;
+  if (a == 0.0) // inverse-gamma limit (b / x term only)
+    return p < 0.0 ? 1.0 / ext_rng_simulateGamma(generator, -p, 2.0 / b) : NAN;
+
+  double omega = sqrt(a * b);        // standardized shape
+  double scaleFactor = sqrt(b / a);  // x = scaleFactor * t
+
+  // mode of h(t) = t^(p-1) exp(-(omega/2)(t + 1/t)) and the argmax of
+  // t sqrt(h(t)), which sets the v-edge of the ROU rectangle (v- is 0)
+  double lm1 = p - 1.0;
+  double mode = (lm1 + sqrt(lm1 * lm1 + omega * omega)) / omega;
+  double lp1 = p + 1.0;
+  double tv = (lp1 + sqrt(lp1 * lp1 + omega * omega)) / omega;
+  double invMode = 1.0 / mode;
+
+  // logHn(t) = log h(t) - log h(mode), <= 0 with equality at the mode
+#define GIG_LOG_HN(t_)                                                         \
+  (lm1 * log((t_) / mode) - 0.5 * omega * ((t_) + 1.0 / (t_) - mode - invMode))
+  double vMax = tv * exp(0.5 * GIG_LOG_HN(tv));
+
+  for (long iter = 0; iter < 1000000L; ++iter) {
+    double u = ext_rng_simulateContinuousUniform(generator);
+    double v = ext_rng_simulateContinuousUniform(generator) * vMax;
+    if (u <= 0.0 || v <= 0.0)
+      continue;
+    double t = v / u;
+    if (2.0 * log(u) <= GIG_LOG_HN(t))
+      return scaleFactor * t;
+  }
+  return scaleFactor * mode; // pathological parameters only
+#undef GIG_LOG_HN
+}
+
 static double simulateStandardExponential(ext_rng* generator) {
   /*  REFERENCE
    *
