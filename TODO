@@ -272,17 +272,22 @@ items
     gates green, equivalence 21/21 identical. tests/cpp
     testGroupedMath gained the stall-regime case;
     tau-slice-stepout-cap.md has the record.
-  dbarts-results-growth: review-6 architecture debt #2, DECISION,
-    window: pre-release. The frozen dbarts_results struct
-    (dbarts.h) cannot gain fields - consumers stack-allocate
-    against the compiled layout - but NB's r trace, ordinal
-    cutpoints, and multinomial per-category fits all need output
-    channels. Pick the policy before 1.0-0: a new-named run2 +
-    extended results struct, or new-named per-channel getters.
-    Related debt #3: flat-format-v2 should become an additive/
-    optional-block state format ONCE before the family wave (each
-    new family otherwise bumps stateFormatVersion and orphans all
-    saved states serially). VD decision.
+  c-api-growth: DECIDED (VD, 2026-07-10), window: pre-release -
+    both frozen-surface extensibility jobs as one item. (1) Output
+    channels: a new-named dbarts_sampler_run2 taking an extended
+    results struct whose FIRST member is a caller-set size/version;
+    the library never writes past the declared size; fields append
+    monotonically (version = layout revision, NOT model type);
+    per-model variability stays on the existing null-pointer
+    opt-in convention (irrelevant channels simply never fill).
+    (2) State format: additive by-name blocks - the state is
+    already marshaled as named R objects, so the reader looks up
+    blocks by name, defaults absent OPTIONAL blocks, and refuses
+    (naming the block) only when a REQUIRED one is missing; the
+    version stamp stays for provenance, not gatekeeping. Preserves
+    the never-silently-misinterpret safety while ending the
+    every-change-orphans-all-states behavior. Absorbs
+    flat-format-v2. Medium; land before 1.0-0 submission.
   sbc-ci-gate: DECIDED (VD, 2026-07-10): add the gaussian SBC
     baseline (R=100, ~26s) as a NON-BLOCKING CI workflow (reports,
     does not gate PRs - a statistical test at R=100 will
