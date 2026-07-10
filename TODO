@@ -175,21 +175,25 @@ items
     (sigma rank mean ~67-69/75), and sigma IACT (~40) << thin, so
     the residual is NOT (a, mu) autocorrelation - see
     bcf-sigma-residual.
-  bcf-sigma-residual: successor to bcf-glue-sigma-calibration
-    (2026-07-10). At R=400 SBC both pre- and post-interweave
-    builds flag sigma (rank mean ~67-69/75, ecdf ~0.10 vs band
-    0.066) at thin=120 on the n=200 glue-on config; the a-ridge
-    move did not clear it and sigma's marginal IACT is well under
-    the thinning, so the bias rides another slow mode or a burn
-    transient. PRIME SUSPECT: the treatment-side (b0, b1,
-    tau-amplitude) scale ridge (b0/b1 ~ N(0, 1/2), tau forest;
-    same non-identifiability as the a-ridge). Next steps: (1)
-    derive the analogous b-ridge interweave (the a-move memo in
-    bcf-ridge-interweaving.md is the template; GIG machinery now
-    ships); (2) a fixed-b control SBC (updateB off) to localize,
-    mirroring A4c; (3) a burn-only sweep to split transient from
-    autocorrelation. The A4e thin=1000 PASS is consistent with a
-    long transient (burn scales with thin in that design).
+  bcf-sigma-residual: LOCALIZED 2026-07-10 - a BURN TRANSIENT,
+    not a mixing mode. Controls (R=200, thin=120): fixed-b
+    (updateB off) FLAGS WORSE (rank 61.7/75, ecdf 0.136) - the
+    b-ridge is exonerated; burn doubled (150 -> 300 thinned units)
+    PASSES (rank 72.1/75, ecdf 0.089 < band 0.092). Mechanism:
+    strong-|a0| Cauchy-tail reps under-fit within burn, leaving
+    sigma high; A4e's thin=1000 pass was really longer ABSOLUTE
+    burn (the confound it named). REMEDY (next implementer):
+    amplitude-aware a/mu initialization (kill the transient at the
+    source) and/or a BCF burn guidance note; harness-side, bump
+    the SBC BCF config's burn. ACCEPTANCE: n=200 glue-on, thin=120,
+    R >= 400 - sigma ecdf inside the ~0.066 band, rank ~75,
+    controls still PASS (burn=300 cleared R=200 but NOT proven at
+    the R=400 band - tune up and verify there). The derived b-move
+    (bcf-b-ridge.md: v = c^2 ~ GIG((Lt-2)/2, Mt/leafVar_tau,
+    (b0^2+b1^2)/0.5), prototype-validated incl. rejecting the
+    off-by-one Jacobian at KS 1.6e-21, commutes with the a-move,
+    no auxiliary) is SHELVED as its own optional treatment-ridge
+    mixing item - judge on IACT payoff, not sigma.
 
   bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
     testFits channel under BCF (chain.hpp) instead of recording the
@@ -303,7 +307,16 @@ items
     allocations. The engine-side logLikelihood channel was
     deferred (per-family producer needs a new response-model
     virtual + group plumbing) - append it when built; the
-    boundary comment marks the spot.
+    boundary comment marks the spot. CHANNEL
+    LANDED 2026-07-10 (2b49bb3): logLikelihood shipped INSIDE the
+    born v1 layout (boundary comment below it, version stays 1);
+    engine computeLogLikelihood virtual - gaussian (dnorm, precision
+    weights), probit (stable pnorm log-tails), logistic (count
+    weights), grouped (adds drawn intercepts, defers to base); BCF
+    NaN-fills (blended location invisible to the response model,
+    testFits precedent); C-vs-R match asserted to 1e-12 in the capi
+    consumer; R bridge never requests it.
+
   sbc-ci-gate: LANDED 2026-07-10 (ed34eea). .github/workflows/
     sbc.yaml runs the gaussian SBC baseline (R=100, ~27s local) on
     a weekly cron + workflow_dispatch only - no PR triggers, so a
@@ -418,6 +431,14 @@ items
     FUTURE (unchanged, post 1.0): integer-weight probit via
     replicated latents; arbitrary real weights need a real-shape
     PG sampler (IPW is a pseudo-likelihood trap).
+  cpp-weighted-logistic-test-miswire: found 2026-07-10 during the
+    loglik channel work. tests/cpp testWeightedLogistic passes w in
+    the OFFSET position (the constructor order is (x, y, n, p,
+    weights, offset)), so the case exercises an offset, not
+    weights; the weighted-logistic engine path is component-tested
+    only via the new loglik case (R-level coverage exists in
+    test-weighted-logistic.R). Fix the argument order and re-derive
+    what the case should assert. Small, tests-only.
   within-chain-threading: previously assessed-and-deferred pending
     n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
     reductions preserve thread-count invariance; the measurement
