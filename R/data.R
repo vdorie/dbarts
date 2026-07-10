@@ -598,9 +598,23 @@ dbartsData <- function(
     # a mixed container keeps its rows and attributes: missing predictor
     # values are validated below, like the sparse-matrix branch above
     if (!xIsMixed) {
-      completeCases <- stats::complete.cases(x, y)
+      # missing = "incorporate" must reach the shared NA handling at the end
+      # of this function intact, exactly like the sparse and mixed-container
+      # branches above - no row is dropped here for missingness in 'x' or
+      # 'y'. That shared code unconditionally rejects a missing response
+      # (anyNA(y) below) and only rejects a missing predictor when
+      # missing = "error", so deferring to it makes this branch agree with
+      # the formula interface instead of silently discarding incomplete
+      # rows regardless of 'missing' (the bug: incorporation was only
+      # reachable through the formula path, since this branch always
+      # complete-cases-filtered first).
+      completeCases <- if (missing == "error") {
+        stats::complete.cases(x, y)
+      } else {
+        rep_len(TRUE, length(y))
+      }
 
-      # the drop below happens before xHasNA is evaluated further down, so
+      # the check below happens before xHasNA is evaluated further down, so
       # missing = "error" must be checked against the pre-filter state here
       # or its request is silently defeated
       if (missing == "error") {
@@ -610,14 +624,6 @@ dbartsData <- function(
         if (anyNA(x)) {
           stop(
             "predictors contain missing values; use missing = \"incorporate\" to model them"
-          )
-        }
-      } else {
-        numDropped <- sum(!completeCases)
-        if (numDropped > 0L) {
-          warning(
-            numDropped,
-            " row(s) dropped due to missing values in 'x' or 'y'"
           )
         }
       }
@@ -727,6 +733,38 @@ dbartsData <- function(
   if (anyNA(y)) {
     stop("response contains missing values")
   }
+
+  # Precision-degenerate response: a response with a
+  # large magnitude but a tiny spread quantizes to (near-)identical double
+  # values before the engine ever sees it - e.g. y in [1e15, 1e15 + 1e-3]
+  # rounds to a single representable double - so the engine fits an
+  # apparently-fine model that can no longer tell observations apart. The
+  # signature is range(y) tiny relative to scale(y): doubles near
+  # magnitude s are spaced ~2.22e-16 * s apart, so 1e-10 is ~1e6x the ulp
+  # spacing - real precision loss trips it with orders of magnitude of
+  # headroom before a merely low-variance (but not degenerate) response
+  # would. max(abs(y)) == 0 is guarded to avoid a 0/0; an all-zero
+  # response has no precision loss to report (it is exactly, not
+  # approximately, constant). No distinct-value-count check backs this up:
+  # a rounding collapse to a handful of distinct doubles means the range
+  # spans at most a few ulps (~1e-15 relative), which the ratio already
+  # catches five orders of magnitude earlier, while low-cardinality data
+  # the ratio does NOT flag has values separated by many ulps -
+  # legitimately discrete responses (binary, counts, ordinal scales) that
+  # standardization maps cleanly and the engine fits without degradation.
+  yRange <- diff(range(y))
+  yScale <- max(abs(y))
+  if (yScale > 0 && yRange / yScale < 1e-10) {
+    warning(
+      "response values are indistinguishable, or nearly so, at double ",
+      "precision (",
+      length(unique(y)),
+      " distinct value(s) among ",
+      length(y),
+      " observations); center and/or rescale the response before fitting"
+    )
+  }
+
   sparseAllMissingCheck <- function(x.sparse) {
     columnNnz <- diff(x.sparse@p)
     columnNumNA <- vapply(

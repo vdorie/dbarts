@@ -483,6 +483,22 @@ here so the eventual decision is informed:
   code is per-column), and update cadence (every sweep vs thinned) as
   the cost lever.
 
+## predict at training rows vs the recorded fit (review-4 doc note, folded in via input-precision-validation, 2026-07-10)
+
+predict() reconstructs f(x*) = c(x*)' K^-1 f from the cached kernel and
+drawn training values, WITHOUT the self-term conditioning nugget
+(nugget = 1e-6, model.hpp) that the training draw's own factorization
+carries. At a training row x* = x_i, c(x_i) = 1 exactly, so this
+re-krig differs from the stored treeFits_ value by the nugget's
+contribution, nugget * |K^-1 f|_i - measured at roughly 2e-3 to 3e-3
+below the recorded (jittered) fit. predict interpolates the
+jitter-free posterior mean; the recorded training fit is the jittered
+draw. This affects predict()/test-data prediction only, never the MCMC
+draws themselves (sampling reads treeFits_ directly, never predict) -
+documented here and in man/dbartsPriors.Rd rather than fixed, since
+matching predict to the jittered fit would mean re-adding a nugget
+nobody asked predict to draw.
+
 ## Status
 
 Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and stage
