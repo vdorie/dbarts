@@ -346,10 +346,22 @@ items
     same-grid v1, cross-grid refused). Remaining stretch: the
     cross-grid remap over mapOldCutPointsOntoNew; reopen when a
     consumer needs new-data warm starts.
-  weighted-binary: integer-weight probit (exact via replicated latent
-    draws, linear in total counts; threshold hybrid if that matters)
-    and arbitrary real logistic weights (needs a real-shape PG sampler;
-    IPW use is a pseudo-likelihood trap). decision-gated, post 1.0.
+  weighted-binary: memo findings (2026-07-10, issue #79): the
+    semantics are ALREADY RESOLVED in the bartcore cutover - probit
+    refuses weights (all-1 dropped for SuperLearner), logistic does
+    exact integer frequency weights via summed PG(1, psi) draws
+    (empirically identical to row replication, cor = 1.0), docs
+    state all three families' meanings; BART/bartMachine offer no
+    weighted binary at all. ONE residual defect, READY TO
+    IMPLEMENT: sampleFromPPD (R/generics.R ~916-933) still draws
+    rbinom(n, 1, ev) * w - a degenerate {0, w} two-point whose mean
+    is right by luck but whose intervals are wrong; the coherent
+    draw for a count-w row is rbinom(n, size = w, prob = ev).
+    Small R fix + the weighted-binary regression tests #79 notes
+    are missing. Inference is sound, so no interim guard needed.
+    FUTURE (unchanged, post 1.0): integer-weight probit via
+    replicated latents; arbitrary real weights need a real-shape
+    PG sampler (IPW is a pseudo-likelihood trap).
   within-chain-threading: previously assessed-and-deferred pending
     n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
     reductions preserve thread-count invariance; the measurement
