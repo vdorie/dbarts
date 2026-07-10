@@ -65,3 +65,37 @@ recommendation.
 
 - The equality and exact-posterior gates; component tests; full
   tinytest; bench on existing families unchanged.
+
+## Status
+
+- 2026-07-10: AFT log-normal LANDED as f0efc03 (squash of wt/survival-aft;
+  design note docs/design/survival.md rides the commit). Engine: AFTResponse
+  composes a contained GaussianResponse over a mutable log-time buffer;
+  right-censored latents redraw each sweep from the lower-truncated normal;
+  zero facade changes (status arrives via SamplerOptions.survivalStatus off
+  the bartcore.survival control attribute, the groupIndices pattern); state
+  rides the existing latents + fit.scale blocks, no format bump. Weights and
+  setData refused; setResponse keeps the censoring structure and redraws.
+- Surface (revised to a three-agent design panel's synthesis, VD-approved):
+  Surv or two-column (time, status) response through the matrix interface;
+  Surv auto-dispatches to aft only from family "auto" - an explicit
+  conflicting family errors, never a silent override; the formula interface
+  refuses aft/Surv with a matrix-interface hint (both guards) instead of
+  failing hostilely downstream. survivalProbabilities is an S3 GENERIC
+  returning DRAWS (draws x times x observations; chain margin under
+  combineChains = FALSE) per the extract/fitted/ci.level tiers; the rbart
+  method errors (grouped AFT unreachable until rbart_vi grows a family
+  argument - filed on TODO as survival-grouped-surface). predict/extract
+  stay on the LOG-TIME scale (riAFTBART-source-verified); the Rd documents
+  the scale and the inert response/link aliases.
+- Gates (worktree, private library; the landed tree is byte-identical to
+  the gated tip): preclean install; tests/cpp all pass (bitwise
+  uncensored == gaussian reduction, censored-latent truncated-normal
+  moments, censored state round trip); tinytest 2661/0 (2610 + 51);
+  equivalence 21/21 identical vs equivalence-de67cbb.rds; aft-exact.R
+  max gap 0.0006 with a poisoned-truncation-bound proof (0.1153 fail);
+  air + lintr clean; pkgdown::check_pkgdown clean. Reviewer re-ran
+  install + tests/cpp + tinytest on the landed tree from the shared lib.
+- Follow-ups: discrete-time hazard (person-period ingestion over the
+  binary families, same note) and survival-grouped-surface (rbart_vi
+  family = "aft" + the rbart survivalProbabilities method) remain open.
