@@ -398,6 +398,45 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   return resultExpr;
 }
 
+/* runs with the logLikelihood channel set alongside sigma and train, and
+ * returns all three, so the R side can check the per-draw log-likelihood
+ * against a density recomputed on the same sigma/train draws */
+SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
+  dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
+  size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
+  size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
+  size_t n = p_numObservations(sampler);
+  size_t chains = p_numChains(sampler);
+
+  SEXP sigmaExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
+  SEXP trainExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (n * numSamples * chains)));
+  SEXP loglikExpr = PROTECT(
+    Rf_allocVector(REALSXP, (R_xlen_t) (n * numSamples * chains)));
+
+  dbarts_results results = {0};
+  results.structSize = sizeof results;
+  results.sigma = REAL(sigmaExpr);
+  results.train = REAL(trainExpr);
+  results.logLikelihood = REAL(loglikExpr);
+
+  p_run(sampler, numBurnIn, numSamples, &results);
+
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
+  SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
+  SET_VECTOR_ELT(resultExpr, 1, trainExpr);
+  SET_VECTOR_ELT(resultExpr, 2, loglikExpr);
+  SEXP namesExpr = PROTECT(Rf_allocVector(STRSXP, 3));
+  SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
+  SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
+  SET_STRING_ELT(namesExpr, 2, Rf_mkChar("loglik"));
+  Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
+
+  UNPROTECT(5);
+  return resultExpr;
+}
+
 SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
   p_sampleNodeParametersFromPrior(samplerFromExpr(ptrExpr));
   return R_NilValue;

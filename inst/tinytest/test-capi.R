@@ -91,6 +91,21 @@ ptrGuard <- CALL("capi_create", spec$control, spec$model, spec$data, "")
 CALL("capi_sample_trees_from_prior", ptrGuard)
 expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
 
+# the per-observation log-likelihood channel: for a gaussian sampler it must
+# equal dnorm(y, train, sigma, log = TRUE) recomputed on the same draws (train
+# is n x nSamples, sigma constant within a draw), pairing observation-fastest
+ptrLL <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_sample_trees_from_prior", ptrLL)
+rLL <- CALL("capi_run_loglik", ptrLL, 5L, nSamples)
+expect_equal(length(rLL$loglik), n * nSamples)
+expectedLL <- dnorm(
+  rep(y, times = nSamples),
+  rLL$train,
+  rep(rLL$sigma, each = n),
+  log = TRUE
+)
+expect_equal(rLL$loglik, expectedLL, tolerance = 1e-12)
+
 # null buffers skip quantities
 r3 <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
 expect_null(r3$train)
@@ -196,6 +211,23 @@ latents <- CALL("capi_get_latents", ptrBinary)
 expect_equal(length(latents), n)
 expect_true(all(latents[yBinary == 1] > 0))
 expect_true(all(latents[yBinary == 0] <= 0))
+
+# probit log-likelihood: the recorded train fits are the latent location eta,
+# so the channel must be the stable log dbinom(y, 1, pnorm(eta)) - log Phi(eta)
+# for a success, log Phi(-eta) for a failure - and it agrees with the R twin's
+# dbinom(y, 1, pnorm(eta)) form wherever that stays finite
+rBinLL <- CALL("capi_run_loglik", ptrBinary, 3L, 2L)
+etaBin <- rBinLL$train
+yRep <- rep(as.double(yBinary), times = 2L)
+stableLL <- ifelse(
+  yRep == 1,
+  pnorm(etaBin, log.p = TRUE),
+  pnorm(etaBin, lower.tail = FALSE, log.p = TRUE)
+)
+expect_equal(rBinLL$loglik, stableLL, tolerance = 1e-12)
+twinLL <- dbinom(yRep, 1L, pnorm(etaBin), log = TRUE)
+finite <- is.finite(twinLL)
+expect_equal(rBinLL$loglik[finite], twinLL[finite], tolerance = 1e-9)
 
 # tree storage, prediction, and the state round trip stan4bart's
 # predict-after-reload uses
@@ -309,7 +341,7 @@ expect_equal(length(rG$ranef), numGroups * 4L)
 expect_true(all(is.finite(rG$ranef)))
 
 # destruction runs through the finalizer
-rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed)
+rm(ptr1, ptr2, ptr3, ptrBinary, ptrFixed, ptrLL)
 rm(ptrCbA, ptrCbB, ptrStop, ptrMT, ptrG)
 invisible(gc(FALSE))
 expect_true(TRUE)

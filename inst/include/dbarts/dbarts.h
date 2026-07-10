@@ -66,7 +66,11 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// that quantity, and a zero structSize skips everything. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), and tau/groupEffects a grouped
-/// random-intercept sampler; each is left untouched otherwise.
+/// random-intercept sampler; each is left untouched otherwise. logLikelihood
+/// carries the per-draw training-data log-likelihood for the gaussian and
+/// binary families; it is NaN-filled where the per-observation location is
+/// not fully recorded (a BCF two-forest fit), and skipping it (null or
+/// absent-by-size) elides all of its computation.
 /// Value-initialize and set the size:
 ///   dbarts_results results = {0}; results.structSize = sizeof results;
 typedef struct dbarts_results_t {
@@ -79,6 +83,7 @@ typedef struct dbarts_results_t {
   double* varprobs;   ///< numPredictors x numSamples x numChains
   double* tau;        ///< numSamples x numChains
   double* groupEffects; ///< numGroups x numSamples x numChains
+  double* logLikelihood; ///< numObservations x numSamples x numChains
   /* 1.0-0 field boundary: every future append goes below this line, never
      above, and bumps DBARTS_C_API_VERSION. */
 } dbarts_results;

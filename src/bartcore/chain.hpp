@@ -165,7 +165,9 @@ struct ModelParameters {
 /// but testFits is filled with NaN (no test treatment vector to blend), and
 /// k, variableCounts, and splitProbabilities report the PROGNOSTIC (mu) forest
 /// only; the treatment forest is reached through the per-forest channels
-/// (forestTotalFits + bcfGlue, docs/design/bcf.md).
+/// (forestTotalFits + bcfGlue, docs/design/bcf.md). logLikelihood is likewise
+/// NaN-filled under BCF (the blended per-observation location is not visible
+/// to the response model).
 struct Results {
   double* sigma = nullptr;          // numSamples
   double* trainingFits = nullptr;   // numObservations x numSamples, or null
@@ -178,6 +180,9 @@ struct Results {
   // tau is numSamples, groupEffects numGroups x numSamples
   double* tau = nullptr;
   double* groupEffects = nullptr;
+  // per-draw training log-likelihood, numObservations x numSamples, or null;
+  // gaussian and binary families, NaN under BCF
+  double* logLikelihood = nullptr;
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -2250,6 +2255,20 @@ private:
       double sigmaScale = response_->sigmaScale();
       for (std::size_t j = 0; j < numGroups; ++j)
         out[j] = effects[j] * sigmaScale;
+    }
+
+    if (results.logLikelihood != nullptr) {
+      double* out = results.logLikelihood + sampleNum * n;
+      if (bcf_) {
+        // The BCF per-observation location blends two forests through the
+        // glue coefficients, which the response model cannot see; scoring
+        // forest 0 alone would misreport it. NaN-flag as testFits does.
+        for (size_t i = 0; i < n; ++i)
+          out[i] = std::numeric_limits<double>::quiet_NaN();
+      } else {
+        response_->computeLogLikelihood(forest.totalFits.data(), sigma_, n,
+                                        out);
+      }
     }
   }
 

@@ -251,6 +251,9 @@ public:
       if (results.groupEffects != nullptr)
         r.groupEffects =
           results.groupEffects + c * numSamples * options_.numGroups;
+      if (results.logLikelihood != nullptr)
+        r.logLikelihood =
+          results.logLikelihood + c * numSamples * data_.numObservations;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
