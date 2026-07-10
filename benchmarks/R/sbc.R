@@ -13,6 +13,9 @@
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
 # Positional args: config R L thin. Or source() the file to reuse the API:
 #   source("benchmarks/R/sbc.R"); res <- runSbc(sbcConfig("gaussian"), R = 200)
+# SBC_FAIL_ON_FLAG=1 (env var, opt-in) makes the CLI exit status 1 if any
+# functional's verdict is FLAG; unset, the CLI always exits 0 (unchanged
+# default). Only affects Rscript use; source() usage is untouched.
 #
 # SELF-CONSISTENCY is the whole game: theta0 must come from the same prior the
 # sampler assumes in its posterior. The forest/leaf draw uses the sampler's own
@@ -1386,5 +1389,8 @@ if (sys.nframe() == 0L) {
       fit$floorFrac
     ))
   }
-  sbcReport(fit)
+  verdicts <- sbcReport(fit)
+  if (nzchar(Sys.getenv("SBC_FAIL_ON_FLAG", "")) && any(verdicts == "FLAG")) {
+    quit(status = 1L, save = "no")
+  }
 }
