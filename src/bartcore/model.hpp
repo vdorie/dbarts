@@ -2286,18 +2286,29 @@ inline double logTauPosterior(double tau, double numGroups,
 /// One slice-sampling step (Neal 2003: stepping out, then shrinkage) of a
 /// log density on (lower, upper); width is the stepping-out unit and the
 /// interval endpoints clamp to the boundary, as R's sliceSample does.
-/// Shrinkage terminates in exact arithmetic; the iteration cap turns numeric
-/// pathology into keeping the current point.
+/// Stepping out is bounded by Neal's m at 10^4 expansions per side: healthy
+/// runs measure under 100 expansions, while an unbounded search chasing a
+/// distant mode costs ~mode/width density evaluations (an effective hang
+/// once tau has random-walked past ~1e8, reachable through mostly-empty
+/// groupings). A capped bracket still contains the current point, so
+/// shrinkage samples correctly inside it. Shrinkage terminates in exact
+/// arithmetic; its iteration cap turns numeric pathology into keeping the
+/// current point.
 template <typename LogDensity>
 double sliceSampleOnce(ext_rng* rng, const LogDensity& logDensity, double x,
                        double width, double lower, double upper) {
+  constexpr int maxStepOut = 10000;
   double logHeight = logDensity(x) - ext_rng_simulateExponential(rng, 1.0);
   double u = ext_rng_simulateContinuousUniform(rng);
   double left = x - u * width;
   double right = left + width;
-  while (left > lower && logDensity(left) > logHeight) left -= width;
+  int steps = maxStepOut;
+  while (steps-- > 0 && left > lower && logDensity(left) > logHeight)
+    left -= width;
   if (left < lower) left = lower;
-  while (right < upper && logDensity(right) > logHeight) right += width;
+  steps = maxStepOut;
+  while (steps-- > 0 && right < upper && logDensity(right) > logHeight)
+    right += width;
   if (right > upper) right = upper;
 
   for (int iteration = 0; iteration < 1000; ++iteration) {
