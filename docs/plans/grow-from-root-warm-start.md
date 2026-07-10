@@ -71,11 +71,16 @@ never a standalone posterior sampler (memo NO-GO stands).
 4. bart2 surface at the bart.R:453 init fork + Rd + end-to-end
    tests (grow-initialized fit converges and beats prior-init on
    early-iteration train RMSE; seeded reproducibility) + landing
-   note in docs/design/grow-from-root.md. BLOCKED ON VD: the exact
-   bart2 spelling - recommended n.grow.sweeps = 0L count argument
-   (0 = today's prior init) vs an init = "grow-from-root" strategy
-   string - and the R5 default sweep count (recommended 2). Steps
-   1-3 are spelling-independent and proceed.
+   note in docs/design/grow-from-root.md. DECIDED (VD 2026-07-10,
+   approving the plan's recommendations): bart2 gains the count
+   argument n.grow.sweeps = 0L (0 = today's prior init; k > 0 runs
+   k grow-from-root sweeps then samples as usual) - no strategy
+   string, no hidden internal count; the R5 method is
+   growFromRoot(n.sweeps = 2L, updateState = FALSE); an explicit
+   warm.start together with n.grow.sweeps > 0 is an ERROR
+   (ambiguous initialization, the survival family-conflict
+   precedent); this item owns the one-time scan landing that
+   parallel-bart-frontier item 4 later includes.
 
 ## Verification
 
