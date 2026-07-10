@@ -372,8 +372,12 @@ items
     rbinom(n, 1, ev) * w - a degenerate {0, w} two-point whose mean
     is right by luck but whose intervals are wrong; the coherent
     draw for a count-w row is rbinom(n, size = w, prob = ev).
-    Small R fix + the weighted-binary regression tests #79 notes
-    are missing. Inference is sound, so no interim guard needed.
+    PPD FIX LANDED 2026-07-10 (da7b659): sampleFromPPD now draws
+    rbinom(n, size = w, prob = ev) in both the matrix and array
+    branches (recycling verified per fill order), bart.Rd
+    documents binomial(w, p) counts, and the weighted-binary
+    regression tests #79 noted were missing now exist
+    (test-weighted-binary-ppd.R). #79's last live path is closed.
     FUTURE (unchanged, post 1.0): integer-weight probit via
     replicated latents; arbitrary real weights need a real-shape
     PG sampler (IPW is a pseudo-likelihood trap).
