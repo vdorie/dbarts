@@ -914,22 +914,25 @@ sampleFromPPD <- function(ev, object, weights) {
     }
   } else {
     if (responseIsBinary) {
+      # a weight-w row is w iid bernoulli trials; the coherent posterior
+      # predictive draw is the number of successes, rbinom(, w, ev), not a
+      # bernoulli draw scaled by w. size is recycled to match ev's own
+      # column-major fill so each obs's weight lines up with its draws.
       if (length(dim(ev)) > 2L) {
+        size <- rep(weights, each = prod(dim(ev)[1L:2L]))
         result <- array(
-          rbinom(length(ev), 1L, ev),
+          rbinom(length(ev), size, ev),
           dim(ev),
           dimnames = dimnames(ev)
         )
-        # recycle weight vector by permuting observations to first dimension
-        result <- aperm(weights * aperm(result, c(3L, 1L, 2L)), c(2L, 3L, 1L))
       } else {
+        size <- rep(weights, each = nrow(ev))
         result <- matrix(
-          rbinom(length(ev), 1L, ev),
+          rbinom(length(ev), size, ev),
           nrow(ev),
           ncol(ev),
           dimnames = list(rownames(ev), colnames(ev))
         )
-        result <- t(weights * t(result))
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
