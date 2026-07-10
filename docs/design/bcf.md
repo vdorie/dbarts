@@ -240,3 +240,22 @@ The R wrapper exposes sd.control and sd.moderate (the two magnitudes in
 sd(y) units) and converts internally. benchmarks/R/bcf-exact.R
 reproduces the map and the range/sigma calibration to validate the
 implementation end to end.
+
+## Burn-in under strong prognostic signal (2026-07-10)
+
+BCF fits on data whose prognostic amplitude is large relative to sigma
+carry a long burn transient: the glue a reaches the right amplitude
+within ~10 sweeps, but the mu forest's split STRUCTURE mixes slowly at
+high SNR, and the shape misfit sits in sigma until it does. Measured
+settle time scales with |a|/sigma and reaches ~72k sweeps in the
+Cauchy(0, 2) prior's tail (|a| > 5; bias in E[sigma] up to ~1.2x at
+burn = 18k). Amplitude-aware initialization and no-glue warm starts
+were measured and do NOT help (raising early SNR freezes structure
+further); burn length is the working lever. Normal use (|a| ~ O(1))
+settles in ~2k sweeps; the strong-|a| regime arises mainly when a
+response is swapped in against a stale build scale (the in-Gibbs
+setResponse(updateScale = FALSE) path). The SBC harness pins its BCF
+burn to absolute sweeps accordingly. The |a| >= 40 extreme tail (~3%
+of the prior) is a structure-mixing limit no burn fixes; an engine
+remedy (tempered early sweeps) would be its own item. Records:
+docs/plans/bcf-sigma-residual.md.

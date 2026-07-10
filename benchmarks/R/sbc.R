@@ -396,7 +396,10 @@ runSbc <- function(
   R = 200L,
   L = 200L,
   thin = 30L,
-  burn = 50L,
+  # in absolute sweeps: the BCF sigma transient is tree-STRUCTURE mixing
+  # under strong prognostic signal (settle ~72k sweeps at the Cauchy tail;
+  # bcf-sigma-residual), so the default pins sweeps, not thinned units
+  burn = as.integer(ceiling(72000 / thin)),
   seed = 20260709L,
   report = 25L
 ) {
@@ -552,7 +555,10 @@ runSbcDart <- function(
   R = 200L,
   L = 200L,
   thin = 30L,
-  burn = 50L,
+  # in absolute sweeps: the BCF sigma transient is tree-STRUCTURE mixing
+  # under strong prognostic signal (settle ~72k sweeps at the Cauchy tail;
+  # bcf-sigma-residual), so the default pins sweeps, not thinned units
+  burn = as.integer(ceiling(72000 / thin)),
   seed = 20260709L,
   report = 25L
 ) {
@@ -731,7 +737,10 @@ runSbcGrouped <- function(
   R = 200L,
   L = 200L,
   thin = 30L,
-  burn = 50L,
+  # in absolute sweeps: the BCF sigma transient is tree-STRUCTURE mixing
+  # under strong prognostic signal (settle ~72k sweeps at the Cauchy tail;
+  # bcf-sigma-residual), so the default pins sweeps, not thinned units
+  burn = as.integer(ceiling(72000 / thin)),
   seed = 20260709L,
   report = 25L
 ) {
@@ -935,7 +944,10 @@ runSbcBCF <- function(
   R = 200L,
   L = 200L,
   thin = 30L,
-  burn = 50L,
+  # in absolute sweeps: the BCF sigma transient is tree-STRUCTURE mixing
+  # under strong prognostic signal (settle ~72k sweeps at the Cauchy tail;
+  # bcf-sigma-residual), so the default pins sweeps, not thinned units
+  burn = as.integer(ceiling(72000 / thin)),
   seed = 20260709L,
   report = 25L,
   fixedGlue = FALSE
