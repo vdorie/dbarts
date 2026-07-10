@@ -213,8 +213,10 @@ items
     neutral, catches both modes), (b) finite default scale
     (posterior-changing for every chi user; belongs with
     chi-default-research), (c) warn on updateK + scale=Inf.
-    Orchestrator recommends (a) now + fold the default question
-    into chi-default-research.
+    DECIDED (VD, 2026-07-10): option (a) - sentinel cap now;
+    the default-scale question folds into chi-default-research
+    part 2. Ready to implement (queued behind the in-flight
+    small-validation-fixes landing).
   interface-fixes-1.0: interface-review deliverable (plan file has
     the full F/D lists). Code: weigths PPD typo, single-chain
     extract-trees crash, dead missing="error" net + silent row
@@ -281,6 +283,21 @@ items
     optional-block state format ONCE before the family wave (each
     new family otherwise bumps stateFormatVersion and orphans all
     saved states serially). VD decision.
+  sbc-ci-gate: DECIDED (VD, 2026-07-10): add the gaussian SBC
+    baseline (R=100, ~26s) as a NON-BLOCKING CI workflow (reports,
+    does not gate PRs - a statistical test at R=100 will
+    occasionally false-alarm). Small, CI yaml + a thin driver over
+    benchmarks/R/sbc.R.
+  roadmap-order: DECIDED (VD, 2026-07-10), from the review-5
+    survey: (1) the three cheap high-demand items first -
+    prior-predictive (#31), weighted-binary semantics (#79),
+    pointwise-loglik (#25/#37) - each small and independently
+    landable; (2) then survival-models promoted to first tier
+    (AFT log-normal first, riAFTBART the landing consumer);
+    (3) then grow-from-root-warm-start (approved, strategic
+    rather than demand-pulled). chi-default-research part 2
+    runs when convenient (simulation, machine-bound not
+    decision-bound).
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
