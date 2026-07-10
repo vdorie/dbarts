@@ -277,11 +277,13 @@ items
     the never-silently-misinterpret safety while ending the
     every-change-orphans-all-states behavior. Absorbs
     flat-format-v2. Medium; land before 1.0-0 submission.
-  sbc-ci-gate: DECIDED (VD, 2026-07-10): add the gaussian SBC
-    baseline (R=100, ~26s) as a NON-BLOCKING CI workflow (reports,
-    does not gate PRs - a statistical test at R=100 will
-    occasionally false-alarm). Small, CI yaml + a thin driver over
-    benchmarks/R/sbc.R.
+  sbc-ci-gate: LANDED 2026-07-10 (ed34eea). .github/workflows/
+    sbc.yaml runs the gaussian SBC baseline (R=100, ~27s local) on
+    a weekly cron + workflow_dispatch only - no PR triggers, so a
+    statistical false alarm cannot block merges but a FLAG turns
+    the scheduled run red. Opt-in SBC_FAIL_ON_FLAG env var in the
+    sbc.R CLI (source() usage untouched); harness seeds already
+    fixed, so runs are deterministic.
   roadmap-order: DECIDED (VD, 2026-07-10), from the review-5
     survey: (1) the three cheap high-demand items first -
     prior-predictive (#31), weighted-binary semantics (#79),
