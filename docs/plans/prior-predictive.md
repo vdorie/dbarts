@@ -188,3 +188,12 @@ Gates (worktree, private library
   semantics re-documented in the Rd, regression check added to the tests
   (17 checks now), and all gates re-run green. Amended into the single
   landing commit.
+
+- 2026-07-10: LANDED as c37ec3b (squash of wt/prior-predictive).
+  Review caught one defect in the first draft - copy(shallow=FALSE)
+  installs the donor's saved state including the engine RNG, so
+  successive calls replayed one frozen stream (verified empirically:
+  no-seed calls bit-identical) - fixed by fresh construction without
+  setState; the three seeding behaviors are now tested. Reviewer
+  re-ran gates on the landed shared-library build: tinytest 2547/0,
+  equivalence 21/21 identical.
