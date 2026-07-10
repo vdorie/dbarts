@@ -434,14 +434,16 @@ items
     FUTURE (unchanged, post 1.0): integer-weight probit via
     replicated latents; arbitrary real weights need a real-shape
     PG sampler (IPW is a pseudo-likelihood trap).
-  cpp-weighted-logistic-test-miswire: found 2026-07-10 during the
-    loglik channel work. tests/cpp testWeightedLogistic passes w in
-    the OFFSET position (the constructor order is (x, y, n, p,
-    weights, offset)), so the case exercises an offset, not
-    weights; the weighted-logistic engine path is component-tested
-    only via the new loglik case (R-level coverage exists in
-    test-weighted-logistic.R). Fix the argument order and re-derive
-    what the case should assert. Small, tests-only.
+  cpp-weighted-logistic-test-miswire: RESOLVED 2026-07-10 (305406b).
+    tests/cpp testWeightedLogistic passed w in the OFFSET position
+    (constructor order (x, y, n, p, weights, offset)) at all three
+    constructions, so it exercised an offset, not weights. Rewired
+    onto the weights slot and the assertion re-derived: outcome-tied
+    weights (successes 4x) make the fitted per-quartile probability
+    calibrate to the WEIGHTED rate sum(w*y)/sum(w) - the replicated
+    data's rate - which a dropped weight misses by 0.31/0.15
+    (poison-proven; tolerance 0.12). Offset coverage was not
+    lost-unique (test_sampler.cpp:1307 et al.). Tests-only.
   within-chain-threading: previously assessed-and-deferred pending
     n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
     reductions preserve thread-count invariance; the measurement
