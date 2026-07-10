@@ -91,7 +91,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <span>    keepSampler <span class="op">=</span> <span class="va">keepTrees</span>,</span>
 <span>    warm.start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
-<span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span><span class="op">)</span>,</span>
+<span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span>, <span class="st">"aft"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>    <span class="va">...</span><span class="op">)</span></span>
 <span></span>
@@ -370,7 +370,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>Burn-in draws of <code>k</code>, if modeled.</p></dd>
 
   <dt><code>family</code></dt>
-<dd><p>The resolved response family (<code>"gaussian"</code>, <code>"probit"</code>, or <code>"logistic"</code>). <code>predict</code>, <code>extract</code>, <code>fitted</code>, and <code>plot</code> use it to transform latent draws to probabilities.</p></dd>
+<dd><p>The resolved response family (<code>"gaussian"</code>, <code>"probit"</code>, <code>"logistic"</code>, or <code>"aft"</code>). <code>predict</code>, <code>extract</code>, <code>fitted</code>, and <code>plot</code> use it to transform latent draws to probabilities. For an <code>"aft"</code> fit, predictions and fitted values are on the LOG-TIME scale: these functions return the linear predictor \(E[\log T \mid x]\), exactly as for a gaussian fit of \(\log T\), and never the time scale that <code>survreg</code> or <code>flexsurv</code> users might expect. The <code>type</code> aliases <code>"response"</code> and <code>"link"</code> are inert for <code>"aft"</code> - both return the same log-scale linear predictor; neither exponentiates. The posterior-median survival time is <code>exp</code> of the linear predictor, and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> gives survival-probability draws.</p></dd>
 
 
 </dl><p>In the binary \(y\) case, the returned list has the components <code>yhat.train</code>, <code>yhat.test</code>, and <code>varcount</code> as above, but not <code>yhat.train.mean</code>/<code>yhat.test.mean</code> - use <code>fitted</code> to get the posterior mean of \(P(Y = 1 \mid x)\) instead. In addition the list has a <code>binaryOffset</code> component giving the value used.</p>
@@ -463,7 +463,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.228573</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.225001</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -529,7 +529,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001348</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001328</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>

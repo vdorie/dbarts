@@ -48,7 +48,7 @@ bart2(
     keepSampler = keepTrees,
     warm.start = NULL,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"),
     ...)
 
@@ -690,9 +690,18 @@ numeric \\y\\ case, the list has components:
 
 - `family`:
 
-  The resolved response family (`"gaussian"`, `"probit"`, or
-  `"logistic"`). `predict`, `extract`, `fitted`, and `plot` use it to
-  transform latent draws to probabilities.
+  The resolved response family (`"gaussian"`, `"probit"`, `"logistic"`,
+  or `"aft"`). `predict`, `extract`, `fitted`, and `plot` use it to
+  transform latent draws to probabilities. For an `"aft"` fit,
+  predictions and fitted values are on the LOG-TIME scale: these
+  functions return the linear predictor \\E\[\log T \mid x\]\\, exactly
+  as for a gaussian fit of \\\log T\\, and never the time scale that
+  `survreg` or `flexsurv` users might expect. The `type` aliases
+  `"response"` and `"link"` are inert for `"aft"` - both return the same
+  log-scale linear predictor; neither exponentiates. The
+  posterior-median survival time is `exp` of the linear predictor, and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  gives survival-probability draws.
 
 In the binary \\y\\ case, the returned list has the components
 `yhat.train`, `yhat.test`, and `varcount` as above, but not
@@ -801,7 +810,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.228573
+#> total seconds in loop: 0.225001
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -867,7 +876,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001348
+#> total seconds in loop: 0.001328
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

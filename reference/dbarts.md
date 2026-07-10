@@ -15,7 +15,7 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"))
 ```
 
@@ -189,8 +189,23 @@ dbarts(
   `"gaussian"` forces a continuous fit even for a 0/1 response;
   `"probit"` and `"logistic"` require a 0/1 response and fit
   latent-variable models, with fits and predictions on the latent scale.
-  `"logistic"` uses Polya-Gamma augmentation. See `weights` for how the
-  families differ in their support for weights.
+  `"logistic"` uses Polya-Gamma augmentation. `"aft"` fits an
+  accelerated failure time (log-normal) survival model: the response is
+  a `Surv` object (from the survival package) or a two-column
+  `(time, status)` matrix or data frame (status 1 an event, 0
+  right-censored; logical status also works, factor status does not),
+  and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  produces survival-probability draws. Fits and predictions are on the
+  log-time scale (\\E\[\log T \mid x\]\\), not the time scale. A `Surv`
+  response selects `"aft"` automatically when `family` is `"auto"`; an
+  explicitly conflicting family (e.g. `"gaussian"`) with a `Surv`
+  response is an error. A `Surv`-like object carrying no `type`
+  attribute is treated as right-censored; `type`s other than `"right"`
+  are rejected. Survival fits currently use the matrix
+  (`x.train`/`y.train`) interface and do not support `subset` or case
+  weights. See `weights` for how the families differ in their support
+  for weights.
 
 - missing:
 

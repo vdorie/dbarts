@@ -69,6 +69,13 @@ weights can change between draws, for use inside larger MCMC schemes.
 - [`updatePredictorPerObservationJointly()`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
   : Jointly Update a Shared Predictor per Observation Across Samplers
 
+## Survival
+
+Accelerated failure time survival curves.
+
+- [`survivalProbabilities()`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  : Survival Probability Draws from an AFT Fit
+
 ## Diagnostics
 
 Convergence summaries and posterior draw extraction.
