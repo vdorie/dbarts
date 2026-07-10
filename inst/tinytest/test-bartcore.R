@@ -737,20 +737,22 @@ forest.bad$tree.values[value.bytes] <- writeBin(old.cut + 1e-3, raw())
 state.bad[[1L]]$forests[[1L]] <- forest.bad
 expect_error(sampler.us$setState(state.bad), pattern = "not consistent")
 
-# a state from an incompatible format version refuses cleanly, naming both
-# versions, and mutates nothing; a current-version state still restores it
+# a state whose encoding predates the reader's floor refuses cleanly, naming
+# both versions, and mutates nothing; a current-version state still restores
+# it. A FUTURE additive version, by contrast, loads (test-sampler-state-format
+# covers that by-name path); only a below-floor encoding is refused.
 sampler.version <- dbarts(x, y, control = control.state)
 invisible(sampler.version$run(30L, 2L))
 sampler.version$storeState()
 state.goodVersion <- sampler.version$state
-state.futureVersion <- state.goodVersion
-attr(state.futureVersion, "formatVersion") <-
-  attr(state.futureVersion, "formatVersion") + 1L
+state.oldVersion <- state.goodVersion
+attr(state.oldVersion, "formatVersion") <-
+  attr(state.oldVersion, "formatVersion") - 1L
 
 sampler.reference <- dbarts(x, y, control = control.state)
 expect_error(
-  sampler.reference$setState(state.futureVersion),
-  pattern = "format version"
+  sampler.reference$setState(state.oldVersion),
+  pattern = "encoding version.*oldest"
 )
 expect_null(sampler.reference$state)
 sampler.reference$setState(state.goodVersion)

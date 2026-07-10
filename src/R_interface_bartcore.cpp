@@ -2770,19 +2770,35 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 
 namespace bartcore_bridge {
 
-// Bumped by any change to the layout storeState/setState exchange (tree
-// encoding, per-chain slots, attributes). States load only within a format
-// version; there are no migration shims. Version 2 tags each flat node and
-// stores its payload as a raw word - an inline categorical mask no longer
-// bit-casts through a double - so the side channel holds only pooled masks
-// (past 63 categories). It also drops the accumulation-history slots
-// (total.fits, indices) and the variance prior's internal scale (the third
-// fit.scale element): restore rebuilds them from the trees, and sigma rides
-// on the original response scale. Version 3 gives each chain's tree channels a
-// forest dimension (docs/design/bcf.md): the tree/saved/param/mask/k slots
-// move into a per-chain "forests" list, and BCF adds a "bcf" glue slot
-// (a, aVariance, b0, b1). A single-forest state is a length-1 forest list.
+// Provenance stamp for the on-disk layout storeState/setState exchange.
+// Version 2 tags each flat node and stores its payload as a raw word - an
+// inline categorical mask no longer bit-casts through a double - so the side
+// channel holds only pooled masks (past 63 categories). It also drops the
+// accumulation-history slots (total.fits, indices) and the variance prior's
+// internal scale (the third fit.scale element): restore rebuilds them from the
+// trees, and sigma rides on the original response scale. Version 3 gives each
+// chain's tree channels a forest dimension (docs/design/bcf.md): the
+// tree/saved/param/mask/k slots move into a per-chain "forests" list, and BCF
+// adds a "bcf" glue slot (a, aVariance, b0, b1). A single-forest state is a
+// length-1 forest list.
+//
+// Registry rule for evolving the format (docs/design/public-surface.md 2):
+// block names are APPEND-ONLY and a shipped name's on-disk encoding is FROZEN.
+// A new capability adds a NEW optional block name; setState reads blocks by
+// name (getListElement), defaults an absent OPTIONAL block, and refuses -
+// naming the block - only when a REQUIRED (or config-conditionally-required)
+// block is missing. So an ADDITIVE block addition does NOT bump the version
+// (an old reader ignores the unknown name; a new reader defaults it), and MUST
+// NOT bump minReadableStateFormatVersion. Only a non-additive change to an
+// existing block's encoding - one that cannot be expressed as a new name -
+// bumps both.
 static const int stateFormatVersion = 3;
+
+// The oldest ENCODING this reader still understands: additive block additions
+// leave it here; only a non-additive encoding change raises it. Currently 3
+// (the 1.0-0 encoding); pre-1.0 states are not a compat target and cannot
+// structurally reach the by-name reader (they lack the "forests" block).
+static const int minReadableStateFormatVersion = 3;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
@@ -2956,16 +2972,19 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   int formatVersion = Rf_isInteger(formatVersionExpr) &&
       Rf_xlength(formatVersionExpr) == 1 ? INTEGER(formatVersionExpr)[0] : 0;
   UNPROTECT(1);
-  if (formatVersion != stateFormatVersion) {
+  // An encoding floor, not an equality gate: a newer release's additive blocks
+  // are read by name and defaulted when absent, so a state written by any
+  // release at or past the floor loads; only a genuinely older, incompatible
+  // encoding is refused (registry rule at minReadableStateFormatVersion).
+  if (formatVersion < minReadableStateFormatVersion) {
     SEXP packageVersionExpr =
       Rf_getAttrib(stateExpr, Rf_install("packageVersion"));
     const char* packageVersion = Rf_isString(packageVersionExpr) &&
         Rf_xlength(packageVersionExpr) == 1 ?
       CHAR(STRING_ELT(packageVersionExpr, 0)) : "unknown";
-    Rf_error("state format version %d (written by dbarts %s) is not "
-             "compatible with this dbarts's format version %d; re-fit or "
-             "use the dbarts release that wrote it", formatVersion,
-             packageVersion, stateFormatVersion);
+    Rf_error("state encoding version %d (written by dbarts %s) predates the "
+             "oldest this dbarts (%d) can read; re-fit with this version",
+             formatVersion, packageVersion, minReadableStateFormatVersion);
   }
 
   if (static_cast<size_t>(Rf_xlength(stateExpr)) != sampler.numChains())
@@ -2974,6 +2993,21 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
   // Rf_error longjmps past destructors, so parse with an error accumulator,
   // free the C++ state, and error at the end.
   const char* errorMessage = NULL;
+
+  // Block-name refusals: a REQUIRED (or config-conditionally-required) block
+  // is named on absence vs malformation. The buffer outlives every break and
+  // the final Rf_error below, which longjmps past this frame.
+  char blockError[96];
+  auto missingBlock = [&blockError](const char* name) -> const char* {
+    std::snprintf(blockError, sizeof blockError,
+                  "bartcore state is missing required block '%s'", name);
+    return blockError;
+  };
+  auto malformedBlock = [&blockError](const char* name) -> const char* {
+    std::snprintf(blockError, sizeof blockError,
+                  "bartcore state block '%s' is malformed", name);
+    return blockError;
+  };
 
   bartcore::SamplerStateData state;
   state.chains.resize(sampler.numChains());
@@ -3013,8 +3047,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     bartcore::ChainStateData& chainState(state.chains[c]);
 
     SEXP forestsExpr = getListElement(chainExpr, "forests");
-    if (Rf_isNull(forestsExpr) || TYPEOF(forestsExpr) != VECSXP) {
-      errorMessage = "malformed forests in bartcore state";
+    if (Rf_isNull(forestsExpr)) {
+      errorMessage = missingBlock("forests");
+      break;
+    }
+    if (TYPEOF(forestsExpr) != VECSXP) {
+      errorMessage = malformedBlock("forests");
       break;
     }
     size_t numForests = static_cast<size_t>(Rf_xlength(forestsExpr));
@@ -3026,6 +3064,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
       SEXP forestExpr = VECTOR_ELT(forestsExpr, static_cast<R_xlen_t>(f));
       bartcore::ForestStateData& fs(chainState.forests[f]);
 
+      if (Rf_isNull(getListElement(forestExpr, "tree.vars"))) {
+        errorMessage = missingBlock("tree.vars");
+        break;
+      }
       if (!readFlatTrees(getListElement(forestExpr, "tree.vars"),
                          getListElement(forestExpr, "tree.values"),
                          getListElement(forestExpr, "tree.sizes"),
@@ -3044,6 +3086,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
       // linear-leaf states must carry their slope arrays; function-valued
       // states carry fits slabs and variable-length saved blocks instead
       if (sampler.usesFunctionLeaves()) {
+        if (Rf_isNull(getListElement(forestExpr, "tree.params"))) {
+          errorMessage = missingBlock("tree.params");
+          break;
+        }
         if (!readFunctionTreeParams(getListElement(forestExpr, "tree.params"),
                                     fs.trees.size(), sampler.numObservations(),
                                     fs.treeParams, &errorMessage))
@@ -3054,6 +3100,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
                                      fs.savedTreeParams, &errorMessage))
           break;
       } else if (numLeafCovariates > 0) {
+        if (Rf_isNull(getListElement(forestExpr, "tree.params"))) {
+          errorMessage = missingBlock("tree.params");
+          break;
+        }
         if (!readTreeParams(getListElement(forestExpr, "tree.params"),
                             fs.trees, numLeafCovariates, fs.treeParams,
                             &errorMessage))
@@ -3067,6 +3117,10 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
 
       // pooled-categorical states must carry their mask channels
       if (sampler.data().hasPooledCategorical) {
+        if (Rf_isNull(getListElement(forestExpr, "tree.masks"))) {
+          errorMessage = missingBlock("tree.masks");
+          break;
+        }
         if (!readTreeMasks(getListElement(forestExpr, "tree.masks"), fs.trees,
                            sampler.data(), fs.treeMasks, &errorMessage))
           break;
@@ -3078,8 +3132,12 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
       }
 
       SEXP kExpr = getListElement(forestExpr, "k");
+      if (Rf_isNull(kExpr)) {
+        errorMessage = missingBlock("k");
+        break;
+      }
       if (!Rf_isReal(kExpr) || Rf_xlength(kExpr) != 1) {
-        errorMessage = "malformed parameters in bartcore state";
+        errorMessage = malformedBlock("k");
         break;
       }
       fs.k = REAL(kExpr)[0];
@@ -3087,15 +3145,23 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     if (errorMessage != NULL) break;
 
     SEXP sigmaExpr = getListElement(chainExpr, "sigma");
+    if (Rf_isNull(sigmaExpr)) {
+      errorMessage = missingBlock("sigma");
+      break;
+    }
     if (!Rf_isReal(sigmaExpr) || Rf_xlength(sigmaExpr) != 1) {
-      errorMessage = "malformed parameters in bartcore state";
+      errorMessage = malformedBlock("sigma");
       break;
     }
     chainState.sigma = REAL(sigmaExpr)[0];
 
     SEXP fitScaleExpr = getListElement(chainExpr, "fit.scale");
+    if (Rf_isNull(fitScaleExpr)) {
+      errorMessage = missingBlock("fit.scale");
+      break;
+    }
     if (!Rf_isReal(fitScaleExpr) || Rf_xlength(fitScaleExpr) != 2) {
-      errorMessage = "malformed fit scale in bartcore state";
+      errorMessage = malformedBlock("fit.scale");
       break;
     }
     chainState.fitMin = REAL(fitScaleExpr)[0];
@@ -3334,10 +3400,10 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
   int formatVersion = Rf_isInteger(formatVersionExpr) &&
       Rf_xlength(formatVersionExpr) == 1 ? INTEGER(formatVersionExpr)[0] : 0;
   UNPROTECT(1);
-  if (formatVersion != stateFormatVersion)
-    Rf_error("warm-start donor state format version %d is not compatible with "
-             "this dbarts's format version %d; re-fit the donor",
-             formatVersion, stateFormatVersion);
+  if (formatVersion < minReadableStateFormatVersion)
+    Rf_error("warm-start donor encoding version %d predates the oldest this "
+             "dbarts (%d) can read; re-fit the donor",
+             formatVersion, minReadableStateFormatVersion);
 
   bartcore::SamplerStateData donor;
   const char* errorMessage = readWarmStartState(donorStateExpr, sampler, donor);
