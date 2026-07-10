@@ -197,24 +197,15 @@ items
     equivalence 18/18. tests/cpp testChiKEmptyLeafAccounting via a
     chain fabrication hook is the regression;
     chi-k-empty-leaf-count.md has the record.
-  chi-k-runaway: review-6 numerical finding (seed 6), REAL. chi()'s
-    scale = Inf DEFAULT (R/model.R:451) is an improper prior; when
-    leaves are prior-dominated the k-Gibbs fixed-point factor
-    (1 + df/numLeaves) exceeds 1, so legal settings run away: chi
-    (100, Inf) deterministically (k -> 1e25+, leaf sd -> 0, the
-    forest fits NOTHING, sigma -> marginal sd, NO error); few-tree
-    df=1.5 stochastically (k to 1e21 observed). chi(100, scale=2)
-    stabilizes at k~21 with a healthy fit. The default 200-tree
-    chi(1.5) survives only because data usually overcome the
-    1.0037 per-sweep factor. REMEDY IS VD'S CALL: (a) sentinel cap
-    on k (~1e6 = leaf sd statistically zero; nearly behavior-
-    neutral, catches both modes), (b) finite default scale
-    (posterior-changing for every chi user; belongs with
-    chi-default-research), (c) warn on updateK + scale=Inf.
-    DECIDED (VD, 2026-07-10): option (a) - sentinel cap now;
-    the default-scale question folds into chi-default-research
-    part 2. Ready to implement (queued behind the in-flight
-    small-validation-fixes landing).
+  chi-k-runaway: LANDED 2026-07-10 (4797bc0). ChiKHyperprior::draw
+    caps the sampled k at a 1e6 sentinel applied after the gamma
+    draw, so runs below the cap are bit-identical (equivalence
+    21/21 identical) and both runaway modes (chi(100, Inf)
+    deterministic, few-tree df=1.5 stochastic) are bounded at a
+    leaf sd that is statistically zero on the standardized
+    response. State restore deliberately uncapped (draw() is the
+    sole stochastic origin; reasoning in chi-k-runaway.md). The
+    default-scale question stays with chi-default-research part 2.
   interface-fixes-1.0: interface-review deliverable (plan file has
     the full F/D lists). Code: weigths PPD typo, single-chain
     extract-trees crash, dead missing="error" net + silent row
