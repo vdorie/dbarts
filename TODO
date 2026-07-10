@@ -317,8 +317,15 @@ items
     landed. Successors: frontier items 4-5.
   pointwise-loglik: per-observation log-likelihood as a Results field
     (null-skip), unlocking loo/WAIC integration.
-  prior-predictive: R-level verbs over the already-ported prior
-    sampling entry points, for prior calibration workflows.
+  prior-predictive: LANDED 2026-07-10 (c37ec3b). Exported
+    samplePriorPredictive(sampler, x.test, n.samples, type =
+    ev/ppd): fresh private sampler per call (NOT copy() - that
+    replays the donor's frozen engine RNG; caught in review),
+    prior tree + node-parameter draws evaluated at x.test, ppd
+    adds prior-drawn scaled-inv-chisq sigma noise (gaussian) or
+    bernoulli draws (binary); independent across calls, set.seed
+    reproducible, control rngSeed pins. Rd has the issue-#31
+    treatment-effect example.
   retrospective-reviews: GREENLIT program of six reviews (correctness
     derivation audit, interface, gate blind spots, SBC calibration,
     field roadmap survey, architecture critique + numerical
