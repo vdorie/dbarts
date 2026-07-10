@@ -151,7 +151,7 @@ predict.bart <- function(
     }
 
     if (type == "ppd") {
-      result <- sampleFromPPD(result, object, weights)
+      result <- sampleFromPPD(result, object, weights, n.chains)
     }
   }
 
@@ -278,7 +278,7 @@ extract.bart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights)
+    result <- sampleFromPPD(result, object, weights, n.chains)
   }
 
   result
@@ -567,7 +567,7 @@ predict.rbart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights)
+    result <- sampleFromPPD(result, object, weights, n.chains)
   }
 
   if (!is.null(ci.level)) {
@@ -771,7 +771,7 @@ extract.rbart <- function(
   }
 
   if (type == "ppd") {
-    result <- sampleFromPPD(result, object, weights)
+    result <- sampleFromPPD(result, object, weights, n.chains)
   }
 
   result
@@ -935,19 +935,18 @@ plotTree.rbart <- function(
 }
 
 
-# NOTE: this is outdated
-# ev (expected value) should have dimensions
-#   n.samples x n.chains x n.obs, (n.samples * n.chains n.obs),
-#   or n.samples x n.obs if n.chains = 1
-#
-# ev consists of contiguous blocks of length equal to the number of
-# samples, so that ev[1:totalNumSamples] should get paired with
-# as.vector(sigma), and then repeated from there
-#
-#
-# for ev of dim n.chains x n.samples x n.obs (bart default),
-# each sigma needs to be repeated as below
-sampleFromPPD <- function(ev, object, weights) {
+# ev (expected value) enters in the caller's requested layout: chains split
+# ((n.chains x) n.samples x n.obs, obs last) or chains combined ((n.chains *
+# n.samples) x n.obs, chain-blocked rows - all of chain 1's samples, then
+# chain 2's). The gaussian noise is always drawn in object$sigma's own
+# native chain-fastest order (matching both of its storage layouts, verified
+# empirically), so every draw gets its own sigma regardless of the requested
+# output shape; when ev is combined, the freshly drawn noise is reshaped -
+# not redrawn - with the same combineChains() helper the stored draws
+# themselves go through, so a combined and a split ppd draw from the same
+# seed agree bit-for-bit after accounting for row order. n.chains is needed
+# only to perform that reshape.
+sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   oldSeed <- NULL
   if (!is.null(object[["seed"]])) {
     oldSeed <- .GlobalEnv$.Random.seed
@@ -974,12 +973,19 @@ sampleFromPPD <- function(ev, object, weights) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      result <- ev +
-        rnorm(
-          n.obs * length(object$sigma),
-          0,
-          rep_len(object$sigma, n.obs * length(object$sigma))
-        )
+      n.draws <- length(object$sigma)
+      noise <- rnorm(
+        n.obs * n.draws,
+        0,
+        rep_len(object$sigma, n.obs * n.draws)
+      )
+      if (n.chains > 1L && length(dim(ev)) < 3L) {
+        noise <- combineChains(array(
+          noise,
+          c(n.chains, n.draws %/% n.chains, n.obs)
+        ))
+      }
+      result <- ev + noise
     }
   } else {
     if (responseIsBinary) {
@@ -1005,10 +1011,17 @@ sampleFromPPD <- function(ev, object, weights) {
       }
     } else {
       n.obs <- dim(ev)[length(dim(ev))]
-      n.samples <- length(object$sigma)
-      sigma <- rep_len(object$sigma, n.obs * n.samples) *
-        rep(sqrt(1 / weights), each = n.samples)
-      result <- ev + rnorm(n.obs * n.samples, 0, sigma)
+      n.draws <- length(object$sigma)
+      sd <- rep_len(object$sigma, n.obs * n.draws) *
+        rep(sqrt(1 / weights), each = n.draws)
+      noise <- rnorm(n.obs * n.draws, 0, sd)
+      if (n.chains > 1L && length(dim(ev)) < 3L) {
+        noise <- combineChains(array(
+          noise,
+          c(n.chains, n.draws %/% n.chains, n.obs)
+        ))
+      }
+      result <- ev + noise
     }
   }
   if (!is.null(oldSeed)) {
