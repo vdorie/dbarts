@@ -150,3 +150,11 @@ Gates, worktree at .claude/worktrees/ppd-sigma-pairing, private library
   (tinytest 2590/0, equivalence 21/21 identical, 0 lints on all three
   touched files, pre-fix regression check confirmed the new tests catch
   the bug in every multi-chain case and leave single-chain alone).
+
+- 2026-07-10: LANDED as 03a5b85 (squash of wt/ppd-sigma-pairing).
+  Reviewer verified the pairing arithmetic in all four branches
+  (native-order noise + combineChains reshape) and re-ran gates on
+  the landed shared-library build: tinytest 2590/0, equivalence
+  21/21 identical. The implementer's pre-fix regression run (4/5
+  scenarios fail on the old code, single-chain passes) is the
+  defect's closing proof.

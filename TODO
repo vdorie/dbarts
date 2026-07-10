@@ -327,18 +327,15 @@ items
     chain-fastest in both stored layouts, locked by
     layout-invariance tests). The engine-side Results field
     version rides c-api-growth.
-  ppd-sigma-pairing: pre-existing defect surfaced by
-    pointwise-loglik (2026-07-10). For multi-chain
-    combineChains=TRUE gaussian fits, sampleFromPPD recycles
-    object$sigma (chain-INTERLEAVED in the combined layout,
-    verified empirically) against ev rows that are chain-BLOCKED,
-    so PPD noise pairs sigma draws with the wrong posterior draws.
-    Marginal mean/scale barely move (draws are exchangeable) but
-    the within-draw (f, sigma) coupling is lost - PPD intervals
-    subtly miscalibrated for multi-chain combined fits only. Fix:
-    pair on chains-split ev like pointwiseLogLikelihood does (or
-    reorder sigma); small R fix + a layout-invariance regression
-    test mirroring test-pointwise-loglik.R's.
+  ppd-sigma-pairing: LANDED 2026-07-10 (03a5b85). sampleFromPPD
+    now draws gaussian noise in object$sigma's native chain-fastest
+    order and reshapes the noise through combineChains when ev is
+    combined, so every ppd draw pairs with its own draw's sigma in
+    both layouts and same-seed combined/split draws agree
+    bit-for-bit; single-chain draws bit-identical to before. The
+    one pre-existing test that encoded the buggy formula was
+    updated; pre-fix regression run confirmed 4/5 new scenarios
+    fail on the old code.
   prior-predictive: LANDED 2026-07-10 (c37ec3b). Exported
     samplePriorPredictive(sampler, x.test, n.samples, type =
     ev/ppd): fresh private sampler per call (NOT copy() - that
