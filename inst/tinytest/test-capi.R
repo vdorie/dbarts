@@ -82,6 +82,15 @@ CALL("capi_sample_trees_from_prior", ptr2)
 r2 <- CALL("capi_run", ptr2, 5L, nSamples, TRUE, TRUE)
 expect_identical(r1, r2)
 
+# the write guard on the size-first results struct: a caller whose struct
+# predates a field (structSize pinned below it) is never written past its
+# declared size, even for fields the sampler produces (varcount, test) - a
+# size-blind write would crash on the poisoned pointers the canary installs
+# past the boundary
+ptrGuard <- CALL("capi_create", spec$control, spec$model, spec$data, "")
+CALL("capi_sample_trees_from_prior", ptrGuard)
+expect_true(CALL("capi_run_guard", ptrGuard, 5L, nSamples))
+
 # null buffers skip quantities
 r3 <- CALL("capi_run", ptr2, 0L, 2L, FALSE, FALSE)
 expect_null(r3$train)
