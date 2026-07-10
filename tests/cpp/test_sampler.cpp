@@ -279,33 +279,38 @@ static void testEndToEndLogistic(ext_rng* rng) {
   printf("ok: end-to-end logistic\n");
 }
 
+// Integer frequency weights in the logistic family are exactly row
+// replication: a weight-w observation's Polya-Gamma latent is PG(w, psi),
+// drawn as the sum of w PG(1, psi) variates (docs/plans/weighted-binary.md),
+// so its contribution to every leaf sufficient statistic equals that of w
+// identical rows. The distinguishing consequence this case pins is that the
+// fitted success probability in a region tracks the WEIGHTED empirical rate
+// there, sum(w*y)/sum(w) - i.e. the empirical rate of the replicated data -
+// not the unweighted rate. Outcome-tied weights (successes counted
+// wSuccess-fold) separate the two, so honoring the weights pulls the fit
+// materially above the unweighted curve; the loglik precedent (testLogLikelihood
+// case 4) and inst/tinytest/test-weighted-logistic.R cover the rest.
 static void testWeightedLogistic(ext_rng* rng) {
-  const size_t n = 400, p = 3;
-  std::vector<double> x(n * p), y(n);
+  const size_t n = 800, p = 3;
+  const double wSuccess = 4.0, wFailure = 1.0;
+  std::vector<double> x(n * p), y(n), w(n);
   for (double& v : x) v = runif01();
   for (size_t i = 0; i < n; ++i) {
     double eta = 4.0 * (x[i] - 0.5);
     double probability = 1.0 / (1.0 + std::exp(-eta));
     y[i] = runif01() < probability ? 1.0 : 0.0;
+    w[i] = y[i] != 0.0 ? wSuccess : wFailure;
   }
 
   SamplerOptions options;
   options.numTrees = 50;
   options.nodeScale = 3.0;
 
-  // integer-count weights: a count-w observation's Polya-Gamma latent is
-  // PG(w, psi), drawn as the sum of w PG(1, psi) variates. Correctness is
-  // pinned by determinism here and against the replicated-rows fit in
-  // test-weighted-logistic.R. (This does NOT assert weight-1 == unweighted:
-  // that equality holds through the engine, but comparing two separately-
-  // constructed samplers here is subject to the codebase's heap-layout /
-  // SIMD-reduction-split sensitivity, so a bitwise cross-sampler check is
-  // unreliable in this harness regardless of weights.)
-  std::vector<double> w(n);
-  for (size_t i = 0; i < n; ++i) w[i] = static_cast<double>(1 + (i % 3));
-
-  // the weighted path is deterministic: identical weights and seed reproduce
-  // the draw bit for bit
+  // (1) determinism: identical weights and seed reproduce the draw bit for
+  // bit. This is an identical-construction comparison, so it is immune to the
+  // heap-layout / SIMD-reduction-split sensitivity that makes cross-sampler
+  // bitwise checks (e.g. weighted vs replicated) unreliable in this harness -
+  // which is why the replication equivalence below is asserted statistically.
   ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 908) != 0 ||
@@ -313,42 +318,69 @@ static void testWeightedLogistic(ext_rng* rng) {
     check(false, "weighted logistic: rng creation");
     return;
   }
-  ConstantLeafSampler a(x.data(), y.data(), n, p, nullptr, w.data(),
+  ConstantLeafSampler a(x.data(), y.data(), n, p, w.data(), nullptr,
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngA);
-  ConstantLeafSampler b(x.data(), y.data(), n, p, nullptr, w.data(),
+  ConstantLeafSampler b(x.data(), y.data(), n, p, w.data(), nullptr,
                    ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rngB);
-  const size_t numBurnIn = 20, numSamples = 30;
-  std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+  const size_t detBurnIn = 20, detSamples = 30;
+  std::vector<double> fitsA(n * detSamples), fitsB(n * detSamples);
   Results rA, rB;
   rA.trainingFits = fitsA.data();
   rB.trainingFits = fitsB.data();
-  a.run(numBurnIn, numSamples, rA);
-  b.run(numBurnIn, numSamples, rB);
+  a.run(detBurnIn, detSamples, rA);
+  b.run(detBurnIn, detSamples, rB);
   bool identical = true;
-  for (size_t i = 0; i < n * numSamples && identical; ++i)
+  for (size_t i = 0; i < n * detSamples && identical; ++i)
     identical = fitsA[i] == fitsB[i];
   check(identical, "weighted logistic is deterministic under a fixed seed");
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
 
-  // the weighted fit recovers the monotone signal and its omega latents stay
-  // positive and finite
-  ConstantLeafSampler wsampler(x.data(), y.data(), n, p, nullptr, w.data(),
+  // (2) a full weighted fit
+  ConstantLeafSampler wsampler(x.data(), y.data(), n, p, w.data(), nullptr,
                           ResponseFamily::logistic, 1.0, 3.0, 1.0, options, &rng);
-  const size_t wSamples = 200;
-  std::vector<double> wfits(n * wSamples);
+  const size_t numBurnIn = 150, numSamples = 200;
+  std::vector<double> wfits(n * numSamples);
   Results wres;
   wres.trainingFits = wfits.data();
-  wsampler.run(150, wSamples, wres);
+  wsampler.run(numBurnIn, numSamples, wres);
+
+  // the log-odds fit stays monotone in x1
   double lowSum = 0.0, highSum = 0.0;
   size_t lowCount = 0, highCount = 0;
-  for (size_t s = 0; s < wSamples; ++s)
+  for (size_t s = 0; s < numSamples; ++s)
     for (size_t i = 0; i < n; ++i) {
       if (x[i] < 0.25) { lowSum += wfits[i + s * n]; ++lowCount; }
       if (x[i] > 0.75) { highSum += wfits[i + s * n]; ++highCount; }
     }
-  check(highSum / (double) highCount > lowSum / (double) lowCount + 0.5,
-        "weighted logistic recovers monotone signal");
+  double lowFit = lowSum / (double) lowCount;
+  double highFit = highSum / (double) highCount;
+  check(highFit > lowFit + 0.5, "weighted logistic recovers monotone signal");
+
+  // the weight-specific claim: each quartile's fitted probability calibrates
+  // to that quartile's WEIGHTED success rate sum(w*y)/sum(w), the rate the
+  // replicated data would exhibit. Since successes are up-weighted, the
+  // unweighted rate sum(y)/count is strictly lower - so calibrating to the
+  // weighted rate is exactly what an honored weight does and a dropped or
+  // miswired one does not.
+  double lowNum = 0.0, lowDen = 0.0, highNum = 0.0, highDen = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    if (x[i] < 0.25) { lowNum += w[i] * y[i]; lowDen += w[i]; }
+    if (x[i] > 0.75) { highNum += w[i] * y[i]; highDen += w[i]; }
+  }
+  double lowWeightedRate = lowNum / lowDen;
+  double highWeightedRate = highNum / highDen;
+  double lowProbability = 1.0 / (1.0 + std::exp(-lowFit));
+  double highProbability = 1.0 / (1.0 + std::exp(-highFit));
+  // 0.12 clears the ~0.1 Monte Carlo calibration error the unweighted analog
+  // (testEndToEndLogistic) tolerates at this n, while staying well inside the
+  // >=0.2 low-quartile gap that dropping the weights would open.
+  checkNear(lowProbability, lowWeightedRate, 0.12,
+            "weighted logistic calibrates to the low-quartile weighted rate");
+  checkNear(highProbability, highWeightedRate, 0.12,
+            "weighted logistic calibrates to the high-quartile weighted rate");
+
+  // omega latents stay positive and finite
   const double* omega = wsampler.latents(0);
   bool omegaValid = omega != nullptr;
   for (size_t i = 0; i < n && omegaValid; ++i)
