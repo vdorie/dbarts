@@ -154,10 +154,12 @@ residuals(object, type = "ev", ...)
   latent variable. In both cases, the bigger \\k\\ is, the more
   conservative the fitting will be. The value can be either a fixed
   number, or the a *hyperprior* of the form
-  `chi(degreesOfFreedom = 1.5, scale = Inf)`. For `bart2`, the default
-  of `NULL` uses the value 2 for continuous reponses and a `chi`
-  hyperprior for binary ones. The default `chi` hyperprior is improper,
-  and slightly penalizes small values of `k`. The default of 2 for
+  `chi(degreesOfFreedom = 1.5, scale = 2)`. For `bart2`, the default of
+  `NULL` uses the value 2 for continuous reponses and the `chi(1.5, 2)`
+  hyperprior for binary ones, which centers the sampled `k` near the
+  field-standard fixed value of 2 (prior median 1.9) while adapting to
+  the data; pass `k = 2` for the fixed BART-package default, or
+  `chi(1.5, Inf)` for the old improper prior. The default of 2 for
   continuous responses follows Chipman, George, and McCulloch's argument
   (see References) that with node prior standard deviation \\\sigma\_\mu
   = 0.5 / (k \sqrt{m})\\ for \\m\\ trees, \\k\\ prior standard
@@ -511,10 +513,12 @@ is 1 and \\s\\ is \\\infty\\, the prior is “flat”.
 
 For BART on binary outcomes, the degree of overfitting can be highly
 sensitive to `k` so it is encouraged to consider a number of values. The
-default hyperprior for binary BART, `chi(1.5, Inf)`, has been shown to
-work well in a large number of datasets, however crossvalidation may be
-helpful. Running for a short time with a flat prior may be helpful to
-see the range of values of `k` that are consistent with the data.
+default hyperprior for binary `bart2`/`dbarts` fits, `chi(1.5, 2)`,
+centers the sampled `k` near the field-standard fixed value of 2 (prior
+median 1.9) while adapting to the data; pass `k = 2` for the fixed
+BART-package default. Crossvalidation may still be helpful, and running
+for a short time with a flat prior (`scale = Inf`) can show the range of
+`k` values the data are consistent with.
 
 ### Generics
 
@@ -797,7 +801,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.230442
+#> total seconds in loop: 0.228573
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -850,7 +854,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> number of chains: 1, default number of threads 1
 #> tree thinning rate: 1
 #> Prior:
-#>  prior on k: chi with 1.500000 degrees of freedom and inf scale
+#>  prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
 #>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50
@@ -863,14 +867,14 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001406
+#> total seconds in loop: 0.001348
 #> 
 #> Tree sizes, last iteration:
-#> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 
+#> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
 #> 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 16) (2: 12) 
+#> (1: 13) (2: 14) 
 #> DONE BART
 #> 
 

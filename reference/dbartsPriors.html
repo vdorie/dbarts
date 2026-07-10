@@ -79,7 +79,7 @@
 <dd><p>Normal prior on the node means. <code>k</code> scales the standard
       deviation and can be a positive scalar, a hyperprior built with
       <code>chi</code>, or <code>NULL</code> for the default: 2 for continuous
-      responses, <code>chi(1.5, Inf)</code> for binary ones. The continuous
+      responses, <code>chi(1.5, 2)</code> for binary ones. The continuous
       default follows Chipman, George, and McCulloch's argument that with
       node standard deviation <code>sigma_mu = 0.5 / (k * sqrt(m))</code> for
       <code>m</code> trees, <code>k</code> prior standard deviations of \(f(x)\)
@@ -124,11 +124,14 @@
       which reads the recorded fit directly - only <code>predict</code> and
       test-data prediction re-krig).</p></dd>
 
-    <dt><code>chi(degreesOfFreedom = 1.5, scale = Inf)</code></dt>
+    <dt><code>chi(degreesOfFreedom = 1.5, scale = 2)</code></dt>
 <dd><p>Chi hyperprior over <code>k</code>, sampled along with the rest of the
       model: <code>k</code> is given a chi distribution with the stated degrees
-      of freedom and scale. The sampled <code>k</code> is capped at 1e6, the
-      regime an improper (infinite) scale can otherwise drift toward.</p></dd>
+      of freedom and scale. The default, <code>chi(1.5, 2)</code>, centers the
+      sampled <code>k</code> near the field-standard fixed value of 2 (prior
+      median 1.9) while letting it adapt to the data. <code>scale = Inf</code>
+      remains accepted for the old improper prior; the sampled <code>k</code> is
+      capped at 1e6, a backstop that only engages at that improper scale.</p></dd>
 
     <dt><code>chisq(df = 3, quant = 0.9)</code></dt>
 <dd><p>Chi-squared prior on the residual variance, scaled so that an

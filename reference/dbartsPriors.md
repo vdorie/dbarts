@@ -34,7 +34,7 @@ A list of functions:
 
   Normal prior on the node means. `k` scales the standard deviation and
   can be a positive scalar, a hyperprior built with `chi`, or `NULL` for
-  the default: 2 for continuous responses, `chi(1.5, Inf)` for binary
+  the default: 2 for continuous responses, `chi(1.5, 2)` for binary
   ones. The continuous default follows Chipman, George, and McCulloch's
   argument that with node standard deviation
   `sigma_mu = 0.5 / (k * sqrt(m))` for `m` trees, `k` prior standard
@@ -80,12 +80,15 @@ A list of functions:
   locations (never during MCMC, which reads the recorded fit directly -
   only `predict` and test-data prediction re-krig).
 
-- `chi(degreesOfFreedom = 1.5, scale = Inf)`:
+- `chi(degreesOfFreedom = 1.5, scale = 2)`:
 
   Chi hyperprior over `k`, sampled along with the rest of the model: `k`
   is given a chi distribution with the stated degrees of freedom and
-  scale. The sampled `k` is capped at 1e6, the regime an improper
-  (infinite) scale can otherwise drift toward.
+  scale. The default, `chi(1.5, 2)`, centers the sampled `k` near the
+  field-standard fixed value of 2 (prior median 1.9) while letting it
+  adapt to the data. `scale = Inf` remains accepted for the old improper
+  prior; the sampled `k` is capped at 1e6, a backstop that only engages
+  at that improper scale.
 
 - `chisq(df = 3, quant = 0.9)`:
 

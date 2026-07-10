@@ -152,7 +152,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 <dd><p>The quantile of the error variance prior that the rough estimate (<code>sigest</code>) is placed at. The closer the quantile is to 1, the more aggressive the fit will be as you are putting more prior weight on error standard deviations (\(\sigma\)) less than the rough estimate. Not applicable when \(y\) is binary. Default 0.90, from the same source as <code>sigdf</code>.</p></dd>
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
-<dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), the standard deviation of the standard logistic latent variable. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or the a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = Inf)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous reponses and a <code>chi</code> hyperprior for binary ones. The default <code>chi</code> hyperprior is improper, and slightly penalizes small values of <code>k</code>. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
+<dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), the standard deviation of the standard logistic latent variable. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or the a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = 2)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous reponses and the <code>chi(1.5, 2)</code> hyperprior for binary ones, which centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default, or <code>chi(1.5, Inf)</code> for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
 
    <dt id="arg-power">power<a class="anchor" aria-label="anchor" href="#arg-power"></a></dt>
 <dd><p>Power parameter for tree prior. Default 2, Chipman, George, and McCulloch's empirical recommendation (see References) for the split-probability decay \(base (1 + depth)^{-power}\), not derived from a formula.</p></dd>
@@ -292,7 +292,7 @@ For binary response \(y\), \(P(Y = 1 \mid x) = \Phi(f(x))\), where \(\Phi\) deno
 </div><p></p><div class="section">
 <h3 id="end-node-prior-parameter-k">End-node prior parameter <code>k</code><a class="anchor" aria-label="anchor" href="#end-node-prior-parameter-k"></a></h3>
 <p>The amount of shrinkage of the node parameters is controlled by <code>k</code>. <code>k</code> can be given as either a fixed, positive number, or as any value that can be used to build a supported hyperprior. At present, only \(\chi_\nu s\) priors are supported, where \(\nu\) is a degrees of freedom and \(s\) is a scale. Both values must be positive, however the scale can be infinite which yields an improper prior, which is interpretted as just the polynomial part of the distribution. If \(nu\) is 1 and \(s\) is \(\infty\), the prior is “flat”.</p>
-<p>For BART on binary outcomes, the degree of overfitting can be highly sensitive to <code>k</code> so it is encouraged to consider a number of values. The default hyperprior for binary BART, <code>chi(1.5, Inf)</code>, has been shown to work well in a large number of datasets, however crossvalidation may be helpful. Running for a short time with a flat prior may be helpful to see the range of values of <code>k</code> that are consistent with the data.</p>
+<p>For BART on binary outcomes, the degree of overfitting can be highly sensitive to <code>k</code> so it is encouraged to consider a number of values. The default hyperprior for binary <code>bart2</code>/<code>dbarts</code> fits, <code>chi(1.5, 2)</code>, centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default. Crossvalidation may still be helpful, and running for a short time with a flat prior (<code>scale = Inf</code>) can show the range of <code>k</code> values the data are consistent with.</p>
 </div><p></p><div class="section">
 <h3 id="generics">Generics<a class="anchor" aria-label="anchor" href="#generics"></a></h3>
 <p><code>bart</code> and <code><a href="rbart.html">rbart_vi</a></code> support <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted</a></code> to return the posterior mean of a predicted quantity, as well as <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></code> to return a set of posterior samples for a different sample. In addition, the <code>extract</code> generic can be used to obtain the posterior samples for the training data or test data supplied during the initial fit.</p>
@@ -463,7 +463,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.230442</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.228573</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -516,7 +516,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> number of chains: 1, default number of threads 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> tree thinning rate: 1</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Prior:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 	prior on k: chi with 1.500000 degrees of freedom and inf scale</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 	prior on k: chi with 1.500000 degrees of freedom and 2.000000 scale</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	power and base for tree prior: 2.000000 0.950000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	use quantiles for rule cut points: false</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 	proposal probabilities: birth/death 0.50, swap 0.10, change 0.40; birth 0.50</span>
@@ -529,14 +529,14 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001406</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001348</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 4 3 2 2 2 2 3 3 2 3 3 3 1 2 3 2 1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 16) (2: 12) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 13) (2: 14) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
