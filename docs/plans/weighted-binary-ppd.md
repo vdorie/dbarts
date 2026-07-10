@@ -99,3 +99,9 @@ Gates, worktree at .claude/worktrees/weighted-binary-ppd, private library
 
 - 2026-07-10: fix + tests + doc landed on wt/weighted-binary-ppd; all gates
   green (2557/0 tinytest, 21/21 identical-draws equivalence, 0 lints).
+
+- 2026-07-10: LANDED as da7b659 (squash of wt/weighted-binary-ppd).
+  Reviewer verified the size recycling against both fill orders
+  (2-d column-major, 3-d obs-last) and re-ran gates on the landed
+  shared-library build: tinytest 2557/0, equivalence 21/21
+  identical. This closes the last live path of issue #79.
