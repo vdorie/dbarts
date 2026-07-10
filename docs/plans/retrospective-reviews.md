@@ -75,3 +75,25 @@ and any code fix becomes its own gated item.
   gate-hardening-1.0 and the SBC target list. Full record in
   gate-blindspot-audit.md. (Orchestrator downgraded Fable->Opus
   mid-review at VD's Fable-limit; no work lost.)
+- 2026-07-09: gate-hardening-1.0 LANDED (0e9ccca; extended
+  21-scenario anchor equivalence-0e9ccca.rds recorded 3ef0308).
+- 2026-07-09: review 4 (sbc-calibration) COMPLETE and landed
+  (25d3dc1): 18 configs across three tiers, ONE calibration defect
+  (BCF glue-on sigma biased high, localized to the glue-updating
+  path by a fixed-glue control; filed as
+  bcf-glue-sigma-calibration with a mixing-vs-defect experiment
+  plan). All review-3 priority-one NA/imputation paths calibrate;
+  DART 1e-300 floor does not bias selection; the poison-13 a-glue
+  channel calibrates (gate gap, not a latent bug - now gated by
+  bcf-exact-weak.R). Residual SBC gaps recorded: sampled-k chi
+  hyperprior has no SBC path for any leaf type; DART alpha held
+  fixed; half-Cauchy grouped tau SBC-intractable through the slice
+  sampler. Routed to review 6 (numerical robustness): the GP
+  predict-vs-stored-fits jitter (~2e-3 at training rows), the tau
+  slice-sampler hang under extreme ranef weights, the half-Cauchy
+  tail behavior. Soft call for VD: the gaussian SBC baseline
+  (~52s at R=200) is a candidate standing CI calibration gate.
+- 2026-07-09: review 6 (architecture-critique + numerical-
+  robustness) started BEFORE review 5 (roadmap survey needs
+  sustained web access; the machine is on plane WiFi - VD
+  authorized any order). Plan: architecture-numerical-review.md.
