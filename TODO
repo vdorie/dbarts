@@ -48,6 +48,23 @@ items
     ONLY because responses arrive pre-standardized to O(1); the
     owned container must not create a path that feeds raw-scale
     residuals to the leaves.
+  data-ownership-u8-1b: the per-column u8 width feature of
+    data-ownership-1-container. Steps 1-2 (owned container, call-time
+    raw) LANDED. Step 3 (per-column u8 codeBytes pool) is committed but
+    regresses sampler throughput +10-15% at every size n=1e3..1e6 with
+    NO speed upside (it trades the 8-lane SIMD u16 partition for a
+    scalar u8 walk; the memory win never converts to throughput through
+    n=1e6) - a VD go/no-go (revert step 3, or keep it for the RAM
+    footprint, or land it only once the kernel below recovers the
+    speed; see the plan's step-3/4 landing notes for the bench table).
+    Step 4 (u8 SIMD) DEFERRED: the phase-1 NEON block-skip kernel is
+    SLOWER than scalar u8 and had a latent Range count off-by-one; the
+    real chance at a u8 win is a full port of partition_body.c's u16
+    movemask lane-interleave to 16 u8 lanes (vmovemask_u8 exists),
+    gated on >= u16-NEON parity before landing. enable-x86-u8: with the
+    reworked step 4, write and validate sse2/sse4.1/avx2 epi8 u8 kernels
+    on VD's x86 machine (bitwise == scalar per ISA, poison-proof) and
+    flip simd.c's u8 dispatch off scalar; until then x86 u8 stays scalar.
   gate-hardening-1.0: LANDED 2026-07-09 (0e9ccca + anchor 3ef0308) -
     all six poison-sweep blind spots gated, each with a
     fail-on-poisoned proof: bcf-exact-weak.R (prior-dominated n=40

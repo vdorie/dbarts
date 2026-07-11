@@ -217,3 +217,81 @@ PROT slots: PROT_PREDICTORS and PROT_TEST_PREDICTORS are deleted (the engine
 borrows no predictor/test matrix past a call). PROT_DATA stays as the
 creation contract and the flat-C GC anchor; PROT_RESPONSE/OFFSET/WEIGHTS/
 TEST_OFFSET stay (those borrows persist).
+
+## Landing notes (step 3; step 4 DEFERRED to plan-1b)
+
+Container (step 3, landed): ColumnStore's uniform u16 `codes` vector became a
+`codeBytes` byte pool with per-column `codeWidth[j]` (1 = u8, 2 = u16) and
+`codeByteOffset[j]`; a column occupies numObservations * codeWidth[j] bytes,
+u16 columns padded to a 2-byte offset. widthForColumn: ordinal u8 iff
+numCuts <= 254 (max code 254 < the u8 sentinel 255); inline-mask categorical
+(<= 63 levels) u8; pooled categorical, sparse rank-bitmap, and CSC/densified
+columns stay u16 this pass. testCodes stay u16 uniformly. Typed columnU8/
+columnU16 accessors feed the width-branched hot path; codeAt is the
+width-generic cold reader and normalizes a u8 column's 0xFF back to naCode
+(categorical u8 never stores 0xFF, its missing code being position 63, so the
+normalization only fires for ordinals). build/buildMixed/buildFromParent/
+setData run cuts-then-layoutDenseCodes-then-quantize; setCutPoints re-packs the
+pool when a cut count crosses 254. Width is never serialized (recomputed at
+load). scan.hpp's histogram and tree.hpp's MIA/mask helpers are width-templated;
+partitionChildren branches once per node on width. Sampler snapshot/rollback
+sites moved to codeBytes (setState also snapshots width/offsets for the
+cross-grid re-pack). Gates PASSED: preclean install, tests/cpp (new
+code-width-boundary / mixed-width / u8-vs-u16 routing-equality checks), tinytest
+2728/0, equivalence 22/22 IDENTICAL (draws byte-for-byte unchanged).
+
+SPEED FINDING (the reason step 4 was pulled and step 3 needs a go/no-go): the
+whole point of u8 was "storage width only, no draw change, memory win at large
+n." Draws are indeed unchanged, but u8 is a THROUGHPUT REGRESSION at every size
+measured, because it trades the SIMD u16 partition (misc_partitionRange/Indices,
+8-lane NEON) for a scalar u8 walk. bench-sampler-32fc7c8 compare (arm64, quiet
+machine), ms/iteration unless noted, ratio = current/baseline:
+
+  scenario                         base   u8-scalar(s3)  u8-NEON(s4)
+  run-n1000-p10-t75               0.172   0.190 (+10%)   0.206 (+20%)
+  run-n1000-p10-t200              0.452   0.500 (+11%)   0.544 (+20%)
+  run-n10000-p10-t75              1.754   1.902 (+8%)    2.064 (+18%)
+  run-binary-n1000-t75            0.216   0.266 (+23%)   0.252 (+17%)
+  embedded-offset-run1 (gibbs)    0.248   0.264 (+6%)    0.280 (+13%)
+  setPredictor-accept             0.207   0.308 (+49%)   0.343 (+66%)
+  setPredictor-reject             0.146   0.205 (+40%)   0.234 (+60%)
+
+Isolation: the steps-1-2 base (2e2b1c9, uniform u16) benches at ratio
+0.94-0.98 on the run-* metrics (clean; setPredictor-accept +16% is the known
+plan-1 CoW interim), so the run-* regression is entirely the u8 partition, not
+the container rewrite. Large-n end-to-end (n x p=10, 50 trees, single thread),
+ms/iteration: n=1e5 u16 12.55 vs u8 13.83 (+10%); n=1e6 u16 123.5 vs u8 137.9
+(+12%). The DRAM-bound memory win never converts to throughput through n=1e6:
+one column is 1-2 MB, the SIMD-vs-scalar partition gap dominates the bandwidth
+halved. u8's only realized benefit is halving the code footprint (RAM), on top
+of the ~8x steps-1-2 already won over the double borrow.
+
+Step 4 (u8 SIMD) DEFERRED to plan-1b (slip rule, VD-authorized). The ported
+phase-1 NEON kernel (block-skip via vmaxvq/vminvq, misc/partition_u8.c in the
+reverted WIP) is SLOWER than the scalar u8 walk (u8-NEON column above), so it
+made the regression worse, not better - it is a dead end. It also carried a
+latent correctness bug from the phase-1 prototype: finish_u8 read x[lh] instead
+of x[idx[lh]] for the Range case, an off-by-one in the left COUNT whenever the
+boundary element was permuted (the permutation was correct); caught by a
+brute-force / u16 cross-check, not by the phase-1 self-test or a
+u8-scalar-vs-u8-NEON check (both shared the bug). The real chance at a u8 win is
+a full port of partition_body.c's u16 movemask lane-interleave to 16 u8 lanes
+(vmovemask_u8 already exists in partition_neon.c), NOT the block-skip; plan-1b
+should build that and gate the whole u8 feature (step 3 storage + step 4 kernel)
+on demonstrating >= parity with u16 NEON before landing.
+
+RECOMMENDATION (VD go/no-go): u8 storage (step 3) is committed but regresses
+throughput +10-15% with no speed upside through n=1e6. Options: (a) revert
+step 3 too and defer the entire per-column-u8 feature to plan-1b, landing only
+steps 1-2 for plan-1 (clean, no regression; the u16 container already wins the
+memory story vs the old double borrow); (b) keep step 3 for the RAM-footprint
+halving despite the speed cost; (c) keep step 3 and prioritize the plan-1b u8
+movemask kernel to recover the speed. Recommend (a) unless the code-footprint
+halving is independently needed now.
+
+x86 gap / TODO. Step 4's dispatch (op, width) and x86 epi8 kernels were reverted
+with step 4, so no x86 exposure shipped. When step 4 is reworked in plan-1b, the
+follow-up remains: TODO enable-x86-u8 - write and validate the sse2/sse4.1/avx2
+epi8 u8 kernels on VD's x86 machine (bitwise == the scalar reference per ISA,
+poison-proof gate) and flip simd.c's u8 dispatch from scalar to the epi8 entries;
+until then x86 u8 stays on the scalar reference.
