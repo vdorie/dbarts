@@ -1080,7 +1080,9 @@ dbartsSampler <- setRefClass(
           data,
           if (model@family == "auto") "" else model@family
         )
-        .Call(C_dbarts_bartcore_setState, pointer, state)
+        # a same-spec continuation skips re-quantization; data@x serves any
+        # cross-grid column (the engine keeps no predictor matrix)
+        .Call(C_dbarts_bartcore_setState, pointer, state, data@x)
       }
       pointer
     },
@@ -1099,7 +1101,7 @@ dbartsSampler <- setRefClass(
           if (model@family == "auto") "" else model@family
         )
       }
-      .Call(C_dbarts_bartcore_setState, pointer, newState)
+      .Call(C_dbarts_bartcore_setState, pointer, newState, data@x)
       selfEnv$state <- newState
       invisible(NULL)
     },
@@ -1218,6 +1220,8 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
+      # saved-tree replay reads the current training predictors (the engine
+      # keeps no matrix); a sparse data@x is skipped for a NULL replay source
       trees <- .Call(
         C_dbarts_bartcore_getTrees,
         ptr,
@@ -1225,7 +1229,8 @@ dbartsSampler <- setRefClass(
         sampleNums,
         treeNums,
         current,
-        newdata
+        newdata,
+        data@x
       )
       # categorical rules report their split in 'directions' (value is NA);
       # when any column can hold one, pad the decode to the declared levels

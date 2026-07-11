@@ -34,12 +34,14 @@ namespace {
 
 // The external pointer's protection slot pins the vectors the sampler
 // borrows, one fixed slot per borrowable so replacements do not accumulate.
+// Predictors are not among them: the engine owns its quantized codes and
+// borrows the raw only for the duration of a build or re-quantize call, so the
+// R data object (PROT_DATA at creation, plus the live sampler$data the R
+// methods hold) is the sole predictor GC anchor - no PROT_PREDICTORS slot.
 enum {
   PROT_DATA = 0,
   PROT_RESPONSE,
   PROT_OFFSET,
-  PROT_PREDICTORS,
-  PROT_TEST_PREDICTORS,
   PROT_TEST_OFFSET,
   PROT_WEIGHTS,
   PROT_COUNT
@@ -1087,7 +1089,7 @@ void applySurvivalAttribute(SEXP controlExpr, size_t numObservations,
 // (docs/design/sparse-columns.md).
 void refuseViewSampler(const bartcore::SamplerBase& sampler,
                        const char* caller) {
-  if (sampler.data().x != NULL) return;
+  if (!sampler.data().isView && !sampler.data().builtFromCsc) return;
   if (sampler.data().builtFromCsc)
     Rf_error("%s: sparse predictors fix the design at creation; make a new "
              "sampler instead", caller);
@@ -1095,11 +1097,11 @@ void refuseViewSampler(const bartcore::SamplerBase& sampler,
            "views hold none", caller);
 }
 
-// Unlike views, CSC-built samplers re-quantize from their borrowed slices,
+// Unlike views, CSC-built samplers re-quantize from their retained slices,
 // so cut installation and state restore stay available on them.
 void refuseViewSamplerOnly(const bartcore::SamplerBase& sampler,
                            const char* caller) {
-  if (sampler.data().x == NULL && !sampler.data().builtFromCsc)
+  if (sampler.data().isView)
     Rf_error("%s requires a sampler that owns its predictors; data-handle "
              "views hold none", caller);
 }
@@ -1348,9 +1350,15 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
                                  data.numPredictors, data.maxNumCuts.data(), 0,
                                  control.useQuantiles);
     } else {
+      // a handle backs row-subset view samplers whose leaf covariates are not
+      // known until the view is created, so it owns raw for every column; a
+      // view then gathers any designated column from parent.rawColumn
+      std::vector<size_t> gatherAll(data.numPredictors);
+      for (size_t j = 0; j < data.numPredictors; ++j) gatherAll[j] = j;
       handle->store.build(data.x, data.numObservations, data.numPredictors,
                           data.maxNumCuts.data(), control.useQuantiles,
-                          data.anyCategorical ? data.columnTypes.data() : NULL);
+                          data.anyCategorical ? data.columnTypes.data() : NULL,
+                          gatherAll.data(), gatherAll.size());
     }
 
     SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
@@ -1879,12 +1887,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
                     data.offset, data.x_test, data.numTestObservations,
                     data.testOffset);
 
-    // everything the sampler borrows now comes from the new data object
+    // the new spec is the creation contract and the call-time raw source; the
+    // engine re-quantized it and retains no predictor pointer
     retain(ptrExpr, PROT_DATA, dataExpr);
     retain(ptrExpr, PROT_RESPONSE, R_NilValue);
     retain(ptrExpr, PROT_OFFSET, R_NilValue);
-    retain(ptrExpr, PROT_PREDICTORS, R_NilValue);
-    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
 
     return R_NilValue;
   });
@@ -1896,7 +1903,6 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     // removal: back to the no-test-data state, offset included
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
-    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
@@ -1914,8 +1920,8 @@ SEXP bartcore_setTestPredictor(SEXP ptrExpr, SEXP xTestExpr) {
     validateColumnValues(holder.sampler->data(), j,
                          REAL(xTestExpr) + j * numTestObservations,
                          numTestObservations);
+  // buildTest copies the test values into owned storage, so nothing is pinned
   holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
-  retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
   return R_NilValue;
 }
 
@@ -1950,7 +1956,6 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
       Rf_error("when test matrix is NULL, test offset must be as well");
     holder.sampler->setTestPredictors(NULL, 0);
     holder.sampler->setTestOffset(NULL);
-    retain(ptrExpr, PROT_TEST_PREDICTORS, R_NilValue);
     retain(ptrExpr, PROT_TEST_OFFSET, R_NilValue);
     return R_NilValue;
   }
@@ -1970,10 +1975,10 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
                          REAL(xTestExpr) + j * numTestObservations,
                          numTestObservations);
 
+  // buildTest owns the test values; only the borrowed test offset is pinned
   holder.sampler->setTestPredictors(REAL(xTestExpr), numTestObservations);
   holder.sampler->setTestOffset(Rf_isNull(offsetExpr) ? NULL
                                                       : REAL(offsetExpr));
-  retain(ptrExpr, PROT_TEST_PREDICTORS, xTestExpr);
   retain(ptrExpr, PROT_TEST_OFFSET, offsetExpr);
   return R_NilValue;
 }
@@ -2151,8 +2156,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
   if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
     Rf_error("number of induced cut points in new predictor less than "
              "previous: old splits would be invalid");
-  if (result == bartcore::PredictorUpdateResult::accepted)
-    retain(ptrExpr, PROT_PREDICTORS, xExpr);  // installed by pointer swap
+  // the engine re-quantized xExpr into owned codes and retains no pointer; the
+  // R method reassigns sampler$data@x, which keeps the current matrix alive
   return Rf_ScalarLogical(
     result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
 }
@@ -2195,13 +2200,17 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
 }
 
 SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
-                           SEXP columnsExpr) {
+                           SEXP columnsExpr, SEXP currentPredictorsExpr) {
   return unwindProtect([&, cutPoints = std::vector<const double*>{},
                         numCutPoints = std::vector<std::uint32_t>{},
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseViewSamplerOnly(*holder.sampler, "bartcore_setCutPoints");
     size_t numPredictors = holder.sampler->numPredictors();
+    // dense columns re-quantize from the supplied data@x; CSC/mixed columns
+    // read their retained slices, so a non-matrix source is passed as null
+    const double* currentPredictors =
+      Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
 
     size_t numColumns = static_cast<size_t>(Rf_xlength(columnsExpr));
     if (numColumns == 0 ||
@@ -2234,7 +2243,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
     }
 
     holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
-                                 columns.data(), numColumns);
+                                 columns.data(), numColumns,
+                                 currentPredictors);
     return R_NilValue;
   });
 }
@@ -2626,11 +2636,16 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
   return bartcore_bridge::storeState(*holder.sampler);
 }
 
-SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr) {
+SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
+                       SEXP currentPredictorsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
   refuseViewSamplerOnly(*holder.sampler, "bartcore_setState");
-  bartcore_bridge::setState(*holder.sampler, stateExpr);
+  // a cross-grid restore re-quantizes dense columns from the supplied data@x;
+  // a same-spec continuation skips per column, so a null source is harmless
+  const double* currentPredictors =
+    Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
+  bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors);
   return R_NilValue;
 }
 
@@ -2704,7 +2719,8 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 // index conversion around bartcore_bridge::getTrees, which describes the
 // data.frame produced
 SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
-                       SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr) {
+                       SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr,
+                       SEXP trainingDataExpr) {
   return unwindProtect([&, chainIndices = std::vector<size_t>{},
                         sampleIndices = std::vector<size_t>{},
                         treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
@@ -2744,10 +2760,25 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       newdata = REAL(newdataExpr);
     }
 
+    // saved-tree replay reads the current training predictors the R method
+    // supplies (data@x); the engine keeps no matrix. A dense matrix serves; a
+    // sparse/absent source leaves saved-tree counts unpopulated (a view sampler)
+    const double* trainingReplay = NULL;
+    size_t trainingReplayNumRows = 0;
+    if (useSaved && newdata == NULL && Rf_isReal(trainingDataExpr)) {
+      SEXP dims = Rf_getAttrib(trainingDataExpr, R_DimSymbol);
+      if (!Rf_isNull(dims) && Rf_xlength(dims) == 2 &&
+          static_cast<size_t>(INTEGER(dims)[1]) == sampler.numPredictors()) {
+        trainingReplay = REAL(trainingDataExpr);
+        trainingReplayNumRows = static_cast<size_t>(INTEGER(dims)[0]);
+      }
+    }
+
     return bartcore_bridge::getTrees(
       sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
       sampleIndices.size(), treeIndices.data(), treeIndices.size(),
-      useLiveTrees, newdata, newdataNumRows, "bartcore_getTrees");
+      useLiveTrees, newdata, newdataNumRows, trainingReplay,
+      trainingReplayNumRows, "bartcore_getTrees");
   });
 }
 
@@ -3030,7 +3061,8 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   return resultExpr;
 }
 
-void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
+void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
+              const double* currentPredictors) {
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
 
@@ -3303,7 +3335,8 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr) {
     }
   }
 
-  bool restored = errorMessage == NULL && sampler.setState(state);
+  bool restored =
+    errorMessage == NULL && sampler.setState(state, currentPredictors);
   {
     bartcore::SamplerStateData empty;
     std::swap(state, empty);  // free before a potential longjmp
@@ -3769,7 +3802,8 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t numChainIndices, const size_t* sampleIndices,
               size_t numSampleIndices, const size_t* treeIndices,
               size_t numTreeIndices, bool useLiveTrees, const double* newdata,
-              size_t newdataNumRows, const char* caller) {
+              size_t newdataNumRows, const double* trainingReplay,
+              size_t trainingReplayNumRows, const char* caller) {
   const bartcore::ColumnStore& store(sampler.data());
 
   bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
@@ -3790,16 +3824,17 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
       Rf_error("%s tree number out of range", caller);
   }
 
-  // saved trees carry no counts of their own and replay the training rows;
-  // newdata replays its rows through live and saved trees alike
+  // saved trees carry no counts of their own and replay the training rows the
+  // caller supplies (the engine keeps no matrix); newdata replays its rows
+  // through live and saved trees alike
   const double* replayData = NULL;
   size_t replayNumRows = 0;
   if (newdata != NULL) {
     replayData = newdata;
     replayNumRows = newdataNumRows;
   } else if (useSaved) {
-    replayData = store.x;
-    replayNumRows = store.numObservations;
+    replayData = trainingReplay;
+    replayNumRows = trainingReplayNumRows;
   }
 
   bool anyMissing = false, anyCategorical = false;

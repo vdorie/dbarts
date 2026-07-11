@@ -58,8 +58,13 @@ shallowCopy <- sampler$copy(shallow = TRUE)
 
 n <- testData$n
 
+# a shallow copy shares the creation-time predictor object, but the engine
+# keeps no matrix to write through: a mutation on one sampler is maintained
+# R-side (copy-on-write) and no longer propagates to the copy (design plan 1)
+x.shared <- shallowCopy$data@x
 invisible(sampler$setPredictor(numeric(n), 2L))
-expect_equal(sampler$data@x, shallowCopy$data@x)
+expect_equal(shallowCopy$data@x, x.shared)
+expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
 
 rm(shallowCopy)
 gc(verbose = FALSE)

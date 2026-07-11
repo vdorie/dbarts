@@ -36,6 +36,19 @@ inline const bartcore::SamplerBase& samplerOf(const dbarts_sampler* sampler) {
   return *sampler->holder->sampler;
 }
 
+// The dense predictor matrix of a retained dbartsData spec (@x), or null when
+// it is absent or non-dense (a sparse creation spec): the call-time raw source
+// for saved-tree replay and cross-grid state restore. The spec is preserved
+// against collection for the sampler's lifetime, so the borrow is valid.
+const double* predictorsFromDataExpr(SEXP dataExpr) {
+  if (dataExpr == NULL || Rf_isNull(dataExpr)) return NULL;
+  SEXP xExpr = Rf_getAttrib(dataExpr, Rf_install("x"));
+  if (!Rf_isReal(xExpr)) return NULL;
+  SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
+  if (Rf_isNull(dims) || Rf_xlength(dims) != 2) return NULL;
+  return REAL(xExpr);
+}
+
 } // namespace
 
 // Layout lock for dbarts_results (dbarts.h): the growable ABI. Fields append
@@ -260,11 +273,16 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices, size_t numTreeIndices,
-                             int useLiveTrees) {
+                             int useLiveTrees, const double* trainingData) {
+  // saved-tree replay reads the caller's current predictors, or the retained
+  // creation spec when trainingData is null (a caller that mutated predictors
+  // and passes null sees the pre-mutation spec)
+  const double* replay =
+    trainingData != NULL ? trainingData : predictorsFromDataExpr(sampler->data);
   return bartcore_bridge::getTrees(
     samplerOf(sampler), chainIndices, numChainIndices, sampleIndices,
     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees != 0, NULL, 0,
-    "dbarts_sampler_getTrees");
+    replay, samplerOf(sampler).numObservations(), "dbarts_sampler_getTrees");
 }
 
 void dbarts_sampler_printTrees(dbarts_sampler* sampler,
@@ -296,7 +314,11 @@ SEXP dbarts_sampler_storeState(dbarts_sampler* sampler) {
 }
 
 void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state) {
-  bartcore_bridge::setState(samplerOf(sampler), state);
+  // a cross-grid restore re-quantizes dense columns from the retained creation
+  // spec; a same-spec continuation (the contract) skips per column and reads no
+  // raw. A flat-C caller that mutated predictors since sees the creation spec.
+  bartcore_bridge::setState(samplerOf(sampler), state,
+                            predictorsFromDataExpr(sampler->data));
 }
 
 void dbarts_sampler_setNumThreads(dbarts_sampler* sampler,

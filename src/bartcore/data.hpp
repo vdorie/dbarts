@@ -125,8 +125,12 @@ struct CscColumnSlice {
 struct ColumnStore {
   size_t numObservations = 0;
   size_t numPredictors = 0;
-  const double* x = nullptr;  // borrowed, column-major
   bool useQuantiles = false;
+  // A row-subset view (buildFromParent) owns codes gathered from a parent and
+  // holds no re-quantizable raw source, so the mutation and re-quantize surface
+  // refuses it. The discriminator the bridge reads in place of the old resident
+  // x pointer.
+  bool isView = false;
 
   std::vector<ColumnType> types;
   // packed dense codes; per-column starts in codeOffsets (j * numObservations
@@ -170,31 +174,34 @@ struct ColumnStore {
   }
 
   size_t numTestObservations = 0;
-  const double* x_test = nullptr;  // borrowed, column-major
+  // Owned copy of the test predictors, column-major numTestObservations x
+  // numPredictors, taken at buildTest. The engine borrows no test matrix: cut
+  // changes re-quantize the test codes from this copy, and rawTestColumn serves
+  // it to leaf models. Views hold none (they gather test-subset columns below).
+  std::vector<double> ownedTestValues;
   std::vector<xint_t> testCodes;  // row-major, numTestObservations x numPredictors
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
   // caller keeps the lengths consistent), clearTest clears it.
   const double* testOffset = nullptr;
 
-  // Raw values of designated columns, gathered by buildFromParent so a view
-  // can serve a leaf model that reads raw predictors despite holding no x.
-  // The standardization constants come from the parent's full training data:
-  // the same calibration inheritance as the copied cut grid, so every fold
-  // runs the prior a full-data fit would. Owned, so views stay
-  // self-contained.
+  // Owned raw values of designated columns. build gathers a sampler's leaf
+  // covariates (or every column of a data handle) so rawColumn serves owned
+  // memory after the build borrow releases; buildFromParent gathers a view's
+  // leaf covariates from its parent, with standardization constants from the
+  // parent's full training data - the same calibration inheritance as the
+  // copied cut grid, so every fold runs the prior a full-data fit would.
   std::vector<size_t> gatheredRawColumns;
   std::vector<double> gatheredRawValues;      // column-major, numObservations x q
   std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x q
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
 
-  /// Borrowed raw values of column j when a dense source backs it: the
-  /// matrix column of a dense build, the dense-slice column of a mixed
-  /// build, null for CSC-backed columns and views.
-  const double* denseSourceColumn(size_t j) const {
-    if (x != nullptr) return x + j * numObservations;
-    if (!mixedRawColumns.empty()) return mixedRawColumns[j];
-    return nullptr;
+  /// The slot column j occupies in the gathered-raw buffers, or -1 when it is
+  /// not gathered. Few columns are gathered (leaf covariates), so a scan.
+  std::int32_t gatheredSlotForColumn(size_t j) const {
+    for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
+      if (gatheredRawColumns[k] == j) return static_cast<std::int32_t>(k);
+    return -1;
   }
 
   /// Whether column j quantizes from a borrowed CSC slice (every column of
@@ -204,37 +211,51 @@ struct ColumnStore {
            (mixedRawColumns.empty() || mixedRawColumns[j] == nullptr);
   }
 
-  /// Raw training values of column j: the dense source when one backs it,
-  /// a gathered copy on views, null when neither serves it.
+  /// Column j's raw values for a re-quantize, given the call-time predictor
+  /// matrix x (which the caller supplies for the build's duration): the mixed
+  /// build's retained dense slice, x's column for a dense build, null for
+  /// CSC-backed columns (which re-quantize from their retained slices instead).
+  const double* rawColumnForRequantize(size_t j, const double* x) const {
+    if (columnIsCscBacked(j)) return nullptr;
+    if (!mixedRawColumns.empty() && mixedRawColumns[j] != nullptr)
+      return mixedRawColumns[j];
+    return x != nullptr ? x + j * numObservations : nullptr;
+  }
+
+  /// Owned raw training values of column j: a gathered copy (leaf covariates,
+  /// or every column of a data handle), the mixed build's retained dense
+  /// slice, null when neither serves it.
   const double* rawColumn(size_t j) const {
-    const double* raw = denseSourceColumn(j);
-    if (raw != nullptr) return raw;
-    for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
-      if (gatheredRawColumns[k] == j)
-        return gatheredRawValues.data() + k * numObservations;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot >= 0)
+      return gatheredRawValues.data() +
+             static_cast<size_t>(slot) * numObservations;
+    if (!mixedRawColumns.empty()) return mixedRawColumns[j];
     return nullptr;
   }
 
-  /// Raw test values of column j; a borrowed x_test (setTestPredictors)
-  /// supersedes the values gathered at view construction.
+  /// Raw test values of column j: the owned test copy at the top level, the
+  /// values gathered at view construction otherwise.
   const double* rawTestColumn(size_t j) const {
-    if (x_test != nullptr) return x_test + j * numTestObservations;
-    for (size_t k = 0; k < gatheredRawColumns.size(); ++k)
-      if (gatheredRawColumns[k] == j)
-        return gatheredRawTestValues.data() + k * numTestObservations;
+    if (!ownedTestValues.empty())
+      return ownedTestValues.data() + j * numTestObservations;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot >= 0)
+      return gatheredRawTestValues.data() +
+             static_cast<size_t>(slot) * numTestObservations;
     return nullptr;
   }
 
   /// Parent-derived standardization constants for column j, when the store
-  /// is a view that gathered them; false tells the caller to compute its own.
+  /// is a view that gathered them; false tells the caller to compute its own
+  /// (the top-level store standardizes from its own gathered values).
   bool suppliedStandardization(size_t j, double* mean, double* sd) const {
-    for (size_t k = 0; k < gatheredRawColumns.size(); ++k) {
-      if (gatheredRawColumns[k] != j) continue;
-      *mean = gatheredMeans[k];
-      *sd = gatheredSds[k];
-      return true;
-    }
-    return false;
+    if (!isView) return false;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot < 0) return false;
+    *mean = gatheredMeans[static_cast<size_t>(slot)];
+    *sd = gatheredSds[static_cast<size_t>(slot)];
+    return true;
   }
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
@@ -327,8 +348,7 @@ struct ColumnStore {
       cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
   }
 
-  void fillCutsUniformly(size_t j) {
-    const double* column = denseSourceColumn(j);
+  void fillCutsUniformly(size_t j, const double* column) {
     // the range is over observed values; NaN never satisfies a comparison,
     // so only the seed needs the explicit skip
     double xMin = 0.0, xMax = 0.0;
@@ -364,12 +384,12 @@ struct ColumnStore {
     fillCutsOverRange(j, xMin, xMax);
   }
 
-  /// Initial cut construction; sets numCuts[j]. A categorical column takes
-  /// its (fixed) category count from its largest value and keeps no cuts.
-  /// CSC columns are always ordinal.
-  void buildCutsForColumn(size_t j) {
+  /// Initial cut construction; sets numCuts[j]. column supplies the dense raw
+  /// values (null for CSC-backed columns, which read their retained slice). A
+  /// categorical column takes its (fixed) category count from its largest
+  /// value and keeps no cuts. CSC columns are always ordinal.
+  void buildCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) {
-      const double* column = denseSourceColumn(j);
       double maxValue = -1.0;
       for (size_t i = 0; i < numObservations; ++i)
         if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
@@ -379,13 +399,13 @@ struct ColumnStore {
     } else if (useQuantiles) {
       QuantileGrid grid = columnIsCscBacked(j)
         ? quantileGridForCscColumn(j)
-        : quantileGridForColumn(j, denseSourceColumn(j));
+        : quantileGridForColumn(j, column);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
     } else {
       numCuts[j] = maxNumCuts[j];
       if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
-      else fillCutsUniformly(j);
+      else fillCutsUniformly(j, column);
     }
   }
 
@@ -409,16 +429,15 @@ struct ColumnStore {
   /// (a re-cut there would repeat a value). A forced update then routes the
   /// new values through the retained grid and collapses what empties.
   /// Categorical columns have nothing to refresh; the caller pre-checked.
-  bool refreshCutsForColumn(size_t j) {
+  bool refreshCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) return true;
     if (useQuantiles) {
-      QuantileGrid grid = quantileGridForColumn(j, denseSourceColumn(j));
+      QuantileGrid grid = quantileGridForColumn(j, column);
       if (grid.inducedNumCuts < numCuts[j]) return false;
       fillCutsFromQuantileGrid(j, grid);
     } else {
-      if (numCuts[j] >= 2 && valuesAreDegenerate(denseSourceColumn(j)))
-        return false;
-      fillCutsUniformly(j);
+      if (numCuts[j] >= 2 && valuesAreDegenerate(column)) return false;
+      fillCutsUniformly(j, column);
     }
     return true;
   }
@@ -436,24 +455,28 @@ struct ColumnStore {
     return quantileGridForColumn(j, values).inducedNumCuts >= numCuts[j];
   }
 
-  /// Install externally chosen cut points (ascending) for a column; the cut
-  /// count may shrink or grow, and existing splits beyond the new range are
-  /// the caller's problem (the sampler collapses them).
+  /// Install externally chosen cut points (ascending) for a column and
+  /// re-quantize its codes against them; x is the call-time predictor matrix
+  /// the raw is read from (ignored for CSC-backed columns, which use their
+  /// retained slice). The cut count may shrink or grow, and existing splits
+  /// beyond the new range are the caller's problem (the sampler collapses them).
   void setCutPointsForColumn(size_t j, const double* cuts,
-                             std::uint32_t numCutPoints) {
+                             std::uint32_t numCutPoints, const double* x) {
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
     if (maxNumCuts[j] < numCutPoints) maxNumCuts[j] = numCutPoints;
-    quantizeColumn(j);
+    quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
 
-  void quantizeColumn(size_t j) {
+  /// Re-quantize column j's codes from column (the dense raw, or null for a
+  /// CSC-backed column, which reads its retained slice), refreshing the
+  /// gathered raw copy of a leaf-covariate column in the same pass.
+  void quantizeColumn(size_t j, const double* column) {
     if (columnIsCscBacked(j)) {
       quantizeCscColumn(j);
       return;
     }
-    const double* column = denseSourceColumn(j);
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numObservations; ++i) {
       xint_t code = codeFor(j, column[i]);
@@ -461,6 +484,11 @@ struct ColumnStore {
       codes[codeOffsets[j] + i] = code;
     }
     hasMissing[j] = anyMissing;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot >= 0)
+      std::memcpy(gatheredRawValues.data() +
+                    static_cast<size_t>(slot) * numObservations,
+                  column, numObservations * sizeof(double));
   }
 
   /// Quantize a CSC column against its current cuts: rank columns rewrite
@@ -498,15 +526,33 @@ struct ColumnStore {
   void quantizeTestColumn(size_t j) {
     for (size_t i = 0; i < numTestObservations; ++i)
       testCodes[i * numPredictors + j] =
-        codeFor(j, x_test[i + j * numTestObservations]);
+        codeFor(j, ownedTestValues[i + j * numTestObservations]);
+  }
+
+  /// Designate the columns build/setData own an owned raw copy of, so
+  /// rawColumn serves them after the build borrow releases. gatherColumns are
+  /// a sampler's leaf covariates, or every dense column of a data handle; the
+  /// buffers fill as each column quantizes. Cleared when nothing is gathered.
+  void setupGatheredColumns(const size_t* gatherColumns,
+                            size_t numGatherColumns) {
+    gatheredRawColumns.assign(gatherColumns, gatherColumns + numGatherColumns);
+    gatheredRawValues.assign(numGatherColumns * numObservations, 0.0);
+    gatheredRawTestValues.clear();
+    gatheredMeans.clear();
+    gatheredSds.clear();
   }
 
   /// columnTypes may be null for all-ordinal. Categorical columns must hold
   /// integral values 0..K-1 with K <= maxCategories; the caller validates.
+  /// gatherColumns names the columns whose raw values a leaf model reads (or
+  /// every column, for a data handle): build owns a copy so the raw source
+  /// borrow x_ need not outlive the call.
   void build(const double* x_, size_t n, size_t p,
              const std::uint32_t* maxNumCuts_, bool useQuantiles_,
-             const ColumnType* columnTypes = nullptr) {
-    x = x_;
+             const ColumnType* columnTypes = nullptr,
+             const size_t* gatherColumns = nullptr,
+             size_t numGatherColumns = 0) {
+    isView = false;
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
@@ -532,15 +578,12 @@ struct ColumnStore {
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(p, 0);
-    gatheredRawColumns.clear();
-    gatheredRawValues.clear();
-    gatheredRawTestValues.clear();
-    gatheredMeans.clear();
-    gatheredSds.clear();
+    setupGatheredColumns(gatherColumns, numGatherColumns);
 
     for (size_t j = 0; j < p; ++j) {
-      buildCutsForColumn(j);
-      quantizeColumn(j);
+      const double* column = x_ + j * n;
+      buildCutsForColumn(j, column);
+      quantizeColumn(j, column);
     }
     refreshCategoricalTiers();
   }
@@ -561,7 +604,7 @@ struct ColumnStore {
                   const std::uint32_t* maxNumCutsPerColumn,
                   std::uint32_t maxNumCutsScalar, bool useQuantiles_,
                   const ColumnType* columnTypes = nullptr) {
-    x = nullptr;
+    isView = false;
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
@@ -640,13 +683,15 @@ struct ColumnStore {
             static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
         }
       }
-      buildCutsForColumn(j);
-      quantizeColumn(j);
+      // mixedRawColumns[j] is the dense slice for a dense-backed column and
+      // null for a CSC-backed one (which quantizes from its retained slice)
+      buildCutsForColumn(j, mixedRawColumns[j]);
+      quantizeColumn(j, mixedRawColumns[j]);
     }
     refreshCategoricalTiers();
 
     numTestObservations = 0;
-    x_test = nullptr;
+    ownedTestValues.clear();
     testCodes.clear();
     testOffset = nullptr;
   }
@@ -666,14 +711,20 @@ struct ColumnStore {
 
   void build(const double* x_, size_t n, size_t p, std::uint32_t maxNumCuts_,
              bool useQuantiles_ = false,
-             const ColumnType* columnTypes = nullptr) {
+             const ColumnType* columnTypes = nullptr,
+             const size_t* gatherColumns = nullptr,
+             size_t numGatherColumns = 0) {
     std::vector<std::uint32_t> maxPerColumn(p, maxNumCuts_);
-    build(x_, n, p, maxPerColumn.data(), useQuantiles_, columnTypes);
+    build(x_, n, p, maxPerColumn.data(), useQuantiles_, columnTypes,
+          gatherColumns, numGatherColumns);
   }
 
+  /// Own a copy of the test predictors and quantize them against the current
+  /// cuts; the raw borrow x_test_ need not outlive the call. Re-quantization
+  /// on a later cut change reads the owned copy.
   void buildTest(const double* x_test_, size_t numTest) {
-    x_test = x_test_;
     numTestObservations = numTest;
+    ownedTestValues.assign(x_test_, x_test_ + numTest * numPredictors);
     testCodes.resize(numTest * numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
   }
@@ -681,19 +732,19 @@ struct ColumnStore {
   /// A row-subset view of a built parent store: copies the parent's cut
   /// structure and gathers the subset's codes, so the view bins identically
   /// to the parent by construction; testRows also index the parent's
-  /// observations. Views hold no raw values (x and x_test stay null), which
-  /// rules out every raw-x path here (quantizeColumn and the mutation
-  /// surface); callers enforce that. rawColumnsToGather names columns whose
-  /// raw values a leaf model reads (linear leaves): their subset values and
-  /// parent-derived standardization constants are copied so rawColumn and
-  /// suppliedStandardization serve them. The view is self-contained: nothing
-  /// references the parent after this returns.
+  /// observations. Views hold no re-quantizable raw (isView is set), which
+  /// rules out every mutation and re-quantize path here; callers enforce that.
+  /// rawColumnsToGather names columns whose raw values a leaf model reads
+  /// (linear leaves): their subset values and parent-derived standardization
+  /// constants are copied so rawColumn and suppliedStandardization serve them.
+  /// The view is self-contained: nothing references the parent after this
+  /// returns.
   void buildFromParent(const ColumnStore& parent, const size_t* rows,
                        size_t numRows, const size_t* testRows,
                        size_t numTestRows,
                        const size_t* rawColumnsToGather = nullptr,
                        size_t numRawColumnsToGather = 0) {
-    x = nullptr;
+    isView = true;
     numObservations = numRows;
     numPredictors = parent.numPredictors;
     useQuantiles = parent.useQuantiles;
@@ -715,6 +766,7 @@ struct ColumnStore {
     hasMissing.assign(numPredictors, 0);
     refreshCategoricalTiers();
 
+    ownedTestValues.clear();
     gatheredRawColumns.clear();
     gatheredRawValues.clear();
     gatheredRawTestValues.clear();
@@ -754,7 +806,6 @@ struct ColumnStore {
         if (column[i] == missingCode) hasMissing[j] = 1;
       }
     }
-    x_test = nullptr;
     numTestObservations = numTestRows;
     testCodes.resize(numTestRows * numPredictors);
     for (size_t i = 0; i < numTestRows; ++i)
@@ -763,63 +814,69 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
-  // Mutation. Snapshot/rollback of x, cutPoints, and codes is the caller's
-  // (the sampler's) responsibility; these only install new values. Cut
-  // refreshes assume the caller pre-checked quantile feasibility with
-  // cutsWouldRemainValid.
+  // Mutation. The new raw values arrive as call arguments (the engine keeps no
+  // predictor matrix to write through); snapshot/rollback of cutPoints, codes,
+  // and the gathered leaf raw is the caller's (the sampler's) responsibility.
+  // Cut refreshes assume the caller pre-checked quantile feasibility with
+  // cutsWouldRemainValid. These paths run only on dense-built stores (the
+  // bridge refuses mutation on CSC/mixed and view stores).
 
-  /// Replace the whole predictor matrix by pointer swap.
+  /// Replace the whole predictor matrix; newX is column-major and read for
+  /// the call only, quantized into the owned codes.
   void setPredictors(const double* newX, bool updateCuts) {
-    x = newX;
     for (size_t j = 0; j < numPredictors; ++j) {
-      if (updateCuts) refreshCutsForColumn(j);
-      quantizeColumn(j);
+      const double* column = newX + j * numObservations;
+      if (updateCuts) refreshCutsForColumn(j, column);
+      quantizeColumn(j, column);
     }
   }
 
-  /// Overwrite a subset of columns in place; newColumns is column-major,
-  /// numObservations x numColumns.
+  /// Overwrite a subset of columns; newColumns is column-major,
+  /// numObservations x numColumns, read for the call only.
   void setColumns(const double* newColumns, const size_t* columns,
                   size_t numColumns, bool updateCuts) {
-    double* x_mutable = const_cast<double*>(x);
     for (size_t k = 0; k < numColumns; ++k) {
       size_t j = columns[k];
-      std::memcpy(x_mutable + j * numObservations,
-                  newColumns + k * numObservations,
-                  numObservations * sizeof(double));
-      if (updateCuts) refreshCutsForColumn(j);
-      quantizeColumn(j);
+      const double* column = newColumns + k * numObservations;
+      if (updateCuts) refreshCutsForColumn(j, column);
+      quantizeColumn(j, column);
     }
   }
 
-  /// Overwrite a single cell in place, re-quantizing against existing cuts.
-  /// A missing value marks the column; the flag only clears on a full
-  /// column re-quantize (conservative but never wrong - the NA-aware
-  /// partition handles columns without missing values too).
+  /// Overwrite a single cell's code against existing cuts, refreshing the
+  /// gathered raw copy of a leaf-covariate column. A missing value marks the
+  /// column; the flag only clears on a full column re-quantize (conservative
+  /// but never wrong - the NA-aware partition handles NA-free columns too).
   void setCell(size_t i, size_t j, double value) {
-    const_cast<double*>(x)[i + j * numObservations] = value;
     codes[codeOffsets[j] + i] = codeFor(j, value);
     if (isNA(value)) hasMissing[j] = 1;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot >= 0)
+      gatheredRawValues[static_cast<size_t>(slot) * numObservations + i] =
+        value;
   }
 
   /// Whole-data replacement: new values for the same predictors, possibly a
-  /// new number of observations. Ordinal cuts are rebuilt from scratch, so
-  /// unlike refreshCutsForColumn a quantile-mode count may shrink and the
-  /// caller remaps existing splits onto the new grid; categorical category
-  /// counts stay fixed (the caller validates the new values).
+  /// new number of observations, read for the call only. Ordinal cuts are
+  /// rebuilt from scratch, so unlike refreshCutsForColumn a quantile-mode count
+  /// may shrink and the caller remaps existing splits onto the new grid;
+  /// categorical category counts stay fixed (the caller validates the new
+  /// values). Dense stores only (setData is refused on CSC/mixed).
   void setData(const double* x_, size_t n) {
-    x = x_;
     numObservations = n;
     codes.resize(n * numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * n;
+    // resize the gathered leaf-covariate copies for the new observation count
+    gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
-      if (types[j] != ColumnType::categorical) buildCutsForColumn(j);
-      quantizeColumn(j);
+      const double* column = x_ + j * n;
+      if (types[j] != ColumnType::categorical) buildCutsForColumn(j, column);
+      quantizeColumn(j, column);
     }
   }
 
   void clearTest() {
-    x_test = nullptr;
+    ownedTestValues.clear();
     numTestObservations = 0;
     testCodes.clear();
     testOffset = nullptr;

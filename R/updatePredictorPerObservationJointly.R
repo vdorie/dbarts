@@ -81,6 +81,12 @@ updatePredictorPerObservationJointly <- function(
     as.integer(columnIndices)
   )
 
+  # the engine keeps no predictor matrix, so maintain each sampler's data@x
+  # R-side for the observations the shared scan installed (design plan-1 interim)
+  for (i in seq_along(samplers)) {
+    samplers[[i]]$data@x[installed, columnIndices[i]] <- x[installed]
+  }
+
   for (sampler in samplers) {
     if (
       (is.na(updateState) && sampler$control@updateState == TRUE) ||

@@ -298,7 +298,9 @@ static void testChiKEmptyLeafAccounting(ext_rng* rng) {
     y[i] = (t > 0.5 ? 1.0 : -1.0) + 0.1 * (runif01() - 0.5);
   }
   ColumnStore store;
-  store.build(x.data(), n, p, 100);
+  // column 1 is the linear-leaf covariate the vector chain below reads
+  size_t leafGather[] = {1};
+  store.build(x.data(), n, p, 100, false, nullptr, leafGather, 1);
 
   // splitIndex 50 keeps the left child populated; the hook strands the right
   const int32_t splitVar = 0, splitIndex = 50;
@@ -489,7 +491,10 @@ struct LinearLeafFixture {
     }
     z = {0.35, -0.10, 0.22, 0.55, -0.42, 0.16, 0.03, -0.25};
     w = {1.0, 2.0, 0.5, 1.0, 1.5, 1.0, 0.8, 1.2};
-    store.build(x.data(), n, 3, 100);
+    // the store owns raw copies of the leaf-covariate columns (1, 2), as a
+    // production build does, so a leaf reading rawColumn is served
+    size_t leafGather[] = {1, 2};
+    store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2);
     tree.initialize(indexBuffer.data(), n);
   }
 };
@@ -631,8 +636,8 @@ static void testLinearLeafStatisticsCache() {
   size_t columns[] = {1};
 
   ColumnStore storeV0, storeV1;
-  storeV0.build(xV0.data(), n, p, 100);
-  storeV1.build(xV1.data(), n, p, 100);
+  storeV0.build(xV0.data(), n, p, 100, false, nullptr, columns, 1);
+  storeV1.build(xV1.data(), n, p, 100, false, nullptr, columns, 1);
   std::vector<size_t> indexBuffer(n);
   Tree tree;
   tree.initialize(indexBuffer.data(), n);
@@ -819,7 +824,7 @@ static void testLinearLeafEndToEnd(ext_rng* rng) {
         "reinstalling identical predictors is accepted");
   SamplerStateData state;
   sampler->getState(state);
-  check(sampler->setState(state), "a state restores into its own sampler");
+  check(sampler->setState(state, nullptr), "a state restores into its own sampler");
   check(sampler->savedTreeCapacity() == 0, "keepTrees stays off by default");
 
   // a short run with the k hyperprior exercises the all-coordinate
@@ -915,7 +920,7 @@ static void testLinearLeafFormats(ext_rng* rng) {
   std::unique_ptr<SamplerBase> restored = createSampler(
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     1.0, 3.0, 0.37804942330213542, options, &rng2);
-  check(restored->setState(state), "a linear-leaf state restores");
+  check(restored->setState(state, nullptr), "a linear-leaf state restores");
 
   checkStructuralRoundTrip(state, *restored,
                            "restored linear-leaf state reproduces the model");
@@ -923,7 +928,7 @@ static void testLinearLeafFormats(ext_rng* rng) {
   // a state with mismatched slope shapes is refused
   SamplerStateData malformed = state;
   malformed.chains[0].forests[0].treeParams[0].push_back(0.0);
-  check(!sampler->setState(malformed),
+  check(!sampler->setState(malformed, nullptr),
         "a state with mismatched slopes is refused");
 
   ext_rng_destroy(rng2);
@@ -951,7 +956,11 @@ static void testLinearLeafViews() {
   options.numLeafCovariates = 1;
 
   ColumnStore parent;
-  parent.build(x.data(), n, p, options.maxNumCuts);
+  // a data handle owns raw for the columns its views gather (here covariate 1),
+  // so buildFromParent can copy them; a dense build serves rawColumn only for
+  // gathered columns
+  parent.build(x.data(), n, p, options.maxNumCuts, false, nullptr, covariates,
+               1);
 
   // view gather mechanics: subset raw values and parent-derived constants
   {
@@ -1548,7 +1557,7 @@ static void testGroupedStateRoundTrip() {
   ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
-  check(restored.setState(state), "a grouped state restores");
+  check(restored.setState(state, nullptr), "a grouped state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored grouped state reproduces the effects and tau");
@@ -1557,7 +1566,7 @@ static void testGroupedStateRoundTrip() {
   // is overwritten
   SamplerStateData badState(state);
   badState.chains[0].groupEffects.resize(numGroups - 1);
-  check(!restored.setState(badState),
+  check(!restored.setState(badState, nullptr),
         "a mismatched grouped state is refused");
 
   for (size_t c = 0; c < numChains; ++c) {
@@ -1861,7 +1870,7 @@ static void testSparseStateRoundTrip() {
   ConstantLeafSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
-  check(restored.setState(state), "a sparse-store state restores");
+  check(restored.setState(state, nullptr), "a sparse-store state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored sparse-store state reproduces the model");
@@ -2186,7 +2195,7 @@ static void testMixedStateRoundTrip() {
   ConstantLeafSampler restored(nullptr, y.data(), n, fixture.p, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
-  check(restored.setState(state), "a mixed-store state restores");
+  check(restored.setState(state, nullptr), "a mixed-store state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored mixed-store state reproduces the model");
@@ -2219,7 +2228,10 @@ struct GPLeafFixture {
     }
     z = {0.35, -0.10, 0.22, 0.55, -0.42, 0.16, 0.03, -0.25};
     w = {1.0, 2.0, 0.5, 1.0, 1.5, 1.0, 0.8, 1.2};
-    store.build(x.data(), n, 3, 100);
+    // the store owns raw copies of the leaf-covariate columns (1, 2), as a
+    // production build does, so a leaf reading rawColumn is served
+    size_t leafGather[] = {1, 2};
+    store.build(x.data(), n, 3, 100, false, nullptr, leafGather, 2);
     tree.initialize(indexBuffer.data(), n);
   }
 };
@@ -2359,7 +2371,8 @@ static void testGPLeafZeroWeights(ext_rng* rng) {
   std::vector<double> zd = {0.4, -0.2, 0.1, 0.0, 0.3};
   std::vector<double> wd = {1.0, 1.0, 2.0, 0.0, 1.5};
   ColumnStore dupStore;
-  dupStore.build(xd.data(), nd, 2, 100);
+  size_t dupGather[] = {1};
+  dupStore.build(xd.data(), nd, 2, 100, false, nullptr, dupGather, 1);
   std::vector<size_t> dupIndices(nd);
   Tree dupTree;
   dupTree.initialize(dupIndices.data(), nd);
@@ -2633,7 +2646,7 @@ static void testGPLeafEndToEnd(ext_rng* rng) {
   // and flatten emits records
   SamplerStateData state;
   gpSampler.getState(state);
-  check(gpSampler.setState(state), "a gp state restores into its own sampler");
+  check(gpSampler.setState(state, nullptr), "a gp state restores into its own sampler");
   std::vector<FlatNode> flatNodes;
   std::vector<std::uint32_t> flatCounts;
   gpSampler.flattenTree(0, 0, flatNodes, flatCounts);
@@ -2742,15 +2755,15 @@ static void testGPLeafFormats(ext_rng* rng) {
 
   SamplerStateData state;
   sampler.getState(state);
-  check(restored.setState(state), "gp state installs into a fresh sampler");
+  check(restored.setState(state, nullptr), "gp state installs into a fresh sampler");
 
   // malformed side channels refuse without mutating anything
   SamplerStateData malformed = state;
   malformed.chains[0].forests[0].savedTreeParams[0].pop_back();
-  check(!restored.setState(malformed), "truncated gp side channel refused");
+  check(!restored.setState(malformed, nullptr), "truncated gp side channel refused");
   malformed = state;
   malformed.chains[0].forests[0].treeParams[0].pop_back();
-  check(!restored.setState(malformed), "short gp fits slab refused");
+  check(!restored.setState(malformed, nullptr), "short gp fits slab refused");
 
   // the good state survived the rejected malformed loads and reproduces the
   // model (its fits slabs, saved side channels, and rng)
@@ -2826,7 +2839,7 @@ static void testGPLeafKernelCache(ext_rng* rng) {
     Sampler<GPGaussianLeaf> cold(
       x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
       ySd, 3.0, 0.37804942330213542, options, &rngB);
-    bool installed = cold.setState(state);
+    bool installed = cold.setState(state, nullptr);
 
     bool accepted =
       sampler.setPredictor(xMutated.data(), true, false) ==
@@ -2861,7 +2874,8 @@ static void testGPLeafKernelCache(ext_rng* rng) {
   // Kept on a single leaf so the warm serve and the post-invalidate rescan
   // share buffers and compare bitwise irrespective of allocation layout.
   ColumnStore leafStore;
-  leafStore.build(x.data(), n, p, 100);
+  size_t leafGather[] = {0};
+  leafStore.build(x.data(), n, p, 100, false, nullptr, leafGather, 1);
   std::vector<size_t> leafIndices(n);
   Tree leafTree;
   leafTree.initialize(leafIndices.data(), n);
@@ -3054,13 +3068,13 @@ static void testAFTStateRoundTrip() {
   ConstantLeafSampler restored(x.data(), obsLogT.data(), n, p, nullptr, nullptr,
                                ResponseFamily::aft, 1.0, 3.0,
                                0.37804942330213542, options, rngs2.data());
-  check(restored.setState(state), "an aft state restores");
+  check(restored.setState(state, nullptr), "an aft state restores");
   checkStructuralRoundTrip(state, restored,
                            "restored aft state reproduces the latents and scale");
 
   SamplerStateData badState(state);
   badState.chains[0].latents.resize(n - 1);
-  check(!restored.setState(badState), "a mismatched aft latents vector is refused");
+  check(!restored.setState(badState, nullptr), "a mismatched aft latents vector is refused");
 
   for (size_t c = 0; c < numChains; ++c) {
     ext_rng_destroy(rngs[c]);

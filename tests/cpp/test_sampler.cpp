@@ -532,7 +532,6 @@ static void testSetData(ext_rng* rng) {
   // exactly
   std::vector<double> xCopy(x), yCopy(y);
   sampler.setData(xCopy.data(), yCopy.data(), n, nullptr, nullptr, nullptr, 0);
-  check(sampler.data().x == xCopy.data(), "setData installs the new pointer");
   check(sampler.data().codes == codesBefore, "identity setData preserves codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore,
         "identity setData preserves fits");
@@ -1056,7 +1055,7 @@ static void testPooledMaskSampler(ext_rng* rng) {
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng2);
   restored.setTestPredictors(xTest.data(), nTest);
-  check(restored.setState(state), "a pooled state restores");
+  check(restored.setState(state, nullptr), "a pooled state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored pooled state reproduces the model");
@@ -1430,7 +1429,7 @@ static void testMissingEndToEnd() {
   ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, &rng2);
-  check(restored.setState(state), "a state with missing directions restores");
+  check(restored.setState(state, nullptr), "a state with missing directions restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored state reproduces the missing directions");

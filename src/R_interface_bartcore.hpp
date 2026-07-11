@@ -37,15 +37,17 @@ SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,
 SEXP bartcore_updatePredictorPerObservation(SEXP ptr, SEXP x, SEXP column);
 SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
                                                    SEXP columns);
-SEXP bartcore_setCutPoints(SEXP ptr, SEXP cutPoints, SEXP columns);
+SEXP bartcore_setCutPoints(SEXP ptr, SEXP cutPoints, SEXP columns,
+                           SEXP currentPredictors);
 SEXP bartcore_getSigmas(SEXP ptr);
 SEXP bartcore_isValidPointer(SEXP ptr);
 SEXP bartcore_getLatents(SEXP ptr, SEXP result);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
-                       SEXP treeNums, SEXP current, SEXP newdata);
+                       SEXP treeNums, SEXP current, SEXP newdata,
+                       SEXP trainingData);
 SEXP bartcore_storeState(SEXP ptr);
-SEXP bartcore_setState(SEXP ptr, SEXP state);
+SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptr);

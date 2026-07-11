@@ -22,9 +22,13 @@
 ///   main R thread. Do not wrap them in a GetRNGstate/PutRNGstate bracket
 ///   that spans your own draws through R's API.
 /// - Creation preserves the data specification object against garbage
-///   collection for the sampler's lifetime. Raw-array setters instead
-///   borrow: the caller keeps the array alive until it is replaced or the
-///   sampler is destroyed.
+///   collection for the sampler's lifetime, and the engine borrows its
+///   predictors only to quantize them into owned codes at construction; the
+///   preserved data object is thereafter the sampler's own predictor GC anchor
+///   and the call-time raw source for saved-tree replay and state restore.
+///   Raw-array setters borrow for the call's duration only: setResponse,
+///   setOffset, and setWeights keep the array alive until replaced; the
+///   predictor setters re-quantize the borrow and retain no pointer.
 /// - Matrices are column-major. Result and prediction layouts put samples
 ///   and then chains in trailing dimensions.
 
@@ -203,13 +207,20 @@ void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
 /// the engine's internal response scale. Indices are 0-based here. Saved
 /// trees are read unless useLiveTrees; sampleIndices is ignored when
 /// reading live trees. The caller must protect the result.
+///
+/// trainingData is the column-major numObservations x numPredictors matrix the
+/// saved trees replay to count each node's training observations (the engine
+/// keeps no predictor matrix); pass the sampler's current predictors, or NULL
+/// to replay the creation specification's predictors. It is ignored when
+/// reading live trees (they carry their own counts).
 SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* chainIndices,
                              size_t numChainIndices,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices,
-                             size_t numTreeIndices, int useLiveTrees);
+                             size_t numTreeIndices, int useLiveTrees,
+                             const double* trainingData);
 void dbarts_sampler_printTrees(dbarts_sampler* sampler,
                                const size_t* chainIndices,
                                size_t numChainIndices,
