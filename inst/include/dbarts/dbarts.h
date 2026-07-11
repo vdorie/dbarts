@@ -67,10 +67,13 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), and tau/groupEffects a grouped
 /// random-intercept sampler; each is left untouched otherwise. logLikelihood
-/// carries the per-draw training-data log-likelihood for the gaussian and
-/// binary families; it is NaN-filled where the per-observation location is
-/// not fully recorded (a BCF two-forest fit), and skipping it (null or
-/// absent-by-size) elides all of its computation.
+/// carries the per-draw training-data log-likelihood for the gaussian,
+/// binary, and aft families; aft reports the log density for events and the
+/// log survival tail for right-censored observations, and a grouped
+/// (random-intercept) sampler composes it over the per-group fits. It is
+/// NaN-filled where the per-observation location is not fully recorded (a BCF
+/// two-forest fit), and skipping it (null or absent-by-size) elides all of
+/// its computation.
 /// Value-initialize and set the size:
 ///   dbarts_results results = {0}; results.structSize = sizeof results;
 typedef struct dbarts_results_t {
@@ -223,6 +226,13 @@ void dbarts_sampler_printTrees(dbarts_sampler* sampler,
 /// multi-chain restore; a stored generator of a different kind than the
 /// destination chain's is then left unrestored (the destination keeps its
 /// own stream), which only forfeits cross-kind bitwise continuation.
+///
+/// dbarts_sampler_setState enforces an encoding floor: a state whose format
+/// version predates the running library's minimum readable version is refused
+/// (naming both versions) rather than silently misread, and there is no
+/// cross-version migration. Blocks it does not recognize by name are skipped
+/// rather than errored, so a state written by a newer library restores its
+/// shared blocks and leaves the unknown ones to the destination's own draw.
 SEXP dbarts_sampler_storeState(dbarts_sampler* sampler);
 void dbarts_sampler_setState(dbarts_sampler* sampler, SEXP state);
 

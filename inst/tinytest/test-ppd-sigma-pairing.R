@@ -165,3 +165,67 @@ expect_equal(dim(ppd.r.comb), c(20L, n))
 expect_identical(dbarts:::combineChains(ppd.r.split), ppd.r.comb)
 
 rm(fit.r, ppd.r.split, ppd.r.comb, x, y, g, n)
+
+# 6. binary layout invariance: the binary branches draw rbinom against the
+# split-layout probabilities and reshape the outcome (the draw depends on ev,
+# so it cannot be reshaped after the fact), so a combined and a split ppd
+# draw from the same seed agree bit-for-bit. Under the pre-fix code the
+# combined draw consumed the RNG stream in the chain-blocked row order and
+# this comparison failed for every chain past the first.
+set.seed(6, sample.kind = "Rejection")
+n <- 60L
+x <- matrix(runif(n * 2L), n, 2L)
+y.b <- rbinom(n, 1L, pnorm(0.8 * x[, 1L] - 0.4))
+
+# probit
+fit.pb <- bart2(
+  y.b ~ x,
+  n.samples = 20L,
+  n.burn = 20L,
+  n.trees = 15L,
+  n.chains = 3L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+set.seed(0L)
+ppd.pb.split <- extract(fit.pb, type = "ppd", combineChains = FALSE)
+set.seed(0L)
+ppd.pb.comb <- extract(fit.pb, type = "ppd")
+expect_equal(dim(ppd.pb.split), c(3L, 20L, n))
+expect_equal(dim(ppd.pb.comb), c(60L, n))
+expect_identical(dbarts:::combineChains(ppd.pb.split), ppd.pb.comb)
+
+# weighted logistic: draws are binomial(w, p) counts, so also test that the
+# reshape composes with the per-observation weight recycling
+w <- rep_len(c(1L, 3L, 5L), n)
+fit.lg <- bart2(
+  y.b ~ x,
+  weights = w,
+  family = "logistic",
+  n.samples = 20L,
+  n.burn = 20L,
+  n.trees = 15L,
+  n.chains = 3L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+set.seed(0L)
+ppd.lg.split <- extract(fit.lg, type = "ppd", combineChains = FALSE)
+set.seed(0L)
+ppd.lg.comb <- extract(fit.lg, type = "ppd")
+expect_identical(dbarts:::combineChains(ppd.lg.split), ppd.lg.comb)
+# counts respect the per-observation weight ceiling in both layouts
+expect_true(all(ppd.lg.comb <= rep(w, each = 60L)))
+
+rm(
+  fit.pb,
+  fit.lg,
+  ppd.pb.split,
+  ppd.pb.comb,
+  ppd.lg.split,
+  ppd.lg.comb,
+  w,
+  x,
+  y.b,
+  n
+)

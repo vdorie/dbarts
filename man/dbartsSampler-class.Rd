@@ -25,6 +25,7 @@
 \alias{\S4method{printTrees}{dbartsSampler}}
 \alias{\S4method{getTrees}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
+\alias{\S4method{setState}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
 \description{
   A reference class object that contains a Bayesian Additive Regression Trees sampler in such a way that it can be modified, stopped, and started all while maintaining its own state.
@@ -38,7 +39,7 @@
 )
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
-\S4method{growFromRoot}{dbartsSampler}(n.sweeps = 2L, updateState = FALSE)
+\S4method{growFromRoot}{dbartsSampler}(n.sweeps = 2L, updateState = NA)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
@@ -59,6 +60,7 @@
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
+\S4method{setState}{dbartsSampler}(newState)
 \S4method{plotTree}{dbartsSampler}(
   treeNum, chainNum, sampleNum, treePlotPars = c(
     nodeHeight = 12, nodeWidth = 40, nodeGap = 8),
@@ -195,6 +197,9 @@
   \item{n.sweeps}{
     For \code{growFromRoot}, a single positive integer giving the number of grow-from-root sweeps run in place (default \code{2L}). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.
   }
+  \item{newState}{
+    For \code{setState}, a state object previously produced by this sampler (its \code{state} field, or the return of \code{storeState}) over the same model. Must inherit from \code{bartcoreState}.
+  }
   \item{...}{
     Extra arguments to \code{\link{plot}}.
   }
@@ -206,12 +211,14 @@
     \code{\link{save}}-ing and \code{\link{load}}ing a \code{dbarts} sampler for future use requires that R's serialization mechanism be able to access the state of the sampler which, for memory purposes, is only made available to R on request. To do this, one must \dQuote{touch} the sampler's state object before saving, e.g. for the object \code{sampler}, execute \code{invisible(sampler$state)}. This is in addition to guaranteeing that the \code{state} object is not \code{NULL}, which can be done by setting the sampler's control to an object with \code{updateState} as \code{TRUE} or passing \code{TRUE} as the \code{updateState} argument to any of the sampler's applicable methods.
 
     The state object is opaque and engine-specific, and carries a format version and the package version that wrote it. A state loads only within the format version of the \code{dbarts} that wrote it; loading it with an incompatible version refuses cleanly, naming both versions, rather than risk a silent misread. There is no cross-version migration: re-fit the model, or restore the state with the \code{dbarts} release that wrote it.
+
+    To restore a saved state into a sampler, call \code{setState(newState)}: it validates that \code{newState} inherits from \code{bartcoreState}, re-creates the underlying engine if needed, pushes the state into it, and caches it on the \code{state} field. Assigning the field directly (\code{sampler$state <- newState}) does \emph{not} restore the sampler - it only overwrites the R-side cache, leaving the engine untouched, so the next run continues from the engine's own state rather than the assigned one. Always route a restore through \code{setState}.
   }
 
   \subsection{Warm starts}{
     \code{installTrees} seeds the sampler's forests from a \code{donor} instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, \code{sigma}, and \code{k} transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.
 
-    \code{growFromRoot} instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of \code{n.sweeps} sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once \code{run} begins, and the posterior is unchanged. It is available for the constant-leaf model only; \code{linear} and \code{gp} node priors initialize with \code{sampleTreesFromPrior} instead. As with \code{installTrees}, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of \code{n.threads}. A composable cross-sampler workflow follows for free: \code{donor$growFromRoot(k)} then \code{target$installTrees(donor)}.
+    \code{growFromRoot} instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of \code{n.sweeps} sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once \code{run} begins, and the posterior is unchanged. It is available for the constant-leaf model only; calling it on a \code{linear} or \code{gp} node prior is an error, not a silent fall-back, so initialize those forests with \code{sampleTreesFromPrior} instead. As with \code{installTrees}, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of \code{n.threads}. A composable cross-sampler workflow follows for free: \code{donor$growFromRoot(k)} then \code{target$installTrees(donor)}.
   }
 }
 \value{

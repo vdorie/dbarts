@@ -33,7 +33,12 @@ samplePriorPredictive(
     scale for a gaussian sampler, or the link-transformed probability for a probit/logistic one -
     matching what \code{\link{extract}} and \code{predict} call \code{"ev"}. \code{"ppd"} adds the
     observation model on top: gaussian noise with sigma freshly drawn from its own prior for each
-    sample, or a bernoulli draw from the \code{"ev"} probabilities for a binary sampler.
+    sample, or a bernoulli draw from the \code{"ev"} probabilities for a binary sampler; on an aft
+    (survival) sampler the draw is on the log-time scale (the model fits \eqn{\log T}{log T}).
+    Unlike \code{\link{extract}}'s posterior \code{"ppd"}, prior predictive draws are weight-blind:
+    they use unit weights rather than a weighted precision (\eqn{\sigma / \sqrt{w}}{sigma / sqrt(w)}
+    for gaussian) or a \eqn{\mathrm{Binomial}(w, p)}{Binomial(w, p)} success count (weighted
+    logistic); supply any weighted precision downstream.
   }
   \item{offset.test}{
     A numeric offset added to the forest sum, as in \code{\link[=dbartsSampler-class]{predict}};

@@ -205,3 +205,120 @@ expect_identical(extract(fit.mc2, type = "loglik"), ll.comb)
 
 rm(ll.unc, ev.unc, ll.comb, ev.comb, fit.mc, fit.mc2, chain)
 rm(x, y, n)
+
+# 8. aft (survival): events contribute the log density of the observed log
+# event time; right-censored rows the log upper survival tail
+# pnorm(logC, ev, sigma, lower.tail = FALSE, log.p = TRUE), both on the
+# log-time scale with the paired sigma draw - not the gaussian density on
+# every row (the pre-fix behavior). y and ev are on the log-time scale, and
+# for a censored row y is the log censoring time (logC).
+set.seed(11, sample.kind = "Rejection")
+n <- 80L
+x <- matrix(runif(n * 2L), n, 2L)
+logT.true <- 1 + 0.8 * x[, 1L] - 0.5 * x[, 2L] + rnorm(n, 0, 0.4)
+event.time <- exp(logT.true)
+censor.time <- exp(rnorm(n, 1.0, 0.5))
+obs.time <- pmin(event.time, censor.time)
+status <- as.integer(event.time <= censor.time)
+# both event and censored rows present, so both branches are exercised
+expect_true(sum(status) > 0L && sum(status == 0L) > 0L)
+
+fit.aft <- bart2(
+  x,
+  cbind(obs.time, status),
+  family = "aft",
+  n.samples = 60L,
+  n.burn = 40L,
+  n.trees = 20L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+# the status vector rides onto the fit object so the R layer can score
+# censored rows correctly
+expect_identical(as.double(fit.aft$status), as.double(status))
+expect_identical(fit.aft$family, "aft")
+
+ll.aft <- extract(fit.aft, type = "loglik")
+ev.aft <- extract(fit.aft, type = "ev")
+logtime <- log(obs.time)
+expect_equal(dim(ll.aft), dim(ev.aft))
+
+# hand-computed at a pinned (draw, obs) for an event and a censored row
+s <- 5L
+i.event <- which(status == 1L)[1L]
+i.cen <- which(status == 0L)[1L]
+expect_identical(
+  ll.aft[s, i.event],
+  dnorm(logtime[i.event], ev.aft[s, i.event], fit.aft$sigma[s], log = TRUE)
+)
+expect_identical(
+  ll.aft[s, i.cen],
+  pnorm(
+    logtime[i.cen],
+    ev.aft[s, i.cen],
+    fit.aft$sigma[s],
+    lower.tail = FALSE,
+    log.p = TRUE
+  )
+)
+
+# whole-column agreement: the naive dnorm-everywhere matrix (the pre-fix
+# output) matches ONLY on event columns; the censored columns must differ,
+# which is exactly the defect this fix closes
+naive <- sapply(
+  seq_len(n),
+  function(i) dnorm(logtime[i], ev.aft[, i], fit.aft$sigma, log = TRUE)
+)
+expect_equal(ll.aft[, status == 1L], naive[, status == 1L])
+expect_false(isTRUE(all.equal(ll.aft[, status == 0L], naive[, status == 0L])))
+
+# the censored columns equal the survival-tail recomputation entrywise
+tail.cen <- sapply(
+  which(status == 0L),
+  function(i) {
+    pnorm(
+      logtime[i],
+      ev.aft[, i],
+      fit.aft$sigma,
+      lower.tail = FALSE,
+      log.p = TRUE
+    )
+  }
+)
+expect_equal(unname(ll.aft[, status == 0L]), unname(tail.cen))
+
+rm(
+  ll.aft,
+  ev.aft,
+  naive,
+  tail.cen,
+  fit.aft,
+  logtime,
+  s,
+  i.event,
+  i.cen,
+  x,
+  n,
+  logT.true,
+  event.time,
+  censor.time,
+  obs.time,
+  status
+)
+
+# 9. an unrecognized family is refused rather than scored with a wrong
+# formula (future negative-binomial / ordinal families cannot silently
+# reuse the gaussian or bernoulli branch)
+fakeFit <- list(
+  y = c(0, 1, 0),
+  family = "nbinom",
+  sigma = c(1, 1),
+  yhat.train = array(0, c(2L, 3L)),
+  n.chains = 1L
+)
+class(fakeFit) <- "bart"
+expect_error(
+  dbarts:::pointwiseLogLikelihood(fakeFit, array(0, c(2L, 3L))),
+  pattern = "log-likelihood not available for family"
+)

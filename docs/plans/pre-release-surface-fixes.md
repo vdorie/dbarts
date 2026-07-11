@@ -69,3 +69,18 @@ VD approved the recommended fixes 2026-07-10.
 ## Status
 
 - 2026-07-10: approved; implementation dispatched.
+- 2026-07-10: implemented on wt/surface-fixes (6 commits, 5883722..8cdeee6).
+  All five fixes landed. Fix 4 shipped Rd-only: an active binding on the
+  state field cannot coexist with the lazy-state delayedAssign and would
+  block the internal selfEnv$state <- write path identically to an external
+  one (empirically confirmed), so blocking direct assignment would require a
+  shadow-field refactor of the state machinery - rejected per the plan's
+  zero-contortion criterion. Gates green: install --preclean OK; tests/cpp
+  rebuilt clean, all pass; tinytest 2694 passed / 0 failed (2675 baseline +
+  19); equivalence 21/21 identical draws (same RNG stream), 21 compared / 0
+  skipped; air format --check + lintr 0 lints on all touched R; pkgdown
+  check clean; dbarts.h diff comment-only (verified). Fix-1 poison: the new
+  aft censored-loglik test run against the reverted dnorm-everywhere
+  pointwiseLogLikelihood fails exactly the 4 censoring/family-guard checks
+  (30/34 pass - event rows and gaussian/probit/logistic untouched), restored
+  after.

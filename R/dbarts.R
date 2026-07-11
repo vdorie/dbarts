@@ -654,7 +654,7 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    growFromRoot = function(n.sweeps = 2L, updateState = FALSE) {
+    growFromRoot = function(n.sweeps = 2L, updateState = NA) {
       "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
       if (
         is(model@node.prior, "dbartsLinearPrior") ||
