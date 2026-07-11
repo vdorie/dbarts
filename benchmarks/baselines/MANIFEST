@@ -26,7 +26,8 @@ equivalence-b354f3a.rds               historical           b354f3a  arm64 (macOS
 equivalence-fbd2168.rds               historical-classic   fbd2168  arm64 (macOS)   18: same as current
 equivalence-19c499a.rds               historical-classic   19c499a  arm64 (macOS)   17: same as current minus wtlogistic
 equivalence-5430fdb.rds               historical-classic   5430fdb  arm64 (macOS)   9: same as b354f3a
-bench-sampler-31a4c01.csv             current              31a4c01  arm64 (macOS)   speed baseline (bench-sampler.R); not an equivalence scenario set
+bench-sampler-32fc7c8.csv             current              32fc7c8  arm64 (macOS)   speed baseline; recorded with the hardened harness (median-of-7, 1000-update windows) - values not comparable to older recordings
+bench-sampler-31a4c01.csv             historical           31a4c01  arm64 (macOS)   speed baseline, superseded (median-of-3 harness; compare vs 32fc7c8 tree passed on re-run - no regression across the season)
 bench-sampler-235bebc.csv             historical           693d864  arm64 (macOS)   speed baseline, superseded
 bench-sampler-733be46.csv             historical           733be46  arm64 (macOS)   speed baseline, superseded
 bench-sampler-2677d86.csv             historical           2677d86  arm64 (macOS)   speed baseline, superseded
