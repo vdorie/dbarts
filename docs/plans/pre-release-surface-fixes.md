@@ -84,3 +84,7 @@ VD approved the recommended fixes 2026-07-10.
   pointwiseLogLikelihood fails exactly the 4 censoring/family-guard checks
   (30/34 pass - event rows and gaussian/probit/logistic untouched), restored
   after.
+- 2026-07-10: LANDED as afcf195 (squash of wt/surface-fixes, tree
+  identical to the gated tip). Reviewer verified the dbarts.h diff
+  comment-only, the aft dispatch/pairing order, and the PPD reshape;
+  re-ran install + tests/cpp + tinytest (2694/0) on the landed tree.
