@@ -84,3 +84,42 @@ forest-ranef confounding, filed separately).
   pass. Orchestrator re-records the anchor at landing.
 - air + lintr on touched R; no dbarts.h change; no state-format
   change.
+
+## Landing
+
+Landed on wt/tau-exact-ig off bartcore 57bbdb5.
+
+- Engine: GroupedResponse::refreshLatents (model.hpp) branches on
+  priorKind_. The cauchy branch now calls drawTauCauchyExactIG (a new
+  header-only helper); the gamma branch keeps the slice loop verbatim.
+  The helper's conditionals as coded, with SS = sum b_j^2, J groups,
+  A = priorScale_ = 2.5 * rel.scale / sigmaScale:
+    xi    | tau   ~ IG(1,          1/tau^2 + 1/A^2)
+    tau^2 | b, xi ~ IG((J + 1)/2,  0.5 SS + 1/xi)
+  Each is one reciprocal ext_rng_simulateGamma draw; the primitive
+  takes a SCALE, so an IG(shape, rate) is 1 / Gamma(shape, 1/rate). The
+  update consumes EXACTLY two ext_rng_simulateGamma draws per sweep (a
+  fixed count) and never persists xi - it is redrawn fresh against the
+  current tau, so no state-format change. The cauchy branch no longer
+  reads sliceSteps_ or the step-out cap; both stay live for gamma.
+
+- IMPORTANT correction to the front matter's RNG prediction: BOTH
+  equivalence grouped scenarios (grouped, grouped_aft) were recorded
+  with prior = gamma (equivalence.R:556,577; gate-hardening chose gamma
+  because the half-Cauchy tail can stall the slice sampler). NO
+  equivalence scenario exercises the cauchy grouped path, so the whole
+  suite stays BIT-IDENTICAL vs equivalence-ac6ec2c.rds (22/22 identical
+  draws, overall OK) - there are no cauchy-grouped z-summaries to
+  report and NO anchor re-record is needed. Only the tinytest
+  grouped-cauchy tripwire shifted.
+
+- Gates: R CMD INSTALL --preclean clean; tests/cpp all pass incl. the
+  three new gates in testGroupedMath (exact-IG quadrature-moment match,
+  two-gamma draw-count constancy, gamma-branch bit-identity) - poison
+  (0.5 SS -> 1.0 SS in the tau^2 rate) drove the quadrature gate to
+  FAIL, then restored; full tinytest 2727/2727 after regenerating
+  inst/tinytest/test-reproducibility-rbart.R (its grouped default-prior
+  ranef snapshot) by whole-file replay; equivalence 22/22 identical;
+  air --check clean (lintr not installed here). rbart.Rd's tau-sampling
+  sentence updated to note the exact cauchy draw (checkRd clean;
+  pkgdown site is not version-controlled, nothing to regenerate).

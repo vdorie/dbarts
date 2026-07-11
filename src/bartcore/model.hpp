@@ -2562,6 +2562,34 @@ double sliceSampleOnce(ext_rng* rng, const LogDensity& logDensity, double x,
   return x;
 }
 
+/// Exact conjugate draw of the grouped scale tau under the half-Cauchy prior
+/// tau ~ C+(0, A), via the Makalic-Schmidt (2016) inverse-gamma scale mixture:
+///   tau^2 | xi ~ IG(1/2, 1/xi),   xi ~ IG(1/2, 1/A^2)   ==>   tau ~ C+(0, A).
+/// With b_j ~ N(0, tau^2), SS = sum b_j^2, J groups, the two full conditionals
+/// are exact inverse gammas
+///   xi    | tau    ~ IG(1,         1/tau^2 + 1/A^2)
+///   tau^2 | b, xi  ~ IG((J + 1)/2, 0.5 SS + 1/xi),
+/// drawn as one reciprocal gamma each. This is the drawGlue idiom (chain.hpp):
+/// ext_rng_simulateGamma takes a SCALE, so an IG(shape, rate) draw is
+/// 1 / Gamma(shape, scale = 1/rate). The update therefore consumes EXACTLY two
+/// ext_rng_simulateGamma draws per sweep - a fixed count, unlike the slice
+/// sampler's data-dependent step-out/shrinkage; it cannot hang and needs no
+/// step-out cap. The auxiliary xi is conditionally independent of everything
+/// given tau, so it is redrawn fresh from its conditional against the current
+/// tau each sweep and never persisted (no state-format change). tauCurrent is
+/// the previous draw the xi conditional conditions on.
+inline double drawTauCauchyExactIG(ext_rng* rng, double numGroups,
+                                   double sumSquaredEffects, double priorScale,
+                                   double tauCurrent) {
+  double invASq = 1.0 / (priorScale * priorScale);
+  double xi = 1.0 / ext_rng_simulateGamma(
+                      rng, 1.0, 1.0 / (1.0 / (tauCurrent * tauCurrent) + invASq));
+  double tauSq =
+    1.0 / ext_rng_simulateGamma(rng, 0.5 * (numGroups + 1.0),
+                                1.0 / (0.5 * sumSquaredEffects + 1.0 / xi));
+  return std::sqrt(tauSq);
+}
+
 /// One conjugate draw of grouped random intercepts: with working response
 /// z_i ~ N(F_i + b_g(i), sigma^2 / w_i) and prior b_j ~ N(0, tau^2), the
 /// groups are independent normals
@@ -2661,15 +2689,25 @@ public:
     for (double effect : groupEffects_)
       sumSquaredEffects += effect * effect;
     double numGroups = static_cast<double>(groupEffects_.size());
-    TauPriorKind kind = priorKind_;
-    double priorScale = priorScale_;
-    auto logDensity = [=](double tau) {
-      return logTauPosterior(tau, numGroups, sumSquaredEffects, kind,
-                             priorScale);
-    };
-    for (std::size_t step = 0; step < sliceSteps_; ++step)
-      tau_ = sliceSampleOnce(rng, logDensity, tau_, priorScale_, 0.0,
-                             HUGE_VAL);
+    if (priorKind_ == TauPriorKind::cauchy) {
+      // Exact Makalic-Schmidt two-block conjugate draw: a fixed 2 gamma draws
+      // per sweep. The cauchy branch no longer consumes sliceSteps_ or the
+      // slice's step-out cap (both stay live for the gamma branch below, which
+      // admits no exact draw as parameterized - see docs/plans/tau-slice-
+      // review.md 4b).
+      tau_ = drawTauCauchyExactIG(rng, numGroups, sumSquaredEffects,
+                                  priorScale_, tau_);
+    } else {
+      TauPriorKind kind = priorKind_;
+      double priorScale = priorScale_;
+      auto logDensity = [=](double tau) {
+        return logTauPosterior(tau, numGroups, sumSquaredEffects, kind,
+                               priorScale);
+      };
+      for (std::size_t step = 0; step < sliceSteps_; ++step)
+        tau_ = sliceSampleOnce(rng, logDensity, tau_, priorScale_, 0.0,
+                               HUGE_VAL);
+    }
 
     rebuildWorking();
   }
