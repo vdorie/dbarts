@@ -1227,6 +1227,79 @@ static void testGroupedMath(ext_rng* rng) {
     checkNear(sd, sliceSd[pass], 0.01, "slice-sampled tau sd");
   }
 
+  // the exact-IG cauchy draw (drawTauCauchyExactIG) reproduces the SAME tau
+  // posterior the slice hits - it targets the identical conditional, so the
+  // cauchy quadrature reference above (sliceMean[0]/sliceSd[0]) is its gate too
+  {
+    const double numGroups = 5.0, ss = 0.8, A = 0.55;
+    double t = 0.45, total = 0.0, totalSq = 0.0;
+    for (size_t r = 0; r < numDraws; ++r) {
+      t = drawTauCauchyExactIG(rng, numGroups, ss, A, t);
+      total += t;
+      totalSq += t * t;
+    }
+    double mean = total / static_cast<double>(numDraws);
+    double sd =
+      std::sqrt(totalSq / static_cast<double>(numDraws) - mean * mean);
+    checkNear(mean, sliceMean[0], 0.01, "exact-IG tau mean matches quadrature");
+    checkNear(sd, sliceSd[0], 0.01, "exact-IG tau sd matches quadrature");
+
+    // draw-count constancy: the update advances a privately seeded rng by
+    // EXACTLY two ext_rng_simulateGamma draws (shapes 1 and (J + 1)/2) with the
+    // documented rates - a reference rng fed just those two lands in the same
+    // state, so a later uniform matches bit for bit (no stray consumption).
+    ext_rng* seededA =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* seededRef =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (seededA == NULL || seededRef == NULL ||
+        ext_rng_setSeed(seededA, 4242) != 0 ||
+        ext_rng_setSeed(seededRef, 4242) != 0) {
+      check(false, "exact-IG draw-count: rng creation");
+    } else {
+      const double tauIn = 0.37;
+      double tauDraw = drawTauCauchyExactIG(seededA, numGroups, ss, A, tauIn);
+      double invASq = 1.0 / (A * A);
+      double xi = 1.0 / ext_rng_simulateGamma(
+                          seededRef, 1.0,
+                          1.0 / (1.0 / (tauIn * tauIn) + invASq));
+      double tauSq = 1.0 / ext_rng_simulateGamma(
+                             seededRef, 0.5 * (numGroups + 1.0),
+                             1.0 / (0.5 * ss + 1.0 / xi));
+      check(tauDraw == std::sqrt(tauSq),
+            "exact-IG draw is two reciprocal gamma draws");
+      check(ext_rng_simulateContinuousUniform(seededA) ==
+              ext_rng_simulateContinuousUniform(seededRef),
+            "exact-IG draw consumes exactly two gamma draws");
+    }
+    if (seededA != NULL) ext_rng_destroy(seededA);
+    if (seededRef != NULL) ext_rng_destroy(seededRef);
+  }
+
+  // gamma-branch bit-identity: the exact-IG reroute touches only the cauchy
+  // branch, so a seeded gamma-prior slice run reproduces the tau and the
+  // following uniform captured from the base (pre-exact-IG) build exactly.
+  {
+    ext_rng* gammaRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (gammaRng == NULL || ext_rng_setSeed(gammaRng, 20260711u) != 0) {
+      check(false, "gamma bit-identity: rng creation");
+    } else {
+      auto gammaDensity = [](double t) {
+        return logTauPosterior(t, 5.0, 0.8, TauPriorKind::gamma, 0.55);
+      };
+      double tau = 0.45;
+      for (int step = 0; step < 5; ++step)
+        tau = sliceSampleOnce(gammaRng, gammaDensity, tau, 0.55, 0.0, HUGE_VAL);
+      check(tau == 0.51564843960975137,
+            "gamma slice tau bit-identical to base build");
+      check(ext_rng_simulateContinuousUniform(gammaRng) ==
+              0.47995807160623372,
+            "gamma slice consumes the base build's rng draws");
+    }
+    if (gammaRng != NULL) ext_rng_destroy(gammaRng);
+  }
+
   // step-out cap: a tau posterior with mode ~1e12 (J = 5, sum b^2 = 5e24;
   // the regime mostly-empty groupings random-walk into) stepped out
   // ~mode/width times before the cap - an indefinite hang. Capped, the
