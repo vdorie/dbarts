@@ -244,6 +244,12 @@ packageBartResults <- function(
     result$varprobs <- varprobs
   }
 
+  # the per-observation censoring status an aft (survival) fit needs so its
+  # log-likelihood can take the survival tail on censored rows; the survival
+  # ingestion parks it on the control attribute, and it is NULL (so the
+  # element stays absent) for every non-survival family
+  result$status <- attr(fit$control, "bartcore.survival")
+
   if (keepSampler) {
     result$fit <- fit
   } else {

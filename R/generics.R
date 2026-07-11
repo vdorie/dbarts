@@ -23,9 +23,15 @@ probabilityFromLatents <- function(latents, object) {
 # as.vector(ev) enumerates draws chain-fastest - the order as.vector on the
 # stored sigma yields in both of its layouts (n.chains x n.samples matrix or
 # chain-interleaved combined vector) - and the sigma draws pair by plain
-# recycling. Weights enter as precision for gaussian fits (y | x ~ N(f(x),
-# sigma^2 / w)) and as trial counts for weighted logistic ones; probit fits
-# never store weights.
+# recycling. Dispatch is on object$family, not on the presence of sigma, so a
+# new family cannot silently reuse a formula that does not fit it (an aft fit
+# has non-null sigma but is not gaussian): gaussian evaluates the normal
+# density with weights as precision (y | x ~ N(f(x), sigma^2 / w)); probit and
+# logistic the bernoulli mass on the y scale, weights being trial counts for
+# logistic (probit never stores weights); aft the log density for events and
+# the log survival tail for right-censored rows, mirroring the engine's
+# AFTResponse::computeLogLikelihood. Any other family errors rather than
+# reporting a wrong number.
 pointwiseLogLikelihood <- function(object, ev) {
   y <- object[["y"]]
   if (is.null(y)) {
@@ -33,20 +39,49 @@ pointwiseLogLikelihood <- function(object, ev) {
       "cannot compute the log-likelihood; fit does not store the training response"
     )
   }
+  family <- object[["family"]]
   weights <- object[["weights"]]
   n.draws <- length(ev) %/% length(y)
   y <- rep(y, each = n.draws)
-  if (is.null(object[["sigma"]])) {
-    result <- dbinom(y, 1L, as.vector(ev), log = TRUE)
-    if (!is.null(weights)) {
-      result <- rep(weights, each = n.draws) * result
-    }
-  } else {
+
+  if (identical(family, "gaussian")) {
     sd <- rep_len(as.vector(object$sigma), length(ev))
     if (!is.null(weights)) {
       sd <- sd / rep(sqrt(weights), each = n.draws)
     }
     result <- dnorm(y, as.vector(ev), sd, log = TRUE)
+  } else if (identical(family, "probit") || identical(family, "logistic")) {
+    result <- dbinom(y, 1L, as.vector(ev), log = TRUE)
+    if (!is.null(weights)) {
+      result <- rep(weights, each = n.draws) * result
+    }
+  } else if (identical(family, "aft")) {
+    status <- object[["status"]]
+    if (is.null(status)) {
+      stop(
+        "cannot compute the aft log-likelihood; fit does not store the censoring status"
+      )
+    }
+    # sigma and y are on the log-time scale (y is log event time for an event,
+    # log censoring time for a censored row); events keep the normal density,
+    # censored rows take the log upper survival tail log P(log T > log C)
+    sd <- rep_len(as.vector(object$sigma), length(ev))
+    location <- as.vector(ev)
+    result <- dnorm(y, location, sd, log = TRUE)
+    censored <- rep(status, each = n.draws) == 0
+    result[censored] <- pnorm(
+      y[censored],
+      location[censored],
+      sd[censored],
+      lower.tail = FALSE,
+      log.p = TRUE
+    )
+  } else {
+    stop(
+      "log-likelihood not available for family \"",
+      if (is.null(family)) "NULL" else family,
+      "\""
+    )
   }
   array(result, dim(ev))
 }
@@ -942,13 +977,15 @@ plotTree.rbart <- function(
 # ev (expected value) enters in the caller's requested layout: chains split
 # ((n.chains x) n.samples x n.obs, obs last) or chains combined ((n.chains *
 # n.samples) x n.obs, chain-blocked rows - all of chain 1's samples, then
-# chain 2's). The gaussian noise is always drawn in object$sigma's own
-# native chain-fastest order (matching both of its storage layouts, verified
-# empirically), so every draw gets its own sigma regardless of the requested
-# output shape; when ev is combined, the freshly drawn noise is reshaped -
-# not redrawn - with the same combineChains() helper the stored draws
-# themselves go through, so a combined and a split ppd draw from the same
-# seed agree bit-for-bit after accounting for row order. n.chains is needed
+# chain 2's). Every family draws in the split layout's chain-fastest order,
+# then reshapes to the caller's shape with the same combineChains() helper
+# the stored draws go through, so a combined and a split ppd draw from the
+# same seed agree bit-for-bit after accounting for row order. Gaussian draws
+# noise in object$sigma's native (chain-fastest) order - matching both of its
+# storage layouts - and adds it (reshaped when ev is combined); binary draws
+# rbinom against the split-order probabilities and reshapes the outcome,
+# since the draw depends on ev and cannot be reshaped after the fact. Single
+# chain and already-split ev take the flat path unchanged. n.chains is needed
 # only to perform that reshape.
 sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
   oldSeed <- NULL
@@ -961,7 +998,17 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
 
   if (is.null(weights)) {
     if (responseIsBinary) {
-      if (length(dim(ev)) > 2L) {
+      if (n.chains > 1L && length(dim(ev)) < 3L) {
+        # ev is combined (chain-blocked rows). Draw in the split layout's
+        # chain-fastest order and reshape with combineChains, so a combined
+        # and a split draw from the same seed agree bit-for-bit (the gaussian
+        # branch's guarantee), instead of consuming the RNG stream in the
+        # combined layout's differing order.
+        ev.split <- uncombineChains(ev, n.chains)
+        draws <- rbinom(length(ev), 1L, as.vector(ev.split))
+        result <- combineChains(array(draws, dim(ev.split)))
+        dimnames(result) <- dimnames(ev)
+      } else if (length(dim(ev)) > 2L) {
         result <- array(
           rbinom(length(ev), 1L, ev),
           dim(ev),
@@ -997,7 +1044,16 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L) {
       # predictive draw is the number of successes, rbinom(, w, ev), not a
       # bernoulli draw scaled by w. size is recycled to match ev's own
       # column-major fill so each obs's weight lines up with its draws.
-      if (length(dim(ev)) > 2L) {
+      if (n.chains > 1L && length(dim(ev)) < 3L) {
+        # combined ev: draw in the split layout's chain-fastest order and
+        # reshape, matching the unweighted binary and gaussian branches so a
+        # combined and a split draw from the same seed agree bit-for-bit.
+        ev.split <- uncombineChains(ev, n.chains)
+        size <- rep(weights, each = prod(dim(ev.split)[1L:2L]))
+        draws <- rbinom(length(ev), size, as.vector(ev.split))
+        result <- combineChains(array(draws, dim(ev.split)))
+        dimnames(result) <- dimnames(ev)
+      } else if (length(dim(ev)) > 2L) {
         size <- rep(weights, each = prod(dim(ev)[1L:2L]))
         result <- array(
           rbinom(length(ev), size, ev),

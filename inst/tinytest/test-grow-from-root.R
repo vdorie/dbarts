@@ -89,3 +89,54 @@ linSampler <- dbarts::dbarts(
   )
 )
 expect_error(linSampler$growFromRoot(2L), "constant-leaf")
+
+## updateState = NA (the default) respects control@updateState, matching the
+## sibling initializers sampleTreesFromPrior/sampleNodeParametersFromPrior. An
+## updateState = FALSE control stores nothing on the default, and only an
+## explicit updateState = TRUE opts in; an updateState = TRUE control's default
+## refreshes the cached state (the pre-fix default of FALSE would have skipped
+## that store, leaving the realized cache stale).
+source(system.file("common", "stateContinuation.R", package = "dbarts"))
+
+nostore <- dbarts::dbarts(
+  x,
+  y,
+  control = dbarts::dbartsControl(
+    n.trees = 10L,
+    n.chains = 1L,
+    updateState = FALSE,
+    keepTrees = FALSE
+  )
+)
+nostore$growFromRoot(2L) # default updateState = NA, control FALSE -> no store
+expect_null(nostore$state)
+
+optin <- dbarts::dbarts(
+  x,
+  y,
+  control = dbarts::dbartsControl(
+    n.trees = 10L,
+    n.chains = 1L,
+    updateState = FALSE,
+    keepTrees = FALSE
+  )
+)
+optin$growFromRoot(2L, updateState = TRUE) # explicit TRUE stores anyway
+expect_false(is.null(optin$state))
+
+store <- dbarts::dbarts(
+  x,
+  y,
+  control = dbarts::dbartsControl(
+    n.trees = 10L,
+    n.chains = 1L,
+    updateState = TRUE,
+    keepTrees = FALSE
+  )
+)
+initialState <- store$state # realize the cache on the initial (stump) forest
+store$growFromRoot(2L) # default NA, control TRUE -> stores, refreshing state
+expect_false(is.null(store$state))
+expect_false(statesAgree(store$state, initialState))
+
+rm(nostore, optin, store, initialState)
