@@ -32,6 +32,7 @@ rbart_vi(
     keepTestFits = TRUE,
     callback = NULL,
     factors = c("categorical", "indicators"),
+    family = c("auto", "gaussian", "aft"),
     missing = c("incorporate", "error"),
     \dots)
 
@@ -81,10 +82,13 @@ rbart_vi(
     Optional function of \code{trainFits}, \code{testFits}, \code{ranef}, \code{sigma}, and \code{tau}. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.
   }
   \item{formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, \dots}{
-    Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} has no \code{family} argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
+    Same as in \code{\link{bart2}}, with one default difference: \code{keepTrees} defaults to \code{TRUE} here (\code{bart2}'s default is \code{FALSE}). With \code{dart}, split probability samples appear as \code{varprobs} on the fit. Unlike \code{bart2}, \code{rbart_vi} offers a reduced \code{family} set (see below) with no logistic option, and does not accept sparse (\code{Matrix::dgCMatrix}) predictors.
   }
   \item{k}{
     As in \code{\link{bart2}}, except that \code{rbart_vi} fixes the default at \code{2.0} for both continuous and binary responses; unlike \code{bart2}, a \code{NULL} default (and thus the \code{chi} hyperprior on binary fits) is not available here.
+  }
+  \item{family}{
+    One of \code{"auto"}, \code{"gaussian"}, or \code{"aft"}. With \code{"auto"} (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; \code{"gaussian"} forces the continuous model. \code{"aft"} fits a grouped accelerated failure time (AFT) log-normal survival model, \eqn{\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i} with \eqn{\epsilon_i \sim N(0, 1)}, adding random intercepts to the model of \code{\link{bart2}}'s \code{family = "aft"}. The survival response enters through the formula's left-hand side as a \code{survival::Surv} object (right-censoring only) or a two-column \code{cbind(time, status)} of the event/censoring time and the 0/1 event indicator; a \code{Surv} response selects \code{"aft"} on its own from \code{"auto"}, while a bare two-column response needs \code{family = "aft"} explicitly. As in \code{\link{bart2}}, \code{predict}, \code{extract}, and \code{fitted} then return the linear predictor \eqn{E[\log T \mid x, g]} on the LOG-TIME scale (never the time scale), and \code{\link{survivalProbabilities}} gives survival-probability draws that include the drawn intercepts. Survival fits do not support \code{weights} or \code{subset} in this version, and enter only through the formula interface.
   }
   \item{object}{
     A fitted \code{rbart} model.

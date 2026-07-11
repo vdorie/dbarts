@@ -420,6 +420,34 @@ makeScenarios <- function() {
     samplerArgs = list(node.prior = dbarts:::normal(dbarts:::chi(50, Inf)))
   )
 
+  # grouped AFT survival: GroupedResponse(AFTResponse), riAFTBART's model,
+  # newly reachable from rbart_vi via family = "aft". Random intercepts and
+  # right-censoring together, on the log-time scale (a modest signal keeps
+  # exp(log T) finite). Gamma tau prior, in-core fast path, no weights (aft
+  # refuses them). Added after equivalence-de67cbb.rds, so a compare against
+  # that baseline reports it as skipped; the anchor re-records at landing.
+  set.seed(5121L)
+  x <- matrix(runif(400L * 10L), 400L)
+  groups <- factor(sample(8L, 400L, replace = TRUE))
+  groupEffects <- rnorm(8L, 0, 0.8)
+  log.t <- 0.05 * friedman(x) + groupEffects[as.integer(groups)] + rnorm(400L)
+  cens.t <- 0.05 * friedman(x) + quantile(rnorm(4000L), 0.7) + rnorm(400L)
+  status <- as.numeric(log.t <= cens.t)
+  result$grouped_aft <- list(
+    x = x,
+    y = exp(ifelse(status == 1, log.t, cens.t)),
+    status = status,
+    group.by = groups,
+    group.by.test = factor(
+      sample(8L, n.test, replace = TRUE),
+      levels = levels(groups)
+    ),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    rbart = TRUE,
+    aft = TRUE
+  )
+
   result
 }
 
@@ -507,26 +535,59 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
 # back sample-major except varcount (predictor x sample), transposed here so
 # fitSummaries sees the bart() orientation.
 fitViaRbart <- function(scenario) {
-  fit <- withCallingHandlers(
-    rbart_vi(
-      scenario$y ~ scenario$x,
-      test = scenario$x.test,
-      weights = scenario$weights,
-      group.by = scenario$group.by,
-      group.by.test = scenario$group.by.test,
-      prior = gamma,
-      n.samples = ndpost,
-      n.burn = nskip,
-      n.thin = 1L,
-      n.chains = 1L,
-      n.threads = 1L,
-      n.trees = ntree,
-      keepTrees = FALSE,
-      keepTestFits = TRUE,
-      verbose = FALSE
-    ),
-    warning = muffleBenignWarning
-  )
+  fit <- if (isTRUE(scenario$aft)) {
+    # grouped AFT survival (riAFTBART's model): the response enters as a Surv
+    # on the formula's left-hand side - inlined (as the gaussian branch's
+    # response is) so no intermediate reads as unused - and aft refuses
+    # weights, so this scenario carries none; status rides scenario$status and
+    # the observed time scenario$y. Still the in-core fast path (gamma prior).
+    withCallingHandlers(
+      rbart_vi(
+        structure(
+          cbind(time = scenario$y, status = scenario$status),
+          class = "Surv",
+          type = "right"
+        ) ~
+          scenario$x,
+        test = scenario$x.test,
+        group.by = scenario$group.by,
+        group.by.test = scenario$group.by.test,
+        family = "aft",
+        prior = gamma,
+        n.samples = ndpost,
+        n.burn = nskip,
+        n.thin = 1L,
+        n.chains = 1L,
+        n.threads = 1L,
+        n.trees = ntree,
+        keepTrees = FALSE,
+        keepTestFits = TRUE,
+        verbose = FALSE
+      ),
+      warning = muffleBenignWarning
+    )
+  } else {
+    withCallingHandlers(
+      rbart_vi(
+        scenario$y ~ scenario$x,
+        test = scenario$x.test,
+        weights = scenario$weights,
+        group.by = scenario$group.by,
+        group.by.test = scenario$group.by.test,
+        prior = gamma,
+        n.samples = ndpost,
+        n.burn = nskip,
+        n.thin = 1L,
+        n.chains = 1L,
+        n.threads = 1L,
+        n.trees = ntree,
+        keepTrees = FALSE,
+        keepTestFits = TRUE,
+        verbose = FALSE
+      ),
+      warning = muffleBenignWarning
+    )
+  }
   list(
     yhat.test = fit$yhat.test,
     varcount = t(fit$varcount),
