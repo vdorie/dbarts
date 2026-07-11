@@ -1,21 +1,12 @@
 #include "config.h"
 #include <misc/io.h>
 
-#include <stdarg.h>
-#include <stdio.h>
+#include <stddef.h>
 
-static void printToStderr(const char* format, ...)
-{
-  va_list argsPointer;
-  va_start(argsPointer, format);
-  vfprintf(stderr, format, argsPointer);
-  va_end(argsPointer);
-}
+// No default implementation: misc stays host-agnostic (no stdio, no libR)
+// so that no build of misc.a carries a stdout/stderr symbol. Every host
+// installs its own hooks before any misc code that prints can run; see
+// io.h.
 
-static void flushStderr(void)
-{
-  fflush(stderr);
-}
-
-void (*misc_printf)(const char* format, ...) = &printToStderr;
-void (*misc_flushOutput)(void) = &flushStderr;
+void (*misc_printf)(const char* format, ...) = NULL;
+void (*misc_flushOutput)(void) = NULL;

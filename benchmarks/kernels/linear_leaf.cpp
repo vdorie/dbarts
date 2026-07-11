@@ -18,12 +18,14 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstdarg>
 #include <cmath>
 #include <ctime>
 #include <algorithm>
 #include <vector>
 
 #include <misc/simd.h>
+#include <misc/io.h>
 #include <external/random.h>
 
 #include <bartcore/bartcore.hpp>
@@ -34,6 +36,21 @@ using std::size_t;
 namespace {
 
 constexpr size_t kMaxParams = LinearGaussianLeaf::maxNumCovariates + 1;
+
+// misc.a's output hooks default to NULL (src/misc/io.h); misc_simd_init
+// below transitively links moments.o's thread-manager status printing, so
+// this standalone host installs a stderr fallback before calling it. (This
+// binary also links libR to satisfy external.a's own Rprintf reference, but
+// R is never initialized here, so misc's hooks must not point at it.)
+void printToStderr(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  vfprintf(stderr, format, args);
+  va_end(args);
+}
+void flushStderr() {
+  fflush(stderr);
+}
 
 uint64_t nowNs() {
   struct timespec ts;
@@ -280,6 +297,9 @@ void measure(const Config& cfg, size_t numTrees, size_t warmup, size_t sweeps,
 }  // namespace
 
 int main(int argc, char** argv) {
+  misc_printf = &printToStderr;
+  misc_flushOutput = &flushStderr;
+
   misc_simd_init();
   setvbuf(stdout, nullptr, _IOLBF, 0);
   size_t numTrees = 50, warmup = 30, sweeps = 40, reps = 5;

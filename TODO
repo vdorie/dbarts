@@ -21,16 +21,23 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  cran-stderr-note: filed 2026-07-11 from the cran-readiness sweep
-    (memo in cran-readiness.md). The one remaining --as-cran NOTE:
-    misc.a carries the ___stderrp symbol from src/misc/io.c's default
-    printToStderr/flushStderr hooks, unreachable from R (R_init_dbarts
-    repoints them to Rprintf at DLL load) but visible to the symbol
-    scan, and CRAN human reviewers sometimes push back regardless of
-    justification. Durable fix: guard the stderr defaults behind a
-    built-for-R -D macro so the R build defaults the hooks to NULL
-    while tests/cpp keeps the standalone stderr fallback. Small,
-    build-system; do before submission, no urgency.
+  cran-stderr-note: LANDED 2026-07-11. Filed from the cran-readiness
+    sweep (memo in cran-readiness.md) as the one remaining --as-cran
+    NOTE: misc.a carried the ___stderrp symbol from src/misc/io.c's
+    default printToStderr/flushStderr hooks, unreachable from R
+    (R_init_dbarts repoints them to Rprintf at DLL load) but visible
+    to the symbol scan. FIX (matching misc-stays-host-agnostic): io.c's
+    misc_printf/misc_flushOutput now default to NULL, no stdio
+    compiled in at all; every host injects its own hooks at startup
+    (R_interface.cpp already did; added the same few lines to
+    tests/cpp/main.cpp and to the benchmarks/kernels drivers that link
+    misc.a - bench.c, sparse.c, grow_from_root.c, linear_leaf.cpp -
+    since misc_simd_init pulls in moments.o's htm status-print path
+    transitively through simd.o even though nothing currently calls
+    it). nm on the installed dbarts.so shows no stderrp symbol; R CMD
+    check --as-cran compiled-code section is clean; tests/cpp and the
+    four benchmark drivers build and run; tinytest 2727/0; equivalence
+    22/22 identical (io-only change).
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.

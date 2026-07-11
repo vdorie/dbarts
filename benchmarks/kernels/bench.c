@@ -13,14 +13,30 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include <stdarg.h>
+
 #include <misc/stddef.h>
 #include <misc/types.h>
 #include <misc/simd.h>
 #include <misc/partition.h>
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
+#include <misc/io.h>
 
 #include "partition_u8.h"
+
+// misc.a's output hooks default to NULL (src/misc/io.h); misc_simd_init
+// below transitively links moments.o's thread-manager status printing, so
+// this standalone host installs a stderr fallback before calling it.
+static void printToStderr(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  vfprintf(stderr, format, args);
+  va_end(args);
+}
+static void flushStderr(void) {
+  fflush(stderr);
+}
 
 static const size_t sizes[] = { 1024, 16384, 262144 };
 #define NUM_SIZES (sizeof(sizes) / sizeof(sizes[0]))
@@ -291,6 +307,9 @@ static void benchVectorOps(const char* inst) {
 }
 
 int main(void) {
+  misc_printf = &printToStderr;
+  misc_flushOutput = &flushStderr;
+
   misc_simd_init();
   fillInputs();
 

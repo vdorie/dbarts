@@ -9,7 +9,25 @@
 
 #include "common.hpp"
 
+#include <cstdarg>
+
+#include <misc/io.h>
+
 namespace {
+
+// misc.a's output hooks default to NULL (src/misc/io.h); this standalone
+// host is not R, so it must install its own before any misc code that
+// prints (e.g. hierarchicalThreadManager's status output) can run.
+void printToStderr(const char* format, ...) {
+  va_list argsPointer;
+  va_start(argsPointer, format);
+  vfprintf(stderr, format, argsPointer);
+  va_end(argsPointer);
+}
+
+void flushStderr(void) {
+  fflush(stderr);
+}
 
 bool isNumeric(const char* arg, long* value) {
   char* end = nullptr;
@@ -26,6 +44,9 @@ bool suiteSelected(const char* filter, const char* suite) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  misc_printf = &printToStderr;
+  misc_flushOutput = &flushStderr;
+
   misc_simd_init();
 
   int numFuzzSeeds = 3;
