@@ -53,7 +53,7 @@ importFrom(stats, lm, pnorm, plogis, quantile)
 importFrom(stats, as.formula, setNames)
 
 importFrom(parallel, makeCluster, clusterExport, clusterEvalQ, clusterMap, stopCluster, splitIndices)
-importFrom(stats, sd, rnorm, rexp, runif, rbinom, optim, optimHess, dnorm)
+importFrom(stats, sd, rnorm, rexp, runif, rbinom, optim, optimHess, dnorm, dbinom)
 importFrom(stats, qchisq, rchisq)
 
 importFrom(graphics, abline, contour, image, lines, par, plot, title, strheight, text)
