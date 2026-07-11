@@ -404,6 +404,27 @@ items
     kernel, mutation on dense-backed mixed columns (sparse-columns.md
     landing notes). The u8 width entry moved to hot-layer-u8.
     consumer-gated.
+  tau-slice-review: DONE 2026-07-11 (VD-requested; memo
+    docs/plans/tau-slice-review.md). VERDICT: KEEP - the slice
+    sampler is correct (all three kernels match 1-D quadrature to MC
+    error; C++ and R custom-prior paths target the identical
+    conditional) and is NOT the mixing bottleneck: isolation shows
+    slice == exact conjugate draw (K=10 IACT 23.4 vs 25.6); the real
+    grouped-fit bottleneck is FOREST-RANEF CONFOUNDING (25x the IACT
+    at K=3), untouchable by any tau-draw swap. Optional layered
+    follow-ups, VD decision: (1) swap the cauchy slice for the
+    Makalic-Schmidt exact-IG two-block draw (derived + quadrature-
+    validated under our A = 2.5 rel.scale/sigmaScale; deletes the
+    step-out-hang class the 7c1c7c9 cap bounds, constant 2 RNG
+    draws/sweep, reuses the drawGlue idiom; draw-changing for
+    grouped fits -> grouped-scenario re-record; robustness not
+    mixing); gamma prior keeps the slice (gamma-on-SD has no exact
+    draw - GIG does not apply, derivation in the memo). (2) research:
+    a forest-ranef joint/interweaving move (the actual bottleneck);
+    ASIS on (tau, b) validated 11x in isolation but only partial in
+    the full engine - prototype-gate it. Blemish noted, immaterial:
+    the step-out cap is two independent per-side counters rather
+    than Neal's single randomized budget (binds only in runaway).
   survival-grouped-surface: filed 2026-07-10 from the survival design
     panel. NO R entry point composes AFT with grouping: rbart_vi has
     no family argument and uses the formula interface, where Surv
