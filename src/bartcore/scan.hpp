@@ -55,6 +55,24 @@ struct ConstantLeafScanBin {
   }
 };
 
+/// Histogram one dense column's members per code at its storage width. Missing
+/// codes (the width's naCode) are skipped, the same left-fold order the prefix
+/// scan reproduces. One typed gather per instantiation, no per-element branch.
+template <typename CodeT>
+inline void histogramDenseCutScan(const CodeT* column,
+                                  const std::size_t* indices,
+                                  std::size_t numMembers, const double* y,
+                                  const double* weights,
+                                  std::vector<ConstantLeafScanBin>& bins) {
+  for (std::size_t i = 0; i < numMembers; ++i) {
+    std::size_t obs = indices[i];
+    CodeT code = column[obs];
+    if (code == CodeWidthTraits<CodeT>::na) continue;
+    double weight = weights == nullptr ? 1.0 : weights[obs];
+    bins[code].addObservation(weight, y[obs]);
+  }
+}
+
 /// Scan every candidate cut of ordinal variable `variable` over the member ids
 /// in indices[0, numMembers). Writes numCuts[variable] entries into
 /// logLikelihood: entry k scores the split "codes <= k go left" of the node's
@@ -83,18 +101,23 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
   std::size_t numBins = numCuts + 1;
   binScratch.assign(numBins, ConstantLeafScanBin{});
 
-  // histogram the members' statistics per code, branching on storage once so
-  // the dense inner loop stays a plain gather (the common case)
-  bool dense = !data.columnIsSparse(variable);
-  const xint_t* denseColumn = dense ? data.column(variable) : nullptr;
-  const SparseColumnData* sparseColumn =
-    dense ? nullptr : &data.sparseColumn(variable);
-  for (std::size_t i = 0; i < numMembers; ++i) {
-    std::size_t obs = indices[i];
-    xint_t code = dense ? denseColumn[obs] : sparseColumn->at(obs);
-    if (code == naCode) continue;  // routed by the birth-time coin, not scanned
-    double weight = weights == nullptr ? 1.0 : weights[obs];
-    binScratch[code].addObservation(weight, y[obs]);
+  // histogram the members' statistics per code, branching on storage and width
+  // once so each dense inner loop stays a plain typed gather (the common case)
+  if (data.columnIsSparse(variable)) {
+    const SparseColumnData& sparseColumn = data.sparseColumn(variable);
+    for (std::size_t i = 0; i < numMembers; ++i) {
+      std::size_t obs = indices[i];
+      xint_t code = sparseColumn.at(obs);
+      if (code == naCode) continue;  // routed by the birth-time coin, not scanned
+      double weight = weights == nullptr ? 1.0 : weights[obs];
+      binScratch[code].addObservation(weight, y[obs]);
+    }
+  } else if (data.codeWidth[variable] == 1) {
+    histogramDenseCutScan(data.columnU8(variable), indices, numMembers, y,
+                          weights, binScratch);
+  } else {
+    histogramDenseCutScan(data.columnU16(variable), indices, numMembers, y,
+                          weights, binScratch);
   }
 
   // node total over the non-missing bins (the left-fold order the prefix scan

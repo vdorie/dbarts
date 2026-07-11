@@ -479,7 +479,11 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
     std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
-    std::vector<xint_t> oldCodes(data_.codes);
+    // a cross-grid restore may cross the u8 cut boundary, re-packing the byte
+    // pool, so the width and offsets are part of the rollback snapshot
+    std::vector<std::uint8_t> oldCodeBytes(data_.codeBytes);
+    std::vector<std::uint8_t> oldCodeWidth(data_.codeWidth);
+    std::vector<size_t> oldCodeByteOffset(data_.codeByteOffset);
     std::vector<xint_t> oldTestCodes(data_.testCodes);
     // rank columns re-quantize into their own storage, not codes
     std::vector<SparseColumnData> oldSparseColumns(data_.sparseColumns);
@@ -502,7 +506,9 @@ public:
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
       data_.maxNumCuts = std::move(oldMaxNumCuts);
-      data_.codes = std::move(oldCodes);
+      data_.codeBytes = std::move(oldCodeBytes);
+      data_.codeWidth = std::move(oldCodeWidth);
+      data_.codeByteOffset = std::move(oldCodeByteOffset);
       data_.testCodes = std::move(oldTestCodes);
       data_.sparseColumns = std::move(oldSparseColumns);
       return false;
@@ -783,14 +789,16 @@ public:
           !data_.cutsWouldRemainValid(j, newX + j * n))
         return PredictorUpdateResult::invalidCutPoints;
 
-    std::vector<xint_t> oldCodes;
+    std::vector<std::uint8_t> oldCodeBytes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     // the engine keeps no predictor matrix; a rollback restores the snapshotted
-    // codes and the gathered leaf-covariate raw the leaf models re-read
+    // codes and the gathered leaf-covariate raw the leaf models re-read. A
+    // full-matrix update keeps every cut count fixed (refreshCutsForColumn), so
+    // no width changes and the byte pool alone captures the codes.
     std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
-      oldCodes = data_.codes;
+      oldCodeBytes = data_.codeBytes;
       // re-quantizing recomputes hasMissing; a rollback must restore it too so
       // rules stay consistent with the reachable gauge
       oldHasMissing = data_.hasMissing;
@@ -809,7 +817,7 @@ public:
     }
 
     if (!revalidateAllChains()) {
-      data_.codes = std::move(oldCodes);
+      data_.codeBytes = std::move(oldCodeBytes);
       data_.hasMissing = std::move(oldHasMissing);
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
@@ -837,25 +845,27 @@ public:
           !data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
         return PredictorUpdateResult::invalidCutPoints;
 
-    std::vector<xint_t> oldCodes;
+    std::vector<std::vector<std::uint8_t>> oldColumnBytes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     // the engine keeps no predictor matrix; a rollback restores the snapshotted
-    // codes and the gathered leaf-covariate raw the leaf models re-read
+    // codes and the gathered leaf-covariate raw the leaf models re-read. A
+    // column-subset update keeps each cut count fixed (refreshCutsForColumn), so
+    // no width changes; the per-column byte range is snapshotted at its width.
     std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
-      oldCodes.resize(n * numColumns);
+      oldColumnBytes.resize(numColumns);
       oldHasMissing.resize(numColumns);
       oldGatheredRaw = data_.gatheredRawValues;
       if (updateCutPoints) oldCuts.resize(numColumns);
       for (size_t k = 0; k < numColumns; ++k) {
-        std::memcpy(oldCodes.data() + k * n,
-                    data_.codes.data() + data_.codeOffsets[columns[k]],
-                    n * sizeof(xint_t));
+        size_t j = columns[k];
+        const std::uint8_t* src = data_.codeBytes.data() + data_.codeByteOffset[j];
+        oldColumnBytes[k].assign(src, src + n * data_.codeWidth[j]);
         // re-quantizing rebuilds hasMissing; a rollback must restore it too so
         // rules stay consistent with the reachable gauge
-        oldHasMissing[k] = data_.hasMissing[columns[k]];
-        if (updateCutPoints) oldCuts[k] = data_.cutPoints[columns[k]];
+        oldHasMissing[k] = data_.hasMissing[j];
+        if (updateCutPoints) oldCuts[k] = data_.cutPoints[j];
       }
     }
 
@@ -873,8 +883,8 @@ public:
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       for (size_t k = 0; k < numColumns; ++k) {
         size_t j = columns[k];
-        std::memcpy(data_.codes.data() + data_.codeOffsets[j],
-                    oldCodes.data() + k * n, n * sizeof(xint_t));
+        std::memcpy(data_.codeBytes.data() + data_.codeByteOffset[j],
+                    oldColumnBytes[k].data(), oldColumnBytes[k].size());
         data_.hasMissing[j] = oldHasMissing[k];
         if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
       }
@@ -1071,7 +1081,7 @@ private:
 
     void commitObservation(size_t i) override {
       ColumnStore& data(sampler_.data_);
-      data.codes[data.codeOffsets[column_] + i] = newCodes_[i];
+      data.writeCode(column_, i, newCodes_[i]);
       // keep a leaf-covariate column's gathered raw current so finalize's
       // regather sees the installed value (the engine keeps no matrix)
       std::int32_t slot = data.gatheredSlotForColumn(column_);

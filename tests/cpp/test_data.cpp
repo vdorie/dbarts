@@ -28,7 +28,7 @@ static void testColumnStoreCodes() {
     for (size_t i = 0; i < n; ++i) {
       uint32_t k = 0;
       while (k < 100 && column[i] > xMin + (double) (k + 1) * increment) ++k;
-      if (store.codes[i + j * n] != (xint_t) k) {
+      if (store.codeAt(j, i) != (xint_t) k) {
         check(false, "column store code mismatch");
         return;
       }
@@ -78,15 +78,14 @@ static void testColumnStoreView() {
   bool codesMatch = true;
   for (size_t j = 0; j < p && codesMatch; ++j)
     for (size_t i = 0; i < rows.size() && codesMatch; ++i)
-      codesMatch =
-        view.codes[i + j * rows.size()] == parent.codes[rows[i] + j * n];
+      codesMatch = view.codeAt(j, i) == parent.codeAt(j, rows[i]);
   check(codesMatch, "view gathers subset codes");
 
   bool testCodesMatch = true;
   for (size_t i = 0; i < testRows.size() && testCodesMatch; ++i)
     for (size_t j = 0; j < p && testCodesMatch; ++j)
       testCodesMatch =
-        view.testCodes[i * p + j] == parent.codes[testRows[i] + j * n];
+        view.testCodes[i * p + j] == parent.codeAt(j, testRows[i]);
   check(testCodesMatch, "view gathers test codes from parent rows");
 
   // demonstrate the property matters: a store built over the subset's raw
@@ -99,7 +98,7 @@ static void testColumnStoreView() {
   rebuilt.build(subsetX.data(), rows.size(), p, 25, false, types.data());
   bool anyDiffer = false;
   for (size_t i = 0; i < rows.size() && !anyDiffer; ++i)
-    anyDiffer = rebuilt.codes[i] != view.codes[i];
+    anyDiffer = rebuilt.codeAt(0, i) != view.codeAt(0, i);
   check(anyDiffer, "subset-built store bins differently than the view");
 
   printf("ok: column store view\n");
@@ -170,7 +169,9 @@ static void testColumnStoreMutation() {
 
   ColumnStore store;
   store.build(x.data(), n, p, 100);
-  std::vector<xint_t> originalCodes(store.codes);
+  std::vector<xint_t> originalCodes(n * p);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < n; ++i) originalCodes[i + j * n] = store.codeAt(j, i);
   std::vector<double> originalCuts0(store.cutPoints[0]);
 
   // column overwrite with cut refresh: column 0 codes untouched, column 1
@@ -184,8 +185,8 @@ static void testColumnStoreMutation() {
   for (size_t i = 0; i < n; ++i) {
     // column 0's codes untouched; the store owns codes and never writes the
     // new values back into the caller's matrix (no write-through)
-    codesMatch &= store.codes[i] == originalCodes[i];
-    codesMatch &= store.codes[i + n] == store.codeFor(1, newColumn[i]);
+    codesMatch &= store.codeAt(0, i) == originalCodes[i];
+    codesMatch &= store.codeAt(1, i) == store.codeFor(1, newColumn[i]);
   }
   check(codesMatch, "setColumns re-quantizes only the target column");
   check(store.cutPoints[1].front() > 2.0 && store.cutPoints[1].back() < 5.0,
@@ -193,9 +194,9 @@ static void testColumnStoreMutation() {
   check(store.cutPoints[0] == originalCuts0, "setColumns leaves other cuts");
 
   // single-cell overwrite against existing cuts
-  xint_t before = store.codes[7];
+  xint_t before = store.codeAt(0, 7);
   store.setCell(7, 0, x[8]);
-  check(store.codes[7] == originalCodes[8], "setCell re-quantizes one cell");
+  check(store.codeAt(0, 7) == originalCodes[8], "setCell re-quantizes one cell");
   check(before == originalCodes[7], "");  // silence unused warning
 
   // whole-matrix replacement without cut refresh: quantized on old cuts, codes
@@ -205,7 +206,7 @@ static void testColumnStoreMutation() {
   store.setPredictors(x2.data(), false);
   codesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    codesMatch &= store.codes[i] == store.codeFor(0, x2[i]);
+    codesMatch &= store.codeAt(0, i) == store.codeFor(0, x2[i]);
   check(codesMatch, "setPredictors re-quantizes against existing cuts");
 
   printf("ok: column store mutation\n");
@@ -280,7 +281,7 @@ static void testQuantileCutPoints() {
   check(discreteCutsMatch, "discrete quantile cuts are unique-value midpoints");
   bool discreteCodesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    discreteCodesMatch &= store.codes[i + n] == static_cast<xint_t>(i % 10);
+    discreteCodesMatch &= store.codeAt(1, i) == static_cast<xint_t>(i % 10);
   check(discreteCodesMatch, "discrete quantile codes are value ranks");
 
   // continuous column: reference the thinning directly
@@ -442,9 +443,9 @@ static void testMissingIngestion() {
 
   bool codesRight = true;
   for (size_t i = 0; i < n; ++i) {
-    codesRight &= (store.codes[i] == naCode) == (i % 10 == 0);
+    codesRight &= (store.codeAt(0, i) == naCode) == (i % 10 == 0);
     codesRight &=
-      (store.codes[i + n] == static_cast<xint_t>(naCategory)) == (i % 7 == 0);
+      (store.codeAt(1, i) == static_cast<xint_t>(naCategory)) == (i % 7 == 0);
   }
   check(codesRight, "missing values take the reserved codes");
 
@@ -468,6 +469,128 @@ static void testMissingIngestion() {
   printf("ok: missing ingestion\n");
 }
 
+// Width selection at the u8/u16 boundary and codeAt's NA normalization: a
+// 254-cut ordinal column stores u8 (top code 254 stays below the u8 NA
+// sentinel 255), a 255-cut one u16; codeAt returns the logical code, mapping a
+// u8 column's missing byte back to naCode while a real top code 254 stays 254.
+static void testCodeWidthBoundary() {
+  const size_t n = 600;
+  double na = std::nan("");
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i) / n;
+  x[3] = na;
+  size_t argmax = 0;
+  double hi = -1.0;
+  for (size_t i = 0; i < n; ++i)
+    if (!isNA(x[i]) && x[i] > hi) { hi = x[i]; argmax = i; }
+
+  ColumnStore u8Store;
+  u8Store.build(x.data(), n, 1, 254);
+  check(u8Store.codeWidth[0] == 1, "254 cuts selects u8 storage");
+  check(u8Store.codeAt(0, argmax) == 254,
+        "the top ordinal code 254 is not the NA sentinel");
+  check(u8Store.codeAt(0, 3) == naCode,
+        "a u8 column's missing value reads back as naCode");
+  check(u8Store.hasMissing[0] == 1, "the missing value marks the column");
+
+  ColumnStore u16Store;
+  u16Store.build(x.data(), n, 1, 255);
+  check(u16Store.codeWidth[0] == 2, "255 cuts selects u16 storage");
+  check(u16Store.codeAt(0, 3) == naCode,
+        "a u16 column's missing value reads back as naCode");
+  printf("ok: code width boundary\n");
+}
+
+// A store crossing ordinal/categorical with narrow/wide cardinality packs
+// per-column widths into one byte pool; codeAt reads every cell back correctly
+// across the mixed packing (a byte-offset overlap would corrupt neighbors).
+static void testMixedCodeWidths() {
+  const size_t n = 500, p = 4;
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i + 0 * n] = runif01();                    // ordinal, 100 cuts -> u8
+    x[i + 1 * n] = runif01();                    // ordinal, 300 cuts -> u16
+    x[i + 2 * n] = static_cast<double>(i % 5);   // categorical 5   -> u8 inline
+    x[i + 3 * n] = static_cast<double>(i % 80);  // categorical 80  -> u16 pooled
+  }
+  ColumnType types[] = {ColumnType::ordinal, ColumnType::ordinal,
+                        ColumnType::categorical, ColumnType::categorical};
+  std::uint32_t maxCuts[] = {100, 300, 0, 0};
+  ColumnStore store;
+  store.build(x.data(), n, p, maxCuts, false, types);
+  check(store.codeWidth[0] == 1 && store.codeWidth[1] == 2 &&
+          store.codeWidth[2] == 1 && store.codeWidth[3] == 2,
+        "per-column widths: u8 ordinal, u16 ordinal, u8 inline cat, u16 pooled");
+  bool codesMatch = true;
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < n; ++i)
+      codesMatch &= store.codeAt(j, i) == store.codeFor(j, x[i + j * n]);
+  check(codesMatch, "codeAt matches codeFor across mixed-width byte packing");
+  printf("ok: mixed code widths\n");
+}
+
+// Routing equality: the scalar u8 partition produces the bitwise-identical
+// index permutation as the u16 misc kernel on the same logical codes, for
+// Range, Indices, and the NA-aware MIA fallback. End-to-end draw identity
+// follows (leaf stats are a pure function of codes and this permutation) and is
+// pinned by the equivalence 22/22 gate; here the partition primitive is fixed.
+static void testU8PartitionEquality() {
+  const size_t n = 4096;
+  double na = std::nan("");
+  std::vector<double> x(n);
+  for (double& v : x) v = runif01();
+
+  ColumnStore store;
+  store.build(x.data(), n, 1, 100);
+  check(store.codeWidth[0] == 1, "n.cuts=100 column is u8");
+  const std::uint8_t* u8col = store.columnU8(0);
+  std::vector<std::uint16_t> u16col(n);
+  for (size_t i = 0; i < n; ++i) u16col[i] = store.codeAt(0, i);
+
+  std::vector<size_t> a(n), b(n), seed(n);
+  for (size_t i = 0; i < n; ++i) seed[i] = i;
+  for (size_t i = n - 1; i > 0; --i) {
+    size_t j = static_cast<size_t>(runif01() * static_cast<double>(i + 1));
+    size_t t = seed[i]; seed[i] = seed[j]; seed[j] = t;
+  }
+
+  bool rangeMatch = true, indicesMatch = true;
+  for (std::uint32_t c = 0; c < 100; c += 7) {
+    size_t la = Tree::partitionRangeScalar(
+      u8col, static_cast<std::uint8_t>(c), a.data(), n);
+    size_t lb = misc_partitionRange(
+      u16col.data(), static_cast<misc_xint_t>(c), b.data(), n);
+    rangeMatch &= la == lb && a == b;
+    a = seed; b = seed;
+    la = Tree::partitionIndicesScalar(
+      u8col, static_cast<std::uint8_t>(c), a.data(), n);
+    lb = misc_partitionIndices(
+      u16col.data(), static_cast<misc_xint_t>(c), b.data(), n);
+    indicesMatch &= la == lb && a == b;
+  }
+  check(rangeMatch, "u8 range partition is bitwise identical to the u16 kernel");
+  check(indicesMatch,
+        "u8 indices partition is bitwise identical to the u16 kernel");
+
+  // NA-aware fallback: u8 vs u16 MIA over a column with missing values
+  std::vector<double> xm(x);
+  for (size_t i = 0; i < n; i += 11) xm[i] = na;
+  ColumnStore missStore;
+  missStore.build(xm.data(), n, 1, 100);
+  const std::uint8_t* u8m = missStore.columnU8(0);
+  std::vector<std::uint16_t> u16m(n);
+  for (size_t i = 0; i < n; ++i) u16m[i] = missStore.codeAt(0, i);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(40);
+  rule.setMissingGoesRight(true);
+  a = seed; b = seed;
+  size_t la = Tree::partitionIndicesMIA(u8m, rule, a.data(), n);
+  size_t lb = Tree::partitionIndicesMIA(u16m.data(), rule, b.data(), n);
+  check(la == lb && a == b, "u8 MIA partition is bitwise identical to u16 MIA");
+  printf("ok: u8 partition equality\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
@@ -478,4 +601,7 @@ void runDataTests() {
   testMapOldCutPointsOntoNew();
   testMapOldCutPointsStarvedWeightedMerge();
   testMissingIngestion();
+  testCodeWidthBoundary();
+  testMixedCodeWidths();
+  testU8PartitionEquality();
 }

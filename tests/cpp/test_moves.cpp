@@ -157,7 +157,7 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
   ConstantLeafSampler& sampler(*samplerPtr);
 
-  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<std::uint8_t> codesBefore(sampler.data().codeBytes);
   std::vector<double> treeFitsBefore(sampler.chain(0).treeFits());
 
   // identity swap: new buffer, same values; must accept and preserve fits
@@ -165,7 +165,7 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   check(sampler.setPredictor(xCopy.data(), false, false) ==
           PredictorUpdateResult::accepted,
         "identity setPredictor accepted");
-  check(sampler.data().codes == codesBefore, "identity swap preserves codes");
+  check(sampler.data().codeBytes == codesBefore, "identity swap preserves codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore, "identity swap preserves fits");
 
   // constant predictors empty one side of every split: must reject and
@@ -174,7 +174,7 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   check(sampler.setPredictor(xConstant.data(), false, false) ==
           PredictorUpdateResult::rolledBack,
         "degenerate setPredictor rejected");
-  check(sampler.data().codes == codesBefore, "rollback restores codes");
+  check(sampler.data().codeBytes == codesBefore, "rollback restores codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore, "rollback leaves fits untouched");
   for (size_t t = 0; t < 25; ++t)
     if (!sampler.chain(0).tree(t).bottomNodesAreOccupied()) {
@@ -335,7 +335,11 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
   ConstantLeafSampler& sampler(*samplerPtr);
 
-  std::vector<xint_t> codesBefore(sampler.data().codes);
+  size_t numPredictors = sampler.data().numPredictors;
+  std::vector<xint_t> codesBefore(n * numPredictors);
+  for (size_t j = 0; j < numPredictors; ++j)
+    for (size_t i = 0; i < n; ++i)
+      codesBefore[i + j * n] = sampler.data().codeAt(j, i);
 
   // jittered column: usually accepted; either way the sampler must stay
   // consistent, and rejection must restore the column bitwise
@@ -350,7 +354,7 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   // installed values quantized, or the snapshot restored bitwise on rollback
   bool columnMatches = true;
   for (size_t i = 0; i < n; ++i) {
-    columnMatches &= sampler.data().codes[i] ==
+    columnMatches &= sampler.data().codeAt(0, i) ==
       (accepted ? sampler.data().codeFor(0, jittered[i]) : codesBefore[i]);
   }
   check(columnMatches, "updatePredictor installs or restores the column");
@@ -363,7 +367,7 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
         "degenerate column update rejected");
   bool otherUntouched = true;
   for (size_t i = 0; i < n; ++i)
-    otherUntouched &= sampler.data().codes[i + n] == codesBefore[i + n];
+    otherUntouched &= sampler.data().codeAt(1, i) == codesBefore[i + n];
   check(otherUntouched, "rejected column update leaves other columns");
 
   printf("ok: updatePredictor columns\n");
@@ -400,10 +404,10 @@ static void testPerObservationUpdate(ext_rng* rng) {
     if (installed[i]) {
       ++numInstalled;
       valuesConsistent &=
-        sampler.data().codes[i] == sampler.data().codeFor(0, 10.0);
+        sampler.data().codeAt(0, i) == sampler.data().codeFor(0, 10.0);
     } else {
       valuesConsistent &=
-        sampler.data().codes[i] == sampler.data().codeFor(0, identity[i]);
+        sampler.data().codeAt(0, i) == sampler.data().codeFor(0, identity[i]);
     }
   }
   check(numInstalled > 0 && numInstalled < n,
@@ -465,14 +469,14 @@ static void testJointPerObservationUpdate() {
   size_t numInstalled = 0;
   for (size_t i = 0; i < n; ++i) {
     columnsAgree &=
-      samplerA.impl().data().codes[i] == samplerB.impl().data().codes[i];
+      samplerA.impl().data().codeAt(0, i) == samplerB.impl().data().codeAt(0, i);
     if (installed[i]) {
       ++numInstalled;
       valuesConsistent &=
-        samplerA.impl().data().codes[i] == samplerA.impl().data().codeFor(0, 10.0);
+        samplerA.impl().data().codeAt(0, i) == samplerA.impl().data().codeFor(0, 10.0);
     } else {
       valuesConsistent &=
-        samplerA.impl().data().codes[i] == samplerA.impl().data().codeFor(0, xB[i]);
+        samplerA.impl().data().codeAt(0, i) == samplerA.impl().data().codeFor(0, xB[i]);
     }
   }
   check(columnsAgree, "joint update keeps shared column identical");
@@ -514,14 +518,14 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
   check(sampler.data().numCuts[0] == 9, "sampler builds quantile cuts");
 
   // a coarser column with updateCutPoints must be refused without mutating
-  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<std::uint8_t> codesBefore(sampler.data().codeBytes);
   std::vector<double> coarse(n);
   for (size_t i = 0; i < n; ++i) coarse[i] = static_cast<double>(i % 4);
   size_t columnIndex = 0;
   check(sampler.updatePredictor(coarse.data(), &columnIndex, 1, false, true) ==
           PredictorUpdateResult::invalidCutPoints,
         "coarser quantile column update refused");
-  check(sampler.data().codes == codesBefore,
+  check(sampler.data().codeBytes == codesBefore,
         "refused quantile update mutates nothing");
 
   // same column without cut refresh follows normal transaction semantics
@@ -560,7 +564,7 @@ static void testSetCutPoints(ext_rng* rng) {
   check(sampler.data().numCuts[0] == 3, "setCutPoints installs the new count");
   bool codesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    codesMatch &= sampler.data().codes[i] == sampler.data().codeFor(0, x[i]);
+    codesMatch &= sampler.data().codeAt(0, i) == sampler.data().codeFor(0, x[i]);
   check(codesMatch, "setCutPoints re-quantizes the column");
 
   bool occupied = true;
@@ -657,7 +661,7 @@ static void testMultiChainMutation() {
   Results empty;
   sampler.run(100, 0, empty);
 
-  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<std::uint8_t> codesBefore(sampler.data().codeBytes);
   std::vector<double> fitsBefore[numChains] = {sampler.chain(0).treeFits(),
                                                sampler.chain(1).treeFits()};
 
@@ -666,7 +670,7 @@ static void testMultiChainMutation() {
   check(sampler.setPredictor(xConstant.data(), false, false) ==
           PredictorUpdateResult::rolledBack,
         "multi-chain degenerate setPredictor rejected");
-  check(sampler.data().codes == codesBefore,
+  check(sampler.data().codeBytes == codesBefore,
         "multi-chain rollback restores codes");
   bool fitsUntouched = true, occupied = true;
   for (size_t c = 0; c < numChains; ++c) {
@@ -735,11 +739,11 @@ static void testCategoricalMutation(ext_rng* rng) {
         "categorical identity setPredictor accepted");
   std::vector<double> xBad(x);
   xBad[3] = 9.0;
-  std::vector<xint_t> codesBefore(sampler.data().codes);
+  std::vector<std::uint8_t> codesBefore(sampler.data().codeBytes);
   check(sampler.setPredictor(xBad.data(), false, false) ==
           PredictorUpdateResult::invalidCutPoints,
         "out-of-range category code refused");
-  check(sampler.data().codes == codesBefore, "refusal mutates nothing");
+  check(sampler.data().codeBytes == codesBefore, "refusal mutates nothing");
 
   // permuting the categories of some observations is transactional
   std::vector<double> permuted(xCopy.begin(), xCopy.begin() + n);

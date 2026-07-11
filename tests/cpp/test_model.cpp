@@ -1675,7 +1675,7 @@ static void testSparseColumnStore() {
     bool codesMatch = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < n; ++i)
-        codesMatch &= fromCsc.codeAt(j, i) == fromDense.codes[i + j * n];
+        codesMatch &= fromCsc.codeAt(j, i) == fromDense.codeAt(j, i);
     check(codesMatch, "CSC codes match the dense builder's at every cell");
 
     check(fromCsc.sparseColumn(0).zeroCode == fromDense.codeFor(0, 0.0),
@@ -1692,8 +1692,7 @@ static void testSparseColumnStore() {
     bool viewMatches = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < viewRows.size(); ++i)
-        viewMatches &= view.codes[i + j * viewRows.size()] ==
-          fromCsc.codeAt(j, viewRows[i]);
+        viewMatches &= view.codeAt(j, i) == fromCsc.codeAt(j, viewRows[i]);
     check(viewMatches, "view gathers parent codes through the rank layout");
   }
   printf("ok: sparse column store\n");
@@ -1980,7 +1979,7 @@ static void testMixedColumnStore() {
     bool codesMatch = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < n; ++i)
-        codesMatch &= mixed.codeAt(j, i) == reference.codes[i + j * n];
+        codesMatch &= mixed.codeAt(j, i) == reference.codeAt(j, i);
     check(codesMatch, "mixed codes match the dense builder's at every cell");
 
     check(mixed.sparseColumn(1).zeroCode == reference.codeFor(1, 0.0),
@@ -1999,8 +1998,7 @@ static void testMixedColumnStore() {
     bool viewMatches = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < viewRows.size(); ++i)
-        viewMatches &= view.codes[i + j * viewRows.size()] ==
-          mixed.codeAt(j, viewRows[i]);
+        viewMatches &= view.codeAt(j, i) == mixed.codeAt(j, viewRows[i]);
     check(viewMatches, "view gathers parent codes through the mixed layout");
     const double* gathered = view.rawColumn(0);
     bool gatherMatches = gathered != nullptr;

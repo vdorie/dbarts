@@ -23,6 +23,24 @@ using xint_t = std::uint16_t;
 constexpr xint_t naCode = 0xFFFFu;
 constexpr std::uint32_t maxNumCutsRepresentable = 0xFFFEu - 1u;
 
+/// Storage width is per column: dense ordinal columns of at most maxNumCutsU8
+/// cuts (the default n.cuts = 100 path) and inline-mask categorical columns
+/// store one byte per code, halving the hot-layer footprint; wider ordinal,
+/// pooled categorical, and every sparse/CSC/densified column stay u16. Width
+/// is storage only - the logical code an accessor returns is always xint_t, so
+/// quantization and every comparison are byte-for-byte unchanged. Width is
+/// never serialized; it is recomputed from numCuts/type/storage at load.
+constexpr std::uint8_t naCodeU8 = 0xFFu;
+constexpr std::uint32_t maxNumCutsU8 = 0xFEu;  // 254: max u8 code 254 < naCodeU8
+
+/// The reserved missing code of a code type, for the width-templated scan and
+/// partition kernels (u8 stores naCodeU8 for a missing ordinal value, u16
+/// naCode). Real ordinal codes reach numCuts, kept below the sentinel by the
+/// width choice; inline-mask categorical codes never reach it (<= 63).
+template <typename CodeT> struct CodeWidthTraits;
+template <> struct CodeWidthTraits<std::uint8_t>  { static constexpr std::uint8_t  na = naCodeU8; };
+template <> struct CodeWidthTraits<std::uint16_t> { static constexpr std::uint16_t na = naCode; };
+
 /// Missing categorical values take a category position above the real ones
 /// so the reachable-mask machinery routes them like any other category: the
 /// fixed position 63 (the top of the rule word) for columns whose mask is
@@ -133,11 +151,18 @@ struct ColumnStore {
   bool isView = false;
 
   std::vector<ColumnType> types;
-  // packed dense codes; per-column starts in codeOffsets (j * numObservations
-  // for dense-matrix builds, packed among densified columns for CSC builds,
-  // unused for rank-stored columns)
-  std::vector<xint_t> codes;
-  std::vector<size_t> codeOffsets;
+  // Per-column code width in bytes (1 = u8, 2 = u16), recomputed from
+  // numCuts/type/storage by layoutDenseCodes at build and every re-cut; never
+  // serialized.
+  std::vector<std::uint8_t> codeWidth;
+  // Owned dense codes for every dense-stored column, byte-packed: column j
+  // occupies numObservations * codeWidth[j] bytes starting at codeByteOffset[j]
+  // (u16 columns kept 2-byte aligned). Rank-stored (sparse) columns hold no
+  // bytes here. A missing ordinal value stores naCodeU8 in a u8 column, naCode
+  // in a u16 one. Typed access is through columnU8/columnU16; codeAt is the
+  // width-generic cold-path reader.
+  std::vector<std::uint8_t> codeBytes;
+  std::vector<size_t> codeByteOffset;
   // per column, the rank-storage slot in sparseColumns or -1 for dense
   std::vector<std::int32_t> sparseSlot;
   std::vector<SparseColumnData> sparseColumns;
@@ -256,6 +281,86 @@ struct ColumnStore {
     *mean = gatheredMeans[static_cast<size_t>(slot)];
     *sd = gatheredSds[static_cast<size_t>(slot)];
     return true;
+  }
+
+  /// Column j's storage width in bytes from its type, cut count, and storage:
+  /// rank-stored and CSC-backed columns stay u16 (this pass), pooled
+  /// categorical columns (> 63 levels) stay u16, inline-mask categorical
+  /// columns take u8 (max code 63), ordinal columns u8 iff at most maxNumCutsU8
+  /// cuts. Depends only on numCuts/type/storage flags, so a view recomputes
+  /// widths consistent with its copied parent grid.
+  std::uint8_t widthForColumn(size_t j) const {
+    if (columnIsSparse(j) || columnIsCscBacked(j)) return 2;
+    if (types[j] == ColumnType::categorical) return columnIsPooled(j) ? 2 : 1;
+    return numCuts[j] <= maxNumCutsU8 ? 1 : 2;
+  }
+
+  const std::uint8_t* columnU8(size_t j) const {
+    return codeBytes.data() + codeByteOffset[j];
+  }
+  std::uint8_t* mutableColumnU8(size_t j) {
+    return codeBytes.data() + codeByteOffset[j];
+  }
+  const std::uint16_t* columnU16(size_t j) const {
+    return reinterpret_cast<const std::uint16_t*>(codeBytes.data() +
+                                                  codeByteOffset[j]);
+  }
+  std::uint16_t* mutableColumnU16(size_t j) {
+    return reinterpret_cast<std::uint16_t*>(codeBytes.data() + codeByteOffset[j]);
+  }
+
+  /// Narrow a logical code to a u8 cell: a missing ordinal value's naCode
+  /// becomes naCodeU8; every real code (ordinal <= numCuts <= 254, inline
+  /// categorical <= 63, its missing position 63) fits the byte unchanged.
+  static std::uint8_t encodeU8(xint_t code) {
+    return code == naCode ? naCodeU8 : static_cast<std::uint8_t>(code);
+  }
+  /// Store a logical code into cell (i, j) at the column's width.
+  void writeCode(size_t j, size_t i, xint_t code) {
+    if (codeWidth[j] == 1) mutableColumnU8(j)[i] = encodeU8(code);
+    else mutableColumnU16(j)[i] = code;
+  }
+
+  /// Recompute per-column widths and pack byte offsets for every dense-stored
+  /// column (u16 columns 2-byte aligned), sizing codeBytes. Rank-stored columns
+  /// are skipped. Existing bytes are not preserved; the caller (re)quantizes.
+  /// numCuts, types, and the storage flags must already be set.
+  void layoutDenseCodes() {
+    codeWidth.resize(numPredictors);
+    codeByteOffset.assign(numPredictors, 0);
+    size_t bytes = 0;
+    for (size_t j = 0; j < numPredictors; ++j) {
+      codeWidth[j] = widthForColumn(j);
+      if (columnIsSparse(j)) continue;
+      if (codeWidth[j] == 2 && (bytes & 1u)) ++bytes;  // 2-byte align u16
+      codeByteOffset[j] = bytes;
+      bytes += numObservations * codeWidth[j];
+    }
+    codeBytes.assign(bytes, 0);
+  }
+
+  /// Re-pack byte offsets after one column's width changed (setCutPoints across
+  /// the 254-cut boundary), preserving every other dense column's bytes (copied
+  /// to their new offsets) and leaving the changed column's region for the
+  /// caller to re-quantize. codeWidth[changed] must already be updated.
+  void relayoutForWidthChange(size_t changed) {
+    std::vector<size_t> newOffset(numPredictors, 0);
+    size_t bytes = 0;
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (columnIsSparse(j)) continue;
+      if (codeWidth[j] == 2 && (bytes & 1u)) ++bytes;
+      newOffset[j] = bytes;
+      bytes += numObservations * codeWidth[j];
+    }
+    std::vector<std::uint8_t> newBytes(bytes, 0);
+    for (size_t j = 0; j < numPredictors; ++j) {
+      if (columnIsSparse(j) || j == changed) continue;
+      std::memcpy(newBytes.data() + newOffset[j],
+                  codeBytes.data() + codeByteOffset[j],
+                  numObservations * codeWidth[j]);
+    }
+    codeBytes.swap(newBytes);
+    codeByteOffset = std::move(newOffset);
   }
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
@@ -465,23 +570,38 @@ struct ColumnStore {
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
     if (maxNumCuts[j] < numCutPoints) maxNumCuts[j] = numCutPoints;
+    // the cut count may cross the u8 boundary; re-pack the byte pool if so
+    std::uint8_t newWidth = widthForColumn(j);
+    if (newWidth != codeWidth[j]) {
+      codeWidth[j] = newWidth;
+      relayoutForWidthChange(j);
+    }
     quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
 
   /// Re-quantize column j's codes from column (the dense raw, or null for a
   /// CSC-backed column, which reads its retained slice), refreshing the
-  /// gathered raw copy of a leaf-covariate column in the same pass.
+  /// gathered raw copy of a leaf-covariate column in the same pass. Branches
+  /// once on width so the inner loop is a plain typed store.
   void quantizeColumn(size_t j, const double* column) {
     if (columnIsCscBacked(j)) {
       quantizeCscColumn(j);
       return;
     }
     std::uint8_t anyMissing = 0;
-    for (size_t i = 0; i < numObservations; ++i) {
-      xint_t code = codeFor(j, column[i]);
-      if (isNA(column[i])) anyMissing = 1;
-      codes[codeOffsets[j] + i] = code;
+    if (codeWidth[j] == 1) {
+      std::uint8_t* col = mutableColumnU8(j);
+      for (size_t i = 0; i < numObservations; ++i) {
+        col[i] = encodeU8(codeFor(j, column[i]));
+        if (isNA(column[i])) anyMissing = 1;
+      }
+    } else {
+      std::uint16_t* col = mutableColumnU16(j);
+      for (size_t i = 0; i < numObservations; ++i) {
+        col[i] = codeFor(j, column[i]);
+        if (isNA(column[i])) anyMissing = 1;
+      }
     }
     hasMissing[j] = anyMissing;
     std::int32_t slot = gatheredSlotForColumn(j);
@@ -513,7 +633,8 @@ struct ColumnStore {
         if (isNA(slice.values[k])) anyMissing = 1;
       }
     } else {
-      xint_t* column = codes.data() + codeOffsets[j];
+      // densified CSC columns stay u16 (widthForColumn returns 2 for them)
+      std::uint16_t* column = mutableColumnU16(j);
       for (size_t i = 0; i < numObservations; ++i) column[i] = zeroCode;
       for (size_t k = 0; k < slice.numNonzero; ++k) {
         column[slice.rows[k]] = codeFor(j, slice.values[k]);
@@ -568,9 +689,6 @@ struct ColumnStore {
     for (size_t j = 0; j < p; ++j)
       if (maxNumCuts[j] > maxNumCutsRepresentable)
         maxNumCuts[j] = maxNumCutsRepresentable;
-    codes.resize(n * p);
-    codeOffsets.resize(p);
-    for (size_t j = 0; j < p; ++j) codeOffsets[j] = j * n;
     sparseSlot.assign(p, -1);
     sparseColumns.clear();
     cscSlices.clear();
@@ -580,11 +698,11 @@ struct ColumnStore {
     hasMissing.assign(p, 0);
     setupGatheredColumns(gatherColumns, numGatherColumns);
 
-    for (size_t j = 0; j < p; ++j) {
-      const double* column = x_ + j * n;
-      buildCutsForColumn(j, column);
-      quantizeColumn(j, column);
-    }
+    // cuts first (they set numCuts, which per-column width depends on), then
+    // pack the byte pool at the chosen widths, then quantize
+    for (size_t j = 0; j < p; ++j) buildCutsForColumn(j, x_ + j * n);
+    layoutDenseCodes();
+    for (size_t j = 0; j < p; ++j) quantizeColumn(j, x_ + j * n);
     refreshCategoricalTiers();
   }
 
@@ -635,14 +753,10 @@ struct ColumnStore {
     mixedRawColumns.assign(p, nullptr);
     sparseSlot.assign(p, -1);
     sparseColumns.clear();
-    codeOffsets.assign(p, 0);
-    size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
       if (columnSources[j] >= 0) {
         mixedRawColumns[j] =
           denseValues + static_cast<size_t>(columnSources[j]) * n;
-        codeOffsets[j] = numDenseCodes;
-        numDenseCodes += n;
         continue;
       }
       std::int32_t sourceIndex = ~columnSources[j];
@@ -655,14 +769,13 @@ struct ColumnStore {
       if (sparse) {
         sparseSlot[j] = static_cast<std::int32_t>(sparseColumns.size());
         sparseColumns.emplace_back();
-      } else {
-        codeOffsets[j] = numDenseCodes;
-        numDenseCodes += n;
       }
     }
-    codes.resize(numDenseCodes);
     hasSparse = !sparseColumns.empty();
 
+    // rank bitmaps and cuts first (cuts set numCuts, which width depends on),
+    // then pack the dense byte pool, then quantize; mixedRawColumns[j] is the
+    // dense slice for a dense-backed column and null for a CSC-backed one
     size_t numWords = (n + 63) / 64;
     for (size_t j = 0; j < p; ++j) {
       if (columnIsSparse(j)) {
@@ -683,11 +796,10 @@ struct ColumnStore {
             static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
         }
       }
-      // mixedRawColumns[j] is the dense slice for a dense-backed column and
-      // null for a CSC-backed one (which quantizes from its retained slice)
       buildCutsForColumn(j, mixedRawColumns[j]);
-      quantizeColumn(j, mixedRawColumns[j]);
     }
+    layoutDenseCodes();
+    for (size_t j = 0; j < p; ++j) quantizeColumn(j, mixedRawColumns[j]);
     refreshCategoricalTiers();
 
     numTestObservations = 0;
@@ -753,10 +865,9 @@ struct ColumnStore {
     numCuts = parent.numCuts;
     maxNumCuts = parent.maxNumCuts;
     // views densify: gathered codes are fully dense whatever the parent's
-    // per-column storage (docs/design/sparse-columns.md)
-    codes.resize(numRows * numPredictors);
-    codeOffsets.resize(numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * numRows;
+    // per-column storage (docs/design/sparse-columns.md). Widths recompute from
+    // the copied numCuts, so an ordinal column that is u8 in the parent grid is
+    // u8 here too (a densified parent column recomputes from its own numCuts).
     sparseSlot.assign(numPredictors, -1);
     sparseColumns.clear();
     cscSlices.clear();
@@ -764,6 +875,7 @@ struct ColumnStore {
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(numPredictors, 0);
+    layoutDenseCodes();
     refreshCategoricalTiers();
 
     ownedTestValues.clear();
@@ -800,10 +912,21 @@ struct ColumnStore {
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = types[j] == ColumnType::categorical
         ? missingCategoryCode(numCuts[j]) : naCode;
-      xint_t* column = codes.data() + j * numRows;
-      for (size_t i = 0; i < numRows; ++i) {
-        column[i] = parent.codeAt(j, rows[i]);
-        if (column[i] == missingCode) hasMissing[j] = 1;
+      // gather the parent's logical codes and re-encode at this column's width
+      if (codeWidth[j] == 1) {
+        std::uint8_t* column = mutableColumnU8(j);
+        for (size_t i = 0; i < numRows; ++i) {
+          xint_t code = parent.codeAt(j, rows[i]);
+          if (code == missingCode) hasMissing[j] = 1;
+          column[i] = encodeU8(code);
+        }
+      } else {
+        std::uint16_t* column = mutableColumnU16(j);
+        for (size_t i = 0; i < numRows; ++i) {
+          xint_t code = parent.codeAt(j, rows[i]);
+          if (code == missingCode) hasMissing[j] = 1;
+          column[i] = code;
+        }
       }
     }
     numTestObservations = numTestRows;
@@ -848,7 +971,7 @@ struct ColumnStore {
   /// column; the flag only clears on a full column re-quantize (conservative
   /// but never wrong - the NA-aware partition handles NA-free columns too).
   void setCell(size_t i, size_t j, double value) {
-    codes[codeOffsets[j] + i] = codeFor(j, value);
+    writeCode(j, i, codeFor(j, value));
     if (isNA(value)) hasMissing[j] = 1;
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot >= 0)
@@ -864,15 +987,14 @@ struct ColumnStore {
   /// values). Dense stores only (setData is refused on CSC/mixed).
   void setData(const double* x_, size_t n) {
     numObservations = n;
-    codes.resize(n * numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * n;
     // resize the gathered leaf-covariate copies for the new observation count
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
-    for (size_t j = 0; j < numPredictors; ++j) {
-      const double* column = x_ + j * n;
-      if (types[j] != ColumnType::categorical) buildCutsForColumn(j, column);
-      quantizeColumn(j, column);
-    }
+    // rebuild cuts (they set numCuts, which the from-scratch widths depend on),
+    // re-pack the byte pool, then quantize
+    for (size_t j = 0; j < numPredictors; ++j)
+      if (types[j] != ColumnType::categorical) buildCutsForColumn(j, x_ + j * n);
+    layoutDenseCodes();
+    for (size_t j = 0; j < numPredictors; ++j) quantizeColumn(j, x_ + j * n);
   }
 
   void clearTest() {
@@ -882,10 +1004,6 @@ struct ColumnStore {
     testOffset = nullptr;
   }
 
-  /// Dense-stored columns only; rank columns have no contiguous codes.
-  const xint_t* column(size_t variable) const {
-    return codes.data() + codeOffsets[variable];
-  }
   const xint_t* testRow(size_t testObservation) const {
     return testCodes.data() + testObservation * numPredictors;
   }
@@ -896,10 +1014,18 @@ struct ColumnStore {
   const SparseColumnData& sparseColumn(size_t variable) const {
     return sparseColumns[static_cast<size_t>(sparseSlot[variable])];
   }
-  /// Storage-aware single-code access (tree descent, restore validation).
+  /// Storage-aware, width-generic single-code access (tree descent, restore
+  /// validation, view gather). Returns the logical code: a u8 column's naCodeU8
+  /// normalizes to naCode, so cold-path callers compare against naCode alone
+  /// (a categorical u8 column never stores naCodeU8, its missing code being the
+  /// category position 63, so the normalization only ever fires for ordinals).
   xint_t codeAt(size_t variable, size_t i) const {
-    return columnIsSparse(variable) ? sparseColumn(variable).at(i)
-                                    : codes[codeOffsets[variable] + i];
+    if (columnIsSparse(variable)) return sparseColumn(variable).at(i);
+    if (codeWidth[variable] == 1) {
+      std::uint8_t c = columnU8(variable)[i];
+      return c == naCodeU8 ? naCode : static_cast<xint_t>(c);
+    }
+    return columnU16(variable)[i];
   }
 };
 

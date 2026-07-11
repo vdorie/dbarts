@@ -521,8 +521,10 @@ public:
   }
 
   /// Two-pointer in-place partition by category mask: bit-clear codes go
-  /// left. The mask analogue of misc_partitionIndices, sans SIMD.
-  static size_t partitionIndicesByMask(const xint_t* column,
+  /// left. The mask analogue of misc_partitionIndices, sans SIMD. Width-generic
+  /// over the column's code type (inline categorical codes fit u8).
+  template <typename CodeT>
+  static size_t partitionIndicesByMask(const CodeT* column,
                                        std::uint64_t directions,
                                        size_t* indices, size_t length) {
     size_t lo = 0, hi = length;
@@ -542,8 +544,10 @@ public:
   }
 
   /// The pooled-mask sibling of partitionIndicesByMask: the direction bit
-  /// for a code lives in the rule's pool words.
-  static size_t partitionIndicesByWideMask(const xint_t* column,
+  /// for a code lives in the rule's pool words. Pooled columns stay u16 this
+  /// pass; templated for consistency with the inline sibling.
+  template <typename CodeT>
+  static size_t partitionIndicesByWideMask(const CodeT* column,
                                            const std::uint64_t* directions,
                                            size_t* indices, size_t length) {
     size_t lo = 0, hi = length;
@@ -590,14 +594,17 @@ public:
 
   /// Two-pointer ordinal partition aware of the reserved missing code:
   /// codes at or below the split go left, missing codes go by the rule's
-  /// direction. The scalar fallback for columns containing NAs.
-  static size_t partitionIndicesMIA(const xint_t* column, const Rule& rule,
+  /// direction. The scalar fallback for columns containing NAs, width-generic
+  /// over the column's code type (the missing sentinel is the width's naCode).
+  template <typename CodeT>
+  static size_t partitionIndicesMIA(const CodeT* column, const Rule& rule,
                                     size_t* indices, size_t length) {
     int32_t splitIndex = rule.splitIndex();
     bool missingGoesRight = rule.missingGoesRight();
-    auto goesRight = [=](xint_t code) {
-      return code == naCode ? missingGoesRight
-                            : static_cast<int32_t>(code) > splitIndex;
+    auto goesRight = [=](CodeT code) {
+      return code == CodeWidthTraits<CodeT>::na
+               ? missingGoesRight
+               : static_cast<int32_t>(code) > splitIndex;
     };
     size_t lo = 0, hi = length;
     while (true) {
@@ -613,6 +620,50 @@ public:
     return lo;
   }
 
+  /// NA-free ordinal partition over a contiguous segment (root or any
+  /// contiguously stored node): fills indices with a permutation of
+  /// 0..length-1 and returns the left count. The width-generic scalar twin of
+  /// misc_partitionRange - same two-pointer swap order, so its permutation is
+  /// bitwise identical to the misc kernel on the same logical codes (the u8
+  /// path until step 4's SIMD kernels dispatch).
+  template <typename CodeT>
+  static size_t partitionRangeScalar(const CodeT* x, CodeT cut, size_t* indices,
+                                     size_t length) {
+    for (size_t i = 0; i < length; ++i) indices[i] = i;
+    if (length == 0) return 0;
+    size_t lh = 0, rh = length - 1;
+    while (true) {
+      while (x[lh] <= cut && lh < rh) ++lh;
+      while (x[rh] > cut && lh < rh) --rh;
+      if (lh >= rh) break;
+      indices[rh] = lh;
+      indices[lh] = rh;
+      ++lh;
+      --rh;
+    }
+    return x[indices[lh]] <= cut ? lh + 1 : lh;
+  }
+
+  /// NA-free ordinal partition over an existing index set, permuted in place;
+  /// the width-generic scalar twin of misc_partitionIndices (same swap order).
+  template <typename CodeT>
+  static size_t partitionIndicesScalar(const CodeT* x, CodeT cut,
+                                       size_t* indices, size_t length) {
+    if (length == 0) return 0;
+    size_t lh = 0, rh = length - 1;
+    while (true) {
+      while (x[indices[lh]] <= cut && lh < rh) ++lh;
+      while (x[indices[rh]] > cut && lh < rh) --rh;
+      if (lh >= rh) break;
+      size_t temp = indices[rh];
+      indices[rh] = indices[lh];
+      indices[lh] = temp;
+      ++lh;
+      --rh;
+    }
+    return x[indices[lh]] <= cut ? lh + 1 : lh;
+  }
+
   // pins the misc partition kernels' integer width; a mismatch would
   // silently truncate the cut-index casts below
   static_assert(std::is_same_v<misc_xint_t, std::uint16_t>);
@@ -626,47 +677,58 @@ public:
     size_t numOnLeft = 0;
     if (node.numObservations() > 0) {
       size_t variable = static_cast<size_t>(node.rule.variableIndex);
+      size_t* idx = indices + node.begin;
+      size_t length = node.numObservations();
+      bool u8 = data.codeWidth[variable] == 1;
       if (data.types[variable] == ColumnType::categorical) {
-        const xint_t* column = data.column(variable);
         if (data.columnIsPooled(variable)) {
-          numOnLeft = partitionIndicesByWideMask(column,
-                                                 maskWordsFor(node.rule),
-                                                 indices + node.begin,
-                                                 node.numObservations());
-        } else {
-          numOnLeft = partitionIndicesByMask(column,
+          // pooled columns stay u16
+          numOnLeft = partitionIndicesByWideMask(
+            data.columnU16(variable), maskWordsFor(node.rule), idx, length);
+        } else if (u8) {
+          numOnLeft = partitionIndicesByMask(data.columnU8(variable),
                                              node.rule.categoryDirections(),
-                                             indices + node.begin,
-                                             node.numObservations());
+                                             idx, length);
+        } else {
+          numOnLeft = partitionIndicesByMask(data.columnU16(variable),
+                                             node.rule.categoryDirections(),
+                                             idx, length);
         }
       } else if (data.columnIsSparse(variable)) {
         // in-place partition at the root too: misc_partitionRange assumes
         // identity index content, which only the dense path maintains
         const SparseColumnData& column = data.sparseColumn(variable);
         if (data.hasMissing[variable]) {
-          numOnLeft = partitionIndicesSparseMIA(column, node.rule,
-                                                indices + node.begin,
-                                                node.numObservations());
+          numOnLeft = partitionIndicesSparseMIA(column, node.rule, idx, length);
         } else {
           numOnLeft = misc_partitionIndicesSparse(
-            column.bits.data(), column.wordRanks.data(),
-            column.nzCodes.data(), column.zeroCode,
-            static_cast<misc_xint_t>(node.rule.splitIndex()),
-            indices + node.begin, node.numObservations());
+            column.bits.data(), column.wordRanks.data(), column.nzCodes.data(),
+            column.zeroCode, static_cast<misc_xint_t>(node.rule.splitIndex()),
+            idx, length);
         }
       } else {
-        const xint_t* column = data.column(variable);
+        // ordinal dense: branch once per node on width. u16 rides the CRAN-
+        // proven misc kernels; u8 takes the scalar partition here (step 4
+        // dispatches the u8 SIMD family), its permutation bitwise identical.
         bool isRoot = node.parent == invalidNode;
-        if (data.hasMissing[variable]) {
-          numOnLeft = partitionIndicesMIA(column, node.rule,
-                                          indices + node.begin,
-                                          node.numObservations());
+        if (u8) {
+          const std::uint8_t* column = data.columnU8(variable);
+          std::uint8_t cut = static_cast<std::uint8_t>(node.rule.splitIndex());
+          if (data.hasMissing[variable])
+            numOnLeft = partitionIndicesMIA(column, node.rule, idx, length);
+          else
+            numOnLeft = isRoot
+              ? partitionRangeScalar(column, cut, idx, length)
+              : partitionIndicesScalar(column, cut, idx, length);
         } else {
-          numOnLeft = isRoot
-            ? misc_partitionRange(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
-                                  indices + node.begin, node.numObservations())
-            : misc_partitionIndices(column, static_cast<misc_xint_t>(node.rule.splitIndex()),
-                                    indices + node.begin, node.numObservations());
+          const std::uint16_t* column = data.columnU16(variable);
+          misc_xint_t cut = static_cast<misc_xint_t>(node.rule.splitIndex());
+          if (data.hasMissing[variable])
+            numOnLeft = partitionIndicesMIA(column, node.rule, idx, length);
+          else
+            numOnLeft = isRoot
+              ? misc_partitionRange(column, cut, idx, length)
+              : misc_partitionIndices(column, cut, idx, length);
         }
       }
     }

@@ -31,7 +31,7 @@ struct FuzzArena {
 // the classic rollback path restores exactly; see testSetPredictorTransaction).
 template <typename S>
 struct FuzzSnapshot {
-  std::vector<xint_t> codes;
+  std::vector<std::uint8_t> codes;
   std::vector<std::vector<double>> cuts;
   std::vector<std::vector<double>> fits;
   std::vector<double> sigma;
@@ -40,7 +40,7 @@ struct FuzzSnapshot {
 template <typename S>
 static FuzzSnapshot<S> fuzzCapture(const S& s) {
   FuzzSnapshot<S> snap;
-  snap.codes = s.data().codes;
+  snap.codes = s.data().codeBytes;
   snap.cuts = s.data().cutPoints;
   for (size_t c = 0; c < s.numChains(); ++c) {
     snap.fits.push_back(s.chain(c).treeFits());

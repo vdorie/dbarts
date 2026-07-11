@@ -44,12 +44,12 @@ static void testTreeMechanics() {
   // verify against a direct count with the store's own codes
   size_t expectedLeft = 0;
   for (size_t i = 0; i < n; ++i)
-    if (store.codes[i] <= 49) ++expectedLeft;
+    if (store.codeAt(0, i) <= 49) ++expectedLeft;
   check(left.numObservations() == expectedLeft, "partition count matches codes");
 
   double leftSum = 0.0, rightSum = 0.0;
   for (size_t i = 0; i < n; ++i)
-    (store.codes[i] <= 49 ? leftSum : rightSum) += y[i];
+    (store.codeAt(0, i) <= 49 ? leftSum : rightSum) += y[i];
   checkNear(left.sumWeightedResponse, leftSum, 1e-12, "left child sum wz");
   checkNear(right.sumWeightedResponse, rightSum, 1e-12, "right child sum wz");
 
@@ -124,7 +124,7 @@ static void testCategoricalMechanics() {
   check(store.cutPoints[0].empty(), "categorical column keeps no cut points");
   bool codesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    codesMatch &= store.codes[i] == static_cast<xint_t>(i % 4);
+    codesMatch &= store.codeAt(0, i) == static_cast<xint_t>(i % 4);
   check(codesMatch, "categorical codes are the values");
   check(store.categoricalValueIsValid(0, 3.0) &&
           !store.categoricalValueIsValid(0, 4.0) &&
@@ -427,7 +427,7 @@ static void testPooledMaskMechanics(ext_rng* rng) {
   ColumnStore storeMissing;
   storeMissing.build(xMissing.data(), n, 1, 10, false, types);
   check(storeMissing.numCuts[0] == K && storeMissing.hasMissing[0] == 1 &&
-          storeMissing.codes[0] == 70,
+          storeMissing.codeAt(0, 0) == 70,
         "pooled NA takes code K");
   Tree missingTree;
   missingTree.initialize(indices.data(), n);
@@ -469,11 +469,11 @@ static void testMissingMechanics() {
   const Node& right(tree.at(tree.at(0).leftChild + 1));
   size_t missingOnRight = 0;
   for (size_t i = right.begin; i < right.end; ++i)
-    if (store.codes[tree.indices[i]] == naCode) ++missingOnRight;
+    if (store.codeAt(0, tree.indices[i]) == naCode) ++missingOnRight;
   const Node& left(tree.at(tree.at(0).leftChild));
   size_t missingOnLeft = 0;
   for (size_t i = left.begin; i < left.end; ++i)
-    if (store.codes[tree.indices[i]] == naCode) ++missingOnLeft;
+    if (store.codeAt(0, tree.indices[i]) == naCode) ++missingOnLeft;
   check(missingOnRight == numMissingOrdinal && missingOnLeft == 0,
         "missing ordinal rows all route by the rule's direction");
 
@@ -487,7 +487,7 @@ static void testMissingMechanics() {
   const Node& leftLeft(treeLeft.at(treeLeft.at(0).leftChild));
   size_t missingOnLeft2 = 0;
   for (size_t i = leftLeft.begin; i < leftLeft.end; ++i)
-    if (store.codes[treeLeft.indices[i]] == naCode) ++missingOnLeft2;
+    if (store.codeAt(0, treeLeft.indices[i]) == naCode) ++missingOnLeft2;
   check(missingOnLeft2 == numMissingOrdinal,
         "the canonical zero direction sends missing rows left");
 
