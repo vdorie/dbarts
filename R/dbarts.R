@@ -218,10 +218,16 @@ dbarts <- function(
       "\"; use family \"aft\" or \"auto\""
     )
   }
-  # aft is reachable only through the direct-response form; refuse the
-  # formula interface (and anything else indirect) up front, before the
-  # response is materialized, rather than failing hostilely downstream
-  if (family == "aft" && !directResponse) {
+  # aft is reachable through the direct-response form, or through the internal
+  # rbart channel, which pre-sets the status on control@bartcore.survival and
+  # passes a ready dbartsData; every other indirect route (the public formula
+  # interface) is refused up front, before the response is materialized,
+  # rather than failing hostilely downstream
+  if (
+    family == "aft" &&
+      !directResponse &&
+      is.null(attr(control, "bartcore.survival"))
+  ) {
     stop(
       "survival (aft) fits currently use the matrix interface - ",
       "dbarts(x.train, y.train) or bart2(x.train, y.train) with a ",

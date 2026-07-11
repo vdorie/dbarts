@@ -45,11 +45,13 @@ rbart_vi <- function(
   keepTestFits = TRUE,
   callback = NULL,
   factors = c("categorical", "indicators"),
+  family = c("auto", "gaussian", "aft"),
   missing = c("incorporate", "error"),
   ...
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  family <- match.arg(family)
 
   # because we use a lot of trickery to redirect calls in the calling environment
   # (for example, to get the data), we replicate some base mechanisms like complaining
@@ -214,10 +216,78 @@ rbart_vi <- function(
     )]]
   }
 
-  data <- eval(
-    redirectCall(matchedCall, dbarts::dbartsData),
-    envir = callingEnv
-  )
+  # survival (AFT) response ingestion (docs/design/survival.md, R surface):
+  # a survival::Surv or two-column (time, status) response enters through the
+  # formula's left-hand side, evaluated in the caller's data/environment as
+  # group.by is. dbartsData's formula-path Surv refusal stays intact for every
+  # other family; here the response is rewritten to the log event/censoring
+  # time before dbartsData sees it, and the per-observation status rides the
+  # control's bartcore.survival attribute (the applyGroupAttribute pattern the
+  # AFT engine reads). A Surv left-hand side auto-selects aft from "auto"; a
+  # bare two-column response needs family = "aft" explicitly. rbart_vi's
+  # matrix interface has no survival form; aft enters only through the formula.
+  survivalStatus <- NULL
+  survFormula <- NULL
+  if (
+    family %in% c("auto", "aft") && is.formula(formula) && length(formula) == 3L
+  ) {
+    responseExpr <- formula[[2L]]
+    responseValue <- NULL
+    if (!missing(data) && (is.list(data) || is.environment(data))) {
+      try(
+        responseValue <- eval(responseExpr, data, environment(formula)),
+        silent = TRUE
+      )
+    }
+    if (is.null(responseValue)) {
+      try(
+        responseValue <- eval(responseExpr, environment(formula)),
+        silent = TRUE
+      )
+    }
+    if (is.null(responseValue)) {
+      try(responseValue <- eval(responseExpr, callingEnv), silent = TRUE)
+    }
+
+    responseIsSurv <- inherits(responseValue, "Surv")
+    if (family == "aft" || (family == "auto" && responseIsSurv)) {
+      survival <- extractSurvivalResponse(responseValue)
+      if (is.null(survival)) {
+        stop(
+          "family \"aft\" needs a survival::Surv or two-column (time, ",
+          "status) response through the formula's left-hand side"
+        )
+      }
+      if (!is.null(matchedCall[["weights"]])) {
+        stop("survival (aft) fits do not support 'weights' in this version")
+      }
+      if (!is.null(matchedCall[["subset"]])) {
+        stop("survival (aft) fits do not support 'subset' in this version")
+      }
+      family <- "aft"
+      survivalStatus <- survival$status
+      # bind the log-time in a child of the formula's environment and point
+      # the left-hand side at it, so model.frame builds the response from a
+      # plain numeric while the right-hand side terms resolve as before
+      survEnv <- new.env(parent = environment(formula))
+      assign(".dbartsSurvivalResponse", survival$log.time, envir = survEnv)
+      survFormula <- formula
+      survFormula[[2L]] <- as.symbol(".dbartsSurvivalResponse")
+      environment(survFormula) <- survEnv
+    }
+  }
+
+  dataCall <- redirectCall(matchedCall, dbarts::dbartsData)
+  if (!is.null(survFormula)) {
+    # inject the rewritten formula via a symbol so eval does not rebind its
+    # environment (a formula literal is a call to `~`, re-evaluated otherwise)
+    survEvalEnv <- new.env(parent = callingEnv)
+    survEvalEnv[[".dbartsSurvFormula"]] <- survFormula
+    dataCall[["formula"]] <- quote(.dbartsSurvFormula)
+    data <- eval(dataCall, envir = survEvalEnv)
+  } else {
+    data <- eval(dataCall, envir = callingEnv)
+  }
 
   # both the R loop (predicts over data@x) and the in-core path would need
   # sparse-aware plumbing; reserved until a consumer appears
@@ -263,6 +333,13 @@ rbart_vi <- function(
     callback
   )
 
+  # the AFT engine reads its per-observation status off this control attribute
+  # (the bartcore.groups precedent); both sampler paths carry the control, and
+  # dbarts() permits the indirect aft path once the attribute is present
+  if (!is.null(survivalStatus)) {
+    attr(control, "bartcore.survival") <- survivalStatus
+  }
+
   # in-core fast path: the built-in tau priors run rbart_vi's Gibbs blocks
   # inside the engine (one sampler, chains on worker threads, no
   # per-iteration R); custom prior functions and callbacks keep the R loop
@@ -288,6 +365,11 @@ rbart_vi <- function(
     )
     if (is.null(node.prior)) {
       samplerArgs[["node.prior"]] <- NULL
+    }
+    # the family stays off the call for gaussian/binary (dbarts() resolves it
+    # from the response); aft must declare itself to reach the AFT engine
+    if (family == "aft") {
+      samplerArgs[["family"]] <- "aft"
     }
 
     fitResult <- rbart_vi_fit_bartcore(
@@ -334,6 +416,9 @@ rbart_vi <- function(
   )
   if (is.null(node.prior)) {
     samplerArgs[["node.prior"]] <- NULL
+  }
+  if (family == "aft") {
+    samplerArgs[["family"]] <- "aft"
   }
   chainResults <- vector("list", n.chains)
   runSingleThreaded <- n.threads <= 1L || n.chains <= 1L
@@ -462,6 +547,9 @@ rbart_vi_run <- function(
   offset.orig <- data$offset.orig
 
   kIsModeled <- inherits(sampler$model@node.hyperprior, "dbartsChiHyperprior")
+  # aft redraws its censored latents inside each sweep (against f + ranef the
+  # offset carries), so the working response is pulled back like binary's
+  familyIsAft <- sampler$model@family == "aft"
   posteriorClosure <- prior$posteriorClosure
   # used via evalEnv$b.sq in the nested postStep, which the linter misses
   evalEnv <- prior$evalEnv # nolint: object_usage_linter.
@@ -542,7 +630,7 @@ rbart_vi_run <- function(
   # sample
   postStep <- function(i) {
     state$treeFit.train <<- raw$train[, i] - ranef.vec
-    if (control@binary) {
+    if (control@binary || familyIsAft) {
       state$y.st <<- sampler$getLatents(state$y.st)
     }
     state$sigma <<- raw$sigma[i]

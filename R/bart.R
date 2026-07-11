@@ -539,43 +539,19 @@ bart2 <- function(
   result
 }
 
-# Survival-probability draws from an AFT fit (docs/design/survival.md).
-# Under the log-normal model log T = f(x) + sigma eps, S(t | x) =
-# 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
-# and sigma. Returns draws per the package's three-tier convention
-# (extract = draws, fitted = mean, ci.level = interval): users take means
-# and quantiles over the draw margin themselves. newdata predicts out of
-# sample (requires a fit kept with keepTrees); NULL uses the training fits.
-survivalProbabilities.bart <- function(
-  object,
+# S(t | x) draws from an AFT linear predictor and its per-draw sigma, in the
+# uncombined convention (chains x samples x observations) where the sigma
+# draws align with the fit draws unambiguously - the loglik channel's
+# approach. Shared by the bart and rbart methods; the caller supplies the
+# linear predictor (BART component for bart, BART + drawn intercepts for
+# rbart) and combines the chain margin at the end.
+survivalProbabilitiesFromDraws <- function(
+  linearPredictor,
+  sigma,
   times,
-  newdata = NULL,
-  combineChains = TRUE,
-  ...
+  n.chains,
+  combineChains
 ) {
-  if (!identical(object[["family"]], "aft")) {
-    stop("survivalProbabilities requires an aft (survival) fit")
-  }
-  times <- as.double(times)
-  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
-    stop("'times' must be finite and positive")
-  }
-
-  n.chains <- if (!is.null(object[["fit"]])) {
-    object$fit$control@n.chains
-  } else {
-    object$n.chains
-  }
-
-  # work in the uncombined convention (chains x samples x observations),
-  # where the sigma draws align with the fit draws unambiguously - the
-  # loglik channel's approach; combine the chain margin at the end
-  linearPredictor <- if (is.null(newdata)) {
-    extract(object, type = "bart", sample = "train", combineChains = FALSE)
-  } else {
-    predict(object, newdata, type = "bart", combineChains = FALSE)
-  }
-  sigma <- object[["sigma"]]
   if (is.null(dim(sigma))) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }
@@ -617,14 +593,101 @@ survivalProbabilities.bart <- function(
   result
 }
 
-# Grouped (random-intercept) AFT fits are not yet reachable from R:
-# rbart_vi has no 'family' argument, so an rbart fit is never an aft model,
-# and a survival curve that dropped the fitted intercepts would be wrong.
-survivalProbabilities.rbart <- function(object, ...) {
-  stop(
-    "survival probabilities are not available for rbart fits: rbart_vi ",
-    "has no 'family' argument, so it cannot fit an aft (survival) model; ",
-    "grouped survival support is planned"
+# Survival-probability draws from an AFT fit (docs/design/survival.md).
+# Under the log-normal model log T = f(x) + sigma eps, S(t | x) =
+# 1 - Phi((log t - f(x)) / sigma), evaluated at every posterior draw of f
+# and sigma. Returns draws per the package's three-tier convention
+# (extract = draws, fitted = mean, ci.level = interval): users take means
+# and quantiles over the draw margin themselves. newdata predicts out of
+# sample (requires a fit kept with keepTrees); NULL uses the training fits.
+survivalProbabilities.bart <- function(
+  object,
+  times,
+  newdata = NULL,
+  combineChains = TRUE,
+  ...
+) {
+  if (!identical(object[["family"]], "aft")) {
+    stop("survivalProbabilities requires an aft (survival) fit")
+  }
+  times <- as.double(times)
+  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
+    stop("'times' must be finite and positive")
+  }
+
+  n.chains <- if (!is.null(object[["fit"]])) {
+    object$fit$control@n.chains
+  } else {
+    object$n.chains
+  }
+
+  linearPredictor <- if (is.null(newdata)) {
+    extract(object, type = "bart", sample = "train", combineChains = FALSE)
+  } else {
+    predict(object, newdata, type = "bart", combineChains = FALSE)
+  }
+
+  survivalProbabilitiesFromDraws(
+    linearPredictor,
+    object[["sigma"]],
+    times,
+    n.chains,
+    combineChains
+  )
+}
+
+# Grouped (random-intercept) AFT survival curves (docs/design/survival.md,
+# riAFTBART's model). The linear predictor is E[log T | x, group] = f(x) plus
+# the drawn group intercept - sourced from the "ev" channel (extract for the
+# training data, predict for newdata), NOT the bare BART component, so the
+# intercepts enter the curve. "ev" is on the log scale here (aft carries
+# sigma, so it is not probability-transformed). newdata needs group.by (an
+# unseen group draws its intercept from N(0, tau), inherited from predict).
+survivalProbabilities.rbart <- function(
+  object,
+  times,
+  newdata = NULL,
+  group.by,
+  combineChains = TRUE,
+  ...
+) {
+  if (!identical(object[["family"]], "aft")) {
+    stop("survivalProbabilities requires an aft (survival) rbart fit")
+  }
+  times <- as.double(times)
+  if (length(times) == 0L || any(!is.finite(times)) || any(times <= 0)) {
+    stop("'times' must be finite and positive")
+  }
+
+  n.chains <- if (is.null(object$n.chains)) {
+    length(object$fit)
+  } else {
+    object$n.chains
+  }
+
+  linearPredictor <- if (is.null(newdata)) {
+    extract(object, type = "ev", sample = "train", combineChains = FALSE)
+  } else {
+    if (missing(group.by)) {
+      stop("'group.by' must be supplied when 'newdata' is given")
+    }
+    # predict.rbart maps intercepts through the factor levels (an unseen
+    # level draws from N(0, tau)); coerce as rbart_vi does its group.by
+    predict(
+      object,
+      newdata,
+      group.by = as.factor(group.by),
+      type = "ev",
+      combineChains = FALSE
+    )
+  }
+
+  survivalProbabilitiesFromDraws(
+    linearPredictor,
+    object[["sigma"]],
+    times,
+    n.chains,
+    combineChains
   )
 }
 

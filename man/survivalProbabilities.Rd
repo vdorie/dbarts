@@ -6,7 +6,9 @@
 \description{
   Posterior draws of the survival probability \eqn{S(t \mid x)} from an
   accelerated failure time (AFT) log-normal fit produced by
-  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"}.
+  \code{\link{bart2}} (or \code{\link{bart}}) with \code{family = "aft"}, or
+  the grouped (random-intercept) AFT fit produced by \code{\link{rbart_vi}}
+  with \code{family = "aft"}.
 }
 \usage{
 survivalProbabilities(object, ...)
@@ -19,12 +21,19 @@ survivalProbabilities(object, ...)
   ...
 )
 
-\method{survivalProbabilities}{rbart}(object, ...)
+\method{survivalProbabilities}{rbart}(
+  object,
+  times,
+  newdata = NULL,
+  group.by,
+  combineChains = TRUE,
+  ...
+)
 }
 \arguments{
   \item{object}{
-    A fitted \code{bart} object from an AFT model (its \code{family} element
-    equals \code{"aft"}).
+    A fitted \code{bart} or \code{rbart} object from an AFT model (its
+    \code{family} element equals \code{"aft"}).
   }
   \item{times}{
     A numeric vector of times (on the original, non-logarithmic scale) at
@@ -34,6 +43,12 @@ survivalProbabilities(object, ...)
     Optional predictors at which to evaluate. When \code{NULL} the training
     observations are used; otherwise \code{object} must have been fit with
     \code{keepTrees = TRUE}.
+  }
+  \item{group.by}{
+    For the \code{rbart} method with \code{newdata}, the grouping factor for
+    the new observations, as in \code{\link[=predict.rbart]{predict}}. A group
+    not seen in training draws its intercept from \eqn{N(0, \tau)}. Ignored
+    (and unnecessary) when \code{newdata} is \code{NULL}.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
@@ -55,11 +70,12 @@ survivalProbabilities(object, ...)
   package's convention that draw-level functions return draws: take means or
   quantiles over the draw margin for point estimates and credible bands.
 
-  There is no method for \code{rbart} fits: \code{\link{rbart_vi}} has no
-  \code{family} argument, so a grouped (random-intercept) AFT model is not
-  yet fittable from R, and a survival curve that ignored the fitted
-  intercepts would be wrong. The \code{rbart} method fails with an error
-  saying so.
+  For a grouped fit from \code{\link{rbart_vi}} with \code{family = "aft"},
+  the \code{rbart} method uses the same formula, with \eqn{f(x)} replaced by
+  the linear predictor \eqn{E[\log T \mid x, g] = f(x) + \alpha_{g}} that
+  includes the drawn random intercept for the observation's group. It is
+  sourced from the expected-value (\code{"ev"}) channel, so dropping the
+  intercepts (which would misplace every grouped curve) is not possible.
 }
 \value{
   An array of survival probabilities. With \code{combineChains = TRUE}
@@ -71,8 +87,8 @@ survivalProbabilities(object, ...)
   \code{NULL}.
 }
 \seealso{
-  \code{\link{bart2}}, \code{\link[=predict.bart]{predict}},
-  \code{\link[=extract.bart]{extract}}
+  \code{\link{bart2}}, \code{\link{rbart_vi}},
+  \code{\link[=predict.bart]{predict}}, \code{\link[=extract.bart]{extract}}
 }
 \examples{
 set.seed(42)
