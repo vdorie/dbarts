@@ -98,7 +98,7 @@ static void initApi(void) {
   LOOKUP(void (*)(dbarts_sampler*, int, size_t), p_setTreeStorage,
          "dbarts_sampler_setTreeStorage");
   LOOKUP(SEXP (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
-                  size_t, const size_t*, size_t, int),
+                  size_t, const size_t*, size_t, int, const double*),
          p_getTrees, "dbarts_sampler_getTrees");
   LOOKUP(SEXP (*)(dbarts_sampler*), p_storeState, "dbarts_sampler_storeState");
   LOOKUP(void (*)(dbarts_sampler*, SEXP), p_setState,
