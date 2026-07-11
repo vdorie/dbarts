@@ -654,6 +654,34 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
+    growFromRoot = function(n.sweeps = 2L, updateState = FALSE) {
+      "Builds an initial forest by XBART-style grow-from-root (He, Yalov and Hahn 2019) as a warm start, running n.sweeps grow sweeps in place; the exact MCMC sampler owns the forest once run() begins. Constant-leaf models only. See ?dbartsSampler."
+      if (
+        is(model@node.prior, "dbartsLinearPrior") ||
+          is(model@node.prior, "dbartsGPPrior")
+      ) {
+        stop(
+          "grow-from-root warm start is only available for the constant-leaf ",
+          "model; linear and gp node priors initialize with ",
+          "sampleTreesFromPrior instead"
+        )
+      }
+      n.sweeps <- as.integer(n.sweeps)
+      if (length(n.sweeps) != 1L || is.na(n.sweeps) || n.sweeps <= 0L) {
+        stop("n.sweeps must be a single positive integer")
+      }
+      ptr <- getPointer()
+      .Call(C_dbarts_bartcore_growFromRoot, ptr, n.sweeps)
+
+      if (
+        (is.na(updateState) && control@updateState == TRUE) ||
+          identical(updateState, TRUE)
+      ) {
+        storeState(ptr)
+      }
+
+      invisible(NULL)
+    },
     copy = function(shallow = FALSE) {
       "Creates a deep or shallow copy of the sampler."
       dupe <-

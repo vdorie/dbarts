@@ -6,6 +6,7 @@
 \alias{\S4method{run}{dbartsSampler}}
 \alias{\S4method{sampleTreesFromPrior}{dbartsSampler}}
 \alias{\S4method{sampleNodeParametersFromPrior}{dbartsSampler}}
+\alias{\S4method{growFromRoot}{dbartsSampler}}
 \alias{\S4method{copy}{dbartsSampler}}
 \alias{\S4method{show}{dbartsSampler}}
 \alias{\S4method{predict}{dbartsSampler}}
@@ -37,6 +38,7 @@
 )
 \S4method{sampleTreesFromPrior}{dbartsSampler}(updateState = NA)
 \S4method{sampleNodeParametersFromPrior}{dbartsSampler}(updateState = NA)
+\S4method{growFromRoot}{dbartsSampler}(n.sweeps = 2L, updateState = FALSE)
 \S4method{copy}{dbartsSampler}(shallow = FALSE)
 \S4method{show}{dbartsSampler}()
 \S4method{predict}{dbartsSampler}(x.test, offset.test, n.threads = control@n.threads)
@@ -190,6 +192,9 @@
   \item{samples}{
     For \code{installTrees}, an optional integer vector with one entry per chain, each a 1-based index into the donor's pool of samples (its saved trees when it kept them, else its final trees per chain). \code{NULL} spreads the chains evenly across the pool.
   }
+  \item{n.sweeps}{
+    For \code{growFromRoot}, a single positive integer giving the number of grow-from-root sweeps run in place (default \code{2L}). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.
+  }
   \item{...}{
     Extra arguments to \code{\link{plot}}.
   }
@@ -205,6 +210,8 @@
 
   \subsection{Warm starts}{
     \code{installTrees} seeds the sampler's forests from a \code{donor} instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, \code{sigma}, and \code{k} transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.
+
+    \code{growFromRoot} instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of \code{n.sweeps} sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once \code{run} begins, and the posterior is unchanged. It is available for the constant-leaf model only; \code{linear} and \code{gp} node priors initialize with \code{sampleTreesFromPrior} instead. As with \code{installTrees}, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of \code{n.threads}. A composable cross-sampler workflow follows for free: \code{donor$growFromRoot(k)} then \code{target$installTrees(donor)}.
   }
 }
 \value{

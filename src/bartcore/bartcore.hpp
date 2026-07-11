@@ -11,6 +11,8 @@
 #include "data.hpp"
 #include "tree.hpp"
 #include "model.hpp"
+#include "scan.hpp"
+#include "grow.hpp"
 #include "moves.hpp"
 #include "chain.hpp"
 #include "sampler.hpp"

@@ -15,8 +15,10 @@
 #include <misc/thread.h>
 
 #include "data.hpp"
+#include "grow.hpp"
 #include "model.hpp"
 #include "moves.hpp"
+#include "scan.hpp"
 #include "tree.hpp"
 
 namespace bartcore {
@@ -928,6 +930,114 @@ public:
           forest.paramsByTree[t].assign(
             forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
       }
+  }
+
+  /// Warm-start producer: run numSweeps of XBART-style grow-from-root in place
+  /// of the MH move, leaving a legal forest the exact sweeps then own. This is
+  /// a SEPARATE sweep loop that DUPLICATES run()'s per-iteration body (the
+  /// residual roll, node averages, sampleParametersAndSetFits, and the
+  /// latent/sigma/k/DART updates) rather than branching inside it, so the
+  /// default run path stays byte-identical; the only substitution is the
+  /// per-tree step, where growTreeFromRoot rebuilds the tree from a fresh root
+  /// against the tree's residual. Constant leaf only (the scan's marginal);
+  /// vector and function leaves are refused on the R surface and no-op here.
+  void growForestFromRoot(size_t numSweeps) {
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      (void) numSweeps;  // non-constant leaves fall back to prior-grown init
+      return;
+    } else {
+      size_t n = data_.numObservations;
+      double* y = response_->workingResponse();
+      const double* weights = response_->workingWeights();
+      GrowScratch growScratch;
+
+      for (size_t sweep = 0; sweep < numSweeps; ++sweep) {
+        for (size_t f = 0; f < forests_.size(); ++f) {
+          Forest<L>& forest = forests_[f];
+          const double* forestY = y;
+          const double* forestWeights = weights;
+          if (bcf_) {
+            formForestResponse(f, y, weights);
+            forestY = bcf_->forestResponse.data();
+            forestWeights = bcf_->forestWeights.data();
+          }
+
+          forest.kSumSquaredParams = 0.0;
+          forest.kNumLeaves = 0.0;
+
+          for (size_t t = 0; t < forest.numTrees; ++t) {
+            double* treeFits = forest.treeFits.data() + t * n;
+
+            if (t == 0) {
+              const double* __restrict y_ = forestY;
+              const double* __restrict total = forest.totalFits.data();
+              const double* __restrict oldFits = treeFits;
+              double* __restrict resid = forest.treeY.data();
+              for (size_t i = 0; i < n; ++i)
+                resid[i] = y_[i] - total[i] + oldFits[i];
+            } else {
+              const double* __restrict prevFits = treeFits - n;
+              const double* __restrict oldFits = treeFits;
+              double* __restrict resid = forest.treeY.data();
+              for (size_t i = 0; i < n; ++i)
+                resid[i] += oldFits[i] - prevFits[i];
+            }
+
+            // grow a fresh tree from the root against tree t's residual, in
+            // place of metropolisJumpForTree; the reset returns it to a single
+            // root over the full index buffer, then setNodeAverages primes the
+            // root statistic the scan's no-split term reads
+            forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+            forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
+            growTreeFromRoot(data_, forest.treePrior, forest.leaf, rng_,
+                             forest.trees[t], 0, forest.treeY.data(),
+                             forestWeights, forest.k, sigma_, growScratch);
+            if (data_.hasPooledCategorical)
+              forest.trees[t].compactMaskPoolIfNeeded(data_);
+
+            sampleParametersAndSetFits(forest, t, treeFits, false);
+          }
+
+          if (forest.numTrees > 0) {
+            const size_t last = forest.numTrees - 1;
+            const double* __restrict y_ = forestY;
+            const double* __restrict resid = forest.treeY.data();
+            const double* __restrict lastFits =
+              forest.treeFits.data() + last * n;
+            double* __restrict total = forest.totalFits.data();
+            for (size_t i = 0; i < n; ++i)
+              total[i] = y_[i] - resid[i] + lastFits[i];
+          }
+        }
+
+        const double* combined = combinedFits();
+        response_->refreshLatents(rng_, combined, sigma_);
+        y = response_->workingResponse();
+        weights = response_->workingWeights();
+
+        if (!sigmaIsFixed_)
+          sigma_ = response_->drawSigma(rng_, combined, sigma_);
+
+        if (bcf_) {
+          drawGlue(y, weights);
+          interweaveGlueRidge(false, 0);
+        }
+
+        for (Forest<L>& forest : forests_) {
+          if (forest.updateK && forest.kSumSquaredParams > 0.0)
+            forest.k = forest.kHyperprior.draw(rng_, forest.kSumSquaredParams,
+                                               forest.kNumLeaves,
+                                               forest.leaf.scale);
+          if (forest.useDart) {
+            std::memset(forest.splitCounts.data(), 0,
+                        forest.splitCounts.size() * sizeof(std::uint32_t));
+            for (size_t t = 0; t < forest.numTrees; ++t)
+              forest.trees[t].countVariableUses(forest.splitCounts.data());
+            forest.dart.update(rng_, forest.splitCounts.data());
+          }
+        }
+      }
+    }
   }
 
   /// Replace every leaf parameter with a draw from the node prior and

@@ -650,6 +650,46 @@ public:
     for (auto& chain : chains_) chain->sampleNodeParametersFromPrior();
   }
 
+  /// Warm-start initializer: run numSweeps of grow-from-root in place on every
+  /// chain, fanning across chains on up to min(numThreads, numChains) workers
+  /// exactly as run() does, so the grown forest is thread-count-independent
+  /// (each chain draws only on its own generator). A single chain runs inline
+  /// on the caller's thread, which the host has wrapped in GetRNGstate so the
+  /// chain riding R's stream is safe; multi-chain workers ride their own
+  /// Mersenne Twisters and never touch R. Constant leaf only (Chain no-ops for
+  /// vector/function leaves; the R surface refuses them).
+  void growFromRoot(size_t numSweeps) {
+    size_t numChains = chains_.size();
+    size_t numWorkers = options_.numThreads < numChains ? options_.numThreads
+                                                        : numChains;
+    if (numWorkers <= 1) {
+      for (auto& chain : chains_) chain->growForestFromRoot(numSweeps);
+      return;
+    }
+
+    std::vector<std::thread> workers;
+    workers.reserve(numWorkers);
+#ifndef _WIN32
+    // spawn with SIGINT blocked so a Ctrl-C during the grow phase reaches only
+    // the main thread, never a worker that has no R interrupt handler; the
+    // main thread's mask is restored right after the spawn (mirrors run())
+    sigset_t interruptSet, previousSet;
+    sigemptyset(&interruptSet);
+    sigaddset(&interruptSet, SIGINT);
+    pthread_sigmask(SIG_BLOCK, &interruptSet, &previousSet);
+#endif
+    for (size_t w = 0; w < numWorkers; ++w) {
+      workers.emplace_back([this, w, numWorkers, numChains, numSweeps]() {
+        for (size_t c = w; c < numChains; c += numWorkers)
+          chains_[c]->growForestFromRoot(numSweeps);
+      });
+    }
+#ifndef _WIN32
+    pthread_sigmask(SIG_SETMASK, &previousSet, nullptr);
+#endif
+    for (std::thread& worker : workers) worker.join();
+  }
+
   /// Info dump; the per-node output format is R-visible and pinned by tests.
   /// Without keepTrees the live trees print and sample indices are ignored;
   /// with it, the requested saved slots print in the saved-tree format.

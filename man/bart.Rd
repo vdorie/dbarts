@@ -52,6 +52,7 @@ bart2(
     proposal.probs = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
+    n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"),
@@ -182,6 +183,9 @@ extract(object, \dots)
    }
    \item{warm.start}{
      \code{bart2} only. A previous fit whose forests seed the initial state instead of drawing trees from the prior: either a \code{bart} object fit with \code{keepSampler = TRUE} or a \code{\link{dbartsSampler-class}}. The donor must share this fit's predictors, tree count, cut grid, and DART setting; only its trees, \code{sigma}, and \code{k} carry over, and each chain starts from a different donor sample so multiple chains stay overdispersed. A warm start biases early draws toward the donor, so it shortens burn-in rather than removing it; keep a non-zero \code{n.burn}. See \code{\link{dbartsSampler-class}}'s \code{installTrees} method for finer control.
+   }
+   \item{n.grow.sweeps}{
+     \code{bart2} only. A non-negative integer; when positive, the initial forest is built by \code{n.grow.sweeps} sweeps of XBART-style grow-from-root (He, Yalov and Hahn 2019) instead of a draw from the prior, an init-then-refine workflow that reaches a good fit in far fewer sweeps before the exact sampler takes over. The default \code{0L} draws trees from the prior, exactly as before. Like \code{warm.start}, a grow-from-root start biases the early draws toward the grown fit, so it shortens burn-in rather than removing it; keep a non-zero (if smaller) \code{n.burn}. The posterior the sampler targets is unchanged - only the starting point moves. Constant-leaf models only, and mutually exclusive with \code{warm.start} (both request an initialization). See \code{\link{dbartsSampler-class}}'s \code{growFromRoot} method.
    }
    \item{factors, family, missing}{
      As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors always expand into indicator columns (\code{bart2}'s default, \code{"categorical"}, instead keeps each unordered factor as a single predictor - a different model-matrix representation, so a factor-predictor fit changes if moved from one interface to the other), binary responses are probit, and missing data are rejected.

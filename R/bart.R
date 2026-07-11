@@ -367,6 +367,7 @@ bart2 <- function(
   proposal.probs = NULL,
   keepSampler = keepTrees,
   warm.start = NULL,
+  n.grow.sweeps = 0L,
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic", "aft"),
   missing = c("incorporate", "error"),
@@ -450,8 +451,23 @@ bart2 <- function(
 
   control <- sampler$control
 
+  # the initial forest: a warm-start donor, a grow-from-root warm start, or a
+  # draw from the prior (the default, byte-identical to before this argument)
+  n.grow.sweeps <- as.integer(n.grow.sweeps)[1L]
+  if (is.na(n.grow.sweeps) || n.grow.sweeps < 0L) {
+    stop("'n.grow.sweeps' must be a non-negative integer")
+  }
+  if (!is.null(warm.start) && n.grow.sweeps > 0L) {
+    stop(
+      "'warm.start' and 'n.grow.sweeps' both request an initialization; ",
+      "supply at most one"
+    )
+  }
+
   if (!is.null(warm.start)) {
     sampler$installTrees(warm.start)
+  } else if (n.grow.sweeps > 0L) {
+    sampler$growFromRoot(n.grow.sweeps, updateState = FALSE)
   } else {
     sampler$sampleTreesFromPrior(updateState = FALSE)
   }
