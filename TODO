@@ -69,6 +69,20 @@ items
     Chain/combiner boundary today). RNG-neutral refactor, gated by
     the equivalence anchor + bcf-exact. Medium-large; land BEFORE
     any multi-forest model.
+  forest-ranef-interweaving: research item filed 2026-07-11 from the
+    tau slice review (docs/plans/tau-slice-review.md; VD approved
+    filing). The measured grouped-fit mixing bottleneck is
+    forest-ranef confounding (25x the tau IACT at K=3, weak signal;
+    removing the forest recovers the isolation-experiment IACT), NOT
+    the tau draw. Candidate remedies ranked by the review: (1) a
+    joint or interweaving move between the forest fit and the
+    random intercepts (the real lever; design from scratch); (2)
+    ASIS on (tau, b) per the bcf-ridge-interweaving precedent -
+    validated ~11x on the tau-b funnel in isolation but only
+    PARTIAL in the full engine, so prototype-gate before committing.
+    The tau-cauchy-exact-ig draw is a building block for (2).
+    Research: needs a measurement harness (grouped SBC or IACT
+    grid) before any engine work. decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
