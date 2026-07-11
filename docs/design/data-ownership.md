@@ -198,3 +198,32 @@ first multi-model consumer (forest-split-bcf).
   convention, recognizable to sparse-data users; carries levels +
   reference level).
 - Extraction verb: extract(sampler, "predictors"), no new generic.
+
+## Resolved considerations, second round (VD, 2026-07-11 evening)
+
+- dbarts.h freeze LIFTED for this program: stan4bart is the only ABI
+  consumer and we own it - do whatever is clean and update in
+  lockstep. getTrees gains an explicit training-replay data
+  parameter (NULL = the retained creation spec); setState may take
+  raw for cross-grid restores. PROT_DATA stays as the creation
+  contract and the flat-C GC anchor.
+- Mutation raw-source model: the sampler installs updated column
+  VECTORS into its stored data object by reference and lets R
+  handle GC - O(spine) once storage is column-oriented (plan 2's
+  frame), no O(n x p) copy-on-write. A perf-sensitive caller may
+  update its own vector in place and re-install the same vector
+  (the supported pattern). Plan-1 interim on matrix-held data@x:
+  R-side copy-modify, temporary. OPEN AT PLAN 3: reference-install
+  removes the CoW rationale for the engine-owned mutable-raw flag;
+  plan 3's convergence decides whether the mutable flag survives.
+- State format free to change pre-release (VD); plan 1 keeps the
+  cutPoints-only encoding anyway on simplicity.
+- u8 SIMD on x86: no x86 machine yet (VD will set one up); x86 epi8
+  kernels stay dispatch-gated to scalar until the bitwise component
+  gate runs on that machine. NEON + scalar validate now.
+- Speed reference: bench-sampler-32fc7c8.csv recorded on the granted
+  quiet machine before plan-1 implementation; the pre-record compare
+  vs 31a4c01 found NO real regression across the season (one noisy
+  flag on the sub-ms setPredictor metrics did not reproduce;
+  operational note - those metrics show ~6-8% run-to-run noise, so a
+  single-run 5% flag on them warrants a re-run before belief).
