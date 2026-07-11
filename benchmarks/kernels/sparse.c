@@ -28,11 +28,26 @@
 #include <string.h>
 #include <stdint.h>
 #include <time.h>
+#include <stdarg.h>
 
 #include <misc/stddef.h>
 #include <misc/types.h>
 #include <misc/simd.h>
 #include <misc/partition.h>
+#include <misc/io.h>
+
+// misc.a's output hooks default to NULL (src/misc/io.h); misc_simd_init
+// below transitively links moments.o's thread-manager status printing, so
+// this standalone host installs a stderr fallback before calling it.
+static void printToStderr(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  vfprintf(stderr, format, args);
+  va_end(args);
+}
+static void flushStderr(void) {
+  fflush(stderr);
+}
 
 #define N ((size_t) 262144)
 #define TARGET_ELEMS ((size_t) 1 << 27)
@@ -162,6 +177,9 @@ static size_t workIndices[N];
 static size_t scratchIndices[N];
 
 int main(void) {
+  misc_printf = &printToStderr;
+  misc_flushOutput = &flushStderr;
+
   misc_simd_init();
 
   const double fractions[] = { 0.5, 0.1, 0.05, 0.01 };
