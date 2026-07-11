@@ -27,6 +27,7 @@ rbart_vi(
     keepTestFits = TRUE,
     callback = NULL,
     factors = c("categorical", "indicators"),
+    family = c("auto", "gaussian", "aft"),
     missing = c("incorporate", "error"),
     ...)
 
@@ -114,9 +115,8 @@ residuals(object, type = "ev", ...)
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md), with one
   default difference: `keepTrees` defaults to `TRUE` here (`bart2`'s
   default is `FALSE`). With `dart`, split probability samples appear as
-  `varprobs` on the fit. Unlike `bart2`, `rbart_vi` has no `family`
-  argument - the response family is always resolved automatically as
-  gaussian or probit, with no logistic option - and does not accept
+  `varprobs` on the fit. Unlike `bart2`, `rbart_vi` offers a reduced
+  `family` set (see below) with no logistic option, and does not accept
   sparse (`Matrix::dgCMatrix`) predictors.
 
 - k:
@@ -125,6 +125,32 @@ residuals(object, type = "ev", ...)
   except that `rbart_vi` fixes the default at `2.0` for both continuous
   and binary responses; unlike `bart2`, a `NULL` default (and thus the
   `chi` hyperprior on binary fits) is not available here.
+
+- family:
+
+  One of `"auto"`, `"gaussian"`, or `"aft"`. With `"auto"` (the default)
+  the response family is resolved as gaussian or probit from the
+  response, exactly as before this argument existed; `"gaussian"` forces
+  the continuous model. `"aft"` fits a grouped accelerated failure time
+  (AFT) log-normal survival model, \\\log T_i = f(x_i) +
+  \alpha\_{g\[i\]} + \sigma \epsilon_i\\ with \\\epsilon_i \sim N(0,
+  1)\\, adding random intercepts to the model of
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `family = "aft"`. The survival response enters through the formula's
+  left-hand side as a
+  [`survival::Surv`](https://rdrr.io/pkg/survival/man/Surv.html) object
+  (right-censoring only) or a two-column `cbind(time, status)` of the
+  event/censoring time and the 0/1 event indicator; a `Surv` response
+  selects `"aft"` on its own from `"auto"`, while a bare two-column
+  response needs `family = "aft"` explicitly. As in
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+  `predict`, `extract`, and `fitted` then return the linear predictor
+  \\E\[\log T \mid x, g\]\\ on the LOG-TIME scale (never the time
+  scale), and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  gives survival-probability draws that include the drawn intercepts.
+  Survival fits do not support `weights` or `subset` in this version,
+  and enter only through the formula interface.
 
 - object:
 
@@ -371,7 +397,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000382
+#> total seconds in loop: 0.000396
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 
@@ -384,7 +410,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001988
+#> total seconds in loop: 0.001991
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 

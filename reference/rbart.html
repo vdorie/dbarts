@@ -65,6 +65,7 @@
 <span>    keepTestFits <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>    callback <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
+<span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"aft"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>    <span class="va">...</span><span class="op">)</span></span>
 <span></span>
@@ -122,10 +123,13 @@
 <dd><p>Optional function of <code>trainFits</code>, <code>testFits</code>, <code>ranef</code>, <code>sigma</code>, and <code>tau</code>. Called after every post-burn-in iteration and the results of which are collected and stored in the final object.</p></dd>
 
   <dt id="arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-">formula, data, test, subset, weights, offset, offset.test, sigest, sigdf, sigquant, power, base, split.probs, dart, n.trees, n.samples, n.burn, n.chains, n.threads, combineChains, n.cuts, useQuantiles, keepTrainingFits, printEvery, printCutoffs, verbose, keepTrees, keepCall, seed, keepSampler, factors, missing, ...<a class="anchor" aria-label="anchor" href="#arg-formula-data-test-subset-weights-offset-offset-test-sigest-sigdf-sigquant-power-base-split-probs-dart-n-trees-n-samples-n-burn-n-chains-n-threads-combinechains-n-cuts-usequantiles-keeptrainingfits-printevery-printcutoffs-verbose-keeptrees-keepcall-seed-keepsampler-factors-missing-"></a></dt>
-<dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> has no <code>family</code> argument - the response family is always resolved automatically as gaussian or probit, with no logistic option - and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
+<dd><p>Same as in <code><a href="bart.html">bart2</a></code>, with one default difference: <code>keepTrees</code> defaults to <code>TRUE</code> here (<code>bart2</code>'s default is <code>FALSE</code>). With <code>dart</code>, split probability samples appear as <code>varprobs</code> on the fit. Unlike <code>bart2</code>, <code>rbart_vi</code> offers a reduced <code>family</code> set (see below) with no logistic option, and does not accept sparse (<code>Matrix::dgCMatrix</code>) predictors.</p></dd>
 
   <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
 <dd><p>As in <code><a href="bart.html">bart2</a></code>, except that <code>rbart_vi</code> fixes the default at <code>2.0</code> for both continuous and binary responses; unlike <code>bart2</code>, a <code>NULL</code> default (and thus the <code>chi</code> hyperprior on binary fits) is not available here.</p></dd>
+
+  <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
+<dd><p>One of <code>"auto"</code>, <code>"gaussian"</code>, or <code>"aft"</code>. With <code>"auto"</code> (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; <code>"gaussian"</code> forces the continuous model. <code>"aft"</code> fits a grouped accelerated failure time (AFT) log-normal survival model, \(\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i\) with \(\epsilon_i \sim N(0, 1)\), adding random intercepts to the model of <code><a href="bart.html">bart2</a></code>'s <code>family = "aft"</code>. The survival response enters through the formula's left-hand side as a <code><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">survival::Surv</a></code> object (right-censoring only) or a two-column <code>cbind(time, status)</code> of the event/censoring time and the 0/1 event indicator; a <code>Surv</code> response selects <code>"aft"</code> on its own from <code>"auto"</code>, while a bare two-column response needs <code>family = "aft"</code> explicitly. As in <code><a href="bart.html">bart2</a></code>, <code>predict</code>, <code>extract</code>, and <code>fitted</code> then return the linear predictor \(E[\log T \mid x, g]\) on the LOG-TIME scale (never the time scale), and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> gives survival-probability draws that include the drawn intercepts. Survival fits do not support <code>weights</code> or <code>subset</code> in this version, and enter only through the formula interface.</p></dd>
 
   <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A fitted <code>rbart</code> model.</p></dd>
@@ -308,7 +312,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000382</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000396</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 </span>
@@ -321,7 +325,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001988</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001991</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 </span>

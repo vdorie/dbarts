@@ -4,6 +4,8 @@ Posterior draws of the survival probability \\S(t \mid x)\\ from an
 accelerated failure time (AFT) log-normal fit produced by
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md) (or
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) with
+`family = "aft"`, or the grouped (random-intercept) AFT fit produced by
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
 `family = "aft"`.
 
 ## Usage
@@ -21,15 +23,22 @@ survivalProbabilities(
 )
 
 # S3 method for class 'rbart'
-survivalProbabilities(object, ...)
+survivalProbabilities(
+  object,
+  times,
+  newdata = NULL,
+  group.by,
+  combineChains = TRUE,
+  ...
+)
 ```
 
 ## Arguments
 
 - object:
 
-  A fitted `bart` object from an AFT model (its `family` element equals
-  `"aft"`).
+  A fitted `bart` or `rbart` object from an AFT model (its `family`
+  element equals `"aft"`).
 
 - times:
 
@@ -41,6 +50,14 @@ survivalProbabilities(object, ...)
   Optional predictors at which to evaluate. When `NULL` the training
   observations are used; otherwise `object` must have been fit with
   `keepTrees = TRUE`.
+
+- group.by:
+
+  For the `rbart` method with `newdata`, the grouping factor for the new
+  observations, as in
+  [`predict`](https://vdorie.github.io/dbarts/reference/rbart.md). A
+  group not seen in training draws its intercept from \\N(0, \tau)\\.
+  Ignored (and unnecessary) when `newdata` is `NULL`.
 
 - combineChains:
 
@@ -66,11 +83,14 @@ probability is evaluated at every posterior draw of \\f(x)\\ and
 return draws: take means or quantiles over the draw margin for point
 estimates and credible bands.
 
-There is no method for `rbart` fits:
-[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) has no
-`family` argument, so a grouped (random-intercept) AFT model is not yet
-fittable from R, and a survival curve that ignored the fitted intercepts
-would be wrong. The `rbart` method fails with an error saying so.
+For a grouped fit from
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) with
+`family = "aft"`, the `rbart` method uses the same formula, with
+\\f(x)\\ replaced by the linear predictor \\E\[\log T \mid x, g\] =
+f(x) + \alpha\_{g}\\ that includes the drawn random intercept for the
+observation's group. It is sourced from the expected-value (`"ev"`)
+channel, so dropping the intercepts (which would misplace every grouped
+curve) is not possible.
 
 ## Value
 
@@ -84,6 +104,7 @@ training data when `newdata` is `NULL`.
 ## See also
 
 [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md),
 [`predict`](https://vdorie.github.io/dbarts/reference/bart.md),
 [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)
 
