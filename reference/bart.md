@@ -451,15 +451,24 @@ residuals(object, type = "ev", ...)
   predictive distribution, `"loglik"` - for `extract` only, the
   log-likelihood of each training observation at each posterior draw,
   and `"trees"` - a data frame with tree information for when model was
-  fit with `keepTrees` equal to `TRUE`. For `"loglik"`, gaussian fits
-  evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i), \sigma^2 / w_i)\\ in logs
-  at each draw of \\f\\ and \\\sigma\\, while binary fits evaluate the
-  Bernoulli log-likelihood of the fitted probability, multiplied for a
-  weighted logistic fit by the observation-count weight \\w_i\\. When
-  chains are combined the result is a samples-by-observations matrix
-  directly consumable by WAIC/PSIS-LOO implementations such as those in
-  the loo package. To synergize with
-  [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
+  fit with `keepTrees` equal to `TRUE`. For `"ppd"`, a weighted logistic
+  fit draws the number of successes among the observation-count weight,
+  \\\mathrm{Binomial}(w_i, p_i)\\ (see `weights`), and an aft (survival)
+  fit draws on the log-time scale (the fit models \\\log T\\). For
+  `"loglik"`, gaussian fits evaluate \\y_i \mid x_i \sim N(\hat{f}(x_i),
+  \sigma^2 / w_i)\\ in logs at each draw of \\f\\ and \\\sigma\\, binary
+  fits evaluate the Bernoulli log-likelihood of the fitted probability,
+  multiplied for a weighted logistic fit by the observation-count weight
+  \\w_i\\, and an aft fit contributes the log density for an event and
+  the log survival tail \\\log P(T \> C)\\ for a right-censored
+  observation, both on the log-time scale. When chains are combined the
+  result is a samples-by-observations matrix directly consumable by
+  WAIC/PSIS-LOO implementations such as those in the loo package; the
+  chains-first convention is kept, so a per-chain array
+  (`combineChains = FALSE`, dimension chains-by-samples-by-observations)
+  is reordered to the draws-by-chains-by-observations that
+  `loo::relative_eff` expects with `aperm(x, c(2, 1, 3))`. To synergize
+  with [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For information on extracting trees,
   see the subsection below.
@@ -827,7 +836,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.237909
+#> total seconds in loop: 0.216156
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -893,7 +902,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001290
+#> total seconds in loop: 0.001231
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

@@ -134,7 +134,7 @@
 <dd><p>Same as <code>test</code>, but named to match <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></code> generic.</p></dd>
 
   <dt id="arg-type">type<a class="anchor" aria-label="anchor" href="#arg-type"></a></dt>
-<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"loglik"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, training log-likelihood (<code>extract</code> only), random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. <code>"loglik"</code> evaluates the log-likelihood of each training observation at each posterior draw, conditioning on the drawn random intercepts as well as \(\sigma\) (gaussian) or the fitted probability (binary); when chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the <span class="pkg">loo</span> package. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
+<dd><p>One of <code>"ev"</code>, <code>"ppd"</code>, <code>"bart"</code>, <code>"loglik"</code>, <code>"ranef"</code>, or <code>"trees"</code> for the posterior of the expected value, posterior predictive distribution, non-parametric/BART component, training log-likelihood (<code>extract</code> only), random effect, or saved trees respectively. The expected value is the sum of the BART component and the random effects, while the posterior predictive distribution is a response sampled with that mean. <code>"loglik"</code> evaluates the log-likelihood of each training observation at each posterior draw, conditioning on the drawn random intercepts as well as \(\sigma\) (gaussian) or the fitted probability (binary); when chains are combined the result is a samples-by-observations matrix directly consumable by WAIC/PSIS-LOO implementations such as those in the <span class="pkg">loo</span> package; the chains-first convention is kept, so a per-chain array (<code>combineChains = FALSE</code>, dimension chains-by-samples-by-observations) is reordered to the draws-by-chains-by-observations that <code>loo::relative_eff</code> expects with <code>aperm(x, c(2, 1, 3))</code>. To synergize with <code><a href="https://rdrr.io/r/stats/predict.glm.html" class="external-link">predict.glm</a></code>, <code>"response"</code> can be used as a synonym for <code>"ev"</code> and <code>"link"</code> can be used as a synonym for <code>"bart"</code>. For additional details on tree extraction, see the corresponding subsection in <code><a href="bart.html">bart</a></code>.</p></dd>
 
   <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
 <dd><p>One of <code>"train"</code> or <code>"test"</code>, referring to the training or tests samples respectively.</p></dd>
@@ -250,7 +250,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000477</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000339</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 </span>
@@ -263,7 +263,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002349</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001592</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 </span>
@@ -308,7 +308,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000579</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000362</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 </span>
@@ -321,7 +321,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002979</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001810</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 </span>

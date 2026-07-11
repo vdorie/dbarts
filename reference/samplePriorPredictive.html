@@ -80,7 +80,12 @@
     scale for a gaussian sampler, or the link-transformed probability for a probit/logistic one -
     matching what <code><a href="bart.html">extract</a></code> and <code>predict</code> call <code>"ev"</code>. <code>"ppd"</code> adds the
     observation model on top: gaussian noise with sigma freshly drawn from its own prior for each
-    sample, or a bernoulli draw from the <code>"ev"</code> probabilities for a binary sampler.</p></dd>
+    sample, or a bernoulli draw from the <code>"ev"</code> probabilities for a binary sampler; on an aft
+    (survival) sampler the draw is on the log-time scale (the model fits \(\log T\)).
+    Unlike <code><a href="bart.html">extract</a></code>'s posterior <code>"ppd"</code>, prior predictive draws are weight-blind:
+    they use unit weights rather than a weighted precision (\(\sigma / \sqrt{w}\)
+    for gaussian) or a \(\mathrm{Binomial}(w, p)\) success count (weighted
+    logistic); supply any weighted precision downstream.</p></dd>
 
   <dt id="arg-offset-test">offset.test<a class="anchor" aria-label="anchor" href="#arg-offset-test"></a></dt>
 <dd><p>A numeric offset added to the forest sum, as in <code><a href="dbartsSampler-class.html">predict</a></code>;

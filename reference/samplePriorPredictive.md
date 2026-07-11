@@ -50,7 +50,13 @@ samplePriorPredictive(
   `predict` call `"ev"`. `"ppd"` adds the observation model on top:
   gaussian noise with sigma freshly drawn from its own prior for each
   sample, or a bernoulli draw from the `"ev"` probabilities for a binary
-  sampler.
+  sampler; on an aft (survival) sampler the draw is on the log-time
+  scale (the model fits \\\log T\\). Unlike
+  [`extract`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  posterior `"ppd"`, prior predictive draws are weight-blind: they use
+  unit weights rather than a weighted precision (\\\sigma / \sqrt{w}\\
+  for gaussian) or a \\\mathrm{Binomial}(w, p)\\ success count (weighted
+  logistic); supply any weighted precision downstream.
 
 - offset.test:
 

@@ -52,7 +52,7 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">sampleNodeParametersFromPrior</span><span class="op">(</span>updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
-<span><span class="fu">growFromRoot</span><span class="op">(</span>n.sweeps <span class="op">=</span> <span class="fl">2L</span>, updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="fu">growFromRoot</span><span class="op">(</span>n.sweeps <span class="op">=</span> <span class="fl">2L</span>, updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">copy</span><span class="op">(</span>shallow <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
@@ -91,6 +91,8 @@
 <span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">setState</span><span class="op">(</span><span class="va">newState</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu"><a href="plotTree.html">plotTree</a></span><span class="op">(</span></span>
 <span>  <span class="va">treeNum</span>, <span class="va">chainNum</span>, <span class="va">sampleNum</span>, treePlotPars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
@@ -235,6 +237,9 @@
   <dt id="arg-n-sweeps">n.sweeps<a class="anchor" aria-label="anchor" href="#arg-n-sweeps"></a></dt>
 <dd><p>For <code>growFromRoot</code>, a single positive integer giving the number of grow-from-root sweeps run in place (default <code>2L</code>). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.</p></dd>
 
+  <dt id="arg-newstate">newState<a class="anchor" aria-label="anchor" href="#arg-newstate"></a></dt>
+<dd><p>For <code>setState</code>, a state object previously produced by this sampler (its <code>state</code> field, or the return of <code>storeState</code>) over the same model. Must inherit from <code>bartcoreState</code>.</p></dd>
+
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Extra arguments to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.</p></dd>
 
@@ -246,12 +251,13 @@
 <h3 id="saving">Saving<a class="anchor" aria-label="anchor" href="#saving"></a></h3>
 <p><code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code>-ing and <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>ing a <code>dbarts</code> sampler for future use requires that R's serialization mechanism be able to access the state of the sampler which, for memory purposes, is only made available to R on request. To do this, one must “touch” the sampler's state object before saving, e.g. for the object <code>sampler</code>, execute <code>invisible(sampler$state)</code>. This is in addition to guaranteeing that the <code>state</code> object is not <code>NULL</code>, which can be done by setting the sampler's control to an object with <code>updateState</code> as <code>TRUE</code> or passing <code>TRUE</code> as the <code>updateState</code> argument to any of the sampler's applicable methods.</p>
 <p>The state object is opaque and engine-specific, and carries a format version and the package version that wrote it. A state loads only within the format version of the <code>dbarts</code> that wrote it; loading it with an incompatible version refuses cleanly, naming both versions, rather than risk a silent misread. There is no cross-version migration: re-fit the model, or restore the state with the <code>dbarts</code> release that wrote it.</p>
+<p>To restore a saved state into a sampler, call <code>setState(newState)</code>: it validates that <code>newState</code> inherits from <code>bartcoreState</code>, re-creates the underlying engine if needed, pushes the state into it, and caches it on the <code>state</code> field. Assigning the field directly (<code>sampler$state &lt;- newState</code>) does <em>not</em> restore the sampler - it only overwrites the R-side cache, leaving the engine untouched, so the next run continues from the engine's own state rather than the assigned one. Always route a restore through <code>setState</code>.</p>
 </div>
 
 <p></p><div class="section">
 <h3 id="warm-starts">Warm starts<a class="anchor" aria-label="anchor" href="#warm-starts"></a></h3>
 <p><code>installTrees</code> seeds the sampler's forests from a <code>donor</code> instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, <code>sigma</code>, and <code>k</code> transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.</p>
-<p><code>growFromRoot</code> instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of <code>n.sweeps</code> sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once <code>run</code> begins, and the posterior is unchanged. It is available for the constant-leaf model only; <code>linear</code> and <code>gp</code> node priors initialize with <code>sampleTreesFromPrior</code> instead. As with <code>installTrees</code>, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of <code>n.threads</code>. A composable cross-sampler workflow follows for free: <code>donor$growFromRoot(k)</code> then <code>target$installTrees(donor)</code>.</p>
+<p><code>growFromRoot</code> instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of <code>n.sweeps</code> sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once <code>run</code> begins, and the posterior is unchanged. It is available for the constant-leaf model only; calling it on a <code>linear</code> or <code>gp</code> node prior is an error, not a silent fall-back, so initialize those forests with <code>sampleTreesFromPrior</code> instead. As with <code>installTrees</code>, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of <code>n.threads</code>. A composable cross-sampler workflow follows for free: <code>donor$growFromRoot(k)</code> then <code>target$installTrees(donor)</code>.</p>
 </div>
 
     </div>

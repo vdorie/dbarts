@@ -16,7 +16,7 @@ sampleTreesFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
 sampleNodeParametersFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
-growFromRoot(n.sweeps = 2L, updateState = FALSE)
+growFromRoot(n.sweeps = 2L, updateState = NA)
 # S4 method for class 'dbartsSampler'
 copy(shallow = FALSE)
 # S4 method for class 'dbartsSampler'
@@ -55,6 +55,8 @@ getTrees(
 )
 # S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
+# S4 method for class 'dbartsSampler'
+setState(newState)
 # S4 method for class 'dbartsSampler'
 plotTree(
   treeNum, chainNum, sampleNum, treePlotPars = c(
@@ -298,6 +300,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   every tree in the forest against the current residual, so a small
   handful reaches a good fit.
 
+- newState:
+
+  For `setState`, a state object previously produced by this sampler
+  (its `state` field, or the return of `storeState`) over the same
+  model. Must inherit from `bartcoreState`.
+
 - ...:
 
   Extra arguments to
@@ -331,6 +339,15 @@ incompatible version refuses cleanly, naming both versions, rather than
 risk a silent misread. There is no cross-version migration: re-fit the
 model, or restore the state with the `dbarts` release that wrote it.
 
+To restore a saved state into a sampler, call `setState(newState)`: it
+validates that `newState` inherits from `bartcoreState`, re-creates the
+underlying engine if needed, pushes the state into it, and caches it on
+the `state` field. Assigning the field directly
+(`sampler$state <- newState`) does *not* restore the sampler - it only
+overwrites the R-side cache, leaving the engine untouched, so the next
+run continues from the engine's own state rather than the assigned one.
+Always route a restore through `setState`.
+
 ### Warm starts
 
 `installTrees` seeds the sampler's forests from a `donor` instead of
@@ -352,7 +369,8 @@ candidate cut under the tree prior. This reaches a good fit in far fewer
 sweeps than the exact sampler, so it is a fast starting point rather
 than a posterior sampler - the exact MCMC sweeps own stationarity once
 `run` begins, and the posterior is unchanged. It is available for the
-constant-leaf model only; `linear` and `gp` node priors initialize with
+constant-leaf model only; calling it on a `linear` or `gp` node prior is
+an error, not a silent fall-back, so initialize those forests with
 `sampleTreesFromPrior` instead. As with `installTrees`, the grown forest
 biases the early draws toward its fit, so shorten burn-in rather than
 skipping it. Each chain grows on its own random-number stream, so the

@@ -148,7 +148,11 @@ residuals(object, type = "ev", ...)
   drawn random intercepts as well as \\\sigma\\ (gaussian) or the fitted
   probability (binary); when chains are combined the result is a
   samples-by-observations matrix directly consumable by WAIC/PSIS-LOO
-  implementations such as those in the loo package. To synergize with
+  implementations such as those in the loo package; the chains-first
+  convention is kept, so a per-chain array (`combineChains = FALSE`,
+  dimension chains-by-samples-by-observations) is reordered to the
+  draws-by-chains-by-observations that `loo::relative_eff` expects with
+  `aperm(x, c(2, 1, 3))`. To synergize with
   [`predict.glm`](https://rdrr.io/r/stats/predict.glm.html),
   `"response"` can be used as a synonym for `"ev"` and `"link"` can be
   used as a synonym for `"bart"`. For additional details on tree
@@ -309,7 +313,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000477
+#> total seconds in loop: 0.000339
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
@@ -322,7 +326,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002349
+#> total seconds in loop: 0.001592
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 
@@ -367,7 +371,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000579
+#> total seconds in loop: 0.000362
 #> 
 #> Tree sizes, last iteration:
 #> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 
@@ -380,7 +384,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002979
+#> total seconds in loop: 0.001810
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 
