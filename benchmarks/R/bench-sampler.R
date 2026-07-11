@@ -52,7 +52,7 @@ timeMedian <- function(fn, reps) {
 }
 
 runBenchmarks <- function(quick) {
-  reps <- if (quick) 1L else 3L
+  reps <- if (quick) 1L else 7L
   n.samps <- if (quick) 50L else 500L
   rows <- data.frame()
   addRow <- function(scenario, metric, value) {
@@ -128,7 +128,7 @@ runBenchmarks <- function(quick) {
   data <- genFriedman(1000L)
   sampler <- newSampler(data$x, data$y, 75L)
   invisible(sampler$run(200L, 1L))
-  n.updates <- if (quick) 40L else 500L
+  n.updates <- if (quick) 40L else 1000L
   x2 <- data$x[, 2L]
   elapsed <- timeMedian(
     function() {
