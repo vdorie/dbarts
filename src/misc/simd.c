@@ -102,7 +102,9 @@ static inline int cpuid(int leafNumber, int* info)
 {
 #if defined(__GNUC__) || defined(__clang__)
   unsigned int* u_info =  (unsigned int*) info;
-  return __get_cpuid(leafNumber, u_info, u_info + 1, u_info + 2, u_info + 3);
+  // Leaf 7 (and 0xD) are subleaf-indexed; __get_cpuid leaves ecx undefined, so
+  // request subleaf 0 explicitly or AVX2/AVX512 bits read from a stale subleaf.
+  return __get_cpuid_count(leafNumber, 0, u_info, u_info + 1, u_info + 2, u_info + 3);
 #elif defined (_MSC_VER) || defined (__INTEL_COMPILER)
   __cpuid(info, leafNumber);
 #elif defined(__SUNPRO_C)
