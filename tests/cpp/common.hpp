@@ -97,6 +97,8 @@ struct CscFixture {
 // test order; each runs its area's tests, filtered by suite name there.
 void runDataTests();
 void runTreeTests(ext_rng* rng);
+void runScanTests();
+void runGrowTests(ext_rng* rng);
 void runMovesTests(ext_rng* rng);
 void runModelTests(ext_rng* rng);
 void runSamplerTests(ext_rng* rng);

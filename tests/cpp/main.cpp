@@ -45,6 +45,8 @@ int main(int argc, char** argv) {
 
   if (suiteSelected(filter, "data")) runDataTests();
   if (suiteSelected(filter, "tree")) runTreeTests(rng);
+  if (suiteSelected(filter, "scan")) runScanTests();
+  if (suiteSelected(filter, "grow")) runGrowTests(rng);
   if (suiteSelected(filter, "moves")) runMovesTests(rng);
   if (suiteSelected(filter, "model")) runModelTests(rng);
   if (suiteSelected(filter, "sampler")) runSamplerTests(rng);

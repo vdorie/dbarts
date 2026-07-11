@@ -1776,6 +1776,23 @@ SEXP bartcore_sampleNodeParametersFromPrior(SEXP ptrExpr) {
   return R_NilValue;
 }
 
+SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  // constant leaf only in v1 (the scan's closed-form marginal); the R5 method
+  // refuses first, this is the engine-side backstop
+  if (holder.sampler->numLeafCovariates() != 0 ||
+      holder.sampler->usesFunctionLeaves())
+    Rf_error("grow-from-root warm start is only available for the "
+             "constant-leaf model");
+  int numSweeps = Rf_asInteger(numSweepsExpr);
+  if (numSweeps == NA_INTEGER || numSweeps <= 0)
+    Rf_error("n.sweeps must be a positive integer");
+  GetRNGstate();
+  holder.sampler->growFromRoot(static_cast<size_t>(numSweeps));
+  PutRNGstate();
+  return R_NilValue;
+}
+
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (!Rf_isNull(offsetExpr) &&

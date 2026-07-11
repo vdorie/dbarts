@@ -207,3 +207,42 @@ alongside metropolisJumpForTree, and wire it to emit warm-start tree state.
 It shares its one new primitive with the frontier's informed-proposal
 prototype (item 4), so the two can be scheduled to land the scan once and split
 the consumer work. The implementation plan is a separate item.
+
+## 7. Landing note (2026-07-10)
+
+Shipped in role (a), constant leaf only. The cut-scan is a self-contained
+header (src/bartcore/scan.hpp): a per-code (count, sum w, sum wz) histogram
+over a node's index segment, prefix-scanned into every ordinal cut's collapsed
+left/right suffstats and scored by the leaf's marginal. It is occupancy-aware
+(a zero-count side emits a -inf never-selected sentinel, so no empty leaf is
+ever built and the MH veto never runs on this path) and omits sum wz^2 by
+evaluating the marginal with a zero sumWeightedResponseSq - the dead-weight
+term's per-node total cancels between the no-split term and every cut. The
+header is leaf-templated so frontier item 4 includes it unchanged and a
+matrix-valued leaf substitutes its (U'WU, U'Wz) block without an interface
+change.
+
+growTreeFromRoot (src/bartcore/grow.hpp) recurses on the scan: at each node it
+draws one outcome from {no-split} U {occupancy-nonempty (var, cut)}, weighted by
+the CGM prior's own factors ((1 - growth) L(node); growth P(var) P(cut)
+exp(L_left + L_right)) assembled in log space with a max-shift before
+exponentiating. Draw count per node is exact: one discrete draw at every
+positive-growth node, plus one symmetric missing-direction coin per split on a
+column with missing values. Categoricals are ordinal-only in v1 (never scanned,
+never split), which keeps that count exact and leaves categorical structure for
+the MH sweeps; occupancy on the non-missing counts subsumes the ancestor split
+interval and keeps every child non-empty, so the grown forest is a legal chain
+state. Chain::growForestFromRoot duplicates run()'s sweep body with the per-tree
+MH move replaced by a fresh grow, so the default run path stays byte-identical
+(equivalence.R: 21/21 identical draws).
+
+Surface: Sampler::growFromRoot fans across chains on the thread pool
+(thread-count-independent, single chain inline on R's stream); the R5 method
+dbartsSampler$growFromRoot(n.sweeps = 2L, updateState = FALSE) refuses linear
+and gp node priors; bart2 gains n.grow.sweeps = 0L at the initialization fork
+(0 keeps the prior-init default byte-identical; > 0 grows then samples as
+usual), mutually exclusive with warm.start. The composable cross-sampler
+workflow donor$growFromRoot(k) then target$installTrees(donor) reuses the
+existing warm-start seam with no new install code. bart() (BayesTree-compat)
+does not gain the argument. The exact-sampler use of the scan remains
+frontier 3.1's informed proposal, unaffected.
