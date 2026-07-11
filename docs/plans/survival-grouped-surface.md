@@ -97,3 +97,33 @@ gated; this is R surface only.
   finite draws); weights/subset refusal.
 - Full tinytest; equivalence existing scenarios identical; air +
   lintr; pkgdown clean; tests/cpp untouched.
+
+## Status
+
+- 2026-07-10: LANDED as ac6ec2c (squash of wt/grouped-surface). All six
+  steps as planned; ZERO C/C++ delta confirmed. Surv enters through the
+  rbart_vi formula LHS (evaluated data -> formula env -> caller, the
+  group.by pattern; the rewritten log-time formula is injected by symbol
+  so eval cannot rebind its environment); the dbarts() indirect-aft
+  guard opens only when bartcore.survival is pre-set (public refusals
+  proven intact); the custom-prior R loop refreshes aft latents via the
+  binary getLatents mirror; survivalProbabilities.rbart sources the
+  linear predictor from the ev channel (intercepts included; a
+  high-intercept group shows uniformly higher S(t) in the tests) with
+  the probability tail factored into a helper shared with the bart
+  method.
+- Reduction gate BITWISE: rbart_vi family="aft" all-uncensored ==
+  rbart_vi gaussian on log T, expect_identical across ranef, tau,
+  sigma, and yhat.train.
+- Gates: tinytest 2727/0 (2694 + 33, incl. test-rbart-aft.R); existing
+  21 equivalence scenarios identical vs equivalence-de67cbb.rds; air +
+  lintr clean (one pre-existing equivalence.R shim lint); pkgdown
+  clean. Reviewer re-ran install + tinytest + both equivalence compares
+  on the landed tree.
+- ANCHOR RE-RECORDED as equivalence-ac6ec2c.rds (22 scenarios: the 21
+  of de67cbb plus grouped_aft; every shared scenario identical, so the
+  addition changed no existing draws; sanity compare vs the new anchor
+  22/22 identical). MANIFEST + .github/workflows/equivalence.yaml
+  updated; de67cbb demoted to historical.
+- riAFTBART migration unblocked: random-intercept AFT with survival
+  curves is now fully reachable from R.
