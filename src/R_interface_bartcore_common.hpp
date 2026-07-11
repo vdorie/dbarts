@@ -56,8 +56,12 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
 SEXP storeState(bartcore::SamplerBase& sampler);
 
 /// Restores a state object into a sampler of matching shape; raises R
-/// errors on malformed or inconsistent states.
-void setState(bartcore::SamplerBase& sampler, SEXP stateExpr);
+/// errors on malformed or inconsistent states. currentPredictors is the
+/// call-time predictor matrix a cross-grid restore re-quantizes from (data@x,
+/// or the retained creation spec's @x); null for CSC/mixed stores and for a
+/// same-spec continuation, which re-quantizes nothing.
+void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
+              const double* currentPredictors);
 
 /// Warm start: seed the sampler's live forests from a donor "bartcoreState"
 /// over the same predictors. samplesExpr, when non-null, maps each chain to a
@@ -69,12 +73,16 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then
 /// ignored); newdata, when non-null, replays its newdataNumRows rows for
-/// the n column. caller labels range errors.
+/// the n column. trainingReplay supplies the training predictors the saved
+/// trees replay when no newdata is given (the engine keeps no matrix): the
+/// caller passes the current data@x, or null to leave saved-tree counts
+/// unpopulated. caller labels range errors.
 SEXP getTrees(bartcore::SamplerBase& sampler, const std::size_t* chainIndices,
               std::size_t numChainIndices, const std::size_t* sampleIndices,
               std::size_t numSampleIndices, const std::size_t* treeIndices,
               std::size_t numTreeIndices, bool useLiveTrees,
               const double* newdata, std::size_t newdataNumRows,
+              const double* trainingReplay, std::size_t trainingReplayNumRows,
               const char* caller);
 
 /// Errors unless every replacement value for a categorical column is an

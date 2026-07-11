@@ -312,7 +312,7 @@ static void testStateRoundTripScaledOffset() {
   // a host reinstalls the current offset but cannot reproduce the scale
   // trajectory that produced the state; the stored transform must win
   restored.setOffset(offset.data(), false);
-  check(restored.setState(state), "scaled state restores");
+  check(restored.setState(state, nullptr), "scaled state restores");
 
   // the moved transform round-trips: the restored model matches the source,
   // and its live-tree predictions land on the original scale, both before
@@ -372,7 +372,7 @@ static void testStateRoundTrip() {
   ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::gaussian, 1.0, 3.0,
                           0.37804942330213542, options, rngs2.data());
-  check(restored.setState(state), "a stored state restores");
+  check(restored.setState(state, nullptr), "a stored state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored state reproduces the saved model");
@@ -448,7 +448,7 @@ static void testStateRoundTripLatents(ext_rng* rng) {
   ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
                           ResponseFamily::logistic, 1.0, 3.0, 1.0, options,
                           &rngB);
-  check(restored.setState(state), "a binary+dart state restores");
+  check(restored.setState(state, nullptr), "a binary+dart state restores");
 
   checkStructuralRoundTrip(state, restored,
                            "restored logistic + dart state reproduces the model");
@@ -473,7 +473,7 @@ static void testStateValidation(ext_rng* rng) {
 
   SamplerStateData bad(state);
   bad.chains.pop_back();
-  check(!sampler.setState(bad), "setState rejects a chain-count mismatch");
+  check(!sampler.setState(bad, nullptr), "setState rejects a chain-count mismatch");
 
   bad = state;
   bool corrupted = false;
@@ -484,14 +484,14 @@ static void testStateValidation(ext_rng* rng) {
       break;
     }
   }
-  check(corrupted && !sampler.setState(bad),
+  check(corrupted && !sampler.setState(bad, nullptr),
         "setState rejects a split value off the cut grid");
   check(sampler.data().cutPoints == cutsBefore,
         "a rejected state leaves the cuts untouched");
   check(sampler.chain(0).treeFits() == treeFitsBefore,
         "a rejected state leaves the fits untouched");
 
-  check(sampler.setState(state), "the original state still restores");
+  check(sampler.setState(state, nullptr), "the original state still restores");
   check(sampler.chain(0).treeFits() == treeFitsBefore,
         "restoring the current state is an identity");
 

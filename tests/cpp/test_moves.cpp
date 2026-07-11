@@ -165,7 +165,6 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   check(sampler.setPredictor(xCopy.data(), false, false) ==
           PredictorUpdateResult::accepted,
         "identity setPredictor accepted");
-  check(sampler.data().x == xCopy.data(), "accepted swap installs pointer");
   check(sampler.data().codes == codesBefore, "identity swap preserves codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore, "identity swap preserves fits");
 
@@ -175,7 +174,6 @@ static void testSetPredictorTransaction(ext_rng* rng) {
   check(sampler.setPredictor(xConstant.data(), false, false) ==
           PredictorUpdateResult::rolledBack,
         "degenerate setPredictor rejected");
-  check(sampler.data().x == xCopy.data(), "rejected swap keeps old pointer");
   check(sampler.data().codes == codesBefore, "rollback restores codes");
   check(sampler.chain(0).treeFits() == treeFitsBefore, "rollback leaves fits untouched");
   for (size_t t = 0; t < 25; ++t)
@@ -263,7 +261,8 @@ static void testDegenerateReCutRoundTrips(ext_rng* rng) {
 
   SamplerStateData st, st2;
   sampler.getState(st);
-  check(sampler.setState(st), "state over a degenerate column restores");
+  // a same-spec restore skips re-quantization, so no raw is consulted
+  check(sampler.setState(st, nullptr), "state over a degenerate column restores");
   sampler.getState(st2);
   check(statesAgree(st, st2), "degenerate-column state round trip agrees");
   printf("ok: degenerate re-cut round trip\n");
@@ -322,7 +321,8 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
 
   SamplerStateData st, st2;
   sampler.getState(st);
-  check(sampler.setState(st), "categorical state restores after missing drop");
+  check(sampler.setState(st, nullptr),
+        "categorical state restores after missing drop");
   sampler.getState(st2);
   check(statesAgree(st, st2), "categorical missing-drop round trip agrees");
   printf("ok: categorical missing round trip\n");
@@ -346,10 +346,10 @@ static void testUpdatePredictorColumns(ext_rng* rng) {
   bool accepted = sampler.updatePredictor(jittered.data(), &columnIndex, 1,
                                           false, false) ==
                   PredictorUpdateResult::accepted;
+  // the store owns codes and no raw, so the invariant is on the codes: the
+  // installed values quantized, or the snapshot restored bitwise on rollback
   bool columnMatches = true;
   for (size_t i = 0; i < n; ++i) {
-    double expected = accepted ? jittered[i] : column0Before[i];
-    columnMatches &= sampler.data().x[i] == expected;
     columnMatches &= sampler.data().codes[i] ==
       (accepted ? sampler.data().codeFor(0, jittered[i]) : codesBefore[i]);
   }
@@ -395,11 +395,15 @@ static void testPerObservationUpdate(ext_rng* rng) {
   size_t numInstalled = 0;
   bool valuesConsistent = true;
   for (size_t i = 0; i < n; ++i) {
+    // the store owns codes, not raw: an installed cell carries the new value's
+    // code, a rolled-back one keeps the old value's code (per-cell)
     if (installed[i]) {
       ++numInstalled;
-      valuesConsistent &= sampler.data().x[i] == 10.0;
+      valuesConsistent &=
+        sampler.data().codes[i] == sampler.data().codeFor(0, 10.0);
     } else {
-      valuesConsistent &= sampler.data().x[i] == identity[i];
+      valuesConsistent &=
+        sampler.data().codes[i] == sampler.data().codeFor(0, identity[i]);
     }
   }
   check(numInstalled > 0 && numInstalled < n,
@@ -454,16 +458,21 @@ static void testJointPerObservationUpdate() {
                                              columns, installed.get()),
         "joint per-observation update finalizes");
 
-  // all-or-none: the shared column stays identical across samplers
+  // all-or-none: the shared column stays identical across samplers. Both were
+  // built from the same column-0 values, so they share its cut grid and codes
+  // agree; the store owns codes, not raw
   bool columnsAgree = true, valuesConsistent = true;
   size_t numInstalled = 0;
   for (size_t i = 0; i < n; ++i) {
-    columnsAgree &= samplerA.impl().data().x[i] == samplerB.impl().data().x[i];
+    columnsAgree &=
+      samplerA.impl().data().codes[i] == samplerB.impl().data().codes[i];
     if (installed[i]) {
       ++numInstalled;
-      valuesConsistent &= samplerA.impl().data().x[i] == 10.0;
+      valuesConsistent &=
+        samplerA.impl().data().codes[i] == samplerA.impl().data().codeFor(0, 10.0);
     } else {
-      valuesConsistent &= samplerA.impl().data().x[i] == xB[i];
+      valuesConsistent &=
+        samplerA.impl().data().codes[i] == samplerA.impl().data().codeFor(0, xB[i]);
     }
   }
   check(columnsAgree, "joint update keeps shared column identical");
@@ -546,7 +555,7 @@ static void testSetCutPoints(ext_rng* rng) {
   std::uint32_t numNewCuts = 3;
   const double* cutsByColumn[] = {newCuts};
   size_t columnIndex = 0;
-  sampler.setCutPoints(cutsByColumn, &numNewCuts, &columnIndex, 1);
+  sampler.setCutPoints(cutsByColumn, &numNewCuts, &columnIndex, 1, x.data());
 
   check(sampler.data().numCuts[0] == 3, "setCutPoints installs the new count");
   bool codesMatch = true;
@@ -605,7 +614,7 @@ static void testDegenerateRootGuard() {
   const double* noCuts[] = {nullptr, nullptr};
   std::uint32_t numCuts[] = {0, 0};
   size_t columns[] = {0, 1};
-  sampler.setCutPoints(noCuts, numCuts, columns, 2);
+  sampler.setCutPoints(noCuts, numCuts, columns, 2, x.data());
 
   bool rootOnly = true;
   for (size_t t = 0; t < options.numTrees; ++t)

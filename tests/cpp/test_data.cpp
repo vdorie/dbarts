@@ -66,8 +66,7 @@ static void testColumnStoreView() {
   view.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
                        testRows.size());
 
-  check(view.x == nullptr && view.x_test == nullptr,
-        "view holds no raw values");
+  check(view.isView, "a row-subset view is flagged as one");
   check(view.numObservations == rows.size() &&
         view.numTestObservations == testRows.size() &&
         view.numPredictors == p, "view dimensions");
@@ -106,6 +105,64 @@ static void testColumnStoreView() {
   printf("ok: column store view\n");
 }
 
+// The engine keeps no predictor matrix: build owns bitwise copies of the
+// designated (leaf-covariate) columns so rawColumn serves them after the build
+// borrow releases, and buildTest owns the test values for rawTestColumn.
+static void testColumnStoreLeafGather() {
+  const size_t n = 150, p = 4;
+  std::vector<double> x(n * p);
+  for (double& v : x) v = runif01();
+
+  size_t gather[] = {1, 3};
+  ColumnStore store;
+  store.build(x.data(), n, p, 100, false, nullptr, gather, 2);
+
+  bool gatheredMatch = true;
+  const double* c1 = store.rawColumn(1);
+  const double* c3 = store.rawColumn(3);
+  if (c1 == nullptr || c3 == nullptr) {
+    gatheredMatch = false;
+  } else {
+    for (size_t i = 0; i < n; ++i) {
+      gatheredMatch &= c1[i] == x[i + 1 * n];
+      gatheredMatch &= c3[i] == x[i + 3 * n];
+    }
+  }
+  check(gatheredMatch, "leaf gather owns bitwise copies of designated columns");
+  check(store.rawColumn(0) == nullptr && store.rawColumn(2) == nullptr,
+        "undesignated columns own no raw");
+  check(c1 != x.data() + n, "gathered raw is owned, not the source borrow");
+
+  // the source going away must not disturb the owned copy
+  std::fill(x.begin(), x.end(), -99.0);
+  bool survives = true;
+  for (size_t i = 0; i < n; ++i) survives &= store.rawColumn(3)[i] != -99.0;
+  check(survives, "gathered raw survives the source borrow releasing");
+
+  // a re-quantize refreshes the gathered copy from the new values
+  std::vector<double> newCol1(n);
+  for (double& v : newCol1) v = 2.0 + runif01();
+  size_t col1 = 1;
+  store.setColumns(newCol1.data(), &col1, 1, false);
+  bool refreshed = true;
+  const double* g = store.rawColumn(1);
+  for (size_t i = 0; i < n; ++i) refreshed &= g[i] == newCol1[i];
+  check(refreshed, "the gathered copy refreshes on re-quantize");
+
+  // buildTest owns the test values; rawTestColumn serves the owned copy
+  const size_t numTest = 20;
+  std::vector<double> xTest(numTest * p);
+  for (double& v : xTest) v = runif01();
+  store.buildTest(xTest.data(), numTest);
+  bool testOwned = store.rawTestColumn(1) != nullptr;
+  const double* t1 = store.rawTestColumn(1);
+  for (size_t i = 0; i < numTest && testOwned; ++i)
+    testOwned &= t1[i] == xTest[i + 1 * numTest];
+  check(testOwned, "buildTest owns test values for rawTestColumn");
+
+  printf("ok: column store leaf gather\n");
+}
+
 static void testColumnStoreMutation() {
   const size_t n = 200, p = 2;
   std::vector<double> x(n * p);
@@ -125,8 +182,9 @@ static void testColumnStoreMutation() {
 
   bool codesMatch = true;
   for (size_t i = 0; i < n; ++i) {
+    // column 0's codes untouched; the store owns codes and never writes the
+    // new values back into the caller's matrix (no write-through)
     codesMatch &= store.codes[i] == originalCodes[i];
-    codesMatch &= x[i + n] == newColumn[i];
     codesMatch &= store.codes[i + n] == store.codeFor(1, newColumn[i]);
   }
   check(codesMatch, "setColumns re-quantizes only the target column");
@@ -137,15 +195,14 @@ static void testColumnStoreMutation() {
   // single-cell overwrite against existing cuts
   xint_t before = store.codes[7];
   store.setCell(7, 0, x[8]);
-  check(store.codes[7] == originalCodes[8] && x[7] == x[8],
-        "setCell re-quantizes one cell");
+  check(store.codes[7] == originalCodes[8], "setCell re-quantizes one cell");
   check(before == originalCodes[7], "");  // silence unused warning
 
-  // whole-matrix pointer swap without cut refresh: quantized on old cuts
+  // whole-matrix replacement without cut refresh: quantized on old cuts, codes
+  // owned (the raw source is a call argument, retained nowhere)
   std::vector<double> x2(n * p);
   for (double& v : x2) v = runif01();
   store.setPredictors(x2.data(), false);
-  check(store.x == x2.data(), "setPredictors swaps the pointer");
   codesMatch = true;
   for (size_t i = 0; i < n; ++i)
     codesMatch &= store.codes[i] == store.codeFor(0, x2[i]);
@@ -181,7 +238,7 @@ static void testSetCutPointsOrphan() {
   // shrink below the split index; missing still routes right, so neither child
   // empties and the empty-child collapse alone would leave the split orphaned
   double newCuts[] = {2.0, 5.0};
-  store.setCutPointsForColumn(0, newCuts, 2);
+  store.setCutPointsForColumn(0, newCuts, 2, x.data());
   check(store.hasMissing[0], "missing survives the re-quantize");
 
   std::vector<double> params(tree.nodes.size(), 0.0);
@@ -414,6 +471,7 @@ static void testMissingIngestion() {
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
+  testColumnStoreLeafGather();
   testColumnStoreMutation();
   testSetCutPointsOrphan();
   testQuantileCutPoints();

@@ -117,10 +117,12 @@ public:
     } else if (options.maxNumCutsPerVariable != nullptr) {
       data_.build(x, numObservations, numPredictors,
                   options.maxNumCutsPerVariable, options.useQuantiles,
-                  options.columnTypes);
+                  options.columnTypes, options.leafCovariateColumns,
+                  options.numLeafCovariates);
     } else {
       data_.build(x, numObservations, numPredictors, options.maxNumCuts,
-                  options.useQuantiles, options.columnTypes);
+                  options.useQuantiles, options.columnTypes,
+                  options.leafCovariateColumns, options.numLeafCovariates);
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
     options_.columnTypes = nullptr;
@@ -451,7 +453,13 @@ public:
     state.currentSampleNum = currentSampleNum_;
   }
 
-  bool setState(const SamplerStateData& state) {
+  /// currentPredictors is the call-time predictor matrix a cross-grid column
+  /// re-quantizes from (data@x, or the retained creation spec's @x); null for
+  /// CSC/mixed stores. A same-spec restore (the continuation contract) matches
+  /// the live grid column for column, so its per-column skip guard re-quantizes
+  /// nothing and needs no raw.
+  bool setState(const SamplerStateData& state,
+                const double* currentPredictors) {
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -477,9 +485,13 @@ public:
     std::vector<SparseColumnData> oldSparseColumns(data_.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.types[j] == ColumnType::categorical) continue;
+      // a restored grid equal to the live one leaves the codes already correct
+      // (the continuation contract), so skip its re-quantization and its raw
+      if (state.cutPoints[j] == data_.cutPoints[j]) continue;
       data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
                                   static_cast<std::uint32_t>(
-                                    state.cutPoints[j].size()));
+                                    state.cutPoints[j].size()),
+                                  currentPredictors);
     }
 
     bool allValid = true;
@@ -771,15 +783,18 @@ public:
           !data_.cutsWouldRemainValid(j, newX + j * n))
         return PredictorUpdateResult::invalidCutPoints;
 
-    const double* oldX = data_.x;
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
+    // the engine keeps no predictor matrix; a rollback restores the snapshotted
+    // codes and the gathered leaf-covariate raw the leaf models re-read
+    std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
       oldCodes = data_.codes;
       // re-quantizing recomputes hasMissing; a rollback must restore it too so
       // rules stay consistent with the reachable gauge
       oldHasMissing = data_.hasMissing;
+      oldGatheredRaw = data_.gatheredRawValues;
       if (updateCutPoints) oldCuts = data_.cutPoints;
     }
 
@@ -794,9 +809,9 @@ public:
     }
 
     if (!revalidateAllChains()) {
-      data_.x = oldX;
       data_.codes = std::move(oldCodes);
       data_.hasMissing = std::move(oldHasMissing);
+      data_.gatheredRawValues = std::move(oldGatheredRaw);
       if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
       for (auto& chain : chains_) chain->repartitionTrees();
       return PredictorUpdateResult::rolledBack;
@@ -822,18 +837,18 @@ public:
           !data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
         return PredictorUpdateResult::invalidCutPoints;
 
-    std::vector<double> oldValues;
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
+    // the engine keeps no predictor matrix; a rollback restores the snapshotted
+    // codes and the gathered leaf-covariate raw the leaf models re-read
+    std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
-      oldValues.resize(n * numColumns);
       oldCodes.resize(n * numColumns);
       oldHasMissing.resize(numColumns);
+      oldGatheredRaw = data_.gatheredRawValues;
       if (updateCutPoints) oldCuts.resize(numColumns);
       for (size_t k = 0; k < numColumns; ++k) {
-        std::memcpy(oldValues.data() + k * n, data_.x + columns[k] * n,
-                    n * sizeof(double));
         std::memcpy(oldCodes.data() + k * n,
                     data_.codes.data() + data_.codeOffsets[columns[k]],
                     n * sizeof(xint_t));
@@ -855,11 +870,9 @@ public:
     }
 
     if (!revalidateAllChains()) {
-      double* x_mutable = const_cast<double*>(data_.x);
+      data_.gatheredRawValues = std::move(oldGatheredRaw);
       for (size_t k = 0; k < numColumns; ++k) {
         size_t j = columns[k];
-        std::memcpy(x_mutable + j * n, oldValues.data() + k * n,
-                    n * sizeof(double));
         std::memcpy(data_.codes.data() + data_.codeOffsets[j],
                     oldCodes.data() + k * n, n * sizeof(xint_t));
         data_.hasMissing[j] = oldHasMissing[k];
@@ -879,12 +892,15 @@ public:
   /// columns and unconditionally refresh the trees: splits that fall out of
   /// range or lose their observations collapse into their parents, exactly
   /// as a forced predictor update does.
+  /// currentPredictors is the call-time predictor matrix the columns
+  /// re-quantize from (data@x); null for CSC/mixed stores, whose columns read
+  /// their retained slices instead.
   void setCutPoints(const double* const* newCutPoints,
                     const std::uint32_t* numCutPoints, const size_t* columns,
-                    size_t numColumns) {
+                    size_t numColumns, const double* currentPredictors) {
     for (size_t k = 0; k < numColumns; ++k)
-      data_.setCutPointsForColumn(columns[k], newCutPoints[k],
-                                  numCutPoints[k]);
+      data_.setCutPointsForColumn(columns[k], newCutPoints[k], numCutPoints[k],
+                                  currentPredictors);
     for (auto& chain : chains_) chain->forceRefreshTrees();
   }
 
@@ -1055,9 +1071,13 @@ private:
 
     void commitObservation(size_t i) override {
       ColumnStore& data(sampler_.data_);
-      size_t n = data.numObservations;
-      const_cast<double*>(data.x)[i + column_ * n] = newColumn_[i];
       data.codes[data.codeOffsets[column_] + i] = newCodes_[i];
+      // keep a leaf-covariate column's gathered raw current so finalize's
+      // regather sees the installed value (the engine keeps no matrix)
+      std::int32_t slot = data.gatheredSlotForColumn(column_);
+      if (slot >= 0)
+        data.gatheredRawValues[static_cast<size_t>(slot) *
+                                 data.numObservations + i] = newColumn_[i];
       for (size_t t = 0; t < leafCounts_.size(); ++t) {
         if (pendingNewLeaf_[t] != invalidNode) {
           --leafCounts_[t][static_cast<size_t>(pendingOldLeaf_[t])];

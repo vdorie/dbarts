@@ -44,7 +44,8 @@ public:
   virtual void setCutPoints(const double* const* newCutPoints,
                             const std::uint32_t* numCutPoints,
                             const std::size_t* columns,
-                            std::size_t numColumns) = 0;
+                            std::size_t numColumns,
+                            const double* currentPredictors) = 0;
   virtual bool updatePredictorPerObservation(const double* newColumn,
                                              std::size_t column,
                                              bool* installed) = 0;
@@ -75,7 +76,10 @@ public:
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
-  virtual bool setState(const SamplerStateData& state) = 0;
+  /// currentPredictors supplies raw for a cross-grid restore's re-quantization
+  /// (null for a same-spec continuation, which re-quantizes nothing).
+  virtual bool setState(const SamplerStateData& state,
+                        const double* currentPredictors) = 0;
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
@@ -181,8 +185,10 @@ public:
   void setCutPoints(const double* const* newCutPoints,
                     const std::uint32_t* numCutPoints,
                     const std::size_t* columns,
-                    std::size_t numColumns) override {
-    impl_.setCutPoints(newCutPoints, numCutPoints, columns, numColumns);
+                    std::size_t numColumns,
+                    const double* currentPredictors) override {
+    impl_.setCutPoints(newCutPoints, numCutPoints, columns, numColumns,
+                       currentPredictors);
   }
   bool updatePredictorPerObservation(const double* newColumn,
                                      std::size_t column,
@@ -226,8 +232,9 @@ public:
     impl_.predict(x_test, numTestObservations, out);
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
-  bool setState(const SamplerStateData& state) override {
-    return impl_.setState(state);
+  bool setState(const SamplerStateData& state,
+                const double* currentPredictors) override {
+    return impl_.setState(state, currentPredictors);
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,

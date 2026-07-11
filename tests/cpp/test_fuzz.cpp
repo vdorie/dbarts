@@ -195,9 +195,14 @@ static void fuzzFillResponse(ext_rng* r, ResponseFamily fam, const double* x,
 // The op loop, generic over the leaf model so the linear-leaf configuration
 // reuses it. Returns false (and prints the seed + a trailing op trace) on the
 // first invariant break.
+// initialX is the dense predictor matrix the sampler was built from, or null
+// for a CSC-backed sampler. The engine keeps no matrix, so the driver tracks
+// the current predictors itself (as the R layer does) to seed candidate columns
+// and feed the re-quantize ops (setCutPoints, setState) their raw values.
 template <typename S>
 static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
-                      ext_rng* opRng, std::uint32_t seed, int numOps) {
+                      ext_rng* opRng, std::uint32_t seed, int numOps,
+                      const double* initialX) {
   std::vector<std::string> trace;
   char line[128];
   bool ok = true;
@@ -216,6 +221,18 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   for (size_t j = 0; j < p; ++j)
     if (spec.cols[j].type == ColumnType::ordinal) ordinalCols.push_back(j);
 
+  // the driver's own copy of the current predictors, maintained in lockstep
+  // with accepted mutations (empty for a CSC-backed sampler)
+  std::vector<double> currentX;
+  if (initialX != nullptr)
+    currentX.assign(initialX, initialX + s.numObservations() * p);
+  auto curCol = [&](size_t j, size_t n) -> const double* {
+    return currentX.empty() ? nullptr : currentX.data() + j * n;
+  };
+  auto curAll = [&]() -> const double* {
+    return currentX.empty() ? nullptr : currentX.data();
+  };
+
   for (op = 0; op < numOps && ok; ++op) {
     size_t n = s.numObservations();
     int kind = fuzzPickOp(opRng, spec.opMask);
@@ -223,7 +240,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       case OP_SET_PREDICTOR: {
         std::vector<double> cand(n * p);
         for (size_t j = 0; j < p; ++j)
-          fuzzFillColumn(opRng, spec.cols[j], s.data().x + j * n, n,
+          fuzzFillColumn(opRng, spec.cols[j], curCol(j, n), n,
                          static_cast<int>(fuzzInt(opRng, 5)),
                          cand.data() + j * n);
         bool force = fuzzUnif(opRng) < 0.25;
@@ -234,6 +251,8 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         snprintf(line, sizeof line, "op%d setPredictor force=%d upc=%d -> %d",
                  op, force, upc, static_cast<int>(res));
         record(line);
+        if (res == PredictorUpdateResult::accepted && !currentX.empty())
+          currentX.assign(buf, buf + n * p);
         if (res != PredictorUpdateResult::accepted &&
             !fuzzSnapshotsEqual(before, fuzzCapture(s)))
           fail("rejected setPredictor mutated state");
@@ -247,7 +266,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           std::swap(perm[k], perm[k + fuzzInt(opRng, p - k)]);
         std::vector<double> cols(n * nc);
         for (size_t k = 0; k < nc; ++k)
-          fuzzFillColumn(opRng, spec.cols[perm[k]], s.data().x + perm[k] * n, n,
+          fuzzFillColumn(opRng, spec.cols[perm[k]], curCol(perm[k], n), n,
                          static_cast<int>(fuzzInt(opRng, 5)), cols.data() + k * n);
         bool force = fuzzUnif(opRng) < 0.25;
         bool upc = fuzzUnif(opRng) < 0.4;
@@ -257,6 +276,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         snprintf(line, sizeof line, "op%d updateColumns nc=%zu force=%d -> %d",
                  op, nc, force, static_cast<int>(res));
         record(line);
+        if (res == PredictorUpdateResult::accepted && !currentX.empty())
+          for (size_t k = 0; k < nc; ++k)
+            std::memcpy(currentX.data() + perm[k] * n, cols.data() + k * n,
+                        n * sizeof(double));
         if (res != PredictorUpdateResult::accepted &&
             !fuzzSnapshotsEqual(before, fuzzCapture(s)))
           fail("rejected updateColumns mutated state");
@@ -269,7 +292,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
                        ? (fuzzUnif(opRng) < 0.5 ? 0 : 2)
                        : static_cast<int>(fuzzInt(opRng, 5));
         std::vector<double> nv(n);
-        fuzzFillColumn(opRng, spec.cols[col], s.data().x + col * n, n, flavor,
+        fuzzFillColumn(opRng, spec.cols[col], curCol(col, n), n, flavor,
                        nv.data());
         if (kind == OP_SESSION_ABANDON) {
           FuzzSnapshot<S> before = fuzzCapture(s);
@@ -290,6 +313,9 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           snprintf(line, sizeof line, "op%d perObs col=%zu fin=%d", op, col,
                    fin);
           record(line);
+          if (!currentX.empty())
+            for (size_t i = 0; i < n; ++i)
+              if (installed[i]) currentX[col * n + i] = nv[i];
           if (!fin) fail("per-observation finalize invalid");
         }
         break;
@@ -305,6 +331,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         double* xb = arena.keep(std::move(nx));
         double* yb = arena.keep(std::move(ny));
         s.setData(xb, yb, n2, nullptr, nullptr, nullptr, 0);
+        if (!currentX.empty()) currentX.assign(xb, xb + n2 * p);
         snprintf(line, sizeof line, "op%d setData n=%zu", op, n2);
         record(line);
         break;
@@ -320,7 +347,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           v += 0.02 + 0.12 * fuzzUnif(opRng);
         }
         const double* cutPtr = cuts.data();
-        s.setCutPoints(&cutPtr, &m, &col, 1);
+        s.setCutPoints(&cutPtr, &m, &col, 1, curAll());
         snprintf(line, sizeof line, "op%d setCuts col=%zu m=%u", op, col, m);
         record(line);
         break;
@@ -334,7 +361,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
       }
       case OP_SET_RESPONSE: {
         std::vector<double> ny(n);
-        fuzzFillResponse(opRng, spec.family, s.data().x, n, p, ny.data());
+        fuzzFillResponse(opRng, spec.family, curAll(), n, p, ny.data());
         double* yb = arena.keep(std::move(ny));
         s.setResponse(yb, fuzzUnif(opRng) < 0.5);
         snprintf(line, sizeof line, "op%d %s", op, fuzzOpName[kind]);
@@ -397,7 +424,7 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         SamplerStateData st;
         s.getState(st);
         record("op state");
-        if (!s.setState(st)) {
+        if (!s.setState(st, curAll())) {
           fail("setState refused own state");
         } else {
           SamplerStateData st2;
@@ -453,7 +480,7 @@ static void fuzzRunConstant(const ConfigSpec& spec, std::uint32_t seed,
                                   1.0, 3.0, rawScale, options, rngs.data());
   Results empty;
   s.run(12, 0, empty);
-  fuzzDrive(s, spec, arena, opRng, seed, numOps);
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
 
   for (size_t c = 0; c < spec.numChains; ++c) ext_rng_destroy(rngs[c]);
   ext_rng_destroy(opRng);
@@ -487,7 +514,7 @@ static void fuzzRunLinear(std::uint32_t seed, int numOps) {
                                 options, &rng);
   Results empty;
   s.run(12, 0, empty);
-  fuzzDrive(s, spec, arena, opRng, seed, numOps);
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, xb);
 
   ext_rng_destroy(rng);
   ext_rng_destroy(opRng);
@@ -523,7 +550,9 @@ static void fuzzRunSparse(std::uint32_t seed, int numOps) {
                                   fuzzRawScale, options, &rng);
   Results empty;
   s.run(12, 0, empty);
-  fuzzDrive(s, spec, arena, opRng, seed, numOps);
+  // CSC-backed: the engine re-quantizes from its retained slices, so the driver
+  // tracks no dense matrix
+  fuzzDrive(s, spec, arena, opRng, seed, numOps, nullptr);
 
   ext_rng_destroy(rng);
   ext_rng_destroy(opRng);

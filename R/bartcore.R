@@ -82,12 +82,17 @@ bartcoreSamplerSetPredictor <- function(
       stop("partial updates cannot also update cut points")
     }
 
-    return(.Call(
+    x <- as.double(x)
+    installed <- .Call(
       C_dbarts_bartcore_updatePredictorPerObservation,
       ptr,
-      as.double(x),
+      x,
       as.integer(column)
-    ))
+    )
+    # the engine keeps no predictor matrix, so maintain data@x R-side for the
+    # observations the scan installed (the interim of design plan 1)
+    sampler$data@x[installed, column] <- x[installed]
+    return(installed)
   }
 
   forceUpdate <- if (is.null(forceUpdate)) {
@@ -151,8 +156,6 @@ bartcoreSamplerSetPredictor <- function(
     if (length(x) != nrow(sampler$data@x) * length(column)) {
       stop("length of new x does not match y")
     }
-    # written in place through the matrix the engine borrows, so data@x
-    # already reflects the change
     updateSuccessful <- .Call(
       C_dbarts_bartcore_updatePredictor,
       ptr,
@@ -161,6 +164,15 @@ bartcoreSamplerSetPredictor <- function(
       forceUpdate,
       updateCutPoints
     )
+    # the engine keeps no predictor matrix, so maintain data@x R-side when the
+    # update is applied (forceUpdate, or a non-rolled-back transaction); the
+    # interim of design plan 1 while data@x is still a matrix
+    if (isTRUE(updateSuccessful)) {
+      sampler$data@x[, column] <- matrix(
+        as.double(x),
+        nrow(sampler$data@x)
+      )
+    }
   }
 
   if (!forceUpdate) updateSuccessful else invisible(NULL)
@@ -290,11 +302,13 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
   }
   cuts <- lapply(cuts, as.double)
 
+  # the engine re-quantizes the transient borrow of the current predictors
   .Call(
     C_dbarts_bartcore_setCutPoints,
     sampler$getPointer(),
     cuts,
-    as.integer(column)
+    as.integer(column),
+    sampler$data@x
   )
   invisible(NULL)
 }
@@ -365,6 +379,10 @@ bartcoreSampler <- function(sampler, family = "") {
     sampler$data,
     as.character(family)
   )
+  # the engine keeps no predictor matrix, so the low-level wrappers track the
+  # current predictors R-side to feed the re-quantize entry points
+  # (setCutPoints, setState, saved-tree getTrees); null for sparse designs
+  result$x <- if (is.matrix(sampler$data@x)) sampler$data@x else NULL
   result
 }
 
@@ -405,6 +423,9 @@ bartcoreSamplerFromHandle <- function(
     if (!is.null(testRows)) as.integer(testRows),
     as.character(family)
   )
+  # a view refuses the raw-predictor and re-quantize surface, and its live-tree
+  # getTrees needs no training replay, so it carries no predictor matrix
+  result$x <- NULL
   result
 }
 
@@ -447,6 +468,8 @@ bartcoreBCFSampler <- function(
     as.double(z),
     bcfParams
   )
+  # BCF requires dense predictors; track them R-side for the re-quantize surface
+  result$x <- if (is.matrix(sampler$data@x)) sampler$data@x else NULL
   result
 }
 
@@ -544,17 +567,22 @@ bartcoreSetPredictor <- function(
 ) {
   x <- as.matrix(x)
   storage.mode(x) <- "double"
-  .Call(
+  result <- .Call(
     C_dbarts_bartcore_setPredictor,
     bcSampler$ptr,
     x,
     as.logical(forceUpdate),
     as.logical(updateCutPoints)
   )
+  # track the current predictors R-side (the engine keeps none) when installed
+  if (isTRUE(result)) {
+    bcSampler$x <- x
+  }
+  result
 }
 
-# In-place overwrite of columns in the matrix the sampler borrows, visible
-# through the originating data object.
+# Overwrite columns of the current predictors; the engine keeps no matrix, so
+# the wrapper maintains the R-side copy the re-quantize entry points read.
 bartcoreUpdatePredictor <- function(
   bcSampler,
   x,
@@ -562,23 +590,34 @@ bartcoreUpdatePredictor <- function(
   forceUpdate = FALSE,
   updateCutPoints = FALSE
 ) {
-  .Call(
+  columns <- as.integer(columns)
+  result <- .Call(
     C_dbarts_bartcore_updatePredictor,
     bcSampler$ptr,
     as.double(x),
-    as.integer(columns),
+    columns,
     as.logical(forceUpdate),
     as.logical(updateCutPoints)
   )
+  if (isTRUE(result) && !is.null(bcSampler$x)) {
+    bcSampler$x[, columns] <- matrix(as.double(x), nrow(bcSampler$x))
+  }
+  result
 }
 
 bartcoreUpdatePredictorPerObservation <- function(bcSampler, x, column) {
-  .Call(
+  x <- as.double(x)
+  column <- as.integer(column)
+  installed <- .Call(
     C_dbarts_bartcore_updatePredictorPerObservation,
     bcSampler$ptr,
-    as.double(x),
-    as.integer(column)
+    x,
+    column
   )
+  if (!is.null(bcSampler$x)) {
+    bcSampler$x[installed, column] <- x[installed]
+  }
+  installed
 }
 
 bartcoreUpdatePredictorPerObservationJointly <- function(
@@ -586,12 +625,20 @@ bartcoreUpdatePredictorPerObservationJointly <- function(
   x,
   columns
 ) {
-  .Call(
+  x <- as.double(x)
+  columns <- as.integer(columns)
+  installed <- .Call(
     C_dbarts_bartcore_updatePredictorPerObservationJointly,
     lapply(bcSamplers, function(s) s$ptr),
-    as.double(x),
-    as.integer(columns)
+    x,
+    columns
   )
+  for (k in seq_along(bcSamplers)) {
+    if (!is.null(bcSamplers[[k]]$x)) {
+      bcSamplers[[k]]$x[installed, columns[k]] <- x[installed]
+    }
+  }
+  installed
 }
 
 # cutPoints is a list of strictly increasing numeric vectors, one per column;
@@ -605,7 +652,8 @@ bartcoreSetCutPoints <- function(bcSampler, cutPoints, columns) {
     C_dbarts_bartcore_setCutPoints,
     bcSampler$ptr,
     cutPoints,
-    as.integer(columns)
+    as.integer(columns),
+    bcSampler$x
   ))
 }
 
@@ -641,7 +689,8 @@ bartcoreGetTrees <- function(
     if (is.null(sampleNums)) NULL else as.integer(sampleNums),
     as.integer(treeNums),
     as.logical(current),
-    newdata
+    newdata,
+    bcSampler$x
   )
 }
 
@@ -650,7 +699,12 @@ bartcoreStoreState <- function(bcSampler) {
 }
 
 bartcoreSetState <- function(bcSampler, state) {
-  invisible(.Call(C_dbarts_bartcore_setState, bcSampler$ptr, state))
+  invisible(.Call(
+    C_dbarts_bartcore_setState,
+    bcSampler$ptr,
+    state,
+    bcSampler$x
+  ))
 }
 
 bartcoreSampleTreesFromPrior <- function(bcSampler) {

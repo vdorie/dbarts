@@ -161,3 +161,59 @@ regression on the default path, not to gain speed; the memory win
 - bench-sampler: fresh baseline recorded pre-implementation
   (32fc7c8); compares at steps 1 and 4 (quiet machine, granted).
 - rchk when next scheduled (step 2 touches PROT machinery).
+
+## Landing notes (steps 1-2)
+
+Container: ColumnStore dropped the resident x/x_test borrows. build/
+buildMixed/buildFromCsc take the raw as a call argument and quantize into
+owned codes; a per-store gather designation (leaf covariates for a sampler,
+every column for a data handle) has build own raw copies of those columns so
+rawColumn serves them after the borrow releases. Test-side raw is owned in
+full (ownedTestValues) so cut changes re-quantize the test codes without a
+retained borrow; rawTestColumn serves it. Mixed/CSC builds keep their
+mixedRawColumns/cscSlices (reachable through PROT_DATA); a mixed column's
+rawColumn still returns its retained dense slice, so no gather is needed
+there. Views set isView, which now discriminates the mutation/re-quantize
+refusals in place of the deleted x==NULL test.
+
+setState cross-grid decision (VD's "pick the cleaner"): the retained-spec
+route, NOT a dbarts.h signature change. The same-spec continuation contract
+(the only supported restore) matches the live grid column for column, so a
+per-column skip guard (state.cutPoints[j] == live) re-quantizes nothing and
+needs no raw. Only an off-contract cross-grid restore needs raw; the engine's
+setState gained an internal currentPredictors argument the callers fill - the
+R method from sampler$data@x, the flat-C path from the retained creation
+spec's @x - so dbarts_sampler_setState keeps its 2-argument signature. A
+flat-C caller that mutated predictors then restores a cross-grid state sees
+the pre-mutation spec (documented plan-1 limitation, closed by plan 3's
+extract verb).
+
+stan4bart lockstep delta (do whatever is clean, update in lockstep):
+- dbarts_sampler_getTrees gained a trailing `const double* trainingData`
+  argument (column-major numObservations x numPredictors, or NULL to replay
+  the creation spec). Every stan4bart call site adds one trailing argument:
+  the current predictor matrix pointer, or NULL. No other behavior changes;
+  live-tree getTrees ignores it.
+- No other dbarts.h signature changed. dbarts_sampler_setState,
+  setPredictor, updatePredictor, setTestPredictors are all unchanged.
+- The .Call bridge entry points DID grow arguments (getTrees +trainingData,
+  setState/setCutPoints +currentPredictors), but those are internal R-.Call
+  symbols, not the LinkingTo C ABI, and their R callers are updated here.
+
+Write-through death (step 2): the const_cast writers (data.hpp setColumns/
+setCell), the sampler rollback write-back and the data_.x = oldX line, and
+commitObservation's write-through are gone. Predictor mutation updates only
+the owned codes (and a leaf column's gathered raw); rollback restores the
+snapshotted codes and gathered raw. The R layer maintains sampler$data@x
+itself for column-subset and per-observation updates (copy-modify), the
+plan-1 interim while data@x is a matrix - a temporary copy-on-write cost on
+the per-iteration updateX/IRT path, correctness unaffected (plan 3 removes
+it). CONSEQUENCE, flagged: a shallow copy no longer shares a predictor
+mutation with the original (write-through backed that sharing); the R-side
+copy-modify diverges them per R copy-on-write. test-sampler-predictors.R's
+shallow/deep-copy assertion was updated to the new model.
+
+PROT slots: PROT_PREDICTORS and PROT_TEST_PREDICTORS are deleted (the engine
+borrows no predictor/test matrix past a call). PROT_DATA stays as the
+creation contract and the flat-C GC anchor; PROT_RESPONSE/OFFSET/WEIGHTS/
+TEST_OFFSET stay (those borrows persist).
