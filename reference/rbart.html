@@ -155,7 +155,7 @@
     <p>Fits a BART model with additive random intercepts, one for each factor level of <code>group.by</code>. For continuous responses:</p>
 <ul><li><p>\(y_i \sim N(f(x_i) + \alpha_{g[i]}, \sigma^2)\)</p></li>
 <li><p>\(\alpha_j \sim N(0, \tau^2)\).</p></li>
-</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(tau\) are made using a slice sampler; the in-engine sampler for built-in priors steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.</p>
+</ul><p>For binary outcomes the response model is changed to \(P(Y_i = 1) = \Phi(f(x_i) + \alpha_{g[i]})\). \(i\) indexes observations, \(g[i]\) is the group index of observation \(i\), \(f(x)\) and \(\sigma_y\) come from a BART model, and \(\alpha_j\) are the independent and identically distributed random intercepts. Draws from the posterior of \(tau\) use an exact conjugate update for the built-in <code>cauchy</code> prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed inverse-gamma draws per sweep) and a slice sampler otherwise; the in-engine slice sampler for the built-in <code>gamma</code> prior steps out with a width tied to the prior's scale, while the R implementation used with custom priors determines its width from the curvature of the posterior at its mode.</p>
 <div class="section">
 <h3 id="out-of-sample-groups">Out Of Sample Groups<a class="anchor" aria-label="anchor" href="#out-of-sample-groups"></a></h3>
 <p>Predicting random effects for groups not in the training sample is supported by sampling from their posterior predictive distribution, that is a draw is taken from \(p(\alpha \mid y) = \int p(\alpha \mid \tau)p(\tau \mid y)d\alpha\). For out-of-sample groups in the test data, these random effect draws can be kept with the saved object. For those supplied to <code>predict</code>, they cannot and may change for subsequent calls.</p>
@@ -254,28 +254,28 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000315</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000303</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1 2 2 4 2 3 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 2 3 2 2 4 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 4) (2: 3) (3: 3) (4: 5) (5: 3) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 3) (7: 4) (8: 4) (9: 0) (10: 4) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 6) (2: 6) (3: 4) (4: 5) (5: 3) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 6) (7: 2) (8: 2) (9: 2) (10: 2) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001599</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001514</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 3 4 3 3 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 2 3 2 3 4 2 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 4) (2: 3) (3: 5) (4: 7) (5: 2) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 1) (7: 4) (8: 6) (9: 3) (10: 1) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 7) (2: 6) (3: 6) (4: 5) (5: 8) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 3) (7: 4) (8: 4) (9: 1) (10: 0) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -312,28 +312,28 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000399</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000425</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 2 3 2 4 2 5 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 2 3 2 3 2 4 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 9) (2: 3) (3: 11) (4: 6) (5: 4) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 1) (7: 0) (8: 1) (9: 4) (10: 1) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 5) (2: 3) (3: 8) (4: 5) (5: 6) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 3) (7: 1) (8: 2) (9: 2) (10: 4) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002075</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001987</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3 3 3 3 2 2 5 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 3 2 2 2 2 2 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 6) (2: 4) (3: 8) (4: 9) (5: 4) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 0) (7: 2) (8: 1) (9: 1) (10: 1) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 2) (2: 11) (3: 6) (4: 4) (5: 3) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (6: 2) (7: 3) (8: 2) (9: 0) (10: 1) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>

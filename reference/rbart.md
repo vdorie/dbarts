@@ -217,10 +217,13 @@ For binary outcomes the response model is changed to \\P(Y_i = 1) =
 \\g\[i\]\\ is the group index of observation \\i\\, \\f(x)\\ and
 \\\sigma_y\\ come from a BART model, and \\\alpha_j\\ are the
 independent and identically distributed random intercepts. Draws from
-the posterior of \\tau\\ are made using a slice sampler; the in-engine
-sampler for built-in priors steps out with a width tied to the prior's
-scale, while the R implementation used with custom priors determines its
-width from the curvature of the posterior at its mode.
+the posterior of \\tau\\ use an exact conjugate update for the built-in
+`cauchy` prior (a Makalic-Schmidt inverse-gamma scale mixture, two fixed
+inverse-gamma draws per sweep) and a slice sampler otherwise; the
+in-engine slice sampler for the built-in `gamma` prior steps out with a
+width tied to the prior's scale, while the R implementation used with
+custom priors determines its width from the curvature of the posterior
+at its mode.
 
 ### Out Of Sample Groups
 
@@ -339,28 +342,28 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000315
+#> total seconds in loop: 0.000303
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 2 2 2 2 2 3 2 2 3 2 2 3 2 2 3 3 
-#> 1 2 2 4 2 3 3 
+#> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 
+#> 3 2 2 3 2 2 4 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 4) (2: 3) (3: 3) (4: 5) (5: 3) 
-#> (6: 3) (7: 4) (8: 4) (9: 0) (10: 4) 
+#> (1: 6) (2: 6) (3: 4) (4: 5) (5: 3) 
+#> (6: 6) (7: 2) (8: 2) (9: 2) (10: 2) 
 #> 
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001599
+#> total seconds in loop: 0.001514
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 1 2 3 3 2 1 2 2 3 5 2 2 2 3 2 2 2 
-#> 3 2 3 4 3 3 2 
+#> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 
+#> 3 2 3 2 3 4 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 4) (2: 3) (3: 5) (4: 7) (5: 2) 
-#> (6: 1) (7: 4) (8: 6) (9: 3) (10: 1) 
+#> (1: 7) (2: 6) (3: 6) (4: 5) (5: 8) 
+#> (6: 3) (7: 4) (8: 4) (9: 1) (10: 0) 
 #> 
 #> DONE BART
 #> 
@@ -397,28 +400,28 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000399
+#> total seconds in loop: 0.000425
 #> 
 #> Tree sizes, last iteration:
-#> [1] 1 2 3 2 2 4 3 2 4 2 3 2 2 2 3 3 1 4 
-#> 2 2 3 2 4 2 5 
+#> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
+#> 1 2 3 2 3 2 4 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 9) (2: 3) (3: 11) (4: 6) (5: 4) 
-#> (6: 1) (7: 0) (8: 1) (9: 4) (10: 1) 
+#> (1: 5) (2: 3) (3: 8) (4: 5) (5: 6) 
+#> (6: 3) (7: 1) (8: 2) (9: 2) (10: 4) 
 #> 
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002075
+#> total seconds in loop: 0.001987
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 3 2 3 3 3 2 3 2 2 2 2 1 2 2 2 2 
-#> 3 3 3 3 2 2 5 
+#> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 
+#> 1 3 2 2 2 2 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 6) (2: 4) (3: 8) (4: 9) (5: 4) 
-#> (6: 0) (7: 2) (8: 1) (9: 1) (10: 1) 
+#> (1: 2) (2: 11) (3: 6) (4: 4) (5: 3) 
+#> (6: 2) (7: 3) (8: 2) (9: 0) (10: 1) 
 #> 
 #> DONE BART
 #> 
