@@ -21,6 +21,16 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
+  cran-stderr-note: filed 2026-07-11 from the cran-readiness sweep
+    (memo in cran-readiness.md). The one remaining --as-cran NOTE:
+    misc.a carries the ___stderrp symbol from src/misc/io.c's default
+    printToStderr/flushStderr hooks, unreachable from R (R_init_dbarts
+    repoints them to Rprintf at DLL load) but visible to the symbol
+    scan, and CRAN human reviewers sometimes push back regardless of
+    justification. Durable fix: guard the stderr defaults behind a
+    built-for-R -D macro so the R build defaults the hooks to NULL
+    while tests/cpp keeps the standalone stderr fallback. Small,
+    build-system; do before submission, no urgency.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
