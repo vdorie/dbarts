@@ -36,7 +36,8 @@ static void (*p_predict)(dbarts_sampler*, const double*, size_t,
                          const double*, double*);
 static void (*p_setTreeStorage)(dbarts_sampler*, int, size_t);
 static SEXP (*p_getTrees)(dbarts_sampler*, const size_t*, size_t,
-                          const size_t*, size_t, const size_t*, size_t, int);
+                          const size_t*, size_t, const size_t*, size_t, int,
+                          const double*);
 static SEXP (*p_storeState)(dbarts_sampler*);
 static void (*p_setState)(dbarts_sampler*, SEXP);
 static size_t (*p_numObservations)(const dbarts_sampler*);
@@ -557,7 +558,7 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr) {
   for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
 
   return p_getTrees(sampler, chainIndices, numChains, sampleIndices, numSaved,
-                    treeIndices, numTrees, useLiveTrees);
+                    treeIndices, numTrees, useLiveTrees, NULL);
 }
 
 SEXP capi_store_state(SEXP ptrExpr) {
