@@ -1329,6 +1329,7 @@ extern double misc_computeIndexedOnlineUnrolledWeightedVarianceForKnownMean_sse2
 
 void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
+  (void) i; // unused when no x86 SIMD moments kernels are compiled in
 #ifdef COMPILER_SUPPORTS_SSE2
   if (i >= MISC_INST_SSE2) {
     computeUnrolledMean = &misc_computeUnrolledMean_sse2;

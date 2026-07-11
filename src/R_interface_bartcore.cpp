@@ -1234,7 +1234,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}};
     return R_NilValue;
   });
   return holder;
@@ -1291,7 +1291,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       options, spec, rngs.data());
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}};
     // moving z keeps its buffer, so the chains' borrowed z stays valid
     holder->ownedTreatment = std::move(z);
     return R_NilValue;
@@ -1467,7 +1467,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 
     BartcoreHolder* holder = new BartcoreHolder{
       std::move(sampler), std::move(rngs), control.keepTrainingFits,
-      {}, {}, {}, {}};
+      {}, {}, {}, {}, {}};
     // moving the vectors keeps their buffers, so the chains' borrowed
     // pointers stay valid for the holder's lifetime
     holder->ownedResponse = std::move(response);
