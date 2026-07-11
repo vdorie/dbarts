@@ -90,3 +90,34 @@ never a standalone posterior sampler (memo NO-GO stands).
 - No exact-posterior gates (posterior unchanged once MH starts);
   bench-sampler not required while the grow sweep stays a separate
   duplicated function off the hot path.
+
+## Status
+
+- 2026-07-10: LANDED as c8c7764 (squash of wt/gfr-warm-start; the four
+  staged commits followed the plan's steps exactly). All constraints
+  held: the scan (src/bartcore/scan.hpp) is occupancy-aware with its
+  own poison-proven component gate, omits sumWZ2 by evaluating the
+  marginal with a zero sumWeightedResponseSq (the constant identical
+  across every candidate of a node, so the normalized draw is exact),
+  and counts members rather than weights; growTreeFromRoot
+  (src/bartcore/grow.hpp) uses MH's own CGM prior factors with the
+  documented exact draw count (one discrete draw per positive-growth
+  node plus one missing coin per split on a missing column);
+  categoricals are ordinal-only in v1 (never split by the grower, gated);
+  Chain::growForestFromRoot duplicates the run sweep body so the
+  default path is untouched by construction. Surface as decided:
+  bart2 n.grow.sweeps = 0L (conflict with warm.start errors), R5
+  growFromRoot(n.sweeps = 2L, updateState = FALSE) refusing
+  linear/gp, bridge backstop. Warm-start claim measured: grow-init
+  beats prior-init early-iteration train RMSE at ratios 0.67-0.88
+  across seeds (asserted < 0.9x). Landing note in
+  docs/design/grow-from-root.md section 7.
+- Gates: tests/cpp all pass (scan == brute force bitwise; occupancy
+  sentinel poison-proven; seeded determinism; grown-forest legality;
+  grow-then-MH consistency); tinytest 2675/0 (2661 + 14); equivalence
+  21/21 identical vs equivalence-de67cbb.rds (the frozen-default
+  gate, run at steps 3 and 4 and re-run by the reviewer on the landed
+  tree); air + lintr clean; pkgdown clean; no dbarts.h ABI change.
+- Remaining scope elsewhere: frontier item 4 (informed proposals)
+  consumes scan.hpp unchanged; linear/GP scan bins are a later
+  adoption behind the same interface.

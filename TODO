@@ -96,13 +96,20 @@ items
     forest through the installTrees/warm.start surface (user surface
     - bart2 argument vs explicit producer - decided in the plan).
     Shares the scan primitive with frontier item 4, so schedule to
-    land the scan once. Queued after the correctness arc (chi fix,
-    change-move stage 2, audit blocks 4-7). Review-6 note: the
-    promoted scan must be OCCUPANCY-AWARE - the empty-leaf veto
-    lives in logLikelihoodForBranch's finite penalty, which a
-    scan-based builder never calls; empty-side cuts get zero
-    weight in the scan itself, and that contract needs its own
-    gate.
+    land the scan once. Review-6 note: the promoted scan must be
+    OCCUPANCY-AWARE - the empty-leaf veto lives in
+    logLikelihoodForBranch's finite penalty, which a scan-based
+    builder never calls; empty-side cuts get zero weight in the
+    scan itself, and that contract needs its own gate.
+    WARM-START PRODUCER LANDED 2026-07-10 (c8c7764,
+    grow-from-root-warm-start.md): scan.hpp (occupancy poison-gated,
+    no sumWZ2, leaf-templated for frontier 4 + linear/GP later) +
+    grow.hpp growTreeFromRoot (CGM prior factors, exact draw count,
+    ordinal-only v1) + a duplicated grow sweep off the hot path +
+    bart2 n.grow.sweeps = 0L / R5 growFromRoot(n.sweeps = 2L).
+    Equivalence 21/21 identical (default path frozen); grow-init
+    beats prior-init early RMSE 0.67-0.88x. Frontier 3.1's exact
+    informed-proposal use of the scan remains open there.
   hot-layer-u8: FOLDED into data-ownership's owned container (VD
     2026-07-07, after phase-1 kernel measurements showed no standalone
     partition win); per-column widths land with the container and get
