@@ -1,11 +1,13 @@
 # Owned predictor storage
 
-Status: draft under discussion (2026-07-06); direction approved and
-panel resolutions accepted by VD (never-retain default, declared
-column flags, read-only borrow fast path, mutable-column CoW
-resolution, shared-handle views), not yet approved for implementation.
-Supersedes the rejected copy-raw plan; docs/plans/data-ownership.md
-points here.
+Status: FROZEN 2026-07-11, approved for pre-release implementation
+(VD). Direction and panel resolutions accepted 2026-07-06
+(never-retain default, mutable-column CoW resolution, shared-handle
+views); the 2026-07-11 convergence (recorded in "Resolved
+considerations" below) sharpened never-retain into call-time raw
+supply, which dissolved the re-cuttable flag, the epoch machinery,
+and every lifetime pin. Supersedes the rejected copy-raw plan;
+docs/plans/data-ownership.md points here.
 
 ## Motivation
 
@@ -91,36 +93,55 @@ One owned BartData replaces ColumnStore's borrow. Per column: a kind
 code width chosen by cardinality (u8 for <= 255 cuts - the default
 n.cuts = 100 fits - u16 above; hot-layer-u8's per-column widths land
 here, not as a separate retrofit), the cut table or level table, an
-NA policy, and three creation-time flags: mutable (engine keeps an
+NA policy, and two creation-time flags: mutable (engine keeps an
 owned raw column; the updateX family lands there in place,
-copy-on-write-free, O(changed cells)), re-cuttable (owned raw
-retained for setCutPoints/quantile refresh of the unchanged column),
-and leaf-covariate (linear/gp leaves gather their own raw + working
-buffers at designation, as today). No flag, no raw: the default
-column owns codes only. Undeclared capabilities refuse at the call
-with the declared-state error, the sparse precedent.
+copy-on-write-free, O(changed cells)) and leaf-covariate (linear/gp
+leaves gather their own raw + working buffers at designation, as
+today). No flag, no raw: the default column owns codes only.
+Undeclared capabilities refuse at the call with the declared-state
+error, the sparse precedent.
 
-Cut tables carry an epoch counter bumped by any re-cut. Saved trees
-record the epoch they flattened under; getTrees saved-replay routes
-from codes while the epoch matches and refuses (naming the re-cut)
-when it does not - raw retention is never a replay requirement.
+CALL-TIME RAW SUPPLY (VD, 2026-07-11) replaces both the re-cuttable
+flag and the epoch machinery. Every off-hot-path consumer of raw
+values takes them as call arguments assembled by the R layer from
+the data object it holds: setCutPoints re-quantization, setData
+rebuild, and getTrees saved-tree replay (the bridge's existing
+newdata replay path, now the only replay path; FlatNode stores
+resolved double cut values, so replay is grid-independent and
+getTrees behavior is UNCHANGED in every corner, including after a
+re-cut and after mutation - the replay matrix is sourced through the
+extraction verb, so mutable columns arrive current and immutable
+ones as the snapshot, matching today's write-through-kept-current
+store.x). No cut-grid versioning exists: one current cut table per
+column, the state format's existing snapshot at save, nothing else.
 
 ## Ingestion
 
 dbartsData ingests a data.frame directly: numeric -> dense ordinal,
 unordered factor -> dense categorical, ordered factor -> ordinal
 codes, I()-wrapped sparseVector / dgCMatrix columns -> CSC ordinal,
-and a small exported wrapper class (carrying levels + reference
-level) -> CSC categorical (decided: wrapper, VD 2026-07-06). The
-R-side double matrix never materializes for data-frame input;
-formula input defers factor expansion to ingestion (factors =
-"categorical" already avoids dummy columns; the model.matrix double
-detour goes away). Matrix input keeps a READ-ONLY borrow of REAL(x)
-as the fast path (panel 2/3; write-through dies regardless): borrow
-serves quantization and any declared raw retention copies only the
-flagged columns. data@x becomes a creation-time snapshot BY
-DEFINITION; an extraction verb returns owned current values for
-mutable columns and the snapshot otherwise - correct in both cases.
+and sparseFactor(), a small exported wrapper class carrying levels +
+a reference level -> CSC categorical (wrapper decided VD 2026-07-06;
+exported with the Matrix-convention name sparseFactor, VD
+2026-07-11). The R-side double matrix never materializes for
+data-frame input; formula input defers factor expansion to ingestion
+(factors = "categorical" already avoids dummy columns; the
+model.matrix double detour goes away). Matrix input keeps a
+READ-ONLY borrow of REAL(x) during CONSTRUCTION ONLY (VD,
+2026-07-11): the borrow serves quantization and the gathering of
+flagged columns, then releases - no lifetime pin anywhere; the R
+data object holding the matrix/frame is what keeps it GC-alive, and
+the C++ side retains nothing unflagged. The data object HOLDS the
+ingested frame (or matrix): it is the call-time raw source for
+re-cut/setData/replay and the GC anchor. Plan 2 INVESTIGATES
+DROPPING @x outright (VD: "see if you can drop it"): route every
+internal data@x consumer through the extraction verb or codes, drop
+the slot if that closes cleanly, keep a snapshot slot only if some
+consumer genuinely needs a materialized matrix. The extraction verb
+is extract(sampler, "predictors") (no new generic): owned current
+values for mutable columns, the snapshot/frame-derived values
+otherwise - correct in both cases, and the canonical source for
+getTrees replay.
 
 ## Sharing
 
@@ -136,9 +157,10 @@ first multi-model consumer (forest-split-bcf).
 
 ## Compatibility
 
-- PROT_PREDICTORS/PROT_TEST_PREDICTORS retains reduce to the borrow
-  fast path's lifetime pin; the const_cast writers and rollback
-  write-back (sampler.hpp:684,869) are deleted with the write-through.
+- The PROT_* protection-slot machinery is deleted wholesale
+  (construction-only borrow needs no lifetime pin; the R data object
+  is the GC anchor); the const_cast writers and rollback write-back
+  (sampler.hpp:684,869) are deleted with the write-through.
 - dbarts.h: no signature changes; the creation-contract comment
   updates. The C API keeps matrix semantics (borrow fast path).
 - State format: the container serializes per-column metadata + codes;
@@ -158,13 +180,21 @@ first multi-model consumer (forest-split-bcf).
 5. sparse categorical kernel + test-side sparse (with
    sparse-extensions).
 
-## Still open (for VD)
+## Resolved considerations (VD, 2026-07-11 convergence)
 
-- Whether the epoch-refusal for getTrees saved-replay after a re-cut
-  is acceptable, or replay should keep working via retained raw on
-  re-cuttable columns (only those columns can re-cut, so retaining
-  raw there covers it - cheaper than it sounds).
-- Wrapper class name and whether it ships exported from dbarts or
-  stays an ingestion-internal constructor.
-- Whether the extraction verb is a new generic or extract(sampler,
-  "predictors").
+- Call-time raw supply replaces the re-cuttable flag: the R layer
+  holds the frame/matrix and assembles raw values as arguments for
+  re-cut, setData, and getTrees replay. Engine-side raw narrows to
+  mutable-flagged columns only.
+- Epoch machinery DROPPED: its sole consumer was the route-or-refuse
+  decision for replay without resident raw, which call-time supply
+  makes moot. getTrees behavior is unchanged in every corner.
+- C++ protection is construction-only; the R data object holding the
+  frame/matrix is the GC anchor. All PROT_* slots delete.
+- data@x: plan 2 attempts to drop the slot (route internal consumers
+  through the extraction verb or codes); the data object holds the
+  ingested frame.
+- Wrapper class: EXPORTED as sparseFactor() (Matrix-package naming
+  convention, recognizable to sparse-data users; carries levels +
+  reference level).
+- Extraction verb: extract(sampler, "predictors"), no new generic.

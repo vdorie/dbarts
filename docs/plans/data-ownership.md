@@ -33,11 +33,14 @@ docs/design/data-ownership.md (draft).
 
 ## Next
 
-1. Converge the design note's "Still open" list with VD (in progress
-   2026-07-11).
-2. Freeze the design note; split into the five implementation plans
-   (container/dense ingestion/borrow fast path; data.frame-direct
-   ingestion + wrapper; flags + mutation rewire + snapshot semantics;
-   views/sharing + standalone handle; sparse categorical).
-3. Implement sequentially after cran-readiness lands (one implementer
-   at a time).
+1. DONE 2026-07-11: design converged and FROZEN (resolutions in the
+   design note: call-time raw supply, no epoch, construction-only
+   borrow, @x drop attempt in plan 2, sparseFactor exported,
+   extract(sampler, "predictors")).
+2. Write and implement the five plans sequentially (one implementer
+   at a time): (1) container + dense ingestion + construction-only
+   borrow (engine core); (2) data.frame-direct ingestion +
+   sparseFactor + the @x drop attempt (R surface); (3) mutable flag +
+   mutation-surface rewire + call-time supply plumbing; (4)
+   views/sharing + standalone handle (blocks forest-split-bcf); (5)
+   sparse categorical kernel + test-side sparse.
