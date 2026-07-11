@@ -52,6 +52,8 @@
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">sampleNodeParametersFromPrior</span><span class="op">(</span>updateState <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">growFromRoot</span><span class="op">(</span>n.sweeps <span class="op">=</span> <span class="fl">2L</span>, updateState <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">copy</span><span class="op">(</span>shallow <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">show</span><span class="op">(</span><span class="op">)</span></span>
@@ -230,6 +232,9 @@
   <dt id="arg-samples">samples<a class="anchor" aria-label="anchor" href="#arg-samples"></a></dt>
 <dd><p>For <code>installTrees</code>, an optional integer vector with one entry per chain, each a 1-based index into the donor's pool of samples (its saved trees when it kept them, else its final trees per chain). <code>NULL</code> spreads the chains evenly across the pool.</p></dd>
 
+  <dt id="arg-n-sweeps">n.sweeps<a class="anchor" aria-label="anchor" href="#arg-n-sweeps"></a></dt>
+<dd><p>For <code>growFromRoot</code>, a single positive integer giving the number of grow-from-root sweeps run in place (default <code>2L</code>). Each sweep rebuilds every tree in the forest against the current residual, so a small handful reaches a good fit.</p></dd>
+
   <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Extra arguments to <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></code>.</p></dd>
 
@@ -246,6 +251,7 @@
 <p></p><div class="section">
 <h3 id="warm-starts">Warm starts<a class="anchor" aria-label="anchor" href="#warm-starts"></a></h3>
 <p><code>installTrees</code> seeds the sampler's forests from a <code>donor</code> instead of drawing trees from the prior, for scaling to more chains or embedding a fit in a larger sampler. Only the donor's trees, <code>sigma</code>, and <code>k</code> transfer; each chain keeps its own random-number stream and redraws everything else, so several chains seeded from one donor stay overdispersed. A donor with a different tree count, cut grid, or DART setting is refused rather than silently reshaped. A warm start biases the early draws toward the donor, so it shortens burn-in rather than removing it; keep drawing a non-zero number of burn-in samples before treating the chain as converged.</p>
+<p><code>growFromRoot</code> instead builds the sampler's initial forest by XBART-style root-down stochastic tree construction (He, Yalov and Hahn 2019): each of <code>n.sweeps</code> sweeps rebuilds every tree from the root, sampling each split from the integrated-likelihood weight of every candidate cut under the tree prior. This reaches a good fit in far fewer sweeps than the exact sampler, so it is a fast starting point rather than a posterior sampler - the exact MCMC sweeps own stationarity once <code>run</code> begins, and the posterior is unchanged. It is available for the constant-leaf model only; <code>linear</code> and <code>gp</code> node priors initialize with <code>sampleTreesFromPrior</code> instead. As with <code>installTrees</code>, the grown forest biases the early draws toward its fit, so shorten burn-in rather than skipping it. Each chain grows on its own random-number stream, so the result is independent of <code>n.threads</code>. A composable cross-sampler workflow follows for free: <code>donor$growFromRoot(k)</code> then <code>target$installTrees(donor)</code>.</p>
 </div>
 
     </div>

@@ -47,6 +47,7 @@ bart2(
     proposal.probs = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
+    n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft"),
     missing = c("incorporate", "error"),
@@ -352,6 +353,22 @@ residuals(object, type = "ev", ...)
   See
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `installTrees` method for finer control.
+
+- n.grow.sweeps:
+
+  `bart2` only. A non-negative integer; when positive, the initial
+  forest is built by `n.grow.sweeps` sweeps of XBART-style
+  grow-from-root (He, Yalov and Hahn 2019) instead of a draw from the
+  prior, an init-then-refine workflow that reaches a good fit in far
+  fewer sweeps before the exact sampler takes over. The default `0L`
+  draws trees from the prior, exactly as before. Like `warm.start`, a
+  grow-from-root start biases the early draws toward the grown fit, so
+  it shortens burn-in rather than removing it; keep a non-zero (if
+  smaller) `n.burn`. The posterior the sampler targets is unchanged -
+  only the starting point moves. Constant-leaf models only, and mutually
+  exclusive with `warm.start` (both request an initialization). See
+  [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
+  `growFromRoot` method.
 
 - factors, family, missing:
 
@@ -810,7 +827,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.225133
+#> total seconds in loop: 0.232290
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -876,7 +893,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001319
+#> total seconds in loop: 0.001326
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

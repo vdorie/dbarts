@@ -16,6 +16,8 @@ sampleTreesFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
 sampleNodeParametersFromPrior(updateState = NA)
 # S4 method for class 'dbartsSampler'
+growFromRoot(n.sweeps = 2L, updateState = FALSE)
+# S4 method for class 'dbartsSampler'
 copy(shallow = FALSE)
 # S4 method for class 'dbartsSampler'
 show()
@@ -289,6 +291,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   saved trees when it kept them, else its final trees per chain). `NULL`
   spreads the chains evenly across the pool.
 
+- n.sweeps:
+
+  For `growFromRoot`, a single positive integer giving the number of
+  grow-from-root sweeps run in place (default `2L`). Each sweep rebuilds
+  every tree in the forest against the current residual, so a small
+  handful reaches a good fit.
+
 - ...:
 
   Extra arguments to
@@ -334,6 +343,22 @@ setting is refused rather than silently reshaped. A warm start biases
 the early draws toward the donor, so it shortens burn-in rather than
 removing it; keep drawing a non-zero number of burn-in samples before
 treating the chain as converged.
+
+`growFromRoot` instead builds the sampler's initial forest by
+XBART-style root-down stochastic tree construction (He, Yalov and Hahn
+2019): each of `n.sweeps` sweeps rebuilds every tree from the root,
+sampling each split from the integrated-likelihood weight of every
+candidate cut under the tree prior. This reaches a good fit in far fewer
+sweeps than the exact sampler, so it is a fast starting point rather
+than a posterior sampler - the exact MCMC sweeps own stationarity once
+`run` begins, and the posterior is unchanged. It is available for the
+constant-leaf model only; `linear` and `gp` node priors initialize with
+`sampleTreesFromPrior` instead. As with `installTrees`, the grown forest
+biases the early draws toward its fit, so shorten burn-in rather than
+skipping it. Each chain grows on its own random-number stream, so the
+result is independent of `n.threads`. A composable cross-sampler
+workflow follows for free: `donor$growFromRoot(k)` then
+`target$installTrees(donor)`.
 
 ## Value
 
