@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -391,10 +392,15 @@ public:
   static constexpr bool useAtomSuffstatSource =
     leafIsConstant && (BARTCORE_BLOCK_FUSION != 0);
 
-  /// The n-adaptive default sub-sweep width (docs/design/block-fusion.md). A
-  /// stub returning 1 until the fused interior is bitwise-ready; the larger
-  /// widths engage only then.
+  /// The n-adaptive default sub-sweep width (docs/design/block-fusion.md).
+  /// Base is 1 (Stage A); the DBARTS_BLOCKSIZE dev override forces a fixed
+  /// width so the small-n equivalence and exact-posterior anchors can exercise
+  /// the b>1 path, whose n is below any size heuristic.
   static std::size_t defaultBlockSize(std::size_t /*numObservations*/) {
+    if (const char* forced = std::getenv("DBARTS_BLOCKSIZE")) {
+      const long v = std::strtol(forced, nullptr, 10);
+      if (v > 0) return static_cast<std::size_t>(v);
+    }
     return 1;
   }
 
