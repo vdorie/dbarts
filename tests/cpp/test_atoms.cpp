@@ -1424,6 +1424,429 @@ static void testAtomACacheCrossSweepFuzz(ext_rng* rng, int numSeeds) {
          reject[FOP_CHANGE], accept[FOP_SWAP], reject[FOP_SWAP]);
 }
 
+// ---------------------------------------------------------------------------
+// The joint b>1 atom-map fuzzer (docs/design/block-fusion.md 2.3, 4.1-4.5).
+// Drives birth/death/change/swap on
+// a BLOCK of b trees through the b>1 kernels (buildForBlock / splitAtomBlock /
+// mergeAtomsBlock / refreshSubtreeBlock / snapshotBlock+restoreBlock) and after
+// EVERY move checks the patched joint map against an independent from-scratch
+// buildForBlock rebuild: matching atom count, bitwise-equal A and G per atom,
+// matching leaf b-tuples, and an atomOf round-trip validated by RE-ROUTING each
+// observation through the b trees (so atomOf + leafTuple are checked against the
+// trees, not against the patch's own bookkeeping). A rejected move must restore
+// the map bitwise (snapshotBlock/restoreBlock). b=1 is untouched: none of this
+// runs at blockWidth == 1.
+
+// Independent oracle: patch M vs a fresh buildForBlock R, plus the routing
+// round-trip. Atom ids differ (M patches in place / regroups, R groups by
+// first appearance), so atoms are matched by their b-tuple, and A/G (which the
+// b>1 path makes order-free by aggregating over the sorted member set) compare
+// bitwise.
+static bool blockMapValid(AtomMap& M, AtomMap& R,
+                          const std::vector<const Tree*>& trees,
+                          const ColumnStore& store, size_t n) {
+  if (M.numAtoms != R.numAtoms) return false;
+  size_t b = M.blockWidth;
+  for (size_t c = 0; c < M.numAtoms; ++c) {
+    int r = -1;
+    for (size_t rr = 0; rr < R.numAtoms && r < 0; ++rr) {
+      bool same = true;
+      for (size_t k = 0; k < b; ++k)
+        if (M.leafOf(c, k) != R.leafOf(rr, k)) { same = false; break; }
+      if (same) r = static_cast<int>(rr);
+    }
+    if (r < 0) return false;
+    size_t rr = static_cast<size_t>(r);
+    if (!bitEqual(M.A[c], R.A[rr]) || !bitEqual(M.G[c], R.G[rr])) return false;
+    if (M.atomEnd[c] - M.atomBegin[c] != R.atomEnd[rr] - R.atomBegin[rr])
+      return false;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    uint32_t c = M.atomOf[i];
+    if (c >= M.numAtoms) return false;
+    bool inSlice = false;
+    for (size_t m = M.atomBegin[c]; m < M.atomEnd[c]; ++m)
+      if (M.members[m] == i) { inSlice = true; break; }
+    if (!inSlice) return false;
+    for (size_t k = 0; k < b; ++k)
+      if (M.leafOf(c, k) != trees[k]->findBottomNodeForObservation(store, i))
+        return false;
+  }
+  return true;
+}
+
+// Deep bitwise fingerprint a rejected b>1 move must leave untouched.
+struct BlockFingerprint {
+  size_t numAtoms = 0, blockWidth = 0;
+  std::vector<size_t> begin, end, membersBuf;
+  std::vector<int32_t> leaf;
+  std::vector<double> A, G, Q, S;
+  std::vector<uint32_t> atomOf;
+};
+
+static BlockFingerprint captureBlock(const AtomMap& m, size_t n) {
+  BlockFingerprint f;
+  f.numAtoms = m.numAtoms;
+  f.blockWidth = m.blockWidth;
+  f.begin.assign(m.atomBegin.begin(), m.atomBegin.begin() + m.numAtoms);
+  f.end.assign(m.atomEnd.begin(), m.atomEnd.begin() + m.numAtoms);
+  f.leaf.assign(m.leafTuple.begin(),
+                m.leafTuple.begin() + m.numAtoms * m.blockWidth);
+  f.A.assign(m.A.begin(), m.A.begin() + m.numAtoms);
+  f.G.assign(m.G.begin(), m.G.begin() + m.numAtoms);
+  f.Q.assign(m.Q.begin(), m.Q.begin() + m.numAtoms);
+  f.S.assign(m.S.begin(), m.S.begin() + m.numAtoms);
+  f.atomOf.assign(m.atomOf.begin(), m.atomOf.begin() + n);
+  f.membersBuf.assign(m.atomMembersOwned.begin(),
+                      m.atomMembersOwned.begin() + n);
+  return f;
+}
+
+static bool blockFingerprintsEqual(const BlockFingerprint& a,
+                                   const BlockFingerprint& b) {
+  if (a.numAtoms != b.numAtoms || a.blockWidth != b.blockWidth) return false;
+  if (a.begin != b.begin || a.end != b.end || a.leaf != b.leaf ||
+      a.atomOf != b.atomOf || a.membersBuf != b.membersBuf)
+    return false;
+  for (size_t i = 0; i < a.numAtoms; ++i)
+    if (!bitEqual(a.A[i], b.A[i]) || !bitEqual(a.G[i], b.G[i]) ||
+        !bitEqual(a.Q[i], b.Q[i]) || !bitEqual(a.S[i], b.S[i]))
+      return false;
+  return true;
+}
+
+// Assemble a block of b tree copies from the burned-in forest.
+static void makeBlock(const ConstantLeafSampler& sampler, size_t t0, size_t b,
+                      std::vector<Tree>& block,
+                      std::vector<const Tree*>& ptrs) {
+  block.clear();
+  for (size_t j = 0; j < b; ++j) block.push_back(sampler.chain(0).tree(t0 + j));
+  ptrs.clear();
+  for (Tree& t : block) ptrs.push_back(&t);
+}
+
+static bool checkAccept(AtomMap& map, const std::vector<const Tree*>& ptrs,
+                        const ColumnStore& store, size_t n, const double* g,
+                        const double* w) {
+  AtomMap rebuild;
+  rebuild.initialize(n);
+  rebuild.buildForBlock(ptrs, store, g, w);
+  return blockMapValid(map, rebuild, ptrs, store, n);
+}
+
+enum BlockOp { BOP_BIRTH, BOP_DEATH, BOP_CHANGE, BOP_SWAP, BOP_NUM };
+
+// One random move on block tree j through the b>1 kernels; returns false on the
+// first invariant break. Mirrors applyAndCheckRandomMove for the joint map.
+static bool applyBlockMove(std::vector<Tree>& block,
+                           const std::vector<const Tree*>& ptrs, AtomMap& map,
+                           const ColumnStore& store, size_t n, const double* g,
+                           const double* w, CGMTreePrior& prior, ext_rng* op,
+                           int opCount[BOP_NUM], int accept[BOP_NUM],
+                           int reject[BOP_NUM], int sd, int step) {
+  size_t b = block.size();
+  size_t j = ext_rng_simulateUnsignedIntegerUniformInRange(op, 0, b);
+  Tree& tree = block[j];
+  int chosen = static_cast<int>(
+    ext_rng_simulateUnsignedIntegerUniformInRange(op, 0, BOP_NUM));
+
+  std::vector<int32_t> bottoms, noGrand, notBottom, swappable, birthable;
+  tree.fillBottom(0, bottoms);
+  tree.fillNoGrand(0, noGrand);
+  tree.fillNotBottom(0, notBottom);
+  tree.fillSwappable(0, swappable);
+  for (int32_t leaf : bottoms)
+    if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
+  if (chosen == BOP_DEATH && noGrand.empty()) chosen = BOP_BIRTH;
+  if (chosen == BOP_SWAP && swappable.empty()) chosen = BOP_BIRTH;
+  if (chosen == BOP_CHANGE && notBottom.empty()) chosen = BOP_BIRTH;
+  if (chosen == BOP_BIRTH && birthable.empty()) {
+    if (!noGrand.empty()) chosen = BOP_DEATH; else return true;
+  }
+
+  BlockFingerprint before = captureBlock(map, n);
+  bool ok = true;
+  bool acc = ext_rng_simulateContinuousUniform(op) >= 0.4;
+
+  if (chosen == BOP_BIRTH) {
+    int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, birthable.size())];
+    size_t maskMark = tree.maskPoolMark();
+    Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
+    map.snapshotBlock(n);
+    tree.birthStructure(L, rule);
+    map.splitAtomBlock(tree, store, j, L, g, w);
+    ++opCount[BOP_BIRTH];
+    if (acc) {
+      ++accept[BOP_BIRTH];
+      ok = checkAccept(map, ptrs, store, n, g, w);
+      if (!ok) printf("FAIL: block-fuzz b=%zu seed %d step %d BIRTH j=%zu L=%d\n",
+                      b, sd, step, j, L);
+    } else {
+      tree.undoBirth(L);
+      tree.truncateMaskPool(maskMark);
+      map.restoreBlock(n);
+      ++reject[BOP_BIRTH];
+      ok = blockFingerprintsEqual(before, captureBlock(map, n));
+      if (!ok) printf("FAIL: block-fuzz b=%zu seed %d step %d BIRTH-reject\n", b,
+                      sd, step);
+    }
+  } else if (chosen == BOP_DEATH) {
+    int32_t P = noGrand[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, noGrand.size())];
+    int32_t L = tree.at(P).leftChild, R = L + 1;
+    Node savedP = tree.at(P);
+    map.snapshotBlock(n);
+    tree.at(P).leftChild = invalidNode;
+    map.mergeAtomsBlock(j, P, L, R, g, w);
+    ++opCount[BOP_DEATH];
+    if (acc) {
+      tree.releasePair(savedP.leftChild);
+      ++accept[BOP_DEATH];
+      ok = checkAccept(map, ptrs, store, n, g, w);
+      if (!ok) printf("FAIL: block-fuzz b=%zu seed %d step %d DEATH j=%zu P=%d\n",
+                      b, sd, step, j, P);
+    } else {
+      tree.at(P) = savedP;
+      map.restoreBlock(n);
+      ++reject[BOP_DEATH];
+      ok = blockFingerprintsEqual(before, captureBlock(map, n));
+      if (!ok) printf("FAIL: block-fuzz b=%zu seed %d step %d DEATH-reject\n", b,
+                      sd, step);
+    }
+  } else {  // change / swap
+    int32_t P;
+    Rule savedRule, savedChildRule;
+    int32_t swapChild = invalidNode;
+    size_t maskMark = tree.maskPoolMark();
+    if (chosen == BOP_CHANGE) {
+      P = notBottom[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, notBottom.size())];
+      if (!tree.hasAnyAvailableVariable(store, P)) return true;
+      savedRule = tree.at(P).rule;
+    } else {
+      P = swappable[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, swappable.size())];
+      int32_t l = tree.at(P).leftChild;
+      swapChild = !tree.at(l).isBottom() ? l : l + 1;
+      savedRule = tree.at(P).rule;
+      savedChildRule = tree.at(swapChild).rule;
+    }
+    map.snapshotBlock(n);
+    if (chosen == BOP_CHANGE) {
+      tree.at(P).rule = prior.drawRuleAndVariable(tree, store, op, P);
+      ++opCount[BOP_CHANGE];
+    } else {
+      tree.at(P).rule = savedChildRule;
+      tree.at(swapChild).rule = savedRule;
+      ++opCount[BOP_SWAP];
+    }
+    map.refreshSubtreeBlock(tree, store, j, P, g, w);
+    if (acc) {
+      ++accept[chosen];
+      ok = checkAccept(map, ptrs, store, n, g, w);
+      if (!ok)
+        printf("FAIL: block-fuzz b=%zu seed %d step %d %s j=%zu P=%d\n", b, sd,
+               step, chosen == BOP_CHANGE ? "CHANGE" : "SWAP", j, P);
+    } else {
+      tree.at(P).rule = savedRule;
+      if (chosen == BOP_SWAP) tree.at(swapChild).rule = savedChildRule;
+      tree.truncateMaskPool(maskMark);
+      map.restoreBlock(n);
+      ++reject[chosen];
+      ok = blockFingerprintsEqual(before, captureBlock(map, n));
+      if (!ok)
+        printf("FAIL: block-fuzz b=%zu seed %d step %d %s-reject\n", b, sd, step,
+               chosen == BOP_CHANGE ? "CHANGE" : "SWAP");
+    }
+  }
+  return ok;
+}
+
+static void testBlockMoveFuzz(ext_rng* rng, int numSeeds) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+  CGMTreePrior prior;
+  std::vector<double> g(nObs), w(nObs);
+
+  bool ok = true;
+  size_t bs[] = {2, 4};
+  int opCount[BOP_NUM] = {0, 0, 0, 0};
+  int accept[BOP_NUM] = {0, 0, 0, 0};
+  int reject[BOP_NUM] = {0, 0, 0, 0};
+
+  ext_rng* op = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (size_t bi = 0; bi < 2 && ok; ++bi) {
+    size_t b = bs[bi];
+    for (int sd = 0; sd < numSeeds && ok; ++sd) {
+      ext_rng_setSeed(op, 91193u + static_cast<uint_least32_t>(sd) * 2654435761u +
+                            static_cast<uint_least32_t>(b) * 40503u);
+      bool weighted = (sd % 3) == 0;
+      for (double& v : g) v = 2.0 * ext_rng_simulateContinuousUniform(op) - 1.0;
+      if (weighted)
+        for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(op);
+      const double* weights = weighted ? w.data() : nullptr;
+
+      size_t t0 = (static_cast<size_t>(sd) * b) % (numTrees - b + 1);
+      std::vector<Tree> block;
+      std::vector<const Tree*> ptrs;
+      makeBlock(*sampler, t0, b, block, ptrs);
+
+      AtomMap map;
+      map.initialize(nObs);
+      map.buildForBlock(ptrs, store, g.data(), weights);
+      // the joint map must be non-trivial for the coordinate slicing to bite
+      if (map.numAtoms < 2) continue;
+
+      for (int step = 0; step < 30 && ok; ++step)
+        ok &= applyBlockMove(block, ptrs, map, store, nObs, g.data(), weights,
+                             prior, op, opCount, accept, reject, sd, step);
+    }
+  }
+  ext_rng_destroy(op);
+
+  check(ok, "b>1 fuzzer: joint map matches from-scratch rebuild after every move");
+  check(accept[BOP_BIRTH] > 0 && accept[BOP_DEATH] > 0 &&
+        accept[BOP_CHANGE] > 0 && accept[BOP_SWAP] > 0,
+        "b>1 fuzzer: every move type accepted at least once");
+  check(reject[BOP_BIRTH] > 0 && reject[BOP_DEATH] > 0 &&
+        reject[BOP_CHANGE] > 0 && reject[BOP_SWAP] > 0,
+        "b>1 fuzzer: every move type rejected (restored) at least once");
+  printf("ok: atom b>1 move fuzzer (b in {2,4}, %d seeds/b; birth %d/%d death "
+         "%d/%d change %d/%d swap %d/%d accept/reject)\n",
+         numSeeds, accept[BOP_BIRTH], reject[BOP_BIRTH], accept[BOP_DEATH],
+         reject[BOP_DEATH], accept[BOP_CHANGE], reject[BOP_CHANGE],
+         accept[BOP_SWAP], reject[BOP_SWAP]);
+}
+
+// The oracle must bite: a deliberately-corrupted joint map must fail
+// blockMapValid, and a corrupted atomOf must fail it too - proving the rebuild
+// comparison and the routing round-trip are load-bearing (a wrong splitAtomBlock
+// A, or a wrong leafTuple/atomOf, diverges exactly the same way).
+static void testBlockMapSabotage(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  std::vector<double> g(nObs);
+  for (double& v : g) v = 2.0 * runif01() - 1.0;
+
+  std::vector<Tree> block;
+  std::vector<const Tree*> ptrs;
+  makeBlock(*sampler, 0, 4, block, ptrs);
+
+  AtomMap map;
+  map.initialize(nObs);
+  map.buildForBlock(ptrs, store, g.data(), nullptr);
+  check(map.numAtoms >= 2, "sabotage: joint map built with several atoms");
+
+  AtomMap rebuild;
+  rebuild.initialize(nObs);
+  rebuild.buildForBlock(ptrs, store, g.data(), nullptr);
+  check(blockMapValid(map, rebuild, ptrs, store, nObs),
+        "sabotage: a clean joint map is valid");
+
+  double savedG = map.G[0];
+  map.G[0] = savedG + 1.0;
+  AtomMap rebuild2;
+  rebuild2.initialize(nObs);
+  rebuild2.buildForBlock(ptrs, store, g.data(), nullptr);
+  check(!blockMapValid(map, rebuild2, ptrs, store, nObs),
+        "sabotage: a perturbed atom G fails the rebuild oracle");
+  map.G[0] = savedG;
+
+  uint32_t savedAtom = map.atomOf[0];
+  map.atomOf[0] = (savedAtom + 1u) % static_cast<uint32_t>(map.numAtoms);
+  AtomMap rebuild3;
+  rebuild3.initialize(nObs);
+  rebuild3.buildForBlock(ptrs, store, g.data(), nullptr);
+  check(!blockMapValid(map, rebuild3, ptrs, store, nObs),
+        "sabotage: a perturbed atomOf fails the routing round-trip");
+  map.atomOf[0] = savedAtom;
+  printf("ok: atom b>1 map sabotage guard\n");
+}
+
+// The b>1 A cache (atom-keyed, validated against the OWNED member slice) and the
+// S carry over the b block trees. A warm map serves every atom on re-aggregation
+// with a byte-identical A; reordering ONE atom's owned slice invalidates exactly
+// that atom (proving the memcmp reads atomMembersOwned, not tree.indices); and
+// setInBlockFitsBlock lands S(c) = sum over the b trees' fits on the atom.
+static void testBlockACacheAndSCarry(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  std::vector<double> g(nObs);
+  for (double& v : g) v = 2.0 * runif01() - 1.0;
+
+  const size_t b = 3;
+  std::vector<Tree> block;
+  std::vector<const Tree*> ptrs;
+  makeBlock(*sampler, 0, b, block, ptrs);
+
+  AtomMap map;
+  map.initialize(nObs);
+  map.buildForBlock(ptrs, store, g.data(), nullptr);  // cold: misses every atom
+  size_t K = map.numAtoms;
+  check(K >= 2, "b>1 A cache: joint map built");
+  check(map.aCacheMisses == K && map.aCacheHits == 0,
+        "b>1 A cache: cold build misses every atom");
+
+  // re-aggregate the unchanged map: every atom's owned slice matches -> hits,
+  // and the served A is byte-identical to the fresh kernel mass
+  size_t h = map.aCacheHits, m = map.aCacheMisses;
+  bool served = true;
+  for (uint32_t c = 0; c < K; ++c) {
+    double fresh = map.A[c];
+    map.aggregateAtomBlock(g.data(), nullptr, c);
+    served &= bitEqual(map.A[c], fresh);
+  }
+  check(served && (map.aCacheHits - h) == K && (map.aCacheMisses - m) == 0,
+        "b>1 A cache: unchanged owned slices all hit, served A byte-identical");
+
+  // reorder one atom's owned member slice: same set, different owned list ->
+  // that atom's memcmp against atomMembersOwned must miss (the gate reads the
+  // owned buffer, not tree.indices), the others still hit
+  uint32_t target = 0;
+  for (uint32_t c = 0; c < K; ++c)
+    if (map.atomEnd[c] - map.atomBegin[c] >= 2) { target = c; break; }
+  std::swap(map.atomMembersOwned[map.atomBegin[target]],
+            map.atomMembersOwned[map.atomBegin[target] + 1]);
+  h = map.aCacheHits;
+  m = map.aCacheMisses;
+  for (uint32_t c = 0; c < K; ++c) map.aggregateAtomBlock(g.data(), nullptr, c);
+  check((map.aCacheMisses - m) == 1 && (map.aCacheHits - h) == (K - 1),
+        "b>1 A cache: an owned-slice reorder invalidates exactly that atom");
+
+  // S carry: S(c) = sum over the b block trees of the tree's fit on the atom's
+  // leaf. Use per-node params = the node id, so the expected sum is closed-form.
+  std::vector<std::vector<double>> paramByTree(b);
+  for (size_t j = 0; j < b; ++j) {
+    paramByTree[j].assign(block[j].nodes.size(), 0.0);
+    for (size_t node = 0; node < block[j].nodes.size(); ++node)
+      paramByTree[j][node] = 0.5 + static_cast<double>(node);
+  }
+  map.setInBlockFitsBlock(paramByTree);
+  bool sOk = true;
+  for (uint32_t c = 0; c < K; ++c) {
+    double expected = 0.0;
+    for (size_t j = 0; j < b; ++j)
+      expected += paramByTree[j][static_cast<size_t>(map.leafOf(c, j))];
+    sOk &= bitEqual(map.S[c], expected);
+  }
+  check(sOk, "b>1 S carry: S(c) sums the b block trees' fits on the atom");
+  printf("ok: atom b>1 A-cache + S-carry (%zu atoms, b=%zu)\n", K, b);
+}
+
 void runAtomsTests(ext_rng* rng) {
   testAtomBuildStump();
   testAtomBuildEmptyLeaf();
@@ -1442,4 +1865,7 @@ void runAtomsTests(ext_rng* rng) {
   testAtomACacheInvalidationPrecision(rng);
   testAtomACacheSabotage(rng);
   testAtomACacheCrossSweepFuzz(rng, 24);
+  testBlockMoveFuzz(rng, 24);
+  testBlockMapSabotage(rng);
+  testBlockACacheAndSCarry(rng);
 }
