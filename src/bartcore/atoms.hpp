@@ -1,6 +1,7 @@
 #ifndef BARTCORE_ATOMS_HPP
 #define BARTCORE_ATOMS_HPP
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -388,6 +389,203 @@ struct AtomMap {
     leafTuple[parent] = undo_.leaf;
     for (std::size_t obs : undo_.movedMembers) atomOf[obs] = parent;
     numAtoms = undo_.numAtomsBefore;
+  }
+
+  /// Remove atom `slot` by swapping the last live atom into its place so
+  /// [0, numAtoms) stays dense. Atom ids are matched by leaf, never by index
+  /// (the fuzzer's mapMatchesRebuild keys on leafTuple), so any dense filling is
+  /// legal; swap-and-pop keeps it O(moved-atom members) and repoints the moved
+  /// atom's atomOf entries. Used only on the death merge path.
+  void removeAtomSlot(std::uint32_t slot) {
+    std::uint32_t last = static_cast<std::uint32_t>(numAtoms - 1);
+    if (slot != last) {
+      A[slot] = A[last];
+      G[slot] = G[last];
+      Q[slot] = Q[last];
+      S[slot] = S[last];
+      leafTuple[slot] = leafTuple[last];
+      atomBegin[slot] = atomBegin[last];
+      atomEnd[slot] = atomEnd[last];
+      for (std::size_t k = atomBegin[slot]; k < atomEnd[slot]; ++k)
+        atomOf[members[k]] = slot;
+    }
+    --numAtoms;
+  }
+
+  /// Merge the death target's two child atoms back into one parent atom,
+  /// mirroring Tree::orphanChildren at the SoA level (block-fusion-stage-a.md
+  /// 1.4, pin 5). orphanChildren already forms the parent NODE cache as
+  /// left + right of the (atom-written) child caches, so the cache math is left
+  /// UNCHANGED and the sweep's death scoring is untouched; this patches ONLY the
+  /// atom SoA topology: the two child atoms become one parent atom whose
+  /// (A, G, Q) are the children's summed LEFT-then-RIGHT (pin 5, so the SoA
+  /// matches the orphaned cache bitwise), leafTuple/begin/end track the parent
+  /// leaf, atomOf follows the merged members, and the vacated right slot is
+  /// filled by the last atom so [0, numAtoms) stays dense.
+  ///
+  /// The design carries A, G additively across a death (block-fusion.md 4.1); a
+  /// from-scratch full-slice rescan would regroup the kernel's mod-5 sum and
+  /// round differently, so the merged atom is intentionally NON-canonical until
+  /// the next block-entry rebuild re-scans it - exactly as the node cache is.
+  ///
+  /// `leftChildNode` is the death target's pre-orphan left child (right =
+  /// leftChildNode + 1); the caller passes it because orphanChildren has already
+  /// detached the pair (tree.at(parentNode).leftChild == invalidNode).
+  void mergeAtoms(Tree& tree, std::int32_t parentNode,
+                  std::int32_t leftChildNode) {
+    std::uint32_t leftAtom = atomForLeaf(leftChildNode);
+    std::uint32_t rightAtom = atomForLeaf(leftChildNode + 1);
+    // A chain-state death target has two non-empty leaf children, so both atoms
+    // exist; tolerate a degenerate empty child defensively.
+    if (leftAtom == invalidAtom && rightAtom == invalidAtom) return;
+    if (leftAtom == invalidAtom) {  // only the right child held members
+      leftAtom = rightAtom;
+      rightAtom = invalidAtom;
+    }
+
+    std::uint32_t keep = leftAtom;
+    if (rightAtom != invalidAtom) {
+      A[keep] = A[keep] + A[rightAtom];  // left + right (pin 5); explicit order
+      G[keep] = G[keep] + G[rightAtom];
+      Q[keep] = Q[keep] + Q[rightAtom];
+    }
+    const Node& parent(tree.at(parentNode));
+    leafTuple[keep] = parentNode;
+    atomBegin[keep] = parent.begin;
+    atomEnd[keep] = parent.end;
+    for (std::size_t k = parent.begin; k < parent.end; ++k)
+      atomOf[members[k]] = keep;
+    if (rightAtom != invalidAtom) removeAtomSlot(rightAtom);
+  }
+
+  /// Rollback record for one pending change/swap subtree refresh (mirrors
+  /// Tree::SubtreeSnapshot for the SoA). snapshotSubtree fills it before the
+  /// rule mutates; restoreSubtree memcpys the SoA + the subtree's atomOf back so
+  /// a rejected change/swap leaves the map byte-for-byte as it was. The full
+  /// per-atom SoA is captured (K is #leaves, tiny) so an appended transient atom
+  /// or a swap-and-pop is undone unconditionally; atomOf is captured only over
+  /// the subtree's obs, keyed by obs id so the restore is independent of whether
+  /// the tree's own index buffer has been restored yet.
+  struct SubtreeUndo {
+    bool active = false;
+    std::size_t numAtoms = 0;
+    std::vector<double> A, G, Q, S;
+    std::vector<std::size_t> begin, end;
+    std::vector<std::int32_t> leafTuple;
+    std::vector<std::size_t> obsList;    // subtree obs, pre-move
+    std::vector<std::uint32_t> obsAtom;  // atomOf of each subtree obs, pre-move
+  } subtreeUndo_;
+
+  /// Snapshot the SoA + the subtree's atomOf before a change/swap mutates the
+  /// rule, so a rejected move restores via restoreSubtree. Call BEFORE setting
+  /// the new rule / running refreshSubtree.
+  void snapshotSubtree(const Tree& tree, std::int32_t subtreeRoot) {
+    subtreeUndo_.active = true;
+    subtreeUndo_.numAtoms = numAtoms;
+    subtreeUndo_.A.assign(A.begin(), A.begin() + numAtoms);
+    subtreeUndo_.G.assign(G.begin(), G.begin() + numAtoms);
+    subtreeUndo_.Q.assign(Q.begin(), Q.begin() + numAtoms);
+    subtreeUndo_.S.assign(S.begin(), S.begin() + numAtoms);
+    subtreeUndo_.begin.assign(atomBegin.begin(), atomBegin.begin() + numAtoms);
+    subtreeUndo_.end.assign(atomEnd.begin(), atomEnd.begin() + numAtoms);
+    subtreeUndo_.leafTuple.assign(leafTuple.begin(),
+                                  leafTuple.begin() + numAtoms);
+    const Node& root(tree.at(subtreeRoot));
+    subtreeUndo_.obsList.clear();
+    subtreeUndo_.obsAtom.clear();
+    for (std::size_t k = root.begin; k < root.end; ++k) {
+      std::size_t obs = members[k];
+      subtreeUndo_.obsList.push_back(obs);
+      subtreeUndo_.obsAtom.push_back(atomOf[obs]);
+    }
+  }
+
+  /// Restore the SoA + subtree atomOf a rejected change/swap saved. Any atom
+  /// appended by a transient empty->non-empty leaf is discarded by resetting
+  /// numAtoms; the [0, numAtoms) prefix is copied back bitwise. Independent of
+  /// the tree's own index-buffer restore (atomOf is keyed by obs id), so the two
+  /// may run in either order.
+  void restoreSubtree() {
+    if (!subtreeUndo_.active) return;
+    subtreeUndo_.active = false;
+    numAtoms = subtreeUndo_.numAtoms;
+    std::copy(subtreeUndo_.A.begin(), subtreeUndo_.A.end(), A.begin());
+    std::copy(subtreeUndo_.G.begin(), subtreeUndo_.G.end(), G.begin());
+    std::copy(subtreeUndo_.Q.begin(), subtreeUndo_.Q.end(), Q.begin());
+    std::copy(subtreeUndo_.S.begin(), subtreeUndo_.S.end(), S.begin());
+    std::copy(subtreeUndo_.begin.begin(), subtreeUndo_.begin.end(),
+              atomBegin.begin());
+    std::copy(subtreeUndo_.end.begin(), subtreeUndo_.end.end(), atomEnd.begin());
+    std::copy(subtreeUndo_.leafTuple.begin(), subtreeUndo_.leafTuple.end(),
+              leafTuple.begin());
+    for (std::size_t j = 0; j < subtreeUndo_.obsList.size(); ++j)
+      atomOf[subtreeUndo_.obsList[j]] = subtreeUndo_.obsAtom[j];
+  }
+
+  /// Re-slice + re-aggregate one leaf's atom and write its node suffstat cache.
+  /// A non-empty leaf keeps (or, for a previously-empty leaf turning non-empty
+  /// in a to-be-rejected proposal, gains) exactly one atom over its current
+  /// slice, aggregated through the same kernel computeLeafStats picks. An empty
+  /// leaf holds no live atom: it gets a forced 0/0/0 cache (byte-identical to
+  /// computeLeafStats over a zero-length slice) and any pre-existing atom is
+  /// collapsed to a zero-length slice (never removed, so the change stays
+  /// confined to the subtree and a later restore finds the slot intact). In a
+  /// valid ACCEPTED change/swap every leaf is non-empty before and after, so
+  /// this neither creates nor collapses - each subtree leaf is simply re-sliced.
+  void refreshLeafAtom(Tree& tree, const double* g, const double* weights,
+                       std::int32_t leafNode) {
+    Node& node(tree.at(leafNode));
+    std::uint32_t c = atomForLeaf(leafNode);
+    if (node.numObservations() == 0) {
+      node.sumWeights = 0.0;
+      node.sumWeightedResponse = 0.0;
+      node.sumWeightedResponseSq = 0.0;
+      if (c != invalidAtom) bindAtomToLeaf(tree, g, weights, c, leafNode);
+      return;
+    }
+    if (c == invalidAtom) {
+      c = static_cast<std::uint32_t>(numAtoms);
+      ensureAtomCapacity(numAtoms + 1);
+      ++numAtoms;
+      S[c] = 0.0;
+    }
+    bindAtomToLeaf(tree, g, weights, c, leafNode);
+    writeAtomCache(tree, c);
+    for (std::size_t k = node.begin; k < node.end; ++k) atomOf[members[k]] = c;
+  }
+
+  /// The DFS half of AtomMap::refreshSubtree: partition each internal node with
+  /// the tree's OWN partitionChildren, then recurse LEFT then RIGHT, aggregating
+  /// each bottom node's atom on the way down (pin 6). The call sequence is a
+  /// byte-for-byte mirror of Tree::refreshSubtree, so the index-buffer
+  /// permutation - and hence every leaf's member order and the kernel sum over
+  /// it - is identical to the live path.
+  void refreshSubtreeRec(Tree& tree, const ColumnStore& data, const double* g,
+                         const double* weights, std::int32_t node) {
+    if (tree.at(node).isBottom()) {
+      refreshLeafAtom(tree, g, weights, node);
+      return;
+    }
+    tree.partitionChildren(data, node);
+    std::int32_t left = tree.at(node).leftChild;
+    refreshSubtreeRec(tree, data, g, weights, left);
+    refreshSubtreeRec(tree, data, g, weights, left + 1);
+  }
+
+  /// Repartition and re-aggregate the atoms of the subtree rooted at
+  /// `subtreeRoot` after its rule changed (change/swap), mirroring
+  /// Tree::refreshSubtree's DFS EXACTLY (block-fusion-stage-a.md 3(v), pin 6):
+  /// the tree's own partitionChildren re-routes the members (DESIGN A: members
+  /// alias tree.indices, so the tree partition IS the atom member partition; no
+  /// second partitioner is forked), and each leaf's (A, G, Q) is re-aggregated
+  /// through the same kernel and written into its node cache - byte-for-byte
+  /// Tree::refreshSubtree's computeLeafStats, so change/swap scoring and the
+  /// draw read identical inputs and the equivalence anchor holds. This REPLACES
+  /// tree.refreshSubtree under the flag; running both would partition twice and
+  /// scramble the member order. Snapshot with snapshotSubtree first.
+  void refreshSubtree(Tree& tree, const ColumnStore& data, const double* g,
+                      const double* weights, std::int32_t subtreeRoot) {
+    refreshSubtreeRec(tree, data, g, weights, subtreeRoot);
   }
 };
 

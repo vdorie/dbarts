@@ -44,8 +44,12 @@ struct MoveContext {
   MoveScratch& scratch;
   /// Block-fusion atom map for the constant-leaf sweep, or null when the atom
   /// path is off (the default) or the leaf model is not constant. When set,
-  /// birth sources its child suffstats from AtomMap::splitAtom instead of the
-  /// live computeLeafStats, and a rejected birth rolls the split back.
+  /// every structural move maintains the map in atom terms: birth sources its
+  /// child suffstats from AtomMap::splitAtom, death merges the child atoms
+  /// (mergeAtoms), and change/swap re-slice the subtree (refreshSubtree), each
+  /// producing node caches bitwise-identical to the live computeLeafStats/
+  /// orphanChildren path; a rejected move rolls the SoA back (undoSplit /
+  /// restoreSubtree, or no-op for death, which only mutates the SoA on accept).
   AtomMap* atomMap = nullptr;
 };
 
@@ -279,6 +283,12 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     if (ext_rng_simulateContinuousUniform(rng) < ratio) {
       tree.releasePair(oldNode.leftChild);
+      // Block-fusion atom path: orphanChildren already formed the parent NODE
+      // cache additively (unchanged, so death scoring stayed bitwise); merge the
+      // two child atoms into one parent atom so the map stays live. SoA-only, no
+      // RNG, no cache write - the sweep is unaffected.
+      if (ctx.atomMap != nullptr)
+        ctx.atomMap->mergeAtoms(tree, nodeToChange, oldNode.leftChild);
       *stepTaken = true;
     } else {
       tree.at(nodeToChange) = oldNode;  // reattaches children unchanged
@@ -523,7 +533,18 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   tree.snapshotSubtree(nodeToChange, ctx.scratch.snapshot);
 
   tree.at(nodeToChange).rule = newRule;
-  tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
+  // Block-fusion atom path: AtomMap::refreshSubtree does the SAME DFS partition
+  // as tree.refreshSubtree (DESIGN A reuses the tree's own partitionChildren)
+  // and writes the leaf caches from the re-aggregated atom SoA, bitwise the live
+  // computeLeafStats. It REPLACES tree.refreshSubtree (running both would
+  // partition twice and scramble the member order); the atom snapshot rolls the
+  // SoA back on rejection alongside tree.restoreSubtree.
+  if (ctx.atomMap != nullptr) {
+    ctx.atomMap->snapshotSubtree(tree, nodeToChange);
+    ctx.atomMap->refreshSubtree(tree, ctx.data, y, ctx.weights, nodeToChange);
+  } else {
+    tree.refreshSubtree(ctx.data, nodeToChange, y, ctx.weights);
+  }
 
   double belowY =
     ctx.treePrior.treeLogProbability(tree, ctx.data, leftChild) +
@@ -538,6 +559,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
     *stepTaken = true;
   } else {
     tree.restoreSubtree(ctx.scratch.snapshot);
+    if (ctx.atomMap != nullptr) ctx.atomMap->restoreSubtree();
     tree.truncateMaskPool(maskPoolMark);
   }
   return alpha;
@@ -707,7 +729,14 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
     tree.at(parent).rule = childRule;
     tree.at(child).rule = parentRule;
-    tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+    // atom path re-slices the swapped subtree (same DFS + kernel as the live
+    // refreshSubtree, so caches are bitwise) and rolls the SoA back on reject
+    if (ctx.atomMap != nullptr) {
+      ctx.atomMap->snapshotSubtree(tree, parent);
+      ctx.atomMap->refreshSubtree(tree, ctx.data, y, ctx.weights, parent);
+    } else {
+      tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+    }
 
     double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
@@ -719,6 +748,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
       *stepTaken = true;
     } else {
       tree.restoreSubtree(ctx.scratch.snapshot);
+      if (ctx.atomMap != nullptr) ctx.atomMap->restoreSubtree();
     }
   } else {
     // both children share a rule: swap it with the parent's in both
@@ -746,7 +776,12 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
     tree.at(parent).rule = childRule;
     tree.at(leftChild).rule = parentRule;
     tree.at(rightChild).rule = parentRule;
-    tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+    if (ctx.atomMap != nullptr) {
+      ctx.atomMap->snapshotSubtree(tree, parent);
+      ctx.atomMap->refreshSubtree(tree, ctx.data, y, ctx.weights, parent);
+    } else {
+      tree.refreshSubtree(ctx.data, parent, y, ctx.weights);
+    }
 
     double yLogPi = ctx.treePrior.treeLogProbability(tree, ctx.data, parent);
     double yLogL = logLikelihoodForBranch(ctx, leaf, tree, parent, y, sigma);
@@ -758,6 +793,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
       *stepTaken = true;
     } else {
       tree.restoreSubtree(ctx.scratch.snapshot);
+      if (ctx.atomMap != nullptr) ctx.atomMap->restoreSubtree();
     }
   }
 
