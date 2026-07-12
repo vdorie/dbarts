@@ -87,6 +87,12 @@ struct AtomMap {
   /// atom's leaf in block tree j).
   std::size_t blockWidth = 1;
 
+  /// True while the map is the fused joint map (buildForBlock, OWNED buffer).
+  /// The move hooks dispatch on THIS, not blockWidth > 1, so a single-tree fused
+  /// block still slices atomMembersOwned with the Block kernels rather than the
+  /// b=1 hooks, which assume `members` aliases tree.indices.
+  bool blockMode = false;
+
   /// Live atom count == non-empty-leaf count at b=1.
   std::size_t numAtoms = 0;
 
@@ -195,6 +201,7 @@ struct AtomMap {
     members = nullptr;
     atomMembersOwned.clear();
     blockWidth = 1;
+    blockMode = false;
     numAtoms = 0;
     clearACache();
     aCacheHits = 0;
@@ -221,6 +228,7 @@ struct AtomMap {
   /// tree.indices (DESIGN A). A/G/Q/S are left for aggregation.
   void buildForTree(const Tree& tree, const ColumnStore& data) {
     members = tree.indices;
+    blockMode = false;
     std::size_t n = data.numObservations;
     if (atomOf.size() != n) atomOf.assign(n, 0u);
 
@@ -420,6 +428,7 @@ struct AtomMap {
   void buildAggregateWrite(Tree& tree, const ColumnStore& data, const double* g,
                            const double* weights) {
     members = tree.indices;
+    blockMode = false;
     std::size_t n = data.numObservations;
     if (trackAtomOf && atomOf.size() != n) atomOf.assign(n, 0u);
 
@@ -519,8 +528,8 @@ struct AtomMap {
   /// weights (or null), matching the block-entry aggregateTree call.
   void splitAtom(Tree& tree, const ColumnStore& data, const double* g,
                  const double* weights, std::int32_t parentNode) {
-    if (blockWidth > 1) {
-      // b>1 birth: snapshot the whole joint map, slice the j coordinate of
+    if (blockMode) {
+      // fused birth: snapshot the whole joint map, slice the j coordinate of
       // every atom under the parent leaf, repartition the tree's OWN index
       // buffer (so the children's begin/end drive the empty-leaf veto and the
       // draw), then re-derive the affine child caches for the move scoring.
@@ -608,7 +617,7 @@ struct AtomMap {
   /// caches die with the released pair), so this touches only the SoA. Leaves
   /// the live map byte-for-byte as it was before splitAtom.
   void undoSplit() {
-    if (blockWidth > 1) { restoreBlock(interiorN_); return; }
+    if (blockMode) { restoreBlock(interiorN_); return; }
     if (!undo_.active) return;
     undo_.active = false;
     if (!undo_.hasParent) return;
@@ -668,8 +677,8 @@ struct AtomMap {
   /// detached the pair (tree.at(parentNode).leftChild == invalidNode).
   void mergeAtoms(Tree& tree, std::int32_t parentNode,
                   std::int32_t leftChildNode) {
-    if (blockWidth > 1) {
-      // b>1 death (accept only, like the b=1 path): orphanChildren has already
+    if (blockMode) {
+      // fused death (accept only, like the b=1 path): orphanChildren has already
       // summed the two child node caches into the parent's (their affine values
       // add exactly), so this only regroups the joint map's j coordinate back
       // onto the parent leaf for the draw + the next tree.
@@ -725,7 +734,7 @@ struct AtomMap {
   /// rule, so a rejected move restores via restoreSubtree. Call BEFORE setting
   /// the new rule / running refreshSubtree.
   void snapshotSubtree(const Tree& tree, std::int32_t subtreeRoot) {
-    if (blockWidth > 1) { snapshotBlock(interiorN_); return; }
+    if (blockMode) { snapshotBlock(interiorN_); return; }
     subtreeUndo_.active = true;
     subtreeUndo_.numAtoms = numAtoms;
     subtreeUndo_.A.assign(A.begin(), A.begin() + numAtoms);
@@ -755,7 +764,7 @@ struct AtomMap {
   /// the tree's own index-buffer restore (atomOf is keyed by obs id), so the two
   /// may run in either order.
   void restoreSubtree() {
-    if (blockWidth > 1) { restoreBlock(interiorN_); return; }
+    if (blockMode) { restoreBlock(interiorN_); return; }
     if (!subtreeUndo_.active) return;
     subtreeUndo_.active = false;
     numAtoms = subtreeUndo_.numAtoms;
@@ -837,8 +846,8 @@ struct AtomMap {
   /// scramble the member order. Snapshot with snapshotSubtree first.
   void refreshSubtree(Tree& tree, const ColumnStore& data, const double* g,
                       const double* weights, std::int32_t subtreeRoot) {
-    if (blockWidth > 1) {
-      // b>1 change/swap: repartition the tree's OWN index buffer for the new
+    if (blockMode) {
+      // fused change/swap: repartition the tree's OWN index buffer for the new
       // rule (structure only - the caches it would write are overwritten), then
       // re-route the affected observations through the j coordinate and rewrite
       // the affine caches for the move's new-state scoring. The whole-map
@@ -902,8 +911,9 @@ struct AtomMap {
   ///   sumWeightedResponse(L) = sum_{c in atoms(L)} [ G(c) - A(c) S_-j(c) ]
   /// where S_-j(c) = sum_{s != j} paramCur_[s][leafOf(c, s)] is the in-block fit
   /// of every OTHER block tree on the atom. sumWeightedResponseSq is forced 0
-  /// (fact 1.2: it cancels in every move ratio and is unused by the draw). This
-  /// equals the per-observation gather of (sum w, sum w*resid) over L in EXACT
+  /// (fact 1.2: it cancels in every move ratio and is unused by the draw; the
+  /// fused interior scores both sides of each ratio here, so Q is 0 on both).
+  /// This equals the per-observation gather of (sum w, sum w*resid) over L in EXACT
   /// arithmetic (G, A are exact partial sums), regrouped in floating point.
   ///
   /// MACHINE INDEPENDENCE (block-fusion.md 5): the per-leaf reduction is scalar
@@ -1051,6 +1061,7 @@ struct AtomMap {
                      const double* weights) {
     std::size_t n = data.numObservations;
     blockWidth = trees.size();
+    blockMode = true;
     obsTupleScratch_.assign(n * blockWidth, 0);
     for (std::size_t i = 0; i < n; ++i)
       for (std::size_t j = 0; j < blockWidth; ++j)

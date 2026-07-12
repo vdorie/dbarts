@@ -2129,6 +2129,247 @@ static void testBlockAffineIdentity(ext_rng* rng) {
   printf("ok: atom b>1 affine identity (b in {2,4}, max |diff| %.2e)\n", maxDiff);
 }
 
+// Independent per-observation affine gather for one leaf of block tree j:
+// (sum w, sum w*(g - S_-j)) over the observations tree j routes to `leaf`, where
+// S_-j(i) = sum_{s != j} paramCur[s][leaf_s(i)]. Purely structural (routes each
+// obs through the trees' rules, reads no map state), so it is an independent
+// oracle for the node caches the move hooks leave behind.
+static void affineGatherLeaf(const std::vector<Tree>& block, size_t j,
+                             int32_t leaf, const ColumnStore& store, size_t nObs,
+                             const double* g, const double* w,
+                             const std::vector<std::vector<double>>& paramCur,
+                             double* wRef, double* dRef) {
+  size_t b = block.size();
+  double W = 0.0, D = 0.0;
+  for (size_t i = 0; i < nObs; ++i) {
+    if (block[j].findBottomNodeForObservation(store, i) != leaf) continue;
+    double wi = w ? w[i] : 1.0;
+    double sOther = 0.0;
+    for (size_t s = 0; s < b; ++s)
+      if (s != j)
+        sOther += paramCur[s][static_cast<size_t>(
+          block[s].findBottomNodeForObservation(store, i))];
+    W += wi;
+    D += wi * (g[i] - sOther);
+  }
+  *wRef = W;
+  *dRef = D;
+}
+
+// Every non-empty leaf of block tree j must carry the affine suffstat the gather
+// implies (tolerance, not bitwise: the fused per-leaf sum groups the float add
+// differently from the index-order gather).
+static bool affineIdentityHolds(const std::vector<Tree>& block, size_t j,
+                                const ColumnStore& store, size_t nObs,
+                                const double* g, const double* w,
+                                const std::vector<std::vector<double>>& paramCur,
+                                double& maxDiff) {
+  std::vector<int32_t> leaves;
+  block[j].fillBottom(0, leaves);
+  bool ok = true;
+  for (int32_t leaf : leaves) {
+    if (block[j].at(leaf).numObservations() == 0) continue;
+    double wRef, dRef;
+    affineGatherLeaf(block, j, leaf, store, nObs, g, w, paramCur, &wRef, &dRef);
+    const Node& nd = block[j].at(leaf);
+    double dW = std::fabs(nd.sumWeights - wRef);
+    double dD = std::fabs(nd.sumWeightedResponse - dRef);
+    maxDiff = std::max(maxDiff, std::max(dW, dD));
+    if (dW > 1e-8 || dD > 1e-8) ok = false;
+  }
+  return ok;
+}
+
+// Affine identity UNDER MOVES - the gap the static test above missed and the one
+// the b>1 sub-sweep's shrinkage bug lived in. The static test only scores the
+// initial partition; the sweep reaches every proposed leaf's suffstat through the
+// move hooks (splitAtom / mergeAtoms / refreshSubtree), which run on the OWNED
+// buffer. A block of a SINGLE tree (a 1-tree forest, or a size-1 trailing block)
+// is fused too, and there the hooks must NOT fall back to the b=1 tree.indices
+// path: that reads the owned buffer with tree.indices offsets and writes garbage
+// child caches, so the move likelihood scores proposals against a wrong residual
+// and the forest under-splits. Drive accepted birth/death/change/swap through the
+// PUBLIC hooks (the same entry points moves.hpp calls) at b in {1, 2, 3} and after
+// each assert every leaf cache still equals the independent affine gather. b == 1
+// is the case that bites; reverting the blockMode dispatch to `blockWidth > 1`
+// fails this test at b == 1.
+enum FusedMove { FM_BIRTH, FM_DEATH, FM_CHANGE, FM_SWAP, FM_COUNT };
+static void testBlockAffineIdentityUnderMoves(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+  CGMTreePrior prior;
+
+  ext_rng* op = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  bool identOk = true;
+  double maxDiff = 0.0;
+  int accepts[FM_COUNT] = {0, 0, 0, 0};
+  size_t bs[] = {1, 2, 3};
+  for (size_t bi = 0; bi < 3 && identOk; ++bi) {
+    size_t b = bs[bi];
+    for (int sd = 0; sd < 8 && identOk; ++sd) {
+      ext_rng_setSeed(op, 91733u + static_cast<uint_least32_t>(sd) * 2654435761u +
+                            static_cast<uint_least32_t>(b) * 40503u);
+      bool weighted = (sd % 2) == 0;
+      std::vector<double> yv(nObs), wv(nObs);
+      for (double& v : yv) v = 2.0 * ext_rng_simulateContinuousUniform(op) - 1.0;
+      if (weighted)
+        for (double& v : wv) v = 0.1 + ext_rng_simulateContinuousUniform(op);
+      const double* weights = weighted ? wv.data() : nullptr;
+
+      size_t t0 = (static_cast<size_t>(sd) * b) % (numTrees - b + 1);
+      size_t j = static_cast<size_t>(sd) % b;
+      std::vector<Tree> block;
+      std::vector<const Tree*> ptrs;
+      makeBlock(*sampler, t0, b, block, ptrs);
+
+      // the block trees' current fits (paramCur) and the block-static field g
+      std::vector<std::vector<double>> paramCur(b);
+      std::vector<double> treeFits(b * nObs), F(nObs), g(nObs);
+      for (size_t s = 0; s < b; ++s) {
+        paramCur[s].assign(block[s].nodes.size(), 0.0);
+        for (double& v : paramCur[s])
+          v = ext_rng_simulateContinuousUniform(op) - 0.5;
+        for (size_t i = 0; i < nObs; ++i)
+          treeFits[s * nObs + i] = paramCur[s][static_cast<size_t>(
+            block[s].findBottomNodeForObservation(store, i))];
+      }
+      for (size_t i = 0; i < nObs; ++i) {
+        double inBlock = 0.0;
+        for (size_t s = 0; s < b; ++s) inBlock += treeFits[s * nObs + i];
+        F[i] = (3.0 * ext_rng_simulateContinuousUniform(op) - 1.5) + inBlock;
+      }
+      AtomMap::blockStaticField(yv.data(), weights, F.data(), treeFits.data(),
+                                nObs, 0, b, g.data(), nullptr);
+
+      AtomMap map;
+      map.initialize(nObs);
+      map.buildForBlock(ptrs, store, g.data(), weights);
+      map.paramCur_ = paramCur;
+      map.interiorG_ = g.data();
+      map.interiorWeights_ = weights;
+      map.interiorN_ = nObs;
+      map.interiorCoord_ = j;
+
+      Tree& tree = block[j];
+      map.writeAffineNodeCaches(tree, j);
+      if (!affineIdentityHolds(block, j, store, nObs, g.data(), weights, paramCur,
+                               maxDiff))
+        identOk = false;
+
+      for (int step = 0; step < 12 && identOk; ++step) {
+        std::vector<int32_t> bottoms, noGrand, notBottom, swappable, birthable;
+        tree.fillBottom(0, bottoms);
+        tree.fillNoGrand(0, noGrand);
+        tree.fillNotBottom(0, notBottom);
+        tree.fillSwappable(0, swappable);
+        for (int32_t leaf : bottoms)
+          if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
+
+        int chosen = step % FM_COUNT;
+        if (chosen == FM_DEATH && noGrand.empty()) chosen = FM_BIRTH;
+        if (chosen == FM_SWAP && swappable.empty()) chosen = FM_CHANGE;
+        if (chosen == FM_CHANGE && notBottom.empty()) chosen = FM_BIRTH;
+        if (chosen == FM_BIRTH && birthable.empty()) {
+          if (!noGrand.empty()) chosen = FM_DEATH; else continue;
+        }
+
+        if (chosen == FM_BIRTH) {
+          int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
+            op, 0, birthable.size())];
+          Node oldNode = tree.at(L);
+          size_t mark = tree.maskPoolMark();
+          Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
+          tree.birthStructure(L, rule);
+          map.splitAtom(tree, store, g.data(), weights, L);
+          int32_t left = tree.at(L).leftChild, right = left + 1;
+          if (tree.at(left).numObservations() == 0 ||
+              tree.at(right).numObservations() == 0) {
+            tree.undoBirth(L);
+            tree.truncateMaskPool(mark);
+            tree.at(L).sumWeights = oldNode.sumWeights;
+            tree.at(L).sumWeightedResponse = oldNode.sumWeightedResponse;
+            tree.at(L).sumWeightedResponseSq = oldNode.sumWeightedResponseSq;
+            map.undoSplit();
+          } else {
+            ++accepts[FM_BIRTH];
+            if (!affineIdentityHolds(block, j, store, nObs, g.data(), weights,
+                                     paramCur, maxDiff))
+              identOk = false;
+          }
+        } else if (chosen == FM_DEATH) {
+          int32_t P = noGrand[ext_rng_simulateUnsignedIntegerUniformInRange(
+            op, 0, noGrand.size())];
+          int32_t L = tree.at(P).leftChild;
+          tree.orphanChildren(P);
+          tree.releasePair(L);
+          map.mergeAtoms(tree, P, L);
+          ++accepts[FM_DEATH];
+          // the parent cache orphanChildren summed AND a fresh derive off the
+          // regrouped map must both satisfy the identity
+          if (!affineIdentityHolds(block, j, store, nObs, g.data(), weights,
+                                   paramCur, maxDiff))
+            identOk = false;
+          map.writeAffineNodeCaches(tree, j);
+          if (!affineIdentityHolds(block, j, store, nObs, g.data(), weights,
+                                   paramCur, maxDiff))
+            identOk = false;
+        } else {
+          int32_t P;
+          size_t mark = tree.maskPoolMark();
+          Rule savedRule, savedChildRule;
+          int32_t swapChild = invalidNode;
+          if (chosen == FM_CHANGE) {
+            P = notBottom[ext_rng_simulateUnsignedIntegerUniformInRange(
+              op, 0, notBottom.size())];
+            if (!tree.hasAnyAvailableVariable(store, P)) continue;
+          } else {
+            P = swappable[ext_rng_simulateUnsignedIntegerUniformInRange(
+              op, 0, swappable.size())];
+            int32_t l = tree.at(P).leftChild;
+            swapChild = !tree.at(l).isBottom() ? l : l + 1;
+            savedRule = tree.at(P).rule;
+            savedChildRule = tree.at(swapChild).rule;
+          }
+          Tree::SubtreeSnapshot snap;
+          tree.snapshotSubtree(P, snap);
+          map.snapshotSubtree(tree, P);
+          if (chosen == FM_CHANGE) {
+            tree.at(P).rule = prior.drawRuleAndVariable(tree, store, op, P);
+          } else {
+            tree.at(P).rule = savedChildRule;
+            tree.at(swapChild).rule = savedRule;
+          }
+          map.refreshSubtree(tree, store, g.data(), weights, P);
+          if (subtreeOccupied(tree, P)) {
+            ++accepts[chosen];
+            if (!affineIdentityHolds(block, j, store, nObs, g.data(), weights,
+                                     paramCur, maxDiff))
+              identOk = false;
+          } else {
+            tree.restoreSubtree(snap);
+            map.restoreSubtree();
+            tree.truncateMaskPool(mark);
+          }
+        }
+      }
+    }
+  }
+  ext_rng_destroy(op);
+
+  check(identOk, "affine identity holds under fused moves (b in {1,2,3})");
+  check(accepts[FM_BIRTH] > 0 && accepts[FM_DEATH] > 0 &&
+        (accepts[FM_CHANGE] > 0 || accepts[FM_SWAP] > 0),
+        "under-moves gate exercised accepted birth/death/change or swap");
+  printf("ok: atom fused affine identity under moves (birth %d death %d change "
+         "%d swap %d, max |diff| %.2e)\n", accepts[FM_BIRTH], accepts[FM_DEATH],
+         accepts[FM_CHANGE], accepts[FM_SWAP], maxDiff);
+}
+
 // Cross-ISA bitwise (docs/design/block-fusion.md 5, the reproducibility
 // invariant). A b>1 sweep from a FIXED seed must draw byte-identical parameters
 // under every instruction set the host offers: the affine reduction and the per
@@ -2221,5 +2462,6 @@ void runAtomsTests(ext_rng* rng) {
   testBlockACacheAndSCarry(rng);
   testBlockBoundaryFields(rng);
   testBlockAffineIdentity(rng);
+  testBlockAffineIdentityUnderMoves(rng);
   testBlockCrossISA();
 }
