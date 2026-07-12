@@ -917,6 +917,176 @@ static bool touchedLeavesMatchKernel(Tree& tree, int32_t root, const double* g,
   return true;
 }
 
+// Apply one random full-vocabulary move (birth/death/change/swap) to the live
+// (tree, map) pair through the atom path and check the after-move invariant:
+//  - accepted -> topology matches a from-scratch rebuild, the SoA tracks the
+//    node caches, and the touched subtree's caches are bitwise the kernel;
+//  - rejected -> the map is bitwise-identical to before (deep fingerprint).
+// Returns false on the first invariant failure. Shared by the within-sweep
+// fuzzer and the cross-sweep persistence fuzzer so both drive identical moves.
+static bool applyAndCheckRandomMove(Tree& tree, AtomMap& map,
+                                    const ColumnStore& store, size_t nObs,
+                                    const double* g, const double* weights,
+                                    CGMTreePrior& prior, ext_rng* op,
+                                    int opCount[FOP_NUM], int accept[FOP_NUM],
+                                    int reject[FOP_NUM], int sd, int step) {
+  bool ok = true;
+  MapFingerprint before = captureFingerprint(map, nObs);
+  int chosen = pickFullOp(op);
+
+  // resolve a target; fall back to birth (the always-available move) so a
+  // step is rarely wasted
+  std::vector<int32_t> bottoms, noGrand, notBottom, swappable;
+  tree.fillBottom(0, bottoms);
+  tree.fillNoGrand(0, noGrand);
+  tree.fillNotBottom(0, notBottom);
+  tree.fillSwappable(0, swappable);
+  std::vector<int32_t> birthable;
+  for (int32_t leaf : bottoms)
+    if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
+
+  if (chosen == FOP_DEATH && noGrand.empty()) chosen = FOP_BIRTH;
+  if (chosen == FOP_SWAP && swappable.empty()) chosen = FOP_BIRTH;
+  if (chosen == FOP_CHANGE && notBottom.empty()) chosen = FOP_BIRTH;
+  if (chosen == FOP_BIRTH && birthable.empty()) {
+    if (!noGrand.empty()) chosen = FOP_DEATH;
+    else return true;  // stump with no available split: nothing to do
+  }
+
+  if (chosen == FOP_BIRTH) {
+    int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, birthable.size())];
+    Node oldNode = tree.at(L);
+    size_t maskMark = tree.maskPoolMark();
+    Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
+    tree.birthStructure(L, rule);
+    map.splitAtom(tree, store, g, weights, L);
+    ++opCount[FOP_BIRTH];
+
+    int32_t left = tree.at(L).leftChild, right = left + 1;
+    bool empty = tree.at(left).numObservations() == 0 ||
+                 tree.at(right).numObservations() == 0;
+    bool acc = !empty && ext_rng_simulateContinuousUniform(op) >= 0.4;
+    if (acc) {
+      ++accept[FOP_BIRTH];
+      AtomMap rb;
+      rb.initialize(nObs);
+      rb.buildForTree(tree, store);
+      rb.aggregateTree(tree, g, weights);
+      ok &= mapTopologyMatchesRebuild(map, rb, nObs);
+      ok &= soaMatchesCaches(map, tree);
+      ok &= touchedLeavesMatchKernel(tree, L, g, weights);
+      if (!ok) printf("FAIL: full-fuzz seed %d step %d BIRTH-accept L=%d\n",
+                      sd, step, L);
+    } else {
+      tree.undoBirth(L);
+      tree.truncateMaskPool(maskMark);
+      tree.at(L).sumWeights = oldNode.sumWeights;
+      tree.at(L).sumWeightedResponse = oldNode.sumWeightedResponse;
+      tree.at(L).sumWeightedResponseSq = oldNode.sumWeightedResponseSq;
+      map.undoSplit();
+      ++reject[FOP_BIRTH];
+      ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
+      if (!ok) printf("FAIL: full-fuzz seed %d step %d BIRTH-reject L=%d\n",
+                      sd, step, L);
+    }
+  } else if (chosen == FOP_DEATH) {
+    int32_t P = noGrand[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, noGrand.size())];
+    int32_t L = tree.at(P).leftChild, R = L + 1;
+    double expA = tree.at(L).sumWeights + tree.at(R).sumWeights;
+    double expG =
+      tree.at(L).sumWeightedResponse + tree.at(R).sumWeightedResponse;
+    double expQ =
+      tree.at(L).sumWeightedResponseSq + tree.at(R).sumWeightedResponseSq;
+    Node oldNode = tree.at(P);
+    tree.orphanChildren(P);
+    ++opCount[FOP_DEATH];
+    // death is (almost) always acceptable (parent absorbs both children);
+    // flip a coin so both the merge and its rollback are exercised
+    bool acc = ext_rng_simulateContinuousUniform(op) >= 0.4;
+    if (acc) {
+      tree.releasePair(oldNode.leftChild);
+      map.mergeAtoms(tree, P, L);
+      ++accept[FOP_DEATH];
+      uint32_t mc = map.atomForLeaf(P);
+      ok &= mc != AtomMap::invalidAtom && bitEqual(map.A[mc], expA) &&
+            bitEqual(map.G[mc], expG) && bitEqual(map.Q[mc], expQ);
+      AtomMap rb;
+      rb.initialize(nObs);
+      rb.buildForTree(tree, store);
+      rb.aggregateTree(tree, g, weights);
+      ok &= mapTopologyMatchesRebuild(map, rb, nObs);
+      ok &= soaMatchesCaches(map, tree);
+      if (!ok) printf("FAIL: full-fuzz seed %d step %d DEATH-accept P=%d\n",
+                      sd, step, P);
+    } else {
+      tree.at(P) = oldNode;  // reattach children, restore parent cache
+      ++reject[FOP_DEATH];
+      ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
+      if (!ok) printf("FAIL: full-fuzz seed %d step %d DEATH-reject P=%d\n",
+                      sd, step, P);
+    }
+  } else if (chosen == FOP_CHANGE || chosen == FOP_SWAP) {
+    int32_t P;
+    Rule savedRule, savedChildRule;
+    int32_t swapChild = invalidNode;
+    size_t maskMark = tree.maskPoolMark();
+    if (chosen == FOP_CHANGE) {
+      P = notBottom[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, notBottom.size())];
+      if (!tree.hasAnyAvailableVariable(store, P)) return true;  // no proposal
+    } else {
+      P = swappable[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, swappable.size())];
+      int32_t l = tree.at(P).leftChild;
+      swapChild = !tree.at(l).isBottom() ? l : l + 1;  // an internal child
+      savedRule = tree.at(P).rule;
+      savedChildRule = tree.at(swapChild).rule;
+    }
+
+    Tree::SubtreeSnapshot snap;
+    tree.snapshotSubtree(P, snap);
+    map.snapshotSubtree(tree, P);
+    if (chosen == FOP_CHANGE) {
+      tree.at(P).rule = prior.drawRuleAndVariable(tree, store, op, P);
+      ++opCount[FOP_CHANGE];
+    } else {
+      tree.at(P).rule = savedChildRule;
+      tree.at(swapChild).rule = savedRule;
+      ++opCount[FOP_SWAP];
+    }
+    map.refreshSubtree(tree, store, g, weights, P);
+
+    // an emptied leaf would be vetoed in the real sweep (-1e7); force reject
+    bool acc =
+      subtreeOccupied(tree, P) && ext_rng_simulateContinuousUniform(op) >= 0.4;
+    if (acc) {
+      ++accept[chosen];
+      AtomMap rb;
+      rb.initialize(nObs);
+      rb.buildForTree(tree, store);
+      rb.aggregateTree(tree, g, weights);
+      ok &= mapTopologyMatchesRebuild(map, rb, nObs);
+      ok &= soaMatchesCaches(map, tree);
+      ok &= touchedLeavesMatchKernel(tree, P, g, weights);
+      if (!ok)
+        printf("FAIL: full-fuzz seed %d step %d %s-accept P=%d\n", sd, step,
+               chosen == FOP_CHANGE ? "CHANGE" : "SWAP", P);
+    } else {
+      tree.restoreSubtree(snap);
+      map.restoreSubtree();
+      tree.truncateMaskPool(maskMark);
+      ++reject[chosen];
+      ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
+      if (!ok)
+        printf("FAIL: full-fuzz seed %d step %d %s-reject P=%d\n", sd, step,
+               chosen == FOP_CHANGE ? "CHANGE" : "SWAP", P);
+    }
+  }
+  return ok;
+}
+
 static void testAtomFullMoveFuzz(ext_rng* rng, int numSeeds) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -949,161 +1119,9 @@ static void testAtomFullMoveFuzz(ext_rng* rng, int numSeeds) {
     map.aggregateTree(tree, g.data(), weights);
     map.writeNodeCaches(tree);
 
-    for (int step = 0; step < 40 && ok; ++step) {
-      MapFingerprint before = captureFingerprint(map, nObs);
-      int chosen = pickFullOp(op);
-
-      // resolve a target; fall back to birth (the always-available move) so a
-      // step is rarely wasted
-      std::vector<int32_t> bottoms, noGrand, notBottom, swappable;
-      tree.fillBottom(0, bottoms);
-      tree.fillNoGrand(0, noGrand);
-      tree.fillNotBottom(0, notBottom);
-      tree.fillSwappable(0, swappable);
-      std::vector<int32_t> birthable;
-      for (int32_t leaf : bottoms)
-        if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
-
-      if (chosen == FOP_DEATH && noGrand.empty()) chosen = FOP_BIRTH;
-      if (chosen == FOP_SWAP && swappable.empty()) chosen = FOP_BIRTH;
-      if (chosen == FOP_CHANGE && notBottom.empty()) chosen = FOP_BIRTH;
-      if (chosen == FOP_BIRTH && birthable.empty()) {
-        if (!noGrand.empty()) chosen = FOP_DEATH;
-        else break;  // stump with no available split: nothing to do
-      }
-
-      if (chosen == FOP_BIRTH) {
-        int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
-          op, 0, birthable.size())];
-        Node oldNode = tree.at(L);
-        size_t maskMark = tree.maskPoolMark();
-        Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
-        tree.birthStructure(L, rule);
-        map.splitAtom(tree, store, g.data(), weights, L);
-        ++opCount[FOP_BIRTH];
-
-        int32_t left = tree.at(L).leftChild, right = left + 1;
-        bool empty = tree.at(left).numObservations() == 0 ||
-                     tree.at(right).numObservations() == 0;
-        bool acc = !empty && ext_rng_simulateContinuousUniform(op) >= 0.4;
-        if (acc) {
-          ++accept[FOP_BIRTH];
-          AtomMap rb;
-          rb.initialize(nObs);
-          rb.buildForTree(tree, store);
-          rb.aggregateTree(tree, g.data(), weights);
-          ok &= mapTopologyMatchesRebuild(map, rb, nObs);
-          ok &= soaMatchesCaches(map, tree);
-          ok &= touchedLeavesMatchKernel(tree, L, g.data(), weights);
-          if (!ok) printf("FAIL: full-fuzz seed %d step %d BIRTH-accept L=%d\n",
-                          sd, step, L);
-        } else {
-          tree.undoBirth(L);
-          tree.truncateMaskPool(maskMark);
-          tree.at(L).sumWeights = oldNode.sumWeights;
-          tree.at(L).sumWeightedResponse = oldNode.sumWeightedResponse;
-          tree.at(L).sumWeightedResponseSq = oldNode.sumWeightedResponseSq;
-          map.undoSplit();
-          ++reject[FOP_BIRTH];
-          ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
-          if (!ok) printf("FAIL: full-fuzz seed %d step %d BIRTH-reject L=%d\n",
-                          sd, step, L);
-        }
-      } else if (chosen == FOP_DEATH) {
-        int32_t P = noGrand[ext_rng_simulateUnsignedIntegerUniformInRange(
-          op, 0, noGrand.size())];
-        int32_t L = tree.at(P).leftChild, R = L + 1;
-        double expA = tree.at(L).sumWeights + tree.at(R).sumWeights;
-        double expG =
-          tree.at(L).sumWeightedResponse + tree.at(R).sumWeightedResponse;
-        double expQ =
-          tree.at(L).sumWeightedResponseSq + tree.at(R).sumWeightedResponseSq;
-        Node oldNode = tree.at(P);
-        tree.orphanChildren(P);
-        ++opCount[FOP_DEATH];
-        // death is (almost) always acceptable (parent absorbs both children);
-        // flip a coin so both the merge and its rollback are exercised
-        bool acc = ext_rng_simulateContinuousUniform(op) >= 0.4;
-        if (acc) {
-          tree.releasePair(oldNode.leftChild);
-          map.mergeAtoms(tree, P, L);
-          ++accept[FOP_DEATH];
-          uint32_t mc = map.atomForLeaf(P);
-          ok &= mc != AtomMap::invalidAtom && bitEqual(map.A[mc], expA) &&
-                bitEqual(map.G[mc], expG) && bitEqual(map.Q[mc], expQ);
-          AtomMap rb;
-          rb.initialize(nObs);
-          rb.buildForTree(tree, store);
-          rb.aggregateTree(tree, g.data(), weights);
-          ok &= mapTopologyMatchesRebuild(map, rb, nObs);
-          ok &= soaMatchesCaches(map, tree);
-          if (!ok) printf("FAIL: full-fuzz seed %d step %d DEATH-accept P=%d\n",
-                          sd, step, P);
-        } else {
-          tree.at(P) = oldNode;  // reattach children, restore parent cache
-          ++reject[FOP_DEATH];
-          ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
-          if (!ok) printf("FAIL: full-fuzz seed %d step %d DEATH-reject P=%d\n",
-                          sd, step, P);
-        }
-      } else if (chosen == FOP_CHANGE || chosen == FOP_SWAP) {
-        int32_t P;
-        Rule savedRule, savedChildRule;
-        int32_t swapChild = invalidNode;
-        size_t maskMark = tree.maskPoolMark();
-        if (chosen == FOP_CHANGE) {
-          P = notBottom[ext_rng_simulateUnsignedIntegerUniformInRange(
-            op, 0, notBottom.size())];
-          if (!tree.hasAnyAvailableVariable(store, P)) continue;  // no proposal
-        } else {
-          P = swappable[ext_rng_simulateUnsignedIntegerUniformInRange(
-            op, 0, swappable.size())];
-          int32_t l = tree.at(P).leftChild;
-          swapChild = !tree.at(l).isBottom() ? l : l + 1;  // an internal child
-          savedRule = tree.at(P).rule;
-          savedChildRule = tree.at(swapChild).rule;
-        }
-
-        Tree::SubtreeSnapshot snap;
-        tree.snapshotSubtree(P, snap);
-        map.snapshotSubtree(tree, P);
-        if (chosen == FOP_CHANGE) {
-          tree.at(P).rule = prior.drawRuleAndVariable(tree, store, op, P);
-          ++opCount[FOP_CHANGE];
-        } else {
-          tree.at(P).rule = savedChildRule;
-          tree.at(swapChild).rule = savedRule;
-          ++opCount[FOP_SWAP];
-        }
-        map.refreshSubtree(tree, store, g.data(), weights, P);
-
-        // an emptied leaf would be vetoed in the real sweep (-1e7); force reject
-        bool acc =
-          subtreeOccupied(tree, P) && ext_rng_simulateContinuousUniform(op) >= 0.4;
-        if (acc) {
-          ++accept[chosen];
-          AtomMap rb;
-          rb.initialize(nObs);
-          rb.buildForTree(tree, store);
-          rb.aggregateTree(tree, g.data(), weights);
-          ok &= mapTopologyMatchesRebuild(map, rb, nObs);
-          ok &= soaMatchesCaches(map, tree);
-          ok &= touchedLeavesMatchKernel(tree, P, g.data(), weights);
-          if (!ok)
-            printf("FAIL: full-fuzz seed %d step %d %s-accept P=%d\n", sd, step,
-                   chosen == FOP_CHANGE ? "CHANGE" : "SWAP", P);
-        } else {
-          tree.restoreSubtree(snap);
-          map.restoreSubtree();
-          tree.truncateMaskPool(maskMark);
-          ++reject[chosen];
-          ok &= fingerprintsEqual(before, captureFingerprint(map, nObs));
-          if (!ok)
-            printf("FAIL: full-fuzz seed %d step %d %s-reject P=%d\n", sd, step,
-                   chosen == FOP_CHANGE ? "CHANGE" : "SWAP", P);
-        }
-      }
-    }
+    for (int step = 0; step < 40 && ok; ++step)
+      ok &= applyAndCheckRandomMove(tree, map, store, nObs, g.data(), weights,
+                                    prior, op, opCount, accept, reject, sd, step);
   }
   ext_rng_destroy(op);
 
@@ -1117,6 +1135,293 @@ static void testAtomFullMoveFuzz(ext_rng* rng, int numSeeds) {
          numSeeds, accept[FOP_BIRTH], reject[FOP_BIRTH], accept[FOP_DEATH],
          reject[FOP_DEATH], accept[FOP_CHANGE], reject[FOP_CHANGE],
          accept[FOP_SWAP], reject[FOP_SWAP]);
+}
+
+// ---------------------------------------------------------------------------
+// Commit (vi) cross-sweep persistence of the residual-INDEPENDENT A
+// (block-fusion-stage-a.md 3(vi), 2.5; the LinearGaussianLeaf crossproduct-cache
+// template). A(c) is cached across sweeps keyed by the leaf's ordered member
+// list and re-validated by the same memcmp aggregateAtom already runs; G/Q/S
+// stay residual-dependent and rescan every sweep. The oracles below prove: the
+// persisted-A path lands node caches BITWISE-identical to a force-rebuild
+// control (aCacheBypass); a membership change invalidates EXACTLY the changed
+// leaves; the served A is load-bearing (a corrupted cache diverges from the
+// kernel); and the cache stays correct across sweeps interleaved with the full
+// move vocabulary. Membership is the memcmp's; only the weight axis (BCF/latent,
+// held static in these component tests) needs the sweep's clearACache hook.
+
+// Every live atom's SoA (its served A + this sweep's fresh G/Q) equals the leaf's
+// live computeLeafStats bitwise - the ground-truth control the whole anchor
+// rides on. Overwrites the node caches with the kernel values (== the SoA when
+// the check passes), so the caller re-primes them from the SoA afterward.
+static bool aggregateSoAMatchesKernel(const AtomMap& map, Tree& tree,
+                                      const double* g, const double* w) {
+  std::vector<int32_t> leaves;
+  tree.fillBottom(0, leaves);
+  uint32_t atomId = 0;
+  for (int32_t leaf : leaves) {
+    if (tree.at(leaf).numObservations() == 0) continue;
+    tree.computeLeafStats(leaf, g, w);
+    const Node& nd(tree.at(leaf));
+    if (!bitEqual(map.A[atomId], nd.sumWeights) ||
+        !bitEqual(map.G[atomId], nd.sumWeightedResponse) ||
+        !bitEqual(map.Q[atomId], nd.sumWeightedResponseSq))
+      return false;
+    ++atomId;
+  }
+  return true;
+}
+
+// Pick a multi-leaf burned-in tree so the cache holds several persisting atoms.
+static size_t pickMultiLeafTree(const ConstantLeafSampler& sampler,
+                                size_t minLeaves) {
+  for (size_t t = 0; t < sampler.numTrees(); ++t) {
+    Tree probe = sampler.chain(0).tree(t);
+    std::vector<int32_t> lv;
+    probe.fillBottom(0, lv);
+    if (lv.size() >= minLeaves) return t;
+  }
+  return 0;
+}
+
+// (a) Persistence-vs-control: N sweeps of aggregation over a FIXED tree (static
+// weights, fresh residual each sweep) through a persistent map and through a
+// force-rebuild control (aCacheBypass, recomputes A every sweep). Their per-atom
+// (A, G, Q) - hence node caches, hence draws - must be bitwise-equal every sweep,
+// and the persistent map must actually SERVE the cache after the warm-up sweep.
+static void testAtomACachePersistence(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  Tree tree = sampler->chain(0).tree(pickMultiLeafTree(*sampler, 3));
+
+  const int sweeps = 6;
+  bool ok = true;
+  size_t servedTotal = 0;
+  for (int weighted = 0; weighted < 2; ++weighted) {
+    std::vector<double> w(nObs);
+    for (double& v : w) v = 0.1 + runif01();
+    const double* weights = weighted ? w.data() : nullptr;
+
+    AtomMap persistent, control;
+    persistent.initialize(nObs);
+    control.initialize(nObs);
+    control.aCacheBypass = true;  // force-rebuild every sweep
+
+    std::vector<double> g(nObs);
+    for (int s = 0; s < sweeps; ++s) {
+      for (double& v : g) v = 2.0 * runif01() - 1.0;  // fresh residual, weights fixed
+      persistent.buildForTree(tree, store);
+      persistent.aggregateTree(tree, g.data(), weights);
+      control.buildForTree(tree, store);
+      control.aggregateTree(tree, g.data(), weights);
+      ok &= persistent.numAtoms == control.numAtoms;
+      for (size_t c = 0; ok && c < persistent.numAtoms; ++c)
+        ok &= bitEqual(persistent.A[c], control.A[c]) &&
+              bitEqual(persistent.G[c], control.G[c]) &&
+              bitEqual(persistent.Q[c], control.Q[c]);
+    }
+    // the control never touches the cache; the persistent map misses only the
+    // warm-up sweep and serves every leaf on each of the remaining sweeps
+    ok &= control.aCacheHits == 0 && control.aCacheMisses == 0;
+    ok &= persistent.aCacheMisses == persistent.numAtoms;
+    ok &= persistent.aCacheHits ==
+          persistent.numAtoms * static_cast<size_t>(sweeps - 1);
+    servedTotal += persistent.aCacheHits;
+  }
+  check(ok, "persisted-A path matches the force-rebuild control bitwise");
+  check(servedTotal > 0, "cross-sweep cache serves A after the warm-up sweep");
+  printf("ok: atom A-cache persistence vs force-rebuild control (%zu served)\n",
+         servedTotal);
+}
+
+// (b) Invalidation precision: over a fixed tree, sweep 1 misses every leaf,
+// sweep 2 (unchanged) serves every leaf, then a within-leaf reorder of ONE leaf
+// changes its ordered member list; sweep 3 must miss EXACTLY that leaf and serve
+// the K-1 others. The served caches stay bitwise the kernel throughout.
+static void testAtomACacheInvalidationPrecision(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  Tree tree = sampler->chain(0).tree(pickMultiLeafTree(*sampler, 3));
+  std::vector<double> g(nObs);
+  for (double& v : g) v = 2.0 * runif01() - 1.0;
+
+  AtomMap map;
+  map.initialize(nObs);
+  bool ok = true;
+
+  // sweep 1: cold cache misses every leaf
+  size_t m = map.aCacheMisses, h = map.aCacheHits;
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);
+  size_t K = map.numAtoms;
+  ok &= (map.aCacheMisses - m) == K && (map.aCacheHits - h) == 0;
+  ok &= aggregateSoAMatchesKernel(map, tree, g.data(), nullptr);
+  map.writeNodeCaches(tree);
+
+  // sweep 2: unchanged membership serves every leaf
+  m = map.aCacheMisses;
+  h = map.aCacheHits;
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);
+  ok &= (map.aCacheHits - h) == K && (map.aCacheMisses - m) == 0;
+  ok &= aggregateSoAMatchesKernel(map, tree, g.data(), nullptr);
+  map.writeNodeCaches(tree);
+
+  // reorder one leaf's members: same set, different ordered list -> that leaf's
+  // memcmp must fail while the untouched leaves still match
+  int32_t target = invalidNode;
+  {
+    std::vector<int32_t> leaves;
+    tree.fillBottom(0, leaves);
+    for (int32_t leaf : leaves)
+      if (tree.at(leaf).numObservations() >= 2) { target = leaf; break; }
+  }
+  check(target != invalidNode, "invalidation: found a leaf with >= 2 members");
+  std::swap(tree.indices[tree.at(target).begin],
+            tree.indices[tree.at(target).begin + 1]);
+
+  // sweep 3: exactly the reordered leaf misses; the others persist
+  m = map.aCacheMisses;
+  h = map.aCacheHits;
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);
+  ok &= (map.aCacheMisses - m) == 1 && (map.aCacheHits - h) == (K - 1);
+  ok &= aggregateSoAMatchesKernel(map, tree, g.data(), nullptr);
+
+  check(ok, "a membership change invalidates exactly the changed leaf's A");
+  printf("ok: atom A-cache invalidation precision (%zu leaves, 1 invalidated)\n",
+         K);
+}
+
+// (b') Sabotage: a corrupted cached A is SERVED on an unchanged-membership hit,
+// so the served value must diverge from the live kernel - proving the memcmp-
+// gated serve is load-bearing (a stale A after a real membership change would
+// diverge the same way; the memcmp gate is the only guard). Restoring the entry
+// returns the served value to the kernel's.
+static void testAtomACacheSabotage(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  Tree tree = sampler->chain(0).tree(pickMultiLeafTree(*sampler, 2));
+  std::vector<double> g(nObs);
+  for (double& v : g) v = 2.0 * runif01() - 1.0;
+
+  AtomMap map;
+  map.initialize(nObs);
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);  // warm the cache
+  check(map.numAtoms > 0, "sabotage: cache warmed");
+
+  std::vector<int32_t> leaves;
+  tree.fillBottom(0, leaves);
+  int32_t target = invalidNode;
+  for (int32_t leaf : leaves)
+    if (tree.at(leaf).numObservations() > 0) { target = leaf; break; }
+
+  AtomMap::TreeACache& tc = map.aCacheForTree(tree);
+  double good = tc.nodes[static_cast<size_t>(target)].a;
+  tc.nodes[static_cast<size_t>(target)].a = good + 13.0;  // corrupt the stored A
+
+  // unchanged membership -> hit -> serves the corrupted A into the SoA
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);
+  uint32_t c = map.atomForLeaf(target);
+  tree.computeLeafStats(target, g.data(), nullptr);
+  check(c != AtomMap::invalidAtom &&
+        !bitEqual(map.A[c], tree.at(target).sumWeights),
+        "a corrupted cached A is served on a hit (the serve is load-bearing)");
+
+  tc.nodes[static_cast<size_t>(target)].a = good;  // restore
+  map.buildForTree(tree, store);
+  map.aggregateTree(tree, g.data(), nullptr);
+  c = map.atomForLeaf(target);
+  tree.computeLeafStats(target, g.data(), nullptr);
+  check(c != AtomMap::invalidAtom &&
+        bitEqual(map.A[c], tree.at(target).sumWeights),
+        "restoring the cached A returns the served value to the kernel's");
+  printf("ok: atom A-cache sabotage guard\n");
+}
+
+// (c) Cross-sweep persistence stress: run the full move vocabulary on ONE
+// persistent map across SWEEP boundaries. Each sweep re-aggregates against a
+// fresh residual (weights fixed per seed, so the A cache legitimately persists),
+// asserts every served leaf equals the kernel bitwise, then drives a batch of
+// random moves with the same per-move invariants. The cache is never rebuilt or
+// cleared across sweeps or moves - the property under test is that it stays
+// correct while both the residual and the topology evolve.
+static void testAtomACacheCrossSweepFuzz(ext_rng* rng, int numSeeds) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+  CGMTreePrior prior;
+  std::vector<double> g(nObs), w(nObs);
+
+  bool ok = true;
+  size_t servedTotal = 0;
+  int sweepsRun = 0;
+  int opCount[FOP_NUM] = {0, 0, 0, 0};
+  int accept[FOP_NUM] = {0, 0, 0, 0};
+  int reject[FOP_NUM] = {0, 0, 0, 0};
+
+  ext_rng* op = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (int sd = 0; sd < numSeeds && ok; ++sd) {
+    ext_rng_setSeed(op, 3221225473u + static_cast<uint_least32_t>(sd) * 2246822519u);
+    bool weighted = (sd % 3) == 0;
+    if (weighted)
+      for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(op);
+    const double* weights = weighted ? w.data() : nullptr;
+
+    Tree tree = sampler->chain(0).tree(sd % numTrees);
+    AtomMap map;
+    map.initialize(nObs);
+
+    for (int sweep = 0; sweep < 6 && ok; ++sweep) {
+      // fresh residual each sweep; the weight-fixed A cache persists across it
+      for (double& v : g) v = 2.0 * ext_rng_simulateContinuousUniform(op) - 1.0;
+      map.buildForTree(tree, store);
+      map.aggregateTree(tree, g.data(), weights);
+      ok &= aggregateSoAMatchesKernel(map, tree, g.data(), weights);
+      if (!ok) {
+        printf("FAIL: cross-sweep seed %d sweep %d aggregate != kernel\n", sd,
+               sweep);
+        break;
+      }
+      map.writeNodeCaches(tree);
+      ++sweepsRun;
+      for (int step = 0; step < 6 && ok; ++step)
+        ok &= applyAndCheckRandomMove(tree, map, store, nObs, g.data(), weights,
+                                      prior, op, opCount, accept, reject, sd,
+                                      step);
+    }
+    servedTotal += map.aCacheHits;
+  }
+  ext_rng_destroy(op);
+
+  check(ok, "A cache stays correct across sweeps interleaved with all moves");
+  check(servedTotal > 0, "cross-sweep fuzzer serves persisted A across sweeps");
+  check(accept[FOP_BIRTH] > 0 && accept[FOP_DEATH] > 0 &&
+        accept[FOP_CHANGE] > 0 && accept[FOP_SWAP] > 0,
+        "cross-sweep fuzzer accepts every move type at least once");
+  printf("ok: atom A-cache cross-sweep fuzzer (%d seeds, %d sweeps, %zu served; "
+         "birth %d/%d death %d/%d change %d/%d swap %d/%d)\n",
+         numSeeds, sweepsRun, servedTotal, accept[FOP_BIRTH], reject[FOP_BIRTH],
+         accept[FOP_DEATH], reject[FOP_DEATH], accept[FOP_CHANGE],
+         reject[FOP_CHANGE], accept[FOP_SWAP], reject[FOP_SWAP]);
 }
 
 void runAtomsTests(ext_rng* rng) {
@@ -1133,4 +1438,8 @@ void runAtomsTests(ext_rng* rng) {
   testAtomRefreshSubtreeDifferential(rng);
   testAtomRestoreSabotage(rng);
   testAtomFullMoveFuzz(rng, 24);
+  testAtomACachePersistence(rng);
+  testAtomACacheInvalidationPrecision(rng);
+  testAtomACacheSabotage(rng);
+  testAtomACacheCrossSweepFuzz(rng, 24);
 }

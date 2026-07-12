@@ -720,6 +720,16 @@ public:
           forestY = bcf_->forestResponse.data();
           forestWeights = bcf_->forestWeights.data();
         }
+        // The atom path's A cache is residual-independent but WEIGHT-dependent,
+        // so persist it across sweeps only when the working weights are static.
+        // A BCF forest reweights by m_f^2 every sweep and a latent family (a
+        // logistic Polya-Gamma draw) redraws its weights, so both drop the cache
+        // here before aggregation - the atom analog of the vector-leaf
+        // invalidateStatistics above. Membership caching still falls out of the
+        // per-leaf memcmp; only the weight axis needs an explicit hook.
+        if constexpr (useAtomSuffstatSource)
+          if (bcf_ || response_->workingWeightsVaryPerSweep())
+            forest.atomMap.clearACache();
         MoveContext ctx{data_,
                         forest.treePrior,
                         forest.birthOrDeathProbability,
@@ -879,6 +889,11 @@ public:
     response_->setWeights(weights);
     if constexpr (L::hasVectorParams)
       forests_[0].leaf.invalidateStatistics();
+    // the atom A cache is keyed by membership, not weights; a between-run weight
+    // swap changes the mass with membership fixed, so drop it (the per-sweep
+    // hook only covers BCF/latent weightings that vary within a run)
+    if constexpr (useAtomSuffstatSource)
+      for (Forest<L>& forest : forests_) forest.atomMap.clearACache();
   }
   void setResponse(const double* y, bool updateScale) {
     response_->setResponse(y, rng_, forests_[0].totalFits.data(), updateScale,
