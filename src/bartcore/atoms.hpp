@@ -519,6 +519,18 @@ struct AtomMap {
   /// weights (or null), matching the block-entry aggregateTree call.
   void splitAtom(Tree& tree, const ColumnStore& data, const double* g,
                  const double* weights, std::int32_t parentNode) {
+    if (blockWidth > 1) {
+      // b>1 birth: snapshot the whole joint map, slice the j coordinate of
+      // every atom under the parent leaf, repartition the tree's OWN index
+      // buffer (so the children's begin/end drive the empty-leaf veto and the
+      // draw), then re-derive the affine child caches for the move scoring.
+      snapshotBlock(interiorN_);
+      splitAtomBlock(tree, data, interiorCoord_, parentNode, interiorG_,
+                     interiorWeights_);
+      tree.partitionChildren(data, parentNode);
+      writeAffineNodeCaches(tree, interiorCoord_);
+      return;
+    }
     tree.partitionChildren(data, parentNode);
     std::int32_t leftNode = tree.at(parentNode).leftChild;
     std::int32_t rightNode = leftNode + 1;
@@ -596,6 +608,7 @@ struct AtomMap {
   /// caches die with the released pair), so this touches only the SoA. Leaves
   /// the live map byte-for-byte as it was before splitAtom.
   void undoSplit() {
+    if (blockWidth > 1) { restoreBlock(interiorN_); return; }
     if (!undo_.active) return;
     undo_.active = false;
     if (!undo_.hasParent) return;
@@ -655,6 +668,15 @@ struct AtomMap {
   /// detached the pair (tree.at(parentNode).leftChild == invalidNode).
   void mergeAtoms(Tree& tree, std::int32_t parentNode,
                   std::int32_t leftChildNode) {
+    if (blockWidth > 1) {
+      // b>1 death (accept only, like the b=1 path): orphanChildren has already
+      // summed the two child node caches into the parent's (their affine values
+      // add exactly), so this only regroups the joint map's j coordinate back
+      // onto the parent leaf for the draw + the next tree.
+      mergeAtomsBlock(interiorCoord_, parentNode, leftChildNode,
+                      leftChildNode + 1, interiorG_, interiorWeights_);
+      return;
+    }
     std::uint32_t leftAtom = atomForLeaf(leftChildNode);
     std::uint32_t rightAtom = atomForLeaf(leftChildNode + 1);
     // A chain-state death target has two non-empty leaf children, so both atoms
@@ -703,6 +725,7 @@ struct AtomMap {
   /// rule, so a rejected move restores via restoreSubtree. Call BEFORE setting
   /// the new rule / running refreshSubtree.
   void snapshotSubtree(const Tree& tree, std::int32_t subtreeRoot) {
+    if (blockWidth > 1) { snapshotBlock(interiorN_); return; }
     subtreeUndo_.active = true;
     subtreeUndo_.numAtoms = numAtoms;
     subtreeUndo_.A.assign(A.begin(), A.begin() + numAtoms);
@@ -732,6 +755,7 @@ struct AtomMap {
   /// the tree's own index-buffer restore (atomOf is keyed by obs id), so the two
   /// may run in either order.
   void restoreSubtree() {
+    if (blockWidth > 1) { restoreBlock(interiorN_); return; }
     if (!subtreeUndo_.active) return;
     subtreeUndo_.active = false;
     numAtoms = subtreeUndo_.numAtoms;
@@ -813,6 +837,18 @@ struct AtomMap {
   /// scramble the member order. Snapshot with snapshotSubtree first.
   void refreshSubtree(Tree& tree, const ColumnStore& data, const double* g,
                       const double* weights, std::int32_t subtreeRoot) {
+    if (blockWidth > 1) {
+      // b>1 change/swap: repartition the tree's OWN index buffer for the new
+      // rule (structure only - the caches it would write are overwritten), then
+      // re-route the affected observations through the j coordinate and rewrite
+      // the affine caches for the move's new-state scoring. The whole-map
+      // snapshot taken above rolls it all back on rejection.
+      tree.repartitionSubtree(data, subtreeRoot);
+      refreshSubtreeBlock(tree, data, interiorCoord_, subtreeRoot, interiorG_,
+                          interiorWeights_);
+      writeAffineNodeCaches(tree, interiorCoord_);
+      return;
+    }
     refreshSubtreeRec(tree, data, g, weights, subtreeRoot);
   }
 
@@ -835,6 +871,73 @@ struct AtomMap {
   // Reused scratch so the b>1 build/move path does not allocate per call.
   std::vector<std::int32_t> obsTupleScratch_;  // per-obs leaf b-tuple, row-major
   std::vector<std::size_t> memberSortScratch_; // ascending-member agg buffer
+
+  // --- interior sub-sweep driver state (block-fusion.md 3, 4.2-4.4) ---
+  //
+  // While the sweep drives block tree j (t0 + j) the move hooks below dispatch
+  // to the b>1 kernels, which need the block-static field, the working weights,
+  // n and the coordinate j: the b=1 splitAtom/mergeAtoms/refreshSubtree hooks
+  // moves.hpp calls carry only (tree, y, weights), and the passed y is the
+  // per-tree residual the b=1 path aggregates - at b>1 the map aggregates the
+  // block-static g instead, so it is read from here, not from the hook arg.
+  //
+  /// The block coordinate the sweep is on (j in [0, blockWidth)); the move
+  /// hooks slice this leaf-tuple slot.
+  std::size_t interiorCoord_ = 0;
+  const double* interiorG_ = nullptr;        // block-static field w(y - O)
+  const double* interiorWeights_ = nullptr;  // working weights, or null
+  std::size_t interiorN_ = 0;                // numObservations, for snapshotBlock
+  /// Per block tree, the tree's CURRENT per-node fit (arena-indexed): the old
+  /// fit at block entry, the drawn fit after that tree's draw. Trees s < j hold
+  /// their new fit (Gauss-Seidel), s > j the old, so the sum over s != j is the
+  /// in-block residual every other block tree contributes. Owned by the sweep
+  /// (Chain::run seeds and rolls it); the affine writer and the block-exit
+  /// scatter read it.
+  std::vector<std::vector<double>> paramCur_;
+  std::vector<double> affineD_, affineW_;  // per-node D(L), W(L) accumulators
+
+  /// Write block tree j's affine sufficient statistics into its node caches
+  /// (block-fusion.md 3.1): for each leaf L,
+  ///   sumWeights(L)          = sum_{c in atoms(L)} A(c)                 = W(L)
+  ///   sumWeightedResponse(L) = sum_{c in atoms(L)} [ G(c) - A(c) S_-j(c) ]
+  /// where S_-j(c) = sum_{s != j} paramCur_[s][leafOf(c, s)] is the in-block fit
+  /// of every OTHER block tree on the atom. sumWeightedResponseSq is forced 0
+  /// (fact 1.2: it cancels in every move ratio and is unused by the draw). This
+  /// equals the per-observation gather of (sum w, sum w*resid) over L in EXACT
+  /// arithmetic (G, A are exact partial sums), regrouped in floating point.
+  ///
+  /// MACHINE INDEPENDENCE (block-fusion.md 5): the per-leaf reduction is scalar
+  /// and its order is FIXED - atoms accumulate into D(L)/W(L) in ascending atom
+  /// id, and S_-j sums s = 0..b-1 (skipping j) in order. Atom ids come from the
+  /// RNG-driven move sequence, identical on every ISA, so no dispatched kernel
+  /// or reassociation can reorder the sum. Every input (G, A from the scalar
+  /// misc kernel, paramCur_ from the scalar draw) is already byte-identical
+  /// across instruction sets.
+  void writeAffineNodeCaches(Tree& tree, std::size_t j) {
+    std::size_t numNodes = tree.nodes.size();
+    affineD_.assign(numNodes, 0.0);
+    affineW_.assign(numNodes, 0.0);
+    std::size_t b = blockWidth;
+    for (std::size_t c = 0; c < numAtoms; ++c) {
+      if (atomEnd[c] == atomBegin[c]) continue;
+      double sOther = 0.0;
+      for (std::size_t s = 0; s < b; ++s)
+        if (s != j)
+          sOther += paramCur_[s][static_cast<std::size_t>(leafOf(c, s))];
+      std::size_t leaf = static_cast<std::size_t>(leafOf(c, j));
+      affineD_[leaf] += G[c] - A[c] * sOther;  // ascending c: fixed order
+      affineW_[leaf] += A[c];
+    }
+    bottomScratch.clear();
+    tree.fillBottom(0, bottomScratch);
+    for (std::int32_t leaf : bottomScratch) {
+      Node& node(tree.at(leaf));
+      std::size_t L = static_cast<std::size_t>(leaf);
+      node.sumWeights = affineW_[L];
+      node.sumWeightedResponse = affineD_[L];
+      node.sumWeightedResponseSq = 0.0;
+    }
+  }
 
   /// Aggregate atom c over its member SET: reduce g (and w) through the same
   /// misc kernel the b=1 path uses, but over the members sorted ascending into
@@ -973,11 +1076,15 @@ struct AtomMap {
   /// Block-entry static field (block-fusion.md 2.1): the frozen outside-block
   /// fit O_i = F_i - sum over the b block trees of treeFits[(t0 + j)*n + i],
   /// read off the running full-forest fit F so no O((m - b) n) rescan is paid,
-  /// and g_i = w_i (y_i - O_i) (unweighted: y_i - O_i) into `g` (size n). This
-  /// is the block-static per-observation field the joint map aggregates into
-  /// the per-atom (A, G) masses; each g_i is one per-observation formula, so it
-  /// is EXACT (no reduction regroup). `O` receives O_i when non-null.
-  static void blockStaticField(const double* y, const double* weights,
+  /// and the block-static field g_i = y_i - O_i into `g` (size n). The weighting
+  /// is NOT folded in here: aggregateAtomBlock reduces g through the weighted
+  /// misc kernel exactly as the b=1 path reduces the unweighted residual, so the
+  /// per-atom masses land A(c) = sum w_i and G(c) = sum w_i (y_i - O_i) - the
+  /// weighted residual mass of design 2.2 - with the weight applied once. Each
+  /// g_i is one per-observation formula, so this pass is EXACT (no reduction
+  /// regroup). `weights` is unused (kept for the call-site symmetry); `O`
+  /// receives O_i when non-null.
+  static void blockStaticField(const double* y, const double* /*weights*/,
                                const double* F, const double* treeFitsBase,
                                std::size_t n, std::size_t t0, std::size_t b,
                                double* g, double* O = nullptr) {
@@ -987,7 +1094,7 @@ struct AtomMap {
         inBlock += treeFitsBase[(t0 + j) * n + i];
       double o = F[i] - inBlock;
       if (O != nullptr) O[i] = o;
-      g[i] = (weights == nullptr ? 1.0 : weights[i]) * (y[i] - o);
+      g[i] = y[i] - o;
     }
   }
 

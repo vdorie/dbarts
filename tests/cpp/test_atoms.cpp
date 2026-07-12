@@ -1921,13 +1921,15 @@ static void testBlockBoundaryFields(ext_rng* rng) {
                                 nObs, 0, b, g.data(), nullptr);
 
       // independent per-observation reference: same formula, the in-block fit
-      // re-routed through the trees instead of read from the treeFits buffer
+      // re-routed through the trees instead of read from the treeFits buffer.
+      // The field is unweighted (y - O); the weighted kernel applies w when the
+      // atoms aggregate it, so the reference carries no w here.
       for (size_t i = 0; i < nObs; ++i) {
         double inBlock = 0.0;
         for (size_t j = 0; j < b; ++j)
           inBlock += paramOld[j][static_cast<size_t>(
             block[j].findBottomNodeForObservation(store, i))];
-        double gRef = (weighted ? w[i] : 1.0) * (yv[i] - (F[i] - inBlock));
+        double gRef = yv[i] - (F[i] - inBlock);
         if (!bitEqual(g[i], gRef)) entryOk = false;
       }
 
@@ -2011,6 +2013,191 @@ static void testBlockBoundaryFields(ext_rng* rng) {
   printf("ok: atom block-boundary field passes (b in {2,4}, entry + exit)\n");
 }
 
+// Affine-identity core (docs/design/block-fusion.md 3.1, 3.6). Built exactly as
+// the sweep builds a block - blockStaticField forms g = y - O, buildForBlock the
+// joint map, paramCur the block trees' current fits - the fused per-leaf suffstat
+// writeAffineNodeCaches lands must EQUAL the legacy per-observation gather of
+// (sum w, sum w*resid) over the same leaf, where the residual entering block tree
+// j is resid_i = (y_i - O_i) - sum_{s!=j} paramCur[s][leaf_s(i)]. The regroup
+// (atom partials vs an index-order sum) is exact in real arithmetic but groups
+// the floating-point sum differently, so this holds to a tight tolerance, not
+// bitwise. The G perturbation proves the identity actually bites.
+static void testBlockAffineIdentity(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+
+  ext_rng* gen = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  bool identOk = true, bites = false;
+  double maxDiff = 0.0;
+  size_t bs[] = {2, 4};
+  for (size_t bi = 0; bi < 2; ++bi) {
+    size_t b = bs[bi];
+    for (int sd = 0; sd < 8; ++sd) {
+      ext_rng_setSeed(gen, 424242u + static_cast<uint_least32_t>(sd) * 2654435761u +
+                             static_cast<uint_least32_t>(b) * 40503u);
+      bool weighted = (sd % 2) == 0;
+      std::vector<double> yv(nObs), w(nObs);
+      for (double& v : yv) v = 2.0 * ext_rng_simulateContinuousUniform(gen) - 1.0;
+      if (weighted)
+        for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(gen);
+      const double* weights = weighted ? w.data() : nullptr;
+
+      size_t t0 = (static_cast<size_t>(sd) * b) % (numTrees - b + 1);
+      std::vector<Tree> block;
+      std::vector<const Tree*> ptrs;
+      makeBlock(*sampler, t0, b, block, ptrs);
+
+      // each block tree's current per-node fit and the per-obs fits it implies,
+      // then a running full fit F = an arbitrary outside fit + the block fits
+      std::vector<std::vector<double>> paramCur(b);
+      std::vector<double> treeFits(b * nObs), F(nObs);
+      for (size_t j = 0; j < b; ++j) {
+        paramCur[j].assign(block[j].nodes.size(), 0.0);
+        for (double& v : paramCur[j])
+          v = ext_rng_simulateContinuousUniform(gen) - 0.5;
+        for (size_t i = 0; i < nObs; ++i)
+          treeFits[j * nObs + i] = paramCur[j][static_cast<size_t>(
+            block[j].findBottomNodeForObservation(store, i))];
+      }
+      for (size_t i = 0; i < nObs; ++i) {
+        double inBlock = 0.0;
+        for (size_t j = 0; j < b; ++j) inBlock += treeFits[j * nObs + i];
+        F[i] = (3.0 * ext_rng_simulateContinuousUniform(gen) - 1.5) + inBlock;
+      }
+
+      // the sweep's block-entry field + joint map, then the affine suffstat
+      std::vector<double> g(nObs);
+      AtomMap::blockStaticField(yv.data(), weights, F.data(), treeFits.data(),
+                                nObs, 0, b, g.data(), nullptr);
+      AtomMap map;
+      map.initialize(nObs);
+      map.buildForBlock(ptrs, store, g.data(), weights);
+      if (map.numAtoms < 2) continue;
+      map.paramCur_ = paramCur;
+
+      for (size_t j = 0; j < b; ++j) {
+        map.writeAffineNodeCaches(block[j], j);
+        std::vector<int32_t> leaves;
+        block[j].fillBottom(0, leaves);
+        for (int32_t leaf : leaves) {
+          double wRef = 0.0, swrRef = 0.0;
+          for (size_t i = 0; i < nObs; ++i) {
+            if (block[j].findBottomNodeForObservation(store, i) != leaf) continue;
+            double wi = weighted ? w[i] : 1.0;
+            double sOther = 0.0;
+            for (size_t s = 0; s < b; ++s)
+              if (s != j)
+                sOther += paramCur[s][static_cast<size_t>(
+                  block[s].findBottomNodeForObservation(store, i))];
+            wRef += wi;
+            swrRef += wi * (g[i] - sOther);  // g_i = y_i - O_i
+          }
+          const Node& node(block[j].at(leaf));
+          double dW = std::fabs(node.sumWeights - wRef);
+          double dS = std::fabs(node.sumWeightedResponse - swrRef);
+          maxDiff = std::max(maxDiff, std::max(dW, dS));
+          if (dW > 1e-10 || dS > 1e-10) identOk = false;
+        }
+      }
+
+      // the oracle bites: G(0) enters D(leafOf(0,0)) with coefficient +1, so
+      // perturbing it shifts exactly that leaf's fused suffstat by the same
+      // amount off the clean value
+      if (!bites) {
+        int32_t leaf = map.leafOf(0, 0);
+        map.writeAffineNodeCaches(block[0], 0);
+        double clean = block[0].at(leaf).sumWeightedResponse;
+        double saved = map.G[0];
+        map.G[0] = saved + 1.0;
+        map.writeAffineNodeCaches(block[0], 0);
+        if (std::fabs(block[0].at(leaf).sumWeightedResponse - clean - 1.0) < 1e-10)
+          bites = true;
+        map.G[0] = saved;
+      }
+    }
+  }
+  ext_rng_destroy(gen);
+
+  check(identOk,
+        "affine identity: fused leaf (W, sumWResid) matches the per-obs gather");
+  check(bites, "affine identity: the oracle bites a perturbed atom residual");
+  printf("ok: atom b>1 affine identity (b in {2,4}, max |diff| %.2e)\n", maxDiff);
+}
+
+// Cross-ISA bitwise (docs/design/block-fusion.md 5, the reproducibility
+// invariant). A b>1 sweep from a FIXED seed must draw byte-identical parameters
+// under every instruction set the host offers: the affine reduction and the per
+// atom (A, G) run in scalar, fixed-order, non-dispatched code, so no vector
+// kernel can perturb a draw. Force each level scalar..max, run the same fused
+// sweep, and compare the drawn leaf values and the rng state bit-for-bit.
+static void collectFusedDraws(ConstantLeafSampler& s, std::vector<double>& vals,
+                              std::vector<unsigned char>& rngState) {
+  SamplerStateData state;
+  s.getState(state);
+  vals.clear();
+  for (const auto& forest : state.chains[0].forests)
+    for (const auto& tree : forest.trees)
+      for (const FlatNode& node : tree)
+        if (node.variable == invalidVariable) vals.push_back(node.value);
+  rngState = state.chains[0].rngState;
+}
+
+static void testBlockCrossISA() {
+  const size_t n = 300;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  misc_simd_instructionSet maxInst = misc_simd_getMaxSIMDInstructionSet();
+  std::vector<double> refVals;
+  std::vector<unsigned char> refRng;
+  bool sizeOk = true, valsOk = true, rngOk = true;
+  int numLevels = 0;
+
+  for (int inst = MISC_INST_C; inst <= static_cast<int>(maxInst); ++inst) {
+    misc_simd_setSIMDInstructionSet(static_cast<misc_simd_instructionSet>(inst));
+    ext_rng* gen = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(gen, 20260712u);
+    SamplerOptions options;
+    options.numTrees = 30;
+    ConstantLeafSampler sampler(x.data(), y.data(), n, size_t(2), nullptr,
+                                nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, options, &gen);
+    sampler.chain(0).setBlockSizeForTesting(4);
+    Results empty;
+    sampler.run(20, 0, empty);
+    std::vector<double> vals;
+    std::vector<unsigned char> rngState;
+    collectFusedDraws(sampler, vals, rngState);
+    ext_rng_destroy(gen);
+
+    ++numLevels;
+    if (inst == MISC_INST_C) {
+      refVals = vals;
+      refRng = rngState;
+    } else {
+      if (vals.size() != refVals.size()) sizeOk = false;
+      else
+        for (size_t i = 0; i < vals.size(); ++i)
+          if (!bitEqual(vals[i], refVals[i])) valsOk = false;
+      if (rngState != refRng) rngOk = false;
+    }
+  }
+  misc_simd_setSIMDInstructionSet(maxInst);  // restore the host default
+
+  check(numLevels >= 2 || maxInst == MISC_INST_C,
+        "cross-ISA: forced every instruction set the host offers");
+  check(sizeOk, "cross-ISA: b>1 sweep draws the same leaf count per ISA");
+  check(valsOk, "cross-ISA: b>1 sweep draws byte-identical leaf values per ISA");
+  check(rngOk, "cross-ISA: b>1 sweep leaves a byte-identical rng state per ISA");
+  printf("ok: atom b>1 cross-ISA bitwise (%d instruction set%s)\n", numLevels,
+         numLevels == 1 ? "" : "s");
+}
+
 void runAtomsTests(ext_rng* rng) {
   testAtomBuildStump();
   testAtomBuildEmptyLeaf();
@@ -2033,4 +2220,6 @@ void runAtomsTests(ext_rng* rng) {
   testBlockMapSabotage(rng);
   testBlockACacheAndSCarry(rng);
   testBlockBoundaryFields(rng);
+  testBlockAffineIdentity(rng);
+  testBlockCrossISA();
 }
