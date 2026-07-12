@@ -770,10 +770,10 @@ public:
           // partition, aggregates each leaf's (A,G,Q) through the same kernel,
           // and writes those into the node caches - bitwise-identical to
           // setNodeAverages, so every downstream reader is unaffected. The map
-          // is current here, before metropolisJumpForTree; birth then splits it
-          // in place through splitAtom (commit iv). Death/change/swap still run
-          // the live path (commit v), leaving the map stale after them - which
-          // is harmless because it is rebuilt fresh for the next tree.
+          // is current here, before metropolisJumpForTree; the move then patches
+          // it in atom terms (splitAtom for birth, mergeAtoms for death,
+          // refreshSubtree for change/swap), so ALL structural moves keep the
+          // map live. It is still rebuilt fresh for the next tree.
           if constexpr (useAtomSuffstatSource) {
             forest.atomMap.buildForTree(forest.trees[t], data_);
             forest.atomMap.aggregateTree(forest.trees[t], forest.treeY.data(),
