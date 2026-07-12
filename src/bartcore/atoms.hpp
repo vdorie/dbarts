@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 #include <misc/stats.h>
@@ -78,6 +79,47 @@ struct AtomMap {
   /// Reused fillBottom scratch so aggregation does not allocate per call.
   std::vector<std::int32_t> bottomScratch;
 
+  // --- cross-sweep residual-INDEPENDENT persistence: the A cache ---
+  //
+  // A(c), a leaf's weight mass, is residual-INDEPENDENT within a fixed
+  // weighting, so it persists across sweeps EXACTLY like LinearGaussianLeaf's
+  // crossproduct cache (block-fusion-stage-a.md 2.5; model.hpp:458-539).
+  // aggregateAtom re-validates on lookup by comparing the cached ordered member
+  // list against the leaf's live members[begin..end) (std::memcmp): a structural
+  // move that alters membership - or a rejected move whose rollback restores the
+  // order - falls out of the compare with no per-move hook (model.hpp:459-462).
+  // A is WEIGHT-dependent, so the sweep drops the cache wholesale on any working
+  // weight change (clearACache, the atom analog of invalidateStatistics); the
+  // member-list memcmp handles the membership axis. G/Q/S stay residual-DEPENDENT
+  // and are rescanned from the current treeY every block entry, exactly as the
+  // U'WU cache always rescans U'Wz / z'Wz.
+  //
+  /// One leaf's cached weight mass, tagged with the ordered member list that
+  /// produced it; the memcmp against members[begin..end) is the sole coherence
+  /// gate (rollback-stable, no per-move hook).
+  struct CachedLeafA {
+    std::vector<std::size_t> members;
+    double a = 0.0;
+  };
+  /// Per-tree A cache, arena-indexed by node id (like TreeStatisticsCache).
+  struct TreeACache {
+    const Tree* tree = nullptr;
+    std::vector<CachedLeafA> nodes;
+  };
+  std::vector<TreeACache> aCaches_;
+  /// Byte ceiling over cached member lists; when spent, further leaves rescan
+  /// (still correct, just uncached), so the cache can never bloat unbounded.
+  std::size_t aCacheUsedBytes_ = 0;
+  std::size_t aCacheBudgetBytes_ = static_cast<std::size_t>(256) << 20;
+  /// Force-rebuild control (the persistence-vs-control test's baseline): when
+  /// set, aggregation never serves the cache - it recomputes A every sweep and
+  /// stores nothing, so a persistent run and a bypassed run must land the same
+  /// node caches bitwise.
+  bool aCacheBypass = false;
+  /// Serve/rebuild counters (test instrumentation, negligible in the sweep): a
+  /// hit served a persisted A, a miss recomputed and stored.
+  std::size_t aCacheHits = 0, aCacheMisses = 0;
+
   /// Rollback record for one pending atom split (mirrors Tree::SubtreeSnapshot
   /// for the SoA). splitAtom fills it before mutating; undoSplit restores the
   /// parent atom bitwise and drops the child atom so a rejected birth leaves
@@ -110,6 +152,9 @@ struct AtomMap {
     S.clear();
     members = nullptr;
     numAtoms = 0;
+    clearACache();
+    aCacheHits = 0;
+    aCacheMisses = 0;
   }
 
   /// Grow every per-atom vector to hold k atoms.
@@ -185,7 +230,12 @@ struct AtomMap {
         misc_computeIndexedWeightedSufficientStatisticsFast(
           g, members + begin, length, weights, &a, &gMass, &q);
     }
-    A[atomId] = a;
+    // A (weight mass) is residual-independent: serve it from the cross-sweep
+    // cache when the leaf's ordered member list is unchanged, else record the
+    // fresh mass. The served A is byte-identical to `a` (same members, same
+    // weighting, same kernel), so it moves no draw byte; G/Q are residual-
+    // dependent and always come from this sweep's scan above.
+    A[atomId] = lookupOrStoreA(tree, leafId, begin, length, a);
     G[atomId] = gMass;
     Q[atomId] = q;
   }
@@ -205,6 +255,75 @@ struct AtomMap {
       aggregateAtom(tree, g, weights, atomId);
       ++atomId;
     }
+  }
+
+  /// The per-tree A cache slot (created on first use), keyed by tree identity
+  /// like LinearGaussianLeaf::statisticsCacheForTree. The forest owns a stable
+  /// tree per slot, so the linear scan is over the tiny forest-tree count.
+  TreeACache& aCacheForTree(const Tree& tree) {
+    for (TreeACache& c : aCaches_)
+      if (c.tree == &tree) return c;
+    aCaches_.emplace_back();
+    aCaches_.back().tree = &tree;
+    return aCaches_.back();
+  }
+
+  /// Record a freshly kernelled weight mass for one leaf, subject to the byte
+  /// budget (mirrors storeCrossproduct). Over budget: free the entry so the next
+  /// lookup misses and rescans - never a stale serve, even if accounting drifts.
+  void storeLeafA(CachedLeafA& entry, std::size_t begin, std::size_t length,
+                  double a) {
+    std::size_t oldBytes = entry.members.size() * sizeof(std::size_t);
+    std::size_t newBytes = length * sizeof(std::size_t);
+    if (aCacheUsedBytes_ - oldBytes + newBytes > aCacheBudgetBytes_) {
+      if (!entry.members.empty()) {
+        aCacheUsedBytes_ -= oldBytes;
+        entry.members.clear();
+      }
+      return;
+    }
+    aCacheUsedBytes_ += newBytes - oldBytes;
+    entry.members.assign(members + begin, members + begin + length);
+    entry.a = a;
+  }
+
+  /// Serve leaf `leafId`'s weight mass A from the cross-sweep cache when its
+  /// ordered member list is unchanged - the same memcmp gate
+  /// LinearGaussianLeaf::lookupCrossproduct uses against tree.indices[begin..end)
+  /// - else record `freshA` and return it. On a hit the returned value is
+  /// byte-identical to `freshA`, since the entry was stored by the identical
+  /// kernel over the same members and weighting; a weight change drops the whole
+  /// cache first (clearACache), so a hit can never serve a stale-weight mass.
+  /// Bypassed (the force-rebuild control) returns freshA without touching the
+  /// cache. patch-on-accept and rollback-stability are entirely the memcmp's: an
+  /// accepted move permutes/reslices the members and misses; a rejected move that
+  /// restores the order hits; there is no per-move cache hook.
+  double lookupOrStoreA(const Tree& tree, std::int32_t leafId, std::size_t begin,
+                        std::size_t length, double freshA) {
+    if (aCacheBypass) return freshA;
+    TreeACache& cache = aCacheForTree(tree);
+    std::size_t index = static_cast<std::size_t>(leafId);
+    if (index >= cache.nodes.size()) cache.nodes.resize(index + 1);
+    CachedLeafA& entry = cache.nodes[index];
+    if (entry.members.size() == length &&
+        std::memcmp(entry.members.data(), members + begin,
+                    length * sizeof(std::size_t)) == 0) {
+      ++aCacheHits;
+      return entry.a;
+    }
+    ++aCacheMisses;
+    storeLeafA(entry, begin, length, freshA);
+    return freshA;
+  }
+
+  /// Drop the whole cross-sweep A cache. A is weight-dependent, so the sweep
+  /// calls this whenever the working weights change - a BCF forest reweights by
+  /// m^2 each sweep, a Polya-Gamma family redraws its weights, setWeights swaps
+  /// them - the atom analog of LinearGaussianLeaf::invalidateStatistics.
+  /// Membership changes need no clear; the per-leaf memcmp catches them.
+  void clearACache() {
+    aCaches_.clear();
+    aCacheUsedBytes_ = 0;
   }
 
   /// Write the aggregated (A, G, Q) SoA into each leaf's Node suffstat cache
