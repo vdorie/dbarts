@@ -1,5 +1,7 @@
 # block-fusion-stage-a (b=1 exact refactor)
 
+COMPLETE 2026-07-11: all seven commits landed, default flipped ON. Milestone gate held with NO re-record - equivalence 22/22 IDENTICAL, tinytest 2728/0 no snapshot regen, tests/cpp + full-vocabulary fuzzer clean, and bench-sampler NEUTRAL on the x86 box (interleaved A/B, every run-* metric within 4%, none over the 5% gate) after driving the b=1 overhead down (A cache + atomOf + S carry gated off at b=1, the three per-tree passes fused). See the Stage A landing note in docs/design/block-fusion.md section 9.
+
 agent: opus
 rng: NEUTRAL - bit-identical by construction. Stage A computes the SAME
   node sufficient statistics (sumWeights, sumWeightedResponse,

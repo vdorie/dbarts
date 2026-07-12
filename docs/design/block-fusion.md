@@ -579,3 +579,71 @@ within-chain threading composition (section 6), GPU seam.
    data-layout.md's): skip the standalone single-tree reorder; the b=1 anchor
    delivers the layout as a bitwise refactor and b>1 delivers the real win.
    Confirm.
+
+## 9. Stage A landing note (2026-07-11, LANDED, bit-identical)
+
+Stage A is complete and DEFAULT ON. The constant-leaf steady-state run() sweep
+sources its per-leaf sufficient statistics through the b=1 atom path
+(src/bartcore/atoms.hpp, wired in chain.hpp), and birth/death/change/swap are
+atom-routed (moves.hpp). It is a pure structural refactor: the atom aggregation
+is bitwise the legacy misc kernel over the same member order, landing the same
+node-cache values, so every downstream reader and every draw is unchanged.
+
+WHAT SHIPPED
+
+- The b=1 atom path is the DEFAULT (`#define BARTCORE_BLOCK_FUSION 1`). The knob
+  stays: a build defines `-DBARTCORE_BLOCK_FUSION=0` for a one-line abort back to
+  the legacy setNodeAverages/computeLeafStats writer, and it is Stage B's
+  b-dispatch seam. Both writers stay compiled so tests/cpp drives them side by
+  side.
+- SCOPE is constant-leaf + steady-state only, provably: `useAtomSuffstatSource`
+  gates on `Chain::leafIsConstant` (false for vector-param linear and
+  function-param GP leaves - they keep the legacy writer), and the atom path is
+  wired only in run()'s steady-state loop, never the grow-from-root warm start
+  (which calls setNodeAverages directly). Categorical / sparse / MIA / weighted /
+  probit-logistic latents / BCF-grouped are covered (the aggregation just calls
+  the same kernel over the same members; g rebuilds from the working response
+  each sweep; the A cache drops on any working-weight change).
+- DESIGN A (section 2.4, 4.4) is the resolved implementer decision: `members`
+  ALIASES the block tree's `tree.indices` at b=1; no owned second n-buffer, no
+  member-copy pass. The owned per-block buffer arrives with Stage B.
+
+b=1 OVERHEAD REDUCTION (the milestone's precondition; commit "Reduce the b=1
+atom path to a single per-tree pass"). At b=1 nothing amortizes, so the atom
+path had to match legacy's O(n) work exactly. Three b=1-only overheads were
+removed, all bitwise:
+- the cross-sweep A cache (section 4.5) SAVES NO WORK at b=1 - the monolithic
+  suffstat kernel rescans G/Q every sweep and drags A along - and only ADDS a
+  per-leaf member-list memcmp. It is gated OFF at b=1 (`aCacheBypass`) and stays
+  a STAGE-B mechanism (kept default-on for its component tests).
+- the obs->atom map `atomOf` is Stage-B move bookkeeping no b=1 consumer reads;
+  its O(n) per-tree scatter (and the moves' O(n_leaf) writes) are gated OFF at
+  b=1 (`trackAtomOf`), so buildForTree is O(#leaves).
+- build + aggregate + write walked the tree THREE times where legacy walks once;
+  fused into `AtomMap::buildAggregateWrite` - one fillBottom traversal that
+  records topology, aggregates through the kernel, and writes the node cache
+  inline. The inert S(c)=mu carry is dropped from the hot loop (kept in
+  setInBlockFits for the harness + Stage B). Net per-tree cost == setNodeAverages'
+  single traversal + O(#leaves) SoA bookkeeping.
+
+GATES (all held, NO re-record - Stage A is bit-identical by construction):
+- equivalence vs benchmarks/baselines/equivalence-ac6ec2c.rds: 22/22 IDENTICAL
+  (same RNG stream), exact.
+- tinytest: full pass (2728 ok, 0 fail) from a --preclean default-ON install, NO
+  snapshot regeneration.
+- tests/cpp: clean rebuild all pass + the full-vocabulary mutation fuzzer + the
+  atom build/aggregate/split/merge/refresh/rollback/A-cache suites.
+- bench-sampler on the x86 box (dbarts-bench), interleaved A/B pinned to one core
+  (medians of 5 paired passes), atom default-ON vs legacy (-DBARTCORE_BLOCK_FUSION
+  =0) built from the same tree: every run-* throughput metric within 4% (n=1000
+  t75 1.039, t200 1.037, binary 1.032; n=10000 1.001), embedded-offset 1.024,
+  setPredictor 0.997/1.017 - NO metric over the 5% gate. NEUTRAL, as the b=1
+  anchor predicted (the residual few-% at small n is the irreducible atom
+  bookkeeping b=1 pays with no amortization; it vanishes as n grows - n=10000 is
+  essentially exact). This de-risks the machinery for Stage B, where b>1 turns
+  the same passes into the ~6x DRAM win.
+
+NEXT: Stage B (b>1, the win, the one approved re-record) builds on this map -
+the flag becomes the b-dispatch, the A cache and atomOf come back on, `members`
+becomes an owned per-block buffer, and the suffstat/roll/draw regroup to
+O(atoms).
