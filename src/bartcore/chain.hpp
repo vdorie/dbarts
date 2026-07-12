@@ -729,6 +729,10 @@ public:
                         forestWeights,
                         forest.k,
                         forest.scratch};
+        // Under the atom flag, birth sources its child suffstats from the map's
+        // splitAtom (and rolls back a rejected birth); off the flag the pointer
+        // stays null and every move keeps the live computeLeafStats path.
+        if constexpr (useAtomSuffstatSource) ctx.atomMap = &forest.atomMap;
 
         forest.kSumSquaredParams = 0.0;
         forest.kNumLeaves = 0.0;
@@ -765,9 +769,11 @@ public:
           // The atom path (flag ON) rebuilds the b=1 map from the tree's current
           // partition, aggregates each leaf's (A,G,Q) through the same kernel,
           // and writes those into the node caches - bitwise-identical to
-          // setNodeAverages, so every downstream reader is unaffected. Moves are
-          // NOT atom-routed yet (commits iv/v), so the map is only current here,
-          // before metropolisJumpForTree; only this per-sweep source moves.
+          // setNodeAverages, so every downstream reader is unaffected. The map
+          // is current here, before metropolisJumpForTree; birth then splits it
+          // in place through splitAtom (commit iv). Death/change/swap still run
+          // the live path (commit v), leaving the map stale after them - which
+          // is harmless because it is rebuilt fresh for the next tree.
           if constexpr (useAtomSuffstatSource) {
             forest.atomMap.buildForTree(forest.trees[t], data_);
             forest.atomMap.aggregateTree(forest.trees[t], forest.treeY.data(),

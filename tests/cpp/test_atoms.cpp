@@ -416,6 +416,218 @@ static void testAtomDrawDifferential(ext_rng* rng, bool weighted) {
   printf("ok: atom draw differential + S-consistency (%s)\n", tag);
 }
 
+// ---------------------------------------------------------------------------
+// Commit (iv) birth-split fuzzer (block-fusion-stage-a.md 3(iv);
+// docs/plans/mutation-fuzzing.md testMutationFuzzer). Drives seeded random
+// birth sequences through the ATOM path (Tree::birthStructure +
+// AtomMap::splitAtom) - exactly what the wired sweep runs under the flag - and
+// after every birth re-checks the invariant against an independent oracle:
+//  - after each birth the two child node caches splitAtom wrote are bitwise the
+//    live computeLeafStats(left) then (right) (the equivalence-critical seam);
+//  - an ACCEPTED birth leaves the map matching a from-scratch buildForTree +
+//    aggregateTree rebuild - numAtoms, per-leaf (A, G, Q) bitwise, member
+//    slices, and atomOf all consistent with the live tree.indices;
+//  - a REJECTED birth (undoBirth + undoSplit) leaves the map bitwise-identical
+//    to before (the fingerprint pattern).
+// Only birth is atom-routed in this commit; after a rejected birth the map is
+// resynced by a fresh rebuild (the sweep does this per tree), so the sequence
+// never mixes a stale post-reject map into the next accept oracle.
+
+// A deep bitwise fingerprint of the live map state a rejected birth must leave
+// untouched: numAtoms + the [0, numAtoms) SoA + atomOf.
+struct MapFingerprint {
+  size_t numAtoms = 0;
+  std::vector<size_t> begin, end;
+  std::vector<int32_t> leaf;
+  std::vector<double> A, G, Q, S;
+  std::vector<uint32_t> atomOf;
+};
+
+static MapFingerprint captureFingerprint(const AtomMap& m, size_t n) {
+  MapFingerprint f;
+  f.numAtoms = m.numAtoms;
+  f.begin.assign(m.atomBegin.begin(), m.atomBegin.begin() + m.numAtoms);
+  f.end.assign(m.atomEnd.begin(), m.atomEnd.begin() + m.numAtoms);
+  f.leaf.assign(m.leafTuple.begin(), m.leafTuple.begin() + m.numAtoms);
+  f.A.assign(m.A.begin(), m.A.begin() + m.numAtoms);
+  f.G.assign(m.G.begin(), m.G.begin() + m.numAtoms);
+  f.Q.assign(m.Q.begin(), m.Q.begin() + m.numAtoms);
+  f.S.assign(m.S.begin(), m.S.begin() + m.numAtoms);
+  f.atomOf.assign(m.atomOf.begin(), m.atomOf.begin() + n);
+  return f;
+}
+
+static bool fingerprintsEqual(const MapFingerprint& a, const MapFingerprint& b) {
+  if (a.numAtoms != b.numAtoms) return false;
+  if (a.begin != b.begin || a.end != b.end || a.leaf != b.leaf ||
+      a.atomOf != b.atomOf)
+    return false;
+  for (size_t i = 0; i < a.numAtoms; ++i)
+    if (!bitEqual(a.A[i], b.A[i]) || !bitEqual(a.G[i], b.G[i]) ||
+        !bitEqual(a.Q[i], b.Q[i]) || !bitEqual(a.S[i], b.S[i]))
+      return false;
+  return true;
+}
+
+// The accepted-birth oracle: the incremental map M must equal a from-scratch
+// rebuild R of the same tree/residual, matched by leaf (atom ids differ under
+// recycling, so match on leafTuple, not on index). Also checks atomOf ties each
+// obs to the atom of its actual leaf and that obs lies in that atom's slice.
+static bool mapMatchesRebuild(const AtomMap& M, AtomMap& R, size_t n) {
+  if (M.numAtoms != R.numAtoms) return false;
+  for (size_t c = 0; c < M.numAtoms; ++c) {
+    uint32_t r = R.atomForLeaf(M.leafTuple[c]);
+    if (r == AtomMap::invalidAtom) return false;
+    if (!bitEqual(M.A[c], R.A[r]) || !bitEqual(M.G[c], R.G[r]) ||
+        !bitEqual(M.Q[c], R.Q[r]))
+      return false;
+    if (M.atomBegin[c] != R.atomBegin[r] || M.atomEnd[c] != R.atomEnd[r])
+      return false;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    uint32_t c = M.atomOf[i], rc = R.atomOf[i];
+    if (c >= M.numAtoms || rc >= R.numAtoms) return false;
+    if (M.leafTuple[c] != R.leafTuple[rc]) return false;
+    bool inSlice = false;
+    for (size_t k = M.atomBegin[c]; k < M.atomEnd[c]; ++k)
+      if (M.members[k] == i) { inSlice = true; break; }
+    if (!inSlice) return false;
+  }
+  return true;
+}
+
+static void testAtomBirthSplitFuzz(ext_rng* rng, int numSeeds) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+
+  CGMTreePrior prior;  // base 0.95, power 2, as the sampler default
+  std::vector<double> g(nObs), w(nObs);
+
+  bool cachesOk = true, acceptOk = true, rejectOk = true;
+  int births = 0, accepts = 0, rejects = 0;
+
+  ext_rng* op = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (int sd = 0; sd < numSeeds; ++sd) {
+    ext_rng_setSeed(op, 1315423u + static_cast<uint_least32_t>(sd) * 2654435761u);
+    bool weighted = (sd % 3) == 0;
+    for (double& v : g) v = 2.0 * ext_rng_simulateContinuousUniform(op) - 1.0;
+    if (weighted)
+      for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(op);
+    const double* weights = weighted ? w.data() : nullptr;
+
+    Tree tree = sampler->chain(0).tree(sd % numTrees);
+    AtomMap map;
+    map.initialize(nObs);
+    map.buildForTree(tree, store);
+    map.aggregateTree(tree, g.data(), weights);
+    map.writeNodeCaches(tree);
+
+    for (int step = 0; step < 8; ++step) {
+      std::vector<int32_t> leaves;
+      tree.fillBottom(0, leaves);
+      std::vector<int32_t> birthable;
+      for (int32_t leaf : leaves)
+        if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
+      if (birthable.empty()) break;
+      int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, birthable.size())];
+
+      MapFingerprint before = captureFingerprint(map, nObs);
+      Node oldNode = tree.at(L);
+      size_t maskMark = tree.maskPoolMark();
+      Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
+
+      // atom path: attach the pair, then source both child suffstats from the
+      // split rather than the live computeLeafStats
+      tree.birthStructure(L, rule);
+      map.splitAtom(tree, store, g.data(), weights, L);
+      ++births;
+
+      int32_t leftNode = tree.at(L).leftChild;
+      int32_t rightNode = leftNode + 1;
+      bool leftEmpty = tree.at(leftNode).numObservations() == 0;
+      bool rightEmpty = tree.at(rightNode).numObservations() == 0;
+
+      // the two child caches splitAtom wrote must be bitwise the live writer's;
+      // recomputing over the same slice is bitwise-idempotent, so it is safe to
+      // overwrite with computeLeafStats and compare against the saved values
+      double la = tree.at(leftNode).sumWeights,
+             lg = tree.at(leftNode).sumWeightedResponse,
+             lq = tree.at(leftNode).sumWeightedResponseSq;
+      double ra = tree.at(rightNode).sumWeights,
+             rg = tree.at(rightNode).sumWeightedResponse,
+             rq = tree.at(rightNode).sumWeightedResponseSq;
+      tree.computeLeafStats(leftNode, g.data(), weights);
+      tree.computeLeafStats(rightNode, g.data(), weights);
+      cachesOk &= bitEqual(la, tree.at(leftNode).sumWeights) &&
+                  bitEqual(lg, tree.at(leftNode).sumWeightedResponse) &&
+                  bitEqual(lq, tree.at(leftNode).sumWeightedResponseSq) &&
+                  bitEqual(ra, tree.at(rightNode).sumWeights) &&
+                  bitEqual(rg, tree.at(rightNode).sumWeightedResponse) &&
+                  bitEqual(rq, tree.at(rightNode).sumWeightedResponseSq);
+      if (!cachesOk) {
+        printf("FAIL: birth-split seed %d step %d leaf %d: child cache diverged\n",
+               sd, step, L);
+        break;
+      }
+
+      // an empty child would be vetoed in the real sweep; force reject so the
+      // tree never carries an empty leaf. Otherwise flip a coin.
+      bool reject = leftEmpty || rightEmpty ||
+                    ext_rng_simulateContinuousUniform(op) < 0.4;
+
+      if (!reject) {
+        AtomMap rebuild;
+        rebuild.initialize(nObs);
+        rebuild.buildForTree(tree, store);
+        rebuild.aggregateTree(tree, g.data(), weights);
+        bool ok = mapMatchesRebuild(map, rebuild, nObs);
+        acceptOk &= ok;
+        ++accepts;
+        if (!ok) {
+          printf("FAIL: birth-split seed %d step %d leaf %d: accepted map != "
+                 "rebuild\n", sd, step, L);
+          break;
+        }
+      } else {
+        tree.undoBirth(L);
+        tree.truncateMaskPool(maskMark);
+        tree.at(L).sumWeights = oldNode.sumWeights;
+        tree.at(L).sumWeightedResponse = oldNode.sumWeightedResponse;
+        tree.at(L).sumWeightedResponseSq = oldNode.sumWeightedResponseSq;
+        map.undoSplit();
+        ++rejects;
+        MapFingerprint after = captureFingerprint(map, nObs);
+        bool ok = fingerprintsEqual(before, after);
+        rejectOk &= ok;
+        if (!ok) {
+          printf("FAIL: birth-split seed %d step %d leaf %d: rejected map "
+                 "mutated\n", sd, step, L);
+          break;
+        }
+        // resync the map over the now-permuted indices before the next birth,
+        // exactly as the sweep rebuilds it fresh for the next tree
+        map.buildForTree(tree, store);
+        map.aggregateTree(tree, g.data(), weights);
+      }
+      if (!cachesOk || !acceptOk || !rejectOk) break;
+    }
+    if (!cachesOk || !acceptOk || !rejectOk) break;
+  }
+  ext_rng_destroy(op);
+
+  check(cachesOk, "birth-split child caches bitwise the live writer");
+  check(acceptOk, "accepted birth map matches from-scratch rebuild");
+  check(rejectOk, "rejected birth leaves map bitwise-identical");
+  printf("ok: atom birth-split fuzzer (%d seeds, %d births: %d accept, %d "
+         "reject)\n", numSeeds, births, accepts, rejects);
+}
+
 void runAtomsTests(ext_rng* rng) {
   testAtomBuildStump();
   testAtomBuildEmptyLeaf();
@@ -425,4 +637,5 @@ void runAtomsTests(ext_rng* rng) {
   testAtomAggregationGrown(rng);
   testAtomDrawDifferential(rng, false);
   testAtomDrawDifferential(rng, true);
+  testAtomBirthSplitFuzz(rng, 24);
 }

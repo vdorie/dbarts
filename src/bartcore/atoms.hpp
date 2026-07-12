@@ -71,8 +71,30 @@ struct AtomMap {
   /// Live atom count == non-empty-leaf count at b=1.
   std::size_t numAtoms = 0;
 
+  /// Sentinel for "no atom" (an empty leaf holds none).
+  static constexpr std::uint32_t invalidAtom = 0xFFFFFFFFu;
+
   /// Reused fillBottom scratch so aggregation does not allocate per call.
   std::vector<std::int32_t> bottomScratch;
+
+  /// Rollback record for one pending atom split (mirrors Tree::SubtreeSnapshot
+  /// for the SoA). splitAtom fills it before mutating; undoSplit restores the
+  /// parent atom bitwise and drops the child atom so a rejected birth leaves
+  /// the map byte-for-byte as it was.
+  struct SplitUndo {
+    bool active = false;        // a split is pending rollback
+    bool hasParent = false;     // the split leaf held an atom (always true for
+                                // a chain-state birth target; empty leaves are
+                                // vetoed out of the state)
+    bool createdAtom = false;   // numAtoms was incremented (both children full)
+    std::uint32_t parentAtom = invalidAtom;
+    std::uint32_t rightAtom = invalidAtom;
+    double A = 0.0, G = 0.0, Q = 0.0, S = 0.0;  // parent atom's pre-split stats
+    std::size_t begin = 0, end = 0;             // parent atom's pre-split slice
+    std::int32_t leaf = 0;                      // parent atom's pre-split leaf
+    std::size_t numAtomsBefore = 0;
+    std::vector<std::size_t> movedMembers;      // obs whose atomOf changed
+  } undo_;
 
   /// Size the n-indexed state once at forest init. The per-atom SoA is grown
   /// lazily by buildForTree, so a fresh map starts empty there.
@@ -223,6 +245,149 @@ struct AtomMap {
   void setInBlockFits(const std::vector<double>& paramByNode) {
     for (std::size_t c = 0; c < numAtoms; ++c)
       S[c] = paramByNode[static_cast<std::size_t>(leafTuple[c])];
+  }
+
+  /// The atom id currently mapped to a leaf, or invalidAtom if the leaf holds
+  /// no atom (it is empty). At b=1 leafTuple is a bijection onto the non-empty
+  /// leaves, so a linear scan over the small atom list suffices.
+  std::uint32_t atomForLeaf(std::int32_t leafId) const {
+    for (std::size_t c = 0; c < numAtoms; ++c)
+      if (leafTuple[c] == leafId) return static_cast<std::uint32_t>(c);
+    return invalidAtom;
+  }
+
+  /// Point atom `atomId` at leaf `node` (topology) and aggregate its (A, G, Q)
+  /// over that leaf's member slice through the same kernel dispatch the live
+  /// computeLeafStats uses. S is a draw-time quantity and is not touched here.
+  void bindAtomToLeaf(const Tree& tree, const double* g, const double* weights,
+                      std::uint32_t atomId, std::int32_t node) {
+    leafTuple[atomId] = node;
+    atomBegin[atomId] = tree.at(node).begin;
+    atomEnd[atomId] = tree.at(node).end;
+    aggregateAtom(tree, g, weights, atomId);
+  }
+
+  /// Copy an atom's aggregated (A, G, Q) into its leaf's node suffstat cache -
+  /// the single seam every constant-leaf consumer reads. The values are the
+  /// misc-kernel result over the leaf's slice, so they are byte-for-byte the
+  /// live computeLeafStats writer's.
+  static void writeAtomCacheStatic(Tree& tree, std::int32_t node, double a,
+                                   double g, double q) {
+    Node& leaf(tree.at(node));
+    leaf.sumWeights = a;
+    leaf.sumWeightedResponse = g;
+    leaf.sumWeightedResponseSq = q;
+  }
+  void writeAtomCache(Tree& tree, std::uint32_t atomId) {
+    writeAtomCacheStatic(tree, leafTuple[atomId], A[atomId], G[atomId],
+                         Q[atomId]);
+  }
+
+  /// Split the atom of leaf L on an accepted-or-proposed birth. L was just
+  /// birthStructure'd (children attached, rule set) but NOT partitioned; this
+  /// (block-fusion-stage-a.md 3(iv), pins 4 + 7):
+  ///  1. reuses the tree's OWN partitionChildren primitive over the member
+  ///     slice - at b=1 members alias tree.indices, so the tree's partition IS
+  ///     the atom member partition; no second partitioner is forked;
+  ///  2. aggregates the LEFT child then the RIGHT child through the same
+  ///     kernel and writes their two node caches, bitwise-identical to birth's
+  ///     live computeLeafStats(left) then (right), so the acceptance ratio and
+  ///     the draw see identical inputs;
+  ///  3. updates topology - the parent slot is recycled for the first non-empty
+  ///     child, a fresh atom is appended for the second, atomOf follows the
+  ///     moved members, leafTuple/atomBegin/atomEnd track the children.
+  /// A pre-split snapshot is recorded so undoSplit can roll a rejected birth
+  /// back bitwise. `g` is the current residual and `weights` the working
+  /// weights (or null), matching the block-entry aggregateTree call.
+  void splitAtom(Tree& tree, const ColumnStore& data, const double* g,
+                 const double* weights, std::int32_t parentNode) {
+    tree.partitionChildren(data, parentNode);
+    std::int32_t leftNode = tree.at(parentNode).leftChild;
+    std::int32_t rightNode = leftNode + 1;
+    bool leftEmpty = tree.at(leftNode).numObservations() == 0;
+    bool rightEmpty = tree.at(rightNode).numObservations() == 0;
+
+    std::uint32_t parent = atomForLeaf(parentNode);
+    undo_.active = true;
+    undo_.hasParent = parent != invalidAtom;
+    undo_.createdAtom = false;
+    undo_.numAtomsBefore = numAtoms;
+    undo_.movedMembers.clear();
+
+    if (parent == invalidAtom) {
+      // The split leaf held no atom, so it was empty and both children are too;
+      // the birth cannot be accepted (empty-leaf veto). Force 0.0 caches to
+      // match computeLeafStats over the zero-length child slices, create no
+      // atoms. This path does not arise for a chain-state birth target.
+      writeAtomCacheStatic(tree, leftNode, 0.0, 0.0, 0.0);
+      writeAtomCacheStatic(tree, rightNode, 0.0, 0.0, 0.0);
+      return;
+    }
+
+    undo_.parentAtom = parent;
+    undo_.A = A[parent];
+    undo_.G = G[parent];
+    undo_.Q = Q[parent];
+    undo_.S = S[parent];
+    undo_.begin = atomBegin[parent];
+    undo_.end = atomEnd[parent];
+    undo_.leaf = leafTuple[parent];
+
+    if (leftEmpty) {
+      // every member went right: recycle the parent slot for the right child;
+      // atomOf is unchanged (all members still belong to `parent`).
+      bindAtomToLeaf(tree, g, weights, parent, rightNode);
+      writeAtomCacheStatic(tree, leftNode, 0.0, 0.0, 0.0);
+      writeAtomCache(tree, parent);
+    } else if (rightEmpty) {
+      // every member went left: recycle the parent slot for the left child.
+      bindAtomToLeaf(tree, g, weights, parent, leftNode);
+      writeAtomCache(tree, parent);
+      writeAtomCacheStatic(tree, rightNode, 0.0, 0.0, 0.0);
+    } else {
+      // both children full: parent slot -> left child (pin 4: left first), a
+      // fresh appended atom -> right child.
+      bindAtomToLeaf(tree, g, weights, parent, leftNode);
+      writeAtomCache(tree, parent);
+
+      std::uint32_t rightAtom = static_cast<std::uint32_t>(numAtoms);
+      ensureAtomCapacity(numAtoms + 1);
+      ++numAtoms;
+      undo_.createdAtom = true;
+      undo_.rightAtom = rightAtom;
+      S[rightAtom] = 0.0;
+      bindAtomToLeaf(tree, g, weights, rightAtom, rightNode);
+      writeAtomCache(tree, rightAtom);
+
+      for (std::size_t k = tree.at(rightNode).begin; k < tree.at(rightNode).end;
+           ++k) {
+        std::size_t obs = members[k];
+        atomOf[obs] = rightAtom;
+        undo_.movedMembers.push_back(obs);
+      }
+    }
+  }
+
+  /// Roll a rejected birth's atom split back bitwise: restore the parent atom's
+  /// pre-split stats + slice + leaf, drop the appended child atom, and return
+  /// the moved members' atomOf to the parent. The node caches are the tree's
+  /// concern (the move restores the parent cache from its saved node; the child
+  /// caches die with the released pair), so this touches only the SoA. Leaves
+  /// the live map byte-for-byte as it was before splitAtom.
+  void undoSplit() {
+    if (!undo_.active) return;
+    undo_.active = false;
+    if (!undo_.hasParent) return;
+    std::uint32_t parent = undo_.parentAtom;
+    A[parent] = undo_.A;
+    G[parent] = undo_.G;
+    Q[parent] = undo_.Q;
+    S[parent] = undo_.S;
+    atomBegin[parent] = undo_.begin;
+    atomEnd[parent] = undo_.end;
+    leafTuple[parent] = undo_.leaf;
+    for (std::size_t obs : undo_.movedMembers) atomOf[obs] = parent;
+    numAtoms = undo_.numAtomsBefore;
   }
 };
 
