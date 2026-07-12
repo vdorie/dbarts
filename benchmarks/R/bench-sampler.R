@@ -10,6 +10,20 @@
 #   Rscript bench-sampler.R compare base.csv   run and compare; exits 1 on
 #                                              any metric > 5% slower
 # Append 'quick' for a fast smoke test (not comparable to full runs).
+#
+# Rscript bench-sampler.R biggrid [out.csv]    opt-in large-n / blockSize
+#                                              grid (or set BENCH_BIGGRID=1);
+#                                              leaves the grid above and its
+#                                              baselines untouched.
+#
+# The big grid times n in {1e4, 1e5, 1e6} x numTrees in {75, 200} x
+# blockSize in {1, 4, 8}, forcing blockSize via the DBARTS_BLOCKSIZE dev
+# override read at sampler construction (src/bartcore/chain.hpp). It is not
+# meant for routine/CI use: n = 1e6 with numTrees = 200 is a large fit by
+# itself, and the full grid at full reps can run upwards of an hour, so run
+# it on an otherwise-idle machine. 'biggrid quick' restricts it to the
+# smallest cell (n = 1e4, numTrees = 75, blockSize in {1, 4}) as a smoke
+# test of the plumbing.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -20,6 +34,8 @@ args <- setdiff(args, "quick")
 # installed package always runs the bartcore engine now (compare against
 # classic recordings made before its removal)
 args <- setdiff(args, "engine=new")
+big.grid <- "biggrid" %in% args || identical(Sys.getenv("BENCH_BIGGRID"), "1")
+args <- setdiff(args, "biggrid")
 mode <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
@@ -170,9 +186,69 @@ runBenchmarks <- function(quick) {
   rows
 }
 
-results <- runBenchmarks(quick)
+# Opt-in large-n / blockSize grid (see usage note above). The block-fusion
+# win is a DRAM/throughput effect that only shows up well past the n in the
+# grid above, so this times n up to 1e6 with an explicit blockSize (b) axis,
+# forcing b via the DBARTS_BLOCKSIZE dev override around each fit (read at
+# sampler construction, so a fresh sampler is built per cell). b = 1 is the
+# baseline column; b = 4 and 8 are the fused widths, so a downstream compare
+# can pivot b > 1 against the b = 1 column of the same recording.
+runBigGrid <- function(quick) {
+  reps <- if (quick) 1L else 7L
+  n.samps <- if (quick) 50L else 500L
+  n.list <- if (quick) 1e4 else c(1e4, 1e5, 1e6)
+  m.list <- if (quick) 75L else c(75L, 200L)
+  b.list <- if (quick) c(1L, 4L) else c(1L, 4L, 8L)
 
-if (mode == "record") {
+  rows <- data.frame()
+  addRow <- function(n, m, b, scenario, metric, value) {
+    rows <<- rbind(
+      rows,
+      data.frame(
+        n = n,
+        m = m,
+        b = b,
+        scenario = scenario,
+        metric = metric,
+        value = value
+      )
+    )
+  }
+
+  for (n in n.list) {
+    set.seed(4001L)
+    data <- genFriedman(n)
+    for (m in m.list) {
+      scenario <- sprintf("run-n%d-p10-t%d", n, m)
+      for (b in b.list) {
+        Sys.setenv(DBARTS_BLOCKSIZE = b)
+        sampler <- newSampler(data$x, data$y, m)
+        invisible(sampler$run(200L, 1L))
+        elapsed <- timeMedian(
+          function() invisible(sampler$run(0L, n.samps)),
+          reps
+        )
+        Sys.unsetenv("DBARTS_BLOCKSIZE")
+        addRow(n, m, b, scenario, "ms_per_iteration", 1000 * elapsed / n.samps)
+      }
+    }
+  }
+
+  rows$value <- round(rows$value, 4L)
+  rows$rev <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
+  rows$date <- format(Sys.Date())
+  rows$quick <- quick
+  rows
+}
+
+results <- if (big.grid) runBigGrid(quick) else runBenchmarks(quick)
+
+if (big.grid) {
+  out.file <- if (length(args) >= 1L) args[[1L]] else "sampler-biggrid.csv"
+  write.csv(results, out.file, row.names = FALSE)
+  cat("wrote", nrow(results), "measurements to", out.file, "\n")
+  print(results[c("n", "m", "b", "scenario", "value")], row.names = FALSE)
+} else if (mode == "record") {
   out.file <- if (length(args) >= 2L) args[[2L]] else "sampler-baseline.csv"
   write.csv(results, out.file, row.names = FALSE)
   cat("wrote", nrow(results), "measurements to", out.file, "\n")
