@@ -10,6 +10,22 @@
 #include "data.hpp"
 #include "tree.hpp"
 
+/// Block-fusion Stage A build knob (block-fusion-stage-a.md 5.1). A compile-time
+/// switch, DEFAULT OFF: the shipped constant-leaf sweep sources each sweep's
+/// per-leaf sufficient statistics from the live setNodeAverages/computeLeafStats
+/// writer, so the released engine is byte-for-byte today's. A dev/test build
+/// defines BARTCORE_BLOCK_FUSION to non-zero (e.g. -DBARTCORE_BLOCK_FUSION=1) to
+/// route that per-sweep suffstat SOURCE through the b=1 atom path
+/// (aggregateTree + writeNodeCaches) for the equivalence gate; because the atom
+/// aggregation is bitwise the kernel and lands the same values in the same node
+/// cache, the draws are unchanged. Both writers stay compiled regardless of the
+/// switch, so tests/cpp can drive them side by side. Commit (vii) flips the
+/// default ON for the constant-leaf steady-state sweep; this commit keeps the
+/// shipped default OFF (clean abort: define it to 0 or leave it undefined).
+#ifndef BARTCORE_BLOCK_FUSION
+#define BARTCORE_BLOCK_FUSION 0
+#endif
+
 namespace bartcore {
 
 /// Block-fusion atom map for the constant-leaf Gaussian sweep
@@ -166,6 +182,47 @@ struct AtomMap {
       aggregateAtom(tree, g, weights, atomId);
       ++atomId;
     }
+  }
+
+  /// Write the aggregated (A, G, Q) SoA into each leaf's Node suffstat cache
+  /// {sumWeights, sumWeightedResponse, sumWeightedResponseSq} - the single seam
+  /// every constant-leaf consumer (move scoring, the leaf draw, k/scatter)
+  /// reads. Walks fillBottom in the SAME DFS (left-child-first) order
+  /// aggregateTree filled the SoA in, so the running atomId over non-empty
+  /// leaves selects the SoA entry that owns the current leaf (pin 1). An empty
+  /// leaf holds no atom and gets a forced 0.0/0.0/0.0 - byte-identical to what
+  /// computeLeafStats writes over a zero-length slice (the misc kernels return
+  /// +0.0 for length 0), so the whole tree's caches equal setNodeAverages
+  /// BITWISE (block-fusion-stage-a.md 1.2, pin 8). aggregateTree must have run
+  /// against the current residual first.
+  void writeNodeCaches(Tree& tree) {
+    bottomScratch.clear();
+    tree.fillBottom(0, bottomScratch);
+    std::uint32_t atomId = 0;
+    for (std::int32_t leaf : bottomScratch) {
+      Node& node(tree.at(leaf));
+      if (node.numObservations() == 0) {
+        node.sumWeights = 0.0;
+        node.sumWeightedResponse = 0.0;
+        node.sumWeightedResponseSq = 0.0;
+        continue;
+      }
+      node.sumWeights = A[atomId];
+      node.sumWeightedResponse = G[atomId];
+      node.sumWeightedResponseSq = Q[atomId];
+      ++atomId;
+    }
+  }
+
+  /// Record each atom's in-block fit S(c) = mu, the constant this sweep's draw
+  /// assigned the atom's leaf (design 3.3 at b=1: S is the atom's single-tree
+  /// fit). `paramByNode` is the draw's per-leaf parameter keyed by node arena
+  /// index, so leafTuple[c] indexes it directly. Touches no RNG and no node
+  /// cache: S feeds nothing at b=1 and is inert, carried only so Stage B's S
+  /// carry is in place and testable. Must run AFTER the draw.
+  void setInBlockFits(const std::vector<double>& paramByNode) {
+    for (std::size_t c = 0; c < numAtoms; ++c)
+      S[c] = paramByNode[static_cast<std::size_t>(leafTuple[c])];
   }
 };
 
