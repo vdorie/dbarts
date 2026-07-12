@@ -1847,6 +1847,170 @@ static void testBlockACacheAndSCarry(ext_rng* rng) {
   printf("ok: atom b>1 A-cache + S-carry (%zu atoms, b=%zu)\n", K, b);
 }
 
+// The two block-boundary O(n) passes (docs/design/block-fusion.md 2.1, 3.5).
+// BLOCK ENTRY: the block-static field g_i = w_i(y_i - O_i), O_i = F_i - sum over
+// the b block trees of their fit off the running full fit F; the per-atom (A, G)
+// buildForBlock aggregates from it; the S seed off the block trees' current
+// fits. BLOCK EXIT: the scatter of the drawn leaf means back into treeFits and
+// the incremental running full fit F. Every step is EXACT (a per-observation
+// formula or an assignment, no reduction regroup), so the field, the seeds and
+// the scatter compare BITWISE to a reference computed directly per-observation
+// and per-tree; F, a running accumulation, only needs a tight tolerance from
+// the freshly summed full fit. b=1 is untouched.
+static void testBlockBoundaryFields(ext_rng* rng) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+
+  ext_rng* gen = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  bool entryOk = true, aggOk = true, sSeedOk = true, exitOk = true, fOk = true;
+  bool sBites = false, exitBites = false;
+
+  size_t bs[] = {2, 4};
+  for (size_t bi = 0; bi < 2; ++bi) {
+    size_t b = bs[bi];
+    for (int sd = 0; sd < 6; ++sd) {
+      ext_rng_setSeed(gen, 20260712u + static_cast<uint_least32_t>(sd) *
+                                         2654435761u +
+                             static_cast<uint_least32_t>(b) * 40503u);
+      bool weighted = (sd % 2) == 0;
+
+      std::vector<double> yv(nObs), w(nObs);
+      for (double& v : yv) v = 2.0 * ext_rng_simulateContinuousUniform(gen) - 1.0;
+      if (weighted)
+        for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(gen);
+      const double* weights = weighted ? w.data() : nullptr;
+
+      size_t t0 = (static_cast<size_t>(sd) * b) % (numTrees - b + 1);
+      std::vector<Tree> block;
+      std::vector<const Tree*> ptrs;
+      makeBlock(*sampler, t0, b, block, ptrs);
+
+      // old and drawn per-tree leaf means (arena-indexed) and, from the old
+      // means, the block trees' current per-observation fits (t0 folded to 0)
+      std::vector<std::vector<double>> paramOld(b), paramNew(b);
+      std::vector<double> treeFits(b * nObs);
+      for (size_t j = 0; j < b; ++j) {
+        paramOld[j].assign(block[j].nodes.size(), 0.0);
+        paramNew[j].assign(block[j].nodes.size(), 0.0);
+        for (size_t nd = 0; nd < block[j].nodes.size(); ++nd) {
+          paramOld[j][nd] = ext_rng_simulateContinuousUniform(gen) - 0.5;
+          paramNew[j][nd] = ext_rng_simulateContinuousUniform(gen) - 0.5;
+        }
+        for (size_t i = 0; i < nObs; ++i)
+          treeFits[j * nObs + i] = paramOld[j][static_cast<size_t>(
+            block[j].findBottomNodeForObservation(store, i))];
+      }
+
+      // a running full fit F = an arbitrary outside-block fit + the block fits
+      std::vector<double> Otrue(nObs), F(nObs);
+      for (size_t i = 0; i < nObs; ++i) {
+        Otrue[i] = 3.0 * ext_rng_simulateContinuousUniform(gen) - 1.5;
+        double inBlock = 0.0;
+        for (size_t j = 0; j < b; ++j) inBlock += treeFits[j * nObs + i];
+        F[i] = Otrue[i] + inBlock;
+      }
+
+      // BLOCK ENTRY: build the static field and, from it, the joint map + seeds
+      std::vector<double> g(nObs);
+      AtomMap::blockStaticField(yv.data(), weights, F.data(), treeFits.data(),
+                                nObs, 0, b, g.data(), nullptr);
+
+      // independent per-observation reference: same formula, the in-block fit
+      // re-routed through the trees instead of read from the treeFits buffer
+      for (size_t i = 0; i < nObs; ++i) {
+        double inBlock = 0.0;
+        for (size_t j = 0; j < b; ++j)
+          inBlock += paramOld[j][static_cast<size_t>(
+            block[j].findBottomNodeForObservation(store, i))];
+        double gRef = (weighted ? w[i] : 1.0) * (yv[i] - (F[i] - inBlock));
+        if (!bitEqual(g[i], gRef)) entryOk = false;
+      }
+
+      AtomMap map;
+      map.initialize(nObs);
+      map.buildForBlock(ptrs, store, g.data(), weights);
+      if (map.numAtoms < 2) continue;
+      size_t K = map.numAtoms;
+
+      // per-atom (A, G): independently regather each atom's members from atomOf,
+      // sort ascending (the owned order aggregateAtomBlock reduces in), and re-run
+      // the same misc kernel over the field - so a wrong field or membership bites
+      std::vector<std::vector<size_t>> memb(K);
+      for (size_t i = 0; i < nObs; ++i) memb[map.atomOf[i]].push_back(i);
+      for (size_t c = 0; c < K; ++c) {
+        std::sort(memb[c].begin(), memb[c].end());
+        double a, gm, q;
+        if (weighted)
+          misc_computeIndexedWeightedSufficientStatisticsFast(
+            g.data(), memb[c].data(), memb[c].size(), w.data(), &a, &gm, &q);
+        else
+          misc_computeIndexedSufficientStatisticsFast(
+            g.data(), memb[c].data(), memb[c].size(), &a, &gm, &q);
+        if (!bitEqual(map.G[c], gm) || !bitEqual(map.A[c], a)) aggOk = false;
+      }
+
+      // S seed from treeFits (a representative member) vs the paramByTree route
+      // (indexed by leaf) - two independent reads of the block trees' old fits
+      map.seedInBlockFitsFromTreeFits(treeFits.data(), nObs, 0);
+      std::vector<double> sFromFits(map.S.begin(), map.S.begin() + K);
+      map.setInBlockFitsBlock(paramOld);
+      for (size_t c = 0; c < K; ++c)
+        if (!bitEqual(sFromFits[c], map.S[c])) sSeedOk = false;
+      // the bitwise S oracle bites: one perturbed atom breaks the match
+      map.S[0] += 1.0;
+      for (size_t c = 0; c < K; ++c)
+        if (!bitEqual(sFromFits[c], map.S[c])) sBites = true;
+
+      // BLOCK EXIT: scatter the drawn means + carry F, vs the per-tree write
+      std::vector<double> treeFitsA(treeFits), treeFitsB(treeFits), Fexit(F);
+      map.scatterInBlockFits(treeFitsA.data(), Fexit.data(), nObs, 0, paramNew);
+      for (size_t j = 0; j < b; ++j) {
+        std::vector<int32_t> leaves;
+        block[j].fillBottom(0, leaves);
+        for (int32_t leaf : leaves) {
+          const Node& node(block[j].at(leaf));
+          for (size_t m = node.begin; m < node.end; ++m)
+            treeFitsB[j * nObs + block[j].indices[m]] =
+              paramNew[j][static_cast<size_t>(leaf)];
+        }
+      }
+      for (size_t kk = 0; kk < b * nObs; ++kk)
+        if (!bitEqual(treeFitsA[kk], treeFitsB[kk])) exitOk = false;
+      // the scatter oracle bites: one perturbed fit breaks the match
+      treeFitsA[0] += 1.0;
+      for (size_t kk = 0; kk < b * nObs; ++kk)
+        if (!bitEqual(treeFitsA[kk], treeFitsB[kk])) exitBites = true;
+
+      // the incremental F tracks the fresh full sum (outside + new block fits)
+      for (size_t i = 0; i < nObs; ++i) {
+        double inBlockNew = 0.0;
+        for (size_t j = 0; j < b; ++j) inBlockNew += treeFitsB[j * nObs + i];
+        if (std::fabs(Fexit[i] - (Otrue[i] + inBlockNew)) > 1e-10) fOk = false;
+      }
+    }
+  }
+  ext_rng_destroy(gen);
+
+  check(entryOk,
+        "block boundary: entry g = w(y - O) matches the per-obs reference bitwise");
+  check(aggOk,
+        "block boundary: entry per-atom A/G match the kernel over the field bitwise");
+  check(sSeedOk,
+        "block boundary: S seed from treeFits matches the paramByTree route bitwise");
+  check(exitOk,
+        "block boundary: exit treeFits scatter matches the per-tree write bitwise");
+  check(fOk,
+        "block boundary: incremental full fit F tracks the fresh sum within tol");
+  check(sBites && exitBites,
+        "block boundary: the bitwise seed/scatter oracles bite a perturbation");
+  printf("ok: atom block-boundary field passes (b in {2,4}, entry + exit)\n");
+}
+
 void runAtomsTests(ext_rng* rng) {
   testAtomBuildStump();
   testAtomBuildEmptyLeaf();
@@ -1868,4 +2032,5 @@ void runAtomsTests(ext_rng* rng) {
   testBlockMoveFuzz(rng, 24);
   testBlockMapSabotage(rng);
   testBlockACacheAndSCarry(rng);
+  testBlockBoundaryFields(rng);
 }
