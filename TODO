@@ -13,31 +13,24 @@ Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
 
 items
-  architecture-doc: LANDED - docs/architecture.md (the contributor
-    orientation; five-question comprehension check passed). Awaiting
-    VD's skim for wrongness; plan file has the landing record.
   blocked-jacobi-trees: exact parallel tree updates via noise-splitting
     augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  cran-stderr-note: LANDED 2026-07-11. Filed from the cran-readiness
-    sweep (memo in cran-readiness.md) as the one remaining --as-cran
-    NOTE: misc.a carried the ___stderrp symbol from src/misc/io.c's
-    default printToStderr/flushStderr hooks, unreachable from R
-    (R_init_dbarts repoints them to Rprintf at DLL load) but visible
-    to the symbol scan. FIX (matching misc-stays-host-agnostic): io.c's
-    misc_printf/misc_flushOutput now default to NULL, no stdio
-    compiled in at all; every host injects its own hooks at startup
-    (R_interface.cpp already did; added the same few lines to
-    tests/cpp/main.cpp and to the benchmarks/kernels drivers that link
-    misc.a - bench.c, sparse.c, grow_from_root.c, linear_leaf.cpp -
-    since misc_simd_init pulls in moments.o's htm status-print path
-    transitively through simd.o even though nothing currently calls
-    it). nm on the installed dbarts.so shows no stderrp symbol; R CMD
-    check --as-cran compiled-code section is clean; tests/cpp and the
-    four benchmark drivers build and run; tinytest 2727/0; equivalence
-    22/22 identical (io-only change).
+  block-fusion: frontier-3.4 block-fused atom map, the flagship large-n
+    engine lever (design docs/design/block-fusion.md; targets ~6x DRAM
+    drop at n >= 1e5). STAGE A LANDED 2026-07-11 (bartcore d9a5d39,
+    default-ON): the b=1 exact refactor - the constant-leaf steady-state
+    sweep sources per-leaf sufficient statistics through the atom path
+    (src/bartcore/atoms.hpp) and birth/death/change/swap are atom-routed,
+    all bit-identical (equivalence 22/22, tinytest no-regen, bench
+    neutral). Plan docs/plans/block-fusion-stage-a.md. STAGE B NEXT (the
+    speed win): turn on b>1, regroup the suffstat/roll/draw to O(atoms),
+    carries the single VD-approved one-time re-record; plan
+    docs/plans/block-fusion-stage-b.md (to be written). Stage C: tune b.
+    Scope v1 = constant-leaf Gaussian. Subsumes the standalone
+    contiguous-layout item.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
@@ -48,32 +41,9 @@ items
     ONLY because responses arrive pre-standardized to O(1); the
     owned container must not create a path that feeds raw-scale
     residuals to the leaves.
-  gate-hardening-1.0: LANDED 2026-07-09 (0e9ccca + anchor 3ef0308) -
-    all six poison-sweep blind spots gated, each with a
-    fail-on-poisoned proof: bcf-exact-weak.R (prior-dominated n=40
-    mode, quadrature over the Cauchy glue; catches the 1/aVariance
-    TRUE survivor, gap 0.82 poisoned vs 0.004 clean), wtgp + grouped
-    + chik2 equivalence scenarios ADDED (grouped uses the gamma tau
-    prior - the half-Cauchy tail can stall the tau slice sampler;
-    chik2 at nu=50 with a new disjoint-seed-range compare channel
-    because a diverged seed degenerates the Welch z into a false
-    pass), linear-exact.R (enumerated 15-tree space, leaf-count
-    distribution is the sensitive statistic), bd-balance.R
-    (birth/death detailed-balance over enumerable partitions).
-    Anchor re-recorded as equivalence-0e9ccca.rds (21 scenarios; the
-    18 shared are draw-identical to cf99a00); MANIFEST +
-    equivalence.yaml updated. Record in gate-hardening-1.0.md.
-    Still routed elsewhere: the tau slice sampler HANG under extreme
-    ranef weights -> numerical-robustness review; the
-    --preclean-or-stale-.so footgun -> CI build-stamp guard
-    candidate.
-  gpu-bart: MEMO LANDED (docs/design/gpu-bart.md, d0f737a) plus the
-    frontier companion (docs/design/parallel-bart-frontier.md).
-    Falsifiers 1-3 REPORTED (2026-07-08, parallel-falsifiers): 3.4 and
-    3.2a both SURVIVE (E2 field share 82-88% => DRAM drop ~6x; E1 atoms
-    2-4 orders below n at b in {4,8}; E3 agreement 0.97, survivor
-    0.07-0.12). Both flagship CPU candidates live. Backend-seam design
-    still waits on items 4-5 (informed-kernel + CG-leaf prototypes).
+  gpu-bart: memo + falsifiers landed (docs/design/gpu-bart.md,
+    docs/design/parallel-bart-frontier.md). Backend-seam design still
+    waits on frontier items 4-5 (informed-kernel + CG-leaf prototypes).
   forest-combiner: review-6 architecture debt #1, the multi-forest
     prerequisite. Promote the BCF glue out of Chain (bcf_ pointer,
     drawGlue, combinedFits, formForestResponse, forestMultiplier,
@@ -107,56 +77,13 @@ items
     (grouped-random-effects.md; naming reserved). decision-gated.
   grouped-equivalence: equivalence scenario for grouped rbart_vi fits,
     only if a grouped refactor is planned.
-  grow-from-root: XBART-style root-down tree sampling on the
-    provisioned cut-scan kernel; the highest-ceiling large-n item and
-    the realistic doorway to any GPU backend. MEMO + KERNEL LANDED
-    2026-07-08 (grow-from-root.md; driver benchmarks/kernels/
-    grow_from_root.c). Cut-scan measured on M1 Max: seq root scan
-    histogram-bound ~13.6 GB/s (not DRAM-bound), scattered-leaf scan
-    DRAM/cache-line-bound ~0.7x the 52 GB/s roofline; multiplier
-    scan-vs-single-cut ~p on a scattered leaf (10x p=10, 53x p=50),
-    ~p/4 root-order. Recommendation: GO on the shared scan primitive
-    and grow-from-root as a WARM-START producer (feeds installTrees/
-    warm.start, sidesteps validity); NO-GO on shipping it as a
-    standalone posterior sampler - the exact-sampler use of the scan
-    belongs to frontier 3.1's informed proposal. APPROVED by VD
-    2026-07-08 as grow-from-root-warm-start: promote the scan kernel
-    into the engine as a shared primitive (constant leaf first,
-    reading the leaf model's suffstats), add growTreeFromRoot
-    alongside metropolisJumpForTree, wire it to emit a starting
-    forest through the installTrees/warm.start surface (user surface
-    - bart2 argument vs explicit producer - decided in the plan).
-    Shares the scan primitive with frontier item 4, so schedule to
-    land the scan once. Review-6 note: the promoted scan must be
-    OCCUPANCY-AWARE - the empty-leaf veto lives in
-    logLikelihoodForBranch's finite penalty, which a scan-based
-    builder never calls; empty-side cuts get zero weight in the
-    scan itself, and that contract needs its own gate.
-    WARM-START PRODUCER LANDED 2026-07-10 (c8c7764,
-    grow-from-root-warm-start.md): scan.hpp (occupancy poison-gated,
-    no sumWZ2, leaf-templated for frontier 4 + linear/GP later) +
-    grow.hpp growTreeFromRoot (CGM prior factors, exact draw count,
-    ordinal-only v1) + a duplicated grow sweep off the hot path +
-    bart2 n.grow.sweeps = 0L / R5 growFromRoot(n.sweeps = 2L).
-    Equivalence 21/21 identical (default path frozen); grow-init
-    beats prior-init early RMSE 0.67-0.88x. Frontier 3.1's exact
-    informed-proposal use of the scan remains open there.
-  hot-layer-u8: FOLDED into data-ownership's owned container (VD
-    2026-07-07, after phase-1 kernel measurements showed no standalone
-    partition win); per-column widths land with the container and get
-    re-measured end-to-end there.
+  grow-from-root: warm-start producer LANDED 2026-07-10 (c8c7764,
+    grow-from-root-warm-start.md). Frontier 3.1's exact
+    informed-proposal use of the shared scan remains open.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
-  input-precision-validation: LANDED 2026-07-10 with
-    missing-incorporate-matrix-interface (de67cbb). dbartsData warns
-    when range(y)/max(abs(y)) < 1e-10 (0/0 guarded); deliberately NO
-    cardinality check backs it up - a genuine double-precision
-    collapse always trips the ratio, while anything cardinality-only
-    is well-separated legitimate discrete data (subsumption argument
-    in small-validation-fixes.md). GP predict-vs-recorded-fit note
-    landed in man/dbartsPriors.Rd and gp-leaves.md.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
     the template; one design note each when picked. Review-6
@@ -166,265 +93,17 @@ items
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
     workingWeights channel vs a sigma vector).
-  chi-default-research: COMPLETE and IMPLEMENTED 2026-07-10
-    (study record chi-default-research.md; landing 5b6e482). VD
-    approved chi(1.5, 2) as the binary default: chi()'s scale
-    default is now 2.0 (Inf still accepted, sentinel cap the
-    backstop), .kDefault and resolveNodeHyperprior updated, Rd
-    frames it as the field's k = 2 sampled (prior median 1.9;
-    pass k = 2 for the fixed BART default). rbart_vi already
-    pinned k = 2 (unchanged). No snapshots rode the old default;
-    SEVEN equivalence scenarios did (chik, linear, gp, wtgp,
-    chik2, logistic, wtlogistic) and are now pinned to their
-    historical explicit settings, so the anchor stays
-    byte-identical (21/21 identical draws post-change).
-
-  bcf-glue-sigma-calibration: RESOLVED 2026-07-10 as H-MIX (slow
-    mixing), not a defect - the chain-length experiment (three
-    points spanning 8.3x: thin 120/360/1000, R=200, L=150) shows
-    the sigma rank bias shrinking monotonically into PASS (rank
-    mean 65.8 -> 67.8 -> 69.7 toward 75; ecdf 0.113 -> 0.107 ->
-    0.065 vs band 0.092; chisqP 0.0002 -> 0.105 -> 0.617), where a
-    defect would plateau; all controls pass at every point. The
-    glue-scaled forest-update path is exonerated: the stationary
-    distribution is correct within SBC resolution. Mechanism
-    measured directly: sigma and the (a, mu) ridge co-relax with
-    IACT scaling steeply in the prognostic amplitude |a0| (IACT 4
-    at a0 ~ 0 to ~5000-6000 sweeps at |a0| ~ 7-13, the Cauchy(0,2)
-    tail), so fixed thinning leaves the strong-signal minority
-    correlated and sigma biased high in finite chains. Remedy
-    routed to bcf-ridge-interweaving (below). Full record in
-    sbc-calibration.md; artifacts in the session tmp.
-  bcf-ridge-interweaving: LANDED 2026-07-10 (9617c94) as a mixing
-    win; acceptance RE-SCOPED. The a-ridge rescale (c^2 ~
-    GIG((L-1)/2, M/leafVar, a0^2/aVariance) after drawGlue;
-    aVariance held - refreshing it measurably hurt mixing) is
-    posterior-preserving (bcf-exact + bcf-exact-weak PASS),
-    off-path bit-identical, ~3.9%/sweep, |a| IACT 2.5x better.
-    New ext_rng_simulateGeneralizedInverseGaussian (Dagpunar
-    noshift ROU, moment-tested) in external. BUT the thin=120
-    sigma SBC flag persists in BOTH base and new builds at R=400
-    (sigma rank mean ~67-69/75), and sigma IACT (~40) << thin, so
-    the residual is NOT (a, mu) autocorrelation - see
-    bcf-sigma-residual.
-  bcf-sigma-residual: RESOLVED 2026-07-10 (record in
-    bcf-sigma-residual.md; corrects the earlier burn-transient
-    framing). Measured anatomy: the a*mu amplitude is right by
-    sweep ~10; the slow variable is mu-forest tree STRUCTURE
-    mixing at high SNR, with sigma carrying the shape misfit
-    (bias up to ~1.2x for |a0| > 5 at burn 18k). Candidate
-    remedies MEASURED: data-informed a-init and no-glue warm
-    start both REJECTED (no gain; higher early SNR freezes
-    structure); burn length is the only working lever (settle
-    ~72k sweeps at the tail). FIX LANDED: runSbcBCF's burn
-    default now pins absolute sweeps (ceiling(72000/thin));
-    burn note added to bcf.md. ACCEPTANCE MET at full R=400:
-    sigma rank 74.5/75, ecdf 0.0325 vs band 0.0656, chisqP 0.91,
-    all controls PASS (vs 67.6/0.1003 FLAG at burn=150). The
-    |a0| >= 40 frozen tail (~3% of prior) is a structure-mixing
-    limit no burn fixes - an engine remedy (tempered early
-    sweeps) would be its own item, decoupled from the shelved
-    b-ridge move (bcf-b-ridge.md).
-
-  bcf-testfits-guard: LANDED 2026-07-08 - storeSample now NaNs the
-    testFits channel under BCF (chain.hpp) instead of recording the
-    bare mu forest, and the bridge refuses the single-forest test
-    surface on a BCF sampler (numForests >= 2): setTestPredictor,
-    setTestOffset, setTestPredictorAndOffset, and predict all
-    Rf_error, pointing at the per-forest channels (getForestFits +
-    bcfGlue). Confirmed createBCFHolder wires no test data, so the
-    setters were the only reach. Results doc records that
-    k/variableCounts/splitProbabilities are mu-forest diagnostics
-    under BCF. tests/cpp BCF case + test-bcf.R error pair; all gates
-    bit-identical (equivalence 18/18, bcf-exact matches). Design note
-    docs/plans/bcf-testfits-guard.md.
-  change-move-balance: LANDED 2026-07-08 - the hybrid change kernel
-    (VD's pick after the stage-2 measurements; cross-type correction
-    caught and fixed in review) is now THE change move; its acceptance
-    satisfies detailed balance. Design note
-    docs/design/change-move-balance.md; change-balance.R (main +
-    control + mixed-type arms) is the permanent exact-posterior gate.
-    bench-sampler and the equivalence anchor re-record ride the
-    landing.
-  chi-k-empty-leaf-count: LANDED 2026-07-08 - the constant and
-    linear branches now skip empty leaves in the chi-k accounting,
-    matching GP. Pure-latent (landing refinement: every public
-    mutation path collapses or rejects empty leaves, so only
-    fabrication reached the branch); all gates bit-identical,
-    equivalence 18/18. tests/cpp testChiKEmptyLeafAccounting via a
-    chain fabrication hook is the regression;
-    chi-k-empty-leaf-count.md has the record.
-  chi-k-runaway: LANDED 2026-07-10 (4797bc0). ChiKHyperprior::draw
-    caps the sampled k at a 1e6 sentinel applied after the gamma
-    draw, so runs below the cap are bit-identical (equivalence
-    21/21 identical) and both runaway modes (chi(100, Inf)
-    deterministic, few-tree df=1.5 stochastic) are bounded at a
-    leaf sd that is statistically zero on the standardized
-    response. State restore deliberately uncapped (draw() is the
-    sole stochastic origin; reasoning in chi-k-runaway.md). The
-    default-scale question stays with chi-default-research part 2.
-  interface-fixes-1.0: interface-review deliverable (plan file has
-    the full F/D lists). Code: weigths PPD typo, single-chain
-    extract-trees crash, dead missing="error" net + silent row
-    drop, keepTrainingFits=FALSE guards, train-type vs test-type
-    validation, reinstated positional-match warning, xbart "[2, N]"
-    literal, bart() coercion messages, weights/offset length
-    pre-validation, run numThreads->n.threads, print synopsis.
-    Docs: dbartsSampler-class examples + $-usage + run dims,
-    dbarts.Rd offset rewrite, rbart/xbart doc slips, trees order
-    text, residuals + binary fields, sigma/sigest cross-refs.
-    RNG-neutral, R-only; tinytest + equivalence identical expected.
-    Taste calls T1-T11 ALL DECIDED by VD 2026-07-08 (nothing
-    deferred to 2.0; decisions recorded in interface-review.md):
-    unify combineChains, chain-first trees, thread rbart PPD
-    weights, wire updateState opt-in after checking the lazy-state
-    interaction, rbart_vi k doc-only pending chi-default-research,
-    bart2 factors="categorical" (was already the default - reader
-    claim overbroad, no gate fallout), flip pdbart cols, reject
-    explicit samplerOnly in pdbart, positional-match error,
-    vignette (already ships in built tarballs; absent only from
-    directory installs), n.cuts becomes a real slot. ALL LANDED
-    2026-07-08: F/D list 8744e77, taste calls c1ea79a (equivalence
-    18/18 identical both; suite 2496/0). Interface review COMPLETE;
-    records in interface-review.md.
-  missing-incorporate-matrix-interface: LANDED 2026-07-10 with
-    input-precision-validation (de67cbb). The matrix branch now
-    honors missing = "incorporate": no complete-cases drop, NA rows
-    reach the shared MIA machinery, and matrix and formula fits are
-    bit-identical (test-data-missing-matrix.R). Shifting: the
-    equivalence "missing" scenario legitimately moved (57% of its
-    rows had been silently dropped); anchor re-recorded as
-    equivalence-de67cbb.rds.
   mutation-journal: build-new-and-swap for setPredictor instead of
     copy-old-and-restore; cell-granular journal for the patch paths;
     document the cost contract per entry point.
-  sigma-df-zero-weights: LANDED 2026-07-08 - the gaussian sigma
-    posterior df now counts only positive-weight rows (GaussianResponse
-    tracks the count; ChiSquaredScalePrior takes it), so documented-
-    ignored zero-weight rows no longer over-concentrate and deflate
-    sigma. Posterior-changing for zero-weight fits only; all-positive
-    fits bit-identical. sigma-df-zero-weights.md has the derivation and
-    gate results; tests/cpp testSigmaPosteriorDf and test-zero-weights.R
-    are the regression gates. The zeroweights equivalence scenario
-    shifts legitimately (sigma.mean z = -61.74); anchor re-recorded as
-    equivalence-cf99a00.rds (commit 7b79623, MANIFEST updated).
-  tau-slice-stepout-cap: LANDED 2026-07-10 (7c1c7c9) - both
-    step-out loops now carry Neal's m cap (10^4 expansions/side,
-    an integer countdown short-circuiting ahead of the FP
-    conditions, so bit-identity holds whenever the cap does not
-    engage - which is every healthy run; the poison-hang regime
-    returns in ~2e4 evaluations instead of never). Hang-on-unfixed
-    verified (>2.5 min unbounded spin vs 1.21s fixed suite); all
-    gates green, equivalence 21/21 identical. tests/cpp
-    testGroupedMath gained the stall-regime case;
-    tau-slice-stepout-cap.md has the record.
-  c-api-growth: LANDED 2026-07-10 (0254f10 output surface,
-    2d09768 state format; plan + design-change record in
-    c-api-growth.md). VD revised the decided design mid-flight:
-    since nothing on CRAN links against the unreleased 1.0-0
-    header, there is NO second entry point - dbarts_results itself
-    is size-first (leading caller-set structSize; the library
-    fills a field only when present-by-size and non-null; fields
-    append monotonically below a marked boundary and bump
-    DBARTS_C_API_VERSION, which stays 1 at introduction). Layout
-    locked by static asserts; write guard proven by a compiled
-    C-consumer canary with poisoned out-of-bounds slots. State
-    format: version stamp demoted to an encoding floor
-    (minReadableStateFormatVersion = 3) over the by-name block
-    reader; required blocks refused BY NAME (missing vs
-    malformed); append-only registry rule in public-surface.md.
-    Absorbs flat-format-v2. LOCKSTEP ACTION at 1.0-0: stan4bart's
-    port adds r.structSize = sizeof r at its dbarts_results
-    allocations. The engine-side logLikelihood channel was
-    deferred (per-family producer needs a new response-model
-    virtual + group plumbing) - append it when built; the
-    boundary comment marks the spot. CHANNEL
-    LANDED 2026-07-10 (2b49bb3): logLikelihood shipped INSIDE the
-    born v1 layout (boundary comment below it, version stays 1);
-    engine computeLogLikelihood virtual - gaussian (dnorm, precision
-    weights), probit (stable pnorm log-tails), logistic (count
-    weights), grouped (adds drawn intercepts, defers to base); BCF
-    NaN-fills (blended location invisible to the response model,
-    testFits precedent); C-vs-R match asserted to 1e-12 in the capi
-    consumer; R bridge never requests it.
-
-  sbc-ci-gate: LANDED 2026-07-10 (ed34eea). .github/workflows/
-    sbc.yaml runs the gaussian SBC baseline (R=100, ~27s local) on
-    a weekly cron + workflow_dispatch only - no PR triggers, so a
-    statistical false alarm cannot block merges but a FLAG turns
-    the scheduled run red. Opt-in SBC_FAIL_ON_FLAG env var in the
-    sbc.R CLI (source() usage untouched); harness seeds already
-    fixed, so runs are deterministic.
-  roadmap-order: DECIDED (VD, 2026-07-10), from the review-5
-    survey: (1) the three cheap high-demand items first -
-    prior-predictive (#31), weighted-binary semantics (#79),
-    pointwise-loglik (#25/#37) - each small and independently
-    landable; (2) then survival-models promoted to first tier
-    (AFT log-normal first, riAFTBART the landing consumer);
-    (3) then grow-from-root-warm-start (approved, strategic
-    rather than demand-pulled). chi-default-research part 2
-    runs when convenient (simulation, machine-bound not
-    decision-bound).
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
   ordinal-outcomes: cumulative probit on the existing truncated-normal
     machinery plus a cutpoint block.
-  parallel-falsifiers: DONE 2026-07-08. Measured verdicts on frontier
-    falsifiers 1-3 (field-fraction profile, atom census, stale-residual
-    agreement), kill conditions applied. Both SURVIVE: 3.4 (E1 + E2 both
-    clear; field ~85%, atoms << n at b in {4,8}) and 3.2a (agreement
-    0.97, survivor 0.07-0.12). See docs/design/parallel-bart-frontier.md
-    section 5 and docs/plans/parallel-falsifiers.md Status; driver
-    benchmarks/R/parallel-falsifiers.R. Instrumentation reverted, not
-    landed. Successors: frontier items 4-5.
-  pointwise-loglik: LANDED 2026-07-10 (8688e12). extract(fit,
-    type = "loglik") for bart/bart2/rbart_vi: R-side S x n
-    training log-likelihood from stored draws (gaussian dnorm
-    with sigma/sqrt(w) precision weights; probit dbinom; weighted
-    logistic w * dbinom trial counts; rbart location includes the
-    drawn intercepts), consumed directly by loo/WAIC (smoke
-    verified). Draw-dimension conventions via the existing ev
-    machinery; sigma paired on chains-split ev (as.vector is
-    chain-fastest in both stored layouts, locked by
-    layout-invariance tests). The engine-side Results field
-    version rides c-api-growth.
-  ppd-sigma-pairing: LANDED 2026-07-10 (03a5b85). sampleFromPPD
-    now draws gaussian noise in object$sigma's native chain-fastest
-    order and reshapes the noise through combineChains when ev is
-    combined, so every ppd draw pairs with its own draw's sigma in
-    both layouts and same-seed combined/split draws agree
-    bit-for-bit; single-chain draws bit-identical to before. The
-    one pre-existing test that encoded the buggy formula was
-    updated; pre-fix regression run confirmed 4/5 new scenarios
-    fail on the old code.
-  prior-predictive: LANDED 2026-07-10 (c37ec3b). Exported
-    samplePriorPredictive(sampler, x.test, n.samples, type =
-    ev/ppd): fresh private sampler per call (NOT copy() - that
-    replays the donor's frozen engine RNG; caught in review),
-    prior tree + node-parameter draws evaluated at x.test, ppd
-    adds prior-drawn scaled-inv-chisq sigma noise (gaussian) or
-    bernoulli draws (binary); independent across calls, set.seed
-    reproducible, control rngSeed pins. Rd has the issue-#31
-    treatment-effect example.
-  retrospective-reviews: GREENLIT program of six reviews (correctness
-    derivation audit, interface, gate blind spots, SBC calibration,
-    field roadmap survey, architecture critique + numerical
-    robustness), strictly sequential; order and scope in the plan
-    file. IN PROGRESS 2026-07-08: review 1 running as
-    correctness-audit (paired independent derivers per formula
-    block).
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
-  rbart-loop-profile: CLOSED 2026-07-07. The callback rewrite landed
-    (rbart-loop-fix, 55ce4ba, bitwise-neutral) but reclaimed nothing:
-    the round trip was never the cost - the overhead over the in-core
-    floor is the R-side Gibbs blocks (O(n) group means, the tau
-    slice's per-draw optim). Moving those into C atop the callback
-    entry is the unpicked follow-up; tables in both plan files. (The
-    correctness bug the measurement surfaced was fixed as
-    rbart-custom-prior-divergence, c7fa0e4.)
   repo-modernization: standing hygiene bundle. Remaining: PR-gate the
     sanitizers workflow once the new gcc-asan/valgrind legs prove
     stable on pushes; optional codecov badge (VD's call); optional
@@ -433,80 +112,24 @@ items
     workingWeights hook; composes with user weights.
   sparse-extensions: in-place mutation, sparse x.test, streaming range
     kernel, mutation on dense-backed mixed columns (sparse-columns.md
-    landing notes). The u8 width entry moved to hot-layer-u8.
+    landing notes). The u8 width entry moved to data-ownership.
     consumer-gated.
-  tau-slice-review: DONE 2026-07-11 (VD-requested; memo
-    docs/plans/tau-slice-review.md). VERDICT: KEEP - the slice
-    sampler is correct (all three kernels match 1-D quadrature to MC
-    error; C++ and R custom-prior paths target the identical
-    conditional) and is NOT the mixing bottleneck: isolation shows
-    slice == exact conjugate draw (K=10 IACT 23.4 vs 25.6); the real
-    grouped-fit bottleneck is FOREST-RANEF CONFOUNDING (25x the IACT
-    at K=3), untouchable by any tau-draw swap. Optional layered
-    follow-ups, VD decision: (1) swap the cauchy slice for the
-    Makalic-Schmidt exact-IG two-block draw (derived + quadrature-
-    validated under our A = 2.5 rel.scale/sigmaScale; deletes the
-    step-out-hang class the 7c1c7c9 cap bounds, constant 2 RNG
-    draws/sweep, reuses the drawGlue idiom; draw-changing for
-    grouped fits -> grouped-scenario re-record; robustness not
-    mixing); gamma prior keeps the slice (gamma-on-SD has no exact
-    draw - GIG does not apply, derivation in the memo). (2) research:
-    a forest-ranef joint/interweaving move (the actual bottleneck);
-    ASIS on (tau, b) validated 11x in isolation but only partial in
-    the full engine - prototype-gate it. Blemish noted, immaterial:
-    the step-out cap is two independent per-side counters rather
-    than Neal's single randomized budget (binds only in runaway).
-  survival-grouped-surface: filed 2026-07-10 from the survival design
-    panel. NO R entry point composes AFT with grouping: rbart_vi has
-    no family argument and uses the formula interface, where Surv
-    dispatch is disabled - so the riAFTBART migration (random
-    intercepts + AFT, the marquee consumer case) is aspirational
-    until rbart_vi grows family = "aft". survivalProbabilities is
-    already a generic with an rbart method that errors informatively,
-    so the surface slot exists. Scope: rbart_vi family plumbing +
-    the rbart survivalProbabilities method computing S(t | x, group)
-    draws. Post survival-models landing.
-  survival-models: AFT log-normal (censoring via truncated-normal
-    latents; riAFTBART is the named consumer) and discrete-time hazard
-    (person-period ingestion); the design note picks which lands first.
-  warm-starts: LANDED 933eed8 (installTrees + bart2 warm.start;
-    same-grid v1, cross-grid refused). Remaining stretch: the
-    cross-grid remap over mapOldCutPointsOntoNew; reopen when a
-    consumer needs new-data warm starts.
-  weighted-binary: memo findings (2026-07-10, issue #79): the
-    semantics are ALREADY RESOLVED in the bartcore cutover - probit
-    refuses weights (all-1 dropped for SuperLearner), logistic does
-    exact integer frequency weights via summed PG(1, psi) draws
-    (empirically identical to row replication, cor = 1.0), docs
-    state all three families' meanings; BART/bartMachine offer no
-    weighted binary at all. ONE residual defect, READY TO
-    IMPLEMENT: sampleFromPPD (R/generics.R ~916-933) still draws
-    rbinom(n, 1, ev) * w - a degenerate {0, w} two-point whose mean
-    is right by luck but whose intervals are wrong; the coherent
-    draw for a count-w row is rbinom(n, size = w, prob = ev).
-    PPD FIX LANDED 2026-07-10 (da7b659): sampleFromPPD now draws
-    rbinom(n, size = w, prob = ev) in both the matrix and array
-    branches (recycling verified per fill order), bart.Rd
-    documents binomial(w, p) counts, and the weighted-binary
-    regression tests #79 noted were missing now exist
-    (test-weighted-binary-ppd.R). #79's last live path is closed.
-    FUTURE (unchanged, post 1.0): integer-weight probit via
-    replicated latents; arbitrary real weights need a real-shape
-    PG sampler (IPW is a pseudo-likelihood trap).
-  cpp-weighted-logistic-test-miswire: RESOLVED 2026-07-10 (305406b).
-    tests/cpp testWeightedLogistic passed w in the OFFSET position
-    (constructor order (x, y, n, p, weights, offset)) at all three
-    constructions, so it exercised an offset, not weights. Rewired
-    onto the weights slot and the assertion re-derived: outcome-tied
-    weights (successes 4x) make the fitted per-quartile probability
-    calibrate to the WEIGHTED rate sum(w*y)/sum(w) - the replicated
-    data's rate - which a dropped weight misses by 0.31/0.15
-    (poison-proven; tolerance 0.12). Offset coverage was not
-    lost-unique (test_sampler.cpp:1307 et al.). Tests-only.
+  survival-models: AFT log-normal LANDED (f0efc03; design
+    docs/design/survival.md; survival-grouped-surface reachable through
+    rbart_vi landed as ac6ec2c). Remaining: discrete-time hazard
+    (person-period ingestion over the binary families, same design note).
+  warm-starts: v1 LANDED (installTrees + bart2 warm.start; same-grid
+    v1, cross-grid refused). Remaining stretch: the cross-grid remap
+    over mapOldCutPointsOntoNew; reopen when a consumer needs new-data
+    warm starts.
+  weighted-binary: PPD fix LANDED 2026-07-10 (da7b659) and issue #79
+    closed. FUTURE (post 1.0): integer-weight probit via replicated
+    latents; arbitrary real weights need a real-shape PG sampler (IPW
+    is a pseudo-likelihood trap).
   within-chain-threading: previously assessed-and-deferred pending
     n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
     reductions preserve thread-count invariance; the measurement
-    interacts with hot-layer-u8 (same DRAM-bound regime) and competes
+    interacts with data-ownership (same DRAM-bound regime) and competes
     with blocked-jacobi-trees as the mechanism.
   x86-simd: three linalg SSE2/AVX bodies are scalar with intrinsics
     commented out (predates the rewrite; the originals used
