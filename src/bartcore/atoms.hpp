@@ -13,19 +13,23 @@
 #include "tree.hpp"
 
 /// Block-fusion Stage A build knob (block-fusion-stage-a.md 5.1). A compile-time
-/// switch, DEFAULT OFF: the shipped constant-leaf sweep sources each sweep's
-/// per-leaf sufficient statistics from the live setNodeAverages/computeLeafStats
-/// writer, so the released engine is byte-for-byte today's. A dev/test build
-/// defines BARTCORE_BLOCK_FUSION to non-zero (e.g. -DBARTCORE_BLOCK_FUSION=1) to
-/// route that per-sweep suffstat SOURCE through the b=1 atom path
-/// (the fused buildAggregateWrite pass) for the equivalence gate; because the
-/// atom aggregation is bitwise the kernel and lands the same values in the same
-/// node cache, the draws are unchanged. Both writers stay compiled regardless of
-/// the switch, so tests/cpp can drive them side by side. The milestone commit
-/// flips the default ON for the constant-leaf steady-state sweep; this commit
-/// keeps the shipped default OFF (clean abort: define it to 0 or leave undefined).
+/// switch, DEFAULT ON as of the Stage-A milestone: the shipped constant-leaf
+/// steady-state sweep sources each sweep's per-leaf sufficient statistics
+/// through the b=1 atom path (the fused buildAggregateWrite pass) instead of the
+/// live setNodeAverages/computeLeafStats writer. The atom aggregation is bitwise
+/// the same kernel over the same member order and lands the same values in the
+/// same node cache, so every downstream reader and the draws are unchanged
+/// (equivalence 22/22 exact). The path is constant-leaf + steady-state-run()
+/// only: vector-param (linear) and function-param (GP) leaves and the
+/// grow-from-root warm start stay on the legacy writer (see Chain::leafIsConstant
+/// and the warm-start loop).
+///
+/// The knob stays so a build can define BARTCORE_BLOCK_FUSION=0 (e.g.
+/// -DBARTCORE_BLOCK_FUSION=0) for a one-line abort back to the legacy writer,
+/// AND it is Stage B's b-dispatch seam. Both writers stay compiled regardless
+/// of the switch, so tests/cpp can drive them side by side.
 #ifndef BARTCORE_BLOCK_FUSION
-#define BARTCORE_BLOCK_FUSION 0
+#define BARTCORE_BLOCK_FUSION 1
 #endif
 
 namespace bartcore {
