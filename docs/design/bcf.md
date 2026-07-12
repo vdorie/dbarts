@@ -1,7 +1,8 @@
 # Bayesian Causal Forests: design
 
-Status: proposal, 2026-07-07. Reference for the first two-forest sampler and the
-Forest split it forces. Model and defaults follow Hahn, Murray, and Carvalho
+Status: LANDED. Proposed 2026-07-07; the two-forest sampler and the Forest
+split it forced shipped 2026-07-07, with mixing refinements through 2026-07-10
+(see "Landing" below). Model and defaults follow Hahn, Murray, and Carvalho
 (2020), "Bayesian Regression Tree Models for Causal Inference" (Bayesian Analysis
 15(3), 965-1056), and the `bcf` R package; deviations from either are flagged.
 
@@ -259,3 +260,22 @@ burn to absolute sweeps accordingly. The |a| >= 40 extreme tail (~3%
 of the prior) is a structure-mixing limit no burn fixes; an engine
 remedy (tempered early sweeps) would be its own item. Records:
 docs/plans/bcf-sigma-residual.md.
+
+## Landing (2026-07-07 to 2026-07-10)
+
+The Forest member split and the two-forest sampler above shipped
+2026-07-07: the sampler itself (d1ffb92), calibrated and gated
+against the exact posterior, closing the core item (c9fd2fe;
+docs/plans/forest-split-bcf.md); the state format gained a forest
+dimension (4e6b206); and a sampler can warm-start from a donor fit's
+forests (933eed8). Mixing refinements landed 2026-07-10: an
+interweaving rescale move on the glue ridge (9617c94;
+docs/plans/bcf-ridge-interweaving.md) and the sigma burn-in
+calibration recorded above (docs/plans/bcf-sigma-residual.md).
+bartCause is the intended consumer, driving from R over the mutation
+surface described above.
+
+## Status
+
+LANDED. Two-forest sampler and Forest split 2026-07-07; mixing
+refinements 2026-07-10 (see "Landing" above).

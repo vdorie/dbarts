@@ -136,13 +136,11 @@ SIMD specializations only when profiling justifies them.
 4. **Sparse partition**: LANDED 2026-07-04 as misc_partitionIndicesSparse
    (see the partition section above); a streaming range variant for
    root-sized segments remains headroom.
-5. **Cut-scan histogram** (enables grow-from-root samplers and exhaustive
-   change-rule proposals; XGBoost's histogram trick):
-
-       void misc_scanColumn(const misc_xint_t* x, const size_t* indices,
-                            size_t length, const double* z, const double* w,
-                            double* restrict out);  // out[3 * numCodes]: n, sum, ssq per code
-
+5. **Cut-scan histogram**: LANDED 2026-07-10, but not as a misc.a kernel -
+   the cut-scan is header-only in bartcore (src/bartcore/scan.hpp
+   `scanOrdinalCuts` + src/bartcore/grow.hpp `growTreeFromRoot`), leaf-model
+   templated rather than a fixed-suffstat entry point in this vocabulary.
+   See docs/design/grow-from-root.md.
 6. **Fused suffstat updates** as profiling demands (e.g. weighted count+sum
    in one pass for Polya-Gamma iterations).
 

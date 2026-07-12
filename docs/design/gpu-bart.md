@@ -6,6 +6,13 @@ gets its own plan and its own gate class. See docs/plans/gpu-bart.md for the
 originating item, and docs/design/parallel-bart-frontier.md for the companion
 note on not-yet-existing constructions and the CRAN conditional-backend axis.
 
+Update (2026-07-10): the CPU cut-scan prototype that sections 2d and 4 gate the
+GPU cut-scan experiment behind has landed, role (a) warm-start producer only
+(src/bartcore/scan.hpp, src/bartcore/grow.hpp; docs/design/grow-from-root.md).
+That prerequisite is satisfied. The GPU falsifying experiment itself remains
+open work, sequenced behind frontier items 4-5 (the informed-kernel and
+CG-leaf prototypes; parallel-bart-frontier.md section 5).
+
 ## 1. Why classic BART is GPU-hostile, and where that framing breaks
 
 The default dbarts sampler is sequential backfitting (Chipman, George and
