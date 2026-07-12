@@ -10,6 +10,7 @@
 
 #include <external/random.h>
 
+#include "atoms.hpp"
 #include "data.hpp"
 #include "model.hpp"
 #include "tree.hpp"
@@ -41,6 +42,11 @@ struct MoveContext {
   const double* weights;
   double k;
   MoveScratch& scratch;
+  /// Block-fusion atom map for the constant-leaf sweep, or null when the atom
+  /// path is off (the default) or the leaf model is not constant. When set,
+  /// birth sources its child suffstats from AtomMap::splitAtom instead of the
+  /// live computeLeafStats, and a rejected birth rolls the split back.
+  AtomMap* atomMap = nullptr;
 };
 
 template <IntegrableLeafModel L>
@@ -171,7 +177,17 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     Node oldNode = tree.at(nodeToChange);
     size_t maskPoolMark = tree.maskPoolMark();
     Rule newRule = ctx.treePrior.drawRuleAndVariable(tree, ctx.data, rng, nodeToChange);
-    tree.birth(ctx.data, nodeToChange, newRule, y, ctx.weights);
+    if (ctx.atomMap != nullptr) {
+      // Block-fusion atom path: attach the child pair, then source the two
+      // child suffstats from the atom split (partition via the tree's own
+      // primitive, aggregate through the same kernel) rather than birth's live
+      // computeLeafStats. The child node caches land bitwise-identical, so the
+      // acceptance ratio below and the later draw see identical inputs.
+      tree.birthStructure(nodeToChange, newRule);
+      ctx.atomMap->splitAtom(tree, ctx.data, y, ctx.weights, nodeToChange);
+    } else {
+      tree.birth(ctx.data, nodeToChange, newRule, y, ctx.weights);
+    }
 
     double leftPriorGrowthProbability = ctx.treePrior.growthProbability(
       tree, ctx.data, tree.at(nodeToChange).leftChild);
@@ -209,6 +225,9 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
       tree.at(nodeToChange).sumWeightedResponseSq =
         oldNode.sumWeightedResponseSq;
+      // The tree restores its own structure + parent cache above; roll the
+      // atom SoA back bitwise so a rejected birth leaves the map untouched.
+      if (ctx.atomMap != nullptr) ctx.atomMap->undoSplit();
       *stepTaken = false;
     }
   } else {
