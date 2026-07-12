@@ -742,7 +742,18 @@ public:
         // Under the atom flag, birth sources its child suffstats from the map's
         // splitAtom (and rolls back a rejected birth); off the flag the pointer
         // stays null and every move keeps the live computeLeafStats path.
-        if constexpr (useAtomSuffstatSource) ctx.atomMap = &forest.atomMap;
+        if constexpr (useAtomSuffstatSource) {
+          ctx.atomMap = &forest.atomMap;
+          // Stage A ships the b=1 atom path with the Stage-B bookkeeping OFF so
+          // it does no more O(n) work than legacy setNodeAverages: the
+          // cross-sweep A cache saves nothing at b=1 (the suffstat kernel
+          // rescans every sweep) and only adds a per-leaf member-list memcmp,
+          // and atomOf is move bookkeeping no b=1 consumer reads. Both are kept
+          // (default ON for the component tests + Stage B) but disabled here.
+          // Neither feeds a draw, so this stays bitwise-identical.
+          forest.atomMap.aCacheBypass = true;
+          forest.atomMap.trackAtomOf = false;
+        }
 
         forest.kSumSquaredParams = 0.0;
         forest.kNumLeaves = 0.0;
@@ -785,10 +796,11 @@ public:
           // refreshSubtree for change/swap), so ALL structural moves keep the
           // map live. It is still rebuilt fresh for the next tree.
           if constexpr (useAtomSuffstatSource) {
-            forest.atomMap.buildForTree(forest.trees[t], data_);
-            forest.atomMap.aggregateTree(forest.trees[t], forest.treeY.data(),
-                                         forestWeights);
-            forest.atomMap.writeNodeCaches(forest.trees[t]);
+            // One fused pass (build topology + aggregate the kernel + write the
+            // node caches) so the per-tree cost matches setNodeAverages' single
+            // traversal; bitwise the separate build/aggregate/write calls.
+            forest.atomMap.buildAggregateWrite(
+              forest.trees[t], data_, forest.treeY.data(), forestWeights);
           } else if constexpr (leafTracksNodeAverages) {
             forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
           }
@@ -806,12 +818,11 @@ public:
           // the draw writes this tree's new fits straight into its slab
           sampleParametersAndSetFits(forest, t, treeFits, record);
 
-          // atom S(c) = mu carry (design 3.3 at b=1): inert here (nothing reads
-          // S, no RNG, no cache), exercised so Stage B's carry is in place. The
-          // map is pre-move, so live S is best-effort; the invariant S == fit is
-          // proven in the component harness where topology is stable.
-          if constexpr (useAtomSuffstatSource)
-            forest.atomMap.setInBlockFits(forest.paramByNode);
+          // The b=1 atom S(c) = mu carry is inert here (nothing reads S, no RNG,
+          // no cache) so the shipped sweep skips it - it is pure per-tree
+          // overhead at b=1. AtomMap::setInBlockFits stays for the component
+          // harness (which proves S == fit) and for Stage B, where S feeds the
+          // b>1 cross-tree coupling.
 
           // flatten while the freshly drawn parameters are live
           if (record && forest.savedTreeCapacity > 0)

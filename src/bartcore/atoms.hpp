@@ -18,12 +18,12 @@
 /// writer, so the released engine is byte-for-byte today's. A dev/test build
 /// defines BARTCORE_BLOCK_FUSION to non-zero (e.g. -DBARTCORE_BLOCK_FUSION=1) to
 /// route that per-sweep suffstat SOURCE through the b=1 atom path
-/// (aggregateTree + writeNodeCaches) for the equivalence gate; because the atom
-/// aggregation is bitwise the kernel and lands the same values in the same node
-/// cache, the draws are unchanged. Both writers stay compiled regardless of the
-/// switch, so tests/cpp can drive them side by side. Commit (vii) flips the
-/// default ON for the constant-leaf steady-state sweep; this commit keeps the
-/// shipped default OFF (clean abort: define it to 0 or leave it undefined).
+/// (the fused buildAggregateWrite pass) for the equivalence gate; because the
+/// atom aggregation is bitwise the kernel and lands the same values in the same
+/// node cache, the draws are unchanged. Both writers stay compiled regardless of
+/// the switch, so tests/cpp can drive them side by side. The milestone commit
+/// flips the default ON for the constant-leaf steady-state sweep; this commit
+/// keeps the shipped default OFF (clean abort: define it to 0 or leave undefined).
 #ifndef BARTCORE_BLOCK_FUSION
 #define BARTCORE_BLOCK_FUSION 0
 #endif
@@ -73,6 +73,18 @@ struct AtomMap {
   /// Live atom count == non-empty-leaf count at b=1.
   std::size_t numAtoms = 0;
 
+  /// Maintain the obs->atom map `atomOf`. This is Stage-B move bookkeeping: at
+  /// the b=1 shipped path NO consumer reads atomOf (every node-cache value is
+  /// produced from leafTuple + the A/G/Q SoA, and the leaf<->atom lookup scans
+  /// leafTuple), so the shipped sweep leaves it OFF and buildForTree becomes
+  /// O(#leaves) rather than paying an O(n) obs->atom scatter every tree, and the
+  /// moves skip their O(n_leaf) atomOf writes. DEFAULT ON so the component tests
+  /// and the fuzzers - which assert atomOf round-trips and rebuild-equality -
+  /// and Stage B get the full map with no per-test opt-in; Chain::run turns it
+  /// off for the shipped b=1 path. atomOf is inert either way (it feeds no draw),
+  /// so toggling it moves no byte of the equivalence anchor.
+  bool trackAtomOf = true;
+
   /// Sentinel for "no atom" (an empty leaf holds none).
   static constexpr std::uint32_t invalidAtom = 0xFFFFFFFFu;
 
@@ -111,10 +123,15 @@ struct AtomMap {
   /// (still correct, just uncached), so the cache can never bloat unbounded.
   std::size_t aCacheUsedBytes_ = 0;
   std::size_t aCacheBudgetBytes_ = static_cast<std::size_t>(256) << 20;
-  /// Force-rebuild control (the persistence-vs-control test's baseline): when
-  /// set, aggregation never serves the cache - it recomputes A every sweep and
-  /// stores nothing, so a persistent run and a bypassed run must land the same
-  /// node caches bitwise.
+  /// Skip the cross-sweep A cache entirely: aggregation recomputes A every sweep
+  /// and stores nothing, so lookupOrStoreA returns the freshly kernelled mass
+  /// with NO member-list memcmp and NO store. This is both the persistence-vs-
+  /// control test's force-rebuild baseline AND the shipped Stage-A setting: at
+  /// b=1 the monolithic suffstat kernel rescans G/Q every sweep and drags A
+  /// along, so the cache saves no work and only adds an O(n) per-leaf memcmp
+  /// pass - pure overhead. Chain::run sets this on the shipped b=1 path; the
+  /// A-cache tests leave it off to exercise the Stage-B persistence machinery.
+  /// Served A is byte-identical to the fresh mass, so the toggle moves no draw.
   bool aCacheBypass = false;
   /// Serve/rebuild counters (test instrumentation, negligible in the sweep): a
   /// hit served a persisted A, a miss recomputed and stored.
@@ -194,8 +211,12 @@ struct AtomMap {
       atomBegin[atomId] = node.begin;
       atomEnd[atomId] = node.end;
       leafTuple[atomId] = leaf;
-      for (std::size_t k = node.begin; k < node.end; ++k)
-        atomOf[members[k]] = atomId;
+      // The obs->atom scatter is the map's only O(n) build cost and no b=1
+      // consumer reads it (Stage-B bookkeeping): the shipped sweep leaves it off
+      // so the build is O(#leaves).
+      if (trackAtomOf)
+        for (std::size_t k = node.begin; k < node.end; ++k)
+          atomOf[members[k]] = atomId;
       ++atomId;
     }
   }
@@ -356,6 +377,54 @@ struct AtomMap {
     }
   }
 
+  /// Shipped b=1 per-tree entry: buildForTree + aggregateTree + writeNodeCaches
+  /// fused into ONE fillBottom traversal, so the per-tree cost matches legacy
+  /// setNodeAverages' single walk instead of paying three tree walks and three
+  /// leaf loops. For each leaf in DFS (left-first) order: an empty leaf gets a
+  /// forced 0/0/0 cache (byte-identical to computeLeafStats over a zero-length
+  /// slice); a non-empty leaf records its atom topology, aggregates (A, G, Q)
+  /// through the same misc kernel dispatch, and writes the node suffstat cache.
+  /// Every value and its order match the three-call sequence exactly (each
+  /// atom's aggregation reads only its own just-set topology and writes only its
+  /// own cache), so this is bitwise the separate path - it is a pure per-tree
+  /// pass-fusion. The separate methods stay for the component tests + Stage B.
+  void buildAggregateWrite(Tree& tree, const ColumnStore& data, const double* g,
+                           const double* weights) {
+    members = tree.indices;
+    std::size_t n = data.numObservations;
+    if (trackAtomOf && atomOf.size() != n) atomOf.assign(n, 0u);
+
+    bottomScratch.clear();
+    tree.fillBottom(0, bottomScratch);
+
+    numAtoms = 0;
+    for (std::int32_t leaf : bottomScratch)
+      if (tree.at(leaf).numObservations() > 0) ++numAtoms;
+    ensureAtomCapacity(numAtoms);
+
+    std::uint32_t atomId = 0;
+    for (std::int32_t leaf : bottomScratch) {
+      Node& node(tree.at(leaf));
+      if (node.numObservations() == 0) {
+        node.sumWeights = 0.0;
+        node.sumWeightedResponse = 0.0;
+        node.sumWeightedResponseSq = 0.0;
+        continue;
+      }
+      atomBegin[atomId] = node.begin;
+      atomEnd[atomId] = node.end;
+      leafTuple[atomId] = leaf;
+      if (trackAtomOf)
+        for (std::size_t k = node.begin; k < node.end; ++k)
+          atomOf[members[k]] = atomId;
+      aggregateAtom(tree, g, weights, atomId);
+      node.sumWeights = A[atomId];
+      node.sumWeightedResponse = G[atomId];
+      node.sumWeightedResponseSq = Q[atomId];
+      ++atomId;
+    }
+  }
+
   /// Record each atom's in-block fit S(c) = mu, the constant this sweep's draw
   /// assigned the atom's leaf (design 3.3 at b=1: S is the atom's single-tree
   /// fit). `paramByNode` is the draw's per-leaf parameter keyed by node arena
@@ -479,12 +548,15 @@ struct AtomMap {
       bindAtomToLeaf(tree, g, weights, rightAtom, rightNode);
       writeAtomCache(tree, rightAtom);
 
-      for (std::size_t k = tree.at(rightNode).begin; k < tree.at(rightNode).end;
-           ++k) {
-        std::size_t obs = members[k];
-        atomOf[obs] = rightAtom;
-        undo_.movedMembers.push_back(obs);
-      }
+      // atomOf + the moved-member roster are Stage-B bookkeeping; undoSplit's
+      // atomOf restore is likewise gated, so the shipped path skips both.
+      if (trackAtomOf)
+        for (std::size_t k = tree.at(rightNode).begin;
+             k < tree.at(rightNode).end; ++k) {
+          std::size_t obs = members[k];
+          atomOf[obs] = rightAtom;
+          undo_.movedMembers.push_back(obs);
+        }
     }
   }
 
@@ -506,7 +578,8 @@ struct AtomMap {
     atomBegin[parent] = undo_.begin;
     atomEnd[parent] = undo_.end;
     leafTuple[parent] = undo_.leaf;
-    for (std::size_t obs : undo_.movedMembers) atomOf[obs] = parent;
+    if (trackAtomOf)
+      for (std::size_t obs : undo_.movedMembers) atomOf[obs] = parent;
     numAtoms = undo_.numAtomsBefore;
   }
 
@@ -525,8 +598,9 @@ struct AtomMap {
       leafTuple[slot] = leafTuple[last];
       atomBegin[slot] = atomBegin[last];
       atomEnd[slot] = atomEnd[last];
-      for (std::size_t k = atomBegin[slot]; k < atomEnd[slot]; ++k)
-        atomOf[members[k]] = slot;
+      if (trackAtomOf)
+        for (std::size_t k = atomBegin[slot]; k < atomEnd[slot]; ++k)
+          atomOf[members[k]] = slot;
     }
     --numAtoms;
   }
@@ -572,8 +646,9 @@ struct AtomMap {
     leafTuple[keep] = parentNode;
     atomBegin[keep] = parent.begin;
     atomEnd[keep] = parent.end;
-    for (std::size_t k = parent.begin; k < parent.end; ++k)
-      atomOf[members[k]] = keep;
+    if (trackAtomOf)
+      for (std::size_t k = parent.begin; k < parent.end; ++k)
+        atomOf[members[k]] = keep;
     if (rightAtom != invalidAtom) removeAtomSlot(rightAtom);
   }
 
@@ -612,11 +687,14 @@ struct AtomMap {
     const Node& root(tree.at(subtreeRoot));
     subtreeUndo_.obsList.clear();
     subtreeUndo_.obsAtom.clear();
-    for (std::size_t k = root.begin; k < root.end; ++k) {
-      std::size_t obs = members[k];
-      subtreeUndo_.obsList.push_back(obs);
-      subtreeUndo_.obsAtom.push_back(atomOf[obs]);
-    }
+    // atomOf is Stage-B bookkeeping; when it is off there is nothing to save and
+    // restoreSubtree's atomOf pass is likewise gated.
+    if (trackAtomOf)
+      for (std::size_t k = root.begin; k < root.end; ++k) {
+        std::size_t obs = members[k];
+        subtreeUndo_.obsList.push_back(obs);
+        subtreeUndo_.obsAtom.push_back(atomOf[obs]);
+      }
   }
 
   /// Restore the SoA + subtree atomOf a rejected change/swap saved. Any atom
@@ -637,8 +715,9 @@ struct AtomMap {
     std::copy(subtreeUndo_.end.begin(), subtreeUndo_.end.end(), atomEnd.begin());
     std::copy(subtreeUndo_.leafTuple.begin(), subtreeUndo_.leafTuple.end(),
               leafTuple.begin());
-    for (std::size_t j = 0; j < subtreeUndo_.obsList.size(); ++j)
-      atomOf[subtreeUndo_.obsList[j]] = subtreeUndo_.obsAtom[j];
+    if (trackAtomOf)
+      for (std::size_t j = 0; j < subtreeUndo_.obsList.size(); ++j)
+        atomOf[subtreeUndo_.obsList[j]] = subtreeUndo_.obsAtom[j];
   }
 
   /// Re-slice + re-aggregate one leaf's atom and write its node suffstat cache.
@@ -670,7 +749,8 @@ struct AtomMap {
     }
     bindAtomToLeaf(tree, g, weights, c, leafNode);
     writeAtomCache(tree, c);
-    for (std::size_t k = node.begin; k < node.end; ++k) atomOf[members[k]] = c;
+    if (trackAtomOf)
+      for (std::size_t k = node.begin; k < node.end; ++k) atomOf[members[k]] = c;
   }
 
   /// The DFS half of AtomMap::refreshSubtree: partition each internal node with
