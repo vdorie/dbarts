@@ -115,6 +115,58 @@ struct AtomMap {
       ++atomId;
     }
   }
+
+  /// Aggregate one atom's (A, G, Q) = (sum w, sum w*g, sum w*g^2) over its
+  /// member slice. This dispatches to EXACTLY the misc kernel
+  /// Tree::computeLeafStats would pick for the atom's leaf - weighted vs
+  /// unweighted, and the root/stump NON-indexed kernel vs the non-root INDEXED
+  /// kernel - over the SAME member order, so the result is bitwise-identical to
+  /// the node cache by construction (block-fusion-stage-a.md 1.3, pins 2-3).
+  /// Never hand-roll the reduction: a differently-ordered but mathematically
+  /// equal sum rounds differently and breaks the b=1 anchor.
+  void aggregateAtom(const Tree& tree, const double* g, const double* weights,
+                     std::uint32_t atomId) {
+    std::int32_t leafId = leafTuple[atomId];
+    std::size_t begin = atomBegin[atomId];
+    std::size_t length = atomEnd[atomId] - begin;
+    bool isRoot = tree.at(leafId).parent == invalidNode;
+
+    double a, gMass, q;
+    if (weights == nullptr) {
+      if (isRoot)
+        misc_computeSufficientStatisticsFast(g, length, &a, &gMass, &q);
+      else
+        misc_computeIndexedSufficientStatisticsFast(g, members + begin, length,
+                                                    &a, &gMass, &q);
+    } else {
+      if (isRoot)
+        misc_computeWeightedSufficientStatisticsFast(g, length, weights, &a,
+                                                     &gMass, &q);
+      else
+        misc_computeIndexedWeightedSufficientStatisticsFast(
+          g, members + begin, length, weights, &a, &gMass, &q);
+    }
+    A[atomId] = a;
+    G[atomId] = gMass;
+    Q[atomId] = q;
+  }
+
+  /// Aggregate every atom, visiting leaves in fillBottom (DFS, left-first)
+  /// order (pin 1) so the aggregation order matches the draw's leaf/RNG order
+  /// at b=1. Atom ids were assigned in this same order by buildForTree, so the
+  /// running counter selects the atom that owns the current leaf. Fills the
+  /// SoA only; the node cache stays the live writer's until a later commit
+  /// wires the source over.
+  void aggregateTree(const Tree& tree, const double* g, const double* weights) {
+    bottomScratch.clear();
+    tree.fillBottom(0, bottomScratch);
+    std::uint32_t atomId = 0;
+    for (std::int32_t leaf : bottomScratch) {
+      if (tree.at(leaf).numObservations() == 0) continue;
+      aggregateAtom(tree, g, weights, atomId);
+      ++atomId;
+    }
+  }
 };
 
 }  // namespace bartcore
