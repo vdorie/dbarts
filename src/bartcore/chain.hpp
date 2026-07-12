@@ -369,6 +369,18 @@ public:
   /// leaf); vector leaves accumulate their own statistics.
   static constexpr bool leafTracksNodeAverages = !L::hasVectorParams;
 
+  /// Block-fusion Stage A (block-fusion-stage-a.md): the constant-leaf
+  /// steady-state sweep can source its per-leaf suffstats through the b=1 atom
+  /// path instead of setNodeAverages. Constant-leaf ONLY (a function/GP leaf
+  /// delegates over-cap nodes to the constant leaf but is not routed here) and
+  /// gated on the build knob, DEFAULT OFF so the shipped engine is unchanged.
+  /// The atom path lands bitwise-identical node caches, so the draw is
+  /// unaffected; commit (vii) flips the default.
+  static constexpr bool leafIsConstant =
+    !L::hasVectorParams && !L::hasFunctionParams;
+  static constexpr bool useAtomSuffstatSource =
+    leafIsConstant && (BARTCORE_BLOCK_FUSION != 0);
+
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
@@ -749,9 +761,21 @@ public:
               resid[i] += oldFits[i] - prevFits[i];
           }
 
-          // constant-leaf node means, recomputed against this sweep's residual
-          if constexpr (leafTracksNodeAverages)
+          // constant-leaf node means, recomputed against this sweep's residual.
+          // The atom path (flag ON) rebuilds the b=1 map from the tree's current
+          // partition, aggregates each leaf's (A,G,Q) through the same kernel,
+          // and writes those into the node caches - bitwise-identical to
+          // setNodeAverages, so every downstream reader is unaffected. Moves are
+          // NOT atom-routed yet (commits iv/v), so the map is only current here,
+          // before metropolisJumpForTree; only this per-sweep source moves.
+          if constexpr (useAtomSuffstatSource) {
+            forest.atomMap.buildForTree(forest.trees[t], data_);
+            forest.atomMap.aggregateTree(forest.trees[t], forest.treeY.data(),
+                                         forestWeights);
+            forest.atomMap.writeNodeCaches(forest.trees[t]);
+          } else if constexpr (leafTracksNodeAverages) {
             forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
+          }
 
           bool stepTaken;
           StepType stepType;
@@ -765,6 +789,13 @@ public:
 
           // the draw writes this tree's new fits straight into its slab
           sampleParametersAndSetFits(forest, t, treeFits, record);
+
+          // atom S(c) = mu carry (design 3.3 at b=1): inert here (nothing reads
+          // S, no RNG, no cache), exercised so Stage B's carry is in place. The
+          // map is pre-move, so live S is best-effort; the invariant S == fit is
+          // proven in the component harness where topology is stable.
+          if constexpr (useAtomSuffstatSource)
+            forest.atomMap.setInBlockFits(forest.paramByNode);
 
           // flatten while the freshly drawn parameters are live
           if (record && forest.savedTreeCapacity > 0)

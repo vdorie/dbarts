@@ -307,6 +307,115 @@ static void testAtomAggregationGrown(ext_rng* rng) {
   printf("ok: atom aggregation (fuzzed grown forest, weighted + unweighted)\n");
 }
 
+// Replicate sampleParametersAndSetFits' constant-leaf draw + scatter over a tree
+// whose node caches are already filled: one normal per NON-EMPTY leaf in
+// fillBottom order (empties forced to 0.0, no draw), scattered across the leaf's
+// members, recording params keyed by node arena index. Reseeding the rng before
+// each call fixes the RNG stream so two cache sources can be compared draw-wise.
+static void drawConstantLeaf(const ConstantGaussianLeaf& leaf, ext_rng* rng,
+                             Tree& tree, double k, double sigmaSq,
+                             std::vector<double>& params, double* fits,
+                             size_t n) {
+  std::fill(fits, fits + n, 0.0);
+  params.assign(tree.nodes.size(), 0.0);
+  std::vector<int32_t> bottoms;
+  tree.fillBottom(0, bottoms);
+  for (int32_t i : bottoms) {
+    const Node& node(tree.at(i));
+    double param = node.numObservations() == 0
+      ? 0.0
+      : leaf.drawFromPosteriorForNode(rng, tree, k, sigmaSq, i);
+    params[static_cast<size_t>(i)] = param;
+    if (node.parent == invalidNode)
+      misc_setVectorToConstant(fits, node.numObservations(), param);
+    else
+      misc_setIndexedVectorToConstant(fits, tree.indices + node.begin,
+                                      node.numObservations(), param);
+  }
+}
+
+// Commit (iii) end-to-end oracle. For each grown tree fill a fresh residual,
+// then run the draw twice from the SAME reseeded RNG stream: once with the node
+// caches filled by the live setNodeAverages (flag OFF), once by the atom path
+// aggregateTree + writeNodeCaches (flag ON). Assert bitwise-equal per-tree fits,
+// the summed total across trees, and the drawn params - the differential from
+// the task. Then assert S-consistency: after setInBlockFits, S(c) equals the
+// scattered fit of every member of atom c (bitwise).
+static void testAtomDrawDifferential(ext_rng* rng, bool weighted) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+
+  ConstantGaussianLeaf leaf;
+  leaf.scale = 0.5;
+  const double k = 2.0, sigmaSq = 0.7 * 0.7;
+
+  std::vector<double> g(nObs), w(nObs);
+  std::vector<double> fitsOff(nObs), fitsOn(nObs), paramsOff, paramsOn;
+  std::vector<double> totalOff(nObs, 0.0), totalOn(nObs, 0.0);
+
+  bool fitsOk = true, paramsOk = true, sOk = true;
+  for (size_t t = 0; t < sampler->numTrees(); ++t) {
+    fillRandomResidual(g);
+    const double* weights = nullptr;
+    if (weighted) {
+      fillRandomWeights(w);
+      weights = w.data();
+    }
+    Tree tree = sampler->chain(0).tree(t);
+    uint_least32_t seed = 918273u + static_cast<uint_least32_t>(t);
+
+    // flag OFF: the live per-leaf writer fills the node caches
+    tree.setNodeAverages(g.data(), weights);
+    ext_rng_setSeed(rng, seed);
+    drawConstantLeaf(leaf, rng, tree, k, sigmaSq, paramsOff, fitsOff.data(),
+                     nObs);
+
+    // flag ON: the atom path re-sources the SAME caches; same seed => same draw
+    AtomMap map;
+    map.initialize(nObs);
+    map.buildForTree(tree, store);
+    map.aggregateTree(tree, g.data(), weights);
+    map.writeNodeCaches(tree);
+    ext_rng_setSeed(rng, seed);
+    drawConstantLeaf(leaf, rng, tree, k, sigmaSq, paramsOn, fitsOn.data(), nObs);
+
+    for (size_t i = 0; i < nObs; ++i) {
+      fitsOk &= bitEqual(fitsOff[i], fitsOn[i]);
+      totalOff[i] += fitsOff[i];
+      totalOn[i] += fitsOn[i];
+    }
+    for (size_t i = 0; i < paramsOff.size(); ++i)
+      paramsOk &= bitEqual(paramsOff[i], paramsOn[i]);
+
+    map.setInBlockFits(paramsOn);
+    for (size_t c = 0; c < map.numAtoms; ++c)
+      for (size_t m = map.atomBegin[c]; m < map.atomEnd[c]; ++m)
+        sOk &= bitEqual(map.S[c], fitsOn[map.members[m]]);
+  }
+  bool totalOk = true;
+  for (size_t i = 0; i < nObs; ++i) totalOk &= bitEqual(totalOff[i], totalOn[i]);
+
+  const char* tag = weighted ? "weighted" : "unweighted";
+  char message[128];
+  std::snprintf(message, sizeof(message),
+                "atom draw differential per-tree fits bitwise (%s)", tag);
+  check(fitsOk, message);
+  std::snprintf(message, sizeof(message),
+                "atom draw differential total fits bitwise (%s)", tag);
+  check(totalOk, message);
+  std::snprintf(message, sizeof(message),
+                "atom draw differential params bitwise (%s)", tag);
+  check(paramsOk, message);
+  std::snprintf(message, sizeof(message),
+                "atom S(c) == member fit bitwise (%s)", tag);
+  check(sOk, message);
+  printf("ok: atom draw differential + S-consistency (%s)\n", tag);
+}
+
 void runAtomsTests(ext_rng* rng) {
   testAtomBuildStump();
   testAtomBuildEmptyLeaf();
@@ -314,4 +423,6 @@ void runAtomsTests(ext_rng* rng) {
   testAtomAggregationStump();
   testAtomAggregationEmptyLeaf();
   testAtomAggregationGrown(rng);
+  testAtomDrawDifferential(rng, false);
+  testAtomDrawDifferential(rng, true);
 }
