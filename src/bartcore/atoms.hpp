@@ -970,6 +970,69 @@ struct AtomMap {
     }
   }
 
+  /// Block-entry static field (block-fusion.md 2.1): the frozen outside-block
+  /// fit O_i = F_i - sum over the b block trees of treeFits[(t0 + j)*n + i],
+  /// read off the running full-forest fit F so no O((m - b) n) rescan is paid,
+  /// and g_i = w_i (y_i - O_i) (unweighted: y_i - O_i) into `g` (size n). This
+  /// is the block-static per-observation field the joint map aggregates into
+  /// the per-atom (A, G) masses; each g_i is one per-observation formula, so it
+  /// is EXACT (no reduction regroup). `O` receives O_i when non-null.
+  static void blockStaticField(const double* y, const double* weights,
+                               const double* F, const double* treeFitsBase,
+                               std::size_t n, std::size_t t0, std::size_t b,
+                               double* g, double* O = nullptr) {
+    for (std::size_t i = 0; i < n; ++i) {
+      double inBlock = 0.0;
+      for (std::size_t j = 0; j < b; ++j)
+        inBlock += treeFitsBase[(t0 + j) * n + i];
+      double o = F[i] - inBlock;
+      if (O != nullptr) O[i] = o;
+      g[i] = (weights == nullptr ? 1.0 : weights[i]) * (y[i] - o);
+    }
+  }
+
+  /// Seed each atom's in-block fit S(c) = sum over the b block trees of the
+  /// tree's CURRENT (old) fit on the atom (block-fusion.md 2.2, 3), read from
+  /// the per-observation treeFits at a representative member: every member of c
+  /// shares tree t_j's leaf, so its constant fit is one value over the atom.
+  /// Starts the Gauss-Seidel coupling from the correct in-block fit at block
+  /// entry. The block spans trees [t0, t0 + blockWidth); members alias the owned
+  /// buffer after buildForBlock.
+  void seedInBlockFitsFromTreeFits(const double* treeFitsBase, std::size_t n,
+                                   std::size_t t0) {
+    for (std::size_t c = 0; c < numAtoms; ++c) {
+      std::size_t rep = members[atomBegin[c]];
+      double s = 0.0;
+      for (std::size_t j = 0; j < blockWidth; ++j)
+        s += treeFitsBase[(t0 + j) * n + rep];
+      S[c] = s;
+    }
+  }
+
+  /// Block-exit fit scatter (block-fusion.md 3.5): materialize the b block
+  /// trees' drawn leaf means into the per-observation treeFits over each atom's
+  /// owned members - one walk of the owned buffer writes all b trees' fits - and
+  /// carry the running full-forest fit F incrementally (F += new block fit - old
+  /// block fit) so the next block's O needs no rescan. paramByTree[j] is block
+  /// tree j's per-node parameter, arena-indexed. The scatter is an assignment,
+  /// so it is EXACT; F is a running accumulation and only needs to stay a tight
+  /// tolerance from a fresh full sum (the sweep-end residual is rebuilt exactly
+  /// from treeFits, never from F; block-fusion.md 3.7).
+  void scatterInBlockFits(double* treeFitsBase, double* F, std::size_t n,
+                          std::size_t t0,
+                          const std::vector<std::vector<double>>& paramByTree) {
+    for (std::size_t c = 0; c < numAtoms; ++c)
+      for (std::size_t m = atomBegin[c]; m < atomEnd[c]; ++m) {
+        std::size_t i = members[m];
+        for (std::size_t j = 0; j < blockWidth; ++j) {
+          double newFit = paramByTree[j][static_cast<std::size_t>(leafOf(c, j))];
+          double* slot = treeFitsBase + (t0 + j) * n + i;
+          F[i] += newFit - *slot;
+          *slot = newFit;
+        }
+      }
+  }
+
   /// Partition the OWNED slice [begin, end) of the block by tree t_j's rule on
   /// `node`, REUSING the tree's own partitionChildren over atomMembersOwned
   /// (block-fusion.md 5.2: no second partitioner). The node is borrowed: its
