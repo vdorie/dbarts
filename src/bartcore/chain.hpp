@@ -259,6 +259,9 @@ struct Forest {
   // per-forest options: tree count, tree-move probabilities, the k
   // hyperprior, and whether the split selector is DART
   size_t numTrees = 200;
+  // Stage-B sub-sweep width (docs/design/block-fusion.md): 1 is exactly Stage
+  // A (bitwise); > 1 fuses b consecutive trees. Runtime knob, not public.
+  std::size_t blockSize = 1;
   double birthOrDeathProbability = 0.5;
   double swapProbability = 0.1;
   double changeProbability = 0.4;
@@ -381,6 +384,13 @@ public:
   static constexpr bool useAtomSuffstatSource =
     leafIsConstant && (BARTCORE_BLOCK_FUSION != 0);
 
+  /// The n-adaptive default sub-sweep width (docs/design/block-fusion.md). A
+  /// stub returning 1 until the fused interior is bitwise-ready; the larger
+  /// widths engage only then.
+  static std::size_t defaultBlockSize(std::size_t /*numObservations*/) {
+    return 1;
+  }
+
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
@@ -393,6 +403,7 @@ public:
     forests_.emplace_back();
     Forest<L>& forest = forests_.back();
     forest.numTrees = options.numTrees;
+    forest.blockSize = defaultBlockSize(numObservations);
     forest.birthOrDeathProbability = options.birthOrDeathProbability;
     forest.swapProbability = options.swapProbability;
     forest.changeProbability = options.changeProbability;
@@ -748,11 +759,13 @@ public:
           // it does no more O(n) work than legacy setNodeAverages: the
           // cross-sweep A cache saves nothing at b=1 (the suffstat kernel
           // rescans every sweep) and only adds a per-leaf member-list memcmp,
-          // and atomOf is move bookkeeping no b=1 consumer reads. Both are kept
-          // (default ON for the component tests + Stage B) but disabled here.
-          // Neither feeds a draw, so this stays bitwise-identical.
-          forest.atomMap.aCacheBypass = true;
-          forest.atomMap.trackAtomOf = false;
+          // and atomOf is move bookkeeping no b=1 consumer reads. Both are
+          // parked at the shipped blockSize == 1 and re-enabled at b > 1 (kept
+          // default ON for the component tests + Stage B). Neither feeds a
+          // draw, so this stays bitwise-identical.
+          const bool fused = forest.blockSize > 1;
+          forest.atomMap.aCacheBypass = !fused;
+          forest.atomMap.trackAtomOf = fused;
         }
 
         forest.kSumSquaredParams = 0.0;
@@ -768,73 +781,81 @@ public:
         // t owns - so the draw can overwrite the slab in place. One fused
         // pass per tree retires the previous tree's new fits and admits this
         // tree's old ones; totalFits is stale until rebuilt after the loop.
-        for (size_t t = 0; t < forest.numTrees; ++t) {
-          double* treeFits = forest.treeFits.data() + t * n;
+        // At the shipped blockSize == 1 each block is one tree and the inner
+        // loop is byte-for-byte the former per-tree sweep; b > 1 fusion
+        // (docs/design/block-fusion.md, Stage B) lands later on these bounds.
+        const size_t blockSize = forest.blockSize;
+        for (size_t t0 = 0; t0 < forest.numTrees; t0 += blockSize) {
+          const size_t blockEnd = t0 + blockSize < forest.numTrees
+                                    ? t0 + blockSize : forest.numTrees;
+          for (size_t t = t0; t < blockEnd; ++t) {
+            double* treeFits = forest.treeFits.data() + t * n;
 
-          if (t == 0) {
-            const double* __restrict y_ = forestY;
-            const double* __restrict total = forest.totalFits.data();
-            const double* __restrict oldFits = treeFits;
-            double* __restrict resid = forest.treeY.data();
-            for (size_t i = 0; i < n; ++i)
-              resid[i] = y_[i] - total[i] + oldFits[i];
-          } else {
-            const double* __restrict prevFits = treeFits - n;
-            const double* __restrict oldFits = treeFits;
-            double* __restrict resid = forest.treeY.data();
-            for (size_t i = 0; i < n; ++i)
-              resid[i] += oldFits[i] - prevFits[i];
+            if (t == 0) {
+              const double* __restrict y_ = forestY;
+              const double* __restrict total = forest.totalFits.data();
+              const double* __restrict oldFits = treeFits;
+              double* __restrict resid = forest.treeY.data();
+              for (size_t i = 0; i < n; ++i)
+                resid[i] = y_[i] - total[i] + oldFits[i];
+            } else {
+              const double* __restrict prevFits = treeFits - n;
+              const double* __restrict oldFits = treeFits;
+              double* __restrict resid = forest.treeY.data();
+              for (size_t i = 0; i < n; ++i)
+                resid[i] += oldFits[i] - prevFits[i];
+            }
+
+            // constant-leaf node means, recomputed against this sweep's residual.
+            // The atom path (flag ON) rebuilds the b=1 map from the tree's current
+            // partition, aggregates each leaf's (A,G,Q) through the same kernel,
+            // and writes those into the node caches - bitwise-identical to
+            // setNodeAverages, so every downstream reader is unaffected. The map
+            // is current here, before metropolisJumpForTree; the move then patches
+            // it in atom terms (splitAtom for birth, mergeAtoms for death,
+            // refreshSubtree for change/swap), so ALL structural moves keep the
+            // map live. It is still rebuilt fresh for the next tree.
+            if constexpr (useAtomSuffstatSource) {
+              // One fused pass (build topology + aggregate the kernel + write the
+              // node caches) so the per-tree cost matches setNodeAverages' single
+              // traversal; bitwise the separate build/aggregate/write calls.
+              forest.atomMap.buildAggregateWrite(
+                forest.trees[t], data_, forest.treeY.data(), forestWeights);
+            } else if constexpr (leafTracksNodeAverages) {
+              forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
+            }
+
+            bool stepTaken;
+            StepType stepType;
+            metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
+                                  forest.treeY.data(), sigma_, &stepTaken,
+                                  &stepType);
+            // accepted changes and deaths strand pooled mask words; no rule
+            // copies are live here, so this is a safe point to reclaim them
+            if (data_.hasPooledCategorical)
+              forest.trees[t].compactMaskPoolIfNeeded(data_);
+
+            // the draw writes this tree's new fits straight into its slab
+            sampleParametersAndSetFits(forest, t, treeFits, record);
+
+            // The b=1 atom S(c) = mu carry is inert here (nothing reads S, no RNG,
+            // no cache) so the shipped sweep skips it - it is pure per-tree
+            // overhead at b=1. AtomMap::setInBlockFits stays for the component
+            // harness (which proves S == fit) and for Stage B, where S feeds the
+            // b>1 cross-tree coupling.
+
+            // flatten while the freshly drawn parameters are live
+            if (record && forest.savedTreeCapacity > 0)
+              storeSavedTreeRecord(
+                forest, t,
+                (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity,
+                treeFits);
+
+            if (record && data_.numTestObservations > 0)
+              misc_addVectorsInPlace(forest.currTestFits.data(),
+                                     data_.numTestObservations,
+                                     forest.totalTestFits.data());
           }
-
-          // constant-leaf node means, recomputed against this sweep's residual.
-          // The atom path (flag ON) rebuilds the b=1 map from the tree's current
-          // partition, aggregates each leaf's (A,G,Q) through the same kernel,
-          // and writes those into the node caches - bitwise-identical to
-          // setNodeAverages, so every downstream reader is unaffected. The map
-          // is current here, before metropolisJumpForTree; the move then patches
-          // it in atom terms (splitAtom for birth, mergeAtoms for death,
-          // refreshSubtree for change/swap), so ALL structural moves keep the
-          // map live. It is still rebuilt fresh for the next tree.
-          if constexpr (useAtomSuffstatSource) {
-            // One fused pass (build topology + aggregate the kernel + write the
-            // node caches) so the per-tree cost matches setNodeAverages' single
-            // traversal; bitwise the separate build/aggregate/write calls.
-            forest.atomMap.buildAggregateWrite(
-              forest.trees[t], data_, forest.treeY.data(), forestWeights);
-          } else if constexpr (leafTracksNodeAverages) {
-            forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
-          }
-
-          bool stepTaken;
-          StepType stepType;
-          metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
-                                forest.treeY.data(), sigma_, &stepTaken,
-                                &stepType);
-          // accepted changes and deaths strand pooled mask words; no rule
-          // copies are live here, so this is a safe point to reclaim them
-          if (data_.hasPooledCategorical)
-            forest.trees[t].compactMaskPoolIfNeeded(data_);
-
-          // the draw writes this tree's new fits straight into its slab
-          sampleParametersAndSetFits(forest, t, treeFits, record);
-
-          // The b=1 atom S(c) = mu carry is inert here (nothing reads S, no RNG,
-          // no cache) so the shipped sweep skips it - it is pure per-tree
-          // overhead at b=1. AtomMap::setInBlockFits stays for the component
-          // harness (which proves S == fit) and for Stage B, where S feeds the
-          // b>1 cross-tree coupling.
-
-          // flatten while the freshly drawn parameters are live
-          if (record && forest.savedTreeCapacity > 0)
-            storeSavedTreeRecord(
-              forest, t,
-              (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity,
-              treeFits);
-
-          if (record && data_.numTestObservations > 0)
-            misc_addVectorsInPlace(forest.currTestFits.data(),
-                                   data_.numTestObservations,
-                                   forest.totalTestFits.data());
         }
 
         // rebuild the running total for the latent/sigma updates and
@@ -2273,6 +2294,7 @@ private:
     forests_.emplace_back();
     Forest<L>& forest = forests_.back();
     forest.numTrees = spec.numTrees;
+    forest.blockSize = defaultBlockSize(n);
     forest.birthOrDeathProbability = spec.birthOrDeathProbability;
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
