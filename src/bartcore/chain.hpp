@@ -300,6 +300,13 @@ struct Forest {
   // at forest init and reused across sweeps; constant-leaf only, and UNWIRED
   // at this commit - it holds no live computation yet.
   AtomMap atomMap;
+  // b>1 sub-sweep workspace (docs/design/block-fusion.md 3), sized lazily the
+  // first time a fused block runs; empty (and idle) at the shipped blockSize 1.
+  // fusedFullFit F is the running full-forest fit carried across blocks (the O
+  // accelerator); fusedG the block-static field w(y - O); fusedFitScratch a
+  // throwaway target for the draw's per-tree scatter (the real treeFits are
+  // written once at block exit).
+  std::vector<double> fusedFullFit, fusedG, fusedFitScratch;
 
   // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
   // each one kept sample's forest in flattened form (slot-major, capacity x
@@ -782,12 +789,24 @@ public:
         // pass per tree retires the previous tree's new fits and admits this
         // tree's old ones; totalFits is stale until rebuilt after the loop.
         // At the shipped blockSize == 1 each block is one tree and the inner
-        // loop is byte-for-byte the former per-tree sweep; b > 1 fusion
-        // (docs/design/block-fusion.md, Stage B) lands later on these bounds.
+        // loop is byte-for-byte the former per-tree sweep; blockSize > 1 fuses
+        // the block through the atom interior (docs/design/block-fusion.md 3).
         const size_t blockSize = forest.blockSize;
+        bool fusedForest = false;
+        if constexpr (useAtomSuffstatSource) fusedForest = blockSize > 1;
+        // F carries the full-forest fit across the blocks (the O accelerator);
+        // seed it from the sweep-start total. Only the fused path reads it.
+        if (fusedForest)
+          forest.fusedFullFit.assign(forest.totalFits.begin(),
+                                     forest.totalFits.end());
         for (size_t t0 = 0; t0 < forest.numTrees; t0 += blockSize) {
           const size_t blockEnd = t0 + blockSize < forest.numTrees
                                     ? t0 + blockSize : forest.numTrees;
+          if (fusedForest) {
+            runFusedBlock(forest, forestY, forestWeights, ctx, t0, blockEnd,
+                          record, sampleNum);
+            continue;
+          }
           for (size_t t = t0; t < blockEnd; ++t) {
             double* treeFits = forest.treeFits.data() + t * n;
 
@@ -861,7 +880,18 @@ public:
         // rebuild the running total for the latent/sigma updates and
         // recording: the residual still includes the last tree's slab, whose
         // new fits retire here instead of in a pass of their own
-        if (forest.numTrees > 0) {
+        if (fusedForest) {
+          // the fused path never rolled treeY, so materialize the total fresh
+          // from every tree's fits - the residual the sigma/latent stages read
+          // is the EXACT sum of treeFits, not an incrementally carried F
+          // (docs/design/block-fusion.md 3.7).
+          double* __restrict total = forest.totalFits.data();
+          for (size_t i = 0; i < n; ++i) total[i] = 0.0;
+          for (size_t t = 0; t < forest.numTrees; ++t) {
+            const double* __restrict tf = forest.treeFits.data() + t * n;
+            for (size_t i = 0; i < n; ++i) total[i] += tf[i];
+          }
+        } else if (forest.numTrees > 0) {
           const size_t last = forest.numTrees - 1;
           const double* __restrict y_ = forestY;
           const double* __restrict resid = forest.treeY.data();
@@ -1984,6 +2014,15 @@ public:
   size_t numTrees() const { return forests_[0].numTrees; }
   const Tree& tree(size_t t) const { return forests_[0].trees[t]; }
   const std::vector<double>& treeFits() const { return forests_[0].treeFits; }
+
+  /// Test hook: force every forest's sub-sweep width
+  /// (docs/design/block-fusion.md). The shipped default is defaultBlockSize (1);
+  /// the b>1 fused path is otherwise unreachable until the default flip, so the
+  /// component tests set it explicitly to exercise the affine interior and its
+  /// cross-ISA invariant.
+  void setBlockSizeForTesting(size_t b) {
+    for (Forest<L>& forest : forests_) forest.blockSize = b;
+  }
   const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
@@ -2162,6 +2201,79 @@ private:
         treeFits[obs] = forest.leaf.fitForObservation(params, obs);
       }
     }
+  }
+
+  /// Drive one block of b consecutive trees through the atom interior
+  /// (docs/design/block-fusion.md 3, 4.2-4.4). Constant-leaf only, reached from
+  /// run() when the forest's blockSize > 1. Block entry freezes the outside
+  /// fit and builds the joint map; the interior scores/draws each tree over the
+  /// atom SoA with no O(n) pass; block exit materializes the drawn fits once.
+  void runFusedBlock(Forest<L>& forest, const double* forestY,
+                     const double* forestWeights, MoveContext& ctx, size_t t0,
+                     size_t blockEnd, bool record, size_t sampleNum) {
+    size_t n = data_.numObservations;
+    size_t b = blockEnd - t0;
+    AtomMap& map = forest.atomMap;
+    if (forest.fusedG.size() != n) forest.fusedG.resize(n);
+    if (forest.fusedFitScratch.size() != n) forest.fusedFitScratch.resize(n);
+
+    // BLOCK ENTRY: freeze O off the running full fit F, form the block-static
+    // field g = w(y - O), seed each block tree's current per-node fit from the
+    // old treeFits (paramCur, the Gauss-Seidel state), and build the joint map.
+    map.paramCur_.resize(b);
+    for (size_t s = 0; s < b; ++s)
+      recoverParametersFromFits(forest, t0 + s, map.paramCur_[s]);
+    AtomMap::blockStaticField(forestY, forestWeights,
+                              forest.fusedFullFit.data(),
+                              forest.treeFits.data(), n, t0, b,
+                              forest.fusedG.data(), nullptr);
+    fusedBlockTrees_.clear();
+    for (size_t s = 0; s < b; ++s)
+      fusedBlockTrees_.push_back(&forest.trees[t0 + s]);
+    map.buildForBlock(fusedBlockTrees_, data_, forest.fusedG.data(),
+                      forestWeights);
+    map.interiorG_ = forest.fusedG.data();
+    map.interiorWeights_ = forestWeights;
+    map.interiorN_ = n;
+
+    // INTERIOR: each block tree over the atom SoA (no O(n) pass).
+    for (size_t t = t0; t < blockEnd; ++t) {
+      size_t j = t - t0;
+      map.interiorCoord_ = j;
+      // affine per-leaf suffstat into the node caches - the seam every
+      // constant-leaf consumer reads; the move re-derives the affected leaves
+      // through the atom hooks, which dispatch to the b>1 kernels.
+      map.writeAffineNodeCaches(forest.trees[t], j);
+
+      bool stepTaken;
+      StepType stepType;
+      metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
+                            forest.treeY.data(), sigma_, &stepTaken, &stepType);
+      if (data_.hasPooledCategorical)
+        forest.trees[t].compactMaskPoolIfNeeded(data_);
+
+      // draw into scratch so the real treeFits keep the OLD fit until the exit
+      // scatter carries F incrementally; paramByNode is the drawn per-node fit,
+      // which becomes tree j's contribution for the later block trees.
+      sampleParametersAndSetFits(forest, t, forest.fusedFitScratch.data(),
+                                 record);
+      map.paramCur_[j] = forest.paramByNode;
+
+      if (record && forest.savedTreeCapacity > 0)
+        storeSavedTreeRecord(
+          forest, t,
+          (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity,
+          forest.fusedFitScratch.data());
+      if (record && data_.numTestObservations > 0)
+        misc_addVectorsInPlace(forest.currTestFits.data(),
+                               data_.numTestObservations,
+                               forest.totalTestFits.data());
+    }
+
+    // BLOCK EXIT: the one O(n) scatter - materialize the b drawn leaf means
+    // into treeFits and carry the running full fit F forward.
+    map.scatterInBlockFits(forest.treeFits.data(), forest.fusedFullFit.data(),
+                           n, t0, map.paramCur_);
   }
 
   void sampleParametersAndSetFits(Forest<L>& forest, size_t t, double* fits,
@@ -2506,6 +2618,9 @@ private:
   // one-or-more forests (size 1 for every non-BCF sampler); the sweep,
   // mutation fan-out, and prediction loop over them
   std::vector<Forest<L>> forests_;
+
+  // reused block-tree pointer roster for buildForBlock (fused sub-sweep only)
+  std::vector<const Tree*> fusedBlockTrees_;
 
   // the BCF combining response's glue and sweep scratch; null off BCF, and
   // the whole two-forest sweep collapses to the single-forest path when so
