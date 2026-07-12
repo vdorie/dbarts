@@ -14,6 +14,7 @@
 #include <misc/linearAlgebra.h>
 #include <misc/thread.h>
 
+#include "atoms.hpp"
 #include "data.hpp"
 #include "grow.hpp"
 #include "model.hpp"
@@ -292,6 +293,10 @@ struct Forest {
   // for scalar leaf models.
   std::vector<std::vector<double>> paramsByTree;
   MoveScratch scratch;
+  // Block-fusion atom map (docs/design/block-fusion.md, Stage A). Sized once
+  // at forest init and reused across sweeps; constant-leaf only, and UNWIRED
+  // at this commit - it holds no live computation yet.
+  AtomMap atomMap;
 
   // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
   // each one kept sample's forest in flattened form (slot-major, capacity x
@@ -458,6 +463,7 @@ public:
     forest.treeFits.assign(numObservations * forest.numTrees, 0.0);
     forest.totalFits.assign(numObservations, 0.0);
     forest.treeY.resize(numObservations);
+    if constexpr (leafTracksNodeAverages) forest.atomMap.initialize(numObservations);
     forest.paramByNode.clear();
     if constexpr (L::hasVectorParams)
       forest.paramsByTree.assign(forest.numTrees,
@@ -1225,6 +1231,7 @@ public:
       forest.treeFits.resize(n * forest.numTrees);
       forest.totalFits.resize(n);
       forest.treeY.resize(n);
+      if constexpr (leafTracksNodeAverages) forest.atomMap.initialize(n);
     }
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
 
@@ -2221,6 +2228,7 @@ private:
     forest.treeFits.assign(n * spec.numTrees, 0.0);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);
+    if constexpr (leafTracksNodeAverages) forest.atomMap.initialize(n);
   }
 
   double forestMultiplier(std::size_t f, std::size_t i) const {
