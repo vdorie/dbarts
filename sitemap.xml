@@ -11,6 +11,7 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsData.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsPriors.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/dbartsSampler-class.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/guessNumCores.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/index.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/makeind.html</loc></url>
@@ -18,6 +19,7 @@
 <url><loc>https://vdorie.github.io/dbarts/reference/plotTree.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/rbart.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/samplePriorPredictive.html</loc></url>
+<url><loc>https://vdorie.github.io/dbarts/reference/sparseFactor.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/summary.bart.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/survivalProbabilities.html</loc></url>
 <url><loc>https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.html</loc></url>

@@ -41,7 +41,12 @@ dbarts(
   survive `data.frame(...)` or
   [`I()`](https://rdrr.io/r/base/AsIs.html)): sparse columns behave as
   in an all-sparse design, while dense columns keep categorical splits
-  and linear-leaf designation.
+  and linear-leaf designation. A
+  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+  column is recognized but not yet supported; construction refuses it.
+  See
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  for the full data-frame-to-predictor mapping.
 
 - data:
 
@@ -227,6 +232,18 @@ primary way of creating a
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md),
 for which a variety of methods exist.
 
+### Data frame ingestion
+
+Data frame input is stored columnar: no \\n \times p\\ predictor matrix
+is retained. Code that previously reached into the sampler's stored data
+expecting a plain matrix should call
+[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)`(sampler, "predictors")` -
+or `as.matrix` on it - to obtain the numeric predictor matrix, factor
+columns as their integer codes. See
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+for the column-type mapping (numeric, factor, sparse, and
+[`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)).
+
 ### Test offset synchronization
 
 When `offset.test` is left at its default of tracking `offset`, the
@@ -258,6 +275,12 @@ mid-run makes fits across iterations no longer comparable (see
 
 A reference object of
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
+
+## See also
+
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md),
+[`extract.dbartsSampler`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md),
+[`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
 
 ## References
 

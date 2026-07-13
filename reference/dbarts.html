@@ -59,7 +59,7 @@
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
     <p></p>
 <dl><dt id="arg-formula">formula<a class="anchor" aria-label="anchor" href="#arg-formula"></a></dt>
-<dd><p>An object of class <code><a href="https://rdrr.io/r/stats/formula.html" class="external-link">formula</a></code> following an analogous model description syntax as <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></code>. For backwards compatibility, can also be the <code><a href="bart.html">bart</a></code> matrix <code>x.train</code>, including a sparse <code>Matrix::dgCMatrix</code>: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface (<code>setPredictor</code> and relatives, <code>setData</code>) is fixed at creation. Sparse inputs are not supported by <code><a href="rbart.html">rbart_vi</a></code> or the <code>node.prior = linear()</code> and <code>gp()</code> leaf models; test matrices remain dense. A data frame may mix ordinary columns with <code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code> or <code>dgCMatrix</code> columns (assign them into the frame; they do not survive <code>data.frame(...)</code> or <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>): sparse columns behave as in an all-sparse design, while dense columns keep categorical splits and linear-leaf designation.</p></dd>
+<dd><p>An object of class <code><a href="https://rdrr.io/r/stats/formula.html" class="external-link">formula</a></code> following an analogous model description syntax as <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></code>. For backwards compatibility, can also be the <code><a href="bart.html">bart</a></code> matrix <code>x.train</code>, including a sparse <code>Matrix::dgCMatrix</code>: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface (<code>setPredictor</code> and relatives, <code>setData</code>) is fixed at creation. Sparse inputs are not supported by <code><a href="rbart.html">rbart_vi</a></code> or the <code>node.prior = linear()</code> and <code>gp()</code> leaf models; test matrices remain dense. A data frame may mix ordinary columns with <code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code> or <code>dgCMatrix</code> columns (assign them into the frame; they do not survive <code>data.frame(...)</code> or <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>): sparse columns behave as in an all-sparse design, while dense columns keep categorical splits and linear-leaf designation. A <code><a href="sparseFactor.html">sparseFactor</a></code> column is recognized but not yet supported; construction refuses it. See <code><a href="dbartsData.html">dbartsData</a></code> for the full data-frame-to-predictor mapping.</p></dd>
 
   <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the <code><a href="bart.html">bart</a></code> vector <code>y.train</code>.</p></dd>
@@ -119,6 +119,11 @@
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>“Discrete sampler” refers to that <code>dbarts</code> is implemented using ReferenceClasses, so that there exists a mutable object constructed in C++ that is largely obscured from R. The <code>dbarts</code> function is the primary way of creating a <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>, for which a variety of methods exist.</p>
 <p></p><div class="section">
+<h3 id="data-frame-ingestion">Data frame ingestion<a class="anchor" aria-label="anchor" href="#data-frame-ingestion"></a></h3>
+<p>Data frame input is stored columnar: no \(n \times p\) predictor matrix is retained. Code that previously reached into the sampler's stored data expecting a plain matrix should call <code><a href="bart.html">extract</a>(sampler, "predictors")</code> - or <code>as.matrix</code> on it - to obtain the numeric predictor matrix, factor columns as their integer codes. See <code><a href="dbartsData.html">dbartsData</a></code> for the column-type mapping (numeric, factor, sparse, and <code><a href="sparseFactor.html">sparseFactor</a></code>).</p>
+</div>
+
+<p></p><div class="section">
 <h3 id="test-offset-synchronization">Test offset synchronization<a class="anchor" aria-label="anchor" href="#test-offset-synchronization"></a></h3>
 <p>When <code>offset.test</code> is left at its default of tracking <code>offset</code>, the sampler links the two: the sampler's <code>setOffset</code> method re-derives <code>offset.test</code> from each new <code>offset</code> it is given. Calling the sampler's <code>setTestOffset</code> or <code>setTestPredictorAndOffset</code> methods breaks this link – <code>offset.test</code> is set independently from then on, and the link never re-forms, even if the two are later set to equal values.</p>
 </div>
@@ -132,6 +137,10 @@
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A reference object of <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
+    <div class="dont-index"><p><code><a href="dbartsData.html">dbartsData</a></code>, <code><a href="extract.dbartsSampler.html">extract.dbartsSampler</a></code>, <code><a href="sparseFactor.html">sparseFactor</a></code></p></div>
     </div>
     <div class="section level2">
     <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a></h2>

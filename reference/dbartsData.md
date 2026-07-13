@@ -25,10 +25,51 @@ dbartsData(
   [`formula`](https://rdrr.io/r/stats/formula.html)/[`data.frame`](https://rdrr.io/r/base/data.frame.html)
   pair, or a pair of `x.train`/`y.train` matrices/vector.
 
+## Details
+
+### Data frame ingestion
+
+Data frame columns - through the formula interface or a frame passed as
+`x.train` - map to predictors as follows:
+
+- numeric and logical columns enter as ordinal predictors;
+
+- unordered factors each become a single categorical predictor under the
+  default `factors = "categorical"`, with splits sending a subset of
+  levels down each branch; `factors = "indicators"` instead expands each
+  factor into binary indicator columns, as previous versions always did;
+
+- ordered factors enter as ordinal predictors, coded numerically by
+  level order;
+
+- matrix columns (e.g. from [`poly`](https://rdrr.io/r/stats/poly.html))
+  splice in as ordinal predictors, one per column;
+
+- [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
+  and `dgCMatrix` columns (assigned into the frame; they do not survive
+  `data.frame(...)` or [`I()`](https://rdrr.io/r/base/AsIs.html)) enter
+  as sparse ordinal predictors;
+
+- [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+  columns are recognized but not yet supported; construction refuses
+  them with an error.
+
+Factor level tables are retained so that test data are coded
+identically.
+
+Data frame input is stored columnar: no \\n \times p\\ double matrix is
+retained. Code that previously reached into the data object's `x` slot
+expecting a plain matrix should call
+[`extract`](https://vdorie.github.io/dbarts/reference/bart.md)`(sampler, "predictors")` -
+or `as.matrix` on the slot - to obtain the numeric predictor matrix,
+factor columns as their integer codes.
+
 ## Value
 
 An object of class `dbartsData`.
 
 ## See also
 
-[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`extract.dbartsSampler`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md),
+[`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)

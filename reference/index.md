@@ -66,8 +66,12 @@ weights can change between draws, for use inside larger MCMC schemes.
   : Discrete Bayesian Additive Regression Trees Sampler Data
 - [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
   : Prior Specification Constructors
+- [`extract(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/extract.dbartsSampler.md)
+  : Extract the Predictor Matrix From a Sampler
 - [`samplePriorPredictive()`](https://vdorie.github.io/dbarts/reference/samplePriorPredictive.md)
   : Draw From The BART Prior
+- [`sparseFactor()`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
+  : Sparse Unordered Factors
 - [`updatePredictorPerObservationJointly()`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)
   : Jointly Update a Shared Predictor per Observation Across Samplers
 

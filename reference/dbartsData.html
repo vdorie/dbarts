@@ -58,12 +58,27 @@
 
 </dl></div>
     <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p></p><div class="section">
+<h3 id="data-frame-ingestion">Data frame ingestion<a class="anchor" aria-label="anchor" href="#data-frame-ingestion"></a></h3>
+<p>Data frame columns - through the formula interface or a frame passed as <code>x.train</code> - map to predictors as follows:</p><ul><li><p>numeric and logical columns enter as ordinal predictors;</p></li>
+<li><p>unordered factors each become a single categorical predictor under the default <code>factors = "categorical"</code>, with splits sending a subset of levels down each branch; <code>factors = "indicators"</code> instead expands each factor into binary indicator columns, as previous versions always did;</p></li>
+<li><p>ordered factors enter as ordinal predictors, coded numerically by level order;</p></li>
+<li><p>matrix columns (e.g. from <code><a href="https://rdrr.io/r/stats/poly.html" class="external-link">poly</a></code>) splice in as ordinal predictors, one per column;</p></li>
+<li><p><code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code> and <code>dgCMatrix</code> columns (assigned into the frame; they do not survive <code>data.frame(...)</code> or <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>) enter as sparse ordinal predictors;</p></li>
+<li><p><code><a href="sparseFactor.html">sparseFactor</a></code> columns are recognized but not yet supported; construction refuses them with an error.</p></li>
+</ul><p>Factor level tables are retained so that test data are coded identically.</p>
+<p>Data frame input is stored columnar: no \(n \times p\) double matrix is retained. Code that previously reached into the data object's <code>x</code> slot expecting a plain matrix should call <code><a href="bart.html">extract</a>(sampler, "predictors")</code> - or <code>as.matrix</code> on the slot - to obtain the numeric predictor matrix, factor columns as their integer codes.</p>
+</div>
+
+    </div>
+    <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>An object of class <code>dbartsData</code>.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code></p></div>
+    <div class="dont-index"><p><code><a href="dbarts.html">dbarts</a></code>, <code><a href="extract.dbartsSampler.html">extract.dbartsSampler</a></code>, <code><a href="sparseFactor.html">sparseFactor</a></code></p></div>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
