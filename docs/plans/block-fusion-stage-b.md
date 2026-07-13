@@ -299,6 +299,19 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
   b=4 recovers to 0.0042. Width >= 2 was always correct -- the bug was the
   width-1-fused edge the eventual (iv-b) flip would hit. b=1 path unaffected
   (equivalence 22/22).
+- FOLLOW-ON 10c59bc: replaces (ii)'s O(n) regroup DEVIATION with in-place
+  O(affected) atom-map move maintenance for death/change/swap, plus targeted
+  rejection undo in place of the O(n) snapshot/restore. The new run()-path
+  undo fuzzer caught and fixed a rejected-change/swap cache leak outside the
+  touched subtree; all neutrality gates re-verified (equivalence 22/22,
+  tinytest green, tests/cpp clean). Perf: ~2.1-2.7x faster on the fused path
+  alone (section 7) -- does not change the bench verdict.
+- VERDICT (iv-b): CLOSED, WONT-DO. The section 7 headline bench (verdict at
+  tip 10c59bc) found b>1 still ~7-10x SLOWER at n=1e5 and ~7x at n=1e6, flat
+  in n -- the plan's own kill criterion. The default flip does not land;
+  defaultBlockSize stays 1 (already true, nothing to revert). All Stage B
+  machinery above stays in place and dormant, gated by DBARTS_BLOCKSIZE. No
+  re-record.
 
 ### (v) Harden for the Stage-B gates. ~250 lines.
 - Small-n fallback to blockSize = 1 below a cutoff (like the SIMD toggles);
@@ -314,6 +327,9 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
   DBARTS_BLOCKSIZE); default invocation unchanged. Still pending: the small-n
   fallback, the finalized n-adaptive rule, cross-ISA CI wiring, and the fresh
   baseline recording -- all wait on the headline bench verdict (section 7).
+- MOOT under no-flip (section 7 verdict): the small-n fallback, the finalized
+  n-adaptive rule, and the fresh baseline recording are no longer needed --
+  the b>1 component tests already run in CI (tests/cpp, cpp-tests workflow).
 
 ## 7. Gates for the re-record commit (iv) and beyond
 
@@ -350,9 +366,18 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   ~6x DRAM drop -> multi-x wall-clock at n >= 1e5. Kill/scope-back if the
   realized speedup is far below the model (move-scan re-partition cost dominating
   at shallow trees, design 8.1). See section 9 for the baseline.
-  STATUS: not yet run to a verdict. Early biggrid numbers show b=4 ~25x SLOWER
-  than b=1 at n=1e4 -- expected small-n overhead (per-block fixed cost not yet
-  amortized); the win must appear at n >= 1e5 or this is a kill signal.
+  STATUS: VERDICT -- KILL. Screening grid (reduced-rep biggrid protocol, m=75,
+  n in {1e5, 1e6}) on dbarts-bench (x86 AVX2, single-chain single-thread) at
+  tip 10c59bc: b=1 unchanged (~29.4
+  ms/iter at n=1e5, ~505 at n=1e6). b>1 still loses at every n tried -- n=1e5:
+  b=4 229ms (7.8x slower than b=1), b=8 285ms (9.7x); n=1e6: b=4 3482ms (6.9x),
+  b=8 3694ms (7.3x). The slowdown ratio is roughly constant in n (no crossover
+  at feasible n) and b=8 costs about the same as b=4. Dominant cause:
+  buildForBlock rebuilds the joint atom map from scratch every block entry,
+  every sweep (O(bn) per block, O(mn) per sweep) -- cross-sweep persistence
+  (design 4.5) was deferred to Stage C; the change/swap re-slice (design 8.1)
+  is the second contributor. Kill criterion met: (iv-b) does not land (section
+  6 VERDICT note; section 9).
 
 ## 8. Resolved decisions (VD-approved; recorded, not re-opened)
 
@@ -391,9 +416,11 @@ the large-n rows; if the x86 box is unavailable, the gate degrades to relative
 b>1-vs-b=1 on whatever quiet machine is available (the DRAM claim is then
 under-measured and must be flagged, not asserted).
 
-STATUS: (a) has landed (b74fec9, the opt-in biggrid mode). (b) the fresh
-dbarts-bench recording and (c) the MANIFEST update are still pending on the
-headline verdict above.
+STATUS: (a) landed (b74fec9, the opt-in biggrid mode). (b) and (c) are MOOT
+under the section 7 kill verdict: no fresh dbarts-bench baseline is recorded
+and MANIFEST is unchanged -- there is no re-record to gate, so the equivalence
+anchor and tinytest snapshots stay untouched. DBARTS_BLOCKSIZE remains the
+dev/gate knob for exercising the fused path.
 
 ## 10. Risks and out-of-scope
 

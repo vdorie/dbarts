@@ -647,3 +647,49 @@ NEXT: Stage B (b>1, the win, the one approved re-record) builds on this map -
 the flag becomes the b-dispatch, the A cache and atomOf come back on, `members`
 becomes an owned per-block buffer, and the suffstat/roll/draw regroup to
 O(atoms).
+
+## 10. Stage B landing note (2026-07-13, LANDED dormant, bench VERDICT: KILL)
+
+Stage B's machinery (plan commits (i)-(iv-a) plus follow-ons,
+docs/plans/block-fusion-stage-b.md) is landed behind a runtime blockSize knob.
+The shipped default stays 1: the fused b>1 path never engages in production,
+Stage A's bitwise b=1 anchor is untouched, and DBARTS_BLOCKSIZE forces b>1 only
+for gates and benching.
+
+CORRECTNESS GATES now in place at b>1 (all held): the joint atom-map mutation
+fuzzer (patched map matches a from-scratch buildForBlock rebuild after every
+move and on rejection, bitwise), plus a run()-path undo fuzzer added with the
+move-maintenance rewrite (catches a rejected change/swap leaving a cache leak
+outside the touched subtree); affine identity under moves at widths 1-3 (max
+|diff| ~4e-13); cross-ISA bitwise (scalar/SSE2/AVX2/NEON) at b>1; the forced
+b>1 exact-posterior anchors at small n (via DBARTS_BLOCKSIZE, bypassing the
+default so the anchors actually exercise the affine path, the plan's
+FORCE-b>1-ON-THE-ANCHORS precondition).
+
+HEADLINE BENCH VERDICT: KILL. dbarts-bench (x86 AVX2, 16 cores, single-chain
+single-thread), friedman p=10, m=75, screening protocol (reduced reps of the
+biggrid harness; the ~7x margin needs no finer resolution); two recordings
+bracket the move-maintenance fix (b=1 essentially unchanged, ~29.1/29.4
+ms/iter at n=1e5 and ~498/505 at n=1e6 across both):
+- before (tip b74fec9, O(n)-per-move regroup): n=1e5 b=4 488ms (16.8x
+  slower), b=8 749ms (25.7x); n=1e6 b=4 7045ms (14.1x), b=8 9945ms (20.0x).
+- after (tip 10c59bc, in-place O(affected) move maintenance + targeted
+  rejection undo): n=1e5 b=4 229ms (7.8x slower), b=8 285ms (9.7x); n=1e6
+  b=4 3482ms (6.9x), b=8 3694ms (7.3x).
+
+The fix bought the modelled ~2.1-2.7x on the fused path but did not change the
+sign: b>1 still loses ~7x at n=1e6, the slowdown ratio is roughly flat in n
+(no crossover at any feasible size), and b=8 costs about what b=4 does.
+
+ATTRIBUTION: buildForBlock rebuilds the joint atom map from scratch at every
+block entry, every sweep -- O(bn) per block, O(mn) per sweep -- because
+cross-sweep map persistence (section 4.5, rebuild cadence) was explicitly
+deferred past Stage B. Second contributor: the design-admitted near-root
+change/swap subtree re-slice (8.1).
+
+STAGE C GATE for any future default flip: implement 4.5's persistence (patch
+the map across sweeps instead of rebuilding it every block) and re-bench; the
+8.1 re-slice mitigation is the second lever. Only a demonstrated win at
+production n reopens the default flip and its re-record. Until then all Stage
+B machinery stays in place and dormant behind blockSize; no baseline
+re-record, no MANIFEST change.
