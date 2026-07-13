@@ -291,7 +291,7 @@ rbart_vi <- function(
 
   # both the R loop (predicts over data@x) and the in-core path would need
   # sparse-aware plumbing; reserved until a consumer appears
-  if (!is.matrix(data@x)) {
+  if (predictorSourceIsSparse(data@x)) {
     stop(
       "rbart_vi does not support sparse predictor matrices; ",
       "dbarts() and bart2() do - use one of those, or pass a dense matrix"

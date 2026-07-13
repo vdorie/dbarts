@@ -798,12 +798,23 @@ dbartsData <- function(
       stop("predictor columns cannot be entirely missing")
     }
   } else if (inherits(x, "dbartsMixedMatrix")) {
-    xHasNA <- (!is.null(x$dense) && anyNA(x$dense)) || anyNA(x$sparse@x)
-    if (xHasNA) {
-      if (!is.null(x$dense) && any(colSums(!is.na(x$dense)) == 0L)) {
+    if (is.list(x$dense)) {
+      # the dense columnar flavor holds no sparse part
+      xHasNA <- any(vapply(x$dense, anyNA, FALSE))
+      if (
+        xHasNA &&
+          any(vapply(x$dense, function(column) all(is.na(column)), FALSE))
+      ) {
         stop("predictor columns cannot be entirely missing")
       }
-      sparseAllMissingCheck(x$sparse)
+    } else {
+      xHasNA <- (!is.null(x$dense) && anyNA(x$dense)) || anyNA(x$sparse@x)
+      if (xHasNA) {
+        if (!is.null(x$dense) && any(colSums(!is.na(x$dense)) == 0L)) {
+          stop("predictor columns cannot be entirely missing")
+        }
+        sparseAllMissingCheck(x$sparse)
+      }
     }
   } else {
     xHasNA <- anyNA(x@x)

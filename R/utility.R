@@ -296,7 +296,8 @@ makeCategoricalModelMatrix <- function(x) {
           "categorical predictor supports"
         )
       }
-      columns[[j]] <- matrix(as.double(as.integer(column) - 1L), ncol = 1L)
+      # the factor itself; its codes materialize as doubles only at use
+      columns[[j]] <- column
       columnTypes[[j]] <- if (is.ordered(column)) {
         ORDINAL_VARIABLE
       } else {
@@ -318,7 +319,7 @@ makeCategoricalModelMatrix <- function(x) {
         sep = "."
       )
     } else if (is.numeric(column) || is.logical(column)) {
-      columns[[j]] <- matrix(as.double(column), ncol = 1L)
+      columns[[j]] <- as.double(column)
       columnTypes[[j]] <- ORDINAL_VARIABLE
       columnLevels[[j]] <- list(NULL)
       columnNames[[j]] <- name
@@ -327,10 +328,21 @@ makeCategoricalModelMatrix <- function(x) {
     }
   }
   if (any(columnIsSparse)) {
+    # the mixed flavor cbinds its dense part (the engine retains per-column
+    # slices of the block), so factors code to doubles here
+    for (j in which(!columnIsSparse)) {
+      block <- columns[[j]]
+      columns[[j]] <- if (is.factor(block)) {
+        matrix(as.double(as.integer(block) - 1L), ncol = 1L)
+      } else if (is.matrix(block)) {
+        block
+      } else {
+        matrix(block, ncol = 1L)
+      }
+    }
     result <- assembleMixedMatrix(columns, columnIsSparse, columnNames, nrow(x))
   } else {
-    result <- do.call(cbind, columns)
-    colnames(result) <- unlist(columnNames)
+    result <- assembleDenseColumnMatrix(columns, columnNames, nrow(x))
   }
   attr(result, "term.labels") <- names(x)
   attr(result, "varTypes") <- unlist(columnTypes)
@@ -340,17 +352,26 @@ makeCategoricalModelMatrix <- function(x) {
   result
 }
 
+## Whether the predictor source carries CSC-backed columns (a dgCMatrix, or
+## a mixed container with sparse-mapped columns) - the designs whose raw
+## values the engine retains as slices and whose mutation surface is fixed
+## at creation.
+predictorSourceIsSparse <- function(x) {
+  inherits(x, "dgCMatrix") ||
+    (inherits(x, "dbartsMixedMatrix") && any(x$map < 0L))
+}
+
 ## The dense predictor matrix the re-quantize/replay bridges consume from the
 ## R side (setCutPoints, setState, saved-tree getTrees, and the low-level
 ## handle's tracked source). A plain matrix passes through; a dense-backed
-## mixed container materializes to its numeric codes; a genuinely sparse
-## source (a CSC-bearing container or a dgCMatrix) yields NULL, which the
-## bridge reads as "re-quantize from the retained slices" - the same signal a
-## non-real source gave before the container existed.
+## container materializes to its numeric codes; a genuinely sparse source (a
+## CSC-bearing container or a dgCMatrix) yields NULL, which the bridge reads
+## as "re-quantize from the retained slices" - the same signal a non-real
+## source gave before the container existed.
 rawPredictorMatrix <- function(x) {
   if (is.matrix(x)) {
     x
-  } else if (inherits(x, "dbartsMixedMatrix") && !any(x$map < 0L)) {
+  } else if (inherits(x, "dbartsMixedMatrix") && !predictorSourceIsSparse(x)) {
     as.matrix(x)
   } else {
     NULL
@@ -367,10 +388,7 @@ estimateSigmaFromLinearModel <- function(data) {
   # the marginal estimate still anchors the residual variance prior. A dense
   # container (a frame with factors) still fits lm; only CSC-backed columns
   # fall back to the marginal estimate.
-  if (
-    inherits(x, "dgCMatrix") ||
-      (inherits(x, "dbartsMixedMatrix") && any(x$map < 0L))
-  ) {
+  if (predictorSourceIsSparse(x)) {
     residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
   }

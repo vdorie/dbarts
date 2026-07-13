@@ -1,8 +1,20 @@
-## Internal container for predictor sets mixing dense and sparse sources,
-## built when a data frame holds Matrix::sparseVector or dgCMatrix columns
-## alongside ordinary ones: the dense columns as one matrix, the sparse
-## columns cbound into one dgCMatrix, and a map from overall column to its
-## source - positive k for dense column k, negative -k for sparse column k.
+## Internal containers for predictor sets that stay columnar instead of
+## materializing one cbound double matrix. Two flavors share the
+## dbartsMixedMatrix class, told apart by the type of their "dense" field:
+##
+## - the mixed flavor (dense = matrix or NULL): built when a data frame
+##   holds Matrix::sparseVector or dgCMatrix columns alongside ordinary
+##   ones - the dense columns as one matrix, the sparse columns cbound into
+##   one dgCMatrix, and a map from overall column to its source, positive k
+##   for dense column k, negative -k for sparse column k. The dense block
+##   stays resident: the engine retains per-column slices of it.
+## - the dense flavor (dense = list): built for every other data frame -
+##   one element per predictor column, factors keeping their integer codes
+##   and everything else held as doubles; sparse is NULL and the map all
+##   positive. The contiguous coded block exists only transiently,
+##   assembled by the bridge inside create/setData calls and by as.matrix
+##   for R-side consumers.
+##
 ## The model-matrix builders attach "varTypes"/"factor.levels"/
 ## "term.labels"/"drop" exactly as they do on matrices. A plain R list
 ## underneath, so serialization and sampler re-creation work unchanged.
@@ -139,6 +151,39 @@ assembleMixedMatrix <- function(
     dense = dense,
     sparse = sparse,
     map = map,
+    numObservations = as.integer(numObservations),
+    columnNames = unlist(blockNames)
+  )
+  class(result) <- "dbartsMixedMatrix"
+  result
+}
+
+## Assemble per-input-column blocks - factors, double vectors, or double
+## matrices (spliced per column) - into the dense columnar flavor.
+assembleDenseColumnMatrix <- function(columns, blockNames, numObservations) {
+  widths <- vapply(
+    columns,
+    function(block) if (is.matrix(block)) ncol(block) else 1L,
+    0L
+  )
+  dense <- vector("list", sum(widths))
+  offset <- 0L
+  for (j in seq_along(columns)) {
+    block <- columns[[j]]
+    if (is.matrix(block)) {
+      for (k in seq_len(ncol(block))) {
+        dense[[offset + k]] <- block[, k]
+      }
+    } else {
+      dense[[offset + 1L]] <- block
+    }
+    offset <- offset + widths[j]
+  }
+  result <- list(
+    dense = dense,
+    sparse = NULL,
+    map = seq_along(dense),
+    numObservations = as.integer(numObservations),
     columnNames = unlist(blockNames)
   )
   class(result) <- "dbartsMixedMatrix"
@@ -146,7 +191,12 @@ assembleMixedMatrix <- function(
 }
 
 dim.dbartsMixedMatrix <- function(x) {
-  c(nrow(x$sparse), length(x$map))
+  n <- if (!is.null(x$numObservations)) {
+    x$numObservations
+  } else {
+    nrow(x$sparse)
+  }
+  c(n, length(x$map))
 }
 
 dimnames.dbartsMixedMatrix <- function(x) {
@@ -163,15 +213,34 @@ dimnames.dbartsMixedMatrix <- function(x) {
     return(x)
   }
   result <- x
-  if (!is.null(result$dense)) {
-    result$dense <- result$dense[i, , drop = FALSE]
+  if (is.list(result$dense)) {
+    result$dense <- lapply(result$dense, function(column) column[i])
+    result$numObservations <- length(result$dense[[1L]])
+  } else {
+    if (!is.null(result$dense)) {
+      result$dense <- result$dense[i, , drop = FALSE]
+    }
+    result$sparse <- result$sparse[i, , drop = FALSE]
+    result$numObservations <- nrow(result$sparse)
   }
-  result$sparse <- result$sparse[i, , drop = FALSE]
   result
 }
 
 as.matrix.dbartsMixedMatrix <- function(x, ...) {
   result <- matrix(0, nrow(x), ncol(x), dimnames = dimnames(x))
+  if (is.list(x$dense)) {
+    # the dense flavor: every column vector-backed, factors materializing
+    # as their zero-based codes
+    for (j in seq_along(x$map)) {
+      column <- x$dense[[x$map[j]]]
+      result[, j] <- if (is.factor(column)) {
+        as.double(as.integer(column) - 1L)
+      } else {
+        column
+      }
+    }
+    return(result)
+  }
   denseColumns <- x$map > 0L
   if (any(denseColumns)) {
     result[, denseColumns] <- x$dense[, x$map[denseColumns], drop = FALSE]
@@ -181,4 +250,38 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
       as.matrix(x$sparse[, -x$map[!denseColumns], drop = FALSE])
   }
   result
+}
+
+## Copy-modify a block of predictor columns in a sampler's stored source -
+## the plan-1 interim write-back that keeps data@x current under mutation,
+## extended to the dense columnar flavor: only the addressed columns'
+## vectors are replaced (a factor column decays to its code vector; the
+## engine validated the new values as existing codes), the rest stay
+## shared. rows = NULL replaces the columns whole. Mutation is refused for
+## sparse sources before this runs, so a container here is the dense
+## flavor.
+assignIntoPredictorSource <- function(x, rows, columns, values) {
+  if (is.matrix(x)) {
+    if (is.null(rows)) {
+      x[, columns] <- values
+    } else {
+      x[rows, columns] <- values
+    }
+    return(x)
+  }
+  values <- matrix(as.double(values), ncol = length(columns))
+  for (k in seq_along(columns)) {
+    sourceIndex <- x$map[columns[k]]
+    column <- x$dense[[sourceIndex]]
+    if (is.factor(column)) {
+      column <- as.double(as.integer(column) - 1L)
+    }
+    if (is.null(rows)) {
+      column[] <- values[, k]
+    } else {
+      column[rows] <- values[, k]
+    }
+    x$dense[[sourceIndex]] <- column
+  }
+  x
 }

@@ -82,9 +82,15 @@ updatePredictorPerObservationJointly <- function(
   )
 
   # the engine keeps no predictor matrix, so maintain each sampler's data@x
-  # R-side for the observations the shared scan installed (design plan-1 interim)
+  # R-side for the observations the shared scan installed (the interim of
+  # design plans 1-2)
   for (i in seq_along(samplers)) {
-    samplers[[i]]$data@x[installed, columnIndices[i]] <- x[installed]
+    samplers[[i]]$data@x <- assignIntoPredictorSource(
+      samplers[[i]]$data@x,
+      installed,
+      columnIndices[i],
+      x[installed]
+    )
   }
 
   for (sampler in samplers) {

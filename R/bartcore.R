@@ -46,7 +46,7 @@ bartcoreSamplerSetPredictor <- function(
 ) {
   # guard before data@x is swapped: the C entry point refuses too, but the
   # R5 object must not be left holding a half-installed dense matrix
-  if (!is.matrix(sampler$data@x)) {
+  if (predictorSourceIsSparse(sampler$data@x)) {
     stop(
       "sparse predictors fix the design at creation; make a new sampler instead"
     )
@@ -90,8 +90,13 @@ bartcoreSamplerSetPredictor <- function(
       as.integer(column)
     )
     # the engine keeps no predictor matrix, so maintain data@x R-side for the
-    # observations the scan installed (the interim of design plan 1)
-    sampler$data@x[installed, column] <- x[installed]
+    # observations the scan installed (the interim of design plans 1-2)
+    sampler$data@x <- assignIntoPredictorSource(
+      sampler$data@x,
+      installed,
+      column,
+      x[installed]
+    )
     return(installed)
   }
 
@@ -110,7 +115,7 @@ bartcoreSamplerSetPredictor <- function(
       if (nrow(x) != nrow(sampler$data@x)) {
         stop("dimension of x must be equal to ", nrow(sampler$data@x))
       }
-    } else if (length(x) != length(sampler$data@x)) {
+    } else if (length(x) != prod(dim(sampler$data@x))) {
       stop("length of new x does not match old")
     }
     # a pointer swap: the engine borrows data@x, so install there first and
@@ -166,11 +171,13 @@ bartcoreSamplerSetPredictor <- function(
     )
     # the engine keeps no predictor matrix, so maintain data@x R-side when the
     # update is applied (forceUpdate, or a non-rolled-back transaction); the
-    # interim of design plan 1 while data@x is still a matrix
+    # interim of design plans 1-2, until plan 3 rewires mutation
     if (isTRUE(updateSuccessful)) {
-      sampler$data@x[, column] <- matrix(
-        as.double(x),
-        nrow(sampler$data@x)
+      sampler$data@x <- assignIntoPredictorSource(
+        sampler$data@x,
+        NULL,
+        column,
+        as.double(x)
       )
     }
   }
