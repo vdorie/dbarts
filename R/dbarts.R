@@ -486,7 +486,7 @@ samplePriorPredictive <- function(
   newControl@keepTrees <- FALSE
   draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
 
-  xt <- if (is.null(x.test)) draw$data@x else x.test
+  xt <- if (is.null(x.test)) extract(draw, "predictors") else x.test
   responseIsBinary <- draw$control@binary
 
   sigmaDraws <- NULL
@@ -832,7 +832,7 @@ dbartsSampler <- setRefClass(
       "Sets the data object for the sampler to a new one. Preserves the n.cuts and sigma slots. updateState is opt-in: only explicit TRUE stores state afterwards (NA/FALSE store nothing) - mutators are called per-sweep in Gibbs loops, so the default must stay free of that cost; contrast run()'s NA -> control@updateState convention."
       if (
         data@missing == "error" &&
-          (anyNA(newData@x) ||
+          (anyNA(as.matrix(newData@x)) ||
             (!is.null(newData@x.test) && anyNA(newData@x.test)))
       ) {
         stop(
@@ -1082,7 +1082,12 @@ dbartsSampler <- setRefClass(
         )
         # a same-spec continuation skips re-quantization; data@x serves any
         # cross-grid column (the engine keeps no predictor matrix)
-        .Call(C_dbarts_bartcore_setState, pointer, state, data@x)
+        .Call(
+          C_dbarts_bartcore_setState,
+          pointer,
+          state,
+          rawPredictorMatrix(data@x)
+        )
       }
       pointer
     },
@@ -1101,7 +1106,12 @@ dbartsSampler <- setRefClass(
           if (model@family == "auto") "" else model@family
         )
       }
-      .Call(C_dbarts_bartcore_setState, pointer, newState, data@x)
+      .Call(
+        C_dbarts_bartcore_setState,
+        pointer,
+        newState,
+        rawPredictorMatrix(data@x)
+      )
       selfEnv$state <- newState
       invisible(NULL)
     },
@@ -1230,7 +1240,7 @@ dbartsSampler <- setRefClass(
         treeNums,
         current,
         newdata,
-        data@x
+        rawPredictorMatrix(data@x)
       )
       # categorical rules report their split in 'directions' (value is NA);
       # when any column can hold one, pad the decode to the declared levels

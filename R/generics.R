@@ -816,6 +816,18 @@ extract.rbart <- function(
   result
 }
 
+# Materialize the sampler's predictor code matrix: factor columns as their
+# integer codes, the historical form of data@x and the matrix getTrees
+# replays. A dense-frame/mixed container materializes through as.matrix; a
+# plain matrix (or a sparse dgCMatrix held as such) is returned unchanged.
+extract.dbartsSampler <- function(object, type = "predictors", ...) {
+  if (!is.character(type) || length(type) == 0L || type[1L] != "predictors") {
+    stop("type must be 'predictors'")
+  }
+  x <- object$data@x
+  if (inherits(x, "dbartsMixedMatrix")) as.matrix(x) else x
+}
+
 fitted.rbart <- function(
   object,
   type = c("ev", "ppd", "bart", "ranef"),

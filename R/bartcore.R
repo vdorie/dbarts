@@ -308,7 +308,7 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
     sampler$getPointer(),
     cuts,
     as.integer(column),
-    sampler$data@x
+    rawPredictorMatrix(sampler$data@x)
   )
   invisible(NULL)
 }
@@ -382,7 +382,7 @@ bartcoreSampler <- function(sampler, family = "") {
   # the engine keeps no predictor matrix, so the low-level wrappers track the
   # current predictors R-side to feed the re-quantize entry points
   # (setCutPoints, setState, saved-tree getTrees); null for sparse designs
-  result$x <- if (is.matrix(sampler$data@x)) sampler$data@x else NULL
+  result$x <- rawPredictorMatrix(sampler$data@x)
   result
 }
 
@@ -469,7 +469,7 @@ bartcoreBCFSampler <- function(
     bcfParams
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
-  result$x <- if (is.matrix(sampler$data@x)) sampler$data@x else NULL
+  result$x <- rawPredictorMatrix(sampler$data@x)
   result
 }
 
