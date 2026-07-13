@@ -18,19 +18,6 @@ items
     sum-constrained): b trees update independently per barrier at the
     cost of b-fold precision on structure moves. Candidate mechanism
     for within-chain-threading; an ESS-per-second experiment decides.
-  block-fusion: frontier-3.4 block-fused atom map, the flagship large-n
-    engine lever (design docs/design/block-fusion.md; targets ~6x DRAM
-    drop at n >= 1e5). STAGE A LANDED 2026-07-11 (bartcore d9a5d39,
-    default-ON): the b=1 exact refactor - the constant-leaf steady-state
-    sweep sources per-leaf sufficient statistics through the atom path
-    (src/bartcore/atoms.hpp) and birth/death/change/swap are atom-routed,
-    all bit-identical (equivalence 22/22, tinytest no-regen, bench
-    neutral). Plan docs/plans/block-fusion-stage-a.md. STAGE B NEXT (the
-    speed win): turn on b>1, regroup the suffstat/roll/draw to O(atoms),
-    carries the single VD-approved one-time re-record; plan
-    docs/plans/block-fusion-stage-b.md (to be written). Stage C: tune b.
-    Scope v1 = constant-leaf Gaussian. Subsumes the standalone
-    contiguous-layout item.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.

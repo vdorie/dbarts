@@ -11,19 +11,16 @@
 #                                              any metric > 5% slower
 # Append 'quick' for a fast smoke test (not comparable to full runs).
 #
-# Rscript bench-sampler.R biggrid [out.csv]    opt-in large-n / blockSize
-#                                              grid (or set BENCH_BIGGRID=1);
-#                                              leaves the grid above and its
-#                                              baselines untouched.
+# Rscript bench-sampler.R biggrid [out.csv]    opt-in large-n grid (or set
+#                                              BENCH_BIGGRID=1); leaves the
+#                                              grid above and its baselines
+#                                              untouched.
 #
-# The big grid times n in {1e4, 1e5, 1e6} x numTrees in {75, 200} x
-# blockSize in {1, 4, 8}, forcing blockSize via the DBARTS_BLOCKSIZE dev
-# override read at sampler construction (src/bartcore/chain.hpp). It is not
+# The big grid times n in {1e4, 1e5, 1e6} x numTrees in {75, 200}. It is not
 # meant for routine/CI use: n = 1e6 with numTrees = 200 is a large fit by
 # itself, and the full grid at full reps can run upwards of an hour, so run
 # it on an otherwise-idle machine. 'biggrid quick' restricts it to the
-# smallest cell (n = 1e4, numTrees = 75, blockSize in {1, 4}) as a smoke
-# test of the plumbing.
+# smallest cell (n = 1e4, numTrees = 75) as a smoke test of the plumbing.
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -186,28 +183,22 @@ runBenchmarks <- function(quick) {
   rows
 }
 
-# Opt-in large-n / blockSize grid (see usage note above). The block-fusion
-# win is a DRAM/throughput effect that only shows up well past the n in the
-# grid above, so this times n up to 1e6 with an explicit blockSize (b) axis,
-# forcing b via the DBARTS_BLOCKSIZE dev override around each fit (read at
-# sampler construction, so a fresh sampler is built per cell). b = 1 is the
-# baseline column; b = 4 and 8 are the fused widths, so a downstream compare
-# can pivot b > 1 against the b = 1 column of the same recording.
+# Opt-in large-n grid (see usage note above). This times n up to 1e6, well
+# past the n in the grid above, to surface DRAM/throughput effects the
+# small-n grid cannot; a fresh sampler is built per cell.
 runBigGrid <- function(quick) {
   reps <- if (quick) 1L else 7L
   n.samps <- if (quick) 50L else 500L
   n.list <- if (quick) 1e4 else c(1e4, 1e5, 1e6)
   m.list <- if (quick) 75L else c(75L, 200L)
-  b.list <- if (quick) c(1L, 4L) else c(1L, 4L, 8L)
 
   rows <- data.frame()
-  addRow <- function(n, m, b, scenario, metric, value) {
+  addRow <- function(n, m, scenario, metric, value) {
     rows <<- rbind(
       rows,
       data.frame(
         n = n,
         m = m,
-        b = b,
         scenario = scenario,
         metric = metric,
         value = value
@@ -220,17 +211,13 @@ runBigGrid <- function(quick) {
     data <- genFriedman(n)
     for (m in m.list) {
       scenario <- sprintf("run-n%d-p10-t%d", n, m)
-      for (b in b.list) {
-        Sys.setenv(DBARTS_BLOCKSIZE = b)
-        sampler <- newSampler(data$x, data$y, m)
-        invisible(sampler$run(200L, 1L))
-        elapsed <- timeMedian(
-          function() invisible(sampler$run(0L, n.samps)),
-          reps
-        )
-        Sys.unsetenv("DBARTS_BLOCKSIZE")
-        addRow(n, m, b, scenario, "ms_per_iteration", 1000 * elapsed / n.samps)
-      }
+      sampler <- newSampler(data$x, data$y, m)
+      invisible(sampler$run(200L, 1L))
+      elapsed <- timeMedian(
+        function() invisible(sampler$run(0L, n.samps)),
+        reps
+      )
+      addRow(n, m, scenario, "ms_per_iteration", 1000 * elapsed / n.samps)
     }
   }
 
@@ -247,7 +234,7 @@ if (big.grid) {
   out.file <- if (length(args) >= 1L) args[[1L]] else "sampler-biggrid.csv"
   write.csv(results, out.file, row.names = FALSE)
   cat("wrote", nrow(results), "measurements to", out.file, "\n")
-  print(results[c("n", "m", "b", "scenario", "value")], row.names = FALSE)
+  print(results[c("n", "m", "scenario", "value")], row.names = FALSE)
 } else if (mode == "record") {
   out.file <- if (length(args) >= 2L) args[[2L]] else "sampler-baseline.csv"
   write.csv(results, out.file, row.names = FALSE)
