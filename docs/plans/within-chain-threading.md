@@ -71,3 +71,24 @@ giving up the engine's thread-count-invariant results.
   baseline.
 - bench-sampler at n = 1e5: recorded speedup; no regression at n = 1e4
   with threading active but below its size cutoff.
+
+## Landing notes
+
+- Step 1 landed cb284eb: design note docs/design/within-chain-threading.md.
+  Substrate DECIDED: a new persistent std::thread + std::barrier pool.
+  Neither dormant manager is revived and misc_mt is not extended - both
+  are condvar fork-join, measured 5-10x costlier per sync than
+  std::barrier (arm64 microbench, relative-only), which ~3m syncs/sweep
+  cannot absorb; testFitPool_ stays misc_mt (cold, once-per-run).
+  Fixed-block reduction: B = 1024 doubles, scalar block interiors,
+  serial path shares the scheme - bitwise across n.threads by
+  construction; one-time shifting re-record deferred to step 3. Latent
+  refresh DEFERRED (needs per-block RNG substreams, a separate RNG
+  architecture change; under 1% of parallelizable work). Predicted
+  ceiling ~1.5-1.7x at n = 1e5, ~1.8-2.1x at n = 1e6 - modest; the
+  memory wall that killed block fusion caps this too, but the downside
+  is bounded at neutral-below-cutoff and threading reaches the
+  latency-bound gather that bandwidth amortization could not. Go/no-go
+  for step 2: >= 1.4x net at n = 1e5 x 4 threads plus the hard bitwise
+  invariance gate; head-to-head vs blocked-jacobi scored on ESS/sec.
+  Step 2 awaits direction given the revised (lower) ceiling.
