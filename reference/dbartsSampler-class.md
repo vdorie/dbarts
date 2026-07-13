@@ -348,6 +348,23 @@ overwrites the R-side cache, leaving the engine untouched, so the next
 run continues from the engine's own state rather than the assigned one.
 Always route a restore through `setState`.
 
+### Mutation cost
+
+Each accepted predictor mutation does two things: the engine updates its
+internal representation, and the R layer collects the accepted values
+into the sampler's data object so that replay, saving, and
+re-quantization see current data. The collection is by reference for
+data-frame-built samplers (only the affected column changes hands) but
+requires copying the full predictor matrix when the sampler was built
+from a matrix, so tight loops that mutate predictors every iteration are
+better served by data-frame input. The remaining per-call overhead is a
+few tens of microseconds of R method dispatch and bookkeeping - the
+price of R-level consistency. Clients for which that matters can drive
+the sampler through the C interface (see the `dbarts.h` header installed
+with the package), which invokes the engine directly and performs no
+R-side collection; such clients supply their own current predictor
+matrix when replaying saved trees.
+
 ### Warm starts
 
 `installTrees` seeds the sampler's forests from a `donor` instead of
