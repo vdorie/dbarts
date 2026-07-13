@@ -1,5 +1,7 @@
 # within-chain-threading
 
+status: CLOSED - NO-GO at step 2 (2026-07-13); see Landing notes and
+        docs/design/within-chain-threading.md section 8
 agent: opus
 rng: shifting if the reduction blocking changes accumulation order
      (fixed-block design below keeps thread-count invariance)
@@ -92,3 +94,18 @@ giving up the engine's thread-count-invariant results.
   for step 2: >= 1.4x net at n = 1e5 x 4 threads plus the hard bitwise
   invariance gate; head-to-head vs blocked-jacobi scored on ESS/sec.
   Step 2 awaits direction given the revised (lower) ceiling.
+- Step 2 ran and CLOSED the plan: NO-GO, full record in
+  docs/design/within-chain-threading.md section 8. The prototype
+  (persistent std::barrier pool + fixed-block gather + partitioned
+  scatter, +306 lines) PASSED the hard invariance gate - draws
+  byte-identical across n.threads {1, 2, 8} at n = 1e5 on arm64 and
+  x86, serial regroup free - but measured 0.91x net at n = 1e5 x 4
+  threads (gate >= 1.4x) and gather s_par 1.67 at 4 threads (gate
+  >= 2): both pre-registered no-go conditions, independently. 8
+  threads collapses on the bench box's split-L3 CCX topology; the
+  scatter is net-negative to parallelize; extrapolating the full
+  landing pass stays ~1.2-1.3x. Archived buildable at
+  archive/within-chain-threading (54a60aa); nothing merged; no
+  re-record spent (the shifting-class change never landed). Step 3
+  void. The blocked-jacobi head-to-head never ran; that plan remains
+  open and unevaluated on its own merits.

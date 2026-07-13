@@ -1,9 +1,10 @@
 # Within-chain threading for large-n single-chain sweeps: engineering design
 
-Status: DESIGN PROPOSAL, 2026-07-13. Grounded in the current engine (bartcore
-HEAD, block-fusion excised: the legacy setNodeAverages / computeLeafStats
-suffstat path is again the only one). Proposal only; a landing note gets
-appended if measurements say go.
+Status: CLOSED - NO-GO, 2026-07-13 (section 8). Grounded in the current engine
+(bartcore HEAD, block-fusion excised: the legacy setNodeAverages /
+computeLeafStats suffstat path is again the only one). The section-7 prototype
+was built and measured the same day; both pre-registered no-go gates triggered.
+Prototype archived on archive/within-chain-threading.
 
 The estimates here are against the CURRENT u16 hot layer. The per-column-width
 (u8) layer is parked -- it is not in the tree (a standalone width retrofit
@@ -316,3 +317,48 @@ recorded as closed. Secondary axis: correctness risk -- this note is a mechanica
 parallelization with a one-time RNG shift, whereas blocked-jacobi is a new exact
 kernel needing exact-posterior gates at b in {2, 8}; a tie on ESS/sec breaks
 toward the lower-risk mechanism.
+
+## 8. Measured outcome: NO-GO (2026-07-13)
+
+The section-7 prototype was built (persistent std::barrier pool in
+wcpool.hpp, fixed-block gather, partitioned scatter; +306 lines) and
+measured on the x86 bench box (AMD Ryzen 3700X, 8 cores across 2 CCXs with
+a split L3; friedman, m = 75, single chain). The correctness half of the
+design WORKED: draws byte-identical across n.threads in {1, 2, 8} at
+n = 1e5 on both arm64 and x86, the below-cutoff path byte-identical to a
+threads=1 run, component tests green, and the serial fixed-block regroup
+cost nothing measurable at any n. The performance half did not:
+
+  msec/iteration        tip 1T   proto 1T   2T     4T     8T
+  n = 1e4 (gated off)   2.09     2.07       2.07   2.00   1.94
+  n = 1e5               26.4     25.2       23.7   27.6   39.7
+  n = 1e6               359      359        319    347    403
+
+- Net at n = 1e5 x 4T: 0.91x against the >= 1.4x go / < 1.3x no-go gate.
+  Best anywhere: 1.12x at n = 1e6 x 2T.
+- Gather s_par at 4T: 1.67 against the < 2 no-go gate (2T: 1.36). At 8T the
+  gather COLLAPSES to 0.86x once threads span both CCXs and leaf sharing
+  turns into cross-CCX L3 traffic.
+- The fit scatter (bandwidth-bound writes) was NET-NEGATIVE to parallelize.
+
+Extrapolation does not rescue the landing pass: threading the remaining
+streaming passes lifts the parallel fraction from ~0.47 to ~0.6, but at the
+measured s_par -- and with the scatter already net-negative -- the ceiling
+stays ~1.2-1.3x at 4 threads, under the bar the complexity was priced at.
+The section-6 model was still optimistic: it assumed s_par ~2.5 for the
+latency-bound gather where the machine delivered 1.67. Synchronization is
+NOT the culprit: the re-run microbench put std::barrier at ~1.1/1.9/5.0 us
+per round-trip at 2/4/8 threads on real cores (condvar 3-8x worse, spin
+~0.2-1.1 us), ~1% of a n = 1e5 sweep. The wall is memory, as it was for
+block fusion (block-fusion.md section 10).
+
+The head-to-head never ran: this mechanism no-goed on its own gates first.
+blocked-jacobi remains unevaluated, open on its own merits, with the
+section-7 ESS/sec protocol still the right yardstick if it is ever tried.
+
+The prototype is archived, buildable, on archive/within-chain-threading.
+Revival preconditions: hardware whose memory system actually scales with
+cores for this footprint (large unified LLC, materially higher bandwidth
+per core), or routine workloads at n >> 1e6, or a sweep profile reshaped by
+other layers; re-run the barrier microbench and the full section-7 protocol
+on the actual target before believing anything.
