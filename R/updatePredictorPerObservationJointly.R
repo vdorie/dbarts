@@ -85,7 +85,7 @@ updatePredictorPerObservationJointly <- function(
   # R-side for the observations the shared scan installed (the interim of
   # design plans 1-2)
   for (i in seq_along(samplers)) {
-    samplers[[i]]$data@x <- assignIntoPredictorSource(
+    samplers[[i]]$data@x <- installPredictorColumns(
       samplers[[i]]$data@x,
       installed,
       columnIndices[i],
