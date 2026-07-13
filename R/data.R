@@ -402,6 +402,21 @@ dbartsData <- function(
       modelFrameCall$offset <- offset
     }
 
+    # a sparseFactor column would die inside model.frame with a bare S4
+    # type error; refuse it explicitly first (S-CAT: recognized, not yet
+    # supported)
+    if (!dataIsMissing && (is.list(data) || is.environment(data))) {
+      for (variableName in intersect(all.vars(formula), names(data))) {
+        if (methods::is(data[[variableName]], "sparseFactor")) {
+          stop(
+            "sparse categorical predictors are not yet supported; '",
+            variableName,
+            "' is a sparseFactor"
+          )
+        }
+      }
+    }
+
     modelFrame <- eval(modelFrameCall, parent.frame())
     if (NROW(modelFrame) == 0) {
       if (!is.null(matchedCall$subset)) {
@@ -662,6 +677,9 @@ dbartsData <- function(
       if (!is.null(offset)) offset <- offset[completeCases]
     }
   } else {
+    if (methods::is(formula, "sparseFactor")) {
+      stop("sparse categorical predictors are not yet supported")
+    }
     stop(
       "unrecognized 'formula' type; must be coercible to numeric or a valid formula object"
     )

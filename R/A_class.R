@@ -503,3 +503,66 @@ methods::setValidity("dbartsData", function(object) {
 
   TRUE
 })
+
+# An unordered-factor predictor in sparse form (the Matrix package's naming
+# convention): rows listed in i carry the level coded in values, every
+# other row the implicit reference level. Ingestion recognizes the class
+# but data construction refuses it until the CSC-categorical engine path
+# lands (docs/plans/data-ownership-2-ingestion.md, decision S-CAT).
+# Constructor and methods live in R/sparseFactor.R.
+methods::setClass(
+  "sparseFactor",
+  slots = list(
+    i = "integer", # 0-based rows of the stored entries, ascending
+    values = "integer", # 1-based level codes of the stored entries
+    levels = "character",
+    reference = "character", # the implicit level of unstored rows
+    length = "integer"
+  ),
+  prototype = list(
+    i = integer(0),
+    values = integer(0),
+    levels = "0",
+    reference = "0",
+    length = 0L
+  )
+)
+methods::setValidity("sparseFactor", function(object) {
+  numLevels <- length(object@levels)
+  if (numLevels == 0L || anyNA(object@levels)) {
+    return("'levels' must be a character vector without NAs")
+  }
+  if (anyDuplicated(object@levels) > 0L) {
+    return("'levels' cannot contain duplicates")
+  }
+  if (
+    length(object@reference) != 1L ||
+      is.na(object@reference) ||
+      object@reference %not_in% object@levels
+  ) {
+    return("'reference' must be a single element of 'levels'")
+  }
+  if (
+    length(object@length) != 1L ||
+      is.na(object@length) ||
+      object@length < 0L
+  ) {
+    return("'length' must be a single non-negative integer")
+  }
+  if (length(object@values) != length(object@i)) {
+    return("'i' and 'values' must have equal length")
+  }
+  if (
+    anyNA(object@values) ||
+      any(object@values < 1L | object@values > numLevels)
+  ) {
+    return("'values' must be level codes in [1, length(levels)]")
+  }
+  if (anyNA(object@i) || any(object@i < 0L | object@i >= object@length)) {
+    return("'i' must hold 0-based rows in [0, length)")
+  }
+  if (length(object@i) > 1L && any(diff(object@i) <= 0L)) {
+    return("'i' must be strictly increasing")
+  }
+  TRUE
+})
