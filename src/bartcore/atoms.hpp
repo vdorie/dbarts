@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <vector>
 
@@ -529,11 +530,12 @@ struct AtomMap {
   void splitAtom(Tree& tree, const ColumnStore& data, const double* g,
                  const double* weights, std::int32_t parentNode) {
     if (blockMode) {
-      // fused birth: snapshot the whole joint map, slice the j coordinate of
-      // every atom under the parent leaf, repartition the tree's OWN index
-      // buffer (so the children's begin/end drive the empty-leaf veto and the
-      // draw), then re-derive the affine child caches for the move scoring.
-      snapshotBlock(interiorN_);
+      // fused birth: record a targeted undo, slice the j coordinate of every
+      // atom under the parent leaf, repartition the tree's OWN index buffer (so
+      // the children's begin/end drive the empty-leaf veto and the draw), then
+      // re-derive the affine child caches for the move scoring.
+      moveTree_ = &tree;
+      beginMoveUndo();
       splitAtomBlock(tree, data, interiorCoord_, parentNode, interiorG_,
                      interiorWeights_);
       tree.partitionChildren(data, parentNode);
@@ -617,7 +619,7 @@ struct AtomMap {
   /// caches die with the released pair), so this touches only the SoA. Leaves
   /// the live map byte-for-byte as it was before splitAtom.
   void undoSplit() {
-    if (blockMode) { restoreBlock(interiorN_); return; }
+    if (blockMode) { restoreMoveUndo(); return; }
     if (!undo_.active) return;
     undo_.active = false;
     if (!undo_.hasParent) return;
@@ -646,12 +648,15 @@ struct AtomMap {
       G[slot] = G[last];
       Q[slot] = Q[last];
       S[slot] = S[last];
-      leafTuple[slot] = leafTuple[last];
+      for (std::size_t k = 0; k < blockWidth; ++k)
+        setLeafOf(slot, k, leafOf(last, k));
       atomBegin[slot] = atomBegin[last];
       atomEnd[slot] = atomEnd[last];
       if (trackAtomOf)
-        for (std::size_t k = atomBegin[slot]; k < atomEnd[slot]; ++k)
+        for (std::size_t k = atomBegin[slot]; k < atomEnd[slot]; ++k) {
+          touchAtomOf(members[k]);
           atomOf[members[k]] = slot;
+        }
     }
     --numAtoms;
   }
@@ -732,9 +737,14 @@ struct AtomMap {
 
   /// Snapshot the SoA + the subtree's atomOf before a change/swap mutates the
   /// rule, so a rejected move restores via restoreSubtree. Call BEFORE setting
-  /// the new rule / running refreshSubtree.
-  void snapshotSubtree(const Tree& tree, std::int32_t subtreeRoot) {
-    if (blockMode) { snapshotBlock(interiorN_); return; }
+  /// the new rule / running refreshSubtree. The tree is mutable because the
+  /// blockMode rollback re-derives its node caches from the restored map.
+  void snapshotSubtree(Tree& tree, std::int32_t subtreeRoot) {
+    if (blockMode) {
+      moveTree_ = &tree;
+      beginMoveUndo();
+      return;
+    }
     subtreeUndo_.active = true;
     subtreeUndo_.numAtoms = numAtoms;
     subtreeUndo_.A.assign(A.begin(), A.begin() + numAtoms);
@@ -764,7 +774,7 @@ struct AtomMap {
   /// the tree's own index-buffer restore (atomOf is keyed by obs id), so the two
   /// may run in either order.
   void restoreSubtree() {
-    if (blockMode) { restoreBlock(interiorN_); return; }
+    if (blockMode) { restoreMoveUndo(); return; }
     if (!subtreeUndo_.active) return;
     subtreeUndo_.active = false;
     numAtoms = subtreeUndo_.numAtoms;
@@ -881,6 +891,250 @@ struct AtomMap {
   std::vector<std::int32_t> obsTupleScratch_;  // per-obs leaf b-tuple, row-major
   std::vector<std::size_t> memberSortScratch_; // ascending-member agg buffer
 
+  // --- localized move maintenance (block-fusion.md 4.1-4.3) --------------
+  //
+  // Death/change/swap re-partition only the atoms whose block-tree-j leaf the
+  // move touched: the affected atoms are dissolved and their members regrouped
+  // by their new leaf b-tuple into fresh atoms placed at the owned buffer's
+  // tail, reusing the dissolved atoms' ids (the old slices become holes,
+  // reclaimed wholesale by the next buildForBlock resize). The cost is
+  // O(affected members + affected atoms), never O(n): no per-observation rescan
+  // and no from-scratch std::map regroup.
+  std::vector<std::uint32_t> affAtoms_;    // atom ids the move dissolves
+  std::vector<std::size_t> affMembers_;    // their members, concatenated
+  std::vector<std::int32_t> affTuples_;    // each member's new b-tuple (row-major)
+  std::vector<std::int32_t> groupHash_;    // open-addressing group table (-1 empty)
+  std::vector<std::uint32_t> groupOf_;     // per-affected-member group id
+  std::vector<std::int32_t> groupTuple_;   // per-group b-tuple (row-major)
+  std::vector<std::size_t> groupBegin_;    // per-group tail slice begin
+  std::vector<std::size_t> groupCursor_;   // per-group fill cursor
+  std::vector<std::uint32_t> groupAtom_;   // per-group atom id
+  std::vector<std::uint32_t> removeScratch_;
+  std::vector<std::uint32_t> radixOrder_, radixTmp_;  // ascending-member order
+
+  /// Order the affected members ascending by observation id, comparison-free, so
+  /// the regroup scatters each new atom's members in the canonical ascending
+  /// order aggregateAtomBlock reduces without a sort. LSD radix over the id
+  /// bytes (obs ids are 0..n-1), O(count) not O(count log count). Fills
+  /// radixOrder_ with indices into affMembers_.
+  void orderAffectedAscending(std::size_t count, std::size_t maxObs) {
+    radixOrder_.resize(count);
+    radixTmp_.resize(count);
+    for (std::size_t t = 0; t < count; ++t)
+      radixOrder_[t] = static_cast<std::uint32_t>(t);
+    int passes = 1;
+    while ((maxObs >> (8 * passes)) != 0) ++passes;
+    std::uint32_t* src = radixOrder_.data();
+    std::uint32_t* dst = radixTmp_.data();
+    for (int p = 0; p < passes; ++p) {
+      std::size_t shift = static_cast<std::size_t>(8 * p);
+      std::size_t counts[256] = {0};
+      for (std::size_t t = 0; t < count; ++t)
+        ++counts[(affMembers_[src[t]] >> shift) & 0xFFu];
+      std::size_t sum = 0;
+      for (std::size_t bkt = 0; bkt < 256; ++bkt) {
+        std::size_t c = counts[bkt];
+        counts[bkt] = sum;
+        sum += c;
+      }
+      for (std::size_t t = 0; t < count; ++t) {
+        std::size_t key = (affMembers_[src[t]] >> shift) & 0xFFu;
+        dst[counts[key]++] = src[t];
+      }
+      std::swap(src, dst);
+    }
+    if (src != radixOrder_.data())
+      std::copy(src, src + count, radixOrder_.begin());
+  }
+
+  // Targeted move rollback for the run() interior (moves.hpp hooks). Where the
+  // fuzzer rolls a rejected move back with the whole-map snapshotBlock, the
+  // sweep records only the touched state: the small per-atom SoA prefix
+  // (K ~ 10^2) is saved whole, atomOf is logged on write, and the owned buffer
+  // is undone by truncating any tail growth. Member ORDER within an atom is not
+  // restored - it is irrelevant to every reader (aggregateAtomBlock sorts, the
+  // scatter is per-member), so a rejected birth's in-place partition needs no
+  // buffer save. This makes a rejected move O(affected), not O(n).
+  //
+  // The restore ends by re-deriving the block tree's affine node caches from
+  // the restored map. The proposal's writeAffineNodeCaches overwrote EVERY leaf
+  // of the tree from the mutated map, and a change/swap regroup can reshuffle
+  // untouched atoms' ids (removeAtomSlot), regrouping the ascending-id D(L)
+  // sum for leaves OUTSIDE the restored subtree; the tree's own restoreSubtree
+  // puts back only the subtree caches, so without the re-derive the next draw
+  // would read proposal-regrouped bytes. The map restores bitwise, so the
+  // re-derive reproduces the pre-move derive exactly - a rejected move leaves
+  // the caches, not just the map, byte-for-byte. O(atoms + nodes), no O(n).
+  bool moveRecording_ = false;
+  Tree* moveTree_ = nullptr;
+  std::size_t moveNumAtomsBefore_ = 0;
+  std::size_t moveBufSizeBefore_ = 0;
+  std::vector<double> moveSavedA_, moveSavedG_, moveSavedQ_, moveSavedS_;
+  std::vector<std::size_t> moveSavedBegin_, moveSavedEnd_;
+  std::vector<std::int32_t> moveSavedLeaf_;
+  std::vector<std::size_t> moveAoObs_;
+  std::vector<std::uint32_t> moveAoOld_;
+
+  /// Log an atomOf entry before it is overwritten so a rejected move can undo
+  /// it (reverse replay makes the first-saved, pre-move value win). A no-op
+  /// unless a move hook is recording, so the fuzzer's direct kernel calls and
+  /// the block build pay nothing.
+  void touchAtomOf(std::size_t obs) {
+    if (moveRecording_) {
+      moveAoObs_.push_back(obs);
+      moveAoOld_.push_back(atomOf[obs]);
+    }
+  }
+
+  /// Begin recording a rejectable interior move (birth or change/swap hook).
+  /// Snapshots the tiny SoA prefix and the buffer length; the atomOf log starts
+  /// empty.
+  void beginMoveUndo() {
+    moveRecording_ = true;
+    moveNumAtomsBefore_ = numAtoms;
+    moveBufSizeBefore_ = atomMembersOwned.size();
+    moveSavedA_.assign(A.begin(), A.begin() + numAtoms);
+    moveSavedG_.assign(G.begin(), G.begin() + numAtoms);
+    moveSavedQ_.assign(Q.begin(), Q.begin() + numAtoms);
+    moveSavedS_.assign(S.begin(), S.begin() + numAtoms);
+    moveSavedBegin_.assign(atomBegin.begin(), atomBegin.begin() + numAtoms);
+    moveSavedEnd_.assign(atomEnd.begin(), atomEnd.begin() + numAtoms);
+    moveSavedLeaf_.assign(leafTuple.begin(),
+                          leafTuple.begin() + numAtoms * blockWidth);
+    moveAoObs_.clear();
+    moveAoOld_.clear();
+  }
+
+  /// Undo a rejected interior move bitwise in its live state: restore the SoA
+  /// prefix, drop any appended atoms, replay the atomOf log in reverse, and
+  /// truncate any tail growth. Leaves member order within atoms as the move left
+  /// it (immaterial to every reader).
+  void restoreMoveUndo() {
+    if (!moveRecording_) return;
+    moveRecording_ = false;
+    numAtoms = moveNumAtomsBefore_;
+    ensureAtomCapacity(numAtoms);
+    std::copy(moveSavedA_.begin(), moveSavedA_.end(), A.begin());
+    std::copy(moveSavedG_.begin(), moveSavedG_.end(), G.begin());
+    std::copy(moveSavedQ_.begin(), moveSavedQ_.end(), Q.begin());
+    std::copy(moveSavedS_.begin(), moveSavedS_.end(), S.begin());
+    std::copy(moveSavedBegin_.begin(), moveSavedBegin_.end(), atomBegin.begin());
+    std::copy(moveSavedEnd_.begin(), moveSavedEnd_.end(), atomEnd.begin());
+    std::copy(moveSavedLeaf_.begin(), moveSavedLeaf_.end(), leafTuple.begin());
+    for (std::size_t k = moveAoObs_.size(); k-- > 0;)
+      atomOf[moveAoObs_[k]] = moveAoOld_[k];
+    atomMembersOwned.resize(moveBufSizeBefore_);
+    members = atomMembersOwned.data();
+    writeAffineNodeCaches(*moveTree_, interiorCoord_);
+    moveTree_ = nullptr;
+  }
+
+  /// Assign first-appearance group ids to `count` leaf b-tuples (row-major, `b`
+  /// per row) via an allocation-free open-addressing hash, filling groupOf
+  /// (per-row group id) and groupTuple (the b-tuple of each group). The id order
+  /// is scan order, deterministic on every ISA, so the atom ids the moves derive
+  /// stay cross-ISA stable (block-fusion.md 5).
+  std::size_t groupTuples(const std::int32_t* tuples, std::size_t count,
+                          std::size_t b, std::vector<std::uint32_t>& groupOf,
+                          std::vector<std::int32_t>& groupTuple) {
+    groupOf.assign(count, 0u);
+    groupTuple.clear();
+    std::size_t cap = 1;
+    while (cap < count * 2 + 1) cap <<= 1;
+    groupHash_.assign(cap, -1);
+    std::size_t mask = cap - 1;
+    std::uint32_t numGroups = 0;
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::int32_t* key = tuples + i * b;
+      std::uint64_t h = 1469598103934665603ull;
+      for (std::size_t k = 0; k < b; ++k) {
+        h ^= static_cast<std::uint32_t>(key[k]);
+        h *= 1099511628211ull;
+      }
+      std::size_t slot = static_cast<std::size_t>(h) & mask;
+      while (true) {
+        std::int32_t gid = groupHash_[slot];
+        if (gid < 0) {
+          groupHash_[slot] = static_cast<std::int32_t>(numGroups);
+          groupOf[i] = numGroups;
+          for (std::size_t k = 0; k < b; ++k) groupTuple.push_back(key[k]);
+          ++numGroups;
+          break;
+        }
+        const std::int32_t* other =
+          groupTuple.data() + static_cast<std::size_t>(gid) * b;
+        bool same = true;
+        for (std::size_t k = 0; k < b; ++k)
+          if (other[k] != key[k]) { same = false; break; }
+        if (same) { groupOf[i] = static_cast<std::uint32_t>(gid); break; }
+        slot = (slot + 1) & mask;
+      }
+    }
+    return numGroups;
+  }
+
+  /// Group the gathered affected members (affMembers_ + affTuples_) by their new
+  /// b-tuple and materialize the resulting atoms at the owned buffer's tail,
+  /// reusing the dissolved atoms' ids (affAtoms_) for the first groups, appending
+  /// for extra, and removing any surplus. Aggregates each new atom's (A, G, Q)
+  /// over its members. O(affected members + affected atoms).
+  void placeRegroupedAffected(const double* g, const double* weights) {
+    std::size_t b = blockWidth;
+    std::size_t count = affMembers_.size();
+    std::size_t numGroups =
+      groupTuples(affTuples_.data(), count, b, groupOf_, groupTuple_);
+
+    groupBegin_.assign(numGroups, 0);
+    for (std::size_t t = 0; t < count; ++t) ++groupBegin_[groupOf_[t]];
+    std::size_t off = atomMembersOwned.size();
+    groupCursor_.assign(numGroups, 0);
+    for (std::uint32_t gp = 0; gp < numGroups; ++gp) {
+      std::size_t sz = groupBegin_[gp];
+      groupBegin_[gp] = off;
+      groupCursor_[gp] = off;
+      off += sz;
+    }
+    atomMembersOwned.resize(off);
+    members = atomMembersOwned.data();
+
+    groupAtom_.assign(numGroups, 0);
+    for (std::uint32_t gp = 0; gp < numGroups; ++gp) {
+      std::uint32_t slot;
+      if (gp < affAtoms_.size()) {
+        slot = affAtoms_[gp];
+      } else {
+        slot = static_cast<std::uint32_t>(numAtoms);
+        ensureAtomCapacity(numAtoms + 1);
+        ++numAtoms;
+      }
+      groupAtom_[gp] = slot;
+    }
+    orderAffectedAscending(count, atomOf.size());
+    for (std::size_t r = 0; r < count; ++r) {
+      std::size_t t = radixOrder_[r];
+      std::uint32_t gp = groupOf_[t];
+      std::size_t i = affMembers_[t];
+      members[groupCursor_[gp]++] = i;
+      touchAtomOf(i);
+      atomOf[i] = groupAtom_[gp];
+    }
+    for (std::uint32_t gp = 0; gp < numGroups; ++gp) {
+      std::uint32_t slot = groupAtom_[gp];
+      atomBegin[slot] = groupBegin_[gp];
+      atomEnd[slot] = groupCursor_[gp];
+      for (std::size_t k = 0; k < b; ++k)
+        setLeafOf(slot, k, groupTuple_[gp * b + k]);
+      S[slot] = 0.0;
+      aggregateAtomBlock(g, weights, slot);
+    }
+    if (numGroups < affAtoms_.size()) {
+      removeScratch_.assign(affAtoms_.begin() + numGroups, affAtoms_.end());
+      std::sort(removeScratch_.begin(), removeScratch_.end(),
+                std::greater<std::uint32_t>());
+      for (std::uint32_t slot : removeScratch_) removeAtomSlot(slot);
+    }
+  }
+
   // --- interior sub-sweep driver state (block-fusion.md 3, 4.2-4.4) ---
   //
   // While the sweep drives block tree j (t0 + j) the move hooks below dispatch
@@ -962,16 +1216,30 @@ struct AtomMap {
                           std::uint32_t atomId) {
     std::size_t begin = atomBegin[atomId];
     std::size_t length = atomEnd[atomId] - begin;
-    memberSortScratch_.assign(members + begin, members + begin + length);
-    std::sort(memberSortScratch_.begin(), memberSortScratch_.end());
+    // The canonical (order-free) reduction is over the ascending member set. An
+    // owned slice that is ALREADY ascending - what buildForBlock lays down and
+    // the localized regroup restores via its ascending scatter - is reduced in
+    // place with no copy and no sort, so the O(members) aggregate never carries
+    // the O(members log) sort the birth split's unstable two-pointer order needs.
+    // Either way the reduction visits members ascending, so A/G land bitwise the
+    // from-scratch rebuild the b>1 fuzzer checks.
+    const std::size_t* idx = members + begin;
+    bool ascending = true;
+    for (std::size_t k = 1; k < length; ++k)
+      if (idx[k] < idx[k - 1]) { ascending = false; break; }
+    if (!ascending) {
+      memberSortScratch_.assign(members + begin, members + begin + length);
+      std::sort(memberSortScratch_.begin(), memberSortScratch_.end());
+      idx = memberSortScratch_.data();
+    }
     double a = 0.0, gMass = 0.0, q = 0.0;
     if (length > 0) {
       if (weights == nullptr)
-        misc_computeIndexedSufficientStatisticsFast(g, memberSortScratch_.data(),
-                                                    length, &a, &gMass, &q);
+        misc_computeIndexedSufficientStatisticsFast(g, idx, length, &a, &gMass,
+                                                    &q);
       else
         misc_computeIndexedWeightedSufficientStatisticsFast(
-          g, memberSortScratch_.data(), length, weights, &a, &gMass, &q);
+          g, idx, length, weights, &a, &gMass, &q);
     }
     A[atomId] = lookupOrStoreABlock(atomId, begin, length, a);
     G[atomId] = gMass;
@@ -1016,37 +1284,23 @@ struct AtomMap {
     atomMembersOwned.resize(n);
     members = atomMembersOwned.data();
 
-    std::map<std::vector<std::int32_t>, std::uint32_t> ids;
-    std::vector<std::vector<std::int32_t>> keys;
-    numAtoms = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-      std::vector<std::int32_t> key(obsTuple + i * b, obsTuple + i * b + b);
-      auto found = ids.find(key);
-      std::uint32_t id;
-      if (found == ids.end()) {
-        id = static_cast<std::uint32_t>(numAtoms++);
-        ids.emplace(key, id);
-        keys.push_back(std::move(key));
-      } else {
-        id = found->second;
-      }
-      atomOf[i] = id;
-    }
+    numAtoms = groupTuples(obsTuple, n, b, groupOf_, groupTuple_);
     ensureAtomCapacity(numAtoms);
+    for (std::size_t i = 0; i < n; ++i) atomOf[i] = groupOf_[i];
 
-    std::vector<std::size_t> cursor(numAtoms, 0);
-    for (std::size_t i = 0; i < n; ++i) ++cursor[atomOf[i]];
+    groupCursor_.assign(numAtoms, 0);
+    for (std::size_t i = 0; i < n; ++i) ++groupCursor_[atomOf[i]];
     std::size_t offset = 0;
     for (std::size_t c = 0; c < numAtoms; ++c) {
       atomBegin[c] = offset;
-      offset += cursor[c];
+      offset += groupCursor_[c];
       atomEnd[c] = offset;
-      cursor[c] = atomBegin[c];
-      for (std::size_t j = 0; j < b; ++j) setLeafOf(c, j, keys[c][j]);
+      groupCursor_[c] = atomBegin[c];
+      for (std::size_t j = 0; j < b; ++j) setLeafOf(c, j, groupTuple_[c * b + j]);
       S[c] = 0.0;
     }
     for (std::size_t i = 0; i < n; ++i)
-      members[cursor[atomOf[i]]++] = i;
+      members[groupCursor_[atomOf[i]]++] = i;
     for (std::uint32_t c = 0; c < numAtoms; ++c)
       aggregateAtomBlock(g, weights, c);
   }
@@ -1214,66 +1468,77 @@ struct AtomMap {
         for (std::size_t k = 0; k < blockWidth; ++k) setLeafOf(r, k, leafOf(c, k));
         setLeafOf(r, j, rightNode);
         S[r] = S[c];
-        for (std::size_t m = mid; m < end; ++m) atomOf[members[m]] = r;
+        for (std::size_t m = mid; m < end; ++m) {
+          touchAtomOf(members[m]);
+          atomOf[members[m]] = r;
+        }
         aggregateAtomBlock(g, weights, r);
       }
     }
   }
 
   /// Merge, for a death on block tree t_j (leaf L reabsorbing children L_left,
-  /// L_right), every atom whose t_j slot is a child back onto L, then regroup
-  /// (block-fusion.md 4.1). The coordinate relabel is derived from the current
-  /// map (trusting the death); the rebuild oracle re-routes t_j and catches a
-  /// wrong relabel. Cross-atom merges (two atoms agreeing on the other b-1 slots
-  /// once the t_j slot collapses to L) are non-adjacent in the owned buffer, so
-  /// the regroup re-lays it out contiguously -- the O(n) re-canonicalization the
-  /// design admits for the merge axis (4.5); the interior perf path is commit iv.
+  /// L_right), every atom whose t_j slot is a child back onto L
+  /// (block-fusion.md 4.1). Only the atoms under the two child leaves are
+  /// dissolved: their members are regrouped by the relabelled b-tuple (t_j slot
+  /// -> L, the other b-1 held fixed) into fresh atoms at the owned buffer's
+  /// tail, so an atom whose members all stay one cell is a pure relabel and two
+  /// atoms that agree on the other slots recombine. O(members of the two child
+  /// leaves), not O(n). The rebuild oracle re-routes t_j and catches a wrong
+  /// relabel.
   void mergeAtomsBlock(std::size_t j, std::int32_t parentLeaf,
                        std::int32_t leftChild, std::int32_t rightChild,
                        const double* g, const double* weights) {
-    std::size_t n = atomOf.size();
     std::size_t b = blockWidth;
-    obsTupleScratch_.assign(n * b, 0);
-    for (std::size_t i = 0; i < n; ++i) {
-      std::uint32_t c = atomOf[i];
-      for (std::size_t k = 0; k < b; ++k) {
-        std::int32_t t = leafOf(c, k);
-        if (k == j && (t == leftChild || t == rightChild)) t = parentLeaf;
-        obsTupleScratch_[i * b + k] = t;
-      }
+    affAtoms_.clear();
+    for (std::uint32_t c = 0; c < numAtoms; ++c) {
+      std::int32_t lj = leafOf(c, j);
+      if (lj == leftChild || lj == rightChild) affAtoms_.push_back(c);
     }
-    regroupByObsTuples(obsTupleScratch_.data(), n, g, weights);
+    affMembers_.clear();
+    affTuples_.clear();
+    for (std::uint32_t c : affAtoms_)
+      for (std::size_t m = atomBegin[c]; m < atomEnd[c]; ++m) {
+        affMembers_.push_back(members[m]);
+        for (std::size_t k = 0; k < b; ++k)
+          affTuples_.push_back(k == j ? parentLeaf : leafOf(c, k));
+      }
+    placeRegroupedAffected(g, weights);
   }
 
   /// Re-slice, for a change/swap on block tree t_j's subtree rooted at P, every
-  /// atom whose t_j slot is a leaf under P: re-route only those observations
-  /// through t_j (the other b-1 slots are unchanged, read from the current map),
-  /// then regroup (block-fusion.md 4.1, the surviving O(n_subtree) scan). A
-  /// re-slice both splits an atom (its members scatter to several new t_j
-  /// leaves) and merges across atoms (two old atoms landing on the same new
-  /// tuple), so it goes through the contiguous regroup rather than an in-place
-  /// partition. The oracle re-routes ALL trees and catches a wrong affected set
-  /// or coordinate.
+  /// atom whose t_j slot is a leaf under P (block-fusion.md 4.1). Only those
+  /// atoms are dissolved: their members are re-routed through t_j's new rules
+  /// (the other b-1 slots held fixed) and regrouped by the new b-tuple into
+  /// fresh tail atoms, so a re-slice both splits an atom (its members scatter to
+  /// several new t_j leaves) and merges across atoms (two dissolved atoms landing
+  /// on the same new tuple). O(members under P), the surviving move scan the
+  /// design admits, never O(n). The oracle re-routes ALL trees and catches a
+  /// wrong affected set or coordinate.
   void refreshSubtreeBlock(const Tree& tree, const ColumnStore& data,
                            std::size_t j, std::int32_t subtreeRoot,
                            const double* g, const double* weights) {
-    std::size_t n = atomOf.size();
     std::size_t b = blockWidth;
     std::vector<std::int32_t> underLeaves;
     tree.fillBottom(subtreeRoot, underLeaves);
     std::vector<char> underSubtree(tree.nodes.size(), 0);
     for (std::int32_t leaf : underLeaves)
       underSubtree[static_cast<std::size_t>(leaf)] = 1;
-    obsTupleScratch_.assign(n * b, 0);
-    for (std::size_t i = 0; i < n; ++i) {
-      std::uint32_t c = atomOf[i];
-      for (std::size_t k = 0; k < b; ++k) obsTupleScratch_[i * b + k] = leafOf(c, k);
-      std::int32_t curJ = leafOf(c, j);
-      if (underSubtree[static_cast<std::size_t>(curJ)])
-        obsTupleScratch_[i * b + j] =
-          tree.findBottomNodeForObservation(data, i);
-    }
-    regroupByObsTuples(obsTupleScratch_.data(), n, g, weights);
+    affAtoms_.clear();
+    for (std::uint32_t c = 0; c < numAtoms; ++c)
+      if (underSubtree[static_cast<std::size_t>(leafOf(c, j))])
+        affAtoms_.push_back(c);
+    affMembers_.clear();
+    affTuples_.clear();
+    for (std::uint32_t c : affAtoms_)
+      for (std::size_t m = atomBegin[c]; m < atomEnd[c]; ++m) {
+        std::size_t i = members[m];
+        std::int32_t newLeaf = tree.findBottomNodeForObservation(data, i);
+        affMembers_.push_back(i);
+        for (std::size_t k = 0; k < b; ++k)
+          affTuples_.push_back(k == j ? newLeaf : leafOf(c, k));
+      }
+    placeRegroupedAffected(g, weights);
   }
 
   /// Whole-map snapshot for b>1 move rollback: the SoA prefix, leafTuple (b ids
@@ -1304,11 +1569,12 @@ struct AtomMap {
     blockUndo_.leafTuple.assign(leafTuple.begin(),
                                 leafTuple.begin() + numAtoms * blockWidth);
     blockUndo_.atomOf.assign(atomOf.begin(), atomOf.begin() + n);
-    blockUndo_.membersBuf.assign(atomMembersOwned.begin(),
-                                 atomMembersOwned.begin() + n);
+    // The localized death/change patches grow the owned buffer at the tail, so
+    // the whole-map snapshot must round-trip the full buffer, not just [0, n).
+    blockUndo_.membersBuf = atomMembersOwned;
   }
 
-  void restoreBlock(std::size_t n) {
+  void restoreBlock(std::size_t /*n*/) {
     if (!blockUndo_.active) return;
     blockUndo_.active = false;
     numAtoms = blockUndo_.numAtoms;
@@ -1324,9 +1590,7 @@ struct AtomMap {
               leafTuple.begin());
     std::copy(blockUndo_.atomOf.begin(), blockUndo_.atomOf.end(),
               atomOf.begin());
-    atomMembersOwned.resize(n);
-    std::copy(blockUndo_.membersBuf.begin(), blockUndo_.membersBuf.end(),
-              atomMembersOwned.begin());
+    atomMembersOwned = blockUndo_.membersBuf;
     members = atomMembersOwned.data();
   }
 };
