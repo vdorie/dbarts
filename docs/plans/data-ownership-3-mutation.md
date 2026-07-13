@@ -101,16 +101,24 @@ sentence was a CONSEQUENCE of the mutable-flag model (engine holds current
 raw, data@x frozen, extract reads the engine). With the flag killed and the
 container authoritative, that model is superseded. RECONCILE to:
 
-  data@x is the LIVE predictor source - current values, kept current by
-  reference-install on every accepted mutation - not a frozen snapshot;
-  extract(sampler, "predictors") is its public reader and returns the same
-  current values, with NO reroute to engine raw (there is none).
+  data@x is the COLLECTED RAW SOURCE: the per-column values R mapped at
+  creation, with an accepted mutation swapping the affected column(s) in
+  by reference at the mutating call. It is NEVER a representation of the
+  engine's quantized state, and the sampler NEVER writes to it during
+  sampling - there is no per-iteration maintenance; the only writes are
+  the mutation entry points recording what the engine accepted (for the
+  per-observation partial case, the old/new merge at the installed mask).
+  extract(sampler, "predictors") is the on-demand materializer of the
+  historical numeric-code-matrix form over whatever vehicle @x holds
+  (matrix, dgCMatrix, either container flavor) - constructed when called,
+  never cached, no engine reroute (there is no engine raw to read).
 
 This matches plan-2 reality (assignIntoPredictorSource already keeps data@x
 current; extract already reads it). Plan 3 changes the install MECHANIC, not
 the invariant. The design's snapshot phrasing is struck in the landing note.
-(The single genuine sign-off this needs is in Open questions - it flips a
-stated design invariant, so VD confirms the public contract.)
+(VD confirmed this contract 2026-07-13: mutation-collection by R reference
+is fine; a maintained public view of internal quantized state would not be,
+and this is not that.)
 
 ## Reference-install mechanic
 
@@ -258,17 +266,15 @@ after mutation.
 
 ## Open questions for VD
 
-- data@x contract (the one genuine sign-off): plan 3 reconciles data@x to
-  "the live current predictor source" and strikes the design's "creation-
-  time snapshot BY DEFINITION" phrasing, on the recommendation that the
-  mutable-raw flag is killed and the container is authoritative. This flips
-  a stated design invariant and defines the public data@x / extract
-  contract, so it is VD's call. Killing the flag, container-authoritative
-  extract, and current-data@x stand or fall TOGETHER: the only coherent
-  alternative is the literal snapshot model, which requires BUILDING the
-  mutable flag (engine-owned current raw per mutable column, freezing
-  data@x, extract reading the engine) - re-adding the double-column memory
-  the program set out to delete. Default: proceed with the reconciliation
-  above (flag killed, data@x current).
+- RESOLVED (VD, 2026-07-13): the data@x contract. VD approved the
+  reconciliation conditional on the model being mutation-COLLECTION (an R
+  list of columns holding what was mapped, mutation swapping columns in
+  and out by R reference) and NOT a maintained public view of the engine's
+  quantized state - which is exactly the model (see the reconciliation
+  section). The mutable-raw flag stays dead; extract stays the on-demand,
+  constructed-when-called materializer. Direct data@x access remains
+  supported; extract is a convenience/stability shim over the slot's
+  varying vehicle, and un-exporting it pre-release remains cheap if it
+  proves dead weight.
 </content>
 </invoke>
