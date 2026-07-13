@@ -357,8 +357,33 @@ change, no stan4bart lockstep delta. NEWS is deferred to the 1.0-0 pass;
 the user-visible bits are the supported in-place re-install pattern and
 that extract reflects current values after mutation.
 
-FOLLOW-UP (recorded, not a plan-3 gate): attribute the engine-side share
-of the setPredictor-accept gap vs the 32fc7c8 baseline precisely -
-candidates are validation, the rollback snapshot, the code rewrite, and
-dispatch - before any recovery attempt.
+FOLLOW-UP RESOLVED (2026-07-14, phase-timer decomposition on both
+revisions, env-gated diagnostic patch, never committed): the engine is
+EXONERATED - phase for phase the tip's transaction is FASTER than
+32fc7c8 (166.7 vs 171.7 us/update at n=1e3; 87 us faster at n=1e4,
+because the write-through and oldValues memcpys the baseline paid were
+O(n)). Every prior candidate cleared: validation ~0 on both, snapshot
+0.16 vs 0.50 us, rewrite flat, bridge 0.08 us and byte-identical. The
+whole gap is R-side maintenance the write-through era never performed:
+per accepted update, ~30 us for the matrix-source O(n*p) subassign in
+installPredictorColumns (container source: ~3 us) + ~14 us for the S4
+data@x slot write-back, on top of ~44 us of R5 wrapper dispatch that
+the BASELINE ALSO paid. Net new cost vs 32fc7c8: ~17 us/update
+(container) to ~44 us (matrix) at n=1e3; at n=1e4 a container-backed
+sampler already matches the baseline end to end (2799 vs 2733 us,
+within noise) while matrix-backed is the worst cell (O(n*p) subassign
+~195 us). The regression is a small-n fixed-overhead phenomenon plus
+the matrix-source copy.
+
+Recovery options, decision pending: (a) accept + document (mutation-
+heavy callers should prefer frame/container input; the cost is the
+price of collecting mutations without the write-through's undefined
+behavior); (b) an explicit opt-out on the full-column path for
+inner-loop callers that do not read raw between updates (sharp edge:
+stale @x for extract/setCutPoints/setState/getTrees/serialization
+until the caller's final collecting update - must be documented,
+opt-in only); (c) transparent lazy reconcile-on-read - REJECTED:
+direct data@x access is a supported contract and would silently see
+stale values. Draw-neutrality is not at risk under any option (the
+write-back never touches codes, cuts, RNG, or fits).
 
