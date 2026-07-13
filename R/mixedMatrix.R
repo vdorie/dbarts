@@ -262,40 +262,6 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
   result
 }
 
-## Copy-modify a block of predictor columns in a sampler's stored source -
-## the plan-1 interim write-back that keeps data@x current under mutation,
-## extended to the dense columnar flavor: only the addressed columns'
-## vectors are replaced (a factor column decays to its code vector; the
-## engine validated the new values as existing codes), the rest stay
-## shared. rows = NULL replaces the columns whole. Mutation is refused for
-## sparse sources before this runs, so a container here is the dense
-## flavor.
-assignIntoPredictorSource <- function(x, rows, columns, values) {
-  if (is.matrix(x)) {
-    if (is.null(rows)) {
-      x[, columns] <- values
-    } else {
-      x[rows, columns] <- values
-    }
-    return(x)
-  }
-  values <- matrix(as.double(values), ncol = length(columns))
-  for (k in seq_along(columns)) {
-    sourceIndex <- x$map[columns[k]]
-    column <- x$dense[[sourceIndex]]
-    if (is.factor(column)) {
-      column <- as.double(as.integer(column) - 1L)
-    }
-    if (is.null(rows)) {
-      column[] <- values[, k]
-    } else {
-      column[rows] <- values[, k]
-    }
-    x$dense[[sourceIndex]] <- column
-  }
-  x
-}
-
 ## Install a block of predictor columns into a sampler's stored source BY
 ## REFERENCE (design/data-ownership.md plan 3) - keeps data@x current under
 ## mutation without adding an R-side copy on top of R's own copy-on-write.

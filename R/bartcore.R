@@ -91,7 +91,7 @@ bartcoreSamplerSetPredictor <- function(
     )
     # the engine keeps no predictor matrix, so maintain data@x R-side for the
     # observations the scan installed (the interim of design plans 1-2)
-    sampler$data@x <- assignIntoPredictorSource(
+    sampler$data@x <- installPredictorColumns(
       sampler$data@x,
       installed,
       column,
