@@ -21,7 +21,7 @@
 \details{
   Data frame input is stored columnar in the sampler's data object, so its \code{x} slot need not be a plain matrix. \code{extract} materializes the numeric coding regardless of the storage form: numeric and logical columns as doubles, and factor columns - ordered or not - as their integer codes, \code{0} to one less than the number of levels, in level order. This is the same coding a hand-built predictor matrix supplies, so the result can be fed back to \code{predict} or used to construct an equivalent sampler.
 
-  After predictor mutation (\code{setPredictor} and relatives) the result reflects the sampler's current predictor values, not the originally ingested data.
+  After predictor mutation (\code{setPredictor} and relatives) the result reflects the sampler's current predictor values, not the originally ingested data. Each mutating call collects the accepted change into the sampler's data object directly; nothing is maintained per iteration, so the returned codes always reflect current values, materialized fresh on every call.
 }
 \value{
   A numeric matrix with one row per training observation and one column per predictor, carrying the predictors' column names.

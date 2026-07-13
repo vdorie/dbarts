@@ -90,7 +90,8 @@ bartcoreSamplerSetPredictor <- function(
       as.integer(column)
     )
     # the engine keeps no predictor matrix, so maintain data@x R-side for the
-    # observations the scan installed (the interim of design plans 1-2)
+    # observations the scan installed; install by reference - the merge
+    # starts from the old column and overwrites only the installed rows
     sampler$data@x <- installPredictorColumns(
       sampler$data@x,
       installed,

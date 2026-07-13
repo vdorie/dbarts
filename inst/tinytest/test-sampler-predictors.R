@@ -66,6 +66,16 @@ invisible(sampler$setPredictor(numeric(n), 2L))
 expect_equal(shallowCopy$data@x, x.shared)
 expect_equal(as.numeric(sampler$data@x[, 2L]), numeric(n))
 
+# extract() is the on-demand materializer of the current data@x, on both
+# the mutated original and the copy it no longer follows (data@x contract,
+# design/data-ownership.md plan 3)
+expect_equal(extract(sampler, "predictors"), as.matrix(sampler$data@x))
+expect_equal(extract(shallowCopy, "predictors"), as.matrix(x.shared))
+expect_false(isTRUE(all.equal(
+  extract(sampler, "predictors"),
+  extract(shallowCopy, "predictors")
+)))
+
 rm(shallowCopy)
 gc(verbose = FALSE)
 
@@ -78,6 +88,32 @@ invisible(sampler$setPredictor(deepCopy$data@x[, 2L], 2L))
 expect_equal(sampler$data@x, deepCopy$data@x)
 
 rm(deepCopy, n, sampler)
+
+
+# extract() after a per-observation partial mutation, and a shallow copy
+# taken before it: extends the full-column case above to the partial path
+# (does not duplicate it - the divergence there is already covered)
+sampler <- dbarts::dbarts(y ~ x + z, train, test, control = control)
+n <- testData$n
+
+partialCopy <- sampler$copy(shallow = TRUE)
+origZ <- as.numeric(sampler$data@x[, 2L])
+
+installed <- sampler$setPredictor(1 - origZ, 2L, forceUpdate = "partial")
+
+predictors <- extract(sampler, "predictors")
+expect_equal(predictors, as.matrix(sampler$data@x))
+expect_equal(predictors[installed, 2L], (1 - origZ)[installed])
+expect_equal(predictors[!installed, 2L], origZ[!installed])
+
+expect_equal(extract(partialCopy, "predictors")[, 2L], origZ)
+expect_false(isTRUE(all.equal(
+  extract(sampler, "predictors"),
+  extract(partialCopy, "predictors")
+)))
+
+rm(sampler, n, partialCopy, origZ, installed, predictors)
+gc(verbose = FALSE)
 
 
 # a deep copy of a sampler with a stored state preserves the fitted trees and is
