@@ -378,6 +378,13 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   (design 4.5) was deferred to Stage C; the change/swap re-slice (design 8.1)
   is the second contributor. Kill criterion met: (iv-b) does not land (section
   6 VERDICT note; section 9).
+  FOLLOW-UP (2026-07-13): a phase decomposition of the fused iteration (design
+  section 10) shows persistence's theoretical best case -- deleting
+  buildForBlock for free -- is still 4.2-6.0x slower than b=1 at n=1e5/1e6;
+  the b>1 move phase alone costs 2-2.6x the entire b=1 sweep at n=1e6.
+  Re-examining the traffic model finds the treeFits read+write is irreducible
+  at any block width, so the bandwidth ceiling from blocking was ~1.3-2x, not
+  the modelled ~6x. Stage C: CLOSED (design section 10).
 
 ## 8. Resolved decisions (VD-approved; recorded, not re-opened)
 

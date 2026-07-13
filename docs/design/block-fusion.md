@@ -687,9 +687,63 @@ cross-sweep map persistence (section 4.5, rebuild cadence) was explicitly
 deferred past Stage B. Second contributor: the design-admitted near-root
 change/swap subtree re-slice (8.1).
 
-STAGE C GATE for any future default flip: implement 4.5's persistence (patch
-the map across sweeps instead of rebuilding it every block) and re-bench; the
-8.1 re-slice mitigation is the second lever. Only a demonstrated win at
-production n reopens the default flip and its re-record. Until then all Stage
-B machinery stays in place and dormant behind blockSize; no baseline
-re-record, no MANIFEST change.
+PHASE DECOMPOSITION (2026-07-13): env-gated wall timers inside runFusedBlock
+(diagnostic only, never committed) split the fused iteration into phases on
+dbarts-bench, quiet, m=75, tip 31a36b9, the same screening protocol as above.
+ms/iter and share of the fused iteration (timer sums match R-measured wall
+within ~1% in every cell):
+- n=1e5 b=4 (total 229.6): entry-ex-build 5.3 (2%), buildForBlock 105.1 (45%),
+  affine cache writes 0.1, moves 89.2 (39%), draws 9.4 (4%), exit scatter 17.2
+  (8%), sweep-end rebuild 4.9 (2%).
+- n=1e5 b=8 (total 279.4): buildForBlock 109.2 (39%), moves 127.1 (46%),
+  scatter 22.4 (8%).
+- n=1e6 b=4 (total 3414.7): buildForBlock 1333.5 (39%), moves 1014.0 (30%),
+  scatter 821.4 (24%), draws 135.2, entry 57.5, rebuild 47.4.
+- n=1e6 b=8 (total 3691.4): buildForBlock 1341.2 (36%), moves 1295.3 (35%),
+  scatter 814.0 (22%).
+
+The decision quantity is the theoretical BEST CASE for persistence (4.5):
+delete buildForBlock for free and compare what remains to the same-n b=1
+sweep:
+- n=1e5 b=4: 124.5 vs 28.6 -> 4.4x slower. b=8: 170.2 vs 28.6 -> 6.0x.
+- n=1e6 b=4: 2081.2 vs 497.7 -> 4.2x. b=8: 2350.2 vs 497.7 -> 4.7x.
+
+So persistence alone is not sufficient: buildForBlock is only 36-45% of the
+fused iteration. The b>1 move phase alone (atom-map maintenance + affine
+cache re-derivation inside metropolisJumpForTree) costs 2-2.6x the ENTIRE
+b=1 sweep at n=1e6, and the block-exit scatter adds 22-24% there -- it
+scales ~48x for a 10x increase in n, so the treeFits working set at n=1e6
+(~600 MB, past any LLC) is DRAM-bound, and that cost is outside anything 4.5
+touches.
+
+TRAFFIC-MODEL CORRECTION: re-examining the cost model behind the original
+~6x DRAM projection (section 0, section 7 Stage B) finds it over-counted the
+amortizable traffic. The n*m treeFits slab must be READ once per sweep (to
+form the frozen outside-block field O) and WRITTEN once per sweep (to record
+the drawn fits) at ANY block width -- fusion reduces the number of passes,
+but each fused pass is b times larger, so those bytes never shrink with b.
+Only the running-total roll and the suffstat index-gather genuinely amortize
+with b. The bandwidth ceiling attributable to blocking was therefore
+~1.3-2x, not ~6x, before any implementation cost was counted. Separately, at
+n=1e5 the dominant b=1 costs -- suffstat gather (x86's #1 hotspot, 32%,
+section 1) and fit scatter (x86's #3 hotspot, 15%, section 1), together ~47%
+of the sweep -- run through the shuffled per-tree index buffer (section 1)
+and fit in LLC; they are latency-bound, not DRAM-streaming-bound, so a
+bandwidth-amortization design does not address them either. The measured
+b=1 throughput (~240 MB per sweep in ~29 ms at n=1e5) implies ~8 GB/s
+effective single-core -- already close to the single-core streaming ceiling.
+
+STAGE C: CLOSED, not conditional. Cross-sweep persistence (4.5) is necessary
+but, per the phase decomposition above, measured insufficient: its best case
+is 4-6x slower than b=1, not a win. The fused approach cannot win on this
+architecture at any feasible n or b; Stage B's machinery stays in place,
+dormant, behind blockSize, as an exact, gated implementation -- no default
+flip, no baseline re-record, no MANIFEST change. The honest summary of the
+block-fusion bet: mathematically valid (exact Gauss-Seidel regrouping,
+verified Q-drop cancellation), engineering sound, but the underlying
+DRAM-amortization premise over-counted the amortizable traffic by ~3x. Any
+future revival of b>1 must first wire a forced-b>1 posterior anchor into the
+standing CI (e.g. a DBARTS_BLOCKSIZE variant in the sbc workflow) -- the
+categorical-exact / logistic-reference / BCF exact-posterior gates at forced
+b>1 (section 7 of the plan) were one-time manual validations, and nothing in
+CI forces b>1 today.
