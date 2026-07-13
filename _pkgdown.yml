@@ -24,7 +24,9 @@ reference:
   - dbartsControl
   - dbartsData
   - dbartsPriors
+  - extract.dbartsSampler
   - samplePriorPredictive
+  - sparseFactor
   - updatePredictorPerObservationJointly
 - title: Survival
   desc: Accelerated failure time survival curves.
