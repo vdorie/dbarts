@@ -385,6 +385,8 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   Re-examining the traffic model finds the treeFits read+write is irreducible
   at any block width, so the bandwidth ceiling from blocking was ~1.3-2x, not
   the modelled ~6x. Stage C: CLOSED (design section 10).
+  EXCISED (2026-07-13): all Stage B machinery (and the Stage A b=1 atom writer)
+  removed from the tip -- see design section 10 and branch archive/block-fusion.
 
 ## 8. Resolved decisions (VD-approved; recorded, not re-opened)
 

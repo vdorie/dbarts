@@ -103,7 +103,6 @@ void runMovesTests(ext_rng* rng);
 void runModelTests(ext_rng* rng);
 void runSamplerTests(ext_rng* rng);
 void runStateTests(ext_rng* rng);
-void runAtomsTests(ext_rng* rng);
 void runFuzzTests(int numSeeds);
 
 #endif  // TESTS_CPP_COMMON_HPP

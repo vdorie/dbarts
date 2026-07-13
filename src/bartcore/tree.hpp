@@ -703,13 +703,9 @@ public:
     refreshSubtree(data, at(nodeIndex).leftChild + 1, y, weights);
   }
 
-  /// Structural half of a birth: acquire a child pair and attach it under
-  /// nodeIndex with the given rule, WITHOUT partitioning the observations or
-  /// computing the child leaf statistics. birth() finishes the split with the
-  /// live partition + computeLeafStats; the block-fusion atom path
-  /// (AtomMap::splitAtom) drives this half itself and supplies the partition
-  /// and the child suffstats from the atom SoA.
-  void birthStructure(int32_t nodeIndex, const Rule& rule) {
+  /// Split a leaf: acquire a child pair, partition, and compute child stats.
+  void birth(const ColumnStore& data, int32_t nodeIndex, const Rule& rule,
+             const double* y, const double* weights) {
     int32_t pair = acquirePair();
     Node& node(at(nodeIndex));  // acquirePair may reallocate; reference after
     node.rule = rule;
@@ -718,13 +714,6 @@ public:
     at(pair).leftChild = invalidNode;
     at(pair + 1).parent = nodeIndex;
     at(pair + 1).leftChild = invalidNode;
-  }
-
-  /// Split a leaf: acquire a child pair, partition, and compute child stats.
-  void birth(const ColumnStore& data, int32_t nodeIndex, const Rule& rule,
-             const double* y, const double* weights) {
-    birthStructure(nodeIndex, rule);
-    int32_t pair = at(nodeIndex).leftChild;
     partitionChildren(data, nodeIndex);
     computeLeafStats(pair, y, weights);
     computeLeafStats(pair + 1, y, weights);

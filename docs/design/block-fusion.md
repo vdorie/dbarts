@@ -747,3 +747,13 @@ standing CI (e.g. a DBARTS_BLOCKSIZE variant in the sbc workflow) -- the
 categorical-exact / logistic-reference / BCF exact-posterior gates at forced
 b>1 (section 7 of the plan) were one-time manual validations, and nothing in
 CI forces b>1 today.
+
+EXCISED (2026-07-13): the machinery is removed from the tip -- both the b>1
+fused path and the Stage A b=1 atom writer (the whole AtomMap, its move kernels,
+the blockSize knob, and the DBARTS_BLOCKSIZE override). The complete
+implementation is preserved on branch archive/block-fusion at a225e75; the
+rationale (KILL verdict, traffic-model correction) stays in sections 9-10 above.
+The excision was verified bitwise -- the R equivalence gate reports identical
+draws against the same anchor (equivalence-ac6ec2c.rds), because the Stage A
+atom writer was bit-identical to the legacy setNodeAverages / computeLeafStats
+path it routed around. The legacy writer is again the only suffstat path.

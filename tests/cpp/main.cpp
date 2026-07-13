@@ -72,7 +72,6 @@ int main(int argc, char** argv) {
   if (suiteSelected(filter, "model")) runModelTests(rng);
   if (suiteSelected(filter, "sampler")) runSamplerTests(rng);
   if (suiteSelected(filter, "state")) runStateTests(rng);
-  if (suiteSelected(filter, "atoms")) runAtomsTests(rng);
 
   ext_rng_destroy(rng);
 
