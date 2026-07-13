@@ -177,7 +177,12 @@ first multi-model consumer (forest-split-bcf).
    20c90d3 + docs (data-ownership-2-ingestion.md) - @x kept, narrowed to
    the ingested source; sparse-categorical storage (S-CAT) deferred to
    plan 5;
-3. flags + mutation surface rewire + data@x snapshot semantics;
+3. flags + mutation surface rewire + data@x snapshot semantics; LANDED
+   through 0ff4842 + docs (data-ownership-3-mutation.md) - the
+   engine-owned mutable-raw flag killed (never built); reference-install
+   replaces the copy-modify interim; data@x reconciled to the collected
+   raw source, never the engine's quantized state; extract stays
+   container-authoritative;
 4. views/sharing + standalone handle (blocks forest-split-bcf's
    multi-forest data story);
 5. sparse categorical kernel + test-side sparse (with
@@ -219,6 +224,16 @@ first multi-model consumer (forest-split-bcf).
   R-side copy-modify, temporary. OPEN AT PLAN 3: reference-install
   removes the CoW rationale for the engine-owned mutable-raw flag;
   plan 3's convergence decides whether the mutable flag survives.
+  RESOLVED (plan 3, VD-confirmed 2026-07-13): the flag is killed,
+  never built - reference-install makes the container itself the
+  current raw store, so the CoW-free-home rationale is gone. data@x
+  reconciles to the collected raw source: the per-column values R
+  mapped at creation, with an accepted mutation swapping the affected
+  column(s) in by reference at the mutating call; never a
+  representation of the engine's quantized state, never written
+  during sampling. extract(sampler, "predictors") stays the on-demand,
+  container-authoritative materializer - no engine reroute, since
+  there is no engine raw to reroute to.
 - State format free to change pre-release (VD); plan 1 keeps the
   cutPoints-only encoding anyway on simplicity.
 - u8 SIMD on x86: no x86 machine yet (VD will set one up); x86 epi8
