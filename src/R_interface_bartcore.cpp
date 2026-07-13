@@ -133,6 +133,9 @@ struct ParsedData {
   bool xIsMixed = false;
   const double* mixedDenseValues = NULL;
   std::vector<std::int32_t> columnSources;
+  // the dense columnar container's transiently assembled block (x points
+  // into it); owned here so it lives exactly as long as the parse result
+  std::vector<double> denseAssembly;
   const double* x_test = NULL;
   size_t numTestObservations = 0;
   const double* weights = NULL;
@@ -347,48 +350,89 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.cscValues = csc.values;
     data.x = NULL;
   } else if (Rf_inherits(slotExpr, "dbartsMixedMatrix")) {
-    // the internal mixed container (R/mixedMatrix.R): a dense matrix, a
-    // dgCMatrix, and a 1-based map - positive k names dense column k,
-    // negative -k sparse column k, which is the engine's ~(k - 1)
     SEXP denseExpr = PROTECT(getListElement(slotExpr, "dense"));
     SEXP sparseExpr = PROTECT(getListElement(slotExpr, "sparse"));
     SEXP mapExpr = PROTECT(getListElement(slotExpr, "map"));
-    if (!Rf_inherits(sparseExpr, "dgCMatrix") || !Rf_isInteger(mapExpr) ||
-        rc_getLength(mapExpr) == 0)
+    if (!Rf_isInteger(mapExpr) || rc_getLength(mapExpr) == 0)
       Rf_error("malformed mixed predictor container");
-    CscSlots csc = parseCscMatrix(sparseExpr, data.numObservations);
-
-    size_t numDenseColumns = 0;
-    if (!Rf_isNull(denseExpr)) {
-      if (!Rf_isReal(denseExpr))
+    if (TYPEOF(denseExpr) == VECSXP) {
+      // the dense columnar flavor (R/mixedMatrix.R): per-column vectors,
+      // factors carrying their integer codes, no sparse part. Assemble the
+      // transient contiguous block - the exact doubles the retained cbind
+      // held - and take the plain dense path from here; build quantizes
+      // into owned codes and retains nothing.
+      if (!Rf_isNull(sparseExpr))
         Rf_error("malformed mixed predictor container");
-      rc_assertDimConstraints(denseExpr, "dimensions of x",
-                              RC_LENGTH | RC_EQ, rc_asRLength(2),
-                              RC_VALUE | RC_EQ,
-                              static_cast<int>(data.numObservations), RC_END);
-      numDenseColumns = static_cast<size_t>(
-        INTEGER(Rf_getAttrib(denseExpr, R_DimSymbol))[1]);
-      data.mixedDenseValues = REAL(denseExpr);
-    }
-
-    data.numPredictors = rc_getLength(mapExpr);
-    const int* map = INTEGER(mapExpr);
-    data.columnSources.resize(data.numPredictors);
-    for (size_t j = 0; j < data.numPredictors; ++j) {
-      if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns) {
-        data.columnSources[j] = map[j] - 1;
-      } else if (map[j] < 0 &&
-                 static_cast<size_t>(-map[j]) <= csc.numColumns) {
-        data.columnSources[j] = map[j];
-      } else {
-        Rf_error("malformed mixed predictor container");
+      data.numPredictors = rc_getLength(mapExpr);
+      const int* map = INTEGER(mapExpr);
+      size_t numDenseColumns = static_cast<size_t>(rc_getLength(denseExpr));
+      data.denseAssembly.resize(data.numPredictors * data.numObservations);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        if (map[j] < 1 || static_cast<size_t>(map[j]) > numDenseColumns)
+          Rf_error("malformed mixed predictor container");
+        SEXP columnExpr =
+          VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(map[j] - 1));
+        if (static_cast<size_t>(rc_getLength(columnExpr)) !=
+            data.numObservations)
+          Rf_error("number of rows of 'x' must equal length of 'y'");
+        double* target =
+          data.denseAssembly.data() + j * data.numObservations;
+        if (Rf_isFactor(columnExpr)) {
+          // 1-based factor codes become the zero-based doubles the coded
+          // matrix held: as.integer(column) - 1
+          const int* codes = INTEGER(columnExpr);
+          for (size_t i = 0; i < data.numObservations; ++i)
+            target[i] = codes[i] == NA_INTEGER
+              ? NA_REAL : static_cast<double>(codes[i] - 1);
+        } else if (Rf_isReal(columnExpr)) {
+          std::memcpy(target, REAL(columnExpr),
+                      data.numObservations * sizeof(double));
+        } else {
+          Rf_error("malformed mixed predictor container");
+        }
       }
+      data.x = data.denseAssembly.data();
+    } else {
+      // the mixed flavor: a dense matrix, a dgCMatrix, and a 1-based map -
+      // positive k names dense column k, negative -k sparse column k,
+      // which is the engine's ~(k - 1)
+      if (!Rf_inherits(sparseExpr, "dgCMatrix"))
+        Rf_error("malformed mixed predictor container");
+      CscSlots csc = parseCscMatrix(sparseExpr, data.numObservations);
+
+      size_t numDenseColumns = 0;
+      if (!Rf_isNull(denseExpr)) {
+        if (!Rf_isReal(denseExpr))
+          Rf_error("malformed mixed predictor container");
+        rc_assertDimConstraints(denseExpr, "dimensions of x",
+                                RC_LENGTH | RC_EQ, rc_asRLength(2),
+                                RC_VALUE | RC_EQ,
+                                static_cast<int>(data.numObservations),
+                                RC_END);
+        numDenseColumns = static_cast<size_t>(
+          INTEGER(Rf_getAttrib(denseExpr, R_DimSymbol))[1]);
+        data.mixedDenseValues = REAL(denseExpr);
+      }
+
+      data.numPredictors = rc_getLength(mapExpr);
+      const int* map = INTEGER(mapExpr);
+      data.columnSources.resize(data.numPredictors);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns) {
+          data.columnSources[j] = map[j] - 1;
+        } else if (map[j] < 0 &&
+                   static_cast<size_t>(-map[j]) <= csc.numColumns) {
+          data.columnSources[j] = map[j];
+        } else {
+          Rf_error("malformed mixed predictor container");
+        }
+      }
+      data.xIsMixed = true;
+      data.cscColumnPointers = csc.pointers;
+      data.cscRowIndices = csc.rows;
+      data.cscValues = csc.values;
+      data.x = NULL;
     }
-    data.xIsMixed = true;
-    data.cscColumnPointers = csc.pointers;
-    data.cscRowIndices = csc.rows;
-    data.cscValues = csc.values;
-    data.x = NULL;
     UNPROTECT(3);
   } else {
     if (!Rf_isReal(slotExpr)) Rf_error("x must be of type real");

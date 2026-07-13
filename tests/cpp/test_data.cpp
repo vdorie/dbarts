@@ -3,6 +3,9 @@
 // this TU to recompile.
 #include "assert.hpp"
 
+#include <cstring>
+#include <limits>
+
 #include <bartcore/data.hpp>
 #include <bartcore/tree.hpp>
 
@@ -468,6 +471,59 @@ static void testMissingIngestion() {
   printf("ok: missing ingestion\n");
 }
 
+// The bridge's dense-container ingestion assembles a transient contiguous
+// block from per-column sources - numeric columns copied through, 1-based
+// factor codes coerced to zero-based doubles, missing codes to NaN -
+// instead of quantizing a retained cbound matrix. A store built from the
+// assembled block must match a store built from the cbind reference
+// bitwise, codes and cut grid both.
+static void testTransientBlockAssembly() {
+  const size_t n = 300, p = 3;
+  std::vector<double> numeric1(n), numeric2(n);
+  std::vector<int> factorCodes(n);  // 1-based, as an R factor holds them
+  const int naCode = -2147483647 - 1;  // INT_MIN, R's NA_INTEGER
+  for (size_t i = 0; i < n; ++i) {
+    numeric1[i] = runif01();
+    numeric2[i] = 10.0 * runif01() - 5.0;
+    factorCodes[i] = 1 + (int) (i % 4);
+  }
+  factorCodes[17] = naCode;
+
+  // the cbind reference: what makeCategoricalModelMatrix's retained matrix
+  // held - as.double(numeric), as.double(as.integer(factor) - 1)
+  std::vector<double> reference(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    reference[i] = numeric1[i];
+    reference[i + n] = factorCodes[i] == naCode
+      ? std::numeric_limits<double>::quiet_NaN()
+      : (double) (factorCodes[i] - 1);
+    reference[i + 2 * n] = numeric2[i];
+  }
+
+  // the bridge assembly: per-column copies with the factor coercion
+  std::vector<double> assembled(n * p);
+  std::memcpy(assembled.data(), numeric1.data(), n * sizeof(double));
+  for (size_t i = 0; i < n; ++i)
+    assembled[i + n] = factorCodes[i] == naCode
+      ? std::numeric_limits<double>::quiet_NaN()
+      : (double) (factorCodes[i] - 1);
+  std::memcpy(assembled.data() + 2 * n, numeric2.data(),
+              n * sizeof(double));
+
+  std::vector<ColumnType> types = {ColumnType::ordinal,
+                                   ColumnType::categorical,
+                                   ColumnType::ordinal};
+  ColumnStore fromReference, fromAssembled;
+  fromReference.build(reference.data(), n, p, 100, false, types.data());
+  fromAssembled.build(assembled.data(), n, p, 100, false, types.data());
+
+  check(fromAssembled.codes == fromReference.codes,
+        "container-assembled block quantizes to the cbind reference codes");
+  check(fromAssembled.cutPoints == fromReference.cutPoints,
+        "container-assembled block builds the cbind reference cut grid");
+  printf("ok: transient block assembly\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
@@ -478,4 +534,5 @@ void runDataTests() {
   testMapOldCutPointsOntoNew();
   testMapOldCutPointsStarvedWeightedMerge();
   testMissingIngestion();
+  testTransientBlockAssembly();
 }

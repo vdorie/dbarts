@@ -31,7 +31,8 @@ sampler.cat <- dbarts(
   control = control
 )
 expect_equal(ncol(sampler.cat$data@x), 3L)
-expect_true(anyNA(sampler.cat$data@x)) # NA is modeled, not dropped
+# NA is modeled, not dropped; @x is the columnar container, so materialize
+expect_true(anyNA(extract(sampler.cat, "predictors")))
 
 samples.cat <- sampler.cat$run(100L, 100L)
 expect_true(all(is.finite(samples.cat$train)))
