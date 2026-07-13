@@ -173,7 +173,10 @@ first multi-model consumer (forest-split-bcf).
 ## Implementation split (plans to be written when scheduled)
 
 1. container + dense ingestion + borrow fast path (engine core);
-2. data.frame-direct ingestion + wrapper class (R surface);
+2. data.frame-direct ingestion + wrapper class (R surface); LANDED through
+   20c90d3 + docs (data-ownership-2-ingestion.md) - @x kept, narrowed to
+   the ingested source; sparse-categorical storage (S-CAT) deferred to
+   plan 5;
 3. flags + mutation surface rewire + data@x snapshot semantics;
 4. views/sharing + standalone handle (blocks forest-split-bcf's
    multi-forest data story);

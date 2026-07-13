@@ -180,3 +180,54 @@ dbartsData refuses per S-CAT.
   as labels), the plan adds a form/type distinction. Default: proceed with
   codes. (Factor semantics and the @x-source verdict are resolved above, not
   reopened.)
+
+## Landing notes
+
+Commit 1 = 6dda9a7. extract(sampler, "predictors") + consumer routing.
+rawPredictorMatrix added as a bridge-signal helper: it returns the dense
+matrix, or the NULL a sparse source always signals - the bridges already
+dispatch dense/sparse on that NULL, so routing through it costs no new
+branch. decodeCategoricalSplits was reviewed and ruled a METADATA consumer
+(it depends on the factor.levels attribute, not predictor values), so it
+was left unrouted. Neutral: equivalence 22/22 identical, tinytest 2728 no
+regen.
+
+Commit 2 = c82f954. dbartsMixedMatrix's dense flavor stores columns as a
+per-column list (factors keep their integer codes) instead of a cbound
+matrix; the bridge assembles the transient contiguous block inside
+parseData, owned by the parse result. DEVIATION adopted: the sparse-bearing
+mixed flavor keeps its resident cbound dense block - buildMixed retains
+borrowed per-column slices of it, and a transient block would dangle once
+parseData returns; plan 5 revisits when the CSC-categorical kernel lands.
+DEVIATION adopted: predictor-mutation write-backs got a container-aware
+interim, assignIntoPredictorSource (frame-built samplers now carry
+containers in data@x, not matrices); plan 3's mutation rewire replaces it.
+One structural test change: test-dart-mixed-columns assumed anyNA on a list
+recurses into elements, which it does not - the read now materializes
+through the extraction verb first. Gates: tests/cpp bitwise
+transient-assembly check vs the cbind reference; equivalence 22/22;
+tinytest 2728 no regen; a frame fit matches a hand-coded-matrix fit draw
+for draw.
+
+Commit 3 = 20c90d3. sparseFactor class/constructor/show/length, Rd, export.
+Refusal lives at sparseColumnSlices, the single choke point every sparse
+column passes through, plus a formula-path pre-scan - model.frame would
+otherwise die on a bare S4 column with an opaque type error before the real
+refusal message fires. The length method is REQUIRED, not cosmetic:
+without it NROW cannot size a sparseFactor column, so the class could not
+be a data.frame column at all. Gates: equivalence 22/22; tinytest 2763 (35
+new) no regen; Rd tooling clean.
+
+Commit 4 = this commit (docs). extract.dbartsSampler.Rd and dbartsData.Rd
+finished (frame contract, factor mapping, the no-retained-matrix note);
+dbarts.Rd picked up the same touch (it repeats parts of the contract).
+Gates: R CMD INSTALL clean; checkRd/undoc/codoc clean; full tinytest 2763,
+no regen; bench-sampler compare vs bench-sampler-32fc7c8.csv shows no new
+regression.
+
+Resolutions: the open extract-return-form question above is RESOLVED to
+the numeric code matrix - factors as integer codes, matching the historical
+@x contract and getTrees' replay source. The @x verdict (KEEP, role
+narrowed to "the ingested source") and the S-CAT boundary (sparse
+categorical storage deferred to plan 5) both stood as planned; neither was
+reopened.
