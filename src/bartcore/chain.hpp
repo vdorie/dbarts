@@ -1,9 +1,11 @@
 #ifndef BARTCORE_CHAIN_HPP
 #define BARTCORE_CHAIN_HPP
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -20,6 +22,7 @@
 #include "moves.hpp"
 #include "scan.hpp"
 #include "tree.hpp"
+#include "wcpool.hpp"
 
 namespace bartcore {
 
@@ -508,6 +511,14 @@ public:
 
   ~Chain() {
     if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
+    if (phaseTimers_ && (gatherRegions_ > 0 || scatterRegions_ > 0))
+      std::fprintf(stderr,
+                   "[wc] gather %.3f ms / %zu regions (%.4f ms each); "
+                   "scatter %.3f ms / %zu regions (%.4f ms each)\n",
+                   gatherNs_ / 1.0e6, gatherRegions_,
+                   gatherRegions_ ? gatherNs_ / 1.0e6 / gatherRegions_ : 0.0,
+                   scatterNs_ / 1.0e6, scatterRegions_,
+                   scatterRegions_ ? scatterNs_ / 1.0e6 / scatterRegions_ : 0.0);
   }
 
   std::size_t numForests() const { return forests_.size(); }
@@ -745,7 +756,8 @@ public:
 
           // constant-leaf node means, recomputed against this sweep's residual
           if constexpr (leafTracksNodeAverages)
-            forest.trees[t].setNodeAverages(forest.treeY.data(), forestWeights);
+            gatherNodeAverages(forest.trees[t], forest.treeY.data(),
+                               forestWeights, n);
 
           bool stepTaken;
           StepType stepType;
@@ -1971,6 +1983,163 @@ private:
     for (size_t i = 0; i < numTest; ++i) fn(i);
   }
 
+  /// This chain's slice of the thread budget: the full count for a single
+  /// chain, split evenly when several run at once (mirrors routeTestRows).
+  size_t withinChainBudget() const {
+    size_t chains = options_.numChains > 0 ? options_.numChains : 1;
+    return options_.numThreads / chains;
+  }
+  /// The fixed-block reduction switches on at the size cutoff for EVERY thread
+  /// count, so a one-thread sweep and an eight-thread sweep walk the identical
+  /// block grouping. Parallel execution needs the budget on top.
+  bool withinChainBlocked(size_t n) const { return n >= withinChainCutoff; }
+  bool withinChainParallel(size_t n) const {
+    return withinChainBlocked(n) && withinChainBudget() > 1;
+  }
+  WithinChainPool* ensureWorkerPool(size_t budget) {
+    if (workerPool_ == nullptr || workerPool_->size() != budget)
+      workerPool_ = std::make_unique<WithinChainPool>(budget);
+    return workerPool_.get();
+  }
+
+  /// Leaf sufficient statistics over this sweep's residual. Above the cutoff a
+  /// fixed-block reduction (constant B, scalar block interiors, partials
+  /// combined in block-index order) replaces the per-leaf kernels: the sum a
+  /// leaf sees is a function of the data layout alone, so it is byte-identical
+  /// whether one worker or the whole pool computes the blocks. Below the cutoff
+  /// the original per-leaf path stands.
+  void gatherNodeAverages(Tree& tree, const double* y, const double* weights,
+                          size_t n) {
+    tree.bottomScratch.clear();
+    tree.fillBottom(0, tree.bottomScratch);
+    std::vector<int32_t>& bottoms(tree.bottomScratch);
+
+    if (!withinChainBlocked(n)) {
+      for (int32_t i : bottoms) tree.computeLeafStats(i, y, weights);
+      return;
+    }
+
+    gatherBlocks_.clear();
+    for (int32_t node : bottoms) {
+      const Node& nd(tree.at(node));
+      size_t len = nd.numObservations();
+      bool isRoot = nd.parent == invalidNode;
+      size_t base = isRoot ? 0 : nd.begin;
+      for (size_t off = 0; off < len; off += blockSize) {
+        size_t blen = len - off < blockSize ? len - off : blockSize;
+        gatherBlocks_.push_back(
+          GatherBlock{node, base + off, static_cast<uint32_t>(blen), isRoot});
+      }
+    }
+    size_t numBlocks = gatherBlocks_.size();
+    partialW_.resize(numBlocks);
+    partialWX_.resize(numBlocks);
+    partialWXSq_.resize(numBlocks);
+
+    const size_t* idx = tree.indices;
+    auto computeBlocks = [&](size_t gb0, size_t gb1) {
+      for (size_t gb = gb0; gb < gb1; ++gb) {
+        const GatherBlock& blk(gatherBlocks_[gb]);
+        double pw = 0.0, pwx = 0.0, pwxSq = 0.0;
+        if (weights == nullptr) {
+          if (blk.isRoot)
+            for (size_t k = blk.start; k < blk.start + blk.len; ++k) {
+              double v = y[k];
+              pwx += v;
+              pwxSq += v * v;
+            }
+          else
+            for (size_t o = 0; o < blk.len; ++o) {
+              double v = y[idx[blk.start + o]];
+              pwx += v;
+              pwxSq += v * v;
+            }
+        } else {
+          if (blk.isRoot)
+            for (size_t k = blk.start; k < blk.start + blk.len; ++k) {
+              double wi = weights[k], v = y[k];
+              pw += wi;
+              pwx += wi * v;
+              pwxSq += wi * v * v;
+            }
+          else
+            for (size_t o = 0; o < blk.len; ++o) {
+              size_t j = idx[blk.start + o];
+              double wi = weights[j], v = y[j];
+              pw += wi;
+              pwx += wi * v;
+              pwxSq += wi * v * v;
+            }
+        }
+        partialW_[gb] = pw;
+        partialWX_[gb] = pwx;
+        partialWXSq_[gb] = pwxSq;
+      }
+    };
+
+    auto t0 = phaseClock();
+    if (withinChainBudget() > 1 && numBlocks > 0)
+      ensureWorkerPool(withinChainBudget())->forRange(numBlocks, computeBlocks);
+    else
+      computeBlocks(0, numBlocks);
+    phaseAccum(gatherNs_, gatherRegions_, t0);
+
+    for (int32_t node : bottoms) {
+      Node& nd(tree.at(node));
+      nd.sumWeights = 0.0;
+      nd.sumWeightedResponse = 0.0;
+      nd.sumWeightedResponseSq = 0.0;
+    }
+    for (size_t gb = 0; gb < numBlocks; ++gb) {
+      Node& nd(tree.at(gatherBlocks_[gb].node));
+      nd.sumWeights += partialW_[gb];
+      nd.sumWeightedResponse += partialWX_[gb];
+      nd.sumWeightedResponseSq += partialWXSq_[gb];
+    }
+    if (weights == nullptr)
+      for (int32_t node : bottoms)
+        tree.at(node).sumWeights =
+          static_cast<double>(tree.at(node).numObservations());
+  }
+
+  /// Write the drawn leaf mu into the fit slab, splitting the observation range
+  /// across the pool. Each position belongs to exactly one leaf and is written
+  /// once, so the store order is immaterial and the slab matches the serial
+  /// path byte for byte. bottoms tile [0, n) in ascending begin order.
+  void scatterFitsParallel(Tree& tree, const std::vector<int32_t>& bottoms,
+                           const std::vector<double>& paramByNode, double* fits,
+                           size_t n) {
+    const size_t* idx = tree.indices;
+    auto t0 = phaseClock();
+    ensureWorkerPool(withinChainBudget())->forRange(n, [&](size_t lo, size_t hi) {
+      for (int32_t node : bottoms) {
+        const Node& nd(tree.at(node));
+        if (nd.end <= lo) continue;
+        if (nd.begin >= hi) break;  // sorted by begin: nothing further overlaps
+        size_t s = nd.begin < lo ? lo : nd.begin;
+        size_t e = nd.end > hi ? hi : nd.end;
+        double param = paramByNode[static_cast<size_t>(node)];
+        if (nd.parent == invalidNode)
+          for (size_t k = s; k < e; ++k) fits[k] = param;
+        else
+          for (size_t k = s; k < e; ++k) fits[idx[k]] = param;
+      }
+    });
+    phaseAccum(scatterNs_, scatterRegions_, t0);
+  }
+
+  static std::chrono::steady_clock::time_point phaseClock() {
+    return std::chrono::steady_clock::now();
+  }
+  void phaseAccum(long long& sink, size_t& regions,
+                  std::chrono::steady_clock::time_point t0) {
+    if (!phaseTimers_) return;
+    sink += std::chrono::duration_cast<std::chrono::nanoseconds>(
+              std::chrono::steady_clock::now() - t0)
+              .count();
+    ++regions;
+  }
+
   /// Recursive growth from the prior: growth is Bernoulli in the
   /// depth-decayed prior probability, rules come from the prior, and empty
   /// children keep growing (availability is rule-based) until the caller
@@ -2104,6 +2273,10 @@ private:
         });
     } else if constexpr (!L::hasVectorParams) {
       forest.paramByNode.assign(tree.nodes.size(), 0.0);
+      // the mu draws consume the rng in bottom order regardless of the write
+      // strategy; only the O(n) scatter that follows them parallelizes
+      bool parallelScatter =
+        withinChainParallel(data_.numObservations) && bottoms.size() > 0;
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
         double param = node.numObservations() == 0
@@ -2119,6 +2292,7 @@ private:
           forest.kNumLeaves += 1.0;
         }
 
+        if (parallelScatter) continue;
         if (node.parent == invalidNode) {
           misc_setVectorToConstant(fits, node.numObservations(), param);
         } else {
@@ -2127,6 +2301,10 @@ private:
                                           node.numObservations(), param);
         }
       }
+
+      if (parallelScatter)
+        scatterFitsParallel(tree, bottoms, forest.paramByNode, fits,
+                            data_.numObservations);
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
@@ -2423,6 +2601,32 @@ private:
   // forests borrow it through routeTestRows.
   misc_mt_manager_t testFitPool_ = nullptr;
   static constexpr size_t testFitParallelCutoff = 65536;
+
+  // One fixed-size slice of a leaf's member range. `start` indexes the tree's
+  // index buffer for a non-root leaf, or the fit/response arrays directly for
+  // the root; `len` <= blockSize.
+  struct GatherBlock {
+    int32_t node;
+    size_t start;
+    uint32_t len;
+    bool isRoot;
+  };
+
+  // Persistent within-chain worker pool (std::barrier), sized to the budget;
+  // created lazily the first time a sweep engages parallel passes and reused
+  // across run() calls, torn down with the chain. Scratch for the fixed-block
+  // suffstat reduction, reused per gather to avoid per-call allocation.
+  std::unique_ptr<WithinChainPool> workerPool_;
+  std::vector<GatherBlock> gatherBlocks_;
+  std::vector<double> partialW_, partialWX_, partialWXSq_;
+  static constexpr size_t blockSize = 1024;
+  static constexpr size_t withinChainCutoff = 100000;
+
+  // env-gated (DBARTS_WC_TIMERS) per-pass wall-clock accounting for the
+  // parallel gather and scatter regions; off and free otherwise.
+  bool phaseTimers_ = std::getenv("DBARTS_WC_TIMERS") != nullptr;
+  long long gatherNs_ = 0, scatterNs_ = 0;
+  size_t gatherRegions_ = 0, scatterRegions_ = 0;
 };
 
 }  // namespace bartcore
