@@ -161,23 +161,25 @@ bartcoreSamplerSetPredictor <- function(
     if (length(x) != nrow(sampler$data@x) * length(column)) {
       stop("length of new x does not match y")
     }
+    x <- as.double(x)
     updateSuccessful <- .Call(
       C_dbarts_bartcore_updatePredictor,
       ptr,
-      as.double(x),
+      x,
       column,
       forceUpdate,
       updateCutPoints
     )
     # the engine keeps no predictor matrix, so maintain data@x R-side when the
-    # update is applied (forceUpdate, or a non-rolled-back transaction); the
-    # interim of design plans 1-2, until plan 3 rewires mutation
+    # update is applied (forceUpdate, or a non-rolled-back transaction);
+    # install by reference - only the addressed columns' vectors change, the
+    # rest of the container is shared
     if (isTRUE(updateSuccessful)) {
-      sampler$data@x <- assignIntoPredictorSource(
+      sampler$data@x <- installPredictorColumns(
         sampler$data@x,
         NULL,
         column,
-        as.double(x)
+        x
       )
     }
   }

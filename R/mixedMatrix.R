@@ -295,3 +295,53 @@ assignIntoPredictorSource <- function(x, rows, columns, values) {
   }
   x
 }
+
+## Install a block of predictor columns into a sampler's stored source BY
+## REFERENCE (design/data-ownership.md plan 3) - keeps data@x current under
+## mutation without adding an R-side copy on top of R's own copy-on-write.
+## rows = NULL replaces columns whole: slot j is repointed straight at the
+## supplied vector (or, for a multi-column call, the caller's per-column
+## slice of it), so an unmutated column stays shared with the prior
+## container and only the O(p) list spine is duplicated; a factor source
+## column decays to a plain code vector automatically, since the old column
+## is discarded rather than mutated in place. rows given (a partial merge)
+## starts from the old column and overwrites only the addressed rows - the
+## merge is inherent for a freshly supplied vector (O(n) for one column, no
+## worse than before); the O(spine) win there needs the caller's own
+## already-merged vector reinstalled in place. A matrix source has no
+## columnar spine to share, so it keeps copy-modify. Mutation is refused for
+## sparse sources before this runs, so a container here is the dense
+## flavor.
+installPredictorColumns <- function(x, rows, columns, values) {
+  if (is.matrix(x)) {
+    if (is.null(rows)) {
+      x[, columns] <- values
+    } else {
+      x[rows, columns] <- values
+    }
+    return(x)
+  }
+  if (is.null(rows)) {
+    values <- as.double(values)
+    n <- x$numObservations
+    for (k in seq_along(columns)) {
+      x$dense[[x$map[columns[k]]]] <- if (length(columns) == 1L) {
+        values
+      } else {
+        values[seq.int((k - 1L) * n + 1L, length.out = n)]
+      }
+    }
+    return(x)
+  }
+  values <- matrix(as.double(values), ncol = length(columns))
+  for (k in seq_along(columns)) {
+    sourceIndex <- x$map[columns[k]]
+    column <- x$dense[[sourceIndex]]
+    if (is.factor(column)) {
+      column <- as.double(as.integer(column) - 1L)
+    }
+    column[rows] <- values[, k]
+    x$dense[[sourceIndex]] <- column
+  }
+  x
+}
