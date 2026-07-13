@@ -17,7 +17,7 @@ dbarts(
     missing = c("incorporate", "error"))}
 \arguments{
   \item{formula}{
-    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}, including a sparse \code{Matrix::dgCMatrix}: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface (\code{setPredictor} and relatives, \code{setData}) is fixed at creation. Sparse inputs are not supported by \code{\link{rbart_vi}} or the \code{node.prior = linear()} and \code{gp()} leaf models; test matrices remain dense. A data frame may mix ordinary columns with \code{Matrix::sparseVector} or \code{dgCMatrix} columns (assign them into the frame; they do not survive \code{data.frame(...)} or \code{I()}): sparse columns behave as in an all-sparse design, while dense columns keep categorical splits and linear-leaf designation.
+    An object of class \code{\link{formula}} following an analogous model description syntax as \code{\link{lm}}. For backwards compatibility, can also be the \code{\link{bart}} matrix \code{x.train}, including a sparse \code{Matrix::dgCMatrix}: its columns enter as ordinal predictors, sufficiently sparse columns are stored in a compact rank-bitmap layout instead of being expanded, and the predictor-mutation surface (\code{setPredictor} and relatives, \code{setData}) is fixed at creation. Sparse inputs are not supported by \code{\link{rbart_vi}} or the \code{node.prior = linear()} and \code{gp()} leaf models; test matrices remain dense. A data frame may mix ordinary columns with \code{Matrix::sparseVector} or \code{dgCMatrix} columns (assign them into the frame; they do not survive \code{data.frame(...)} or \code{I()}): sparse columns behave as in an all-sparse design, while dense columns keep categorical splits and linear-leaf designation. A \code{\link{sparseFactor}} column is recognized but not yet supported; construction refuses it. See \code{\link{dbartsData}} for the full data-frame-to-predictor mapping.
   }
   \item{data}{
     An optional data frame, list, or environment containing predictors to be used with the model. For backwards compatibility, can also be the \code{\link{bart}} vector \code{y.train}.
@@ -74,6 +74,10 @@ dbarts(
 \details{
   \dQuote{Discrete sampler} refers to that \code{dbarts} is implemented using \link{ReferenceClasses}, so that there exists a mutable object constructed in C++ that is largely obscured from R. The \code{dbarts} function is the primary way of creating a \code{\link[=dbartsSampler-class]{dbartsSampler}}, for which a variety of methods exist.
 
+  \subsection{Data frame ingestion}{
+    Data frame input is stored columnar: no \eqn{n \times p}{n x p} predictor matrix is retained. Code that previously reached into the sampler's stored data expecting a plain matrix should call \code{\link{extract}(sampler, "predictors")} - or \code{as.matrix} on it - to obtain the numeric predictor matrix, factor columns as their integer codes. See \code{\link{dbartsData}} for the column-type mapping (numeric, factor, sparse, and \code{\link{sparseFactor}}).
+  }
+
   \subsection{Test offset synchronization}{
     When \code{offset.test} is left at its default of tracking \code{offset}, the sampler links the two: the sampler's \code{setOffset} method re-derives \code{offset.test} from each new \code{offset} it is given. Calling the sampler's \code{setTestOffset} or \code{setTestPredictorAndOffset} methods breaks this link -- \code{offset.test} is set independently from then on, and the link never re-forms, even if the two are later set to equal values.
   }
@@ -84,6 +88,9 @@ dbarts(
 }
 \value{
   A reference object of \code{\link[=dbartsSampler-class]{dbartsSampler}}.
+}
+\seealso{
+  \code{\link{dbartsData}}, \code{\link{extract.dbartsSampler}}, \code{\link{sparseFactor}}
 }
 \references{
 Twala, B.E.T.H., Jones, M.C., and Hand, D.J. (2008)
