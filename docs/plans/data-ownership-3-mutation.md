@@ -290,5 +290,75 @@ after mutation.
   supported; extract is a convenience/stability shim over the slot's
   varying vehicle, and un-exporting it pre-release remains cheap if it
   proves dead weight.
-</content>
-</invoke>
+
+## Landing notes
+
+Commit 1 = 4283e3a. installPredictorColumns replaces the copy-modify
+interim on the full-column updatePredictor path: the accepted vector
+installs into the container's per-column list by reference (one shared
+coercion hoisted above the .Call), unmutated columns stay shared, and
+only the O(p) spine allocates. Bench-attribution FINDING recorded here:
+the original success criterion (recover setPredictor-accept-n1000-t75 to
+~1.0 vs the 32fc7c8 baseline) was mis-attributed. Measured: the bench
+scenario is matrix-backed (genFriedman), out of this plan's scope by
+design; even container-backed, the interim was ~10 us of a ~260 us
+update, so the ~50 us gap is structural to the plan-1 write-through
+death (engine-side update cost, on both paths), not the interim removed
+here. Correction landed df55a97. Neutral: equivalence 22/22 identical
+draws, tinytest 2763 no regen.
+
+Commit 2 = 0ff4842. The per-observation partial branch and the jointly
+path route through installPredictorColumns, starting from the old
+column and overwriting only the engine-installed rows, so non-installed
+rows keep the values the engine kept. The installed-mask return value
+verified byte-identical pre-vs-post on a forced partial rejection
+(identical masks, identical kept and applied values, extract matching
+data@x). assignIntoPredictorSource had no remaining callers and was
+deleted. Neutral: equivalence 22/22 identical draws, tinytest 2763 no
+regen.
+
+Commit 3 = landed with this arc. Struck the "interim of design plans 1-2"
+comments at the per-observation partial site (bartcore.R) and the
+jointly path (updatePredictorPerObservationJointly.R) for the
+reference-install final model - the full-column site already carried
+that wording from commit 1. extract.dbartsSampler.Rd gained the data@x
+contract line: each mutating call collects the accepted change into the
+sampler's data object directly, nothing maintained per iteration, so the
+returned codes always reflect current values. New tinytest coverage in
+test-sampler-predictors.R: extract(sampler, "predictors") tracks
+data@x's current materialization through both a full-column and a
+per-observation partial mutation, and a shallow copy taken before either
+mutation does not follow it (extends the existing full-column
+shallow-copy divergence assertion rather than duplicating it). Gates: R
+CMD INSTALL clean; checkRd/undoc/codoc clean on the touched Rd; full
+tinytest 2771 (8 new) no regen; equivalence 22/22 identical vs
+equivalence-ac6ec2c.rds.
+
+Commit 4 = this commit (docs). This landing note, plus
+docs/design/data-ownership.md: implementation-split item 3 marked
+LANDED, and the second-round "OPEN AT PLAN 3" line amended in place to
+record the resolution. Gate: full tinytest (confirmation; docs-only
+commit, no other re-runs needed).
+
+The mutable-raw flag is KILLED, never built. Reference-install makes the
+container itself the current raw store, so the flag's sole rationale (a
+CoW-free home for updated columns) is gone; building it now would only
+re-add a full owned double column per mutable predictor - the ~400 MB
+borrow this program set out to delete, re-entering by the side door.
+data@x is the collected raw source per the approved contract (VD
+confirmed 2026-07-13): the per-column values R mapped at creation, with
+an accepted mutation swapping the affected column(s) in by reference at
+the mutating call; it is never a representation of the engine's
+quantized state, and the sampler never writes to it during sampling.
+extract(sampler, "predictors") stays container-authoritative - pure R
+over data@x, constructed when called, never cached, with no engine
+reroute, because there is no engine raw left to reroute to. No dbarts.h
+change, no stan4bart lockstep delta. NEWS is deferred to the 1.0-0 pass;
+the user-visible bits are the supported in-place re-install pattern and
+that extract reflects current values after mutation.
+
+FOLLOW-UP (recorded, not a plan-3 gate): attribute the engine-side share
+of the setPredictor-accept gap vs the 32fc7c8 baseline precisely -
+candidates are validation, the rollback snapshot, the code rewrite, and
+dispatch - before any recovery attempt.
+
