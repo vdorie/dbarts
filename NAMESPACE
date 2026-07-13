@@ -12,8 +12,11 @@ export(guessNumCores)
 
 export(makeind, makeModelMatrixFromDataFrame, makeTestModelMatrix)
 export(dbartsPriors)
+export(sparseFactor)
 
 exportClasses(dbartsSampler)
+exportClasses(sparseFactor)
+exportMethods(show, length)
 export(extract)
 export(plotTree)
 export(samplePriorPredictive)

@@ -22,7 +22,8 @@
 isSparseDataFrameColumn <- function(column) {
   isS4(column) &&
     (methods::is(column, "sparseVector") ||
-      methods::is(column, "sparseMatrix"))
+      methods::is(column, "sparseMatrix") ||
+      methods::is(column, "sparseFactor"))
 }
 
 ## The 0-based row indices and values of each predictor column a sparse
@@ -30,6 +31,15 @@ isSparseDataFrameColumn <- function(column) {
 ## dgCMatrix its columns. Missing entries are stored NaNs, the Matrix
 ## convention.
 sparseColumnSlices <- function(column, name, numObservations) {
+  # S-CAT: the wrapper is recognized, but the CSC-categorical engine path
+  # is plan 5's; refuse before anything reaches the bridge
+  if (methods::is(column, "sparseFactor")) {
+    stop(
+      "sparse categorical predictors are not yet supported; column '",
+      name,
+      "' is a sparseFactor"
+    )
+  }
   if (methods::is(column, "sparseVector")) {
     if (length(column) != numObservations) {
       stop(
