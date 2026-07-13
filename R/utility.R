@@ -340,6 +340,23 @@ makeCategoricalModelMatrix <- function(x) {
   result
 }
 
+## The dense predictor matrix the re-quantize/replay bridges consume from the
+## R side (setCutPoints, setState, saved-tree getTrees, and the low-level
+## handle's tracked source). A plain matrix passes through; a dense-backed
+## mixed container materializes to its numeric codes; a genuinely sparse
+## source (a CSC-bearing container or a dgCMatrix) yields NULL, which the
+## bridge reads as "re-quantize from the retained slices" - the same signal a
+## non-real source gave before the container existed.
+rawPredictorMatrix <- function(x) {
+  if (is.matrix(x)) {
+    x
+  } else if (inherits(x, "dbartsMixedMatrix") && !any(x$map < 0L)) {
+    as.matrix(x)
+  } else {
+    NULL
+  }
+}
+
 ## Starting sigma estimate from a linear fit. NAs in the predictors are
 ## mean-imputed for this estimate only: complete cases can be scarce when
 ## missingness is scattered, and the estimate just anchors the residual
@@ -347,11 +364,17 @@ makeCategoricalModelMatrix <- function(x) {
 estimateSigmaFromLinearModel <- function(data) {
   x <- data@x
   # a sparse design would densify under lm and is typically wide anyway;
-  # the marginal estimate still anchors the residual variance prior
-  if (!is.matrix(x)) {
+  # the marginal estimate still anchors the residual variance prior. A dense
+  # container (a frame with factors) still fits lm; only CSC-backed columns
+  # fall back to the marginal estimate.
+  if (
+    inherits(x, "dgCMatrix") ||
+      (inherits(x, "dbartsMixedMatrix") && any(x$map < 0L))
+  ) {
     residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
     return(sd(residual))
   }
+  x <- as.matrix(x)
   if (anyNA(x)) {
     for (j in seq_len(ncol(x))) {
       column <- x[, j]

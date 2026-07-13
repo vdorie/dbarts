@@ -123,15 +123,19 @@ pdbart <- function(
 
   numVariables <- length(xind)
 
+  # materialize the predictor codes once: a dense-frame/mixed container serves
+  # them through as.matrix, a plain matrix (or dgCMatrix) is itself
+  x <- extract(sampler, "predictors")
+
   if (is.null(levs)) {
     levs <- vector("list", numVariables)
     for (j in seq_len(numVariables)) {
-      uniqueValues <- unique(sampler$data@x[, xind[j]])
+      uniqueValues <- unique(x[, xind[j]])
       levs[[j]] <-
         if (length(uniqueValues) < length(levquants)) {
           sort(uniqueValues)
         } else {
-          unique(quantile(sampler$data@x[, xind[j]], probs = levquants))
+          unique(quantile(x[, xind[j]], probs = levquants))
         }
     }
   } else {
@@ -148,7 +152,7 @@ pdbart <- function(
     for (j in seq_len(numVariables)) {
       fdr[[j]] <- matrix(NA_real_, numSamples, numLevels[j])
       for (i in seq_len(numLevels[j])) {
-        x.test <- sampler$data@x
+        x.test <- x
         x.test[, xind[j]] <- levs[[j]][i]
 
         pred <-
@@ -165,7 +169,7 @@ pdbart <- function(
     x.test <- NULL
     for (j in seq_len(numVariables)) {
       for (i in seq_len(numLevels[j])) {
-        temp <- sampler$data@x
+        temp <- x
         temp[, xind[j]] <- levs[[j]][i]
         x.test <- rbind(x.test, temp)
       }
@@ -343,15 +347,19 @@ pd2bart <- function(
     xind <- c(1L, 2L)
   }
 
+  # materialize the predictor codes once: a dense-frame/mixed container serves
+  # them through as.matrix, a plain matrix (or dgCMatrix) is itself
+  x <- extract(sampler, "predictors")
+
   if (is.null(levs)) {
     levs <- vector("list", 2L)
     for (j in seq_len(2L)) {
-      uniqueValues <- unique(sampler$data@x[, xind[j]])
+      uniqueValues <- unique(x[, xind[j]])
       levs[[j]] <-
         if (length(uniqueValues) <= length(levquants)) {
           sort(uniqueValues)
         } else {
-          unique(quantile(sampler$data@x[, xind[j]], probs = levquants))
+          unique(quantile(x[, xind[j]], probs = levquants))
         }
     }
   }
@@ -375,7 +383,7 @@ pd2bart <- function(
     } else {
       fdr <- matrix(NA_real_, numSamples, numXValues)
       for (i in seq_len(numXValues)) {
-        x.test <- sampler$data@x
+        x.test <- x
         x.test[, xind[1L]] <- xValues[i, 1L]
         x.test[, xind[2L]] <- xValues[i, 2L]
 
@@ -404,7 +412,7 @@ pd2bart <- function(
     } else {
       x.test <- NULL
       for (i in seq_len(numXValues)) {
-        temp <- sampler$data@x
+        temp <- x
         temp[, xind[1L]] <- xValues[i, 1L]
         temp[, xind[2L]] <- xValues[i, 2L]
         x.test <- rbind(x.test, temp)
