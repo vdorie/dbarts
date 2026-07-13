@@ -82,8 +82,9 @@ updatePredictorPerObservationJointly <- function(
   )
 
   # the engine keeps no predictor matrix, so maintain each sampler's data@x
-  # R-side for the observations the shared scan installed (the interim of
-  # design plans 1-2)
+  # R-side for the observations the shared scan installed; install by
+  # reference - each sampler merges its own slice of the shared installed
+  # mask into its old column
   for (i in seq_along(samplers)) {
     samplers[[i]]$data@x <- installPredictorColumns(
       samplers[[i]]$data@x,
