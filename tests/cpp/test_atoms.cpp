@@ -2370,6 +2370,415 @@ static void testBlockAffineIdentityUnderMoves(ext_rng* rng) {
          accepts[FM_CHANGE], accepts[FM_SWAP], maxDiff);
 }
 
+// ---------------------------------------------------------------------------
+// run()-path targeted-undo fuzzer. The b>1 move fuzzer above rejects through
+// the whole-map snapshotBlock/restoreBlock; the SWEEP rejects through the
+// TARGETED undo the blockMode hooks record (beginMoveUndo / the atomOf
+// write log / restoreMoveUndo, reached via splitAtom -> undoSplit and
+// snapshotSubtree -> refreshSubtree -> restoreSubtree). This fuzzer drives the
+// EXACT hook sequence moves.hpp runs at blockMode - including the accept-only
+// death merge and the per-iteration writeAffineNodeCaches derive - at widths
+// {1, 2, 3, 4} (width 1 is the fused-narrow-block edge of a694ec8), and after
+// every rejection and at each seed's end checks the maintained map against a
+// from-scratch buildForBlock rebuild on a pristine map. Member ORDER within a
+// slice is exempt BY DESIGN (a rejected birth's in-place partition leaves the
+// slice permuted; every reader is order-free); everything else is bitwise.
+
+// Deep fingerprint of the live interior map, including the FULL owned buffer
+// (the localized death/change patches grow it at the tail, so a [0, n) prefix
+// would miss live tail slices) and its length (the undo must truncate growth).
+struct InteriorFingerprint {
+  size_t numAtoms = 0, blockWidth = 0, bufSize = 0;
+  std::vector<size_t> begin, end, membersBuf;
+  std::vector<int32_t> leaf;
+  std::vector<double> A, G, Q, S;
+  std::vector<uint32_t> atomOf;
+};
+
+static InteriorFingerprint captureInterior(const AtomMap& m, size_t n) {
+  InteriorFingerprint f;
+  f.numAtoms = m.numAtoms;
+  f.blockWidth = m.blockWidth;
+  f.bufSize = m.atomMembersOwned.size();
+  f.begin.assign(m.atomBegin.begin(), m.atomBegin.begin() + m.numAtoms);
+  f.end.assign(m.atomEnd.begin(), m.atomEnd.begin() + m.numAtoms);
+  f.leaf.assign(m.leafTuple.begin(),
+                m.leafTuple.begin() + m.numAtoms * m.blockWidth);
+  f.A.assign(m.A.begin(), m.A.begin() + m.numAtoms);
+  f.G.assign(m.G.begin(), m.G.begin() + m.numAtoms);
+  f.Q.assign(m.Q.begin(), m.Q.begin() + m.numAtoms);
+  f.S.assign(m.S.begin(), m.S.begin() + m.numAtoms);
+  f.atomOf.assign(m.atomOf.begin(), m.atomOf.begin() + n);
+  f.membersBuf = m.atomMembersOwned;
+  return f;
+}
+
+// Bitwise equality with the one designed exemption: each atom's member slice is
+// compared as a SET (sorted copies), not as an ordered run.
+static bool interiorFingerprintsEqualSetwise(const InteriorFingerprint& a,
+                                             const InteriorFingerprint& b) {
+  if (a.numAtoms != b.numAtoms || a.blockWidth != b.blockWidth ||
+      a.bufSize != b.bufSize)
+    return false;
+  if (a.begin != b.begin || a.end != b.end || a.leaf != b.leaf ||
+      a.atomOf != b.atomOf)
+    return false;
+  for (size_t c = 0; c < a.numAtoms; ++c)
+    if (!bitEqual(a.A[c], b.A[c]) || !bitEqual(a.G[c], b.G[c]) ||
+        !bitEqual(a.Q[c], b.Q[c]) || !bitEqual(a.S[c], b.S[c]))
+      return false;
+  for (size_t c = 0; c < a.numAtoms; ++c) {
+    std::vector<size_t> ma(a.membersBuf.begin() + a.begin[c],
+                           a.membersBuf.begin() + a.end[c]);
+    std::vector<size_t> mb(b.membersBuf.begin() + b.begin[c],
+                           b.membersBuf.begin() + b.end[c]);
+    std::sort(ma.begin(), ma.end());
+    std::sort(mb.begin(), mb.end());
+    if (ma != mb) return false;
+  }
+  return true;
+}
+
+// The canonical rebuild oracle: a from-scratch buildForBlock on a pristine map,
+// atoms matched to the maintained map's by their leaf b-tuple (atom ids differ
+// - the maintained map recycles and appends, the rebuild groups by first
+// appearance - so ids are mapped canonically, never compared raw). Under that
+// mapping: leafTuple bijection, per-atom member SETS, atomOf, and the A/G/Q/S
+// prefixes BITWISE. S on both sides is tuple-derived by the same
+// setInBlockFitsBlock(paramCur); the driver re-seeds the maintained S after
+// every accepted move so a rejected move's restored S must land back on the
+// tuple-derived value.
+static bool interiorMatchesRebuild(
+  const AtomMap& M, const std::vector<const Tree*>& ptrs,
+  const ColumnStore& store, size_t n, const double* g, const double* w,
+  const std::vector<std::vector<double>>& paramCur) {
+  AtomMap R;
+  R.initialize(n);
+  R.buildForBlock(ptrs, store, g, w);
+  R.setInBlockFitsBlock(paramCur);
+  if (M.numAtoms != R.numAtoms) return false;
+  size_t b = M.blockWidth;
+  std::vector<uint32_t> canon(M.numAtoms, AtomMap::invalidAtom);
+  std::vector<char> used(R.numAtoms, 0);
+  for (size_t c = 0; c < M.numAtoms; ++c) {
+    for (size_t rr = 0; rr < R.numAtoms; ++rr) {
+      if (used[rr]) continue;
+      bool same = true;
+      for (size_t k = 0; k < b; ++k)
+        if (M.leafOf(c, k) != R.leafOf(rr, k)) { same = false; break; }
+      if (same) { canon[c] = static_cast<uint32_t>(rr); used[rr] = 1; break; }
+    }
+    if (canon[c] == AtomMap::invalidAtom) return false;
+    uint32_t rr = canon[c];
+    if (!bitEqual(M.A[c], R.A[rr]) || !bitEqual(M.G[c], R.G[rr]) ||
+        !bitEqual(M.Q[c], R.Q[rr]) || !bitEqual(M.S[c], R.S[rr]))
+      return false;
+    if (M.atomEnd[c] - M.atomBegin[c] != R.atomEnd[rr] - R.atomBegin[rr])
+      return false;
+    std::vector<size_t> mm(M.members + M.atomBegin[c],
+                           M.members + M.atomEnd[c]);
+    std::vector<size_t> rm(R.members + R.atomBegin[rr],
+                           R.members + R.atomEnd[rr]);
+    std::sort(mm.begin(), mm.end());
+    std::sort(rm.begin(), rm.end());
+    if (mm != rm) return false;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    if (M.atomOf[i] >= M.numAtoms) return false;
+    if (canon[M.atomOf[i]] != R.atomOf[i]) return false;
+  }
+  return true;
+}
+
+static void captureLeafCaches(const Tree& tree, std::vector<int32_t>& leaves,
+                              std::vector<double>& vals) {
+  leaves.clear();
+  tree.fillBottom(0, leaves);
+  vals.clear();
+  for (int32_t leaf : leaves) {
+    const Node& nd(tree.at(leaf));
+    vals.push_back(nd.sumWeights);
+    vals.push_back(nd.sumWeightedResponse);
+    vals.push_back(nd.sumWeightedResponseSq);
+  }
+}
+
+static bool leafCachesEqual(const Tree& tree,
+                            const std::vector<int32_t>& leaves,
+                            const std::vector<double>& vals) {
+  std::vector<int32_t> now;
+  tree.fillBottom(0, now);
+  if (now != leaves) return false;
+  size_t k = 0;
+  for (int32_t leaf : leaves) {
+    const Node& nd(tree.at(leaf));
+    if (!bitEqual(vals[k], nd.sumWeights) ||
+        !bitEqual(vals[k + 1], nd.sumWeightedResponse) ||
+        !bitEqual(vals[k + 2], nd.sumWeightedResponseSq))
+      return false;
+    k += 3;
+  }
+  return true;
+}
+
+enum IOp { IOP_BIRTH, IOP_DEATH, IOP_CHANGE, IOP_SWAP, IOP_NUM };
+
+// The four post-rejection invariants, in order; returns the first failing
+// stage's name (for the FAIL line) or null when all hold.
+static const char* checkRejectInvariants(
+  AtomMap& map, Tree& tree, size_t j, const std::vector<const Tree*>& ptrs,
+  const ColumnStore& store, size_t n, const double* g, const double* w,
+  const std::vector<std::vector<double>>& paramCur,
+  const InteriorFingerprint& before, const std::vector<int32_t>& preLeaves,
+  const std::vector<double>& preCaches) {
+  if (!interiorFingerprintsEqualSetwise(before, captureInterior(map, n)))
+    return "fingerprint";
+  if (!leafCachesEqual(tree, preLeaves, preCaches)) return "caches";
+  map.writeAffineNodeCaches(tree, j);
+  if (!leafCachesEqual(tree, preLeaves, preCaches)) return "re-derive";
+  if (!interiorMatchesRebuild(map, ptrs, store, n, g, w, paramCur))
+    return "rebuild";
+  return nullptr;
+}
+
+// One random move driven through the run()-path hook sequence (the same calls,
+// in the same order, moves.hpp makes at blockMode), rejected through the
+// TARGETED undo. On rejection asserts, in order: the map fingerprint is
+// restored (setwise member exemption only), the tree's leaf caches are back to
+// their pre-move (freshly derived) values, a re-derive from the restored map is
+// bitwise-idempotent, and the map matches the canonical rebuild. On acceptance
+// asserts the rebuild match. Returns false on the first break.
+static bool applyInteriorMove(std::vector<Tree>& block,
+                              const std::vector<const Tree*>& ptrs, AtomMap& map,
+                              const ColumnStore& store, size_t n,
+                              const double* g, const double* w,
+                              std::vector<std::vector<double>>& paramCur,
+                              CGMTreePrior& prior, ext_rng* op,
+                              int opCount[IOP_NUM], int accept[IOP_NUM],
+                              int reject[IOP_NUM], int sd, int step) {
+  size_t b = block.size();
+  size_t j = ext_rng_simulateUnsignedIntegerUniformInRange(op, 0, b);
+  Tree& tree = block[j];
+  map.interiorCoord_ = j;
+  map.paramCur_ = paramCur;
+  map.writeAffineNodeCaches(tree, j);  // run() derives at each tree iteration
+
+  int chosen = static_cast<int>(
+    ext_rng_simulateUnsignedIntegerUniformInRange(op, 0, IOP_NUM));
+  std::vector<int32_t> bottoms, noGrand, notBottom, swappable, birthable;
+  tree.fillBottom(0, bottoms);
+  tree.fillNoGrand(0, noGrand);
+  tree.fillNotBottom(0, notBottom);
+  tree.fillSwappable(0, swappable);
+  for (int32_t leaf : bottoms)
+    if (tree.hasAnyAvailableVariable(store, leaf)) birthable.push_back(leaf);
+  if (chosen == IOP_DEATH && noGrand.empty()) chosen = IOP_BIRTH;
+  if (chosen == IOP_SWAP && swappable.empty()) chosen = IOP_BIRTH;
+  if (chosen == IOP_CHANGE && notBottom.empty()) chosen = IOP_BIRTH;
+  if (chosen == IOP_BIRTH && birthable.empty()) {
+    if (!noGrand.empty()) chosen = IOP_DEATH; else return true;
+  }
+
+  std::vector<int32_t> preLeaves;
+  std::vector<double> preCaches;
+  captureLeafCaches(tree, preLeaves, preCaches);
+  InteriorFingerprint before = captureInterior(map, n);
+  bool acc = ext_rng_simulateContinuousUniform(op) >= 0.4;
+  bool ok = true;
+  const char* opName = "";
+  const char* stage = nullptr;
+
+  if (chosen == IOP_BIRTH) {
+    opName = "BIRTH";
+    int32_t L = birthable[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, birthable.size())];
+    Node oldNode = tree.at(L);
+    size_t mark = tree.maskPoolMark();
+    Rule rule = prior.drawRuleAndVariable(tree, store, op, L);
+    tree.birthStructure(L, rule);
+    map.splitAtom(tree, store, g, w, L);
+    ++opCount[IOP_BIRTH];
+    int32_t left = tree.at(L).leftChild;
+    if (tree.at(left).numObservations() == 0 ||
+        tree.at(left + 1).numObservations() == 0)
+      acc = false;  // the empty-leaf veto forces a rejection in the sweep
+    if (acc) {
+      ++accept[IOP_BIRTH];
+      size_t oldSize = paramCur[j].size();
+      if (paramCur[j].size() < tree.nodes.size())
+        paramCur[j].resize(tree.nodes.size());
+      for (size_t nd = oldSize; nd < paramCur[j].size(); ++nd)
+        paramCur[j][nd] = ext_rng_simulateContinuousUniform(op) - 0.5;
+      map.paramCur_ = paramCur;
+      map.setInBlockFitsBlock(paramCur);
+      ok = interiorMatchesRebuild(map, ptrs, store, n, g, w, paramCur);
+    } else {
+      tree.undoBirth(L);
+      tree.truncateMaskPool(mark);
+      tree.at(L).sumWeights = oldNode.sumWeights;
+      tree.at(L).sumWeightedResponse = oldNode.sumWeightedResponse;
+      tree.at(L).sumWeightedResponseSq = oldNode.sumWeightedResponseSq;
+      map.undoSplit();
+      ++reject[IOP_BIRTH];
+      stage = checkRejectInvariants(map, tree, j, ptrs, store, n, g, w,
+                                    paramCur, before, preLeaves, preCaches);
+      ok = stage == nullptr;
+    }
+  } else if (chosen == IOP_DEATH) {
+    opName = "DEATH";
+    int32_t P = noGrand[ext_rng_simulateUnsignedIntegerUniformInRange(
+      op, 0, noGrand.size())];
+    Node oldNode = tree.at(P);
+    tree.orphanChildren(P);
+    ++opCount[IOP_DEATH];
+    if (acc) {
+      tree.releasePair(oldNode.leftChild);
+      map.mergeAtoms(tree, P, oldNode.leftChild);
+      map.setInBlockFitsBlock(paramCur);
+      ++accept[IOP_DEATH];
+      ok = interiorMatchesRebuild(map, ptrs, store, n, g, w, paramCur);
+    } else {
+      tree.at(P) = oldNode;
+      ++reject[IOP_DEATH];
+      stage = checkRejectInvariants(map, tree, j, ptrs, store, n, g, w,
+                                    paramCur, before, preLeaves, preCaches);
+      ok = stage == nullptr;
+    }
+  } else {
+    int32_t P;
+    Rule savedRule, savedChildRule;
+    int32_t swapChild = invalidNode;
+    size_t mark = tree.maskPoolMark();
+    if (chosen == IOP_CHANGE) {
+      opName = "CHANGE";
+      P = notBottom[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, notBottom.size())];
+      if (!tree.hasAnyAvailableVariable(store, P)) return true;
+    } else {
+      opName = "SWAP";
+      P = swappable[ext_rng_simulateUnsignedIntegerUniformInRange(
+        op, 0, swappable.size())];
+      int32_t l = tree.at(P).leftChild;
+      swapChild = !tree.at(l).isBottom() ? l : l + 1;
+      savedRule = tree.at(P).rule;
+      savedChildRule = tree.at(swapChild).rule;
+    }
+    Tree::SubtreeSnapshot snap;
+    tree.snapshotSubtree(P, snap);
+    map.snapshotSubtree(tree, P);
+    if (chosen == IOP_CHANGE) {
+      tree.at(P).rule = prior.drawRuleAndVariable(tree, store, op, P);
+      ++opCount[IOP_CHANGE];
+    } else {
+      tree.at(P).rule = savedChildRule;
+      tree.at(swapChild).rule = savedRule;
+      ++opCount[IOP_SWAP];
+    }
+    map.refreshSubtree(tree, store, g, w, P);
+    if (!subtreeOccupied(tree, P)) acc = false;  // emptied-leaf veto
+    if (acc) {
+      map.setInBlockFitsBlock(paramCur);
+      ++accept[chosen];
+      ok = interiorMatchesRebuild(map, ptrs, store, n, g, w, paramCur);
+    } else {
+      tree.restoreSubtree(snap);
+      map.restoreSubtree();
+      tree.truncateMaskPool(mark);
+      ++reject[chosen];
+      stage = checkRejectInvariants(map, tree, j, ptrs, store, n, g, w,
+                                    paramCur, before, preLeaves, preCaches);
+      ok = stage == nullptr;
+    }
+  }
+  if (!ok)
+    printf("FAIL: interior-undo b=%zu seed %d step %d %s j=%zu %s%s%s\n", b, sd,
+           step, opName, j, acc ? "accept" : "reject",
+           stage != nullptr ? " stage=" : "", stage != nullptr ? stage : "");
+  return ok;
+}
+
+static void testBlockInteriorUndoFuzz(ext_rng* rng, int numSeeds) {
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  auto sampler = makeBurnedInSampler(x, y, n, rng);
+  const ColumnStore& store = sampler->data();
+  size_t nObs = sampler->numObservations();
+  size_t numTrees = sampler->numTrees();
+  CGMTreePrior prior;
+  std::vector<double> g(nObs), w(nObs);
+
+  bool ok = true;
+  size_t bs[] = {1, 2, 3, 4};
+  int opCount[IOP_NUM] = {0, 0, 0, 0};
+  int accept[IOP_NUM] = {0, 0, 0, 0};
+  int reject[IOP_NUM] = {0, 0, 0, 0};
+
+  ext_rng* op = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  for (size_t bi = 0; bi < 4 && ok; ++bi) {
+    size_t b = bs[bi];
+    for (int sd = 0; sd < numSeeds && ok; ++sd) {
+      ext_rng_setSeed(op, 77551u + static_cast<uint_least32_t>(sd) * 2654435761u +
+                            static_cast<uint_least32_t>(b) * 40503u);
+      bool weighted = (sd % 3) == 0;
+      for (double& v : g) v = 2.0 * ext_rng_simulateContinuousUniform(op) - 1.0;
+      if (weighted)
+        for (double& v : w) v = 0.1 + ext_rng_simulateContinuousUniform(op);
+      const double* weights = weighted ? w.data() : nullptr;
+
+      size_t t0 = (static_cast<size_t>(sd) * b) % (numTrees - b + 1);
+      std::vector<Tree> block;
+      std::vector<const Tree*> ptrs;
+      makeBlock(*sampler, t0, b, block, ptrs);
+
+      AtomMap map;
+      map.initialize(nObs);
+      map.buildForBlock(ptrs, store, g.data(), weights);
+      if (map.numAtoms < 2) continue;
+
+      std::vector<std::vector<double>> paramCur(b);
+      for (size_t s = 0; s < b; ++s) {
+        paramCur[s].assign(block[s].nodes.size(), 0.0);
+        for (double& v : paramCur[s])
+          v = ext_rng_simulateContinuousUniform(op) - 0.5;
+      }
+      map.interiorG_ = g.data();
+      map.interiorWeights_ = weights;
+      map.interiorN_ = nObs;
+      map.paramCur_ = paramCur;
+      map.setInBlockFitsBlock(paramCur);
+
+      for (int step = 0; step < 20 && ok; ++step)
+        ok &= applyInteriorMove(block, ptrs, map, store, nObs, g.data(),
+                                weights, paramCur, prior, op, opCount, accept,
+                                reject, sd, step);
+      if (ok) {
+        ok = interiorMatchesRebuild(map, ptrs, store, nObs, g.data(), weights,
+                                    paramCur);
+        if (!ok)
+          printf("FAIL: interior-undo b=%zu seed %d: end-of-seed rebuild "
+                 "mismatch\n", b, sd);
+      }
+    }
+  }
+  ext_rng_destroy(op);
+
+  check(ok, "interior-undo fuzzer: run()-path map matches the canonical "
+            "rebuild after every rejection and at sequence end");
+  check(accept[IOP_BIRTH] > 0 && accept[IOP_DEATH] > 0 &&
+        accept[IOP_CHANGE] > 0 && accept[IOP_SWAP] > 0,
+        "interior-undo fuzzer: every move type accepted at least once");
+  check(reject[IOP_BIRTH] > 0 && reject[IOP_DEATH] > 0 &&
+        reject[IOP_CHANGE] > 0 && reject[IOP_SWAP] > 0,
+        "interior-undo fuzzer: every move type rejected (targeted undo) at "
+        "least once");
+  printf("ok: atom run()-path targeted-undo fuzzer (b in {1,2,3,4}, %d seeds/b; "
+         "birth %d/%d death %d/%d change %d/%d swap %d/%d accept/reject)\n",
+         numSeeds, accept[IOP_BIRTH], reject[IOP_BIRTH], accept[IOP_DEATH],
+         reject[IOP_DEATH], accept[IOP_CHANGE], reject[IOP_CHANGE],
+         accept[IOP_SWAP], reject[IOP_SWAP]);
+}
+
 // Cross-ISA bitwise (docs/design/block-fusion.md 5, the reproducibility
 // invariant). A b>1 sweep from a FIXED seed must draw byte-identical parameters
 // under every instruction set the host offers: the affine reduction and the per
@@ -2463,5 +2872,6 @@ void runAtomsTests(ext_rng* rng) {
   testBlockBoundaryFields(rng);
   testBlockAffineIdentity(rng);
   testBlockAffineIdentityUnderMoves(rng);
+  testBlockInteriorUndoFuzz(rng, 24);
   testBlockCrossISA();
 }
