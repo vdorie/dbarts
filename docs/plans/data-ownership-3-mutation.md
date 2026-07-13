@@ -375,15 +375,16 @@ within noise) while matrix-backed is the worst cell (O(n*p) subassign
 ~195 us). The regression is a small-n fixed-overhead phenomenon plus
 the matrix-source copy.
 
-Recovery options, decision pending: (a) accept + document (mutation-
-heavy callers should prefer frame/container input; the cost is the
-price of collecting mutations without the write-through's undefined
-behavior); (b) an explicit opt-out on the full-column path for
-inner-loop callers that do not read raw between updates (sharp edge:
-stale @x for extract/setCutPoints/setState/getTrees/serialization
-until the caller's final collecting update - must be documented,
-opt-in only); (c) transparent lazy reconcile-on-read - REJECTED:
-direct data@x access is a supported contract and would silently see
-stale values. Draw-neutrality is not at risk under any option (the
-write-back never touches codes, cuts, RNG, or fits).
+Recovery DECISION (VD, 2026-07-14): ACCEPT + DOCUMENT. The R-side
+collection cost is the price of R-level consistency; a truly
+performance-bound client drives the engine through the C ABI
+(dbarts.h), which pays neither the R5 dispatch nor the collection and
+supplies its own raw for replay (the documented plan-1 contract).
+Documented in dbartsSampler-class.Rd (Mutation cost subsection:
+frame input preferred for mutation-heavy loops; C interface for
+microsecond-sensitive clients). The opt-out flag (b) is NOT built -
+revisit only if a real workload demonstrates the need; transparent
+lazy (c) stays rejected (direct data@x access is a supported contract
+and would silently see stale values). Draw-neutrality was never at
+risk (the write-back touches no codes, cuts, RNG, or fits).
 
