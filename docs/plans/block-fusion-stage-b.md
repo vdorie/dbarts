@@ -220,6 +220,11 @@ as available -- runs a b>1 sweep from a fixed seed, and asserts the drawn
 parameters are byte-identical across all forced ISAs. This is the invariant the
 whole no-backwards-compat reproducibility contract protects.
 
+LANDING NOTE: the equivalence anchor (section 7) is a within-host bitwise
+check. Cross-host comparison is only statistical, because the scenario data
+itself (friedman's sin(), platform libm) differs in the last ULP across OSes --
+true already at b=1, not a fusion regression.
+
 ## 6. Commit-by-commit
 
 Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
@@ -233,6 +238,8 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
 - GATE: NEUTRAL -- equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds,
   tinytest full pass NO snapshot regen, tests/cpp clean. Confirmatory bench
   (harness/machine pin). The block loop is a pure refactor of the tree loop.
+- LANDED: 9d2d3dd. GATE held as planned -- equivalence 22/22 IDENTICAL,
+  tinytest 2728 pass with NO snapshot regen.
 
 ### (ii) Joint b>1 atom map + owned member buffer + re-enabled bookkeeping. NEUTRAL at default. ~450 lines.
 - Owned atomMembers buffer; widen leafTuple to b per atom; buildForBlock (route
@@ -244,6 +251,10 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
   buildForBlock rebuild after EVERY move (bitwise A/G, matching leaf-tuples,
   atomOf round-trip), and a rejected move restores the map bitwise. No draw path
   yet, so equivalence/tinytest stay identical.
+- LANDED: f494c72. Fuzzer gate held -- the patched map matches a from-scratch
+  buildForBlock rebuild after every move and on rejection, bitwise. DEVIATION:
+  death/change/swap maintain the atom map by an O(n) regroup rather than an
+  in-place splice; flagged as a perf suspect for the large-n bench (section 9).
 
 ### (iii) Block-boundary g/O/S build + fit scatter-back + running total. EXACT; NEUTRAL at default. ~300 lines.
 - Block-entry O/g/G/A/S seed and block-exit scatter + F update (section 3),
@@ -252,6 +263,11 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
 - GATE: NEUTRAL at default. tests/cpp: at b>1, assert g/G/A/S seeds and the
   block-exit treeFits + running total equal a reference per-tree computation in
   EXACT arithmetic (these steps are exact, not a reduction-order change).
+- LANDED: 9d16711. Component gate held -- entry seeds and exit scatter matched
+  the per-tree reference exactly. DEVIATION found later: blockStaticField
+  computed g = w*(y - O), double-counting weights against the weighted leaf
+  kernel (which applies w once); correct is g = y - O. Never shipped -- the
+  method was dormant at blockSize 1 -- fixed in (iv-a) below.
 
 ### (iv) Interior affine regroup + Q-drop + order-fix + default flip. THE RE-RECORD. ~350 lines.
 - Interior suffstat (3.1), S-carry roll (3.3), rejected-move restore (3.4) in
@@ -259,6 +275,30 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
   bitwise (section 5); set the default blockSize to 4 / n-adaptive 8 (decision 1).
 - This is the sole draw-shifting commit; gates in section 7. Clean abort: revert
   the default to 1 (leaves all machinery in place, ships Stage A).
+- SPLIT: landed as (iv-a), the neutral machinery, and (iv-b), the default flip;
+  (iv-b) has NOT landed (see section 7 BENCH status).
+- LANDED (iv-a): c4fc3f3. Neutral only -- affine O(atoms) interior, run()
+  wiring, drop Q at b>1, cross-ISA fixed-order reduction -- default blockSize
+  stays 1. GATE: affine-identity max |diff| 3.55e-13; cross-ISA bitwise
+  (scalar/NEON/SSE2/AVX2); equivalence 22/22; tinytest green. Also fixed the
+  (iii) g-weighting deviation. Confirmed section 3's plan: sweep-end totalFits
+  is rebuilt fresh from treeFits, never the incremental running fit.
+- FOLLOW-ON bee4354: DBARTS_BLOCKSIZE env override -- the scenario knob that
+  section 7's FORCE-b>1-ON-THE-ANCHORS precondition needs. Neutral when unset.
+- FOLLOW-ON a694ec8: forcing b>1 at small n (n.trees=1) via bee4354 surfaced a
+  real bug -- the six atom-map move hooks dispatched on blockWidth > 1, so a
+  fused block of WIDTH 1 (tree count < blockSize, or a short final block) fell
+  into the b=1 kernels, which assume atom members alias tree.indices and that
+  the node cache carries raw Q; buildForBlock owns the members buffer and
+  writeAffineNodeCaches seeds Q = 0. Wrong leaf offsets plus an uncancelled Q
+  penalty on births under-fit the forest (categorical-exact gap 0.093 vs 0.004
+  at b=1). Fix: dispatch the hooks on an explicit blockMode flag set by
+  buildForBlock, cleared by the per-tree/aggregate builders. New gate
+  testBlockAffineIdentityUnderMoves (widths 1, 2, 3; max |diff| 4.4e-13, fails
+  within one birth if the old dispatch is restored); categorical-exact gap at
+  b=4 recovers to 0.0042. Width >= 2 was always correct -- the bug was the
+  width-1-fused edge the eventual (iv-b) flip would hit. b=1 path unaffected
+  (equivalence 22/22).
 
 ### (v) Harden for the Stage-B gates. ~250 lines.
 - Small-n fallback to blockSize = 1 below a cutoff (like the SIMD toggles);
@@ -269,6 +309,11 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
 - GATE: bench across the grid on the quiet machine; equivalence/tinytest stable
   (b is a perf knob once the fixed order is set). Deeper b-sweep, rebuild cadence,
   and fragmentation tuning are Stage C (design section 7), not this plan.
+- LANDED (partial): b74fec9 adds the bench-sampler.R biggrid mode (n in
+  {1e4,1e5,1e6} x numTrees in {75,200} x blockSize in {1,4,8} via
+  DBARTS_BLOCKSIZE); default invocation unchanged. Still pending: the small-n
+  fallback, the finalized n-adaptive rule, cross-ISA CI wiring, and the fresh
+  baseline recording -- all wait on the headline bench verdict (section 7).
 
 ## 7. Gates for the re-record commit (iv) and beyond
 
@@ -291,6 +336,7 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   explicitly (a scenario/control knob that overrides the size heuristic), so they
   exercise the b>1 affine path at small n. Without this the entire re-record is
   untested.
+  LANDED: bee4354 provides exactly this override (DBARTS_BLOCKSIZE).
 - MACHINE INDEPENDENCE: the cross-ISA bitwise component test at b>1 (section 5)
   -- scalar / SSE2 / AVX2 / NEON byte-identical. Hard gate.
 - TINYTEST: regenerate the RNG-locked snapshots ONCE by replaying whole test
@@ -304,6 +350,9 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   ~6x DRAM drop -> multi-x wall-clock at n >= 1e5. Kill/scope-back if the
   realized speedup is far below the model (move-scan re-partition cost dominating
   at shallow trees, design 8.1). See section 9 for the baseline.
+  STATUS: not yet run to a verdict. Early biggrid numbers show b=4 ~25x SLOWER
+  than b=1 at n=1e4 -- expected small-n overhead (per-block fixed cost not yet
+  amortized); the win must appear at n >= 1e5 or this is a kill signal.
 
 ## 8. Resolved decisions (VD-approved; recorded, not re-opened)
 
@@ -341,6 +390,10 @@ materially from 32fc7c8 on the shared small-n points, investigate before trustin
 the large-n rows; if the x86 box is unavailable, the gate degrades to relative
 b>1-vs-b=1 on whatever quiet machine is available (the DRAM claim is then
 under-measured and must be flagged, not asserted).
+
+STATUS: (a) has landed (b74fec9, the opt-in biggrid mode). (b) the fresh
+dbarts-bench recording and (c) the MANIFEST update are still pending on the
+headline verdict above.
 
 ## 10. Risks and out-of-scope
 
