@@ -51,11 +51,17 @@ Data frame columns - through the formula interface or a frame passed as
   as sparse ordinal predictors;
 
 - [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
-  columns are recognized but not yet supported; construction refuses
-  them with an error.
+  columns enter as a single sparse categorical predictor, coded and
+  binned identically to a dense factor of the same values. Only the x/y
+  interface accepts them (a bare S4 column cannot survive
+  [`model.frame`](https://rdrr.io/r/stats/model.frame.html), so the
+  formula path refuses one explicitly).
 
 Factor level tables are retained so that test data are coded
-identically.
+identically; a `sparseFactor` test column densifies to its integer codes
+over the training level table (implicit rows filled with the training
+reference level's code) before prediction, reusing the dense categorical
+test-code path.
 
 Data frame input is stored columnar: no \\n \times p\\ double matrix is
 retained. Code that previously reached into the data object's `x` slot

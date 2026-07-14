@@ -6,14 +6,18 @@ a designated `reference` level. Analogous to
 `Matrix::`[`sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html),
 whose implicit entry is zero.
 
-**Not yet accepted by the samplers:**
+Accepted as a predictor by
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
-recognizes a `sparseFactor` column but refuses to construct data from it
-with the error “sparse categorical predictors are not yet supported”.
-The class exists so data sets can be assembled ahead of engine support;
-sparse *ordinal* columns
+through the x/y interface: a data frame passed as `x.train` may mix
+dense numeric/factor columns with sparse ordinal columns
 ([`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
-or `dgCMatrix`) are unaffected and keep working.
+or `dgCMatrix`) and `sparseFactor` columns in any combination. A
+`sparseFactor` column enters as one categorical predictor and bins
+bitwise-identically to a dense factor of the same values. **The formula
+interface does not accept it**: a bare S4 column cannot survive
+[`model.frame`](https://rdrr.io/r/stats/model.frame.html), so the
+formula path refuses a `sparseFactor` column explicitly, with a message
+to supply it through the x/y interface instead.
 
 ## Usage
 
@@ -40,6 +44,10 @@ sparseFactor(x, levels, reference, i, length)
 
   The level every unstored position carries. Must be an element of
   `levels`; defaults to `levels[1]`, the baseline-contrast convention.
+  Storage holds only the non-reference entries, so choosing the **most
+  common level** as the reference maximizes the memory win; codes and
+  every draw are identical under any choice of reference, so this is a
+  storage tuning knob, not a modeling one.
 
 - i:
 

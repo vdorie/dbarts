@@ -66,8 +66,8 @@
 <li><p>ordered factors enter as ordinal predictors, coded numerically by level order;</p></li>
 <li><p>matrix columns (e.g. from <code><a href="https://rdrr.io/r/stats/poly.html" class="external-link">poly</a></code>) splice in as ordinal predictors, one per column;</p></li>
 <li><p><code><a href="https://rdrr.io/pkg/Matrix/man/sparseVector.html" class="external-link">Matrix::sparseVector</a></code> and <code>dgCMatrix</code> columns (assigned into the frame; they do not survive <code>data.frame(...)</code> or <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>) enter as sparse ordinal predictors;</p></li>
-<li><p><code><a href="sparseFactor.html">sparseFactor</a></code> columns are recognized but not yet supported; construction refuses them with an error.</p></li>
-</ul><p>Factor level tables are retained so that test data are coded identically.</p>
+<li><p><code><a href="sparseFactor.html">sparseFactor</a></code> columns enter as a single sparse categorical predictor, coded and binned identically to a dense factor of the same values. Only the x/y interface accepts them (a bare S4 column cannot survive <code><a href="https://rdrr.io/r/stats/model.frame.html" class="external-link">model.frame</a></code>, so the formula path refuses one explicitly).</p></li>
+</ul><p>Factor level tables are retained so that test data are coded identically; a <code>sparseFactor</code> test column densifies to its integer codes over the training level table (implicit rows filled with the training reference level's code) before prediction, reusing the dense categorical test-code path.</p>
 <p>Data frame input is stored columnar: no \(n \times p\) double matrix is retained. Code that previously reached into the data object's <code>x</code> slot expecting a plain matrix should call <code><a href="bart.html">extract</a>(sampler, "predictors")</code> - or <code>as.matrix</code> on the slot - to obtain the numeric predictor matrix, factor columns as their integer codes.</p>
 </div>
 
