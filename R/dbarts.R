@@ -729,6 +729,12 @@ dbartsSampler <- setRefClass(
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")
       }
+      # the engine's predict entry takes a dense matrix only; a frame/sparse
+      # test set is coded above and materialized here, no resident sparse
+      # predict store
+      if (!is.matrix(x.test)) {
+        x.test <- as.matrix(x.test)
+      }
 
       if (missing(offset.test) || is.null(offset.test)) {
         offset.test <- NA_real_
@@ -1224,9 +1230,13 @@ dbartsSampler <- setRefClass(
       }
 
       # route new data through the trees so 'n' counts that data instead of the
-      # training predictors; validated and coded as for predict
+      # training predictors; validated, coded, and materialized as for predict
+      # (the tree-replay entry takes a dense matrix only)
       if (!is.null(newdata)) {
         newdata <- validateXTest(newdata, data@x)
+        if (!is.matrix(newdata)) {
+          newdata <- as.matrix(newdata)
+        }
       }
 
       ptr <- getPointer()
