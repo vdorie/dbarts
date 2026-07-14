@@ -108,7 +108,8 @@ public:
                        options.cscRowIndices, options.cscValues,
                        options.columnSources, numObservations, numPredictors,
                        options.maxNumCutsPerVariable, options.maxNumCuts,
-                       options.useQuantiles, options.columnTypes);
+                       options.useQuantiles, options.columnTypes,
+                       options.cscCategoryCounts, options.cscReferenceCodes);
     } else if (options.cscColumnPointers != nullptr) {
       data_.buildFromCsc(options.cscColumnPointers, options.cscRowIndices,
                          options.cscValues, numObservations, numPredictors,
@@ -132,6 +133,8 @@ public:
     options_.cscValues = nullptr;
     options_.mixedDenseValues = nullptr;
     options_.columnSources = nullptr;
+    options_.cscCategoryCounts = nullptr;
+    options_.cscReferenceCodes = nullptr;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);

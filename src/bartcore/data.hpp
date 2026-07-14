@@ -146,6 +146,14 @@ struct ColumnStore {
   // per column, borrowed raw dense values on mixed builds (null for
   // CSC-backed columns); empty for every other build kind
   std::vector<const double*> mixedRawColumns;
+  // per CSC-backed categorical column, its fixed level count K and the
+  // reference level's level-order code (the code the implicit rows carry).
+  // Empty on non-CSC builds; entries for ordinal or dense-backed columns are
+  // unused. A CSC categorical column stores only its non-reference entries, so
+  // K cannot be recovered from the slice and the implicit rows' code is the
+  // reference level's own level-order index (never numeric 0).
+  std::vector<std::uint32_t> cscCategoryCounts;
+  std::vector<xint_t> cscReferenceCodes;
   bool builtFromCsc = false;
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
@@ -390,11 +398,15 @@ struct ColumnStore {
   /// value and keeps no cuts. CSC columns are always ordinal.
   void buildCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) {
-      double maxValue = -1.0;
-      for (size_t i = 0; i < numObservations; ++i)
-        if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
-      numCuts[j] = maxValue < 0.0
-        ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
+      if (columnIsCscBacked(j)) {
+        numCuts[j] = cscCategoryCounts[j];
+      } else {
+        double maxValue = -1.0;
+        for (size_t i = 0; i < numObservations; ++i)
+          if (!isNA(column[i]) && column[i] > maxValue) maxValue = column[i];
+        numCuts[j] = maxValue < 0.0
+          ? 0 : static_cast<std::uint32_t>(maxValue) + 1;
+      }
       cutPoints[j].clear();
     } else if (useQuantiles) {
       QuantileGrid grid = columnIsCscBacked(j)
@@ -497,7 +509,10 @@ struct ColumnStore {
   /// Missing values are stored NaN entries and take the reserved code.
   void quantizeCscColumn(size_t j) {
     const CscColumnSlice& slice = cscSlices[j];
-    xint_t zeroCode = codeFor(j, 0.0);
+    // a categorical column's implicit rows carry the reference level's
+    // level-order code; an ordinal column's carry the quantized zero
+    xint_t zeroCode = types[j] == ColumnType::categorical
+      ? cscReferenceCodes[j] : codeFor(j, 0.0);
     std::uint8_t anyMissing = 0;
     if (columnIsSparse(j)) {
       SparseColumnData& sparse =
@@ -575,6 +590,8 @@ struct ColumnStore {
     sparseColumns.clear();
     cscSlices.clear();
     mixedRawColumns.clear();
+    cscCategoryCounts.clear();
+    cscReferenceCodes.clear();
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(p, 0);
@@ -603,7 +620,9 @@ struct ColumnStore {
                   const std::int32_t* columnSources, size_t n, size_t p,
                   const std::uint32_t* maxNumCutsPerColumn,
                   std::uint32_t maxNumCutsScalar, bool useQuantiles_,
-                  const ColumnType* columnTypes = nullptr) {
+                  const ColumnType* columnTypes = nullptr,
+                  const std::uint32_t* cscCategoryCounts_ = nullptr,
+                  const xint_t* cscReferenceCodes_ = nullptr) {
     isView = false;
     numObservations = n;
     numPredictors = p;
@@ -614,6 +633,12 @@ struct ColumnStore {
     } else {
       types.assign(p, ColumnType::ordinal);
     }
+    if (cscCategoryCounts_ != nullptr)
+      cscCategoryCounts.assign(cscCategoryCounts_, cscCategoryCounts_ + p);
+    else cscCategoryCounts.clear();
+    if (cscReferenceCodes_ != nullptr)
+      cscReferenceCodes.assign(cscReferenceCodes_, cscReferenceCodes_ + p);
+    else cscReferenceCodes.clear();
     cutPoints.resize(p);
     numCuts.resize(p);
     if (maxNumCutsPerColumn != nullptr) {
@@ -782,6 +807,8 @@ struct ColumnStore {
     sparseColumns.clear();
     cscSlices.clear();
     mixedRawColumns.clear();
+    cscCategoryCounts.clear();
+    cscReferenceCodes.clear();
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(numPredictors, 0);
