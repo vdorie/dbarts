@@ -404,19 +404,22 @@ struct ForestCombiner {
   /// combiner scratch, valid only until the next call.
   virtual const double* combinedFits(const std::vector<Forest<L>>& forests) = 0;
 
-  /// The BCF combining scalars the Chain sweep still reads directly (a, b0, b1,
-  /// aVariance, the treatment vector, the update switches). Null for a combiner
-  /// carrying no such glue: the state wire format is BCF-shaped, so any future
-  /// non-BCF combiner returns null here and serializes through the hooks below.
+  /// The BCF combining scalars the Chain state, reporting, and treatment paths
+  /// still read directly (a, b0, b1, aVariance, the treatment vector). Null for
+  /// a combiner carrying no such glue: the state wire format is BCF-shaped, so
+  /// any future non-BCF combiner returns null here and serializes through the
+  /// hooks below.
   virtual BCFState* glueState() { return nullptr; }
   virtual const BCFState* glueState() const { return nullptr; }
 
   /// The coupling draw and its likelihood-invariant post-combine move, fired at
   /// the fixed sweep points; inert unless a subclass couples the forests.
+  /// afterCombine returns the scale its move applied (1.0 when it makes none) -
+  /// the sweep discards it; the component tests read it through the chain.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
                         const std::vector<Forest<L>>&) {}
-  virtual void afterCombine(std::vector<Forest<L>>&, bool, std::size_t,
-                            ext_rng*) {}
+  virtual double afterCombine(std::vector<Forest<L>>&, bool, std::size_t,
+                              ext_rng*) { return 1.0; }
 
   /// The reporting map: which forest the scalar channels (variable counts, k,
   /// split probabilities) address, and whether the test-fit and log-likelihood
@@ -488,6 +491,137 @@ struct BCFForestCombiner : ForestCombiner<L> {
       glue_.combined[i] = glue_.a * mu[i] +
         (glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0) * tau[i];
     return glue_.combined.data();
+  }
+
+  /// The glue's Gaussian full conditionals (docs/design/bcf.md): a as the mu
+  /// coefficient (prior N(0, aVariance), whose half-Cauchy scale mixture is
+  /// refreshed after via an inverse-gamma auxiliary), b0/b1 as the tau
+  /// coefficients over control/treated (prior N(0, bPriorVariance)).
+  void drawGlue(ext_rng* rng, double sigma, const double* y, const double* w,
+                const std::vector<Forest<L>>& forests) override {
+    std::size_t n = data_.numObservations;
+    const double* mu = forests[0].totalFits.data();
+    const double* tau = forests[1].totalFits.data();
+    double invSigmaSq = 1.0 / (sigma * sigma);
+
+    if (glue_.updateA) {
+      double aPrec = 1.0 / glue_.aVariance, aNum = 0.0;
+      for (std::size_t i = 0; i < n; ++i) {
+        double wi = w == nullptr ? 1.0 : w[i];
+        double bz = glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0;
+        double r = y[i] - bz * tau[i];
+        aPrec += wi * mu[i] * mu[i] * invSigmaSq;
+        aNum += wi * mu[i] * r * invSigmaSq;
+      }
+      glue_.a =
+        aNum / aPrec + ext_rng_simulateStandardNormal(rng) / std::sqrt(aPrec);
+
+      // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
+      // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
+      // inverse
+      double rate = 0.5 * glue_.a * glue_.a +
+                    0.5 * glue_.aPriorScale * glue_.aPriorScale;
+      glue_.aVariance = 1.0 / ext_rng_simulateGamma(rng, 1.0, 1.0 / rate);
+    }
+
+    if (glue_.updateB) {
+      double bPrec = 1.0 / glue_.bPriorVariance;
+      double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
+      for (std::size_t i = 0; i < n; ++i) {
+        double wi = w == nullptr ? 1.0 : w[i];
+        double r = y[i] - glue_.a * mu[i];
+        double prec = wi * tau[i] * tau[i] * invSigmaSq;
+        double num = wi * tau[i] * r * invSigmaSq;
+        if (glue_.z[i] != 0.0) { p1 += prec; n1 += num; }
+        else { p0 += prec; n0 += num; }
+      }
+      glue_.b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p0);
+      glue_.b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng) / std::sqrt(p1);
+    }
+  }
+
+  /// Interweaving (ASIS, Yu & Meng 2011) rescale of the prognostic glue ridge.
+  /// After the conjugate a draw and the mu leaf draws, jointly rescale the L+1
+  /// prognostic-scale coordinates (a, mu_1..mu_L) -> (a/c, c mu_l) along the
+  /// likelihood-invariant orbit a mu(x) = (a/c)(c mu(x)), so the move updates
+  /// only the amplitude coordinate and preserves the posterior. c = sqrt(v),
+  /// v ~ GIG((L-1)/2, M/leafVar, a^2/aVariance) conditioned on the inverse-
+  /// gamma auxiliary (exact); L and M are the count and squared sum of the
+  /// occupied prognostic leaves. Collapses the slow (a, mu-amplitude) mode
+  /// (docs/design/bcf.md). A no-op consuming no rng with a pinned a (updateA
+  /// false) or with fewer than two occupied leaves; returns the applied c (1.0
+  /// when skipped). record/sampleNum locate the keepTrees saved slot whose mu
+  /// leaves, flattened before this move, need the same c so a stored * mu_saved
+  /// keeps the identified product.
+  double afterCombine(std::vector<Forest<L>>& forests, bool record,
+                      std::size_t sampleNum, ext_rng* rng) override {
+    if (!glue_.updateA) return 1.0;
+    Forest<L>& forest = forests[0];
+    std::size_t n = data_.numObservations;
+
+    // L, M over the occupied prognostic leaves. Recomputed unconditionally:
+    // the k-accumulator that would hold these is gated on updateK, which BCF
+    // leaves false. A forced-zero empty leaf is not a prior draw, so skip it.
+    double M = 0.0;
+    std::size_t numLeaves = 0;
+    for (std::size_t t = 0; t < forest.numTrees; ++t) {
+      Tree& tree = forest.trees[t];
+      const double* treeFits = forest.treeFits.data() + t * n;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t nodeIndex : tree.bottomScratch) {
+        const Node& node = tree.at(nodeIndex);
+        if (node.numObservations() == 0) continue;
+        double value = treeFits[tree.indices[node.begin]];
+        M += value * value;
+        ++numLeaves;
+      }
+    }
+    if (numLeaves < 2 || !(M > 0.0)) return 1.0;
+
+    // GIG parameters (memo section 2.3): A = M (k/scale)^2, B = a0^2/aVariance
+    double a0 = glue_.a;
+    double leafPrecision = (forest.k / forest.leaf.scale) *
+                           (forest.k / forest.leaf.scale);  // 1 / leafVar
+    double gigP = 0.5 * (static_cast<double>(numLeaves) - 1.0);
+    double gigA = M * leafPrecision;
+    double gigB = a0 * a0 / glue_.aVariance;
+
+    double v = ext_rng_simulateGeneralizedInverseGaussian(rng, gigP, gigA,
+                                                          gigB);
+    if (!std::isfinite(v) || v <= 0.0) return 1.0;
+    double c = std::sqrt(v);
+    if (!std::isfinite(c) || c <= 0.0) return 1.0;
+
+    // travel the ridge: a shrinks, the prognostic fits grow by c
+    glue_.a = a0 / c;
+    misc_scalarMultiplyVectorInPlace(forest.treeFits.data(),
+                                     n * forest.numTrees, c);
+    misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
+    // aVariance is held: the move conditions on it (ASIS), so refreshing it
+    // here re-randomizes the coordinate we just conditioned on and measurably
+    // throttles the mixing gain (IACT check, docs/design/bcf.md). The one-sweep
+    // lag is benign - the next drawGlue refreshes it | a_new.
+
+    // recorded sweeps carry a live test surface (dead under BCF, but kept
+    // self-consistent) and, under keepTrees, this sweep's saved mu slot
+    if (record && data_.numTestObservations > 0) {
+      misc_scalarMultiplyVectorInPlace(forest.totalTestFits.data(),
+                                       data_.numTestObservations, c);
+      misc_scalarMultiplyVectorInPlace(forest.currTestFits.data(),
+                                       data_.numTestObservations, c);
+    }
+    if (record && forest.savedTreeCapacity > 0) {
+      std::size_t slot =
+        (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity;
+      for (std::size_t t = 0; t < forest.numTrees; ++t) {
+        std::vector<FlatNode>& flat =
+          forest.savedTrees[slot * forest.numTrees + t];
+        for (FlatNode& node : flat)
+          if (node.variable == invalidVariable) node.value *= c;
+      }
+    }
+    return c;
   }
 
 private:
@@ -711,88 +845,14 @@ public:
                 data_.numObservations * forest.numTrees * sizeof(double));
   }
 
-  /// Interweaving (ASIS, Yu & Meng 2011) rescale of the prognostic glue ridge.
-  /// After the conjugate a draw and the mu leaf draws, jointly rescale the L+1
-  /// prognostic-scale coordinates (a, mu_1..mu_L) -> (a/c, c mu_l) along the
-  /// likelihood-invariant orbit a mu(x) = (a/c)(c mu(x)), so the move updates
-  /// only the amplitude coordinate and preserves the posterior. c = sqrt(v),
-  /// v ~ GIG((L-1)/2, M/leafVar, a^2/aVariance) conditioned on the inverse-
-  /// gamma auxiliary (exact); L and M are the count and squared sum of the
-  /// occupied prognostic leaves. Collapses the slow (a, mu-amplitude) mode
-  /// (docs/plans/bcf-ridge-interweaving.md). A no-op consuming no rng off BCF,
-  /// with a pinned (updateA false), or with fewer than two occupied leaves;
-  /// returns the applied c (1.0 when skipped). record/sampleNum locate the
-  /// keepTrees saved slot whose mu leaves, flattened before this move, need the
-  /// same c so a stored * mu_saved keeps the identified product.
+  /// Fires the combiner's post-combine move (BCF: the interweaving glue-ridge
+  /// rescale, BCFForestCombiner<L>::afterCombine) outside a sweep, for the
+  /// component tests; returns the applied scale (1.0 off BCF or when the move
+  /// is skipped).
   double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
-    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    if (glue == nullptr || !glue->updateA) return 1.0;
-    Forest<L>& forest = forests_[0];
-    std::size_t n = data_.numObservations;
-
-    // L, M over the occupied prognostic leaves. Recomputed unconditionally:
-    // the k-accumulator that would hold these is gated on updateK, which BCF
-    // leaves false. A forced-zero empty leaf is not a prior draw, so skip it.
-    double M = 0.0;
-    std::size_t numLeaves = 0;
-    for (std::size_t t = 0; t < forest.numTrees; ++t) {
-      Tree& tree = forest.trees[t];
-      const double* treeFits = forest.treeFits.data() + t * n;
-      tree.bottomScratch.clear();
-      tree.fillBottom(0, tree.bottomScratch);
-      for (int32_t nodeIndex : tree.bottomScratch) {
-        const Node& node = tree.at(nodeIndex);
-        if (node.numObservations() == 0) continue;
-        double value = treeFits[tree.indices[node.begin]];
-        M += value * value;
-        ++numLeaves;
-      }
-    }
-    if (numLeaves < 2 || !(M > 0.0)) return 1.0;
-
-    // GIG parameters (memo section 2.3): A = M (k/scale)^2, B = a0^2/aVariance
-    double a0 = glue->a;
-    double leafPrecision = (forest.k / forest.leaf.scale) *
-                           (forest.k / forest.leaf.scale);  // 1 / leafVar
-    double gigP = 0.5 * (static_cast<double>(numLeaves) - 1.0);
-    double gigA = M * leafPrecision;
-    double gigB = a0 * a0 / glue->aVariance;
-
-    double v = ext_rng_simulateGeneralizedInverseGaussian(rng_, gigP, gigA,
-                                                          gigB);
-    if (!std::isfinite(v) || v <= 0.0) return 1.0;
-    double c = std::sqrt(v);
-    if (!std::isfinite(c) || c <= 0.0) return 1.0;
-
-    // travel the ridge: a shrinks, the prognostic fits grow by c
-    glue->a = a0 / c;
-    misc_scalarMultiplyVectorInPlace(forest.treeFits.data(),
-                                     n * forest.numTrees, c);
-    misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
-    // aVariance is held: the move conditions on it (ASIS), so refreshing it
-    // here re-randomizes the coordinate we just conditioned on and measurably
-    // throttles the mixing gain (IACT check, docs/plans Status). The one-sweep
-    // lag is benign - the next drawGlue refreshes it | a_new.
-
-    // recorded sweeps carry a live test surface (dead under BCF, but kept
-    // self-consistent) and, under keepTrees, this sweep's saved mu slot
-    if (record && data_.numTestObservations > 0) {
-      misc_scalarMultiplyVectorInPlace(forest.totalTestFits.data(),
-                                       data_.numTestObservations, c);
-      misc_scalarMultiplyVectorInPlace(forest.currTestFits.data(),
-                                       data_.numTestObservations, c);
-    }
-    if (record && forest.savedTreeCapacity > 0) {
-      std::size_t slot =
-        (forest.savedSlotBase + sampleNum) % forest.savedTreeCapacity;
-      for (std::size_t t = 0; t < forest.numTrees; ++t) {
-        std::vector<FlatNode>& flat =
-          forest.savedTrees[slot * forest.numTrees + t];
-        for (FlatNode& node : flat)
-          if (node.variable == invalidVariable) node.value *= c;
-      }
-    }
-    return c;
+    return combiner_
+      ? combiner_->afterCombine(forests_, record, sampleNum, rng_)
+      : 1.0;
   }
 
   /// Between-run reconfiguration; the test-fit pool is rebuilt lazily to
@@ -977,8 +1037,8 @@ public:
         sigma_ = response_->drawSigma(rng_, combined, sigma_);
 
       if (combiner_) {
-        drawGlue(y, weights);
-        interweaveGlueRidge(record, sampleNum);
+        combiner_->drawGlue(rng_, sigma_, y, weights, forests_);
+        combiner_->afterCombine(forests_, record, sampleNum, rng_);
       }
 
       for (Forest<L>& forest : forests_) {
@@ -1195,8 +1255,8 @@ public:
           sigma_ = response_->drawSigma(rng_, combined, sigma_);
 
         if (combiner_) {
-          drawGlue(y, weights);
-          interweaveGlueRidge(false, 0);
+          combiner_->drawGlue(rng_, sigma_, y, weights, forests_);
+          combiner_->afterCombine(forests_, false, 0, rng_);
         }
 
         for (Forest<L>& forest : forests_) {
@@ -2426,53 +2486,6 @@ private:
   const double* combinedFits() {
     return combiner_ ? combiner_->combinedFits(forests_)
                      : forests_[0].totalFits.data();
-  }
-
-  /// The glue's Gaussian full conditionals (docs/design/bcf.md): a as the mu
-  /// coefficient (prior N(0, aVariance), whose half-Cauchy scale mixture is
-  /// refreshed after via an inverse-gamma auxiliary), b0/b1 as the tau
-  /// coefficients over control/treated (prior N(0, bPriorVariance)).
-  void drawGlue(const double* y, const double* w) {
-    BCFState& glue = *combiner_->glueState();
-    std::size_t n = data_.numObservations;
-    const double* mu = forests_[0].totalFits.data();
-    const double* tau = forests_[1].totalFits.data();
-    double invSigmaSq = 1.0 / (sigma_ * sigma_);
-
-    if (glue.updateA) {
-      double aPrec = 1.0 / glue.aVariance, aNum = 0.0;
-      for (std::size_t i = 0; i < n; ++i) {
-        double wi = w == nullptr ? 1.0 : w[i];
-        double bz = glue.z[i] != 0.0 ? glue.b1 : glue.b0;
-        double r = y[i] - bz * tau[i];
-        aPrec += wi * mu[i] * mu[i] * invSigmaSq;
-        aNum += wi * mu[i] * r * invSigmaSq;
-      }
-      glue.a =
-        aNum / aPrec + ext_rng_simulateStandardNormal(rng_) / std::sqrt(aPrec);
-
-      // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
-      // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
-      // inverse
-      double rate = 0.5 * glue.a * glue.a +
-                    0.5 * glue.aPriorScale * glue.aPriorScale;
-      glue.aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
-    }
-
-    if (glue.updateB) {
-      double bPrec = 1.0 / glue.bPriorVariance;
-      double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
-      for (std::size_t i = 0; i < n; ++i) {
-        double wi = w == nullptr ? 1.0 : w[i];
-        double r = y[i] - glue.a * mu[i];
-        double prec = wi * tau[i] * tau[i] * invSigmaSq;
-        double num = wi * tau[i] * r * invSigmaSq;
-        if (glue.z[i] != 0.0) { p1 += prec; n1 += num; }
-        else { p0 += prec; n0 += num; }
-      }
-      glue.b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
-      glue.b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
-    }
   }
 
   void storeSample(Results& results, size_t sampleNum) {
