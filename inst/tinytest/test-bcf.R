@@ -233,3 +233,41 @@ bcNull <- dbarts:::bartcoreBCFSampler(
 )
 fit.null <- dbarts:::bartcoreRun(bcNull, 20L, 20L)$train
 expect_identical(fit.null, fit.omit)
+
+# (d) the forest selector on getTrees makes the restriction observable: every
+# split variable the tau forest reports lies in the moderator set {x1, x3}
+# (columns 1, 3), while the unrestricted mu forest splits somewhere outside it
+# - proof the selector addresses different forests. bcMod runs live trees
+# (no keepTrees), so query current = TRUE. var is 1-based; leaves report -1.
+tauTrees <- dbarts:::bartcoreGetTrees(
+  bcMod,
+  chainNums = 1L,
+  treeNums = seq_len(25L),
+  current = TRUE,
+  forest = 1L
+)
+tauSplits <- tauTrees$var[tauTrees$var > 0L]
+expect_true(length(tauSplits) > 0L)
+expect_true(all(tauSplits %in% c(1L, 3L)))
+
+muTrees <- dbarts:::bartcoreGetTrees(
+  bcMod,
+  chainNums = 1L,
+  treeNums = seq_len(50L),
+  current = TRUE,
+  forest = 0L
+)
+muSplits <- muTrees$var[muTrees$var > 0L]
+expect_true(any(!(muSplits %in% c(1L, 3L))))
+
+# an out-of-range forest index errors cleanly (bridge-side, as for forest fits)
+expect_error(
+  dbarts:::bartcoreGetTrees(
+    bcMod,
+    chainNums = 1L,
+    treeNums = 1L,
+    current = TRUE,
+    forest = 2L
+  ),
+  "out of range"
+)

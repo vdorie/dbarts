@@ -1240,7 +1240,8 @@ dbartsSampler <- setRefClass(
         treeNums,
         current,
         newdata,
-        rawPredictorMatrix(data@x)
+        rawPredictorMatrix(data@x),
+        0L
       )
       # categorical rules report their split in 'directions' (value is NA);
       # when any column can hold one, pad the decode to the declared levels

@@ -722,12 +722,14 @@ bartcoreGetTrees <- function(
   sampleNums = NULL,
   treeNums,
   current = FALSE,
-  newdata = NULL
+  newdata = NULL,
+  forest = 0L
 ) {
   if (!is.null(newdata)) {
     newdata <- as.matrix(newdata)
     storage.mode(newdata) <- "double"
   }
+  # forest is 0-based, as for bartcoreForestFits (0 prognostic, 1 treatment)
   .Call(
     C_dbarts_bartcore_getTrees,
     bcSampler$ptr,
@@ -736,7 +738,8 @@ bartcoreGetTrees <- function(
     as.integer(treeNums),
     as.logical(current),
     newdata,
-    bcSampler$x
+    bcSampler$x,
+    as.integer(forest)
   )
 }
 

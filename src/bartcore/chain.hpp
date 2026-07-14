@@ -1381,20 +1381,22 @@ public:
     for (Forest<L>& forest : forests_) forest.savedSlotBase = base;
   }
   size_t savedTreeCapacity() const { return forests_[0].savedTreeCapacity; }
-  const std::vector<FlatNode>& savedTree(size_t slot, size_t t) const {
-    const Forest<L>& forest = forests_[0];
+  const std::vector<FlatNode>& savedTree(size_t slot, size_t t,
+                                         size_t forestIndex = 0) const {
+    const Forest<L>& forest = forests_[forestIndex];
     return forest.savedTrees[slot * forest.numTrees + t];
   }
   /// Slopes of one saved tree (vector-parameter leaves), parallel to
   /// savedTree's pre-order leaves.
-  const std::vector<double>& savedTreeSlopes(size_t slot, size_t t) const {
-    const Forest<L>& forest = forests_[0];
+  const std::vector<double>& savedTreeSlopes(size_t slot, size_t t,
+                                             size_t forestIndex = 0) const {
+    const Forest<L>& forest = forests_[forestIndex];
     return forest.savedTreeParams[slot * forest.numTrees + t];
   }
   /// Flattened mask words of one saved tree (wide categorical columns).
-  const std::vector<std::uint64_t>& savedTreeMasks(size_t slot,
-                                                   size_t t) const {
-    const Forest<L>& forest = forests_[0];
+  const std::vector<std::uint64_t>& savedTreeMasks(
+    size_t slot, size_t t, size_t forestIndex = 0) const {
+    const Forest<L>& forest = forests_[forestIndex];
     return forest.savedTreeMasks[slot * forest.numTrees + t];
   }
 
@@ -1437,8 +1439,9 @@ public:
   void flattenTree(size_t t, std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
                    std::vector<double>* slopes = nullptr,
-                   std::vector<std::uint64_t>* masks = nullptr) {
-    Forest<L>& forest = forests_[0];
+                   std::vector<std::uint64_t>* masks = nullptr,
+                   size_t forestIndex = 0) {
+    Forest<L>& forest = forests_[forestIndex];
     if constexpr (L::hasFunctionParams) {
       // records carry per-leaf mean fits; slopes, when requested, receives
       // the saved-format side-channel blocks recomputed from the fits

@@ -398,27 +398,32 @@ public:
   void setCurrentSampleNum(size_t sampleNum) { currentSampleNum_ = sampleNum; }
 
   const std::vector<FlatNode>& savedTree(size_t chainNum, size_t slot,
-                                         size_t treeNum) const {
-    return chains_[chainNum]->savedTree(slot, treeNum);
+                                         size_t treeNum,
+                                         size_t forestIndex = 0) const {
+    return chains_[chainNum]->savedTree(slot, treeNum, forestIndex);
   }
   const std::vector<double>& savedTreeSlopes(size_t chainNum, size_t slot,
-                                             size_t treeNum) const {
-    return chains_[chainNum]->savedTreeSlopes(slot, treeNum);
+                                             size_t treeNum,
+                                             size_t forestIndex = 0) const {
+    return chains_[chainNum]->savedTreeSlopes(slot, treeNum, forestIndex);
   }
-  const std::vector<std::uint64_t>& savedTreeMasks(size_t chainNum,
-                                                   size_t slot,
-                                                   size_t treeNum) const {
-    return chains_[chainNum]->savedTreeMasks(slot, treeNum);
+  const std::vector<std::uint64_t>& savedTreeMasks(
+    size_t chainNum, size_t slot, size_t treeNum,
+    size_t forestIndex = 0) const {
+    return chains_[chainNum]->savedTreeMasks(slot, treeNum, forestIndex);
   }
   /// slopes, when non-null, receives a vector-parameter tree's slopes
   /// (numParams - 1 per leaf, pre-order); cleared for scalar leaf models.
   /// masks, when non-null, receives the wide categorical side channel.
+  /// forestIndex selects the forest to read (0 for every non-BCF sampler).
   void flattenTree(size_t chainNum, size_t treeNum,
                    std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
                    std::vector<double>* slopes = nullptr,
-                   std::vector<std::uint64_t>* masks = nullptr) {
-    chains_[chainNum]->flattenTree(treeNum, nodes, counts, slopes, masks);
+                   std::vector<std::uint64_t>* masks = nullptr,
+                   size_t forestIndex = 0) {
+    chains_[chainNum]->flattenTree(treeNum, nodes, counts, slopes, masks,
+                                   forestIndex);
   }
 
   /// Fits for raw column-major test rows, on the original response scale
@@ -974,6 +979,9 @@ public:
     chains_[chainNum]->forestTotalFits(forestIndex, out);
   }
   size_t numTrees() const { return options_.numTrees; }
+  size_t numTreesInForest(size_t forestIndex) const {
+    return chains_[0]->numTreesInForest(forestIndex);
+  }
   size_t numObservations() const { return data_.numObservations; }
   size_t numPredictors() const { return data_.numPredictors; }
   size_t numTestObservations() const { return data_.numTestObservations; }

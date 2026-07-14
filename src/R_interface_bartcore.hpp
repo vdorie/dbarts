@@ -45,7 +45,7 @@ SEXP bartcore_getLatents(SEXP ptr, SEXP result);
 SEXP bartcore_predict(SEXP ptr, SEXP x_test, SEXP offset_test);
 SEXP bartcore_getTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                        SEXP treeNums, SEXP current, SEXP newdata,
-                       SEXP trainingData);
+                       SEXP trainingData, SEXP forest);
 SEXP bartcore_storeState(SEXP ptr);
 SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors);
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples);

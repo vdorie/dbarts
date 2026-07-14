@@ -54,17 +54,21 @@ public:
   // Saved trees, prediction, and state serialization.
   virtual std::size_t savedTreeCapacity() const = 0;
   virtual std::size_t currentSampleNum() const = 0;
-  virtual const std::vector<FlatNode>& savedTree(std::size_t chainNum,
-                                                 std::size_t slot,
-                                                 std::size_t treeNum) const = 0;
+  /// forestIndex selects the forest to read (0 for every non-BCF sampler,
+  /// 1 for the BCF treatment forest).
+  virtual const std::vector<FlatNode>& savedTree(
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex = 0) const = 0;
   /// Slopes of one saved tree, parallel to savedTree's pre-order leaves;
   /// meaningful only for vector-parameter leaf models.
   virtual const std::vector<double>& savedTreeSlopes(
-    std::size_t chainNum, std::size_t slot, std::size_t treeNum) const = 0;
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex = 0) const = 0;
   /// Flattened mask words of one saved tree; meaningful only when the store
   /// has wide categorical columns.
   virtual const std::vector<std::uint64_t>& savedTreeMasks(
-    std::size_t chainNum, std::size_t slot, std::size_t treeNum) const = 0;
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex = 0) const = 0;
   /// slopes, when non-null, receives a vector-parameter tree's slopes
   /// (one block per leaf in pre-order); cleared for scalar leaf models.
   /// masks, when non-null, receives the wide categorical side channel.
@@ -72,7 +76,8 @@ public:
                            std::vector<FlatNode>& nodes,
                            std::vector<std::uint32_t>& counts,
                            std::vector<double>* slopes = nullptr,
-                           std::vector<std::uint64_t>* masks = nullptr) = 0;
+                           std::vector<std::uint64_t>* masks = nullptr,
+                           std::size_t forestIndex = 0) = 0;
   virtual void predict(const double* x_test,
                        std::size_t numTestObservations, double* out) = 0;
   virtual void getState(SamplerStateData& state) = 0;
@@ -128,6 +133,8 @@ public:
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
   virtual std::size_t numTrees() const = 0;
+  /// Tree count of forest forestIndex; equals numTrees for forest 0.
+  virtual std::size_t numTreesInForest(std::size_t forestIndex) const = 0;
   virtual std::size_t numObservations() const = 0;
   virtual std::size_t numPredictors() const = 0;
   virtual std::size_t numTestObservations() const = 0;
@@ -205,27 +212,29 @@ public:
   std::size_t currentSampleNum() const override {
     return impl_.currentSampleNum();
   }
-  const std::vector<FlatNode>& savedTree(std::size_t chainNum,
-                                         std::size_t slot,
-                                         std::size_t treeNum) const override {
-    return impl_.savedTree(chainNum, slot, treeNum);
+  const std::vector<FlatNode>& savedTree(
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex) const override {
+    return impl_.savedTree(chainNum, slot, treeNum, forestIndex);
   }
   const std::vector<double>& savedTreeSlopes(
-    std::size_t chainNum, std::size_t slot,
-    std::size_t treeNum) const override {
-    return impl_.savedTreeSlopes(chainNum, slot, treeNum);
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex) const override {
+    return impl_.savedTreeSlopes(chainNum, slot, treeNum, forestIndex);
   }
   const std::vector<std::uint64_t>& savedTreeMasks(
-    std::size_t chainNum, std::size_t slot,
-    std::size_t treeNum) const override {
-    return impl_.savedTreeMasks(chainNum, slot, treeNum);
+    std::size_t chainNum, std::size_t slot, std::size_t treeNum,
+    std::size_t forestIndex) const override {
+    return impl_.savedTreeMasks(chainNum, slot, treeNum, forestIndex);
   }
   void flattenTree(std::size_t chainNum, std::size_t treeNum,
                    std::vector<FlatNode>& nodes,
                    std::vector<std::uint32_t>& counts,
                    std::vector<double>* slopes,
-                   std::vector<std::uint64_t>* masks) override {
-    impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes, masks);
+                   std::vector<std::uint64_t>* masks,
+                   std::size_t forestIndex) override {
+    impl_.flattenTree(chainNum, treeNum, nodes, counts, slopes, masks,
+                      forestIndex);
   }
   void predict(const double* x_test, std::size_t numTestObservations,
                double* out) override {
@@ -305,6 +314,9 @@ public:
     impl_.forestTotalFits(chainNum, forestIndex, out);
   }
   std::size_t numTrees() const override { return impl_.numTrees(); }
+  std::size_t numTreesInForest(std::size_t forestIndex) const override {
+    return impl_.numTreesInForest(forestIndex);
+  }
   std::size_t numObservations() const override { return impl_.numObservations(); }
   std::size_t numPredictors() const override { return impl_.numPredictors(); }
   std::size_t numTestObservations() const override {

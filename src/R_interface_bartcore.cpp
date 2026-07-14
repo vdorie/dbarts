@@ -2826,12 +2826,17 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
 // data.frame produced
 SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
                        SEXP treeNumsExpr, SEXP currentExpr, SEXP newdataExpr,
-                       SEXP trainingDataExpr) {
+                       SEXP trainingDataExpr, SEXP forestExpr) {
   return unwindProtect([&, chainIndices = std::vector<size_t>{},
                         sampleIndices = std::vector<size_t>{},
                         treeIndices = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     bartcore::SamplerBase& sampler(*holder.sampler);
+
+    // forest addressing follows getForestFits: 0-based, unconverted
+    size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+    if (forestIndex >= sampler.numForests())
+      Rf_error("bartcore_getTrees forest index out of range");
 
     bool useLiveTrees = Rf_asLogical(currentExpr) == TRUE;
     bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
@@ -2884,7 +2889,7 @@ SEXP bartcore_getTrees(SEXP ptrExpr, SEXP chainNumsExpr, SEXP sampleNumsExpr,
       sampler, chainIndices.data(), chainIndices.size(), sampleIndices.data(),
       sampleIndices.size(), treeIndices.data(), treeIndices.size(),
       useLiveTrees, newdata, newdataNumRows, trainingReplay,
-      trainingReplayNumRows, "bartcore_getTrees");
+      trainingReplayNumRows, forestIndex, "bartcore_getTrees");
   });
 }
 
@@ -3704,7 +3709,7 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
                  size_t numSampleIndices, const size_t* treeIndices,
                  size_t numTreeIndices, bool useSaved,
                  const double* replayData, size_t replayNumRows,
-                 GatheredTrees& out) {
+                 size_t forestIndex, GatheredTrees& out) {
   const bartcore::ColumnStore& store(sampler.data());
 
   std::vector<bartcore::FlatNode> liveNodes;
@@ -3730,15 +3735,17 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
         const std::vector<double>* slopes = NULL;
         const std::vector<std::uint64_t>* masks = NULL;
         if (useSaved) {
-          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum);
+          nodes = &sampler.savedTree(chainNum, sampleNum, treeNum, forestIndex);
           if (out.numSlopes > 0)
-            slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum);
+            slopes = &sampler.savedTreeSlopes(chainNum, sampleNum, treeNum,
+                                              forestIndex);
           if (anyPooled)
-            masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum);
+            masks = &sampler.savedTreeMasks(chainNum, sampleNum, treeNum,
+                                            forestIndex);
         } else {
           sampler.flattenTree(chainNum, treeNum, liveNodes, counts,
                               out.numSlopes > 0 ? &liveSlopes : NULL,
-                              anyPooled ? &liveMasks : NULL);
+                              anyPooled ? &liveMasks : NULL, forestIndex);
           nodes = &liveNodes;
           if (out.numSlopes > 0) slopes = &liveSlopes;
           if (anyPooled) masks = &liveMasks;
@@ -3909,7 +3916,8 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
               size_t numSampleIndices, const size_t* treeIndices,
               size_t numTreeIndices, bool useLiveTrees, const double* newdata,
               size_t newdataNumRows, const double* trainingReplay,
-              size_t trainingReplayNumRows, const char* caller) {
+              size_t trainingReplayNumRows, size_t forestIndex,
+              const char* caller) {
   const bartcore::ColumnStore& store(sampler.data());
 
   bool useSaved = sampler.savedTreeCapacity() > 0 && !useLiveTrees;
@@ -3926,7 +3934,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
     }
   }
   for (size_t i = 0; i < numTreeIndices; ++i) {
-    if (treeIndices[i] >= sampler.numTrees())
+    if (treeIndices[i] >= sampler.numTreesInForest(forestIndex))
       Rf_error("%s tree number out of range", caller);
   }
 
@@ -3962,7 +3970,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
   gathered.slopes.resize(numSlopes);
   gatherTrees(sampler, chainIndices, numChainIndices, sampleIndices,
               numSampleIndices, treeIndices, numTreeIndices, useSaved,
-              replayData, replayNumRows, gathered);
+              replayData, replayNumRows, forestIndex, gathered);
 
   return emitTreeDataFrame(gathered);
 }

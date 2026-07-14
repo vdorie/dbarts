@@ -205,7 +205,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_isValidPointer", bartcore_isValidPointer, 1),
   DEF_FUNC("dbarts_bartcore_getLatents", bartcore_getLatents, 2),
   DEF_FUNC("dbarts_bartcore_predict", bartcore_predict, 3),
-  DEF_FUNC("dbarts_bartcore_getTrees", bartcore_getTrees, 7),
+  DEF_FUNC("dbarts_bartcore_getTrees", bartcore_getTrees, 8),
   DEF_FUNC("dbarts_bartcore_storeState", bartcore_storeState, 1),
   DEF_FUNC("dbarts_bartcore_setState", bartcore_setState, 3),
   DEF_FUNC("dbarts_bartcore_installForests", bartcore_installForests, 3),
