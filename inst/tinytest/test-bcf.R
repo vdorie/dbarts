@@ -173,3 +173,63 @@ res.keep <- dbarts:::bartcoreRun(bcKeep, 100L, 50L)
 expect_equal(dim(res.keep$train), c(n.m, 50L))
 expect_true(all(is.finite(res.keep$train)))
 expect_true(all(res.keep$sigma > 0))
+
+# --- moderators restriction on the treatment forest ---
+# a named design so the subset can be given by name; the top-of-file sampler
+# stays unnamed to exercise the names-without-colnames guard
+x.mod <- x
+colnames(x.mod) <- paste0("x", seq_len(p))
+sampler.mod <- dbarts(x.mod, y, control = control)
+
+# (a) resolution errors, each R-side before the bridge
+expect_error(
+  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = "nope"),
+  "not found"
+)
+expect_error(
+  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = 0L),
+  "out of range"
+)
+expect_error(
+  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = p + 1L),
+  "out of range"
+)
+expect_error(
+  dbarts:::bartcoreBCFSampler(sampler.mod, z, moderators = integer(0)),
+  "empty"
+)
+expect_error(
+  dbarts:::bartcoreBCFSampler(sampler, z, moderators = "x1"),
+  "no column names"
+)
+
+# (b) a restricted forest carries the run; sanity only, C2 owns the posterior
+bcMod <- dbarts:::bartcoreBCFSampler(
+  sampler.mod,
+  z,
+  n.trees.treatment = 25L,
+  moderators = c("x1", "x3")
+)
+result.mod <- dbarts:::bartcoreRun(bcMod, 100L, 50L)
+expect_equal(dim(result.mod$train), c(n, 50L))
+expect_true(all(is.finite(result.mod$train)))
+expect_true(all(result.mod$sigma > 0))
+muMod <- dbarts:::bartcoreForestFits(bcMod, 0L)
+tauMod <- dbarts:::bartcoreForestFits(bcMod, 1L)
+expect_true(all(is.finite(muMod)) && all(is.finite(tauMod)))
+expect_true(sum(muMod^2) > 0 && sum(tauMod^2) > 0)
+
+# (c) default neutrality: an explicit moderators = NULL reproduces the omitted
+# default bitwise (a fixed-seed R-side echo of the equivalence gate)
+set.seed(20)
+bcOmit <- dbarts:::bartcoreBCFSampler(sampler.mod, z, n.trees.treatment = 25L)
+fit.omit <- dbarts:::bartcoreRun(bcOmit, 20L, 20L)$train
+set.seed(20)
+bcNull <- dbarts:::bartcoreBCFSampler(
+  sampler.mod,
+  z,
+  n.trees.treatment = 25L,
+  moderators = NULL
+)
+fit.null <- dbarts:::bartcoreRun(bcNull, 20L, 20L)$train
+expect_identical(fit.null, fit.omit)

@@ -449,7 +449,13 @@ bartcoreSamplerFromHandle <- function(
 # sd.moderate are the prognostic and effect magnitudes in sd(y) units; the
 # calibration map converts them to the per-forest leaf scales at creation,
 # overriding the host model's node prior and k for the mu forest. update.a /
-# update.b hold the matching glue block fixed when FALSE.
+# update.b hold the matching glue block fixed when FALSE. moderators restricts
+# the treatment forest to a subset of the shared design's columns (a character
+# vector matched to colnames(data@x), or a 1-based numeric index vector; NULL =
+# all columns); the prognostic forest always reads the full store. In the BCF
+# of Hahn, Murray and Carvalho (2020) the estimated propensity score enters
+# mu's design but not tau's - with a shared design that means carrying pihat as
+# a data column and leaving it out of moderators.
 bartcoreBCFSampler <- function(
   sampler,
   z,
@@ -460,8 +466,33 @@ bartcoreBCFSampler <- function(
   sd.moderate = 1,
   b.prior.variance = 0.5,
   update.a = TRUE,
-  update.b = TRUE
+  update.b = TRUE,
+  moderators = NULL
 ) {
+  if (!is.null(moderators)) {
+    if (length(moderators) == 0L) {
+      stop(
+        "'moderators' is empty; omit it to leave the treatment forest ",
+        "unrestricted"
+      )
+    }
+    if (is.character(moderators)) {
+      columnNames <- colnames(sampler$data@x)
+      if (is.null(columnNames)) {
+        stop("'moderators' given by name but the design has no column names")
+      }
+      moderators <- match(moderators, columnNames)
+      if (anyNA(moderators)) {
+        stop("moderator name not found in the design's column names")
+      }
+    } else {
+      moderators <- as.integer(moderators)
+      if (any(moderators < 1L | moderators > ncol(sampler$data@x))) {
+        stop("moderator column index out of range")
+      }
+    }
+    moderators <- sort(unique(as.integer(moderators)))
+  }
   bcfParams <- as.double(c(
     n.trees.treatment,
     treatment.base,
@@ -480,9 +511,8 @@ bartcoreBCFSampler <- function(
     sampler$data,
     as.double(z),
     bcfParams,
-    # moderator column restriction on the treatment forest; the surface that
-    # resolves it lives elsewhere, so no restriction is imposed here
-    NULL
+    # resolved 1-based moderator indices, or NULL for an unrestricted forest
+    moderators
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
   result$x <- rawPredictorMatrix(sampler$data@x)
