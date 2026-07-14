@@ -338,9 +338,17 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
   }
 
   if (is.null(column)) {
-    # NULL removes the test data; the bridge clears any test offset with it
+    # NULL removes the test data; a frame/sparse input becomes a container the
+    # bridge codes against the training cuts. The bridge clears any test offset
+    # with a NULL removal.
     x.test <- validateXTest(x.test, sampler$data@x)
   } else {
+    if (inherits(sampler$data@x.test, "dbartsMixedMatrix")) {
+      stop(
+        "cannot update a single column of a sparse test matrix; ",
+        "replace the whole test matrix instead"
+      )
+    }
     column <- as.integer(column)
     if (any(column < 1L | column > ncol(sampler$data@x.test))) {
       stop(
@@ -358,15 +366,30 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     x.test <- new.x.test
   }
 
+  # install the new test set R-side, then roll back if the bridge refuses it
+  # (a container whose leaf-covariate column is CSC-backed), keeping the R5
+  # object and the engine's prior test store consistent
+  oldX.test <- sampler$data@x.test
+  oldOffset.test <- sampler$data@offset.test
   sampler$data@x.test <- x.test
   if (is.null(x.test)) {
     sampler$data@offset.test <- NULL
   }
-  .Call(
-    C_dbarts_bartcore_setTestPredictor,
-    sampler$getPointer(),
-    sampler$data@x.test
+  tryResult <- tryCatch(
+    .Call(
+      C_dbarts_bartcore_setTestPredictor,
+      sampler$getPointer(),
+      sampler$data@x.test
+    ),
+    error = function(e) {
+      sampler$data@x.test <- oldX.test
+      sampler$data@offset.test <- oldOffset.test
+      e
+    }
   )
+  if (inherits(tryResult, "error")) {
+    stop(tryResult)
+  }
   invisible(NULL)
 }
 

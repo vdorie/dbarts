@@ -33,6 +33,9 @@ expect_equal(as.numeric(sampler$data@x[, 2L]), z)
 sampler$setTestPredictor(x = 1 - z, column = 2L)
 expect_equal(as.numeric(sampler$data@x.test[, 2L]), 1 - z)
 
+sampler$setTestPredictor(x = z, column = "z")
+expect_equal(as.numeric(sampler$data@x.test[, "z"]), z)
+
 sampler$setTestPredictor(NULL)
 expect_null(sampler$data@x.test)
 
