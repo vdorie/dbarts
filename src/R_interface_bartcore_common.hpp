@@ -83,7 +83,7 @@ SEXP getTrees(bartcore::SamplerBase& sampler, const std::size_t* chainIndices,
               std::size_t numTreeIndices, bool useLiveTrees,
               const double* newdata, std::size_t newdataNumRows,
               const double* trainingReplay, std::size_t trainingReplayNumRows,
-              const char* caller);
+              std::size_t forestIndex, const char* caller);
 
 /// Errors unless every replacement value for a categorical column is an
 /// existing category code; ordinal columns pass through.

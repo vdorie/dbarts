@@ -282,7 +282,7 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
   return bartcore_bridge::getTrees(
     samplerOf(sampler), chainIndices, numChainIndices, sampleIndices,
     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees != 0, NULL, 0,
-    replay, samplerOf(sampler).numObservations(), "dbarts_sampler_getTrees");
+    replay, samplerOf(sampler).numObservations(), 0, "dbarts_sampler_getTrees");
 }
 
 void dbarts_sampler_printTrees(dbarts_sampler* sampler,
