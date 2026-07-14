@@ -136,6 +136,22 @@ ResponseModel-side object. Ranked debts: (1) ForestCombiner,
 v2 is the existing item], (4) column-subset views, (5) per-
 observation residual variance convention, (6) occupancy-aware scan.
 
+Debt (1) CLOSED by forest-combiner (2026-07-14, docs/design/
+forest-combiner.md): the BCF glue is a polymorphic ForestCombiner<L>
+beside Forest<L>, combiner_ null off BCF, BCFForestCombiner<L> its
+first instance. VD confirmed the "ResponseModel-side object" reading
+above as a responsibility statement, not a literal ResponseModel
+subclass requirement: the combiner is its own standalone hierarchy,
+not folded into ResponseModel, since ResponseModel's per-observation-
+location interface does not fit per-forest residual formation over
+the whole forest vector. That standalone-hierarchy shape is what
+unblocks the cross-cutting finding - Chain feeds the combiner
+response_->workingResponse(), already group-adjusted if response_
+decorates as GroupedResponse, so a combiner and a grouped decorator
+compose without either knowing the other. Composition itself (grouped
+x BCF or grouped x any multi-forest) is not built; only the boundary
+that blocked it is gone. Debts (2)-(6) are untouched by this item.
+
 READER B (numerical) verdicts, measured (scripts in session tmp):
 - REAL, high: grouped tau slice sampler step-out is UNCAPPED in
   BOTH directions (model.hpp:2299-2301; only shrinkage has the
