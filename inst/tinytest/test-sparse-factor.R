@@ -279,9 +279,14 @@ sampler.mat <- dbarts(
 )
 expect_equal(extract(sampler.mat, "predictors")[, 2L], as.double(expectedCodes))
 
-# TEST-SIDE DENSIFICATION: a sparseFactor x.test column recodes over the
-# training level table and predicts exactly like a dense factor of the
-# same values; no resident sparse test storage
+# a resident sparse test set assembles a mixed container, which needs Matrix
+if (!requireNamespace("Matrix", quietly = TRUE)) {
+  exit_file("Matrix not available")
+}
+
+# RESIDENT-SPARSE x.test: a sparseFactor x.test column recodes over the
+# training level table and predicts exactly like a dense factor of the same
+# values, held sparse (a mixed container) into the engine
 set.seed(50L)
 n <- 200L
 x1.tr <- rnorm(n)
@@ -347,4 +352,90 @@ expect_error(
     control = dbartsControl(n.trees = 5L, updateState = FALSE)
   ),
   pattern = "has levels not present in the"
+)
+
+# RESIDENCY: the sparse test set is held as a mixed container, not densified
+set.seed(1234L)
+sampler.resident <- dbarts(
+  train.dense,
+  y.tr,
+  sigma = 1.0,
+  test = test.sparse,
+  control = dbartsControl(
+    n.trees = 20L,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE
+  )
+)
+expect_inherits(sampler.resident$data@x.test, "dbartsMixedMatrix")
+expect_true(dbarts:::predictorSourceIsSparse(sampler.resident$data@x.test))
+
+# MIXED RESIDENT-SPARSE x.test: a dense, a sparseFactor, and a sparse ordinal
+# column ingest as one container and fit bitwise-identically to the same data
+# supplied as a dense matrix
+set.seed(60L)
+n.mix <- 200L
+a.tr <- rnorm(n.mix)
+codes.tr.mix <- sample.int(4L, n.mix, replace = TRUE)
+g.tr.mix <- factor(levels.g[codes.tr.mix], levels = levels.g)
+s.tr <- rnorm(n.mix)
+y.mix <- 0.4 * codes.tr.mix - 0.6 * a.tr + 0.5 * s.tr + rnorm(n.mix)
+train.mix <- data.frame(a = a.tr, g = g.tr.mix, s = s.tr)
+
+n.mtest <- 30L
+a.te.mix <- rnorm(n.mtest)
+codes.te.mix <- sample.int(4L, n.mtest, replace = TRUE)
+g.te.mix <- factor(levels.g[codes.te.mix], levels = levels.g)
+s.rows <- sort(sample.int(n.mtest, 8L))
+s.vals <- 0.5 + runif(8L)
+s.dense <- numeric(n.mtest) # implicit rows are numeric zero, as CSC densifies
+s.dense[s.rows] <- s.vals
+
+test.mix.dense <- data.frame(a = a.te.mix, g = g.te.mix, s = s.dense)
+test.mix.sparse <- data.frame(a = a.te.mix)
+test.mix.sparse$g <- sparseFactor(g.te.mix, reference = "L2")
+test.mix.sparse$s <- Matrix::sparseVector(x = s.vals, i = s.rows, length = n.mtest)
+
+makeMixedSampler <- function(test, seed) {
+  set.seed(seed)
+  dbarts(
+    train.mix,
+    y.mix,
+    sigma = 1.0,
+    test = test,
+    control = dbartsControl(
+      n.trees = 20L,
+      n.chains = 1L,
+      n.threads = 1L,
+      updateState = FALSE
+    )
+  )
+}
+sampler.mix.sparse <- makeMixedSampler(test.mix.sparse, 77L)
+expect_inherits(sampler.mix.sparse$data@x.test, "dbartsMixedMatrix")
+result.mix.sparse <- sampler.mix.sparse$run(10L, 20L)
+
+sampler.mix.dense <- makeMixedSampler(test.mix.dense, 77L)
+expect_true(is.matrix(sampler.mix.dense$data@x.test))
+result.mix.dense <- sampler.mix.dense$run(10L, 20L)
+
+expect_identical(result.mix.dense$test, result.mix.sparse$test)
+
+# LEAF-COVARIATE REFUSAL: a linear leaf covariate that would land on a sparse
+# test column is refused - sparse storage serves no dense raw test covariate
+expect_error(
+  dbarts(
+    train.mix,
+    y.mix,
+    test = test.mix.sparse,
+    node.prior = linear("s"),
+    control = dbartsControl(
+      n.trees = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      updateState = FALSE
+    )
+  ),
+  pattern = "leaf covariate"
 )

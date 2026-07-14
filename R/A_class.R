@@ -399,7 +399,9 @@ methods::setClass(
     # cannot appear in a slot union without Matrix at load time)
     x = "ANY",
     varTypes = "integer",
-    x.test = "matrixOrNULL",
+    # a dense matrix, a mixed container, or null (validated below; a mixed
+    # container rides the same "ANY" treatment as 'x')
+    x.test = "ANY",
     weights = "numericOrNULL",
     weights.test = "numericOrNULL",
     offset = "numericOrNULL",
@@ -467,6 +469,12 @@ methods::setValidity("dbartsData", function(object) {
     return("'offset' must be null or have length equal to that of 'y'")
   }
   if (!is.null(object@x.test)) {
+    if (
+      !is.matrix(object@x.test) &&
+        !inherits(object@x.test, "dbartsMixedMatrix")
+    ) {
+      return("'x.test' must be a matrix, a mixed container, or null")
+    }
     if (ncol(object@x.test) != ncol(object@x)) {
       return("'x.test' must be null or have number of columns equal to 'x'")
     }
