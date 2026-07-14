@@ -14,7 +14,7 @@ SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP handle, SEXP trainRows, SEXP testRows,
                                SEXP family);
 SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
-                        SEXP bcfParams);
+                        SEXP bcfParams, SEXP moderators);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);

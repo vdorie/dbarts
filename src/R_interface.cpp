@@ -179,7 +179,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_create", bartcore_create, 4),
   DEF_FUNC("dbarts_bartcore_createDataHandle", bartcore_createDataHandle, 2),
   DEF_FUNC("dbarts_bartcore_createFromHandle", bartcore_createFromHandle, 7),
-  DEF_FUNC("dbarts_bartcore_createBCF", bartcore_createBCF, 5),
+  DEF_FUNC("dbarts_bartcore_createBCF", bartcore_createBCF, 6),
   DEF_FUNC("dbarts_bartcore_setTreatment", bartcore_setTreatment, 2),
   DEF_FUNC("dbarts_bartcore_getBCFGlue", bartcore_getBCFGlue, 1),
   DEF_FUNC("dbarts_bartcore_getForestFits", bartcore_getForestFits, 2),

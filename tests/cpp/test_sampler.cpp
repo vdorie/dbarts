@@ -1934,9 +1934,63 @@ static void testForestColumnRestrictionAllNeutral() {
   printf("ok: forest column restriction neutral when it clears nothing\n");
 }
 
+// A BCF treatment forest handed a moderator subset must never split outside it,
+// while the prognostic forest keeps reading the full store. Signal sits in a
+// column tau is forbidden to use, so an unrestricted tau would split there.
+static void testBCFTauModeratorRestriction(ext_rng* rng) {
+  const size_t n = 400, p = 4;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = 3.0 * x[i + 2 * n] + x[i + 1 * n];  // strongest in col 2
+    double tau = 2.0 * x[i] + 3.0 * x[i + 2 * n];   // col 0 allowed, col 2 not
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  const std::vector<size_t> allowed = {0};
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.tau.numTrees = 40; spec.tau.base = 0.95; spec.tau.power = 2.0;
+  spec.tau.columns = allowed.data();
+  spec.tau.numColumns = allowed.size();
+  spec.z = z.data();
+
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &rng);
+  Results empty;
+  sampler.run(120, 120, empty);
+
+  SamplerStateData state;
+  sampler.getState(state);
+  size_t tauSplits = 0;
+  bool tauContained = true;
+  for (const std::vector<FlatNode>& tree : state.chains[0].forests[1].trees)
+    for (const FlatNode& node : tree)
+      if (node.variable != invalidVariable) {
+        ++tauSplits;
+        if (node.variable != 0) tauContained = false;
+      }
+  check(tauContained, "BCF tau never splits outside its moderator subset");
+  check(tauSplits > 0, "BCF tau still splits on its allowed moderators");
+
+  bool muUsesForbidden = false;
+  for (const std::vector<FlatNode>& tree : state.chains[0].forests[0].trees)
+    for (const FlatNode& node : tree)
+      if (node.variable != invalidVariable && node.variable != 0)
+        muUsesForbidden = true;
+  check(muUsesForbidden, "BCF mu reads the full store while tau is restricted");
+
+  printf("ok: BCF tau moderator restriction (%lu tau splits, all in subset)\n",
+         static_cast<unsigned long>(tauSplits));
+}
+
 void runSamplerTests(ext_rng* rng) {
   testForestColumnRestriction(rng);
   testForestColumnRestrictionAllNeutral();
+  testBCFTauModeratorRestriction(rng);
   testBCFTwoForest(rng);
   testBCFFixedGlue(rng);
   testBCFInterweave(rng);

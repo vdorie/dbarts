@@ -476,7 +476,10 @@ bartcoreBCFSampler <- function(
     sampler$model,
     sampler$data,
     as.double(z),
-    bcfParams
+    bcfParams,
+    # moderator column restriction on the treatment forest; the surface that
+    # resolves it lives elsewhere, so no restriction is imposed here
+    NULL
   )
   # BCF requires dense predictors; track them R-side for the re-quantize surface
   result$x <- rawPredictorMatrix(sampler$data@x)

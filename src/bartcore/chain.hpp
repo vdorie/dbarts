@@ -327,6 +327,13 @@ struct BCFForestSpec {
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.5, swapProbability = 0.1,
          changeProbability = 0.4, birthProbability = 0.5;
+  // optional split-variable restriction (borrowed 0-based column indices,
+  // consumed at construction): the columns this forest may split on. Null or
+  // count 0 leaves every column available - the default, byte-for-byte
+  // unchanged. BCF's treatment forest carries its moderator subset here; the
+  // prognostic forest leaves it empty and reads the full store.
+  const std::size_t* columns = nullptr;
+  std::size_t numColumns = 0;
 };
 
 /// The two model specs plus the treatment vector a BCF chain is built from.
@@ -501,7 +508,7 @@ public:
                   "BCF is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.columnTypes = nullptr;
-    options_.forestColumns = nullptr;  // both forests read the full store here
+    options_.forestColumns = nullptr;  // BCF restriction arrives via BCFForestSpec
     response_ = std::make_unique<GaussianResponse>(
       y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
       sigmaRawScale);
@@ -2242,6 +2249,20 @@ private:
     forest.trees.resize(spec.numTrees);
     for (std::size_t t = 0; t < spec.numTrees; ++t)
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+
+    // A restricted forest clears the availability of every unlisted column,
+    // installed on its trees exactly as the single-forest ctor does; an empty
+    // list leaves the mask empty and the trees unrestricted (the default
+    // availability path, byte-for-byte). Only tau carries a list; mu reads the
+    // full store.
+    if (spec.columns != nullptr && spec.numColumns > 0) {
+      forest.columnMask.assign(data_.numPredictors, 0);
+      for (std::size_t c = 0; c < spec.numColumns; ++c)
+        forest.columnMask[spec.columns[c]] = 1;
+      for (std::size_t t = 0; t < spec.numTrees; ++t)
+        forest.trees[t].setColumnMask(forest.columnMask.data());
+    }
+
     forest.treeFits.assign(n * spec.numTrees, 0.0);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);
