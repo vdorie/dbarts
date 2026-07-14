@@ -1,38 +1,276 @@
 # test-data-parity
 
-agent: opus (planner drafts the full plan against the code when the
-  item is picked; this file records the directive and its seams).
-rng: expected neutral (storage and ingestion parity; prediction values
-  unchanged) - the picked plan pins this per step.
-budget: TBD at pick time.
+agent: opus (the typed test store, the descent-through-codeAt change, the
+  bridge test-container parse, and the R test-ingestion surface are one
+  contract; one owner keeps test codes bitwise-equal to the densified path
+  at every seam).
+rng: neutral, EVERY step. Test data never enters a draw: tree proposals and
+  suffstats read training data only (chain.hpp draw loop), test rows are
+  routed down already-grown trees and their fits RECORDED after the draws
+  (chain.hpp:2396-2410). Storage and codes may move; no draw can. Gate:
+  equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds (guards training
+  draws) + the test-fit BITWISE oracle below (guards test values) + full
+  tinytest 2803 from a preclean install, new tests ADD, no snapshot regen.
+window: supersedes data-ownership-5-sparse.md decision 2 / Q4 (test-side
+  densification interim) and data-ownership.md:193 item 5's "test-side sparse
+  by densification"; builds on the plans-1..5 container (5461f41). Closes the
+  test half of the owned data model. No plan follows it.
+budget: ~800-1300 lines across ~15 files (src/bartcore/data.hpp, chain.hpp,
+  tree.hpp, sampler.hpp, facade.hpp, src/R_interface_bartcore.cpp,
+  R/data.R, R/mixedMatrix.R, R/utility.R, R/A_class.R, R/bartcore.R,
+  tests/cpp/test_data.cpp, inst/tinytest test-sparse-factor.R + a test-side
+  file, man/*.Rd, the design landing note). Header/facade edits -> --preclean;
+  delete stale tests/cpp binaries.
 
 ## Goal
 
-Test data objects are handled the same way as training data: stored as
-a frame / columnar source rather than a forced dense matrix, with
-per-column kinds spanning {dense, sparse} x {ordinal, categorical} end
-to end - ingestion, the engine's test codes, prediction, and the
-setTestPredictor mutation surface. After it lands, the training and
-test sides share one data model (VD directive, 2026-07-13).
+After it lands, test data is the same owned, typed, quantized, per-column
+container the training side became: a frame / columnar source, per column
+{dense, sparse} x {ordinal, categorical}, resident end to end. A
+sparse-categorical or sparse-ordinal x.test is stored sparsely (rank bitmap),
+not densified at ingestion; a mixed test frame ingests in one call; the engine
+descends test rows through storage-aware codeAt, so the row-major dense
+testCodes buffer and the dense ownedTestValues copy both retire. Training and
+test sides share ONE data model.
 
-## Context (seams the full plan must ground in code)
+## Binding contracts inherited (plans 1-5 + dbarts.h freeze; do not reopen)
 
-- Training-side precedent: the owned container and frame ingestion
-  (docs/plans/data-ownership-2-ingestion.md), reference-install
-  mutation (-3), column views (-4), CSC-categorical kernel (-5).
-- Test side today: x.test is a dense matrix; the engine holds dense
-  testCodes (data.hpp); sparse-categorical test columns densify at
-  ingestion (data-ownership-5-sparse.md decision 2 and Q4 - this item
-  SUPERSEDES that densification interim).
-- Subsumes the "sparse x.test" bullet of docs/plans/
-  sparse-extensions.md (the other three extensions stay there).
-- Surfaces: dbartsData test slots, setTestPredictor / test-offset
-  paths, xbart's fold views (buildFromParent test rows), predict.
+- dbarts.h is FROZEN and its test entries are DENSE double* by signature:
+  dbarts_sampler_setTestPredictors (dbarts.h:185), _predict (197),
+  _numTestObservations (257), the results `test` slab (87). The dense test
+  path MUST keep accepting a dense matrix and produce byte-identical codes /
+  fits; the sparse/frame test path is a NEW INTERNAL .Call + facade entry,
+  exactly as the training dbartsMixedMatrix container is internal while
+  dbarts.h create stays dense. stan4bart (dense test only) is unaffected.
+- The engine keeps test raw only where a leaf model reads it. Linear/gp leaves
+  gather standardized test covariates (uTest_, model.hpp:266,669) via
+  rawTestColumn (data.hpp:247); a sparse-BACKED test column REFUSES the leaf
+  designation, the plan-4/5 precedent (R_interface_bartcore.cpp leaf-covariate
+  refusal on sparse-backed columns).
+- Views DENSIFY. buildFromParent gathers a fold's test rows through the
+  storage-aware codeAt (data.hpp:859-864) into dense codes; a fold has no
+  external x.test (createFromParent, R_interface_bartcore.cpp:1532-1690, takes
+  testRows indexing the parent). So the fold test surface needs the
+  descent/storage refactor but NO new ingestion.
+- Codes are identical across storage. A dense factor and a sparseFactor of the
+  same values code each row in level order; the CSC column's zeroCode is the
+  reference level's ACTUAL level-order code (quantizeCscColumn, data.hpp:514,
+  the plan-5 refinement), so codeAt(j,i) == the densified code at every row.
+  This is why a resident sparse test store fits BITWISE-identically to today's
+  densified test store - the densified path IS the oracle.
 
-## Constraints (standing)
+## Context (seams, read in code)
 
-- dbarts.h frozen; internal .Call surface only.
-- Existing dense-matrix test input remains accepted and byte-identical
-  (equivalence + tinytest gates per the usual classes).
-- Sequencing open: queued by directive, need established; the pick
-  decides where it lands relative to the rest of the backlog.
+- Test storage today (data.hpp:184-193): numTestObservations, ownedTestValues
+  (owned col-major raw copy, all columns), testCodes (owned ROW-major, all
+  columns), testOffset (borrowed). No per-column type, no sparse tier - the
+  classic dense pair the training container already replaced.
+- buildTest (data.hpp:750) copies the dense raw and quantizes every column into
+  row-major testCodes; quantizeTestColumn (541) re-quantizes one column on a
+  cut change (setCutPointsForColumn, 481); testRow(i) (940) hands descent a
+  materialized row.
+- Descent reads a materialized row: findBottomNodeForRow(data, xt) indexes
+  xt[rule.variableIndex] (tree.hpp:846); its six call sites pass data_.testRow(i)
+  (chain.hpp:1107,1120,1137,2144,2176,2216). A sparse test column has no
+  contiguous row, so descent must move to codeAt(var,i) - the change that lets
+  test hold typed columns.
+- Training container the test side mirrors: ColumnStore per-column dense codes,
+  SparseColumnData rank bitmap (data.hpp:95-108), cscSlices for re-quantize
+  (144), codeAt storage-aware (951), quantizeCscColumn (510). buildMixed /
+  buildFromCsc build it against COMPUTED cuts; test must build against the
+  training cut grid (types, numCuts, cutPoints already shared).
+- Bridge: parseData x.test is a dense real matrix (R_interface_bartcore.cpp:
+  533-547); the training dbartsMixedMatrix branch (361-473) assembles a
+  transient dense block into DataHandle::ownedMixedDense (1243-1247), gathers
+  the dgCMatrix + per-sparse-column sparseReference/sparseCategoryCount
+  (461-471). Categorical test codes are validated against training counts
+  (969-988). bartcore_setTestPredictor (2094) / _setTestOffset (2123) are
+  whole-object and dense; bartcore_predict (raw-double FlatNode) holds nothing.
+- R: @x.test is matrixOrNULL (A_class.R:402), validity ncol==ncol(x)
+  (469-487). validateXTest (data.R:38-126) densifies sparse-factor test columns
+  (densifySparseFactorColumns, utility.R:420 - the interim this plan retires)
+  then builds a dense code matrix over the TRAINING levels
+  (mapFactorColumnsToTrainingLevels utility.R:437, makeCategoricalModelMatrix
+  274). The training container is assembled by assembleMixedMatrix
+  (mixedMatrix.R:115: dense list + dgCMatrix + map + sparse metadata);
+  as.matrix (296) reconstructs, filling implicit rows with the reference code.
+
+## Constraints
+
+- Draw-neutral on every existing path (see rng). The dense test path is the
+  guard: any dense-x.test fit that moves means the layout refactor leaked -
+  stop.
+- Dense x.test remains ACCEPTED and byte-identical (matrix input, dbarts.h
+  callers, xbart folds). Sparse/frame test is additive and internal.
+- Single-writer, creation-fixed for sparse sources: a sparse test container is
+  set whole-object (setTestPredictors replaces the test store); no per-cell
+  sparse test mutation (the training-side rule).
+- Fast over safe in C/C++: descent reads codeAt only for the columns on its
+  path (cheaper than materializing a full row); the sparse test membership
+  read reuses SparseColumnData::at.
+- OUT of scope: resident sparse storage for the stateless predict() FlatNode
+  path (frozen dense, holds nothing - densify at the R boundary, Open Q3);
+  weights.test (a vector, no per-column kind); rbart_vi's R-loop predict (over
+  data@x). dbarts.h unchanged.
+
+## Scope decisions (recorded)
+
+1. ENGINE REPRESENTATION: the test data is a SECOND ColumnStore-shaped store
+   that SHARES the training cut grid (types, numCuts, cutPoints copied at
+   build) and OWNS its raw. Rationale: it reuses buildMixed / buildFromCsc /
+   codeAt / quantizeCscColumn wholesale - literally one data model - and owning
+   raw (dense full + sparse nnz values+rows) keeps buildTest's "copies,
+   nothing pinned" contract, so no ownedTestMixedDense borrow and no new PROT
+   slot are needed even for a mutated sparse test set. Test owns where training
+   borrows because test sets are smaller and re-quantize from the owned copy.
+   (Open Q1 offers the parallel-fields alternative.)
+2. buildTest DENSE stays (dbarts.h). A new internal build variant takes the
+   test container's dense block + CSC slices + per-sparse-column
+   reference/K, builds the typed test store against the training cuts. Sparse
+   test columns take rank-bitmap or densify at sparseDensityThreshold, the
+   training tier rule.
+3. predict() DENSIFIES at the R boundary (Open Q3): frame/sparse test input is
+   coded against training levels then materialized to a numeric matrix for the
+   frozen raw-double FlatNode call; no resident sparse predict store.
+
+## Steps
+
+1. Typed per-column test store + storage-aware descent (engine; dense input,
+   BYTE-IDENTICAL refactor). Replace ownedTestValues + row-major testCodes with
+   the per-column test store (scope decision 1): dense codes per column, a
+   SparseColumnData slot per sparse column, storage-aware testCodeAt(var,i).
+   Change findBottomNodeForRow to descend via testCodeAt (tree.hpp:846) and its
+   six chain.hpp sites; buildFromParent writes the typed store's dense codes
+   (folds unchanged, still densified). buildTest still takes a dense matrix and
+   fills dense per-column codes - all sparseSlot=-1, so codes and fits are
+   byte-identical. rawTestColumn serves dense-backed columns as today.
+   Files: data.hpp, tree.hpp, chain.hpp, sampler.hpp, model.hpp (rawTestColumn
+   unchanged interface). Tests: tests/cpp - testCodeAt equals the old
+   row-major code at every (var,i) for a dense build; view test codes
+   unchanged; buildTest/rawTestColumn contracts updated (test_data.cpp:258-267,
+   testColumnStoreView:88-93). Gate class: RNG-neutral - equivalence 22/22 +
+   tinytest 2803 no regen + tests/cpp. Size: L. Abort: any dense-x.test fit
+   moves.
+2. Sparse test build path (engine; INERT until step 3). Add the internal build
+   variant (scope decision 2): dense block + CSC test slices + per-column
+   reference/K -> typed test store against the training cuts; quantizeTestColumn
+   becomes storage-aware (dense from owned raw, sparse from the owned nnz copy,
+   mirroring quantizeCscColumn:510). Sparse-backed test columns refuse the leaf
+   designation. facade.hpp gains the internal setTestData(dense,csc,meta)
+   overload (dbarts.h dense entry untouched). Files: data.hpp, facade.hpp,
+   sampler.hpp. Tests: NEW tests/cpp - a rank-tier and a densified-tier sparse
+   test column bin BITWISE vs a dense test matrix of the same values (codes,
+   descent leaf index, one recorded test fit), the plan-5 device on the test
+   side. Gate class: RNG-neutral - equivalence 22/22 + tinytest 2803 (unchanged,
+   no R producer yet) + NEW tests/cpp. Size: M. (Foldable into step 1 if the
+   combined diff stays reviewable.)
+3. Ingest a test container (R + bridge). @x.test accepts a dbartsMixedMatrix
+   (A_class.R slot union + validity by ncol); validateXTest builds a test
+   container coding factors/sparseFactors against the TRAINING level table
+   (reuse assembleMixedMatrix / the makeCategoricalModelMatrix path), RETIRING
+   densifySparseFactorColumns; dense-matrix and dense-frame x.test stay
+   byte-identical. parseData gains an x.test container branch mirroring the
+   training branch (transient dense block owned by the store per decision 1,
+   CSC slices, reference/K through the internal setTestData); category
+   validation reads the container. Files: R/A_class.R, R/data.R, R/utility.R,
+   R/mixedMatrix.R, R_interface_bartcore.cpp. Tests: the existing plan-5
+   test-side gate (test-sparse-factor.R:282-322, sparse-cat x.test ==
+   densified) now runs RESIDENT-sparse and must stay identical(); NEW tinytest
+   for a mixed/ordinal-sparse x.test ingest + fit; refusal messages narrowed.
+   Gate class: RNG-neutral - equivalence 22/22 + tinytest (grows) + the
+   test-fit oracle. Size: L. Abort: a resident-sparse test fit differs from its
+   densified twin.
+4. setTestPredictor / setTestOffset container mutation (R + bridge,
+   whole-object). bartcore_setTestPredictor (2094) gains a container branch:
+   validate + rebuild the typed test store via setTestData; the R method
+   (bartcore.R:326,602) routes a frame/sparse test set through the step-3
+   builder and installs @x.test as the container. Offset length checks unchanged.
+   No per-cell sparse test mutation. Files: R/bartcore.R, R_interface_bartcore.cpp.
+   Tests: NEW/extended tinytest - setTestPredictor with a sparse/frame container
+   fits identically to the dense equivalent; dense matrix still accepted;
+   removal (NULL) clears. Gate class: RNG-neutral - equivalence 22/22 +
+   tinytest. Size: M.
+5. predict() frame/sparse parity (R; densify-at-boundary, decision 3). Route
+   predict's x.test through the container-aware validateXTest (coding against
+   training levels), then materialize the numeric matrix the frozen raw-double
+   engine predict consumes; no resident predict store. Files: R/bartcore.R,
+   R/data.R (shared validateXTest). Tests: tinytest - predict on a sparse/frame
+   test set == predict on the dense equivalent, BITWISE. Gate class:
+   RNG-neutral - tinytest. Size: S.
+6. Docs + landing. sparseFactor.Rd / dbartsData.Rd (sparse/frame x.test now
+   resident, densification retired); the design landing note (this plan
+   supersedes plan-5 decision 2 / Q4 and data-ownership.md:193 item 5's
+   densification reading); mark the "sparse x.test" bullet REMOVED from
+   docs/plans/sparse-extensions.md scope (the other three extensions stay - do
+   not edit that file's steps beyond the scope note). Files: man/*.Rd,
+   docs/design/data-ownership.md, docs/plans/sparse-extensions.md (scope line
+   only). Gate class: R CMD check man + tinytest. Size: S.
+
+## Verification
+
+- Full tinytest 2803 per commit from a preclean install (--preclean after the
+  header/facade edits; delete stale tests/cpp binaries).
+- Equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds at EVERY commit -
+  guards that training draws never move (the equivalence datasets exercise no
+  test path, so identity here is necessary, not sufficient).
+- THE TEST-FIT ORACLE (sufficiency): for any dataset expressible both ways, the
+  recorded test fits of a resident-sparse / frame x.test are BITWISE-identical
+  to the dense-matrix / densified x.test - test-sparse-factor.R:282-322 extended
+  to resident storage, plus the tests/cpp store-level check (step 2). If a new
+  cpp test draws from the shared rngState, snapshot/restore around its draws
+  (the plan-4 finding).
+- Memory: a container-bytes comparison, dense vs resident-sparse x.test, on a
+  high-cardinality test frame (bairrtt shape) - the win the densification
+  interim gave up. Deterministic, any box.
+- rchk on the next scheduled run (steps 3, 4 touch the bridge).
+- dbarts.h unchanged; no stan4bart lockstep (the sparse test path is internal
+  .Call + facade). One confirmatory bench-sampler compare vs the current
+  baseline (dense test path must not regress; a resident-sparse arm at parity).
+
+## Open questions for VD
+
+- Q1 (engine representation: second ColumnStore vs parallel test fields).
+  RECOMMEND the second store sharing the training cut grid: it reuses
+  buildMixed/buildFromCsc/codeAt/quantizeCscColumn verbatim, which is the
+  directive's "one data model" in the most literal form, and confines the test
+  half to one build variant. What would change it: if sharing the store struct
+  drags in cut-building / mutation surface the test side never uses, parallel
+  per-column test fields (testTypes, testSparseColumns, testCodeAt) inside the
+  existing ColumnStore are lighter, at the cost of duplicating the quantize
+  logic. Either is byte-identical; this is a code-shape call, decidable at
+  implementation from the actual diff.
+- Q2 (setTestPredictor granularity: whole-object vs per-column-kind mutation).
+  RECOMMEND whole-object: sparse sources are creation-fixed everywhere else in
+  the container (single-writer rule), a test set is set once, and whole-object
+  reuses the step-3 builder with no new invariant. What would change it: a named
+  caller that swaps one test column per outer iteration (an IRT test-scoring
+  loop) would justify a per-column setTestColumn, but none exists; add it when
+  one does, as a sparse-extensions-style consumer-gated follow-up.
+- Q3 (predict() resident sparse vs densify-at-boundary). RECOMMEND densify at
+  the R boundary: dbarts_sampler_predict is frozen dense, predict is stateless
+  and holds nothing, and the FlatNode path reads resolved double cut values, not
+  codes - a container-aware predict would duplicate the descent for no resident
+  memory saved. What would change it: a huge sparse test set predicted where the
+  transient dense matrix is the memory ceiling would motivate an internal
+  container-aware predict entry (not touching dbarts.h).
+- Q4 (test levels absent from training). RECOMMEND keep today's dense semantics:
+  test factor / sparseFactor levels are coded against the TRAINING level table,
+  a level absent from training maps to the missing-category code exactly as the
+  dense path does (mapFactorColumnsToTrainingLevels), and the engine's
+  NA-direction handling routes it. This preserves the sparse-vs-dense oracle; a
+  sparseFactor forbids stored NA, but an absent-level -> NA happens at the R
+  coding step, before the engine, identical to dense.
+
+## Relationship to sparse-extensions.md and drift to record
+
+- sparse-extensions.md lists "sparse x.test" among four consumer-gated deferred
+  extensions (context bullet, referencing sparse-columns.md). This plan
+  DELIVERS it; step 6 marks that bullet removed from that doc's scope, leaving
+  the other three (in-place nonzero mutation, streaming range kernel,
+  dense-column mixed mutation) closed and consumer-gated. Do not edit
+  sparse-extensions.md beyond the scope note.
+- data-ownership.md:193 (item 5) reads "test-side sparse ... satisfied by
+  densification, not resident sparse testCodes (the test-data-parity backlog
+  item supersedes that interim)"; the landing note records that this plan IS
+  that item and that resident sparse testCodes now ship, superseding plan-5
+  decision 2 / Q4.
