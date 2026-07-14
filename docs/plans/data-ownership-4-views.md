@@ -207,3 +207,99 @@ after construction), GC-anchored by the handle's data object via PROT_DATA.
   the handle unserialized and unexported. What would change it: a scheduled
   consumer (hurdle, or a bairrtt migration) that needs a persisted or
   user-visible handle.
+
+## Landing notes
+
+Step 1 landed f7763ba. SamplerOptions.forestColumns/numForestColumns carry
+a borrowed, consumed-at-construction column list down to Forest, which
+materializes it as Forest::columnMask (a 0/1 byte per predictor) and
+installs it on every tree via Tree::setColumnMask. DEVIATION from the
+plan's step-1 text: the mask is NOT consulted in grow.hpp directly - it
+lives in Tree::variableAvailable and Tree::collectAvailableVariables, and
+grow.hpp inherits the restriction for free through its existing
+collectAvailableVariables call. The Tree-level placement was necessary
+because the MH move path (model.hpp) also calls collectAvailableVariables
+directly, off the grow path - a grow.hpp-only check would have missed it.
+Null or empty stays the default and short-circuits before touching the
+mask. Q1 resolved as recommended: a hard availability mask, not zeroed
+splitProbabilities entries. Gates: new tests/cpp containment test (a
+restricted forest run to completion never splits outside its subset) and
+neutrality test (an all-columns mask's draws are byte-identical to the
+unrestricted default over a real MH run); equivalence 22/22 identical vs
+equivalence-ac6ec2c.rds; full tinytest 2771 no regen.
+
+Step 2 landed 4e1fb5b. BCFForestSpec gained columns/numColumns (same
+borrowed-list shape as step 1); the BCF ctor installs it on the tau forest
+only, mu unrestricted. bartcore_createBCF grew a trailing moderatorsExpr
+argument (1-based column indices or NULL); bartcoreBCFSampler (R/bartcore.R)
+passes a literal NULL placeholder - there is NO user-facing `moderators`
+argument yet. Q2 resolved as recommended: the moderator surface and the
+two-forest exact-posterior gate belong to forest-split-bcf, which this
+landing unblocks. The chain.hpp BCF ctor comment that promised "the
+moderator subset arrives with data ownership" is discharged and now
+records the spec-carried restriction instead. Gates: new
+tests/cpp test proving the tau forest is contained to its moderator list
+while mu is proven to still read the full store; equivalence 22/22
+identical; full tinytest 2771 no regen.
+
+Step 3 landed 49bb1d4. ColumnStore::buildFromParent gained an optional
+column-index list: view-local column j reads parent column columns[j];
+types, cutPoints, numCuts, maxNumCuts, codes, testCodes, and the
+leaf-covariate raw gather all index through the map. An absent list is the
+identity (parentColumns[j] = j), so a full-span view stays byte-for-byte
+against the pre-change path. bartcore_createFromHandle parses an optional
+1-based columns argument (range-checked, consumed at construction);
+bartcoreSamplerFromHandle gained a `columns = NULL` parameter - internal
+only, no exported wrapper reaches it. Q4 resolved as recommended: the
+handle stays unexported and unserialized; `columns` does not change that.
+Leaf-covariate designations (linear/gp leaf columns) translate from
+parent space to view space, erroring ("leaf covariate column absent from
+the view's columns") if a designated covariate falls outside the subset.
+Gates: new tests/cpp tests - an all-columns list reproduces the default
+view byte-for-byte (codes, cut grid, gathered raw/standardization all
+compared), a column subset bins each of its columns identically to the
+mapped parent column, and a leaf covariate gathers correctly through the
+map; equivalence 22/22 identical; full tinytest 2771, xbart snapshots
+unregenerated (xbart still passes no columns argument, i.e. the default).
+
+Scope-drift reconciliations from the plan's own "Scope drift" section,
+confirmed as-built:
+
+1. READ-ONLY single-writer sharing, not "one update visible to every
+   model": shared mutable codes across samplers were NOT built. Q3
+   resolved as recommended - keep read-only single-writer; revisit only
+   on a measured per-sampler re-quantize bottleneck, not speculatively.
+2. Within one BCF sampler the realization is a per-forest availability
+   MASK over the shared store's codes (step 1/2 mechanism), not a second
+   ColumnStore - a second store would duplicate codes and defeat the
+   sharing intent the design asked for. The handle path (separate
+   samplers) keeps the copy-view mechanic (buildFromParent), unchanged in
+   kind by this plan.
+3. The standalone handle predated this plan (public-surface.md:314); step
+   3 only extends it with a column axis. Confirmed as-built - no new
+   handle construction path was added.
+
+Two step-3 findings worth recording:
+
+(a) tests/cpp shares one global rngState stream across the whole suite in
+    a fixed execution order; a test inserted mid-suite that draws from it
+    (runif01 or similar) shifts every downstream statistically-marginal
+    test unless it snapshots and restores rngState around its own draws.
+    testColumnStoreColumnSubset (test_data.cpp) does this explicitly,
+    saving rngState on entry and restoring it before returning, "so the
+    shared draw stream is left where downstream tests expect it."
+
+(b) The columns mechanism has no end-to-end R consumer yet, by design:
+    xbart (R/xbart.R:588) calls bartcoreSamplerFromHandle without a
+    columns argument, i.e. always the default (all columns). The first
+    real consumers arrive with forest-split-bcf (the mask side, via a
+    `moderators` argument) and a future handle-view user (hurdle or a
+    bairrtt migration).
+
+PENDING: the confirmatory bench-sampler compare vs
+bench-sampler-32fc7c8.csv (single-forest and full-store BCF; no
+regression expected, both restriction mechanisms are nullptr/empty-guarded
+on the default path) has not been run - it needs the quiet-machine window
+called out in this plan's header. This is the one open verification item
+left from the plan's Verification section; everything else (equivalence,
+tinytest, tests/cpp, man/NAMESPACE) is confirmed above.

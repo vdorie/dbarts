@@ -184,7 +184,12 @@ first multi-model consumer (forest-split-bcf).
    raw source, never the engine's quantized state; extract stays
    container-authoritative;
 4. views/sharing + standalone handle (blocks forest-split-bcf's
-   multi-forest data story);
+   multi-forest data story); LANDED through 49bb1d4 + docs
+   (data-ownership-4-views.md) - per-forest column-availability mask
+   (f7763ba), BCF treatment-forest moderator list (4e1fb5b), handle
+   view column axis (49bb1d4); sharing settles to READ-ONLY
+   single-writer (shared mutable codes deferred, Q3); the standalone
+   handle stays unserialized and unexported (Q4);
 5. sparse categorical kernel + test-side sparse (with
    sparse-extensions).
 

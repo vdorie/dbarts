@@ -498,7 +498,8 @@ public:
   /// Two-forest BCF chain (docs/design/bcf.md): a prognostic forest mu
   /// (forest 0) and a treatment forest tau (forest 1) combined on a gaussian
   /// response as y = a mu + b_z tau + eps. Constant leaves only; both forests
-  /// read the full store (the moderator subset arrives with data ownership).
+  /// read the full store unless tau carries a moderator subset in
+  /// BCFForestSpec.columns (the default, no list, restricts nothing).
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, double sigmaEstimate, double sigmaDf,
         double sigmaRawScale, const SamplerOptions& options,
