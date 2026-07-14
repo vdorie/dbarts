@@ -65,7 +65,9 @@ lands as the first two-forest sampler. bartCause consumes it.
 - Steps 3-5: the new exact-posterior gate to MC error; component
   tests; bench-sampler no regression on single-forest paths.
 
-## Status (2026-07-07)
+## Status (2026-07-07; continuation landed through f6804f1 - see Continuation
+landing notes at the end of this file, which discharges the step-3 full-store
+interim below)
 
 Step 1 landed: docs/design/bcf.md reviewed by VD; resolutions recorded
 there (range-anchoring kept with the approximate sd(y) map onto
@@ -427,3 +429,56 @@ C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
 - bcf-ridge-interweaving.md and bcf-exact-weak.R landed after step 5
   and are not named in this plan's original body; they are recorded in
   the Context above as inherited, not reopened.
+
+### Continuation landing notes
+
+C1 landed (8552b68): `moderators` on the internal bartcoreBCFSampler.
+Q-A resolved BOTH names and 1-based indices, resolved R-side (match()
+against colnames(data@x), range-checked, sorted-unique integer to the
+bridge); factor moderators address EXPANDED dummy columns (original-
+variable expansion stays with a future public wrapper). The comment
+header carries the Hahn/Murray/Carvalho (2020) canonical usage note
+(propensity in the design, out of moderators). C3(a)-(c) tinytest
+additions landed with it (validation errors, restricted-run sanity via
+per-forest fits, fixed-seed default-neutrality echo); tinytest
+2771 -> 2782. Equivalence 22/22 identical.
+
+Q-C landed (f39f335): forest selector on the tree query. Internal
+bartcoreGetTrees gained forest = 0L (0-based, matching
+bartcoreForestFits); savedTree/savedTreeSlopes/savedTreeMasks/
+flattenTree threaded with a defaulted trailing forestIndex through
+chain/sampler/facade plus a new read-only numTreesInForest virtual;
+DEF_FUNC arity 7 -> 8. The PUBLIC R5 getTrees signature, its Rd topic,
+and dbarts.h are all UNCHANGED (both pass forest 0). C3(d) landed with
+it: hard tau containment from R (tau splits within the moderator set,
+mu proven to split outside it); tinytest 2782 -> 2786. Equivalence
+22/22 identical; component tests green.
+
+Q-B resolved: mu stays full-store; the engine is symmetric
+(BCFForestSpec.columns exists on both specs) so a prognostic
+restriction is cheap later if a consumer needs it; only tau is
+bridge-wired.
+
+C2 landed (f6804f1): benchmarks/R/bcf-exact-restricted.R - two
+ordinal predictors (3 x 2 crossed cells), tau restricted to x1, mu
+unrestricted via a new bounded 2-D axis-aligned single-tree
+enumerator (rectangle recursion weighted exactly as CGMTreePrior:
+uniform over available variables then uniform over that variable's
+cuts; enumeration weights asserted to sum to 1), tau reusing the 1-D
+machinery; mode-1 fixed glue; sufficient stats keyed on the
+(mu-cell, tau-cell, z) stratum. Results: quick (tol 0.05) E[mu] gap
+0.0003 / E[tau] gap 0.0002; full (tol 0.015, 3 seeds) gaps
+0.0002/0.0002 - the restricted posterior matches the closed form to
+MC error, proving the mask, the backfit under restriction, and the R
+resolution end to end. A per-seed containment stopifnot (tau fit
+constant across x2 within each x1 cell) guards the mask directly.
+Harness note recorded: x2 has 2 levels so the script sets per-column
+n.cuts = c(K1-1, K2-1) - the scalar default would place degenerate
+cuts on x2 (data.hpp numCuts behavior for ordinal columns without
+quantiles) and corrupt the enumerator's prior weights. bcf-exact.R
+itself untouched (full-store gate unmoved).
+
+Close: no bench-sampler run owed (per the continuation's bench note);
+no Rd/_pkgdown.yml change anywhere (all surface internal; public
+getTrees unchanged); dbarts.h frozen throughout; the continuation is
+COMPLETE.
