@@ -226,6 +226,16 @@ makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
   }
   for (j in seq_along(x)) {
     if (columnIsSparse[j]) {
+      # a sparse factor cannot be dummy-expanded without densifying it; the
+      # categorical builder rides it to the engine unexpanded instead
+      if (methods::is(x[[j]], "sparseFactor")) {
+        stop(
+          "sparse categorical predictors require factors = \"categorical\"; ",
+          "column '",
+          names(x)[j],
+          "' is a sparseFactor"
+        )
+      }
       slices <- sparseColumnSlices(x[[j]], names(x)[j], nrow(x))
       columns[[j]] <- slices
       blockNames[[j]] <- slices$names
@@ -280,12 +290,18 @@ makeCategoricalModelMatrix <- function(x) {
     column <- x[[j]]
     name <- names(x)[j]
     if (isSparseDataFrameColumn(column)) {
-      # sparse columns splice in as ordinal and ride to the engine unexpanded
+      # sparse columns ride to the engine unexpanded: a sparseFactor as one
+      # categorical column over its level table, every other kind ordinal
       slices <- sparseColumnSlices(column, name, nrow(x))
       columns[[j]] <- slices
       columnIsSparse[j] <- TRUE
-      columnTypes[[j]] <- rep.int(ORDINAL_VARIABLE, length(slices$i))
-      columnLevels[[j]] <- rep.int(list(NULL), length(slices$i))
+      if (methods::is(column, "sparseFactor")) {
+        columnTypes[[j]] <- CATEGORICAL_VARIABLE
+        columnLevels[[j]] <- list(column@levels)
+      } else {
+        columnTypes[[j]] <- rep.int(ORDINAL_VARIABLE, length(slices$i))
+        columnLevels[[j]] <- rep.int(list(NULL), length(slices$i))
+      }
       columnNames[[j]] <- slices$names
     } else if (is.factor(column)) {
       if (!is.ordered(column) && nlevels(column) > 65535L) {
