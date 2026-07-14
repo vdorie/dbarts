@@ -197,11 +197,17 @@ first multi-model consumer (forest-split-bcf).
    implicit; refines the sketch above ("the implicit zero as the reference
    level") to the reference level's ACTUAL level-order code, never numeric
    0 - the bitwise-vs-dense gate forced it, since a dense factor codes its
-   reference level by level order too. Test-side sparse satisfied by
-   densification over training levels, not resident sparse testCodes (the
-   test-data-parity backlog item supersedes that interim); the mixed
-   flavor's resident dense block (deferred here explicitly at plan 2) was
-   also retired, ownership moving to the bridge holder/handle.
+   reference level by level order too. Test-side sparse was satisfied by
+   densification over training levels at the time, not resident sparse
+   testCodes; the mixed flavor's resident dense block (deferred here
+   explicitly at plan 2) was also retired, ownership moving to the bridge
+   holder/handle. That densification interim is now SUPERSEDED: LANDED
+   through 14bef56..22d7116 (docs/plans/test-data-parity.md), the test
+   store gained its own per-column typed fields sharing the training cut
+   grid, a sparse/frame x.test stays rank-bitmap or densified per column
+   (the training tier rule) resident end to end through creation and
+   setTestPredictor, and only predict/getTrees(newdata) materialize a
+   dense matrix at the R boundary - superseding plan-5 decision 2 / Q4.
 
 Standing numerical guardrail (review-6): the constant leaf's
 centered-SS and the BCF 1e-9 floor are numerically safe ONLY because

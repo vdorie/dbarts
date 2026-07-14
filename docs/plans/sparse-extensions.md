@@ -14,8 +14,10 @@ builds of the same values exactly.
 
 - docs/design/sparse-columns.md landing notes defer: in-place mutation
   on sparse columns (raw-x surface fixed at creation today), sparse
-  x.test, a streaming range kernel, and mutation on dense-backed mixed
-  columns. The per-column u8 width entry moved to hot-layer-u8.
+  x.test (DELIVERED by docs/plans/test-data-parity.md - resident sparse
+  test storage; removed from this scope), a streaming range kernel, and
+  mutation on dense-backed mixed columns. The per-column u8 width entry
+  moved to hot-layer-u8.
 - rbart_vi and linear leaves refuse sparse inputs; lifting those
   refusals rides whichever extension motivates it.
 

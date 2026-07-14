@@ -293,3 +293,154 @@ to preserve). Step 4 records the amendment.
   item supersedes that interim)"; the landing note records that this plan IS
   that item and that resident sparse testCodes now ship, superseding plan-5
   decision 2 / Q4.
+
+## Landing notes
+
+Commit 1 = 14bef56. Store test codes per column and descend storage-aware
+(engine, dense-input, byte-identical refactor). ownedTestValues + row-major
+testCodes retired for parallel per-column test fields inside ColumnStore
+(testCodes/testCodeOffsets/testSparseSlot/testSparseColumns) sharing the
+training cut grid by identity - the Q1 addendum, decided from the actual
+diff shape rather than a second store (recorded inline above, Open
+questions for VD). findBottomNodeForRow and its six chain.hpp call sites
+descend via testCodeAt instead of a materialized row; buildFromParent's
+fold test surface is unchanged, still densified (no external x.test on a
+fold). Gate: equivalence 22/22 identical + full tinytest 2803 (no regen)
++ tests/cpp (testCodeAt equals the old row-major code at every (var,i)).
+
+Commit 2 = 95bdf00. Build sparse test columns against the training cuts
+(engine, inert until step 3). buildTestMixed added: a dense block + CSC
+test slices + per-column reference/K build the typed test store against
+the training cuts (shared by identity), rank-bitmap or densified per
+column at sparseDensityThreshold (0.2), mirroring quantizeCscColumn.
+sampler.hpp gains the internal setTestData overload, refusing (store
+untouched) a leaf-covariate column that would be CSC-backed. DEVIATION
+recorded: setState's cut-restore snapshot (sampler.hpp) saved
+oldSparseColumns for rollback but had no analogous save for the new
+testSparseColumns field; oldTestSparseColumns was added alongside it so a
+rejected cut change rolls the test-side rank columns back too - a gap the
+new sparse test build surfaced (inert on every existing dense-test path,
+since testSparseColumns stays empty there). Gate: equivalence 22/22 + full
+tinytest 2803 (unchanged, no R producer yet) + NEW tests/cpp (a rank-tier
+and a densified-tier sparse test column bin bitwise vs. a dense test
+matrix of the same values).
+
+Commit 3 = a4ec3cd. Ingest mixed test containers and retire test-side
+densification (R + bridge). dbartsData's x.test slot widened from
+matrixOrNULL to ANY with a validity guard (is.matrix(x.test) ||
+inherits(x.test, "dbartsMixedMatrix")) INSTEAD OF A CLASS UNION - Matrix
+classes cannot appear in a slot union without Matrix loaded at package
+build time, the same constraint @x already works around. validateXTest's
+sparse branch recodes sparseFactor/sparse-ordinal test columns against
+training levels and keeps them in a container
+(remapSparseFactorToTrainingLevels replaces densifySparseFactorColumns,
+which is deleted); parseData gains a dbartsMixedMatrix x.test branch
+mirroring the training branch, reusing the sparseReference/
+sparseCategoryCount plumbing, and installs through the new setTestData.
+BEHAVIOR NARROWING recorded: a sparse-bearing test frame against a
+formula-trained design with no unexpanded factor levels (factorLevels
+NULL - a fully numeric or already-dummy-expanded design) now REFUSES
+cleanly ("sparse test predictor columns require a categorical training
+design; supply 'x' through the x/y interface") instead of silently
+densifying then replaying through model.frame, which the old code's
+termLabels branch allowed unconditionally. LATENT NULL-DEREF FIX recorded:
+validateCategoricalPredictors' test-code bound-check loop called
+rawTrainingColumn(data, j) unconditionally for every categorical column
+and indexed data.x_test directly; a CSC-backed training-mixed categorical
+column paired with any dense x.test (already reachable pre-plan, since
+dbarts.h's test surface was dense-only but could pair with an R-side
+mixed x/y training container) would have dereferenced a null pointer -
+never exercised by an existing test, so latent rather than observed. Fixed
+by skipping CSC-backed training columns explicitly and by routing test
+reads through the new rawParsedTestColumn helper, which returns null
+(skip) for a CSC-backed test column instead of indexing data.x_test. Gate:
+equivalence 22/22 + tinytest (grows) + the test-fit oracle
+(test-sparse-factor.R:282-322 extended to resident storage, plus new
+mixed-container and leaf-covariate-refusal cases).
+
+Commit 4 = 7d781a8. Take mixed containers through the test mutation
+surface (R + bridge). setTestPredictor/setTestPredictorAndOffset gain a
+dbartsMixedMatrix branch. DEVIATION recorded: a4ec3cd had inlined the
+container-parse logic once, in parseData; commit 4 factors it into a
+SHARED parseTestContainer helper (plus an installTestContainer wrapper
+around setTestData) used by all three call sites - parseData,
+setTestPredictor, and setTestPredictorAndOffset - rather than duplicating
+the parse a second and third time. Each mutation validates and rebuilds
+the typed test store before any store mutation, so a refused container
+(leaf-covariate-on-sparse) leaves the engine-side store untouched. R-side
+(bartcoreSamplerSetTestPredictor): a container-backed x.test refuses a
+per-column update ("cannot update a single column of a sparse test
+matrix; replace the whole test matrix instead"); a whole-object
+replacement installs the new @x.test optimistically, then a tryCatch
+ROLLS BACK @x.test/@offset.test to their prior values if the bridge call
+errors, keeping the R5 object and the engine's prior store consistent on
+refusal - the same discipline setPredictor already used. bartcore_setData's
+existing container refusal ("requires a dense predictor matrix; sparse
+predictors fix the design at creation") gained a parallel test-side
+refusal KEPT from a4ec3cd ("requires a dense test matrix; a sparse test
+set fixes the design at creation") - the symmetric fixed-at-creation
+contract already applied training-side. Gate: equivalence 22/22 +
+tinytest (grows): setTestPredictor/AndOffset with a sparse/frame container
+fits identically to the dense equivalent; per-column update (by index and
+by name) and NULL removal on a dense x.test unchanged; leaf-covariate
+refusal on mutation is inert (the prior store, and the sampler, remain
+usable afterward).
+
+Commit 5 = 22d7116. Take frames and sparse test sets through predict and
+tree replay (R; densify-at-boundary, decision 3). predict and
+getTrees(newdata = ) route their argument through the same
+container-aware validateXTest used at creation (coding against training
+levels), then materialize it to a numeric matrix before the frozen
+raw-double engine calls - no resident sparse predict store, per Q3's
+resolution. This is the same boundary fix in both entry points (getTrees'
+newdata shares predict's validated/materialized path). Gate: tinytest
+(grows): predict/getTrees on a sparse/frame test set bitwise-identical to
+the dense equivalent, including a column-reorder case and an
+absent-training-level refusal identical to the dense path's.
+
+Commit 6 = this commit (docs). man/sparseFactor.Rd, man/dbartsData.Rd, and
+man/dbartsSampler-class.Rd updated to record resident test-side storage
+through creation and setTestPredictor, and the predict/getTrees(newdata =)
+densify-at-boundary; man/dbarts.Rd's formula-argument paragraph corrected
+too ("test matrices remain dense" was stale, found beyond the three named
+files). docs/design/data-ownership.md item 5 records that this plan
+supersedes the densification interim. docs/plans/sparse-extensions.md's
+sparse-x.test context bullet marked delivered (scope line only, the other
+three extensions untouched). Gate: R CMD INSTALL (Rd files parse clean);
+full tinytest 2832 PASS, 0 FAIL (docs-only, no growth from commit 5);
+tools::checkRd clean (no NOTEs/warnings) on every man/ file.
+
+Gates held at every step: equivalence 22/22 identical throughout (training
+draws never moved - the guard this plan's rng section required at every
+commit, run by each step's implementer and re-run independently at
+review for the engine/bridge commits); full tinytest grew 2803 ->
+2832 across commits 3-5 with no snapshot regeneration; the tests/cpp
+component suite gained the step-1 testCodeAt-equals-old-row-major-code
+check and the step-2 rank-tier/densified-tier sparse test-store bins,
+both passing at HEAD.
+
+Memory measurement (verification item, run for this commit). A throwaway
+script (not in the repo) built n.train = 2000, n.test = 1e5, one dense
+numeric column, and a K = 200-level sparseFactor test column at ~5%
+non-reference (nonzero) density (the bairrtt-shape high-cardinality test
+frame), once as a dense x.test matrix and once as the sparse-bearing
+data-frame form. Confirmed the dense build stays a plain matrix and the
+sparse build installs a resident, sparse-backed dbartsMixedMatrix (not
+densified), with bitwise-identical test fits between the two arms.
+Measured object.size(data@x.test): 1,600,568 bytes (dense matrix) vs.
+876,048 bytes (resident container) - a 1.83x ratio, modest because both
+representations carry the shared dense numeric column (800,000 bytes)
+undiminished; the categorical column is what the sparse path actually
+shrinks. Isolating it analytically (dense test codes are u16, 2 bytes/row;
+a rank-bitmap test column costs 0.1875 bytes/row fixed plus 2 bytes per
+stored code, measured f = 0.0496, well under the 0.2 sparseDensityThreshold
+that would fall back to a densified tier) gives 200,000 bytes (dense) vs.
+28,672 bytes (rank) for the categorical column alone - a 6.98x code-shrink,
+the win the densification interim gave up. Engine-side resident bytes were
+not cheaply queryable from R (no exposed accessor), so this is the R-side
+container ratio plus the per-column code-shrink argument, as anticipated
+by the plan's memory verification text.
+
+Confirmatory bench-sampler compare (dense test path at parity, a
+resident-sparse arm added) is PENDING a quiet window; its result will be
+appended here once run.

@@ -8,6 +8,8 @@
   Represents an unordered factor sparsely: entries at the given positions carry the supplied levels, while every other position implicitly carries a designated \code{reference} level. Analogous to \code{Matrix::\link[Matrix]{sparseVector}}, whose implicit entry is zero.
 
   Accepted as a predictor by \code{\link{dbartsData}} through the x/y interface: a data frame passed as \code{x.train} may mix dense numeric/factor columns with sparse ordinal columns (\code{Matrix::sparseVector} or \code{dgCMatrix}) and \code{sparseFactor} columns in any combination. A \code{sparseFactor} column enters as one categorical predictor and bins bitwise-identically to a dense factor of the same values. \strong{The formula interface does not accept it}: a bare S4 column cannot survive \code{\link{model.frame}}, so the formula path refuses a \code{sparseFactor} column explicitly, with a message to supply it through the x/y interface instead.
+
+  The same holds for a test set (\code{test}/\code{x.test}): a \code{sparseFactor} test column is recoded over the training level table and stays resident - through creation and \code{setTestPredictor} - rather than densifying at ingestion. \code{predict} and \code{getTrees(newdata = )} code it the same way and then materialize it to a dense matrix at the call boundary, since those entry points evaluate already-built trees on resolved values.
 }
 \usage{
 sparseFactor(x, levels, reference, i, length)

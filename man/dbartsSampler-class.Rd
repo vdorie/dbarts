@@ -96,7 +96,7 @@
     A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for \code{setTestPredictor}.
   }
   \item{x.test}{
-    A new matrix of test predictors, of the number of columns equal to that in the current model.
+    A new matrix, data frame, or sparse-bearing test set (the column types accepted by \code{\link{dbartsData}}), of the number of columns equal to that in the current model. A data-frame/sparse \code{x.test} is coded against the training levels; \code{setTestPredictor} and \code{setTestPredictorAndOffset} then install it as a resident, whole-object replacement of the test set (see \code{column}), while \code{predict} materializes it to a numeric matrix before evaluating.
   }
   \item{offset}{
     A numeric vector of length equal to that with which the sampler was created, or \code{NULL}. If \code{offset.test} was set from \code{offset}, will attempt to update that as well.
@@ -127,7 +127,9 @@
     An integer or character string vector specifying which column/columns of
     the predictor matrix is to be replaced or for which cuts should be used.
     When updating predictors, it can be missing and the entire matrix will be
-    substituted.
+    substituted. For \code{setTestPredictor}, a per-column update is refused
+    when the current test set is a data frame or sparse container rather
+    than a plain matrix; replace the whole test set instead.
   }
   \item{forceUpdate}{
     For \code{setPredictor}, controls how the trees respond to a new predictor
