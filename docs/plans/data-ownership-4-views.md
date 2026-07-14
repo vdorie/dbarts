@@ -296,10 +296,14 @@ Two step-3 findings worth recording:
     `moderators` argument) and a future handle-view user (hurdle or a
     bairrtt migration).
 
-PENDING: the confirmatory bench-sampler compare vs
-bench-sampler-32fc7c8.csv (single-forest and full-store BCF; no
-regression expected, both restriction mechanisms are nullptr/empty-guarded
-on the default path) has not been run - it needs the quiet-machine window
-called out in this plan's header. This is the one open verification item
-left from the plan's Verification section; everything else (equivalence,
-tinytest, tests/cpp, man/NAMESPACE) is confirmed above.
+The confirmatory bench-sampler compare vs bench-sampler-32fc7c8.csv ran on
+a quiet box (twice, per the sub-ms noise rule): every run scenario is at
+0.96-1.0x (neutral to slightly faster) and the single flag both times is
+setPredictor-accept at 1.19-1.22x - the pre-existing, documented cost the
+mutation-collection decision accepted (data-ownership-3-mutation.md), not
+anything this plan added (neither restriction mechanism touches the
+setPredictor path, and both are guarded off by default). Because that
+accepted delta makes the old baseline flag on every compare, a fresh
+baseline was recorded on the same quiet box: bench-sampler-4008675.csv is
+the reference from here on, with the accepted cost baked in. All
+Verification items are now confirmed; the plan is CLOSED.
