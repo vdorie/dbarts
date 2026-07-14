@@ -25,9 +25,9 @@ dbartsData(
       \item ordered factors enter as ordinal predictors, coded numerically by level order;
       \item matrix columns (e.g. from \code{\link{poly}}) splice in as ordinal predictors, one per column;
       \item \code{Matrix::sparseVector} and \code{dgCMatrix} columns (assigned into the frame; they do not survive \code{data.frame(...)} or \code{I()}) enter as sparse ordinal predictors;
-      \item \code{\link{sparseFactor}} columns are recognized but not yet supported; construction refuses them with an error.
+      \item \code{\link{sparseFactor}} columns enter as a single sparse categorical predictor, coded and binned identically to a dense factor of the same values. Only the x/y interface accepts them (a bare S4 column cannot survive \code{\link{model.frame}}, so the formula path refuses one explicitly).
     }
-    Factor level tables are retained so that test data are coded identically.
+    Factor level tables are retained so that test data are coded identically; a \code{sparseFactor} test column densifies to its integer codes over the training level table (implicit rows filled with the training reference level's code) before prediction, reusing the dense categorical test-code path.
 
     Data frame input is stored columnar: no \eqn{n \times p}{n x p} double matrix is retained. Code that previously reached into the data object's \code{x} slot expecting a plain matrix should call \code{\link{extract}(sampler, "predictors")} - or \code{as.matrix} on the slot - to obtain the numeric predictor matrix, factor columns as their integer codes.
   }

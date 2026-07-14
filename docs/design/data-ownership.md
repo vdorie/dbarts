@@ -191,7 +191,17 @@ first multi-model consumer (forest-split-bcf).
    single-writer (shared mutable codes deferred, Q3); the standalone
    handle stays unserialized and unexported (Q4);
 5. sparse categorical kernel + test-side sparse (with
-   sparse-extensions).
+   sparse-extensions); LANDED through 5461f41 + docs
+   (data-ownership-5-sparse.md) - sparseFactor accepted as a predictor via
+   the x/y interface, CSC over level codes with the reference level
+   implicit; refines the sketch above ("the implicit zero as the reference
+   level") to the reference level's ACTUAL level-order code, never numeric
+   0 - the bitwise-vs-dense gate forced it, since a dense factor codes its
+   reference level by level order too. Test-side sparse satisfied by
+   densification over training levels, not resident sparse testCodes (the
+   test-data-parity backlog item supersedes that interim); the mixed
+   flavor's resident dense block (deferred here explicitly at plan 2) was
+   also retired, ownership moving to the bridge holder/handle.
 
 Standing numerical guardrail (review-6): the constant leaf's
 centered-SS and the BCF 1e-9 floor are numerically safe ONLY because

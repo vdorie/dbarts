@@ -7,7 +7,7 @@
 \description{
   Represents an unordered factor sparsely: entries at the given positions carry the supplied levels, while every other position implicitly carries a designated \code{reference} level. Analogous to \code{Matrix::\link[Matrix]{sparseVector}}, whose implicit entry is zero.
 
-  \strong{Not yet accepted by the samplers:} \code{\link{dbartsData}} recognizes a \code{sparseFactor} column but refuses to construct data from it with the error \dQuote{sparse categorical predictors are not yet supported}. The class exists so data sets can be assembled ahead of engine support; sparse \emph{ordinal} columns (\code{Matrix::sparseVector} or \code{dgCMatrix}) are unaffected and keep working.
+  Accepted as a predictor by \code{\link{dbartsData}} through the x/y interface: a data frame passed as \code{x.train} may mix dense numeric/factor columns with sparse ordinal columns (\code{Matrix::sparseVector} or \code{dgCMatrix}) and \code{sparseFactor} columns in any combination. A \code{sparseFactor} column enters as one categorical predictor and bins bitwise-identically to a dense factor of the same values. \strong{The formula interface does not accept it}: a bare S4 column cannot survive \code{\link{model.frame}}, so the formula path refuses a \code{sparseFactor} column explicitly, with a message to supply it through the x/y interface instead.
 }
 \usage{
 sparseFactor(x, levels, reference, i, length)
@@ -20,7 +20,7 @@ sparseFactor(x, levels, reference, i, length)
     Character vector of factor levels. Defaults to \code{levels(x)} for a factor and \code{sort(unique(x))} for a character vector, the \code{\link{factor}} convention.
   }
   \item{reference}{
-    The level every unstored position carries. Must be an element of \code{levels}; defaults to \code{levels[1]}, the baseline-contrast convention.
+    The level every unstored position carries. Must be an element of \code{levels}; defaults to \code{levels[1]}, the baseline-contrast convention. Storage holds only the non-reference entries, so choosing the \strong{most common level} as the reference maximizes the memory win; codes and every draw are identical under any choice of reference, so this is a storage tuning knob, not a modeling one.
   }
   \item{i}{
     Optional integer vector of 1-based positions at which the entries of \code{x} sit, as in \code{Matrix::sparseVector}. When supplied, \code{x} and \code{i} must have equal length and \code{length} is required. Positions need not be sorted; duplicates are an error.
