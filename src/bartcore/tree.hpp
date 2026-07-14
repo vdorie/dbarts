@@ -569,6 +569,48 @@ public:
     return lo;
   }
 
+  /// The sparse sibling of partitionIndicesByMask: an inline categorical
+  /// membership partition (up to 63 levels) reading codes through the
+  /// rank-bitmap layout instead of a dense array.
+  static size_t partitionIndicesSparseByMask(const SparseColumnData& column,
+                                             std::uint64_t directions,
+                                             size_t* indices, size_t length) {
+    size_t lo = 0, hi = length;
+    while (true) {
+      while (lo < hi && ((directions >> column.at(indices[lo])) & 1u) == 0)
+        ++lo;
+      while (lo < hi && ((directions >> column.at(indices[hi - 1])) & 1u) != 0)
+        --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
+  /// The sparse sibling of partitionIndicesByWideMask: a pooled categorical
+  /// membership partition (more than 63 levels) over the rank-bitmap layout.
+  static size_t partitionIndicesSparseByWideMask(
+      const SparseColumnData& column, const std::uint64_t* directions,
+      size_t* indices, size_t length) {
+    size_t lo = 0, hi = length;
+    while (true) {
+      while (lo < hi && !maskTestBit(directions, column.at(indices[lo]))) ++lo;
+      while (lo < hi && maskTestBit(directions, column.at(indices[hi - 1])))
+        --hi;
+      if (hi - lo < 2) break;
+      size_t temp = indices[lo];
+      indices[lo] = indices[hi - 1];
+      indices[hi - 1] = temp;
+      ++lo;
+      --hi;
+    }
+    return lo;
+  }
+
   /// partitionIndicesMIA over rank-bitmap storage: the sparse sibling of
   /// the dense MIA fallback (misc_partitionIndicesSparse handles NA-free
   /// sparse columns).
@@ -635,17 +677,30 @@ public:
     if (node.numObservations() > 0) {
       size_t variable = static_cast<size_t>(node.rule.variableIndex);
       if (data.types[variable] == ColumnType::categorical) {
-        const xint_t* column = data.column(variable);
-        if (data.columnIsPooled(variable)) {
-          numOnLeft = partitionIndicesByWideMask(column,
-                                                 maskWordsFor(node.rule),
-                                                 indices + node.begin,
-                                                 node.numObservations());
+        if (data.columnIsSparse(variable)) {
+          const SparseColumnData& sparse = data.sparseColumn(variable);
+          if (data.columnIsPooled(variable)) {
+            numOnLeft = partitionIndicesSparseByWideMask(
+              sparse, maskWordsFor(node.rule), indices + node.begin,
+              node.numObservations());
+          } else {
+            numOnLeft = partitionIndicesSparseByMask(
+              sparse, node.rule.categoryDirections(), indices + node.begin,
+              node.numObservations());
+          }
         } else {
-          numOnLeft = partitionIndicesByMask(column,
-                                             node.rule.categoryDirections(),
-                                             indices + node.begin,
-                                             node.numObservations());
+          const xint_t* column = data.column(variable);
+          if (data.columnIsPooled(variable)) {
+            numOnLeft = partitionIndicesByWideMask(column,
+                                                   maskWordsFor(node.rule),
+                                                   indices + node.begin,
+                                                   node.numObservations());
+          } else {
+            numOnLeft = partitionIndicesByMask(column,
+                                               node.rule.categoryDirections(),
+                                               indices + node.begin,
+                                               node.numObservations());
+          }
         }
       } else if (data.columnIsSparse(variable)) {
         // in-place partition at the root too: misc_partitionRange assumes

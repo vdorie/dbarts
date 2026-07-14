@@ -1882,6 +1882,209 @@ static void testSparseStateRoundTrip() {
   printf("ok: sparse state round trip\n");
 }
 
+// A single high-cardinality unordered factor held both as a dense column-major
+// code matrix (codes as doubles, level order 0..K-1) and as CSC arrays over the
+// non-reference entries, the reference level implicit. probReference tunes the
+// nonzero fraction, so the same shape can land on either storage tier. The top
+// level is planted at row 0 so the dense builder's level count (max + 1) equals
+// K, and the reference is a middle level (its level-order code is never 0), so
+// the store's zeroCode must carry the reference code, not codeFor(j, 0.0).
+struct CscCategoricalFixture {
+  size_t n = 0;
+  std::uint32_t K = 0;
+  xint_t reference = 0;
+  std::vector<double> dense;   // column-major n x 1
+  std::vector<int> pointers;   // 2
+  std::vector<int> rows;
+  std::vector<double> values;
+  std::vector<ColumnType> types = { ColumnType::categorical };
+
+  void build(size_t n_, std::uint32_t K_, double probReference) {
+    n = n_;
+    K = K_;
+    reference = static_cast<xint_t>(K / 2);
+    dense.assign(n, 0.0);
+    pointers.assign(2, 0);
+    rows.clear();
+    values.clear();
+    for (size_t i = 0; i < n; ++i) {
+      xint_t code;
+      if (i == 0) {
+        code = static_cast<xint_t>(K - 1);  // guarantee the top level appears
+      } else if (runif01() < probReference) {
+        code = reference;
+      } else {
+        xint_t other =
+          static_cast<xint_t>(runif01() * static_cast<double>(K - 1));
+        if (other >= reference) ++other;  // uniform over the non-reference set
+        code = other;
+      }
+      dense[i] = static_cast<double>(code);
+      if (code != reference) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(static_cast<double>(code));
+      }
+    }
+    pointers[1] = static_cast<int>(rows.size());
+  }
+
+  std::int32_t sources = ~0;  // the one column reads CSC source 0
+
+  void applyOptions(SamplerOptions& options) {
+    options.cscColumnPointers = pointers.data();
+    options.cscRowIndices = rows.data();
+    options.cscValues = values.data();
+    options.columnSources = &sources;
+    options.columnTypes = types.data();
+    options.cscCategoryCounts = &K;
+    options.cscReferenceCodes = &reference;
+  }
+
+  ColumnStore buildStore(bool useQuantiles) {
+    ColumnStore store;
+    store.buildMixed(nullptr, pointers.data(), rows.data(), values.data(),
+                     &sources, n, 1, nullptr, 100, useQuantiles, types.data(),
+                     &K, &reference);
+    return store;
+  }
+};
+
+// The bitwise gate at the engine level: a sparse-categorical column bins
+// IDENTICALLY to a dense factor of the same values. Codes match cell by cell,
+// and the new rank-layout membership partitions reproduce the dense kernels'
+// output byte for byte at several direction masks (inline and pooled).
+static void testSparseCategoricalColumnStore() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+  const size_t n = 400;
+
+  // rank inline (K <= 63), rank pooled (K > 63), densified inline
+  struct Config { std::uint32_t K; double probReference; bool expectSparse; };
+  const Config configs[] = {
+    { 6, 0.92, true }, { 80, 0.95, true }, { 6, 0.4, false }
+  };
+
+  bool allOk = true;
+  for (const Config& config : configs) {
+    CscCategoricalFixture fixture;
+    fixture.build(n, config.K, config.probReference);
+    ColumnStore denseStore;
+    denseStore.build(fixture.dense.data(), n, 1, 100, false,
+                     fixture.types.data());
+    ColumnStore sparseStore = fixture.buildStore(false);
+
+    allOk &= sparseStore.columnIsSparse(0) == config.expectSparse;
+    allOk &= sparseStore.numCuts[0] == config.K &&
+             denseStore.numCuts[0] == config.K;
+    for (size_t i = 0; i < n; ++i)
+      allOk &= sparseStore.codeAt(0, i) == denseStore.codes[i];
+
+    if (!config.expectSparse) continue;  // dense kernel path, no new sibling
+
+    // a scrambled index segment, partitioned by the sparse membership kernel
+    // against the dense one over several direction masks
+    std::vector<size_t> segment(n);
+    for (size_t i = 0; i < n; ++i) segment[i] = i;
+    for (size_t i = n - 1; i > 0; --i)
+      std::swap(segment[i], segment[static_cast<size_t>(
+                              runif01() * static_cast<double>(i + 1))]);
+
+    const SparseColumnData& sparse = sparseStore.sparseColumn(0);
+    const xint_t* dense = denseStore.column(0);
+    if (config.K <= 63) {
+      const std::uint64_t masks[] = {
+        0x5ull, 0x2Aull, 0x3Full, (1ull << fixture.reference), 0x0ull
+      };
+      for (std::uint64_t mask : masks) {
+        std::vector<size_t> a(segment), b(segment);
+        size_t leftDense =
+          Tree::partitionIndicesByMask(dense, mask, a.data(), a.size());
+        size_t leftSparse = Tree::partitionIndicesSparseByMask(
+          sparse, mask, b.data(), b.size());
+        allOk &= leftDense == leftSparse && a == b;
+      }
+    } else {
+      size_t numWords = maskWordsForCount(config.K);
+      for (int m = 0; m < 4; ++m) {
+        std::vector<std::uint64_t> mask(numWords, 0);
+        for (std::uint32_t c = 0; c < config.K; ++c)
+          if ((c + static_cast<std::uint32_t>(m)) % 3 == 0) maskSetBit(mask.data(), c);
+        std::vector<size_t> a(segment), b(segment);
+        size_t leftDense = Tree::partitionIndicesByWideMask(
+          dense, mask.data(), a.data(), a.size());
+        size_t leftSparse = Tree::partitionIndicesSparseByWideMask(
+          sparse, mask.data(), b.data(), b.size());
+        allOk &= leftDense == leftSparse && a == b;
+      }
+    }
+  }
+  check(allOk, "sparse-categorical codes and membership match the dense factor");
+  rngState = savedRngState;
+  printf("ok: sparse categorical column store\n");
+}
+
+// The end-to-end half of the gate: a sampler over a sparse-categorical column
+// draws BITWISE-IDENTICALLY to one over the dense factor of the same values, on
+// every storage tier (rank inline, densified inline, rank pooled).
+static void testSparseCategoricalEndToEnd() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 500;
+  struct Config { std::uint32_t K; double probReference; bool expectSparse; };
+  const Config configs[] = {
+    { 6, 0.92, true }, { 6, 0.4, false }, { 80, 0.95, true }
+  };
+
+  for (const Config& config : configs) {
+    CscCategoricalFixture fixture;
+    fixture.build(n, config.K, config.probReference);
+    std::vector<double> y(n);
+    for (size_t i = 0; i < n; ++i)
+      y[i] = static_cast<double>(fixture.dense[i]) -
+             0.5 * static_cast<double>(config.K) + 0.3 * runif01();
+
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 90210) != 0 ||
+        ext_rng_setSeed(rngB, 90210) != 0) {
+      check(false, "sparse categorical end-to-end: rng creation");
+      return;
+    }
+
+    SamplerOptions options;
+    options.numTrees = 40;
+    options.columnTypes = fixture.types.data();
+    ConstantLeafSampler dense(fixture.dense.data(), y.data(), n, 1, nullptr,
+                              nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rngA);
+
+    SamplerOptions sparseOptions;
+    sparseOptions.numTrees = 40;
+    fixture.applyOptions(sparseOptions);
+    ConstantLeafSampler sparse(nullptr, y.data(), n, 1, nullptr, nullptr,
+                               ResponseFamily::gaussian, 1.0, 3.0,
+                               0.37804942330213542, sparseOptions, &rngB);
+    check(sparse.data().columnIsSparse(0) == config.expectSparse,
+          "sparse-categorical sampler lands on the expected storage tier");
+
+    const size_t numBurnIn = 40, numSamples = 60;
+    std::vector<double> sigmaA(numSamples), sigmaB(numSamples);
+    std::vector<double> fitsA(n * numSamples), fitsB(n * numSamples);
+    Results resultsA, resultsB;
+    resultsA.sigma = sigmaA.data();
+    resultsA.trainingFits = fitsA.data();
+    resultsB.sigma = sigmaB.data();
+    resultsB.trainingFits = fitsB.data();
+    dense.run(numBurnIn, numSamples, resultsA);
+    sparse.run(numBurnIn, numSamples, resultsB);
+
+    check(sigmaA == sigmaB && fitsA == fitsB,
+          "sparse-categorical sampler bitwise-matches the dense factor");
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+  }
+  rngState = savedRngState;
+  printf("ok: sparse categorical end-to-end\n");
+}
+
 // A mixed dense/CSC predictor set in the overall layout
 // [dense0, csc0, dense1, csc1, csc2], dense1 optionally 4-category
 // categorical; full is the equivalent all-dense matrix for reference builds.
@@ -3110,6 +3313,8 @@ void runModelTests(ext_rng* rng) {
   testSparseColumnStore();
   testSparseEndToEnd();
   testSparseStateRoundTrip();
+  testSparseCategoricalColumnStore();
+  testSparseCategoricalEndToEnd();
   testMixedColumnStore();
   testMixedEndToEnd();
   testMixedLinearLeaves();

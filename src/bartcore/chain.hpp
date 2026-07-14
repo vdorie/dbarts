@@ -66,6 +66,14 @@ struct SamplerOptions {
   const double* mixedDenseValues = nullptr;
   const std::int32_t* columnSources = nullptr;  // length numPredictors
 
+  // per CSC-backed categorical column, its fixed level count K and the
+  // reference level's level-order code (the code the implicit rows carry);
+  // borrowed, consumed during construction. Null when no CSC-backed column is
+  // categorical, so the ordinal-sparse and dense paths are byte-for-byte
+  // unchanged. See docs/design/sparse-columns.md.
+  const std::uint32_t* cscCategoryCounts = nullptr;
+  const xint_t* cscReferenceCodes = nullptr;
+
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates
   // the constant leaf; the factory validates count, range, and type.
