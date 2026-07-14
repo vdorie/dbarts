@@ -506,10 +506,9 @@ methods::setValidity("dbartsData", function(object) {
 
 # An unordered-factor predictor in sparse form (the Matrix package's naming
 # convention): rows listed in i carry the level coded in values, every
-# other row the implicit reference level. Ingestion recognizes the class
-# but data construction refuses it until the CSC-categorical engine path
-# lands (docs/plans/data-ownership-2-ingestion.md, decision S-CAT).
-# Constructor and methods live in R/sparseFactor.R.
+# other row the implicit reference level. Accepted through the x/y
+# interface; the formula path takes no S4 columns. Constructor and
+# methods live in R/sparseFactor.R.
 methods::setClass(
   "sparseFactor",
   slots = list(

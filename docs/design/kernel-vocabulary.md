@@ -121,15 +121,17 @@ SIMD specializations only when profiling justifies them.
 
 1. **Width variants**: partition and (where profitable) scan kernels for u8
    codes alongside u16; table index becomes (rule kind, width).
-2. **Categorical membership partition**:
-
-       size_t misc_partitionRangeCat  (const misc_xint_t* x,
-                                       const uint64_t* directions,  // bitset over level codes
-                                       size_t* indices, size_t length);
-       size_t misc_partitionIndicesCat(...same...);
-
-   Left = bit `code` of `directions` unset, right = set. Scalar first;
-   candidate SIMD via table lookup / shuffle for <= 16-level factors.
+2. **Categorical membership partition**: LANDED, but not as a misc.a kernel -
+   dense categorical membership landed engine-side as
+   partitionIndicesByMask (inline, <= 63 levels) and
+   partitionIndicesByWideMask (pooled, > 63 levels) in src/bartcore/tree.hpp,
+   reading a dense `const xint_t*` column. The sparse-categorical sibling
+   (docs/plans/data-ownership-5-sparse.md) mirrors both as
+   partitionIndicesSparseByMask / partitionIndicesSparseByWideMask, reading
+   through SparseColumnData::at instead. Both pairs live next to the sparse
+   MIA partition (partitionIndicesSparseMIA, tree.hpp) and are dispatched
+   from partitionChildren's categorical branch (dense vs. columnIsSparse),
+   scalar throughout - no table-lookup/shuffle SIMD variant was built.
 3. **NA-aware variants**: a reserved per-column NA code plus a
    goes-left/right flag folded into the rule encoding; kernels take the
    encoded rule rather than a bare cut once missingness lands (phase 4).

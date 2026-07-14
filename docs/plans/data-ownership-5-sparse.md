@@ -300,3 +300,158 @@ consumer-gated.
   resident sparse x.test deferred in sparse-extensions.md (decision 2) - not a
   contradiction, but the wording could be read as requiring resident sparse
   testCodes, which it does not.
+
+## Landing notes
+
+Commit 1 = 1d02907. Engine kernel. partitionIndicesSparseByMask (inline,
+<= 63 levels) and partitionIndicesSparseByWideMask (pooled, > 63 levels)
+added in tree.hpp next to the dense siblings and the sparse MIA partition,
+reading through SparseColumnData::at; partitionChildren's categorical
+branch gains a columnIsSparse sub-dispatch ahead of the dense arm.
+buildCutsForColumn takes K from the bridge-supplied metadata for a
+CSC-categorical column instead of dereferencing a null column;
+quantizeCscColumn seeds zeroCode from the per-column REFERENCE CODE (see
+the refinement below), not codeFor(j, 0.0), and scatters/densifies the
+implicit rows to it. SamplerOptions.cscCategoryCounts/.cscReferenceCodes
+carry the per-column K and reference code down from the bridge. New
+tests/cpp: a rank-tier and a densified-tier sparse-categorical column
+store test plus an end-to-end fit, both bitwise vs. a dense factor of the
+same values. Gate: equivalence 22/22 identical; full tinytest 2786, no
+regen.
+
+Commit 2 = 54460f8. Ingestion. sparseColumnSlices (mixedMatrix.R) stops
+refusing sparseFactor and emits its CSC slices - i, and values - 1 as
+0-based level-order codes - flagging the column categorical and carrying
+its reference code (0-based, level order) and K; assembleMixedMatrix
+threads these into sparseReference/sparseCategoryCount alongside the map.
+parseData (R_interface_bartcore.cpp) resolves this per-column metadata and
+threads it through SamplerOptions; validateCategoricalPredictors skips
+CSC-backed categorical columns (the engine, not the R-side scan, now owns
+their validity); the x/y-path S-CAT refusals (data.R, utility.R) drop,
+the formula-path pre-scan does not - a bare S4 column still cannot survive
+model.frame, so sparseFactor stays x/y-only by construction, not by an
+arbitrary restriction. New inst/tinytest/test-sparse-factor.R carries the
+R-level BITWISE gate: sparse-vs-dense identical() on sigma and train fits
+across three tiers - rank (dominant reference, stored fraction under the
+0.2 densification threshold), densified (rare reference, over threshold),
+and pooled (K = 80, > 63 levels, exercising the wide-mask kernel). Gate:
+equivalence 22/22; full tinytest 2798, no regen.
+
+Commit 3 = 34e87a6. Test-side densification + a materializer fix needed to
+support it. as.matrix.dbartsMixedMatrix's sparse branch previously
+converted a sparse column's dgCMatrix slice straight to dense
+(as.matrix(x$sparse[...])), which fills every implicit row with numeric
+zero - correct for a sparse ORDINAL column, wrong for a sparse
+CATEGORICAL one whose implicit rows carry the reference level's code
+(generally nonzero, and possibly coinciding with an explicit entry's own
+code, which can legitimately be 0). Fixed to walk the CSC structure
+directly (p/i/x on x$sparse) per column: fill every row with the
+reference code FIRST, then scatter only the explicitly-stored entries
+over their known row positions - a value-based zero-check would have
+misclassified a legitimate explicit 0. This also fixes
+extract(sampler, "predictors") for the same reason, since it shares the
+materializer. A sparseFactor x.test column densifies to dense categorical
+test codes over the TRAINING level table via densifySparseFactorColumns,
+running ahead of the model-frame replay so prediction takes the existing
+dense test-code path unchanged; predictions on a sparse-cat test frame
+verified bitwise against its densified twin. The formula-path refusal
+message was reworded to "must be supplied through the x/y interface"
+(previously implied but not stated). Gate: equivalence 22/22; full
+tinytest 2803, no regen.
+
+Commit 4 = 5461f41. Mixed-flavor unification (decision 1 / Q2), WITH A
+DEVIATION worth recording precisely. The plan's step-4 text called for the
+engine to gather leaf-covariate raw owned instead of borrowing resident
+dense slices; en route it surfaced that tests/cpp's testMixedColumnStore
+pins rawColumn(0) == the source block by POINTER IDENTITY - a borrow
+contract the test enforces deliberately, not an oversight - so the engine
+side was left BYTE-FOR-BYTE UNCHANGED rather than reworked to own the
+gather. Instead, ownership of the assembled dense block moved to the
+BRIDGE: DataHandle and BartcoreHolder each gained an ownedMixedDense
+member (mirroring ownedResponse/ownedTreatment), and parseData's
+transient denseAssembly is moved into it after construction - a
+std::vector move preserves the buffer address, so the store's borrowed
+dense slices stay valid for the sampler's/handle's lifetime without
+reworking the engine's borrow contract. On the R side,
+assembleMixedMatrix now stores dense columns as a per-column list for
+BOTH flavors (dense-only and mixed), so the two flavors are told apart by
+whether $sparse is populated, not by the type of $dense; parseData
+assembles the transient denseAssembly for the mixed flavor exactly as
+plan 2 already did for the dense-only one. No R-side resident dense block
+remains in either flavor. Gate: existing testMixedColumnStore /
+EndToEnd / LinearLeaves unchanged and passing; equivalence 22/22; full
+tinytest 2803; tests/cpp component tests unchanged.
+
+Commit 5 = this commit (docs). man/sparseFactor.Rd: sparseFactor is now
+accepted as a predictor through the x/y interface (a frame may mix dense
+and sparse, ordinal and categorical, columns freely); the formula
+interface still refuses it (a bare S4 column cannot survive
+model.frame); the reference argument's doc records Q3's resolution - the
+most common level as reference maximizes the memory win, correctness
+holds under any choice. man/dbartsData.Rd: the data-frame ingestion table
+updated to reflect sparseFactor acceptance and x/y-only entry; a note that
+a sparseFactor test column densifies to codes over the training level
+table before prediction. docs/design/kernel-vocabulary.md addition 2:
+updated to record that categorical membership partitions, dense AND
+sparse, landed engine-side in tree.hpp rather than as misc.a kernels (the
+plan's drift item 1) - the planned misc_partitionRangeCat/
+misc_partitionIndicesCat signatures never landed.
+docs/design/data-ownership.md: item 5 of the implementation split marked
+LANDED through 5461f41, including the zeroCode refinement (drift item 2)
+below. Gate: tools::checkRd clean on both Rd files; full tinytest 2803, no
+regen.
+
+Refinement recorded (drift item 2): data-ownership.md's column-kinds sketch
+read "the implicit zero as the reference level," suggesting numeric code 0.
+The bitwise gate forced a correction: a dense factor codes its reference
+level by LEVEL ORDER like every other level, so the CSC column's zeroCode
+must be the reference level's ACTUAL level-order code (generally not 0) for
+at(i) to equal the dense code at every row. Storage carries this as the
+bridge-supplied reference code (SamplerOptions.cscReferenceCodes), and
+quantizeCscColumn seeds zeroCode from it rather than from codeFor(j, 0.0).
+data-ownership.md's sketch is corrected accordingly, not merely annotated.
+
+Open-question resolutions, all landed as recommended:
+
+- Q1 (pooled > 63-level sparse categorical): INCLUDED. The wide-mask
+  sibling (partitionIndicesSparseByWideMask, commit 1) and a K = 80 pooled
+  tier in test-sparse-factor.R (commit 2) cover it; no >63-level refusal
+  was added.
+- Q2 (resident-dense-block revisit here vs. a follow-up): LANDED HERE, as
+  commit 4, with the pointer-identity deviation recorded above.
+- Q3 (reference-level default): KEPT levels[1] as the constructor default;
+  documented (sparseFactor.Rd) that the most common level should be chosen
+  as the reference to realize the memory win, correctness holding under
+  any choice.
+- Q4 (resident sparse x.test): DEFERRED, per sparse-extensions.md and the
+  ordinal precedent - sparse-categorical x.test densifies and predicts
+  (commit 3). This densification interim is now explicitly SUPERSEDED by
+  the queued backlog item docs/plans/test-data-parity.md (VD directive,
+  2026-07-13: training and test sides converge to one data model), not
+  just deferred a second time - a future test-data-parity plan replaces
+  the densify-at-ingestion step with resident sparse testCodes end to end,
+  training and test sides sharing one data model.
+
+Memory demonstration (verification item, computed + measured, arm64,
+deterministic seed 20260714): n = 1e5, one sparseFactor with K = 200
+levels and a dominant (95%) reference level (f = 0.0500 non-reference,
+5005 stored entries), plus two dense numeric columns - the bairrtt
+item-design shape - ingested two ways: as a data frame carrying the
+sparseFactor, and as the same values with a dense factor column. The
+sparse ingestion path was confirmed taken (the dbartsMixedMatrix
+container's $sparse slot populated for the sparseFactor frame, NULL for
+the dense frame) and both fits ran to completion with finite draws;
+sigma draws were additionally checked bitwise-identical between the two
+ingestions (the gate this plan built, spot-checked here on a larger K
+than the tinytest tiers exercise). Container-level object.size (R
+containers, which retain the whole source frame as data@x's GC anchor,
+not just engine storage) came to 2,479,352 bytes sparse vs. 2,830,744
+bytes dense, a ~12.4% reduction - the weaker of the two signals, since
+most of both totals is the retained frame rather than engine state. The
+arithmetic column cost from docs/design/sparse-columns.md's formula is
+the meaningful number: dense costs 2 bytes/row (200,000 bytes for this
+column), rank-bitmap sparse costs 0.1875 + 2f bytes/row = 0.2876 bytes/row
+at f = 0.05 (28,760 bytes) - a 6.95x shrink on the categorical column
+alone, consistent with the plan's stated 7-10x range at f <= 0.05 (this
+run sits just under the range's low end because f = 0.05 is exactly the
+range's upper, least-sparse boundary).
