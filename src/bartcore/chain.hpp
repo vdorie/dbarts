@@ -108,6 +108,13 @@ struct SamplerOptions {
   bool useDart = false;
   DartPrior dart;
 
+  // per-forest split-variable restriction: the column indices this forest may
+  // split on (borrowed; consumed during construction). Null, or count 0,
+  // leaves every column available - the default, nullptr-guarded so the
+  // availability path is byte-for-byte unchanged.
+  const std::size_t* forestColumns = nullptr;
+  std::size_t numForestColumns = 0;
+
   // k is fixed at .k unless updateK, in which case .k is the starting value
   bool updateK = false;
   ChiKHyperprior kHyperprior;
@@ -271,6 +278,10 @@ struct Forest {
   DartPrior dart;
   std::vector<double> fixedSplitProbabilities;
   std::vector<std::uint32_t> splitCounts;
+  // per-forest split-variable restriction materialized as a 0/1 byte per
+  // predictor (1 = splittable); empty leaves every column available and the
+  // trees carry a null mask, so the default availability path is unchanged.
+  std::vector<std::uint8_t> columnMask;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
@@ -455,6 +466,18 @@ public:
       forest.trees[t].initialize(forest.indexBuffer.data() + t * numObservations,
                                  numObservations);
 
+    // A restricted forest clears the availability of every unlisted column; an
+    // empty list leaves the mask empty and the trees unrestricted (the default
+    // availability path, byte-for-byte).
+    if (options.forestColumns != nullptr && options.numForestColumns > 0) {
+      forest.columnMask.assign(data.numPredictors, 0);
+      for (size_t c = 0; c < options.numForestColumns; ++c)
+        forest.columnMask[options.forestColumns[c]] = 1;
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        forest.trees[t].setColumnMask(forest.columnMask.data());
+    }
+    options_.forestColumns = nullptr;  // consumed above
+
     forest.treeFits.assign(numObservations * forest.numTrees, 0.0);
     forest.totalFits.assign(numObservations, 0.0);
     forest.treeY.resize(numObservations);
@@ -478,6 +501,7 @@ public:
                   "BCF is a constant-leaf model");
     options_.maxNumCutsPerVariable = nullptr;
     options_.columnTypes = nullptr;
+    options_.forestColumns = nullptr;  // both forests read the full store here
     response_ = std::make_unique<GaussianResponse>(
       y, offset, weights, data.numObservations, sigmaEstimate, sigmaDf,
       sigmaRawScale);
