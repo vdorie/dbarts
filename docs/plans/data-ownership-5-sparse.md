@@ -455,3 +455,12 @@ at f = 0.05 (28,760 bytes) - a 6.95x shrink on the categorical column
 alone, consistent with the plan's stated 7-10x range at f <= 0.05 (this
 run sits just under the range's low end because f = 0.05 is exactly the
 range's upper, least-sparse boundary).
+
+Bench (quiet arm64 box): bench-sampler compare vs
+bench-sampler-4008675.csv reported "OK: no metric regressed more than
+5%" - zero flags, every metric at or below baseline, so the dense paths
+carry no cost from the sparse arms' guards. Sampling parity on the
+memory-demonstration shape (n = 1e5, K = 200, f = 0.05, single chain,
+m = 75): sparse ingestion 13.9 ms/iteration vs dense 14.4 (ratio 0.964,
+parity within noise). All Verification items are confirmed; the plan is
+CLOSED, and with it the data-ownership program (plans 1-5) is COMPLETE.
