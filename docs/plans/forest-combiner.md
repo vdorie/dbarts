@@ -133,17 +133,28 @@ lands without touching Chain.
    (multinomial) lands and gives it a second consumer. "ResponseModel side" is a
    RESPONSIBILITY statement (combining is a response-side concern owned by a
    dedicated object), not a header location.
-4. THE COMBINER API GENERALIZES BEYOND TWO FORESTS without building past BCF: (a)
-   combinedFits(forests) and formForestResponse(f, forests, ...) take the whole
-   forest vector, not a hardcoded mu/tau pair (multinomial = K forests); (b)
-   formForestResponse already produces a (response, weights) pair per forest, so a
-   heteroscedastic variance forest can later route into the WEIGHT channel rather
-   than the additive location - the seam exists, unused; (c) drawGlue and the
-   post-combine afterCombine hook are virtual, so each future model owns its
-   coupling and its move; (d) storeSample asks the combiner which forest each
-   reported channel addresses, so K-way per-forest reporting redirects in the
-   subclass - BCF's forest-0 map is the only one built. No API here needs
-   re-carving when those models land.
+4. THE COMBINER API GENERALIZES ITS INPUT SIDE BEYOND TWO FORESTS without
+   building past BCF: (a) combinedFits(forests) and formForestResponse(f,
+   forests, ...) take the whole forest vector, not a hardcoded mu/tau pair;
+   (b) formForestResponse already produces a (response, weights) pair per
+   forest, so a heteroscedastic variance forest can later route into the
+   WEIGHT channel rather than the additive location - the seam exists,
+   unused; (c) drawGlue and the post-combine afterCombine hook are virtual,
+   so each future model owns its coupling and its move; (d) storeSample asks
+   the combiner which forest each reported channel addresses - BCF's
+   forest-0 map is the only one built. WHAT STILL RE-CARVES when the queued
+   models land (review finding, recorded so multi-forest-models.md plans
+   against reality): the combined-fit OUTPUT is a single n-vector
+   (combinedFits -> const double*; refreshLatents/drawSigma take one
+   location; results.trainingFits is one channel) - multinomial's n x K
+   combined object forces signature changes there; Chain holds ONE
+   response_/sigma_ and a vector<Forest<L>> with a single leaf type L -
+   heteroscedastic's positive-leaf variance forest and hurdle's per-forest
+   response families break those CHAIN-level invariants, not the combiner
+   API; and the state wire format (ChainStateData's BCF-shaped
+   a/aVariance/b0/b1) needs a format bump for any non-BCF combiner. This
+   plan freezes the input-side shape and the virtual coupling hooks; the
+   named Chain-level invariants are the honest remaining work.
 
 ## The BCF path's bitwise gate (finding, load-bearing)
 
@@ -158,18 +169,43 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
 
 ## Steps
 
-1. BCF bitwise fixture (gate enabler; NO engine change). Add
-   benchmarks/R/bcf-equivalence.R in equivalence.R's record/compare idiom: a
-   handful of fixed-seed BCF fits (default two-forest; one restricted-moderator;
-   one with updateA/updateB toggled) recording the RAW per-forest fits
-   (getForestFits both forests), the glue (getBCFGlue), and sigma to a baseline
-   .rds; compare asserts BITWISE identity (identical(), not tolerance). Record the
-   baseline from THIS pre-refactor HEAD - it is the BCF analog of
-   equivalence-ac6ec2c.rds and the per-step guard for steps 2-4. Files:
-   benchmarks/R/bcf-equivalence.R, benchmarks/baselines/bcf-equivalence-<hash>.rds.
-   Tests: the script's own record-then-compare round-trips identical. Gate class:
-   RNG-neutral (test-only) - equivalence 22/22 + tinytest unchanged + tests/cpp
-   unchanged + the new fixture identical to itself. Size: S.
+1. BCF bitwise fixture + cpp gate tightenings (gate enablers; NO engine
+   change). Add benchmarks/R/bcf-equivalence.R in equivalence.R's
+   record/compare idiom, mirroring its settings guard (pin seeds, draw
+   counts, tree count, n.threads = 1 in the baseline meta; error on
+   mismatch). Scenarios: default two-forest; one restricted-moderator; one
+   with updateA/updateB toggled; one WEIGHTED (weights ~ U(0.5, 2) - the
+   w*m^2 and wi weight channels of formForestResponse/drawGlue are
+   otherwise unobserved by any gate, review finding); one setTreatment
+   scenario (run, setTreatment(new z), run, record - the only bitwise guard
+   on the step-4 setTreatment routing). EVERY scenario records the RAW
+   per-forest fits (bartcoreForestFits, both forests), the glue
+   (bartcoreBCFGlue), sigma, AND the reported result$train and
+   result$varcount channels: train/varcount are the ONLY bitwise guard on
+   storeSample's BCF branches, whose glue reads get mechanically rewritten
+   in step 2 when combiner_ replaces bcf_ (the live fits/glue accessors
+   bypass storeSample entirely, review finding); train also catches a
+   pre/post-interweave a-vs-mu mismatch the live state is self-consistently
+   blind to. Compare asserts BITWISE identity (identical(), not tolerance).
+   Do NOT bitwise-compare a getState -> setState continuation: restore is
+   structural by contract (test-bcf.R), and a bitwise assertion there is a
+   false gate. Freeze the recorded-column set BEFORE capturing the
+   baseline, and confirm equivalence 22/22 still holds at the recording
+   commit so the BCF baseline does not bless a drifted engine. Also close
+   the two component-gate holes the fixture cannot reach: tests/cpp gains a
+   BCF growForestFromRoot case (that branch is unreachable from R - without
+   it the plan relocates code no gate observes) and
+   testBCFInterweaveKeepTrees is tightened to numThin > 1 (the sampleNum ->
+   saved-slot addressing of the saved-tree rescale is pinned only at
+   numThin = 1 today). Record the baseline from the pre-refactor HEAD - it
+   is the BCF analog of equivalence-ac6ec2c.rds and the per-step guard for
+   steps 2-4. Files: benchmarks/R/bcf-equivalence.R,
+   benchmarks/baselines/bcf-equivalence-<hash>.rds,
+   tests/cpp/test_sampler.cpp. Tests: the script's own record-then-compare
+   round-trips identical; the new/tightened cpp cases pass pre-refactor.
+   Gate class: RNG-neutral (test-only) - equivalence 22/22 + tinytest
+   unchanged + tests/cpp (grown) + the new fixture identical to itself.
+   Size: M (grown from S by review).
 
 2. ForestCombiner<L> base + BCFForestCombiner<L>; combining relocated (engine,
    BYTE-IDENTICAL). Introduce the virtual ForestCombiner<L> (formForestResponse,
@@ -180,7 +216,12 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
    combinedFits(forests_) : forests_[0].totalFits.data()`; both sweep loops
    (run() and growForestFromRoot()) call combiner_->formForestResponse behind
    `if (combiner_)`. drawGlue/interweave stay Chain methods reading combiner state
-   for now. The BCF Chain ctor builds combiner_. Files: chain.hpp. Tests:
+   for now. NOTE (review finding): renaming the owner forces EVERY glue
+   reader - storeSample, getState/setState/installForest, setTreatment,
+   bcfGlue - to be mechanically rewritten to read through combiner_ in THIS
+   step; their semantics move in steps 3-4 but their reads change here, and
+   the fixture's train/varcount columns are what makes that rewrite honest.
+   The BCF Chain ctor builds combiner_. Files: chain.hpp. Tests:
    tests/cpp BCF sanity unchanged (testBCFTwoForest and kin, test_sampler.cpp:
    1445+). Gate class: RNG-neutral - equivalence 22/22 + BCF fixture identical +
    tests/cpp + bcf-exact.R quick + full tinytest. Size: L. Abort: any single-
@@ -205,9 +246,11 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
    IDENTICAL). storeSample asks combiner_ for the combined training fit and for
    channel definedness (BCF: testFits/logLikelihood undefined -> NaN; forest-0
    varcount/k/splitProbs the combiner's reported-forest map); getState/setState
-   delegate glue (de)serialization to combiner_->serialize/restore (ChainStateData
-   glue fields stay the wire format, filled by the combiner); setTreatment and
-   bcfGlue route through combiner_. Single-forest storeSample/getState/setState
+   AND installForest (the warm-start glue restore, chain.hpp:1863-1867 - the
+   third glue site, review finding) delegate glue (de)serialization to
+   combiner_->serialize/restore (ChainStateData glue fields stay the wire
+   format, filled by the combiner); setTreatment and bcfGlue route through
+   combiner_. Single-forest storeSample/getState/setState
    keep their direct forest-0 path behind `if (combiner_)`. Files: chain.hpp.
    Tests: tests/cpp state round-trip / fuzz unchanged; test-bcf.R unchanged. Gate
    class: RNG-neutral - equivalence 22/22 + BCF fixture identical + tests/cpp
@@ -220,7 +263,15 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
    anticipates for multinomial (K forests, PG coupling), heteroscedastic (variance
    forest into the weight channel; the deferred per-observation-sigma decision),
    hurdle (two response-linked forests), and grouped-x-multi-forest (GroupedResponse
-   composes below the combiner). Record that BCF is the first instance and that
+   composes below the combiner). Record honestly (review findings): the
+   Chain-level re-carves scope decision 4 names (combined-output shape,
+   single response_/sigma_, single-L forest vector, BCF-shaped wire format);
+   that post-mutation fit rebuild (applyNewData/revalidateTrees/
+   rebuildFitsFromParameters) remains forest-0-only, a pre-existing
+   forest-split interim this plan does not close; and that the combiner is a
+   standalone ForestCombiner<L> hierarchy rather than a ResponseModel
+   subclass, the accepted reading of the architecture review's debt #1.
+   Record that BCF is the first instance and that
    Forest<L>/combiner extraction to combiner.hpp is deferred to the second
    combiner. Update multi-forest-models.md (blocker discharged) and architecture-
    numerical-review.md (debt #1 closed). Files: docs/design/forest-combiner.md,
@@ -242,6 +293,25 @@ not a before/after-refactor gate. Step 1 establishes the missing guard.
   rchk (the bridge is untouched - this is engine-header-only).
 
 ## Open questions for VD
+
+RESOLVED (VD, 2026-07-14): Q1-Q4 as recommended. Two independent design
+reviews (architecture fit; gate sufficiency) then amended the plan, both
+returning "implement with named amendments/additions": scope decision 4
+softened to the input-side generalization with the future Chain-level
+re-carves named; step 1 grew the fixture (weighted and setTreatment
+scenarios, train/varcount reported channels, the settings guard, the
+baseline pitfalls) plus the two cpp gate tightenings (growForestFromRoot
+BCF case, keepTrees numThin > 1); step 2 records the mechanical
+glue-reader rewrite it forces; step 4 names installForest's glue restore.
+Construction detail from review: the combiner needs the observation count
+(and the ridge move data_) - hold a ColumnStore reference or receive n at
+construction. One reading AWAITING VD confirmation (recommended: accept): the combiner
+is a standalone ForestCombiner<L> hierarchy, not a ResponseModel subclass
+- architecture-numerical-review.md:130-133's "ResponseModel side" is read
+as a responsibility statement (combining belongs to a dedicated
+response-side object), since ResponseModel's per-observation-location
+interface does not fit per-forest residual formation. Steps 2-4 depend on
+this reading; step 1 does not.
 
 - Q1 (combiner dispatch). RECOMMEND virtual ForestCombiner<L>, null-pointer
   short-circuit for single forest. It matches ResponseModel (creation-selected,
