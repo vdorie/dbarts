@@ -154,8 +154,9 @@ engine can produce it now":
 - per-forest fits (forest-combiner/multi-forest, TODO L60-71, L122-130):
   BCF per-forest fits already ship via SEPARATE R-level entry points
   `bartcore_getForestFits`/`bartcore_getBCFGlue` (R_interface.cpp:229-230),
-  not through `dbarts_results`. Folding them into run2 waits on
-  forest-combiner. Future append.
+  not through `dbarts_results`. forest-combiner landed 2026-07-14
+  (docs/design/forest-combiner.md), so folding them into run2 is
+  unblocked; do it when a consumer pulls. Future append.
 
 JUDGMENT CALL (named): whether run2 ships with the loglik channel at
 introduction or is mechanism-only (size + the v1 eight, first real append

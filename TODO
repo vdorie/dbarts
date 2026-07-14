@@ -21,17 +21,6 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
-  forest-combiner: the multi-forest prerequisite. Promote the BCF glue
-    out of Chain (bcf_ pointer, drawGlue, combinedFits,
-    formForestResponse, forestMultiplier, the if(bcf_) sweep branches)
-    into a polymorphic ForestCombiner on the ResponseModel side owning
-    per-forest residual formation, the coupling draw, combined fits,
-    and per-forest reporting addressing; BCF becomes its first
-    instance. Unblocks multinomial/heteroscedastic/hurdle AND
-    grouped-x-multi-forest composition (GroupedResponse is on the
-    wrong side of the Chain/combiner boundary today). RNG-neutral
-    refactor, gated by the equivalence anchor + bcf-exact.
-    Medium-large; land BEFORE any multi-forest model.
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
@@ -58,8 +47,12 @@ items
     hook the design provisioned.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
     two-forest machinery is the template; one design note each when
-    picked. Prerequisites: forest-combiner FIRST (all three bend on
-    it); heteroscedastic additionally needs a fourth leaf kind
+    picked. forest-combiner (docs/design/forest-combiner.md) LANDED
+    2026-07-14 and discharges the coupling-seam prerequisite; each
+    note still has to plan against the Chain-level re-carves it names
+    (a single combined-fit location, a single response_/sigma_, a
+    single-leaf-type forest vector, a BCF-shaped state wire format).
+    heteroscedastic additionally needs a fourth leaf kind
     (multiplicative-positive, non-integrable) plus the non-conjugate
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
