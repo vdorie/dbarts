@@ -404,13 +404,15 @@ struct ForestCombiner {
   /// combiner scratch, valid only until the next call.
   virtual const double* combinedFits(const std::vector<Forest<L>>& forests) = 0;
 
-  /// The BCF combining scalars the Chain state, reporting, and treatment paths
-  /// still read directly (a, b0, b1, aVariance, the treatment vector). Null for
-  /// a combiner carrying no such glue: the state wire format is BCF-shaped, so
-  /// any future non-BCF combiner returns null here and serializes through the
-  /// hooks below.
-  virtual BCFState* glueState() { return nullptr; }
-  virtual const BCFState* glueState() const { return nullptr; }
+  /// Swaps the borrowed treatment vector the coupling reads; inert unless a
+  /// subclass carries one. The combiner re-forms its per-forest residuals from
+  /// the new vector on the next sweep.
+  virtual void setTreatment(const double*) {}
+
+  /// The BCF glue coefficients (a, b0, b1) on the combining response, for the
+  /// per-forest reporting path (getBCFGlue); false for a combiner carrying no
+  /// such glue, which is how the "no BCF glue" answer reaches the caller.
+  virtual bool bcfGlue(double&, double&, double&) const { return false; }
 
   /// The coupling draw and its likelihood-invariant post-combine move, fired at
   /// the fixed sweep points; inert unless a subclass couples the forests.
@@ -456,8 +458,12 @@ struct BCFForestCombiner : ForestCombiner<L> {
     glue_.updateB = spec.updateB;
   }
 
-  BCFState* glueState() override { return &glue_; }
-  const BCFState* glueState() const override { return &glue_; }
+  void setTreatment(const double* z) override { glue_.z = z; }
+
+  bool bcfGlue(double& a, double& b0, double& b1) const override {
+    a = glue_.a; b0 = glue_.b0; b1 = glue_.b1;
+    return true;
+  }
 
   /// Effective response and precision forest f's constant-leaf draws see so that
   /// m_f * f_f explains the residual (y minus the other forests' scaled
@@ -622,6 +628,32 @@ struct BCFForestCombiner : ForestCombiner<L> {
       }
     }
     return c;
+  }
+
+  /// BCF reports the prognostic forest (forest 0, the base default) but leaves
+  /// the test-fit and log-likelihood channels undefined: there is no test
+  /// treatment vector to blend a mu + b_z tau off-sample, and the blended
+  /// per-observation location is not visible to the response model to score.
+  bool testFitsAreDefined() const override { return false; }
+  bool logLikelihoodIsDefined() const override { return false; }
+
+  /// The glue scalars into and out of the BCF-shaped wire format. serializeGlue
+  /// owns the hasBCF flag (the "carries glue" marker); restoreGlue is a no-op on
+  /// a state that carries none, so a mismatched restore leaves the glue at its
+  /// constructed values.
+  void serializeGlue(ChainStateData& state) const override {
+    state.hasBCF = true;
+    state.a = glue_.a;
+    state.aVariance = glue_.aVariance;
+    state.b0 = glue_.b0;
+    state.b1 = glue_.b1;
+  }
+  void restoreGlue(const ChainStateData& state) override {
+    if (!state.hasBCF) return;
+    glue_.a = state.a;
+    glue_.aVariance = state.aVariance;
+    glue_.b0 = state.b0;
+    glue_.b1 = state.b1;
   }
 
 private:
@@ -820,15 +852,11 @@ public:
   bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
   void setTreatment(const double* z) {
-    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    if (glue != nullptr) glue->z = z;
+    if (combiner_) combiner_->setTreatment(z);
   }
   /// BCF glue on the combining response; false for a non-BCF chain.
   bool bcfGlue(double& a, double& b0, double& b1) const {
-    const BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    if (glue == nullptr) return false;
-    a = glue->a; b0 = glue->b0; b1 = glue->b1;
-    return true;
+    return combiner_ ? combiner_->bcfGlue(a, b0, b1) : false;
   }
   /// The forest's constant-leaf function values on the internal scale (mu for
   /// forest 0, tau for forest 1); numObservations doubles.
@@ -1888,14 +1916,10 @@ public:
     state.rngState.resize(ext_rng_getSerializedStateLength(rng_));
     if (!state.rngState.empty())
       ext_rng_writeSerializedState(rng_, state.rngState.data());
-    const BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    state.hasBCF = glue != nullptr;
-    if (glue != nullptr) {
-      state.a = glue->a;
-      state.aVariance = glue->aVariance;
-      state.b0 = glue->b0;
-      state.b1 = glue->b1;
-    }
+    // the combiner fills the BCF-shaped glue wire format (hasBCF included); a
+    // single-forest chain carries no combiner and leaves it off
+    state.hasBCF = false;
+    if (combiner_) combiner_->serializeGlue(state);
   }
 
   bool stateIsValid(const ChainStateData& state) const {
@@ -2057,13 +2081,7 @@ public:
       forest.dart.alpha = state.dartAlpha;
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
-    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    if (glue != nullptr && state.hasBCF) {
-      glue->a = state.a;
-      glue->aVariance = state.aVariance;
-      glue->b0 = state.b0;
-      glue->b1 = state.b1;
-    }
+    if (combiner_) combiner_->restoreGlue(state);
     return true;
   }
 
@@ -2110,13 +2128,7 @@ public:
       forest.dart.alpha = state.dartAlpha;
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
-    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
-    if (glue != nullptr && state.hasBCF) {
-      glue->a = state.a;
-      glue->aVariance = state.aVariance;
-      glue->b0 = state.b0;
-      glue->b1 = state.b1;
-    }
+    if (combiner_) combiner_->restoreGlue(state);
     // a serialized generator of a different kind (a single-chain state
     // riding R's stream restored into a dedicated-generator chain, say)
     // cannot be installed; the destination keeps its own stream, which
@@ -2489,7 +2501,11 @@ private:
   }
 
   void storeSample(Results& results, size_t sampleNum) {
-    Forest<L>& forest = forests_[0];
+    // the scalar channels (k, variable counts, split probabilities) and the
+    // single-forest fit paths address the reported forest; the combiner names
+    // it (BCF: the prognostic mu, forest 0), a single-forest chain is forest 0
+    Forest<L>& forest =
+      combiner_ ? forests_[combiner_->reportedForest()] : forests_[0];
     size_t n = data_.numObservations;
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -2520,7 +2536,7 @@ private:
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
       double* out = results.testFits + sampleNum * data_.numTestObservations;
-      if (combiner_) {
+      if (combiner_ && !combiner_->testFitsAreDefined()) {
         // A BCF test blend a * mu + b_z * tau is ill-defined here: the API
         // carries no test treatment vector, so only the bare prognostic
         // forest could be recorded, which silently misreports the fit.
@@ -2567,7 +2583,7 @@ private:
 
     if (results.logLikelihood != nullptr) {
       double* out = results.logLikelihood + sampleNum * n;
-      if (combiner_) {
+      if (combiner_ && !combiner_->logLikelihoodIsDefined()) {
         // The BCF per-observation location blends two forests through the
         // glue coefficients, which the response model cannot see; scoring
         // forest 0 alone would misreport it. NaN-flag as testFits does.
