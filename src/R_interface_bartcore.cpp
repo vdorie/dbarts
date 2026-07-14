@@ -1444,7 +1444,7 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
 SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                                SEXP dataExpr, SEXP handleExpr,
                                SEXP trainRowsExpr, SEXP testRowsExpr,
-                               SEXP familyExpr) {
+                               SEXP familyExpr, SEXP columnsExpr) {
   const bartcore::ColumnStore& parent =
     dataHandleFromExpression(handleExpr).store;
   const char* familyName =
@@ -1459,6 +1459,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                         offset = std::vector<double>{},
                         testOffset = std::vector<double>{},
                         store = bartcore::ColumnStore{},
+                        columns = std::vector<size_t>{},
+                        viewLeafCovariates = std::vector<size_t>{},
                         rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -1512,17 +1514,57 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       }
     }
 
+    // an optional column subset: 1-based indices into the handle's columns,
+    // or NULL for the full set. The view spans only these, binning each
+    // identically to the parent. Consumed at construction, so the buffer need
+    // only outlive the sampler build.
+    if (!Rf_isNull(columnsExpr)) {
+      if (!Rf_isInteger(columnsExpr) || Rf_xlength(columnsExpr) == 0)
+        Rf_error("view columns must be a non-empty integer vector or NULL");
+      R_xlen_t numColumns = Rf_xlength(columnsExpr);
+      columns.resize(static_cast<size_t>(numColumns));
+      for (R_xlen_t j = 0; j < numColumns; ++j) {
+        int column = INTEGER(columnsExpr)[j];
+        if (column < 1 || static_cast<size_t>(column) > parent.numPredictors)
+          Rf_error("view column out of range");
+        columns[static_cast<size_t>(j)] = static_cast<size_t>(column - 1);
+      }
+    }
+
+    // leaf covariates address the view's own columns; translate the
+    // parent-space designation onto the subset (identity for a full-span view)
+    const size_t* gatherColumns = model.leafCovariateColumns.empty()
+      ? NULL : model.leafCovariateColumns.data();
+    size_t numGatherColumns = model.leafCovariateColumns.size();
+    if (!columns.empty() && numGatherColumns > 0) {
+      viewLeafCovariates.reserve(numGatherColumns);
+      for (size_t parentColumn : model.leafCovariateColumns) {
+        size_t viewColumn = columns.size();
+        for (size_t j = 0; j < columns.size(); ++j)
+          if (columns[j] == parentColumn) { viewColumn = j; break; }
+        if (viewColumn == columns.size())
+          Rf_error("leaf covariate column absent from the view's columns");
+        viewLeafCovariates.push_back(viewColumn);
+      }
+      gatherColumns = viewLeafCovariates.data();
+      numGatherColumns = viewLeafCovariates.size();
+    }
+
     // a linear node prior's designated columns have the view gather their raw
     // values, with standardization constants from the handle's full data - the
     // same calibration inheritance as the copied cut grid
     store.buildFromParent(parent, trainRows.data(), numTrainRows,
-                          testRows.data(), numTestRows,
-                          model.leafCovariateColumns.empty()
-                            ? NULL : model.leafCovariateColumns.data(),
-                          model.leafCovariateColumns.size());
+                          testRows.data(), numTestRows, gatherColumns,
+                          numGatherColumns,
+                          columns.empty() ? NULL : columns.data(),
+                          columns.size());
 
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    if (!viewLeafCovariates.empty()) {
+      options.leafCovariateColumns = viewLeafCovariates.data();
+      options.numLeafCovariates = viewLeafCovariates.size();
+    }
     rngs = createChainRngs(control, options.numChains);
 
     std::unique_ptr<bartcore::SamplerBase> sampler =

@@ -410,9 +410,10 @@ bartcoreDataHandle <- function(control, data) {
 # and gathers its rows' codes, so folds bin identically to the full data.
 # data is the full data object the handle was built from; trainRows and
 # testRows index its rows, y/weights/offset are sliced by trainRows, and a
-# test offset comes from offset[testRows] (xbart's fold semantics). The
-# result refuses raw-predictor mutation (setPredictor and friends, setData,
-# setCutPoints, setState); family is as bartcoreSampler's.
+# test offset comes from offset[testRows] (xbart's fold semantics). columns,
+# when given, are 1-based indices restricting the view to a column subset (NULL
+# spans every column). The result refuses raw-predictor mutation (setPredictor
+# and friends, setData, setCutPoints, setState); family is as bartcoreSampler's.
 bartcoreSamplerFromHandle <- function(
   handle,
   control,
@@ -420,7 +421,8 @@ bartcoreSamplerFromHandle <- function(
   data,
   trainRows,
   testRows = NULL,
-  family = ""
+  family = "",
+  columns = NULL
 ) {
   result <- new.env(parent = emptyenv())
   result$ptr <- .Call(
@@ -431,7 +433,8 @@ bartcoreSamplerFromHandle <- function(
     handle$ptr,
     as.integer(trainRows),
     if (!is.null(testRows)) as.integer(testRows),
-    as.character(family)
+    as.character(family),
+    if (!is.null(columns)) as.integer(columns)
   )
   # a view refuses the raw-predictor and re-quantize surface, and its live-tree
   # getTrees needs no training replay, so it carries no predictor matrix

@@ -729,29 +729,50 @@ struct ColumnStore {
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
   }
 
-  /// A row-subset view of a built parent store: copies the parent's cut
-  /// structure and gathers the subset's codes, so the view bins identically
-  /// to the parent by construction; testRows also index the parent's
-  /// observations. Views hold no re-quantizable raw (isView is set), which
-  /// rules out every mutation and re-quantize path here; callers enforce that.
-  /// rawColumnsToGather names columns whose raw values a leaf model reads
-  /// (linear leaves): their subset values and parent-derived standardization
-  /// constants are copied so rawColumn and suppliedStandardization serve them.
-  /// The view is self-contained: nothing references the parent after this
-  /// returns.
+  /// A row- and column-subset view of a built parent store: copies the
+  /// parent's cut structure and gathers the subset's codes, so the view bins
+  /// identically to the parent by construction; testRows also index the
+  /// parent's observations. columns, when given, selects the parent columns
+  /// the view spans (view-local column j reads parent column columns[j]); null
+  /// spans every parent column, the full-span view unchanged. Views hold no
+  /// re-quantizable raw (isView is set), which rules out every mutation and
+  /// re-quantize path here; callers enforce that. rawColumnsToGather names the
+  /// view's own columns whose raw values a leaf model reads (linear leaves):
+  /// their subset values and parent-derived standardization constants are
+  /// copied so rawColumn and suppliedStandardization serve them. The view is
+  /// self-contained: nothing references the parent after this returns.
   void buildFromParent(const ColumnStore& parent, const size_t* rows,
                        size_t numRows, const size_t* testRows,
                        size_t numTestRows,
                        const size_t* rawColumnsToGather = nullptr,
-                       size_t numRawColumnsToGather = 0) {
+                       size_t numRawColumnsToGather = 0,
+                       const size_t* columns = nullptr, size_t numColumns = 0) {
     isView = true;
     numObservations = numRows;
-    numPredictors = parent.numPredictors;
+    numPredictors = columns != nullptr ? numColumns : parent.numPredictors;
     useQuantiles = parent.useQuantiles;
-    types = parent.types;
-    cutPoints = parent.cutPoints;
-    numCuts = parent.numCuts;
-    maxNumCuts = parent.maxNumCuts;
+    // view-local column j reads parent column parentColumns[j]; the absent
+    // list is the identity, so the full-span view stays byte-for-byte
+    std::vector<size_t> parentColumns(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j)
+      parentColumns[j] = columns != nullptr ? columns[j] : j;
+    if (columns != nullptr) {
+      types.resize(numPredictors);
+      cutPoints.resize(numPredictors);
+      numCuts.resize(numPredictors);
+      maxNumCuts.resize(numPredictors);
+      for (size_t j = 0; j < numPredictors; ++j) {
+        types[j] = parent.types[parentColumns[j]];
+        cutPoints[j] = parent.cutPoints[parentColumns[j]];
+        numCuts[j] = parent.numCuts[parentColumns[j]];
+        maxNumCuts[j] = parent.maxNumCuts[parentColumns[j]];
+      }
+    } else {
+      types = parent.types;
+      cutPoints = parent.cutPoints;
+      numCuts = parent.numCuts;
+      maxNumCuts = parent.maxNumCuts;
+    }
     // views densify: gathered codes are fully dense whatever the parent's
     // per-column storage (docs/design/sparse-columns.md)
     codes.resize(numRows * numPredictors);
@@ -774,9 +795,11 @@ struct ColumnStore {
     gatheredSds.clear();
     // gather what the parent can serve raw (dense-backed columns, or its
     // own gathered copies); columns it cannot are left ungathered, so the
-    // view's rawColumn returns null and the facade refuses the designation
+    // view's rawColumn returns null and the facade refuses the designation.
+    // rawColumnsToGather index the view's columns, read from their parent map
     for (size_t k = 0; k < numRawColumnsToGather; ++k) {
-      const double* parentColumn = parent.rawColumn(rawColumnsToGather[k]);
+      size_t parentColumnIndex = parentColumns[rawColumnsToGather[k]];
+      const double* parentColumn = parent.rawColumn(parentColumnIndex);
       if (parentColumn == nullptr) continue;
       size_t slot = gatheredRawColumns.size();
       gatheredRawColumns.push_back(rawColumnsToGather[k]);
@@ -791,7 +814,7 @@ struct ColumnStore {
       for (size_t i = 0; i < numTestRows; ++i)
         testValues[i] = parentColumn[testRows[i]];
       double mean, sd;
-      if (!parent.suppliedStandardization(rawColumnsToGather[k], &mean, &sd))
+      if (!parent.suppliedStandardization(parentColumnIndex, &mean, &sd))
         standardizationMomentsForColumn(parentColumn, parent.numObservations,
                                         &mean, &sd);
       gatheredMeans[slot] = mean;
@@ -802,7 +825,7 @@ struct ColumnStore {
         ? missingCategoryCode(numCuts[j]) : naCode;
       xint_t* column = codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
-        column[i] = parent.codeAt(j, rows[i]);
+        column[i] = parent.codeAt(parentColumns[j], rows[i]);
         if (column[i] == missingCode) hasMissing[j] = 1;
       }
     }
@@ -810,7 +833,8 @@ struct ColumnStore {
     testCodes.resize(numTestRows * numPredictors);
     for (size_t i = 0; i < numTestRows; ++i)
       for (size_t j = 0; j < numPredictors; ++j)
-        testCodes[i * numPredictors + j] = parent.codeAt(j, testRows[i]);
+        testCodes[i * numPredictors + j] =
+          parent.codeAt(parentColumns[j], testRows[i]);
     testOffset = nullptr;
   }
 
