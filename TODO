@@ -16,8 +16,11 @@ items
   blocked-jacobi-trees: exact parallel tree updates via noise-splitting
     augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
     sum-constrained): b trees update independently per barrier at the
-    cost of b-fold precision on structure moves. Candidate mechanism
-    for within-chain-threading; an ESS-per-second experiment decides.
+    cost of b-fold precision on structure moves. Within-chain-threading
+    closed no-go, so this now stands alone as the single-chain
+    parallelism candidate; an ESS-per-second experiment decides
+    (protocol in docs/design/within-chain-threading.md section 7).
+    Same memory wall applies; low-ranked.
   data-ownership: own predictor storage instead of borrowing REAL(x)
     (drops the PROT_* pinning and the const_cast write-through);
     changes the documented aliasing of per-observation updates.
@@ -97,14 +100,21 @@ items
     roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
-  sparse-extensions: in-place mutation, sparse x.test, streaming range
-    kernel, mutation on dense-backed mixed columns (sparse-columns.md
-    landing notes). The u8 width entry moved to data-ownership.
-    consumer-gated.
+  sparse-extensions: in-place mutation, streaming range kernel,
+    mutation on dense-backed mixed columns (sparse-columns.md landing
+    notes). The u8 width entry moved to data-ownership; the sparse
+    x.test entry moved to test-data-parity. consumer-gated.
   survival-models: AFT log-normal LANDED (f0efc03; design
     docs/design/survival.md; survival-grouped-surface reachable through
     rbart_vi landed as ac6ec2c). Remaining: discrete-time hazard
     (person-period ingestion over the binary families, same design note).
+  test-data-parity: store test data as a frame like the training
+    source (not a forced dense matrix), with per-column
+    {dense, sparse} x {ordinal, categorical} kinds end to end -
+    ingestion, engine test codes, prediction, setTestPredictor.
+    Subsumes sparse-extensions' sparse x.test bullet and supersedes
+    data-ownership-5's test-side densification interim (VD directive
+    2026-07-13). Need established; sequencing decided at pick time.
   warm-starts: v1 LANDED (installTrees + bart2 warm.start; same-grid
     v1, cross-grid refused). Remaining stretch: the cross-grid remap
     over mapOldCutPointsOntoNew; reopen when a consumer needs new-data
@@ -113,11 +123,11 @@ items
     closed. FUTURE (post 1.0): integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
-  within-chain-threading: previously assessed-and-deferred pending
-    n >= 1e5 workloads, now confirmed common. Deterministic fixed-block
-    reductions preserve thread-count invariance; the measurement
-    interacts with data-ownership (same DRAM-bound regime) and competes
-    with blocked-jacobi-trees as the mechanism.
+  within-chain-threading: CLOSED NO-GO 2026-07-13, measured
+    (docs/design/within-chain-threading.md section 8: 0.91x at the
+    n=1e5 x 4T gate point; prototype archived on
+    archive/within-chain-threading). Revival preconditions recorded
+    there; do not re-litigate.
   x86-simd: three linalg SSE2/AVX bodies are scalar with intrinsics
     commented out (predates the rewrite; the originals used
     non-temporal stores autovectorization cannot emit) - measure on
