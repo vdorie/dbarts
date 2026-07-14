@@ -108,6 +108,109 @@ static void testColumnStoreView() {
   printf("ok: column store view\n");
 }
 
+// A view may span a subset of the parent's columns; view-local column j binds
+// to parent column columns[j]. The absent (all-columns) list must reproduce
+// the default view byte-for-byte, and a subset must bin each of its columns
+// identically to the mapped parent column, gathering leaf raw through the map.
+static void testColumnStoreColumnSubset() {
+  // leave the shared draw stream where downstream tests expect it
+  uint64_t savedRngState = rngState;
+  const size_t n = 120, p = 3;
+  std::vector<double> x(n * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();  // the gathered leaf covariate
+    x[i + 2 * n] = (double) (i % 4);  // categorical codes 0..3
+  }
+  x[0] = 0.0;  // column 0 extremes land in the test rows below, so a store
+  x[1] = 1.0;  // built over only the training subset would bin it differently
+
+  std::vector<ColumnType> types = {ColumnType::ordinal, ColumnType::ordinal,
+                                   ColumnType::categorical};
+  size_t covariate[] = {1};
+  ColumnStore parent;
+  parent.build(x.data(), n, p, 25, false, types.data(), covariate, 1);
+
+  std::vector<size_t> rows, testRows;
+  for (size_t i = 2; i < n; i += 2) rows.push_back(i);
+  testRows.push_back(0);
+  testRows.push_back(1);
+  for (size_t i = 3; i < n; i += 2) testRows.push_back(i);
+
+  // the identity list reproduces the default view byte-for-byte, leaf raw too
+  size_t viewCovariate[] = {1};
+  std::vector<size_t> allColumns = {0, 1, 2};
+  ColumnStore viewDefault, viewFull;
+  viewDefault.buildFromParent(parent, rows.data(), rows.size(),
+                              testRows.data(), testRows.size(), viewCovariate,
+                              1);
+  viewFull.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                           testRows.size(), viewCovariate, 1,
+                           allColumns.data(), allColumns.size());
+  check(viewFull.numPredictors == p && viewFull.codes == viewDefault.codes &&
+          viewFull.cutPoints == viewDefault.cutPoints &&
+          viewFull.numCuts == viewDefault.numCuts &&
+          viewFull.types == viewDefault.types &&
+          viewFull.maxNumCuts == viewDefault.maxNumCuts &&
+          viewFull.testCodes == viewDefault.testCodes &&
+          viewFull.gatheredRawColumns == viewDefault.gatheredRawColumns &&
+          viewFull.gatheredRawValues == viewDefault.gatheredRawValues &&
+          viewFull.gatheredMeans == viewDefault.gatheredMeans &&
+          viewFull.gatheredSds == viewDefault.gatheredSds,
+        "an all-columns view matches the default view path byte-for-byte");
+
+  // a column subset spans only its columns, each binned identically to the
+  // mapped parent column
+  std::vector<size_t> subset = {2, 0};
+  ColumnStore view;
+  view.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                       testRows.size(), nullptr, 0, subset.data(),
+                       subset.size());
+  check(view.numPredictors == subset.size(), "subset view spans its columns");
+  bool gridMatches = true;
+  for (size_t j = 0; j < subset.size(); ++j)
+    gridMatches = gridMatches && view.types[j] == parent.types[subset[j]] &&
+      view.numCuts[j] == parent.numCuts[subset[j]] &&
+      view.cutPoints[j] == parent.cutPoints[subset[j]] &&
+      view.maxNumCuts[j] == parent.maxNumCuts[subset[j]];
+  check(gridMatches, "subset view copies each mapped parent column's cut grid");
+
+  bool codesMatch = true;
+  for (size_t j = 0; j < subset.size() && codesMatch; ++j)
+    for (size_t i = 0; i < rows.size() && codesMatch; ++i)
+      codesMatch =
+        view.codes[i + j * rows.size()] == parent.codeAt(subset[j], rows[i]);
+  for (size_t i = 0; i < testRows.size() && codesMatch; ++i)
+    for (size_t j = 0; j < subset.size() && codesMatch; ++j)
+      codesMatch = view.testCodes[i * subset.size() + j] ==
+        parent.codeAt(subset[j], testRows[i]);
+  check(codesMatch, "subset view bins its columns identically to the parent");
+
+  // a leaf covariate over a subset gathers through the same map: view-local
+  // column 0 here is parent column 1, the covariate the parent owns raw for
+  std::vector<size_t> gatherSubset = {1, 0};
+  size_t gatherLocal[] = {0};
+  ColumnStore gatherView;
+  gatherView.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
+                             testRows.size(), gatherLocal, 1,
+                             gatherSubset.data(), gatherSubset.size());
+  const double* raw = gatherView.rawColumn(0);
+  bool gatherMatches = gatherView.gatheredRawColumns.size() == 1 &&
+    gatherView.gatheredRawColumns[0] == 0 && raw != nullptr;
+  for (size_t i = 0; i < rows.size() && gatherMatches; ++i)
+    gatherMatches = raw[i] == x[rows[i] + n];
+  double mean, sd, parentMean, parentSd;
+  standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd);
+  gatherMatches = gatherMatches &&
+    gatherView.suppliedStandardization(0, &mean, &sd) && mean == parentMean &&
+    sd == parentSd;
+  check(gatherMatches,
+        "subset view gathers a leaf covariate through the column map");
+
+  rngState = savedRngState;
+  printf("ok: column store column subset\n");
+}
+
 // The engine keeps no predictor matrix: build owns bitwise copies of the
 // designated (leaf-covariate) columns so rawColumn serves them after the build
 // borrow releases, and buildTest owns the test values for rawTestColumn.
@@ -527,6 +630,7 @@ static void testTransientBlockAssembly() {
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
+  testColumnStoreColumnSubset();
   testColumnStoreLeafGather();
   testColumnStoreMutation();
   testSetCutPointsOrphan();

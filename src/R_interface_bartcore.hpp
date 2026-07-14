@@ -12,7 +12,7 @@ SEXP bartcore_create(SEXP control, SEXP model, SEXP data, SEXP family);
 SEXP bartcore_createDataHandle(SEXP control, SEXP data);
 SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP handle, SEXP trainRows, SEXP testRows,
-                               SEXP family);
+                               SEXP family, SEXP columns);
 SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
                         SEXP bcfParams, SEXP moderators);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
