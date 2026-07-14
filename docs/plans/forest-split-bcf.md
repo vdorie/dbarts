@@ -207,3 +207,223 @@ tests incl. the new fixed-glue test, tinytest 2497/0 (5 new),
 equivalence exact 18/18 identical draws vs 235bebc, bcf-exact.R
 quick (max gap 0.0009) and full (max gap 0.017 vs 0.035 on the
 2b E[mu], all others <= 0.0003), air/lintr clean.
+
+## Continuation (post data-ownership-4)
+
+agent: opus (one owner keeps the R surface, the exact gate, and the
+  landing note coherent; the engine mechanism already exists).
+rng: the default path stays NEUTRAL (moderators absent = the shipped
+  BCF draw, byte-for-byte). A run that PASSES moderators samples a
+  different, restricted posterior BY DESIGN and cannot be
+  equivalence-gated; it is gated by the exact-posterior protocol
+  instead (step C2). Gate: equivalence 22/22 IDENTICAL vs
+  equivalence-ac6ec2c.rds; full tinytest 2771 + the C3 additions, no
+  regen of existing snapshots.
+budget: ~350-550 lines. C1 ~60 R; C2 ~200-300 (the restricted gate);
+  C3 ~80 tinytest (+ ~120 C/C++/R if the forest-addressed query in Q-C
+  is taken); C4 small. Separable PRs; C1+C3 can land before C2.
+bench: NO bench-sampler run is needed for the R-argument step. The
+  restriction is the same nullptr-guarded per-forest mask
+  data-ownership-4 already bench-confirmed neutral (bench-sampler
+  compare vs bench-sampler-32fc7c8.csv, 0.96-1.0x; baseline re-recorded
+  as bench-sampler-4008675.csv); C1-C3 add no hot-path code, only R
+  index resolution and a benchmark/test consumer. Skip the compare.
+
+### Context (what data-ownership-4 discharged, what remains)
+
+- The engine mechanism is BUILT and proven. data-ownership-4 step 2
+  (4e1fb5b) gave BCFForestSpec columns/numColumns (the borrowed
+  1-based-resolved column list), the BCF ctor installs it on the tau
+  forest only (mu unrestricted), and bartcore_createBCF grew a trailing
+  moderatorsExpr argument parsed at src/R_interface_bartcore.cpp:1339-
+  1351 (range-checked, consumed at construction, -> spec.tau.columns).
+  A tests/cpp test proves tau containment with mu reading the full
+  store. The per-forest availability mask (step 1, f7763ba) is
+  nullptr-guarded, so absent = the default draw byte-for-byte.
+- What does NOT exist yet, and is assigned here by data-ownership-4 Q2:
+  (a) any user-facing `moderators` surface - R/bartcore.R:485 passes a
+  literal NULL placeholder to the moderatorsExpr slot; (b) the
+  two-forest exact-posterior validation at a RESTRICTED moderator set.
+  bcf-exact.R validates only the full-store two-forest posterior.
+- The BCF user surface is INTERNAL. bartcoreBCFSampler
+  (R/bartcore.R:453) is the sole entry; it is unexported (not in
+  NAMESPACE) and undocumented (no man/ topic). Consumers reach it via
+  dbarts::: - inst/tinytest/test-bcf.R and bartCause. Public
+  dbarts-level BCF exposure stays a deferred decision
+  (public-surface.md section 5), so this continuation lands the
+  argument on the internal function, not on an exported wrapper.
+- Forest-addressed queries are partial. bartcore_getForestFits
+  (R_interface_bartcore.cpp:1653, R helper bartcoreForestFits) reads
+  fits for any forest index via forestTotalFits; but getTrees/varcount
+  address forest 0 only (getTrees at :3907 loops sampler.numTrees()
+  with no forest axis). So the tau forest's SPLIT VARIABLES are not
+  yet R-observable - relevant to how C3 checks containment (Q-C).
+- Post-step-5 work not in this plan's earlier text but now in the tree
+  (context for the restricted runs, no interaction with the
+  restriction): the glue draw carries a ridge-interweaving rescale
+  move (docs/plans/bcf-ridge-interweaving.md) under update.a = TRUE,
+  and bcf-exact-weak.R adds a prior-dominated a-glue gate. The
+  restricted gate inherits both unchanged.
+
+### Steps
+
+C1. The `moderators` argument on bartcoreBCFSampler (R only). Add
+    `moderators = NULL` to bartcoreBCFSampler (R/bartcore.R:453).
+    Default NULL = all columns = today's byte-for-byte draw (the
+    literal NULL placeholder at :485 is replaced by the resolved
+    value). Resolve against the sampler's built columns, which are the
+    already-expanded design matrix sampler$data@x (dbarts()/bartCause
+    ran makeModelMatrixFromDataFrame upstream; factor expansion is
+    NOT re-done here - see Q-A): accept a character vector matched to
+    colnames(sampler$data@x) and/or an integer/numeric vector of
+    1-based column indices, coerce to a sorted unique integer vector,
+    and pass it (as.integer) into the moderatorsExpr slot the bridge
+    already validates. Validation is R-side (safe over fast): error on
+    an unknown name, an index < 1 or > ncol, an empty vector, or names
+    given when colnames(sampler$data@x) is NULL. Update the
+    bartcoreBCFSampler roxygen/comment header to document the
+    argument. rng: NEUTRAL (default path unchanged; the bridge and
+    engine are untouched). Gate: equivalence 22/22; full tinytest 2771
+    + C3; air/lintr on R/bartcore.R.
+
+C2. Restricted-moderator exact-posterior gate (benchmarks/R). Extend
+    the exact machinery so a tau forest restricted to a strict column
+    subset is validated against the closed-form posterior. Scenario:
+    TWO ordinal predictors, x1 over K1 = 3 cells and x2 over K2 = 2
+    cells (6 crossed cells), a fixed 0/1 z balanced within each crossed
+    cell, gaussian response; moderators = column 1 (tau may split on x1
+    only), mu unrestricted (spans x1, x2). DGP gives mu a real
+    dependence on BOTH predictors and tau a dependence on x1 only, so
+    the restriction is correctly specified and the restricted posterior
+    is well-defined and distinguishable from the full one. Exact side:
+    reuse bcf-exact.R verbatim for the tau forest (its 1-D
+    contiguous-cell enumerate() over x1), and extend it with a bounded
+    2-D axis-aligned single-tree enumerator for the UNRESTRICTED mu
+    forest over the 6-cell grid; the joint tree space is the product.
+    Downstream is unchanged: sufficient statistics key on the
+    (mu-cell in the 6 crossed cells, tau-cell in the 3 x1 cells, z)
+    stratum, and the closed-form Gaussian block marginal, the whitened
+    eigendecomposition vectorized over the sigma grid, the chisq sigma
+    calibration, and the deliverable-1 leaf-scale map carry over
+    directly. Statistic and mode: mode 1 (glue fixed a = 1, b0 = 0,
+    b1 = 1) matching E[mu] over the 6 cells and E[tau] over the 3 x1
+    cells - the free-glue modes (2a, 2b) are already validated
+    full-store by bcf-exact.R and need not repeat under restriction.
+    Tolerance/seed/thinning follow bcf-exact.R's quick/full split
+    (quick tol 0.05, full 0.015; nSeeds 1/3), same max-gap report and
+    exit-status style as categorical-exact.R. Deliver as a sibling
+    benchmarks/R/bcf-exact-restricted.R (sourcing shared helpers where
+    clean) rather than growing bcf-exact.R, keeping the full-store gate
+    unmoved. This is the gate for the restriction: a run that uses
+    moderators is not equivalence-gated, so its correctness is proven
+    here. rng: posterior-changing (uses the restriction) - not
+    equivalence-gated; the gate IS the exact match. Abort: a restricted
+    E[tau]/E[mu] gap over tolerance = the mask, the backfit under
+    restriction, or the R resolution is wrong.
+
+C3. Tests (inst/tinytest/test-bcf.R additions). (a) Validation errors
+    from the C1 argument: unknown moderator name, out-of-range index,
+    empty vector, names-without-colnames - each a targeted
+    expect_error. (b) A restricted run is accepted and stays sane:
+    build with moderators = a subset, run, assert finite train/sigma
+    and moving per-forest fits (bartcoreForestFits), matching the
+    existing sanity style; this does NOT re-prove the posterior (C2
+    owns that) - it proves the R plumbing carries the restriction
+    without error. (c) Neutrality of the default from R:
+    moderators = NULL reproduces the no-argument run's fits bitwise
+    (a fixed-seed pair), a cheap R-side echo of the equivalence gate.
+    (d) Containment observable from R: see Q-C - if the forest-
+    addressed getTrees/varcount is taken, assert the tau forest's
+    reported split variables are a subset of the moderator set
+    (a hard containment check); otherwise this is left to the existing
+    tests/cpp containment test and (b)'s sanity, noted in C4. rng:
+    neutral for (a)/(c); (b)/(d) exercise a restricted posterior but
+    assert only finiteness/containment, not draw values, so they add
+    no snapshot. Gate: tinytest 2771 + these, no regen.
+
+C4. Docs + landing note. No NEW man/ topic and no _pkgdown.yml change:
+    bartcoreBCFSampler is unexported and undocumented, so the argument
+    is documented only in its in-file roxygen/comment header; the same
+    holds for bcf-exact-restricted.R (a benchmark, not a shipped
+    function). If and when a public dbarts-level BCF wrapper is added
+    (deferred, public-surface.md section 5), THAT gains an Rd topic and
+    the moderators argument, which then triggers the _pkgdown.yml entry
+    + pkgdown::check_pkgdown requirement - flag it there, not here.
+    One caveat: if Q-C is taken AND the forest selector surfaces on the
+    public getTrees/varcount methods (not an internal helper), their
+    EXISTING Rd topic gains the argument line - still no new topic, so
+    still no _pkgdown.yml work, but the Rd edit and R CMD check man do
+    apply. Append a Continuation landing note recording the resolved
+    open questions, the restricted-gate scenario, and (if Q-C deferred)
+    that R-side tau containment leans on tests/cpp. Gate: R CMD check
+    man (unaffected unless the Q-C Rd caveat applies); full tinytest
+    2771 + C3.
+
+### Verification (continuation)
+
+- equivalence 22/22 IDENTICAL vs equivalence-ac6ec2c.rds at every
+  commit - the default BCF and every single-forest path are untouched;
+  any deviation on the default path is a defect, stop.
+- Full tinytest 2771 + the C3 additions from a preclean install if any
+  header changed (Q-C's forest query would; C1 alone would not);
+  existing snapshots UNREGENERATED (moderators defaults to NULL, so no
+  default draw moves).
+- bcf-exact.R quick + full UNMOVED (the full-store gate is untouched);
+  the new bcf-exact-restricted.R quick + full pass to MC error.
+- tests/cpp: the existing tau-containment test still passes; if Q-C is
+  taken, delete stale binaries after the header edit.
+- No bench-sampler run (see bench note above); dbarts.h unchanged, no
+  stan4bart lockstep (the growth is R + internal .Call only).
+- air format + lintr on touched R files; rchk on the next scheduled
+  run only if Q-C touches the bridge.
+
+### Open questions for VD
+
+- Q-A (moderators as names, indices, or both). RECOMMEND BOTH: accept
+  a character vector resolved against colnames(sampler$data@x) OR a
+  1-based integer vector, resolving to indices R-side before the
+  bridge. Names are the ergonomic surface bartCause wants and indices
+  are the unambiguous fallback when a matrix is unnamed; the cost is a
+  few lines of match()/range validation, all safe-over-fast R with no
+  engine impact. NOTE on factor expansion: the data reaching
+  bartcoreBCFSampler is already the expanded numeric design (the caller
+  ran makeModelMatrixFromDataFrame), so a factor moderator is named or
+  indexed by its EXPANDED dummy columns, not the original variable -
+  original-variable-name expansion belongs to a future public wrapper
+  (or bartCause) that still owns the formula/term map, not to this
+  internal function.
+- Q-B (expose a symmetric mu restriction now). RECOMMEND keep mu
+  full-store for now; wire only tau's moderators. The engine is already
+  symmetric (BCFForestSpec.columns exists for both forests, only the
+  bridge wiring is tau-only), so adding a prognostic-columns knob later
+  is cheap and neutral, and no consumer (bartCause, the exact gate)
+  needs a restricted mu today - the C2 gate keeps mu unrestricted,
+  matching the shipped default via a bounded 2-D enumerator. What would
+  change it: a consumer that wants mu confined (e.g. a partially-linear
+  BCF variant), at which point expose it in lockstep.
+- Q-C (creation-only, or add a post-creation query for tau's splits).
+  RECOMMEND add a `forest` selector to the getTrees/varcount query
+  (thread a forest index through bartcore_getTrees into the bridge
+  getTrees loop, defaulting to forest 0 so single-forest callers are
+  unchanged), so the tau forest's split variables become R-observable
+  and C3(d) is a HARD containment check rather than a statistical
+  proxy; the moderators argument itself stays creation-time only (it is
+  structural). What would change it: if the tests/cpp containment test
+  is deemed sufficient and VD wants zero new bridge surface, defer the
+  selector and let C3 lean on tests/cpp + the C2 gate for containment.
+
+### Drift between the existing plan text and the current code
+
+- The step-3 interim "both forests read the full store (the moderator
+  subset waits on data-ownership's views)" (this doc's Status,
+  chain.hpp:471) is DISCHARGED: data-ownership-4 step 2 (4e1fb5b)
+  landed the mask and the moderatorsExpr slot. This continuation
+  consumes it; the plan's earlier deferral no longer holds.
+- Gate baselines moved since step 5: the exactness/neutrality gates
+  now read equivalence-ac6ec2c.rds (22/22) not equivalence-235bebc
+  (18/18), tinytest 2771 not 2497, and bench-sampler-4008675.csv not a
+  235bebc baseline. The continuation uses the current baselines
+  throughout.
+- bcf-ridge-interweaving.md and bcf-exact-weak.R landed after step 5
+  and are not named in this plan's original body; they are recorded in
+  the Context above as inherited, not reopened.
