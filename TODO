@@ -21,9 +21,6 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
-  data-ownership: plan 5 (the sparse-categorical kernel,
-    docs/plans/data-ownership-5-sparse.md) is in flight and closes the
-    program. window: pre-release.
   forest-combiner: the multi-forest prerequisite. Promote the BCF glue
     out of Chain (bcf_ pointer, drawGlue, combinedFits,
     formForestResponse, forestMultiplier, the if(bcf_) sweep branches)
@@ -116,9 +113,8 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
     push and submit it after dbarts is accepted.
   before submission, resolve the window: pre-release decisions above
-    (data-ownership, family-on-model, flat-format-v2 reporting,
-    range-scaling, state-format-policy) - a documented "no" is a valid
-    resolution.
+    (family-on-model, flat-format-v2 reporting, range-scaling,
+    state-format-policy) - a documented "no" is a valid resolution.
   re-run the revdep sweep near submission (manual; the revdepcheck
     package is GitHub-only). 23 CRAN reverse dependencies; the last
     full pass was clean or explained everywhere (stan4bart 0.0-13 dev
