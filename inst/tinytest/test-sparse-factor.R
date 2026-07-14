@@ -439,3 +439,79 @@ expect_error(
   ),
   pattern = "leaf covariate"
 )
+
+# SET-TEST MUTATION: setTestPredictor with a mixed/sparse container replaces the
+# whole test store and fits identically to the dense-equivalent replacement
+sampler.set.sparse <- makeMixedSampler(test.mix.dense, 88L)
+sampler.set.sparse$setTestPredictor(test.mix.sparse)
+expect_inherits(sampler.set.sparse$data@x.test, "dbartsMixedMatrix")
+result.set.sparse <- sampler.set.sparse$run(10L, 20L)
+
+sampler.set.dense <- makeMixedSampler(test.mix.dense, 88L)
+sampler.set.dense$setTestPredictor(test.mix.dense)
+expect_true(is.matrix(sampler.set.dense$data@x.test))
+result.set.dense <- sampler.set.dense$run(10L, 20L)
+
+expect_identical(result.set.dense$test, result.set.sparse$test)
+
+# DENSE MUTATION preserved: per-column update by index and by name, plus NULL
+# removal, against a dense test matrix
+sampler.dense.mut <- makeMixedSampler(test.mix.dense, 99L)
+new.a <- rnorm(n.mtest)
+sampler.dense.mut$setTestPredictor(new.a, column = 1L)
+expect_equal(as.numeric(sampler.dense.mut$data@x.test[, 1L]), new.a)
+sampler.dense.mut$setTestPredictor(2 * new.a, column = "a")
+expect_equal(as.numeric(sampler.dense.mut$data@x.test[, "a"]), 2 * new.a)
+sampler.dense.mut$setTestPredictor(NULL)
+expect_null(sampler.dense.mut$data@x.test)
+
+# a per-column update against a resident sparse test store is refused: the
+# container takes whole-object replacement only, and the refusal is inert
+sampler.container.mut <- makeMixedSampler(test.mix.sparse, 101L)
+expect_inherits(sampler.container.mut$data@x.test, "dbartsMixedMatrix")
+expect_error(
+  sampler.container.mut$setTestPredictor(rnorm(n.mtest), column = 1L),
+  pattern = "single column"
+)
+expect_inherits(sampler.container.mut$data@x.test, "dbartsMixedMatrix")
+
+# setTestPredictorAndOffset installs a container together with an offset,
+# matching the dense-equivalent bitwise; a mismatched offset length still errors
+off.mtest <- rnorm(n.mtest)
+sampler.pao.sparse <- makeMixedSampler(test.mix.dense, 202L)
+sampler.pao.sparse$setTestPredictorAndOffset(test.mix.sparse, off.mtest)
+result.pao.sparse <- sampler.pao.sparse$run(10L, 20L)
+
+sampler.pao.dense <- makeMixedSampler(test.mix.dense, 202L)
+sampler.pao.dense$setTestPredictorAndOffset(test.mix.dense, off.mtest)
+result.pao.dense <- sampler.pao.dense$run(10L, 20L)
+expect_identical(result.pao.dense$test, result.pao.sparse$test)
+
+expect_error(
+  sampler.pao.sparse$setTestPredictorAndOffset(test.mix.sparse, off.mtest[-1L]),
+  pattern = "length of test offset"
+)
+
+# LEAF-COVARIATE REFUSAL ON MUTATION: swapping in a container whose leaf
+# covariate would be CSC-backed is refused, the prior dense test store stays
+# intact, and the sampler still fits
+sampler.leaf.mut <- dbarts(
+  train.mix,
+  y.mix,
+  sigma = 1.0,
+  test = test.mix.dense,
+  node.prior = linear("s"),
+  control = dbartsControl(
+    n.trees = 10L,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE
+  )
+)
+expect_error(
+  sampler.leaf.mut$setTestPredictor(test.mix.sparse),
+  pattern = "leaf covariate"
+)
+expect_true(is.matrix(sampler.leaf.mut$data@x.test))
+result.leaf.mut <- sampler.leaf.mut$run(10L, 20L)
+expect_false(anyNA(result.leaf.mut$test))
