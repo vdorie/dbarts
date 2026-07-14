@@ -34,8 +34,13 @@ dbarts(
   predictor-mutation surface (`setPredictor` and relatives, `setData`)
   is fixed at creation. Sparse inputs are not supported by
   [`rbart_vi`](https://vdorie.github.io/dbarts/reference/rbart.md) or
-  the `node.prior = linear()` and `gp()` leaf models; test matrices
-  remain dense. A data frame may mix ordinary columns with
+  the `node.prior = linear()` and `gp()` leaf models (a sparse-backed
+  test column cannot serve a designated leaf covariate either). A sparse
+  or data-frame test set stays resident (rank-bitmap or dense per
+  column, the same rule as training) rather than densifying at
+  ingestion; only `predict` and `getTrees(newdata = )` materialize it to
+  a dense matrix, since those entry points evaluate already-built trees
+  on resolved values. A data frame may mix ordinary columns with
   [`Matrix::sparseVector`](https://rdrr.io/pkg/Matrix/man/sparseVector.html)
   or `dgCMatrix` columns (assign them into the frame; they do not
   survive `data.frame(...)` or

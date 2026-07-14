@@ -136,7 +136,7 @@
 <dd><p>A numeric predictor vector of length equal to that with which the sampler was created. Can be of a distinct number of rows for <code>setTestPredictor</code>.</p></dd>
 
   <dt id="arg-x-test">x.test<a class="anchor" aria-label="anchor" href="#arg-x-test"></a></dt>
-<dd><p>A new matrix of test predictors, of the number of columns equal to that in the current model.</p></dd>
+<dd><p>A new matrix, data frame, or sparse-bearing test set (the column types accepted by <code><a href="dbartsData.html">dbartsData</a></code>), of the number of columns equal to that in the current model. A data-frame/sparse <code>x.test</code> is coded against the training levels; <code>setTestPredictor</code> and <code>setTestPredictorAndOffset</code> then install it as a resident, whole-object replacement of the test set (see <code>column</code>), while <code>predict</code> materializes it to a numeric matrix before evaluating.</p></dd>
 
   <dt id="arg-offset">offset<a class="anchor" aria-label="anchor" href="#arg-offset"></a></dt>
 <dd><p>A numeric vector of length equal to that with which the sampler was created, or <code>NULL</code>. If <code>offset.test</code> was set from <code>offset</code>, will attempt to update that as well.</p></dd>
@@ -167,7 +167,9 @@
 <dd><p>An integer or character string vector specifying which column/columns of
     the predictor matrix is to be replaced or for which cuts should be used.
     When updating predictors, it can be missing and the entire matrix will be
-    substituted.</p></dd>
+    substituted. For <code>setTestPredictor</code>, a per-column update is refused
+    when the current test set is a data frame or sparse container rather
+    than a plain matrix; replace the whole test set instead.</p></dd>
 
   <dt id="arg-forceupdate">forceUpdate<a class="anchor" aria-label="anchor" href="#arg-forceupdate"></a></dt>
 <dd><p>For <code>setPredictor</code>, controls how the trees respond to a new predictor

@@ -58,10 +58,14 @@ Data frame columns - through the formula interface or a frame passed as
   formula path refuses one explicitly).
 
 Factor level tables are retained so that test data are coded
-identically; a `sparseFactor` test column densifies to its integer codes
-over the training level table (implicit rows filled with the training
-reference level's code) before prediction, reusing the dense categorical
-test-code path.
+identically; `test` accepts the same column types as `x.train`,
+including `sparseFactor` and sparse ordinal columns. A `sparseFactor` or
+sparse ordinal test column recodes over the training level table and
+stays resident - through creation and `setTestPredictor` - rather than
+densifying at ingestion, the same storage tier rule as training.
+`predict` and `getTrees(newdata = )` code a test set the same way and
+then materialize it to a dense matrix at the call boundary, since those
+entry points evaluate already-built trees on resolved values.
 
 Data frame input is stored columnar: no \\n \times p\\ double matrix is
 retained. Code that previously reached into the data object's `x` slot

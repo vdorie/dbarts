@@ -19,6 +19,13 @@ interface does not accept it**: a bare S4 column cannot survive
 formula path refuses a `sparseFactor` column explicitly, with a message
 to supply it through the x/y interface instead.
 
+The same holds for a test set (`test`/`x.test`): a `sparseFactor` test
+column is recoded over the training level table and stays resident -
+through creation and `setTestPredictor` - rather than densifying at
+ingestion. `predict` and `getTrees(newdata = )` code it the same way and
+then materialize it to a dense matrix at the call boundary, since those
+entry points evaluate already-built trees on resolved values.
+
 ## Usage
 
 ``` r

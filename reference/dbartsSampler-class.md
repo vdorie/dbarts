@@ -149,8 +149,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - x.test:
 
-  A new matrix of test predictors, of the number of columns equal to
-  that in the current model.
+  A new matrix, data frame, or sparse-bearing test set (the column types
+  accepted by
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
+  of the number of columns equal to that in the current model. A
+  data-frame/sparse `x.test` is coded against the training levels;
+  `setTestPredictor` and `setTestPredictorAndOffset` then install it as
+  a resident, whole-object replacement of the test set (see `column`),
+  while `predict` materializes it to a numeric matrix before evaluating.
 
 - offset:
 
@@ -204,7 +210,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   An integer or character string vector specifying which column/columns
   of the predictor matrix is to be replaced or for which cuts should be
   used. When updating predictors, it can be missing and the entire
-  matrix will be substituted.
+  matrix will be substituted. For `setTestPredictor`, a per-column
+  update is refused when the current test set is a data frame or sparse
+  container rather than a plain matrix; replace the whole test set
+  instead.
 
 - forceUpdate:
 
