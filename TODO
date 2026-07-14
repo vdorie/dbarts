@@ -86,11 +86,6 @@ items
     notes). consumer-gated.
   survival-models: discrete-time hazard (person-period ingestion over
     the binary families; design docs/design/survival.md).
-  test-data-parity: store test data as a frame like the training
-    source (not a forced dense matrix), with per-column
-    {dense, sparse} x {ordinal, categorical} kinds end to end -
-    ingestion, engine test codes, prediction, setTestPredictor
-    (docs/plans/test-data-parity.md). Sequencing decided at pick time.
   warm-starts: the cross-grid remap over mapOldCutPointsOntoNew;
     reopen when a consumer needs new-data warm starts.
   weighted-binary: post 1.0 - integer-weight probit via replicated

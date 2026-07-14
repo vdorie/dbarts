@@ -441,6 +441,16 @@ not cheaply queryable from R (no exposed accessor), so this is the R-side
 container ratio plus the per-column code-shrink argument, as anticipated
 by the plan's memory verification text.
 
-Confirmatory bench-sampler compare (dense test path at parity, a
-resident-sparse arm added) is PENDING a quiet window; its result will be
-appended here once run.
+Confirmatory bench (quiet window, arm64). bench-sampler compare vs
+benchmarks/baselines/bench-sampler-4008675.csv: "OK: no metric regressed
+more than 5%", zero flags - the dense test path did not move. The
+resident-sparse test arm (n.train = 1e4, K = 200 sparseFactor at f = 0.05
+plus a dense column, 75 trees, test fits recorded every iteration,
+interleaved repeats): 1.04x dense at n.test = 1e4 (5.26 vs 5.07 ms/iter)
+and 1.11x at n.test = 1e5 (40.2 vs 36.3 ms/iter), the rank-bitmap
+membership lookup on test-row descent vs a direct dense code read. Not
+the strict parity the verification text hoped for, but the cost scales
+with the test-row share of the workload, is opt-in (a dense x.test keeps
+dense storage and today's speed exactly), and buys the 6.98x per-column
+code shrink above; a speed-sensitive caller can densify sparse test input
+themselves. The plan is CLOSED.
