@@ -1104,7 +1104,7 @@ public:
           misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
                                  forest.totalFits.data());
           routeTestRows(data_.numTestObservations, [&](size_t i) {
-            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
             forest.totalTestFits[i] +=
               forest.paramByNode[static_cast<size_t>(leafIndex)];
           });
@@ -1117,7 +1117,7 @@ public:
             forest.leaf.drawFromPriorForNode(rng_, tree, forest.k, i, treeFits);
           misc_addVectorsInPlace(treeFits, n, forest.totalFits.data());
           routeTestRows(data_.numTestObservations, [&](size_t i) {
-            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
             forest.totalTestFits[i] +=
               forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
           });
@@ -1134,7 +1134,7 @@ public:
           misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
                                  forest.totalFits.data());
           routeTestRows(data_.numTestObservations, [&](size_t i) {
-            int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+            int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
             forest.totalTestFits[i] += forest.leaf.fitForTestObservation(
               treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
               i);
@@ -2141,7 +2141,7 @@ private:
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+          int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
           forest.currTestFits[i] =
             forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
         });
@@ -2173,7 +2173,7 @@ private:
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+          int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
           forest.currTestFits[i] =
             forest.paramByNode[static_cast<size_t>(leafIndex)];
         });
@@ -2213,7 +2213,7 @@ private:
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
-          int32_t leafIndex = tree.findBottomNodeForRow(data_, data_.testRow(i));
+          int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
           forest.currTestFits[i] = forest.leaf.fitForTestObservation(
             treeParams.data() + static_cast<size_t>(leafIndex) * numParams,
             i);

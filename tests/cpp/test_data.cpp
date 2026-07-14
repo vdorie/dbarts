@@ -89,7 +89,7 @@ static void testColumnStoreView() {
   for (size_t i = 0; i < testRows.size() && testCodesMatch; ++i)
     for (size_t j = 0; j < p && testCodesMatch; ++j)
       testCodesMatch =
-        view.testCodes[i * p + j] == parent.codes[testRows[i] + j * n];
+        view.testCodeAt(j, i) == parent.codes[testRows[i] + j * n];
   check(testCodesMatch, "view gathers test codes from parent rows");
 
   // demonstrate the property matters: a store built over the subset's raw
@@ -182,8 +182,7 @@ static void testColumnStoreColumnSubset() {
         view.codes[i + j * rows.size()] == parent.codeAt(subset[j], rows[i]);
   for (size_t i = 0; i < testRows.size() && codesMatch; ++i)
     for (size_t j = 0; j < subset.size() && codesMatch; ++j)
-      codesMatch = view.testCodes[i * subset.size() + j] ==
-        parent.codeAt(subset[j], testRows[i]);
+      codesMatch = view.testCodeAt(j, i) == parent.codeAt(subset[j], testRows[i]);
   check(codesMatch, "subset view bins its columns identically to the parent");
 
   // a leaf covariate over a subset gathers through the same map: view-local
@@ -265,6 +264,15 @@ static void testColumnStoreLeafGather() {
   for (size_t i = 0; i < numTest && testOwned; ++i)
     testOwned &= t1[i] == xTest[i + 1 * numTest];
   check(testOwned, "buildTest owns test values for rawTestColumn");
+
+  // the storage-aware test accessor reproduces the retired row-major code at
+  // every (var, i): codeFor against the owned test value, dense-backed
+  bool testCodesMatch = true;
+  for (size_t j = 0; j < p && testCodesMatch; ++j)
+    for (size_t i = 0; i < numTest && testCodesMatch; ++i)
+      testCodesMatch =
+        store.testCodeAt(j, i) == store.codeFor(j, xTest[i + j * numTest]);
+  check(testCodesMatch, "testCodeAt equals the dense row-major test code");
 
   printf("ok: column store leaf gather\n");
 }
