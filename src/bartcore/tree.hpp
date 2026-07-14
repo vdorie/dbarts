@@ -392,8 +392,15 @@ public:
     }
   }
 
+  /// Install a per-forest split-variable restriction: a borrowed 0/1 byte per
+  /// predictor (1 = splittable), or null to lift it. The availability queries
+  /// short-circuit on the null before touching it, so an unrestricted tree
+  /// runs the default path unchanged.
+  void setColumnMask(const std::uint8_t* columnMask) { columnMask_ = columnMask; }
+
   bool variableAvailable(const ColumnStore& data, int32_t nodeIndex,
                          int32_t variableIndex) const {
+    if (!columnAllowed(static_cast<size_t>(variableIndex))) return false;
     if (data.types[static_cast<size_t>(variableIndex)] ==
         ColumnType::categorical) {
       size_t j = static_cast<size_t>(variableIndex);
@@ -480,6 +487,7 @@ public:
           : std::popcount(availMaskScratch_[j]) >= 2;
       else
         avail = availRightScratch_[j] >= availLeftScratch_[j];
+      if (!columnAllowed(j)) avail = false;  // no-op when unrestricted
       available[j] = avail ? 1 : 0;
       count += avail ? 1 : 0;
     }
@@ -1342,6 +1350,14 @@ private:
   mutable std::vector<int32_t> availLeftScratch_;
   mutable std::vector<int32_t> availRightScratch_;
   mutable std::vector<std::uint64_t> availMaskScratch_;
+
+  // per-forest split-variable restriction (chain.hpp installs it); null (the
+  // default) restricts nothing. The availability queries short-circuit on the
+  // null, so the unrestricted path never touches the mask.
+  const std::uint8_t* columnMask_ = nullptr;
+  bool columnAllowed(size_t j) const {
+    return columnMask_ == nullptr || columnMask_[j] != 0;
+  }
 };
 
 /// Partition indices[lo, hi) of raw column-major predictors around a
