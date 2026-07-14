@@ -1,5 +1,6 @@
-Rewritten 2026-07-06 as an unordered backlog; completed work and its
-rationale live in the git history of this file, docs/design/, and NEWS.
+An unordered, forward-facing backlog; completed work and its rationale
+live in the git history of this file, docs/plans/, docs/design/, and
+NEWS.
 
 Items are listed alphabetically by plan name; the order carries no
 meaning. Every item has an implementation plan in docs/plans/<name>.md,
@@ -16,69 +17,52 @@ items
   blocked-jacobi-trees: exact parallel tree updates via noise-splitting
     augmentation (per-tree pseudo-responses y_k ~ N(g_k, sigma^2/b),
     sum-constrained): b trees update independently per barrier at the
-    cost of b-fold precision on structure moves. Within-chain-threading
-    closed no-go, so this now stands alone as the single-chain
+    cost of b-fold precision on structure moves. The single-chain
     parallelism candidate; an ESS-per-second experiment decides
-    (protocol in docs/design/within-chain-threading.md section 7).
-    Same memory wall applies; low-ranked.
-  data-ownership: own predictor storage instead of borrowing REAL(x)
-    (drops the PROT_* pinning and the const_cast write-through);
-    changes the documented aliasing of per-observation updates.
-    window: pre-release. Review-6 notes: add COLUMN-SUBSET views
-    (buildFromParent is row-subset only - hard prerequisite for BCF
-    moderators and per-forest predictors); guardrail - the constant
-    leaf's centered-SS and the BCF 1e-9 floor are numerically safe
-    ONLY because responses arrive pre-standardized to O(1); the
-    owned container must not create a path that feeds raw-scale
-    residuals to the leaves.
-  gpu-bart: memo + falsifiers landed (docs/design/gpu-bart.md,
-    docs/design/parallel-bart-frontier.md). Backend-seam design still
-    waits on frontier items 4-5 (informed-kernel + CG-leaf prototypes).
-  forest-combiner: review-6 architecture debt #1, the multi-forest
-    prerequisite. Promote the BCF glue out of Chain (bcf_ pointer,
-    drawGlue, combinedFits, formForestResponse, forestMultiplier,
-    the if(bcf_) sweep branches) into a polymorphic ForestCombiner
-    on the ResponseModel side owning per-forest residual formation,
-    the coupling draw, combined fits, and per-forest reporting
-    addressing; BCF becomes its first instance. Unblocks
-    multinomial/heteroscedastic/hurdle AND grouped-x-multi-forest
-    composition (GroupedResponse is on the wrong side of the
-    Chain/combiner boundary today). RNG-neutral refactor, gated by
-    the equivalence anchor + bcf-exact. Medium-large; land BEFORE
-    any multi-forest model.
-  forest-ranef-interweaving: research item filed 2026-07-11 from the
-    tau slice review (docs/plans/tau-slice-review.md; VD approved
-    filing). The measured grouped-fit mixing bottleneck is
-    forest-ranef confounding (25x the tau IACT at K=3, weak signal;
-    removing the forest recovers the isolation-experiment IACT), NOT
-    the tau draw. Candidate remedies ranked by the review: (1) a
-    joint or interweaving move between the forest fit and the
-    random intercepts (the real lever; design from scratch); (2)
-    ASIS on (tau, b) per the bcf-ridge-interweaving precedent -
-    validated ~11x on the tau-b funnel in isolation but only
-    PARTIAL in the full engine, so prototype-gate before committing.
-    The tau-cauchy-exact-ig draw is a building block for (2).
-    Research: needs a measurement harness (grouped SBC or IACT
-    grid) before any engine work. decision-gated.
+    (protocol and the memory-wall bound:
+    docs/design/within-chain-threading.md). low-ranked.
+  data-ownership: plan 5 (the sparse-categorical kernel,
+    docs/plans/data-ownership-5-sparse.md) is in flight and closes the
+    program. window: pre-release.
+  forest-combiner: the multi-forest prerequisite. Promote the BCF glue
+    out of Chain (bcf_ pointer, drawGlue, combinedFits,
+    formForestResponse, forestMultiplier, the if(bcf_) sweep branches)
+    into a polymorphic ForestCombiner on the ResponseModel side owning
+    per-forest residual formation, the coupling draw, combined fits,
+    and per-forest reporting addressing; BCF becomes its first
+    instance. Unblocks multinomial/heteroscedastic/hurdle AND
+    grouped-x-multi-forest composition (GroupedResponse is on the
+    wrong side of the Chain/combiner boundary today). RNG-neutral
+    refactor, gated by the equivalence anchor + bcf-exact.
+    Medium-large; land BEFORE any multi-forest model.
+  forest-ranef-interweaving: the grouped-fit mixing bottleneck is
+    forest-ranef confounding, not the tau draw (measurements and
+    ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
+    joint/interweaving move between the forest fit and the random
+    intercepts (design from scratch), or ASIS on (tau, b)
+    (prototype-gate: partial in the full engine). Needs a measurement
+    harness (grouped SBC or IACT grid) before any engine work.
+    decision-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.
+  gpu-bart: backend-seam design waits on frontier items 4-5
+    (informed-kernel + CG-leaf prototypes); memo and falsifiers in
+    docs/design/gpu-bart.md and parallel-bart-frontier.md.
   group-by-exposure: public group.by beyond rbart_vi
     (grouped-random-effects.md; naming reserved). decision-gated.
   grouped-equivalence: equivalence scenario for grouped rbart_vi fits,
     only if a grouped refactor is planned.
-  grow-from-root: warm-start producer LANDED 2026-07-10 (c8c7764,
-    grow-from-root-warm-start.md). Frontier 3.1's exact
-    informed-proposal use of the shared scan remains open.
+  grow-from-root: frontier 3.1's exact informed-proposal use of the
+    shared scan.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
   multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
-    two-forest machinery (forest-split-bcf, complete at c9fd2fe) is
-    the template; one design note each when picked. Review-6
-    prerequisites: forest-combiner FIRST (all three bend on it);
-    heteroscedastic additionally needs a fourth leaf kind
+    two-forest machinery is the template; one design note each when
+    picked. Prerequisites: forest-combiner FIRST (all three bend on
+    it); heteroscedastic additionally needs a fourth leaf kind
     (multiplicative-positive, non-integrable) plus the non-conjugate
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
@@ -100,34 +84,21 @@ items
     roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
-  sparse-extensions: in-place mutation, streaming range kernel,
+  sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
-    notes). The u8 width entry moved to data-ownership; the sparse
-    x.test entry moved to test-data-parity. consumer-gated.
-  survival-models: AFT log-normal LANDED (f0efc03; design
-    docs/design/survival.md; survival-grouped-surface reachable through
-    rbart_vi landed as ac6ec2c). Remaining: discrete-time hazard
-    (person-period ingestion over the binary families, same design note).
+    notes). consumer-gated.
+  survival-models: discrete-time hazard (person-period ingestion over
+    the binary families; design docs/design/survival.md).
   test-data-parity: store test data as a frame like the training
     source (not a forced dense matrix), with per-column
     {dense, sparse} x {ordinal, categorical} kinds end to end -
-    ingestion, engine test codes, prediction, setTestPredictor.
-    Subsumes sparse-extensions' sparse x.test bullet and supersedes
-    data-ownership-5's test-side densification interim (VD directive
-    2026-07-13). Need established; sequencing decided at pick time.
-  warm-starts: v1 LANDED (installTrees + bart2 warm.start; same-grid
-    v1, cross-grid refused). Remaining stretch: the cross-grid remap
-    over mapOldCutPointsOntoNew; reopen when a consumer needs new-data
-    warm starts.
-  weighted-binary: PPD fix LANDED 2026-07-10 (da7b659) and issue #79
-    closed. FUTURE (post 1.0): integer-weight probit via replicated
+    ingestion, engine test codes, prediction, setTestPredictor
+    (docs/plans/test-data-parity.md). Sequencing decided at pick time.
+  warm-starts: the cross-grid remap over mapOldCutPointsOntoNew;
+    reopen when a consumer needs new-data warm starts.
+  weighted-binary: post 1.0 - integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
-  within-chain-threading: CLOSED NO-GO 2026-07-13, measured
-    (docs/design/within-chain-threading.md section 8: 0.91x at the
-    n=1e5 x 4T gate point; prototype archived on
-    archive/within-chain-threading). Revival preconditions recorded
-    there; do not re-litigate.
   x86-simd: three linalg SSE2/AVX bodies are scalar with intrinsics
     commented out (predates the rewrite; the originals used
     non-temporal stores autovectorization cannot emit) - measure on
@@ -139,7 +110,7 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     revdep-smoke) cannot register or run until they exist on the
     default branch - GitHub binds schedules and dispatch to it. Their
     first live runs happen when bartcore merges to main; validate them
-    then. (Push-triggered workflows shook out green 2026-07-07.)
+    then.
   push dbarts 1.0-0 (branch bartcore) and stan4bart 0.0-13; submit both
     to CRAN together. bartCause is ready on branch dbarts-1.0 in
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
@@ -149,9 +120,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     range-scaling, state-format-policy) - a documented "no" is a valid
     resolution.
   re-run the revdep sweep near submission (manual; the revdepcheck
-    package is GitHub-only). 23 CRAN reverse dependencies; the
-    2026-07-06 pass was clean or explained everywhere (stan4bart 0.0-13
-    dev OK; bartMan/EBcoBART/funcml/glossa/nlfh/riAFTBART/voi OK with
+    package is GitHub-only). 23 CRAN reverse dependencies; the last
+    full pass was clean or explained everywhere (stan4bart 0.0-13 dev
+    OK; bartMan/EBcoBART/funcml/glossa/nlfh/riAFTBART/voi OK with
     _R_CHECK_FORCE_SUGGESTS_=false; bartCause handled by its update;
     tidytreatment's WARNING is the documented ABI break, resolved by
     stan4bart 0.0-13; bartXViz not checkable locally - own gfortran
@@ -164,10 +135,7 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     maintainer); revdep summary as above; test environments; goal
     0 errors / 0 warnings / 0 notes.
   stan4bart follow-up: adopt categorical splits (it pins factors =
-    "indicators"); lockstep with the dbarts release. (The
-    dbarts_results value-initialization the tau/groupEffects
-    extension requires was applied by VD 2026-07-07 and the package
-    reinstalled.)
+    "indicators"); lockstep with the dbarts release.
   optional courtesy: notify the tmle maintainers. Their default
     SuperLearner dbarts wrappers pass obsWeights unconditionally and
     pnorm() the latents; unit weights are handled dbarts-side now, but

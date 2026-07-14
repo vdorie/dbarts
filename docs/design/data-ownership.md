@@ -193,6 +193,11 @@ first multi-model consumer (forest-split-bcf).
 5. sparse categorical kernel + test-side sparse (with
    sparse-extensions).
 
+Standing numerical guardrail (review-6): the constant leaf's
+centered-SS and the BCF 1e-9 floor are numerically safe ONLY because
+responses arrive pre-standardized to O(1); no ownership path may feed
+raw-scale residuals to the leaves.
+
 ## Resolved considerations (VD, 2026-07-11 convergence)
 
 - Call-time raw supply replaces the re-cuttable flag: the R layer
