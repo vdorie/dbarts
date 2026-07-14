@@ -27,18 +27,32 @@ isSparseDataFrameColumn <- function(column) {
 }
 
 ## The 0-based row indices and values of each predictor column a sparse
-## data-frame column contributes - a sparseVector contributes one, a
-## dgCMatrix its columns. Missing entries are stored NaNs, the Matrix
-## convention.
+## data-frame column contributes - a sparseVector or sparseFactor
+## contributes one, a dgCMatrix its columns. Missing entries are stored
+## NaNs, the Matrix convention. Per contributed column the result also
+## carries "reference" and "K": for a sparseFactor the 0-based level-order
+## code of the implicit level and the level count, and NA/0 for an ordinal
+## sparse column (whose implicit rows are numeric zero).
 sparseColumnSlices <- function(column, name, numObservations) {
-  # S-CAT: the wrapper is recognized, but the CSC-categorical engine path
-  # is plan 5's; refuse before anything reaches the bridge
   if (methods::is(column, "sparseFactor")) {
-    stop(
-      "sparse categorical predictors are not yet supported; column '",
-      name,
-      "' is a sparseFactor"
-    )
+    if (length(column) != numObservations) {
+      stop(
+        "sparse column '",
+        name,
+        "' must have length equal to the ",
+        "number of observations"
+      )
+    }
+    # column@i is already 0-based (unlike a sparseVector's), and values are
+    # 1-based level codes; the engine reads 0-based codes, so subtract one.
+    # The reference level's own level-order code is the implicit rows' code.
+    return(list(
+      i = list(as.integer(column@i)),
+      x = list(as.double(column@values) - 1),
+      names = name,
+      reference = match(column@reference, column@levels) - 1L,
+      K = length(column@levels)
+    ))
   }
   if (methods::is(column, "sparseVector")) {
     if (length(column) != numObservations) {
@@ -57,7 +71,9 @@ sparseColumnSlices <- function(column, name, numObservations) {
     return(list(
       i = list(as.integer(column@i) - 1L),
       x = list(values),
-      names = name
+      names = name,
+      reference = NA_integer_,
+      K = 0L
     ))
   }
   if (!inherits(column, "dgCMatrix")) {
@@ -84,7 +100,13 @@ sparseColumnSlices <- function(column, name, numObservations) {
     if (!is.null(colnames(column))) colnames(column) else seq_len(ncol(column)),
     sep = "."
   )
-  list(i = i, x = values, names = columnNames)
+  list(
+    i = i,
+    x = values,
+    names = columnNames,
+    reference = rep(NA_integer_, ncol(column)),
+    K = rep(0L, ncol(column))
+  )
 }
 
 ## Assemble expanded per-input-column blocks - dense numeric matrices or
@@ -157,10 +179,25 @@ assembleMixedMatrix <- function(
     Dim = c(as.integer(numObservations), numSparse)
   )
 
+  # per sparse column (aligned with the assembled dgCMatrix columns), the
+  # reference level's 0-based code and the level count K; both carry the
+  # ordinal sparse columns' NA/0, and the bridge reads them only for the
+  # CSC-backed columns the varTypes flag categorical
+  sparseReference <- unlist(lapply(columns[columnIsSparse], `[[`, "reference"))
+  if (is.null(sparseReference)) {
+    sparseReference <- integer(0)
+  }
+  sparseCategoryCount <- unlist(lapply(columns[columnIsSparse], `[[`, "K"))
+  if (is.null(sparseCategoryCount)) {
+    sparseCategoryCount <- integer(0)
+  }
+
   result <- list(
     dense = dense,
     sparse = sparse,
     map = map,
+    sparseReference = as.integer(sparseReference),
+    sparseCategoryCount = as.integer(sparseCategoryCount),
     numObservations = as.integer(numObservations),
     columnNames = unlist(blockNames)
   )

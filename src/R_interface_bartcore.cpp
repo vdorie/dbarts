@@ -133,6 +133,15 @@ struct ParsedData {
   bool xIsMixed = false;
   const double* mixedDenseValues = NULL;
   std::vector<std::int32_t> columnSources;
+  // per sparse column of a mixed container: the reference level's 0-based
+  // code and the level count K, borrowed from the container (null unless it
+  // carries the metadata). Resolved per predictor into cscReferenceCodes /
+  // cscCategoryCounts once varTypes marks the CSC-backed categorical columns.
+  const int* cscReferenceMeta = NULL;
+  const int* cscCategoryCountMeta = NULL;
+  size_t numSparseColumns = 0;
+  std::vector<std::uint32_t> cscCategoryCounts;
+  std::vector<bartcore::xint_t> cscReferenceCodes;
   // the dense columnar container's transiently assembled block (x points
   // into it); owned here so it lives exactly as long as the parse result
   std::vector<double> denseAssembly;
@@ -432,6 +441,21 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       data.cscRowIndices = csc.rows;
       data.cscValues = csc.values;
       data.x = NULL;
+
+      // borrow the per-sparse-column reference metadata (a CSC-backed
+      // categorical column needs it); it rides the container, so stays valid
+      // while dataExpr is protected
+      SEXP referenceExpr = getListElement(slotExpr, "sparseReference");
+      SEXP categoryCountExpr = getListElement(slotExpr, "sparseCategoryCount");
+      if (Rf_isInteger(referenceExpr) && Rf_isInteger(categoryCountExpr) &&
+          static_cast<size_t>(rc_getLength(referenceExpr)) ==
+            csc.numColumns &&
+          static_cast<size_t>(rc_getLength(categoryCountExpr)) ==
+            csc.numColumns) {
+        data.cscReferenceMeta = INTEGER(referenceExpr);
+        data.cscCategoryCountMeta = INTEGER(categoryCountExpr);
+        data.numSparseColumns = csc.numColumns;
+      }
     }
     UNPROTECT(3);
   } else {
@@ -457,10 +481,40 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   if (data.xIsSparse && data.anyCategorical)
     Rf_error("sparse predictor matrices must be entirely ordinal");
   if (data.xIsMixed && data.anyCategorical) {
+    // a CSC-backed categorical column reaches the engine only with its level
+    // count K and reference code, resolved here per predictor from the
+    // container's per-sparse-column metadata; without it, refuse cleanly
+    bool anyCscCategorical = false;
     for (size_t j = 0; j < data.numPredictors; ++j)
       if (data.columnTypes[j] == bartcore::ColumnType::categorical &&
-          data.columnSources[j] < 0)
-        Rf_error("sparse predictor columns must be ordinal");
+          data.columnSources[j] < 0) {
+        anyCscCategorical = true;
+        break;
+      }
+    if (anyCscCategorical) {
+      if (data.cscReferenceMeta == NULL || data.cscCategoryCountMeta == NULL)
+        Rf_error("sparse categorical predictor columns require reference "
+                 "metadata");
+      data.cscCategoryCounts.assign(data.numPredictors, 0);
+      data.cscReferenceCodes.assign(data.numPredictors, 0);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        if (data.columnTypes[j] != bartcore::ColumnType::categorical ||
+            data.columnSources[j] >= 0)
+          continue;
+        size_t source = static_cast<size_t>(~data.columnSources[j]);
+        if (source >= data.numSparseColumns)
+          Rf_error("malformed mixed predictor container");
+        int count = data.cscCategoryCountMeta[source];
+        int reference = data.cscReferenceMeta[source];
+        if (count <= 0 || reference == NA_INTEGER || reference < 0 ||
+            reference >= count)
+          Rf_error("sparse categorical predictor columns require reference "
+                   "metadata");
+        data.cscCategoryCounts[j] = static_cast<std::uint32_t>(count);
+        data.cscReferenceCodes[j] =
+          static_cast<bartcore::xint_t>(reference);
+      }
+    }
   }
 
   REPROTECT_SLOT(slotExpr, dataExpr, "x.test", slotIndex);
@@ -882,10 +936,12 @@ const double* rawTrainingColumn(const ParsedData& data, size_t j) {
 
 void validateCategoricalPredictors(const ParsedData& data) {
   if (data.xIsSparse) return;  // parseData enforced all-ordinal
-  // for mixed containers parseData enforced dense backing per categorical
-  // column, so rawTrainingColumn serves every column validated here
   for (size_t j = 0; j < data.numPredictors; ++j) {
     if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+    // a CSC-backed categorical column has no dense slice to scan; its codes
+    // came from the R surface's level table and parseData carried its K and
+    // reference code
+    if (data.xIsMixed && data.columnSources[j] < 0) continue;
     const double* column = rawTrainingColumn(data, j);
     for (size_t i = 0; i < data.numObservations; ++i) {
       double value = column[i];
@@ -946,6 +1002,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   if (data.xIsMixed) {
     options.mixedDenseValues = data.mixedDenseValues;
     options.columnSources = data.columnSources.data();  // consumed at build
+    if (!data.cscCategoryCounts.empty()) {
+      options.cscCategoryCounts = data.cscCategoryCounts.data();
+      options.cscReferenceCodes = data.cscReferenceCodes.data();
+    }
   }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.leafCovariateColumns = model.leafCovariateColumns.empty()
@@ -1407,7 +1467,11 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
                                data.numPredictors, data.maxNumCuts.data(), 0,
                                control.useQuantiles,
                                data.anyCategorical ? data.columnTypes.data()
-                                                   : NULL);
+                                                   : NULL,
+                               data.cscCategoryCounts.empty()
+                                 ? NULL : data.cscCategoryCounts.data(),
+                               data.cscReferenceCodes.empty()
+                                 ? NULL : data.cscReferenceCodes.data());
     } else if (data.xIsSparse) {
       handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
                                  data.cscValues, data.numObservations,

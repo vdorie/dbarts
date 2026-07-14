@@ -677,9 +677,6 @@ dbartsData <- function(
       if (!is.null(offset)) offset <- offset[completeCases]
     }
   } else {
-    if (methods::is(formula, "sparseFactor")) {
-      stop("sparse categorical predictors are not yet supported")
-    }
     stop(
       "unrecognized 'formula' type; must be coercible to numeric or a valid formula object"
     )
