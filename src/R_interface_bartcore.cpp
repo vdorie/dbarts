@@ -147,6 +147,20 @@ struct ParsedData {
   std::vector<double> denseAssembly;
   const double* x_test = NULL;
   size_t numTestObservations = 0;
+  // set when x.test is the R-side mixed container: x_test stays null and the
+  // test store owns the copy setTestData makes, so these transient sources
+  // need only outlive the parse result (no holder ownership, unlike the
+  // training block the store borrows). testColumnSources mirrors columnSources
+  // for the test columns; testCscReferenceCodes carries the resolved reference
+  // code per CSC-backed categorical test column.
+  bool testIsMixed = false;
+  std::vector<double> testDenseAssembly;
+  const double* testMixedDenseValues = NULL;
+  std::vector<std::int32_t> testColumnSources;
+  const int* testCscColumnPointers = NULL;
+  const int* testCscRowIndices = NULL;
+  const double* testCscValues = NULL;
+  std::vector<bartcore::xint_t> testCscReferenceCodes;
   const double* weights = NULL;
   const double* offset = NULL;
   const double* testOffset = NULL;
@@ -535,6 +549,110 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       rc_getLength(slotExpr) == 0) {
     data.x_test = NULL;
     data.numTestObservations = 0;
+  } else if (Rf_inherits(slotExpr, "dbartsMixedMatrix")) {
+    // the mixed test container mirrors the training branch above: assemble the
+    // transient test dense block, gather the CSC test slices and per-CSC-column
+    // reference codes, all against the training cut grid the engine already
+    // holds. setTestData copies everything (the test store owns its raw), so
+    // this transient assembly needs no holder ownership.
+    SEXP denseExpr = PROTECT(getListElement(slotExpr, "dense"));
+    SEXP sparseExpr = PROTECT(getListElement(slotExpr, "sparse"));
+    SEXP mapExpr = PROTECT(getListElement(slotExpr, "map"));
+    if (!Rf_isInteger(mapExpr) ||
+        static_cast<size_t>(rc_getLength(mapExpr)) != data.numPredictors)
+      Rf_error("number of columns in 'x.test' must equal that of 'x'");
+    SEXP numObsExpr = getListElement(slotExpr, "numObservations");
+    if (!Rf_isInteger(numObsExpr) || rc_getLength(numObsExpr) != 1 ||
+        INTEGER(numObsExpr)[0] < 0)
+      Rf_error("malformed mixed test container");
+    size_t numTest = static_cast<size_t>(INTEGER(numObsExpr)[0]);
+    data.numTestObservations = numTest;
+    const int* map = INTEGER(mapExpr);
+
+    bool hasSparse = Rf_inherits(sparseExpr, "dgCMatrix");
+    if (!Rf_isNull(sparseExpr) && !hasSparse)
+      Rf_error("malformed mixed test container");
+    if (!Rf_isNull(denseExpr) && TYPEOF(denseExpr) != VECSXP)
+      Rf_error("malformed mixed test container");
+    CscSlots csc;
+    if (hasSparse) csc = parseCscMatrix(sparseExpr, numTest);
+    size_t numCscColumns = hasSparse ? csc.numColumns : 0;
+
+    size_t numDenseColumns = Rf_isNull(denseExpr)
+      ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
+    data.testDenseAssembly.resize(numDenseColumns * numTest);
+    for (size_t k = 0; k < numDenseColumns; ++k) {
+      SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
+      if (static_cast<size_t>(rc_getLength(columnExpr)) != numTest)
+        Rf_error("number of rows of 'x.test' columns must match");
+      double* target = data.testDenseAssembly.data() + k * numTest;
+      if (Rf_isFactor(columnExpr)) {
+        const int* codes = INTEGER(columnExpr);
+        for (size_t i = 0; i < numTest; ++i)
+          target[i] = codes[i] == NA_INTEGER
+            ? NA_REAL : static_cast<double>(codes[i] - 1);
+      } else if (Rf_isReal(columnExpr)) {
+        std::memcpy(target, REAL(columnExpr), numTest * sizeof(double));
+      } else {
+        Rf_error("malformed mixed test container");
+      }
+    }
+    data.testMixedDenseValues =
+      numDenseColumns > 0 ? data.testDenseAssembly.data() : NULL;
+
+    data.testColumnSources.resize(data.numPredictors);
+    for (size_t j = 0; j < data.numPredictors; ++j) {
+      if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns)
+        data.testColumnSources[j] = map[j] - 1;
+      else if (map[j] < 0 && static_cast<size_t>(-map[j]) <= numCscColumns)
+        data.testColumnSources[j] = map[j];
+      else
+        Rf_error("malformed mixed test container");
+    }
+    data.testIsMixed = true;
+    if (hasSparse) {
+      data.testCscColumnPointers = csc.pointers;
+      data.testCscRowIndices = csc.rows;
+      data.testCscValues = csc.values;
+    }
+
+    // resolve the reference code per CSC-backed categorical test column, the
+    // code its implicit rows take (varTypes, parsed above, marks categorical);
+    // the container's per-sparse-column metadata is already in level order
+    bool anyTestCscCategorical = false;
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      if (data.columnTypes[j] == bartcore::ColumnType::categorical &&
+          data.testColumnSources[j] < 0) {
+        anyTestCscCategorical = true;
+        break;
+      }
+    if (anyTestCscCategorical) {
+      SEXP referenceExpr = getListElement(slotExpr, "sparseReference");
+      SEXP categoryCountExpr = getListElement(slotExpr, "sparseCategoryCount");
+      if (!Rf_isInteger(referenceExpr) || !Rf_isInteger(categoryCountExpr) ||
+          static_cast<size_t>(rc_getLength(referenceExpr)) != numCscColumns ||
+          static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
+        Rf_error("sparse categorical test predictor columns require reference "
+                 "metadata");
+      const int* referenceMeta = INTEGER(referenceExpr);
+      const int* categoryCountMeta = INTEGER(categoryCountExpr);
+      data.testCscReferenceCodes.assign(data.numPredictors, 0);
+      for (size_t j = 0; j < data.numPredictors; ++j) {
+        if (data.columnTypes[j] != bartcore::ColumnType::categorical ||
+            data.testColumnSources[j] >= 0)
+          continue;
+        size_t source = static_cast<size_t>(~data.testColumnSources[j]);
+        int count = categoryCountMeta[source];
+        int reference = referenceMeta[source];
+        if (count <= 0 || reference == NA_INTEGER || reference < 0 ||
+            reference >= count)
+          Rf_error("sparse categorical test predictor columns require "
+                   "reference metadata");
+        data.testCscReferenceCodes[j] =
+          static_cast<bartcore::xint_t>(reference);
+      }
+    }
+    UNPROTECT(3);
   } else {
     if (!Rf_isReal(slotExpr)) Rf_error("x.test must be of type real");
     rc_assertDimConstraints(slotExpr, "dimensions of x.test",
@@ -947,6 +1065,20 @@ const double* rawTrainingColumn(const ParsedData& data, size_t j) {
   return data.x != NULL ? data.x + j * data.numObservations : NULL;
 }
 
+// Raw test values of column j, when a dense source serves them: the x.test
+// matrix, or the mixed test container's dense slice. Null for a CSC-backed
+// test column (coded R-side against the training levels, nothing to scan).
+const double* rawParsedTestColumn(const ParsedData& data, size_t j) {
+  if (data.testIsMixed)
+    return data.testColumnSources[j] >= 0
+      ? data.testMixedDenseValues +
+        static_cast<size_t>(data.testColumnSources[j]) *
+          data.numTestObservations
+      : NULL;
+  return data.x_test != NULL ? data.x_test + j * data.numTestObservations
+                             : NULL;
+}
+
 void validateCategoricalPredictors(const ParsedData& data) {
   if (data.xIsSparse) return;  // parseData enforced all-ordinal
   for (size_t j = 0; j < data.numPredictors; ++j) {
@@ -971,6 +1103,11 @@ void validateCategoricalPredictors(const ParsedData& data) {
     // training columns
     for (size_t j = 0; j < data.numPredictors; ++j) {
       if (data.columnTypes[j] != bartcore::ColumnType::categorical) continue;
+      // a CSC-backed categorical column has no dense slice to bound the codes
+      // against; both its training and test codes came from the R level table
+      if (data.xIsMixed && data.columnSources[j] < 0) continue;
+      const double* testColumn = rawParsedTestColumn(data, j);
+      if (testColumn == NULL) continue;  // CSC-backed test column: R-side coded
       const double* column = rawTrainingColumn(data, j);
       double maxValue = 0.0;
       for (size_t i = 0; i < data.numObservations; ++i) {
@@ -978,7 +1115,7 @@ void validateCategoricalPredictors(const ParsedData& data) {
         if (!bartcore::isNA(value) && value > maxValue) maxValue = value;
       }
       for (size_t i = 0; i < data.numTestObservations; ++i) {
-        double value = data.x_test[i + j * data.numTestObservations];
+        double value = testColumn[i];
         if (bartcore::isNA(value)) continue;
         if (value < 0.0 || value > maxValue || value != std::floor(value))
           Rf_error("categorical test predictors must hold existing category "
@@ -1349,7 +1486,25 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     }
 
     if (data.numTestObservations > 0) {
-      sampler->setTestPredictors(data.x_test, data.numTestObservations);
+      if (data.testIsMixed) {
+        // the container's raw is copied into the test store; a leaf covariate
+        // that would land on a CSC-backed test column is refused (sparse
+        // storage serves no dense raw test covariate)
+        if (!sampler->setTestData(
+              data.testMixedDenseValues, data.testCscColumnPointers,
+              data.testCscRowIndices, data.testCscValues,
+              data.testColumnSources.data(),
+              data.testCscReferenceCodes.empty()
+                ? NULL : data.testCscReferenceCodes.data(),
+              data.numTestObservations)) {
+          sampler.reset();  // borrows the rngs, so tear it down before them
+          for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+          Rf_error("a leaf covariate column cannot be a sparse test column; "
+                   "supply it as a dense test column");
+        }
+      } else {
+        sampler->setTestPredictors(data.x_test, data.numTestObservations);
+      }
       sampler->setTestOffset(data.testOffset);
     }
 
@@ -2051,6 +2206,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     if (data.xIsSparse || data.xIsMixed)
       Rf_error("bartcore setData requires a dense predictor matrix; sparse "
                "predictors fix the design at creation");
+    if (data.testIsMixed)
+      Rf_error("bartcore setData requires a dense test matrix; a sparse test "
+               "set fixes the design at creation");
 
     if (data.numPredictors != sampler.numPredictors())
       Rf_error("bartcore setData requires the same predictors");

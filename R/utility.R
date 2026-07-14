@@ -411,29 +411,38 @@ estimateSigmaFromLinearModel <- function(data) {
   summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma
 }
 
-## A sparseFactor test column cannot survive the model-frame formula replay
-## in validateXTest as a bare S4 value (model.frame rejects an S4 term
-## outright); expand it to a plain factor over its own level table first,
-## so it replays as an ordinary bare-name factor term and the
-## training-level recode below (mapFactorColumnsToTrainingLevels) applies
-## to it unchanged - no resident sparse test storage, decision 2.
-densifySparseFactorColumns <- function(x.test) {
-  for (name in names(x.test)) {
-    column <- x.test[[name]]
-    if (!methods::is(column, "sparseFactor")) {
-      next
-    }
-    labels <- rep.int(column@reference, column@length)
-    labels[column@i + 1L] <- column@levels[column@values]
-    x.test[[name]] <- factor(labels, levels = column@levels)
+## Recode a sparseFactor test column over the training level table, keeping
+## it sparse: the stored entries' labels and the implicit reference level
+## are re-coded in training level order, so its codes agree with a dense
+## factor of the same values. A level unseen in training has no code and
+## errors, exactly as the dense factor path does.
+remapSparseFactorToTrainingLevels <- function(column, trainingLevels, name) {
+  storedCodes <- match(column@levels[column@values], trainingLevels)
+  referenceCode <- match(column@reference, trainingLevels)
+  if (anyNA(storedCodes) || is.na(referenceCode)) {
+    stop(
+      "test data factor '",
+      name,
+      "' has levels not present in the ",
+      "training data"
+    )
   }
-  x.test
+  # the stored entries stay non-reference (their labels differ from the
+  # reference label), so the canonical structure carries over untouched
+  newValidated(
+    "sparseFactor",
+    i = column@i,
+    values = as.integer(storedCodes),
+    levels = trainingLevels,
+    reference = column@reference,
+    length = column@length
+  )
 }
 
-## Recode a test data.frame's factor and character columns against the
-## training data's level tables (aligned with the training columns by
-## name), so codes agree across the two; a level unseen in training has no
-## code and errors.
+## Recode a test data.frame's factor, character, and sparseFactor columns
+## against the training data's level tables (aligned with the training
+## columns by name), so codes agree across the two; a sparseFactor stays
+## sparse. A level unseen in training has no code and errors.
 mapFactorColumnsToTrainingLevels <- function(
   x.test,
   predictorNames,
@@ -445,11 +454,12 @@ mapFactorColumnsToTrainingLevels <- function(
       next
     }
     column <- x.test[[name]]
+    columnIsSparseFactor <- methods::is(column, "sparseFactor")
     if (is.null(factorLevels[[j]])) {
-      # the training column was numeric; a factor/character test column
-      # here would otherwise fall through to makeCategoricalModelMatrix,
+      # the training column was numeric; a factor/character/sparseFactor test
+      # column here would otherwise fall through to makeCategoricalModelMatrix,
       # which recodes it against the test set's own level order instead
-      if (is.factor(column) || is.character(column)) {
+      if (is.factor(column) || is.character(column) || columnIsSparseFactor) {
         stop(
           "test column '",
           name,
@@ -460,6 +470,14 @@ mapFactorColumnsToTrainingLevels <- function(
           "' is numeric"
         )
       }
+      next
+    }
+    if (columnIsSparseFactor) {
+      x.test[[name]] <- remapSparseFactorToTrainingLevels(
+        column,
+        factorLevels[[j]],
+        name
+      )
       next
     }
     if (!is.factor(column) && !is.character(column)) {

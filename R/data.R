@@ -52,16 +52,16 @@ validateXTest <- function(x.test, x.train) {
     return(NULL)
   }
   if (is.data.frame(x.test)) {
-    if (!is.null(termLabels)) {
-      x.test <- densifySparseFactorColumns(x.test)
-      x.test <- model.frame(
-        formula = as.formula(paste("~", paste(termLabels, collapse = " + "))),
-        data = x.test,
-        na.action = stats::na.pass
-      )
-    }
-    if (!is.null(factorLevels)) {
-      # trained with factors unexpanded: code against the training levels
+    if (any(vapply(x.test, isSparseDataFrameColumn, FALSE))) {
+      # sparse columns ride to the engine unexpanded, coded over the training
+      # level table; the resulting container is preserved below (the model
+      # frame replay takes no S4 columns, so it is skipped here)
+      if (is.null(factorLevels)) {
+        stop(
+          "sparse test predictor columns require a categorical training ",
+          "design; supply 'x' through the x/y interface"
+        )
+      }
       x.test <- mapFactorColumnsToTrainingLevels(
         x.test,
         predictorNames,
@@ -69,22 +69,45 @@ validateXTest <- function(x.test, x.train) {
       )
       x.test <- makeCategoricalModelMatrix(x.test)
     } else {
-      x.test <- makeModelMatrixFromDataFrame(
-        x.test,
-        if (!is.null(drop)) drop else TRUE
-      )
+      if (!is.null(termLabels)) {
+        x.test <- model.frame(
+          formula = as.formula(paste("~", paste(termLabels, collapse = " + "))),
+          data = x.test,
+          na.action = stats::na.pass
+        )
+      }
+      if (!is.null(factorLevels)) {
+        # trained with factors unexpanded: code against the training levels
+        x.test <- mapFactorColumnsToTrainingLevels(
+          x.test,
+          predictorNames,
+          factorLevels
+        )
+        x.test <- makeCategoricalModelMatrix(x.test)
+      } else {
+        x.test <- makeModelMatrixFromDataFrame(
+          x.test,
+          if (!is.null(drop)) drop else TRUE
+        )
+      }
     }
   }
-  if (!is.matrix(x.test)) {
+  # a sparse-backed container stays resident (the engine codes it against the
+  # training cuts); everything else densifies as before
+  xTestIsSparseContainer <-
+    inherits(x.test, "dbartsMixedMatrix") && predictorSourceIsSparse(x.test)
+  if (!is.matrix(x.test) && !xTestIsSparseContainer) {
     x.test <- as.matrix(x.test)
   }
 
-  if (!is.numeric(x.test)) {
-    stop("test matrix must be numeric")
-  }
+  if (!xTestIsSparseContainer) {
+    if (!is.numeric(x.test)) {
+      stop("test matrix must be numeric")
+    }
 
-  if (is.integer(x.test)) {
-    x.test <- matrix(as.double(x.test), nrow(x.test))
+    if (is.integer(x.test)) {
+      x.test <- matrix(as.double(x.test), nrow(x.test))
+    }
   }
 
   if (!identical(NCOL(x.test), numPredictors)) {
@@ -118,8 +141,18 @@ validateXTest <- function(x.test, x.train) {
       }
     }
 
-    x.test <- x.test[, columnIndices, drop = FALSE]
-    if (xIsNamed) colnames(x.test) <- predictorNames
+    if (xTestIsSparseContainer) {
+      # reorder columns without densifying: the map re-points each predictor
+      # position at its source, the names follow
+      x.test$map <- x.test$map[columnIndices]
+      if (!is.null(x.test$columnNames)) {
+        x.test$columnNames <- x.test$columnNames[columnIndices]
+      }
+      if (xIsNamed) x.test$columnNames <- predictorNames
+    } else {
+      x.test <- x.test[, columnIndices, drop = FALSE]
+      if (xIsNamed) colnames(x.test) <- predictorNames
+    }
   }
 
   x.test
