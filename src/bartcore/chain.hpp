@@ -368,6 +368,140 @@ struct BCFState {
   std::vector<double> combined, forestResponse, forestWeights;
 };
 
+/// Forest f's effective response and precision for its own leaf draws: the pair
+/// a combiner forms so f's constant-leaf node sums reproduce the residual (y net
+/// of the other forests' scaled contributions). Both pointers alias the
+/// combiner's per-forest scratch and stay valid only until the next
+/// formForestResponse call; a location forest routes into response, a variance
+/// forest could later route into weights.
+struct ForestResponse {
+  const double* response;
+  const double* weights;
+};
+
+/// The multi-forest coupling a Chain delegates to when it holds more than one
+/// forest: per-forest residual formation and the combined per-observation
+/// location the response model and sigma draw read. A Chain builds a combiner
+/// only in a multi-forest mode (BCF today); a single-forest chain leaves
+/// combiner_ null and never pays a virtual call. Templated on the leaf because
+/// a combiner's post-combine move reaches Forest<L>'s buffers and saved-tree
+/// nodes.
+///
+/// The coupling draw (drawGlue), its post-combine move (afterCombine), the
+/// reporting-channel map, and glue (de)serialization are declared here so a
+/// subclass owns them without reshaping the base; the base leaves them inert so
+/// a combiner that only forms an additive combination need not override them.
+template <IntegrableLeafModel L>
+struct ForestCombiner {
+  virtual ~ForestCombiner() = default;
+
+  /// Forest f's (response, weights) against the residual; forests carries every
+  /// forest's current fits, y/w the chain's working response and precisions.
+  virtual ForestResponse formForestResponse(std::size_t f,
+      const std::vector<Forest<L>>& forests, const double* y,
+      const double* w) = 0;
+  /// The combined per-observation location over all forests; the pointer aliases
+  /// combiner scratch, valid only until the next call.
+  virtual const double* combinedFits(const std::vector<Forest<L>>& forests) = 0;
+
+  /// The BCF combining scalars the Chain sweep still reads directly (a, b0, b1,
+  /// aVariance, the treatment vector, the update switches). Null for a combiner
+  /// carrying no such glue: the state wire format is BCF-shaped, so any future
+  /// non-BCF combiner returns null here and serializes through the hooks below.
+  virtual BCFState* glueState() { return nullptr; }
+  virtual const BCFState* glueState() const { return nullptr; }
+
+  /// The coupling draw and its likelihood-invariant post-combine move, fired at
+  /// the fixed sweep points; inert unless a subclass couples the forests.
+  virtual void drawGlue(ext_rng*, double, const double*, const double*,
+                        const std::vector<Forest<L>>&) {}
+  virtual void afterCombine(std::vector<Forest<L>>&, bool, std::size_t,
+                            ext_rng*) {}
+
+  /// The reporting map: which forest the scalar channels (variable counts, k,
+  /// split probabilities) address, and whether the test-fit and log-likelihood
+  /// channels are defined. BCF reports forest 0 and leaves those two channels
+  /// undefined (no test treatment vector to blend, and no per-observation
+  /// location the response model can see to score).
+  virtual std::size_t reportedForest() const { return 0; }
+  virtual bool testFitsAreDefined() const { return true; }
+  virtual bool logLikelihoodIsDefined() const { return true; }
+
+  /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
+  /// combiner carries glue.
+  virtual void serializeGlue(ChainStateData&) const {}
+  virtual void restoreGlue(const ChainStateData&) {}
+};
+
+/// BCF's combiner (docs/design/bcf.md): a prognostic forest mu (forest 0) and a
+/// treatment forest tau (forest 1) combined on a gaussian response as
+/// y = a mu + b_z tau + eps. Holds the glue (the scalar a via its half-Cauchy
+/// scale mixture aVariance, and the treatment scales b0/b1 over control/treated)
+/// and the sweep's per-forest scratch. Constant leaf only, as the whole BCF
+/// chain is.
+template <IntegrableLeafModel L>
+struct BCFForestCombiner : ForestCombiner<L> {
+  static_assert(!L::hasVectorParams && !L::hasFunctionParams,
+                "BCF is a constant-leaf model");
+
+  BCFForestCombiner(const ColumnStore& data, const BCFSpec& spec)
+      : data_(data) {
+    glue_.z = spec.z;
+    glue_.aPriorScale = spec.aPriorScale;
+    glue_.bPriorVariance = spec.bPriorVariance;
+    glue_.updateA = spec.updateA;
+    glue_.updateB = spec.updateB;
+  }
+
+  BCFState* glueState() override { return &glue_; }
+  const BCFState* glueState() const override { return &glue_; }
+
+  /// Effective response and precision forest f's constant-leaf draws see so that
+  /// m_f * f_f explains the residual (y minus the other forests' scaled
+  /// contributions): response r_i / m_f, weight w_i m_f^2, which reproduce the
+  /// leaf's node sums without touching the leaf math. |m_f| is floored to keep
+  /// the division finite in the pathological near-zero-scale case.
+  ForestResponse formForestResponse(std::size_t f,
+      const std::vector<Forest<L>>& forests, const double* y,
+      const double* w) override {
+    std::size_t n = data_.numObservations;
+    glue_.forestResponse.resize(n);
+    glue_.forestWeights.resize(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      double resid = y[i];
+      for (std::size_t g = 0; g < forests.size(); ++g)
+        if (g != f) resid -= forestMultiplier(g, i) * forests[g].totalFits[i];
+      double m = forestMultiplier(f, i);
+      if (std::fabs(m) < 1.0e-9) m = m < 0.0 ? -1.0e-9 : 1.0e-9;
+      glue_.forestResponse[i] = resid / m;
+      glue_.forestWeights[i] = (w == nullptr ? 1.0 : w[i]) * m * m;
+    }
+    return {glue_.forestResponse.data(), glue_.forestWeights.data()};
+  }
+
+  const double* combinedFits(const std::vector<Forest<L>>& forests) override {
+    std::size_t n = data_.numObservations;
+    glue_.combined.resize(n);
+    const double* mu = forests[0].totalFits.data();
+    const double* tau = forests[1].totalFits.data();
+    for (std::size_t i = 0; i < n; ++i)
+      glue_.combined[i] = glue_.a * mu[i] +
+        (glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0) * tau[i];
+    return glue_.combined.data();
+  }
+
+private:
+  /// The scale forest f's constant leaf carries into the combination: a for the
+  /// prognostic forest, b_{z_i} for the treatment forest.
+  double forestMultiplier(std::size_t f, std::size_t i) const {
+    if (f == 0) return glue_.a;
+    return glue_.z[i] != 0.0 ? glue_.b1 : glue_.b0;
+  }
+
+  const ColumnStore& data_;
+  BCFState glue_;
+};
+
 /// One MCMC chain of the conjugate backfitting sampler: one-or-more forests
 /// (trees, fits, per-forest prior), and its own response state and rng, over
 /// a shared read-only ColumnStore. Data mutation is orchestrated one level up
@@ -537,12 +671,7 @@ public:
     buildBCFForest(spec.mu, s);
     buildBCFForest(spec.tau, spec.sdModerate * s / kHalfNormalMedian);
 
-    bcf_ = std::make_unique<BCFState>();
-    bcf_->z = spec.z;
-    bcf_->aPriorScale = spec.aPriorScale;
-    bcf_->bPriorVariance = spec.bPriorVariance;
-    bcf_->updateA = spec.updateA;
-    bcf_->updateB = spec.updateB;
+    combiner_ = std::make_unique<BCFForestCombiner<L>>(data, spec);
     resizeTestStorage();
   }
 
@@ -556,11 +685,15 @@ public:
   }
   bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
-  void setTreatment(const double* z) { if (bcf_) bcf_->z = z; }
+  void setTreatment(const double* z) {
+    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    if (glue != nullptr) glue->z = z;
+  }
   /// BCF glue on the combining response; false for a non-BCF chain.
   bool bcfGlue(double& a, double& b0, double& b1) const {
-    if (!bcf_) return false;
-    a = bcf_->a; b0 = bcf_->b0; b1 = bcf_->b1;
+    const BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    if (glue == nullptr) return false;
+    a = glue->a; b0 = glue->b0; b1 = glue->b1;
     return true;
   }
   /// The forest's constant-leaf function values on the internal scale (mu for
@@ -592,7 +725,8 @@ public:
   /// keepTrees saved slot whose mu leaves, flattened before this move, need the
   /// same c so a stored * mu_saved keeps the identified product.
   double interweaveGlueRidge(bool record = false, std::size_t sampleNum = 0) {
-    if (!bcf_ || !bcf_->updateA) return 1.0;
+    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    if (glue == nullptr || !glue->updateA) return 1.0;
     Forest<L>& forest = forests_[0];
     std::size_t n = data_.numObservations;
 
@@ -617,12 +751,12 @@ public:
     if (numLeaves < 2 || !(M > 0.0)) return 1.0;
 
     // GIG parameters (memo section 2.3): A = M (k/scale)^2, B = a0^2/aVariance
-    double a0 = bcf_->a;
+    double a0 = glue->a;
     double leafPrecision = (forest.k / forest.leaf.scale) *
                            (forest.k / forest.leaf.scale);  // 1 / leafVar
     double gigP = 0.5 * (static_cast<double>(numLeaves) - 1.0);
     double gigA = M * leafPrecision;
-    double gigB = a0 * a0 / bcf_->aVariance;
+    double gigB = a0 * a0 / glue->aVariance;
 
     double v = ext_rng_simulateGeneralizedInverseGaussian(rng_, gigP, gigA,
                                                           gigB);
@@ -631,7 +765,7 @@ public:
     if (!std::isfinite(c) || c <= 0.0) return 1.0;
 
     // travel the ridge: a shrinks, the prognostic fits grow by c
-    bcf_->a = a0 / c;
+    glue->a = a0 / c;
     misc_scalarMultiplyVectorInPlace(forest.treeFits.data(),
                                      n * forest.numTrees, c);
     misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
@@ -737,10 +871,11 @@ public:
         // other forest's scaled contribution, divided by its own multiplier
         const double* forestY = y;
         const double* forestWeights = weights;
-        if (bcf_) {
-          formForestResponse(f, y, weights);
-          forestY = bcf_->forestResponse.data();
-          forestWeights = bcf_->forestWeights.data();
+        if (combiner_) {
+          ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
+                                                            weights);
+          forestY = fr.response;
+          forestWeights = fr.weights;
         }
         MoveContext ctx{data_,
                         forest.treePrior,
@@ -841,7 +976,7 @@ public:
       if (!sigmaIsFixed_)
         sigma_ = response_->drawSigma(rng_, combined, sigma_);
 
-      if (bcf_) {
+      if (combiner_) {
         drawGlue(y, weights);
         interweaveGlueRidge(record, sampleNum);
       }
@@ -996,10 +1131,11 @@ public:
           Forest<L>& forest = forests_[f];
           const double* forestY = y;
           const double* forestWeights = weights;
-          if (bcf_) {
-            formForestResponse(f, y, weights);
-            forestY = bcf_->forestResponse.data();
-            forestWeights = bcf_->forestWeights.data();
+          if (combiner_) {
+            ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
+                                                              weights);
+            forestY = fr.response;
+            forestWeights = fr.weights;
           }
 
           forest.kSumSquaredParams = 0.0;
@@ -1058,7 +1194,7 @@ public:
         if (!sigmaIsFixed_)
           sigma_ = response_->drawSigma(rng_, combined, sigma_);
 
-        if (bcf_) {
+        if (combiner_) {
           drawGlue(y, weights);
           interweaveGlueRidge(false, 0);
         }
@@ -1692,12 +1828,13 @@ public:
     state.rngState.resize(ext_rng_getSerializedStateLength(rng_));
     if (!state.rngState.empty())
       ext_rng_writeSerializedState(rng_, state.rngState.data());
-    state.hasBCF = bcf_ != nullptr;
-    if (bcf_) {
-      state.a = bcf_->a;
-      state.aVariance = bcf_->aVariance;
-      state.b0 = bcf_->b0;
-      state.b1 = bcf_->b1;
+    const BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    state.hasBCF = glue != nullptr;
+    if (glue != nullptr) {
+      state.a = glue->a;
+      state.aVariance = glue->aVariance;
+      state.b0 = glue->b0;
+      state.b1 = glue->b1;
     }
   }
 
@@ -1860,11 +1997,12 @@ public:
       forest.dart.alpha = state.dartAlpha;
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
-    if (bcf_ && state.hasBCF) {
-      bcf_->a = state.a;
-      bcf_->aVariance = state.aVariance;
-      bcf_->b0 = state.b0;
-      bcf_->b1 = state.b1;
+    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    if (glue != nullptr && state.hasBCF) {
+      glue->a = state.a;
+      glue->aVariance = state.aVariance;
+      glue->b0 = state.b0;
+      glue->b1 = state.b1;
     }
     return true;
   }
@@ -1912,11 +2050,12 @@ public:
       forest.dart.alpha = state.dartAlpha;
       forest.dart.setNumUpdatesSkipped(state.dartNumUpdatesSkipped);
     }
-    if (bcf_ && state.hasBCF) {
-      bcf_->a = state.a;
-      bcf_->aVariance = state.aVariance;
-      bcf_->b0 = state.b0;
-      bcf_->b1 = state.b1;
+    BCFState* glue = combiner_ ? combiner_->glueState() : nullptr;
+    if (glue != nullptr && state.hasBCF) {
+      glue->a = state.a;
+      glue->aVariance = state.aVariance;
+      glue->b0 = state.b0;
+      glue->b1 = state.b1;
     }
     // a serialized generator of a different kind (a single-chain state
     // riding R's stream restored into a dedicated-generator chain, say)
@@ -2280,41 +2419,13 @@ private:
     forest.treeY.resize(n);
   }
 
-  double forestMultiplier(std::size_t f, std::size_t i) const {
-    if (f == 0) return bcf_->a;
-    return bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
-  }
-
-  /// Effective response and precision forest f's constant-leaf draws see so
-  /// that m_f * f_f explains the residual (y minus the other forests' scaled
-  /// contributions): response r_i / m_f, weight w_i m_f^2, which reproduce
-  /// the leaf's node sums without touching the leaf math. |m_f| is floored to
-  /// keep the division finite in the pathological near-zero-scale case.
-  void formForestResponse(std::size_t f, const double* y, const double* w) {
-    std::size_t n = data_.numObservations;
-    bcf_->forestResponse.resize(n);
-    bcf_->forestWeights.resize(n);
-    for (std::size_t i = 0; i < n; ++i) {
-      double resid = y[i];
-      for (std::size_t g = 0; g < forests_.size(); ++g)
-        if (g != f) resid -= forestMultiplier(g, i) * forests_[g].totalFits[i];
-      double m = forestMultiplier(f, i);
-      if (std::fabs(m) < 1.0e-9) m = m < 0.0 ? -1.0e-9 : 1.0e-9;
-      bcf_->forestResponse[i] = resid / m;
-      bcf_->forestWeights[i] = (w == nullptr ? 1.0 : w[i]) * m * m;
-    }
-  }
-
+  /// A single forest reports its own total fits directly; a multi-forest chain
+  /// asks the combiner for the blended per-observation location. The null test
+  /// stays chain-side so the single-forest path returns a bare pointer with no
+  /// virtual call and no copy.
   const double* combinedFits() {
-    if (!bcf_) return forests_[0].totalFits.data();
-    std::size_t n = data_.numObservations;
-    bcf_->combined.resize(n);
-    const double* mu = forests_[0].totalFits.data();
-    const double* tau = forests_[1].totalFits.data();
-    for (std::size_t i = 0; i < n; ++i)
-      bcf_->combined[i] = bcf_->a * mu[i] +
-        (bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0) * tau[i];
-    return bcf_->combined.data();
+    return combiner_ ? combiner_->combinedFits(forests_)
+                     : forests_[0].totalFits.data();
   }
 
   /// The glue's Gaussian full conditionals (docs/design/bcf.md): a as the mu
@@ -2322,44 +2433,45 @@ private:
   /// refreshed after via an inverse-gamma auxiliary), b0/b1 as the tau
   /// coefficients over control/treated (prior N(0, bPriorVariance)).
   void drawGlue(const double* y, const double* w) {
+    BCFState& glue = *combiner_->glueState();
     std::size_t n = data_.numObservations;
     const double* mu = forests_[0].totalFits.data();
     const double* tau = forests_[1].totalFits.data();
     double invSigmaSq = 1.0 / (sigma_ * sigma_);
 
-    if (bcf_->updateA) {
-      double aPrec = 1.0 / bcf_->aVariance, aNum = 0.0;
+    if (glue.updateA) {
+      double aPrec = 1.0 / glue.aVariance, aNum = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         double wi = w == nullptr ? 1.0 : w[i];
-        double bz = bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0;
+        double bz = glue.z[i] != 0.0 ? glue.b1 : glue.b0;
         double r = y[i] - bz * tau[i];
         aPrec += wi * mu[i] * mu[i] * invSigmaSq;
         aNum += wi * mu[i] * r * invSigmaSq;
       }
-      bcf_->a =
+      glue.a =
         aNum / aPrec + ext_rng_simulateStandardNormal(rng_) / std::sqrt(aPrec);
 
       // t_1 scale mixture: aVariance ~ IG(1/2, scale^2/2) mixes N(0, aVariance)
       // to Cauchy(0, scale), so the conditional's rate carries scale^2, not its
       // inverse
-      double rate = 0.5 * bcf_->a * bcf_->a +
-                    0.5 * bcf_->aPriorScale * bcf_->aPriorScale;
-      bcf_->aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
+      double rate = 0.5 * glue.a * glue.a +
+                    0.5 * glue.aPriorScale * glue.aPriorScale;
+      glue.aVariance = 1.0 / ext_rng_simulateGamma(rng_, 1.0, 1.0 / rate);
     }
 
-    if (bcf_->updateB) {
-      double bPrec = 1.0 / bcf_->bPriorVariance;
+    if (glue.updateB) {
+      double bPrec = 1.0 / glue.bPriorVariance;
       double p0 = bPrec, n0 = 0.0, p1 = bPrec, n1 = 0.0;
       for (std::size_t i = 0; i < n; ++i) {
         double wi = w == nullptr ? 1.0 : w[i];
-        double r = y[i] - bcf_->a * mu[i];
+        double r = y[i] - glue.a * mu[i];
         double prec = wi * tau[i] * tau[i] * invSigmaSq;
         double num = wi * tau[i] * r * invSigmaSq;
-        if (bcf_->z[i] != 0.0) { p1 += prec; n1 += num; }
+        if (glue.z[i] != 0.0) { p1 += prec; n1 += num; }
         else { p0 += prec; n0 += num; }
       }
-      bcf_->b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
-      bcf_->b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
+      glue.b0 = n0 / p0 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p0);
+      glue.b1 = n1 / p1 + ext_rng_simulateStandardNormal(rng_) / std::sqrt(p1);
     }
   }
 
@@ -2376,13 +2488,13 @@ private:
 
     if (results.trainingFits != nullptr) {
       double* out = results.trainingFits + sampleNum * n;
-      if (bcf_) {
-        const double* mu = forests_[0].totalFits.data();
-        const double* tau = forests_[1].totalFits.data();
+      if (combiner_) {
+        // the combiner owns the blend; recompute it against the post-glue
+        // scalars this sweep settled on (combinedFits at the sweep top ran
+        // before the glue draw)
+        const double* combined = combiner_->combinedFits(forests_);
         for (size_t i = 0; i < n; ++i)
-          out[i] = scale * (bcf_->a * mu[i] +
-                            (bcf_->z[i] != 0.0 ? bcf_->b1 : bcf_->b0) * tau[i]) +
-                   shift;
+          out[i] = scale * combined[i] + shift;
       } else {
         for (size_t i = 0; i < n; ++i)
           out[i] = scale * forest.totalFits[i] + shift;
@@ -2395,7 +2507,7 @@ private:
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
       double* out = results.testFits + sampleNum * data_.numTestObservations;
-      if (bcf_) {
+      if (combiner_) {
         // A BCF test blend a * mu + b_z * tau is ill-defined here: the API
         // carries no test treatment vector, so only the bare prognostic
         // forest could be recorded, which silently misreports the fit.
@@ -2442,7 +2554,7 @@ private:
 
     if (results.logLikelihood != nullptr) {
       double* out = results.logLikelihood + sampleNum * n;
-      if (bcf_) {
+      if (combiner_) {
         // The BCF per-observation location blends two forests through the
         // glue coefficients, which the response model cannot see; scoring
         // forest 0 alone would misreport it. NaN-flag as testFits does.
@@ -2471,9 +2583,10 @@ private:
   // mutation fan-out, and prediction loop over them
   std::vector<Forest<L>> forests_;
 
-  // the BCF combining response's glue and sweep scratch; null off BCF, and
-  // the whole two-forest sweep collapses to the single-forest path when so
-  std::unique_ptr<BCFState> bcf_;
+  // the multi-forest coupling (BCF today); null for every single-forest
+  // sampler, so the sweep, reporting, and state paths collapse to the direct
+  // forest-0 path when so and pay no virtual call
+  std::unique_ptr<ForestCombiner<L>> combiner_;
 
   // Persistent pool for parallel test-fit routing, sized to this chain's
   // share of the thread budget; created lazily, never below the cutoff. The
