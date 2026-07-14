@@ -305,13 +305,16 @@ BCF case, keepTrees numThin > 1); step 2 records the mechanical
 glue-reader rewrite it forces; step 4 names installForest's glue restore.
 Construction detail from review: the combiner needs the observation count
 (and the ridge move data_) - hold a ColumnStore reference or receive n at
-construction. One reading AWAITING VD confirmation (recommended: accept): the combiner
-is a standalone ForestCombiner<L> hierarchy, not a ResponseModel subclass
-- architecture-numerical-review.md:130-133's "ResponseModel side" is read
+construction. One reading VD CONFIRMED (2026-07-14): the combiner is a standalone
+ForestCombiner<L> hierarchy, not a ResponseModel subclass -
+architecture-numerical-review.md:130-133's "ResponseModel side" is read
 as a responsibility statement (combining belongs to a dedicated
 response-side object), since ResponseModel's per-observation-location
-interface does not fit per-forest residual formation. Steps 2-4 depend on
-this reading; step 1 does not.
+interface does not fit per-forest residual formation, folding combining
+into ResponseModel would force forest-vector methods and the leaf-type
+template onto every single-forest response family, and orthogonal
+response x combiner seams are what let grouped and multi-forest models
+compose without a class per pairing.
 
 - Q1 (combiner dispatch). RECOMMEND virtual ForestCombiner<L>, null-pointer
   short-circuit for single forest. It matches ResponseModel (creation-selected,
