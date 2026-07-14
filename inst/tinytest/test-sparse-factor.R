@@ -108,7 +108,7 @@ df.formula <- df
 df.formula$y <- y
 expect_error(
   dbartsData(y ~ x1 + sf, df.formula),
-  pattern = "sparse categorical predictors are not yet supported"
+  pattern = "sparse categorical predictors must be supplied through the x/y interface"
 )
 
 # indicator expansion cannot dummy-code a sparse factor without densifying it
@@ -246,3 +246,105 @@ df.ord$sv <- Matrix::sparseVector(
   length = 40L
 )
 expect_inherits(dbartsData(df.ord, rnorm(40L)), "dbartsData")
+
+# THE MATERIALIZER: as.matrix on a mixed container fills a sparse-
+# categorical column's implicit rows with its reference code, not zero - an
+# explicit entry can legitimately be code 0, so the fill has to precede the
+# scatter, not follow it (mixedMatrix.R as.matrix.dbartsMixedMatrix)
+n <- 10L
+frame.mat <- data.frame(x1 = rnorm(n))
+frame.mat$sf <- sparseFactor(
+  c("a", "c"),
+  levels = c("a", "b", "c"),
+  reference = "b",
+  i = c(1L, 6L),
+  length = n
+)
+expectedCodes <- rep(1, n) # "b" is level 2, the implicit reference code
+expectedCodes[1L] <- 0L # explicit "a" - the first level, code 0, stored anyway
+expectedCodes[6L] <- 2L # explicit "c"
+mm.mat <- dbarts:::makeCategoricalModelMatrix(frame.mat)
+expect_equal(as.matrix(mm.mat)[, 2L], as.double(expectedCodes))
+
+sampler.mat <- dbarts(
+  frame.mat,
+  rnorm(n),
+  sigma = 1.0,
+  control = dbartsControl(
+    n.trees = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE
+  )
+)
+expect_equal(extract(sampler.mat, "predictors")[, 2L], as.double(expectedCodes))
+
+# TEST-SIDE DENSIFICATION: a sparseFactor x.test column recodes over the
+# training level table and predicts exactly like a dense factor of the
+# same values; no resident sparse test storage
+set.seed(50L)
+n <- 200L
+x1.tr <- rnorm(n)
+levels.g <- paste0("L", 1:4)
+codes.tr <- sample.int(4L, n, replace = TRUE)
+codes.tr[1L] <- 1L
+g.tr <- factor(levels.g[codes.tr], levels = levels.g)
+y.tr <- 0.3 * codes.tr + rnorm(n)
+train.dense <- data.frame(x1 = x1.tr, g = g.tr)
+
+n.test <- 25L
+x1.te <- rnorm(n.test)
+codes.te <- sample.int(4L, n.test, replace = TRUE)
+codes.te[1L] <- 1L # the first level appears explicitly in the sparse test column
+g.te <- factor(levels.g[codes.te], levels = levels.g)
+test.dense <- data.frame(x1 = x1.te, g = g.te)
+test.sparse <- data.frame(x1 = x1.te)
+test.sparse$g <- sparseFactor(g.te, reference = "L2")
+
+runTestGate <- function(test, seed) {
+  set.seed(seed)
+  sampler <- dbarts(
+    train.dense,
+    y.tr,
+    sigma = 1.0,
+    test = test,
+    control = dbartsControl(
+      n.trees = 20L,
+      n.chains = 1L,
+      n.threads = 1L,
+      updateState = FALSE
+    )
+  )
+  sampler$run(10L, 20L)
+}
+result.dense <- runTestGate(test.dense, 1234L)
+result.sparse <- runTestGate(test.sparse, 1234L)
+expect_identical(result.dense$test, result.sparse$test)
+
+# a test level absent from training errors the same way for a sparse test
+# column as it does for a dense one
+unseenLabels <- c("L5", as.character(g.te[-1L]))
+expect_error(
+  dbarts(
+    train.dense,
+    y.tr,
+    test = data.frame(x1 = x1.te, g = factor(unseenLabels)),
+    control = dbartsControl(n.trees = 5L, updateState = FALSE)
+  ),
+  pattern = "has levels not present in the"
+)
+test.unseen <- data.frame(x1 = x1.te)
+test.unseen$g <- sparseFactor(
+  unseenLabels,
+  levels = c(levels.g, "L5"),
+  reference = "L2"
+)
+expect_error(
+  dbarts(
+    train.dense,
+    y.tr,
+    test = test.unseen,
+    control = dbartsControl(n.trees = 5L, updateState = FALSE)
+  ),
+  pattern = "has levels not present in the"
+)

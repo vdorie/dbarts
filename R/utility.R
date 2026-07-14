@@ -421,6 +421,25 @@ estimateSigmaFromLinearModel <- function(data) {
   summary(lm(data@y ~ x, weights = data@weights, offset = data@offset))$sigma
 }
 
+## A sparseFactor test column cannot survive the model-frame formula replay
+## in validateXTest as a bare S4 value (model.frame rejects an S4 term
+## outright); expand it to a plain factor over its own level table first,
+## so it replays as an ordinary bare-name factor term and the
+## training-level recode below (mapFactorColumnsToTrainingLevels) applies
+## to it unchanged - no resident sparse test storage, decision 2.
+densifySparseFactorColumns <- function(x.test) {
+  for (name in names(x.test)) {
+    column <- x.test[[name]]
+    if (!methods::is(column, "sparseFactor")) {
+      next
+    }
+    labels <- rep.int(column@reference, column@length)
+    labels[column@i + 1L] <- column@levels[column@values]
+    x.test[[name]] <- factor(labels, levels = column@levels)
+  }
+  x.test
+}
+
 ## Recode a test data.frame's factor and character columns against the
 ## training data's level tables (aligned with the training columns by
 ## name), so codes agree across the two; a level unseen in training has no
