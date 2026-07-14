@@ -364,14 +364,12 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     SEXP mapExpr = PROTECT(getListElement(slotExpr, "map"));
     if (!Rf_isInteger(mapExpr) || rc_getLength(mapExpr) == 0)
       Rf_error("malformed mixed predictor container");
-    if (TYPEOF(denseExpr) == VECSXP) {
+    if (TYPEOF(denseExpr) == VECSXP && Rf_isNull(sparseExpr)) {
       // the dense columnar flavor (R/mixedMatrix.R): per-column vectors,
       // factors carrying their integer codes, no sparse part. Assemble the
       // transient contiguous block - the exact doubles the retained cbind
       // held - and take the plain dense path from here; build quantizes
       // into owned codes and retains nothing.
-      if (!Rf_isNull(sparseExpr))
-        Rf_error("malformed mixed predictor container");
       data.numPredictors = rc_getLength(mapExpr);
       const int* map = INTEGER(mapExpr);
       size_t numDenseColumns = static_cast<size_t>(rc_getLength(denseExpr));
@@ -402,26 +400,41 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       }
       data.x = data.denseAssembly.data();
     } else {
-      // the mixed flavor: a dense matrix, a dgCMatrix, and a 1-based map -
-      // positive k names dense column k, negative -k sparse column k,
-      // which is the engine's ~(k - 1)
+      // the mixed flavor: a per-column dense list (factors carrying their
+      // integer codes, or NULL for no dense columns), a dgCMatrix, and a
+      // 1-based map - positive k names dense column k, negative -k sparse
+      // column k, the engine's ~(k - 1). Assemble the transient block - the
+      // exact doubles the retained cbind held - which the holder/handle owns
+      // for the store's lifetime; the store borrows dense slices of it.
       if (!Rf_inherits(sparseExpr, "dgCMatrix"))
+        Rf_error("malformed mixed predictor container");
+      if (!Rf_isNull(denseExpr) && TYPEOF(denseExpr) != VECSXP)
         Rf_error("malformed mixed predictor container");
       CscSlots csc = parseCscMatrix(sparseExpr, data.numObservations);
 
-      size_t numDenseColumns = 0;
-      if (!Rf_isNull(denseExpr)) {
-        if (!Rf_isReal(denseExpr))
+      size_t numDenseColumns = Rf_isNull(denseExpr)
+        ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
+      data.denseAssembly.resize(numDenseColumns * data.numObservations);
+      for (size_t k = 0; k < numDenseColumns; ++k) {
+        SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
+        if (static_cast<size_t>(rc_getLength(columnExpr)) !=
+            data.numObservations)
+          Rf_error("number of rows of 'x' must equal length of 'y'");
+        double* target = data.denseAssembly.data() + k * data.numObservations;
+        if (Rf_isFactor(columnExpr)) {
+          const int* codes = INTEGER(columnExpr);
+          for (size_t i = 0; i < data.numObservations; ++i)
+            target[i] = codes[i] == NA_INTEGER
+              ? NA_REAL : static_cast<double>(codes[i] - 1);
+        } else if (Rf_isReal(columnExpr)) {
+          std::memcpy(target, REAL(columnExpr),
+                      data.numObservations * sizeof(double));
+        } else {
           Rf_error("malformed mixed predictor container");
-        rc_assertDimConstraints(denseExpr, "dimensions of x",
-                                RC_LENGTH | RC_EQ, rc_asRLength(2),
-                                RC_VALUE | RC_EQ,
-                                static_cast<int>(data.numObservations),
-                                RC_END);
-        numDenseColumns = static_cast<size_t>(
-          INTEGER(Rf_getAttrib(denseExpr, R_DimSymbol))[1]);
-        data.mixedDenseValues = REAL(denseExpr);
+        }
       }
+      data.mixedDenseValues =
+        numDenseColumns > 0 ? data.denseAssembly.data() : NULL;
 
       data.numPredictors = rc_getLength(mapExpr);
       const int* map = INTEGER(mapExpr);
@@ -1229,6 +1242,9 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
 // protection slot pins the data expression whose x the store borrows.
 struct DataHandle {
   bartcore::ColumnStore store;
+  // a mixed store borrows dense slices of a transiently assembled block; the
+  // handle owns it so views can gather from the parent after creation returns
+  std::vector<double> ownedMixedDense;
 };
 
 void dataHandleFinalizer(SEXP ptrExpr) {
@@ -1340,7 +1356,12 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
+    // the mixed store borrows dense slices of the transiently assembled block;
+    // the holder owns it so they outlive this call (a vector move preserves
+    // the buffer address the store cached)
+    if (data.xIsMixed)
+      holder->ownedMixedDense = std::move(data.denseAssembly);
     return R_NilValue;
   });
   return holder;
@@ -1417,7 +1438,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       options, spec, rngs.data());
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
     // moving z keeps its buffer, so the chains' borrowed z stays valid
     holder->ownedTreatment = std::move(z);
     return R_NilValue;
@@ -1472,6 +1493,9 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr) {
                                  ? NULL : data.cscCategoryCounts.data(),
                                data.cscReferenceCodes.empty()
                                  ? NULL : data.cscReferenceCodes.data());
+      // the store borrows dense slices of the transiently assembled block;
+      // the handle owns it so views can gather from the parent afterwards
+      handle->ownedMixedDense = std::move(data.denseAssembly);
     } else if (data.xIsSparse) {
       handle->store.buildFromCsc(data.cscColumnPointers, data.cscRowIndices,
                                  data.cscValues, data.numObservations,
@@ -1645,7 +1669,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 
     BartcoreHolder* holder = new BartcoreHolder{
       std::move(sampler), std::move(rngs), control.keepTrainingFits,
-      {}, {}, {}, {}, {}};
+      {}, {}, {}, {}, {}, {}};
     // moving the vectors keeps their buffers, so the chains' borrowed
     // pointers stay valid for the holder's lifetime
     holder->ownedResponse = std::move(response);

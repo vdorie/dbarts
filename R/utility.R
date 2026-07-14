@@ -344,18 +344,8 @@ makeCategoricalModelMatrix <- function(x) {
     }
   }
   if (any(columnIsSparse)) {
-    # the mixed flavor cbinds its dense part (the engine retains per-column
-    # slices of the block), so factors code to doubles here
-    for (j in which(!columnIsSparse)) {
-      block <- columns[[j]]
-      columns[[j]] <- if (is.factor(block)) {
-        matrix(as.double(as.integer(block) - 1L), ncol = 1L)
-      } else if (is.matrix(block)) {
-        block
-      } else {
-        matrix(block, ncol = 1L)
-      }
-    }
+    # the mixed flavor keeps its dense columns as a per-column list too, so
+    # factors ride unexpanded and the bridge codes them at assembly time
     result <- assembleMixedMatrix(columns, columnIsSparse, columnNames, nrow(x))
   } else {
     result <- assembleDenseColumnMatrix(columns, columnNames, nrow(x))
