@@ -635,6 +635,181 @@ static void testTransientBlockAssembly() {
   printf("ok: transient block assembly\n");
 }
 
+// The bitwise device on the test side: a mixed dense + CSC test set, built
+// against a training cut grid through buildTestMixed, bins IDENTICALLY to a
+// dense test matrix of the same values. Both storage tiers appear - a rank
+// column (nonzero fraction at or below the threshold) and a densified one - so
+// the check covers testCodeAt on each, the storage-aware test descent through a
+// grown tree, and one recorded test fit (the leaf parameter each row lands on).
+static void testSparseTestColumnStore() {
+  uint64_t savedRngState = rngState;  // leave the shared draw stream in place
+  const size_t nTrain = 400, numTest = 200, p = 4;
+
+  // training is a plain dense ordinal matrix; its cut grid is what the test
+  // codes quantize against, shared by identity
+  std::vector<double> xTrain(nTrain * p);
+  for (double& v : xTrain) v = runif01();
+  ColumnStore store;
+  store.build(xTrain.data(), nTrain, p, 25);
+
+  // test columns: 0 and 3 dense-backed, 1 a rank-tier CSC column (~8% stored),
+  // 2 a densified-tier CSC column (~60% stored)
+  std::vector<double> dense0(numTest), dense3(numTest);
+  for (size_t i = 0; i < numTest; ++i) {
+    dense0[i] = runif01();
+    dense3[i] = runif01();
+  }
+  std::vector<int> pointers(3, 0), rows;
+  std::vector<double> values;
+  const double fractions[] = {0.08, 0.6};
+  for (int csc = 0; csc < 2; ++csc) {
+    for (size_t i = 0; i < numTest; ++i)
+      if (runif01() < fractions[csc]) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(0.3 + runif01());
+      }
+    pointers[static_cast<size_t>(csc) + 1] = static_cast<int>(rows.size());
+  }
+
+  // the dense-matrix reference: CSC columns densified with 0.0 in implicit rows
+  std::vector<double> denseTest(numTest * p, 0.0);
+  for (size_t i = 0; i < numTest; ++i) {
+    denseTest[i + 0 * numTest] = dense0[i];
+    denseTest[i + 3 * numTest] = dense3[i];
+  }
+  for (int csc = 0; csc < 2; ++csc)
+    for (int k = pointers[static_cast<size_t>(csc)];
+         k < pointers[static_cast<size_t>(csc) + 1]; ++k)
+      denseTest[static_cast<size_t>(rows[static_cast<size_t>(k)]) +
+                static_cast<size_t>(csc + 1) * numTest] =
+        values[static_cast<size_t>(k)];
+
+  // grow a tree over the training grid, splitting on a dense-backed column and
+  // both CSC-backed columns so the descent visits every test storage kind
+  std::vector<size_t> indices(nTrain);
+  std::vector<double> yTrain(nTrain, 0.0);
+  Tree tree;
+  tree.initialize(indices.data(), nTrain);
+  Rule root;  root.variableIndex = 0;  root.setSplitIndex(12);
+  tree.birth(store, 0, root, yTrain.data(), nullptr);
+  Rule left;  left.variableIndex = 1;  left.setSplitIndex(5);
+  tree.birth(store, tree.at(0).leftChild, left, yTrain.data(), nullptr);
+  Rule right;  right.variableIndex = 2;  right.setSplitIndex(5);
+  tree.birth(store, tree.at(0).leftChild + 1, right, yTrain.data(), nullptr);
+
+  std::vector<double> params(tree.nodes.size());
+  for (size_t node = 0; node < params.size(); ++node)
+    params[node] = static_cast<double>(node) + 0.5;
+
+  // dense test first: snapshot its codes, leaf indices, and recorded fits
+  store.buildTest(denseTest.data(), numTest);
+  std::vector<xint_t> denseCodes(p * numTest);
+  for (size_t j = 0; j < p; ++j)
+    for (size_t i = 0; i < numTest; ++i)
+      denseCodes[j * numTest + i] = store.testCodeAt(j, i);
+  std::vector<int32_t> denseLeaf(numTest);
+  std::vector<double> denseFit(numTest);
+  for (size_t i = 0; i < numTest; ++i) {
+    denseLeaf[i] = tree.findBottomNodeForRow(store, i);
+    denseFit[i] = params[static_cast<size_t>(denseLeaf[i])];
+  }
+
+  // the same values through the mixed build: dense sources 0 and 1 carry test
+  // columns 0 and 3, CSC sources 0 and 1 carry columns 1 and 2
+  std::vector<double> denseBlock(numTest * 2);
+  std::memcpy(denseBlock.data(), dense0.data(), numTest * sizeof(double));
+  std::memcpy(denseBlock.data() + numTest, dense3.data(),
+              numTest * sizeof(double));
+  std::vector<std::int32_t> columnSources = {0, ~0, ~1, 1};
+  store.buildTestMixed(denseBlock.data(), pointers.data(), rows.data(),
+                       values.data(), columnSources.data(), numTest);
+
+  check(store.testColumnIsSparse(1) && !store.testColumnIsSparse(0) &&
+        !store.testColumnIsSparse(2) && !store.testColumnIsSparse(3),
+        "the density threshold splits the test storage tiers");
+
+  bool codesMatch = true;
+  for (size_t j = 0; j < p && codesMatch; ++j)
+    for (size_t i = 0; i < numTest && codesMatch; ++i)
+      codesMatch = store.testCodeAt(j, i) == denseCodes[j * numTest + i];
+  check(codesMatch, "mixed test codes match the dense test matrix at every cell");
+
+  check(store.rawTestColumn(0) != nullptr && store.rawTestColumn(3) != nullptr &&
+        store.rawTestColumn(1) == nullptr && store.rawTestColumn(2) == nullptr,
+        "dense-backed test columns serve raw; CSC-backed refuse it");
+
+  bool leavesMatch = true, fitsMatch = true;
+  for (size_t i = 0; i < numTest; ++i) {
+    int32_t leaf = tree.findBottomNodeForRow(store, i);
+    leavesMatch &= leaf == denseLeaf[i];
+    fitsMatch &= params[static_cast<size_t>(leaf)] == denseFit[i];
+  }
+  check(leavesMatch, "test descent lands on the dense path's leaf every row");
+  check(fitsMatch, "recorded test fits match the dense path every row");
+
+  rngState = savedRngState;
+  printf("ok: sparse test column store\n");
+}
+
+// The CSC-categorical code contract on the test side: a sparse categorical test
+// column's implicit rows carry the reference level's ACTUAL level-order code
+// (never a numeric zero), so its zeroCode equals that code and testCodeAt
+// reproduces the densified factor at every row. The reference is a middle level
+// so its code is not zero.
+static void testSparseCategoricalTestColumnStore() {
+  uint64_t savedRngState = rngState;
+  const size_t nTrain = 300, numTest = 200;
+  const std::uint32_t K = 6;
+  const xint_t reference = static_cast<xint_t>(K / 2);
+
+  // training plants every level so the categorical count is K
+  std::vector<double> xTrain(nTrain);
+  for (size_t i = 0; i < nTrain; ++i)
+    xTrain[i] = static_cast<double>(i % K);
+  ColumnType type = ColumnType::categorical;
+  ColumnStore store;
+  store.build(xTrain.data(), nTrain, 1, 100, false, &type);
+  check(store.numCuts[0] == K, "training counts the categorical levels");
+
+  // test: the reference level is implicit, other levels stored (~10%), so the
+  // column lands rank-tier
+  std::vector<double> denseTest(numTest);
+  std::vector<int> pointers(2, 0), rows;
+  std::vector<double> values;
+  for (size_t i = 0; i < numTest; ++i) {
+    xint_t code = reference;
+    if (runif01() < 0.1) {
+      code = static_cast<xint_t>(runif01() * static_cast<double>(K - 1));
+      if (code >= reference) ++code;  // uniform over the non-reference levels
+      rows.push_back(static_cast<int>(i));
+      values.push_back(static_cast<double>(code));
+    }
+    denseTest[i] = static_cast<double>(code);
+  }
+  pointers[1] = static_cast<int>(rows.size());
+
+  store.buildTest(denseTest.data(), numTest);
+  std::vector<xint_t> denseCodes(numTest);
+  for (size_t i = 0; i < numTest; ++i) denseCodes[i] = store.testCodeAt(0, i);
+
+  std::int32_t source = ~0;
+  store.buildTestMixed(nullptr, pointers.data(), rows.data(), values.data(),
+                       &source, numTest, &reference);
+
+  check(store.testColumnIsSparse(0), "the sparse categorical test column is rank-tier");
+  check(reference != 0, "the reference level's code is not a numeric zero");
+  check(store.testSparseColumn(0).zeroCode == reference,
+        "the test zero code carries the reference level's own code");
+
+  bool codesMatch = true;
+  for (size_t i = 0; i < numTest && codesMatch; ++i)
+    codesMatch = store.testCodeAt(0, i) == denseCodes[i];
+  check(codesMatch, "sparse categorical test codes match the densified factor");
+
+  rngState = savedRngState;
+  printf("ok: sparse categorical test column store\n");
+}
+
 void runDataTests() {
   testColumnStoreCodes();
   testColumnStoreView();
@@ -647,4 +822,6 @@ void runDataTests() {
   testMapOldCutPointsStarvedWeightedMerge();
   testMissingIngestion();
   testTransientBlockAssembly();
+  testSparseTestColumnStore();
+  testSparseCategoricalTestColumnStore();
 }

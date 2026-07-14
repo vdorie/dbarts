@@ -209,6 +209,30 @@ public:
     for (auto& chain : chains_) chain->resizeTestStorage();
   }
 
+  /// Internal test-container build (dbarts.h stays dense): route a mixed dense
+  /// plus CSC test set to the typed test store, which shares the training cut
+  /// grid and owns its raw. columnSources maps each predictor to a dense column
+  /// of denseValues (nonnegative) or a CSC column of the triple (~index);
+  /// cscReferenceCodes carries the reference code per CSC-backed categorical
+  /// column. Refuses (returns false, test store untouched) a designated leaf
+  /// covariate that would be CSC-backed, since leaf models gather dense raw test
+  /// covariates that sparse storage does not serve. Keeps any test offset.
+  bool setTestData(const double* denseValues, const int* cscColumnPointers,
+                   const int* cscRowIndices, const double* cscValues,
+                   const std::int32_t* columnSources,
+                   const xint_t* cscReferenceCodes, size_t numTest) {
+    size_t numCovariates = numLeafCovariates();
+    const size_t* covariateColumns = leafCovariateColumns();
+    for (size_t k = 0; k < numCovariates; ++k)
+      if (columnSources[covariateColumns[k]] < 0) return false;
+    const double* testOffset = data_.testOffset;
+    data_.buildTestMixed(denseValues, cscColumnPointers, cscRowIndices,
+                         cscValues, columnSources, numTest, cscReferenceCodes);
+    data_.testOffset = testOffset;
+    for (auto& chain : chains_) chain->resizeTestStorage();
+    return true;
+  }
+
   /// Borrowed, length numTestObservations (the caller validates); null
   /// clears. Added to recorded test fits; predictions take their offset as
   /// an argument instead.
@@ -489,8 +513,11 @@ public:
     std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
     std::vector<xint_t> oldCodes(data_.codes);
     std::vector<xint_t> oldTestCodes(data_.testCodes);
-    // rank columns re-quantize into their own storage, not codes
+    // rank columns re-quantize into their own storage, not codes; a rank-backed
+    // test column likewise re-quantizes into testSparseColumns (empty, hence a
+    // no-op restore, on every dense-test path)
     std::vector<SparseColumnData> oldSparseColumns(data_.sparseColumns);
+    std::vector<SparseColumnData> oldTestSparseColumns(data_.testSparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.types[j] == ColumnType::categorical) continue;
       // a restored grid equal to the live one leaves the codes already correct
@@ -513,6 +540,7 @@ public:
       data_.codes = std::move(oldCodes);
       data_.testCodes = std::move(oldTestCodes);
       data_.sparseColumns = std::move(oldSparseColumns);
+      data_.testSparseColumns = std::move(oldTestSparseColumns);
       return false;
     }
 

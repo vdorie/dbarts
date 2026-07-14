@@ -27,6 +27,19 @@ public:
   virtual void setSigma(double sigmaOriginalScale) = 0;
   virtual void setTestPredictors(const double* x_test,
                                  std::size_t numTestObservations) = 0;
+  /// Internal test-container entry (dbarts.h stays dense): build the typed test
+  /// store from a mixed dense plus CSC test set against the training cut grid,
+  /// owning its raw. columnSources maps each predictor to a dense column of
+  /// denseValues (nonnegative) or a CSC column of the triple (~index);
+  /// cscReferenceCodes carries the reference code per CSC-backed categorical
+  /// column. Returns false without touching the test store when a designated
+  /// leaf covariate column would be CSC-backed.
+  virtual bool setTestData(const double* denseValues,
+                           const int* cscColumnPointers,
+                           const int* cscRowIndices, const double* cscValues,
+                           const std::int32_t* columnSources,
+                           const xint_t* cscReferenceCodes,
+                           std::size_t numTestObservations) = 0;
   virtual void setTestOffset(const double* testOffset) = 0;
   virtual void setData(const double* x, const double* y,
                        std::size_t numObservations, const double* weights,
@@ -166,6 +179,15 @@ public:
   void setTestPredictors(const double* x_test,
                          std::size_t numTestObservations) override {
     impl_.setTestPredictors(x_test, numTestObservations);
+  }
+  bool setTestData(const double* denseValues, const int* cscColumnPointers,
+                   const int* cscRowIndices, const double* cscValues,
+                   const std::int32_t* columnSources,
+                   const xint_t* cscReferenceCodes,
+                   std::size_t numTestObservations) override {
+    return impl_.setTestData(denseValues, cscColumnPointers, cscRowIndices,
+                             cscValues, columnSources, cscReferenceCodes,
+                             numTestObservations);
   }
   void setTestOffset(const double* testOffset) override {
     impl_.setTestOffset(testOffset);
