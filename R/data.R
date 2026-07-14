@@ -53,6 +53,7 @@ validateXTest <- function(x.test, x.train) {
   }
   if (is.data.frame(x.test)) {
     if (!is.null(termLabels)) {
+      x.test <- densifySparseFactorColumns(x.test)
       x.test <- model.frame(
         formula = as.formula(paste("~", paste(termLabels, collapse = " + "))),
         data = x.test,
@@ -403,13 +404,14 @@ dbartsData <- function(
     }
 
     # a sparseFactor column would die inside model.frame with a bare S4
-    # type error; refuse it explicitly first (S-CAT: recognized, not yet
-    # supported)
+    # type error; refuse it explicitly first (the formula path takes plain
+    # data-frame columns only, not S4 predictors)
     if (!dataIsMissing && (is.list(data) || is.environment(data))) {
       for (variableName in intersect(all.vars(formula), names(data))) {
         if (methods::is(data[[variableName]], "sparseFactor")) {
           stop(
-            "sparse categorical predictors are not yet supported; '",
+            "sparse categorical predictors must be supplied through the ",
+            "x/y interface; '",
             variableName,
             "' is a sparseFactor"
           )

@@ -292,9 +292,28 @@ as.matrix.dbartsMixedMatrix <- function(x, ...) {
   if (any(denseColumns)) {
     result[, denseColumns] <- x$dense[, x$map[denseColumns], drop = FALSE]
   }
+  # a sparse column's implicit rows are numeric zero, except a
+  # sparse-categorical column's, whose implicit rows are the reference
+  # code - possibly itself zero, so the fill has to happen before the
+  # explicit entries scatter over it, not after (an explicit entry can
+  # legitimately be code 0 too)
   if (any(!denseColumns)) {
-    result[, !denseColumns] <-
-      as.matrix(x$sparse[, -x$map[!denseColumns], drop = FALSE])
+    p <- x$sparse@p
+    rowIndex <- x$sparse@i
+    values <- x$sparse@x
+    for (j in which(!denseColumns)) {
+      k <- -x$map[j]
+      implicitValue <- if (!is.na(x$sparseReference[k])) {
+        x$sparseReference[k]
+      } else {
+        0
+      }
+      result[, j] <- implicitValue
+      entries <- seq.int(p[k] + 1L, length.out = p[k + 1L] - p[k])
+      if (length(entries) > 0L) {
+        result[rowIndex[entries] + 1L, j] <- values[entries]
+      }
+    }
   }
   result
 }
