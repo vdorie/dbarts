@@ -842,14 +842,16 @@ public:
                 snapshot.indexSegment.size() * sizeof(size_t));
   }
 
-  /// Descend by row-major codes (test prediction).
-  int32_t findBottomNodeForRow(const ColumnStore& data, const xint_t* xt) const {
+  /// Descend a test row through the storage-aware test accessor, reading only
+  /// the columns on the path (test prediction).
+  int32_t findBottomNodeForRow(const ColumnStore& data, size_t i) const {
     int32_t current = 0;
     while (!at(current).isBottom()) {
       const Rule& rule(at(current).rule);
-      current = ruleSendsRight(data, rule, xt[rule.variableIndex])
-                  ? at(current).leftChild + 1
-                  : at(current).leftChild;
+      xint_t code =
+        data.testCodeAt(static_cast<size_t>(rule.variableIndex), i);
+      current = ruleSendsRight(data, rule, code) ? at(current).leftChild + 1
+                                                 : at(current).leftChild;
     }
     return current;
   }

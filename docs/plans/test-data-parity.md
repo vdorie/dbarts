@@ -235,7 +235,14 @@ test sides share ONE data model.
 
 ## Open questions for VD
 
-RESOLVED (VD, 2026-07-14): Q1, Q3, Q4 as recommended. Q2 amended: support
+RESOLVED (VD, 2026-07-14): Q1, Q3, Q4 as recommended. Q1 addendum, decided
+at step-1 implementation per the recorded caveat: parallel per-column test
+fields inside ColumnStore (testCodes/testCodeOffsets/testSparseSlot/
+testSparseColumns), not a second store - sharing the cut grid by identity
+keeps the setCutPointsForColumn -> quantizeTestColumn contract with no grid
+copy to sync, and a second store would have carried the cut-building and
+mutation surface the test side never uses (the caveat's trigger). Byte
+identity was unaffected either way. Q2 amended: support
 whatever was supported previously - the per-column dense update surface
 (setTestPredictor(x.test, column), index or name) stays exactly as today;
 container-backed x.test is whole-object only (new surface, nothing prior

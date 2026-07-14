@@ -187,7 +187,17 @@ struct ColumnStore {
   // changes re-quantize the test codes from this copy, and rawTestColumn serves
   // it to leaf models. Views hold none (they gather test-subset columns below).
   std::vector<double> ownedTestValues;
-  std::vector<xint_t> testCodes;  // row-major, numTestObservations x numPredictors
+  // Per-column test store sharing this store's cut grid (types, numCuts,
+  // cutPoints), the training-side layout mirrored for the test rows: dense
+  // packed codes with per-column starts in testCodeOffsets (j *
+  // numTestObservations for a dense build), a rank-storage slot in
+  // testSparseColumns or -1 for a dense column. testCodeAt reads whichever
+  // storage a column takes, so descent routes a test row without materializing
+  // it. Views hold dense codes only (testSparseSlot all -1).
+  std::vector<xint_t> testCodes;
+  std::vector<size_t> testCodeOffsets;
+  std::vector<std::int32_t> testSparseSlot;
+  std::vector<SparseColumnData> testSparseColumns;
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
   // caller keeps the lengths consistent), clearTest clears it.
   const double* testOffset = nullptr;
@@ -538,10 +548,14 @@ struct ColumnStore {
     hasMissing[j] = anyMissing;
   }
 
+  /// Re-quantize test column j's dense codes from the owned test copy against
+  /// the current cuts. Dense-backed test columns only (buildTest holds no
+  /// sparse test source); the offset addresses the column's packed codes.
   void quantizeTestColumn(size_t j) {
+    xint_t* column = testCodes.data() + testCodeOffsets[j];
+    const double* raw = ownedTestValues.data() + j * numTestObservations;
     for (size_t i = 0; i < numTestObservations; ++i)
-      testCodes[i * numPredictors + j] =
-        codeFor(j, ownedTestValues[i + j * numTestObservations]);
+      column[i] = codeFor(j, raw[i]);
   }
 
   /// Designate the columns build/setData own an owned raw copy of, so
@@ -718,6 +732,9 @@ struct ColumnStore {
     numTestObservations = 0;
     ownedTestValues.clear();
     testCodes.clear();
+    testCodeOffsets.clear();
+    testSparseSlot.clear();
+    testSparseColumns.clear();
     testOffset = nullptr;
   }
 
@@ -751,6 +768,10 @@ struct ColumnStore {
     numTestObservations = numTest;
     ownedTestValues.assign(x_test_, x_test_ + numTest * numPredictors);
     testCodes.resize(numTest * numPredictors);
+    testCodeOffsets.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) testCodeOffsets[j] = j * numTest;
+    testSparseSlot.assign(numPredictors, -1);
+    testSparseColumns.clear();
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
   }
 
@@ -856,12 +877,20 @@ struct ColumnStore {
         if (column[i] == missingCode) hasMissing[j] = 1;
       }
     }
+    // views densify their test codes too: dense per-column codes gathered
+    // from the parent's storage-aware codeAt, no sparse test slots
     numTestObservations = numTestRows;
     testCodes.resize(numTestRows * numPredictors);
-    for (size_t i = 0; i < numTestRows; ++i)
-      for (size_t j = 0; j < numPredictors; ++j)
-        testCodes[i * numPredictors + j] =
-          parent.codeAt(parentColumns[j], testRows[i]);
+    testCodeOffsets.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j)
+      testCodeOffsets[j] = j * numTestRows;
+    testSparseSlot.assign(numPredictors, -1);
+    testSparseColumns.clear();
+    for (size_t j = 0; j < numPredictors; ++j) {
+      xint_t* column = testCodes.data() + j * numTestRows;
+      for (size_t i = 0; i < numTestRows; ++i)
+        column[i] = parent.codeAt(parentColumns[j], testRows[i]);
+    }
     testOffset = nullptr;
   }
 
@@ -930,15 +959,15 @@ struct ColumnStore {
     ownedTestValues.clear();
     numTestObservations = 0;
     testCodes.clear();
+    testCodeOffsets.clear();
+    testSparseSlot.clear();
+    testSparseColumns.clear();
     testOffset = nullptr;
   }
 
   /// Dense-stored columns only; rank columns have no contiguous codes.
   const xint_t* column(size_t variable) const {
     return codes.data() + codeOffsets[variable];
-  }
-  const xint_t* testRow(size_t testObservation) const {
-    return testCodes.data() + testObservation * numPredictors;
   }
 
   bool columnIsSparse(size_t variable) const {
@@ -951,6 +980,20 @@ struct ColumnStore {
   xint_t codeAt(size_t variable, size_t i) const {
     return columnIsSparse(variable) ? sparseColumn(variable).at(i)
                                     : codes[codeOffsets[variable] + i];
+  }
+
+  bool testColumnIsSparse(size_t variable) const {
+    return testSparseSlot[variable] >= 0;
+  }
+  const SparseColumnData& testSparseColumn(size_t variable) const {
+    return testSparseColumns[static_cast<size_t>(testSparseSlot[variable])];
+  }
+  /// Storage-aware single test-code access (test-row descent), reading only
+  /// the columns a rule visits rather than materializing a row.
+  xint_t testCodeAt(size_t variable, size_t i) const {
+    return testColumnIsSparse(variable)
+      ? testSparseColumn(variable).at(i)
+      : testCodes[testCodeOffsets[variable] + i];
   }
 };
 
