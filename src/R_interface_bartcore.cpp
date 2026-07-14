@@ -1288,14 +1288,15 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
 BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
                                 SEXP dataExpr, SEXP zExpr,
-                                SEXP bcfParamsExpr) {
+                                SEXP bcfParamsExpr, SEXP moderatorsExpr) {
   if (!Rf_isReal(bcfParamsExpr) || Rf_xlength(bcfParamsExpr) != 8)
     Rf_error("bcf parameters must be a length-8 numeric vector");
 
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
-                 z = std::vector<double>{}]() mutable -> SEXP {
+                 z = std::vector<double>{},
+                 moderators = std::vector<size_t>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, "", control, model, data, sigmaIsFixed);
@@ -1330,6 +1331,25 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
     spec.updateA = p[6] != 0.0;
     spec.updateB = p[7] != 0.0;
     spec.z = z.data();
+
+    // the treatment forest's optional moderator restriction: 1-based column
+    // indices resolved R-side, or NULL for no restriction (tau reads the full
+    // store). Consumed at construction, so the buffer need only outlive the
+    // sampler build.
+    if (!Rf_isNull(moderatorsExpr)) {
+      if (!Rf_isInteger(moderatorsExpr))
+        Rf_error("bcf moderators must be resolved integer column indices");
+      R_xlen_t numModerators = Rf_xlength(moderatorsExpr);
+      moderators.resize(static_cast<size_t>(numModerators));
+      for (R_xlen_t j = 0; j < numModerators; ++j) {
+        int column = INTEGER(moderatorsExpr)[j];
+        if (column < 1 || static_cast<size_t>(column) > data.numPredictors)
+          Rf_error("bcf moderator column out of range");
+        moderators[static_cast<size_t>(j)] = static_cast<size_t>(column - 1);
+      }
+      spec.tau.columns = moderators.data();
+      spec.tau.numColumns = moderators.size();
+    }
 
     std::unique_ptr<bartcore::SamplerBase> sampler = bartcore::createBCFSampler(
       data.x, data.y, data.numObservations, data.numPredictors, data.weights,
@@ -1544,9 +1564,9 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 // The model spec is the prognostic forest, bcfParams the treatment forest and
 // glue, z the 0/1 treatment.
 SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                        SEXP zExpr, SEXP bcfParamsExpr) {
+                        SEXP zExpr, SEXP bcfParamsExpr, SEXP moderatorsExpr) {
   BartcoreHolder* holder = bartcore_bridge::createBCFHolder(
-    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr);
+    controlExpr, modelExpr, dataExpr, zExpr, bcfParamsExpr, moderatorsExpr);
 
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
