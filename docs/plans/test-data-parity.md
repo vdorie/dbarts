@@ -180,16 +180,22 @@ test sides share ONE data model.
    Gate class: RNG-neutral - equivalence 22/22 + tinytest (grows) + the
    test-fit oracle. Size: L. Abort: a resident-sparse test fit differs from its
    densified twin.
-4. setTestPredictor / setTestOffset container mutation (R + bridge,
-   whole-object). bartcore_setTestPredictor (2094) gains a container branch:
-   validate + rebuild the typed test store via setTestData; the R method
+4. setTestPredictor / setTestOffset container mutation (R + bridge).
+   bartcore_setTestPredictor (2094) gains a container branch: validate +
+   rebuild the typed test store via setTestData; the R method
    (bartcore.R:326,602) routes a frame/sparse test set through the step-3
-   builder and installs @x.test as the container. Offset length checks unchanged.
-   No per-cell sparse test mutation. Files: R/bartcore.R, R_interface_bartcore.cpp.
-   Tests: NEW/extended tinytest - setTestPredictor with a sparse/frame container
-   fits identically to the dense equivalent; dense matrix still accepted;
-   removal (NULL) clears. Gate class: RNG-neutral - equivalence 22/22 +
-   tinytest. Size: M.
+   builder and installs @x.test as the container. The EXISTING per-column
+   update surface (setTestPredictor(x.test, column), index or name, dense
+   values, bartcore.R:326-359) stays unchanged on a dense-matrix x.test:
+   copy-modify R-side, whole-object engine call, today's semantics exactly
+   (Q2 resolution). A container-backed x.test takes whole-object replacement
+   only - the training-side creation-fixed rule for sparse sources; no
+   per-cell sparse test mutation. Offset length checks unchanged. Files:
+   R/bartcore.R, R_interface_bartcore.cpp. Tests: NEW/extended tinytest -
+   setTestPredictor with a sparse/frame container fits identically to the
+   dense equivalent; dense matrix still accepted, including a per-column
+   update; removal (NULL) clears. Gate class: RNG-neutral - equivalence
+   22/22 + tinytest. Size: M.
 5. predict() frame/sparse parity (R; densify-at-boundary, decision 3). Route
    predict's x.test through the container-aware validateXTest (coding against
    training levels), then materialize the numeric matrix the frozen raw-double
@@ -228,6 +234,12 @@ test sides share ONE data model.
   baseline (dense test path must not regress; a resident-sparse arm at parity).
 
 ## Open questions for VD
+
+RESOLVED (VD, 2026-07-14): Q1, Q3, Q4 as recommended. Q2 amended: support
+whatever was supported previously - the per-column dense update surface
+(setTestPredictor(x.test, column), index or name) stays exactly as today;
+container-backed x.test is whole-object only (new surface, nothing prior
+to preserve). Step 4 records the amendment.
 
 - Q1 (engine representation: second ColumnStore vs parallel test fields).
   RECOMMEND the second store sharing the training cut grid: it reuses
