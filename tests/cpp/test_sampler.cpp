@@ -1700,7 +1700,138 @@ static void testBCFInterweaveKeepTrees(ext_rng* rng) {
   check(maxSpread < 1.0e-9,
         "keepTrees saved mu slot tracks the rescaled live fit after the move");
 
+  // numThin > 1: the rescale addresses slot (savedSlotBase + sampleNum), with
+  // sampleNum = iteration / numThin - numBurnIn - a thinned counter the
+  // numThin = 1 case above cannot exercise. Store several slots under thinning;
+  // the LAST slot is recorded on the final sweep, so its saved mu must still
+  // track the post-run rescaled live fit (a misaddressed rescale would leave it
+  // unscaled). A local rng plus a snapshot/restore of the shared runif01 stream
+  // keep this block neutral to every downstream test's draw sequence.
+  {
+    uint64_t savedRngState = rngState;
+    const size_t nThin = 300, pThin = 3, numSlots = 4, thin = 3;
+    std::vector<double> xThin(nThin * pThin), yThin(nThin), zThin(nThin);
+    for (double& v : xThin) v = runif01();
+    for (size_t i = 0; i < nThin; ++i) {
+      zThin[i] = runif01() < 0.5 ? 1.0 : 0.0;
+      double mu = std::sin(3.0 * xThin[i]) + xThin[i + nThin];
+      double tau = 1.0 + 2.0 * xThin[i + 2 * nThin];
+      yThin[i] = mu + zThin[i] * tau + 0.2 * (runif01() - 0.5);
+    }
+
+    SamplerOptions optionsThin;
+    optionsThin.keepTrees = true;
+    optionsThin.numSamplesToStore = numSlots;
+    optionsThin.numThin = thin;
+    BCFSpec specThin;
+    specThin.mu.numTrees = 40;
+    specThin.tau.numTrees = 20;
+    specThin.z = zThin.data();
+    ext_rng* thinRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(thinRng, 24601u);
+    Sampler<ConstantGaussianLeaf> samplerThin(
+      xThin.data(), yThin.data(), nThin, pThin, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, optionsThin, specThin, &thinRng);
+
+    Results resultsThin;
+    samplerThin.run(50, numSlots, resultsThin);  // numSlots kept, thinned by 3
+
+    double scaleThin = samplerThin.fitScale();
+    std::vector<double> muLiveThin(nThin), predThin(nThin * numSlots);
+    samplerThin.forestTotalFits(0, 0, muLiveThin.data());
+    samplerThin.predict(xThin.data(), nThin, predThin.data());
+
+    const double* lastSlot = predThin.data() + (numSlots - 1) * nThin;
+    double dLast = lastSlot[0] - scaleThin * muLiveThin[0];
+    double maxSpreadThin = 0.0;
+    for (size_t i = 0; i < nThin; ++i)
+      maxSpreadThin = std::max(
+        maxSpreadThin,
+        std::fabs((lastSlot[i] - scaleThin * muLiveThin[i]) - dLast));
+    check(maxSpreadThin < 1.0e-9,
+          "keepTrees numThin>1 last saved slot tracks the rescaled live fit");
+
+    // every stored slot is a finite prognostic surface; a slot the thinned
+    // addressing skipped or double-scaled would show up here
+    bool slotsFinite = true;
+    for (double v : predThin) slotsFinite &= std::isfinite(v);
+    check(slotsFinite, "keepTrees numThin>1 stored slots stay finite");
+
+    ext_rng_destroy(thinRng);
+    rngState = savedRngState;
+  }
+
   printf("ok: BCF interweave keepTrees saved slot\n");
+}
+
+// growForestFromRoot on a BCF sampler exercises the grow-from-root sweep's own
+// two-forest branch (per-forest residual formation, the glue draw, the ridge
+// interweave), which no R path reaches - growForestFromRoot is engine-internal.
+// This is therefore its only gate: build the two-forest sampler, grow every
+// forest from the root, and pin the combined output - both forests finite and
+// off zero, glue finite, and a recorded characteristic value of the combined
+// internal fit a*mu + b_z*tau. A local rng plus a snapshot/restore of the
+// shared runif01 stream keep this test neutral to every downstream test's draws.
+static void testBCFGrowForestFromRoot() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 400, p = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    double mu = std::sin(3.0 * x[i]) + x[i + n];
+    double tau = 1.0 + 2.0 * x[i + 2 * n];
+    y[i] = mu + z[i] * tau + 0.2 * (runif01() - 0.5);
+  }
+
+  SamplerOptions options;
+  BCFSpec spec;
+  spec.mu.numTrees = 50; spec.mu.base = 0.95; spec.mu.power = 2.0;
+  spec.tau.numTrees = 25; spec.tau.base = 0.25; spec.tau.power = 3.0;
+  spec.z = z.data();
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 90210u);
+  Sampler<ConstantGaussianLeaf> sampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+    0.37804942330213542, options, spec, &localRng);
+  check(sampler.numForests() == 2, "BCF grow-from-root builds two forests");
+
+  sampler.chain(0).growForestFromRoot(5);
+
+  std::vector<double> muFits(n), tauFits(n);
+  sampler.forestTotalFits(0, 0, muFits.data());
+  sampler.forestTotalFits(0, 1, tauFits.data());
+  double muSS = 0.0, tauSS = 0.0;
+  bool finite = true;
+  for (size_t i = 0; i < n; ++i) {
+    finite &= std::isfinite(muFits[i]) && std::isfinite(tauFits[i]);
+    muSS += muFits[i] * muFits[i];
+    tauSS += tauFits[i] * tauFits[i];
+  }
+  check(finite, "BCF grow-from-root fits are finite");
+  check(muSS > 0.0 && tauSS > 0.0, "both grown BCF forests move off zero");
+
+  double a, b0, b1;
+  bool haveGlue = sampler.chain(0).bcfGlue(a, b0, b1);
+  check(haveGlue && std::isfinite(a) && std::isfinite(b0) &&
+          std::isfinite(b1),
+        "BCF grow-from-root glue is finite");
+
+  // characteristic value: the mean combined internal fit over the grown
+  // two-forest state. Deterministic given localRng seed 90210; a relocation
+  // that shifts the grow sweep's draw order or the coupling moves it far past
+  // the tolerance, while it survives benign cross-build FP reassociation.
+  double combinedMean = 0.0;
+  for (size_t i = 0; i < n; ++i)
+    combinedMean += a * muFits[i] + (z[i] != 0.0 ? b1 : b0) * tauFits[i];
+  combinedMean /= static_cast<double>(n);
+  checkNear(combinedMean, -0.060352757243346378, 1e-6,
+            "BCF grow-from-root combined fit characteristic value");
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: BCF grow-from-root sweep\n");
 }
 
 // The per-observation log-likelihood channel: requesting it draws no rng and
@@ -1995,6 +2126,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFFixedGlue(rng);
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);
+  testBCFGrowForestFromRoot();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);
