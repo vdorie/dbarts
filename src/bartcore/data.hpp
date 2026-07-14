@@ -198,6 +198,21 @@ struct ColumnStore {
   std::vector<size_t> testCodeOffsets;
   std::vector<std::int32_t> testSparseSlot;
   std::vector<SparseColumnData> testSparseColumns;
+  // Owned raw of a mixed/CSC test build (the test store owns its raw, so no
+  // borrowed pointer survives the build): ownedTestCscValues/ownedTestCscRows
+  // pack every CSC-backed test column's nonzeros, testCscSlices point per
+  // column into them ({null, null, 0} for a dense-backed column).
+  // testMixedRawColumns points per column into ownedTestValues for dense-backed
+  // columns (null for CSC-backed, which serve no leaf raw), the test analog of
+  // mixedRawColumns. testCscReferenceCodes carries the reference level's code
+  // per CSC-backed categorical test column, the code its implicit rows take.
+  // All empty on the dense buildTest path and on views (testBuiltFromCsc false).
+  std::vector<double> ownedTestCscValues;
+  std::vector<int> ownedTestCscRows;
+  std::vector<CscColumnSlice> testCscSlices;
+  std::vector<const double*> testMixedRawColumns;
+  std::vector<xint_t> testCscReferenceCodes;
+  bool testBuiltFromCsc = false;
   // borrowed; added to recorded test fits. buildTest leaves it alone (the
   // caller keeps the lengths consistent), clearTest clears it.
   const double* testOffset = nullptr;
@@ -252,9 +267,11 @@ struct ColumnStore {
     return nullptr;
   }
 
-  /// Raw test values of column j: the owned test copy at the top level, the
-  /// values gathered at view construction otherwise.
+  /// Raw test values of column j: the mixed build's owned dense slice (null for
+  /// its CSC-backed columns, which serve no leaf raw), the dense buildTest copy,
+  /// or the values gathered at view construction.
   const double* rawTestColumn(size_t j) const {
+    if (!testMixedRawColumns.empty()) return testMixedRawColumns[j];
     if (!ownedTestValues.empty())
       return ownedTestValues.data() + j * numTestObservations;
     std::int32_t slot = gatheredSlotForColumn(j);
@@ -548,14 +565,59 @@ struct ColumnStore {
     hasMissing[j] = anyMissing;
   }
 
-  /// Re-quantize test column j's dense codes from the owned test copy against
-  /// the current cuts. Dense-backed test columns only (buildTest holds no
-  /// sparse test source); the offset addresses the column's packed codes.
+  /// Whether test column j re-quantizes from a retained CSC test slice (the
+  /// CSC-backed columns of a mixed test build), test analog of columnIsCscBacked.
+  bool testColumnIsCscBacked(size_t j) const {
+    return testBuiltFromCsc &&
+           (testMixedRawColumns.empty() || testMixedRawColumns[j] == nullptr);
+  }
+
+  /// Re-quantize test column j against the current cuts. A CSC-backed column
+  /// reads its retained owned slice; a dense-backed one reads the owned dense
+  /// raw (the mixed build's slice or the buildTest per-column copy). The offset
+  /// addresses a dense-stored column's packed codes.
   void quantizeTestColumn(size_t j) {
+    if (testColumnIsCscBacked(j)) {
+      quantizeTestCscColumn(j);
+      return;
+    }
     xint_t* column = testCodes.data() + testCodeOffsets[j];
-    const double* raw = ownedTestValues.data() + j * numTestObservations;
+    const double* raw = testMixedRawColumns.empty()
+      ? ownedTestValues.data() + j * numTestObservations
+      : testMixedRawColumns[j];
     for (size_t i = 0; i < numTestObservations; ++i)
       column[i] = codeFor(j, raw[i]);
+  }
+
+  /// Quantize a CSC-backed test column against its current cuts, mirroring
+  /// quantizeCscColumn: rank columns rewrite their packed codes and zero code
+  /// in place (the pattern is fixed at build), densified ones fill with the
+  /// zero code and scatter the stored entries. A categorical column's implicit
+  /// rows carry the reference level's code; an ordinal column's carry the
+  /// quantized zero. The test side gates no draws, so it tracks no missingness.
+  void quantizeTestCscColumn(size_t j) {
+    const CscColumnSlice& slice = testCscSlices[j];
+    xint_t zeroCode = types[j] == ColumnType::categorical
+      ? testCscReferenceCodes[j] : codeFor(j, 0.0);
+    if (testColumnIsSparse(j)) {
+      SparseColumnData& sparse =
+        testSparseColumns[static_cast<size_t>(testSparseSlot[j])];
+      sparse.zeroCode = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k) {
+        size_t i = static_cast<size_t>(slice.rows[k]);
+        std::uint64_t word = sparse.bits[i >> 6];
+        size_t rank = sparse.wordRanks[i >> 6] +
+          static_cast<size_t>(std::popcount(
+            word & ((std::uint64_t{1} << (i & 63u)) - 1u)));
+        sparse.nzCodes[rank] = codeFor(j, slice.values[k]);
+      }
+    } else {
+      xint_t* column = testCodes.data() + testCodeOffsets[j];
+      for (size_t i = 0; i < numTestObservations; ++i) column[i] = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k)
+        column[static_cast<size_t>(slice.rows[k])] =
+          codeFor(j, slice.values[k]);
+    }
   }
 
   /// Designate the columns build/setData own an owned raw copy of, so
@@ -735,6 +797,7 @@ struct ColumnStore {
     testCodeOffsets.clear();
     testSparseSlot.clear();
     testSparseColumns.clear();
+    clearTestCscSources();
     testOffset = nullptr;
   }
 
@@ -761,6 +824,16 @@ struct ColumnStore {
           gatherColumns, numGatherColumns);
   }
 
+  /// Reset the owned-CSC test fields to the dense (non-CSC) test-store shape.
+  void clearTestCscSources() {
+    ownedTestCscValues.clear();
+    ownedTestCscRows.clear();
+    testCscSlices.clear();
+    testMixedRawColumns.clear();
+    testCscReferenceCodes.clear();
+    testBuiltFromCsc = false;
+  }
+
   /// Own a copy of the test predictors and quantize them against the current
   /// cuts; the raw borrow x_test_ need not outlive the call. Re-quantization
   /// on a later cut change reads the owned copy.
@@ -772,7 +845,112 @@ struct ColumnStore {
     for (size_t j = 0; j < numPredictors; ++j) testCodeOffsets[j] = j * numTest;
     testSparseSlot.assign(numPredictors, -1);
     testSparseColumns.clear();
+    clearTestCscSources();
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
+  }
+
+  /// Build the test store from mixed dense and CSC sources against the training
+  /// cut grid (already built, shared by identity): column j reads dense column
+  /// columnSources[j] of denseValues when nonnegative - quantized like the dense
+  /// buildTest, raw served through rawTestColumn - or CSC column
+  /// ~columnSources[j] of the triple otherwise, rank-bitmap storage at or below
+  /// sparseDensityThreshold nonzero fraction and densified codes above, the
+  /// training tier rule per column. cscReferenceCodes gives each CSC-backed
+  /// categorical test column its reference level code (the code the implicit
+  /// rows take), null when none is categorical. The test store owns its raw:
+  /// the dense block and the CSC nonzero values+rows are copied, so no borrowed
+  /// pointer survives the call. numCuts and cutPoints are not rebuilt.
+  void buildTestMixed(const double* denseValues, const int* columnPointers,
+                      const int* rowIndices, const double* values,
+                      const std::int32_t* columnSources, size_t numTest,
+                      const xint_t* cscReferenceCodes = nullptr) {
+    size_t p = numPredictors;
+    numTestObservations = numTest;
+    testBuiltFromCsc = true;
+
+    // own the dense block, sized by the largest dense source it is indexed by
+    std::int32_t maxDenseSource = -1;
+    for (size_t j = 0; j < p; ++j)
+      if (columnSources[j] > maxDenseSource) maxDenseSource = columnSources[j];
+    size_t numDenseColumns =
+      maxDenseSource >= 0 ? static_cast<size_t>(maxDenseSource) + 1 : 0;
+    ownedTestValues.assign(denseValues, denseValues + numDenseColumns * numTest);
+
+    testMixedRawColumns.assign(p, nullptr);
+    testCscSlices.assign(p, CscColumnSlice());
+    testSparseSlot.assign(p, -1);
+    testSparseColumns.clear();
+    testCodeOffsets.assign(p, 0);
+    if (cscReferenceCodes != nullptr)
+      testCscReferenceCodes.assign(cscReferenceCodes, cscReferenceCodes + p);
+    else testCscReferenceCodes.clear();
+
+    // own the CSC nonzeros: pack them so each column's slice points into
+    // storage that never reallocates for the store's lifetime
+    size_t totalNonzero = 0;
+    for (size_t j = 0; j < p; ++j)
+      if (columnSources[j] < 0) {
+        size_t source = static_cast<size_t>(~columnSources[j]);
+        totalNonzero += static_cast<size_t>(columnPointers[source + 1] -
+                                            columnPointers[source]);
+      }
+    ownedTestCscValues.resize(totalNonzero);
+    ownedTestCscRows.resize(totalNonzero);
+
+    size_t numDenseCodes = 0, cursor = 0;
+    for (size_t j = 0; j < p; ++j) {
+      if (columnSources[j] >= 0) {
+        testMixedRawColumns[j] = ownedTestValues.data() +
+          static_cast<size_t>(columnSources[j]) * numTest;
+        testCodeOffsets[j] = numDenseCodes;
+        numDenseCodes += numTest;
+        continue;
+      }
+      size_t source = static_cast<size_t>(~columnSources[j]);
+      size_t begin = static_cast<size_t>(columnPointers[source]);
+      size_t end = static_cast<size_t>(columnPointers[source + 1]);
+      size_t numNonzero = end - begin;
+      std::memcpy(ownedTestCscValues.data() + cursor, values + begin,
+                  numNonzero * sizeof(double));
+      std::memcpy(ownedTestCscRows.data() + cursor, rowIndices + begin,
+                  numNonzero * sizeof(int));
+      testCscSlices[j] = { ownedTestCscValues.data() + cursor,
+                           ownedTestCscRows.data() + cursor, numNonzero };
+      cursor += numNonzero;
+      bool sparse = static_cast<double>(numNonzero) <=
+        sparseDensityThreshold * static_cast<double>(numTest);
+      if (sparse) {
+        testSparseSlot[j] = static_cast<std::int32_t>(testSparseColumns.size());
+        testSparseColumns.emplace_back();
+      } else {
+        testCodeOffsets[j] = numDenseCodes;
+        numDenseCodes += numTest;
+      }
+    }
+    testCodes.resize(numDenseCodes);
+
+    size_t numWords = (numTest + 63) / 64;
+    for (size_t j = 0; j < p; ++j) {
+      if (testColumnIsSparse(j)) {
+        SparseColumnData& sparse =
+          testSparseColumns[static_cast<size_t>(testSparseSlot[j])];
+        const CscColumnSlice& slice = testCscSlices[j];
+        sparse.bits.assign(numWords, 0);
+        sparse.wordRanks.assign(numWords, 0);
+        sparse.nzCodes.assign(slice.numNonzero, 0);
+        for (size_t k = 0; k < slice.numNonzero; ++k) {
+          size_t i = static_cast<size_t>(slice.rows[k]);
+          sparse.bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
+        }
+        std::uint32_t runningRank = 0;
+        for (size_t w = 0; w < numWords; ++w) {
+          sparse.wordRanks[w] = runningRank;
+          runningRank +=
+            static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
+        }
+      }
+      quantizeTestColumn(j);
+    }
   }
 
   /// A row- and column-subset view of a built parent store: copies the
@@ -886,6 +1064,7 @@ struct ColumnStore {
       testCodeOffsets[j] = j * numTestRows;
     testSparseSlot.assign(numPredictors, -1);
     testSparseColumns.clear();
+    clearTestCscSources();
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t* column = testCodes.data() + j * numTestRows;
       for (size_t i = 0; i < numTestRows; ++i)
@@ -962,6 +1141,7 @@ struct ColumnStore {
     testCodeOffsets.clear();
     testSparseSlot.clear();
     testSparseColumns.clear();
+    clearTestCscSources();
     testOffset = nullptr;
   }
 

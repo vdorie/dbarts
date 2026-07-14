@@ -3286,6 +3286,127 @@ static void testAFTStateRoundTrip() {
   printf("ok: aft state round trip\n");
 }
 
+// The engine test-container entry (facade setTestData): a sampler given a
+// mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
+// the dense test matrix of the same values, and the entry REFUSES a designated
+// leaf covariate that would be CSC-backed. Uses local rngs and restores the
+// shared draw stream, so its fixture draws shift no later test.
+static void testSparseTestDataEndToEnd() {
+  uint64_t savedRngState = rngState;
+  const size_t nTrain = 300, numTest = 150, p = 4;
+
+  std::vector<double> xTrain(nTrain * p), y(nTrain);
+  for (double& v : xTrain) v = runif01();
+  for (size_t i = 0; i < nTrain; ++i)
+    y[i] = std::sin(3.0 * xTrain[i]) + xTrain[i + nTrain] + 0.5 * runif01();
+
+  // test columns 0 and 3 dense-backed, 1 rank-tier, 2 densified-tier
+  std::vector<double> dense0(numTest), dense3(numTest);
+  for (size_t i = 0; i < numTest; ++i) {
+    dense0[i] = runif01();
+    dense3[i] = runif01();
+  }
+  std::vector<int> pointers(3, 0), rows;
+  std::vector<double> values;
+  const double fractions[] = {0.08, 0.6};
+  for (int csc = 0; csc < 2; ++csc) {
+    for (size_t i = 0; i < numTest; ++i)
+      if (runif01() < fractions[csc]) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(0.3 + runif01());
+      }
+    pointers[static_cast<size_t>(csc) + 1] = static_cast<int>(rows.size());
+  }
+  std::vector<double> denseTest(numTest * p, 0.0);
+  for (size_t i = 0; i < numTest; ++i) {
+    denseTest[i + 0 * numTest] = dense0[i];
+    denseTest[i + 3 * numTest] = dense3[i];
+  }
+  for (int csc = 0; csc < 2; ++csc)
+    for (int k = pointers[static_cast<size_t>(csc)];
+         k < pointers[static_cast<size_t>(csc) + 1]; ++k)
+      denseTest[static_cast<size_t>(rows[static_cast<size_t>(k)]) +
+                static_cast<size_t>(csc + 1) * numTest] =
+        values[static_cast<size_t>(k)];
+  std::vector<double> denseBlock(numTest * 2);
+  std::memcpy(denseBlock.data(), dense0.data(), numTest * sizeof(double));
+  std::memcpy(denseBlock.data() + numTest, dense3.data(),
+              numTest * sizeof(double));
+  std::vector<std::int32_t> columnSources = {0, ~0, ~1, 1};
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngA == NULL || rngB == NULL || ext_rng_setSeed(rngA, 9137) != 0 ||
+      ext_rng_setSeed(rngB, 9137) != 0) {
+    check(false, "sparse test data: rng creation");
+    rngState = savedRngState;
+    return;
+  }
+
+  SamplerOptions options;
+  options.numTrees = 25;
+  ConstantLeafSampler denseSampler(xTrain.data(), y.data(), nTrain, p, nullptr,
+                       nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                       0.37804942330213542, options, &rngA);
+  ConstantLeafSampler sparseSampler(xTrain.data(), y.data(), nTrain, p, nullptr,
+                       nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                       0.37804942330213542, options, &rngB);
+  denseSampler.setTestPredictors(denseTest.data(), numTest);
+  bool built = sparseSampler.setTestData(denseBlock.data(), pointers.data(),
+                                         rows.data(), values.data(),
+                                         columnSources.data(), nullptr, numTest);
+  check(built && sparseSampler.data().testColumnIsSparse(1) &&
+        !sparseSampler.data().testColumnIsSparse(2),
+        "the test container builds with the expected storage tiers");
+
+  const size_t numBurnIn = 30, numSamples = 40;
+  std::vector<double> testA(numTest * numSamples), testB(numTest * numSamples);
+  std::vector<double> fitsA(nTrain * numSamples), fitsB(nTrain * numSamples);
+  Results resultsA, resultsB;
+  resultsA.trainingFits = fitsA.data();
+  resultsA.testFits = testA.data();
+  resultsB.trainingFits = fitsB.data();
+  resultsB.testFits = testB.data();
+  denseSampler.run(numBurnIn, numSamples, resultsA);
+  sparseSampler.run(numBurnIn, numSamples, resultsB);
+  check(fitsA == fitsB, "test representation leaves the training draws untouched");
+  check(testA == testB,
+        "resident-sparse test fits bitwise-match the dense test matrix");
+
+  // the refusal seam: a linear leaf over a dense-backed test column builds; the
+  // same covariate landing on a CSC-backed test column refuses, store untouched
+  ext_rng* rngC = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  if (rngC != NULL && ext_rng_setSeed(rngC, 41) == 0) {
+    SamplerOptions linearOptions;
+    linearOptions.numTrees = 10;
+    size_t covariate[] = {0};
+    linearOptions.leafCovariateColumns = covariate;
+    linearOptions.numLeafCovariates = 1;
+    std::unique_ptr<SamplerBase> linear = createSampler(
+      xTrain.data(), y.data(), nTrain, p, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, linearOptions,
+      &rngC);
+    check(linear != nullptr, "dense-backed leaf covariate sampler creates");
+    if (linear != nullptr) {
+      check(linear->setTestData(denseBlock.data(), pointers.data(), rows.data(),
+                                values.data(), columnSources.data(), nullptr,
+                                numTest),
+            "a dense-backed leaf covariate accepts the test container");
+      std::vector<std::int32_t> refuse = {~0, 0, ~1, 1};  // column 0 now CSC
+      check(!linear->setTestData(denseBlock.data(), pointers.data(),
+                                 rows.data(), values.data(), refuse.data(),
+                                 nullptr, numTest),
+            "a CSC-backed leaf covariate refuses the test container");
+    }
+    ext_rng_destroy(rngC);
+  }
+
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
+  rngState = savedRngState;
+  printf("ok: sparse test data end to end\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
@@ -3325,4 +3446,5 @@ void runModelTests(ext_rng* rng) {
   testGPLeafFormats(rng);
   testGPLeafKernelCache(rng);
   testGPLeafZeroWeights(rng);
+  testSparseTestDataEndToEnd();
 }
