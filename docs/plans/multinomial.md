@@ -269,6 +269,33 @@ C3. Per-forest reporting query for K forests (NEUTRAL; BCF-inert; foldable into
    R_interface_bartcore.cpp, R/bartcore.R. Gate: NEUTRAL - both anchors identical +
    tinytest + tests/cpp. Size: S.
 
+### Phase A landing (2026-07-14)
+
+C1 = 300e6c4 (combiner.hpp extraction, pure motion + co-movers), C2 = 9030d93
+(location-count seam, byte-identical at L = 1; multi-forest mutation guards
+hazard-exact - blanket on setData/setResponse/setWeights and the
+per-observation sessions, non-force-only on setPredictor/updatePredictor, the
+force paths kept per VD's "support whatever was supported"), C3 = 7c83419
+(per-forest variable-count query, storeSample counting factored byte-neutrally).
+Every commit gated: both anchors identical, full tinytest (2865 at C3),
+tests/cpp from make clean.
+
+Phase-A-close bench (G8), quiet window 2026-07-14, at 7c83419 vs
+bench-sampler-4008675.csv: run-n10000-p10-t75 flagged at 1.066 (re-run 1.073;
+the re-run read uniformly ~1.5% warmer across every arm including the
+untouched setPredictor-reject path - thermal). All other arms 0.974-1.050.
+CONTROL: the pre-Phase-A tip f859b2a, rebuilt and benched in the same window
+on the same machine, shows the SAME flag at 1.056 with the same profile.
+Differenced against the control, Phase A's arm-by-arm deltas are <= ~1.2%,
+mixed sign: Phase A is NEUTRAL by measurement, the G8 claim holds. The
+absolute flag decomposes as the accepted forest-combiner run-arm cost
+(recorded 1.018-1.043 at its close, zero flags then) plus machine drift since
+the 4008675 recording; their sum now trips the 5% gate on the largest arm.
+The 4008675 baseline predates the forest-combiner close and will keep
+tripping n = 10000: re-record it in a COLD quiet window (not this one - the
+warm-machine runs above would bake a generous reference that masks small
+regressions) before it gates another arc.
+
 ## Phase B - the multinomial model (C4-C6)
 
 POSTERIOR-CHANGING. C4 is THE MODEL AS ONE GATED COMMIT: no model-bearing code
