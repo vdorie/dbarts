@@ -102,9 +102,32 @@ expect_error(
 )
 
 rm(
-  sampler, fit, train, test.dense, test.sparse, test.unseen,
-  pred.dense, pred.sparse, pred.dense.off, pred.sparse.off,
-  ev.dense, ev.sparse, x.mat, pred.mat, trees.dense, trees.sparse,
-  x1.tr, x1.te, levels.g, codes.tr, codes.te, g.tr, g.te, y.tr,
-  n, n.test, offset.te, unseenLabels
+  sampler,
+  fit,
+  train,
+  test.dense,
+  test.sparse,
+  test.unseen,
+  pred.dense,
+  pred.sparse,
+  pred.dense.off,
+  pred.sparse.off,
+  ev.dense,
+  ev.sparse,
+  x.mat,
+  pred.mat,
+  trees.dense,
+  trees.sparse,
+  x1.tr,
+  x1.te,
+  levels.g,
+  codes.tr,
+  codes.te,
+  g.tr,
+  g.te,
+  y.tr,
+  n,
+  n.test,
+  offset.te,
+  unseenLabels
 )

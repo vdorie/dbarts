@@ -395,7 +395,11 @@ s.dense[s.rows] <- s.vals
 test.mix.dense <- data.frame(a = a.te.mix, g = g.te.mix, s = s.dense)
 test.mix.sparse <- data.frame(a = a.te.mix)
 test.mix.sparse$g <- sparseFactor(g.te.mix, reference = "L2")
-test.mix.sparse$s <- Matrix::sparseVector(x = s.vals, i = s.rows, length = n.mtest)
+test.mix.sparse$s <- Matrix::sparseVector(
+  x = s.vals,
+  i = s.rows,
+  length = n.mtest
+)
 
 makeMixedSampler <- function(test, seed) {
   set.seed(seed)

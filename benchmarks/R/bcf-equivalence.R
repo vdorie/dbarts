@@ -48,11 +48,18 @@ n.trees.tau <- 25L
 # settings change (the values themselves live here as ordinary code constants,
 # as equivalence.R's scenario seeds do).
 seeds <- c(
-  default.data = 8001L, default.engine = 9001L,
-  restricted.data = 8002L, restricted.engine = 9002L,
-  glue.data = 8003L, glue.engine = 9003L,
-  weighted.data = 8004L, weighted.weights = 8104L, weighted.engine = 9004L,
-  treatment.data = 8005L, treatment.z2 = 8105L, treatment.engine = 9005L
+  default.data = 8001L,
+  default.engine = 9001L,
+  restricted.data = 8002L,
+  restricted.engine = 9002L,
+  glue.data = 8003L,
+  glue.engine = 9003L,
+  weighted.data = 8004L,
+  weighted.weights = 8104L,
+  weighted.engine = 9004L,
+  treatment.data = 8005L,
+  treatment.z2 = 8105L,
+  treatment.engine = 9005L
 )
 
 # A modest two-forest problem: prognostic mu(x) plus a treatment effect
@@ -100,7 +107,9 @@ runScenarios <- function() {
     sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["default.engine"]])
     bc <- dbarts:::bartcoreBCFSampler(
-      sampler, d$z, n.trees.treatment = n.trees.tau
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
     )
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     result$default <- recordChannels(bc, res)
@@ -113,7 +122,8 @@ runScenarios <- function() {
     sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["restricted.engine"]])
     bc <- dbarts:::bartcoreBCFSampler(
-      sampler, d$z,
+      sampler,
+      d$z,
       n.trees.treatment = n.trees.tau,
       moderators = c("x1", "x3")
     )
@@ -129,9 +139,11 @@ runScenarios <- function() {
     sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["glue.engine"]])
     bc <- dbarts:::bartcoreBCFSampler(
-      sampler, d$z,
+      sampler,
+      d$z,
       n.trees.treatment = n.trees.tau,
-      update.a = TRUE, update.b = FALSE
+      update.a = TRUE,
+      update.b = FALSE
     )
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     result$glue_toggle <- recordChannels(bc, res)
@@ -147,7 +159,9 @@ runScenarios <- function() {
     sampler <- dbarts(d$x, d$y, weights = weights, control = makeControl())
     set.seed(seeds[["weighted.engine"]])
     bc <- dbarts:::bartcoreBCFSampler(
-      sampler, d$z, n.trees.treatment = n.trees.tau
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
     )
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     result$weighted <- recordChannels(bc, res)
@@ -162,7 +176,9 @@ runScenarios <- function() {
     sampler <- dbarts(d$x, d$y, control = makeControl())
     set.seed(seeds[["treatment.engine"]])
     bc <- dbarts:::bartcoreBCFSampler(
-      sampler, d$z, n.trees.treatment = n.trees.tau
+      sampler,
+      d$z,
+      n.trees.treatment = n.trees.tau
     )
     dbarts:::bartcoreRun(bc, n.burn, n.samples)
     dbarts:::bartcoreSetTreatment(bc, z2)
@@ -186,7 +202,11 @@ settingsList <- function() {
 }
 
 if (mode == "record") {
-  out.file <- if (length(args) >= 2L) args[[2L]] else "bcf-equivalence-baseline.rds"
+  out.file <- if (length(args) >= 2L) {
+    args[[2L]]
+  } else {
+    "bcf-equivalence-baseline.rds"
+  }
   results <- runScenarios()
   meta <- c(
     list(
@@ -208,8 +228,13 @@ if (mode == "record") {
       "baseline was recorded with different settings: ",
       paste(
         guarded,
-        vapply(baseline$meta[guarded], function(v) paste(v, collapse = ","), ""),
-        sep = "=", collapse = "; "
+        vapply(
+          baseline$meta[guarded],
+          function(v) paste(v, collapse = ","),
+          ""
+        ),
+        sep = "=",
+        collapse = "; "
       )
     )
   }
@@ -224,17 +249,24 @@ if (mode == "record") {
       next
     }
     channels <- names(a)
-    ok <- vapply(channels, function(ch) identical(a[[ch]], b[[ch]]), logical(1L))
+    ok <- vapply(
+      channels,
+      function(ch) identical(a[[ch]], b[[ch]]),
+      logical(1L)
+    )
     if (all(ok)) {
       cat(sprintf(
         "%-14s identical (all %d channels: %s)\n",
-        name, length(channels), paste(channels, collapse = ", ")
+        name,
+        length(channels),
+        paste(channels, collapse = ", ")
       ))
     } else {
       anyFailure <- TRUE
       cat(sprintf(
         "%-14s MISMATCH in: %s\n",
-        name, paste(channels[!ok], collapse = ", ")
+        name,
+        paste(channels[!ok], collapse = ", ")
       ))
     }
   }
