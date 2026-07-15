@@ -396,6 +396,35 @@ public:
     resizeTestStorage();
   }
 
+  /// K-forest multinomial (softmax) chain (docs/design/multinomial.md): K
+  /// symmetric constant-leaf category forests coupled through a softmax
+  /// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation and a
+  /// likelihood-invariant level-centering move, all owned by
+  /// MultinomialForestCombiner. Single-trial category labels (0..K-1) ride the
+  /// spec; there is no sigma (fixed, like the binary families).
+  Chain(const ColumnStore& data, const SamplerOptions& options,
+        const MultinomialSpec& spec, ext_rng* rng)
+    : options_(options), data_(data), weights_(nullptr), rng_(rng) {
+    static_assert(!L::hasVectorParams && !L::hasFunctionParams,
+                  "multinomial is a constant-leaf model");
+    options_.maxNumCutsPerVariable = nullptr;
+    options_.columnTypes = nullptr;
+    options_.forestColumns = nullptr;
+    response_ = std::make_unique<MultinomialResponse>(data.numObservations);
+    // logistic marks the binary-family sigma semantics (fixed at 1); the
+    // softmax has no sigma of its own, and family() is not read on this path.
+    family_ = ResponseFamily::logistic;
+    sigmaIsFixed_ = true;
+    sigma_ = response_->initialSigma();
+
+    for (std::size_t k = 0; k < spec.numCategories; ++k)
+      buildMultinomialForest(spec.forest, spec.nodeScale, spec.k);
+
+    combiner_ =
+      std::make_unique<MultinomialForestCombiner<L>>(data, spec);
+    resizeTestStorage();
+  }
+
   ~Chain() {
     if (testFitPool_ != nullptr) misc_mt_destroy(testFitPool_);
   }
@@ -531,6 +560,10 @@ public:
         const double* forestY = y;
         const double* forestWeights = weights;
         if (combiner_) {
+          // the interleaved coupling draws forest f's latents against the
+          // current margins here, immediately before formForestResponse reads
+          // them (a no-op for BCF); base no-op keeps every additive path bitwise
+          combiner_->drawForestGlue(f, rng_, forests_);
           ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
                                                             weights);
           forestY = fr.response;
@@ -791,6 +824,7 @@ public:
           const double* forestY = y;
           const double* forestWeights = weights;
           if (combiner_) {
+            combiner_->drawForestGlue(f, rng_, forests_);
             ForestResponse fr = combiner_->formForestResponse(f, forests_, y,
                                                               weights);
             forestY = fr.response;
@@ -2062,6 +2096,35 @@ private:
     forest.treeY.resize(n);
   }
 
+  /// One symmetric category forest for a multinomial chain: constant leaf, no
+  /// DART, no split restriction, fixed k, leaf scale nodeScale/sqrt(numTrees)
+  /// (the pi*sqrt(3)/sqrt(2) anchor). Every category forest is identical.
+  void buildMultinomialForest(const MultinomialForestSpec& spec,
+                              double nodeScale, double k) {
+    std::size_t n = data_.numObservations;
+    forests_.emplace_back();
+    Forest<L>& forest = forests_.back();
+    forest.numTrees = spec.numTrees;
+    forest.birthOrDeathProbability = spec.birthOrDeathProbability;
+    forest.swapProbability = spec.swapProbability;
+    forest.changeProbability = spec.changeProbability;
+    forest.birthProbability = spec.birthProbability;
+    forest.updateK = false;
+    forest.useDart = false;
+    forest.k = k;
+    forest.leaf.scale =
+      nodeScale / std::sqrt(static_cast<double>(spec.numTrees));
+    forest.treePrior.base = spec.base;
+    forest.treePrior.power = spec.power;
+    forest.indexBuffer.resize(n * spec.numTrees);
+    forest.trees.resize(spec.numTrees);
+    for (std::size_t t = 0; t < spec.numTrees; ++t)
+      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
+    forest.treeFits.assign(n * spec.numTrees, 0.0);
+    forest.totalFits.assign(n, 0.0);
+    forest.treeY.resize(n);
+  }
+
   /// A single forest reports its own total fits directly; a multi-forest chain
   /// asks the combiner for the blended per-observation location. The null test
   /// stays chain-side so the single-forest path returns a bare pointer with no
@@ -2105,7 +2168,10 @@ private:
         for (size_t i = 0; i < n; ++i)
           dst[i] = scale * src[i] + shift;
         // original-scale convention, matching the recorded test fits: any
-        // offset is part of the fit
+        // offset is part of the fit. A per-observation offset add would be
+        // wrong for a multi-location combiner writing probability channels
+        // (softmax) rather than an additive location, but multinomial creation
+        // carries no offset, so this stays null on that path.
         if (offset != nullptr) misc_addVectorsInPlace(offset, n, dst);
       }
     }

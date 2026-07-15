@@ -1,0 +1,217 @@
+#!/usr/bin/env Rscript
+
+# Multinomial (softmax) bitwise-equivalence fixture. The single-forest anchor
+# (equivalence.R) fits only through dbarts() - never a multinomial sampler - and
+# byte-guards NEITHER the train nor the test SHAPE: it reads only
+# test/varcount/sigma/k as summaries, never reads train, and its poolChains
+# tolerates reshapes. So nothing in the existing anchors guards the multinomial
+# engine's K-CHANNEL output seams (the n x K probability array, the per-category
+# forest fits, the per-category variable counts). This fixture is that guard:
+# record a baseline from build A, compare from a tree with build B installed, and
+# every recorded channel must match to the bit (identical(), not tolerance). The
+# heteroscedastic and hurdle models will re-touch exactly these multi-location
+# output seams, so this fixture inherit-guards them the way bcf-equivalence.R
+# guards the BCF report branches - the same lesson, verbatim.
+#
+# Each scenario drives the internal bartcoreMultinomialSampler surface
+# (R/bartcore.R; docs/design/multinomial.md) at a fixed seed, single chain, one
+# thread, and records:
+#   - result$train, the K softmax-probability channels (n x K x n.samples),
+#   - the raw per-category forest fits (bartcoreForestFits 0 .. K-1),
+#   - the per-category variable counts (bartcoreForestVariableCounts 0 .. K-1).
+#
+# A getState -> setState continuation is deliberately NOT recorded: restore is
+# structural by contract (omega is redrawn on the first restored sweep), so a
+# bitwise assertion there would be a false gate.
+#
+# Usage:
+#   Rscript multinomial-equivalence.R record [out.rds]
+#   Rscript multinomial-equivalence.R compare baseline.rds
+# Append 'quick' for a fast smoke pass (fewer draws; the settings guard refuses a
+# mixed comparison against a full baseline).
+
+suppressPackageStartupMessages(library(dbarts))
+
+args <- commandArgs(trailingOnly = TRUE)
+quick <- "quick" %in% args
+args <- setdiff(args, "quick")
+mode <- if (length(args) >= 1L) args[[1L]] else "record"
+
+n.threads <- 1L
+n.burn <- if (quick) 20L else 40L
+n.samples <- if (quick) 20L else 40L
+n.trees <- 40L
+
+seeds <- c(
+  k3.data = 6001L,
+  k3.engine = 7001L,
+  k2.data = 6002L,
+  k2.engine = 7002L
+)
+
+makeControl <- function() {
+  dbartsControl(
+    n.chains = 1L,
+    n.threads = n.threads,
+    n.trees = n.trees,
+    updateState = FALSE
+  )
+}
+
+# The K softmax-probability channels plus every category forest's raw fits and
+# split counts, at the sampler's current state.
+recordChannels <- function(bc, result, K) {
+  list(
+    train = result$train,
+    forestFits = lapply(
+      seq_len(K) - 1L,
+      function(k) dbarts:::bartcoreForestFits(bc, k)
+    ),
+    varcount = lapply(
+      seq_len(K) - 1L,
+      function(k) dbarts:::bartcoreForestVariableCounts(bc, k)
+    )
+  )
+}
+
+runScenarios <- function() {
+  n <- 200L
+  p <- 4L
+  result <- list()
+
+  # (a) K = 3, covariate-dependent: a genuine softmax signal across three
+  # categories, several predictors splitting.
+  {
+    set.seed(seeds[["k3.data"]])
+    K <- 3L
+    x <- matrix(runif(n * p), n, p)
+    eta <- cbind(
+      2 * (x[, 1L] - 0.5),
+      x[, 2L] - x[, 3L],
+      1.5 * (x[, 4L] - 0.5)
+    )
+    probs <- exp(eta) / rowSums(exp(eta))
+    labels <- vapply(
+      seq_len(n),
+      function(i) sample.int(K, 1L, prob = probs[i, ]) - 1L,
+      integer(1L)
+    )
+    sampler <- dbarts(x, as.double(labels), control = makeControl())
+    set.seed(seeds[["k3.engine"]])
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    result$k3 <- recordChannels(bc, res, K)
+  }
+
+  # (b) K = 2, the logistic-equivalent two-category case.
+  {
+    set.seed(seeds[["k2.data"]])
+    K <- 2L
+    x <- matrix(runif(n * p), n, p)
+    labels <- rbinom(n, 1L, plogis(2 * (x[, 1L] - 0.5) + x[, 2L]))
+    sampler <- dbarts(x, as.double(labels), control = makeControl())
+    set.seed(seeds[["k2.engine"]])
+    bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    result$k2 <- recordChannels(bc, res, K)
+  }
+
+  result
+}
+
+settingsList <- function() {
+  list(
+    quick = quick,
+    n.threads = n.threads,
+    n.burn = n.burn,
+    n.samples = n.samples,
+    n.trees = n.trees,
+    seeds = seeds
+  )
+}
+
+if (mode == "record") {
+  out.file <- if (length(args) >= 2L) {
+    args[[2L]]
+  } else {
+    "multinomial-equivalence-baseline.rds"
+  }
+  results <- runScenarios()
+  meta <- c(
+    list(
+      rev = system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE),
+      date = format(Sys.Date())
+    ),
+    settingsList()
+  )
+  saveRDS(list(meta = meta, results = results), out.file)
+  cat(
+    "wrote multinomial baseline for",
+    length(results),
+    "scenarios to",
+    out.file,
+    "\n"
+  )
+} else if (mode == "compare") {
+  if (length(args) < 2L) {
+    stop("usage: multinomial-equivalence.R compare baseline.rds")
+  }
+  baseline <- readRDS(args[[2L]])
+  guarded <- names(settingsList())
+  if (!identical(baseline$meta[guarded], settingsList())) {
+    stop(
+      "baseline was recorded with different settings: ",
+      paste(
+        guarded,
+        vapply(
+          baseline$meta[guarded],
+          function(v) paste(v, collapse = ","),
+          ""
+        ),
+        sep = "=",
+        collapse = "; "
+      )
+    )
+  }
+
+  results <- runScenarios()
+  anyFailure <- FALSE
+  for (name in names(baseline$results)) {
+    a <- baseline$results[[name]]
+    b <- results[[name]]
+    if (is.null(b)) {
+      cat(sprintf("%-6s skipped (not produced this run)\n", name))
+      next
+    }
+    channels <- names(a)
+    ok <- vapply(
+      channels,
+      function(ch) identical(a[[ch]], b[[ch]]),
+      logical(1L)
+    )
+    if (all(ok)) {
+      cat(sprintf(
+        "%-6s identical (all %d channels: %s)\n",
+        name,
+        length(channels),
+        paste(channels, collapse = ", ")
+      ))
+    } else {
+      anyFailure <- TRUE
+      cat(sprintf(
+        "%-6s MISMATCH in: %s\n",
+        name,
+        paste(channels[!ok], collapse = ", ")
+      ))
+    }
+  }
+
+  if (anyFailure) {
+    quit(status = 1L)
+  }
+  cat(
+    "\nOK: every multinomial channel bitwise identical across every scenario\n"
+  )
+} else {
+  stop("unknown mode '", mode, "'; use record or compare")
+}

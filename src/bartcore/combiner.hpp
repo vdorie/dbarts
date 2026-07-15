@@ -1,6 +1,7 @@
 #ifndef BARTCORE_COMBINER_HPP
 #define BARTCORE_COMBINER_HPP
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -160,6 +161,35 @@ struct BCFSpec {
   bool updateA = true, updateB = true;  // false fixes the matching glue block
 };
 
+/// One category forest's calibration for a multinomial sampler; the K forests
+/// are symmetric, so a single spec builds them all (mbart2's convention). Node
+/// scale is not spec'd here: the chain constructor sets every forest's leaf
+/// scale from nodeScale (the pi*sqrt(3)/sqrt(2) anchor, see
+/// docs/design/multinomial.md) and k.
+struct MultinomialForestSpec {
+  std::size_t numTrees = 200;
+  double base = 0.95, power = 2.0;
+  double birthOrDeathProbability = 0.5, swapProbability = 0.1,
+         changeProbability = 0.4, birthProbability = 0.5;
+};
+
+/// The specification a multinomial (softmax) chain is built from: K symmetric
+/// category forests over the shared design, the borrowed single-trial category
+/// labels (0..K-1, one per observation; n_i = 1 this arc), and the leaf-scale
+/// calibration. The K forests couple through a softmax likelihood with an
+/// interleaved one-vs-rest Polya-Gamma augmentation (docs/design/multinomial.md).
+struct MultinomialSpec {
+  std::size_t numCategories = 0;      // K
+  const int* labels = nullptr;        // borrowed 0..K-1 code per observation
+  MultinomialForestSpec forest;       // shared across the K category forests
+  // per-forest leaf scale anchor and k: the pairwise log-odds f_ik - f_ij is a
+  // difference of two forests, so the per-forest node scale is the logistic
+  // pi*sqrt(3) anchor divided by sqrt(2); tau = nodeScale / k is the per-forest
+  // total-fit prior sd the level-centering move reads.
+  double nodeScale = 3.847649490485592;  // pi*sqrt(3)/sqrt(2)
+  double k = 2.0;
+};
+
 /// The combining response's glue (docs/design/bcf.md): the prognostic scalar
 /// a (half-Cauchy via the scale-mixture auxiliary aVariance) and the
 /// treatment scales b0/b1, plus the sweep's per-forest scratch. y = a mu +
@@ -228,6 +258,15 @@ struct ForestCombiner {
                         const std::vector<Forest<L>>&) {}
   virtual double afterCombine(std::vector<Forest<L>>&, bool, std::size_t,
                               ext_rng*) { return 1.0; }
+
+  /// A per-forest pre-update hook, fired inside the sweep just before forest f's
+  /// tree update, with the partially updated forests (0..f-1 new this sweep,
+  /// f..K-1 old). An interleaved coupling draws forest f's latents here against
+  /// the CURRENT margins, immediately before formForestResponse(f) reads them;
+  /// the base no-op consumes no rng, so every additive combiner (BCF included)
+  /// stays bitwise unchanged. Fired in both sweep loops (run and grow-from-root).
+  virtual void drawForestGlue(std::size_t, ext_rng*,
+                              const std::vector<Forest<L>>&) {}
 
   /// The reporting map: which forest the scalar channels (variable counts, k,
   /// split probabilities) address, and whether the test-fit and log-likelihood
@@ -480,6 +519,172 @@ private:
 
   const ColumnStore& data_;
   BCFState glue_;
+};
+
+/// The multinomial (softmax) combiner: K symmetric category forests coupled
+/// through a log-linear likelihood, P(y_i = k) = softmax(f_i)_k, with an
+/// INTERLEAVED one-vs-rest Polya-Gamma augmentation and a likelihood-invariant
+/// level-centering move (docs/design/multinomial.md). Constant leaf only, as
+/// the whole chain is.
+///
+/// Category k's one-vs-rest conditional is a binomial logistic with linear
+/// predictor eta_ik = f_ik - C_ik, where C_ik = log sum_{j != k} exp(f_ij) is
+/// the log-sum-exp margin: omega_ik ~ PG(1, eta_ik) and forest k sees working
+/// response (y_ik - 1/2)/omega_ik + C_ik under precision omega_ik (the shipped
+/// logistic PG machinery, one binomial per category). The augmentation is
+/// INTERLEAVED, not joint: omega_ik is a temporary latent valid only for
+/// category k's conditional, so it is drawn against the CURRENT margins in
+/// drawForestGlue(k) immediately before forest k's tree update, cycling the
+/// categories (Held and Holmes 2006; Polson, Scott and Windle 2013 sec 4). A
+/// single post-loop all-K draw would be an invalid Jacobi-style update.
+template <IntegrableLeafModel L>
+struct MultinomialForestCombiner : ForestCombiner<L> {
+  static_assert(!L::hasVectorParams && !L::hasFunctionParams,
+                "multinomial is a constant-leaf model");
+
+  MultinomialForestCombiner(const ColumnStore& data, const MultinomialSpec& spec)
+      : data_(data), numCategories_(spec.numCategories), labels_(spec.labels) {
+    std::size_t n = data_.numObservations;
+    // n x K omega scratch, cold-started at PG(1, 0)'s mean 1/4 (the logistic
+    // seed); drawForestGlue overwrites category k's column each sweep before it
+    // is read, so the cold value is only a fallback.
+    omega_.assign(n * numCategories_, 0.25);
+    margins_.resize(n);
+    combined_.resize(n * numCategories_);
+    forestResponse_.resize(n);
+    forestWeights_.resize(n);
+  }
+
+  std::size_t numReportedLocations() const override { return numCategories_; }
+  bool testFitsAreDefined() const override { return false; }
+  bool logLikelihoodIsDefined() const override { return false; }
+
+  /// Interleaved PG draw for category f: form the current margin C_if and draw
+  /// omega_if ~ PG(1, f_if - C_if) against it, storing both so
+  /// formForestResponse(f), called immediately after, reads the SAME margin and
+  /// precision. margins_ and omega_'s f-th column are the f-specific handoff.
+  void drawForestGlue(std::size_t f, ext_rng* rng,
+                      const std::vector<Forest<L>>& forests) override {
+    std::size_t n = data_.numObservations;
+    const double* fFits = forests[f].totalFits.data();
+    double* omega = omega_.data() + f * n;
+    for (std::size_t i = 0; i < n; ++i) {
+      double margin = otherCategoryMargin(f, i, forests);
+      margins_[i] = margin;
+      omega[i] = ext_rng_simulatePolyaGamma(rng, fFits[i] - margin);
+    }
+  }
+
+  /// Category f's PG working response (y_if - 1/2)/omega_if + C_if under weight
+  /// omega_if, formed from the labels the combiner owns (the passed chain y is
+  /// ignored). Reads the margin and omega drawForestGlue(f) just stored.
+  ForestResponse formForestResponse(std::size_t f,
+      const std::vector<Forest<L>>& forests, const double* /*y*/,
+      const double* /*w*/) override {
+    (void) forests;
+    std::size_t n = data_.numObservations;
+    const double* omega = omega_.data() + f * n;
+    for (std::size_t i = 0; i < n; ++i) {
+      double yif = static_cast<std::size_t>(labels_[i]) == f ? 1.0 : 0.0;
+      forestResponse_[i] = (yif - 0.5) / omega[i] + margins_[i];
+      forestWeights_[i] = omega[i];
+    }
+    return {forestResponse_.data(), forestWeights_.data()};
+  }
+
+  /// The K softmax probabilities per observation, location-major (channel k at
+  /// combined_[k*n + i]); the reported training output. Log-sum-exp-safe.
+  const double* combinedFits(const std::vector<Forest<L>>& forests) override {
+    std::size_t n = data_.numObservations;
+    for (std::size_t i = 0; i < n; ++i) {
+      double maxFit = forests[0].totalFits[i];
+      for (std::size_t k = 1; k < numCategories_; ++k)
+        maxFit = std::max(maxFit, forests[k].totalFits[i]);
+      double sumExp = 0.0;
+      for (std::size_t k = 0; k < numCategories_; ++k)
+        sumExp += std::exp(forests[k].totalFits[i] - maxFit);
+      for (std::size_t k = 0; k < numCategories_; ++k)
+        combined_[k * n + i] =
+          std::exp(forests[k].totalFits[i] - maxFit) / sumExp;
+    }
+    return combined_.data();
+  }
+
+  /// The likelihood-invariant LEVEL-CENTERING move (docs/design/multinomial.md):
+  /// the softmax is invariant to a common shift of all f_ik, a flat additive
+  /// direction the prior pins only weakly, so it mixes as a slow random walk.
+  /// This move is a single DATASET-WIDE shift c added to every f_ik at once,
+  /// drawn from its Gaussian full conditional under the K forest priors. A
+  /// dataset-wide shift is the one flat direction a piecewise-constant forest
+  /// can represent EXACTLY (add c to every observation's fit uniformly): it
+  /// moves only the grand level and leaves every identified log-odds
+  /// f_ij - f_ik untouched. A per-observation shift, by contrast, is not
+  /// representable by coarse (shared-leaf) trees - the next backfit projects it,
+  /// leaking spurious variance into the identified log-odds and biasing the
+  /// softmax probabilities (a Jensen bias, confirmed against the exact gate) -
+  /// so it is deliberately NOT used. Prior: f_ik ~ N(0, v_k), v_k the per-forest
+  /// total-fit prior variance; the grand shift's conditional precision sums the
+  /// per-fit precisions over all n*K fits. The shift enters totalFits (which the
+  /// next sweep's margins read) and, uniformly, tree 0's fit slab, keeping the
+  /// residual roll's total = sum-of-tree-fits invariant; keepTrees is out of
+  /// scope this arc, so the saved (flattened) tree leaves are not touched.
+  /// Returns 1.0 (no multiplicative scale; the return feeds only BCF's test).
+  double afterCombine(std::vector<Forest<L>>& forests, bool /*record*/,
+                      std::size_t /*sampleNum*/, ext_rng* rng) override {
+    std::size_t n = data_.numObservations;
+    // grand-shift conditional: precision sums each fit's prior precision
+    // 1/v_k = (k_k/leaf.scale_k)^2 / numTrees_k, numerator its precision-weighted
+    // fit; a common shift leaves the identified log-odds fixed at any variance,
+    // so the reported probabilities are unbiased regardless of the leaf-count
+    // correction the exact per-forest-level conditional would add.
+    double prec = 0.0, num = 0.0;
+    for (std::size_t k = 0; k < numCategories_; ++k) {
+      const Forest<L>& forest = forests[k];
+      double sd = std::sqrt(static_cast<double>(forest.numTrees)) *
+                  (forest.leaf.scale / forest.k);
+      double invV = sd > 0.0 ? 1.0 / (sd * sd) : 0.0;
+      double sumFits = 0.0;
+      for (std::size_t i = 0; i < n; ++i) sumFits += forest.totalFits[i];
+      prec += invV * static_cast<double>(n);
+      num += invV * sumFits;
+    }
+    if (!(prec > 0.0)) return 1.0;
+    double c = -num / prec +
+               ext_rng_simulateStandardNormal(rng) / std::sqrt(prec);
+
+    for (std::size_t k = 0; k < numCategories_; ++k) {
+      Forest<L>& forest = forests[k];
+      for (std::size_t i = 0; i < n; ++i) {
+        forest.totalFits[i] += c;
+        // tree 0 absorbs the shift so totalFits stays the sum of the tree slabs
+        // the residual roll reconstructs from; the next sweep overwrites it
+        if (forest.numTrees > 0) forest.treeFits[i] += c;
+      }
+    }
+    return 1.0;
+  }
+
+private:
+  /// C_if = log sum_{j != f} exp(f_ij), the log-sum-exp margin of every other
+  /// category, computed stably against the max over j != f.
+  double otherCategoryMargin(std::size_t f, std::size_t i,
+                             const std::vector<Forest<L>>& forests) const {
+    double maxOther = -HUGE_VAL;
+    for (std::size_t j = 0; j < numCategories_; ++j)
+      if (j != f) maxOther = std::max(maxOther, forests[j].totalFits[i]);
+    double sumExp = 0.0;
+    for (std::size_t j = 0; j < numCategories_; ++j)
+      if (j != f) sumExp += std::exp(forests[j].totalFits[i] - maxOther);
+    return maxOther + std::log(sumExp);
+  }
+
+  const ColumnStore& data_;
+  std::size_t numCategories_;
+  const int* labels_;                  // borrowed 0..K-1 code per observation
+  std::vector<double> omega_;          // n x K, category-major (column k at k*n)
+  std::vector<double> margins_;        // n; the current forest's C_if handoff
+  std::vector<double> combined_;       // n x K softmax probabilities
+  std::vector<double> forestResponse_, forestWeights_;  // n each
 };
 
 }  // namespace bartcore

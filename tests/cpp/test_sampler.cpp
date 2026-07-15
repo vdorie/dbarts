@@ -1834,6 +1834,276 @@ static void testBCFGrowForestFromRoot() {
   printf("ok: BCF grow-from-root sweep\n");
 }
 
+// The multinomial (softmax) combiner: the interleaved one-vs-rest Polya-Gamma
+// draw (positivity, its moment against the current margin, and the K = 2
+// reduction to the logistic working-response construction), the K >= 3
+// log-sum-exp margin, the softmax combined output and its level-centering
+// invariance, an end-to-end monotone K = 3 recovery, and a structural state
+// round-trip.
+static void testMultinomial(ext_rng* rng) {
+  // ---- isolated combiner: interleaved PG draw and the K = 2 reduction ----
+  {
+    const size_t n = 6;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+
+    // K = 2: the margin C_i0 is exactly forest 1's fit, so category 0's
+    // one-vs-rest is binary logistic with eta = f0 - f1 - the reduction pinned.
+    std::vector<int> labels = {0, 1, 0, 1, 0, 1};
+    MultinomialSpec spec;
+    spec.numCategories = 2;
+    spec.labels = labels.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    std::vector<double> f0 = {-1.0, 0.5, 1.2, -0.3, 0.0, 0.8};
+    std::vector<double> f1 = {0.4, -0.6, 0.2, 1.1, -0.9, 0.3};
+    for (size_t k = 0; k < 2; ++k) {
+      forests[k].numTrees = 1;
+      forests[k].leaf.scale = 3.0;
+      forests[k].k = 2.0;
+      forests[k].treeFits.assign(n, 0.0);
+    }
+    forests[0].totalFits = f0;
+    forests[1].totalFits = f1;
+
+    combiner.drawForestGlue(0, rng, forests);
+    ForestResponse fr =
+      combiner.formForestResponse(0, forests, nullptr, nullptr);
+    bool positive = true, reduction = true;
+    for (size_t i = 0; i < n; ++i) {
+      double yi0 = labels[i] == 0 ? 1.0 : 0.0;
+      double omega = fr.weights[i];
+      positive &= omega > 0.0 && std::isfinite(omega);
+      // the logistic path's working response: (y - 1/2)/omega + offset, offset
+      // the category margin (f1 for K = 2)
+      double expected = (yi0 - 0.5) / omega + f1[i];
+      reduction &= std::fabs(fr.response[i] - expected) < 1e-12;
+    }
+    check(positive, "multinomial interleaved omega positive and finite");
+    check(reduction,
+          "K = 2 multinomial reproduces the logistic working-response form");
+
+    // the interleaved draw targets PG(1, eta_i0) against the CURRENT margin
+    double eta0 = f0[0] - f1[0];
+    double pgMean = std::tanh(0.5 * eta0) / (2.0 * eta0);
+    const int numDraws = 40000;
+    double sum = 0.0;
+    for (int d = 0; d < numDraws; ++d) {
+      combiner.drawForestGlue(0, rng, forests);
+      ForestResponse s =
+        combiner.formForestResponse(0, forests, nullptr, nullptr);
+      sum += s.weights[0];
+    }
+    checkNear(sum / numDraws, pgMean, 0.02,
+              "interleaved PG(1, eta) mean matches the theoretical moment");
+  }
+
+  // ---- isolated combiner: K = 3 log-sum-exp margin and softmax output ----
+  {
+    const size_t n = 4;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+    std::vector<int> labels = {0, 1, 2, 1};
+    MultinomialSpec spec;
+    spec.numCategories = 3;
+    spec.labels = labels.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(3);
+    std::vector<std::vector<double>> f = {
+      {0.2, -0.5, 1.0, 0.1}, {-0.3, 0.8, -0.2, 0.4}, {0.5, 0.0, 0.6, -0.7}};
+    for (size_t k = 0; k < 3; ++k) {
+      forests[k].numTrees = 1;
+      forests[k].leaf.scale = 3.0;
+      forests[k].k = 2.0;
+      forests[k].treeFits.assign(n, 0.0);
+      forests[k].totalFits = f[k];
+    }
+
+    combiner.drawForestGlue(1, rng, forests);
+    ForestResponse fr =
+      combiner.formForestResponse(1, forests, nullptr, nullptr);
+    bool marginOk = true;
+    for (size_t i = 0; i < n; ++i) {
+      double margin = std::log(std::exp(f[0][i]) + std::exp(f[2][i]));
+      double yi1 = labels[i] == 1 ? 1.0 : 0.0;
+      double expected = (yi1 - 0.5) / fr.weights[i] + margin;
+      marginOk &= std::fabs(fr.response[i] - expected) < 1e-10;
+    }
+    check(marginOk, "K = 3 log-sum-exp margin enters the working response");
+
+    std::vector<double> before(n * 3);
+    std::memcpy(before.data(), combiner.combinedFits(forests),
+                n * 3 * sizeof(double));
+    bool simplex = true;
+    for (size_t i = 0; i < n; ++i) {
+      double s = 0.0;
+      for (size_t k = 0; k < 3; ++k) {
+        double pr = before[k * n + i];
+        simplex &= pr > 0.0 && pr < 1.0;
+        s += pr;
+      }
+      simplex &= std::fabs(s - 1.0) < 1e-12;
+    }
+    check(simplex, "multinomial combined output is a per-observation simplex");
+
+    // the level-centering move leaves the softmax invariant (softmax(f + delta)
+    // = softmax(f)), pinning only the non-identified flat direction
+    combiner.afterCombine(forests, false, 0, rng);
+    const double* after = combiner.combinedFits(forests);
+    bool invariant = true;
+    for (size_t i = 0; i < n * 3; ++i)
+      invariant &= std::fabs(after[i] - before[i]) < 1e-10;
+    check(invariant,
+          "level-centering leaves the softmax probabilities invariant");
+  }
+
+  // ---- end-to-end: recover a monotone K = 3 signal ----
+  {
+    const size_t n = 600, p = 1, K = 3;
+    std::vector<double> x(n);
+    std::vector<int> labels(n);
+    for (size_t i = 0; i < n; ++i) {
+      double xi = runif01();
+      x[i] = xi;
+      double e0 = 2.0 * (0.5 - xi), e2 = 2.0 * (xi - 0.5);  // e1 = 0
+      double m = std::max(e0, std::max(0.0, e2));
+      double s = std::exp(e0 - m) + std::exp(-m) + std::exp(e2 - m);
+      double p0 = std::exp(e0 - m) / s, p1 = std::exp(-m) / s;
+      double u = runif01();
+      labels[i] = u < p0 ? 0 : (u < p0 + p1 ? 1 : 2);
+    }
+
+    SamplerOptions options;
+    options.numTrees = 50;
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.labels = labels.data();
+    spec.forest.numTrees = 50;
+
+    Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec, &rng);
+    check(sampler.numForests() == K, "multinomial builds K forests");
+    check(sampler.numReportedLocations() == K,
+          "multinomial reports K locations");
+
+    const size_t numBurnIn = 200, numSamples = 200;
+    std::vector<double> fits(n * K * numSamples);
+    Results results;
+    results.trainingFits = fits.data();
+    results.numReportedLocations = K;
+    sampler.run(numBurnIn, numSamples, results);
+
+    std::vector<double> meanProb(n * K, 0.0);
+    bool valid = true;
+    for (size_t s = 0; s < numSamples; ++s)
+      for (size_t k = 0; k < K; ++k)
+        for (size_t i = 0; i < n; ++i) {
+          double pr = fits[i + n * (k + K * s)];
+          valid &= pr >= 0.0 && pr <= 1.0;
+          meanProb[i + n * k] += pr / numSamples;
+        }
+    check(valid, "multinomial probabilities are in [0, 1]");
+
+    double lowP0 = 0.0, lowP2 = 0.0, highP0 = 0.0, highP2 = 0.0;
+    size_t lowN = 0, highN = 0;
+    for (size_t i = 0; i < n; ++i) {
+      if (x[i] < 0.25) {
+        lowP0 += meanProb[i]; lowP2 += meanProb[i + 2 * n]; ++lowN;
+      } else if (x[i] > 0.75) {
+        highP0 += meanProb[i]; highP2 += meanProb[i + 2 * n]; ++highN;
+      }
+    }
+    check(lowP0 / lowN > lowP2 / lowN, "category 0 dominates at low x");
+    check(highP2 / highN > highP0 / highN, "category 2 dominates at high x");
+
+    // structural state round-trip: the K forests serialize through the
+    // per-forest list, and the softmax combiner carries no wire state (omega is
+    // redrawn on the first restored sweep)
+    SamplerStateData state;
+    sampler.getState(state);
+    check(state.chains[0].forests.size() == K,
+          "multinomial state serializes K forests");
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngB, 4321);
+    Sampler<ConstantGaussianLeaf> restored(x.data(), n, p, options, spec, &rngB);
+    check(restored.setState(state, nullptr), "multinomial state restores");
+    checkStructuralRoundTrip(state, restored,
+                             "multinomial restore reproduces the K-forest model");
+    ext_rng_destroy(rngB);
+  }
+
+  printf("ok: multinomial softmax sampler\n");
+}
+
+// growForestFromRoot on a multinomial sampler exercises the grow-from-root
+// sweep's own combiner branch (the interleaved per-forest PG draw, the
+// per-forest working response, and the level-centering move), which no R path
+// reaches - growForestFromRoot is engine-internal (the BCF lesson). A local rng
+// plus a snapshot/restore of the shared runif01 stream keep this test neutral.
+static void testMultinomialGrowForestFromRoot() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 400, p = 2, K = 3;
+  std::vector<double> x(n * p);
+  std::vector<int> labels(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double e0 = 1.5 * x[i], e1 = -1.0 + x[i + n], e2 = 0.5 * (x[i] - x[i + n]);
+    double m = std::max(e0, std::max(e1, e2));
+    double s = std::exp(e0 - m) + std::exp(e1 - m) + std::exp(e2 - m);
+    double p0 = std::exp(e0 - m) / s, p1 = std::exp(e1 - m) / s;
+    double u = runif01();
+    labels[i] = u < p0 ? 0 : (u < p0 + p1 ? 1 : 2);
+  }
+
+  SamplerOptions options;
+  options.numTrees = 40;
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.labels = labels.data();
+  spec.forest.numTrees = 40;
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 90210u);
+  Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec,
+                                        &localRng);
+  check(sampler.numForests() == K, "multinomial grow-from-root builds K forests");
+
+  sampler.chain(0).growForestFromRoot(5);
+
+  std::vector<std::vector<double>> fits(K, std::vector<double>(n));
+  bool finite = true, offZero = true;
+  for (size_t k = 0; k < K; ++k) {
+    sampler.forestTotalFits(0, k, fits[k].data());
+    double ss = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      finite &= std::isfinite(fits[k][i]);
+      ss += fits[k][i] * fits[k][i];
+    }
+    offZero &= ss > 0.0;
+  }
+  check(finite, "multinomial grow-from-root fits are finite");
+  check(offZero, "every grown multinomial forest moves off zero");
+
+  bool simplex = true;
+  for (size_t i = 0; i < n; ++i) {
+    double m = fits[0][i];
+    for (size_t k = 1; k < K; ++k) m = std::max(m, fits[k][i]);
+    double s = 0.0;
+    for (size_t k = 0; k < K; ++k) s += std::exp(fits[k][i] - m);
+    double total = 0.0;
+    for (size_t k = 0; k < K; ++k) total += std::exp(fits[k][i] - m) / s;
+    simplex &= std::fabs(total - 1.0) < 1e-10;
+  }
+  check(simplex, "grown multinomial softmax is a per-observation simplex");
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: multinomial grow-from-root sweep\n");
+}
+
 // The per-observation log-likelihood channel: requesting it draws no rng and
 // mutates no state (computed post-hoc at storeSample), so sigma/train are
 // bitwise unchanged, and each family's values equal the closed-form density of
@@ -2127,6 +2397,8 @@ void runSamplerTests(ext_rng* rng) {
   testBCFInterweave(rng);
   testBCFInterweaveKeepTrees(rng);
   testBCFGrowForestFromRoot();
+  testMultinomial(rng);
+  testMultinomialGrowForestFromRoot();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);

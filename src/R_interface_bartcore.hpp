@@ -15,6 +15,8 @@ SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
                                SEXP family, SEXP columns);
 SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
                         SEXP bcfParams, SEXP moderators);
+SEXP bartcore_createMultinomial(SEXP control, SEXP model, SEXP data,
+                                SEXP labels, SEXP numCategories);
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
