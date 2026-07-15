@@ -208,19 +208,16 @@ void dbarts_sampler_setTreeStorage(dbarts_sampler* sampler, int keepTrees,
 /// trees are read unless useLiveTrees; sampleIndices is ignored when
 /// reading live trees. The caller must protect the result.
 ///
-/// trainingData is the column-major numObservations x numPredictors matrix the
-/// saved trees replay to count each node's training observations (the engine
-/// keeps no predictor matrix); pass the sampler's current predictors, or NULL
-/// to replay the creation specification's predictors. It is ignored when
-/// reading live trees (they carry their own counts).
+/// The n column replays the creation specification's predictors through each
+/// saved tree (the engine keeps no predictor matrix); it is left unpopulated
+/// for a sparse creation spec, and live trees carry their own counts.
 SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* chainIndices,
                              size_t numChainIndices,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices,
-                             size_t numTreeIndices, int useLiveTrees,
-                             const double* trainingData);
+                             size_t numTreeIndices, int useLiveTrees);
 void dbarts_sampler_printTrees(dbarts_sampler* sampler,
                                const size_t* chainIndices,
                                size_t numChainIndices,

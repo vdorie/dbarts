@@ -277,12 +277,11 @@ SEXP dbarts_sampler_getTrees(dbarts_sampler* sampler,
                              const size_t* sampleIndices,
                              size_t numSampleIndices,
                              const size_t* treeIndices, size_t numTreeIndices,
-                             int useLiveTrees, const double* trainingData) {
-  // saved-tree replay reads the caller's current predictors, or the retained
-  // creation spec when trainingData is null (a caller that mutated predictors
-  // and passes null sees the pre-mutation spec)
-  const double* replay =
-    trainingData != NULL ? trainingData : predictorsFromDataExpr(sampler->data);
+                             int useLiveTrees) {
+  // the n column replays the retained creation spec's predictors through each
+  // saved tree; the engine keeps no matrix, and a caller that mutated
+  // predictors since creation sees the pre-mutation spec
+  const double* replay = predictorsFromDataExpr(sampler->data);
   return bartcore_bridge::getTrees(
     samplerOf(sampler), chainIndices, numChainIndices, sampleIndices,
     numSampleIndices, treeIndices, numTreeIndices, useLiveTrees != 0, NULL, 0,

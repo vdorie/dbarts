@@ -29,14 +29,6 @@ items
     (prototype-gate: partial in the full engine). Needs a measurement
     harness (grouped SBC or IACT grid) before any engine work.
     decision-gated.
-  extract-trees-consistency: extract("trees") disagrees between its
-    all-trees and individual-samples paths on the node-count (n) column
-    for some fits - data-dependent, intermittent, value varies across
-    runs; surfaced by stan4bart's test-07 under R CMD check (2026-07-16,
-    stan4bart docs/plans/walnuts.md C4 landing note has the observation
-    record). Suspect the live-vs-stored tree divergence in the two
-    getTrees invocations. Needs a deterministic reproducer first; a
-    correctness bug, not consumer-gated.
   gp-followups: sampled lengthscales (theta prior, per-sample channels,
     real cost - not the mechanical follow-up the proposal suggested);
     low-rank kernels. decision/consumer-gated.

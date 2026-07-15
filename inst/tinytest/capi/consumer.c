@@ -36,8 +36,7 @@ static void (*p_predict)(dbarts_sampler*, const double*, size_t,
                          const double*, double*);
 static void (*p_setTreeStorage)(dbarts_sampler*, int, size_t);
 static SEXP (*p_getTrees)(dbarts_sampler*, const size_t*, size_t,
-                          const size_t*, size_t, const size_t*, size_t, int,
-                          const double*);
+                          const size_t*, size_t, const size_t*, size_t, int);
 static SEXP (*p_storeState)(dbarts_sampler*);
 static void (*p_setState)(dbarts_sampler*, SEXP);
 static size_t (*p_numObservations)(const dbarts_sampler*);
@@ -98,7 +97,7 @@ static void initApi(void) {
   LOOKUP(void (*)(dbarts_sampler*, int, size_t), p_setTreeStorage,
          "dbarts_sampler_setTreeStorage");
   LOOKUP(SEXP (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
-                  size_t, const size_t*, size_t, int, const double*),
+                  size_t, const size_t*, size_t, int),
          p_getTrees, "dbarts_sampler_getTrees");
   LOOKUP(SEXP (*)(dbarts_sampler*), p_storeState, "dbarts_sampler_storeState");
   LOOKUP(void (*)(dbarts_sampler*, SEXP), p_setState,
@@ -541,7 +540,10 @@ SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   return result;
 }
 
-SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr) {
+/* sampleNumsExpr null reads every saved sample; otherwise its 1-based indices
+ * select the saved samples, so the caller can compare the all-samples table
+ * against a per-sample gather (the consistency stan4bart's extract relies on). */
+SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
 
@@ -551,14 +553,25 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr) {
 
   size_t* chainIndices = (size_t*) R_alloc(numChains, sizeof(size_t));
   for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
-  size_t* sampleIndices =
-    numSaved > 0 ? (size_t*) R_alloc(numSaved, sizeof(size_t)) : NULL;
-  for (size_t i = 0; i < numSaved; ++i) sampleIndices[i] = i;
   size_t* treeIndices = (size_t*) R_alloc(numTrees, sizeof(size_t));
   for (size_t i = 0; i < numTrees; ++i) treeIndices[i] = i;
 
-  return p_getTrees(sampler, chainIndices, numChains, sampleIndices, numSaved,
-                    treeIndices, numTrees, useLiveTrees, NULL);
+  size_t numSampleIndices;
+  size_t* sampleIndices;
+  if (useLiveTrees || Rf_isNull(sampleNumsExpr)) {
+    numSampleIndices = numSaved;
+    sampleIndices =
+      numSaved > 0 ? (size_t*) R_alloc(numSaved, sizeof(size_t)) : NULL;
+    for (size_t i = 0; i < numSaved; ++i) sampleIndices[i] = i;
+  } else {
+    numSampleIndices = (size_t) Rf_xlength(sampleNumsExpr);
+    sampleIndices = (size_t*) R_alloc(numSampleIndices, sizeof(size_t));
+    for (size_t i = 0; i < numSampleIndices; ++i)
+      sampleIndices[i] = (size_t) INTEGER(sampleNumsExpr)[i] - 1;
+  }
+
+  return p_getTrees(sampler, chainIndices, numChains, sampleIndices,
+                    numSampleIndices, treeIndices, numTrees, useLiveTrees);
 }
 
 SEXP capi_store_state(SEXP ptrExpr) {

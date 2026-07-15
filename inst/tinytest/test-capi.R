@@ -252,17 +252,32 @@ pred3 <- CALL("capi_predict", ptr3, x.test, NULL)
 expect_identical(pred3, pred1)
 
 # tree introspection: saved trees carry a sample column, live trees do not
-trees <- CALL("capi_get_trees", ptr1, FALSE)
+trees <- CALL("capi_get_trees", ptr1, FALSE, NULL)
 expect_inherits(trees, "data.frame")
 expect_equal(names(trees), c("sample", "tree", "n", "var", "value"))
 expect_equal(sort(unique(trees$tree)), 1:25)
 expect_true(all(trees$var[trees$var < 0] == -1))
 expect_true(all(trees$var <= p))
 
-treesLive <- CALL("capi_get_trees", ptr1, TRUE)
+treesLive <- CALL("capi_get_trees", ptr1, TRUE, NULL)
 expect_equal(names(treesLive), c("tree", "n", "var", "value"))
 # every tree's root row sees all observations
 expect_true(all(treesLive$n[!duplicated(treesLive$tree)] == n))
+
+# extract-trees-consistency: the all-samples table must equal the per-sample
+# gather stan4bart concatenates - in particular the replayed n counts. A stale
+# consumer that dropped the getTrees trainingData parameter read an
+# indeterminate replay source and returned inconsistent n; the restored 8-arg
+# ABI replays the retained creation spec identically for either call shape
+perSample <- do.call(
+  rbind,
+  lapply(
+    seq_len(nSamples),
+    function(i) CALL("capi_get_trees", ptr1, FALSE, as.integer(i))
+  )
+)
+row.names(perSample) <- row.names(trees)
+expect_equal(trees, perSample)
 
 # a per-sweep callback that sets sigma reproduces the setSigma + run(0, 1)
 # loop bitwise (fixed residual prior, so a set sigma is held and recorded)
