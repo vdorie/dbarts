@@ -3492,13 +3492,17 @@ namespace bartcore_bridge {
 // NOT bump minReadableStateFormatVersion. Only a non-additive change to an
 // existing block's encoding - one that cannot be expressed as a new name -
 // bumps both.
-static const int stateFormatVersion = 3;
+static const int stateFormatVersion = 1;
 
 // The oldest ENCODING this reader still understands: additive block additions
-// leave it here; only a non-additive encoding change raises it. Currently 3
-// (the 1.0-0 encoding); pre-1.0 states are not a compat target and cannot
-// structurally reach the by-name reader (they lack the "forests" block).
-static const int minReadableStateFormatVersion = 3;
+// leave it here; only a non-additive encoding change raises it. Currently 1:
+// the 1.0-0 encoding is the FIRST shipped format, so the pre-release
+// development increments (the forests-list/BCF restructure included) are
+// collapsed into it - no released reader or writer ever saw them. Pre-1.0
+// states are not a compat target and cannot structurally reach the by-name
+// reader (they lack the "forests" block); a state with no version attribute
+// reads as 0 and is refused at the floor.
+static const int minReadableStateFormatVersion = 1;
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
   bartcore::SamplerStateData state;
