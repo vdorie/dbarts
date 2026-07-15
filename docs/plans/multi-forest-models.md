@@ -17,9 +17,10 @@ at a time, each with its own design note: multinomial, heteroscedastic
   start before forest-split-bcf's refactor, and none could compose
   with a polymorphic coupling seam before forest-combiner's (below).
 - Sketches the notes will expand:
-  multinomial - K or K-1 forests with Polya-Gamma logistic
-  (Held-Holmes style stick-breaking or symmetric formulation; the PG
-  sampler ships);
+  multinomial - LANDED 2026-07-15 (commit bb8855e,
+  docs/design/multinomial.md): K symmetric forests coupled through a
+  softmax likelihood with an interleaved one-vs-rest Polya-Gamma
+  augmentation and a level-centering move;
   heteroscedastic - mean forest + variance forest with multiplicative
   positive leaves (Pratola et al.; needs a non-Gaussian leaf prior on
   the variance forest, exercising the leaf-model seam);

@@ -495,6 +495,16 @@ C6. Docs. Design note docs/design/multinomial.md (likelihood; the INTERLEAVED
    needs no wire state. Files: docs/design/multinomial.md, docs/plans/*. Gate:
    full tinytest; R CMD check man unaffected (no man/ touched). Size: M.
 
+### C6 landing (2026-07-15)
+
+docs/design/multinomial.md written against the landed code (both C4
+deviations recorded as design facts; the calibration table computed at
+K = 2, 3, 5); multi-forest-models.md's multinomial entry marked landed;
+forest-combiner.md updated (second consumer built, combiner.hpp extraction,
+the drawForestGlue hook on the surface, the re-carve list corrected -
+refreshLatents/drawSigma did not widen and the softmax combiner serializes
+no glue). Docs-only.
+
 C7. Public surface (the resolved Q5; lands only after C4-C6 prove the engine).
    bart2 gains family = "multinomial" (the existing family seam; the slot lands
    on dbartsModel per family-on-model.md - the engaged pre-release window). Shape

@@ -4,9 +4,11 @@ Status: LANDED, 2026-07-14. Promotes the BCF glue that lived as a Chain-side
 special case (bcf_, drawGlue, combinedFits, formForestResponse,
 forestMultiplier, the if(bcf_) sweep branches - the shape bcf.md's Forest
 split shipped in) into a polymorphic ForestCombiner<L> hierarchy beside
-Forest<L> in src/bartcore/chain.hpp. BCFForestCombiner<L> is its first, and so
-far only, instance; the math it carries is unchanged from bcf.md and
-bcf-ridge-interweaving's landing. docs/plans/forest-combiner.md carries the
+Forest<L> (src/bartcore/combiner.hpp since the multinomial extraction below;
+src/bartcore/chain.hpp at this refactor's own landing). BCFForestCombiner<L> is
+its first instance, the math it carries unchanged from bcf.md and
+bcf-ridge-interweaving's landing; MultinomialForestCombiner<L>
+(docs/design/multinomial.md) is now the second. docs/plans/forest-combiner.md carries the
 step plan, its binding contracts, and its resolved Open questions; this note
 records the shape as landed and what it does and does not anticipate.
 
@@ -49,6 +51,13 @@ the BCF constructor. The landed virtual surface:
   public forwarder kept for the component tests - passes it through, which is
   how tests/cpp pins the ridge move's magnitude without reaching into
   BCFForestCombiner's private state.
+- `drawForestGlue(f, rng, forests)` - a per-forest pre-update hook, fired inside
+  the sweep just before forest f's tree update with the partially updated
+  forests (0..f-1 new this sweep, f..K-1 old). A no-op consuming no rng by
+  default, so the additive combiners (BCF included) stay bitwise unchanged; an
+  interleaved coupling (multinomial's one-vs-rest Polya-Gamma,
+  docs/design/multinomial.md) draws forest f's latents here against the current
+  margins, immediately before `formForestResponse(f)` reads them.
 - `reportedForest()` / `testFitsAreDefined()` / `logLikelihoodIsDefined()` -
   the reporting map: which forest the scalar channels (variable counts, k,
   split probabilities) address, and whether the test-fit and log-likelihood
@@ -141,16 +150,20 @@ owns its coupling and its internal draw order freely; `storeSample` already
 asks the combiner which forest each reported channel addresses via
 reportedForest() rather than hardcoding forest 0.
 
-What does NOT yet generalize is Chain-level, not combiner-API, and is the
-honest remaining work before a second combiner ships (recorded here so
-multi-forest-models.md plans against reality, not against what the API merely
-gestures at):
+What does NOT yet generalize is Chain-level, not combiner-API, and was the
+honest remaining work the second combiner would meet; multinomial (below) has
+since resolved the first and last of these, leaving heteroscedastic and hurdle
+the middle two (recorded here so multi-forest-models.md plans against reality,
+not against what the API merely gestures at):
 
-- The combined-fit OUTPUT is a single n-vector: `combinedFits` returns
-  `const double*`, and `refreshLatents`/`drawSigma` take one location, and
-  `results.trainingFits` is one channel. Multinomial's n x K combined object
-  forces signature changes at all three call sites, not just inside a
-  combiner subclass.
+- The combined-fit OUTPUT was a single n-vector: `combinedFits` returned
+  `const double*` and `results.trainingFits` was one channel. Multinomial's
+  n x K combined object was carried by a location-count seam
+  (`numReportedLocations()`, docs/design/multinomial.md) widening combinedFits
+  and the training/test writes; `refreshLatents`/`drawSigma` did NOT widen
+  (softmax needs no per-observation location on the response side, its K PG
+  draws living in the combiner's drawForestGlue), so the predicted
+  three-call-site change was really one seam.
 - Chain holds exactly one `response_` and one `sigma_`. Heteroscedastic's
   variance forest needs either the unused weight-channel route above or a
   per-observation sigma - a decision this plan explicitly deferred (TODO,
@@ -159,21 +172,27 @@ gestures at):
   forest). Hurdle's per-forest response families (an occupancy forest under
   one family, a positive-part forest under another) break that invariant;
   it is not a property the combiner API constrains.
-- `ChainStateData`'s glue fields are BCF-shaped (a/aVariance/b0/b1). A future
-  non-BCF combiner overrides `serializeGlue`/`restoreGlue` rather than
-  reaching for an accessor - the interface point is already right - but the
-  wire format itself needs a version bump (the flat-format-v2 scheme
-  public-surface.md already anticipates) before a non-BCF combiner has
-  somewhere of its own shape to write.
+- `ChainStateData`'s glue fields are BCF-shaped (a/aVariance/b0/b1). A non-BCF
+  combiner overrides `serializeGlue`/`restoreGlue` rather than reaching for an
+  accessor - the interface point is already right. It need not always write
+  anything: the multinomial combiner serializes NOTHING (docs/design/
+  multinomial.md), redrawing its per-sweep Polya-Gamma latents against the
+  restored forests structurally, so restore is structural, not bitwise. Only a
+  combiner carrying un-recoverable scalar glue of its own shape would need a
+  wire-format bump (the flat-format-v2 scheme public-surface.md anticipates)
+  first - not every multi-forest model does.
 
-## Anticipated, not built
+## Anticipated (multinomial now built)
 
-- Multinomial: K (or K-1) forests coupled through a Polya-Gamma stick-breaking
-  or symmetric formulation (the PG sampler already ships for logistic).
-  formForestResponse would form each forest's residual against its own
-  category margin; drawGlue would draw the PG augmentation and the
-  category-conditional Gaussian glue. Needs the combined-fit n x K widening
-  named above before it can land.
+- Multinomial: now BUILT (docs/design/multinomial.md), the second combiner and
+  the extraction's occasion. K SYMMETRIC forests coupled through a softmax
+  likelihood with an INTERLEAVED one-vs-rest Polya-Gamma augmentation:
+  drawForestGlue(k) draws omega_k against the current margins just before forest
+  k's update, formForestResponse(k) forms category k's PG working response
+  against its log-sum-exp margin, and afterCombine runs a level-centering move
+  (not a category-conditional Gaussian glue). It took the combined-fit n x K
+  widening named above (the numReportedLocations() location-count seam) but no
+  wire-format bump - the softmax combiner serializes nothing.
 - Heteroscedastic (HBART): a mean forest plus a variance forest with
   multiplicative-positive leaves. The variance forest's natural route is the
   WEIGHT channel formForestResponse already returns, unused; a non-integrable
@@ -231,9 +250,11 @@ Defined in chain.hpp beside Forest<L>, not a separate combiner.hpp: the ridge
 move (afterCombine) reaches Forest<L>'s tree/fit buffers and saved-tree
 FlatNodes directly, so a combiner.hpp would either fight chain.hpp's include
 order or force a Forest<L> extraction this neutral refactor had no reason to
-carry. Extraction to src/bartcore/combiner.hpp is deferred to the second
-combiner (multinomial, when it lands), which gives the split a second
-consumer to shape it around instead of guessing at one now.
+carry. Extraction to src/bartcore/combiner.hpp DID land with the second combiner
+(multinomial, docs/design/multinomial.md): Forest<L>, ForestResponse,
+ForestCombiner<L>, BCFForestCombiner<L>, and the serializable state/spec structs
+moved there as pure motion and chain.hpp includes it - the second consumer
+shaped the split, as intended, rather than a guess made against one case.
 
 ## Verification
 

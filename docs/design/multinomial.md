@@ -1,0 +1,228 @@
+# Multinomial softmax: design
+
+Status: LANDED, 2026-07-15 (commit bb8855e). The first multi-forest MODEL, and
+the second consumer of the forest combiner (docs/design/forest-combiner.md).
+K symmetric constant-leaf forests couple through a single-trial softmax
+likelihood, augmented by an interleaved one-vs-rest Polya-Gamma cycle and pinned
+by a likelihood-invariant level-centering move. The combiner
+(MultinomialForestCombiner<L>, src/bartcore/combiner.hpp), the response family
+(MultinomialResponse, src/bartcore/model.hpp), the K-forest chain constructor
+and buildMultinomialForest (src/bartcore/chain.hpp), and the exact-posterior
+gate (benchmarks/R/multinomial-exact.R) are all posterior-defining; creation is
+internal, mirroring BCF's .Call surface. Scope: single-trial classification
+(labels 0..K-1) and a fixed, sigma-free likelihood.
+
+## The model
+
+Category k gets its own forest f_ik = f_k(x_i); the K forests couple only
+through the likelihood
+
+    P(y_i = k) = softmax(f_i)_k = exp(f_ik) / sum_j exp(f_ij).
+
+The forests are symmetric - one spec builds all K (MultinomialForestSpec,
+src/bartcore/combiner.hpp) - rather than K-1 fit against a held-out reference
+category. Symmetry buys exchangeability of the levels (no category is
+privileged) and the ecosystem's shape: BART::mbart2, the closest precedent, is
+fully symmetric with K-length variable counts and tree draws and a labeled
+n x K probability output, and BART carries no coefficient table in which a
+reference category's effect could hide. Every category then gets its own forest
+and its own variable-count channel, so reporting is symmetric too. The price is
+a per-observation additive non-identification of the raw f_ik (below), handled
+by the centering move and sidestepped in all reporting by comparing the
+identified probabilities. K-1-with-reference removes the invariance but makes
+the reference category's reporting implicit and its variable counts asymmetric -
+the wrong trade for a classification model whose deliverable is the K-vector of
+probabilities.
+
+## The interleaved Polya-Gamma augmentation
+
+Category k's ONE-VS-REST conditional, given the other K-1 forests, is a binomial
+logistic with linear predictor
+
+    eta_ik = f_ik - C_ik,   C_ik = log sum_{j != k} exp(f_ij),
+
+where C_ik is the log-sum-exp margin of the other categories. So
+omega_ik ~ PG(1, eta_ik), and forest k sees working response
+(y_ik - 1/2)/omega_ik + C_ik under precision omega_ik - the shipped logistic PG
+machinery verbatim (ext_rng_simulatePolyaGamma; the construction in
+LogisticResponse, src/bartcore/model.hpp), one binomial per category, with the
+margin C_ik playing the role logistic's offset plays.
+
+The augmentation is INTERLEAVED, not joint. The product of the K one-vs-rest
+kernels integrates to a product of binomials, NOT the multinomial: each
+omega_ik is a temporary latent valid only for category k's conditional, against
+the margins it was drawn under. So omega_ik is drawn against the CURRENT margins
+immediately before forest k's tree update, cycling the categories. A single
+post-loop draw of all K omegas is not a valid Gibbs blocking: the one-vs-rest
+kernels do not compose into a joint augmentation, and the batched form gives
+forest k its working-response MEAN from fresh margins but its PRECISION from
+stale ones - a Jacobi-style simultaneous update targeting the wrong invariant
+distribution. Each omega_k is valid only against the margins it was drawn under.
+
+The draw therefore lives in the per-forest pre-update hook drawForestGlue(f)
+(src/bartcore/combiner.hpp), fired inside the sweep just before forest f's tree
+update with the partially updated forests (0..f-1 new this sweep, f..K-1 old);
+formForestResponse(f), called immediately after, reads the same margin and
+omega through the combiner's own scratch. The base hook is a no-op consuming no
+rng, so every additive combiner (BCF included) is bitwise unchanged - which is
+how the hook landed without moving any existing draw.
+
+Attribution: the interleaved one-vs-rest conditional cycle is Held and Holmes
+(2006) and Polson, Scott and Windle (2013), section 4. Murray (2021),
+"Log-Linear Bayesian Additive Regression Trees", is related work, not the
+source of this construction - it augments with a per-observation normalizer
+latent, a different device.
+
+## Identification and the level-centering move
+
+The softmax is invariant to a common per-observation shift of all f_ik (add the
+same constant to every category's fit at observation i and the probabilities do
+not move), so the raw f_ik are non-identified along a flat additive direction
+the prior pins only weakly; left alone it mixes as a slow random walk. The
+landed move pins ONLY the global, dataset-wide flat direction: a single scalar
+shift c drawn from its exact Gaussian full conditional under the K symmetric
+per-forest priors (f_ik ~ N(0, tau^2)), added to every f_ik at once - into
+totalFits, which the next sweep's margins read, and uniformly into tree 0's fit
+slab so the residual roll's total = sum-of-tree-fits invariant stays consistent.
+It lives in afterCombine (MultinomialForestCombiner<L>,
+src/bartcore/combiner.hpp), the post-loop combiner move, the BCF-ridge-
+interweave analog for the softmax's flat direction.
+
+The shift is GLOBAL, not per-observation, by necessity. A per-observation shift
+- the naive reading of the invariance - is not representable by shared-leaf
+trees: a per-observation vector added to the fits cannot be carried exactly by a
+piecewise-constant forest, so the next backfit PROJECTS the mismatch, leaking
+spurious variance into the identified log-odds and biasing the reported
+probabilities (a Jensen-type bias, measured at 2-4 percent against the exact
+gate). A dataset-wide shift is the one flat direction a forest carries exactly -
+add c to every observation uniformly - so it moves only the non-identified grand
+level and leaves every identified log-odds f_ij - f_ik untouched. The move is a
+mixing device, not a correctness requirement: the identified probabilities are
+unbiased at any variance of the non-identified level, and the exact gate passes
+with the move disabled. It only collapses the level direction's random walk.
+
+## Leaf-scale calibration
+
+The identified quantity is a DIFFERENCE of forests: a pairwise log-odds
+f_ik - f_ij has sd sqrt(2)*s for per-forest total-fit sd s. Anchoring that at
+the shipped logistic calibration (log-odds prior sd pi*sqrt(3)/2 at k = 2) fixes
+s = pi*sqrt(3)/sqrt(2). Concretely (src/bartcore/combiner.hpp,
+src/bartcore/chain.hpp): the per-forest node scale is
+nodeScale = pi*sqrt(3)/sqrt(2) ~ 3.8476 (MultinomialSpec::nodeScale), the
+per-leaf scale is nodeScale/sqrt(numTrees) (buildMultinomialForest), and the
+per-forest total-fit prior sd is tau = nodeScale/k, with k = 2 the default, so
+tau = pi*sqrt(3)/sqrt(2)/2 ~ 1.9238 - the sd the centering conditional and the
+exact gate both read.
+
+The margin C_ik makes the effective prior K-DEPENDENT: the softmax is a coupled
+nonlinear map of the K forests, so no single per-forest scale matches the binary
+calibration at every K. The K = 2 pairwise-log-odds anchor is exact only at
+K = 2; at K >= 3 the same per-forest scale spreads its probability mass over
+more categories and the implied prior on any one category's probability tightens
+toward 1/K. The induced prior on a category probability p_1 - simulating f_k iid
+N(0, tau^2), tau = pi*sqrt(3)/sqrt(2)/2, and softmaxing (4e6 draws, fixed seed):
+
+    K   p1: q05    q25    q50    q75    q95    P(p1 > 0.9)
+    2      0.011  0.138  0.501  0.863  0.989      0.210
+    3      0.005  0.050  0.216  0.588  0.937      0.076
+    5      0.002  0.019  0.084  0.294  0.785      0.020
+
+The mean of p_1 is 1/K by symmetry at every K; the median falls below it (the
+distribution is right-skewed) and the tail mass above 0.9 thins as K grows. The
+K-dependence is inherent to the coupled prior, not a defect of the anchor.
+
+## The exact-posterior gate
+
+benchmarks/R/multinomial-exact.R, in the single-tree enumeration style of
+benchmarks/R/bcf-exact.R and categorical-exact.R. Three arms, each matching the
+sampler's posterior mean of the IDENTIFIED softmax probabilities to a closed-form
+quadrature, to Monte Carlo error; the raw f_ik are compared never, and no arm
+fixes a forest to zero (that would zero Var(f_K), break exchangeability, and
+compare against the wrong posterior).
+
+Arm 1, intercept-only K = 3. A constant predictor admits no valid cut points, so
+every tree stays a root and each forest is a single leaf. The quadrature
+integrates the sampler's actual symmetric N(0, tau^2)^K prior with the level
+marginalized analytically: the induced prior on the differences
+d_k = f_k - f_K (k = 1..K-1) is a CORRELATED Gaussian with covariance
+tau^2 (I + 11') - each Var(d_k) = 2 tau^2, each Cov(d_k, d_j) = tau^2 - integrated
+by 2-D quadrature. This gates the margin formation and the coupling in isolation
+from tree growth.
+
+Arm 2, K = 2 == logistic, and INTERCEPT-ONLY. The two-category multinomial
+matches the shipped logistic sampler DISTRIBUTIONALLY (the two consume the rng
+differently - K forests plus interleaved PG plus centering versus one forest - so
+the match is distributional, not draw-for-draw). This is the only exact equality
+with logistic, and only at intercept: the K = 2 multinomial log-odds is f1 - f0,
+a DIFFERENCE of two m-tree ensembles, while logistic's is a SINGLE m-tree
+ensemble; the two share the prior covariance at the sqrt(2) calibration but not
+the function-space prior, so with a covariate they differ. Covariate K = 2 tree
+growth is gated by arm 3, not by a logistic equivalence.
+
+Arm 3, covariate-dependent K = 3. One binary categorical predictor (two cells),
+one tree per forest; the joint tree space (each forest a root or a two-cell
+split, 2^K combinations) is enumerated and integrated by nested per-cell
+quadrature over the difference-space Gaussian - the only exact gate on tree
+growth under softmax for K >= 3. Failure of any arm means the softmax coupling,
+the interleaved PG draw, the centering move, or the margin formation is wrong;
+the tolerances bound MC plus quadrature error and are never widened to pass.
+
+## The surface
+
+Creation is internal: bartcoreMultinomialSampler (R/bartcore.R) ->
+C_dbarts_bartcore_createMultinomial -> createMultinomialHolder
+(src/R_interface_bartcore.cpp) builds a MultinomialSpec and calls
+createMultinomialSampler (a single ConstantGaussianLeaf instantiation, as BCF).
+The public bart2 family surface is a separate step, not this one; BCF ships
+internal-only the same way.
+
+- Labels are single-trial category codes 0..K-1, one integer per observation -
+  the labels are the response, so the host sampler's own response is ignored;
+  K defaults to one past the largest code. A grouped-count generalization (the
+  n x K count matrix, n_i > 1) is a recorded follow-up: PG(n_i, .) is the sum of
+  n_i PG(1, .) draws, so it adds the count-matrix data model but no numerical
+  code. Real-shape (non-integer) counts stay out of scope, and case weights are
+  refused (not a coherent single-trial softmax likelihood).
+- The run's train channel is the n x K x n.samples softmax probabilities, the
+  identified deliverable (combinedFits writes the K location-major channels,
+  log-sum-exp-safe). Per-category function values and split counts read through
+  the per-forest queries bartcoreForestFits / bartcoreForestVariableCounts
+  (0-based forest = category).
+- Test fits and the log-likelihood channel are flagged undefined
+  (testFitsAreDefined() and logLikelihoodIsDefined() both false). Test fits,
+  because the run carries no test-side softmax to report (predict and the
+  setTestPredictor family refuse via refuseBCFTestSurface,
+  src/R_interface_bartcore.cpp); the log-likelihood, because storeSample scores
+  one forest's fits through response_->computeLogLikelihood, which cannot see the
+  K-blend - BCF's exact NaN-flag choice. storeSample writes quiet NaN into both
+  rather than silently misreport them.
+- Whole-data mutation is refused, as for every multi-forest sampler:
+  setData/setResponse/setWeights refuse on any sampler with >= 2 forests
+  (refuseMultiForestMutation), and the transactional (non-force) predictor paths
+  refuse likewise (refuseMultiForestTransactionalUpdate), because applyNewData
+  and revalidateTrees rebuild only forest 0. A forced whole-matrix setPredictor,
+  which refreshes every forest, stays available.
+- State carries NO combiner wire blocks. The K forests serialize through the
+  existing per-forest tree list (any length), and the multinomial combiner
+  overrides neither serializeGlue nor restoreGlue - it serializes nothing. omega
+  is a per-sweep latent redrawn against whatever margins the restored forests
+  present (the interleaved draw seeds omega_k against restored forest k on the
+  first restored sweep), so restore is STRUCTURAL, not bitwise - matching the
+  interleaved draw's own semantics and the structural-restore contract every
+  sampler follows. This is why a non-BCF combiner need not always carry glue
+  state, correcting the blanket implication in
+  docs/design/forest-combiner.md.
+
+## No probit path
+
+BART's multinomial precedent (BART::mbart) exposes both a probit (pbart) and a
+logit (lbart) latent path as a user choice. This model is PG-softmax only - a
+deliberate performance carve-out, a one-way door taken knowingly. The softmax is
+one coupled likelihood served by a single augmentation mechanism (the
+interleaved one-vs-rest PG), reusing the shipped PG(1, .) sampler and the
+weighted-conjugate kernels verbatim. A multinomial probit would instead need
+truncated multivariate-normal latent utilities and a covariance sampler -
+per-category latent truncation machinery reusing none of the PG code. A probit
+path is not precluded: it could live behind the same combiner seam, a probit
+combiner drawing its own latents in drawForestGlue, if it is ever wanted. It is
+simply not built.
