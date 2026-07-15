@@ -23,22 +23,23 @@ preds <- predict(bartFit, testData$x)
 
 state <- bartFit$fit$state
 expect_inherits(state, "bartcoreState")
-expect_equal(attr(state, "formatVersion"), 3L)
+expect_equal(attr(state, "formatVersion"), 1L)
 
 # anti-orphan: a FUTURE additive version still loads. The floor is >=, and the
 # reader looks blocks up by name, so an unknown future block would just be
 # ignored - an additive release never orphans an older reader's states.
 future <- state
-attr(future, "formatVersion") <- 4L
+attr(future, "formatVersion") <- 2L
 bartFit$fit$setState(future)
 expect_equal(predict(bartFit, testData$x), preds)
 
-# floor: an encoding BELOW the floor is refused, naming both versions.
+# floor: an encoding BELOW the floor is refused, naming both versions. 0 is
+# also what a state with no version attribute reads as.
 old <- state
-attr(old, "formatVersion") <- 2L
+attr(old, "formatVersion") <- 0L
 expect_error(
   bartFit$fit$setState(old),
-  pattern = "encoding version 2.*oldest this dbarts \\(3\\)"
+  pattern = "encoding version 0.*oldest this dbarts \\(1\\)"
 )
 
 # naming: a missing REQUIRED per-chain block is refused, naming the block.

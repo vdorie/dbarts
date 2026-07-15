@@ -465,6 +465,22 @@ C5. State round-trip (separable under Q4-primary). The K forests already seriali
    a state round-trip component test (structural, NOT bitwise - the BCF fixture's
    rule) + both anchors + tinytest. Size: S (Q4-primary) or M (Q4-serialize).
 
+### C5 landing (2026-07-15)
+
+Q4-primary held with nothing to serialize: the multinomial combiner carries
+no wire glue (serializeGlue/restoreGlue untouched no-ops), omega is a
+per-sweep latent the interleaved draw re-seeds against the restored forests,
+and the structural K-forest round-trip landed with C4's component tests. The
+remaining content was the VD-directed flatten: stateFormatVersion and
+minReadableStateFormatVersion collapsed from 3 to 1 - the 1.0-0 encoding is
+the first shipped format, so the pre-release development increments
+(the forests-list/BCF restructure included) fold into it; a state with no
+version attribute reads as 0 and still refuses at the floor. Pins updated in
+test-sampler-state-format.R (current 1, future 2, below-floor 0);
+test-bartcore.R's relative below-floor construction needed nothing. Gates:
+both anchors and the multinomial fixture identical, tests/cpp from make
+clean, tinytest 2865 all ok, air clean.
+
 C6. Docs. Design note docs/design/multinomial.md (likelihood; the INTERLEAVED
    one-vs-rest PG cycle with the per-forest hook; the LEVEL-CENTERING move;
    identification; the prior/leaf-scale calibration curve for K = 2, 3, 5; the
