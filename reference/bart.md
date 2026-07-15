@@ -49,7 +49,7 @@ bart2(
     warm.start = NULL,
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
     missing = c("incorporate", "error"),
     ...)
 
@@ -86,6 +86,21 @@ fitted(
 
 # S3 method for class 'bart'
 residuals(object, type = "ev", ...)
+
+# S3 method for class 'bartMultinomial'
+extract(
+    object,
+    type = c("ev", "ppd", "bart"),
+    sample = c("train", "test"), ...)
+
+# S3 method for class 'bartMultinomial'
+fitted(object, type = c("ev", "class"), ...)
+
+# S3 method for class 'bartMultinomial'
+predict(object, newdata, ...)
+
+# S3 method for class 'bartMultinomial'
+print(x, ...)
 ```
 
 ## Arguments
@@ -379,6 +394,29 @@ residuals(object, type = "ev", ...)
   different model-matrix representation, so a factor-predictor fit
   changes if moved from one interface to the other), binary responses
   are probit, and missing data are rejected.
+
+  `family = "multinomial"` fits a K-category softmax classifier: K
+  forests, one per category, coupled through an interleaved Polya-Gamma
+  one-vs-rest augmentation (see `docs/design/multinomial.md`). `y.train`
+  must be a factor (or character, coerced with
+  [`factor`](https://rdrr.io/r/base/factor.html)) with at least two
+  levels and no `NA`s or `NA` levels; `K = nlevels(y.train)` is
+  inferred, never given explicitly, and `levels(y.train)` is captured at
+  fit time and carried on every K-shaped output (`yhat.train`'s trailing
+  dimension, `fitted`'s columns, the `fitted(type = "class")` factor).
+  Only the matrix interface is supported this arc -
+  `bart2(x.train, y.train, family = "multinomial")`, not a formula.
+  `weights`, `offset`, `subset`, `test`, `keepTrees`, `samplerOnly`,
+  `warm.start`, and `n.grow.sweeps` are all refused with an error naming
+  the limitation: there is no multi-forest test/prediction/saved-tree
+  surface yet. The per-forest leaf scale follows its own K-dependent
+  calibration (the K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\
+  divided by \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is
+  read from the usual node prior exactly as for any other family, but
+  the node prior's `node.scale` itself is NOT consulted - the
+  multinomial engine calibrates its own. The fit's class is
+  `"bartMultinomial"`, not `"bart"`: see ‘Value’ below and the
+  `extract`/`fitted`/`predict` methods for `bartMultinomial` objects.
 
 - formula:
 
@@ -740,6 +778,43 @@ Note that in the binary \\y\\, case `yhat.train` and `yhat.test` are
 \| x)\\, apply the family's inverse link to these values: the normal cdf
 (`pnorm`) for `"probit"` fits, `plogis` for `"logistic"` ones.
 
+`bart2(family = "multinomial")` returns a *different* list, of class
+`"bartMultinomial"` (never `"bart"` - its generics are separate, below,
+precisely so a K-category fit cannot silently flow through a method that
+assumes the single-category shape). Components: `call`, `family`
+(`"multinomial"`), `levels` (the captured `levels(y.train)`, length K),
+`K`, `n.chains`, `n.trees`, `y` (the original factor response), and
+`yhat.train` - the posterior draws of the K softmax probabilities, an
+array of dimension (`n.chains` \\\times\\, when `n.chains > 1` and
+`combineChains = FALSE`) `n.samples` \\\times\\ number of training
+observations \\\times\\ K, with `levels(y.train)` as the trailing
+dimension's names; `combineChains = TRUE` (the default) folds the chain
+margin into the samples margin as usual. `yhat.train` already holds
+PROBABILITIES, not a latent score - there is no `"bart"`-scale component
+to convert, unlike the binary families. There is no `yhat.test` (no test
+surface this arc), no `varcount` (the run's per-sample variable-count
+channel addresses category 0's forest only, so it would mislabel every
+other category's usage; per-category CURRENT-STATE split counts are
+reachable internally via `dbarts:::bartcoreForestVariableCounts` while
+the underlying sampler is live, but this fit object does not keep it),
+and no `fit` (`keepSampler`/`keepTrees` are refused, so there is nothing
+to predict from later).
+
+Generics for a `"bartMultinomial"` fit: `fitted(object)` (`type = "ev"`,
+the default) returns the posterior-mean n \\\times\\ K probability
+matrix, columns named by `levels(y.train)`;
+`fitted(object, type = "class")` returns the argmax of that mean matrix
+as a factor over the original levels - a classification convenience.
+`extract(object, type = "ev")` returns the full `yhat.train` draws;
+`extract(object, type = "ppd")` draws one category per posterior draw
+from its probability vector, returned as an integer code (1-based,
+indexing `levels(y.train)`) in an array shaped like `"ev"` minus the K
+margin. `extract`/`fitted` with `type = "bart"` and `predict` both
+error, naming the reason: the run records only the identified softmax
+probabilities (the raw per-category latent fits are non-identified, in
+the same sense as BCF's \\a\\, and are not recorded), and there is no
+multi-forest prediction surface yet.
+
 For continuous response fits, the `plot` method sets `mfrow` to
 `c(1, 2)` and makes two plots. The first plot is the sequence of kept
 draws of \\\sigma\\ including the burn-in draws. Initially these draws
@@ -836,7 +911,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.206271
+#> total seconds in loop: 0.168021
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -902,7 +977,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001190
+#> total seconds in loop: 0.001067
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
