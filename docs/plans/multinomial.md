@@ -294,7 +294,10 @@ the 4008675 recording; their sum now trips the 5% gate on the largest arm.
 The 4008675 baseline predates the forest-combiner close and will keep
 tripping n = 10000: re-record it in a COLD quiet window (not this one - the
 warm-machine runs above would bake a generous reference that masks small
-regressions) before it gates another arc.
+regressions) before it gates another arc. DISCHARGED 2026-07-15:
+bench-sampler-60a13b6.csv recorded cold at the arc close; its values sit in
+the band of the four same-code runs above, so the drift vs 4008675 was
+persistent machine state, not thermal.
 
 ## Phase B - the multinomial model (C4-C6)
 
