@@ -414,6 +414,39 @@ C4. The multinomial model, one gated commit. Sub-parts:
    .Call entry points; "rchk on next scheduled run" per README). Size: XL (this is
    the model).
 
+### C4 landing (2026-07-15)
+
+Landed as bb8855e, one gated commit. Gates verified twice (implementer, then
+an independent orchestrator re-run): equivalence 22/22 identical draws,
+bcf-equivalence five scenarios x six channels identical, the exact gate's
+three arms at max gaps 0.0000 / 0.0008 / 0.0012 against tolerances
+0.008 / 0.008 / 0.015, tests/cpp from make clean, full tinytest 2865 all ok
+with zero regenerated snapshots, air check clean. The bitwise fixture is
+recorded as multinomial-equivalence-bb8855e.rds and registered in the
+MANIFEST (which also gained the missing bcf-equivalence-99205ee and
+bench-sampler-4008675 entries). rchk on the next scheduled run
+(bartcore_createMultinomial is a new .Call entry point).
+
+An adversarial Opus review confirmed the interleaved draw, the exact-gate
+construction, the bridge lifetimes, and BOTH deviations from the plan text
+as correctness-forced; C6's design note must record them:
+
+- The LEVEL-CENTERING move is a GLOBAL scalar shift, not the per-observation
+  shift written above. A per-observation shift is not representable by
+  shared-leaf trees, so the next backfit projects the mismatch and biases the
+  identified probabilities (~2-4 percent Jensen bias, measured against the
+  exact gate). The global shift is the one flat direction a forest carries
+  exactly (absorbed into totalFits plus tree 0's fit slab, keeping the
+  residual roll consistent), moves only the non-identified level, and is
+  drawn from its exact Gaussian conditional under the symmetric per-forest
+  priors - valid Gibbs, mixing-only in the level direction.
+- The K = 2 == logistic exact-gate arm is INTERCEPT-ONLY. A covariate K = 2
+  multinomial log-odds is a difference of two m-tree ensembles, logistic a
+  single m-tree ensemble: equal prior covariance at the sqrt(2) calibration
+  but a different function-space prior, so equality is exact only at
+  intercept. Covariate tree growth under softmax is gated by arm 3's
+  per-cell quadrature.
+
 C5. State round-trip (separable under Q4-primary). The K forests already serialize
    through SLOT_FORESTS (the per-forest list, any length). Under Q4-primary (redraw
    the PG latents on restore, matching the "restore is structural" contract
