@@ -93,6 +93,10 @@ void dbarts_sampler_destroy(dbarts_sampler* sampler) {
 void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
                         size_t numSamples, dbarts_results* results) {
   bartcore::Results engineResults;
+  // the internal location stride (invisible to the frozen dbarts_results ABI):
+  // 1 for every dbarts.h-created sampler, since the flat C API builds no
+  // multi-location model, so the caller's n x numSamples train/test hold
+  engineResults.numReportedLocations = samplerOf(sampler).numReportedLocations();
   if (results != NULL && numSamples > 0) {
     // A field is filled only when present-by-size AND non-null; a zero
     // structSize (caller forgot to set it) is an all-skip no-op. offsetof is

@@ -139,6 +139,10 @@ public:
   /// Forest count: 1 for every non-BCF sampler, 2 for BCF (prognostic +
   /// treatment).
   virtual std::size_t numForests() const = 0;
+  /// Per-observation channels the recorded fits carry: 1 for every additive
+  /// model (BCF included), more for a multi-location combiner. The run bridge
+  /// reads it to size trainingFits/testFits; internal, invisible to dbarts.h.
+  virtual std::size_t numReportedLocations() const = 0;
   /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
   /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
   virtual void setTreatment(const double* z) = 0;
@@ -327,6 +331,9 @@ public:
   std::size_t numChains() const override { return impl_.numChains(); }
   std::size_t numThreads() const override { return impl_.numThreads(); }
   std::size_t numForests() const override { return impl_.numForests(); }
+  std::size_t numReportedLocations() const override {
+    return impl_.numReportedLocations();
+  }
   void setTreatment(const double* z) override { impl_.setTreatment(z); }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
     return impl_.bcfGlue(chainNum, out);

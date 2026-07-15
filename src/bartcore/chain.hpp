@@ -207,6 +207,11 @@ struct Results {
   // per-draw training log-likelihood, numObservations x numSamples, or null;
   // gaussian and binary families, NaN under BCF
   double* logLikelihood = nullptr;
+  // per-observation channels the trainingFits/testFits arrays carry: 1 for
+  // every additive model (the exact current layout), more for a multi-location
+  // combiner. The run bridge sizes the fits buffers by it and Sampler strides
+  // per chain by it; storeSample reads the count from the combiner directly.
+  std::size_t numReportedLocations = 1;
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -398,6 +403,11 @@ public:
   std::size_t numForests() const { return forests_.size(); }
   std::size_t numTreesInForest(std::size_t f) const {
     return forests_[f].numTrees;
+  }
+  /// Per-observation channels the recorded fits carry: the combiner's location
+  /// count (1 for every additive combiner, BCF included), 1 off any combiner.
+  std::size_t numReportedLocations() const {
+    return combiner_ ? combiner_->numReportedLocations() : 1;
   }
   bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
@@ -2065,41 +2075,49 @@ private:
 
     if (results.k != nullptr) results.k[sampleNum] = forest.k;
 
+    // the combined output carries one per-observation channel per reported
+    // location (one everywhere but a multi-location combiner); the writes stride
+    // location-major within a sample so L = 1 is the exact current byte layout
+    size_t numLocations = combiner_ ? combiner_->numReportedLocations() : 1;
+
     if (results.trainingFits != nullptr) {
-      double* out = results.trainingFits + sampleNum * n;
-      if (combiner_) {
-        // the combiner owns the blend; recompute it against the post-glue
-        // scalars this sweep settled on (combinedFits at the sweep top ran
-        // before the glue draw)
-        const double* combined = combiner_->combinedFits(forests_);
-        for (size_t i = 0; i < n; ++i)
-          out[i] = scale * combined[i] + shift;
-      } else {
-        for (size_t i = 0; i < n; ++i)
-          out[i] = scale * forest.totalFits[i] + shift;
-      }
-      // original-scale convention, matching the recorded test fits: any
-      // offset is part of the fit
+      double* out = results.trainingFits + sampleNum * n * numLocations;
+      // the combiner owns the blend; recompute it against the post-glue scalars
+      // this sweep settled on (combinedFits at the sweep top ran before the
+      // glue draw). Off any combiner the reported forest's own fits are it.
+      const double* combined =
+        combiner_ ? combiner_->combinedFits(forests_) : forest.totalFits.data();
       const double* offset = response_->offset();
-      if (offset != nullptr) misc_addVectorsInPlace(offset, n, out);
+      for (size_t loc = 0; loc < numLocations; ++loc) {
+        double* dst = out + loc * n;
+        const double* src = combined + loc * n;
+        for (size_t i = 0; i < n; ++i)
+          dst[i] = scale * src[i] + shift;
+        // original-scale convention, matching the recorded test fits: any
+        // offset is part of the fit
+        if (offset != nullptr) misc_addVectorsInPlace(offset, n, dst);
+      }
     }
 
     if (results.testFits != nullptr && data_.numTestObservations > 0) {
-      double* out = results.testFits + sampleNum * data_.numTestObservations;
+      size_t nTest = data_.numTestObservations;
+      double* out = results.testFits + sampleNum * nTest * numLocations;
       if (combiner_ && !combiner_->testFitsAreDefined()) {
         // A BCF test blend a * mu + b_z * tau is ill-defined here: the API
         // carries no test treatment vector, so only the bare prognostic
         // forest could be recorded, which silently misreports the fit.
         // Flag the channel as unusable; BCF consumers recombine per forest
         // via forestTotalFits + the bcfGlue coefficients (docs/design/bcf.md).
-        for (size_t i = 0; i < data_.numTestObservations; ++i)
+        for (size_t i = 0; i < nTest * numLocations; ++i)
           out[i] = std::numeric_limits<double>::quiet_NaN();
       } else {
-        for (size_t i = 0; i < data_.numTestObservations; ++i)
-          out[i] = scale * forest.totalTestFits[i] + shift;
-        if (data_.testOffset != nullptr)
-          misc_addVectorsInPlace(data_.testOffset, data_.numTestObservations,
-                                 out);
+        for (size_t loc = 0; loc < numLocations; ++loc) {
+          double* dst = out + loc * nTest;
+          for (size_t i = 0; i < nTest; ++i)
+            dst[i] = scale * forest.totalTestFits[i] + shift;
+          if (data_.testOffset != nullptr)
+            misc_addVectorsInPlace(data_.testOffset, nTest, dst);
+        }
       }
     }
 

@@ -1408,6 +1408,36 @@ void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
              "the BCF glue instead", caller);
 }
 
+// A whole-data mutation (setData, setResponse, setWeights) rebuilds only
+// forest 0: applyNewData and the response/latent refresh touch forests_[0], so
+// on a multi-forest sampler (BCF, and any future multi-forest model) the other
+// forests would keep fits against the old data. Refuse it; a multi-forest
+// sampler fixes its data at creation, as grouped/sparse/aft samplers do.
+// setTreatment, the one supported multi-forest data swap, routes through the
+// combiner and stays allowed.
+void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
+                               const char* caller) {
+  if (sampler.numForests() >= 2)
+    Rf_error("%s: a multi-forest sampler fixes its data at creation; make a "
+             "new sampler instead", caller);
+}
+
+// The transactional predictor paths (setPredictor and updatePredictor without
+// forceUpdate, and the per-observation sessions, which have no force variant)
+// validate and rebuild through revalidateAllChains, which revalidates only the
+// primary forest - an accepted change would leave a multi-forest sampler's
+// other forests routed against stale codes. The FORCE paths refresh every
+// forest (forceRefreshTrees) and stay available: a forced whole-matrix
+// setPredictor is the supported multi-forest predictor swap (the bartCause
+// propensity pattern).
+void refuseMultiForestTransactionalUpdate(const bartcore::SamplerBase& sampler,
+                                          const char* caller) {
+  if (sampler.numForests() >= 2)
+    Rf_error("%s: a transactional predictor update validates only the primary "
+             "forest of a multi-forest sampler; use setPredictor with "
+             "forceUpdate = TRUE or make a new sampler instead", caller);
+}
+
 // A built column store (cuts + codes) shared by row-subset view samplers
 // (public-surface.md section 5; internal). The external pointer's
 // protection slot pins the data expression whose x the store borrows.
@@ -2048,6 +2078,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.splitProbabilities = sampler.usesDart() ? REAL(varprobsExpr) : NULL;
   results.tau = numGroups > 0 ? REAL(tauExpr) : NULL;
   results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
+  // one per-observation fits channel per reported location; 1 for every model
+  // today, so the fits arrays keep their n x numSamples shape. The location
+  // stride drives the chain-major slabbing (multiple chains).
+  results.numReportedLocations = sampler.numReportedLocations();
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
@@ -2120,6 +2154,9 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
     ? NULL : reinterpret_cast<uint32_t*>(INTEGER(varcountExpr));
   results.k = Rf_isNull(kExpr) ? NULL : REAL(kExpr);
   results.splitProbabilities = Rf_isNull(varprobsExpr) ? NULL : REAL(varprobsExpr);
+  // single chain here, so the location stride only shapes the fits buffers the
+  // caller allocated; 1 for every model today (n x numSamples)
+  results.numReportedLocations = sampler.numReportedLocations();
 
   bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
@@ -2193,6 +2230,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
 
 SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseMultiForestMutation(*holder.sampler, "bartcore_setResponse");
   if (holder.sampler->numGroups() > 0)
     Rf_error("grouped random effects fix the response at creation; make a "
              "new sampler instead");
@@ -2219,6 +2257,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   refuseViewSampler(sampler, "bartcore_setData");
+  refuseMultiForestMutation(sampler, "bartcore_setData");
   if (sampler.numGroups() > 0)
     Rf_error("grouped random effects fix the data at creation; make a new "
              "sampler instead");
@@ -2407,6 +2446,7 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // weighting was incorrect and was stripped rather than ported.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  refuseMultiForestMutation(*holder.sampler, "bartcore_setWeights");
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) !=
@@ -2558,6 +2598,9 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   refuseViewSampler(*holder.sampler, "bartcore_setPredictor");
+  if (Rf_asLogical(forceUpdateExpr) != TRUE)
+    refuseMultiForestTransactionalUpdate(*holder.sampler,
+                                         "bartcore_setPredictor");
   SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
   if (Rf_isNull(dims) || Rf_xlength(dims) != 2 ||
       static_cast<size_t>(INTEGER(dims)[0]) != holder.sampler->numObservations() ||
@@ -2586,6 +2629,9 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
   return unwindProtect([&, columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseViewSampler(*holder.sampler, "bartcore_updatePredictor");
+    if (Rf_asLogical(forceUpdateExpr) != TRUE)
+      refuseMultiForestTransactionalUpdate(*holder.sampler,
+                                           "bartcore_updatePredictor");
     size_t numObservations = holder.sampler->numObservations();
     size_t numPredictors = holder.sampler->numPredictors();
 
@@ -2672,6 +2718,8 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                                             SEXP columnExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   refuseViewSampler(*holder.sampler, "bartcore_updatePredictorPerObservation");
+  refuseMultiForestTransactionalUpdate(
+    *holder.sampler, "bartcore_updatePredictorPerObservation");
   size_t numObservations = holder.sampler->numObservations();
 
   if (static_cast<size_t>(Rf_xlength(xExpr)) != numObservations)
@@ -2727,6 +2775,8 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
         holderFromExpression(VECTOR_ELT(ptrsExpr, static_cast<R_xlen_t>(k))));
       refuseViewSampler(*holder.sampler,
                         "bartcore_updatePredictorPerObservationJointly");
+      refuseMultiForestTransactionalUpdate(
+        *holder.sampler, "bartcore_updatePredictorPerObservationJointly");
       samplers[k] = holder.sampler.get();
       int column = INTEGER(columnsExpr)[k];
       if (column < 1 ||

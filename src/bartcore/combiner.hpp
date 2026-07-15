@@ -238,6 +238,14 @@ struct ForestCombiner {
   virtual bool testFitsAreDefined() const { return true; }
   virtual bool logLikelihoodIsDefined() const { return true; }
 
+  /// How many per-observation channels combinedFits packs, one per reported
+  /// location: 1 for every additive combiner (BCF's a mu + b_z tau is a single
+  /// location), K for a model whose combined output is K per-observation values
+  /// (softmax probabilities). storeSample loops its training/test writes over
+  /// this count, and the run bridge sizes the fits arrays by it; L = 1 leaves
+  /// the single-location byte layout every existing path relies on.
+  virtual std::size_t numReportedLocations() const { return 1; }
+
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
   /// combiner carries glue.
   virtual void serializeGlue(ChainStateData&) const {}
