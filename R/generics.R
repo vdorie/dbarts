@@ -381,6 +381,104 @@ residuals.bart <- function(object, type = "ev", ...) {
   object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
+# bart2(family = "multinomial") generics (docs/plans/multinomial.md C7). The
+# fit object is class "bartMultinomial" - deliberately NOT "bart" - so it
+# never falls through to the "bart" methods above: those assume an n x
+# samples (x chains) shape with no K margin and would silently misread the
+# K-widened arrays here rather than error.
+#
+# type = "ev" is the engine's own train channel: already softmax
+# PROBABILITIES (Q3 of docs/plans/multinomial.md), so unlike the binary
+# families there is no latent-to-probability transform. type = "bart" (the
+# latent scale) is refused: the run records only the identified
+# probabilities, and the raw per-category fits are non-identified and
+# unrecorded. type = "ppd" draws one category per posterior draw from its
+# probability vector, returned as integer codes (1-based, indexing
+# object$levels) in an array shaped like "ev" minus the K margin - the same
+# "ppd keeps ev's shape" convention the binary families use.
+extract.bartMultinomial <- function(
+  object,
+  type = c("ev", "ppd", "bart"),
+  sample = c("train", "test"),
+  ...
+) {
+  type <- match.arg(type)
+  sample <- match.arg(sample)
+  if (sample == "test") {
+    stop(
+      "multinomial fits have no test surface this arc: 'test' is refused ",
+      "at bart2() and there is nothing to extract"
+    )
+  }
+  if (type == "bart") {
+    stop(
+      "type = \"bart\" is not available for multinomial fits: the run ",
+      "records only the identified softmax probabilities; the raw ",
+      "per-category latent fits are non-identified and unrecorded"
+    )
+  }
+
+  probs <- object$yhat.train
+  if (type == "ev") {
+    return(probs)
+  }
+
+  # type == "ppd": K rides the trailing dimension already, so reinterpreting
+  # the same flat storage as a (draws * obs) x K matrix needs no permutation.
+  d <- dim(probs)
+  K <- d[length(d)]
+  flat <- probs
+  dim(flat) <- c(prod(d[-length(d)]), K)
+  codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
+  array(codes, d[-length(d)])
+}
+
+# The posterior-mean n x K probability matrix (colnames = levels(y)), or
+# (type = "class") the argmax category of that mean as a factor over the
+# original levels - the class-prediction convenience.
+fitted.bartMultinomial <- function(object, type = c("ev", "class"), ...) {
+  type <- match.arg(type)
+  probs <- extract.bartMultinomial(object, type = "ev", sample = "train")
+  d <- dim(probs)
+  numDims <- length(d)
+  meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
+  dimnames(meanProbs) <- list(NULL, object$levels)
+
+  if (type == "ev") {
+    return(meanProbs)
+  }
+  factor(
+    object$levels[max.col(meanProbs, ties.method = "first")],
+    levels = object$levels
+  )
+}
+
+predict.bartMultinomial <- function(object, newdata, ...) {
+  stop(
+    "predict() is not supported for multinomial fits: there is no ",
+    "multi-forest prediction surface this arc; see ?bart2"
+  )
+}
+
+print.bartMultinomial <- function(x, ...) {
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  cat("family: multinomial\n")
+  cat("levels: ", paste(x$levels, collapse = ", "), "\n", sep = "")
+  cat("n.chains: ", x$n.chains, "\n", sep = "")
+  cat("n.trees: ", x$n.trees, "\n", sep = "")
+  d <- dim(x$yhat.train)
+  n.kept <- if (length(d) == 4L) d[2L] else d[1L]
+  cat("kept draws (per chain): ", n.kept, "\n", sep = "")
+  invisible(x)
+}
+
 predict.rbart <- function(
   object,
   newdata,

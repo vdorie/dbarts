@@ -7,6 +7,10 @@
 \alias{extract.bart}
 \alias{fitted.bart}
 \alias{residuals.bart}
+\alias{extract.bartMultinomial}
+\alias{fitted.bartMultinomial}
+\alias{predict.bartMultinomial}
+\alias{print.bartMultinomial}
 \title{Bayesian Additive Regression Trees}
 \description{
 BART is a Bayesian \dQuote{sum-of-trees} model in which each tree is constrained by a prior to be a weak learner.
@@ -54,7 +58,7 @@ bart2(
     warm.start = NULL,
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
     missing = c("incorporate", "error"),
     \dots)
 
@@ -86,6 +90,17 @@ extract(object, \dots)
     \dots)
 
 \method{residuals}{bart}(object, type = "ev", \dots)
+
+\method{extract}{bartMultinomial}(
+    object,
+    type = c("ev", "ppd", "bart"),
+    sample = c("train", "test"), \dots)
+
+\method{fitted}{bartMultinomial}(object, type = c("ev", "class"), \dots)
+
+\method{predict}{bartMultinomial}(object, newdata, \dots)
+
+\method{print}{bartMultinomial}(x, \dots)
 }
 \arguments{
    \item{x.train}{
@@ -189,6 +204,8 @@ extract(object, \dots)
    }
    \item{factors, family, missing}{
      As in \code{\link{dbarts}}; \code{bart2} only. \code{bart} keeps the historical behavior: factors always expand into indicator columns (\code{bart2}'s default, \code{"categorical"}, instead keeps each unordered factor as a single predictor - a different model-matrix representation, so a factor-predictor fit changes if moved from one interface to the other), binary responses are probit, and missing data are rejected.
+
+     \code{family = "multinomial"} fits a K-category softmax classifier: K forests, one per category, coupled through an interleaved Polya-Gamma one-vs-rest augmentation (see \code{docs/design/multinomial.md}). \code{y.train} must be a factor (or character, coerced with \code{\link{factor}}) with at least two levels and no \code{NA}s or \code{NA} levels; \code{K = nlevels(y.train)} is inferred, never given explicitly, and \code{levels(y.train)} is captured at fit time and carried on every K-shaped output (\code{yhat.train}'s trailing dimension, \code{fitted}'s columns, the \code{fitted(type = "class")} factor). Only the matrix interface is supported this arc - \code{bart2(x.train, y.train, family = "multinomial")}, not a formula. \code{weights}, \code{offset}, \code{subset}, \code{test}, \code{keepTrees}, \code{samplerOnly}, \code{warm.start}, and \code{n.grow.sweeps} are all refused with an error naming the limitation: there is no multi-forest test/prediction/saved-tree surface yet. The per-forest leaf scale follows its own K-dependent calibration (the K = 2 anchor is the logistic scale \eqn{\pi\sqrt{3}}{pi*sqrt(3)} divided by \eqn{\sqrt{2}}{sqrt(2)}, for the identified pairwise log-odds); \code{k} is read from the usual node prior exactly as for any other family, but the node prior's \code{node.scale} itself is NOT consulted - the multinomial engine calibrates its own. The fit's class is \code{"bartMultinomial"}, not \code{"bart"}: see \sQuote{Value} below and the \code{extract}/\code{fitted}/\code{predict} methods for \code{bartMultinomial} objects.
    }
    \item{formula}{
      The same as \code{x.train}, the name reflecting that a formula object can be used instead.
@@ -339,6 +356,10 @@ extract(object, \dots)
   In the binary \eqn{y} case, the returned list has the components \code{yhat.train}, \code{yhat.test}, and \code{varcount} as above, but not \code{yhat.train.mean}/\code{yhat.test.mean} - use \code{fitted} to get the posterior mean of \eqn{P(Y = 1 \mid x)}{P(Y = 1 | x)} instead. In addition the list has a \code{binaryOffset} component giving the value used.
 
   Note that in the binary \eqn{y}, case \code{yhat.train} and \code{yhat.test} are \eqn{f(x) + \mathrm{binaryOffset}}{f(x) + binaryOffset}. For draws of the probability \eqn{P(Y = 1 | x)}, apply the family's inverse link to these values: the normal cdf (\code{pnorm}) for \code{"probit"} fits, \code{plogis} for \code{"logistic"} ones.
+
+  \code{bart2(family = "multinomial")} returns a \emph{different} list, of class \code{"bartMultinomial"} (never \code{"bart"} - its generics are separate, below, precisely so a K-category fit cannot silently flow through a method that assumes the single-category shape). Components: \code{call}, \code{family} (\code{"multinomial"}), \code{levels} (the captured \code{levels(y.train)}, length K), \code{K}, \code{n.chains}, \code{n.trees}, \code{y} (the original factor response), and \code{yhat.train} - the posterior draws of the K softmax probabilities, an array of dimension (\code{n.chains} \eqn{\times}, when \code{n.chains > 1} and \code{combineChains = FALSE}) \code{n.samples} \eqn{\times} number of training observations \eqn{\times} K, with \code{levels(y.train)} as the trailing dimension's names; \code{combineChains = TRUE} (the default) folds the chain margin into the samples margin as usual. \code{yhat.train} already holds PROBABILITIES, not a latent score - there is no \code{"bart"}-scale component to convert, unlike the binary families. There is no \code{yhat.test} (no test surface this arc), no \code{varcount} (the run's per-sample variable-count channel addresses category 0's forest only, so it would mislabel every other category's usage; per-category CURRENT-STATE split counts are reachable internally via \code{dbarts:::bartcoreForestVariableCounts} while the underlying sampler is live, but this fit object does not keep it), and no \code{fit} (\code{keepSampler}/\code{keepTrees} are refused, so there is nothing to predict from later).
+
+  Generics for a \code{"bartMultinomial"} fit: \code{fitted(object)} (\code{type = "ev"}, the default) returns the posterior-mean n \eqn{\times} K probability matrix, columns named by \code{levels(y.train)}; \code{fitted(object, type = "class")} returns the argmax of that mean matrix as a factor over the original levels - a classification convenience. \code{extract(object, type = "ev")} returns the full \code{yhat.train} draws; \code{extract(object, type = "ppd")} draws one category per posterior draw from its probability vector, returned as an integer code (1-based, indexing \code{levels(y.train)}) in an array shaped like \code{"ev"} minus the K margin. \code{extract}/\code{fitted} with \code{type = "bart"} and \code{predict} both error, naming the reason: the run records only the identified softmax probabilities (the raw per-category latent fits are non-identified, in the same sense as BCF's \eqn{a}, and are not recorded), and there is no multi-forest prediction surface yet.
 
   For continuous response fits, the \code{plot} method sets \code{mfrow} to \code{c(1, 2)} and makes two plots. The first plot is the sequence of kept draws of \eqn{\sigma} including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \eqn{y} on the horizontal axis and posterior intervals for the corresponding \eqn{f(x)} on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \eqn{P(Y = 1 \mid x)} on the horizontal axis and its posterior interval on the vertical axis.
 }
