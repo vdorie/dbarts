@@ -169,12 +169,20 @@ the tolerances bound MC plus quadrature error and are never widened to pass.
 
 ## The surface
 
-Creation is internal: bartcoreMultinomialSampler (R/bartcore.R) ->
+Creation runs through bartcoreMultinomialSampler (R/bartcore.R) ->
 C_dbarts_bartcore_createMultinomial -> createMultinomialHolder
-(src/R_interface_bartcore.cpp) builds a MultinomialSpec and calls
+(src/R_interface_bartcore.cpp), which builds a MultinomialSpec and calls
 createMultinomialSampler (a single ConstantGaussianLeaf instantiation, as BCF).
-The public bart2 family surface is a separate step, not this one; BCF ships
-internal-only the same way.
+The public entry is bart2(family = "multinomial") (R/bart.R): a factor
+response, K from levels(y), the level names threaded onto every K-shaped
+output, probability-scale generics with an argmax class convenience, and a
+fit class of its own (bartMultinomial) so no single-forest generic misreads
+the K-widened arrays; its fit path reproduces the internal pattern bit for
+bit (test-multinomial-surface.R pins it). Unsupported surface is refused by
+name, never silently reshaped: test data, weights, offset, keepTrees, the
+latent type, predict on new data, and the per-sample varcount channel
+(which addresses category 0 only) is omitted from the fit rather than
+mislabeled.
 
 - Labels are single-trial category codes 0..K-1, one integer per observation -
   the labels are the response, so the host sampler's own response is ignored;
