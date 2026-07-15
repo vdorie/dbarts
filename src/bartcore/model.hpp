@@ -2325,6 +2325,62 @@ private:
   std::vector<double> working_;
 };
 
+/// The response family for a multinomial (softmax) chain: a thin shell whose
+/// single-location seams are vestigial. The K interleaved Polya-Gamma draws,
+/// the per-forest working responses, and the level-centering move all live in
+/// MultinomialForestCombiner (combiner.hpp), which owns the category labels;
+/// this family carries no sigma (fixed, like the binary families) and no
+/// latents. refreshLatents and drawSigma are no-ops, and the log-likelihood
+/// channel is left NaN-flagged (the default computeLogLikelihood): storeSample
+/// scores one forest's fits, which cannot see the K-blend, so
+/// logLikelihoodIsDefined() = false is the reporting map's answer (BCF's exact
+/// choice). fitScale/fitShift are identity so storeSample passes the softmax
+/// probabilities the combiner writes through unchanged.
+class MultinomialResponse final : public ResponseModel {
+public:
+  explicit MultinomialResponse(std::size_t numObservations)
+    : numObservations_(numObservations) {
+    working_.assign(numObservations, 0.0);
+  }
+
+  // The combiner owns the working response and precisions; the sweep still
+  // reads these, then hands them to formForestResponse, which ignores them.
+  double* workingResponse() override { return working_.data(); }
+  const double* workingWeights() const override { return nullptr; }
+  const double* offset() const override { return nullptr; }
+
+  // M6 guard: the sweep hands combinedFits' K x n softmax buffer here as a
+  // single-location pointer. This no-op ignores it; a future non-no-op
+  // refreshLatents must NOT read it as one channel (it is K per observation).
+  void refreshLatents(ext_rng*, const double* combinedFits, double) override {
+    (void) combinedFits;
+  }
+
+  double drawSigma(ext_rng*, const double*, double sigma) override {
+    return sigma;
+  }
+
+  // Whole-data mutation is refused for a multi-forest sampler at the R bridge,
+  // so these are unreachable; kept minimal to satisfy the interface.
+  void setResponse(const double*, ext_rng*, const double*, bool,
+                   double*) override {}
+  void setOffset(const double*, bool, double*) override {}
+  void setData(const double*, const double*, const double*,
+               std::size_t numObservations, double*) override {
+    numObservations_ = numObservations;
+    working_.assign(numObservations, 0.0);
+  }
+
+  double initialSigma() const override { return 1.0; }
+  double fitScale() const override { return 1.0; }
+  double fitShift() const override { return 0.0; }
+  double sigmaScale() const override { return 1.0; }
+
+private:
+  std::size_t numObservations_;
+  std::vector<double> working_;
+};
+
 /// Accelerated failure time, log-normal error (docs/design/survival.md):
 ///   log T_i = f(x_i) + offset_i + sigma * eps_i,   eps_i ~ N(0, 1).
 /// The forest fits log T on the log scale exactly as GaussianResponse, which

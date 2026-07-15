@@ -542,6 +542,43 @@ bartcoreBCFSampler <- function(
   result
 }
 
+# A K-forest multinomial (softmax) sampler (docs/design/multinomial.md),
+# internal and single-trial: the K symmetric category forests couple through a
+# softmax likelihood with an interleaved one-vs-rest Polya-Gamma augmentation
+# and a level-centering move. labels are the 0-based category codes (0..K-1),
+# one per observation - the response, so the host sampler's own response is
+# ignored. K defaults to one past the largest code. The per-forest leaf scale
+# follows the multinomial calibration (pi*sqrt(3)/sqrt(2)), not the host node
+# prior. The run's train channel carries the K softmax probabilities
+# (n.observations x K x n.samples); per-category fits and split counts read
+# through bartcoreForestFits / bartcoreForestVariableCounts (0-based forest =
+# category). Out-of-sample prediction and test fits are refused this arc.
+bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
+  labels <- as.integer(labels)
+  if (anyNA(labels)) {
+    stop("multinomial labels must be integer category codes 0..K-1")
+  }
+  if (any(labels < 0L)) {
+    stop("multinomial labels must be nonnegative category codes 0..K-1")
+  }
+  if (is.null(K)) {
+    K <- max(labels) + 1L
+  }
+  result <- new.env(parent = emptyenv())
+  result$ptr <- .Call(
+    C_dbarts_bartcore_createMultinomial,
+    sampler$control,
+    sampler$model,
+    sampler$data,
+    labels,
+    as.integer(K)
+  )
+  # the engine keeps no predictor matrix; track it R-side for the re-quantize
+  # surface, as the other dense-predictor wrappers do
+  result$x <- rawPredictorMatrix(sampler$data@x)
+  result
+}
+
 # The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and
 # both residuals on the next run.
 bartcoreSetTreatment <- function(bcSampler, z) {

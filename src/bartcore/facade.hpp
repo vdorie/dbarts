@@ -522,6 +522,17 @@ inline std::unique_ptr<SamplerBase> createBCFSampler(
     sigmaDf, sigmaRawScale, options, spec, rngs);
 }
 
+/// A K-forest multinomial (softmax) sampler (docs/design/multinomial.md):
+/// constant-leaf only, so the single instantiation. rngs supplies one
+/// generator per chain.
+inline std::unique_ptr<SamplerBase> createMultinomialSampler(
+  const double* x, std::size_t numObservations, std::size_t numPredictors,
+  const SamplerOptions& options, const MultinomialSpec& spec,
+  ext_rng* const* rngs) {
+  return std::make_unique<SamplerFacade<ConstantGaussianLeaf>>(
+    x, numObservations, numPredictors, options, spec, rngs);
+}
+
 }  // namespace bartcore
 
 #endif  // BARTCORE_FACADE_HPP

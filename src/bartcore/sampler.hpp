@@ -195,6 +195,32 @@ public:
     }
   }
 
+  /// A K-forest multinomial (softmax) sampler over dense predictors
+  /// (docs/design/multinomial.md): constant leaf only, no response/weights/
+  /// offset (the category labels ride the spec, single-trial this arc). The
+  /// CSC/mixed and view ingestion paths are not offered here.
+  Sampler(const double* x, size_t numObservations, size_t numPredictors,
+          const SamplerOptions& options, const MultinomialSpec& spec,
+          ext_rng* const* rngs)
+    : options_(options), family_(ResponseFamily::logistic) {
+    if (options.maxNumCutsPerVariable != nullptr)
+      data_.build(x, numObservations, numPredictors,
+                  options.maxNumCutsPerVariable, options.useQuantiles,
+                  options.columnTypes);
+    else
+      data_.build(x, numObservations, numPredictors, options.maxNumCuts,
+                  options.useQuantiles, options.columnTypes);
+    options_.maxNumCutsPerVariable = nullptr;
+    options_.columnTypes = nullptr;
+    // single-forest queries (numTrees, savedTree, printTrees) address forest 0
+    options_.numTrees = spec.forest.numTrees;
+
+    chains_.reserve(options_.numChains);
+    for (size_t c = 0; c < options_.numChains; ++c)
+      chains_.push_back(
+        std::make_unique<Chain<L>>(data_, options_, spec, rngs[c]));
+  }
+
   // chains reference the store member, so the sampler's address is pinned
   Sampler(const Sampler&) = delete;
   Sampler& operator=(const Sampler&) = delete;

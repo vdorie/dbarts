@@ -30,6 +30,10 @@ struct BartcoreHolder {
   // setTreatment installs a replacement without a protection slot
   std::vector<double> ownedTreatment;
 
+  // multinomial holds an owned copy of the 0..K-1 category labels the
+  // combiner borrows for the sampler's lifetime
+  std::vector<int> ownedLabels;
+
   // a mixed (sparse-bearing) container assembles its dense block transiently;
   // the holder owns it for the sampler's lifetime so the store's borrowed
   // dense slices never dangle (the R container keeps only a per-column list)

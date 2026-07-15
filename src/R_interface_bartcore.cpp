@@ -1659,6 +1659,75 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   return holder;
 }
 
+// A K-forest multinomial (softmax) sampler; internal, constant-leaf only
+// (docs/design/multinomial.md). The predictors ride the data object; the
+// data's response is ignored (the category labels are the response, borrowed
+// separately as 0..K-1 integer codes, single-trial this arc). Leaf-scale and
+// k follow the multinomial calibration, not the host node prior.
+BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
+                                        SEXP dataExpr, SEXP labelsExpr,
+                                        SEXP numCategoriesExpr) {
+  BartcoreHolder* holder = nullptr;
+  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
+                 labels = std::vector<int>{}]() mutable -> SEXP {
+    bool sigmaIsFixed;
+    parseSamplerSpecification(controlExpr, modelExpr, dataExpr, "", control,
+                              model, data, sigmaIsFixed);
+    validateCategoricalPredictors(data);
+    if (data.x == NULL)
+      Rf_error("multinomial requires dense predictors");
+    // a non-multinomial response combination: weights are not a coherent
+    // single-trial softmax likelihood this arc, and the labels must be codes
+    if (data.weights != NULL)
+      Rf_error("multinomial (softmax) models do not support case weights");
+
+    size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
+    if (numCategories < 2)
+      Rf_error("multinomial requires at least two categories");
+    if (!Rf_isInteger(labelsExpr) ||
+        static_cast<size_t>(Rf_xlength(labelsExpr)) != data.numObservations)
+      Rf_error("multinomial labels must be an integer code per observation");
+    labels.resize(data.numObservations);
+    const int* src = INTEGER(labelsExpr);
+    for (size_t i = 0; i < data.numObservations; ++i) {
+      if (src[i] < 0 || static_cast<size_t>(src[i]) >= numCategories)
+        Rf_error("multinomial label out of range 0..K-1");
+      labels[i] = src[i];
+    }
+
+    bartcore::SamplerOptions options =
+      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+    rngs = createChainRngs(control, options.numChains);
+
+    bartcore::MultinomialSpec spec;
+    spec.numCategories = numCategories;
+    spec.labels = labels.data();
+    // the K=2 pairwise-log-odds anchor (pi*sqrt(3)/sqrt(2)) and the host k; the
+    // host node scale (a gaussian default) is deliberately not read here
+    spec.k = model.k;
+    spec.forest.numTrees = options.numTrees;
+    spec.forest.base = model.base;
+    spec.forest.power = model.power;
+    spec.forest.birthOrDeathProbability = model.birthOrDeathProbability;
+    spec.forest.swapProbability = model.swapProbability;
+    spec.forest.changeProbability = model.changeProbability;
+    spec.forest.birthProbability = model.birthProbability;
+
+    std::unique_ptr<bartcore::SamplerBase> sampler =
+      bartcore::createMultinomialSampler(data.x, data.numObservations,
+                                         data.numPredictors, options,
+                                         spec, rngs.data());
+
+    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
+    // moving keeps the buffer, so the combiner's borrowed labels stay valid
+    holder->ownedLabels = std::move(labels);
+    return R_NilValue;
+  });
+  return holder;
+}
+
 } // namespace bartcore_bridge
 
 extern "C" {
@@ -1920,6 +1989,22 @@ SEXP bartcore_createBCF(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
   return result;
 }
 
+// A K-forest multinomial (softmax) sampler; internal, constant-leaf only
+// (docs/design/multinomial.md). labels are the 0..K-1 category codes.
+SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
+                                SEXP labelsExpr, SEXP numCategoriesExpr) {
+  BartcoreHolder* holder = bartcore_bridge::createMultinomialHolder(
+    controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr);
+
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
+  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
+
+  UNPROTECT(2);
+  return result;
+}
+
 SEXP bartcore_setTreatment(SEXP ptrExpr, SEXP zExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   size_t n = holder.sampler->numObservations();
@@ -2007,6 +2092,27 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   size_t numChains = sampler.numChains();
   int numSamplesInt = static_cast<int>(numSamples);
   int numChainsInt = static_cast<int>(numChains);
+  // a multi-location combiner (multinomial: K softmax channels) inserts a
+  // location dimension between the observations and the samples; L = 1 keeps
+  // the exact n x numSamples (x numChains) shape and byte layout every other
+  // model relies on.
+  size_t numLocations = sampler.numReportedLocations();
+  auto allocFitsArray = [&](size_t leadingDim) -> SEXP {
+    int dims[4];
+    int numDims = 0;
+    dims[numDims++] = static_cast<int>(leadingDim);
+    dims[numDims++] = static_cast<int>(numLocations);
+    dims[numDims++] = numSamplesInt;
+    if (numChains > 1) dims[numDims++] = numChainsInt;
+    R_xlen_t total = 1;
+    for (int d = 0; d < numDims; ++d) total *= dims[d];
+    SEXP arr = PROTECT(Rf_allocVector(REALSXP, total));
+    SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
+    for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
+    Rf_setAttrib(arr, R_DimSymbol, dimExpr);
+    UNPROTECT(1);
+    return arr;
+  };
 
   if (numSamples == 0) {
     bartcore::Results empty;
@@ -2031,20 +2137,24 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     resultExpr, 1,
     !holder.keepTrainingFits
       ? R_NilValue
-      : numChains == 1
-        ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
-                         numSamplesInt)
-        : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
-                          numSamplesInt, numChainsInt));
+      : numLocations > 1
+        ? allocFitsArray(numObservations)
+        : numChains == 1
+          ? Rf_allocMatrix(REALSXP, static_cast<int>(numObservations),
+                           numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, static_cast<int>(numObservations),
+                            numSamplesInt, numChainsInt));
   SEXP testExpr = installResult(
     resultExpr, 2,
     numTestObservations == 0
       ? R_NilValue
-      : numChains == 1
-        ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
-                         numSamplesInt)
-        : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
-                          numSamplesInt, numChainsInt));
+      : numLocations > 1
+        ? allocFitsArray(numTestObservations)
+        : numChains == 1
+          ? Rf_allocMatrix(REALSXP, static_cast<int>(numTestObservations),
+                           numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, static_cast<int>(numTestObservations),
+                            numSamplesInt, numChainsInt));
   SEXP varcountExpr = installResult(
     resultExpr, 3,
     numChains == 1
@@ -2096,10 +2206,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.splitProbabilities = sampler.usesDart() ? REAL(varprobsExpr) : NULL;
   results.tau = numGroups > 0 ? REAL(tauExpr) : NULL;
   results.groupEffects = numGroups > 0 ? REAL(ranefExpr) : NULL;
-  // one per-observation fits channel per reported location; 1 for every model
-  // today, so the fits arrays keep their n x numSamples shape. The location
-  // stride drives the chain-major slabbing (multiple chains).
-  results.numReportedLocations = sampler.numReportedLocations();
+  // one per-observation fits channel per reported location; 1 for every
+  // additive model, K for multinomial. The location stride drives the
+  // chain-major slabbing (multiple chains).
+  results.numReportedLocations = numLocations;
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
