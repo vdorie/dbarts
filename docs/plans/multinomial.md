@@ -17,10 +17,10 @@ rng: TWO CLASSES, cleanly gated. Phase A (C1-C3): NEUTRAL - the combiner.hpp
   bitwise fixture land as ONE gated commit (C4; nothing model-bearing lands
   before its gate exists), with every pre-existing path still bitwise on both
   anchors.
-window: none for the engine (internal reorg + a new internal model). IF a
-  public R surface ships this arc (open question Q5), family lives on
-  dbartsModel and the slot is pre-release (family-on-model.md); the
-  recommendation is internal-only like BCF, so no window is taken.
+window: ENGAGED by the resolved Q5 - the public surface ships (C7), so the
+  family slot lands on dbartsModel per family-on-model.md, taking that
+  pre-release decision. The engine work (C1-C6) is internal and takes no
+  window of its own.
 budget: ~1400-1800 lines. Phase A ~450 (combiner.hpp motion + co-movers + the
   location-count seam + the run-bridge allocation + the mutation guard). Phase B
   ~950-1350 (MultinomialForestCombiner with the interleaved PG hook and the
@@ -409,13 +409,35 @@ C6. Docs. Design note docs/design/multinomial.md (likelihood; the INTERLEAVED
    one-vs-rest PG cycle with the per-forest hook; the LEVEL-CENTERING move;
    identification; the prior/leaf-scale calibration curve for K = 2, 3, 5; the
    exact-gate construction incl. the correlated-difference prior tau^2(I + 11');
-   the surface; the Q3/Q4 resolutions; ATTRIBUTION - Held-Holmes 2006 / PSW 2013
-   sec 4 as the algorithm, Murray 2021 as related work, not the source). Update
-   multi-forest-models.md (multinomial landed) and docs/design/forest-combiner.md's
-   "Anticipated, not built" (built) + the combiner.hpp extraction record + the
-   correction that the softmax combiner needs no wire state. Files:
-   docs/design/multinomial.md, docs/plans/*. Gate: full tinytest; R CMD check man
-   unaffected (no man/ touched). Size: M.
+   the surface; the Q resolutions incl. the ecosystem-survey grounding; the
+   PLAINLY-STATED no-probit-path door (mbart exposes pbart/lbart; this model is
+   PG-softmax only, the deliberate performance carve-out); ATTRIBUTION -
+   Held-Holmes 2006 / PSW 2013 sec 4 as the algorithm, Murray 2021 as related
+   work, not the source). Update multi-forest-models.md (multinomial landed) and
+   docs/design/forest-combiner.md's "Anticipated, not built" (built) + the
+   combiner.hpp extraction record + the correction that the softmax combiner
+   needs no wire state. Files: docs/design/multinomial.md, docs/plans/*. Gate:
+   full tinytest; R CMD check man unaffected (no man/ touched). Size: M.
+
+C7. Public surface (the resolved Q5; lands only after C4-C6 prove the engine).
+   bart2 gains family = "multinomial" (the existing family seam; the slot lands
+   on dbartsModel per family-on-model.md - the engaged pre-release window). Shape
+   per the ecosystem surveys: the response is a FACTOR, K inferred from
+   levels(y), no explicit K argument (mbart2's convention); levels(y) is captured
+   at fit time and threaded onto every K-shaped output for the object's lifetime
+   (probability array dimnames, per-category variable counts, class predictions);
+   fitted/predict/extract return PROBABILITY-scale K-column output under the
+   existing type = "ev" default with the latent scale as the escape hatch
+   (dbarts' binary two-tier convention); a class-prediction convenience (argmax
+   as a factor over the original levels); per-category variable counts through
+   the C3 query. Ingestion: factor-response validation, single-trial this arc
+   (the M5 scope). Files: R/dbarts.R, R/A_class.R (family slot), R/generics.R,
+   R/bartcore.R, man/*.Rd, inst/tinytest. NEW EXPORTED Rd TOPICS (if any beyond
+   existing-topic edits) need _pkgdown.yml entries + check_pkgdown. Gate: full
+   tinytest (grows; a public-surface fit reproduces the internal fixture's
+   probabilities identically) + R CMD check man + both bitwise anchors + the
+   multinomial fixture identical. Size: L. Abort: any public-path fit diverges
+   from the internal path on the same seed.
 
 ## Verification
 
@@ -448,11 +470,45 @@ so there is no reader of any earlier version to protect. C5 therefore
 flattens the state format numbering - stateFormatVersion and
 minReadableStateFormatVersion collapse to one pre-release version with the
 hasBCF glue block absorbed into the base format (no versioned append
-history until a release creates a compat obligation). Q1/Q2/Q3/Q5 are
-being resolved through an independent review of user expectations from
-other R packages (BART-ecosystem and general multinomial tooling); absent
-performance issues, the surface follows what users of those packages would
-expect (VD directive, 2026-07-14).
+history until a release creates a compat obligation).
+
+Q1/Q2/Q3/Q5 RESOLVED (2026-07-14) by VD's expectations rule - two
+independent ecosystem surveys (BART packages; general R multinomial
+tooling), expectations win absent performance issues:
+- Q3 = PRIMARY (engine reports the K softmax probabilities). Unanimous:
+  BART::mbart2 returns prob.train/prob.test directly (upgraded from
+  user-side softmax in its own history), every surveyed general package
+  returns a labeled n x K probability object, and dbarts' binary generics
+  already default to probability scale (type = "ev"). No performance
+  issue: the L = 1 widening is byte-neutral and the softmax is O(nK) per
+  stored sample.
+- Q2 = K SYMMETRIC forests (with the M3 centering move). mbart2, the
+  closest precedent, is fully symmetric with K-length varcount/treedraws;
+  mpbart's user-facing base= reference argument is the recorded
+  counterexample wart; BART has no coefficient table for a reference
+  category to hide in, and the user-visible K-shaped objects
+  (probabilities, per-category variable counts) are symmetric in every
+  surveyed package.
+- Q1 = PG SOFTMAX (interleaved), the performance carve-out: the ecosystem
+  does surface probit-vs-logit as a user choice (mbart pbart/lbart), but
+  multinomial probit needs truncated-MVN latents plus a covariance
+  sampler - real new machinery - and the modern many-category precedent
+  (mbart2) defaults to logit. The design note states plainly that no
+  probit path exists (a one-way door vs the mbart convention, taken
+  deliberately).
+- Q5 = the PUBLIC SURFACE SHIPS (C7): BART users expect a callable
+  top-level fitting function - internal-only departs from the ecosystem's
+  notion of shipped, and only staging (no performance issue) argued for
+  deferral. Staging survives: C7 lands after the engine is proven (C4).
+  Surface shape per the surveys: factor response with K inferred from
+  levels(y) (mbart2 infers K; no explicit K argument), level names
+  threaded onto every K-shaped output for the object's lifetime,
+  probability-scale generics matching the existing type = "ev"
+  convention (latent scale as the escape hatch), a class-prediction
+  convenience (argmax as a factor over the original levels), per-category
+  variable counts. Extending bart2's existing family seam is the
+  least-surprise entry for dbarts users; this ENGAGES family-on-model's
+  pre-release window (the family slot lands on dbartsModel).
 
 - Q1 (augmentation: interleaved PG softmax vs multinomial probit). PG log-linear
   softmax reuses the shipped PG(1, psi) sampler and the weighted-conjugate kernels
