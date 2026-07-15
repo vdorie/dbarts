@@ -77,9 +77,16 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 1. Diff vs plan: every step landed; nothing outside scope.
 2. Gates: re-run or verify transcripts; RNG class honored. Items touching
    the bridge (src/R_interface*.cpp) note "rchk on next scheduled run".
-3. Brevity: comment/code delta, report length, no narration.
-4. Readability (standing): could a maintainer with no access to any
+3. ABI: any diff under inst/include/dbarts/ is an ABI event. A new
+   capability must be a NEW name (append-only); a changed signature is
+   a SILENT break for LinkingTo consumers - they call through their own
+   declarations and get stack garbage, not a link error (the getTrees
+   break of 2e2b1c9 corrupted stan4bart's tree extraction for a week).
+   Either keep the shipped signature or bump the api version, and
+   build+test stan4bart against the change before landing.
+4. Brevity: comment/code delta, report length, no narration.
+5. Readability (standing): could a maintainer with no access to any
    agent conversation understand the diff from code and comments alone?
    Reject change-log comments, restated behavior, hedging prose.
-5. At most two fix rounds by message to the same agent; after that, fix
+6. At most two fix rounds by message to the same agent; after that, fix
    directly or withdraw and replan.

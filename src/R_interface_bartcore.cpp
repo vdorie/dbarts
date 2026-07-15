@@ -4251,6 +4251,11 @@ void gatherTrees(bartcore::SamplerBase& sampler, const size_t* chainIndices,
           bartcore::countFlatObservationsBelow(
             nodes->data(), replayData, replayNumRows, replayIndices.data(), 0,
             replayNumRows, counts.data(), masks != NULL ? masks->data() : NULL);
+        } else if (useSaved) {
+          // saved trees carry no counts; a null replay source (a sparse or
+          // absent creation spec) leaves the n column zeroed rather than
+          // reading whichever tree last filled the shared scratch
+          counts.assign(nodes->size(), 0);
         }
 
         size_t leafNum = 0;
