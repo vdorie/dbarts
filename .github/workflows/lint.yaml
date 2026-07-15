@@ -5,6 +5,13 @@
 on:
   push:
     branches: [main, master, bartcore]
+    # lintr and air check R files only; benchmarks/R stays linted, so
+    # only non-code trees are ignored
+    paths-ignore:
+      - 'docs/**'
+      - 'TODO'
+      - '**.md'
+      - 'benchmarks/baselines/**'
   pull_request:
   workflow_dispatch:
 

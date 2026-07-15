@@ -4,6 +4,13 @@
 on:
   push:
     branches: [main, master, bartcore]
+    # the site renders from R/, man/, README, vignettes, and _pkgdown.yml;
+    # repo-internal design docs and benchmarks are not inputs (README.md
+    # IS an input, so markdown is not blanket-ignored here)
+    paths-ignore:
+      - 'docs/**'
+      - 'TODO'
+      - 'benchmarks/**'
   pull_request:
   release:
     types: [published]
