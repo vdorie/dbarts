@@ -525,6 +525,27 @@ C7. Public surface (the resolved Q5; lands only after C4-C6 prove the engine).
    multinomial fixture identical. Size: L. Abort: any public-path fit diverges
    from the internal path on the same seed.
 
+### C7 landing (2026-07-15) - ARC CLOSED
+
+Landed as bb29d00. bart2(family = "multinomial") over the matrix interface:
+factor y, K from levels(y), levels on every K-shaped output, fit class
+bartMultinomial (deliberately not "bart" - no single-forest generic can
+misread the K-widened array), fitted ev/class, extract ev/ppd, and the
+reproduction gate pinning the public fit bit-for-bit to the internal
+pattern at K = 2 and K = 3. Gates: tinytest 2900 (2865 + 35 new, zero
+regen), both anchors and the multinomial fixture identical, air clean,
+codoc clean; no new Rd topic, pkgdown untouched.
+
+Scope narrowings vs this plan's optimistic phrasing, all because
+Q3-primary records only the probability channels (each refused BY NAME in
+the surface, recorded as follow-ups in the TODO's multi-forest-models
+entry): predict/test surface (needs a combined-test-fits location
+channel), the latent escape hatch (raw per-category fits are
+non-identified and unrecorded), per-sample per-category variable counts
+(the channel addresses category 0 only, so the fit omits varcount rather
+than mislabel it), the count-matrix likelihood, and the formula interface
+(matrix interface only this arc).
+
 ## Verification
 
 - Phase A (C1-C3), every commit: equivalence 22/22 IDENTICAL vs

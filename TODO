@@ -45,13 +45,21 @@ items
     on the SplitSelector seam. consumer-gated.
   monotone-bart: shape-constrained fits via the tree-level leaf-draw
     hook the design provisioned.
-  multi-forest-models: multinomial, heteroscedastic, hurdle - the BCF
-    two-forest machinery is the template; one design note each when
-    picked. forest-combiner (docs/design/forest-combiner.md) LANDED
-    2026-07-14 and discharges the coupling-seam prerequisite; each
-    note still has to plan against the Chain-level re-carves it names
-    (a single combined-fit location, a single response_/sigma_, a
-    single-leaf-type forest vector, a BCF-shaped state wire format).
+  multi-forest-models: heteroscedastic, hurdle - the BCF two-forest
+    machinery is the template; one design note each when picked.
+    forest-combiner (docs/design/forest-combiner.md) LANDED 2026-07-14
+    and discharges the coupling-seam prerequisite; multinomial
+    (docs/design/multinomial.md) LANDED 2026-07-15 and resolved the
+    combined-fit location re-carve (numReportedLocations) while showing
+    response_/sigma_ need not widen; the remaining re-carves are the
+    single-leaf-type forest vector (heteroscedastic needs it) and
+    whatever state each model actually carries (softmax carries none).
+    Multinomial's recorded follow-ups, each engine-plus-surface sized:
+    the test/predict surface (a combined-test-fits location channel;
+    mbart2 ships prob.test), per-sample per-category variable counts
+    (widen the varcount channel to locations), the count-matrix
+    likelihood (n_i > 1; PG(n, .) sums PG(1, .)), and the formula
+    interface for family multinomial.
     heteroscedastic additionally needs a fourth leaf kind
     (multiplicative-positive, non-integrable) plus the non-conjugate
     MoveStrategy the design anticipated but never built, and a
