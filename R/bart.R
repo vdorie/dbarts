@@ -375,12 +375,13 @@ bart2 <- function(
   warm.start = NULL,
   n.grow.sweeps = 0L,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic", "aft"),
+  family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
   missing = c("incorporate", "error"),
   ...
 ) {
   matchedCall <- match.call()
   callingEnv <- parent.frame()
+  family <- match.arg(family)
 
   argNames <- names(matchedCall)[-1L]
   unknownArgs <- argNames %not_in%
@@ -417,6 +418,113 @@ bart2 <- function(
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
+
+  # multinomial (docs/plans/multinomial.md C7): a K-forest softmax model over
+  # a factor response, validated and dispatched here rather than threaded
+  # through the rest of bart2 - it bypasses the standard single-forest
+  # dbarts()/run() path entirely (bartcoreMultinomialSampler builds a
+  # separate K-forest engine; see benchmarks/R/multinomial-equivalence.R for
+  # the exact call sequence bart2Multinomial mirrors). Every refusal below
+  # names the limitation rather than silently reshaping around it.
+  if (family == "multinomial") {
+    if (!missing(test)) {
+      stop(
+        "family = \"multinomial\" does not support 'test': there is no ",
+        "multi-forest test surface this arc"
+      )
+    }
+    if (!missing(weights)) {
+      stop(
+        "family = \"multinomial\" does not support 'weights' this arc"
+      )
+    }
+    if (!missing(offset)) {
+      stop(
+        "family = \"multinomial\" does not support 'offset' this arc"
+      )
+    }
+    if (!missing(subset)) {
+      stop(
+        "family = \"multinomial\" does not support 'subset' this arc"
+      )
+    }
+    if (isTRUE(keepTrees)) {
+      stop(
+        "family = \"multinomial\" does not support 'keepTrees': the ",
+        "saved-tree machinery addresses forest 0 only"
+      )
+    }
+    if (isTRUE(samplerOnly)) {
+      stop(
+        "family = \"multinomial\" does not support 'samplerOnly' this arc"
+      )
+    }
+    grownSweeps <- as.integer(n.grow.sweeps)[1L]
+    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
+      stop(
+        "family = \"multinomial\" does not support 'warm.start' or ",
+        "'n.grow.sweeps' this arc"
+      )
+    }
+    if (!control@keepTrainingFits) {
+      stop(
+        "family = \"multinomial\" requires keepTrainingFits = TRUE (the ",
+        "default): there is no test surface to fall back on"
+      )
+    }
+    if (control@n.samples <= 0L) {
+      stop("family = \"multinomial\" requires a positive 'n.samples'")
+    }
+    if (is.formula(formula) || inherits(formula, "dbartsData")) {
+      stop(
+        "family = \"multinomial\" supports the matrix interface only this ",
+        "arc: bart2(x.train, y.train, family = \"multinomial\")"
+      )
+    }
+    if (missing(data) || is.null(data)) {
+      stop(
+        "family = \"multinomial\" requires a factor response as the ",
+        "second argument (the matrix-interface y.train)"
+      )
+    }
+    y <- data
+    if (is.character(y)) {
+      y <- factor(y)
+    }
+    if (!is.factor(y)) {
+      stop(
+        "family = \"multinomial\" requires a factor (or character) response"
+      )
+    }
+    if (anyNA(y)) {
+      stop(
+        "family = \"multinomial\" does not support missing response values"
+      )
+    }
+    if (anyNA(levels(y))) {
+      stop("family = \"multinomial\" response levels must not include NA")
+    }
+    if (nlevels(y) < 2L) {
+      stop(
+        "family = \"multinomial\" requires a response with at least 2 levels"
+      )
+    }
+
+    return(bart2Multinomial(
+      matchedCall,
+      callingEnv,
+      control,
+      y,
+      power,
+      base,
+      sigdf,
+      sigquant,
+      sigest,
+      dart,
+      combineChains
+    ))
+  }
+
   keepSampler <- keepSampler || control@keepTrees
 
   if (control@n.burn == 0L && keepTrees == TRUE) {
@@ -536,6 +644,119 @@ bart2 <- function(
     }
   }
 
+  result
+}
+
+# The multinomial (softmax) fit path (docs/plans/multinomial.md C7), reached
+# from bart2's family = "multinomial" branch after ingestion validation. y is
+# the validated factor response; labels (0-based, as the engine wants them)
+# and K = nlevels(y) follow from it. The host sampler is built through
+# bart2's usual tree.prior/node.prior/resid.prior/control machinery so that
+# n.trees, n.chains, the tree prior, and k (the only host-model quantity the
+# multinomial engine reads; see ?bart2) match what a non-multinomial bart2
+# call would build - but its response is the label vector, never y itself,
+# and its resolved family (whatever "auto" picks for that placeholder) is
+# irrelevant and never surfaced. bartcoreMultinomialSampler then builds a
+# separate K-forest engine; benchmarks/R/multinomial-equivalence.R exercises
+# the identical sequence (host creation, then bartcoreMultinomialSampler,
+# then one bartcoreRun call) for the bitwise reproduction gate in
+# test-multinomial-surface.R. No warm start and no two-phase burn-in/sample
+# split: both are skipped so the RNG stream matches that internal pattern
+# exactly for a given seed.
+bart2Multinomial <- function(
+  matchedCall,
+  callingEnv,
+  control,
+  y,
+  power,
+  base,
+  sigdf,
+  sigquant,
+  sigest,
+  dart,
+  combineChains
+) {
+  K <- nlevels(y)
+  labels <- as.integer(y) - 1L
+
+  priors <- buildSamplerPriors(
+    matchedCall,
+    power,
+    base,
+    sigdf,
+    sigquant,
+    nodeK = matchedCall[["k"]],
+    dart = dart,
+    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+  )
+
+  # the host sampler: identical machinery to bart2's normal path, but its
+  # response is the integer label vector (as doubles - a placeholder the
+  # multinomial engine never reads, since the category labels ride
+  # separately) and no 'family' is forwarded (dbarts() does not know
+  # "multinomial"; whatever "auto" resolves the placeholder to is immaterial)
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
+  samplerCall$n.samples <- NULL
+  samplerCall$data <- as.double(labels)
+  samplerCall$family <- NULL
+  samplerCall$tree.prior <- priors$tree.prior
+  samplerCall$node.prior <- priors$node.prior
+  samplerCall$resid.prior <- priors$resid.prior
+  samplerCall$sigma <- as.numeric(sigest)
+
+  sampler <- eval(samplerCall, envir = callingEnv)
+
+  bc <- bartcoreMultinomialSampler(sampler, labels, K = K)
+  samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
+
+  packageMultinomialResults(control, y, K, samples, combineChains)
+}
+
+# Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
+# samples$train is n.obs x K x n.samples (x n.chains); the K-carrying softmax
+# probabilities are already the identified quantity the engine reports (Q3 of
+# docs/plans/multinomial.md), so no probabilityFromLatents-style transform
+# applies here, unlike the binary families. Reshaped to the package's
+# draws-first convention (n.chains x) n.samples x n.obs x K - matching
+# combineChains as bart2's other families do - with levels(y) named on the
+# trailing K margin so every K-shaped output threads them.
+#
+# varcount is deliberately omitted: the run's per-sample varcount channel
+# addresses category 0's forest only (a single-forest carryover), so
+# presenting it as "the" fit's varcount would mislabel it. Per-category
+# CURRENT-STATE split counts are still reachable, live, via
+# dbarts:::bartcoreForestVariableCounts(bc, category) while bc is in scope -
+# this fit object does not keep bc, so that door closes with it.
+packageMultinomialResults <- function(control, y, K, samples, combineChains) {
+  levels <- levels(y)
+  n.chains <- control@n.chains
+  raw <- samples$train
+
+  yhat.train <- if (n.chains == 1L) {
+    aperm(raw, c(3L, 1L, 2L))
+  } else if (combineChains) {
+    a <- aperm(raw, c(3L, 4L, 1L, 2L))
+    d <- dim(a)
+    dim(a) <- c(d[1L] * d[2L], d[3L], d[4L])
+    a
+  } else {
+    aperm(raw, c(4L, 3L, 1L, 2L))
+  }
+  numDims <- length(dim(yhat.train))
+  dimnames(yhat.train) <- c(rep(list(NULL), numDims - 1L), list(levels))
+
+  result <- list(
+    call = control@call,
+    family = "multinomial",
+    levels = levels,
+    K = K,
+    n.chains = n.chains,
+    n.trees = control@n.trees,
+    y = y,
+    yhat.train = yhat.train
+  )
+  class(result) <- "bartMultinomial"
   result
 }
 
