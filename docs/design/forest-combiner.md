@@ -337,8 +337,9 @@ pre-refactor record (forest-split-bcf.md); full tinytest held at 2832 with no
 snapshot regeneration across all five commits; the tests/cpp component suite,
 grown at commit 1, passed at every subsequent commit.
 
-Confirmatory bench (quiet window, single-forest hot path). PENDING: a
-bench-sampler compare vs benchmarks/baselines/bench-sampler-4008675.csv is
-still owed, to confirm the null-short-circuit fast path costs nothing on the
-single-forest arms (the plan's Verification "Close" item). Its result will be
-appended here when a quiet window is available.
+Confirmatory bench (quiet window, arm64, single-forest hot path).
+bench-sampler compare vs benchmarks/baselines/bench-sampler-4008675.csv at
+the docs commit: "OK: no metric regressed more than 5%", zero flags - run
+arms 1.018-1.043x baseline (within the recorded sub-5% noise band),
+setPredictor arms 0.987-1.012x. The null-short-circuit fast path costs the
+single-forest sweep nothing, as designed. The plan is CLOSED.
