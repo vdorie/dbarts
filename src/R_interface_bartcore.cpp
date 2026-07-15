@@ -1966,6 +1966,24 @@ SEXP bartcore_getForestFits(SEXP ptrExpr, SEXP forestExpr) {
   return result;
 }
 
+SEXP bartcore_getForestVariableCounts(SEXP ptrExpr, SEXP forestExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  size_t forestIndex = static_cast<size_t>(Rf_asInteger(forestExpr));
+  if (forestIndex >= holder.sampler->numForests())
+    Rf_error("forest index out of range");
+  size_t numPredictors = holder.sampler->numPredictors();
+  size_t numChains = holder.sampler->numChains();
+  // counts alias R integers: variable-use counts never approach 2^31
+  SEXP result = PROTECT(Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors),
+                                       static_cast<int>(numChains)));
+  for (size_t c = 0; c < numChains; ++c)
+    holder.sampler->forestVariableCounts(
+      c, forestIndex,
+      reinterpret_cast<uint32_t*>(INTEGER(result)) + c * numPredictors);
+  UNPROTECT(1);
+  return result;
+}
+
 // R_CheckUserInterrupt longjmps when an interrupt is pending; running it
 // through R_ToplevelExec catches that jump so the sampler can join its worker
 // threads before the interrupt becomes an error (a bare longjmp would strand

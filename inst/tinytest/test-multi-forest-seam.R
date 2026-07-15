@@ -106,3 +106,20 @@ expect_true(all(is.finite(result.bcf$train)))
 # the same guard is inert on a single-forest sampler: these mutations still work
 expect_silent(dbarts:::bartcoreSetResponse(bc.one, y + 1))
 expect_true(dbarts:::bartcoreSetPredictor(bc.one, x + 0))
+
+# --- the per-forest variable-count query (C3). On a single-forest sampler the
+# reported forest is forest 0, so the current-state query equals the recorded
+# varcount channel of a length-1 run: with n.thin = 1 the run leaves the trees
+# at the recorded sample's state (no sweep past the last storeSample). The
+# recorded channel is per-sample and the query is live, so they coincide only
+# right after such a run. ---
+one.sample <- dbarts:::bartcoreRun(bc.one, 0L, 1L)
+vc.one <- dbarts:::bartcoreForestVariableCounts(bc.one, 0L)
+expect_equal(dim(vc.one), c(p, 1L))
+expect_true(is.integer(vc.one))
+expect_equal(vc.one[, 1L], one.sample$varcount[, 1L])
+# an out-of-range forest index errors, as for the forest-fits query
+expect_error(
+  dbarts:::bartcoreForestVariableCounts(bc.one, 1L),
+  "out of range"
+)

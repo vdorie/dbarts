@@ -228,6 +228,8 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setTreatment", bartcore_setTreatment, 2),
   DEF_FUNC("dbarts_bartcore_getBCFGlue", bartcore_getBCFGlue, 1),
   DEF_FUNC("dbarts_bartcore_getForestFits", bartcore_getForestFits, 2),
+  DEF_FUNC("dbarts_bartcore_getForestVariableCounts",
+           bartcore_getForestVariableCounts, 2),
   DEF_FUNC("dbarts_bartcore_run", bartcore_run, 3),
   DEF_FUNC("dbarts_bartcore_runWithCallback", bartcore_runWithCallback, 6),
   DEF_FUNC("dbarts_bartcore_setOffset", bartcore_setOffset, 3),

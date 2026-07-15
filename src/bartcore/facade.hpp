@@ -149,6 +149,11 @@ public:
   virtual bool bcfGlue(std::size_t chainNum, double* out) const = 0;
   virtual void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                                double* out) const = 0;
+  /// Forest forestIndex's per-predictor split usage into out (numPredictors
+  /// entries); the per-forest analog of the recorded variable-count channel.
+  virtual void forestVariableCounts(std::size_t chainNum,
+                                    std::size_t forestIndex,
+                                    std::uint32_t* out) const = 0;
   virtual std::size_t numTrees() const = 0;
   /// Tree count of forest forestIndex; equals numTrees for forest 0.
   virtual std::size_t numTreesInForest(std::size_t forestIndex) const = 0;
@@ -341,6 +346,10 @@ public:
   void forestTotalFits(std::size_t chainNum, std::size_t forestIndex,
                        double* out) const override {
     impl_.forestTotalFits(chainNum, forestIndex, out);
+  }
+  void forestVariableCounts(std::size_t chainNum, std::size_t forestIndex,
+                            std::uint32_t* out) const override {
+    impl_.forestVariableCounts(chainNum, forestIndex, out);
   }
   std::size_t numTrees() const override { return impl_.numTrees(); }
   std::size_t numTreesInForest(std::size_t forestIndex) const override {

@@ -1017,6 +1017,10 @@ public:
   void forestTotalFits(size_t chainNum, size_t forestIndex, double* out) const {
     chains_[chainNum]->forestTotalFits(forestIndex, out);
   }
+  void forestVariableCounts(size_t chainNum, size_t forestIndex,
+                            std::uint32_t* out) const {
+    chains_[chainNum]->forestVariableCounts(forestIndex, out);
+  }
   size_t numTrees() const { return options_.numTrees; }
   size_t numTreesInForest(size_t forestIndex) const {
     return chains_[0]->numTreesInForest(forestIndex);

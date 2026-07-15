@@ -33,6 +33,21 @@ expect_equal(dim(muFits), c(n, 1L))
 expect_true(all(is.finite(muFits)) && all(is.finite(tauFits)))
 expect_true(sum(muFits^2) > 0 && sum(tauFits^2) > 0)
 
+# the per-forest variable-count query (C3) works on both BCF forests: each
+# forest's counts are nonnegative integers whose total is that forest's split
+# count - positive here, both forests grew splits over the run
+vcMu <- dbarts:::bartcoreForestVariableCounts(bcSampler, 0L)
+vcTau <- dbarts:::bartcoreForestVariableCounts(bcSampler, 1L)
+expect_equal(dim(vcMu), c(p, 1L))
+expect_equal(dim(vcTau), c(p, 1L))
+expect_true(is.integer(vcMu) && is.integer(vcTau))
+expect_true(all(vcMu >= 0L) && all(vcTau >= 0L))
+expect_true(sum(vcMu) > 0L && sum(vcTau) > 0L)
+expect_error(
+  dbarts:::bartcoreForestVariableCounts(bcSampler, 2L),
+  "out of range"
+)
+
 # glue is finite and the treated and control scales separate
 glue <- dbarts:::bartcoreBCFGlue(bcSampler)
 expect_equal(dim(glue), c(3L, 1L))
@@ -273,3 +288,14 @@ expect_error(
   ),
   "out of range"
 )
+
+# the tau forest's variable-count query (C3) sees the same column restriction
+# the getTrees selector does: counts outside the moderator subset {x1, x3}
+# (columns 1, 3; R rows 1, 3) are exactly zero, a sharp mask assertion, while
+# the unrestricted mu forest is free to split outside it (mu depends on x2)
+vcTauMod <- dbarts:::bartcoreForestVariableCounts(bcMod, 1L)
+expect_equal(dim(vcTauMod), c(p, 1L))
+expect_true(all(vcTauMod[c(2L, 4L), 1L] == 0L))
+expect_true(sum(vcTauMod[c(1L, 3L), 1L]) > 0L)
+vcMuMod <- dbarts:::bartcoreForestVariableCounts(bcMod, 0L)
+expect_true(sum(vcMuMod[c(2L, 4L), 1L]) > 0L)

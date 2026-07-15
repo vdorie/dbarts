@@ -425,6 +425,17 @@ public:
                 data_.numObservations * sizeof(double));
   }
 
+  /// Forest f's per-predictor split usage, accumulated across its trees into
+  /// out (numPredictors entries, zeroed here); the per-forest analog of the
+  /// reported-forest variable-count channel storeSample records, addressing an
+  /// arbitrary forest so a multi-forest model can report each forest's splits.
+  void forestVariableCounts(std::size_t f, std::uint32_t* out) const {
+    const Forest<L>& forest = forests_[f];
+    std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
+    for (std::size_t t = 0; t < forest.numTrees; ++t)
+      forest.trees[t].countVariableUses(out);
+  }
+
   /// Forest f's per-tree fit slabs, tree-major (numObservations x numTrees); a
   /// consistency read of the cached fits for tests.
   void forestTreeFits(std::size_t f, double* out) const {
@@ -2064,8 +2075,8 @@ private:
     // the scalar channels (k, variable counts, split probabilities) and the
     // single-forest fit paths address the reported forest; the combiner names
     // it (BCF: the prognostic mu, forest 0), a single-forest chain is forest 0
-    Forest<L>& forest =
-      combiner_ ? forests_[combiner_->reportedForest()] : forests_[0];
+    std::size_t reportedIndex = combiner_ ? combiner_->reportedForest() : 0;
+    Forest<L>& forest = forests_[reportedIndex];
     size_t n = data_.numObservations;
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -2121,13 +2132,9 @@ private:
       }
     }
 
-    if (results.variableCounts != nullptr) {
-      std::uint32_t* out =
-        results.variableCounts + sampleNum * data_.numPredictors;
-      std::memset(out, 0, data_.numPredictors * sizeof(std::uint32_t));
-      for (size_t t = 0; t < forest.numTrees; ++t)
-        forest.trees[t].countVariableUses(out);
-    }
+    if (results.variableCounts != nullptr)
+      forestVariableCounts(reportedIndex,
+                           results.variableCounts + sampleNum * data_.numPredictors);
 
     if (results.splitProbabilities != nullptr && forest.useDart) {
       double* out =

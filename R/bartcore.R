@@ -559,6 +559,16 @@ bartcoreForestFits <- function(bcSampler, forest) {
   .Call(C_dbarts_bartcore_getForestFits, bcSampler$ptr, as.integer(forest))
 }
 
+# A forest's current per-predictor split counts (0 prognostic, 1 treatment),
+# n.predictors x n.chains; the per-forest analog of the run's varcount channel.
+bartcoreForestVariableCounts <- function(bcSampler, forest) {
+  .Call(
+    C_dbarts_bartcore_getForestVariableCounts,
+    bcSampler$ptr,
+    as.integer(forest)
+  )
+}
+
 bartcoreSetModel <- function(bcSampler, model, control, data) {
   invisible(.Call(
     C_dbarts_bartcore_setModel,

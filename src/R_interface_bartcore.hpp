@@ -18,6 +18,7 @@ SEXP bartcore_createBCF(SEXP control, SEXP model, SEXP data, SEXP z,
 SEXP bartcore_setTreatment(SEXP ptr, SEXP z);
 SEXP bartcore_getBCFGlue(SEXP ptr);
 SEXP bartcore_getForestFits(SEXP ptr, SEXP forest);
+SEXP bartcore_getForestVariableCounts(SEXP ptr, SEXP forest);
 SEXP bartcore_run(SEXP ptr, SEXP numBurnIn, SEXP numSamples);
 SEXP bartcore_runWithCallback(SEXP ptr, SEXP numBurnIn, SEXP numSamples,
                               SEXP results, SEXP callback, SEXP rho);
