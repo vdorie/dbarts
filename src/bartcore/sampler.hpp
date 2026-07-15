@@ -259,17 +259,22 @@ public:
            const SweepCallback& onSweep = {}) {
     size_t numChains = chains_.size();
     for (auto& chain : chains_) chain->setSavedSlotBase(currentSampleNum_);
+    // the per-observation fits carry numReportedLocations channels per sample
+    // (one everywhere but a multi-location combiner), so the per-chain slab
+    // stride folds it in; L = 1 leaves the exact current chain-major stride
+    size_t numLocations = results.numReportedLocations;
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
+      r.numReportedLocations = numLocations;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
-        r.trainingFits =
-          results.trainingFits + c * numSamples * data_.numObservations;
+        r.trainingFits = results.trainingFits +
+          c * numSamples * data_.numObservations * numLocations;
       if (results.testFits != nullptr)
-        r.testFits =
-          results.testFits + c * numSamples * data_.numTestObservations;
+        r.testFits = results.testFits +
+          c * numSamples * data_.numTestObservations * numLocations;
       if (results.variableCounts != nullptr)
         r.variableCounts =
           results.variableCounts + c * numSamples * data_.numPredictors;
@@ -1000,6 +1005,9 @@ public:
   // BCF surface, fanned to every chain (docs/design/bcf.md); benign on
   // single-forest samplers, where numForests() is 1 and bcfGlue reports none.
   size_t numForests() const { return chains_[0]->numForests(); }
+  size_t numReportedLocations() const {
+    return chains_[0]->numReportedLocations();
+  }
   void setTreatment(const double* z) {
     for (auto& chain : chains_) chain->setTreatment(z);
   }

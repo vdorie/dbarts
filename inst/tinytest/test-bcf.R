@@ -108,6 +108,8 @@ expect_true(sum(dbarts:::bartcoreForestFits(bcFixed, 1L)^2) > 0)
 
 # bartCause-style driver: pihat is a prognostic column; the treatment and the
 # propensity column are both swapped between runs through the mutation surface
+# (forceUpdate = TRUE refreshes every forest; the transactional non-force paths
+# are refused on multi-forest samplers, test-multi-forest-seam.R)
 set.seed(7)
 pihat <- plogis(x[, 1L] - 0.5)
 x.pi <- cbind(x, pihat)
