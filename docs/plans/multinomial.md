@@ -442,6 +442,18 @@ C6. Docs. Design note docs/design/multinomial.md (likelihood; the INTERLEAVED
 
 ## Open questions for VD
 
+Q4 RESOLVED (VD, 2026-07-14): NO bump - and further, the BCF-era format
+increment can be UNDONE outright: none of the bartcore work is released,
+so there is no reader of any earlier version to protect. C5 therefore
+flattens the state format numbering - stateFormatVersion and
+minReadableStateFormatVersion collapse to one pre-release version with the
+hasBCF glue block absorbed into the base format (no versioned append
+history until a release creates a compat obligation). Q1/Q2/Q3/Q5 are
+being resolved through an independent review of user expectations from
+other R packages (BART-ecosystem and general multinomial tooling); absent
+performance issues, the surface follows what users of those packages would
+expect (VD directive, 2026-07-14).
+
 - Q1 (augmentation: interleaved PG softmax vs multinomial probit). PG log-linear
   softmax reuses the shipped PG(1, psi) sampler and the weighted-conjugate kernels
   verbatim - one binomial-logistic per category, drawn INTERLEAVED (omega_k against
