@@ -1,13 +1,25 @@
 # The empty-leaf veto: keep and document (investigation, 2026-07-07)
 
-The no-empty-leaf invariant is currently enforced one way: the branch
-log-likelihood returns a large finite penalty (-1e7) for any branch that
-contains an empty leaf, so trees with empty leaves are never accepted
-into the chain state. The question this note settles is whether the
-ordinal proposals should be made occupancy-aware - so the invariant is
-enforced by construction, as categorical rules mostly are - or whether
-the veto stays and is documented as deliberate. The conclusion is keep
-and document; the reasoning follows.
+The no-empty-leaf invariant is enforced one way: the branch
+log-likelihood returns a penalty for any branch that contains an empty
+leaf, so trees with empty leaves are never accepted into the chain
+state. The question this note settles is whether the ordinal proposals
+should be made occupancy-aware - so the invariant is enforced by
+construction, as categorical rules mostly are - or whether the veto
+stays and is documented as deliberate. The conclusion is keep and
+document; the reasoning follows.
+
+Correction (2026-07-15): the penalty was a large *finite* constant
+(-1e7). That is wrong. A valid branch's log-likelihood is unbounded
+below - it carries a -0.5 * centeredSumOfSquares / residualVariance term
+that grows with the node's observation count and with a small residual
+variance - so at scale (a large fit, or a small sigma during sampling) a
+legitimate current branch scores below -1e7, the empty-leaf proposal at
+-1e7 wins the finite-vs-vetoed comparison, and the empty leaf enters the
+chain state. It then fails the occupancy check on export/restore
+(stan4bart's createStoredBARTSampler, observed at n=50000). The penalty
+is now -HUGE_VAL, which vetoes unconditionally; the analysis below of why
+that stays NaN-free is unchanged.
 
 ## Where the constant is read
 
@@ -61,13 +73,14 @@ leaves"), and there is no -1e7 anywhere in model.hpp. Vetoed-vs-vetoed
 is therefore unreachable in the shipped engine.
 
 A corollary: since only finite-vs-vetoed comparisons occur, exp of the
-difference is well defined in both orientations, so -inf would no longer
-produce a NaN in the move code today. The finite value is nonetheless
-kept deliberately - it is self-documenting as a defensive penalty rather
-than a true impossibility, and it makes the invariant robust to any
-future path (a non-conjugate strategy, a new guardrail) that could
-reintroduce a doubly-penalized comparison without having to re-audit
-this reasoning. -1e7 is a load-bearing choice, not an accident.
+difference is well defined in both orientations, so -HUGE_VAL does not
+produce a NaN in the move code (a vetoed proposal against a finite
+current branch gives exp(-inf) = 0, a clean rejection). -HUGE_VAL is the
+correct penalty precisely because a finite one cannot dominate a branch
+score that is itself unbounded below; only an infinite penalty vetoes at
+every scale. Should a future non-conjugate path reintroduce a
+vetoed-vs-vetoed comparison, that path must supply its own finite
+resolution rather than lean on this constant.
 
 ## Why not make the proposals occupancy-aware
 
@@ -109,7 +122,7 @@ risk/reward does not favor it.
 ## Decision
 
 Keep the veto. It is documented here and inline at its single site as a
-deliberate, finite, load-bearing penalty. If a future consumer needs
-occupancy-aware ordinal proposals for a reason beyond the invariant
-(e.g. mixing), that work should be scheduled on its own, with the
-exact-posterior gates as the arbiter.
+deliberate, unconditional (-HUGE_VAL) penalty. If a future consumer
+needs occupancy-aware ordinal proposals for a reason beyond the
+invariant (e.g. mixing), that work should be scheduled on its own, with
+the exact-posterior gates as the arbiter.

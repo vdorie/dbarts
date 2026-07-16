@@ -19,7 +19,7 @@
 //
 // Occupancy-aware: a cut with a zero-count side gets the never-selected
 // sentinel, so a scan-based builder never creates an empty leaf and the MH
-// empty-leaf veto (logLikelihoodForBranch's -1e7) never runs on this path.
+// empty-leaf veto (logLikelihoodForBranch's -HUGE_VAL) never runs on this path.
 // The scan omits sum wz^2: it is dead weight for the constant leaf (additive
 // over any partition of a node's fixed member set, so it cancels in every
 // within-node comparison, cut-vs-cut and split-vs-no-split), which is why the
