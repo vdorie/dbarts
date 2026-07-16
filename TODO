@@ -115,9 +115,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     to CRAN together. bartCause is ready on branch dbarts-1.0 in
     ~/Repositories/bartCause (two commits, unpushed, checks Status OK):
     push and submit it after dbarts is accepted.
-  before submission, resolve the window: pre-release decisions above
-    (family-on-model, flat-format-v2 reporting, range-scaling,
-    state-format-policy) - a documented "no" is a valid resolution.
+  the window: pre-release decisions are ALL RESOLVED and landed (VD
+    sign-offs 2026-07-06; verified in-tree 2026-07-16): family moved to
+    dbartsModel (3c02121), getTrees categorical reporting unified
+    (cb25c09), range scaling kept with the setResponse updateScale
+    switch (cf70fd5), state format versioned (d3f992a) and superseded
+    by the by-name block reader (2d09768). The capi-dispatch-table
+    window closed 2026-07-16. No open pre-release decisions remain.
   re-run the revdep sweep near submission (manual; the revdepcheck
     package is GitHub-only). 23 CRAN reverse dependencies; the last
     full pass was clean or explained everywhere (stan4bart 0.0-13 dev
