@@ -53,8 +53,13 @@ double logLikelihoodForBranch(const MoveContext& ctx, const L& leaf, Tree& tree,
   double result = 0.0;
   for (int32_t i : bottoms) {
     // vetoing any branch with an empty leaf keeps empty leaves out of the
-    // chain state; the value is finite by design (docs/design/empty-leaf-veto.md)
-    if (tree.at(i).numObservations() == 0) return -10000000.0;
+    // chain state (docs/design/empty-leaf-veto.md). The penalty must beat any
+    // finite branch score: a valid branch's log-likelihood is unbounded below
+    // (it scales with centeredSumOfSquares / residualVariance, large for a big
+    // node or a small sigma), so a fixed constant would be out-penalized at
+    // scale and the empty leaf accepted. -HUGE_VAL vetoes unconditionally;
+    // vetoed-vs-vetoed never arises, so exp of the difference stays 0, not NaN.
+    if (tree.at(i).numObservations() == 0) return -HUGE_VAL;
     result += leaf.logIntegratedLikelihoodForNode(tree, y, ctx.weights, ctx.k,
                                                   sigma * sigma, i);
   }
