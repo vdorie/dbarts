@@ -86,10 +86,6 @@ items
     roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
-  simd-flag-multiversioning: evaluate compiler-flag-generated wide-ISA
-    variants (e.g. AVX2 builds of the unrolled means/variances) as a
-    complement to the intrinsics multi-versioning; measure on the x86
-    bench box (VD 2026-07-15). Complements x86-simd.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
     notes). consumer-gated.
@@ -100,11 +96,17 @@ items
   weighted-binary: post 1.0 - integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
-  x86-simd: three linalg SSE2/AVX bodies are scalar with intrinsics
-    commented out (predates the rewrite; the originals used
-    non-temporal stores autovectorization cannot emit) - measure on
-    x86, restore or delete; add misc_setIndexedVectorToConstant to the
-    dispatch table; SSR SIMD leaf; Windows-arm64 NEON config.
+  x86-simd: the commented-out linalg intrinsics bodies are NOT needed
+    for compute width - the manual unroll plus the per-file -m flag
+    already emits 256-bit at -O2 (measured on the bench box,
+    docs/plans/simd-flag-multiversioning.md); the sole unrealized win
+    is non-temporal stores at DRAM-bound n (setVectorToConstant 1.6x,
+    addv 1.24x at n=1e7; they lose cache-resident) - decide NT-store
+    variants or delete the commented bodies; add
+    misc_setIndexedVectorToConstant to the dispatch table (completeness
+    only, scatter has no pre-AVX512 SIMD form); SSR SIMD leaf stays the
+    separate fixed-lane-layout + re-record decision (simd-survey.md);
+    Windows-arm64 NEON config.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
