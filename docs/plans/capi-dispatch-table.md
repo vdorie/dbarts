@@ -434,3 +434,17 @@ orchestrator re-ran all three equivalence suites - 22/22 identical
 draws, BCF 5x6 bitwise, multinomial 2x4 bitwise; air format clean.
 Anti-drift proofs fired live: stale hash bake, signature drift, and
 mid-struct insertion each fail dbarts's own compile.
+
+C2 LANDED (stan4bart d05a748): DBARTS_USE_STUBS on PKG_CPPFLAGS
+(Makevars.in + Makevars.win; the generated Makevars untouched);
+BARTFunctionTable, its 22 typedefs, and the 22 R_GetCCallable/bit_cast
+lookups deleted (init.cpp 1127 -> 1077 lines); all 39 call sites
+through the same-name stubs; handshake now major-equality + minor-floor
+with an informative two-pair message, run before any other entry point.
+Gates: R CMD INSTALL --preclean clean, testthat 314/0, R CMD check
+Status OK with zero NOTEs. End-to-end proof: a wrong-arity stub call
+against the installed header fails to compile with a diagnostic tracing
+to DBARTS_C_API_LIST - the getTrees class is closed. DESCRIPTION
+already carries the dbarts (>= 1.0-0) floor in Depends and LinkingTo.
+ARC COMPLETE; the recorded additive escalations (signature-tagged
+names, consumer-visible hash) remain future options.
