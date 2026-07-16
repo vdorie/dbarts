@@ -299,10 +299,15 @@ public:
     // (one everywhere but a multi-location combiner), so the per-chain slab
     // stride folds it in; L = 1 leaves the exact current chain-major stride
     size_t numLocations = results.numReportedLocations;
+    // the per-sample varcount slab carries numVariableCountForests forests
+    // (1 everywhere but multinomial), so the per-chain varcount stride folds it
+    // in; count 1 leaves the exact current chain-major stride
+    size_t numVCForests = results.numVariableCountForests;
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
       r.numReportedLocations = numLocations;
+      r.numVariableCountForests = numVCForests;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
@@ -312,8 +317,8 @@ public:
         r.testFits = results.testFits +
           c * numSamples * data_.numTestObservations * numLocations;
       if (results.variableCounts != nullptr)
-        r.variableCounts =
-          results.variableCounts + c * numSamples * data_.numPredictors;
+        r.variableCounts = results.variableCounts +
+          c * numSamples * data_.numPredictors * numVCForests;
       if (results.splitProbabilities != nullptr)
         r.splitProbabilities =
           results.splitProbabilities + c * numSamples * data_.numPredictors;
@@ -1056,6 +1061,9 @@ public:
   size_t numForests() const { return chains_[0]->numForests(); }
   size_t numReportedLocations() const {
     return chains_[0]->numReportedLocations();
+  }
+  size_t numVariableCountForests() const {
+    return chains_[0]->numVariableCountForests();
   }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();

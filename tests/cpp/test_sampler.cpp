@@ -2028,12 +2028,17 @@ static void testMultinomial(ext_rng* rng) {
     check(sampler.numForests() == K, "multinomial builds K forests");
     check(sampler.numReportedLocations() == K,
           "multinomial reports K locations");
+    check(sampler.numVariableCountForests() == K,
+          "multinomial reports K variable-count forests");
 
     const size_t numBurnIn = 200, numSamples = 200;
     std::vector<double> fits(n * K * numSamples);
+    std::vector<std::uint32_t> varcounts(p * K * numSamples);
     Results results;
     results.trainingFits = fits.data();
     results.numReportedLocations = K;
+    results.variableCounts = varcounts.data();
+    results.numVariableCountForests = K;
     sampler.run(numBurnIn, numSamples, results);
 
     std::vector<double> meanProb(n * K, 0.0);
@@ -2058,6 +2063,23 @@ static void testMultinomial(ext_rng* rng) {
     }
     check(lowP0 / lowN > lowP2 / lowN, "category 0 dominates at low x");
     check(highP2 / highN > highP0 / highN, "category 2 dominates at high x");
+
+    // per-category varcount: the widened storeSample write lays K forest-major
+    // varcount slabs (p each) per sample, slot k = category k's forest. The
+    // last sample's slab k must equal forestVariableCounts(k) on the live trees
+    // (storeSample is a sweep's final act, so the trees are unchanged since it
+    // wrote the counts), the K-forest generalization of the single-forest case.
+    bool perCategoryVarcount = true;
+    std::vector<std::uint32_t> liveCounts(p);
+    for (size_t k = 0; k < K; ++k) {
+      sampler.forestVariableCounts(0, k, liveCounts.data());
+      const std::uint32_t* slab =
+        varcounts.data() + ((numSamples - 1) * K + k) * p;
+      for (size_t j = 0; j < p; ++j)
+        perCategoryVarcount &= slab[j] == liveCounts[j];
+    }
+    check(perCategoryVarcount,
+          "multinomial storeSample writes each category forest's varcount");
 
     // structural state round-trip: the K forests serialize through the
     // per-forest list, and the softmax combiner carries no wire state (omega is

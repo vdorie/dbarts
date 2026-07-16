@@ -20,13 +20,17 @@
 #   - result$test, the same K softmax channels on a held-out x.test slice
 #     (n.test x K x n.samples) - the C1 test-at-creation addition,
 #   - the raw per-category forest fits (bartcoreForestFits 0 .. K-1),
-#   - the per-category variable counts (bartcoreForestVariableCounts 0 .. K-1).
+#   - the per-category CUMULATIVE variable counts (bartcoreForestVariableCounts
+#     0 .. K-1) - a final-state query, distinct from runVarcount below,
+#   - result$varcount (runVarcount), the per-sample per-category run channel
+#     (p x K x n.samples) - the widened storeSample varcount write.
 #
-# NEUTRALITY: supplying x.test consumes no rng and moves no train draw, so the
-# three pre-C1 channels (train, forestFits, varcount) reproduce bb8855e bitwise -
-# a compare against bb8855e (which has no test channel) checks exactly those
-# three and must pass; the re-recorded baseline additionally guards the test
-# channel.
+# NEUTRALITY: supplying x.test consumes no rng, and widening the varcount write
+# reads existing tree state (no draw), so the pre-existing channels (train, test,
+# forestFits, varcount) reproduce the prior baselines bitwise. The compare loop
+# checks only the channels the BASELINE recorded, so a compare against an older
+# baseline lacking runVarcount checks exactly those and must pass; the
+# re-recorded baseline additionally guards runVarcount.
 #
 # A getState -> setState continuation is deliberately NOT recorded: restore is
 # structural by contract (omega is redrawn on the first restored sweep), so a
@@ -68,9 +72,12 @@ makeControl <- function() {
 
 # The K softmax-probability channels (train and, when the fit carries x.test,
 # test) plus every category forest's raw fits and split counts, at the sampler's
-# current state. The test channel is the C1 addition; the three pre-existing
-# channels stay bitwise vs bb8855e because supplying x.test consumes no rng and
-# moves no train draw (the per-sweep test-fit accumulation is deterministic).
+# current state, and the per-sample per-category varcount channel the run
+# records (runVarcount, p x K x n.samples: the widened storeSample write). The
+# test channel and runVarcount are additive over bb8855e/bcefa63; the earlier
+# channels stay bitwise because widening the varcount write reads existing tree
+# state (no draw) and supplying x.test consumes no rng. varcount below is the
+# CUMULATIVE final-state per-category query (a different quantity), untouched.
 recordChannels <- function(bc, result, K) {
   list(
     train = result$train,
@@ -82,7 +89,8 @@ recordChannels <- function(bc, result, K) {
     varcount = lapply(
       seq_len(K) - 1L,
       function(k) dbarts:::bartcoreForestVariableCounts(bc, k)
-    )
+    ),
+    runVarcount = result$varcount
   )
 }
 

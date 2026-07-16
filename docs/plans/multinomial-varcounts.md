@@ -161,3 +161,21 @@ C2. Docs. Correct multinomial.md "The surface" (varcount now DEFINED per-sample
   information, sliceable to per-category). Sub-point: standard dbarts bart ships
   no varcount.mean, so I omit it (a user applies mean over the draw margin);
   say if mbart2 parity should override and add $varcount.mean (K x p).
+
+## Landing notes
+
+C1 LANDED (the commit carrying this note): numVariableCountForests /
+variableCountForest(j) on ForestCombiner (defaults 1 / reportedForest;
+multinomial overrides K / j); storeSample loops the varcount write
+forest-major within a sample; Results/Chain/Sampler/facade thread the
+count; the bridge allocates p x K x samples (x chains) INTSXP through
+an allocVarcountArray lambda mirroring the fits seam, byte-identical
+matrix/3D shapes at count 1; packageMultinomialResults reports
+(n.chains x) n.samples x p x K with levels on K and predictor names on
+p (Q1 resolution). Gates (implementer + independent orchestrator
+re-run): 22/22 identical draws, BCF 5x6 bitwise, multinomial neutrality
+4/4 existing channels bitwise vs bcefa63; tinytest 2938/0; tests/cpp
+clean rebuild; air clean; no new .Call (rchk note: bartcore_run's
+varcount allocation widened, same PROTECT pattern as allocFitsArray).
+The fixture gains the per-sample runVarcount channel; recorded and
+registered in the follow-up commit named by this landing's hash.

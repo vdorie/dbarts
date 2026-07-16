@@ -698,7 +698,14 @@ bart2Multinomial <- function(
   bc <- bartcoreMultinomialSampler(sampler, labels, K = K)
   samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
 
-  result <- packageMultinomialResults(control, y, K, samples, combineChains)
+  result <- packageMultinomialResults(
+    control,
+    y,
+    K,
+    samples,
+    combineChains,
+    predictorNames = colnames(sampler$data@x)
+  )
   # keepTrees retains the handles predict.bartMultinomial replays through: bc
   # holds every one of the K forests' saved trees (the sampling sweeps wrote
   # them regardless), and the host sampler's coded design (sampler@data@x) codes
@@ -710,12 +717,21 @@ bart2Multinomial <- function(
   result
 }
 
-# Reshapes one K-carrying softmax channel (n.obs x K x n.samples (x n.chains),
-# the run's train/test channel and predict's replay share this raw shape) into
-# the package's draws-first convention: (n.chains x) n.samples x n.obs x K,
-# combining the chain margin as bart2's other families do, with levels named on
-# the trailing K margin so every K-shaped output threads them.
-shapeMultinomialChannel <- function(raw, levels, n.chains, combineChains) {
+# Reshapes one K-carrying channel (lead x K x n.samples (x n.chains): the run's
+# train/test channel, predict's replay, and the per-category varcount channel
+# all share this raw shape - lead is the observations for the fits, the
+# predictors for varcount) into the package's draws-first convention:
+# (n.chains x) n.samples x lead x K, combining the chain margin as bart2's other
+# families do, with levels named on the trailing K margin so every K-shaped
+# output threads them. leadNames, when supplied, names the lead margin (the
+# predictor names varcount threads); the fits leave it NULL.
+shapeMultinomialChannel <- function(
+  raw,
+  levels,
+  n.chains,
+  combineChains,
+  leadNames = NULL
+) {
   out <- if (n.chains == 1L) {
     aperm(raw, c(3L, 1L, 2L))
   } else if (combineChains) {
@@ -727,7 +743,13 @@ shapeMultinomialChannel <- function(raw, levels, n.chains, combineChains) {
     aperm(raw, c(4L, 3L, 1L, 2L))
   }
   numDims <- length(dim(out))
-  dimnames(out) <- c(rep(list(NULL), numDims - 1L), list(levels))
+  dn <- rep(list(NULL), numDims)
+  dn[[numDims]] <- levels
+  # assigning NULL through [[<- would drop the slot, so guard the lead margin
+  if (!is.null(leadNames)) {
+    dn[[numDims - 1L]] <- leadNames
+  }
+  dimnames(out) <- dn
   out
 }
 
@@ -740,14 +762,19 @@ shapeMultinomialChannel <- function(raw, levels, n.chains, combineChains) {
 # combineChains as bart2's other families do - with levels(y) named on the
 # trailing K margin so every K-shaped output threads them.
 #
-# varcount is deliberately omitted: the run's per-sample varcount channel
-# addresses category 0's forest only (a single-forest carryover), so
-# presenting it as "the" fit's varcount would mislabel it. Per-category
-# CURRENT-STATE split counts are still reachable, live, via
-# dbarts:::bartcoreForestVariableCounts(bc, category) while bc is in scope -
-# this fit object keeps bc only under keepTrees (for predict), so absent that
-# the door closes when the call returns.
-packageMultinomialResults <- function(control, y, K, samples, combineChains) {
+# varcount is the per-sample per-category split-usage channel: each category
+# forest's per-draw variable counts, reshaped like yhat.train to (n.chains x)
+# n.samples x p x K with levels(y) on the K margin and predictorNames on the p
+# margin. Symmetric to mbart2's per-category varcount, as an array where every
+# other K-output is one.
+packageMultinomialResults <- function(
+  control,
+  y,
+  K,
+  samples,
+  combineChains,
+  predictorNames = NULL
+) {
   levels <- levels(y)
   n.chains <- control@n.chains
 
@@ -768,7 +795,16 @@ packageMultinomialResults <- function(control, y, K, samples, combineChains) {
     n.chains = n.chains,
     n.trees = control@n.trees,
     y = y,
-    yhat.train = shapeChannel(samples$train)
+    yhat.train = shapeChannel(samples$train),
+    # the per-category varcount channel shares the fits' raw p x K x n.samples
+    # shape, so the same reshape applies with predictor names on the p margin
+    varcount = shapeMultinomialChannel(
+      samples$varcount,
+      levels,
+      n.chains,
+      combineChains,
+      leadNames = predictorNames
+    )
   )
   if (!is.null(samples$test)) {
     result$yhat.test <- shapeChannel(samples$test)
