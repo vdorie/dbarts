@@ -2075,6 +2075,78 @@ static void testMultinomial(ext_rng* rng) {
     ext_rng_destroy(rngB);
   }
 
+  // ---- keepTrees: K-forest saved-tree replay reproduces the recorded test
+  // channel bit for bit. predict sums every forest's saved trees at the test
+  // rows and softmaxes them; the run accumulated the same forests' totalTestFits
+  // and blended them the same way, and neither carries the level-centering shift
+  // (afterCombine leaves totalTestFits and the saved leaves alone), so the two
+  // agree exactly. A local rng plus a runif01 snapshot keep this neutral to the
+  // shared streams the sequenced tests draw from. ----
+  {
+    uint64_t savedRngState = rngState;
+    const size_t n = 200, p = 2, K = 3, numSamples = 6;
+    std::vector<double> x(n * p);
+    std::vector<int> labels(n);
+    for (double& v : x) v = runif01();
+    for (size_t i = 0; i < n; ++i) {
+      double e0 = 1.5 * (x[i] - 0.5), e1 = x[i + n] - 0.5,
+             e2 = 0.5 * (x[i] - x[i + n]);
+      double m = std::max(e0, std::max(e1, e2));
+      double s = std::exp(e0 - m) + std::exp(e1 - m) + std::exp(e2 - m);
+      double p0 = std::exp(e0 - m) / s, p1 = std::exp(e1 - m) / s;
+      double u = runif01();
+      labels[i] = u < p0 ? 0 : (u < p0 + p1 ? 1 : 2);
+    }
+    // test rows: a held-out slice of the training design
+    const size_t nTest = 25;
+    std::vector<double> xTest(nTest * p);
+    for (size_t i = 0; i < nTest; ++i)
+      for (size_t j = 0; j < p; ++j) xTest[i + j * nTest] = x[i + j * n];
+
+    SamplerOptions options;
+    options.numTrees = 30;
+    options.keepTrees = true;
+    options.numSamplesToStore = numSamples;
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.labels = labels.data();
+    spec.forest.numTrees = 30;
+
+    ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(localRng, 20260716u);
+    Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec,
+                                          &localRng);
+    sampler.setTestPredictors(xTest.data(), nTest);
+
+    std::vector<double> testFits(nTest * K * numSamples);
+    Results results;
+    results.testFits = testFits.data();
+    results.numReportedLocations = K;
+    sampler.run(80, numSamples, results);
+
+    std::vector<double> predicted(nTest * K * numSamples);
+    sampler.predict(xTest.data(), nTest, predicted.data());
+    check(predicted == testFits,
+          "multinomial K-forest saved-tree replay equals the recorded test "
+          "channel");
+
+    bool simplex = true;
+    for (size_t sm = 0; sm < numSamples; ++sm)
+      for (size_t i = 0; i < nTest; ++i) {
+        double sum = 0.0;
+        for (size_t k = 0; k < K; ++k) {
+          double pr = predicted[i + nTest * (k + K * sm)];
+          simplex &= pr > 0.0 && pr < 1.0;
+          sum += pr;
+        }
+        simplex &= std::fabs(sum - 1.0) < 1e-12;
+      }
+    check(simplex, "multinomial replayed predictions are per-row simplices");
+
+    ext_rng_destroy(localRng);
+    rngState = savedRngState;
+  }
+
   printf("ok: multinomial softmax sampler\n");
 }
 

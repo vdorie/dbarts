@@ -219,6 +219,16 @@ public:
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(
         std::make_unique<Chain<L>>(data_, options_, spec, rngs[c]));
+
+    // saved-tree storage under keepTrees, as initializeChains does for the
+    // other constructors (this multinomial path builds its chains directly and
+    // so must init it here); each chain allocates all K forests' slots. Skipped
+    // off keepTrees, so a non-keepTrees multinomial layout is unchanged.
+    if (options_.keepTrees) {
+      size_t capacity =
+        options_.numSamplesToStore > 0 ? options_.numSamplesToStore : 1;
+      for (auto& chain : chains_) chain->initializeSavedTrees(capacity);
+    }
   }
 
   // chains reference the store member, so the sampler's address is pinned
@@ -486,19 +496,32 @@ public:
 
   /// Fits for raw column-major test rows, on the original response scale
   /// (offsets are the caller's problem). With saved trees, out is
-  /// numTestObservations x savedTreeCapacity x numChains, chain-major like
-  /// Results; without, one slab per chain from the live trees.
+  /// numTestObservations (x numReportedLocations) x savedTreeCapacity x
+  /// numChains, chain-major like Results; without, one slab per chain from the
+  /// live trees. A multi-location combiner (multinomial: K softmax channels)
+  /// inserts the K location dimension between the observations and the slots;
+  /// L = 1 keeps the exact numTestObservations-per-slot byte layout.
   void predict(const double* x_test, size_t numTestObservations, double* out) {
     size_t capacity = savedTreeCapacity();
+    size_t numLocations = numReportedLocations();
+    size_t slab = numTestObservations * numLocations;
     for (size_t c = 0; c < chains_.size(); ++c) {
       if (capacity > 0) {
-        for (size_t slot = 0; slot < capacity; ++slot)
-          chains_[c]->predictFromSavedSample(
-            slot, x_test, numTestObservations,
-            out + (c * capacity + slot) * numTestObservations);
+        for (size_t slot = 0; slot < capacity; ++slot) {
+          double* dst = out + (c * capacity + slot) * slab;
+          if (numLocations > 1)
+            chains_[c]->predictFromSavedSampleMulti(slot, x_test,
+                                                    numTestObservations, dst);
+          else
+            chains_[c]->predictFromSavedSample(slot, x_test,
+                                               numTestObservations, dst);
+        }
+      } else if (numLocations > 1) {
+        chains_[c]->predictFromCurrentTreesMulti(x_test, numTestObservations,
+                                                 out + c * slab);
       } else {
         chains_[c]->predictFromCurrentTrees(x_test, numTestObservations,
-                                            out + c * numTestObservations);
+                                            out + c * slab);
       }
     }
   }

@@ -532,6 +532,26 @@ private:
   BCFState glue_;
 };
 
+/// Softmax over K location-major raw fits (raw[k*n + i] is category k's value
+/// for row i) into out in the same layout, log-sum-exp-safe. Shared by the
+/// multinomial train/test blends and the K-forest predict replay so the three
+/// numerics are one map, not three copies. Safe in place (out == raw): each
+/// row's max and normalizer are formed before any of its K entries are
+/// overwritten, and distinct rows touch disjoint storage.
+inline void softmaxLocationMajor(const double* raw, std::size_t n,
+                                 std::size_t K, double* out) {
+  for (std::size_t i = 0; i < n; ++i) {
+    double maxFit = raw[i];
+    for (std::size_t k = 1; k < K; ++k)
+      maxFit = std::max(maxFit, raw[k * n + i]);
+    double sumExp = 0.0;
+    for (std::size_t k = 0; k < K; ++k)
+      sumExp += std::exp(raw[k * n + i] - maxFit);
+    for (std::size_t k = 0; k < K; ++k)
+      out[k * n + i] = std::exp(raw[k * n + i] - maxFit) / sumExp;
+  }
+}
+
 /// The multinomial (softmax) combiner: K symmetric category forests coupled
 /// through a log-linear likelihood, P(y_i = k) = softmax(f_i)_k, with an
 /// INTERLEAVED one-vs-rest Polya-Gamma augmentation and a likelihood-invariant
@@ -638,17 +658,14 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
       const std::vector<Forest<L>>& forests) override {
     std::size_t nTest = data_.numTestObservations;
     combinedTest_.resize(nTest * numCategories_);
-    for (std::size_t i = 0; i < nTest; ++i) {
-      double maxFit = forests[0].totalTestFits[i];
-      for (std::size_t k = 1; k < numCategories_; ++k)
-        maxFit = std::max(maxFit, forests[k].totalTestFits[i]);
-      double sumExp = 0.0;
-      for (std::size_t k = 0; k < numCategories_; ++k)
-        sumExp += std::exp(forests[k].totalTestFits[i] - maxFit);
-      for (std::size_t k = 0; k < numCategories_; ++k)
-        combinedTest_[k * nTest + i] =
-          std::exp(forests[k].totalTestFits[i] - maxFit) / sumExp;
-    }
+    // gather the K forests' totalTestFits into location-major order, then
+    // softmax in place through the shared map (byte-identical to the direct
+    // per-forest loop this replaced: the gather is a plain copy)
+    for (std::size_t k = 0; k < numCategories_; ++k)
+      for (std::size_t i = 0; i < nTest; ++i)
+        combinedTest_[k * nTest + i] = forests[k].totalTestFits[i];
+    softmaxLocationMajor(combinedTest_.data(), nTest, numCategories_,
+                         combinedTest_.data());
     return combinedTest_.data();
   }
 

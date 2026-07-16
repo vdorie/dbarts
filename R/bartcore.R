@@ -554,7 +554,8 @@ bartcoreBCFSampler <- function(
 # through bartcoreForestFits / bartcoreForestVariableCounts (0-based forest =
 # category). When the data object carries x.test, the run's test channel
 # reports the same K softmax probabilities on the held-out rows (the K forests'
-# totalTestFits blended by softmax); out-of-sample predict() is refused this arc.
+# totalTestFits blended by softmax). Under keepTrees, out-of-sample predict()
+# replays all K forests' saved trees and softmaxes them (bartcorePredict).
 bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
   labels <- as.integer(labels)
   if (anyNA(labels)) {

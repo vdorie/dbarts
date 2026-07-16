@@ -1440,6 +1440,68 @@ public:
       out[i] = scale * out[i] + shift;
   }
 
+  /// K-forest softmax replay of one saved sample (multinomial): sum every one
+  /// of the K forests' saved trees at the new rows into a location-major raw
+  /// slab, then softmax per row into out (nTest x K, out[k*nTest + i]) through
+  /// the same map storeSample's test channel applies to totalTestFits. The
+  /// level-centering grand shift is absent from the saved (flattened) leaves,
+  /// but softmax is invariant to a shift common to all K categories, so the
+  /// replayed probabilities are the identified ones (docs/design/multinomial.md).
+  /// The per-forest total is on the internal (softmax log-odds) scale, not the
+  /// fitScale-shifted response scale, exactly as totalTestFits is - fitScale is
+  /// the identity for the multinomial response, so no conversion applies.
+  void predictFromSavedSampleMulti(size_t slot, const double* x_test,
+                                   size_t numTestObservations,
+                                   double* out) const {
+    size_t K = forests_.size();
+    std::vector<double> raw(numTestObservations * K);
+    std::vector<size_t> indices(numTestObservations);
+    std::vector<size_t> blockOffsets;
+    for (size_t f = 0; f < K; ++f) {
+      const Forest<L>& forest = forests_[f];
+      double* forestRaw = raw.data() + f * numTestObservations;
+      misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        const std::uint64_t* masks = data_.hasPooledCategorical
+          ? forest.savedTreeMasks[slot * forest.numTrees + t].data() : nullptr;
+        const std::vector<double>* sideChannel = forest.savedTreeParams.empty()
+          ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
+        addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
+                           sideChannel, masks, x_test, numTestObservations,
+                           indices, blockOffsets, forestRaw);
+      }
+    }
+    softmaxLocationMajor(raw.data(), numTestObservations, K, out);
+  }
+
+  /// The same K-forest softmax replay from the live trees, flattened on the
+  /// fly; reached only when keepTrees is off, which the R surface refuses for a
+  /// multinomial predict, so it exists for completeness and the engine tests.
+  void predictFromCurrentTreesMulti(const double* x_test,
+                                    size_t numTestObservations, double* out) {
+    size_t K = forests_.size();
+    std::vector<double> raw(numTestObservations * K);
+    std::vector<size_t> indices(numTestObservations);
+    std::vector<size_t> blockOffsets;
+    std::vector<double> slopes;
+    std::vector<std::uint32_t> counts;
+    std::vector<FlatNode> flat;
+    std::vector<std::uint64_t> maskBuffer;
+    std::vector<std::uint64_t>* masks =
+      data_.hasPooledCategorical ? &maskBuffer : nullptr;
+    for (size_t f = 0; f < K; ++f) {
+      double* forestRaw = raw.data() + f * numTestObservations;
+      misc_setVectorToConstant(forestRaw, numTestObservations, 0.0);
+      for (size_t t = 0; t < forests_[f].numTrees; ++t) {
+        flattenTree(t, flat, counts, &slopes, masks, f);
+        addFlatPredictions(flat, &slopes, maskBuffer.data(), x_test,
+                           numTestObservations, indices, blockOffsets,
+                           forestRaw);
+      }
+    }
+    softmaxLocationMajor(raw.data(), numTestObservations, K, out);
+  }
+
   // Chain state serialization. getState captures everything the posterior
   // state comprises; stateIsValid checks a candidate against the store's
   // current cuts without mutating anything, so a multi-chain restore can be

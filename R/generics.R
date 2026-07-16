@@ -457,11 +457,38 @@ fitted.bartMultinomial <- function(object, type = c("ev", "class"), ...) {
   )
 }
 
-predict.bartMultinomial <- function(object, newdata, ...) {
-  stop(
-    "predict() is not supported for multinomial fits: there is no ",
-    "multi-forest prediction surface this arc; see ?bart2"
-  )
+# Out-of-sample softmax probabilities by replaying the K forests' saved trees
+# (docs/design/multinomial.md). Requires a fit kept with keepTrees, whose bc
+# holds every forest's saved trees and whose host sampler codes newdata to the
+# training columns. Returns a levels-named (n.chains x) n.samples x n.new x K
+# probability array, the yhat.test/train convention. type = "bart" (the raw
+# per-category latent scale) stays unavailable, as it is for extract: only the
+# identified probabilities are recoverable.
+predict.bartMultinomial <- function(
+  object,
+  newdata,
+  combineChains = TRUE,
+  ...
+) {
+  if (is.null(object[["bc"]])) {
+    stop(
+      "predict requires bart2(family = \"multinomial\") to be called with ",
+      "'keepTrees' == TRUE"
+    )
+  }
+  # code newdata to the training columns exactly as the fit-time design was
+  # (the validated path every family's predict uses): data-frame factors expand
+  # against the retained level table, a bare matrix passes through column-checked
+  newdata <- validateXTest(newdata, object$fit$data@x)
+  if (is.null(newdata)) {
+    stop("newdata cannot be NULL")
+  }
+  if (!is.matrix(newdata)) {
+    newdata <- as.matrix(newdata)
+  }
+  # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape
+  raw <- bartcorePredict(object$bc, newdata)
+  shapeMultinomialChannel(raw, object$levels, object$n.chains, combineChains)
 }
 
 print.bartMultinomial <- function(x, ...) {
