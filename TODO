@@ -21,13 +21,6 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
-  capi-dispatch-table: DECIDED (VD 2026-07-16) - keep per-symbol
-    R_GetCCallable; ship major/minor version encoding, X-macro
-    single-source stubs, and the in-header hash token (the cross-repo
-    contract CI was landed then dropped - the rework itself makes a
-    stale consumer fail noisily, which suffices). Implementation in
-    flight per the plan in docs/plans/capi-dispatch-table.md.
-    window: pre-release (must land before 1.0-0 freezes dbarts.h).
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
@@ -144,6 +137,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     0 errors / 0 warnings / 0 notes.
   stan4bart follow-up: adopt categorical splits (it pins factors =
     "indicators"); lockstep with the dbarts release.
+  on any post-release dbarts.h change: bump DBARTS_C_API_MINOR (or MAJOR
+    if incompatible) alongside the hash re-bake, and bump stan4bart's
+    Depends/LinkingTo dbarts floor in the same lockstep release - the
+    load handshake covers the library-ahead direction, the floor covers
+    consumer-ahead; both must move together.
   optional courtesy: notify the tmle maintainers. Their default
     SuperLearner dbarts wrappers pass obsWeights unconditionally and
     pnorm() the latents; unit weights are handled dbarts-side now, but
