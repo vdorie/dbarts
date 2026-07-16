@@ -21,6 +21,10 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
+  capi-dispatch-table: design pass on the C ABI dispatch mechanism -
+    per-symbol R_GetCCallable versus a single entry point returning a
+    version-indexed function table (VD 2026-07-15; the getTrees silent
+    break is the motivating failure mode). window: pre-release.
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
@@ -82,6 +86,10 @@ items
     roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
+  simd-flag-multiversioning: evaluate compiler-flag-generated wide-ISA
+    variants (e.g. AVX2 builds of the unrolled means/variances) as a
+    complement to the intrinsics multi-versioning; measure on the x86
+    bench box (VD 2026-07-15). Complements x86-simd.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
     notes). consumer-gated.
