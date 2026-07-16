@@ -381,14 +381,14 @@ residuals.bart <- function(object, type = "ev", ...) {
   object$y - fitted.bart(object, type = type, sample = "train", ...)
 }
 
-# bart2(family = "multinomial") generics (docs/plans/multinomial.md C7). The
+# bart2(family = "multinomial") generics (docs/design/multinomial.md). The
 # fit object is class "bartMultinomial" - deliberately NOT "bart" - so it
 # never falls through to the "bart" methods above: those assume an n x
 # samples (x chains) shape with no K margin and would silently misread the
 # K-widened arrays here rather than error.
 #
 # type = "ev" is the engine's own train channel: already softmax
-# PROBABILITIES (Q3 of docs/plans/multinomial.md), so unlike the binary
+# PROBABILITIES (docs/design/multinomial.md), so unlike the binary
 # families there is no latent-to-probability transform. type = "bart" (the
 # latent scale) is refused: the run records only the identified
 # probabilities, and the raw per-category fits are non-identified and
