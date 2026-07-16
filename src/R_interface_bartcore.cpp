@@ -3276,8 +3276,11 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
 // Fits for new data on the original response scale (binary responses give
 // the latent scale, as the classic engine does). With keepTrees the saved
 // trees produce numTestObservations x numSamples (x numChains) fits; without,
-// the live trees produce a single set per chain. offset, when non-null, is
-// added to every sample's fits.
+// the live trees produce a single set per chain. A multi-location combiner
+// (multinomial: K softmax channels) inserts the K dimension between the rows
+// and the samples, matching the run's test channel. offset, when non-null, is
+// added to every sample's fits (refused for a multi-location surface, whose
+// output is probabilities rather than an additive latent scale).
 SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
@@ -3302,10 +3305,33 @@ SEXP bartcore_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   size_t capacity = sampler.savedTreeCapacity();
   size_t numChains = sampler.numChains();
   size_t numSamples = capacity > 0 ? capacity : 1;
+  size_t numLocations = sampler.numReportedLocations();
+
+  // a multi-location (multinomial softmax) surface reports probabilities, not
+  // an additive latent scale, so an offset has no meaning there
+  if (offset != NULL && numLocations > 1)
+    Rf_error("bartcore_predict: an offset is undefined for a multi-location "
+             "(multinomial softmax) predict surface");
 
   int numTestInt = static_cast<int>(numTestObservations);
   SEXP resultExpr;
-  if (capacity > 0) {
+  if (numLocations > 1) {
+    // numTestObservations x numLocations x numSamples (x numChains): the K
+    // location dimension inserts between the rows and the slots, so the shape
+    // and byte layout match the run's test channel exactly (allocFitsArray)
+    int dims[4];
+    int numDims = 0;
+    dims[numDims++] = numTestInt;
+    dims[numDims++] = static_cast<int>(numLocations);
+    dims[numDims++] = static_cast<int>(numSamples);
+    if (numChains > 1) dims[numDims++] = static_cast<int>(numChains);
+    R_xlen_t total = 1;
+    for (int d = 0; d < numDims; ++d) total *= dims[d];
+    resultExpr = PROTECT(Rf_allocVector(REALSXP, total));
+    SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
+    for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
+    Rf_setAttrib(resultExpr, R_DimSymbol, dimExpr);
+  } else if (capacity > 0) {
     resultExpr = numChains == 1
       ? PROTECT(Rf_allocMatrix(REALSXP, numTestInt,
                                static_cast<int>(capacity)))

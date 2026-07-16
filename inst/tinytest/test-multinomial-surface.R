@@ -245,6 +245,60 @@ expect_equal(dim(fit2t$yhat.test), c(n.samples, 15L, 2L))
 expect_equal(dimnames(fit2t$yhat.test)[[3L]], c("no", "yes"))
 expect_true(all(fit2t$yhat.test >= 0 & fit2t$yhat.test <= 1))
 
+# --- predict-on-newdata: keepTrees replays all K saved forests ---
+set.seed(seed3)
+fit3p <- bart2(
+  x3,
+  y3,
+  family = "multinomial",
+  test = x3.test,
+  keepTrees = TRUE,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+# THE REPRODUCTION GATE: predict at the fit-time test rows equals the recorded
+# test channel BIT FOR BIT. Both replay the same saved trees through the same
+# softmax, and neither carries the level-centering grand shift (afterCombine
+# leaves totalTestFits and the saved leaves alone), so they agree exactly.
+pred3p <- predict(fit3p, x3.test)
+expect_identical(pred3p, fit3p$yhat.test)
+# shape, levels, and simplex on a fresh newdata matrix
+pred3new <- predict(fit3p, x3[21:40, , drop = FALSE])
+expect_equal(dim(pred3new), c(n.samples, 20L, 3L))
+expect_equal(dimnames(pred3new)[[3L]], c("lo", "mid", "hi"))
+expect_true(all(pred3new >= 0 & pred3new <= 1))
+expect_true(all(abs(apply(pred3new, c(1L, 2L), sum) - 1) < 1e-8))
+# predict on the training rows reproduces the train channel to floating point:
+# the train channel softmaxes totalFits WITH the common level shift, the replay
+# softmaxes the saved (pre-shift) leaves; softmax invariance to that shift makes
+# them agree up to rounding (not bitwise, unlike the shift-free test channel)
+pred3train <- predict(fit3p, x3)
+expect_equal(dim(pred3train), c(n.samples, n, 3L))
+expect_true(max(abs(pred3train - fit3p$yhat.train)) < 1e-6)
+
+# multi-chain predict threads the chain margin like the run channels
+set.seed(431)
+fit3pMulti <- bart2(
+  x3,
+  y3,
+  family = "multinomial",
+  keepTrees = TRUE,
+  n.trees = 10L,
+  n.chains = 2L,
+  n.threads = 2L,
+  n.burn = 5L,
+  n.samples = 5L,
+  verbose = FALSE
+)
+predMulti <- predict(fit3pMulti, x3.test)
+expect_equal(dim(predMulti), c(10L, 20L, 3L))
+predMultiSplit <- predict(fit3pMulti, x3.test, combineChains = FALSE)
+expect_equal(dim(predMultiSplit), c(2L, 5L, 20L, 3L))
+
 # --- honest refusals ---
 expect_error(
   bart2(
@@ -270,21 +324,10 @@ expect_error(
   ),
   "offset"
 )
-expect_error(
-  bart2(
-    x2,
-    y2,
-    family = "multinomial",
-    keepTrees = TRUE,
-    n.burn = 0L,
-    n.samples = 5L,
-    n.trees = 5L
-  ),
-  "keepTrees"
-)
 expect_error(extract(fit3, type = "bart"), "non-identified")
 expect_error(fitted(fit3, type = "bart"), "'arg' should be one of")
-expect_error(predict(fit3, x3), "multi-forest prediction")
+# fit3 was built WITHOUT keepTrees, so it has no saved trees to replay
+expect_error(predict(fit3, x3), "keepTrees")
 expect_error(
   bart2(x2, as.double(labels2), family = "multinomial"),
   "factor"

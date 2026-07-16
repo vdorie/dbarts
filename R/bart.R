@@ -442,12 +442,6 @@ bart2 <- function(
         "family = \"multinomial\" does not support 'subset' this arc"
       )
     }
-    if (isTRUE(keepTrees)) {
-      stop(
-        "family = \"multinomial\" does not support 'keepTrees': the ",
-        "saved-tree machinery addresses forest 0 only"
-      )
-    }
     if (isTRUE(samplerOnly)) {
       stop(
         "family = \"multinomial\" does not support 'samplerOnly' this arc"
@@ -704,7 +698,37 @@ bart2Multinomial <- function(
   bc <- bartcoreMultinomialSampler(sampler, labels, K = K)
   samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
 
-  packageMultinomialResults(control, y, K, samples, combineChains)
+  result <- packageMultinomialResults(control, y, K, samples, combineChains)
+  # keepTrees retains the handles predict.bartMultinomial replays through: bc
+  # holds every one of the K forests' saved trees (the sampling sweeps wrote
+  # them regardless), and the host sampler's coded design (sampler@data@x) codes
+  # newdata to the training columns. Without keepTrees neither survives the call.
+  if (control@keepTrees) {
+    result$bc <- bc
+    result$fit <- sampler
+  }
+  result
+}
+
+# Reshapes one K-carrying softmax channel (n.obs x K x n.samples (x n.chains),
+# the run's train/test channel and predict's replay share this raw shape) into
+# the package's draws-first convention: (n.chains x) n.samples x n.obs x K,
+# combining the chain margin as bart2's other families do, with levels named on
+# the trailing K margin so every K-shaped output threads them.
+shapeMultinomialChannel <- function(raw, levels, n.chains, combineChains) {
+  out <- if (n.chains == 1L) {
+    aperm(raw, c(3L, 1L, 2L))
+  } else if (combineChains) {
+    a <- aperm(raw, c(3L, 4L, 1L, 2L))
+    d <- dim(a)
+    dim(a) <- c(d[1L] * d[2L], d[3L], d[4L])
+    a
+  } else {
+    aperm(raw, c(4L, 3L, 1L, 2L))
+  }
+  numDims <- length(dim(out))
+  dimnames(out) <- c(rep(list(NULL), numDims - 1L), list(levels))
+  out
 }
 
 # Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
@@ -721,7 +745,8 @@ bart2Multinomial <- function(
 # presenting it as "the" fit's varcount would mislabel it. Per-category
 # CURRENT-STATE split counts are still reachable, live, via
 # dbarts:::bartcoreForestVariableCounts(bc, category) while bc is in scope -
-# this fit object does not keep bc, so that door closes with it.
+# this fit object keeps bc only under keepTrees (for predict), so absent that
+# the door closes when the call returns.
 packageMultinomialResults <- function(control, y, K, samples, combineChains) {
   levels <- levels(y)
   n.chains <- control@n.chains
@@ -729,21 +754,10 @@ packageMultinomialResults <- function(control, y, K, samples, combineChains) {
   # both the train (n.obs x K x n.samples (x n.chains)) and the test channel
   # reshape identically to the package's draws-first convention with levels
   # named on the trailing K margin; the test channel (yhat.test) is the same
-  # softmax blend on the held-out rows, present only when 'test' was supplied
+  # softmax blend on the held-out rows, present only when 'test' was supplied.
+  # predict.bartMultinomial reshapes its replayed channel through the same map.
   shapeChannel <- function(raw) {
-    out <- if (n.chains == 1L) {
-      aperm(raw, c(3L, 1L, 2L))
-    } else if (combineChains) {
-      a <- aperm(raw, c(3L, 4L, 1L, 2L))
-      d <- dim(a)
-      dim(a) <- c(d[1L] * d[2L], d[3L], d[4L])
-      a
-    } else {
-      aperm(raw, c(4L, 3L, 1L, 2L))
-    }
-    numDims <- length(dim(out))
-    dimnames(out) <- c(rep(list(NULL), numDims - 1L), list(levels))
-    out
+    shapeMultinomialChannel(raw, levels, n.chains, combineChains)
   }
 
   result <- list(
