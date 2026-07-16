@@ -104,9 +104,12 @@ items
     addv 1.24x at n=1e7; they lose cache-resident) - decide NT-store
     variants or delete the commented bodies; add
     misc_setIndexedVectorToConstant to the dispatch table (completeness
-    only, scatter has no pre-AVX512 SIMD form); SSR SIMD leaf stays the
-    separate fixed-lane-layout + re-record decision (simd-survey.md);
-    Windows-arm64 NEON config.
+    only, scatter has no pre-AVX512 SIMD form; stan4bart profiling
+    measured this fit scatter at ~18.5% of per-iteration wall in an
+    n=1e5 mixed fit - stan4bart docs/plans/perf-review.md - so any real
+    win there is algorithmic, layout/locality, not lane-parallel); SSR
+    SIMD leaf stays the separate fixed-lane-layout + re-record decision
+    (simd-survey.md); Windows-arm64 NEON config.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
