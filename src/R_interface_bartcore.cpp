@@ -1399,10 +1399,13 @@ void refuseViewSamplerOnly(const bartcore::SamplerBase& sampler,
 // ill-defined, so the engine would fall back to the bare prognostic forest and
 // silently misreport. Reject test data and out-of-sample prediction on a BCF
 // sampler; consumers recombine per forest via getForestFits + the BCF glue
-// (docs/design/bcf.md).
+// (docs/design/bcf.md). Gated on testFitsAreDefined() rather than the forest
+// count so a multi-forest model whose test blend IS defined (multinomial
+// softmax over the K forests' totalTestFits) is allowed through; only BCF, the
+// one multi-forest model that leaves the channel undefined, is refused.
 void refuseBCFTestSurface(const bartcore::SamplerBase& sampler,
                           const char* caller) {
-  if (sampler.numForests() >= 2)
+  if (sampler.numForests() >= 2 && !sampler.testFitsAreDefined())
     Rf_error("%s: a BCF sampler carries no test treatment vector, so its test "
              "fits are undefined; predict per forest with getForestFits and "
              "the BCF glue instead", caller);
@@ -1681,6 +1684,14 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
     // single-trial softmax likelihood this arc, and the labels must be codes
     if (data.weights != NULL)
       Rf_error("multinomial (softmax) models do not support case weights");
+    // the softmax carries no offset, so a test offset is meaningless; and a
+    // multinomial fit requires dense predictors, so a mixed/sparse test store
+    // cannot arise from the surface. Refuse both here, before the rngs are
+    // created, so the later dense setTestPredictors needs no error cleanup.
+    if (data.testOffset != NULL)
+      Rf_error("multinomial (softmax) models do not support a test offset");
+    if (data.numTestObservations > 0 && data.testIsMixed)
+      Rf_error("multinomial (softmax) models require a dense test matrix");
 
     size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
     if (numCategories < 2)
@@ -1718,6 +1729,14 @@ BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
       bartcore::createMultinomialSampler(data.x, data.numObservations,
                                          data.numPredictors, options,
                                          spec, rngs.data());
+
+    // test-at-creation: the K forests each accumulate their own totalTestFits in
+    // the sweep, and storeSample blends them into the K softmax test
+    // probabilities (chain testFitsAreDefined() is true). buildTest copies the
+    // dense test values, so nothing is pinned; the guards above ruled out a test
+    // offset and a mixed test store.
+    if (data.numTestObservations > 0)
+      sampler->setTestPredictors(data.x_test, data.numTestObservations);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits, {}, {}, {}, {}, {}, {}};

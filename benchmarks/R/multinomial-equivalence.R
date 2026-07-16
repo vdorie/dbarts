@@ -17,8 +17,16 @@
 # (R/bartcore.R; docs/design/multinomial.md) at a fixed seed, single chain, one
 # thread, and records:
 #   - result$train, the K softmax-probability channels (n x K x n.samples),
+#   - result$test, the same K softmax channels on a held-out x.test slice
+#     (n.test x K x n.samples) - the C1 test-at-creation addition,
 #   - the raw per-category forest fits (bartcoreForestFits 0 .. K-1),
 #   - the per-category variable counts (bartcoreForestVariableCounts 0 .. K-1).
+#
+# NEUTRALITY: supplying x.test consumes no rng and moves no train draw, so the
+# three pre-C1 channels (train, forestFits, varcount) reproduce bb8855e bitwise -
+# a compare against bb8855e (which has no test channel) checks exactly those
+# three and must pass; the re-recorded baseline additionally guards the test
+# channel.
 #
 # A getState -> setState continuation is deliberately NOT recorded: restore is
 # structural by contract (omega is redrawn on the first restored sweep), so a
@@ -58,11 +66,15 @@ makeControl <- function() {
   )
 }
 
-# The K softmax-probability channels plus every category forest's raw fits and
-# split counts, at the sampler's current state.
+# The K softmax-probability channels (train and, when the fit carries x.test,
+# test) plus every category forest's raw fits and split counts, at the sampler's
+# current state. The test channel is the C1 addition; the three pre-existing
+# channels stay bitwise vs bb8855e because supplying x.test consumes no rng and
+# moves no train draw (the per-sweep test-fit accumulation is deterministic).
 recordChannels <- function(bc, result, K) {
   list(
     train = result$train,
+    test = result$test,
     forestFits = lapply(
       seq_len(K) - 1L,
       function(k) dbarts:::bartcoreForestFits(bc, k)
@@ -96,7 +108,15 @@ runScenarios <- function() {
       function(i) sample.int(K, 1L, prob = probs[i, ]) - 1L,
       integer(1L)
     )
-    sampler <- dbarts(x, as.double(labels), control = makeControl())
+    # a held-out slice of x drives the additive test channel; slicing consumes
+    # no rng, so labels/x above are byte-identical to the pre-test-channel run
+    x.test <- x[seq_len(25L), , drop = FALSE]
+    sampler <- dbarts(
+      x,
+      as.double(labels),
+      test = x.test,
+      control = makeControl()
+    )
     set.seed(seeds[["k3.engine"]])
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
@@ -109,7 +129,13 @@ runScenarios <- function() {
     K <- 2L
     x <- matrix(runif(n * p), n, p)
     labels <- rbinom(n, 1L, plogis(2 * (x[, 1L] - 0.5) + x[, 2L]))
-    sampler <- dbarts(x, as.double(labels), control = makeControl())
+    x.test <- x[seq_len(25L), , drop = FALSE]
+    sampler <- dbarts(
+      x,
+      as.double(labels),
+      test = x.test,
+      control = makeControl()
+    )
     set.seed(seeds[["k2.engine"]])
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)

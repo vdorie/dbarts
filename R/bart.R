@@ -427,12 +427,6 @@ bart2 <- function(
   # the exact call sequence bart2Multinomial mirrors). Every refusal below
   # names the limitation rather than silently reshaping around it.
   if (family == "multinomial") {
-    if (!missing(test)) {
-      stop(
-        "family = \"multinomial\" does not support 'test': there is no ",
-        "multi-forest test surface this arc"
-      )
-    }
     if (!missing(weights)) {
       stop(
         "family = \"multinomial\" does not support 'weights' this arc"
@@ -731,20 +725,26 @@ bart2Multinomial <- function(
 packageMultinomialResults <- function(control, y, K, samples, combineChains) {
   levels <- levels(y)
   n.chains <- control@n.chains
-  raw <- samples$train
 
-  yhat.train <- if (n.chains == 1L) {
-    aperm(raw, c(3L, 1L, 2L))
-  } else if (combineChains) {
-    a <- aperm(raw, c(3L, 4L, 1L, 2L))
-    d <- dim(a)
-    dim(a) <- c(d[1L] * d[2L], d[3L], d[4L])
-    a
-  } else {
-    aperm(raw, c(4L, 3L, 1L, 2L))
+  # both the train (n.obs x K x n.samples (x n.chains)) and the test channel
+  # reshape identically to the package's draws-first convention with levels
+  # named on the trailing K margin; the test channel (yhat.test) is the same
+  # softmax blend on the held-out rows, present only when 'test' was supplied
+  shapeChannel <- function(raw) {
+    out <- if (n.chains == 1L) {
+      aperm(raw, c(3L, 1L, 2L))
+    } else if (combineChains) {
+      a <- aperm(raw, c(3L, 4L, 1L, 2L))
+      d <- dim(a)
+      dim(a) <- c(d[1L] * d[2L], d[3L], d[4L])
+      a
+    } else {
+      aperm(raw, c(4L, 3L, 1L, 2L))
+    }
+    numDims <- length(dim(out))
+    dimnames(out) <- c(rep(list(NULL), numDims - 1L), list(levels))
+    out
   }
-  numDims <- length(dim(yhat.train))
-  dimnames(yhat.train) <- c(rep(list(NULL), numDims - 1L), list(levels))
 
   result <- list(
     call = control@call,
@@ -754,8 +754,11 @@ packageMultinomialResults <- function(control, y, K, samples, combineChains) {
     n.chains = n.chains,
     n.trees = control@n.trees,
     y = y,
-    yhat.train = yhat.train
+    yhat.train = shapeChannel(samples$train)
   )
+  if (!is.null(samples$test)) {
+    result$yhat.test <- shapeChannel(samples$test)
+  }
   class(result) <- "bartMultinomial"
   result
 }

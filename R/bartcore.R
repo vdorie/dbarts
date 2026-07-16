@@ -552,7 +552,9 @@ bartcoreBCFSampler <- function(
 # prior. The run's train channel carries the K softmax probabilities
 # (n.observations x K x n.samples); per-category fits and split counts read
 # through bartcoreForestFits / bartcoreForestVariableCounts (0-based forest =
-# category). Out-of-sample prediction and test fits are refused this arc.
+# category). When the data object carries x.test, the run's test channel
+# reports the same K softmax probabilities on the held-out rows (the K forests'
+# totalTestFits blended by softmax); out-of-sample predict() is refused this arc.
 bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
   labels <- as.integer(labels)
   if (anyNA(labels)) {

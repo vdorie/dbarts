@@ -1,11 +1,14 @@
 #!/usr/bin/env Rscript
 
 # Exact-posterior gate for the bartcore multinomial (softmax) sampler
-# (docs/design/multinomial.md). Three arms, each matching the sampler's
+# (docs/design/multinomial.md). Four arms, each matching the sampler's
 # posterior mean of the IDENTIFIED softmax probabilities to a closed-form
 # quadrature, to Monte Carlo error. A failure means the softmax coupling, the
 # interleaved one-vs-rest Polya-Gamma draw, the level-centering move, or the
 # log-sum-exp margin formation is wrong - fix the model, never loosen the gate.
+# Arm 4 reuses arm 3's fit with two test rows duplicating the two cells and
+# gates that the TEST channel (combinedTestFits) equals the same quadrature
+# target as the train channel - the softmax-invariance correctness fact.
 #
 # The sampler's per-forest total-fit prior is symmetric N(0, tau^2)^K with
 #   tau = nodeScale / k,  nodeScale = pi*sqrt(3)/sqrt(2),  k = 2
@@ -309,6 +312,12 @@ arm3 <- function() {
   exactA <- colSums(exp(logNumA - gmax)) / den
   exactB <- colSums(exp(logNumB - gmax)) / den
 
+  # test rows duplicating the two cells: the test channel is the same softmax
+  # blend on held-out rows, so a cell's test-set probabilities must match its
+  # train/quadrature target - the direct gate on combinedTestFits equalling the
+  # (already-gated) combinedFits train blend
+  xTest <- matrix(c(0, 1), 2L, 1L)
+
   fitSeed <- function(seed) {
     set.seed(seed)
     control <- dbartsControl(
@@ -320,6 +329,7 @@ arm3 <- function() {
     host <- dbarts(
       x,
       as.double(labels),
+      test = xTest,
       control = control,
       tree.prior = cgm(power, base)
     )
@@ -328,11 +338,15 @@ arm3 <- function() {
     r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
     pA <- apply(r$train[cell == 0L, , , drop = FALSE], 2L, mean)
     pB <- apply(r$train[cell == 1L, , , drop = FALSE], 2L, mean)
-    c(pA, pB)
+    tA <- apply(r$test[1L, , , drop = FALSE], 2L, mean)
+    tB <- apply(r$test[2L, , , drop = FALSE], 2L, mean)
+    c(pA, pB, tA, tB)
   }
   fit <- colMeans(do.call(rbind, lapply(seq_len(nSeeds), fitSeed)))
   fitA <- fit[1:K]
   fitB <- fit[(K + 1L):(2L * K)]
+  testA <- fit[(2L * K + 1L):(3L * K)]
+  testB <- fit[(3L * K + 1L):(4L * K)]
 
   cat("Arm 3 (covariate K = 3, cell A then cell B):\n")
   cat(sprintf(
@@ -350,6 +364,21 @@ arm3 <- function() {
     max(abs(c(fitA - exactA, fitB - exactB))),
     tolerance
   )
+
+  cat("Arm 4 (test-at-creation K = 3, held-out cell A then cell B):\n")
+  cat(sprintf(
+    "  test A    %s\n",
+    paste(sprintf("%.4f", testA), collapse = " ")
+  ))
+  cat(sprintf(
+    "  test B    %s\n",
+    paste(sprintf("%.4f", testB), collapse = " ")
+  ))
+  report(
+    "  arm4 test K=3",
+    max(abs(c(testA - exactA, testB - exactB))),
+    tolerance
+  )
 }
 
 arm1()
@@ -362,4 +391,4 @@ cat("\n")
 if (anyFailure) {
   quit(status = 1L)
 }
-cat("OK: multinomial sampler matches the exact posterior on all three arms\n")
+cat("OK: multinomial sampler matches the exact posterior on all four arms\n")

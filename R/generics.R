@@ -404,12 +404,6 @@ extract.bartMultinomial <- function(
 ) {
   type <- match.arg(type)
   sample <- match.arg(sample)
-  if (sample == "test") {
-    stop(
-      "multinomial fits have no test surface this arc: 'test' is refused ",
-      "at bart2() and there is nothing to extract"
-    )
-  }
   if (type == "bart") {
     stop(
       "type = \"bart\" is not available for multinomial fits: the run ",
@@ -418,7 +412,17 @@ extract.bartMultinomial <- function(
     )
   }
 
-  probs <- object$yhat.train
+  probs <- if (sample == "test") {
+    if (is.null(object$yhat.test)) {
+      stop(
+        "this multinomial fit carries no test channel; refit with 'test' ",
+        "to report out-of-sample softmax probabilities"
+      )
+    }
+    object$yhat.test
+  } else {
+    object$yhat.train
+  }
   if (type == "ev") {
     return(probs)
   }
@@ -476,6 +480,11 @@ print.bartMultinomial <- function(x, ...) {
   d <- dim(x$yhat.train)
   n.kept <- if (length(d) == 4L) d[2L] else d[1L]
   cat("kept draws (per chain): ", n.kept, "\n", sep = "")
+  if (!is.null(x$yhat.test)) {
+    dt <- dim(x$yhat.test)
+    n.test <- if (length(dt) == 4L) dt[3L] else dt[2L]
+    cat("test rows: ", n.test, "\n", sep = "")
+  }
   invisible(x)
 }
 

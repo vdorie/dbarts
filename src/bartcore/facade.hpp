@@ -143,6 +143,12 @@ public:
   /// model (BCF included), more for a multi-location combiner. The run bridge
   /// reads it to size trainingFits/testFits; internal, invisible to dbarts.h.
   virtual std::size_t numReportedLocations() const = 0;
+  /// Whether the recorded test-fit channel carries a defined value: false only
+  /// for BCF (no test treatment vector to blend off-sample). The bridge's
+  /// test-surface refusal gates on it, so multinomial and single-forest
+  /// samplers are allowed while BCF stays refused. Internal, invisible to
+  /// dbarts.h.
+  virtual bool testFitsAreDefined() const = 0;
   /// BCF surface (docs/design/bcf.md); no-op/false off BCF. out receives
   /// {a, b0, b1}; forestTotalFits writes numObservations internal-scale fits.
   virtual void setTreatment(const double* z) = 0;
@@ -338,6 +344,9 @@ public:
   std::size_t numForests() const override { return impl_.numForests(); }
   std::size_t numReportedLocations() const override {
     return impl_.numReportedLocations();
+  }
+  bool testFitsAreDefined() const override {
+    return impl_.testFitsAreDefined();
   }
   void setTreatment(const double* z) override { impl_.setTreatment(z); }
   bool bcfGlue(std::size_t chainNum, double* out) const override {
