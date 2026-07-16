@@ -266,6 +266,21 @@ so no snapshot shifts) + air. Size: L. --preclean; delete tests/cpp binaries.
 Abort: any anchor or any existing multinomial channel moves = the seam touched a
 draw path (it must not).
 
+### C1 landing (2026-07-16)
+
+C1 = bcefa63. The combinedTestFits blend landed exactly as planned; both
+bitwise anchors and the old multinomial baseline's three channels identical
+(the neutrality claim held: supplying x.test moves no train draw), the new
+four-channel baseline recorded as multinomial-equivalence-bcefa63.rds with
+bb8855e demoted, the exact gate's fourth arm pins the test channel to the
+train channel's quadrature target on duplicated cells (bit-for-cell equal),
+tinytest 2916 (2905 + 11, zero regen), cpp clean, air clean. Also swept the
+C7-era docs/plans references out of R/bart.R and R/generics.R comments.
+Deviations recorded from the implementer: the fixture guards result$test
+rather than per-forest test fits (no per-forest test accessor exists), and
+the multinomial creation refuses test offsets and mixed/sparse test stores
+before rng creation (dense-only makes the mixed branch unreachable).
+
 ## C2 - Predict-on-newdata (the harder half; separable, RECOMMENDED with a defer-abort)
 
 RNG-NEUTRAL (replay + keepTrees serialization consume no draw). Lands after C1.

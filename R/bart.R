@@ -419,7 +419,7 @@ bart2 <- function(
   control@n.samples <- control@n.samples %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
 
-  # multinomial (docs/plans/multinomial.md C7): a K-forest softmax model over
+  # multinomial (docs/design/multinomial.md): a K-forest softmax model over
   # a factor response, validated and dispatched here rather than threaded
   # through the rest of bart2 - it bypasses the standard single-forest
   # dbarts()/run() path entirely (bartcoreMultinomialSampler builds a
@@ -641,7 +641,7 @@ bart2 <- function(
   result
 }
 
-# The multinomial (softmax) fit path (docs/plans/multinomial.md C7), reached
+# The multinomial (softmax) fit path (docs/design/multinomial.md), reached
 # from bart2's family = "multinomial" branch after ingestion validation. y is
 # the validated factor response; labels (0-based, as the engine wants them)
 # and K = nlevels(y) follow from it. The host sampler is built through
@@ -710,7 +710,7 @@ bart2Multinomial <- function(
 # Reshapes one bartcoreRun() result into a bart2(family = "multinomial") fit.
 # samples$train is n.obs x K x n.samples (x n.chains); the K-carrying softmax
 # probabilities are already the identified quantity the engine reports (Q3 of
-# docs/plans/multinomial.md), so no probabilityFromLatents-style transform
+# docs/design/multinomial.md), so no probabilityFromLatents-style transform
 # applies here, unlike the binary families. Reshaped to the package's
 # draws-first convention (n.chains x) n.samples x n.obs x K - matching
 # combineChains as bart2's other families do - with levels(y) named on the
