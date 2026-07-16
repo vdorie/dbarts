@@ -55,11 +55,9 @@ items
     single-leaf-type forest vector (heteroscedastic needs it) and
     whatever state each model actually carries (softmax carries none).
     Multinomial's recorded follow-ups, each engine-plus-surface sized:
-    per-sample per-category variable counts (widen the varcount
-    channel to locations), the count-matrix likelihood (n_i > 1;
-    PG(n, .) sums PG(1, .)), and the formula interface for family
-    multinomial. The test/predict surface LANDED 2026-07-16 (docs/
-    plans/multinomial-test-surface.md).
+    the count-matrix likelihood (n_i > 1; PG(n, .) sums PG(1, .)), and
+    the formula interface for family multinomial. The test/predict
+    surface LANDED 2026-07-16 (docs/plans/multinomial-test-surface.md).
     heteroscedastic additionally needs a fourth leaf kind
     (multiplicative-positive, non-integrable) plus the non-conjugate
     MoveStrategy the design anticipated but never built, and a
