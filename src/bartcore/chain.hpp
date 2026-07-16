@@ -438,6 +438,14 @@ public:
   std::size_t numReportedLocations() const {
     return combiner_ ? combiner_->numReportedLocations() : 1;
   }
+  /// Whether the recorded test-fit channel carries a defined value: true off any
+  /// combiner (single forest) and for a combiner that blends a test surface
+  /// (multinomial softmax), false for BCF (no test treatment vector). The bridge
+  /// gates its test-surface refusal on this so BCF stays refused while
+  /// multinomial and single-forest samplers are allowed.
+  bool testFitsAreDefined() const {
+    return combiner_ ? combiner_->testFitsAreDefined() : true;
+  }
   bool usesDart() const { return forests_[0].useDart; }
   /// Re-forms b_{z_i} and both residuals on the next sweep; z is borrowed.
   void setTreatment(const double* z) {
@@ -2188,10 +2196,21 @@ private:
         for (size_t i = 0; i < nTest * numLocations; ++i)
           out[i] = std::numeric_limits<double>::quiet_NaN();
       } else {
+        // A single forest (or single-location combiner) reports its own test
+        // fits directly; a multi-location combiner (multinomial) asks it to
+        // blend the K forests' totalTestFits into the K softmax test
+        // probabilities. The level-centering grand shift is common to all K
+        // forests and absent from totalTestFits, but softmax invariance to a
+        // common shift makes the blend correct without it (afterCombine leaves
+        // totalTestFits untouched; docs/design/multinomial.md). At L = 1 testSrc
+        // is the bare totalTestFits and the write is byte-identical.
+        const double* testSrc = (combiner_ && numLocations > 1)
+          ? combiner_->combinedTestFits(forests_)
+          : forest.totalTestFits.data();
         for (size_t loc = 0; loc < numLocations; ++loc) {
           double* dst = out + loc * nTest;
           for (size_t i = 0; i < nTest; ++i)
-            dst[i] = scale * forest.totalTestFits[i] + shift;
+            dst[i] = scale * testSrc[loc * nTest + i] + shift;
           if (data_.testOffset != nullptr)
             misc_addVectorsInPlace(data_.testOffset, nTest, dst);
         }

@@ -1034,6 +1034,9 @@ public:
   size_t numReportedLocations() const {
     return chains_[0]->numReportedLocations();
   }
+  bool testFitsAreDefined() const {
+    return chains_[0]->testFitsAreDefined();
+  }
   void setTreatment(const double* z) {
     for (auto& chain : chains_) chain->setTreatment(z);
   }

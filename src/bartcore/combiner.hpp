@@ -240,6 +240,17 @@ struct ForestCombiner {
   /// combiner scratch, valid only until the next call.
   virtual const double* combinedFits(const std::vector<Forest<L>>& forests) = 0;
 
+  /// combinedFits' out-of-sample analog: the combined per-observation TEST
+  /// location(s), formed from the forests' totalTestFits, aliasing combiner
+  /// scratch valid only until the next call. Base inert (nullptr): it is
+  /// reached only for a combiner whose testFitsAreDefined() is true AND whose
+  /// numReportedLocations() > 1 (the multinomial softmax blend). BCF leaves
+  /// testFitsAreDefined false, and a single-forest chain carries no combiner, so
+  /// neither ever calls this - hence the base need not form anything.
+  virtual const double* combinedTestFits(const std::vector<Forest<L>>&) {
+    return nullptr;
+  }
+
   /// Swaps the borrowed treatment vector the coupling reads; inert unless a
   /// subclass carries one. The combiner re-forms its per-forest residuals from
   /// the new vector on the next sweep.
@@ -556,7 +567,11 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   }
 
   std::size_t numReportedLocations() const override { return numCategories_; }
-  bool testFitsAreDefined() const override { return false; }
+  /// The softmax test blend is well-defined (unlike BCF): the K forests each
+  /// accumulate their own totalTestFits in the sweep, and combinedTestFits maps
+  /// them through the same softmax combinedFits applies to totalFits. So the
+  /// recorded test channel carries the identified K test probabilities.
+  bool testFitsAreDefined() const override { return true; }
   bool logLikelihoodIsDefined() const override { return false; }
 
   /// Interleaved PG draw for category f: form the current margin C_if and draw
@@ -608,6 +623,33 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
           std::exp(forests[k].totalFits[i] - maxFit) / sumExp;
     }
     return combined_.data();
+  }
+
+  /// The K softmax TEST probabilities per test observation, location-major
+  /// (channel k at combinedTest_[k*nTest + i]); the reported test output, the
+  /// totalTestFits analog of combinedFits. Log-sum-exp-safe. The level-centering
+  /// grand shift c (afterCombine) is added uniformly to every totalFits but NOT
+  /// to totalTestFits; softmax is invariant to a common shift, so this recovers
+  /// the identified test probabilities without it, which is why afterCombine
+  /// leaves totalTestFits alone (docs/design/multinomial.md). combinedTest_ is
+  /// sized here, not at construction, because numTestObservations may be set
+  /// after the combiner is built (setTestPredictors); off the sweep hot path.
+  const double* combinedTestFits(
+      const std::vector<Forest<L>>& forests) override {
+    std::size_t nTest = data_.numTestObservations;
+    combinedTest_.resize(nTest * numCategories_);
+    for (std::size_t i = 0; i < nTest; ++i) {
+      double maxFit = forests[0].totalTestFits[i];
+      for (std::size_t k = 1; k < numCategories_; ++k)
+        maxFit = std::max(maxFit, forests[k].totalTestFits[i]);
+      double sumExp = 0.0;
+      for (std::size_t k = 0; k < numCategories_; ++k)
+        sumExp += std::exp(forests[k].totalTestFits[i] - maxFit);
+      for (std::size_t k = 0; k < numCategories_; ++k)
+        combinedTest_[k * nTest + i] =
+          std::exp(forests[k].totalTestFits[i] - maxFit) / sumExp;
+    }
+    return combinedTest_.data();
   }
 
   /// The likelihood-invariant LEVEL-CENTERING move (docs/design/multinomial.md):
@@ -684,6 +726,7 @@ private:
   std::vector<double> omega_;          // n x K, category-major (column k at k*n)
   std::vector<double> margins_;        // n; the current forest's C_if handoff
   std::vector<double> combined_;       // n x K softmax probabilities
+  std::vector<double> combinedTest_;   // nTest x K softmax test probabilities
   std::vector<double> forestResponse_, forestWeights_;  // n each
 };
 

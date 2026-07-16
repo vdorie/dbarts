@@ -1898,6 +1898,22 @@ static void testMultinomial(ext_rng* rng) {
     }
     checkNear(sum / numDraws, pgMean, 0.02,
               "interleaved PG(1, eta) mean matches the theoretical moment");
+
+    // combinedTestFits' K = 2 reduction: with the test rows' totalTestFits set
+    // to the train totalFits, softmax(f0, f1)_1 = logistic(f1 - f0) and the two
+    // channels sum to one per row
+    std::vector<double> xTestDummy(n, 0.0);
+    data.buildTest(xTestDummy.data(), n);
+    forests[0].totalTestFits = f0;
+    forests[1].totalTestFits = f1;
+    const double* testProbs = combiner.combinedTestFits(forests);
+    bool k2reduce = true;
+    for (size_t i = 0; i < n; ++i) {
+      double p1 = 1.0 / (1.0 + std::exp(f0[i] - f1[i]));
+      k2reduce &= std::fabs(testProbs[n + i] - p1) < 1e-12 &&
+                  std::fabs(testProbs[i] + testProbs[n + i] - 1.0) < 1e-12;
+    }
+    check(k2reduce, "combinedTestFits K = 2 reduces to the logistic probability");
   }
 
   // ---- isolated combiner: K = 3 log-sum-exp margin and softmax output ----
@@ -1959,6 +1975,30 @@ static void testMultinomial(ext_rng* rng) {
       invariant &= std::fabs(after[i] - before[i]) < 1e-10;
     check(invariant,
           "level-centering leaves the softmax probabilities invariant");
+
+    // combinedTestFits is combinedFits' totalTestFits analog: with the test
+    // rows' totalTestFits set to the pre-shift train totalFits `f`, it must be a
+    // per-observation simplex AND equal the pre-shift combinedFits (`before`) -
+    // the softmax-invariance fact that lets afterCombine leave totalTestFits
+    // untouched (the level shift c is common to all K forests)
+    std::vector<double> xTestDummy(n, 0.0);
+    data.buildTest(xTestDummy.data(), n);
+    for (size_t k = 0; k < 3; ++k) forests[k].totalTestFits = f[k];
+    const double* testProbs = combiner.combinedTestFits(forests);
+    bool testSimplex = true, testMatches = true;
+    for (size_t i = 0; i < n; ++i) {
+      double s = 0.0;
+      for (size_t k = 0; k < 3; ++k) {
+        double pr = testProbs[k * n + i];
+        testSimplex &= pr > 0.0 && pr < 1.0;
+        s += pr;
+        testMatches &= std::fabs(pr - before[k * n + i]) < 1e-12;
+      }
+      testSimplex &= std::fabs(s - 1.0) < 1e-12;
+    }
+    check(testSimplex, "combinedTestFits is a per-observation test simplex");
+    check(testMatches,
+          "combinedTestFits equals combinedFits when test rows equal train");
   }
 
   // ---- end-to-end: recover a monotone K = 3 signal ----

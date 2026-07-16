@@ -10,14 +10,26 @@
 # bartcoreRun call - no reseed in between, unlike the fixture script's
 # cross-scenario isolation) so a single set.seed() before each of the two
 # constructions is expected to agree bit for bit.
-internalMultinomialFit <- function(x, labels, K, n.trees, n.burn, n.samples) {
+internalMultinomialFit <- function(
+  x,
+  labels,
+  K,
+  n.trees,
+  n.burn,
+  n.samples,
+  test = NULL
+) {
   control <- dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
     n.trees = n.trees,
     updateState = FALSE
   )
-  sampler <- dbarts(x, as.double(labels), control = control)
+  sampler <- if (is.null(test)) {
+    dbarts(x, as.double(labels), control = control)
+  } else {
+    dbarts(x, as.double(labels), test = test, control = control)
+  }
   bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
   dbarts:::bartcoreRun(bc, n.burn, n.samples)
 }
@@ -160,6 +172,79 @@ fitMultiSplit <- bart2(
 )
 expect_equal(dim(fitMultiSplit$yhat.train), c(2L, 5L, n, 3L))
 
+# --- test data at creation (C1): K = 3 reproduction gate, shape, levels ---
+# test rows reuse train rows 1:20, so the test channel is well-defined and,
+# by softmax invariance to the common level shift, matches those train columns
+x3.test <- x3[seq_len(20L), , drop = FALSE]
+set.seed(seed3)
+fit3t <- bart2(
+  x3,
+  y3,
+  family = "multinomial",
+  test = x3.test,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+set.seed(seed3)
+internal3t <- internalMultinomialFit(
+  x3,
+  labels3,
+  3L,
+  n.trees,
+  n.burn,
+  n.samples,
+  test = x3.test
+)
+# the public test channel reproduces the internal bartcoreRun test channel bit
+# for bit (the reproduction gate extended to the test surface)
+probs3t.fit <- fit3t$yhat.test
+dimnames(probs3t.fit) <- NULL
+expect_identical(probs3t.fit, aperm(internal3t$test, c(3L, 1L, 2L)))
+expect_equal(dim(fit3t$yhat.test), c(n.samples, 20L, 3L))
+expect_equal(dimnames(fit3t$yhat.test)[[3L]], c("lo", "mid", "hi"))
+expect_true(all(fit3t$yhat.test >= 0 & fit3t$yhat.test <= 1))
+expect_true(all(abs(apply(fit3t$yhat.test, c(1L, 2L), sum) - 1) < 1e-8))
+# softmax invariance: test rows duplicate train rows 1:20, so their probabilities
+# agree with those train columns to floating point
+expect_true(
+  max(abs(
+    fit3t$yhat.test - fit3t$yhat.train[, seq_len(20L), , drop = FALSE]
+  )) <
+    1e-6
+)
+# extract(sample = "test") returns the test channel
+expect_identical(
+  extract(fit3t, type = "ev", sample = "test"),
+  fit3t$yhat.test
+)
+# ppd over the test channel draws valid categories
+ppd3t <- extract(fit3t, type = "ppd", sample = "test")
+expect_equal(dim(ppd3t), c(n.samples, 20L))
+expect_true(all(ppd3t %in% seq_len(3L)))
+
+# --- test data at creation (C1): K = 2 ---
+x2.test <- x2[seq_len(15L), , drop = FALSE]
+set.seed(seed2)
+fit2t <- bart2(
+  x2,
+  y2,
+  family = "multinomial",
+  test = x2.test,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(dim(fit2t$yhat.test), c(n.samples, 15L, 2L))
+expect_equal(dimnames(fit2t$yhat.test)[[3L]], c("no", "yes"))
+expect_true(all(fit2t$yhat.test >= 0 & fit2t$yhat.test <= 1))
+
 # --- honest refusals ---
 expect_error(
   bart2(
@@ -184,18 +269,6 @@ expect_error(
     n.samples = 2L
   ),
   "offset"
-)
-expect_error(
-  bart2(
-    x2,
-    y2,
-    family = "multinomial",
-    test = x2,
-    n.trees = 5L,
-    n.burn = 2L,
-    n.samples = 2L
-  ),
-  "test"
 )
 expect_error(
   bart2(
@@ -232,4 +305,5 @@ expect_error(
   ),
   "matrix interface"
 )
-expect_error(extract(fit3, type = "ev", sample = "test"), "test surface")
+# a fit built WITHOUT test data has no test channel to extract
+expect_error(extract(fit3, type = "ev", sample = "test"), "no test channel")
