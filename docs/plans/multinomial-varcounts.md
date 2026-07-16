@@ -144,6 +144,9 @@ C2. Docs. Correct multinomial.md "The surface" (varcount now DEFINED per-sample
 
 ## Open questions for VD
 
+- Q1 RESOLVED (VD 2026-07-16, "internal consistency is fine"): the single
+  array (n.chains x) n.samples x p x K, no varcount.mean. The original
+  fork, for the record:
 - Q1 (varcount fit shape/naming: single array vs mbart2's list-of-K).
   RECOMMEND a single array (n.chains x) n.samples x p x K, levels on the K
   margin, predictors on the p margin - the convention this fit's yhat.train
