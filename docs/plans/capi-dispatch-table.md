@@ -1,9 +1,19 @@
 # capi-dispatch-table
 
-status: memo revised after adversarial review, awaiting VD sign-off
-(design pass 2026-07-15, adversarial second opinion 2026-07-16; no
-implementation, no ABI change proposed to land without VD's fork decision
-below).
+status: memo final - triple-independent second opinions converged (systems,
+ecosystem, tooling lenses); awaiting VD sign-off on Decisions 0-2.
+(Design pass 2026-07-15; adversarial review 2026-07-16; three blind
+second opinions 2026-07-16, each designing from the raw problem before
+reading this memo - all three rejected a get-api table independently and
+reproduced the skew analysis below. No implementation, no ABI change lands
+without VD's decisions below.)
+
+Standing context for every claim here: NOTHING in dbarts.h is published.
+The whole surface, DBARTS_C_API_VERSION included, first becomes a contract
+at 1.0-0 submission. Every mechanism below is therefore a green-field
+design choice, free today and permanent after the freeze; the incident
+history is dev-time evidence about failure modes, not a shipped-contract
+constraint.
 
 ## The question
 
@@ -12,14 +22,16 @@ passing C function pointers by symbol (R_RegisterCCallable /
 R_GetCCallable per function) and instead registering a single function
 that returns a function table, indexed by a version string?
 
-Motivating incident: the getTrees ABI break (2e2b1c9, restored a73ca50).
-dbarts_sampler_getTrees gained a trainingData parameter under an unchanged
-symbol name and an unchanged DBARTS_C_API_VERSION. LinkingTo consumers call
-through their OWN declaration of the signature, so stan4bart passed eight
-arguments to a nine-argument function; the garbage ninth became the
-replay-predictor pointer and corrupted extracted node counts
-stack-dependently (failed ~half of R CMD check runs for a week). Not a link
-error, not a load error - call-time stack garbage.
+Motivating incident (dev-time, both trees unreleased): the getTrees ABI
+break (2e2b1c9, restored a73ca50). dbarts_sampler_getTrees gained a
+trainingData parameter under an unchanged symbol name and an unchanged
+version constant. LinkingTo consumers call through their OWN declaration
+of the signature, so stan4bart passed eight arguments to a nine-argument
+function; the garbage ninth became the replay-predictor pointer and
+corrupted extracted node counts stack-dependently (failed ~half of R CMD
+check runs for a week). Not a link error, not a load error - call-time
+stack garbage. This is exactly the class 1.0-0 must be designed against,
+because after the freeze the same slip would ship.
 
 ## What the ground truth already is
 
@@ -27,6 +39,10 @@ Registration (src/R_interface.cpp:299-361): ~33 entry points in a
 C_callMethods table, each R_RegisterCCallable'd under its own name in
 R_init_dbarts. Append-only-by-name discipline; a signature change is an ABI
 event (docs/plans/README.md:80-86, the a73ca50 review-checklist step).
+The current version constant is a single integer (dbarts.h:54;
+dbarts_apiVersion, C_interface.cpp:76, returns one int) - an unpublished
+dev convention with zero compatibility weight, replaceable at will until
+submission.
 
 Consumer (stan4bart, the SOLE reverse-LinkingTo package - CRAN confirms;
 every other revdep is R-level, and stan4bart ships lockstep, same
@@ -37,8 +53,10 @@ maintainer):
   invocation sites routed through bartFunctions.*. So "one lookup + a
   table" is a one-time ~21-line saving in the one consumer, not a per-site
   win.
-- It ALREADY does a load-time version handshake: apiVersion() !=
-  DBARTS_C_API_VERSION errors before any pointer is used (:1003-1006).
+- Its dev builds already perform a load-time version handshake:
+  apiVersion() != DBARTS_C_API_VERSION errors before any pointer is used
+  (:1003-1006). Dev-time context, but it shows the consumer-side check is
+  a habit this pair actually keeps.
 - Each signature is stated THREE times on the consumer side even though it
   #include <dbarts/dbarts.h> (:23): the header prototype, the struct field
   type, and the bit_cast target type at the lookup. Neither of the latter
@@ -46,7 +64,7 @@ maintainer):
   getTrees skew lived in exactly that gap - the key mechanical fact for
   the analysis below.
 
-Growth precedent already shipped in this tree: dbarts_results is a
+Growth precedent already in this tree: dbarts_results is a
 structSize-growable output struct (dbarts.h:83-102, DBARTS_RESULTS_HAS) -
 old callers are never written past, appends never reorder. The state format
 reads its blocks BY NAME behind an encoding floor (dbarts.h:237-243,
@@ -57,28 +75,26 @@ dispatch table buys nothing for growth that these do not already provide.
 
 ## The decisive axis: mechanical vs disciplinary compatibility token
 
-The first draft claimed "the table relocates the hazard, it does not
-remove it." False as literally written. The honest statement:
+An early draft claimed "the table relocates the hazard, it does not remove
+it." False as literally written. The honest statement:
 
-- A HAND-VERSIONED table (a human bumps DBARTS_C_API_VERSION, get_api vets
-  it) cannot catch change-without-bump - the token did not move, so no
+- A HAND-VERSIONED table (a human bumps the version, get_api vets it)
+  cannot catch change-without-bump - the token did not move, so no
   handshake anywhere can see the change. Same exposure as per-symbol.
-- An AUTO-TOKEN table CAN catch it: both sides generate, at their own
-  build time, a hash of the normalized declaration set (signatures +
-  struct layouts); get_api compares the consumer's baked-in hash at load
-  and refuses a mismatch. No human bump required - change-without-bump
-  becomes load-detectable in the field, mechanically.
+- An AUTO-TOKEN table CAN catch it: both sides carry a token derived
+  mechanically from the declaration set itself; the handshake compares
+  tokens, so a change the author forgot to acknowledge is still visible.
 
 So the decisive axis is not dispatch shape (per-symbol vs table) but
 whether the compatibility token is DISCIPLINARY (a human bumps an integer)
-or MECHANICAL (derived from the declarations themselves). The auto-token
-table loses anyway, on two grounds: timing - a CI guard computing the same
-normalized-declaration comparison catches the same class PRE-MERGE, before
-any consumer can be built against the bad header, rather than at load in
-the field - and convention - it diverges from the documented R mechanism
-for zero residual safety once the CI guard exists. Dominated, not wrong.
+or MECHANICAL (derived from the declarations). The auto-token table loses
+anyway, on two grounds: timing - the same mechanical token enforced at
+dbarts's OWN BUILD (Decision 2 below) catches the class before any header
+ships, rather than at load in the field - and convention - it diverges
+from the documented R mechanism for zero residual safety once the
+build-time token exists. Dominated, not wrong.
 
-## The rebuilt-consumer dimension (where the first draft's matrix erred)
+## The rebuilt-consumer dimension
 
 The incident was a REBUILD scenario: stan4bart was recompiled against the
 nine-arg header repeatedly during that week (R CMD check builds it). The
@@ -96,14 +112,13 @@ false safety claim.
 ## Skew matrix
 
 Designs: (a) status quo - per-symbol, hand-rolled consumer declarations,
-hand-bumped version; (b) get_api table, struct in dbarts.h, hand-versioned,
-structSize-growable, NULL on unknown version; (c) per-symbol + inline stubs
-in dbarts.h + mechanical CI guard. The auto-token table is covered in prose
-above (it converts the not-rebuilt no-bump row to LOAD). Outcomes: COMPILE
-(building the consumer), LOAD (before any BART call), CALL (stack garbage
-at call time).
+hand-bumped single-integer version; (b) get_api table, struct in dbarts.h,
+hand-versioned, structSize-growable, NULL on unknown version; (c)
+per-symbol + header-derived consumer declarations (stubs) + mechanical
+token. Outcomes: COMPILE (building the consumer), LOAD (before any BART
+call), CALL (stack garbage at call time), BUILD (dbarts's own compile).
 
-  scenario                        (a) status quo  (b) table       (c) stubs+guard
+  scenario                        (a) status quo  (b) table       (c) stubs+token
   -------------------------------------------------------------------------------
   NOT-REBUILT consumer (binary built against header vN, library now vM):
   needs entry old lib lacks       LOAD            LOAD (missing   LOAD (stub's
@@ -111,10 +126,10 @@ at call time).
                                   errors)         for unknown vN) errors)
   ADD only, append-only kept      SAFE            SAFE (past old  SAFE
                                                   structSize)
-  CHANGE, version NOT bumped      CALL            CALL (same      row PREVENTED:
-                                                  slot, stale     CI fails the
-                                                  cast)           merge un-bumped
-  CHANGE, version bumped          LOAD            LOAD (welded:   LOAD
+  CHANGE, not acknowledged        CALL            CALL (same      BUILD: dbarts
+                                                  slot, stale     itself fails to
+                                                  cast)           compile (D2)
+  CHANGE, acknowledged (bumped)   LOAD            LOAD (welded:   LOAD
                                   (handshake)     NULL is forced) (handshake)
   -------------------------------------------------------------------------------
   REBUILT consumer (recompiled against current header, own decls as-is):
@@ -123,28 +138,47 @@ at call time).
                                   rolled decl not new type; call  new type)
                                   re-derived      site mismatches)
 
-Reading. The not-rebuilt CHANGE-without-bump row is CALL garbage under BOTH
-(a) and (b) - only a mechanical token (auto-token at load, CI guard
-pre-merge) touches it. The rebuilt row is where (b) and (c) both win and
-(a) alone loses - and it is the row that actually happened. (b)'s only
-edge over (a) that (c) lacks is welding the consumer-side NULL check to
-table access; the sole consumer already performs that check voluntarily.
+Reading. The not-rebuilt CHANGE-without-acknowledgment row is CALL garbage
+under BOTH (a) and (b) - only a mechanical token touches it, and enforcing
+it at dbarts's own build stops the bad header from ever shipping. The
+rebuilt row is where (b) and (c) both win and (a) alone loses - and it is
+the row that actually happened. (b)'s only edge over (a) that (c) lacks is
+welding the consumer-side NULL check to table access; the sole consumer
+already performs that check voluntarily.
 
-One trap the matrix exposes: the CI guard ALONE does not close the rebuilt
-row. Trace: the guard forces the bump; a not-rebuilt consumer trips the
+One trap the matrix exposes: a token alone does not close the rebuilt row.
+Trace: the token forces the bump; a not-rebuilt consumer trips the
 handshake at load - good. The maintainer rebuilds; versions realign; the
 handshake now PASSES; but if the hand-rolled declaration was not also
 widened (the original mistake - a header bump does not touch init.cpp),
-the call is garbage again, this time WITH a passing handshake. The guard
-protects the mismatch window only. Stubs remove the root cause: consumer
-declarations become header-derived and are re-derived by every rebuild.
-Hence stubs are load-bearing in the recommendation, not optional polish.
+the call is garbage again, this time WITH a passing handshake. The token
+protects the mismatch window only. Header-derived declarations remove the
+root cause: they are re-derived by every rebuild. Hence Decision 1 is
+load-bearing, not optional polish.
+
+## The handshake predicate (unanimous across the blind reviews)
+
+All three blind designs found independently that a ONE-integer version
+cannot carry a safe relaxed handshake: a bare installed >= built lets a
+BREAKING bump through (a v1 consumer accepts a v3 library that changed
+signatures), and strict equality forces a consumer rebuild on every
+additive change. The safe relaxed predicate needs TWO components:
+
+  major_installed == major_built && minor_installed >= minor_built
+
+major = incompatible change, minor = additive. The encoding is a free
+choice today - the current constant is unpublished and carries no weight -
+but the freeze makes whatever ships at 1.0-0 permanent: adding a second
+component afterward is itself an ABI event. So this is not a repair, it is
+choosing the right green-field encoding while the choice is free
+(Decision 0). Until a non-lockstep consumer exists, stan4bart may keep
+strict equality on top; the two-component encoding is what makes the
+relaxed predicate POSSIBLE later without another ABI event.
 
 ## Sub-choices, if a table were chosen anyway
 
-- version string vs numeric: numeric major.minor. Strings invite bespoke
-  parsing; integer major (incompatible) / minor (additive) maps onto the
-  append-only rule and Matrix's integer ABI version.
+- version string vs numeric: numeric major.minor (as Decision 0). Strings
+  invite bespoke parsing.
 - frozen table per major vs structSize-growable: growable, matching
   dbarts_results; frozen-per-major cannot absorb an additive minor without
   reverting to per-symbol registration for every in-major addition.
@@ -153,54 +187,119 @@ Hence stubs are load-bearing in the recommendation, not optional polish.
 - the struct lives in dbarts.h, which is also its limit: a NOT-rebuilt
   consumer still calls through a stale copy of it (the matrix row above).
 
-## Costs
+## Declaration source: stubs, and the single-source (X-macro) form
 
-- (a) status quo: zero code. The CHANGE-without-bump row and the rebuilt
-  row are both guarded only by the a73ca50 human checklist.
-- (b) table: registration rewrite in dbarts, consumer rewrite in stan4bart,
-  an idiom R does not document and no major LinkingTo package uses,
-  permanent convention divergence. Zero safety gain over stubs on the
-  rebuilt row; gains over status quo only the welded NULL check.
-- (c-i) CI guard: a comparison script + committed golden + checklist line.
-  NOT a raw text diff - a73ca50's header diff was ~3 declaration lines
-  amid ~8 doc-comment lines, so naive diffs false-positive on comment
-  edits; it needs comment/whitespace-stripped, symbol-name-keyed
-  declaration comparison covering function signatures AND dbarts_results
-  layout, with a mid-struct insertion flagged as a field-ORDER change,
-  never waved through as an addition. Its correctness depends on every
-  ABI-crossing type staying defined inside dbarts.h - currently true
-  (dbarts_results and the callback typedef are inline; control/model/data
-  cross as SEXP) - and it goes blind if an ABI type ever moves to another
-  header (as would a table).
-- (c-ii) stubs, both ledger columns. dbarts pays: ~33 inline wrappers,
-  roughly 100-130 lines of shipped header, each signature stated twice in
-  the header (prototype + stub), a stub naming choice (a prefix or macro
-  gate, since LinkingTo consumers cannot link the real symbols), and a
-  second documented consumption mechanism to teach alongside raw
-  R_GetCCallable. The consumer gains: BARTFunctionTable, its 22 typedefs,
-  and the 22 bit_cast lookups deleted (~90 lines); three signature
-  statements per entry point drop to zero consumer-side; the incident
-  class becomes a compile error on every rebuild.
+Hand-written Matrix-style stubs cost ~33 inline wrappers, ~100-130 shipped
+header lines, and each signature stated TWICE in the header (prototype +
+stub) - a residual dual-statement the first draft's ledger accepted. Two of
+the three blind designers converged independently on eliminating it:
+declare the API ONCE as an X-macro list in dbarts.h,
+
+  #define DBARTS_API_LIST(X) \
+    X(sampler_create, dbarts_sampler*, (SEXP, SEXP, SEXP, const char*)) \
+    X(sampler_run, void, (dbarts_sampler*, size_t, size_t, dbarts_results*)) \
+    ...
+
+and let the preprocessor expand it into the function-pointer typedefs, the
+consumer stubs (or a bind-all helper), and dbarts's OWN registration table
+- true single source, in-header, no external codegen, CRAN-safe. Doc
+locality (the tooling designer's variant): keep the existing
+Doxygen-documented prototypes as the human-readable surface and BIND the
+X-list to them per entry (a static_assert via __builtin_types_compatible_p,
+or assigning &dbarts_##name to the generated typedef), so prose stays next
+to signatures while any drift between prototype and list fails dbarts's own
+compile. This also hands any token mechanism a machine-readable declaration
+set for free. numpy's single-source codegen (below) is the proof the
+ingredient matters; the X-macro is its zero-toolchain form.
+
+## Token mechanism, conditional on the declaration source
+
+- If the X-macro is adopted: a header-embedded constexpr FNV hash over the
+  stringized X-list (function signatures AND dbarts_results field
+  spellings), with a baked #define that dbarts's own build static_asserts
+  against. Change a signature and dbarts ITSELF fails to compile until the
+  bake is updated - the update IS the mechanical acknowledgment. No parser,
+  no committed golden, no CI dependency; it fires on every local R CMD
+  INSTALL (VD installs locally constantly; CI-only guards miss hotfix and
+  bypass paths). Layering is essential: the hash is the PROVIDER-side
+  build gate (cannot forget); the major/minor handshake stays the
+  CONSUMER-side load gate. Hash inequality alone must NOT be the load
+  predicate - purely additive changes move the hash and must not break
+  stale binaries. Provenance, honestly: two blind designers evaluated a
+  declaration hash only as paired with the table or as release-side
+  codegen; the in-header constexpr form coupled to the X-macro appeared
+  only in the third design - but it dominates the alternatives on every
+  axis this memo's constraints prioritize (no parser work, no CI coupling,
+  catches local installs, one-person-maintainer cheap).
+- If VD declines the X-macro: the fallback token is a CI guard comparing a
+  committed golden against the header's normalized declaration set. Its
+  cost must be stated honestly: NOT a raw text diff - a73ca50's header
+  diff was ~3 declaration lines amid ~8 doc-comment lines, prototypes span
+  lines (dbarts.h:214-220), and dbarts_results is field-order-sensitive
+  (a mid-struct insertion must flag as an ORDER change, never wave through
+  as an addition) - so it is a small normalizing C-declaration parser, real
+  work under a one-person-maintainer constraint, and it only fires on CI.
+  Both token forms share a correctness dependency: every ABI-crossing type
+  stays defined inside dbarts.h (currently true - dbarts_results and the
+  callback typedef are inline; control/model/data cross as SEXP); if an
+  ABI type ever moves to another header, token and table alike go blind.
+- Status quo token: the hand-bumped integer plus the a73ca50 checklist.
+  Human discipline alone on the row that already failed once.
+
+## Layers beyond the header (process; adopt without a fork)
+
+- Pre-submission cross-repo contract job: build stan4bart's PINNED DEV
+  SOURCE against the candidate dbarts and run its suite UNDER ASAN (plus
+  stack-protector) - ASAN turns the incident's ~half-of-runs corruption
+  deterministic. The existing revdep-smoke.yaml is structurally unable to
+  catch this class: monthly, not per-PR (:10); pulls stan4bart from CRAN,
+  not dev (:49-55); unsanitized R CMD check. This job is also the ONLY
+  layer that catches SEMANTIC signature drift - same types, changed
+  meaning or units - to which stubs, hashes, and diffs are all blind. Note
+  that CRAN's own single-shot revdep check passes a 50%-flaky corruption
+  half the time; it is not a backstop.
+- DESCRIPTION floor asymmetry: stan4bart's LinkingTo/Depends dbarts (>= X)
+  bumped in lockstep closes the CONSUMER-AHEAD direction at install/attach
+  time; the load-time token closes LIBRARY-AHEAD. They must ship together;
+  neither substitutes for the other.
+- CRAN enforcement synergy for stubs: CRAN rebuilds reverse-LinkingTo
+  packages on a dbarts submission, so once consumer calls go through
+  header stubs, an arity change the consumer did not follow makes
+  stan4bart FAIL TO COMPILE during CRAN's own rebuild - auto-blocking the
+  dbarts update. Free strengthening of Decision 1 that hand-rolled
+  declarations defeat.
+- Recorded ADDITIVE escalations (adopt-later, no freeze cost): (i)
+  signature-tagged registration names - register each function under
+  name#sigtag derived from the X-list, keeping the plain alias for
+  diagnostics - which converts stale-third-party-binary skew into a
+  load-time lookup failure even when every other guard is bypassed; (ii)
+  expose the baked content hash to consumers for load-time comparison if a
+  non-lockstep consumer ever appears.
 
 ## Precedents
 
+- Writing R Extensions documents this exact failure for R_GetCCallable:
+  "this mechanism is fragile, as changes to the interface provided by
+  packA have to be recognised by packB. The consequences of not doing so
+  have included serious corruption to the memory pool of the R session" -
+  and assigns the remedy to the CONSUMER's declaration. That is the
+  canonical justification for moving declaration authorship into dbarts.h.
 - Matrix - the largest LinkingTo C API in R - is per-function
   R_GetCCallable through an inline stub layer (Matrix_stubs.c,
   R_MATRIX_INLINE, e.g. M_cholmod_start), NOT a get-api table, with a
   numeric ABI version (inst/include/Matrix/version.h) bumped 1 -> 2 at
-  1.7-0 and a documented rebuild-reverse-LinkingTo-on-bump rule. This is
-  recommendation (c) almost verbatim.
-- Writing R Extensions documents only per-symbol R_GetCCallable; no major
-  CRAN package was found shipping a get-api table.
+  1.7-0 and a documented rebuild-reverse-LinkingTo-on-bump rule.
+- xts ships the exact cached-pointer static-inline stub idiom in
+  inst/include/xtsAPI.h - a decade-proven, single-witness form cleaner
+  than Matrix's macro layer.
 - Counter-precedent, conceded: numpy's PyArray_API IS a function-pointer
   table - import_array() fetches it through a capsule and performs a
   runtime ABI check. Tables are proven outside CRAN. But numpy's safety
   comes from append-only slots + a handshake + SINGLE-SOURCE CODEGEN
   (generate_numpy_api.py emits both sides from one spec, so dual
   declarations cannot exist) - the same ingredients recommended here in
-  per-symbol form. It reinforces that the ingredients matter, not the
-  shape, and names a fourth option - generating consumer declarations
-  from dbarts.h - which stubs approximate at a fraction of the machinery.
+  per-symbol form. Ingredients, not shape; the X-macro is the
+  zero-toolchain equivalent of numpy's generator.
 - In-tree: dbarts_results structSize and the state format's by-name blocks
   are both self-describing-DATA precedents; neither argues for a
   self-describing FUNCTION table, since function growth is already
@@ -209,36 +308,69 @@ Hence stubs are load-bearing in the recommendation, not optional polish.
 ## Recommendation (the fork is VD's)
 
 Do NOT adopt the get_api table. A hand-versioned table adds no safety on
-either dangerous row; an auto-token table does add field-level detection
-but is dominated by a CI guard that mechanizes the same comparison
-pre-merge without diverging from the R convention; and on the rebuilt row -
-the incident that motivated the ask - a table is exactly equivalent to
-stubs, which do not disturb the dispatch mechanism.
+either dangerous row; a mechanically-tokened table is dominated by the same
+token enforced at dbarts's own build, without diverging from the R
+convention; and on the rebuilt row - the incident that motivated the ask -
+a table is exactly equivalent to header stubs, which do not disturb the
+dispatch mechanism. All three blind designs reached this verdict
+independently.
 
-Keep per-symbol R_GetCCallable and decide two ORTHOGONAL questions:
+Keep per-symbol R_GetCCallable and decide, all green-field until 1.0-0:
 
-- DECISION 1, compatibility token (recommend: adopt regardless of Decision
-  2). Keep hand-bumped DBARTS_C_API_VERSION but make it mechanical: a CI
-  guard that fails the build whenever the normalized declaration set of
-  dbarts.h (function signatures and dbarts_results layout, field-order
-  sensitive) changes without a same-diff version bump. Document the
-  semantics - integer major = incompatible, minor = additive - and move
-  stan4bart's handshake from != to >= major before the freeze.
-  Adopt: a script, a committed golden, a checklist line. Skip: the
-  CHANGE-without-bump row stays guarded by human discipline alone.
-- DECISION 2, consumer declaration source (recommend: adopt - the
-  root-cause fix). Ship Matrix-style inline stubs in dbarts.h and delete
-  stan4bart's BARTFunctionTable; consumer declarations become
-  header-derived, re-derived on every rebuild, making the getTrees class
-  a compile error and structurally protecting any future second consumer
+- DECISION 0, version encoding (decide before the freeze; permanent
+  after). Ship the 1.0-0 version constant as two components, major/minor -
+  two macros + accessors, or a packed integer with documented
+  decomposition - with the consumer handshake predicate
+  major_installed == major_built && minor_installed >= minor_built.
+  major = incompatible, minor = additive. The encoding is unconstrained
+  today (the current single integer is unpublished); the freeze is what
+  makes the choice permanent - a second component added later is itself
+  an ABI event, so the richer form is free now and unreachable after.
+  Ship cost: a handful of header lines. Cost of shipping one integer
+  instead: every future additive release either forces a consumer rebuild
+  (strict equality) or is indistinguishable from a breaking one (bare >=).
+- DECISION 1, declaration source (the root-cause fix). Options:
+  (i) RECOMMENDED - X-macro single-source: the API declared once as an
+  X-list in dbarts.h, expanding into dbarts's own registration table, the
+  consumer stubs/bind helper, and the typedefs; existing Doxygen
+  prototypes kept and compile-time-bound to the list. Adopt: the macro
+  machinery in the shipped header (~ the same 100-130 lines, but stated
+  ONCE), a less conventional header idiom to teach; list discipline
+  replaces prototype discipline.
+  (ii) Hand-written Matrix/xts-style stub pairs: conventional and
+  precedented, but each signature stated twice in the header, with
+  stub-vs-prototype drift caught only by review.
+  (iii) Status quo hand-rolled consumer declarations: zero dbarts cost;
+  rebuilds never re-derive the consumer's declarations, so the incident
+  class stays reachable even with Decisions 0 and 2 (the
+  realigned-handshake trace above), and the CRAN-rebuild synergy is
+  forfeited. Under (i) or (ii), stan4bart deletes BARTFunctionTable, its
+  22 typedefs, and 22 bit_cast lookups (~90 lines; three statements per
+  signature drop to zero) and the getTrees class becomes a compile error
+  on every rebuild - structurally protecting any future second consumer
   the 1.0-0 freeze will bind.
-  Adopt: the header cost above (~33 wrappers, ~100-130 lines, dual
-  statement, second documented mechanism). Skip: rebuilds never re-derive
-  hand-rolled declarations, so the incident class stays reachable even
-  with Decision 1 (the realigned-handshake trace above).
+- DECISION 2, token mechanism (conditional on Decision 1). Options:
+  (i) RECOMMENDED IF X-MACRO - in-header constexpr hash + baked
+  static_assert: dbarts's own compile fails on any unacknowledged
+  declaration change, locally and on CI alike; no parser, no golden.
+  (ii) Fallback if no X-macro - CI declaration-diff guard + committed
+  golden: honest cost is a normalizing C-declaration parser (comment/
+  whitespace stripping, multi-line prototypes, field-order sensitivity),
+  and it fires only on CI.
+  (iii) Status quo - hand-bumped integer + checklist: human discipline
+  alone on the row that already failed once.
+  Either mechanical token stays PROVIDER-side; the consumer load gate
+  remains the Decision 0 handshake (hash inequality must not gate loads -
+  additive changes move the hash and must not break stale binaries).
+
+Adopt as process, no fork needed: the pre-submission ASAN cross-repo
+contract job (the only semantic-drift catcher); the DESCRIPTION floor
+bumped in lockstep (closes consumer-ahead; the token closes
+library-ahead). Recorded for later, additive: signature-tagged
+registration names; exposing the baked hash to consumers.
 
 Timing: dbarts 1.0-0 freezes the dbarts.h compatibility contract at
-submission. Both decisions are cheap now and awkward-to-impossible after;
-the version semantics (integer major = incompatible) should be written
-down before release whichever way the fork goes, because that is what
-gives any handshake teeth.
+submission; until then every choice above is free. Decision 0's richer
+encoding is unreachable after the freeze; Decisions 1 and 2 are cheap now
+and awkward after; the process layers are freeze-independent but cheapest
+to stand up while stan4bart's port is already in flight.
