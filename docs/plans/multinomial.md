@@ -542,12 +542,13 @@ codoc clean; no new Rd topic, pkgdown untouched.
 Scope narrowings vs this plan's optimistic phrasing, all because
 Q3-primary records only the probability channels (each refused BY NAME in
 the surface, recorded as follow-ups in the TODO's multi-forest-models
-entry): predict/test surface (needs a combined-test-fits location
-channel), the latent escape hatch (raw per-category fits are
+entry): the latent escape hatch (raw per-category fits are
 non-identified and unrecorded), per-sample per-category variable counts
 (the channel addresses category 0 only, so the fit omits varcount rather
 than mislabel it), the count-matrix likelihood, and the formula interface
-(matrix interface only this arc).
+(matrix interface only this arc). The predict/test surface named here
+(a combined-test-fits location channel) landed as its own arc,
+docs/plans/multinomial-test-surface.md (C1 = bcefa63, C2 = 88ffe12).
 
 ## Verification
 
