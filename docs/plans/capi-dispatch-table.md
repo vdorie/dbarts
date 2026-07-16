@@ -1,12 +1,15 @@
 # capi-dispatch-table
 
-status: memo final - triple-independent second opinions converged (systems,
-ecosystem, tooling lenses); awaiting VD sign-off on Decisions 0-2.
+status: DECIDED (VD 2026-07-16): Decision 0 two-component version
+encoding, Decision 1(i) X-macro single-source stubs, Decision 2(i)
+in-header constexpr hash + baked static_assert; process items adopted
+(ASAN cross-repo contract job, DESCRIPTION floor lockstep). Additive
+escalations recorded, not built. Implementation plan at the end of this
+file; landing notes appended per commit.
 (Design pass 2026-07-15; adversarial review 2026-07-16; three blind
 second opinions 2026-07-16, each designing from the raw problem before
 reading this memo - all three rejected a get-api table independently and
-reproduced the skew analysis below. No implementation, no ABI change lands
-without VD's decisions below.)
+reproduced the skew analysis below.)
 
 Standing context for every claim here: NOTHING in dbarts.h is published.
 The whole surface, DBARTS_C_API_VERSION included, first becomes a contract
@@ -374,3 +377,33 @@ submission; until then every choice above is free. Decision 0's richer
 encoding is unreachable after the freeze; Decisions 1 and 2 are cheap now
 and awkward after; the process layers are freeze-independent but cheapest
 to stand up while stan4bart's port is already in flight.
+
+## Implementation plan (VD sign-off 2026-07-16)
+
+C0 - contract CI (lands first, independent of the header work): a dbarts
+workflow that builds stan4bart's pinned dev source (vdorie/stan4bart,
+wt/walnuts SHA) against the candidate dbarts and runs its testthat suite
+under ASAN, path-gated to src/ and inst/include/; mirror the existing
+sanitizers workflow's container approach. Proves itself on the C1 push.
+The DESCRIPTION-floor lockstep practice goes on the release procedure.
+
+C1 - dbarts header + bridge: the X-macro list in dbarts.h (name, return,
+parameter list per entry); Doxygen prototypes KEPT and gated - consumer
+TUs define DBARTS_USE_STUBS to get same-name static inline stubs
+(cached-pointer R_GetCCallable per xts/Matrix) in place of the extern
+prototypes; dbarts's own TUs get the prototypes and a provider-side
+binding assert (decltype comparison in C_interface.cpp) so list-vs-
+prototype drift fails dbarts's compile. Registration table in
+R_interface.cpp generated from the same list. Version encoding ships as
+major/minor (fresh at 1.0-0: major 1, minor 0) with accessors; the
+constexpr FNV hash over the stringized list + dbarts_results field
+spellings is static_assert'd against the baked DBARTS_C_API_HASH in
+C_interface.cpp. inst/tinytest/capi/consumer.c consumes via the stubs
+(one raw-GetCCallable canary retained). Gates: full tinytest, tests/cpp
+from make clean, equivalence suites byte-identical (pure plumbing - no
+sampler code moves), ABI checklist step satisfied by this doc.
+
+C2 - stan4bart adoption (lockstep, after C1 lands): define
+DBARTS_USE_STUBS, delete BARTFunctionTable + its typedefs + the 22
+lookups, route the call sites through the stub names, handshake becomes
+major-equality + minor-floor. Gates: full testthat, R CMD check tarball.
