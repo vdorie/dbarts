@@ -296,6 +296,21 @@ struct ForestCombiner {
   /// the single-location byte layout every existing path relies on.
   virtual std::size_t numReportedLocations() const { return 1; }
 
+  /// The variable-count reporting set: how many forests the per-sample split-
+  /// usage channel records, and which forest slot j addresses. Every additive
+  /// combiner reports the single reported forest (count 1, slot 0 =
+  /// reportedForest, the exact current channel); a model whose K forests each
+  /// carry their own splits (multinomial) reports all K. storeSample loops its
+  /// varcount writes over the count, and the run bridge sizes the varcount
+  /// array by it; count 1 leaves the single-forest byte layout every existing
+  /// path relies on. Distinct from numReportedLocations (softmax output
+  /// channels): a future model's fits-location count may diverge from its
+  /// forest count, so the varcount axis is keyed on its own forest set.
+  virtual std::size_t numVariableCountForests() const { return 1; }
+  virtual std::size_t variableCountForest(std::size_t) const {
+    return reportedForest();
+  }
+
   /// Glue (de)serialization into the BCF-shaped state fields; inert unless the
   /// combiner carries glue.
   virtual void serializeGlue(ChainStateData&) const {}
@@ -587,6 +602,10 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   }
 
   std::size_t numReportedLocations() const override { return numCategories_; }
+  /// Each category forest reports its own splits: the per-sample varcount
+  /// channel is K forests wide, slot k addressing category k's forest.
+  std::size_t numVariableCountForests() const override { return numCategories_; }
+  std::size_t variableCountForest(std::size_t j) const override { return j; }
   /// The softmax test blend is well-defined (unlike BCF): the K forests each
   /// accumulate their own totalTestFits in the sweep, and combinedTestFits maps
   /// them through the same softmax combinedFits applies to totalFits. So the

@@ -2132,6 +2132,28 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     UNPROTECT(1);
     return arr;
   };
+  // the varcount channel widens on its own forest axis (multinomial: K category
+  // forests), inserting a forest dimension between the predictors and the
+  // samples exactly as the fits seam inserts locations; count 1 keeps the exact
+  // numPredictors x numSamples (x numChains) INTSXP shape and byte layout every
+  // other model relies on.
+  size_t numVCForests = sampler.numVariableCountForests();
+  auto allocVarcountArray = [&]() -> SEXP {
+    int dims[4];
+    int numDims = 0;
+    dims[numDims++] = static_cast<int>(numPredictors);
+    dims[numDims++] = static_cast<int>(numVCForests);
+    dims[numDims++] = numSamplesInt;
+    if (numChains > 1) dims[numDims++] = numChainsInt;
+    R_xlen_t total = 1;
+    for (int d = 0; d < numDims; ++d) total *= dims[d];
+    SEXP arr = PROTECT(Rf_allocVector(INTSXP, total));
+    SEXP dimExpr = Rf_allocVector(INTSXP, numDims);
+    for (int d = 0; d < numDims; ++d) INTEGER(dimExpr)[d] = dims[d];
+    Rf_setAttrib(arr, R_DimSymbol, dimExpr);
+    UNPROTECT(1);
+    return arr;
+  };
 
   if (numSamples == 0) {
     bartcore::Results empty;
@@ -2176,10 +2198,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
                             numSamplesInt, numChainsInt));
   SEXP varcountExpr = installResult(
     resultExpr, 3,
-    numChains == 1
-      ? Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors), numSamplesInt)
-      : Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
-                        numSamplesInt, numChainsInt));
+    numVCForests > 1
+      ? allocVarcountArray()
+      : numChains == 1
+        ? Rf_allocMatrix(INTSXP, static_cast<int>(numPredictors), numSamplesInt)
+        : Rf_alloc3DArray(INTSXP, static_cast<int>(numPredictors),
+                          numSamplesInt, numChainsInt));
   SEXP kExpr = installResult(
     resultExpr, 4,
     !sampler.kIsSampled()
@@ -2213,8 +2237,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
         : Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
                           numSamplesInt, numChainsInt));
 
-  std::vector<std::uint32_t> variableCounts(numPredictors * numSamples *
-                                            numChains);
+  std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
+                                            numSamples * numChains);
 
   bartcore::Results results;
   results.sigma = REAL(sigmaExpr);
@@ -2229,6 +2253,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // additive model, K for multinomial. The location stride drives the
   // chain-major slabbing (multiple chains).
   results.numReportedLocations = numLocations;
+  // one varcount slab per reported forest; 1 for every additive model, K for
+  // multinomial's per-category counts. Drives the chain-major varcount stride.
+  results.numVariableCountForests = numVCForests;
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
@@ -2240,7 +2267,8 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   }
 
   int* varcountOut = INTEGER(varcountExpr);
-  for (size_t i = 0; i < numPredictors * numSamples * numChains; ++i)
+  for (size_t i = 0; i < numPredictors * numVCForests * numSamples * numChains;
+       ++i)
     varcountOut[i] = static_cast<int>(variableCounts[i]);
 
   // named as the classic engine's run results are, so the engines are
@@ -2304,6 +2332,9 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   // single chain here, so the location stride only shapes the fits buffers the
   // caller allocated; 1 for every model today (n x numSamples)
   results.numReportedLocations = sampler.numReportedLocations();
+  // rbart_vi's caller-owned varcount buffer is single-forest (rbart is never
+  // multinomial); 1 keeps the aliased numPredictors-per-sweep layout
+  results.numVariableCountForests = sampler.numVariableCountForests();
 
   bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)

@@ -112,6 +112,42 @@ expect_true(all(fit2$yhat.train >= 0 & fit2$yhat.train <= 1))
 expect_true(all(abs(apply(fit3$yhat.train, c(1L, 2L), sum) - 1) < 1e-8))
 expect_true(all(abs(apply(fit2$yhat.train, c(1L, 2L), sum) - 1) < 1e-8))
 
+# --- per-category varcount channel (C1): shape, levels, reproduction ---
+# varcount reshapes the run's per-sample per-category split-usage channel to
+# n.samples x p x K with levels on the trailing K margin, mirroring yhat.train.
+expect_equal(dim(fit3$varcount), c(n.samples, p, 3L))
+expect_equal(dim(fit2$varcount), c(n.samples, p2, 2L))
+expect_equal(dimnames(fit3$varcount)[[3L]], c("lo", "mid", "hi"))
+expect_equal(dimnames(fit2$varcount)[[3L]], c("no", "yes"))
+expect_true(is.integer(fit3$varcount))
+# public == internal: fit$varcount strips to the internal bartcoreRun varcount
+# channel (p x K x n.samples) bit for bit, the reproduction gate for varcount
+vc3.fit <- fit3$varcount
+dimnames(vc3.fit) <- NULL
+expect_identical(vc3.fit, aperm(internal3$varcount, c(3L, 1L, 2L)))
+vc2.fit <- fit2$varcount
+dimnames(vc2.fit) <- NULL
+expect_identical(vc2.fit, aperm(internal2$varcount, c(3L, 1L, 2L)))
+
+# predictor names thread onto the p margin when x carries column names, as
+# standard bart varcount does (an unnamed x leaves the margin NULL)
+expect_null(dimnames(fit3$varcount)[[2L]])
+set.seed(6303)
+xn <- matrix(runif(n2 * p2), n2, p2, dimnames = list(NULL, c("aa", "bb")))
+fitNamed <- bart2(
+  xn,
+  y2,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(dimnames(fitNamed$varcount)[[2L]], c("aa", "bb"))
+expect_equal(dimnames(fitNamed$varcount)[[3L]], c("no", "yes"))
+
 # --- level threading: fitted colnames, extract dimnames, class factor levels ---
 expect_equal(fit3$levels, c("lo", "mid", "hi"))
 expect_equal(dimnames(fit3$yhat.train)[[3L]], c("lo", "mid", "hi"))
@@ -157,6 +193,7 @@ fitMulti <- bart2(
   combineChains = TRUE
 )
 expect_equal(dim(fitMulti$yhat.train), c(10L, n, 3L))
+expect_equal(dim(fitMulti$varcount), c(10L, p, 3L))
 set.seed(431)
 fitMultiSplit <- bart2(
   x3,
@@ -171,6 +208,7 @@ fitMultiSplit <- bart2(
   combineChains = FALSE
 )
 expect_equal(dim(fitMultiSplit$yhat.train), c(2L, 5L, n, 3L))
+expect_equal(dim(fitMultiSplit$varcount), c(2L, 5L, p, 3L))
 
 # --- test data at creation (C1): K = 3 reproduction gate, shape, levels ---
 # test rows reuse train rows 1:20, so the test channel is well-defined and,

@@ -196,7 +196,10 @@ struct Results {
   double* sigma = nullptr;          // numSamples
   double* trainingFits = nullptr;   // numObservations x numSamples, or null
   double* testFits = nullptr;       // numTestObservations x numSamples, or null
-  std::uint32_t* variableCounts = nullptr;  // numPredictors x numSamples, or null
+  // numPredictors x numVariableCountForests x numSamples, or null; the forest
+  // dimension is 1 for every additive model (the exact numPredictors x
+  // numSamples layout), numCategories for multinomial's per-category channels
+  std::uint32_t* variableCounts = nullptr;
   double* k = nullptr;              // numSamples, or null; only when k sampled
   // numPredictors x numSamples, or null; filled only under DART
   double* splitProbabilities = nullptr;
@@ -212,6 +215,11 @@ struct Results {
   // combiner. The run bridge sizes the fits buffers by it and Sampler strides
   // per chain by it; storeSample reads the count from the combiner directly.
   std::size_t numReportedLocations = 1;
+  // per-sample forests the variableCounts array carries: 1 for every additive
+  // model (the exact current layout), numCategories for multinomial. The run
+  // bridge sizes variableCounts by it and Sampler strides per chain by it;
+  // storeSample reads the count from the combiner directly.
+  std::size_t numVariableCountForests = 1;
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -437,6 +445,12 @@ public:
   /// count (1 for every additive combiner, BCF included), 1 off any combiner.
   std::size_t numReportedLocations() const {
     return combiner_ ? combiner_->numReportedLocations() : 1;
+  }
+  /// Per-sample forests the recorded split-usage channel carries: the
+  /// combiner's forest count (1 for every additive combiner, BCF included),
+  /// 1 off any combiner. The run bridge reads it to size the varcount array.
+  std::size_t numVariableCountForests() const {
+    return combiner_ ? combiner_->numVariableCountForests() : 1;
   }
   /// Whether the recorded test-fit channel carries a defined value: true off any
   /// combiner (single forest) and for a combiner that blends a test surface
@@ -2279,9 +2293,21 @@ private:
       }
     }
 
-    if (results.variableCounts != nullptr)
-      forestVariableCounts(reportedIndex,
-                           results.variableCounts + sampleNum * data_.numPredictors);
+    if (results.variableCounts != nullptr) {
+      // one varcount slab per reported forest, forest-major within a sample so
+      // count 1 (single forest and BCF) is the exact current byte layout; a
+      // multi-forest combiner (multinomial) records each category forest's
+      // splits into slot j = variableCountForest(j)
+      std::size_t numVCForests =
+        combiner_ ? combiner_->numVariableCountForests() : 1;
+      for (std::size_t j = 0; j < numVCForests; ++j) {
+        std::size_t f =
+          combiner_ ? combiner_->variableCountForest(j) : reportedIndex;
+        forestVariableCounts(
+          f, results.variableCounts +
+               (sampleNum * numVCForests + j) * data_.numPredictors);
+      }
+    }
 
     if (results.splitProbabilities != nullptr && forest.useDart) {
       double* out =
