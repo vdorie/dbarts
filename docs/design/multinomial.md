@@ -179,10 +179,9 @@ output, probability-scale generics with an argmax class convenience, and a
 fit class of its own (bartMultinomial) so no single-forest generic misreads
 the K-widened arrays; its fit path reproduces the internal pattern bit for
 bit (test-multinomial-surface.R pins it). Unsupported surface is refused by
-name, never silently reshaped: weights, offset, the latent type, and the
-per-sample varcount channel (which addresses category 0 only) is omitted from
-the fit rather than mislabeled. Test data at creation and out-of-sample
-prediction under keepTrees are both supported (below).
+name, never silently reshaped: weights, offset, and the latent type. Test
+data at creation and out-of-sample prediction under keepTrees are both
+supported (below).
 
 - Labels are single-trial category codes 0..K-1, one integer per observation -
   the labels are the response, so the host sampler's own response is ignored;
@@ -195,7 +194,10 @@ prediction under keepTrees are both supported (below).
   identified deliverable (combinedFits writes the K location-major channels,
   log-sum-exp-safe). Per-category function values and split counts read through
   the per-forest queries bartcoreForestFits / bartcoreForestVariableCounts
-  (0-based forest = category).
+  (0-based forest = category). The fit also carries a per-sample per-category
+  variable-count channel: bart2(family = "multinomial")$varcount is
+  (n.chains x) n.samples x p x K, levels on the K margin and predictor names
+  on the p margin, mirroring every other K-shaped fit field.
 - Test fits are DEFINED (testFitsAreDefined() true): test data supplied at
   creation (x.test, wired by createMultinomialHolder before the run) flows to
   all K forests, and combinedTestFits (MultinomialForestCombiner<L>,
@@ -218,8 +220,8 @@ prediction under keepTrees are both supported (below).
   Predicting at the fit-time test matrix reproduces the run's test channel
   bitwise, since both sum the same saved per-forest leaf fits through the
   same softmax. The bitwise fixture (benchmarks/R/multinomial-equivalence.R)
-  records four channels: train, per-category forestFits, per-category
-  varcount, and test.
+  records five channels: train, per-category forestFits, per-category
+  varcount, the per-sample per-category run varcount, and test.
 - The log-likelihood channel stays flagged undefined
   (logLikelihoodIsDefined() false): storeSample scores one forest's fits
   through response_->computeLogLikelihood, which cannot see the K-blend -
