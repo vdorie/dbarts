@@ -7,7 +7,9 @@
 #include <dbarts/dbarts.h>
 
 #include <cstddef> // size_t
+#include <cstdint> // uint64_t
 #include <cstring> // memcpy
+#include <type_traits> // is_same
 
 #include <external/Rinternals.h>
 #include <R_ext/Random.h> // GetRNGstate, PutRNGstate
@@ -53,27 +55,49 @@ const double* predictorsFromDataExpr(SEXP dataExpr) {
 
 // Layout lock for dbarts_results (dbarts.h): the growable ABI. Fields append
 // monotonically and never reorder, so the library's offsetof matches every
-// caller's; the exact-size assert forces an author who appends a field to
-// update it (and, by convention, bump DBARTS_C_API_VERSION).
+// caller's. Every field's exact offset is pinned (all trailing members are
+// pointer-sized), so a mid-struct insertion shifts a downstream offset and
+// fails here, a reorder fails at the swapped pair, and the size assert forces
+// an author who appends a field to update it (and bump DBARTS_C_API_MINOR).
 static_assert(offsetof(dbarts_results, structSize) == 0);
-static_assert(offsetof(dbarts_results, sigma) == sizeof(size_t));
-static_assert(offsetof(dbarts_results, sigma) < offsetof(dbarts_results, train));
-static_assert(offsetof(dbarts_results, train) < offsetof(dbarts_results, test));
-static_assert(offsetof(dbarts_results, test) < offsetof(dbarts_results, varcount));
-static_assert(offsetof(dbarts_results, varcount) < offsetof(dbarts_results, k));
-static_assert(offsetof(dbarts_results, k) < offsetof(dbarts_results, varprobs));
-static_assert(offsetof(dbarts_results, varprobs) < offsetof(dbarts_results, tau));
-static_assert(offsetof(dbarts_results, tau) <
-              offsetof(dbarts_results, groupEffects));
-static_assert(offsetof(dbarts_results, groupEffects) <
-              offsetof(dbarts_results, logLikelihood));
+static_assert(offsetof(dbarts_results, sigma) == sizeof(size_t) + 0 * sizeof(double*));
+static_assert(offsetof(dbarts_results, train) == sizeof(size_t) + 1 * sizeof(double*));
+static_assert(offsetof(dbarts_results, test) == sizeof(size_t) + 2 * sizeof(double*));
+static_assert(offsetof(dbarts_results, varcount) == sizeof(size_t) + 3 * sizeof(double*));
+static_assert(offsetof(dbarts_results, k) == sizeof(size_t) + 4 * sizeof(double*));
+static_assert(offsetof(dbarts_results, varprobs) == sizeof(size_t) + 5 * sizeof(double*));
+static_assert(offsetof(dbarts_results, tau) == sizeof(size_t) + 6 * sizeof(double*));
+static_assert(offsetof(dbarts_results, groupEffects) == sizeof(size_t) + 7 * sizeof(double*));
+static_assert(offsetof(dbarts_results, logLikelihood) == sizeof(size_t) + 8 * sizeof(double*));
 static_assert(sizeof(dbarts_results) == sizeof(size_t) + 9 * sizeof(double*),
-              "dbarts_results layout changed; update this size, and bump "
-              "DBARTS_C_API_VERSION if a field was appended after 1.0-0");
+              "dbarts_results layout changed; update these offsets, and bump "
+              "DBARTS_C_API_MINOR if a field was appended after 1.0-0");
+
+// Compile-time signature token: FNV-1a over the stringized
+// DBARTS_C_API_LIST, checked against the baked DBARTS_C_API_HASH. A changed
+// signature moves the hash and fails this assert until DBARTS_C_API_HASH is
+// re-baked - the mechanical acknowledgment that the ABI surface changed.
+namespace {
+constexpr std::uint64_t dbarts_fnv1a(const char* text) {
+  std::uint64_t hash = 0xcbf29ce484222325ULL; // FNV-1a 64-bit offset basis
+  while (*text != '\0') {
+    hash ^= static_cast<std::uint64_t>(static_cast<unsigned char>(*text));
+    hash *= 0x100000001b3ULL; // FNV-1a 64-bit prime
+    ++text;
+  }
+  return hash;
+}
+} // namespace
+static_assert(dbarts_fnv1a(DBARTS_C_API_DECLS) == DBARTS_C_API_HASH,
+              "dbarts.h C API signatures changed; re-bake DBARTS_C_API_HASH in "
+              "inst/include/dbarts/dbarts.h (and bump DBARTS_C_API_MAJOR or "
+              "DBARTS_C_API_MINOR as the change warrants)");
 
 extern "C" {
 
 int dbarts_apiVersion(void) { return DBARTS_C_API_VERSION; }
+int dbarts_apiMajorVersion(void) { return DBARTS_C_API_MAJOR; }
+int dbarts_apiMinorVersion(void) { return DBARTS_C_API_MINOR; }
 
 dbarts_sampler* dbarts_sampler_create(SEXP control, SEXP model, SEXP data,
                                       const char* family) {
@@ -369,5 +393,16 @@ int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler) {
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler) {
   return samplerOf(sampler).usesDart() ? 1 : 0;
 }
+
+// Provider-side binding: each real function's address must
+// have exactly the type the single-source DBARTS_C_API_LIST ascribes to it, so
+// any drift between the readable prototypes above and the list fails dbarts's
+// own compile. Placed inside extern "C" so the list-formed pointer type carries
+// the same C language linkage as the resolved &function.
+#define DBARTS_BIND_ASSERT(ret, name, params, args) \
+  static_assert(std::is_same<decltype(&name), ret (*) params>::value, \
+                #name " signature drifted from DBARTS_C_API_LIST");
+DBARTS_C_API_LIST(DBARTS_BIND_ASSERT)
+#undef DBARTS_BIND_ASSERT
 
 } // extern "C"
