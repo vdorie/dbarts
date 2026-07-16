@@ -330,6 +330,33 @@ reproduction to the bit + cpp replay case + all three anchors identical + full
 tinytest + air + rchk note (bartcore_predict shape change on a new path). Size:
 L. Abort/defer per above.
 
+### C2 landing (2026-07-16)
+
+C2 = 88ffe12. The defer-abort was NOT taken: the K-forest saved-tree replay
+stayed a bounded generalization rather than entangling the just-hardened
+getTrees/saved-tree-count ABI (a73ca50) - predictFromSavedSample and
+predictFromCurrentTrees loop all K forests into a location-major slab and
+softmax it through the same map combinedTestFits uses, sampler.predict sizes
+the K-location out slab, the bridge allocates it, and keepTrees/predict.bart-
+Multinomial are un-refused on the R surface. Implementation surfaced a real
+bug along the way, not just a generalization: the multinomial chain
+constructor never called the saved-tree storage initialization every other
+keepTrees-capable constructor calls, so keepTrees on a multinomial fit
+silently allocated no storage - fixed in this commit. The strongest gate
+evidence: predicting at the fit-time test matrix reproduces C1's run test
+channel bitwise (both replay/report the same saved per-forest leaf fits
+through the same softmax), which the tinytest reproduction check pins;
+single-forest and BCF replay stayed byte-for-byte untouched. All three
+anchors identical, tests/cpp gained the K-forest replay case, tinytest 2924
+(2916 + 8, zero regen), air clean.
+
+### Arc close
+
+C1 (bcefa63) and C2 (88ffe12) deliver Q1's recommended staged BOTH: test-at-
+creation and predict-on-newdata are both landed, RNG-neutral throughout,
+every anchor identical across both commits. C3 (docs) closes the arc - no
+further commits queued here.
+
 ## C3 - Docs
 
 Update docs/design/multinomial.md "The surface": the test-fits/predict paragraph

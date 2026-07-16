@@ -179,10 +179,10 @@ output, probability-scale generics with an argmax class convenience, and a
 fit class of its own (bartMultinomial) so no single-forest generic misreads
 the K-widened arrays; its fit path reproduces the internal pattern bit for
 bit (test-multinomial-surface.R pins it). Unsupported surface is refused by
-name, never silently reshaped: test data, weights, offset, keepTrees, the
-latent type, predict on new data, and the per-sample varcount channel
-(which addresses category 0 only) is omitted from the fit rather than
-mislabeled.
+name, never silently reshaped: weights, offset, the latent type, and the
+per-sample varcount channel (which addresses category 0 only) is omitted from
+the fit rather than mislabeled. Test data at creation and out-of-sample
+prediction under keepTrees are both supported (below).
 
 - Labels are single-trial category codes 0..K-1, one integer per observation -
   the labels are the response, so the host sampler's own response is ignored;
@@ -196,20 +196,44 @@ mislabeled.
   log-sum-exp-safe). Per-category function values and split counts read through
   the per-forest queries bartcoreForestFits / bartcoreForestVariableCounts
   (0-based forest = category).
-- Test fits and the log-likelihood channel are flagged undefined
-  (testFitsAreDefined() and logLikelihoodIsDefined() both false). Test fits,
-  because the run carries no test-side softmax to report (predict and the
-  setTestPredictor family refuse via refuseBCFTestSurface,
-  src/R_interface_bartcore.cpp); the log-likelihood, because storeSample scores
-  one forest's fits through response_->computeLogLikelihood, which cannot see the
-  K-blend - BCF's exact NaN-flag choice. storeSample writes quiet NaN into both
-  rather than silently misreport them.
+- Test fits are DEFINED (testFitsAreDefined() true): test data supplied at
+  creation (x.test, wired by createMultinomialHolder before the run) flows to
+  all K forests, and combinedTestFits (MultinomialForestCombiner<L>,
+  src/bartcore/combiner.hpp) blends their totalTestFits into the same K
+  softmax combinedFits already applies to totalFits, reported in the run's
+  test channel (yhat.test, same shape as train). The level-centering shift c
+  is common to every forest and is NOT applied to totalTestFits (afterCombine
+  leaves it alone); softmax invariance to a common per-observation shift (the
+  identification section, above) makes the blend correct without touching it.
+  A test offset is refused at creation (the softmax carries no offset), and a
+  mixed/sparse test store cannot arise (multinomial requires dense
+  predictors).
+- Out-of-sample prediction (predict.bartMultinomial, R/generics.R) replays the
+  K forests' saved trees at newdata into the same K-location slab and
+  softmaxes it through the same map, coding newdata through the same
+  training-level validation as creation; it requires the fit built with
+  keepTrees (refused otherwise, mirroring predict.bart's own guard) - the
+  multinomial chain constructor gained the saved-tree initialization it had
+  silently lacked, so keepTrees now actually allocates storage on this path.
+  Predicting at the fit-time test matrix reproduces the run's test channel
+  bitwise, since both sum the same saved per-forest leaf fits through the
+  same softmax. The bitwise fixture (benchmarks/R/multinomial-equivalence.R)
+  records four channels: train, per-category forestFits, per-category
+  varcount, and test.
+- The log-likelihood channel stays flagged undefined
+  (logLikelihoodIsDefined() false): storeSample scores one forest's fits
+  through response_->computeLogLikelihood, which cannot see the K-blend -
+  BCF's exact NaN-flag choice, untouched by this arc.
 - Whole-data mutation is refused, as for every multi-forest sampler:
   setData/setResponse/setWeights refuse on any sampler with >= 2 forests
-  (refuseMultiForestMutation), and the transactional (non-force) predictor paths
-  refuse likewise (refuseMultiForestTransactionalUpdate), because applyNewData
-  and revalidateTrees rebuild only forest 0. A forced whole-matrix setPredictor,
-  which refreshes every forest, stays available.
+  (refuseMultiForestMutation), and the transactional (non-force) predictor
+  paths - including the per-observation sessions, which have no force variant
+  - refuse likewise (refuseMultiForestTransactionalUpdate), because
+  applyNewData and revalidateTrees rebuild only forest 0. A forced
+  whole-matrix setPredictor, which refreshes every forest, stays available;
+  the TEST predictor family (setTestPredictor and friends) is a separate
+  gate, refuseBCFTestSurface, keyed on testFitsAreDefined() rather than forest
+  count, so it now passes multinomial through (above) and refuses only BCF.
 - State carries NO combiner wire blocks. The K forests serialize through the
   existing per-forest tree list (any length), and the multinomial combiner
   overrides neither serializeGlue nor restoreGlue - it serializes nothing. omega
