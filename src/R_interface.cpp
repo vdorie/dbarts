@@ -294,61 +294,21 @@ typedef struct {
   DL_FUNC function;
 } C_CallMethodDef;
 
-#define DEF_FUNC(_N_, _F_) {_N_, std::bit_cast<DL_FUNC>(&(_F_))}
+// One {name, &function} row per DBARTS_C_API_LIST entry; the header's stubs and
+// dbarts's binding asserts expand the same list, so this table cannot drift from
+// the declared surface.
+#define DBARTS_API_REGISTER(_R_, _N_, _P_, _A_) \
+  {#_N_, std::bit_cast<DL_FUNC>(&_N_)},
 
 static C_CallMethodDef C_callMethods[] = {
   // the flat C API (inst/include/dbarts/dbarts.h), registered under the
   // symbol names themselves
-  DEF_FUNC("dbarts_apiVersion", dbarts_apiVersion),
-  DEF_FUNC("dbarts_sampler_create", dbarts_sampler_create),
-  DEF_FUNC("dbarts_sampler_destroy", dbarts_sampler_destroy),
-  DEF_FUNC("dbarts_sampler_run", dbarts_sampler_run),
-  DEF_FUNC(
-    "dbarts_sampler_sampleTreesFromPrior",
-    dbarts_sampler_sampleTreesFromPrior
-  ),
-  DEF_FUNC(
-    "dbarts_sampler_sampleNodeParametersFromPrior",
-    dbarts_sampler_sampleNodeParametersFromPrior
-  ),
-  DEF_FUNC("dbarts_sampler_setResponse", dbarts_sampler_setResponse),
-  DEF_FUNC("dbarts_sampler_setOffset", dbarts_sampler_setOffset),
-  DEF_FUNC("dbarts_sampler_setWeights", dbarts_sampler_setWeights),
-  DEF_FUNC("dbarts_sampler_setSigma", dbarts_sampler_setSigma),
-  DEF_FUNC("dbarts_sampler_setCallback", dbarts_sampler_setCallback),
-  DEF_FUNC("dbarts_sampler_getLatents", dbarts_sampler_getLatents),
-  DEF_FUNC("dbarts_sampler_setPredictor", dbarts_sampler_setPredictor),
-  DEF_FUNC("dbarts_sampler_updatePredictor", dbarts_sampler_updatePredictor),
-  DEF_FUNC(
-    "dbarts_sampler_setTestPredictors",
-    dbarts_sampler_setTestPredictors
-  ),
-  DEF_FUNC("dbarts_sampler_setTestOffset", dbarts_sampler_setTestOffset),
-  DEF_FUNC("dbarts_sampler_predict", dbarts_sampler_predict),
-  DEF_FUNC("dbarts_sampler_setTreeStorage", dbarts_sampler_setTreeStorage),
-  DEF_FUNC("dbarts_sampler_getTrees", dbarts_sampler_getTrees),
-  DEF_FUNC("dbarts_sampler_printTrees", dbarts_sampler_printTrees),
-  DEF_FUNC("dbarts_sampler_storeState", dbarts_sampler_storeState),
-  DEF_FUNC("dbarts_sampler_setState", dbarts_sampler_setState),
-  DEF_FUNC("dbarts_sampler_setNumThreads", dbarts_sampler_setNumThreads),
-  DEF_FUNC("dbarts_sampler_setNumThin", dbarts_sampler_setNumThin),
-  DEF_FUNC("dbarts_sampler_setVerbose", dbarts_sampler_setVerbose),
-  DEF_FUNC("dbarts_sampler_numObservations", dbarts_sampler_numObservations),
-  DEF_FUNC("dbarts_sampler_numPredictors", dbarts_sampler_numPredictors),
-  DEF_FUNC(
-    "dbarts_sampler_numTestObservations",
-    dbarts_sampler_numTestObservations
-  ),
-  DEF_FUNC("dbarts_sampler_numChains", dbarts_sampler_numChains),
-  DEF_FUNC("dbarts_sampler_numTrees", dbarts_sampler_numTrees),
-  DEF_FUNC("dbarts_sampler_numSavedSamples", dbarts_sampler_numSavedSamples),
-  DEF_FUNC("dbarts_sampler_kIsSampled", dbarts_sampler_kIsSampled),
-  DEF_FUNC("dbarts_sampler_usesDart", dbarts_sampler_usesDart),
+  DBARTS_C_API_LIST(DBARTS_API_REGISTER)
 
   {NULL, 0}
 };
 
-#undef DEF_FUNC
+#undef DBARTS_API_REGISTER
 
 void attribute_visible R_init_dbarts(DllInfo* info) {
   R_registerRoutines(info, NULL, R_callMethods, NULL, NULL);

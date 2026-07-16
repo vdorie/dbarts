@@ -412,3 +412,25 @@ C2 - stan4bart adoption (lockstep, after C1 lands): define
 DBARTS_USE_STUBS, delete BARTFunctionTable + its typedefs + the 22
 lookups, route the call sites through the stub names, handshake becomes
 major-equality + minor-floor. Gates: full testthat, R CMD check tarball.
+
+## Landing notes
+
+C1 LANDED (the commit carrying this note): the 35-entry
+DBARTS_C_API_LIST (33 existing + the major/minor accessors), four-field
+entries (return, name, named parameter list, forwarding argument list);
+Doxygen prototypes kept, mutually exclusive per TU with the same-name
+DBARTS_USE_STUBS cached-pointer stubs (strict-C99 void dispatch, all
+helper macros #undef'd after expansion); provider-side binding
+static_asserts inside extern "C"; registration generated from the list;
+dbarts_results offsets pinned per field; FNV-1a token over the
+stringized list static_assert'd against the baked DBARTS_C_API_HASH;
+version ships major 1 / minor 0 with DBARTS_C_API_VERSION packed as
+major*1000+minor (value 1000) and dbarts_apiVersion retained so the
+pinned stan4bart tip builds and loads unchanged until C2.
+consumer.c consumes through the stubs with one deliberate raw
+R_GetCCallable canary. Gates: R CMD INSTALL --preclean clean; tinytest
+2926/0 (2924 + 2 version assertions); tests/cpp from clean binaries;
+orchestrator re-ran all three equivalence suites - 22/22 identical
+draws, BCF 5x6 bitwise, multinomial 2x4 bitwise; air format clean.
+Anti-drift proofs fired live: stale hash bake, signature drift, and
+mid-struct insertion each fail dbarts's own compile.

@@ -40,7 +40,14 @@ if (!file.exists(sharedLib)) {
 dll <- dyn.load(sharedLib)
 CALL <- function(name, ...) .Call(getNativeSymbolInfo(name, dll), ...)
 
-expect_equal(CALL("capi_version"), 1L)
+# the packed version, resolved through the raw R_GetCCallable canary
+expect_equal(CALL("capi_version"), 1000L)
+
+# the two-component accessors, through the stubs, agree with the packed integer
+# and the fixed 1.0-0 encoding (major * 1000 + minor)
+versions <- CALL("capi_versions")
+expect_equal(versions, c(1000L, 1L, 0L))
+expect_equal(versions[1L], versions[2L] * 1000L + versions[3L])
 
 set.seed(0)
 n <- 150L

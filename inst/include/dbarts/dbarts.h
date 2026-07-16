@@ -5,14 +5,25 @@
 /// Flat C interface to the dbarts sampler, for packages that drive BART as
 /// a conditional model inside a larger sampler (LinkingTo: dbarts).
 ///
-/// Every function is registered with R_RegisterCCallable under its own
-/// name; look entry points up at load time with
-/// R_GetCCallable("dbarts", "<name>") and cast the DL_FUNC to the matching
-/// signature. Check dbarts_apiVersion() against DBARTS_C_API_VERSION before
-/// using the rest. The interface only ever grows: names and signatures
-/// below are stable and function additions arrive under new names, while
-/// dbarts_results grows in place by appending fields - its leading
-/// structSize keeps callers compiled against an older layout safe.
+/// Every function is registered with R_RegisterCCallable under its own name.
+/// A consumer has two ways to reach an entry point. It can look each one up by
+/// hand with R_GetCCallable("dbarts", "<name>") and cast the DL_FUNC to the
+/// matching signature, or - the supported path - it can define DBARTS_USE_STUBS
+/// before including this header, which replaces the prototypes below with
+/// same-name static inline stubs that resolve and cache the pointer on first
+/// call. The stubs are generated from DBARTS_C_API_LIST, the single source of
+/// truth for the surface, so a rebuild always re-derives the consumer's call
+/// types from this header and a stale hand-rolled signature cannot drift.
+///
+/// The version is two components: check dbarts_apiMajorVersion() ==
+/// DBARTS_C_API_MAJOR && dbarts_apiMinorVersion() >= DBARTS_C_API_MINOR at load
+/// time (major = incompatible change, minor = additive). dbarts_apiVersion()
+/// and DBARTS_C_API_VERSION remain as a single packed integer for the strict
+/// equality a lockstep consumer may still prefer. The interface only ever
+/// grows: names and signatures below are stable and function additions arrive
+/// under new names (a minor bump), while dbarts_results grows in place by
+/// appending fields - its leading structSize keeps callers compiled against an
+/// older layout safe.
 ///
 /// Contracts common to all entry points:
 /// - Invalid arguments raise R errors (Rf_error), which longjmp through the
@@ -51,11 +62,35 @@
 #endif
 #undef USE_FC_LEN_T
 
-#define DBARTS_C_API_VERSION 1
+/// The C ABI version, two components. major changes are
+/// incompatible; minor changes are additive-only. The safe consumer handshake
+/// is major-equality with a minor floor:
+///   dbarts_apiMajorVersion() == DBARTS_C_API_MAJOR &&
+///   dbarts_apiMinorVersion() >= DBARTS_C_API_MINOR
+#define DBARTS_C_API_MAJOR 1
+#define DBARTS_C_API_MINOR 0
+/// A single packed integer (major * 1000 + minor) derived from the two
+/// components, kept for a lockstep consumer that compares dbarts_apiVersion()
+/// against DBARTS_C_API_VERSION for strict equality.
+#define DBARTS_C_API_VERSION (DBARTS_C_API_MAJOR * 1000 + DBARTS_C_API_MINOR)
+
+/// FNV-1a hash of the stringized DBARTS_C_API_LIST signatures, baked here and
+/// static_assert'd against a recomputation in dbarts's own C++ build. Any
+/// signature change in the list fails dbarts's compile until this literal is
+/// re-baked; that re-bake is the mechanical acknowledgment of an ABI change.
+/// Plain hex literal, usable from C.
+#define DBARTS_C_API_HASH 0xc82cf27acefa5b81ULL
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// ---------------------------------------------------------------------------
+// ABI types, shared by both the prototype view and the stub view below. Every
+// type that crosses the ABI is defined here (dbarts_results and the callback
+// are inline; control/model/data/state cross as SEXP) so that the single-source
+// list and the compile-time token see the whole surface.
+// ---------------------------------------------------------------------------
 
 /// Opaque sampler handle.
 typedef struct dbarts_sampler_t dbarts_sampler;
@@ -65,7 +100,7 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// the library fills only fields whose end offset falls within structSize,
 /// so a caller built against an older (smaller) header is never written
 /// past. Fields append monotonically below the marked boundary and never
-/// reorder across releases; an append bumps DBARTS_C_API_VERSION. A field is
+/// reorder across releases; an append bumps DBARTS_C_API_MINOR. A field is
 /// filled only when both present-by-size and non-null: a null member skips
 /// that quantity, and a zero structSize skips everything. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
@@ -92,7 +127,7 @@ typedef struct dbarts_results_t {
   double* groupEffects; ///< numGroups x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
   /* 1.0-0 field boundary: every future append goes below this line, never
-     above, and bumps DBARTS_C_API_VERSION. */
+     above, and bumps DBARTS_C_API_MINOR. */
 } dbarts_results;
 
 /// True when the caller's struct (per structSize) actually carries `field`.
@@ -101,8 +136,186 @@ typedef struct dbarts_results_t {
 #define DBARTS_RESULTS_HAS(r, field) \
   ((r)->structSize >= offsetof(dbarts_results, field) + sizeof((r)->field))
 
-/// Returns DBARTS_C_API_VERSION of the installed package.
+/// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
+/// calling thread before every sweep - each of the (numBurnIn + numSamples) x
+/// numThin iterations - passing the chain index, the 0-based sweep counter,
+/// and 1 while the sweep is discarded burn-in. Mutate conditioning state
+/// (dbarts_sampler_setSigma, dbarts_sampler_setOffset, ...) from inside it to
+/// reproduce a setState-then-run(0, 1) loop exactly, at no per-sweep R round
+/// trip; return 0 to stop the run early (the results filled so far are then
+/// undefined). It fires before dbarts_sampler_setSigma's held sigma or the
+/// gaussian sigma draw enters the sweep, so a value set here conditions it.
+typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
+                                       size_t chainIndex, size_t sweepIndex,
+                                       int isBurnIn);
+
+// ---------------------------------------------------------------------------
+// The single source of truth for the entry-point surface. Each
+// entry is X(returnType, name, (parameterList), (argumentList)): the parameter
+// list carries names so it also spells the forwarding stub's signature, and the
+// argument list forwards those names. Registration (R_interface.cpp), the
+// consumer stubs below, the provider-side binding asserts, and the compile-time
+// token (C_interface.cpp) are all expansions of this one list, so a signature
+// stated here is the only place it is stated. The readable Doxygen prototypes
+// kept in the #else branch below are compile-time bound to this list in
+// dbarts's own build, so any drift between them fails dbarts's compile.
+// ---------------------------------------------------------------------------
+#define DBARTS_C_API_LIST(X) \
+  X(int, dbarts_apiVersion, (void), ()) \
+  X(int, dbarts_apiMajorVersion, (void), ()) \
+  X(int, dbarts_apiMinorVersion, (void), ()) \
+  X(dbarts_sampler*, dbarts_sampler_create, \
+    (SEXP control, SEXP model, SEXP data, const char* family), \
+    (control, model, data, family)) \
+  X(void, dbarts_sampler_destroy, (dbarts_sampler* sampler), (sampler)) \
+  X(void, dbarts_sampler_run, \
+    (dbarts_sampler* sampler, size_t numBurnIn, size_t numSamples, \
+     dbarts_results* results), \
+    (sampler, numBurnIn, numSamples, results)) \
+  X(void, dbarts_sampler_sampleTreesFromPrior, (dbarts_sampler* sampler), \
+    (sampler)) \
+  X(void, dbarts_sampler_sampleNodeParametersFromPrior, \
+    (dbarts_sampler* sampler), (sampler)) \
+  X(void, dbarts_sampler_setResponse, \
+    (dbarts_sampler* sampler, const double* y), (sampler, y)) \
+  X(void, dbarts_sampler_setOffset, \
+    (dbarts_sampler* sampler, const double* offset, int updateScale), \
+    (sampler, offset, updateScale)) \
+  X(void, dbarts_sampler_setWeights, \
+    (dbarts_sampler* sampler, const double* weights), (sampler, weights)) \
+  X(void, dbarts_sampler_setSigma, \
+    (dbarts_sampler* sampler, double sigma), (sampler, sigma)) \
+  X(void, dbarts_sampler_setCallback, \
+    (dbarts_sampler* sampler, dbarts_sampler_callback callback, \
+     void* userData), \
+    (sampler, callback, userData)) \
+  X(int, dbarts_sampler_getLatents, \
+    (const dbarts_sampler* sampler, double* out), (sampler, out)) \
+  X(int, dbarts_sampler_setPredictor, \
+    (dbarts_sampler* sampler, const double* x, int forceUpdate, \
+     int updateCutPoints), \
+    (sampler, x, forceUpdate, updateCutPoints)) \
+  X(int, dbarts_sampler_updatePredictor, \
+    (dbarts_sampler* sampler, const double* x, const size_t* columns, \
+     size_t numColumns, int forceUpdate, int updateCutPoints), \
+    (sampler, x, columns, numColumns, forceUpdate, updateCutPoints)) \
+  X(void, dbarts_sampler_setTestPredictors, \
+    (dbarts_sampler* sampler, const double* x_test, \
+     size_t numTestObservations), \
+    (sampler, x_test, numTestObservations)) \
+  X(void, dbarts_sampler_setTestOffset, \
+    (dbarts_sampler* sampler, const double* offset_test), \
+    (sampler, offset_test)) \
+  X(void, dbarts_sampler_predict, \
+    (dbarts_sampler* sampler, const double* x_test, \
+     size_t numTestObservations, const double* offset_test, double* out), \
+    (sampler, x_test, numTestObservations, offset_test, out)) \
+  X(void, dbarts_sampler_setTreeStorage, \
+    (dbarts_sampler* sampler, int keepTrees, size_t numSamplesToStore), \
+    (sampler, keepTrees, numSamplesToStore)) \
+  X(SEXP, dbarts_sampler_getTrees, \
+    (dbarts_sampler* sampler, const size_t* chainIndices, \
+     size_t numChainIndices, const size_t* sampleIndices, \
+     size_t numSampleIndices, const size_t* treeIndices, \
+     size_t numTreeIndices, int useLiveTrees), \
+    (sampler, chainIndices, numChainIndices, sampleIndices, numSampleIndices, \
+     treeIndices, numTreeIndices, useLiveTrees)) \
+  X(void, dbarts_sampler_printTrees, \
+    (dbarts_sampler* sampler, const size_t* chainIndices, \
+     size_t numChainIndices, const size_t* sampleIndices, \
+     size_t numSampleIndices, const size_t* treeIndices, \
+     size_t numTreeIndices), \
+    (sampler, chainIndices, numChainIndices, sampleIndices, numSampleIndices, \
+     treeIndices, numTreeIndices)) \
+  X(SEXP, dbarts_sampler_storeState, (dbarts_sampler* sampler), (sampler)) \
+  X(void, dbarts_sampler_setState, \
+    (dbarts_sampler* sampler, SEXP state), (sampler, state)) \
+  X(void, dbarts_sampler_setNumThreads, \
+    (dbarts_sampler* sampler, size_t numThreads), (sampler, numThreads)) \
+  X(void, dbarts_sampler_setNumThin, \
+    (dbarts_sampler* sampler, size_t numThin), (sampler, numThin)) \
+  X(void, dbarts_sampler_setVerbose, \
+    (dbarts_sampler* sampler, int verbose, uint32_t printEvery), \
+    (sampler, verbose, printEvery)) \
+  X(size_t, dbarts_sampler_numObservations, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(size_t, dbarts_sampler_numPredictors, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(size_t, dbarts_sampler_numTestObservations, \
+    (const dbarts_sampler* sampler), (sampler)) \
+  X(size_t, dbarts_sampler_numChains, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(size_t, dbarts_sampler_numTrees, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(size_t, dbarts_sampler_numSavedSamples, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(int, dbarts_sampler_kIsSampled, (const dbarts_sampler* sampler), \
+    (sampler)) \
+  X(int, dbarts_sampler_usesDart, (const dbarts_sampler* sampler), (sampler))
+
+/// One stringized "returnType name(parameterList);" per list entry, adjacent
+/// string literals that concatenate into the full declaration text the
+/// compile-time token hashes.
+#define DBARTS_API_STRINGIZE(ret, name, params, args) #ret " " #name #params ";"
+#define DBARTS_C_API_DECLS DBARTS_C_API_LIST(DBARTS_API_STRINGIZE)
+
+#ifdef DBARTS_USE_STUBS
+
+// Same-name cached-pointer forwarders generated from the list, one per entry,
+// in place of the extern prototypes (the xts inst/include/xtsAPI.h idiom). The
+// first call resolves the symbol through R_GetCCallable and caches it in a
+// block-scope static; later calls forward directly. A consumer defines
+// DBARTS_USE_STUBS to opt in, and then never restates a signature.
+#include <R_ext/Rdynload.h> // R_GetCCallable, DL_FUNC
+
+// void-return detection: ISO C forbids `return <expr>;` in a void function, so
+// a void stub must forward without `return`. These helpers pick the right body
+// from the entry's return type; all are #undef'd right after the expansion so
+// none leak into the consumer's macro namespace.
+#define DBARTS_CAT(a, b) DBARTS_CAT_(a, b)
+#define DBARTS_CAT_(a, b) a##b
+#define DBARTS_CHECK_N(x, n, ...) n
+#define DBARTS_CHECK(...) DBARTS_CHECK_N(__VA_ARGS__, 0,)
+#define DBARTS_PROBE(x) x, 1,
+#define DBARTS_VOID_void DBARTS_PROBE(~)
+#define DBARTS_IS_VOID(ret) DBARTS_CHECK(DBARTS_CAT(DBARTS_VOID_, ret))
+#define DBARTS_IIF(c) DBARTS_CAT(DBARTS_IIF_, c)
+#define DBARTS_IIF_0(t, f) f
+#define DBARTS_IIF_1(t, f) t
+
+#define DBARTS_API_STUB(ret, name, params, args) \
+  static inline ret name params { \
+    static ret (*dbarts_stub_fn) params = NULL; \
+    if (dbarts_stub_fn == NULL) \
+      dbarts_stub_fn = (ret (*) params) R_GetCCallable("dbarts", #name); \
+    DBARTS_IIF(DBARTS_IS_VOID(ret))(dbarts_stub_fn args;, \
+                                    return dbarts_stub_fn args;) \
+  }
+DBARTS_C_API_LIST(DBARTS_API_STUB)
+
+#undef DBARTS_API_STUB
+#undef DBARTS_IIF_1
+#undef DBARTS_IIF_0
+#undef DBARTS_IIF
+#undef DBARTS_IS_VOID
+#undef DBARTS_VOID_void
+#undef DBARTS_PROBE
+#undef DBARTS_CHECK
+#undef DBARTS_CHECK_N
+#undef DBARTS_CAT_
+#undef DBARTS_CAT
+
+#else // !DBARTS_USE_STUBS: the readable, Doxygen-documented prototypes.
+
+/// Returns DBARTS_C_API_VERSION (major * 1000 + minor) of the installed
+/// package.
 int dbarts_apiVersion(void);
+/// Returns DBARTS_C_API_MAJOR of the installed package (incompatible-change
+/// component of the version; equal to the caller's for a usable library).
+int dbarts_apiMajorVersion(void);
+/// Returns DBARTS_C_API_MINOR of the installed package (additive component;
+/// at least the caller's for a usable library).
+int dbarts_apiMinorVersion(void);
 
 /// Creates a sampler from the R specification objects (dbartsControl,
 /// dbartsModel, dbartsData). family selects the response model for binary
@@ -127,25 +340,13 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler);
 void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler);
 
-/// Per-sweep conditioning callback. dbarts_sampler_run invokes it on the
-/// calling thread before every sweep - each of the (numBurnIn + numSamples) x
-/// numThin iterations - passing the chain index, the 0-based sweep counter,
-/// and 1 while the sweep is discarded burn-in. Mutate conditioning state
-/// (dbarts_sampler_setSigma, dbarts_sampler_setOffset, ...) from inside it to
-/// reproduce a setState-then-run(0, 1) loop exactly, at no per-sweep R round
-/// trip; return 0 to stop the run early (the results filled so far are then
-/// undefined). It fires before dbarts_sampler_setSigma's held sigma or the
-/// gaussian sigma draw enters the sweep, so a value set here conditions it.
-typedef int (*dbarts_sampler_callback)(void* userData, dbarts_sampler* sampler,
-                                       size_t chainIndex, size_t sweepIndex,
-                                       int isBurnIn);
 /// Registers callback for subsequent runs, or clears it when null; userData is
 /// passed back unchanged and its lifetime is the caller's. Raises an error
 /// while chains would run on worker threads (numThreads > 1 and numChains > 1),
 /// which must never call into R. Inline multi-chain runs execute chains
 /// sequentially - chain 0 completes all its sweeps before chain 1 starts - so
 /// the callback conditions each chain to completion in turn and cannot see one
-/// chain's progress while advancing another.
+/// chain's progress while advancing another. (See dbarts_sampler_callback.)
 void dbarts_sampler_setCallback(dbarts_sampler* sampler,
                                 dbarts_sampler_callback callback,
                                 void* userData);
@@ -259,6 +460,8 @@ size_t dbarts_sampler_numTrees(const dbarts_sampler* sampler);
 size_t dbarts_sampler_numSavedSamples(const dbarts_sampler* sampler);
 int dbarts_sampler_kIsSampled(const dbarts_sampler* sampler);
 int dbarts_sampler_usesDart(const dbarts_sampler* sampler);
+
+#endif // DBARTS_USE_STUBS
 
 #ifdef __cplusplus
 }

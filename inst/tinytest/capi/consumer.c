@@ -1,130 +1,35 @@
 /* A minimal consumer of the flat C API (dbarts/dbarts.h), compiled by
- * test-capi.R with R CMD SHLIB against the installed package headers. It
- * resolves every entry point through R_GetCCallable, exactly as a
- * LinkingTo package would, and exposes .Call wrappers for the R-side
- * assertions. */
+ * test-capi.R with R CMD SHLIB against the installed package headers. It drives
+ * the entry points through the header's DBARTS_USE_STUBS stubs - the supported
+ * LinkingTo path, where each dbarts_sampler_* call binds to a cached
+ * R_GetCCallable pointer generated inside dbarts.h - and exposes .Call wrappers
+ * for the R-side assertions. One entry point is still resolved by hand as a
+ * deliberate canary (see p_apiVersion_raw). */
 
+#define DBARTS_USE_STUBS
 #include <dbarts/dbarts.h>
 
 #include <string.h> /* memcpy */
 
-#include <R_ext/Rdynload.h>
+#include <R_ext/Rdynload.h> /* R_GetCCallable, for the raw canary below */
 
-static int (*p_apiVersion)(void);
-static dbarts_sampler* (*p_create)(SEXP, SEXP, SEXP, const char*);
-static void (*p_destroy)(dbarts_sampler*);
-static void (*p_run)(dbarts_sampler*, size_t, size_t, dbarts_results*);
-static void (*p_sampleTreesFromPrior)(dbarts_sampler*);
-static void (*p_sampleNodeParametersFromPrior)(dbarts_sampler*);
-static void (*p_setResponse)(dbarts_sampler*, const double*);
-static void (*p_setOffset)(dbarts_sampler*, const double*, int);
-static void (*p_setWeights)(dbarts_sampler*, const double*);
-static void (*p_setSigma)(dbarts_sampler*, double);
-static void (*p_setCallback)(dbarts_sampler*, dbarts_sampler_callback, void*);
-static void (*p_setTestOffset)(dbarts_sampler*, const double*);
-static void (*p_printTrees)(dbarts_sampler*, const size_t*, size_t,
-                            const size_t*, size_t, const size_t*, size_t);
-static void (*p_setNumThreads)(dbarts_sampler*, size_t);
-static void (*p_setNumThin)(dbarts_sampler*, size_t);
-static void (*p_setVerbose)(dbarts_sampler*, int, uint32_t);
-static int (*p_getLatents)(const dbarts_sampler*, double*);
-static int (*p_setPredictor)(dbarts_sampler*, const double*, int, int);
-static int (*p_updatePredictor)(dbarts_sampler*, const double*, const size_t*,
-                                size_t, int, int);
-static void (*p_setTestPredictors)(dbarts_sampler*, const double*, size_t);
-static void (*p_predict)(dbarts_sampler*, const double*, size_t,
-                         const double*, double*);
-static void (*p_setTreeStorage)(dbarts_sampler*, int, size_t);
-static SEXP (*p_getTrees)(dbarts_sampler*, const size_t*, size_t,
-                          const size_t*, size_t, const size_t*, size_t, int);
-static SEXP (*p_storeState)(dbarts_sampler*);
-static void (*p_setState)(dbarts_sampler*, SEXP);
-static size_t (*p_numObservations)(const dbarts_sampler*);
-static size_t (*p_numPredictors)(const dbarts_sampler*);
-static size_t (*p_numTestObservations)(const dbarts_sampler*);
-static size_t (*p_numChains)(const dbarts_sampler*);
-static size_t (*p_numTrees)(const dbarts_sampler*);
-static size_t (*p_numSavedSamples)(const dbarts_sampler*);
-static int (*p_kIsSampled)(const dbarts_sampler*);
-static int (*p_usesDart)(const dbarts_sampler*);
+/* Deliberate canary: dbarts_apiVersion is ALSO resolved the old way, by hand
+ * through R_GetCCallable with a hand-written cast - the un-stubbed per-symbol
+ * path a consumer that declines DBARTS_USE_STUBS (or a diagnostic tool) still
+ * relies on. Everything else goes through the stubs, so this one raw path
+ * guards that plain R_RegisterCCallable registration keeps working on its own. */
+static int (*p_apiVersion_raw)(void);
 
-static void initApi(void) {
-  if (p_apiVersion != NULL) return;
-#define LOOKUP(_T_, _P_, _N_) _P_ = (_T_) R_GetCCallable("dbarts", _N_)
-  LOOKUP(int (*)(void), p_apiVersion, "dbarts_apiVersion");
-  LOOKUP(dbarts_sampler* (*)(SEXP, SEXP, SEXP, const char*), p_create,
-         "dbarts_sampler_create");
-  LOOKUP(void (*)(dbarts_sampler*), p_destroy, "dbarts_sampler_destroy");
-  LOOKUP(void (*)(dbarts_sampler*, size_t, size_t, dbarts_results*), p_run,
-         "dbarts_sampler_run");
-  LOOKUP(void (*)(dbarts_sampler*), p_sampleTreesFromPrior,
-         "dbarts_sampler_sampleTreesFromPrior");
-  LOOKUP(void (*)(dbarts_sampler*), p_sampleNodeParametersFromPrior,
-         "dbarts_sampler_sampleNodeParametersFromPrior");
-  LOOKUP(void (*)(dbarts_sampler*, const double*), p_setResponse,
-         "dbarts_sampler_setResponse");
-  LOOKUP(void (*)(dbarts_sampler*, const double*, int), p_setOffset,
-         "dbarts_sampler_setOffset");
-  LOOKUP(void (*)(dbarts_sampler*, const double*), p_setWeights,
-         "dbarts_sampler_setWeights");
-  LOOKUP(void (*)(dbarts_sampler*, double), p_setSigma,
-         "dbarts_sampler_setSigma");
-  LOOKUP(void (*)(dbarts_sampler*, dbarts_sampler_callback, void*),
-         p_setCallback, "dbarts_sampler_setCallback");
-  LOOKUP(void (*)(dbarts_sampler*, const double*), p_setTestOffset,
-         "dbarts_sampler_setTestOffset");
-  LOOKUP(void (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
-                  size_t, const size_t*, size_t),
-         p_printTrees, "dbarts_sampler_printTrees");
-  LOOKUP(void (*)(dbarts_sampler*, size_t), p_setNumThreads,
-         "dbarts_sampler_setNumThreads");
-  LOOKUP(void (*)(dbarts_sampler*, size_t), p_setNumThin,
-         "dbarts_sampler_setNumThin");
-  LOOKUP(void (*)(dbarts_sampler*, int, uint32_t), p_setVerbose,
-         "dbarts_sampler_setVerbose");
-  LOOKUP(int (*)(const dbarts_sampler*, double*), p_getLatents,
-         "dbarts_sampler_getLatents");
-  LOOKUP(int (*)(dbarts_sampler*, const double*, int, int), p_setPredictor,
-         "dbarts_sampler_setPredictor");
-  LOOKUP(int (*)(dbarts_sampler*, const double*, const size_t*, size_t, int,
-                 int),
-         p_updatePredictor, "dbarts_sampler_updatePredictor");
-  LOOKUP(void (*)(dbarts_sampler*, const double*, size_t),
-         p_setTestPredictors, "dbarts_sampler_setTestPredictors");
-  LOOKUP(void (*)(dbarts_sampler*, const double*, size_t, const double*,
-                  double*),
-         p_predict, "dbarts_sampler_predict");
-  LOOKUP(void (*)(dbarts_sampler*, int, size_t), p_setTreeStorage,
-         "dbarts_sampler_setTreeStorage");
-  LOOKUP(SEXP (*)(dbarts_sampler*, const size_t*, size_t, const size_t*,
-                  size_t, const size_t*, size_t, int),
-         p_getTrees, "dbarts_sampler_getTrees");
-  LOOKUP(SEXP (*)(dbarts_sampler*), p_storeState, "dbarts_sampler_storeState");
-  LOOKUP(void (*)(dbarts_sampler*, SEXP), p_setState,
-         "dbarts_sampler_setState");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numObservations,
-         "dbarts_sampler_numObservations");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numPredictors,
-         "dbarts_sampler_numPredictors");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numTestObservations,
-         "dbarts_sampler_numTestObservations");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numChains,
-         "dbarts_sampler_numChains");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numTrees,
-         "dbarts_sampler_numTrees");
-  LOOKUP(size_t (*)(const dbarts_sampler*), p_numSavedSamples,
-         "dbarts_sampler_numSavedSamples");
-  LOOKUP(int (*)(const dbarts_sampler*), p_kIsSampled,
-         "dbarts_sampler_kIsSampled");
-  LOOKUP(int (*)(const dbarts_sampler*), p_usesDart,
-         "dbarts_sampler_usesDart");
-#undef LOOKUP
+static void initCanary(void) {
+  if (p_apiVersion_raw == NULL)
+    p_apiVersion_raw =
+      (int (*)(void)) R_GetCCallable("dbarts", "dbarts_apiVersion");
 }
 
 static void samplerFinalizer(SEXP ptrExpr) {
   dbarts_sampler* sampler = (dbarts_sampler*) R_ExternalPtrAddr(ptrExpr);
   if (sampler == NULL) return;
-  p_destroy(sampler);
+  dbarts_sampler_destroy(sampler);
   R_ClearExternalPtr(ptrExpr);
 }
 
@@ -134,16 +39,29 @@ static dbarts_sampler* samplerFromExpr(SEXP ptrExpr) {
   return sampler;
 }
 
+/* the packed version, through the raw canary path */
 SEXP capi_version(void) {
-  initApi();
-  return Rf_ScalarInteger(p_apiVersion());
+  initCanary();
+  return Rf_ScalarInteger(p_apiVersion_raw());
+}
+
+/* the packed integer plus the two components, through the stubs; the R side
+ * checks all three agree with the header macros */
+SEXP capi_versions(void) {
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 3));
+  int* v = INTEGER(result);
+  v[0] = dbarts_apiVersion();
+  v[1] = dbarts_apiMajorVersion();
+  v[2] = dbarts_apiMinorVersion();
+  UNPROTECT(1);
+  return result;
 }
 
 SEXP capi_create(SEXP control, SEXP model, SEXP data, SEXP family) {
-  initApi();
   const char* familyName =
     Rf_isNull(family) ? "" : CHAR(STRING_ELT(family, 0));
-  dbarts_sampler* sampler = p_create(control, model, data, familyName);
+  dbarts_sampler* sampler =
+    dbarts_sampler_create(control, model, data, familyName);
   SEXP result = PROTECT(R_MakeExternalPtr(sampler, R_NilValue, R_NilValue));
   R_RegisterCFinalizerEx(result, samplerFinalizer, FALSE);
   UNPROTECT(1);
@@ -154,20 +72,20 @@ SEXP capi_dims(SEXP ptrExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   SEXP result = PROTECT(Rf_allocVector(INTSXP, 8));
   int* dims = INTEGER(result);
-  dims[0] = (int) p_numObservations(sampler);
-  dims[1] = (int) p_numPredictors(sampler);
-  dims[2] = (int) p_numTestObservations(sampler);
-  dims[3] = (int) p_numChains(sampler);
-  dims[4] = (int) p_numTrees(sampler);
-  dims[5] = (int) p_numSavedSamples(sampler);
-  dims[6] = p_kIsSampled(sampler);
-  dims[7] = p_usesDart(sampler);
+  dims[0] = (int) dbarts_sampler_numObservations(sampler);
+  dims[1] = (int) dbarts_sampler_numPredictors(sampler);
+  dims[2] = (int) dbarts_sampler_numTestObservations(sampler);
+  dims[3] = (int) dbarts_sampler_numChains(sampler);
+  dims[4] = (int) dbarts_sampler_numTrees(sampler);
+  dims[5] = (int) dbarts_sampler_numSavedSamples(sampler);
+  dims[6] = dbarts_sampler_kIsSampled(sampler);
+  dims[7] = dbarts_sampler_usesDart(sampler);
   UNPROTECT(1);
   return result;
 }
 
 SEXP capi_sample_trees_from_prior(SEXP ptrExpr) {
-  p_sampleTreesFromPrior(samplerFromExpr(ptrExpr));
+  dbarts_sampler_sampleTreesFromPrior(samplerFromExpr(ptrExpr));
   return R_NilValue;
 }
 
@@ -181,10 +99,10 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   int keepTrain = Rf_asLogical(keepTrainExpr) == TRUE;
   int keepTest = Rf_asLogical(keepTestExpr) == TRUE;
 
-  size_t n = p_numObservations(sampler);
-  size_t p = p_numPredictors(sampler);
-  size_t nTest = p_numTestObservations(sampler);
-  size_t chains = p_numChains(sampler);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t p = dbarts_sampler_numPredictors(sampler);
+  size_t nTest = dbarts_sampler_numTestObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
 
   SEXP sigmaExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
@@ -210,7 +128,7 @@ SEXP capi_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.k = NULL;
   results.varprobs = NULL;
 
-  p_run(sampler, numBurnIn, numSamples, &results);
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
 
   int* varcountOut = INTEGER(varcountExpr);
   for (size_t i = 0; i < p * numSamples * chains; ++i)
@@ -243,8 +161,8 @@ SEXP capi_run_guard(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
   size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
-  size_t n = p_numObservations(sampler);
-  size_t chains = p_numChains(sampler);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
 
   double* sigma = (double*) R_alloc(numSamples * chains, sizeof(double));
   double* train = (double*) R_alloc(n * numSamples * chains, sizeof(double));
@@ -261,7 +179,7 @@ SEXP capi_run_guard(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.tau = poison;
   results.groupEffects = poison;
 
-  p_run(sampler, numBurnIn, numSamples, &results);
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
 
   int ok = 1;
   for (size_t i = 0; i < numSamples * chains; ++i)
@@ -285,7 +203,7 @@ static int sweepCallback(void* userData, dbarts_sampler* sampler,
   (void) isBurnIn;
   ++state->count;
   if (state->sigmas != NULL && sweepIndex < state->numSigmas)
-    p_setSigma(sampler, state->sigmas[sweepIndex]);
+    dbarts_sampler_setSigma(sampler, state->sigmas[sweepIndex]);
   if (state->stopAt >= 0 && state->count >= state->stopAt) return 0;
   return 1;
 }
@@ -299,9 +217,9 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
   size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
-  size_t n = p_numObservations(sampler);
-  size_t p = p_numPredictors(sampler);
-  size_t chains = p_numChains(sampler);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t p = dbarts_sampler_numPredictors(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
 
   callbackState state;
   state.sigmas = Rf_isNull(sigmasExpr) ? NULL : REAL(sigmasExpr);
@@ -328,9 +246,9 @@ SEXP capi_run_with_callback(SEXP ptrExpr, SEXP numBurnInExpr,
   results.tau = NULL;
   results.groupEffects = NULL;
 
-  p_setCallback(sampler, sweepCallback, &state);
-  p_run(sampler, numBurnIn, numSamples, &results);
-  p_setCallback(sampler, NULL, NULL);
+  dbarts_sampler_setCallback(sampler, sweepCallback, &state);
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
+  dbarts_sampler_setCallback(sampler, NULL, NULL);
 
   SEXP varcountExpr = PROTECT(
     Rf_allocVector(INTSXP, (R_xlen_t) (p * numSamples * chains)));
@@ -362,7 +280,7 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
   size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
   size_t numGroups = (size_t) Rf_asInteger(numGroupsExpr);
-  size_t chains = p_numChains(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
 
   SEXP sigmaExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
@@ -382,7 +300,7 @@ SEXP capi_run_grouped(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.tau = REAL(tauExpr);
   results.groupEffects = REAL(ranefExpr);
 
-  p_run(sampler, numBurnIn, numSamples, &results);
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
 
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
   SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
@@ -405,8 +323,8 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numBurnIn = (size_t) Rf_asInteger(numBurnInExpr);
   size_t numSamples = (size_t) Rf_asInteger(numSamplesExpr);
-  size_t n = p_numObservations(sampler);
-  size_t chains = p_numChains(sampler);
+  size_t n = dbarts_sampler_numObservations(sampler);
+  size_t chains = dbarts_sampler_numChains(sampler);
 
   SEXP sigmaExpr = PROTECT(
     Rf_allocVector(REALSXP, (R_xlen_t) (numSamples * chains)));
@@ -421,7 +339,7 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   results.train = REAL(trainExpr);
   results.logLikelihood = REAL(loglikExpr);
 
-  p_run(sampler, numBurnIn, numSamples, &results);
+  dbarts_sampler_run(sampler, numBurnIn, numSamples, &results);
 
   SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 3));
   SET_VECTOR_ELT(resultExpr, 0, sigmaExpr);
@@ -438,23 +356,23 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
 }
 
 SEXP capi_sample_node_parameters_from_prior(SEXP ptrExpr) {
-  p_sampleNodeParametersFromPrior(samplerFromExpr(ptrExpr));
+  dbarts_sampler_sampleNodeParametersFromPrior(samplerFromExpr(ptrExpr));
   return R_NilValue;
 }
 
 SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr) {
-  p_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr));
+  dbarts_sampler_setResponse(samplerFromExpr(ptrExpr), REAL(yExpr));
   return R_NilValue;
 }
 
 SEXP capi_set_weights(SEXP ptrExpr, SEXP weightsExpr) {
-  p_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr));
+  dbarts_sampler_setWeights(samplerFromExpr(ptrExpr), REAL(weightsExpr));
   return R_NilValue;
 }
 
 SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
-  p_setTestOffset(samplerFromExpr(ptrExpr),
-                  Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr));
+  dbarts_sampler_setTestOffset(samplerFromExpr(ptrExpr),
+                               Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr));
   return R_NilValue;
 }
 
@@ -462,80 +380,84 @@ SEXP capi_set_test_offset(SEXP ptrExpr, SEXP offsetExpr) {
  * the R side captures the console output */
 SEXP capi_print_trees(SEXP ptrExpr) {
   size_t chainIndex = 0, treeIndex = 0;
-  p_printTrees(samplerFromExpr(ptrExpr), &chainIndex, 1, NULL, 0,
-               &treeIndex, 1);
+  dbarts_sampler_printTrees(samplerFromExpr(ptrExpr), &chainIndex, 1, NULL, 0,
+                            &treeIndex, 1);
   return R_NilValue;
 }
 
 SEXP capi_set_run_controls(SEXP ptrExpr, SEXP numThreadsExpr,
                            SEXP numThinExpr, SEXP verboseExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  p_setNumThreads(sampler, (size_t) Rf_asInteger(numThreadsExpr));
-  p_setNumThin(sampler, (size_t) Rf_asInteger(numThinExpr));
-  p_setVerbose(sampler, Rf_asLogical(verboseExpr) == TRUE, 100);
+  dbarts_sampler_setNumThreads(sampler, (size_t) Rf_asInteger(numThreadsExpr));
+  dbarts_sampler_setNumThin(sampler, (size_t) Rf_asInteger(numThinExpr));
+  dbarts_sampler_setVerbose(sampler, Rf_asLogical(verboseExpr) == TRUE, 100);
   return R_NilValue;
 }
 
 SEXP capi_set_offset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
-  p_setOffset(samplerFromExpr(ptrExpr),
-              Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
-              Rf_asLogical(updateScaleExpr) == TRUE);
+  dbarts_sampler_setOffset(samplerFromExpr(ptrExpr),
+                           Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
+                           Rf_asLogical(updateScaleExpr) == TRUE);
   return R_NilValue;
 }
 
 SEXP capi_set_sigma(SEXP ptrExpr, SEXP sigmaExpr) {
-  p_setSigma(samplerFromExpr(ptrExpr), Rf_asReal(sigmaExpr));
+  dbarts_sampler_setSigma(samplerFromExpr(ptrExpr), Rf_asReal(sigmaExpr));
   return R_NilValue;
 }
 
 SEXP capi_get_latents(SEXP ptrExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
-  size_t length = p_numObservations(sampler) * p_numChains(sampler);
+  size_t length =
+    dbarts_sampler_numObservations(sampler) * dbarts_sampler_numChains(sampler);
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  int haveLatents = p_getLatents(sampler, REAL(result));
+  int haveLatents = dbarts_sampler_getLatents(sampler, REAL(result));
   UNPROTECT(1);
   return haveLatents ? result : R_NilValue;
 }
 
 SEXP capi_set_predictor(SEXP ptrExpr, SEXP xExpr) {
   return Rf_ScalarLogical(
-    p_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), FALSE, TRUE));
+    dbarts_sampler_setPredictor(samplerFromExpr(ptrExpr), REAL(xExpr), FALSE,
+                                TRUE));
 }
 
 SEXP capi_update_predictor(SEXP ptrExpr, SEXP xExpr, SEXP columnExpr) {
   size_t column = (size_t) Rf_asInteger(columnExpr); /* already 0-based */
-  return Rf_ScalarLogical(p_updatePredictor(
+  return Rf_ScalarLogical(dbarts_sampler_updatePredictor(
     samplerFromExpr(ptrExpr), REAL(xExpr), &column, 1, FALSE, TRUE));
 }
 
 SEXP capi_set_test_predictors(SEXP ptrExpr, SEXP xTestExpr) {
   if (Rf_isNull(xTestExpr)) {
-    p_setTestPredictors(samplerFromExpr(ptrExpr), NULL, 0);
+    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), NULL, 0);
   } else {
     size_t numRows = (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
-    p_setTestPredictors(samplerFromExpr(ptrExpr), REAL(xTestExpr), numRows);
+    dbarts_sampler_setTestPredictors(samplerFromExpr(ptrExpr), REAL(xTestExpr),
+                                     numRows);
   }
   return R_NilValue;
 }
 
 SEXP capi_set_tree_storage(SEXP ptrExpr, SEXP keepTreesExpr,
                            SEXP numSamplesExpr) {
-  p_setTreeStorage(samplerFromExpr(ptrExpr),
-                   Rf_asLogical(keepTreesExpr) == TRUE,
-                   (size_t) Rf_asInteger(numSamplesExpr));
+  dbarts_sampler_setTreeStorage(samplerFromExpr(ptrExpr),
+                                Rf_asLogical(keepTreesExpr) == TRUE,
+                                (size_t) Rf_asInteger(numSamplesExpr));
   return R_NilValue;
 }
 
 SEXP capi_predict(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   size_t numRows = (size_t) INTEGER(Rf_getAttrib(xTestExpr, R_DimSymbol))[0];
-  size_t saved = p_numSavedSamples(sampler);
+  size_t saved = dbarts_sampler_numSavedSamples(sampler);
   size_t numSamples = saved > 0 ? saved : 1;
-  size_t length = numRows * numSamples * p_numChains(sampler);
+  size_t length = numRows * numSamples * dbarts_sampler_numChains(sampler);
 
   SEXP result = PROTECT(Rf_allocVector(REALSXP, (R_xlen_t) length));
-  p_predict(sampler, REAL(xTestExpr), numRows,
-            Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), REAL(result));
+  dbarts_sampler_predict(sampler, REAL(xTestExpr), numRows,
+                         Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr),
+                         REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -547,9 +469,9 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);
   int useLiveTrees = Rf_asLogical(useLiveTreesExpr) == TRUE;
 
-  size_t numChains = p_numChains(sampler);
-  size_t numSaved = useLiveTrees ? 0 : p_numSavedSamples(sampler);
-  size_t numTrees = p_numTrees(sampler);
+  size_t numChains = dbarts_sampler_numChains(sampler);
+  size_t numSaved = useLiveTrees ? 0 : dbarts_sampler_numSavedSamples(sampler);
+  size_t numTrees = dbarts_sampler_numTrees(sampler);
 
   size_t* chainIndices = (size_t*) R_alloc(numChains, sizeof(size_t));
   for (size_t i = 0; i < numChains; ++i) chainIndices[i] = i;
@@ -570,15 +492,16 @@ SEXP capi_get_trees(SEXP ptrExpr, SEXP useLiveTreesExpr, SEXP sampleNumsExpr) {
       sampleIndices[i] = (size_t) INTEGER(sampleNumsExpr)[i] - 1;
   }
 
-  return p_getTrees(sampler, chainIndices, numChains, sampleIndices,
-                    numSampleIndices, treeIndices, numTrees, useLiveTrees);
+  return dbarts_sampler_getTrees(sampler, chainIndices, numChains,
+                                 sampleIndices, numSampleIndices, treeIndices,
+                                 numTrees, useLiveTrees);
 }
 
 SEXP capi_store_state(SEXP ptrExpr) {
-  return p_storeState(samplerFromExpr(ptrExpr));
+  return dbarts_sampler_storeState(samplerFromExpr(ptrExpr));
 }
 
 SEXP capi_set_state(SEXP ptrExpr, SEXP stateExpr) {
-  p_setState(samplerFromExpr(ptrExpr), stateExpr);
+  dbarts_sampler_setState(samplerFromExpr(ptrExpr), stateExpr);
   return R_NilValue;
 }
