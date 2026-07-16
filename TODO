@@ -23,10 +23,11 @@ items
     docs/design/within-chain-threading.md). low-ranked.
   capi-dispatch-table: DECIDED (VD 2026-07-16) - keep per-symbol
     R_GetCCallable; ship major/minor version encoding, X-macro
-    single-source stubs, and the in-header hash token; ASAN cross-repo
-    contract CI adopted. Implementation in flight per the plan in
-    docs/plans/capi-dispatch-table.md. window: pre-release (must land
-    before 1.0-0 freezes dbarts.h).
+    single-source stubs, and the in-header hash token (the cross-repo
+    contract CI was landed then dropped - the rework itself makes a
+    stale consumer fail noisily, which suffices). Implementation in
+    flight per the plan in docs/plans/capi-dispatch-table.md.
+    window: pre-release (must land before 1.0-0 freezes dbarts.h).
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a

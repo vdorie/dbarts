@@ -2,8 +2,9 @@
 
 status: DECIDED (VD 2026-07-16): Decision 0 two-component version
 encoding, Decision 1(i) X-macro single-source stubs, Decision 2(i)
-in-header constexpr hash + baked static_assert; process items adopted
-(ASAN cross-repo contract job, DESCRIPTION floor lockstep). Additive
+in-header constexpr hash + baked static_assert; DESCRIPTION floor
+lockstep adopted. The ASAN cross-repo contract job was landed and then
+DROPPED by VD the same day (see the C0 landing note). Additive
 escalations recorded, not built. Implementation plan at the end of this
 file; landing notes appended per commit.
 (Design pass 2026-07-15; adversarial review 2026-07-16; three blind
@@ -380,12 +381,16 @@ to stand up while stan4bart's port is already in flight.
 
 ## Implementation plan (VD sign-off 2026-07-16)
 
-C0 - contract CI (lands first, independent of the header work): a dbarts
-workflow that builds stan4bart's pinned dev source (vdorie/stan4bart,
-wt/walnuts SHA) against the candidate dbarts and runs its testthat suite
-under ASAN, path-gated to src/ and inst/include/; mirror the existing
-sanitizers workflow's container approach. Proves itself on the C1 push.
-The DESCRIPTION-floor lockstep practice goes on the release procedure.
+C0 - contract CI: LANDED e98d94f, then DROPPED by VD decision the same
+day. Rationale: per-push CI building a pinned dev branch of a downstream
+package is not an R-ecosystem practice (the convention is consumer-side
+testing plus pre-submission revdep checks, which the release procedure
+already has); the pin is a silent-rot hazard in the wrong repo; and the
+goal it served is met by C1/C2 themselves - after the rework, an
+out-of-date stan4bart fails NOISILY on its own (rebuild against a
+changed header = stub compile error; stale binary = handshake load
+error), which is all that was required. The DESCRIPTION-floor lockstep
+practice stays on the release procedure.
 
 C1 - dbarts header + bridge: the X-macro list in dbarts.h (name, return,
 parameter list per entry); Doxygen prototypes KEPT and gated - consumer
