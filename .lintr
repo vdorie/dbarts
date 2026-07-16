@@ -22,7 +22,11 @@ linters: linters_with_defaults(
     # Several internal helper names are longer than the 30-char default and
     # cannot be renamed (e.g. bartcoreUpdatePredictorPerObservationJointly, 44).
     object_length_linter(length = 45L),
-    commented_code_linter = NULL
+    commented_code_linter = NULL,
+    # <<- is used deliberately for closure state (rbart_vi's chain-loop
+    # closures, test callbacks); pin the permission explicitly so a lintr
+    # release changing the default does not re-flag it.
+    assignment_linter(operator = c("<-", "<<-"))
   )
 encoding: "UTF-8"
 # Vignette code chunks are formatted for prose exposition, not lint compliance
