@@ -9,6 +9,8 @@ implements, who reviews, which gates run) is docs/plans/README.md.
 "window: pre-release" marks items whose cheap form expires when 1.0-0
 freezes the R and dbarts.h compatibility contracts: they need a
 go/no-go decision before submission, not necessarily the work itself.
+No item is deferred to post-release, and gate labels (decision-gated,
+consumer-gated) rank priority rather than block work (VD 2026-07-17).
 
 Standing fact (VD, 2026-07-06): single-chain n >= 1e5 workloads are
 common. The large-n performance items are live, not consumer-gated.
@@ -112,7 +114,7 @@ items
     check, shared softmax helper, zero-row guard). Plus the x86-simd
     NT-store call: profile a real n=1e6 fit on the bench box after the
     slab/scatter work and decide restore-vs-delete of the parked
-    intrinsics bodies (details in the x86-simd entry). post-release.
+    intrinsics bodies (details in the x86-simd entry). active.
   x86-simd: the commented-out linalg intrinsics bodies are NOT needed
     for compute width - the manual unroll plus the per-file -m flag
     already emits 256-bit at -O2 (measured on the bench box,
