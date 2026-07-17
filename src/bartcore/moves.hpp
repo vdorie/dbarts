@@ -142,7 +142,8 @@ inline int32_t drawBirthableNode(const MoveContext& ctx, ext_rng* rng, Tree& tre
 template <IntegrableLeafModel L>
 double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                         Tree& tree, const double* y, double sigma,
-                        bool* stepTaken, bool* stepWasBirth) {
+                        bool* stepTaken, bool* stepWasBirth,
+                        int32_t* changedNode = nullptr) {
   // A root-only tree whose lone leaf admits no split variable can neither birth
   // (no rule to draw) nor die (no children); its move is a no-op this sweep.
   // The single-node branch below would otherwise force a birth and draw a rule
@@ -204,6 +205,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     if (ext_rng_simulateContinuousUniform(rng) < ratio) {
       *stepTaken = true;
+      if (changedNode != nullptr) *changedNode = nodeToChange;
     } else {
       // Reference behavior: the index segment stays permuted; only structure
       // and cached leaf stats are restored. A rejected pooled draw is the
@@ -264,6 +266,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     if (ext_rng_simulateContinuousUniform(rng) < ratio) {
       tree.releasePair(oldNode.leftChild);
       *stepTaken = true;
+      if (changedNode != nullptr) *changedNode = nodeToChange;
     } else {
       tree.at(nodeToChange) = oldNode;  // reattaches children unchanged
       *stepTaken = false;
@@ -406,7 +409,8 @@ inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
 /// (docs/design/change-move-balance.md).
 template <IntegrableLeafModel L>
 double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
-                  const double* y, double sigma, bool* stepTaken) {
+                  const double* y, double sigma, bool* stepTaken,
+                  int32_t* changedNode = nullptr) {
   *stepTaken = false;
 
   std::vector<int32_t>& notBottom(ctx.scratch.nodeScratch);
@@ -520,6 +524,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
 
   if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
     *stepTaken = true;
+    if (changedNode != nullptr) *changedNode = nodeToChange;
   } else {
     tree.restoreSubtree(ctx.scratch.snapshot);
     tree.truncateMaskPool(maskPoolMark);
@@ -639,7 +644,8 @@ inline bool ruleIsValid(const MoveContext& ctx, const Tree& tree, int32_t nodeIn
 
 template <IntegrableLeafModel L>
 double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
-                const double* y, double sigma, bool* stepTaken) {
+                const double* y, double sigma, bool* stepTaken,
+                int32_t* changedNode = nullptr) {
   *stepTaken = false;
 
   std::vector<int32_t>& swappable(ctx.scratch.nodeScratch);
@@ -701,6 +707,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
     if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
       *stepTaken = true;
+      if (changedNode != nullptr) *changedNode = parent;
     } else {
       tree.restoreSubtree(ctx.scratch.snapshot);
     }
@@ -740,6 +747,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
     if (ext_rng_simulateBernoulli(rng, alpha) == 1) {
       *stepTaken = true;
+      if (changedNode != nullptr) *changedNode = parent;
     } else {
       tree.restoreSubtree(ctx.scratch.snapshot);
     }
@@ -750,22 +758,27 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 
 enum class StepType { birth, death, swap, change };
 
+/// changedNode, when non-null, receives the index of the node whose subtree an
+/// ACCEPTED move repartitioned (the birthed/died node, or the changed/swapped
+/// subtree root); untouched on rejection or no-op, so gate reads on stepTaken.
 template <IntegrableLeafModel L>
 double metropolisJumpForTree(const MoveContext& ctx, const L& leaf, ext_rng* rng,
                              Tree& tree, const double* y, double sigma,
-                             bool* stepTaken, StepType* stepType) {
+                             bool* stepTaken, StepType* stepType,
+                             int32_t* changedNode = nullptr) {
   double alpha;
   double u = ext_rng_simulateContinuousUniform(rng);
 
   if (u < ctx.birthOrDeathProbability) {
     bool birthed;
-    alpha = birthOrDeathMove(ctx, leaf, rng, tree, y, sigma, stepTaken, &birthed);
+    alpha = birthOrDeathMove(ctx, leaf, rng, tree, y, sigma, stepTaken, &birthed,
+                             changedNode);
     *stepType = birthed ? StepType::birth : StepType::death;
   } else if (u < ctx.birthOrDeathProbability + ctx.swapProbability) {
-    alpha = swapMove(ctx, leaf, rng, tree, y, sigma, stepTaken);
+    alpha = swapMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::swap;
   } else {
-    alpha = changeMove(ctx, leaf, rng, tree, y, sigma, stepTaken);
+    alpha = changeMove(ctx, leaf, rng, tree, y, sigma, stepTaken, changedNode);
     *stepType = StepType::change;
   }
 

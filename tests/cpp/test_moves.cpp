@@ -905,9 +905,11 @@ static void testLinearLeafMutation(ext_rng* rng) {
 }
 
 // leafOf must equal the obs-to-leaf map derived independently from each tree's
-// fillBottom + index segments after a full randomized sweep sequence. A local
-// generator and a restored rngState leave the shared stream untouched, so the
-// downstream snapshot tests are unperturbed.
+// fillBottom + index segments after EVERY sweep of a randomized run (accepted
+// and rejected moves of all kinds land across the sweeps), and again after a
+// wholesale prior-drawn structure reset. A local generator and a restored
+// rngState leave the shared stream untouched, so the downstream snapshot tests
+// are unperturbed.
 static void testLeafOfConsistency(ext_rng* /*rng*/) {
   std::uint64_t savedRngState = rngState;
   const size_t n = 200;
@@ -919,30 +921,42 @@ static void testLeafOfConsistency(ext_rng* /*rng*/) {
     makeBurnedInSampler(x, y, n, localRng);
   ConstantLeafSampler& sampler(*samplerPtr);
 
-  // a further randomized sweep sequence exercises births, deaths, changes, swaps
-  Results empty;
-  sampler.run(50, 0, empty);
-
   const size_t numTrees = sampler.chain(0).numTrees();
   std::vector<int32_t> bottoms;
   std::vector<std::uint32_t> expected(n);
   bool allMatch = true;
-  for (size_t t = 0; t < numTrees && allMatch; ++t) {
-    const Tree& tree = sampler.chain(0).tree(t);
-    bottoms.clear();
-    tree.fillBottom(0, bottoms);
-    for (int32_t b : bottoms) {
-      const Node& node = tree.at(b);
-      for (size_t m = node.begin; m < node.end; ++m)
-        expected[tree.indices[m]] = static_cast<std::uint32_t>(b);
+  auto mapsMatch = [&]() {
+    for (size_t t = 0; t < numTrees && allMatch; ++t) {
+      const Tree& tree = sampler.chain(0).tree(t);
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      for (int32_t b : bottoms) {
+        const Node& node = tree.at(b);
+        for (size_t m = node.begin; m < node.end; ++m)
+          expected[tree.indices[m]] = static_cast<std::uint32_t>(b);
+      }
+      const std::uint32_t* actual = sampler.chain(0).leafOfForTesting(t);
+      for (size_t i = 0; i < n; ++i)
+        if (actual[i] != expected[i]) { allMatch = false; break; }
     }
-    const std::uint32_t* actual = sampler.chain(0).leafOfForTesting(t);
-    for (size_t i = 0; i < n; ++i)
-      if (actual[i] != expected[i]) { allMatch = false; break; }
+  };
+
+  Results empty;
+  for (int sweep = 0; sweep < 25 && allMatch; ++sweep) {
+    sampler.run(1, 0, empty);
+    mapsMatch();
   }
+  check(allMatch, "leafOf matches the derived map after every sweep");
+
+  // wholesale reset: prior-drawn structures mark the map for rebuild, which
+  // the next sweep must clear tree by tree
+  sampler.chain(0).sampleTreesFromPrior();
+  sampler.run(1, 0, empty);
+  mapsMatch();
+  check(allMatch, "leafOf matches after a prior-drawn structure reset");
+
   ext_rng_destroy(localRng);
   rngState = savedRngState;
-  check(allMatch, "leafOf matches the fillBottom + index-segment map");
   printf("ok: leafOf consistency\n");
 }
 

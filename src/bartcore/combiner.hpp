@@ -116,8 +116,12 @@ struct Forest {
   // per-observation bottom-node map (tree-major, numObservations x numTrees),
   // so tree t's fit for observation i is muByTree[t][leafOf[t * n + i]]. Empty
   // for vector and function leaves, which keep the dense treeFits slab.
+  // leafOf is patched incrementally on accepted moves; a wholesale structure
+  // change that leaves fits stale (sampleTreesFromPrior) marks its trees in
+  // leafOfStale instead, and the sweep rebuilds before the tree's draw.
   std::vector<std::vector<double>> muByTree;
   std::vector<std::uint32_t> leafOf;
+  std::vector<std::uint8_t> leafOfStale;
   // vector-parameter leaves: each live tree's parameter blocks, arena-
   // indexed with stride numParams and kept consistent with the tree's
   // structure between sweeps (fits are no longer constant per leaf, so
