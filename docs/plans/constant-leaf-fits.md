@@ -83,3 +83,29 @@ equivalence.R compare vs equivalence-ac6ec2c.rds (22/22 identical
 draws); bcf-equivalence.R vs bcf-equivalence-99205ee.rds (5x6 bitwise);
 multinomial-equivalence.R vs multinomial-equivalence-2bd34db.rds (3x5
 bitwise). Any divergence: stop, report scenario/channel, change nothing.
+
+## Landings
+
+C2a be5091d (2026-07-17). The compaction: muByTree + uint32 leafOf land
+for the constant leaf, every consumer converted to order-preserving
+gathers (sweep rolls, totalFits rebuilds, prior refresh, mutation
+add/sub, restore, BCF glue scale, level shift, drawGlue read, dense
+exports); linear/GP keep the dense slab via the leafIsConstant trait.
+All gates bitwise (suite 3050/0, 22/22 + bcf 5x6 + multinomial 3x5);
+reviewer re-ran component binary, equivalence, and bcf independently.
+Diff 388 lines. DEVIATION HELD OVER: leafOf is rebuilt by an O(n)
+scattered-write pass per tree per sweep inside
+sampleParametersAndSetFits / setTreeFitsFromParameters - a correct
+gate-green base, but scattered writes are cache-line-granular, so this
+retains most of the scatter share the plan targets.
+
+C2b (pending): move the seam - metropolisJumpForTree exposes the
+changed node index; on stepTaken the chain rewrites leafOf for the
+changed node's member segment only (one fillBottom walk from that
+node covers birth/death/change); rejected proposals write nothing
+(accept-time only, after the move settles); grow-from-root, data
+mutation, and restore keep the full rebuild; the per-sweep rebuild is
+deleted; the leafOf consistency test asserts after every sweep of a
+multi-sweep run. Budget ~250 lines; full gate battery, all bitwise.
+If a session break leaves an uncommitted diff in the worktree, it is
+unverified C2b work: re-run the battery before trusting it.
