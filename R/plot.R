@@ -209,6 +209,33 @@ plot.rbart <- function(
   }
 }
 
+# A per-category trace of the training-mean predicted probability, pooling
+# chains back into one draw sequence: the closest cheap analog of plot.bart's
+# sigma trace for this family, which has no residual scale and a categorical
+# y rather than a single scalar per observation to plot against a posterior
+# interval.
+plot.bartMultinomial <- function(x, cols = NULL, ...) {
+  arr <- multinomialMeanProbArray(x)
+  d <- dim(arr)
+  trace <- matrix(arr, d[1L] * d[2L], d[3L])
+  if (is.null(cols)) {
+    cols <- seq_len(ncol(trace))
+  }
+  plot(
+    NULL,
+    type = "n",
+    xlim = c(1L, nrow(trace)),
+    ylim = range(trace),
+    xlab = "iteration",
+    ylab = "mean predicted probability",
+    ...
+  )
+  for (k in seq_len(ncol(trace))) {
+    lines(seq_len(nrow(trace)), trace[, k], col = cols[k])
+  }
+  legend("topright", legend = x$levels, col = cols, lty = 1L, bty = "n")
+  invisible(x)
+}
 
 plot.pdbart <- function(
   x,

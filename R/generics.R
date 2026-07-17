@@ -426,9 +426,16 @@ extract.bartMultinomial <- function(
   if (type == "ev") {
     return(probs)
   }
+  multinomialPpdFromProbs(probs)
+}
 
-  # type == "ppd": K rides the trailing dimension already, so reinterpreting
-  # the same flat storage as a (draws * obs) x K matrix needs no permutation.
+# shared by extract.bartMultinomial (stored channels) and
+# predict.bartMultinomial (freshly replayed channels), so both draw
+# categories from probabilities the identical way: K rides the trailing
+# dimension already, so reinterpreting the same flat storage as a
+# (draws * obs) x K matrix needs no permutation. codes are 1-based, indexing
+# 'levels', in an array shaped like probs minus the K margin.
+multinomialPpdFromProbs <- function(probs) {
   d <- dim(probs)
   K <- d[length(d)]
   flat <- probs
@@ -457,19 +464,45 @@ fitted.bartMultinomial <- function(object, type = c("ev", "class"), ...) {
   )
 }
 
+# residuals.bart is y - fitted() on the response scale; a multinomial fit has
+# no single scalar response to subtract from, so the per-category analog is
+# the observed proportion minus the fitted probability, an n x K matrix
+# (columns named by 'levels'). For the labeled-response ingestion
+# (bart2Multinomial) the observed proportion is the 1[y = k] indicator; for
+# the grouped-count ingestion (bart2MultinomialCounts) it is y / rowSums(y),
+# which reduces to the same indicator when every row is a single trial.
+residuals.bartMultinomial <- function(object, ...) {
+  phat <- fitted.bartMultinomial(object, type = "ev")
+  y <- object$y
+  observed <- if (is.factor(y)) {
+    indicator <- matrix(0, length(y), ncol(phat), dimnames = dimnames(phat))
+    indicator[cbind(seq_along(y), match(y, object$levels))] <- 1
+    indicator
+  } else {
+    y / rowSums(y)
+  }
+  observed - phat
+}
+
 # Out-of-sample softmax probabilities by replaying the K forests' saved trees
 # (docs/design/multinomial.md). Requires a fit kept with keepTrees, whose bc
 # holds every forest's saved trees and whose host sampler codes newdata to the
 # training columns. Returns a levels-named (n.chains x) n.samples x n.new x K
 # probability array, the yhat.test/train convention. type = "bart" (the raw
 # per-category latent scale) stays unavailable, as it is for extract: only the
-# identified probabilities are recoverable.
+# identified probabilities are recoverable. type = "ppd" draws one category
+# per posterior draw from that probability vector via the exact same
+# construction extract.bartMultinomial's ppd uses (multinomialPpdFromProbs),
+# so the two agree on semantics and encoding; it is the only branch that
+# touches the RNG, so the default type = "ev" is unchanged and draw-neutral.
 predict.bartMultinomial <- function(
   object,
   newdata,
+  type = c("ev", "ppd"),
   combineChains = TRUE,
   ...
 ) {
+  type <- match.arg(type)
   if (is.null(object[["bc"]])) {
     stop(
       "predict requires bart2(family = \"multinomial\") to be called with ",
@@ -488,7 +521,16 @@ predict.bartMultinomial <- function(
   }
   # raw is n.new x K x n.samples (x n.chains), the run's test-channel shape
   raw <- bartcorePredict(object$bc, newdata)
-  shapeMultinomialChannel(raw, object$levels, object$n.chains, combineChains)
+  probs <- shapeMultinomialChannel(
+    raw,
+    object$levels,
+    object$n.chains,
+    combineChains
+  )
+  if (type == "ppd") {
+    return(multinomialPpdFromProbs(probs))
+  }
+  probs
 }
 
 print.bartMultinomial <- function(x, ...) {
@@ -505,7 +547,11 @@ print.bartMultinomial <- function(x, ...) {
   cat("n.chains: ", x$n.chains, "\n", sep = "")
   cat("n.trees: ", x$n.trees, "\n", sep = "")
   d <- dim(x$yhat.train)
-  n.kept <- if (length(d) == 4L) d[2L] else d[1L]
+  # a 4-dim yhat.train (combineChains = FALSE) already separates chains, so
+  # d[2L] is per-chain; a 3-dim one (single chain, or combineChains = TRUE,
+  # the default) folds the chain margin into d[1L] and must be divided back
+  # out - dividing by n.chains == 1 is a no-op, so this is correct either way
+  n.kept <- if (length(d) == 4L) d[2L] else d[1L] %/% x$n.chains
   cat("kept draws (per chain): ", n.kept, "\n", sep = "")
   if (!is.null(x$yhat.test)) {
     dt <- dim(x$yhat.test)

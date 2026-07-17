@@ -138,6 +138,57 @@ summary.bart <- function(object, vars = c("sigma", "k", "tau"), ...) {
 }
 summary.rbart <- summary.bart
 
+# Collapses bartMultinomial's yhat.train (a (n.chains x) n.samples x n.obs x
+# K probability array) over the observation margin into a per-category
+# scalar channel shaped (iteration, chain, category) - the same
+# (iteration, chain, variable) convention toDrawsArray produces for
+# sigma/k/tau, built directly here since this family has no such scalar
+# field to reuse and its K-widened varcount/yhat shapes do not match the
+# non-multinomial dims toDrawsArray assumes.
+multinomialMeanProbArray <- function(object) {
+  probs <- object$yhat.train
+  d <- dim(probs)
+  numDims <- length(d)
+  obsMargin <- numDims - 1L
+  means <- apply(probs, seq_len(numDims)[-obsMargin], mean)
+  n.chains <- object$n.chains
+  arr <- if (length(dim(means)) == 3L) {
+    # already (chains, samples, K); reorder to (iteration, chain, K)
+    aperm(means, c(2L, 1L, 3L))
+  } else if (n.chains <= 1L) {
+    array(means, c(dim(means)[1L], 1L, dim(means)[2L]))
+  } else {
+    # combineChains folds samples fastest within each chain (see
+    # shapeMultinomialChannel), so splitting the leading margin back into
+    # (samples, chains) in that order recovers the original layout
+    array(means, c(dim(means)[1L] %/% n.chains, n.chains, dim(means)[2L]))
+  }
+  dimnames(arr) <- list(NULL, NULL, object$levels)
+  arr
+}
+
+# Convergence summary for a bart2(family = "multinomial") fit, mirroring
+# summary.bart's shape (posterior mean/sd/quantiles, R-hat/ESS when
+# 'posterior' is installed). This family has no sigma/k/tau scale to
+# summarize, so the scalar channel is each category's posterior mean
+# predicted probability, pooled over the training observations per draw -
+# enough to eyeball per-category convergence without dumping every
+# observation's draws.
+summary.bartMultinomial <- function(object, ...) {
+  arr <- multinomialMeanProbArray(object)
+  dimnames(arr)[[3L]] <- paste0("meanProb[", object$levels, "]")
+  havePosterior <- posteriorAvailable()
+  stats <- if (havePosterior) {
+    posterior::summarise_draws(posterior::as_draws_array(arr))
+  } else {
+    quantileSummary(arr)
+  }
+  structure(
+    list(call = object[["call"]], stats = stats, posterior = havePosterior),
+    class = "summary.bart"
+  )
+}
+
 print.summary.bart <- function(x, ...) {
   cat(
     "\nCall:\n",
