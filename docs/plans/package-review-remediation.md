@@ -184,3 +184,48 @@ C5. Docs + writing batch (Sonnet). Gates: R CMD check Rd checks; suite
   resolved per Tier 3.
 
 Each commit lands with its own landing note appended here.
+
+## Landings
+
+### C1 (2026-07-17, ca56faf)
+
+The diagnosis inverted T1a's hypothesis: the ranef assembly and the C
+channel were always per-group and correct. The root cause was symbol
+resolution - data[[which.max(names(data) == sym)]] binds to column 1
+when the symbol is absent (which.max of all-false is 1), so a
+standalone group.by grabbed the response and manufactured per-value
+groups; predict's missing coercion was an independent second bug.
+Fixed by-name at all three sites (idiom now eradicated repo-wide,
+grepped); predict coerces to factor keeping unused levels (deliberate:
+out-of-sample groups on a supplied factor still get prior draws) and
+names defaulting levels in the warning. Round-trip cor 0.93 -> 1.0
+exactly. Equivalence: case 1 - all 22 scenarios identical (the
+fixtures pass group.by via $, never taking the buggy branch), BCF and
+multinomial bitwise, NO re-record. Suite 2979/0 with a new
+test-rbart-groupby.R. One pre-existing test expectation updated: it
+had asserted the buggy silent-grab's downstream error for an
+undefined group.by; the fix errors "'group.by' not found" instead.
+Not touched: the fit-time group.by.test warnings do not name levels
+(scoped to predict; fixture message-matching risk noted).
+
+### C2 (2026-07-17)
+
+Response-type routing rooted at the data layer: dbartsData records the
+response's original type and level count in two new prototype-defaulted
+slots (by family-resolution time y was already coded doubles, so the
+information had to be captured at ingestion), with shared classify/code
+helpers whose numeric path is byte-identical as.double. Formula
+extraction drops the "numeric" coercion that crashed on factors. Routing
+per the adopted decision: 2-level factor/logical/2-level character ->
+probit with a one-line verdict everywhere; 3+-level -> multinomial in
+bart2 (auto == explicit, bitwise) and an informative
+requires-bart2-multinomial error in dbarts/bart/rbart_vi/xbart;
+explicit contradictions (gaussian + factor) error instead of fitting
+codes; ordered factors route as plain with the verdict noting it.
+Every reproduction bitwise (formula == x/y, logical == 0/1-numeric,
+auto == explicit); all three anchors identical; suite 3004/0 with a
+new test-factor-response.R (24 assertions). Two tests that had
+asserted the bugs updated. Rd accuracy touched in four topics (C5 owns
+prose). Noted, untouched: count matrices stay explicit-only; the
+auto-multinomial + weights two-step error; the pre-built dbartsData
+generic error path.

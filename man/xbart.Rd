@@ -96,7 +96,7 @@ xbart(
      How factor columns in a data frame enter the model; as in \code{\link{dbarts}}.
    }
    \item{family}{
-     The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. The built-in binary losses transform test predictions through the family's link.
+     The response model, resolved as in \code{\link{dbarts}}: \code{"auto"} fits gaussian models to continuous responses and probit models to those coded 0/1, \code{"gaussian"} forces a continuous fit, and \code{"probit"} and \code{"logistic"} require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as \code{xbart} does not cross-validate the multinomial model. The built-in binary losses transform test predictions through the family's link.
    }
    \item{missing}{
      How missing values in the predictors enter the model; as in \code{\link{dbarts}}.

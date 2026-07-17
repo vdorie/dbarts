@@ -282,15 +282,61 @@ dbarts <- function(
   data@n.cuts <- rep_len(control@n.cuts, ncol(data@x))
   data@sigma <- sigma
 
-  uniqueResponses <- unique(data@y)
-  responseIsBinary <- length(uniqueResponses) == 2 &&
-    all(sort(uniqueResponses) == c(0, 1))
-  if (family == "auto") {
-    family <- if (responseIsBinary) "probit" else "gaussian"
-  } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
-    # gaussian on a 0/1 response is a legitimate request; the binary
-    # families need latent-variable coding. aft fits continuous log-times.
-    stop("family \"", family, "\" requires a response coded 0/1")
+  # a factor/logical/character response declares a classification model. The
+  # single-forest engine here fits only the 2-level (probit) case; 3+ levels
+  # are multinomial, which only bart2(family = "multinomial") implements. A
+  # numeric response takes the historic 0/1-vs-continuous path unchanged.
+  if (data@response.type != "numeric") {
+    responseType <- data@response.type
+    K <- data@response.n.levels
+    if (K >= 3L) {
+      if (family == "auto") {
+        stop(
+          "a ",
+          K,
+          "-level ",
+          responseType,
+          " response is multinomial; fit it with ",
+          "bart2(family = \"multinomial\") - dbarts()/rbart_vi()/bart()/xbart ",
+          "fit only binary and continuous responses"
+        )
+      }
+      stop(
+        "family \"",
+        family,
+        "\" cannot fit a ",
+        K,
+        "-level ",
+        responseType,
+        " response; a 3+-level factor is multinomial ",
+        "(bart2(family = \"multinomial\"))"
+      )
+    }
+    if (family == "auto") {
+      family <- "probit"
+      announceAutoFamily(responseType, K, family)
+    } else if (family == "gaussian" || family == "aft") {
+      stop(
+        "family \"",
+        family,
+        "\" cannot fit a ",
+        responseType,
+        " response; a 2-level factor is a binary classification ",
+        "(family = \"auto\" fits probit)"
+      )
+    }
+    # probit/logistic on a 2-level categorical response proceed as binary
+  } else {
+    uniqueResponses <- unique(data@y)
+    responseIsBinary <- length(uniqueResponses) == 2 &&
+      all(sort(uniqueResponses) == c(0, 1))
+    if (family == "auto") {
+      family <- if (responseIsBinary) "probit" else "gaussian"
+    } else if (family != "gaussian" && family != "aft" && !responseIsBinary) {
+      # gaussian on a 0/1 response is a legitimate request; the binary
+      # families need latent-variable coding. aft fits continuous log-times.
+      stop("family \"", family, "\" requires a response coded 0/1")
+    }
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale

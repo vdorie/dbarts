@@ -72,15 +72,44 @@ xbart <- function(
   data@sigma <- sigma
 
   family <- match.arg(family)
-  uniqueResponses <- unique(data@y)
-  responseIsBinary <- length(uniqueResponses) == 2L &&
-    all(sort(uniqueResponses) == c(0, 1))
-  if (family == "auto") {
-    family <- if (responseIsBinary) "probit" else "gaussian"
-  } else if (family != "gaussian" && !responseIsBinary) {
-    # gaussian on a 0/1 response is a legitimate request; the binary
-    # families need latent-variable coding
-    stop("family \"", family, "\" requires a response coded 0/1")
+  # a factor/logical/character response is a classification; xbart cross-
+  # validates the 2-level (probit) case only, never multinomial. A numeric
+  # response takes the historic 0/1-vs-continuous path unchanged.
+  if (data@response.type != "numeric") {
+    responseType <- data@response.type
+    K <- data@response.n.levels
+    if (K >= 3L) {
+      stop(
+        "xbart does not fit a ",
+        K,
+        "-level ",
+        responseType,
+        " response; multinomial classification requires ",
+        "bart2(family = \"multinomial\")"
+      )
+    }
+    if (family == "auto") {
+      family <- "probit"
+      announceAutoFamily(responseType, K, family)
+    } else if (family == "gaussian") {
+      stop(
+        "family \"gaussian\" cannot fit a ",
+        responseType,
+        " response; a 2-level factor is a binary classification ",
+        "(family = \"auto\" fits probit)"
+      )
+    }
+  } else {
+    uniqueResponses <- unique(data@y)
+    responseIsBinary <- length(uniqueResponses) == 2L &&
+      all(sort(uniqueResponses) == c(0, 1))
+    if (family == "auto") {
+      family <- if (responseIsBinary) "probit" else "gaussian"
+    } else if (family != "gaussian" && !responseIsBinary) {
+      # gaussian on a 0/1 response is a legitimate request; the binary
+      # families need latent-variable coding
+      stop("family \"", family, "\" requires a response coded 0/1")
+    }
   }
   control@binary <- family != "gaussian"
 

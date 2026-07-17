@@ -409,6 +409,13 @@ methods::setClass(
     n.cuts = "integer",
     sigma = "numeric",
     missing = "character",
+    # the original response's type before it was coded to the doubles the
+    # engine reads: "numeric", "factor", "ordered factor", "logical", or
+    # "character". The fitters key family = "auto" and the categorical-response
+    # refusals off this and response.n.levels rather than re-inspecting the
+    # already-coded y (0/1/2 codes are indistinguishable from integer data).
+    response.type = "character",
+    response.n.levels = "integer",
 
     testUsesRegularOffset = "logical"
   ),
@@ -424,6 +431,8 @@ methods::setClass(
     n.cuts = integer(0),
     sigma = NA_real_,
     missing = "incorporate",
+    response.type = "numeric",
+    response.n.levels = NA_integer_,
 
     testUsesRegularOffset = NA
   )

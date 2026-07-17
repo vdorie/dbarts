@@ -296,6 +296,40 @@ getTestOffset <- quote({
   stop("cannot construct test offset")
 })
 
+# Classify a raw response for family routing. A factor/ordered/logical/
+# character response declares a classification model; numeric passes through.
+# The level count drives the 2 -> probit vs 3+ -> multinomial (bart2) / refusal
+# (single-forest) split downstream. Shared by dbartsData's response coding and
+# bart2's family = "auto" peek.
+classifyResponse <- function(y) {
+  if (is.factor(y)) {
+    list(
+      type = if (is.ordered(y)) "ordered factor" else "factor",
+      n.levels = nlevels(y)
+    )
+  } else if (is.logical(y) && !is.matrix(y)) {
+    list(type = "logical", n.levels = 2L)
+  } else if (is.character(y) && !is.matrix(y)) {
+    list(type = "character", n.levels = length(unique(y[!is.na(y)])))
+  } else {
+    list(type = "numeric", n.levels = NA_integer_)
+  }
+}
+
+# Code a raw response to the doubles the engine reads and report its original
+# type. A factor (or a character coerced with factor(), or a logical) becomes
+# 0-based codes exactly as the historic x/y path did; a numeric response is
+# passed through as.double, byte-identical to the previous handling.
+codeResponse <- function(y) {
+  info <- classifyResponse(y)
+  coded <- if (info$type == "numeric" || info$type == "logical") {
+    as.double(y)
+  } else {
+    as.double(as.integer(if (is.character(y)) factor(y) else y) - 1L)
+  }
+  list(y = coded, type = info$type, n.levels = info$n.levels)
+}
+
 dbartsData <- function(
   formula,
   data,
@@ -328,6 +362,10 @@ dbartsData <- function(
 
   offsetGivenAsScalar <- NA
   testUsesRegularOffset <- NA
+  # the response's original type, recorded on the result so the fitters can
+  # route family = "auto" and reject a categorical response an unsupported
+  # family cannot fit; each y-producing branch below refreshes it
+  responseInfo <- list(type = "numeric", n.levels = NA_integer_)
 
   if (missing(formula)) {
     stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
@@ -460,8 +498,11 @@ dbartsData <- function(
       stop("cannot construct model matrices from formula")
     }
 
-    ## pull out y
-    y <- model.response(modelFrame, "numeric")
+    ## pull out y - NO type coercion, so a factor response keeps its levels
+    ## (model.response(., "numeric") would leave it a factor and warn, then
+    ## trip "range not meaningful for factors" downstream); codeResponse then
+    ## routes it exactly as the x/y path does
+    y <- model.response(modelFrame)
     # a Surv response reaches here only through the formula interface, which
     # survival (aft) fits do not support; refuse with the supported surface
     # before any arithmetic trips survival's Ops.Surv guard
@@ -476,6 +517,9 @@ dbartsData <- function(
     if (is.null(y)) {
       y <- rep(0, NROW(modelFrame))
     }
+    coded <- codeResponse(y)
+    y <- coded$y
+    responseInfo <- coded[c("type", "n.levels")]
     numObservations <- NROW(y)
 
     ## weights
@@ -527,15 +571,21 @@ dbartsData <- function(
     if (dataIsMissing || is.null(data)) {
       data <- rep(0, nrow(formula))
     }
-    if (!is.numeric(data) && !is.factor(data)) {
-      stop("when 'formula' is a sparse matrix, 'data' must be numeric")
+    if (
+      !is.numeric(data) &&
+        !is.factor(data) &&
+        !is.logical(data) &&
+        !is.character(data)
+    ) {
+      stop(
+        "when 'formula' is a sparse matrix, 'data' must be numeric, a ",
+        "factor, logical, or character"
+      )
     }
 
-    y <- if (is.factor(data)) {
-      as.double(as.integer(data) - 1L)
-    } else {
-      as.double(data)
-    }
+    coded <- codeResponse(data)
+    y <- coded$y
+    responseInfo <- coded[c("type", "n.levels")]
     if (nrow(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
     }
@@ -590,15 +640,22 @@ dbartsData <- function(
     if (dataIsMissing || is.null(data)) {
       data <- rep(0, NROW(formula))
     }
-    if (!is.numeric(data) && !is.data.frame(data) && !is.factor(data)) {
-      stop("when 'formula' is numeric, 'data' must be numeric as well")
+    if (
+      !is.numeric(data) &&
+        !is.data.frame(data) &&
+        !is.factor(data) &&
+        !is.logical(data) &&
+        !is.character(data)
+    ) {
+      stop(
+        "when 'formula' is numeric, 'data' must be numeric, a factor, ",
+        "logical, or character"
+      )
     }
 
-    if (is.factor(data)) {
-      y <- as.double(as.integer(data) - 1L)
-    } else {
-      y <- as.double(data)
-    }
+    coded <- codeResponse(data)
+    y <- coded$y
+    responseInfo <- coded[c("type", "n.levels")]
     if (NROW(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
     }
@@ -906,5 +963,7 @@ dbartsData <- function(
     sigma = NA_real_
   )
   result@missing <- missing
+  result@response.type <- responseInfo$type
+  result@response.n.levels <- as.integer(responseInfo$n.levels)
   result
 }

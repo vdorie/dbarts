@@ -522,8 +522,8 @@ expect_error(
 # --- formula interface: a factor or cbind(...) count-matrix response
 # through model.frame/model.response (no type coercion, so levels/column
 # names survive), the right-hand side coded exactly as any other family's
-# formula fit. Explicit family = "multinomial" only - never inferred from a
-# factor response under the default family.
+# formula fit. A 3+-level factor response is also inferred under the default
+# family = "auto" (checked below); a cbind(...) count matrix stays explicit.
 x3Named <- x3
 colnames(x3Named) <- c("x1", "x2", "x3", "x4")
 df3 <- data.frame(x3Named, y3 = y3)
@@ -558,21 +558,25 @@ predFromFrame <- predict(fit3Formula, newdata3)
 predFromMatrix <- predict(fit3Formula, x3Named[seq_len(20L), , drop = FALSE])
 expect_identical(predFromFrame, predFromMatrix)
 
-# explicit-only dispatch: the formula lift does not change what the
-# default family does with a multi-level factor response - still whatever
-# it did before (dbartsData's own formula path numeric-coerces it)
-expect_error(
-  bart2(
+# family = "auto" now detects a 3+-level factor response and fits multinomial:
+# the default-family formula fit reproduces the explicit-multinomial formula
+# fit bit for bit (the peek is RNG-neutral) and announces the verdict
+set.seed(seed3)
+expect_message(
+  fit3Auto <- bart2(
     y3 ~ x1 + x2 + x3 + x4,
     data = df3,
-    n.trees = 5L,
-    n.burn = 5L,
-    n.samples = 5L,
+    keepTrees = TRUE,
+    n.trees = n.trees,
     n.chains = 1L,
+    n.threads = 1L,
+    n.burn = n.burn,
+    n.samples = n.samples,
     verbose = FALSE
   ),
-  "not meaningful for factors"
+  "multinomial"
 )
+expect_identical(fit3Auto$yhat.train, fit3Formula$yhat.train)
 
 # a factor with an unused level keeps it, as the matrix interface does
 # (K = nlevels(y), never dropped)
