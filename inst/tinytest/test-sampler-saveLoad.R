@@ -4,8 +4,8 @@ source(
 )
 
 # test thanks to Jeremy Coyle
-# test that a keepTrees fit saves/loads correctly with no manual state ritual:
-# keepTrees now stores the sampler state automatically at fit time
+# a keepTrees fit saves/loads for predict once its tree state is captured
+# with storeState()
 set.seed(99L)
 bartFit <- dbarts::bart(
   testData$x,
@@ -18,6 +18,7 @@ bartFit <- dbarts::bart(
 )
 
 preds.old <- predict(bartFit, testData$x)
+bartFit$fit$storeState()
 
 tempFile <- tempfile()
 saveRDS(bartFit, file = tempFile)

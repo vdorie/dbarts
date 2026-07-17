@@ -131,26 +131,6 @@ uncombineChains <- function(samples, n.chains) {
   }
 }
 
-# A kept sampler only round-trips through saveRDS/load if its opaque tree
-# state has been forced onto the R side: the external pointer dies at
-# serialization and getPointer() rebuilds the engine from the cached state.
-# keepTrees is the save/predict path, so force it at fit time - draws are
-# untouched (storeState only reads engine state). This is the same payload
-# the manual $state ritual materialized and that any save/predict-after-load
-# needs; its size scales with n.trees x n.samples x n.chains and can exceed
-# the yhat blocks for high tree counts. Skipped when the pointer is already
-# gone (a worker sampler handed back from a cluster fit), leaving the
-# non-keepTrees live-sampler power path to store state by hand.
-storeStateForSerialization <- function(sampler) {
-  if (
-    isTRUE(sampler$control@keepTrees) &&
-      .Call(C_dbarts_bartcore_isValidPointer, sampler$pointer)
-  ) {
-    sampler$storeState()
-  }
-  invisible(NULL)
-}
-
 packageBartResults <- function(
   fit,
   samples,
@@ -271,7 +251,6 @@ packageBartResults <- function(
   result$status <- attr(fit$control, "bartcore.survival")
 
   if (keepSampler) {
-    storeStateForSerialization(fit)
     result$fit <- fit
   } else {
     result$n.chains <- n.chains

@@ -333,12 +333,6 @@
             Previously such a response was either rejected outright or,
             for three or more levels given through the x/y interface,
             silently fit as a continuous response on the integer level codes.
-      \item `bart`, `bart2`, and `rbart_vi` fits with `keepTrees = TRUE` now
-            capture the sampler's state automatically at fit time, so `save`/
-            `saveRDS` followed by `predict` works with no additional step; a
-            sampler kept only with `keepSampler` (`keepTrees` `FALSE`) still
-            needs an explicit `storeState()` call after mutating it, as
-            before.
     }
   }
   \subsection{C API}{
