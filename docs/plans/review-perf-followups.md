@@ -155,3 +155,35 @@ shifting-class change with no measured mixing deficit - not taken.
 Gates: suite 3050/0, 22/22 + bcf 5x6 + multinomial 3x5 bitwise
 (implementer full battery; reviewer re-ran multinomial + component).
 Diff 25 lines.
+
+C6 (2026-07-17, delete landed with this note's commit). The bench-box
+empirical profile was BLOCKED by machine permissions
+(perf_event_paranoid=4, ptrace_scope=1, no passwordless sudo, no
+valgrind; Rprof cannot see below the single .Call frame) - the box
+also lacks the libtirpc dev symlink tests/cpp needs, though the
+22-scenario equivalence compare passed statistically there (max |z| =
+0.00, the cross-host contract). The decision fell to enumeration,
+which is the stronger argument: after the C2 fits compaction, NO
+store-bound elementwise misc_ kernel runs per-sweep on the
+constant-leaf path (rolls and totals are fused scalar gathers); the
+surviving large-n callers are RMW (test-fit accumulation, BCF glue
+scale - NT stores lose on RMW by construction) or cold/once-per-cycle
+(restore fills, rescale passes). The consumers NT stores would
+accelerate no longer exist, so per the recorded rule the commented
+intrinsics bodies are DELETED (~820 lines across
+linearAlgebra_{sse2,avx}.c; the live dispatch arms and transpose
+kernels stay; x86 cross-target syntax check clean; these TUs do not
+compile on arm64, CI x86 runners validate the real build).
+
+Speed record for the arc (arm64 host, quiet window 2026-07-17):
+bench-sampler compare vs 60a13b6 flagged ONE stable regression -
+setPredictor-accept-n1000-t75 0.252 -> 0.278 ms/update (+10%), the
+mutation transaction's SIMD-contiguous passes becoming scalar gathers
+(structural; the fused-walk commit fb4d76a reduces passes and is kept,
+but the gather has no SIMD form). All run arms within 1-4 percent
+warm-band noise (a second, warmer compare drifted every arm including
+controls upward - discounted per the control-difference rule). A/B at
+n=1e5 (60a13b6 vs tip, median of 5x40): ntree=75 19.375 -> 18.400
+(0.950), ntree=200 48.325 -> 47.225 (0.977) - the compaction wins
+where VD's workloads live. Baseline re-record at the arc tip follows
+cold.
