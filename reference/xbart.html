@@ -137,7 +137,7 @@
 <dd><p>How factor columns in a data frame enter the model; as in <code><a href="dbarts.html">dbarts</a></code>.</p></dd>
 
    <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
-<dd><p>The response model, resolved as in <code><a href="dbarts.html">dbarts</a></code>: <code>"auto"</code> fits gaussian models to continuous responses and probit models to those coded 0/1, <code>"gaussian"</code> forces a continuous fit, and <code>"probit"</code> and <code>"logistic"</code> require a 0/1 response. The built-in binary losses transform test predictions through the family's link.</p></dd>
+<dd><p>The response model, resolved as in <code><a href="dbarts.html">dbarts</a></code>: <code>"auto"</code> fits gaussian models to continuous responses and probit models to those coded 0/1, <code>"gaussian"</code> forces a continuous fit, and <code>"probit"</code> and <code>"logistic"</code> require a 0/1 response. A two-level factor, logical, or two-level character response is detected and fit as probit; a factor with three or more levels is an error, as <code>xbart</code> does not cross-validate the multinomial model. The built-in binary losses transform test predictions through the family's link.</p></dd>
 
    <dt id="arg-missing">missing<a class="anchor" aria-label="anchor" href="#arg-missing"></a></dt>
 <dd><p>How missing values in the predictors enter the model; as in <code><a href="dbarts.html">dbarts</a></code>.</p></dd>

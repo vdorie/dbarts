@@ -129,7 +129,7 @@
 <dd><p>As in <code><a href="bart.html">bart2</a></code>, except that <code>rbart_vi</code> fixes the default at <code>2.0</code> for both continuous and binary responses; unlike <code>bart2</code>, a <code>NULL</code> default (and thus the <code>chi</code> hyperprior on binary fits) is not available here.</p></dd>
 
   <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
-<dd><p>One of <code>"auto"</code>, <code>"gaussian"</code>, or <code>"aft"</code>. With <code>"auto"</code> (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; <code>"gaussian"</code> forces the continuous model. <code>"aft"</code> fits a grouped accelerated failure time (AFT) log-normal survival model, \(\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i\) with \(\epsilon_i \sim N(0, 1)\), adding random intercepts to the model of <code><a href="bart.html">bart2</a></code>'s <code>family = "aft"</code>. The survival response enters through the formula's left-hand side as a <code><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">survival::Surv</a></code> object (right-censoring only) or a two-column <code>cbind(time, status)</code> of the event/censoring time and the 0/1 event indicator; a <code>Surv</code> response selects <code>"aft"</code> on its own from <code>"auto"</code>, while a bare two-column response needs <code>family = "aft"</code> explicitly. As in <code><a href="bart.html">bart2</a></code>, <code>predict</code>, <code>extract</code>, and <code>fitted</code> then return the linear predictor \(E[\log T \mid x, g]\) on the LOG-TIME scale (never the time scale), and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> gives survival-probability draws that include the drawn intercepts. Survival fits do not support <code>weights</code> or <code>subset</code> in this version, and enter only through the formula interface.</p></dd>
+<dd><p>One of <code>"auto"</code>, <code>"gaussian"</code>, or <code>"aft"</code>. With <code>"auto"</code> (the default) the response family is resolved as gaussian or probit from the response, exactly as before this argument existed; a two-level factor, logical, or two-level character response is also detected and fit as probit (reporting the choice in a one-line message), while a factor response with three or more levels is an error, since <code>rbart_vi</code>'s random-effects model does not fit the multinomial family. <code>"gaussian"</code> forces the continuous model. <code>"aft"</code> fits a grouped accelerated failure time (AFT) log-normal survival model, \(\log T_i = f(x_i) + \alpha_{g[i]} + \sigma \epsilon_i\) with \(\epsilon_i \sim N(0, 1)\), adding random intercepts to the model of <code><a href="bart.html">bart2</a></code>'s <code>family = "aft"</code>. The survival response enters through the formula's left-hand side as a <code><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">survival::Surv</a></code> object (right-censoring only) or a two-column <code>cbind(time, status)</code> of the event/censoring time and the 0/1 event indicator; a <code>Surv</code> response selects <code>"aft"</code> on its own from <code>"auto"</code>, while a bare two-column response needs <code>family = "aft"</code> explicitly. As in <code><a href="bart.html">bart2</a></code>, <code>predict</code>, <code>extract</code>, and <code>fitted</code> then return the linear predictor \(E[\log T \mid x, g]\) on the LOG-TIME scale (never the time scale), and <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> gives survival-probability draws that include the drawn intercepts. Survival fits do not support <code>weights</code> or <code>subset</code> in this version, and enter only through the formula interface.</p></dd>
 
   <dt id="arg-object">object<a class="anchor" aria-label="anchor" href="#arg-object"></a></dt>
 <dd><p>A fitted <code>rbart</code> model.</p></dd>
@@ -254,7 +254,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000313</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000298</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 </span>
@@ -267,7 +267,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001568</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001440</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 </span>
@@ -312,7 +312,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000431</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000407</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 </span>
@@ -325,7 +325,7 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002029</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001790</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 </span>

@@ -218,8 +218,11 @@ xbart(
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md):
   `"auto"` fits gaussian models to continuous responses and probit
   models to those coded 0/1, `"gaussian"` forces a continuous fit, and
-  `"probit"` and `"logistic"` require a 0/1 response. The built-in
-  binary losses transform test predictions through the family's link.
+  `"probit"` and `"logistic"` require a 0/1 response. A two-level
+  factor, logical, or two-level character response is detected and fit
+  as probit; a factor with three or more levels is an error, as `xbart`
+  does not cross-validate the multinomial model. The built-in binary
+  losses transform test predictions through the family's link.
 
 - missing:
 

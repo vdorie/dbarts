@@ -130,9 +130,13 @@ residuals(object, type = "ev", ...)
 
   One of `"auto"`, `"gaussian"`, or `"aft"`. With `"auto"` (the default)
   the response family is resolved as gaussian or probit from the
-  response, exactly as before this argument existed; `"gaussian"` forces
-  the continuous model. `"aft"` fits a grouped accelerated failure time
-  (AFT) log-normal survival model, \\\log T_i = f(x_i) +
+  response, exactly as before this argument existed; a two-level factor,
+  logical, or two-level character response is also detected and fit as
+  probit (reporting the choice in a one-line message), while a factor
+  response with three or more levels is an error, since `rbart_vi`'s
+  random-effects model does not fit the multinomial family. `"gaussian"`
+  forces the continuous model. `"aft"` fits a grouped accelerated
+  failure time (AFT) log-normal survival model, \\\log T_i = f(x_i) +
   \alpha\_{g\[i\]} + \sigma \epsilon_i\\ with \\\epsilon_i \sim N(0,
   1)\\, adding random intercepts to the model of
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)'s
@@ -342,7 +346,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000313
+#> total seconds in loop: 0.000298
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 1 2 2 2 3 5 1 3 5 2 2 2 3 2 2 3 
@@ -355,7 +359,7 @@ rbartFit <- rbart_vi(y ~ . - g, df, group.by = g,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001568
+#> total seconds in loop: 0.001440
 #> 
 #> Tree sizes, last iteration:
 #> [1] 5 3 4 2 2 3 2 2 4 3 3 2 3 2 2 3 1 4 
@@ -400,7 +404,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> (6: 100) (7: 100) (8: 100) (9: 100) (10: 100) 
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000431
+#> total seconds in loop: 0.000407
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 2 2 4 4 3 2 4 2 4 3 1 3 3 3 1 
@@ -413,7 +417,7 @@ rbartFit.dart <- rbart_vi(y ~ . - g, df, group.by = g, dart = TRUE,
 #> DONE BART
 #> 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002029
+#> total seconds in loop: 0.001790
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 2 3 3 5 3 2 2 3 3 3 2 2 3 1 2 2 

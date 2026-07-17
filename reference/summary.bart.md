@@ -98,9 +98,7 @@ summary(fit)
 #> # A tibble: 1 × 10
 #>   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail
 #>   <chr>    <dbl>  <dbl>  <dbl>  <dbl> <dbl> <dbl> <dbl>    <dbl>    <dbl>
-#> 1 sigma     1.00  0.986 0.0582 0.0429 0.938  1.11  1.05     36.7     21.4
-#> 
-#> Note: some R-hat values exceed 1.01; chains may not have converged.
+#> 1 sigma    0.865  0.864 0.0642 0.0507 0.786 0.952  1.01     37.7     30.5
 
 if (requireNamespace("posterior", quietly = TRUE)) {
   library(posterior)
@@ -120,11 +118,11 @@ if (requireNamespace("posterior", quietly = TRUE)) {
 #> 
 #>          chain
 #> iteration    1    2
-#>         1 0.95 0.96
-#>         2 1.10 1.12
-#>         3 0.98 1.11
-#>         4 1.02 1.04
-#>         5 1.01 1.01
+#>         1 0.79 0.90
+#>         2 0.80 0.97
+#>         3 0.90 0.86
+#>         4 0.89 0.74
+#>         5 0.87 0.89
 #> 
 #> # ... with 15 more iterations
 # }

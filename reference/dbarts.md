@@ -195,8 +195,16 @@ dbarts(
 - family:
 
   The response model. `"auto"` fits gaussian models to continuous
-  responses and probit models to those coded 0/1, as always.
-  `"gaussian"` forces a continuous fit even for a 0/1 response;
+  responses and probit models to those coded 0/1, as always; a two-level
+  factor, logical, or two-level character response is also detected and
+  fit as probit, reporting the choice in a one-line message, while a
+  factor (or character) response with three or more levels is an error
+  directing to
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `family = "multinomial"` (which `dbarts` does not fit). An explicit
+  family that a factor response cannot support (e.g. `"gaussian"`) is
+  also an error rather than a silent fit of the integer level codes.
+  `"gaussian"` forces a continuous fit even for a 0/1 numeric response;
   `"probit"` and `"logistic"` require a 0/1 response and fit
   latent-variable models, with fits and predictions on the latent scale.
   `"logistic"` uses Polya-Gamma augmentation. `"aft"` fits an
