@@ -99,13 +99,21 @@ sampleParametersAndSetFits / setTreeFitsFromParameters - a correct
 gate-green base, but scattered writes are cache-line-granular, so this
 retains most of the scatter share the plan targets.
 
-C2b (pending): move the seam - metropolisJumpForTree exposes the
-changed node index; on stepTaken the chain rewrites leafOf for the
-changed node's member segment only (one fillBottom walk from that
-node covers birth/death/change); rejected proposals write nothing
-(accept-time only, after the move settles); grow-from-root, data
-mutation, and restore keep the full rebuild; the per-sweep rebuild is
-deleted; the leafOf consistency test asserts after every sweep of a
-multi-sweep run. Budget ~250 lines; full gate battery, all bitwise.
-If a session break leaves an uncommitted diff in the worktree, it is
-unverified C2b work: re-run the battery before trusting it.
+C2b 252c625 (2026-07-17). The seam move: metropolisJumpForTree grows a
+default-null changedNode out-parameter written at the five accept
+sites; on stepTaken the chain patches leafOf below that node only
+(updateLeafOfBelow, one fillBottom walk - O(move size), not O(n));
+rejections write nothing; grow-from-root, data mutation, and the
+restore paths keep the full rebuild; the per-sweep scattered-write
+rebuild is deleted from the draw and set paths. One subtlety beyond
+the sketch: sampleTreesFromPrior replaces partitions wholesale but the
+next sweep's residual roll still reads the old (mu, leafOf) pair as
+the cached-fits evaluator, so it cannot rebuild in place - it marks
+trees in a per-tree leafOfStale flag and the sweep rebuilds lazily
+after the move settles, before the draw; every full-rebuild site
+clears the flag. Test asserts leafOf against a freshly derived map
+after each of 25 sweeps plus a prior-reset round. Diff 145 lines.
+Gates all bitwise (suite 3050/0, 22/22 + bcf 5x6 + multinomial 3x5),
+run twice: by the implementer and end-to-end by the reviewer (install
+--preclean, component tests from clean, suite, all three compares).
+bench-sampler compare PENDING the batched quiet window (with C1/C3).
