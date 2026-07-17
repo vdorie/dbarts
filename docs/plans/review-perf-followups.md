@@ -175,15 +175,19 @@ linearAlgebra_{sse2,avx}.c; the live dispatch arms and transpose
 kernels stay; x86 cross-target syntax check clean; these TUs do not
 compile on arm64, CI x86 runners validate the real build).
 
-Speed record for the arc (arm64 host, quiet window 2026-07-17):
-bench-sampler compare vs 60a13b6 flagged ONE stable regression -
-setPredictor-accept-n1000-t75 0.252 -> 0.278 ms/update (+10%), the
-mutation transaction's SIMD-contiguous passes becoming scalar gathers
-(structural; the fused-walk commit fb4d76a reduces passes and is kept,
-but the gather has no SIMD form). All run arms within 1-4 percent
-warm-band noise (a second, warmer compare drifted every arm including
-controls upward - discounted per the control-difference rule). A/B at
-n=1e5 (60a13b6 vs tip, median of 5x40): ntree=75 19.375 -> 18.400
-(0.950), ntree=200 48.325 -> 47.225 (0.977) - the compaction wins
-where VD's workloads live. Baseline re-record at the arc tip follows
-cold.
+Speed record for the arc (arm64 host, quiet window 2026-07-17).
+Compare vs 60a13b6 pre-fix flagged setPredictor-accept-n1000-t75
+0.252 -> 0.278 ms/update (+10%): the mutation transaction's
+SIMD-contiguous passes became scalar gathers at the compaction. The
+fused-walk commit fb4d76a (map rebuild + total add in one node walk)
+RECOVERED it: the cold re-record reads 0.256 (+1.6%, in band). The
+intermediate warm compare that also read 0.278 post-fix was a
+measurement artifact - it drifted every arm including controls upward,
+and the warm drift masked the fix; the cold record is authoritative
+(the control-difference rule cut both ways here). All other arms
+within +/- 2 percent cold. A/B at n=1e5 (60a13b6 vs tip, median of
+5x40): ntree=75 19.375 -> 18.400 (0.950), ntree=200 48.325 -> 47.225
+(0.977) - the compaction wins where VD's workloads live. Baseline
+re-recorded cold at the tip as bench-sampler-b9d53c7.csv. ARC CLOSED
+2026-07-17: P1 = C2ab, P2 = C1, P3 = C5, P4 = C3 no-go, Tier 4 = C4,
+NT-store = C6 delete; every item dispositioned with its evidence.
