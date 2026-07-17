@@ -84,3 +84,11 @@ bitwise; reviewer re-ran the full battery independently after the
 CSC fix. Diff 122 lines. bench-sampler setPredictor arms:
 orchestrator-run at the next quiet window (expect accept-path
 improvement; no window this session - machine in use).
+
+Bench verification (2026-07-18, quiet window, compare vs b9d53c7):
+PASS, no flag. setPredictor-accept 0.256 -> 0.266 (+3.9%), reject
+0.140 -> 0.144 (+2.9%), with every arm up 1-2.5% ambient - the
+journal is neutral-to-slightly-negative at the harness's n=1000
+(bookkeeping ~ offsets savings on a 2KB column), consistent with the
+plan: the traffic win is at large n and partial updates, which no
+bench arm exercises. No action.
