@@ -106,10 +106,18 @@ struct Forest {
 
   std::vector<Tree> trees;
   std::vector<size_t> indexBuffer;
+  // dense per-tree fit slab (numObservations x numTrees, tree-major); empty for
+  // the constant leaf, which carries muByTree + leafOf instead
   std::vector<double> treeFits;
   std::vector<double> totalFits, totalTestFits;
   std::vector<double> treeY, currTestFits;
   std::vector<double> paramByNode;
+  // constant leaf only: each live tree's node-indexed leaf values, and the
+  // per-observation bottom-node map (tree-major, numObservations x numTrees),
+  // so tree t's fit for observation i is muByTree[t][leafOf[t * n + i]]. Empty
+  // for vector and function leaves, which keep the dense treeFits slab.
+  std::vector<std::vector<double>> muByTree;
+  std::vector<std::uint32_t> leafOf;
   // vector-parameter leaves: each live tree's parameter blocks, arena-
   // indexed with stride numParams and kept consistent with the tree's
   // structure between sweeps (fits are no longer constant per leaf, so
@@ -456,13 +464,13 @@ struct BCFForestCombiner : ForestCombiner<L> {
     std::size_t numLeaves = 0;
     for (std::size_t t = 0; t < forest.numTrees; ++t) {
       Tree& tree = forest.trees[t];
-      const double* treeFits = forest.treeFits.data() + t * n;
+      const std::vector<double>& mu = forest.muByTree[t];
       tree.bottomScratch.clear();
       tree.fillBottom(0, tree.bottomScratch);
       for (int32_t nodeIndex : tree.bottomScratch) {
         const Node& node = tree.at(nodeIndex);
         if (node.numObservations() == 0) continue;
-        double value = treeFits[tree.indices[node.begin]];
+        double value = mu[static_cast<std::size_t>(nodeIndex)];
         M += value * value;
         ++numLeaves;
       }
@@ -483,10 +491,12 @@ struct BCFForestCombiner : ForestCombiner<L> {
     double c = std::sqrt(v);
     if (!std::isfinite(c) || c <= 0.0) return 1.0;
 
-    // travel the ridge: a shrinks, the prognostic fits grow by c
+    // travel the ridge: a shrinks, the prognostic fits grow by c. Scaling every
+    // leaf value scales every gathered fit, so the mu tables carry the rescale.
     glue_.a = a0 / c;
-    misc_scalarMultiplyVectorInPlace(forest.treeFits.data(),
-                                     n * forest.numTrees, c);
+    for (std::size_t t = 0; t < forest.numTrees; ++t)
+      misc_scalarMultiplyVectorInPlace(forest.muByTree[t].data(),
+                                       forest.muByTree[t].size(), c);
     misc_scalarMultiplyVectorInPlace(forest.totalFits.data(), n, c);
     // aVariance is held: the move conditions on it (ASIS), so refreshing it
     // here re-randomizes the coordinate we just conditioned on and measurably
@@ -749,12 +759,13 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
 
     for (std::size_t k = 0; k < numCategories_; ++k) {
       Forest<L>& forest = forests[k];
-      for (std::size_t i = 0; i < n; ++i) {
-        forest.totalFits[i] += c;
-        // tree 0 absorbs the shift so totalFits stays the sum of the tree slabs
-        // the residual roll reconstructs from; the next sweep overwrites it
-        if (forest.numTrees > 0) forest.treeFits[i] += c;
-      }
+      for (std::size_t i = 0; i < n; ++i) forest.totalFits[i] += c;
+      // tree 0 absorbs the shift so totalFits stays the sum of the tree fits the
+      // residual roll reconstructs from; +c on every leaf value is +c on every
+      // gathered fit (unreachable internal slots never gather). The next sweep
+      // overwrites tree 0's table.
+      if (forest.numTrees > 0 && !forest.muByTree.empty())
+        for (double& v : forest.muByTree[0]) v += c;
     }
     return 1.0;
   }
