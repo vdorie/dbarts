@@ -325,6 +325,46 @@ static void testColumnStoreMutation() {
   printf("ok: column store mutation\n");
 }
 
+// codeFor's ordinal arm binary-searches the cuts; it must return the exact code
+// the old linear scan did for every relation to the grid, ties and NA included.
+// Deterministic inputs and a restored rngState keep the shared stream (and so
+// the downstream snapshots) untouched.
+static void testCodeForOrdinalBoundaries() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 40;
+  std::vector<double> x(n);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i);  // 0..39
+  ColumnStore store;
+  store.build(x.data(), n, 1, 8);  // ordinal, eight uniform cuts
+
+  const std::vector<double>& cuts = store.cutPoints[0];
+  const uint32_t numCuts = store.numCuts[0];
+
+  // the pre-lower_bound codeFor transcribed: NA reserved, else the count of
+  // cuts strictly below value
+  auto oldCodeFor = [&](double value) -> xint_t {
+    if (value != value) return naCode;
+    uint32_t k = 0;
+    while (k < numCuts && value > cuts[k]) ++k;
+    return static_cast<xint_t>(k);
+  };
+
+  double probes[] = {
+    cuts.front() - 1.0,          // below all cuts
+    cuts[numCuts / 2],           // equal to an interior cut (tie)
+    0.5 * (cuts[0] + cuts[1]),   // strictly between two cuts
+    cuts.back() + 1.0,           // above all cuts
+    std::nan(""),                // missing
+  };
+  bool match = true;
+  for (double v : probes) match &= store.codeFor(0, v) == oldCodeFor(v);
+  check(match, "codeFor ordinal binary search matches the linear scan");
+  check(store.codeFor(0, std::nan("")) == naCode, "codeFor keeps the NA code");
+
+  rngState = savedRngState;
+  printf("ok: codeFor ordinal boundaries\n");
+}
+
 // setCutPoints shrinking an ordinal grid must not leave a split indexing past
 // the new cuts: a rule sending its column's missing values right keeps both
 // children occupied after the shrink, so an empty-child collapse alone would
@@ -816,6 +856,7 @@ void runDataTests() {
   testColumnStoreColumnSubset();
   testColumnStoreLeafGather();
   testColumnStoreMutation();
+  testCodeForOrdinalBoundaries();
   testSetCutPointsOrphan();
   testQuantileCutPoints();
   testMapOldCutPointsOntoNew();
