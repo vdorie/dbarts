@@ -79,3 +79,27 @@ multinomial-equivalence.R vs multinomial-equivalence-2bd34db.rds
 EXPECTED to diverge - report channels; multinomial-exact.R PASS.
 Re-record of the multinomial fixture, MANIFEST update, and any
 snapshot replay happen at landing, orchestrator-run.
+
+## Landings
+
+8c2b5fc (2026-07-17). Landed as planned: per-sweep suffix snapshot
+(backward two-way merges from an empty top row) + running prefix
+folded at the top of each in-order drawForestGlue, margin =
+LSE2(prefix, suffix); logSumExp2 branches -HUGE_VAL exactly and
+otherCategoryMargin is deleted. One addition beyond the sketch: a
+lastF_ cursor detects fresh-sweep entry (or a direct out-of-order
+call) and rebuilds; on the sampler path only f == 0 rebuilds, so the
+call pattern is unchanged. The tests/cpp single-trial reduction
+oracle re-inlined the OLD full-K arithmetic; its margin was updated
+(by the reviewer, at landing) to the engine's pairwise form -
+symmetric LSE2 makes the K = 3 static-fits margin one merge of the
+two other fits - keeping the reduction assertion (one PG draw, same
+psi, indicator response) bitwise-meaningful. Gates: 22/22 and bcf 5x6
+BITWISE (shift confined as required); multinomial-exact all arms OK
+(gaps 0.0000/0.0008/0.0012 vs tol 0.008/0.008/0.015); suite 3050/0
+(no R-level multinomial snapshots exist); component tests pass after
+the oracle update. Fixture re-recorded as
+multinomial-equivalence-8c2b5fc.rds with the neutrality trail in the
+MANIFEST: k2 bitwise-identical to 2bd34db on all channels, k3/
+k3counts moved in train/test/forestFits only with both varcount
+channels unmoved. Diff 49/12 + the oracle update.
