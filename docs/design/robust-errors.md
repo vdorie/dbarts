@@ -175,3 +175,34 @@ model.hpp:1917), so the nine z-stats and every RNG-locked snapshot stay stable.
   may misread it -- document, or expose the marginal.
 - Zero user weights compose cleanly: c_i = 0, lambda_i draws from its prior, and
   numPositiveWeights excludes the row (model.hpp:2058), so the sigma df is right.
+
+## 8. Resolution (VD, 2026-07-18)
+
+A software/literature survey (brms, Bambi, R-INLA, PyMC, Stan wiki,
+JAGS corpus, bayesreg, gamlss, heavy, MASS, statsmodels, the BART
+package family) settled the forks:
+
+- No BART implementation ships t errors; expectations import from
+  general Bayesian regression, where the dominant packages (brms,
+  Bambi, INLA, the BUGS tutorial corpus) ESTIMATE nu by default under
+  a proper tail-bounding prior - gamma(2, 0.1) is the de facto
+  convention (Stan prior-choice wiki, Juarez-Steel). Fixed-nu lineage
+  exists (PyMC's canonical example nu = 3; heavy's default family is
+  Student(df = 4); Lange-Little-Taylor advise fixed 4-6 when
+  estimation is unstable) but no major Bayesian package defaults to
+  it.
+- The estimation pathologies are all about HOW: the nu likelihood is
+  unbounded at the boundary (Fernandez-Steel 1999), flat priors give
+  improper posteriors (Fonseca-Ferreira-Migon 2008), and the moment
+  estimator is inconsistent (Wang-Ip). A capped grid under a proper
+  prior - section 4's sampled arm - is the sanctioned form.
+- Surface: constructor objects are the ecosystem idiom (brms
+  student(), gamlss TF(), heavy Student(df = 4)); nobody splits a
+  family string from a bare df argument.
+
+DECIDED: both modes ship in one arc behind the section 5(b) surface.
+resid.dist = student() estimates nu on a capped grid (proper prior;
+the section 4 machinery); student(df = x) fixes it. Default remains
+gaussian(). Docs carry the BART-specific caveat (a flexible mean
+confounds tail inference; posterior-check estimated nu) and document
+sigma as the conditional scale in both modes.
