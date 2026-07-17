@@ -2065,6 +2065,14 @@ private:
   }
 
   void rescale() {
+    // an empty response has no min/max to seed from (yRescaled_[0] is OOB); hold
+    // the identity scale
+    if (numObservations_ == 0) {
+      min_ = 0.0;
+      max_ = 0.0;
+      range_ = 1.0;
+      return;
+    }
     if (offset_ != nullptr) {
       misc_subtractVectors(offset_, numObservations_, y_, yRescaled_.data());
     } else {
