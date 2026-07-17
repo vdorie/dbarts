@@ -168,3 +168,57 @@ on return, before release.
   accepted, but cbind is the conventional, self-documenting form. Only relevant
   once multinomial-counts has landed; gates C1's count branch (or a later
   additive commit under formula-first). RECOMMEND cbind.
+
+## Landings
+
+### C1 (2026-07-17)
+
+As specced, both LHS branches together (multinomial-counts had already
+landed). The refusal on a formula/dbartsData 'formula' argument is
+split: a dbartsData object is still refused by name (out of scope,
+unchanged message); a formula runs its own model.frame/terms extraction
+(extractMultinomialFormulaData, R/bart.R) that pulls the response via
+model.response(modelFrame) with no type argument, so a factor keeps its
+levels and a cbind(...) matrix keeps its column names - the two then
+fall through the SAME factor-vs-count-matrix dispatch and validation
+the matrix interface already had, unduplicated.
+
+One implementer finding worth keeping: the obvious design - code the
+right-hand side here (makeModelMatrix on the term-labeled data frame,
+matching dbartsData's own formula recipe) and install the resulting
+matrix as the host sampler's matched-call 'formula' - does not work.
+'factors = "categorical"', the default, produces a dbartsMixedMatrix
+container even for all-numeric predictors (no factor columns), and the
+matrix/vector top-level dispatch in dbartsData does not recognize that
+container as a valid 'formula' argument (is.numeric/is.data.frame/
+is.factor are all false for it) - only dbartsData's OWN
+data-frame-as-x.train branch knows how to route it forward. The fix:
+install the term-labeled predictor DATA FRAME (uncoded) as the matched
+call's 'formula' instead, and let that existing branch call
+makeModelMatrix itself. This means no coded matrix, and no terms/
+xlevels object, is built or retained by this arc at all - the coding
+and the newdata retention both ride attributes (term.labels,
+factor.levels, drop) that makeModelMatrix already attaches, and
+predict.bartMultinomial's existing validateXTest(newdata,
+object$fit$data@x) call already reads them, unchanged.
+
+Gates: full tinytest 2969/0 (+10, no regen - RNG-neutral); all three
+standing anchors identical; the multinomial fixture identical vs
+multinomial-equivalence-2bd34db.rds; air clean. tinytest additions
+cover formula == matrix bit for bit for both the factor and cbind
+count-matrix response forms, predict on a data.frame newdata against a
+keepTrees formula fit, cbind column names as levels, an unused factor
+level kept, character-LHS coercion, and the explicit-only default-family
+refusal (unchanged from before this arc).
+
+### C2 (2026-07-17)
+
+docs/design/multinomial.md's surface section gained the formula-ingestion
+bullet (the dispatch rule, the model.response no-coercion detail, the
+data-frame-as-x.train routing, the reproduction gate); TODO's multi-forest
+entry marks every multinomial follow-up landed. No man/bart2.Rd exists -
+bart2 is documented under man/bart.Rd's family = "multinomial" paragraph,
+updated there to describe the formula forms and drop the
+matrix-interface-only sentence. No new exported topic, so no pkgdown
+change. The Q1/Q2 defaults were adopted during VD's absence as annotated
+above; neither was contradicted by implementation.
