@@ -5,8 +5,7 @@
 # so catching a finding here is much cheaper than a CRAN bounce. The
 # component tests (tests/cpp) already pass native ASAN+UBSAN builds locally;
 # this widens coverage to the bridge, the support libraries, and the full
-# tinytest scenario set under instrumented R builds. Push-only for now;
-# pull_request gating is deferred until this has proven stable.
+# tinytest scenario set under instrumented R builds.
 name: sanitizers
 
 on:
@@ -14,6 +13,13 @@ on:
     branches: [bartcore]
     # instrumented rebuilds cost ~an hour; documentation- and
     # benchmark-data-only pushes cannot change what they test
+    paths-ignore:
+      - 'docs/**'
+      - 'TODO'
+      - '**.md'
+      - 'benchmarks/**'
+  pull_request:
+    branches: [bartcore, main]
     paths-ignore:
       - 'docs/**'
       - 'TODO'
