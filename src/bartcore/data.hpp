@@ -1102,6 +1102,70 @@ struct ColumnStore {
     }
   }
 
+  /// A column's rollback record for a journaled re-quantize: either the
+  /// changed cells' pre-change codes, or, once too many cells change, the whole
+  /// pre-change column. Exactly one is populated.
+  struct ColumnCodeRollback {
+    struct Cell { std::uint32_t index; xint_t oldCode; };
+    std::vector<Cell> journal;
+    std::vector<xint_t> fullColumn;
+    bool full = false;
+  };
+
+  /// Re-quantize column j from newColumn (refreshing its cuts first when
+  /// updateCuts) exactly as setColumns does, but record into rollback only what
+  /// a reject must undo: each changed cell's old code, or the whole pre-change
+  /// column once more than maxJournal cells change (journaling then stops).
+  /// A CSC-backed column keeps quantizeColumn's behavior - requantized from
+  /// its own store, newColumn unread - under a whole-column record.
+  void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
+                          size_t maxJournal, ColumnCodeRollback& rollback) {
+    if (updateCuts) refreshCutsForColumn(j, newColumn);
+    if (columnIsCscBacked(j)) {
+      const xint_t* cscColumn = codes.data() + codeOffsets[j];
+      rollback.fullColumn.assign(cscColumn, cscColumn + numObservations);
+      rollback.full = true;
+      quantizeCscColumn(j);
+      return;
+    }
+    xint_t* column = codes.data() + codeOffsets[j];
+    std::uint8_t anyMissing = 0;
+    for (size_t i = 0; i < numObservations; ++i) {
+      xint_t code = codeFor(j, newColumn[i]);
+      if (isNA(newColumn[i])) anyMissing = 1;
+      if (!rollback.full && code != column[i]) {
+        rollback.journal.push_back({static_cast<std::uint32_t>(i), column[i]});
+        if (rollback.journal.size() > maxJournal) {
+          // reconstruct the pre-change column (current cells with the journaled
+          // old codes restored) so the journal can be dropped from here on
+          rollback.fullColumn.assign(column, column + numObservations);
+          for (const ColumnCodeRollback::Cell& cell : rollback.journal)
+            rollback.fullColumn[cell.index] = cell.oldCode;
+          rollback.journal.clear();
+          rollback.full = true;
+        }
+      }
+      column[i] = code;
+    }
+    hasMissing[j] = anyMissing;
+    std::int32_t slot = gatheredSlotForColumn(j);
+    if (slot >= 0)
+      std::memcpy(gatheredRawValues.data() +
+                    static_cast<size_t>(slot) * numObservations,
+                  newColumn, numObservations * sizeof(double));
+  }
+
+  /// Undo a journaled re-quantize, restoring column j's codes from rollback.
+  void restoreColumn(size_t j, const ColumnCodeRollback& rollback) {
+    xint_t* column = codes.data() + codeOffsets[j];
+    if (rollback.full)
+      std::memcpy(column, rollback.fullColumn.data(),
+                  numObservations * sizeof(xint_t));
+    else
+      for (const ColumnCodeRollback::Cell& cell : rollback.journal)
+        column[cell.index] = cell.oldCode;
+  }
+
   /// Overwrite a single cell's code against existing cuts, refreshing the
   /// gathered raw copy of a leaf-covariate column. A missing value marks the
   /// column; the flag only clears on a full column re-quantize (conservative
