@@ -124,12 +124,12 @@ rbart_vi <- function(
   }
 
   group.by.literal <- NULL
-  # look for group.by in data, if supplied, first
+  # look for group.by in data, if supplied, first; by name, not position, so an
+  # absent symbol falls through to the calling environment rather than silently
+  # binding to the first column
   if (is.symbol(matchedCall[["group.by"]])) {
     try(
-      group.by.literal <- data[[which.max(
-        names(data) == matchedCall[["group.by"]]
-      )]],
+      group.by.literal <- data[[as.character(matchedCall[["group.by"]])]],
       silent = TRUE
     )
   }
@@ -159,9 +159,7 @@ rbart_vi <- function(
     group.by.literal <- NULL
     if (is.symbol(matchedCall[["group.by.test"]])) {
       try(
-        group.by.literal <- test[[which.max(
-          names(test) == matchedCall[["group.by.test"]]
-        )]],
+        group.by.literal <- test[[as.character(matchedCall[["group.by.test"]])]],
         silent = TRUE
       )
     }
@@ -182,9 +180,7 @@ rbart_vi <- function(
 
     if (is.null(group.by.literal)) {
       try(
-        group.by.literal <- data[[which.max(
-          names(data) == matchedCall[["group.by.test"]]
-        )]],
+        group.by.literal <- data[[as.character(matchedCall[["group.by.test"]])]],
         silent = TRUE
       )
     }

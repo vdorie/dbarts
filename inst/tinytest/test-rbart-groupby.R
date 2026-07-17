@@ -81,6 +81,73 @@ expect_inherits(
 rm(x, y, g, df)
 
 
+# group.by resolved from the calling environment (not the first data column):
+# ranef must be per-group with level dimnames, and predict must round-trip on
+# trained groups for any group.by type
+set.seed(2L)
+n.t1a <- 120L
+g.t1a <- factor(rep(seq_len(6L), each = 20L))
+x.t1a <- rnorm(n.t1a)
+y.t1a <- 2 * x.t1a + rnorm(6L)[as.integer(g.t1a)] + rnorm(n.t1a, 0.0, 0.5)
+# deliberately omits g so group.by must be found in the calling environment
+df.t1a <- data.frame(y = y.t1a, x = x.t1a)
+
+fit.t1a <- dbarts::rbart_vi(
+  y ~ x,
+  df.t1a,
+  group.by = g.t1a,
+  n.samples = 40L,
+  n.burn = 20L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 20L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+
+# per-group ranef, group levels as dimnames
+expect_equal(ncol(fit.t1a$ranef), nlevels(g.t1a))
+expect_equal(colnames(fit.t1a$ranef), levels(g.t1a))
+expect_equal(length(fit.t1a$ranef.mean), nlevels(g.t1a))
+expect_equal(names(fit.t1a$ranef.mean), levels(g.t1a))
+
+# trained groups round-trip: no spurious new-level warning, correlation ~ 1
+expect_silent(predict(fit.t1a, df.t1a, group.by = g.t1a))
+pred.f <- predict(fit.t1a, df.t1a, group.by = g.t1a)
+expect_true(cor(fitted(fit.t1a), colMeans(pred.f)) > 0.999)
+
+# group.by coerced as at fit time: numeric and character match the factor
+pred.n <- predict(fit.t1a, df.t1a, group.by = as.integer(g.t1a))
+pred.c <- predict(fit.t1a, df.t1a, group.by = as.character(g.t1a))
+expect_equal(pred.n, pred.f)
+expect_equal(pred.c, pred.f)
+
+# genuinely-new level draws from the prior, names the level, stays finite
+g.new <- as.integer(g.t1a)
+g.new[seq_len(5L)] <- 99L
+expect_warning(
+  predict(fit.t1a, df.t1a, group.by = g.new),
+  "99"
+)
+pred.new <- suppressWarnings(predict(fit.t1a, df.t1a, group.by = g.new))
+expect_true(all(is.finite(pred.new)))
+
+rm(
+  n.t1a,
+  g.t1a,
+  x.t1a,
+  y.t1a,
+  df.t1a,
+  fit.t1a,
+  pred.f,
+  pred.n,
+  pred.c,
+  g.new,
+  pred.new
+)
+
+
 # test that works with missing levels
 n.train <- 80L
 x <- testData$x[seq_len(n.train), ]

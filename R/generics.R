@@ -575,6 +575,11 @@ predict.rbart <- function(
   }
   n.samples <- object$fit[[1L]]$control@n.samples
 
+  # coerce as rbart_vi does at fit time so numeric or character group.by carry
+  # levels; unlike fitting, unused factor levels are kept, so out-of-sample
+  # groups present only in the supplied factor still receive prior draws
+  group.by <- as.factor(group.by)
+
   nonParametricPart <- 0
   # collects results in an array of n.obs x n.samples x n.chains, default for
   # internal sampler
@@ -643,7 +648,9 @@ predict.rbart <- function(
 
     if (!all(measuredLevels <- ranefNames.test %in% ranefNames.train)) {
       warning(
-        "test includes random effect levels not present in training - ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'"
+        "test includes random effect levels not present in training (",
+        paste0(ranefNames.test[!measuredLevels], collapse = ", "),
+        "); ranef estimates default to draws from their latent distribution parameterized by the posterior of its variance; draws may not be the same across future calls to 'predict'"
       )
       n.unmeasured <- sum(!measuredLevels)
       if (n.chains > 1L) {
