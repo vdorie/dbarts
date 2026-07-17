@@ -420,12 +420,14 @@ bart2 <- function(
   control@printEvery <- control@printEvery %/% control@n.thin
 
   # multinomial (docs/design/multinomial.md): a K-forest softmax model over
-  # a factor response, validated and dispatched here rather than threaded
-  # through the rest of bart2 - it bypasses the standard single-forest
-  # dbarts()/run() path entirely (bartcoreMultinomialSampler builds a
+  # a factor response or an n x K count matrix, validated and dispatched
+  # here rather than threaded through the rest of bart2 - it bypasses the
+  # standard single-forest dbarts()/run() path entirely
+  # (bartcoreMultinomialSampler/bartcoreMultinomialCountSampler each build a
   # separate K-forest engine; see benchmarks/R/multinomial-equivalence.R for
-  # the exact call sequence bart2Multinomial mirrors). Every refusal below
-  # names the limitation rather than silently reshaping around it.
+  # the exact call sequences bart2Multinomial/bart2MultinomialCounts
+  # mirror). Every refusal below names the limitation rather than silently
+  # reshaping around it.
   if (family == "multinomial") {
     if (!missing(weights)) {
       stop(
@@ -476,12 +478,63 @@ bart2 <- function(
       )
     }
     y <- data
+    # the count-matrix response form (docs/design/multinomial.md): an n x K
+    # matrix of nonnegative integer trial counts, beside the factor path
+    # below. Any numeric matrix is treated as an attempted count response, so
+    # a too-narrow one gets its own error rather than falling through to the
+    # factor message.
+    if (is.matrix(y) && is.numeric(y)) {
+      if (ncol(y) < 2L) {
+        stop(
+          "family = \"multinomial\" count response matrix must have at ",
+          "least 2 columns (K >= 2 categories)"
+        )
+      }
+      if (anyNA(y)) {
+        stop(
+          "family = \"multinomial\" does not support missing response values"
+        )
+      }
+      if (any(y < 0)) {
+        stop("family = \"multinomial\" count response must be nonnegative")
+      }
+      if (any(y != round(y))) {
+        stop("family = \"multinomial\" count response must be whole numbers")
+      }
+      if (any(rowSums(y) < 1)) {
+        stop(
+          "family = \"multinomial\" count response requires every row to ",
+          "have at least one trial (row sum >= 1)"
+        )
+      }
+
+      levels <- colnames(y)
+      if (is.null(levels)) {
+        levels <- as.character(seq_len(ncol(y)))
+      }
+
+      return(bart2MultinomialCounts(
+        matchedCall,
+        callingEnv,
+        control,
+        y,
+        levels,
+        power,
+        base,
+        sigdf,
+        sigquant,
+        sigest,
+        dart,
+        combineChains
+      ))
+    }
     if (is.character(y)) {
       y <- factor(y)
     }
     if (!is.factor(y)) {
       stop(
-        "family = \"multinomial\" requires a factor (or character) response"
+        "family = \"multinomial\" requires a factor (or character) response, ",
+        "or an n x K count matrix"
       )
     }
     if (anyNA(y)) {
@@ -701,6 +754,7 @@ bart2Multinomial <- function(
   result <- packageMultinomialResults(
     control,
     y,
+    levels(y),
     K,
     samples,
     combineChains,
@@ -710,6 +764,75 @@ bart2Multinomial <- function(
   # holds every one of the K forests' saved trees (the sampling sweeps wrote
   # them regardless), and the host sampler's coded design (sampler@data@x) codes
   # newdata to the training columns. Without keepTrees neither survives the call.
+  if (control@keepTrees) {
+    result$bc <- bc
+    result$fit <- sampler
+  }
+  result
+}
+
+# The grouped-count analog of bart2Multinomial: y is the validated n x K
+# count matrix (bart2's count-matrix branch above) and levels are the
+# resolved category names (colnames(y), or the index fallback). Mirrors
+# bart2Multinomial's host-sampler construction exactly - same priors,
+# same redirectCall/override sequence - substituting
+# bartcoreMultinomialCountSampler for bartcoreMultinomialSampler and a
+# placeholder response column of y (as doubles, never read by the engine)
+# for the label vector. A one-hot y with every row sum 1 is therefore the
+# same draw stream as bart2Multinomial on the equivalent factor (the
+# single-trial reduction; see benchmarks/R/multinomial-equivalence.R's
+# k3counts scenario).
+bart2MultinomialCounts <- function(
+  matchedCall,
+  callingEnv,
+  control,
+  y,
+  levels,
+  power,
+  base,
+  sigdf,
+  sigquant,
+  sigest,
+  dart,
+  combineChains
+) {
+  K <- ncol(y)
+
+  priors <- buildSamplerPriors(
+    matchedCall,
+    power,
+    base,
+    sigdf,
+    sigquant,
+    nodeK = matchedCall[["k"]],
+    dart = dart,
+    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+  )
+
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
+  samplerCall$n.samples <- NULL
+  samplerCall$data <- as.double(y[, 1L])
+  samplerCall$family <- NULL
+  samplerCall$tree.prior <- priors$tree.prior
+  samplerCall$node.prior <- priors$node.prior
+  samplerCall$resid.prior <- priors$resid.prior
+  samplerCall$sigma <- as.numeric(sigest)
+
+  sampler <- eval(samplerCall, envir = callingEnv)
+
+  bc <- bartcoreMultinomialCountSampler(sampler, y, K = K)
+  samples <- bartcoreRun(bc, control@n.burn, control@n.samples)
+
+  result <- packageMultinomialResults(
+    control,
+    y,
+    levels,
+    K,
+    samples,
+    combineChains,
+    predictorNames = colnames(sampler$data@x)
+  )
   if (control@keepTrees) {
     result$bc <- bc
     result$fit <- sampler
@@ -759,23 +882,27 @@ shapeMultinomialChannel <- function(
 # docs/design/multinomial.md), so no probabilityFromLatents-style transform
 # applies here, unlike the binary families. Reshaped to the package's
 # draws-first convention (n.chains x) n.samples x n.obs x K - matching
-# combineChains as bart2's other families do - with levels(y) named on the
-# trailing K margin so every K-shaped output threads them.
+# combineChains as bart2's other families do - with the resolved category
+# levels named on the trailing K margin so every K-shaped output threads them.
+# levels is passed in rather than derived from y, since y is a factor for the
+# label path but the count matrix itself for the count path (levels(y.train)
+# vs. colnames(y.train)/index fallback; see bart2Multinomial/
+# bart2MultinomialCounts).
 #
 # varcount is the per-sample per-category split-usage channel: each category
 # forest's per-draw variable counts, reshaped like yhat.train to (n.chains x)
-# n.samples x p x K with levels(y) on the K margin and predictorNames on the p
+# n.samples x p x K with levels on the K margin and predictorNames on the p
 # margin. Symmetric to mbart2's per-category varcount, as an array where every
 # other K-output is one.
 packageMultinomialResults <- function(
   control,
   y,
+  levels,
   K,
   samples,
   combineChains,
   predictorNames = NULL
 ) {
-  levels <- levels(y)
   n.chains <- control@n.chains
 
   # both the train (n.obs x K x n.samples (x n.chains)) and the test channel

@@ -337,6 +337,188 @@ expect_equal(dim(predMulti), c(10L, 20L, 3L))
 predMultiSplit <- predict(fit3pMulti, x3.test, combineChains = FALSE)
 expect_equal(dim(predMultiSplit), c(2L, 5L, 20L, 3L))
 
+# --- count-matrix response (C2): an n x K count matrix beside the factor
+# path, both routed through bart2's multinomial branch. The internal-path
+# comparator mirrors internalMultinomialFit above, substituting
+# bartcoreMultinomialCountSampler for bartcoreMultinomialSampler.
+internalMultinomialCountFit <- function(
+  x,
+  counts,
+  K,
+  n.trees,
+  n.burn,
+  n.samples,
+  test = NULL
+) {
+  control <- dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = n.trees,
+    updateState = FALSE
+  )
+  sampler <- if (is.null(test)) {
+    dbarts(x, as.double(counts[, 1L]), control = control)
+  } else {
+    dbarts(x, as.double(counts[, 1L]), test = test, control = control)
+  }
+  bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
+  dbarts:::bartcoreRun(bc, n.burn, n.samples)
+}
+
+# K = 3, grouped counts (n_i > 1): the reproduction gate extended to the
+# count-matrix response form - a public count fit must reproduce the
+# internal bartcoreMultinomialCountSampler channel bit for bit.
+set.seed(6304)
+n3c <- 150L
+x3c <- matrix(runif(n3c * p), n3c, p)
+eta3c <- cbind(
+  2 * (x3c[, 1L] - 0.5),
+  x3c[, 2L] - x3c[, 3L],
+  1.5 * (x3c[, 4L] - 0.5)
+)
+probs3c <- exp(eta3c) / rowSums(exp(eta3c))
+trials3c <- sample(2:6, n3c, replace = TRUE)
+counts3c <- t(vapply(
+  seq_len(n3c),
+  function(i) rmultinom(1L, trials3c[i], probs3c[i, ])[, 1L],
+  integer(3L)
+))
+colnames(counts3c) <- c("lo", "mid", "hi")
+
+seed3c <- 7304L
+set.seed(seed3c)
+fit3c <- bart2(
+  x3c,
+  counts3c,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+set.seed(seed3c)
+internal3c <- internalMultinomialCountFit(
+  x3c,
+  counts3c,
+  3L,
+  n.trees,
+  n.burn,
+  n.samples
+)
+
+probs3c.fit <- fit3c$yhat.train
+dimnames(probs3c.fit) <- NULL
+expect_identical(probs3c.fit, aperm(internal3c$train, c(3L, 1L, 2L)))
+vc3c.fit <- fit3c$varcount
+dimnames(vc3c.fit) <- NULL
+expect_identical(vc3c.fit, aperm(internal3c$varcount, c(3L, 1L, 2L)))
+
+# colnames(Y) threads onto the K margin and onto $levels; the count matrix
+# itself is stored as $y, as the factor path stores the factor as $y
+expect_equal(fit3c$levels, c("lo", "mid", "hi"))
+expect_equal(dimnames(fit3c$yhat.train)[[3L]], c("lo", "mid", "hi"))
+expect_equal(dimnames(fit3c$varcount)[[3L]], c("lo", "mid", "hi"))
+expect_identical(fit3c$y, counts3c)
+
+# an unnamed count matrix falls back to as.character(seq_len(K)) index
+# levels (Q4 of docs/design/multinomial.md)
+unnamedCounts3c <- counts3c
+colnames(unnamedCounts3c) <- NULL
+set.seed(seed3c)
+fitUnnamed3c <- bart2(
+  x3c,
+  unnamedCounts3c,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(fitUnnamed3c$levels, c("1", "2", "3"))
+expect_equal(dimnames(fitUnnamed3c$yhat.train)[[3L]], c("1", "2", "3"))
+
+# generics work unchanged on a count fit: the softmax output is
+# count-independent, so extract/fitted/predict need no special-casing
+fitted3c.ev <- fitted(fit3c)
+expect_equal(colnames(fitted3c.ev), c("lo", "mid", "hi"))
+fitted3c.class <- fitted(fit3c, type = "class")
+expect_true(is.factor(fitted3c.class))
+expect_equal(levels(fitted3c.class), c("lo", "mid", "hi"))
+ev3c <- extract(fit3c, type = "ev")
+expect_identical(ev3c, fit3c$yhat.train)
+ppd3c <- extract(fit3c, type = "ppd")
+expect_true(all(ppd3c %in% seq_len(3L)))
+
+set.seed(seed3c)
+fit3cKeep <- bart2(
+  x3c,
+  counts3c,
+  family = "multinomial",
+  test = x3c[seq_len(10L), , drop = FALSE],
+  keepTrees = TRUE,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+pred3c <- predict(fit3cKeep, x3c[seq_len(10L), , drop = FALSE])
+expect_identical(pred3c, fit3cKeep$yhat.test)
+
+# print reports the count-matrix input the same way it reports a factor one
+printed3c <- capture.output(print(fit3cKeep))
+expect_true(any(grepl("levels: lo, mid, hi", printed3c, fixed = TRUE)))
+
+# a one-hot count matrix (every row sum 1) reproduces the corresponding
+# factor fit's probabilities bit for bit - the single-trial reduction,
+# checked at the bart2 surface rather than the internal one above
+onehot2 <- matrix(0L, n2, 2L, dimnames = list(NULL, c("no", "yes")))
+onehot2[cbind(seq_len(n2), labels2 + 1L)] <- 1L
+set.seed(seed2)
+fitOneHot2 <- bart2(
+  x2,
+  onehot2,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_identical(fitOneHot2$yhat.train, fit2$yhat.train)
+expect_identical(fitOneHot2$varcount, fit2$varcount)
+
+# --- count-matrix validation: informative, R-side errors ---
+badCounts <- onehot2 + 0L
+negCounts <- badCounts
+negCounts[1L, 1L] <- -1L
+expect_error(
+  bart2(x2, negCounts, family = "multinomial"),
+  "nonnegative"
+)
+fracCounts <- badCounts + 0.0
+fracCounts[1L, 1L] <- 1.5
+expect_error(
+  bart2(x2, fracCounts, family = "multinomial"),
+  "whole numbers"
+)
+zeroRowCounts <- badCounts
+zeroRowCounts[1L, ] <- 0L
+expect_error(
+  bart2(x2, zeroRowCounts, family = "multinomial"),
+  "row sum"
+)
+expect_error(
+  bart2(x2, badCounts[, 1L, drop = FALSE], family = "multinomial"),
+  "at least 2 columns"
+)
+
 # --- honest refusals ---
 expect_error(
   bart2(
