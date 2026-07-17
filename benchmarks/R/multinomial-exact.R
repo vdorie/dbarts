@@ -1,14 +1,16 @@
 #!/usr/bin/env Rscript
 
 # Exact-posterior gate for the bartcore multinomial (softmax) sampler
-# (docs/design/multinomial.md). Four arms, each matching the sampler's
+# (docs/design/multinomial.md). Five arms, each matching the sampler's
 # posterior mean of the IDENTIFIED softmax probabilities to a closed-form
 # quadrature, to Monte Carlo error. A failure means the softmax coupling, the
 # interleaved one-vs-rest Polya-Gamma draw, the level-centering move, or the
 # log-sum-exp margin formation is wrong - fix the model, never loosen the gate.
 # Arm 4 reuses arm 3's fit with two test rows duplicating the two cells and
 # gates that the TEST channel (combinedTestFits) equals the same quadrature
-# target as the train channel - the softmax-invariance correctness fact.
+# target as the train channel - the softmax-invariance correctness fact. Arm 5
+# is the grouped-count analog of arm 1 (n_i > 1), the only exact gate on the
+# PG(n_i) summing draw and the (y - n_i/2) working response.
 #
 # The sampler's per-forest total-fit prior is symmetric N(0, tau^2)^K with
 #   tau = nodeScale / k,  nodeScale = pi*sqrt(3)/sqrt(2),  k = 2
@@ -381,14 +383,93 @@ arm3 <- function() {
   )
 }
 
+# ---------------------------------------------------------------------------
+# Arm 5: intercept-only K = 3 GROUPED COUNTS (n_i > 1)
+# ---------------------------------------------------------------------------
+
+armCount <- function() {
+  # The count path's only exact gate: the PG(n_i) summing draw and the
+  # (y - n_i/2) working response. Intercept-only, so every row shares the softmax
+  # p and the joint likelihood collapses to multinomial(sum_i n_i, p) on the
+  # COLUMN SUMS - the same correlated-difference-Gaussian quadrature arm 1 uses,
+  # with the aggregate counts as its sufficient statistic. (K = 2 counts would
+  # reduce to binomial(n_i, p); this K = 3 arm gates the softmax coupling.)
+  ndpost <- if (quick) 10000L else 40000L
+  nburn <- 5000L
+  nSeeds <- if (quick) 1L else 3L
+  tolerance <- if (quick) 0.012 else 0.008
+
+  set.seed(4242L)
+  K <- 3L
+  n <- 120L
+  trueP <- c(0.5, 0.3, 0.2)
+  # grouped rows, n_i in 2..6 trials each: a genuine multi-trial count matrix
+  trials <- sample(2:6, n, replace = TRUE)
+  counts <- t(vapply(
+    seq_len(n),
+    function(i) rmultinom(1L, trials[i], trueP)[, 1L],
+    integer(K)
+  ))
+  totalCounts <- colSums(counts)
+  x <- matrix(0.5, n, 1L) # constant predictor: no cut points, root-only trees
+
+  # exact posterior mean of the identified softmax probabilities, the aggregate-
+  # count analog of arm 1: the prior on d = (f0 - f2, f1 - f2) is N(0,
+  # tau^2 (I + 11')), the softmax depends only on d, so 2-D quadrature over the
+  # total counts suffices.
+  Sigma <- tau2 * matrix(c(2, 1, 1, 2), 2L, 2L)
+  Prec <- solve(Sigma)
+  M <- 12
+  g <- seq(-M, M, length.out = 301L)
+  grid <- as.matrix(expand.grid(d0 = g, d1 = g))
+  d0 <- grid[, 1L]
+  d1 <- grid[, 2L]
+  lse <- log1p(exp(d0) + exp(d1)) # log(exp(d0) + exp(d1) + 1); f2 = 0
+  logP <- cbind(d0 - lse, d1 - lse, -lse) # log softmax, categories 0,1,2
+  loglik <- logP %*% totalCounts
+  q <- Prec[1, 1] * d0^2 + 2 * Prec[1, 2] * d0 * d1 + Prec[2, 2] * d1^2
+  w <- as.vector(loglik) - 0.5 * q
+  w <- exp(w - max(w))
+  exact <- colSums(exp(logP) * w) / sum(w)
+
+  fitSeed <- function(seed) {
+    set.seed(seed)
+    control <- dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 50L,
+      updateState = FALSE
+    )
+    # the host response is ignored by the multinomial sampler; pass a varying
+    # dummy so the gaussian host builds without a degenerate scale
+    host <- dbarts(x, as.double(counts[, 1L]), control = control)
+    bc <- dbarts:::bartcoreMultinomialCountSampler(host, counts, K = K)
+    r <- dbarts:::bartcoreRun(bc, nburn, ndpost)
+    # every observation shares the intercept-only probabilities; average them
+    apply(r$train, 2L, mean)
+  }
+  fit <- colMeans(do.call(rbind, lapply(seq_len(nSeeds), fitSeed)))
+
+  cat("Arm 5 (intercept-only K = 3 grouped counts):\n")
+  cat(sprintf(
+    "  total counts %s\n",
+    paste(totalCounts, collapse = " ")
+  ))
+  cat(sprintf("  exact   %s\n", paste(sprintf("%.4f", exact), collapse = " ")))
+  cat(sprintf("  sampler %s\n", paste(sprintf("%.4f", fit), collapse = " ")))
+  report("  arm5 counts K=3", max(abs(fit - exact)), tolerance)
+}
+
 arm1()
 cat("\n")
 arm2()
 cat("\n")
 arm3()
 cat("\n")
+armCount()
+cat("\n")
 
 if (anyFailure) {
   quit(status = 1L)
 }
-cat("OK: multinomial sampler matches the exact posterior on all four arms\n")
+cat("OK: multinomial sampler matches the exact posterior on all arms\n")

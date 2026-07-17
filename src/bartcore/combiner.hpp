@@ -174,13 +174,18 @@ struct MultinomialForestSpec {
 };
 
 /// The specification a multinomial (softmax) chain is built from: K symmetric
-/// category forests over the shared design, the borrowed single-trial category
-/// labels (0..K-1, one per observation; n_i = 1 this arc), and the leaf-scale
-/// calibration. The K forests couple through a softmax likelihood with an
-/// interleaved one-vs-rest Polya-Gamma augmentation (docs/design/multinomial.md).
+/// category forests over the shared design, the borrowed grouped-count response,
+/// and the leaf-scale calibration. The K forests couple through a softmax
+/// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation
+/// (docs/design/multinomial.md). counts is an n x K nonnegative integer matrix,
+/// category-major (column k contiguous, at k*n) to match the combiner's omega_
+/// layout; trials is the per-observation trial count n_i = sum_k counts[k*n + i]
+/// (>= 1). Single-trial labels enter as a one-hot counts matrix with every
+/// trial 1, the exact n_i = 1 reduction the bridge builds.
 struct MultinomialSpec {
   std::size_t numCategories = 0;      // K
-  const int* labels = nullptr;        // borrowed 0..K-1 code per observation
+  const int* counts = nullptr;        // borrowed n x K count matrix, category-major
+  const int* trials = nullptr;        // borrowed per-observation trial count n_i
   MultinomialForestSpec forest;       // shared across the K category forests
   // per-forest leaf scale anchor and k: the pairwise log-odds f_ik - f_ij is a
   // difference of two forests, so the per-forest node scale is the logistic
@@ -573,23 +578,26 @@ inline void softmaxLocationMajor(const double* raw, std::size_t n,
 /// level-centering move (docs/design/multinomial.md). Constant leaf only, as
 /// the whole chain is.
 ///
-/// Category k's one-vs-rest conditional is a binomial logistic with linear
-/// predictor eta_ik = f_ik - C_ik, where C_ik = log sum_{j != k} exp(f_ij) is
-/// the log-sum-exp margin: omega_ik ~ PG(1, eta_ik) and forest k sees working
-/// response (y_ik - 1/2)/omega_ik + C_ik under precision omega_ik (the shipped
-/// logistic PG machinery, one binomial per category). The augmentation is
-/// INTERLEAVED, not joint: omega_ik is a temporary latent valid only for
-/// category k's conditional, so it is drawn against the CURRENT margins in
-/// drawForestGlue(k) immediately before forest k's tree update, cycling the
-/// categories (Held and Holmes 2006; Polson, Scott and Windle 2013 sec 4). A
-/// single post-loop all-K draw would be an invalid Jacobi-style update.
+/// Category k's one-vs-rest conditional is a binomial(n_i, .) logistic with
+/// linear predictor eta_ik = f_ik - C_ik, where C_ik = log sum_{j != k} exp(f_ij)
+/// is the log-sum-exp margin: omega_ik ~ PG(n_i, eta_ik) and forest k sees
+/// working response (y_ik - n_i/2)/omega_ik + C_ik under precision omega_ik (the
+/// shipped logistic PG machinery, one binomial per category). PG(n_i, .) is the
+/// sum of n_i iid PG(1, .) draws, so at n_i = 1 (one-hot single-trial rows) this
+/// reduces byte-identically to the label path. The augmentation is INTERLEAVED,
+/// not joint: omega_ik is a temporary latent valid only for category k's
+/// conditional, so it is drawn against the CURRENT margins in drawForestGlue(k)
+/// immediately before forest k's tree update, cycling the categories (Held and
+/// Holmes 2006; Polson, Scott and Windle 2013 sec 4). A single post-loop all-K
+/// draw would be an invalid Jacobi-style update.
 template <IntegrableLeafModel L>
 struct MultinomialForestCombiner : ForestCombiner<L> {
   static_assert(!L::hasVectorParams && !L::hasFunctionParams,
                 "multinomial is a constant-leaf model");
 
   MultinomialForestCombiner(const ColumnStore& data, const MultinomialSpec& spec)
-      : data_(data), numCategories_(spec.numCategories), labels_(spec.labels) {
+      : data_(data), numCategories_(spec.numCategories), counts_(spec.counts),
+        trials_(spec.trials) {
     std::size_t n = data_.numObservations;
     // n x K omega scratch, cold-started at PG(1, 0)'s mean 1/4 (the logistic
     // seed); drawForestGlue overwrites category k's column each sweep before it
@@ -614,9 +622,12 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   bool logLikelihoodIsDefined() const override { return false; }
 
   /// Interleaved PG draw for category f: form the current margin C_if and draw
-  /// omega_if ~ PG(1, f_if - C_if) against it, storing both so
+  /// omega_if ~ PG(n_i, f_if - C_if) against it, storing both so
   /// formForestResponse(f), called immediately after, reads the SAME margin and
   /// precision. margins_ and omega_'s f-th column are the f-specific handoff.
+  /// PG(n_i, psi) is the sum of n_i iid PG(1, psi) draws (the only shipped
+  /// sampler); at n_i = 1 the loop is empty, so exactly one PG draw with the
+  /// identical psi - the byte-identical single-trial reduction of the label path.
   void drawForestGlue(std::size_t f, ext_rng* rng,
                       const std::vector<Forest<L>>& forests) override {
     std::size_t n = data_.numObservations;
@@ -625,13 +636,19 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
     for (std::size_t i = 0; i < n; ++i) {
       double margin = otherCategoryMargin(f, i, forests);
       margins_[i] = margin;
-      omega[i] = ext_rng_simulatePolyaGamma(rng, fFits[i] - margin);
+      double psi = fFits[i] - margin;
+      double draw = ext_rng_simulatePolyaGamma(rng, psi);
+      for (int c = 1; c < trials_[i]; ++c)
+        draw += ext_rng_simulatePolyaGamma(rng, psi);
+      omega[i] = draw;
     }
   }
 
-  /// Category f's PG working response (y_if - 1/2)/omega_if + C_if under weight
-  /// omega_if, formed from the labels the combiner owns (the passed chain y is
-  /// ignored). Reads the margin and omega drawForestGlue(f) just stored.
+  /// Category f's PG working response (y_if - n_i/2)/omega_if + C_if under weight
+  /// omega_if, formed from the count matrix the combiner owns (the passed chain y
+  /// is ignored). Reads the margin and omega drawForestGlue(f) just stored. At
+  /// n_i = 1 the one-hot y_if is in {0, 1} and trials * 0.5 is exactly 0.5, so
+  /// this is the byte-identical single-trial reduction.
   ForestResponse formForestResponse(std::size_t f,
       const std::vector<Forest<L>>& forests, const double* /*y*/,
       const double* /*w*/) override {
@@ -639,8 +656,8 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
     std::size_t n = data_.numObservations;
     const double* omega = omega_.data() + f * n;
     for (std::size_t i = 0; i < n; ++i) {
-      double yif = static_cast<std::size_t>(labels_[i]) == f ? 1.0 : 0.0;
-      forestResponse_[i] = (yif - 0.5) / omega[i] + margins_[i];
+      double yif = static_cast<double>(counts_[f * n + i]);
+      forestResponse_[i] = (yif - trials_[i] * 0.5) / omega[i] + margins_[i];
       forestWeights_[i] = omega[i];
     }
     return {forestResponse_.data(), forestWeights_.data()};
@@ -758,7 +775,8 @@ private:
 
   const ColumnStore& data_;
   std::size_t numCategories_;
-  const int* labels_;                  // borrowed 0..K-1 code per observation
+  const int* counts_;    // borrowed n x K count matrix, category-major (k*n + i)
+  const int* trials_;    // borrowed per-observation trial count n_i (>= 1)
   std::vector<double> omega_;          // n x K, category-major (column k at k*n)
   std::vector<double> margins_;        // n; the current forest's C_if handoff
   std::vector<double> combined_;       // n x K softmax probabilities
