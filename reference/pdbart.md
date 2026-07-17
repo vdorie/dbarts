@@ -209,8 +209,8 @@ machine. *The Annals of Statistics*, **29**, 1189–1232.
 
 ## Author
 
-Hugh Chipman: <hugh.chipman@acadiau.ca>.  
-Robert McCulloch: <robert.mcculloch@chicagogsb.edu>.
+Hugh Chipman: <hugh.chipman@gmail.com>.  
+Robert McCulloch: <robert.mcculloch1@gmail.com>.
 
 ## Examples
 

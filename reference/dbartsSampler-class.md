@@ -54,6 +54,12 @@ getTrees(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
 # S4 method for class 'dbartsSampler'
+getSigmas(result)
+# S4 method for class 'dbartsSampler'
+getLatents(result)
+# S4 method for class 'dbartsSampler'
+getSumsOfSquaredResiduals(result)
+# S4 method for class 'dbartsSampler'
 installTrees(donor, samples = NULL)
 # S4 method for class 'dbartsSampler'
 setState(newState)
@@ -265,6 +271,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   tree so the `n` column counts them instead of the training data; the
   tree structure, splits, and leaf values are unchanged.
 
+- result:
+
+  For `getLatents`, an optional pre-allocated numeric vector (or, with
+  multiple chains, matrix) that it fills in place and returns instead of
+  allocating a new one; its length must equal the number of observations
+  times the number of chains. Omit it to let `getLatents` allocate.
+  Accepted but not used by `getSigmas` and `getSumsOfSquaredResiduals`.
+
 - treeNum:
 
   An integer listing the indices of the tree to plot.
@@ -455,6 +469,21 @@ down; rules on complete columns and leaves are `NA`. Under a `linear`
 node prior each leaf's `value` is its intercept and the result gains one
 `beta.<column>` column per designated covariate holding that leaf's
 slope on the internal standardized scale; internal nodes are `NA`.
+
+For `getSigmas`, a numeric vector of length equal to the number of
+chains, giving each chain's current residual standard deviation on the
+original response scale.
+
+For `getSumsOfSquaredResiduals`, a numeric vector of length equal to the
+number of chains, giving each chain's residual sum of squares \\\sum
+(y - \hat{y})^2\\ on the original response scale; a binary-response
+sampler reports on the latent scale instead.
+
+For `getLatents`, `NULL` when the model has no latent-variable
+representation (e.g. a gaussian response); otherwise the sampler's
+current latent values - a plain vector of length equal to the number of
+observations when there is a single chain, or an observations-by-chains
+matrix otherwise - written into `result` when one was supplied.
 
 ## See also
 

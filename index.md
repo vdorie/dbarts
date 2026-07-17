@@ -14,8 +14,9 @@ mechanism.
 
 ## Features
 
-- Gaussian, probit, and logistic response families
-  (`family = "gaussian"/"probit"/"logistic"`)
+- Gaussian, probit, logistic, accelerated-failure-time survival, and
+  multinomial response families
+  (`family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"`)
 - Missing predictor values handled in place via MIA
   (`missing = "incorporate"`)
 - DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)

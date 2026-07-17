@@ -14,8 +14,9 @@ mechanism.
 
 ## Features
 
-- Gaussian, probit, and logistic response families
-  (`family = "gaussian"/"probit"/"logistic"`)
+- Gaussian, probit, logistic, accelerated-failure-time survival, and
+  multinomial response families
+  (`family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"`)
 - Missing predictor values handled in place via MIA
   (`missing = "incorporate"`)
 - DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)
@@ -118,6 +119,9 @@ weights can change between draws, for use inside larger MCMC schemes.
   [`setTestOffset(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`printTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`getTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getSigmas(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getLatents(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  [`getSumsOfSquaredResiduals(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`installTrees(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`setState(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   [`plotTree(`*`<dbartsSampler>`*`)`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)

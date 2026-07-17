@@ -9,6 +9,11 @@ constrained by a prior to be a weak learner.
 - For binary response \\y\\, \\P(Y = 1 \mid x) = \Phi(f(x))\\, where
   \\\Phi\\ denotes the standard normal cdf (probit link).
 
+- `bart2` fits further response families - logistic, accelerated failure
+  time (`family = "aft"`), and K-category multinomial
+  (`family = "multinomial"`) - through its `family` argument, described
+  below.
+
 ## Usage
 
 ``` r
@@ -134,7 +139,7 @@ summary(object, ...)
 - y.train:
 
   Dependent variable for training (in sample) data. If `y.train` is
-  numeric a continous response model is fit (normal errors). If
+  numeric a continuous response model is fit (normal errors). If
   `y.train` is a two-level factor (or logical, or two-level character)
   or has only values 0 and 1, then a binary response model with a probit
   link is fit. A factor with three or more levels is an error directing
@@ -183,9 +188,9 @@ summary(object, ...)
   \\\pm \pi \sqrt{3}\\, the standard deviation of the standard logistic
   latent variable. In both cases, the bigger \\k\\ is, the more
   conservative the fitting will be. The value can be either a fixed
-  number, or the a *hyperprior* of the form
+  number, or a *hyperprior* of the form
   `chi(degreesOfFreedom = 1.5, scale = 2)`. For `bart2`, the default of
-  `NULL` uses the value 2 for continuous reponses and the `chi(1.5, 2)`
+  `NULL` uses the value 2 for continuous responses and the `chi(1.5, 2)`
   hyperprior for binary ones, which centers the sampled `k` near the
   field-standard fixed value of 2 (prior median 1.9) while adapting to
   the data; pass `k = 2` for the fixed BART-package default, or
@@ -612,7 +617,7 @@ can be used to build a supported hyperprior. At present, only
 \\\chi\_\nu s\\ priors are supported, where \\\nu\\ is a degrees of
 freedom and \\s\\ is a scale. Both values must be positive, however the
 scale can be infinite which yields an improper prior, which is
-interpretted as just the polynomial part of the distribution. If \\nu\\
+interpreted as just the polynomial part of the distribution. If \\nu\\
 is 1 and \\s\\ is \\\infty\\, the prior is “flat”.
 
 For BART on binary outcomes, the degree of overfitting can be highly
@@ -977,7 +982,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.231059
+#> total seconds in loop: 0.238762
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1043,7 +1048,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001394
+#> total seconds in loop: 0.001432
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

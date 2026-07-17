@@ -90,6 +90,12 @@
 <span>  <span class="va">treeNums</span>, <span class="va">chainNums</span>, <span class="va">sampleNums</span>, current <span class="op">=</span> <span class="cn">FALSE</span>, newdata <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getSigmas</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getLatents</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
+<span><span class="fu">getSumsOfSquaredResiduals</span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
+<span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">installTrees</span><span class="op">(</span><span class="va">donor</span>, samples <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
 <span><span class="co"># S4 method for class 'dbartsSampler'</span></span>
 <span><span class="fu">setState</span><span class="op">(</span><span class="va">newState</span><span class="op">)</span></span>
@@ -213,6 +219,14 @@
     tree so the <code>n</code> column counts them instead of the training data; the
     tree structure, splits, and leaf values are unchanged.</p></dd>
 
+  <dt id="arg-result">result<a class="anchor" aria-label="anchor" href="#arg-result"></a></dt>
+<dd><p>For <code>getLatents</code>, an optional pre-allocated numeric vector (or,
+    with multiple chains, matrix) that it fills in place and returns instead
+    of allocating a new one; its length must equal the number of
+    observations times the number of chains. Omit it to let <code>getLatents</code>
+    allocate. Accepted but not used by <code>getSigmas</code> and
+    <code>getSumsOfSquaredResiduals</code>.</p></dd>
+
   <dt id="arg-treenum">treeNum<a class="anchor" aria-label="anchor" href="#arg-treenum"></a></dt>
 <dd><p>An integer listing the indices of the tree to plot.</p></dd>
 
@@ -274,6 +288,9 @@
 <p>For <code>setPredictor</code>, <code>TRUE</code>/<code>FALSE</code> depending on whether or not the operation was successful. The operation can fail if the new predictor results in a tree with an empty leaf-node. If only single columns were replaced, the update is rolled back so that the sampler remains in a valid state. When <code>forceUpdate</code> is <code>"partial"</code>, instead returns a logical vector of length equal to the number of observations, <code>TRUE</code> where that observation's new value was installed and <code>FALSE</code> where it was rolled back to its previous value to keep every tree valid.</p>
 <p><code>predict</code> keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when <code>keepTrees</code> of <code><a href="dbartsControl.html">dbartsControl</a></code> is <code>TRUE</code>, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When <code>keepTrees</code> is <code>FALSE</code>, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to <code>setPredictor</code> if the step is accepted.</p>
 <p>For <code>getTrees</code>, a <code>data.frame</code> with one row per tree node in depth-first, left-hand-side pre-order, with columns <code>chain</code>, <code>sample</code> (present only for saved samples), <code>tree</code>, <code>n</code> (the number of observations in the node), <code>var</code> (the splitting variable, or -1 at a leaf), and <code>value</code> (the split value, or the leaf prediction). An ordinal rule's value is its cut point and observations with values less than or equal to it go left; a categorical rule carries no data value (its <code>value</code> is <code>NA</code>) and its split is reported in the <code>directions</code> column instead. When the sampler has any categorical predictors the result gains a <code>directions</code> column decoding each categorical rule into one <code>"L"</code>/<code>"R"</code> character per level, in level order (level <code>k</code> goes right when its character is <code>"R"</code>); ordinal rules and leaves are <code>NA</code>. When any predictor contains missing values the result gains a <code>missing</code> column giving the branch (<code>"L"</code>/<code>"R"</code>) each rule sends missing values down; rules on complete columns and leaves are <code>NA</code>. Under a <code>linear</code> node prior each leaf's <code>value</code> is its intercept and the result gains one <code>beta.&lt;column&gt;</code> column per designated covariate holding that leaf's slope on the internal standardized scale; internal nodes are <code>NA</code>.</p>
+<p>For <code>getSigmas</code>, a numeric vector of length equal to the number of chains, giving each chain's current residual standard deviation on the original response scale.</p>
+<p>For <code>getSumsOfSquaredResiduals</code>, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \(\sum (y - \hat{y})^2\) on the original response scale; a binary-response sampler reports on the latent scale instead.</p>
+<p>For <code>getLatents</code>, <code>NULL</code> when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into <code>result</code> when one was supplied.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

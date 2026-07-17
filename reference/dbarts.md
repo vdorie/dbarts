@@ -1,7 +1,7 @@
 # Discrete Bayesian Additive Regression Trees Sampler
 
 Creates a sampler object for a given problem which fits a Bayesian
-Additive Regreesion Trees model. Internally stores state in such a way
+Additive Regression Trees model. Internally stores state in such a way
 as to be mutable.
 
 ## Usage
@@ -48,8 +48,10 @@ dbarts(
   in an all-sparse design, while dense columns keep categorical splits
   and linear-leaf designation. A
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md)
-  column is recognized but not yet supported; construction refuses it.
-  See
+  column is accepted here (the x/y, data-frame path) exactly as the
+  other sparse columns are; a bare `formula` object cannot carry it
+  through `model.frame` and refuses it, with a message to use the x/y
+  interface instead. See
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
   for the full data-frame-to-predictor mapping.
 

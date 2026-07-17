@@ -63,9 +63,14 @@ xbart(
 
   An optional vector specifying an offset from 0 for the relationship
   between the underlying function, \\f(x)\\, and the response \\y\\.
-  Only is useful for binary responses, in which case the model fit is to
-  assume \\P(Y = 1 \mid X = x) = \Phi(f(x) + \mathrm{offset})\\, where
-  \\\Phi\\ is the standard normal cumulative distribution function.
+  Useful for all three response families, though each applies it
+  differently: for a gaussian response, \\y = f(x) + \mathrm{offset} +
+  \epsilon\\, a fixed component of the mean (see
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
+  the interaction with BART's internal range-scaling); for binary
+  responses it enters the link directly, \\P(Y = 1 \mid X = x) =
+  \Phi(f(x) + \mathrm{offset})\\ for a `"probit"` fit and the analogous
+  model on the logistic link for `"logistic"`.
 
 - verbose:
 
