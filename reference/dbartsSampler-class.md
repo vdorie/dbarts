@@ -334,12 +334,10 @@ components filling arbitrary roles.
 [`load`](https://rdrr.io/r/base/load.html)ing a `dbarts` sampler for
 future use requires that R's serialization mechanism be able to access
 the state of the sampler which, for memory purposes, is only made
-available to R on request. To do this, one must “touch” the sampler's
-state object before saving, e.g. for the object `sampler`, execute
-`invisible(sampler$state)`. This is in addition to guaranteeing that the
-`state` object is not `NULL`, which can be done by setting the sampler's
-control to an object with `updateState` as `TRUE` or passing `TRUE` as
-the `updateState` argument to any of the sampler's applicable methods.
+available to R on request. To make it available, call `storeState()` on
+the sampler before saving, e.g. for the object `sampler`, execute
+`sampler$storeState()`; this captures the sampler's current state into
+the serializable `state` field regardless of the `updateState` setting.
 
 The state object is opaque and engine-specific, and carries a format
 version and the package version that wrote it. A state loads only within

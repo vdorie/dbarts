@@ -449,8 +449,10 @@ tree. The predictors are supplied in the same form as for
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">newData</span> <span class="op">&lt;-</span> <span class="va">x</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="fl">5</span>,<span class="op">]</span></span>
 <span><span class="va">newTrees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bart.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span>, newdata <span class="op">=</span> <span class="va">newData</span>, sampleNums <span class="op">=</span> <span class="fl">3</span>, treeNums <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
-<pre><code><span><span class="co">## Warning in validateXTest(newdata, data@x): 'x' and 'test' are not both named;</span></span>
-<span><span class="co">## columns of 'test' will be matched by position</span></span></code></pre>
+<pre><code><span><span class="co">## Warning in validateXTest(newdata, data@x): 'test' is unnamed but 'x' had named</span></span>
+<span><span class="co">## predictors; columns of 'test' are matched to 'x' by position (column 1 = 'X1',</span></span>
+<span><span class="co">## column 2 = 'X2', column 3 = 'X3', ...). Supply 'test' with column names to</span></span>
+<span><span class="co">## match by name instead.</span></span></code></pre>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/subset.html" class="external-link">subset</a></span><span class="op">(</span><span class="va">newTrees</span>, <span class="va">chain</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##   chain sample tree n var       value</span></span>

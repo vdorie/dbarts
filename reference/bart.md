@@ -656,13 +656,16 @@ fit this is \\y - P(Y = 1 \mid x)\\. Binary fits do not have
 ### Saving
 
 [`save`](https://rdrr.io/r/base/save.html)ing and
-[`load`](https://rdrr.io/r/base/load.html)ing fitted BART objects for
-use with `predict` requires that R's serialization mechanism be able to
-access the underlying trees, in addition to being fit with
-`keeptrees`/`keepTrees` as `TRUE`. For memory purposes, the trees are
-not stored as R objects unless specifically requested. To do this, one
-must “touch” the sampler's state object before saving, e.g. for a fitted
-object `bartFit`, execute `invisible(bartFit$fit$state)`.
+[`load`](https://rdrr.io/r/base/load.html)ing a fitted BART object for
+use with `predict` requires that it be fit with `keeptrees`/`keepTrees`
+as `TRUE`. When that option is set the sampler's tree state is captured
+automatically at fit time, so the returned object can be saved (with
+[`save`](https://rdrr.io/r/base/save.html) or
+[`saveRDS`](https://rdrr.io/r/base/readRDS.html)) and reloaded for
+`predict` with no additional step. A sampler kept only with
+`keepsampler` (`keeptrees` `FALSE`) and then mutated must have its
+cached state refreshed by hand before saving, by calling `storeState()`
+on it, e.g. `bartFit$fit$storeState()`.
 
 ### Reproducibility
 
@@ -974,7 +977,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221888
+#> total seconds in loop: 0.231059
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1040,7 +1043,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001318
+#> total seconds in loop: 0.001394
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
