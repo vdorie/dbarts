@@ -114,14 +114,13 @@ items
     on the constant-leaf path, the survivors are RMW or cold, so the
     ops NT stores accelerate are no longer hot; the commented bodies
     are deleted (git history keeps them).
-    Independent remainder: add misc_setIndexedVectorToConstant to the
-    dispatch table (completeness only, scatter has no pre-AVX512 SIMD
-    form; stan4bart profiling measured this fit scatter at ~18.5% of
-    per-iteration wall in an n=1e5 mixed fit - stan4bart
-    docs/plans/perf-review.md - so any real win there is algorithmic,
-    layout/locality, not lane-parallel); SSR SIMD leaf stays the
-    separate fixed-lane-layout + re-record decision (simd-survey.md);
-    Windows-arm64 NEON config.
+    Independent remainder: SSR SIMD leaf stays the separate
+    fixed-lane-layout + re-record decision (simd-survey.md);
+    Windows-arm64 NEON config. The setIndexedVectorToConstant
+    dispatch-completeness sub-item is RETIRED 2026-07-17: the fits
+    compaction removed its hot caller (the ~18.5% scatter share the
+    stan4bart profile measured); the sole survivor is the
+    function-leaf cold-start, not worth a dispatch slot.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
