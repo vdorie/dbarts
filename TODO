@@ -121,12 +121,12 @@ items
     docs/plans/simd-flag-multiversioning.md); the sole unrealized win
     is non-temporal stores at DRAM-bound n (setVectorToConstant 1.6x,
     addv 1.24x at n=1e7; they lose cache-resident, so a restore needs
-    a size threshold). The NT-store restore-vs-delete call rides with
-    review-perf-followups (VD 2026-07-17): the commented bodies stay
-    parked until a real n=1e6 bench-box profile - taken after the slab
-    shrink and scatter elimination reshape the cache picture - shows
-    whether the store-bound elementwise share is material; restore
-    behind a threshold if so, delete with the numbers recorded if not.
+    a size threshold). NT-store call RESOLVED DELETE 2026-07-17 at the
+    review-perf-followups close (C6 landing note there): the fits
+    compaction removed every per-sweep store-bound elementwise caller
+    on the constant-leaf path, the survivors are RMW or cold, so the
+    ops NT stores accelerate are no longer hot; the commented bodies
+    are deleted (git history keeps them).
     Independent remainder: add misc_setIndexedVectorToConstant to the
     dispatch table (completeness only, scatter has no pre-AVX512 SIMD
     form; stan4bart profiling measured this fit scatter at ~18.5% of
