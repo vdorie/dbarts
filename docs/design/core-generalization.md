@@ -182,7 +182,13 @@ types is a real step and the sampler never sees R types.
 - **Transactional mutation API**: column-granular replacement (with or
   without re-cutting), per-cell patches, and the per-observation
   propose/validate/commit-or-rollback cycle as an undo journal on the hot
-  layer. Contract: common mutations cost O(changed cells), never O(n*p).
+  layer. Contract by entry point: the per-observation session and column
+  replacement journal only the cells whose code changes (replacement copying a
+  column whole only once more than a quarter of it changes), so their
+  data-layer rollback is O(changed cells); whole-matrix setPredictor is
+  inherently O(n*p) but builds the new codes into fresh storage and swaps, so
+  no snapshot survives and a reject swaps the old back for free. Tree
+  re-routing and fit rebuilds, not the journal, dominate a small patch.
   Per-column-type semantics (factor level changes, sparse pattern changes)
   are defined here once.
 - **Standalone R handle**: an external-pointer object constructible

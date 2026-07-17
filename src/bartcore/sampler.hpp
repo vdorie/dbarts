@@ -886,7 +886,11 @@ public:
     // codes and the gathered leaf-covariate raw the leaf models re-read
     std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
-      oldCodes = data_.codes;
+      // move the live codes aside and rebuild into fresh storage rather than
+      // copying them: a reject swaps them back and an accept drops them, so no
+      // whole-matrix snapshot survives either path
+      oldCodes = std::move(data_.codes);
+      data_.codes.assign(oldCodes.size(), 0);
       // re-quantizing recomputes hasMissing; a rollback must restore it too so
       // rules stay consistent with the reachable gauge
       oldHasMissing = data_.hasMissing;
@@ -933,31 +937,8 @@ public:
           !data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
         return PredictorUpdateResult::invalidCutPoints;
 
-    std::vector<xint_t> oldCodes;
-    std::vector<std::uint8_t> oldHasMissing;
-    std::vector<std::vector<double>> oldCuts;
-    // same rollback rationale as setPredictor above (no engine-side
-    // predictor matrix)
-    std::vector<double> oldGatheredRaw;
-    if (!forceUpdate) {
-      oldCodes.resize(n * numColumns);
-      oldHasMissing.resize(numColumns);
-      oldGatheredRaw = data_.gatheredRawValues;
-      if (updateCutPoints) oldCuts.resize(numColumns);
-      for (size_t k = 0; k < numColumns; ++k) {
-        std::memcpy(oldCodes.data() + k * n,
-                    data_.codes.data() + data_.codeOffsets[columns[k]],
-                    n * sizeof(xint_t));
-        // re-quantizing rebuilds hasMissing; a rollback must restore it too so
-        // rules stay consistent with the reachable gauge
-        oldHasMissing[k] = data_.hasMissing[columns[k]];
-        if (updateCutPoints) oldCuts[k] = data_.cutPoints[columns[k]];
-      }
-    }
-
-    data_.setColumns(newColumns, columns, numColumns, updateCutPoints);
-
     if (forceUpdate) {
+      data_.setColumns(newColumns, columns, numColumns, updateCutPoints);
       for (auto& chain : chains_) chain->forceRefreshTrees();
       if (updateCutPoints && data_.numTestObservations > 0)
         for (size_t k = 0; k < numColumns; ++k)
@@ -965,12 +946,27 @@ public:
       return PredictorUpdateResult::accepted;
     }
 
+    // journal each touched column's changed codes rather than copying it whole
+    // (a column past a quarter changed falls back to a full pre-change copy
+    // inside its record); the small per-column pieces snapshot as before, and
+    // the gathered leaf raw, which no engine matrix backs, copies wholesale
+    std::vector<std::uint8_t> oldHasMissing(numColumns);
+    std::vector<std::vector<double>> oldCuts(updateCutPoints ? numColumns : 0);
+    std::vector<double> oldGatheredRaw = data_.gatheredRawValues;
+    std::vector<ColumnStore::ColumnCodeRollback> records(numColumns);
+    for (size_t k = 0; k < numColumns; ++k) {
+      size_t j = columns[k];
+      oldHasMissing[k] = data_.hasMissing[j];
+      if (updateCutPoints) oldCuts[k] = data_.cutPoints[j];
+      data_.setColumnJournaled(j, newColumns + k * n, updateCutPoints, n / 4,
+                               records[k]);
+    }
+
     if (!revalidateAllChains()) {
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       for (size_t k = 0; k < numColumns; ++k) {
         size_t j = columns[k];
-        std::memcpy(data_.codes.data() + data_.codeOffsets[j],
-                    oldCodes.data() + k * n, n * sizeof(xint_t));
+        data_.restoreColumn(j, records[k]);
         data_.hasMissing[j] = oldHasMissing[k];
         if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
       }
