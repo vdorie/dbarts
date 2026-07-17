@@ -229,3 +229,19 @@ asserted the bugs updated. Rd accuracy touched in four topics (C5 owns
 prose). Noted, untouched: count matrices stay explicit-only; the
 auto-multinomial + weights two-step error; the pre-built dbartsData
 generic error path.
+
+### C3 (2026-07-17)
+
+The five multinomial generics: print divides by n.chains directly (a
+recorded deviation from routing through fitSynopsis, whose
+keepTrees-FALSE fallback would misread the K-widened varcount margin);
+residuals returns the n x K observed-proportion-minus-fitted matrix
+(indicator at n_i = 1, y/rowSums for counts) - the direct
+generalization of residuals.bart, never silent NULL; plot traces
+per-category mean predicted probability (the closest analog of
+plot.bart's sigma trace for a family with no residual scale); summary
+mirrors summary.bart's shape over the same channel; predict gains
+type = c("ev", "ppd") with ppd factored into a shared helper so
+predict and extract draw categories identically. Default paths
+RNG-neutral (asserted on .Random.seed) and bitwise-unchanged; fixture
+identical; suite 3034/0 with 30 new assertions.
