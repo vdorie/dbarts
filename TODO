@@ -67,9 +67,6 @@ items
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
     workingWeights channel vs a sigma vector).
-  mutation-journal: build-new-and-swap for setPredictor instead of
-    copy-old-and-restore; cell-granular journal for the patch paths;
-    document the cost contract per entry point.
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
