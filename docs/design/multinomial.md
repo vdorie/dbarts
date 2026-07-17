@@ -209,6 +209,30 @@ supported (below).
   variable-count channel: bart2(family = "multinomial")$varcount is
   (n.chains x) n.samples x p x K, levels on the K margin and predictor names
   on the p margin, mirroring every other K-shaped fit field.
+- The formula interface (bart2(y ~ x1 + x2, data = df, family =
+  "multinomial")) is accepted beside the matrix interface (landed
+  2026-07-17, docs/plans/multinomial-formula.md); family = "multinomial"
+  is never auto-detected from a factor response - a multi-level factor
+  left-hand side under any other family setting is untouched by this and
+  still whatever it did before (an error, from dbartsData's own
+  response-to-numeric coercion). The response is pulled via
+  model.frame/model.response with NO type coercion: dbartsData's own
+  formula ingestion cannot be reused for this, since it coerces the
+  response to numeric and would discard a factor's levels or a
+  cbind(...) matrix's column names. A factor left-hand side routes to
+  the label path (K and levels(y) as above); a cbind(c1, ..., cK) ~ x
+  left-hand side (the glm binomial idiom) routes to the count path
+  above, K and levels from the cbind column names. The right-hand side
+  is handed to the host sampler build as the term-labeled predictor data
+  frame, uncoded: dbartsData's own data-frame-as-x.train branch codes
+  it, choosing the categorical or indicators builder via 'factors'
+  exactly as any other family's formula fit does, which is what threads
+  term.labels/factor.levels onto the host sampler's data@x and lets
+  predict.bartMultinomial's validateXTest code a data.frame newdata - no
+  separate terms/xlevels retention was needed. A formula fit reproduces
+  the equivalent matrix fit bit for bit at the same seed, the
+  reproduction gate extended to the formula surface
+  (test-multinomial-surface.R).
 - Test fits are DEFINED (testFitsAreDefined() true): test data supplied at
   creation (x.test, wired by createMultinomialHolder before the run) flows to
   all K forests, and combinedTestFits (MultinomialForestCombiner<L>,
