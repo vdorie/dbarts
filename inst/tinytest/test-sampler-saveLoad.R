@@ -4,7 +4,8 @@ source(
 )
 
 # test thanks to Jeremy Coyle
-# test that sampler saves/loads correctly
+# test that a keepTrees fit saves/loads correctly with no manual state ritual:
+# keepTrees now stores the sampler state automatically at fit time
 set.seed(99L)
 bartFit <- dbarts::bart(
   testData$x,
@@ -18,8 +19,6 @@ bartFit <- dbarts::bart(
 
 preds.old <- predict(bartFit, testData$x)
 
-invisible(bartFit$fit$state)
-
 tempFile <- tempfile()
 saveRDS(bartFit, file = tempFile)
 rm(bartFit)
@@ -29,21 +28,21 @@ unlink(tempFile)
 preds.new <- predict(bartFit, testData$x)
 expect_equal(preds.old, preds.new)
 
-# saving without forcing $state cannot restore the sampler, but forcing the
-# serialized promise against the dead pointer must yield the stored-state
-# error, not a C-level null-pointer one
-set.seed(99L)
-bartFit.untouched <- dbarts::bart(
-  testData$x,
-  testData$y,
-  ntree = 3L,
-  ndpost = 7L,
-  nskip = 0L,
-  keeptrees = TRUE,
+# a low-level sampler with updateState = FALSE stores no state, so serializing
+# it and forcing the promise against the dead pointer must yield the stored-
+# state error naming storeState(), not a C-level null-pointer one
+control <- dbarts::dbartsControl(
+  updateState = FALSE,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.trees = 3L,
   verbose = FALSE
 )
+sampler <- dbarts::dbarts(testData$x, testData$y, control = control)
+invisible(sampler$run(0L, 7L))
+
 tempFile <- tempfile()
-saveRDS(bartFit.untouched, file = tempFile)
-bartFit.untouched <- readRDS(tempFile)
+saveRDS(sampler, file = tempFile)
+sampler <- readRDS(tempFile)
 unlink(tempFile)
-expect_error(predict(bartFit.untouched, testData$x), pattern = "stored state")
+expect_error(sampler$predict(testData$x), pattern = "storeState")

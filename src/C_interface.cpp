@@ -12,7 +12,6 @@
 #include <type_traits> // is_same
 
 #include <external/Rinternals.h>
-#include <R_ext/Random.h> // GetRNGstate, PutRNGstate
 
 #include <misc/linearAlgebra.h> // misc_addVectorsInPlace
 
@@ -155,9 +154,11 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
     };
   }
 
-  GetRNGstate();
+  // The engine samples only from each chain's own Mersenne Twister (seeded
+  // from R's stream once at creation), never from R's stream during a run, so
+  // no GetRNGstate/PutRNGstate bracket is needed here - and none is left
+  // unbalanced by a longjmp out of the engine.
   samplerOf(sampler).run(numBurnIn, numSamples, engineResults, {}, onSweep);
-  PutRNGstate();
 }
 
 void dbarts_sampler_setCallback(dbarts_sampler* sampler,
@@ -174,21 +175,18 @@ void dbarts_sampler_setCallback(dbarts_sampler* sampler,
 }
 
 void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {
-  GetRNGstate();
+  // draws from the chain RNG only, not R's stream (see dbarts_sampler_run)
   samplerOf(sampler).sampleTreesFromPrior();
-  PutRNGstate();
 }
 
 void dbarts_sampler_sampleNodeParametersFromPrior(dbarts_sampler* sampler) {
-  GetRNGstate();
+  // draws from the chain RNG only, not R's stream (see dbarts_sampler_run)
   samplerOf(sampler).sampleNodeParametersFromPrior();
-  PutRNGstate();
 }
 
 void dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y) {
-  GetRNGstate(); // probit latent redraw
+  // the probit latent redraw draws from the chain RNG, not R's stream
   samplerOf(sampler).setResponse(y, true); // flat ABI keeps re-anchoring
-  PutRNGstate();
 }
 
 void dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,

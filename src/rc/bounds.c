@@ -52,7 +52,7 @@ int rc_getIntAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   int result;
-  if (i > rc_getLength(v))
+  if (i >= rc_getLength(v))
     result = vgetInt(R_NilValue, name, argsPointer);
   else
     result = vgetInt(VECTOR_ELT(v, i), name, argsPointer);
@@ -268,7 +268,7 @@ double rc_getDoubleAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   double result;
-  if (i > rc_getLength(v))
+  if (i >= rc_getLength(v))
     result = vgetDouble(R_NilValue, name, argsPointer);
   else
     result = vgetDouble(VECTOR_ELT(v, i), name, argsPointer);
@@ -484,7 +484,7 @@ bool rc_getBoolAt(SEXP v, size_t i, const char* name, ...)
   va_start(argsPointer, name);
   
   bool result;
-  if (i > rc_getLength(v))
+  if (i >= rc_getLength(v))
     result = vgetBool(R_NilValue, name, argsPointer);
   else
     result = vgetBool(VECTOR_ELT(v, i), name, argsPointer);

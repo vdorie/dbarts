@@ -70,8 +70,25 @@ validateXTest <- function(x.test, x.train) {
       x.test <- makeCategoricalModelMatrix(x.test)
     } else {
       if (!is.null(termLabels)) {
+        testFormula <-
+          as.formula(paste("~", paste(termLabels, collapse = " + ")))
+        # model.frame resolves an absent term in the enclosing scope, so a
+        # predictor missing from newdata that shares a name with a base object
+        # (e.g. 'c') silently binds to it and fails with an opaque
+        # "invalid type (builtin)"; name the missing variables up front instead
+        neededVars <- all.vars(testFormula)
+        missingVars <- neededVars[neededVars %not_in% names(x.test)]
+        if (length(missingVars) > 0L) {
+          stop(
+            "'test' data is missing ",
+            if (length(missingVars) > 1L) "variables" else "variable",
+            " required by the model: '",
+            toString(missingVars),
+            "'"
+          )
+        }
         x.test <- model.frame(
-          formula = as.formula(paste("~", paste(termLabels, collapse = " + "))),
+          formula = testFormula,
           data = x.test,
           na.action = stats::na.pass
         )
@@ -118,9 +135,28 @@ validateXTest <- function(x.test, x.train) {
     testIsNamed <- !is.null(colnames(x.test))
 
     columnIndices <- seq.int(numPredictors)
-    if (
-      (xIsNamed && !testIsNamed) ||
-        (!xIsNamed && testIsNamed) ||
+    if (xIsNamed && !testIsNamed) {
+      # named fit, positional (unnamed) test: swapped columns would match
+      # silently and return badly wrong numbers, so spell out the mapping the
+      # positional match assumes rather than only noting that it happened
+      shown <- min(numPredictors, 3L)
+      mapping <- paste0(
+        "column ",
+        seq_len(shown),
+        " = '",
+        predictorNames[seq_len(shown)],
+        "'",
+        collapse = ", "
+      )
+      warning(
+        "'test' is unnamed but 'x' had named predictors; columns of 'test' ",
+        "are matched to 'x' by position (",
+        mapping,
+        if (numPredictors > shown) ", ..." else "",
+        "). Supply 'test' with column names to match by name instead."
+      )
+    } else if (
+      (!xIsNamed && testIsNamed) ||
         length(unique(predictorNames)) != length(predictorNames)
     ) {
       warning(
@@ -590,6 +626,12 @@ dbartsData <- function(
       stop("'x' must have the same number of observations as 'y'")
     }
     initialNumObservations <- NROW(y)
+    # an empty training set has no cut grid to quantize and would fault deeper
+    # (a subscript-out-of-bounds subsetting the zero rows below); name it here,
+    # as the formula path already rejects an empty model frame
+    if (initialNumObservations == 0L) {
+      stop("data has zero rows")
+    }
 
     if (missing(subset) || is.null(subset)) {
       subset <- seq.int(length(y))
@@ -660,6 +702,12 @@ dbartsData <- function(
       stop("'x' must have the same number of observations as 'y'")
     }
     initialNumObservations <- NROW(y)
+    # an empty training set has no cut grid to quantize and would fault deeper
+    # (a subscript-out-of-bounds subsetting the zero rows below); name it here,
+    # as the formula path already rejects an empty model frame
+    if (initialNumObservations == 0L) {
+      stop("data has zero rows")
+    }
 
     if (missing(subset) || is.null(subset)) {
       subset <- seq.int(length(y))
@@ -850,6 +898,12 @@ dbartsData <- function(
   # work off the slots without densifying.
   if (anyNA(y)) {
     stop("response contains missing values")
+  }
+  # Inf/-Inf survive the anyNA check (NaN does not), then poison the
+  # precision-degeneracy ratio below into an NA condition; reject them here
+  # with a named error instead.
+  if (any(is.infinite(y))) {
+    stop("response contains non-finite values")
   }
 
   # Precision-degenerate response: a response with a

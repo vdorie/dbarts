@@ -100,7 +100,15 @@ expect_error(
   "multinomial"
 )
 expect_error(
-  xbart(x, y3, n.samples = 5L, n.reps = 1L, n.trees = 10L, k = 2, n.threads = 1L),
+  xbart(
+    x,
+    y3,
+    n.samples = 5L,
+    n.reps = 1L,
+    n.trees = 10L,
+    k = 2,
+    n.threads = 1L
+  ),
   "multinomial"
 )
 

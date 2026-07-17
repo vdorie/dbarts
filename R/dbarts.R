@@ -1121,8 +1121,8 @@ dbartsSampler <- setRefClass(
         if (is.null(state)) {
           stop(
             "samplers cannot be re-created without a stored state; call ",
-            "storeState() - or force $state, see the Saving section of ",
-            "?bart - before serializing"
+            "storeState() before serializing (see the Saving section of ",
+            "?`dbartsSampler-class`)"
           )
         }
         selfEnv$pointer <- .Call(

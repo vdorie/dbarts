@@ -245,3 +245,26 @@ type = c("ev", "ppd") with ppd factored into a shared helper so
 predict and extract draw categories identically. Default paths
 RNG-neutral (asserted on .Random.seed) and bitwise-unchanged; fixture
 identical; suite 3034/0 with 30 new assertions.
+
+### C4 (2026-07-17)
+
+Serialization: keepTrees fits auto-store sampler state at fit-object
+assembly across bart/bart2/rbart_vi (byte-identical to the manual
+ritual's payload; storeState() is now the one documented name). SIZE
+CAVEAT recorded: the state is ~2.8x yhat.train (scales with trees x
+samples x chains), an eager in-session cost accepted for ritual-free
+round-trips - VD may prefer lazy, reversible. Error quality: named
+errors for non-finite response, zero-row data, non-positive
+n.samples, and missing test variables (previously a builtin-collision
+message); the positional-matching warning spells out the assumed
+column mapping. Bridge: assignInPlace fully validated (spec's
+assignInPlaceDiagonal does not exist - one function, both modes
+hardened); the three rc bounds off-by-ones fixed; the AVX512 CPUID
+constant corrected; the C API's four GetRNGstate brackets DROPPED
+after verifying every chain rides a private MT seeded once at
+creation (test-capi bitwise green); simd re-dispatch documented
+init-only. OOM-leak windows deliberately deferred per plan. Gates
+independently re-run: preclean install, tests/cpp clean-build all
+pass, tinytest 3050/0 (+16), equivalence 22/22 + bcf + multinomial
+bitwise. Also folded: air format across the tree (three C2-era files
+had drifted, failing the lint workflow - VD request).

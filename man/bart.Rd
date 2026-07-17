@@ -294,7 +294,7 @@ extract(object, \dots)
   }
   
   \subsection{Saving}{
-    \code{\link{save}}ing and \code{\link{load}}ing fitted BART objects for use with \code{predict} requires that R's serialization mechanism be able to access the underlying trees, in addition to being fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}. For memory purposes, the trees are not stored as R objects unless specifically requested. To do this, one must \dQuote{touch} the sampler's state object before saving, e.g. for a fitted object \code{bartFit}, execute \code{invisible(bartFit$fit$state)}.
+    \code{\link{save}}ing and \code{\link{load}}ing a fitted BART object for use with \code{predict} requires that it be fit with \code{keeptrees}/\code{keepTrees} as \code{TRUE}. When that option is set the sampler's tree state is captured automatically at fit time, so the returned object can be saved (with \code{\link{save}} or \code{\link{saveRDS}}) and reloaded for \code{predict} with no additional step. A sampler kept only with \code{keepsampler} (\code{keeptrees} \code{FALSE}) and then mutated must have its cached state refreshed by hand before saving, by calling \code{storeState()} on it, e.g. \code{bartFit$fit$storeState()}.
   }
   
   \subsection{Reproducibility}{

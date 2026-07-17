@@ -131,6 +131,26 @@ uncombineChains <- function(samples, n.chains) {
   }
 }
 
+# A kept sampler only round-trips through saveRDS/load if its opaque tree
+# state has been forced onto the R side: the external pointer dies at
+# serialization and getPointer() rebuilds the engine from the cached state.
+# keepTrees is the save/predict path, so force it at fit time - draws are
+# untouched (storeState only reads engine state). This is the same payload
+# the manual $state ritual materialized and that any save/predict-after-load
+# needs; its size scales with n.trees x n.samples x n.chains and can exceed
+# the yhat blocks for high tree counts. Skipped when the pointer is already
+# gone (a worker sampler handed back from a cluster fit), leaving the
+# non-keepTrees live-sampler power path to store state by hand.
+storeStateForSerialization <- function(sampler) {
+  if (
+    isTRUE(sampler$control@keepTrees) &&
+      .Call(C_dbarts_bartcore_isValidPointer, sampler$pointer)
+  ) {
+    sampler$storeState()
+  }
+  invisible(NULL)
+}
+
 packageBartResults <- function(
   fit,
   samples,
@@ -251,6 +271,7 @@ packageBartResults <- function(
   result$status <- attr(fit$control, "bartcore.survival")
 
   if (keepSampler) {
+    storeStateForSerialization(fit)
     result$fit <- fit
   } else {
     result$n.chains <- n.chains
@@ -440,6 +461,13 @@ bart2 <- function(
   control@n.burn <- control@n.burn %/% control@n.thin
   control@n.samples <- control@n.samples %/% control@n.thin
   control@printEvery <- control@printEvery %/% control@n.thin
+
+  # a zero (or thinned-to-zero) sample count would otherwise fault deeper, in
+  # the empty-array reshape (dim(X) has no positive length); the multinomial
+  # branch below keeps its own family-named check
+  if (family != "multinomial" && isTRUE(control@n.samples <= 0L)) {
+    stop("'n.samples' must be a positive integer")
+  }
 
   # multinomial (docs/design/multinomial.md): a K-forest softmax model over
   # a factor response or an n x K count matrix, validated and dispatched
@@ -840,7 +868,8 @@ detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
   }
   info <- classifyResponse(response)
   if (
-    info$type %in% c("factor", "ordered factor", "character") &&
+    info$type %in%
+      c("factor", "ordered factor", "character") &&
       !is.na(info$n.levels) &&
       info$n.levels >= 3L
   ) {
