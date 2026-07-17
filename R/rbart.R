@@ -425,7 +425,6 @@ rbart_vi <- function(
     # one multi-chain sampler stands in for the per-chain fits; n.chains
     # stays on the object so the generics need not infer it from the list
     if (keepSampler) {
-      storeStateForSerialization(fitResult$sampler)
       result$fit <- list(fitResult$sampler)
     }
     return(result)
@@ -1291,10 +1290,7 @@ packageRbartResults <- function(
   }
 
   if (keepSampler) {
-    result$fit <- lapply(chainResults, function(x) {
-      storeStateForSerialization(x$sampler)
-      x$sampler
-    })
+    result$fit <- lapply(chainResults, function(x) x$sampler)
   } else {
     result$n.chains <- n.chains
   }

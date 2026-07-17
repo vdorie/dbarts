@@ -14,7 +14,10 @@ decisions adopted under the discretion grant (VD may overrule):
     multinomial) and prints a one-line verdict, rather than refusing or
     (the current bug) silently fitting gaussian on level codes.
   - keepTrees fits store sampler state automatically before serialization
-    (no more undocumented fit$fit$state ritual).
+    (no more undocumented fit$fit$state ritual). OVERRULED by VD
+    2026-07-17 after C4 landed: the state is ~2.8x yhat and the bloat is
+    not acceptable by default - the manual storeState() ritual stays,
+    now documented under that one name with a clear error (C6).
 
 ## Arcs
 
@@ -295,3 +298,16 @@ Arc complete: C1 ca56faf, C2 a3c2ca3, C3 0bdc026, C4 bd473d7, C5
 below. Deferred out of the arc: OOM-leak windows (T2d), the dbarts.h
 rename, Tier 4 engine notes and Tier 5 performance items
 (review-perf-followups TODO entry).
+
+### C6 (2026-07-17): auto-store reverted per VD
+
+VD overruled the eager state capture (the ~2.8x-of-yhat bloat is not
+acceptable as a default; the touch-the-state requirement is a known,
+accepted cost). Reverted the fit-assembly storeState calls and the
+NEWS bullet; KEPT C4's real improvements - storeState() as the one
+documented name, the clear predict-after-reload error naming it, and
+bart.Rd's Saving section now stating the requirement, the reason (the
+state duplicates the trees on the R side, materialized only on
+request), and the exact incantations for bart/bart2 and rbart_vi.
+Tests reworked to assert the documented ritual round-trips bitwise
+and that an uncaptured fit errors on predict naming storeState().
