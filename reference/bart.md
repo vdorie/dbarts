@@ -97,10 +97,22 @@ extract(
 fitted(object, type = c("ev", "class"), ...)
 
 # S3 method for class 'bartMultinomial'
-predict(object, newdata, combineChains = TRUE, ...)
+predict(
+    object, newdata,
+    type = c("ev", "ppd"),
+    combineChains = TRUE, ...)
 
 # S3 method for class 'bartMultinomial'
 print(x, ...)
+
+# S3 method for class 'bartMultinomial'
+residuals(object, ...)
+
+# S3 method for class 'bartMultinomial'
+plot(x, cols = NULL, ...)
+
+# S3 method for class 'bartMultinomial'
+summary(object, ...)
 ```
 
 ## Arguments
@@ -854,8 +866,17 @@ per-category latent fits are non-identified, in the same sense as BCF's
 `newdata` to the training columns exactly as `predict.bart` does and
 returns a levels-named (`n.chains` \\\times\\) `n.samples` \\\times\\
 number of new observations \\\times\\ K probability array, the
-`yhat.test`/`yhat.train` convention; `type = "bart"` is not offered, for
-the same non-identification reason.
+`yhat.test`/`yhat.train` convention; `type = "ppd"` draws one category
+per posterior draw the same way `extract(object, type = "ppd")` does;
+`type = "bart"` is not offered, for the same non-identification reason.
+`residuals(object)` returns an n \\\times\\ K matrix, the observed
+proportion (an indicator for a factor response, `y / rowSums(y)` for a
+count-matrix one) minus the fitted probability in `fitted(object)`, per
+category. `plot(object)` traces each category's training-mean predicted
+probability over the kept draws. `summary(object)` pools that same
+per-category mean-probability channel into posterior mean/sd/quantiles
+(R-hat/ESS when the posterior package is installed), the multinomial
+analog of `summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
 
 For continuous response fits, the `plot` method sets `mfrow` to
 `c(1, 2)` and makes two plots. The first plot is the sequence of kept
@@ -953,7 +974,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.153470
+#> total seconds in loop: 0.221888
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1019,7 +1040,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000929
+#> total seconds in loop: 0.001318
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
