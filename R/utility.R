@@ -20,6 +20,27 @@ validateObject <- function(object) {
   invisible(object)
 }
 
+# One-line verdict when family = "auto" resolves a categorical response to a
+# non-default family (probit for a 2-level response, multinomial for 3+). An
+# ordered factor is routed as a plain one, noted here.
+announceAutoFamily <- function(responseType, nLevels, family) {
+  note <- if (responseType == "ordered factor") {
+    " (ordered levels treated as unordered)"
+  } else {
+    ""
+  }
+  message(
+    "family = \"auto\": ",
+    nLevels,
+    "-level ",
+    responseType,
+    " response detected, fitting family = \"",
+    family,
+    "\"",
+    note
+  )
+}
+
 coerceOrError <- function(x, type) {
   mc <- match.call()
 

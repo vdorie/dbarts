@@ -383,6 +383,28 @@ bart2 <- function(
   callingEnv <- parent.frame()
   family <- match.arg(family)
 
+  # family = "auto" with a 3+-level factor/character response is multinomial
+  # (docs/design/multinomial.md); route it into the branch below and announce.
+  # 2-level and numeric responses stay on the standard path, where dbarts()
+  # resolves probit/gaussian (and announces a factor probit itself).
+  if (family == "auto") {
+    dataMissing <- missing(data)
+    autoMultinomial <- detectAutoMultinomial(
+      formula,
+      if (dataMissing) NULL else data,
+      dataMissing,
+      callingEnv
+    )
+    if (!is.null(autoMultinomial)) {
+      family <- "multinomial"
+      announceAutoFamily(
+        autoMultinomial$type,
+        autoMultinomial$n.levels,
+        family
+      )
+    }
+  }
+
   argNames <- names(matchedCall)[-1L]
   unknownArgs <- argNames %not_in%
     names(formals(dbarts::bart2)) &
@@ -790,6 +812,42 @@ extractMultinomialFormulaData <- function(
   }
 
   list(y = y, x = modelFrame[termLabels])
+}
+
+# family = "auto" peek for bart2: a 3+-level factor or character response
+# selects multinomial. Returns classifyResponse's descriptor for that case,
+# NULL for anything that stays on the standard single-forest path (numeric,
+# 2-level, logical, a count matrix, or a pre-built dbartsData). Type detection
+# only - the multinomial branch re-extracts and validates the response, so
+# this evaluates the formula LHS directly rather than building a model frame.
+detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
+  response <- if (is.formula(formula)) {
+    if (length(formula) != 3L || dataIsMissing || is.null(data)) {
+      return(NULL)
+    }
+    tryCatch(
+      eval(formula[[2L]], envir = data, enclos = callingEnv),
+      error = function(e) NULL
+    )
+  } else if (
+    inherits(formula, "dbartsData") || inherits(formula, "dgCMatrix")
+  ) {
+    return(NULL)
+  } else if (dataIsMissing) {
+    return(NULL)
+  } else {
+    data
+  }
+  info <- classifyResponse(response)
+  if (
+    info$type %in% c("factor", "ordered factor", "character") &&
+      !is.na(info$n.levels) &&
+      info$n.levels >= 3L
+  ) {
+    info
+  } else {
+    NULL
+  }
 }
 
 # The multinomial (softmax) fit path (docs/design/multinomial.md), reached

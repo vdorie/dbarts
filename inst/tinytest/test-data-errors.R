@@ -56,10 +56,11 @@ expect_error(
 rm(modelFormula, testData_df)
 
 
-# test that compatibility specification raises errors
+# test that compatibility specification raises errors. A character response is
+# now accepted (coerced to a factor); a response of an unsupported type is not.
 expect_error(
-  dbarts::dbartsData(testData$x, "not-a-number"),
-  "'data' must be numeric as well"
+  dbarts::dbartsData(testData$x, list(1, 2, 3)),
+  "must be numeric, a factor, logical, or character"
 )
 expect_error(
   dbarts::dbartsData(testData$x, testData$y[1]),
