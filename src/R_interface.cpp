@@ -31,8 +31,24 @@ void R_init_dbarts(DllInfo* info);
 
 extern "C" {
 
+/// Bounds-check R-supplied 1-based array indices against the target's
+/// dimensions. assignInPlace runs once per Gibbs sweep, so this is a short
+/// integer loop with no allocation and no R API call on the valid path.
+static void assertIndicesInRange(
+  const int* indices, const int* dims, R_xlen_t numIndices)
+{
+  for (R_xlen_t i = 0; i < numIndices; ++i)
+    if (indices[i] < 1 || indices[i] > dims[i])
+      Rf_error("assignInPlace: array index out of bounds");
+}
+
 static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
+  if (!Rf_isInteger(indexExpr))
+    Rf_error("assignInPlace: 'index' must be integer");
+
   if (Rf_isReal(targetExpr)) {
+    if (!Rf_isReal(sourceExpr))
+      Rf_error("assignInPlace: 'source' must be double for a double target");
     if (!Rf_isNull(Rf_getAttrib(targetExpr, R_DimSymbol))) {
       SEXP dimsExpr = Rf_getAttrib(targetExpr, R_DimSymbol);
       R_xlen_t numDims = XLENGTH(dimsExpr);
@@ -47,6 +63,8 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
           Rf_error(
             "source must be a scalar when all array dimensions are specified"
           );
+
+        assertIndicesInRange(indices, dims, numDims);
 
         size_t offset = 0;
         size_t stride = 1;
@@ -63,6 +81,12 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
       if (XLENGTH(indexExpr) != numDims - 1)
         Rf_error("all but the first array dimension must be specified");
 
+      assertIndicesInRange(indices, dims + 1, numDims - 1);
+      if (length != static_cast<size_t>(dims[0]))
+        Rf_error(
+          "assignInPlace: 'source' length must equal the target's leading dimension"
+        );
+
       size_t offset = 0;
       size_t stride = dims[0];
       for (R_xlen_t i = 0; i < numDims - 1; ++i) {
@@ -74,12 +98,16 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
       const double* source = REAL(sourceExpr);
       std::memcpy(target + offset, source, length * sizeof(double));
     } else {
-      size_t index = INTEGER(indexExpr)[0] - 1;
-      double* target = REAL(targetExpr);
-      double source = REAL(sourceExpr)[0];
-      target[index] = source;
+      int index = INTEGER(indexExpr)[0];
+      if (index < 1 || static_cast<R_xlen_t>(index) > XLENGTH(targetExpr))
+        Rf_error("assignInPlace: index out of bounds");
+      if (rc_getLength(sourceExpr) < 1)
+        Rf_error("assignInPlace: 'source' must be non-empty");
+      REAL(targetExpr)[index - 1] = REAL(sourceExpr)[0];
     }
   } else if (Rf_isInteger(targetExpr)) {
+    if (!Rf_isInteger(sourceExpr))
+      Rf_error("assignInPlace: 'source' must be integer for an integer target");
     if (!Rf_isNull(Rf_getAttrib(targetExpr, R_DimSymbol))) {
       SEXP dimsExpr = Rf_getAttrib(targetExpr, R_DimSymbol);
       R_xlen_t numDims = XLENGTH(dimsExpr);
@@ -94,6 +122,8 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
           Rf_error(
             "source must be a scalar when all array dimensions are specified"
           );
+
+        assertIndicesInRange(indices, dims, numDims);
 
         size_t offset = 0;
         size_t stride = 1;
@@ -110,6 +140,12 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
       if (XLENGTH(indexExpr) != numDims - 1)
         Rf_error("all but the first array dimension must be specified");
 
+      assertIndicesInRange(indices, dims + 1, numDims - 1);
+      if (length != static_cast<size_t>(dims[0]))
+        Rf_error(
+          "assignInPlace: 'source' length must equal the target's leading dimension"
+        );
+
       size_t offset = 0;
       size_t stride = dims[0];
       for (R_xlen_t i = 0; i < numDims - 1; ++i) {
@@ -121,10 +157,12 @@ static SEXP assignInPlace(SEXP targetExpr, SEXP indexExpr, SEXP sourceExpr) {
       const int* source = INTEGER(sourceExpr);
       std::memcpy(target + offset, source, length * sizeof(int));
     } else {
-      size_t index = INTEGER(indexExpr)[0] - 1;
-      int* target = INTEGER(targetExpr);
-      int source = INTEGER(sourceExpr)[0];
-      target[index] = source;
+      int index = INTEGER(indexExpr)[0];
+      if (index < 1 || static_cast<R_xlen_t>(index) > XLENGTH(targetExpr))
+        Rf_error("assignInPlace: index out of bounds");
+      if (rc_getLength(sourceExpr) < 1)
+        Rf_error("assignInPlace: 'source' must be non-empty");
+      INTEGER(targetExpr)[index - 1] = INTEGER(sourceExpr)[0];
     }
   }
 

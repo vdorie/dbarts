@@ -195,8 +195,8 @@ misc_simd_instructionSet misc_simd_getMaxSIMDInstructionSet(void)
   instructionSet = MISC_INST_AVX2;
   if ((ebx & (1 << 16)) == 0) return instructionSet; // no AVX512
   
-  if (maxBasicLeaf < 0x60) return instructionSet;
-  
+  if (maxBasicLeaf < 0xD) return instructionSet;
+
   cpuid(0xD, info);
   if ((info[0] & 0x60) != 0x60) return instructionSet; // no AVX512F
   instructionSet = MISC_INST_AVX512F; 
@@ -307,6 +307,10 @@ extern void misc_stat_setSIMDInstructionSet(misc_simd_instructionSet i);
 
 void misc_simd_setSIMDInstructionSet(misc_simd_instructionSet i)
 {
+  // Mutates the global dispatch function pointers without synchronization:
+  // call only at init time from the main thread, never while worker threads
+  // may be executing the kernels it re-points.
+
   // if the compiler supports SIMD instruction sets then the binary will be built
   // with code that supports them; check this by preprocessor defines
   

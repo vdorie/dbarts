@@ -159,7 +159,9 @@ rbart_vi <- function(
     group.by.literal <- NULL
     if (is.symbol(matchedCall[["group.by.test"]])) {
       try(
-        group.by.literal <- test[[as.character(matchedCall[["group.by.test"]])]],
+        group.by.literal <- test[[as.character(matchedCall[[
+          "group.by.test"
+        ]])]],
         silent = TRUE
       )
     }
@@ -180,7 +182,9 @@ rbart_vi <- function(
 
     if (is.null(group.by.literal)) {
       try(
-        group.by.literal <- data[[as.character(matchedCall[["group.by.test"]])]],
+        group.by.literal <- data[[as.character(matchedCall[[
+          "group.by.test"
+        ]])]],
         silent = TRUE
       )
     }
@@ -421,6 +425,7 @@ rbart_vi <- function(
     # one multi-chain sampler stands in for the per-chain fits; n.chains
     # stays on the object so the generics need not infer it from the list
     if (keepSampler) {
+      storeStateForSerialization(fitResult$sampler)
       result$fit <- list(fitResult$sampler)
     }
     return(result)
@@ -1286,7 +1291,10 @@ packageRbartResults <- function(
   }
 
   if (keepSampler) {
-    result$fit <- lapply(chainResults, function(x) x$sampler)
+    result$fit <- lapply(chainResults, function(x) {
+      storeStateForSerialization(x$sampler)
+      x$sampler
+    })
   } else {
     result$n.chains <- n.chains
   }
