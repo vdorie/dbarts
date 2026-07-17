@@ -76,10 +76,10 @@ items
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated.
-  repo-modernization: standing hygiene bundle. Remaining: PR-gate the
-    sanitizers workflow once the new gcc-asan/valgrind legs prove
-    stable on pushes; optional codecov badge (VD's call); optional
-    roxygen2 and NEWS.md migrations (do not start unasked).
+  repo-modernization: standing hygiene bundle. Sanitizers PR-gated
+    2026-07-17 (nine consecutive green push runs met the stability
+    condition). Remaining: optional codecov badge (VD's call);
+    optional roxygen2 and NEWS.md migrations (do not start unasked).
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
