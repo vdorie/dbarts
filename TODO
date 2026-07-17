@@ -78,8 +78,10 @@ items
     likely out-of-repo. decision-gated.
   repo-modernization: standing hygiene bundle. Sanitizers PR-gated
     2026-07-17 (nine consecutive green push runs met the stability
-    condition). Remaining: optional codecov badge (VD's call);
-    optional roxygen2 and NEWS.md migrations (do not start unasked);
+    condition). Coverage resolved (VD 2026-07-17): one-shot covr audit
+    at pre-release (see the release section), no CI workflow or badge.
+    Remaining: optional roxygen2 and NEWS.md migrations (do not start
+    unasked);
     dbarts.h's x_test/offset_test -> xTest/offsetTest cosmetic rename,
     deferred because DBARTS_API_STRINGIZE stringizes each parameter's
     full declaration, name included, so the rename alone moves
@@ -107,21 +109,30 @@ items
     multinomial O(nK^2) -> O(nK) margin restructuring (posterior-
     defining, exact-gate re-record), and the move-time gather fusions.
     Plus the Tier 4 engine notes (level-centering precision gate
-    check, shared softmax helper, zero-row guard). post-release.
+    check, shared softmax helper, zero-row guard). Plus the x86-simd
+    NT-store call: profile a real n=1e6 fit on the bench box after the
+    slab/scatter work and decide restore-vs-delete of the parked
+    intrinsics bodies (details in the x86-simd entry). post-release.
   x86-simd: the commented-out linalg intrinsics bodies are NOT needed
     for compute width - the manual unroll plus the per-file -m flag
     already emits 256-bit at -O2 (measured on the bench box,
     docs/plans/simd-flag-multiversioning.md); the sole unrealized win
     is non-temporal stores at DRAM-bound n (setVectorToConstant 1.6x,
-    addv 1.24x at n=1e7; they lose cache-resident) - decide NT-store
-    variants or delete the commented bodies; add
-    misc_setIndexedVectorToConstant to the dispatch table (completeness
-    only, scatter has no pre-AVX512 SIMD form; stan4bart profiling
-    measured this fit scatter at ~18.5% of per-iteration wall in an
-    n=1e5 mixed fit - stan4bart docs/plans/perf-review.md - so any real
-    win there is algorithmic, layout/locality, not lane-parallel); SSR
-    SIMD leaf stays the separate fixed-lane-layout + re-record decision
-    (simd-survey.md); Windows-arm64 NEON config.
+    addv 1.24x at n=1e7; they lose cache-resident, so a restore needs
+    a size threshold). The NT-store restore-vs-delete call rides with
+    review-perf-followups (VD 2026-07-17): the commented bodies stay
+    parked until a real n=1e6 bench-box profile - taken after the slab
+    shrink and scatter elimination reshape the cache picture - shows
+    whether the store-bound elementwise share is material; restore
+    behind a threshold if so, delete with the numbers recorded if not.
+    Independent remainder: add misc_setIndexedVectorToConstant to the
+    dispatch table (completeness only, scatter has no pre-AVX512 SIMD
+    form; stan4bart profiling measured this fit scatter at ~18.5% of
+    per-iteration wall in an n=1e5 mixed fit - stan4bart
+    docs/plans/perf-review.md - so any real win there is algorithmic,
+    layout/locality, not lane-parallel); SSR SIMD leaf stays the
+    separate fixed-lane-layout + re-record decision (simd-survey.md);
+    Windows-arm64 NEON config.
 
 release (deferred; the one ordered procedure, run when VD triggers it)
   note: the schedule/dispatch-only workflows (equivalence, rchk,
@@ -140,6 +151,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     switch (cf70fd5), state format versioned (d3f992a) and superseded
     by the by-name block reader (2d09768). The capi-dispatch-table
     window closed 2026-07-16. No open pre-release decisions remain.
+  run covr once for a coverage audit before submission (VD 2026-07-17:
+    one-shot, no CI workflow or badge; flag genuine test gaps, ignore
+    header-only template attribution noise).
   re-run the revdep sweep near submission (manual; the revdepcheck
     package is GitHub-only). 23 CRAN reverse dependencies; the last
     full pass was clean or explained everywhere (stan4bart 0.0-13 dev
