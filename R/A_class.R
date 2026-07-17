@@ -1,4 +1,6 @@
-## stupid file name to load first
+## the A_ prefix forces this file first in the package's alphabetical
+## load order, so these S4 class definitions exist before any other
+## R/ file references them
 
 methods::setClass("dbartsTreePrior")
 methods::setClass(

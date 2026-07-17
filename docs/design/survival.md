@@ -1,7 +1,8 @@
 # Survival models: design
 
-Status: proposed 2026-07-10. First survival family (AFT log-normal) for
-1.0-x. Companion to the roadmap in docs/plans/survival-models.md and the
+Status: LANDED, 2026-07-10 (f0efc03; grouped rbart_vi support ac6ec2c).
+First survival family (AFT log-normal) for 1.0-x. Companion to the roadmap
+in docs/plans/survival-models.md and the
 extensions table in docs/design/core-generalization.md ("Survival (AFT,
 discrete-time hazard), ordinal, quantile: ResponseModel latents;
 person-period expansion at ingest").

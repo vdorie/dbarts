@@ -268,3 +268,30 @@ independently re-run: preclean install, tests/cpp clean-build all
 pass, tinytest 3050/0 (+16), equivalence 22/22 + bcf + multinomial
 bitwise. Also folded: air format across the tree (three C2-era files
 had drifted, failing the lint workflow - VD request).
+
+### C5 (2026-07-17)
+
+The release surface: NEWS gains four NEW FEATURES bullets (aft,
+multinomial, auto categorical detection, keepTrees state capture) and
+three BUG FIXES bullets (group.by fix, factor-formula fix, named
+errors); README's families line completed; the six Rd corrections
+(sparseFactor claim, xbart offset, sampler introspection methods -
+with the accepted-but-unused result formals documented as such -
+description bullet, typos, author emails); survival.md marked LANDED.
+Writing batch: the aft-omitting family comment fixed at resolveFamily
+with the duplicate pointing there; the dbarts.R defaults comment now
+states the verified constructor-vs-prototype divergence (15 of 17
+slots explicit; n.threads deliberately differs); A_class.R states the
+load-order invariant; debug leftovers deleted (one live comment in
+sliceSample.R deliberately kept); the rollback comment deduplicated;
+the rides-R's-stream comment corrected to the private-MT fact C4
+verified. Item 16 resolved: the API hash DOES cover parameter names
+(#params stringizes the full list), so the x_test/offset_test rename
+is deferred to the next hash-moving dbarts.h change, recorded in the
+repo-modernization TODO entry. Gates: preclean install, suite 3050/0,
+checkRd + tarball Rd checks clean, air clean.
+
+Arc complete: C1 ca56faf, C2 a3c2ca3, C3 0bdc026, C4 bd473d7, C5
+below. Deferred out of the arc: OOM-leak windows (T2d), the dbarts.h
+rename, Tier 4 engine notes and Tier 5 performance items
+(review-perf-followups TODO entry).

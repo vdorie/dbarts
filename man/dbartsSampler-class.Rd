@@ -24,6 +24,9 @@
 \alias{\S4method{setTestOffset}{dbartsSampler}}
 \alias{\S4method{printTrees}{dbartsSampler}}
 \alias{\S4method{getTrees}{dbartsSampler}}
+\alias{\S4method{getSigmas}{dbartsSampler}}
+\alias{\S4method{getLatents}{dbartsSampler}}
+\alias{\S4method{getSumsOfSquaredResiduals}{dbartsSampler}}
 \alias{\S4method{installTrees}{dbartsSampler}}
 \alias{\S4method{setState}{dbartsSampler}}
 \alias{\S4method{plotTree}{dbartsSampler}}
@@ -59,6 +62,9 @@
 \S4method{getTrees}{dbartsSampler}(
   treeNums, chainNums, sampleNums, current = FALSE, newdata = NULL
 )
+\S4method{getSigmas}{dbartsSampler}(result)
+\S4method{getLatents}{dbartsSampler}(result)
+\S4method{getSumsOfSquaredResiduals}{dbartsSampler}(result)
 \S4method{installTrees}{dbartsSampler}(donor, samples = NULL)
 \S4method{setState}{dbartsSampler}(newState)
 \S4method{plotTree}{dbartsSampler}(
@@ -173,6 +179,14 @@
     tree so the \code{n} column counts them instead of the training data; the
     tree structure, splits, and leaf values are unchanged.
   }
+  \item{result}{
+    For \code{getLatents}, an optional pre-allocated numeric vector (or,
+    with multiple chains, matrix) that it fills in place and returns instead
+    of allocating a new one; its length must equal the number of
+    observations times the number of chains. Omit it to let \code{getLatents}
+    allocate. Accepted but not used by \code{getSigmas} and
+    \code{getSumsOfSquaredResiduals}.
+  }
   \item{treeNum}{
     An integer listing the indices of the tree to plot.
   }
@@ -235,6 +249,12 @@
   \code{predict} keeps the current test matrix in place and uses the current set of tree splits. This function has two use cases. The first is when \code{keepTrees} of \code{\link{dbartsControl}} is \code{TRUE}, in which case the sampler should be run to completion and the function can be used to interrogate the existing fit. When \code{keepTrees} is \code{FALSE}, the function can be used to obtain the likelihood as part of a proposed new set of covariates in a Metropolis-Hastings step in a full-Bayes sampler. This would typically be followed by a call to \code{setPredictor} if the step is accepted.
 
   For \code{getTrees}, a \code{data.frame} with one row per tree node in depth-first, left-hand-side pre-order, with columns \code{chain}, \code{sample} (present only for saved samples), \code{tree}, \code{n} (the number of observations in the node), \code{var} (the splitting variable, or -1 at a leaf), and \code{value} (the split value, or the leaf prediction). An ordinal rule's value is its cut point and observations with values less than or equal to it go left; a categorical rule carries no data value (its \code{value} is \code{NA}) and its split is reported in the \code{directions} column instead. When the sampler has any categorical predictors the result gains a \code{directions} column decoding each categorical rule into one \code{"L"}/\code{"R"} character per level, in level order (level \code{k} goes right when its character is \code{"R"}); ordinal rules and leaves are \code{NA}. When any predictor contains missing values the result gains a \code{missing} column giving the branch (\code{"L"}/\code{"R"}) each rule sends missing values down; rules on complete columns and leaves are \code{NA}. Under a \code{linear} node prior each leaf's \code{value} is its intercept and the result gains one \code{beta.<column>} column per designated covariate holding that leaf's slope on the internal standardized scale; internal nodes are \code{NA}.
+
+  For \code{getSigmas}, a numeric vector of length equal to the number of chains, giving each chain's current residual standard deviation on the original response scale.
+
+  For \code{getSumsOfSquaredResiduals}, a numeric vector of length equal to the number of chains, giving each chain's residual sum of squares \eqn{\sum (y - \hat{y})^2}{sum((y - yhat)^2)} on the original response scale; a binary-response sampler reports on the latent scale instead.
+
+  For \code{getLatents}, \code{NULL} when the model has no latent-variable representation (e.g. a gaussian response); otherwise the sampler's current latent values - a plain vector of length equal to the number of observations when there is a single chain, or an observations-by-chains matrix otherwise - written into \code{result} when one was supplied.
 }
 \seealso{
   \code{\link{updatePredictorPerObservationJointly}} for applying a shared per-observation predictor update across several samplers at once.

@@ -1034,9 +1034,10 @@ void printInitialSummary(const ParsedControl& control,
   }
 }
 
-// family selects the response model for binary responses: "" or "probit"
-// give the classic probit latents, "logistic" the Polya-Gamma sampler.
-// Continuous responses are gaussian and accept only "" or "gaussian".
+// family selects the response model. For a binary response: "" or "probit"
+// give the classic probit latents, "logistic" the Polya-Gamma sampler. For a
+// continuous response: "" or "gaussian" fits ordinary BART, "aft" the
+// log-normal survival model (censored latents via a control attribute).
 bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
                                        const char* familyName) {
   if (control.responseIsBinary) {
@@ -1510,9 +1511,7 @@ void validateColumnValues(const bartcore::ColumnStore& store, size_t column,
   }
 }
 
-// family selects the response model for binary responses: "" or "probit"
-// give the classic probit latents, "logistic" the Polya-Gamma sampler.
-// Continuous responses are gaussian and accept only "" or "gaussian".
+// family resolution: see resolveFamily() above.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName) {
   BartcoreHolder* holder = nullptr;

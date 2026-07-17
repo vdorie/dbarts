@@ -56,7 +56,12 @@ extractSurvivalResponse <- function(value) {
   list(log.time = log(time), status = status)
 }
 
-## we don't actually use these defaults; see class definition
+## every slot below is passed explicitly to newValidated, so this
+## function's own defaults are what apply, not A_class.R's prototype;
+## only `binary` and `call`, which this constructor never sets, fall
+## through to it. n.threads is deliberately one of the explicit ones:
+## this default probes guessNumCores(), while the prototype's is the
+## conservative n.threads = 1L for a bare new("dbartsControl").
 dbartsControl <- function(
   verbose = FALSE,
   keepTrainingFits = TRUE,
