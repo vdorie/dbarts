@@ -2118,10 +2118,12 @@ static void testMultinomial(ext_rng* rng) {
     }
 
     // Two rngs seeded identically: the combiner (count path) and a hand-rolled
-    // reference replaying the OLD label path (one PG(1, psi) per observation,
+    // reference replaying the label path (one PG(1, psi) per observation,
     // psi = f_if - C_if, working response (indicator - 0.5)/omega + C_if). Same
     // per-forest draw order, so equal draw streams; every omega and response
-    // must be bitwise equal, not merely close - the n_i = 1 reduction.
+    // must be bitwise equal, not merely close - the n_i = 1 reduction. The
+    // margin mirrors the engine's pairwise log-sum-exp (symmetric, so at K = 3
+    // with static fits the prefix/suffix mix is one merge of the two others).
     ext_rng* refRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
     ext_rng_setSeed(refRng, 13579u);
     ext_rng* combRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -2133,13 +2135,13 @@ static void testMultinomial(ext_rng* rng) {
       ForestResponse fr =
         combiner.formForestResponse(fk, forests, nullptr, nullptr);
       for (size_t i = 0; i < n; ++i) {
-        double maxOther = -HUGE_VAL;
+        double other[2];
+        size_t c = 0;
         for (size_t j = 0; j < K; ++j)
-          if (j != fk) maxOther = std::max(maxOther, f[j][i]);
-        double se = 0.0;
-        for (size_t j = 0; j < K; ++j)
-          if (j != fk) se += std::exp(f[j][i] - maxOther);
-        double margin = maxOther + std::log(se);
+          if (j != fk) other[c++] = f[j][i];
+        double hi = std::max(other[0], other[1]);
+        double lo = std::min(other[0], other[1]);
+        double margin = hi + std::log1p(std::exp(lo - hi));
         double omegaRef = ext_rng_simulatePolyaGamma(refRng, f[fk][i] - margin);
         double yif = labels[i] == static_cast<int>(fk) ? 1.0 : 0.0;
         double respRef = (yif - 0.5) / omegaRef + margin;
