@@ -645,16 +645,29 @@ public:
 
           bool stepTaken;
           StepType stepType;
+          int32_t changedNode = invalidNode;
           metropolisJumpForTree(ctx, forest.leaf, rng_, forest.trees[t],
                                 forest.treeY.data(), sigma_, &stepTaken,
-                                &stepType);
+                                &stepType, &changedNode);
           // accepted changes and deaths strand pooled mask words; no rule
           // copies are live here, so this is a safe point to reclaim them
           if (data_.hasPooledCategorical)
             forest.trees[t].compactMaskPoolIfNeeded(data_);
 
+          // leafOf catches up with the settled move: rejections restore the
+          // partition exactly and write nothing, an accepted move patches only
+          // its repartitioned subtree, and a tree marked stale (wholesale
+          // structure reset with fits left cached) rebuilds in full
+          if constexpr (leafIsConstant) {
+            if (forest.leafOfStale[t] != 0) {
+              rebuildLeafOf(forest, t);
+            } else if (stepTaken) {
+              updateLeafOfBelow(forest, t, changedNode);
+            }
+          }
+
           // the draw writes this tree's new leaf values: the constant leaf's mu
-          // table and obs-to-leaf map, or the dense slab
+          // table, or the dense slab
           sampleParametersAndSetFits(forest, t, treeFits, record);
 
           // flatten while the freshly drawn parameters are live
@@ -817,6 +830,9 @@ public:
         if constexpr (L::hasVectorParams)
           forest.paramsByTree[t].assign(
             forest.trees[t].nodes.size() * forest.leaf.numParams(), 0.0);
+        // the old (mu, leafOf) pair stays behind as the cached-fits evaluator
+        // the next sweep's residual roll needs; mark for rebuild at its draw
+        if constexpr (leafIsConstant) forest.leafOfStale[t] = 1;
       }
   }
 
@@ -870,6 +886,8 @@ public:
             if (data_.hasPooledCategorical)
               forest.trees[t].compactMaskPoolIfNeeded(data_);
 
+            // regrowth replaces the partition wholesale
+            rebuildLeafOf(forest, t);
             sampleParametersAndSetFits(forest, t, nullptr, false);
           }
 
@@ -927,6 +945,7 @@ public:
               forest.leaf.drawFromPrior(rng_, forest.k);
 
           setTreeFitsFromParameters(forest, t, forest.paramByNode);
+          if (forest.leafOfStale[t] != 0) rebuildLeafOf(forest, t);
           addTreeFitsToTotal(forest, t);
           routeTestRows(data_.numTestObservations, [&](size_t i) {
             int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
@@ -1037,8 +1056,12 @@ public:
       if constexpr (L::hasVectorParams)
         forest.leaf.regatherTrainingCovariates(data_);
       for (size_t t = 0; t < forest.numTrees; ++t) {
+        // the subtract reads the pre-reroute (mu, leafOf) pair, exactly the
+        // cached fits totalFits still sums; the rebuild then tracks the
+        // repartition revalidateTrees performed
         subtractTreeFitsFromTotal(forest, t);
         setTreeFits(forest, t, params[t]);
+        if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
         addTreeFitsToTotal(forest, t);
       }
     }
@@ -1124,6 +1147,7 @@ public:
         forest.paramsByTree[t] = params[t];
         setTreeFitsFromParameterBlocks(forest, t, params[t]);
       }
+      if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
       addTreeFitsToTotal(forest, t);
     }
 
@@ -1167,6 +1191,7 @@ public:
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              paramByNode);
           setTreeFitsFromParameters(forest, t, paramByNode);
+          if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
           addTreeFitsToTotal(forest, t);
         }
       } else {
@@ -1710,6 +1735,7 @@ public:
       } else {
         setTreeFits(forest, t, params);
       }
+      if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
       addTreeFitsToTotal(forest, t);
     }
     return true;
@@ -1839,6 +1865,7 @@ public:
     tree.birth(data_, 0, rule, residual, weights);
     int32_t rightChild = tree.at(0).leftChild + 1;
     tree.at(rightChild).begin = tree.at(rightChild).end;
+    if constexpr (leafIsConstant) rebuildLeafOf(forest, 0);
 
     forest.updateK = true;
     forest.kSumSquaredParams = 0.0;
@@ -1922,24 +1949,33 @@ private:
     if constexpr (leafIsConstant) {
       forest.muByTree.assign(forest.numTrees, std::vector<double>(1, 0.0));
       forest.leafOf.assign(n * forest.numTrees, 0);
+      forest.leafOfStale.assign(forest.numTrees, 0);
     } else {
       forest.treeFits.assign(n * forest.numTrees, 0.0);
     }
   }
 
-  /// Rebuild tree t's obs-to-leaf map from its current partition (constant
-  /// leaf): every member of a bottom node points at that node. Co-located with
-  /// the leaf-value write so the map always matches the drawn partition.
-  void rebuildLeafOf(Forest<L>& forest, size_t t) {
+  /// Rewrite tree t's obs-to-leaf entries for the members of nodeIndex's
+  /// subtree (constant leaf): every member of a bottom node points at that
+  /// node. Entries outside the subtree's segment are untouched, so an accepted
+  /// move's patch costs its repartitioned members, not n.
+  void updateLeafOfBelow(Forest<L>& forest, size_t t, int32_t nodeIndex) {
     Tree& tree(forest.trees[t]);
     std::uint32_t* leaf = forest.leafOf.data() + t * data_.numObservations;
     tree.bottomScratch.clear();
-    tree.fillBottom(0, tree.bottomScratch);
+    tree.fillBottom(nodeIndex, tree.bottomScratch);
     for (int32_t i : tree.bottomScratch) {
       const Node& node(tree.at(i));
       for (size_t m = node.begin; m < node.end; ++m)
         leaf[tree.indices[m]] = static_cast<std::uint32_t>(i);
     }
+  }
+
+  /// Full obs-to-leaf rebuild for a wholesale partition change; clears the
+  /// tree's staleness mark.
+  void rebuildLeafOf(Forest<L>& forest, size_t t) {
+    updateLeafOfBelow(forest, t, 0);
+    forest.leafOfStale[t] = 0;
   }
 
   /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
@@ -2052,11 +2088,12 @@ private:
     }
   }
 
+  /// Constant leaves install the mu table only: callers whose partitions
+  /// changed rebuild leafOf themselves, and the rest keep the current map.
   void setTreeFitsFromParameters(Forest<L>& forest, size_t t,
                                  const std::vector<double>& paramByNode) {
     if constexpr (leafIsConstant) {
       forest.muByTree[t] = paramByNode;
-      rebuildLeafOf(forest, t);
     } else {
       // function-leaf cold-start over a fresh partition: scatter the per-node
       // value into the dense slab
@@ -2129,10 +2166,11 @@ private:
             forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
         });
     } else if constexpr (!L::hasVectorParams) {
-      (void) fits;  // the constant leaf carries mu tables, not the dense slab
+      // the constant leaf fills its mu table only; leafOf is already current
+      // (patched at move acceptance, or rebuilt when marked stale)
+      (void) fits;
       std::vector<double>& mu(forest.muByTree[t]);
       mu.assign(tree.nodes.size(), 0.0);
-      std::uint32_t* leaf = forest.leafOf.data() + t * data_.numObservations;
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
         double param = node.numObservations() == 0
@@ -2147,10 +2185,6 @@ private:
           forest.kSumSquaredParams += param * param;
           forest.kNumLeaves += 1.0;
         }
-
-        // the obs-to-leaf map replaces the fits scatter, same bottom-node walk
-        for (size_t m = node.begin; m < node.end; ++m)
-          leaf[tree.indices[m]] = static_cast<std::uint32_t>(i);
       }
 
       if (updateTestFits && data_.numTestObservations > 0)
