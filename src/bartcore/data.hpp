@@ -303,9 +303,9 @@ struct ColumnStore {
                          : static_cast<xint_t>(value);
     if (isNA(value)) return naCode;
     const std::vector<double>& cuts = cutPoints[variable];
-    std::uint32_t k = 0;
-    while (k < numCuts[variable] && value > cuts[k]) ++k;
-    return static_cast<xint_t>(k);
+    const double* first = cuts.data();
+    return static_cast<xint_t>(
+      std::lower_bound(first, first + numCuts[variable], value) - first);
   }
 
   /// A categorical value is representable when it is an integral code of an
@@ -1116,18 +1116,11 @@ struct ColumnStore {
   /// updateCuts) exactly as setColumns does, but record into rollback only what
   /// a reject must undo: each changed cell's old code, or the whole pre-change
   /// column once more than maxJournal cells change (journaling then stops).
-  /// A CSC-backed column keeps quantizeColumn's behavior - requantized from
-  /// its own store, newColumn unread - under a whole-column record.
+  /// Dense stores only: the bridge's refuseViewSampler blocks this mutation
+  /// surface on CSC-built samplers, so no CSC-backed column reaches here.
   void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
                           size_t maxJournal, ColumnCodeRollback& rollback) {
     if (updateCuts) refreshCutsForColumn(j, newColumn);
-    if (columnIsCscBacked(j)) {
-      const xint_t* cscColumn = codes.data() + codeOffsets[j];
-      rollback.fullColumn.assign(cscColumn, cscColumn + numObservations);
-      rollback.full = true;
-      quantizeCscColumn(j);
-      return;
-    }
     xint_t* column = codes.data() + codeOffsets[j];
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numObservations; ++i) {

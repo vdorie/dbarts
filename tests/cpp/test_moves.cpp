@@ -493,6 +493,63 @@ static void testJointPerObservationUpdate() {
          numInstalled, n);
 }
 
+// Committing an NA into a previously NA-free ordinal column through a
+// per-observation session must mark the column missing (setCell owns the flag),
+// so the finalize repartition and a fresh descent route the naCode alike:
+// a stale gauge lets dropStaleMissingDirections clear a bit the partition
+// already routed by, splitting the two. A local generator and a restored
+// rngState leave the shared stream untouched for the downstream snapshots.
+static void testPerObservationMissingCommit(ext_rng* /*rng*/) {
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 13579u);
+  std::unique_ptr<ConstantLeafSampler> samplerPtr =
+    makeBurnedInSampler(x, y, n, localRng);
+  ConstantLeafSampler& sampler(*samplerPtr);
+  check(!sampler.data().hasMissing[0], "column 0 starts NA-free");
+
+  // drive column 0 fully missing; the guard installs the NAs that keep every
+  // leaf occupied and rolls the rest back per cell
+  std::vector<double> missing(n, std::nan(""));
+  std::unique_ptr<bool[]> installed(new bool[n]);
+  check(sampler.updatePredictorPerObservation(missing.data(), 0,
+                                              installed.get()),
+        "all-missing per-observation update finalizes");
+
+  size_t numInstalled = 0;
+  for (size_t i = 0; i < n; ++i) numInstalled += installed[i] ? 1 : 0;
+  check(numInstalled > 0, "some NA cells install");
+  check(sampler.data().hasMissing[0],
+        "committing an NA marks the ordinal column missing");
+
+  // a fresh descent must land every observation where the finalize repartition
+  // counted it: a per-leaf descent tally equal to each reached node's stored
+  // occupancy (dead arena slots are never descended into)
+  bool consistent = true;
+  const size_t numTrees = 25;
+  for (size_t t = 0; t < numTrees && consistent; ++t) {
+    const Tree& tree(sampler.chain(0).tree(t));
+    std::vector<size_t> descentCount(tree.nodes.size(), 0);
+    for (size_t i = 0; i < n; ++i)
+      ++descentCount[static_cast<size_t>(
+        tree.findBottomNodeForObservation(sampler.data(), i))];
+    for (size_t i = 0; i < n; ++i) {
+      int32_t leaf = tree.findBottomNodeForObservation(sampler.data(), i);
+      consistent &= descentCount[static_cast<size_t>(leaf)] ==
+        tree.at(leaf).numObservations();
+    }
+  }
+  check(consistent, "descent tally matches the finalize partition after NA commit");
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: per-observation missing commit (%zu/%zu installed)\n",
+         numInstalled, n);
+}
+
 static void testQuantilePredictorUpdate(ext_rng* rng) {
   const size_t n = 200;
   // discrete predictors so quantile cut counts are small and controllable
@@ -971,6 +1028,7 @@ void runMovesTests(ext_rng* rng) {
   testUpdatePredictorColumns(rng);
   testPerObservationUpdate(rng);
   testJointPerObservationUpdate();
+  testPerObservationMissingCommit(rng);
   testQuantilePredictorUpdate(rng);
   testSetCutPoints(rng);
   testDegenerateRootGuard();

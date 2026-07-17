@@ -1178,14 +1178,9 @@ private:
     }
 
     void commitObservation(size_t i) override {
-      ColumnStore& data(sampler_.data_);
-      data.codes[data.codeOffsets[column_] + i] = newCodes_[i];
-      // keep a leaf-covariate column's gathered raw current so finalize's
-      // regather sees the installed value (the engine keeps no matrix)
-      std::int32_t slot = data.gatheredSlotForColumn(column_);
-      if (slot >= 0)
-        data.gatheredRawValues[static_cast<size_t>(slot) *
-                                 data.numObservations + i] = newColumn_[i];
+      // the session's one cell-write: setCell re-quantizes newColumn_[i] to the
+      // code the valid-move check descended on (cuts fixed) and marks hasMissing
+      sampler_.data_.setCell(i, column_, newColumn_[i]);
       for (size_t t = 0; t < leafCounts_.size(); ++t) {
         if (pendingNewLeaf_[t] != invalidNode) {
           --leafCounts_[t][static_cast<size_t>(pendingOldLeaf_[t])];
