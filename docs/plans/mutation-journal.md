@@ -56,3 +56,31 @@ amended.
   at the next quiet window against bench-sampler-b9d53c7.csv; no
   regression tolerated, improvement expected on the accept path.
   Implementers never run bench-sampler.
+
+## Landings
+
+861a8ff (2026-07-17). Landed as planned: whole-matrix setPredictor
+move-swaps the codes aside and rebuilds into fresh storage (reject
+swaps back, accept drops - no surviving snapshot; peak traffic
+halved); updatePredictor re-quantizes through
+ColumnStore::setColumnJournaled, which records only changed cells'
+old codes and falls back to one whole-column record past n/4 changed
+(break-even by traffic: an 8-byte padded journal cell vs a 2-byte
+code); restoreColumn undoes either form. The design doc's
+mutation-contract paragraph now states per-entry-point costs
+including the honest caveat that tree re-routing, not the data
+layer, dominates small patches. One reviewer addition at landing:
+setColumnJournaled mirrors quantizeColumn's CSC-backed branch
+(requantize from the column's own store, newColumn unread, under a
+whole-column record) - the implementer's dense-only version would
+have silently changed updatePredictor's behavior on sparse-backed
+columns, an edge no gate covers; parity preserved instead of
+deciding new semantics (that decision belongs to sparse-extensions).
+setCell left untouched (no transactional engine caller). Gates:
+component tests incl. the mutation fuzzer UNMODIFIED and green,
+suite 3050/0, equivalence 22/22 identical draws (setdata scenario
+covers the transaction), bcf 5x6 + multinomial (8c2b5fc) 3x5
+bitwise; reviewer re-ran the full battery independently after the
+CSC fix. Diff 122 lines. bench-sampler setPredictor arms:
+orchestrator-run at the next quiet window (expect accept-path
+improvement; no window this session - machine in use).
