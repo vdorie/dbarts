@@ -276,3 +276,54 @@ on return, before release.
   and mirrors the factor path's levels(y). AGAINST: none material; state the
   fallback so an unnamed matrix is not silently unlabeled. Gates C2's surface.
   RECOMMEND colnames-or-index.
+
+## Landings
+
+### C1 (2026-07-17, 2bd34db; baseline record 5c44819)
+
+As specced, plus two implementer findings worth keeping. The combiner
+is count-native (counts_/trials_, the PG(n_i) summing loop, the
+(y - n_i/2) working response); the label bridge entry builds one-hot
+counts + unit trials; bartcore_createMultinomialCounts is the new
+.Call (rchk on next scheduled run); bartcoreMultinomialCountSampler
+is the internal wrapper. Gates, independently re-run at landing:
+single-forest 22/22 identical draws, BCF 5x6 identical, multinomial
+single-trial scenarios identical vs 5afb09a (the byte-identical
+reduction, proven end to end) AND vs the new baseline; exact-gate
+count arm max gap 0.0000 (tol 0.008), other arms unchanged;
+tests/cpp from clean incl. the bit-for-bit reduction case, the PG(n)
+moment, K = 2 == binomial, and a count grow-from-root case; tinytest
+2938/0 no regen. Implementer notes: (1) the fixture's count-scenario
+seeds are inline literals kept OUT of the guarded seeds vector so
+settingsList() stays identical to 5afb09a and the neutrality compare
+actually runs; (2) the engine no longer has a label path to diff
+against, so the in-process reduction test compares the count path at
+unit trials to a hand-rolled replay of the old label arithmetic.
+Baseline multinomial-equivalence-2bd34db.rds (3 scenarios x 5
+channels) recorded in the follow-up commit per the 5afb09a/d66ece4
+precedent; 5afb09a demoted with its neutrality trail.
+
+### C2 (2026-07-17, 38b2482)
+
+bart2(family = "multinomial") accepts the n x K count matrix response
+beside the factor path: R-side validation (nonneg whole numbers, no
+NA, row sums >= 1, K >= 2, each with its own refusal), levels from
+colnames or the index fallback (Q4 as adopted), dispatch through
+bart2MultinomialCounts mirroring the factor path's host-sampler
+construction exactly. packageMultinomialResults takes levels
+explicitly (internal signature only). Generics needed no changes -
+none read the response's type. Gates: public==internal and
+one-hot==factor reproduction both bit-for-bit in tinytest (2959/0);
+fixture + both other anchors identical; R CMD check Rd checks OK; air
+clean. In passing: bart.Rd's stale "no varcount" claim corrected (the
+per-category channel has shipped since the varcounts arc).
+
+### C3 (2026-07-17)
+
+docs/design/multinomial.md's surface section rewritten around the
+count contract (the reduction as the neutrality anchor, the
+no-r-update-analog fact, n_i = 0 refused, K = 2 == binomial); TODO's
+multi-forest entry updated (formula interface is the one remaining
+follow-up). The Q1/Q2/Q4 defaults were adopted during VD's absence as
+annotated under Open questions; none was contradicted by
+implementation.

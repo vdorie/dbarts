@@ -183,13 +183,24 @@ name, never silently reshaped: weights, offset, and the latent type. Test
 data at creation and out-of-sample prediction under keepTrees are both
 supported (below).
 
-- Labels are single-trial category codes 0..K-1, one integer per observation -
-  the labels are the response, so the host sampler's own response is ignored;
-  K defaults to one past the largest code. A grouped-count generalization (the
-  n x K count matrix, n_i > 1) is a recorded follow-up: PG(n_i, .) is the sum of
-  n_i PG(1, .) draws, so it adds the count-matrix data model but no numerical
-  code. Real-shape (non-integer) counts stay out of scope, and case weights are
-  refused (not a coherent single-trial softmax likelihood).
+- The response is an n x K nonnegative integer count matrix with row
+  sums n_i >= 1 (trials): category k's one-vs-rest conditional is
+  binomial(n_i, sigmoid(eta_ik)), augmented by omega_ik ~ PG(n_i, eta_ik)
+  drawn as the sum of n_i PG(1, .) draws - exact, because the shape is
+  observed integer data, never sampled, so the real-shape gap that
+  constrains negative binomial's dispersion has no analog here (landed
+  2bd34db, docs/plans/multinomial-counts.md). Single-trial labels
+  (0..K-1 codes) enter as a one-hot counts matrix with unit trials, the
+  byte-identical n_i = 1 reduction that anchors every recorded
+  equivalence baseline; K defaults to one past the largest code on the
+  label entry and to the column count on the count entry. Empty rows
+  (n_i = 0) are refused at ingestion - PG(0, .) is a point mass at zero
+  and would poison the working response. K = 2 counts reduce to
+  binomial(n_i, p) distributionally (not bitwise - two forests, a
+  different draw stream). The counts (or labels) are the response, so
+  the host sampler's own response is ignored. Real-shape (non-integer)
+  counts stay out of scope, and case weights are refused, both for the
+  same real-shape PG gap.
 - The run's train channel is the n x K x n.samples softmax probabilities, the
   identified deliverable (combinedFits writes the K location-major channels,
   log-sum-exp-safe). Per-category function values and split counts read through
