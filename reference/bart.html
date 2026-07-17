@@ -338,7 +338,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 
 <p></p><div class="section">
 <h3 id="saving">Saving<a class="anchor" aria-label="anchor" href="#saving"></a></h3>
-<p><code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code>ing and <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>ing a fitted BART object for use with <code>predict</code> requires that it be fit with <code>keeptrees</code>/<code>keepTrees</code> as <code>TRUE</code>. When that option is set the sampler's tree state is captured automatically at fit time, so the returned object can be saved (with <code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code> or <code><a href="https://rdrr.io/r/base/readRDS.html" class="external-link">saveRDS</a></code>) and reloaded for <code>predict</code> with no additional step. A sampler kept only with <code>keepsampler</code> (<code>keeptrees</code> <code>FALSE</code>) and then mutated must have its cached state refreshed by hand before saving, by calling <code>storeState()</code> on it, e.g. <code>bartFit$fit$storeState()</code>.</p>
+<p><code><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></code>ing and <code><a href="https://rdrr.io/r/base/load.html" class="external-link">load</a></code>ing a fitted BART object for use with <code>predict</code> requires that it be fit with <code>keeptrees</code>/<code>keepTrees</code> as <code>TRUE</code>, and that the sampler's tree state be captured before saving by calling <code>storeState()</code> on the sampler: <code>bartFit$fit$storeState()</code> (for <code>rbart_vi</code>, on each element of <code>fit</code>: <code>lapply(rbartFit$fit, function(f) f$storeState())</code>). The state is not captured automatically because it duplicates the trees on the R side and can exceed the fit's own sample blocks; it is materialized only on request. A fit saved without it reloads, but <code>predict</code> stops with an error naming <code>storeState()</code>.</p>
 </div>
 
 <p></p><div class="section">
@@ -500,7 +500,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.238762</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.226928</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -566,7 +566,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001432</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001237</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
