@@ -131,3 +131,27 @@ estimated 1-3%) judged not worth it with C2's scatter kill landed.
 Both P4 fusion ideas are hereby closed; do not reopen without a
 fixed-lane redesign of the suffstat kernels (simd-survey.md #3
 territory).
+
+C4 8a6a0c2 (2026-07-17). E3 ROUTED: combinedFits now gathers into
+combined_ and applies softmaxLocationMajor in place, the documented
+combinedTestFits pattern; arithmetic verified identical and the
+multinomial train channel bitwise confirms. E5 GUARDED: rescale()
+early-returns the identity scale (min 0, max 0, range 1) at n == 0 -
+the OOB seed read was reachable from construction and
+setResponse/setData/setOffset, none of which reject n == 0. E1
+CLOSED, NO ACTION, by evidence: multinomial-exact.R arms 1-5 all use
+symmetric priors (equal numTrees/nodeScale/k per category), so v_k is
+equal in every arm and invV cancels from the level-centering
+conditional; categorical-exact.R is single-forest categorical-split,
+never reaching afterCombine; and the gate is blind in principle -
+every arm compares identified softmax probabilities, invariant to the
+grand shift by construction, while the test surface cannot even
+build unequal per-category configs (one n.trees for all K). The
+conditional therefore affects only the unidentified redundancy
+direction (mixing), the design comment already documents the
+observation-count approximation as unbiased for identified
+quantities, and a leaf-count-exact refinement would be a
+shifting-class change with no measured mixing deficit - not taken.
+Gates: suite 3050/0, 22/22 + bcf 5x6 + multinomial 3x5 bitwise
+(implementer full battery; reviewer re-ran multinomial + component).
+Diff 25 lines.
