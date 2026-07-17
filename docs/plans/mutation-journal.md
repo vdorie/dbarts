@@ -16,13 +16,11 @@ amended.
 ## Context
 
 - Full-matrix setPredictor snapshots the entire n x p codes array for
-  rollback (src/bartcore/sampler.hpp:614 `oldCodes = data_.codes;`) -
-  the copy equals the operation's own cost, but build-new-and-swap
-  gets rollback for free and halves peak traffic.
-- Column form already snapshots only touched columns
-  (sampler.hpp:656-701); the per-observation session
-  (sampler.hpp:817-895) is the only path meeting the journal
-  aspiration (docs/design/core-generalization.md:162-165).
+  rollback (src/bartcore/sampler.hpp:573 `oldCodes(data_.codes)`, the
+  second copy site at :882-908) - the copy equals the operation's own
+  cost, but build-new-and-swap gets rollback for free and halves peak
+  traffic. Anchors re-verified 2026-07-17; locate the design doc's
+  mutation-contract paragraph by grep, its line numbers drifted.
 - Tree re-routing and fit rebuilds dominate for small patches; the
   journal only helps the data-layer side. Do not oversell.
 
@@ -40,8 +38,11 @@ amended.
    scratch, swap on accept, drop on reject; delete the oldCodes copy.
    Same for the cuts-refresh variant.
 2. setCell/updatePredictor: journal (index, old value) pairs instead of
-   column copies where the touched-cell count is small (threshold:
-   copy when cells > column/4, measured not guessed).
+   column copies where the touched-cell count is small. Threshold by
+   traffic arithmetic (a journal entry costs index + value vs one
+   cell's byte in a copy), stated in a comment; do not tune it by
+   timing (the machine is not quiet), just verify the direction with
+   the component tests' fixed inputs.
 3. Amend the design doc's mutation-contract paragraph with the actual
    per-entry-point costs.
 
@@ -51,5 +52,7 @@ amended.
   current behavior on fixed inputs (existing mutation tests are the
   oracle; run before and after).
 - Full tinytest; equivalence exact.
-- bench-sampler setPredictor accept/reject metrics: no regression;
-  expect improvement on the accept path.
+- bench-sampler setPredictor accept/reject metrics: orchestrator-run
+  at the next quiet window against bench-sampler-b9d53c7.csv; no
+  regression tolerated, improvement expected on the accept path.
+  Implementers never run bench-sampler.
