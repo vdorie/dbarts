@@ -519,6 +519,127 @@ expect_error(
   "at least 2 columns"
 )
 
+# --- formula interface: a factor or cbind(...) count-matrix response
+# through model.frame/model.response (no type coercion, so levels/column
+# names survive), the right-hand side coded exactly as any other family's
+# formula fit. Explicit family = "multinomial" only - never inferred from a
+# factor response under the default family.
+x3Named <- x3
+colnames(x3Named) <- c("x1", "x2", "x3", "x4")
+df3 <- data.frame(x3Named, y3 = y3)
+
+# factor LHS: reproduces the matrix-interface factor fit bit for bit at the
+# same seed (the reproduction gate extended to the formula surface)
+set.seed(seed3)
+fit3Formula <- bart2(
+  y3 ~ x1 + x2 + x3 + x4,
+  data = df3,
+  family = "multinomial",
+  keepTrees = TRUE,
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+probs3Formula <- fit3Formula$yhat.train
+dimnames(probs3Formula) <- NULL
+probs3Matrix <- fit3$yhat.train
+dimnames(probs3Matrix) <- NULL
+expect_identical(probs3Formula, probs3Matrix)
+expect_equal(fit3Formula$levels, c("lo", "mid", "hi"))
+
+# predict on a data.frame newdata codes it through the retained terms
+# (makeModelMatrix via sampler$data@x's attributes), matching predict on
+# the equivalent already-coded matrix exactly
+newdata3 <- as.data.frame(x3Named[seq_len(20L), , drop = FALSE])
+predFromFrame <- predict(fit3Formula, newdata3)
+predFromMatrix <- predict(fit3Formula, x3Named[seq_len(20L), , drop = FALSE])
+expect_identical(predFromFrame, predFromMatrix)
+
+# explicit-only dispatch: the formula lift does not change what the
+# default family does with a multi-level factor response - still whatever
+# it did before (dbartsData's own formula path numeric-coerces it)
+expect_error(
+  bart2(
+    y3 ~ x1 + x2 + x3 + x4,
+    data = df3,
+    n.trees = 5L,
+    n.burn = 5L,
+    n.samples = 5L,
+    n.chains = 1L,
+    verbose = FALSE
+  ),
+  "not meaningful for factors"
+)
+
+# a factor with an unused level keeps it, as the matrix interface does
+# (K = nlevels(y), never dropped)
+y3Unused <- factor(y3, levels = c(levels(y3), "unused"))
+df3Unused <- data.frame(x3Named, y3Unused = y3Unused)
+set.seed(seed3)
+fit3Unused <- bart2(
+  y3Unused ~ x1 + x2 + x3 + x4,
+  data = df3Unused,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(fit3Unused$levels, c("lo", "mid", "hi", "unused"))
+expect_equal(fit3Unused$K, 4L)
+
+# cbind(...) count-matrix LHS: routes to the count path, levels from the
+# cbind column names, and reproduces the matrix-interface count fit bit
+# for bit at the same seed
+x3cNamed <- x3c
+colnames(x3cNamed) <- c("x1", "x2", "x3", "x4")
+df3c <- data.frame(
+  x3cNamed,
+  lo = counts3c[, 1L],
+  mid = counts3c[, 2L],
+  hi = counts3c[, 3L]
+)
+set.seed(seed3c)
+fit3cFormula <- bart2(
+  cbind(lo, mid, hi) ~ x1 + x2 + x3 + x4,
+  data = df3c,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(fit3cFormula$levels, c("lo", "mid", "hi"))
+probs3cFormula <- fit3cFormula$yhat.train
+dimnames(probs3cFormula) <- NULL
+probs3cMatrix <- fit3c$yhat.train
+dimnames(probs3cMatrix) <- NULL
+expect_identical(probs3cFormula, probs3cMatrix)
+
+# character LHS coerces to a factor exactly as the matrix interface does
+# (plain factor(), so default alphabetical levels)
+df3Char <- data.frame(x3Named, y3Char = as.character(y3))
+set.seed(seed3)
+fit3Char <- bart2(
+  y3Char ~ x1 + x2 + x3 + x4,
+  data = df3Char,
+  family = "multinomial",
+  n.trees = n.trees,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = n.burn,
+  n.samples = n.samples,
+  verbose = FALSE
+)
+expect_equal(fit3Char$levels, sort(levels(y3)))
+
 # --- honest refusals ---
 expect_error(
   bart2(
@@ -561,12 +682,12 @@ expect_error(
   "at least 2 levels"
 )
 expect_error(
-  bart2(
-    y2 ~ x2,
-    data = data.frame(y2 = y2, x2 = x2),
-    family = "multinomial"
-  ),
-  "matrix interface"
+  bart2(dbartsData(x2, as.double(labels2)), family = "multinomial"),
+  "dbartsData"
+)
+expect_error(
+  bart2(y2 ~ x2, family = "multinomial"),
+  "'data'"
 )
 # a fit built WITHOUT test data has no test channel to extract
 expect_error(extract(fit3, type = "ev", sample = "test"), "no test channel")
