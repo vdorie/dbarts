@@ -112,3 +112,22 @@ neutrality question resolved: no knife-edge accept flipped), bcf 5x6
 and multinomial 3x5 bitwise; reviewer re-ran the component binary and
 the 22-scenario compare independently. Diff 316 lines. bench-sampler
 compare PENDING the batched quiet window (with C2/C3).
+
+C3 (2026-07-17): NO-GO, no code landed; the record is this note.
+Child-by-subtraction diverged at the component gate (right-child
+marginal off by the FP reorder; parent - left is not the direct
+reduction) and was reverted at first divergence per protocol - it
+also couples birth() to a live parent-stats invariant several tests
+do not satisfy. Pass fusion audited as structurally non-neutral: the
+suffstat kernels (moments.c:331-405) reduce remainder-first in 5-way
+groups over FINAL ascending buffer positions, while every partition
+variant (SIMD/scalar two-pointer, mask, wide-mask, sparse, MIA) is
+swap-based and does not finalize elements in that order, so in-loop
+accumulation cannot reproduce the kernel's bracketing bitwise; this
+holds uniformly across weighted/categorical/missing paths.
+refreshSubtree additionally has stale parent stats during a full
+refresh. A shifting-class rescue (re-record everything for an
+estimated 1-3%) judged not worth it with C2's scatter kill landed.
+Both P4 fusion ideas are hereby closed; do not reopen without a
+fixed-lane redesign of the suffstat kernels (simd-survey.md #3
+territory).
