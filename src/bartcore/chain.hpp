@@ -253,6 +253,12 @@ public:
   /// leaf); vector leaves accumulate their own statistics.
   static constexpr bool leafTracksNodeAverages = !L::hasVectorParams;
 
+  /// The constant leaf stores compact node-indexed mu tables plus a per-tree
+  /// obs-to-leaf map in place of the dense per-tree fit slab; vector and
+  /// function leaves keep the slab.
+  static constexpr bool leafIsConstant =
+    !L::hasVectorParams && !L::hasFunctionParams;
+
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
@@ -356,7 +362,7 @@ public:
     }
     options_.forestColumns = nullptr;  // consumed above
 
-    forest.treeFits.assign(numObservations * forest.numTrees, 0.0);
+    initForestFitStorage(forest, numObservations);
     forest.totalFits.assign(numObservations, 0.0);
     forest.treeY.resize(numObservations);
     forest.paramByNode.clear();
@@ -492,8 +498,19 @@ public:
   /// consistency read of the cached fits for tests.
   void forestTreeFits(std::size_t f, double* out) const {
     const Forest<L>& forest = forests_[f];
-    std::memcpy(out, forest.treeFits.data(),
-                data_.numObservations * forest.numTrees * sizeof(double));
+    size_t n = data_.numObservations;
+    if constexpr (leafIsConstant) {
+      // materialize the compact fits by gather (identical bytes to the slab)
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        const double* mu = forest.muByTree[t].data();
+        const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+        double* o = out + t * n;
+        for (size_t i = 0; i < n; ++i) o[i] = mu[leaf[i]];
+      }
+    } else {
+      std::memcpy(out, forest.treeFits.data(),
+                  n * forest.numTrees * sizeof(double));
+    }
   }
 
   /// Fires the combiner's post-combine move (BCF: the interweaving glue-ridge
@@ -616,22 +633,11 @@ public:
         // pass per tree retires the previous tree's new fits and admits this
         // tree's old ones; totalFits is stale until rebuilt after the loop.
         for (size_t t = 0; t < forest.numTrees; ++t) {
-          double* treeFits = forest.treeFits.data() + t * n;
+          double* treeFits = nullptr;
+          if constexpr (!leafIsConstant)
+            treeFits = forest.treeFits.data() + t * n;
 
-          if (t == 0) {
-            const double* __restrict y_ = forestY;
-            const double* __restrict total = forest.totalFits.data();
-            const double* __restrict oldFits = treeFits;
-            double* __restrict resid = forest.treeY.data();
-            for (size_t i = 0; i < n; ++i)
-              resid[i] = y_[i] - total[i] + oldFits[i];
-          } else {
-            const double* __restrict prevFits = treeFits - n;
-            const double* __restrict oldFits = treeFits;
-            double* __restrict resid = forest.treeY.data();
-            for (size_t i = 0; i < n; ++i)
-              resid[i] += oldFits[i] - prevFits[i];
-          }
+          rollTreeResidual(forest, t, forestY);
 
           // constant-leaf node means, recomputed against this sweep's residual
           if constexpr (leafTracksNodeAverages)
@@ -647,7 +653,8 @@ public:
           if (data_.hasPooledCategorical)
             forest.trees[t].compactMaskPoolIfNeeded(data_);
 
-          // the draw writes this tree's new fits straight into its slab
+          // the draw writes this tree's new leaf values: the constant leaf's mu
+          // table and obs-to-leaf map, or the dense slab
           sampleParametersAndSetFits(forest, t, treeFits, record);
 
           // flatten while the freshly drawn parameters are live
@@ -663,18 +670,9 @@ public:
                                    forest.totalTestFits.data());
         }
 
-        // rebuild the running total for the latent/sigma updates and
-        // recording: the residual still includes the last tree's slab, whose
-        // new fits retire here instead of in a pass of their own
-        if (forest.numTrees > 0) {
-          const size_t last = forest.numTrees - 1;
-          const double* __restrict y_ = forestY;
-          const double* __restrict resid = forest.treeY.data();
-          const double* __restrict lastFits = forest.treeFits.data() + last * n;
-          double* __restrict total = forest.totalFits.data();
-          for (size_t i = 0; i < n; ++i)
-            total[i] = y_[i] - resid[i] + lastFits[i];
-        }
+        // rebuild the running total for the latent/sigma updates and recording;
+        // the last tree's new fits retire here instead of in a pass of their own
+        finalizeTotalFits(forest, forestY);
       }
 
       // a single forest reports its own fits; BCF the a mu + b_z tau blend
@@ -858,22 +856,7 @@ public:
           forest.kNumLeaves = 0.0;
 
           for (size_t t = 0; t < forest.numTrees; ++t) {
-            double* treeFits = forest.treeFits.data() + t * n;
-
-            if (t == 0) {
-              const double* __restrict y_ = forestY;
-              const double* __restrict total = forest.totalFits.data();
-              const double* __restrict oldFits = treeFits;
-              double* __restrict resid = forest.treeY.data();
-              for (size_t i = 0; i < n; ++i)
-                resid[i] = y_[i] - total[i] + oldFits[i];
-            } else {
-              const double* __restrict prevFits = treeFits - n;
-              const double* __restrict oldFits = treeFits;
-              double* __restrict resid = forest.treeY.data();
-              for (size_t i = 0; i < n; ++i)
-                resid[i] += oldFits[i] - prevFits[i];
-            }
+            rollTreeResidual(forest, t, forestY);
 
             // grow a fresh tree from the root against tree t's residual, in
             // place of metropolisJumpForTree; the reset returns it to a single
@@ -887,19 +870,10 @@ public:
             if (data_.hasPooledCategorical)
               forest.trees[t].compactMaskPoolIfNeeded(data_);
 
-            sampleParametersAndSetFits(forest, t, treeFits, false);
+            sampleParametersAndSetFits(forest, t, nullptr, false);
           }
 
-          if (forest.numTrees > 0) {
-            const size_t last = forest.numTrees - 1;
-            const double* __restrict y_ = forestY;
-            const double* __restrict resid = forest.treeY.data();
-            const double* __restrict lastFits =
-              forest.treeFits.data() + last * n;
-            double* __restrict total = forest.totalFits.data();
-            for (size_t i = 0; i < n; ++i)
-              total[i] = y_[i] - resid[i] + lastFits[i];
-          }
+          finalizeTotalFits(forest, forestY);
         }
 
         const double* combined = combinedFits();
@@ -953,8 +927,7 @@ public:
               forest.leaf.drawFromPrior(rng_, forest.k);
 
           setTreeFitsFromParameters(forest, t, forest.paramByNode);
-          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                                 forest.totalFits.data());
+          addTreeFitsToTotal(forest, t);
           routeTestRows(data_.numTestObservations, [&](size_t i) {
             int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
             forest.totalTestFits[i] +=
@@ -1063,12 +1036,10 @@ public:
       // vector leaves read raw covariate values: pick up the installed ones
       if constexpr (L::hasVectorParams)
         forest.leaf.regatherTrainingCovariates(data_);
-      size_t n = data_.numObservations;
       for (size_t t = 0; t < forest.numTrees; ++t) {
-        double* treeFits = forest.treeFits.data() + t * n;
-        misc_subtractVectorsInPlace(treeFits, n, forest.totalFits.data());
+        subtractTreeFitsFromTotal(forest, t);
         setTreeFits(forest, t, params[t]);
-        misc_addVectorsInPlace(treeFits, n, forest.totalFits.data());
+        addTreeFitsToTotal(forest, t);
       }
     }
   }
@@ -1114,7 +1085,10 @@ public:
 
     if (numObservationsChanged) {
       forest.indexBuffer.resize(n * forest.numTrees);
-      forest.treeFits.resize(n * forest.numTrees);
+      if constexpr (leafIsConstant)
+        forest.leafOf.assign(n * forest.numTrees, 0);
+      else
+        forest.treeFits.resize(n * forest.numTrees);
       forest.totalFits.resize(n);
       forest.treeY.resize(n);
     }
@@ -1150,8 +1124,7 @@ public:
         forest.paramsByTree[t] = params[t];
         setTreeFitsFromParameterBlocks(forest, t, params[t]);
       }
-      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                             forest.totalFits.data());
+      addTreeFitsToTotal(forest, t);
     }
 
     resizeTestStorage();
@@ -1184,8 +1157,7 @@ public:
           dummyParams.assign(forest.trees[t].nodes.size(), 0.0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              dummyParams);
-          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                                 forest.totalFits.data());
+          addTreeFitsToTotal(forest, t);
         }
       } else if constexpr (!L::hasVectorParams) {
         std::vector<double> paramByNode;
@@ -1195,8 +1167,7 @@ public:
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              paramByNode);
           setTreeFitsFromParameters(forest, t, paramByNode);
-          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                                 forest.totalFits.data());
+          addTreeFitsToTotal(forest, t);
         }
       } else {
         forest.leaf.regatherTrainingCovariates(data_);
@@ -1206,8 +1177,7 @@ public:
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              forest.paramsByTree[t], numParams);
           setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
-          misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                                 forest.totalFits.data());
+          addTreeFitsToTotal(forest, t);
         }
       }
     }
@@ -1270,7 +1240,7 @@ public:
     std::vector<std::uint64_t>* masks = data_.hasPooledCategorical
       ? &forest.savedTreeMasks[slot * forest.numTrees + t] : nullptr;
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
-      forest.trees[t].flatten(data_, forest.paramByNode.data(),
+      forest.trees[t].flatten(data_, forest.muByTree[t].data(),
                               forest.savedTrees[slot * forest.numTrees + t],
                               nullptr, 1, nullptr, masks);
     } else if constexpr (L::hasVectorParams) {
@@ -1740,8 +1710,7 @@ public:
       } else {
         setTreeFits(forest, t, params);
       }
-      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
-                             forest.totalFits.data());
+      addTreeFitsToTotal(forest, t);
     }
     return true;
   }
@@ -1836,8 +1805,19 @@ public:
   double k() const { return forests_[0].k; }
   size_t numTrees() const { return forests_[0].numTrees; }
   const Tree& tree(size_t t) const { return forests_[0].trees[t]; }
-  const std::vector<double>& treeFits() const { return forests_[0].treeFits; }
+  /// The dense per-tree fit slab, materialized (the constant leaf gathers its
+  /// compact tables into the returned buffer); a consistency read for tests.
+  std::vector<double> treeFits() const {
+    std::vector<double> out(data_.numObservations * forests_[0].numTrees);
+    forestTreeFits(0, out.data());
+    return out;
+  }
   const std::vector<double>& totalFits() const { return forests_[0].totalFits; }
+  /// Test hook: tree t's obs-to-leaf map (constant leaf, forest 0), where entry
+  /// i is the arena bottom-node index owning observation i.
+  const std::uint32_t* leafOfForTesting(size_t t) const {
+    return forests_[0].leafOf.data() + t * data_.numObservations;
+  }
 
   /// Test hook: split forest 0's tree 0 at (variableIndex, splitIndex) and
   /// strand its right child empty, then run tree 0's parameter draw exactly
@@ -1935,25 +1915,121 @@ private:
     growSubtreeFromPrior(forest, tree, leftChild + 1, y, weights);
   }
 
-  /// Leaf parameters recovered from a tree's fits, indexed by arena node id;
-  /// fits are constant within a leaf, so any member observation's fit is the
-  /// parameter. Must run against partitions consistent with the fits, i.e.
-  /// before any re-route. Scalar leaves only: every vector-parameter caller
-  /// is refused before reaching here (fits are no longer constant per leaf).
-  void recoverParametersFromFits(Forest<L>& forest, size_t t,
-                                 std::vector<double>& paramByNode) {
-    Tree& tree(forest.trees[t]);
-    const double* treeFits =
-      forest.treeFits.data() + t * data_.numObservations;
+  /// Constant-leaf fit storage sizing: node-indexed mu tables (one zero-value
+  /// root per tree) and the tree-major obs-to-leaf map (all-root is all zeros).
+  /// Vector and function leaves size the dense slab instead.
+  void initForestFitStorage(Forest<L>& forest, size_t n) {
+    if constexpr (leafIsConstant) {
+      forest.muByTree.assign(forest.numTrees, std::vector<double>(1, 0.0));
+      forest.leafOf.assign(n * forest.numTrees, 0);
+    } else {
+      forest.treeFits.assign(n * forest.numTrees, 0.0);
+    }
+  }
 
-    paramByNode.assign(tree.nodes.size(), 0.0);
+  /// Rebuild tree t's obs-to-leaf map from its current partition (constant
+  /// leaf): every member of a bottom node points at that node. Co-located with
+  /// the leaf-value write so the map always matches the drawn partition.
+  void rebuildLeafOf(Forest<L>& forest, size_t t) {
+    Tree& tree(forest.trees[t]);
+    std::uint32_t* leaf = forest.leafOf.data() + t * data_.numObservations;
     tree.bottomScratch.clear();
     tree.fillBottom(0, tree.bottomScratch);
     for (int32_t i : tree.bottomScratch) {
       const Node& node(tree.at(i));
-      if (node.numObservations() > 0)
-        paramByNode[static_cast<size_t>(i)] = treeFits[tree.indices[node.begin]];
+      for (size_t m = node.begin; m < node.end; ++m)
+        leaf[tree.indices[m]] = static_cast<std::uint32_t>(i);
     }
+  }
+
+  /// treeY <- the residual tree t owns, admitting tree t's old fits and (t > 0)
+  /// retiring tree t-1's new fits in observation order. The constant leaf
+  /// gathers each tree's fit through mu[leafOf]; the dense slab reads it direct.
+  void rollTreeResidual(Forest<L>& forest, size_t t, const double* forestY) {
+    size_t n = data_.numObservations;
+    double* __restrict resid = forest.treeY.data();
+    if constexpr (leafIsConstant) {
+      const double* __restrict mu = forest.muByTree[t].data();
+      const std::uint32_t* __restrict leaf = forest.leafOf.data() + t * n;
+      if (t == 0) {
+        const double* __restrict y_ = forestY;
+        const double* __restrict total = forest.totalFits.data();
+        for (size_t i = 0; i < n; ++i) resid[i] = y_[i] - total[i] + mu[leaf[i]];
+      } else {
+        const double* __restrict muPrev = forest.muByTree[t - 1].data();
+        const std::uint32_t* __restrict leafPrev =
+          forest.leafOf.data() + (t - 1) * n;
+        for (size_t i = 0; i < n; ++i)
+          resid[i] += mu[leaf[i]] - muPrev[leafPrev[i]];
+      }
+    } else {
+      const double* __restrict treeFits = forest.treeFits.data() + t * n;
+      if (t == 0) {
+        const double* __restrict y_ = forestY;
+        const double* __restrict total = forest.totalFits.data();
+        for (size_t i = 0; i < n; ++i) resid[i] = y_[i] - total[i] + treeFits[i];
+      } else {
+        const double* __restrict prevFits = treeFits - n;
+        for (size_t i = 0; i < n; ++i) resid[i] += treeFits[i] - prevFits[i];
+      }
+    }
+  }
+
+  /// Rebuild totalFits after the sweep loop: the last tree's new fits retire
+  /// here instead of in a pass of their own.
+  void finalizeTotalFits(Forest<L>& forest, const double* forestY) {
+    if (forest.numTrees == 0) return;
+    size_t n = data_.numObservations;
+    const size_t last = forest.numTrees - 1;
+    const double* __restrict y_ = forestY;
+    const double* __restrict resid = forest.treeY.data();
+    double* __restrict total = forest.totalFits.data();
+    if constexpr (leafIsConstant) {
+      const double* __restrict mu = forest.muByTree[last].data();
+      const std::uint32_t* __restrict leaf = forest.leafOf.data() + last * n;
+      for (size_t i = 0; i < n; ++i) total[i] = y_[i] - resid[i] + mu[leaf[i]];
+    } else {
+      const double* __restrict lastFits = forest.treeFits.data() + last * n;
+      for (size_t i = 0; i < n; ++i)
+        total[i] = y_[i] - resid[i] + lastFits[i];
+    }
+  }
+
+  /// totalFits += tree t's fits (constant: gathered through mu[leafOf]).
+  void addTreeFitsToTotal(Forest<L>& forest, size_t t) {
+    size_t n = data_.numObservations;
+    if constexpr (leafIsConstant) {
+      const double* mu = forest.muByTree[t].data();
+      const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+      double* total = forest.totalFits.data();
+      for (size_t i = 0; i < n; ++i) total[i] += mu[leaf[i]];
+    } else {
+      misc_addVectorsInPlace(forest.treeFits.data() + t * n, n,
+                             forest.totalFits.data());
+    }
+  }
+
+  /// totalFits -= tree t's current fits, the inverse of addTreeFitsToTotal.
+  void subtractTreeFitsFromTotal(Forest<L>& forest, size_t t) {
+    size_t n = data_.numObservations;
+    if constexpr (leafIsConstant) {
+      const double* mu = forest.muByTree[t].data();
+      const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+      double* total = forest.totalFits.data();
+      for (size_t i = 0; i < n; ++i) total[i] -= mu[leaf[i]];
+    } else {
+      misc_subtractVectorsInPlace(forest.treeFits.data() + t * n, n,
+                                  forest.totalFits.data());
+    }
+  }
+
+  /// Leaf parameters recovered for tree t, indexed by arena node id. The
+  /// constant leaf's persistent mu table already holds them; the resize is a
+  /// no-op fit that keeps the arena-length invariant callers rely on.
+  void recoverParametersFromFits(Forest<L>& forest, size_t t,
+                                 std::vector<double>& paramByNode) {
+    paramByNode = forest.muByTree[t];
+    paramByNode.resize(forest.trees[t].nodes.size(), 0.0);
   }
 
   /// Function-valued leaves' per-leaf reporting values, indexed by arena
@@ -1978,19 +2054,25 @@ private:
 
   void setTreeFitsFromParameters(Forest<L>& forest, size_t t,
                                  const std::vector<double>& paramByNode) {
-    Tree& tree(forest.trees[t]);
-    double* treeFits = forest.treeFits.data() + t * data_.numObservations;
-
-    tree.bottomScratch.clear();
-    tree.fillBottom(0, tree.bottomScratch);
-    for (int32_t i : tree.bottomScratch) {
-      const Node& node(tree.at(i));
-      double param = paramByNode[static_cast<size_t>(i)];
-      if (node.parent == invalidNode) {
-        misc_setVectorToConstant(treeFits, node.numObservations(), param);
-      } else {
-        misc_setIndexedVectorToConstant(treeFits, tree.indices + node.begin,
-                                        node.numObservations(), param);
+    if constexpr (leafIsConstant) {
+      forest.muByTree[t] = paramByNode;
+      rebuildLeafOf(forest, t);
+    } else {
+      // function-leaf cold-start over a fresh partition: scatter the per-node
+      // value into the dense slab
+      Tree& tree(forest.trees[t]);
+      double* treeFits = forest.treeFits.data() + t * data_.numObservations;
+      tree.bottomScratch.clear();
+      tree.fillBottom(0, tree.bottomScratch);
+      for (int32_t i : tree.bottomScratch) {
+        const Node& node(tree.at(i));
+        double param = paramByNode[static_cast<size_t>(i)];
+        if (node.parent == invalidNode) {
+          misc_setVectorToConstant(treeFits, node.numObservations(), param);
+        } else {
+          misc_setIndexedVectorToConstant(treeFits, tree.indices + node.begin,
+                                          node.numObservations(), param);
+        }
       }
     }
   }
@@ -2047,14 +2129,17 @@ private:
             forest.leaf.fitForTestObservationForNode(tree, leafIndex, i);
         });
     } else if constexpr (!L::hasVectorParams) {
-      forest.paramByNode.assign(tree.nodes.size(), 0.0);
+      (void) fits;  // the constant leaf carries mu tables, not the dense slab
+      std::vector<double>& mu(forest.muByTree[t]);
+      mu.assign(tree.nodes.size(), 0.0);
+      std::uint32_t* leaf = forest.leafOf.data() + t * data_.numObservations;
       for (int32_t i : bottoms) {
         const Node& node(tree.at(i));
         double param = node.numObservations() == 0
           ? 0.0
           : forest.leaf.drawFromPosteriorForNode(rng_, tree, forest.k,
                                                  sigma_ * sigma_, i);
-        forest.paramByNode[static_cast<size_t>(i)] = param;
+        mu[static_cast<size_t>(i)] = param;
 
         // a forced-zero empty leaf is not a draw from the k-scaled prior, so
         // it carries no information about k; skip it as the function path does
@@ -2063,20 +2148,15 @@ private:
           forest.kNumLeaves += 1.0;
         }
 
-        if (node.parent == invalidNode) {
-          misc_setVectorToConstant(fits, node.numObservations(), param);
-        } else {
-          misc_setIndexedVectorToConstant(fits,
-                                          tree.indices + node.begin,
-                                          node.numObservations(), param);
-        }
+        // the obs-to-leaf map replaces the fits scatter, same bottom-node walk
+        for (size_t m = node.begin; m < node.end; ++m)
+          leaf[tree.indices[m]] = static_cast<std::uint32_t>(i);
       }
 
       if (updateTestFits && data_.numTestObservations > 0)
         routeTestRows(data_.numTestObservations, [&](size_t i) {
           int32_t leafIndex = tree.findBottomNodeForRow(data_, i);
-          forest.currTestFits[i] =
-            forest.paramByNode[static_cast<size_t>(leafIndex)];
+          forest.currTestFits[i] = mu[static_cast<size_t>(leafIndex)];
         });
     } else {
       size_t numParams = forest.leaf.numParams();
@@ -2176,7 +2256,7 @@ private:
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }
 
-    forest.treeFits.assign(n * spec.numTrees, 0.0);
+    initForestFitStorage(forest, n);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);
   }
@@ -2205,7 +2285,7 @@ private:
     forest.trees.resize(spec.numTrees);
     for (std::size_t t = 0; t < spec.numTrees; ++t)
       forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
-    forest.treeFits.assign(n * spec.numTrees, 0.0);
+    initForestFitStorage(forest, n);
     forest.totalFits.assign(n, 0.0);
     forest.treeY.resize(n);
   }
