@@ -582,6 +582,56 @@ bartcoreMultinomialSampler <- function(sampler, labels, K = NULL) {
   result
 }
 
+# The grouped-count analog of bartcoreMultinomialSampler (docs/design/
+# multinomial.md): the response is an n x K matrix of nonnegative integer
+# counts, column k holding category k's success counts per observation, with
+# trials n_i = sum_k counts[i, k] (>= 1). K defaults to the column count. Same
+# K-forest softmax engine; the single-trial label path is the special case of a
+# one-hot matrix with every trial 1. Validated R-side (safe over fast); the
+# engine re-derives the trials and re-checks the invariants.
+bartcoreMultinomialCountSampler <- function(sampler, counts, K = NULL) {
+  counts <- as.matrix(counts)
+  if (!is.numeric(counts)) {
+    stop("multinomial counts must be a numeric matrix of nonnegative integers")
+  }
+  if (anyNA(counts)) {
+    stop("multinomial counts must not contain missing values")
+  }
+  if (any(counts < 0)) {
+    stop("multinomial counts must be nonnegative")
+  }
+  if (any(counts != round(counts))) {
+    stop("multinomial counts must be whole numbers")
+  }
+  if (is.null(K)) {
+    K <- ncol(counts)
+  }
+  if (ncol(counts) != K) {
+    stop("multinomial counts must have K columns")
+  }
+  if (K < 2L) {
+    stop("multinomial requires at least two categories")
+  }
+  if (any(rowSums(counts) < 1)) {
+    stop("every multinomial count row must have at least one trial (n_i >= 1)")
+  }
+  storage.mode(counts) <- "integer"
+  result <- new.env(parent = emptyenv())
+  # counts is column-major (category-major), the layout the combiner reads
+  result$ptr <- .Call(
+    C_dbarts_bartcore_createMultinomialCounts,
+    sampler$control,
+    sampler$model,
+    sampler$data,
+    counts,
+    as.integer(K)
+  )
+  # the engine keeps no predictor matrix; track it R-side for the re-quantize
+  # surface, as the other dense-predictor wrappers do
+  result$x <- rawPredictorMatrix(sampler$data@x)
+  result
+}
+
 # The 0/1 treatment the treatment forest contrasts on; re-forms b_{z_i} and
 # both residuals on the next run.
 bartcoreSetTreatment <- function(bcSampler, z) {

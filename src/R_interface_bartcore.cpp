@@ -1572,7 +1572,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     if (control.verbose) printInitialSummary(control, model, data, *sampler);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
     // the mixed store borrows dense slices of the transiently assembled block;
     // the holder owns it so they outlive this call (a vector move preserves
     // the buffer address the store cached)
@@ -1654,7 +1654,7 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
       options, spec, rngs.data());
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
     // moving z keeps its buffer, so the chains' borrowed z stays valid
     holder->ownedTreatment = std::move(z);
     return R_NilValue;
@@ -1662,86 +1662,169 @@ BartcoreHolder* createBCFHolder(SEXP controlExpr, SEXP modelExpr,
   return holder;
 }
 
+// The parse and validation both multinomial entries share: parse the sampler
+// spec, refuse the response combinations the single-trial softmax cannot carry
+// (case weights, a test offset, a mixed test store), and require dense
+// predictors and K >= 2. Runs before any rng is created, so a refusal needs no
+// cleanup. The predictors ride the data object; the data's response is ignored
+// (the counts are the response, borrowed separately).
+static void parseMultinomialData(SEXP controlExpr, SEXP modelExpr,
+                                 SEXP dataExpr, ParsedControl& control,
+                                 ParsedModel& model, ParsedData& data,
+                                 bool& sigmaIsFixed, size_t numCategories) {
+  parseSamplerSpecification(controlExpr, modelExpr, dataExpr, "", control, model,
+                            data, sigmaIsFixed);
+  validateCategoricalPredictors(data);
+  if (data.x == NULL)
+    Rf_error("multinomial requires dense predictors");
+  if (data.weights != NULL)
+    Rf_error("multinomial (softmax) models do not support case weights");
+  if (data.testOffset != NULL)
+    Rf_error("multinomial (softmax) models do not support a test offset");
+  if (data.numTestObservations > 0 && data.testIsMixed)
+    Rf_error("multinomial (softmax) models require a dense test matrix");
+  if (numCategories < 2)
+    Rf_error("multinomial requires at least two categories");
+}
+
+// Builds the K-forest multinomial sampler shared by both entries: sizes the
+// options, creates the per-chain rngs, builds the sampler from the count-native
+// spec, and sets the test predictors. counts is the borrowed category-major
+// n x K matrix and trials the per-observation trial counts; both the label
+// entry (one-hot, unit trials) and the count entry route through here so their
+// draw streams are the one code path. Leaf-scale and k follow the multinomial
+// calibration, not the host node prior (a gaussian default).
+static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
+    const ParsedControl& control, const ParsedModel& model,
+    const ParsedData& data, SEXP modelExpr, bool sigmaIsFixed,
+    size_t numCategories, const int* counts, const int* trials,
+    std::vector<ext_rng*>& rngs) {
+  bartcore::SamplerOptions options =
+    optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
+  rngs = createChainRngs(control, options.numChains);
+
+  bartcore::MultinomialSpec spec;
+  spec.numCategories = numCategories;
+  spec.counts = counts;
+  spec.trials = trials;
+  // the K=2 pairwise-log-odds anchor (pi*sqrt(3)/sqrt(2)) and the host k; the
+  // host node scale (a gaussian default) is deliberately not read here
+  spec.k = model.k;
+  spec.forest.numTrees = options.numTrees;
+  spec.forest.base = model.base;
+  spec.forest.power = model.power;
+  spec.forest.birthOrDeathProbability = model.birthOrDeathProbability;
+  spec.forest.swapProbability = model.swapProbability;
+  spec.forest.changeProbability = model.changeProbability;
+  spec.forest.birthProbability = model.birthProbability;
+
+  std::unique_ptr<bartcore::SamplerBase> sampler =
+    bartcore::createMultinomialSampler(data.x, data.numObservations,
+                                       data.numPredictors, options, spec,
+                                       rngs.data());
+
+  // test-at-creation: the K forests each accumulate their own totalTestFits in
+  // the sweep, and storeSample blends them into the K softmax test
+  // probabilities (chain testFitsAreDefined() is true). buildTest copies the
+  // dense test values, so nothing is pinned; parseMultinomialData ruled out a
+  // test offset and a mixed test store.
+  if (data.numTestObservations > 0)
+    sampler->setTestPredictors(data.x_test, data.numTestObservations);
+  return sampler;
+}
+
 // A K-forest multinomial (softmax) sampler; internal, constant-leaf only
-// (docs/design/multinomial.md). The predictors ride the data object; the
-// data's response is ignored (the category labels are the response, borrowed
-// separately as 0..K-1 integer codes, single-trial this arc). Leaf-scale and
-// k follow the multinomial calibration, not the host node prior.
+// (docs/design/multinomial.md). The single-trial label entry: the category codes
+// (0..K-1, one per observation) become a one-hot n x K count matrix with every
+// trial 1, the exact n_i = 1 reduction of the count-native combiner.
 BartcoreHolder* createMultinomialHolder(SEXP controlExpr, SEXP modelExpr,
                                         SEXP dataExpr, SEXP labelsExpr,
                                         SEXP numCategoriesExpr) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
-                 labels = std::vector<int>{}]() mutable -> SEXP {
+                 counts = std::vector<int>{},
+                 trials = std::vector<int>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
-    parseSamplerSpecification(controlExpr, modelExpr, dataExpr, "", control,
-                              model, data, sigmaIsFixed);
-    validateCategoricalPredictors(data);
-    if (data.x == NULL)
-      Rf_error("multinomial requires dense predictors");
-    // a non-multinomial response combination: weights are not a coherent
-    // single-trial softmax likelihood this arc, and the labels must be codes
-    if (data.weights != NULL)
-      Rf_error("multinomial (softmax) models do not support case weights");
-    // the softmax carries no offset, so a test offset is meaningless; and a
-    // multinomial fit requires dense predictors, so a mixed/sparse test store
-    // cannot arise from the surface. Refuse both here, before the rngs are
-    // created, so the later dense setTestPredictors needs no error cleanup.
-    if (data.testOffset != NULL)
-      Rf_error("multinomial (softmax) models do not support a test offset");
-    if (data.numTestObservations > 0 && data.testIsMixed)
-      Rf_error("multinomial (softmax) models require a dense test matrix");
-
     size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
-    if (numCategories < 2)
-      Rf_error("multinomial requires at least two categories");
+    parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
+                         sigmaIsFixed, numCategories);
+
     if (!Rf_isInteger(labelsExpr) ||
         static_cast<size_t>(Rf_xlength(labelsExpr)) != data.numObservations)
       Rf_error("multinomial labels must be an integer code per observation");
-    labels.resize(data.numObservations);
+    size_t n = data.numObservations;
+    // one-hot category-major counts (column k contiguous at k*n) with unit
+    // trials: at n_i = 1 the combiner's PG summing loop and (y - n_i/2) working
+    // response reduce byte-identically to the label path
+    counts.assign(n * numCategories, 0);
+    trials.assign(n, 1);
     const int* src = INTEGER(labelsExpr);
-    for (size_t i = 0; i < data.numObservations; ++i) {
+    for (size_t i = 0; i < n; ++i) {
       if (src[i] < 0 || static_cast<size_t>(src[i]) >= numCategories)
         Rf_error("multinomial label out of range 0..K-1");
-      labels[i] = src[i];
+      counts[static_cast<size_t>(src[i]) * n + i] = 1;
     }
 
-    bartcore::SamplerOptions options =
-      optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
-    rngs = createChainRngs(control, options.numChains);
-
-    bartcore::MultinomialSpec spec;
-    spec.numCategories = numCategories;
-    spec.labels = labels.data();
-    // the K=2 pairwise-log-odds anchor (pi*sqrt(3)/sqrt(2)) and the host k; the
-    // host node scale (a gaussian default) is deliberately not read here
-    spec.k = model.k;
-    spec.forest.numTrees = options.numTrees;
-    spec.forest.base = model.base;
-    spec.forest.power = model.power;
-    spec.forest.birthOrDeathProbability = model.birthOrDeathProbability;
-    spec.forest.swapProbability = model.swapProbability;
-    spec.forest.changeProbability = model.changeProbability;
-    spec.forest.birthProbability = model.birthProbability;
-
-    std::unique_ptr<bartcore::SamplerBase> sampler =
-      bartcore::createMultinomialSampler(data.x, data.numObservations,
-                                         data.numPredictors, options,
-                                         spec, rngs.data());
-
-    // test-at-creation: the K forests each accumulate their own totalTestFits in
-    // the sweep, and storeSample blends them into the K softmax test
-    // probabilities (chain testFitsAreDefined() is true). buildTest copies the
-    // dense test values, so nothing is pinned; the guards above ruled out a test
-    // offset and a mixed test store.
-    if (data.numTestObservations > 0)
-      sampler->setTestPredictors(data.x_test, data.numTestObservations);
+    std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
+      control, model, data, modelExpr, sigmaIsFixed, numCategories,
+      counts.data(), trials.data(), rngs);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
-                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}};
-    // moving keeps the buffer, so the combiner's borrowed labels stay valid
-    holder->ownedLabels = std::move(labels);
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+    // moving keeps the buffers, so the combiner's borrowed counts/trials stay valid
+    holder->ownedCounts = std::move(counts);
+    holder->ownedTrials = std::move(trials);
+    return R_NilValue;
+  });
+  return holder;
+}
+
+// A K-forest multinomial (softmax) sampler over a GROUPED-COUNT response: Y is
+// an n x K nonnegative integer matrix, category-major (R column-major = the
+// combiner's counts_ layout, so the buffer copies directly), and the trials
+// n_i = sum_k Y_ik must be >= 1 (an empty row carries no information; a PG(0, .)
+// point mass at 0 would break the working response). Same engine as the label
+// entry, count-native (docs/design/multinomial.md).
+BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
+                                              SEXP dataExpr, SEXP countsExpr,
+                                              SEXP numCategoriesExpr) {
+  BartcoreHolder* holder = nullptr;
+  unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
+                 model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
+                 counts = std::vector<int>{},
+                 trials = std::vector<int>{}]() mutable -> SEXP {
+    bool sigmaIsFixed;
+    size_t numCategories = static_cast<size_t>(Rf_asInteger(numCategoriesExpr));
+    parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
+                         sigmaIsFixed, numCategories);
+
+    size_t n = data.numObservations;
+    if (!Rf_isInteger(countsExpr) ||
+        static_cast<size_t>(Rf_xlength(countsExpr)) != n * numCategories)
+      Rf_error("multinomial counts must be an n x K integer matrix");
+    const int* src = INTEGER(countsExpr);
+    counts.assign(src, src + n * numCategories);
+    trials.assign(n, 0);
+    for (size_t k = 0; k < numCategories; ++k)
+      for (size_t i = 0; i < n; ++i) {
+        int y = counts[k * n + i];
+        if (y < 0) Rf_error("multinomial counts must be nonnegative");
+        trials[i] += y;
+      }
+    for (size_t i = 0; i < n; ++i)
+      if (trials[i] < 1)
+        Rf_error("every multinomial count row must have at least one trial");
+
+    std::unique_ptr<bartcore::SamplerBase> sampler = buildMultinomialSampler(
+      control, model, data, modelExpr, sigmaIsFixed, numCategories,
+      counts.data(), trials.data(), rngs);
+
+    holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
+                                control.keepTrainingFits, {}, {}, {}, {}, {}, {}, {}};
+    // moving keeps the buffers, so the combiner's borrowed counts/trials stay valid
+    holder->ownedCounts = std::move(counts);
+    holder->ownedTrials = std::move(trials);
     return R_NilValue;
   });
   return holder;
@@ -1970,7 +2053,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
 
     BartcoreHolder* holder = new BartcoreHolder{
       std::move(sampler), std::move(rngs), control.keepTrainingFits,
-      {}, {}, {}, {}, {}, {}};
+      {}, {}, {}, {}, {}, {}, {}};
     // moving the vectors keeps their buffers, so the chains' borrowed
     // pointers stay valid for the holder's lifetime
     holder->ownedResponse = std::move(response);
@@ -2014,6 +2097,23 @@ SEXP bartcore_createMultinomial(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                                 SEXP labelsExpr, SEXP numCategoriesExpr) {
   BartcoreHolder* holder = bartcore_bridge::createMultinomialHolder(
     controlExpr, modelExpr, dataExpr, labelsExpr, numCategoriesExpr);
+
+  SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+  SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+  SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
+  R_RegisterCFinalizerEx(result, holderFinalizer, static_cast<Rboolean>(FALSE));
+
+  UNPROTECT(2);
+  return result;
+}
+
+// The grouped-count entry: counts is an n x K nonnegative integer matrix, the
+// trials n_i = sum_k counts_ik derived C-side (docs/design/multinomial.md).
+SEXP bartcore_createMultinomialCounts(SEXP controlExpr, SEXP modelExpr,
+                                      SEXP dataExpr, SEXP countsExpr,
+                                      SEXP numCategoriesExpr) {
+  BartcoreHolder* holder = bartcore_bridge::createMultinomialCountsHolder(
+    controlExpr, modelExpr, dataExpr, countsExpr, numCategoriesExpr);
 
   SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
   SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);

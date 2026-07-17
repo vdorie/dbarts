@@ -13,9 +13,11 @@
 # output seams, so this fixture inherit-guards them the way bcf-equivalence.R
 # guards the BCF report branches - the same lesson, verbatim.
 #
-# Each scenario drives the internal bartcoreMultinomialSampler surface
-# (R/bartcore.R; docs/design/multinomial.md) at a fixed seed, single chain, one
-# thread, and records:
+# Each scenario drives an internal multinomial creation surface (R/bartcore.R;
+# docs/design/multinomial.md) - the single-trial label path
+# (bartcoreMultinomialSampler) for k3/k2, the grouped-count path
+# (bartcoreMultinomialCountSampler) for k3counts - at a fixed seed, single
+# chain, one thread, and records:
 #   - result$train, the K softmax-probability channels (n x K x n.samples),
 #   - result$test, the same K softmax channels on a held-out x.test slice
 #     (n.test x K x n.samples) - the C1 test-at-creation addition,
@@ -148,6 +150,43 @@ runScenarios <- function() {
     bc <- dbarts:::bartcoreMultinomialSampler(sampler, labels, K = K)
     res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
     result$k2 <- recordChannels(bc, res, K)
+  }
+
+  # (c) K = 3, GROUPED COUNTS (n_i > 1): a count matrix rather than single-trial
+  # labels, driving the count-native combiner (the PG(n_i) summing draw and the
+  # (y - n_i/2) working response) through bartcoreMultinomialCountSampler. Its
+  # seeds are LITERALS kept out of the guarded `seeds` vector above so
+  # settingsList() stays identical to the single-trial 5afb09a baseline and the
+  # neutrality compare against it still runs (that compare checks only the k3/k2
+  # scenarios it recorded). This scenario runs after k3/k2 with its own set.seed,
+  # so it perturbs neither.
+  {
+    set.seed(6003L)
+    K <- 3L
+    x <- matrix(runif(n * p), n, p)
+    eta <- cbind(
+      2 * (x[, 1L] - 0.5),
+      x[, 2L] - x[, 3L],
+      1.5 * (x[, 4L] - 0.5)
+    )
+    probs <- exp(eta) / rowSums(exp(eta))
+    trials <- sample(2:6, n, replace = TRUE)
+    counts <- t(vapply(
+      seq_len(n),
+      function(i) rmultinom(1L, trials[i], probs[i, ])[, 1L],
+      integer(K)
+    ))
+    x.test <- x[seq_len(25L), , drop = FALSE]
+    sampler <- dbarts(
+      x,
+      as.double(counts[, 1L]),
+      test = x.test,
+      control = makeControl()
+    )
+    set.seed(7003L)
+    bc <- dbarts:::bartcoreMultinomialCountSampler(sampler, counts, K = K)
+    res <- dbarts:::bartcoreRun(bc, n.burn, n.samples)
+    result$k3counts <- recordChannels(bc, res, K)
   }
 
   result

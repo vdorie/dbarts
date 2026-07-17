@@ -408,8 +408,9 @@ public:
   /// symmetric constant-leaf category forests coupled through a softmax
   /// likelihood with an interleaved one-vs-rest Polya-Gamma augmentation and a
   /// likelihood-invariant level-centering move, all owned by
-  /// MultinomialForestCombiner. Single-trial category labels (0..K-1) ride the
-  /// spec; there is no sigma (fixed, like the binary families).
+  /// MultinomialForestCombiner. The grouped-count response (an n x K count matrix
+  /// and per-observation trials n_i, single-trial labels entering as one-hot with
+  /// n_i = 1) rides the spec; there is no sigma (fixed, like the binary families).
   Chain(const ColumnStore& data, const SamplerOptions& options,
         const MultinomialSpec& spec, ext_rng* rng)
     : options_(options), data_(data), weights_(nullptr), rng_(rng) {

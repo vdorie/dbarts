@@ -1834,12 +1834,25 @@ static void testBCFGrowForestFromRoot() {
   printf("ok: BCF grow-from-root sweep\n");
 }
 
+// Build a one-hot n x K category-major count matrix and unit trials from
+// single-trial labels - the count-native combiner's single-trial input, whose
+// draw stream and working response reduce byte-for-byte to the label path.
+static void oneHotCounts(const std::vector<int>& labels, size_t K,
+                         std::vector<int>& counts, std::vector<int>& trials) {
+  size_t n = labels.size();
+  counts.assign(n * K, 0);
+  trials.assign(n, 1);
+  for (size_t i = 0; i < n; ++i)
+    counts[static_cast<size_t>(labels[i]) * n + i] = 1;
+}
+
 // The multinomial (softmax) combiner: the interleaved one-vs-rest Polya-Gamma
 // draw (positivity, its moment against the current margin, and the K = 2
 // reduction to the logistic working-response construction), the K >= 3
 // log-sum-exp margin, the softmax combined output and its level-centering
-// invariance, an end-to-end monotone K = 3 recovery, and a structural state
-// round-trip.
+// invariance, the count-native path (PG(n_i) summing, the binomial(n_i, .)
+// working response, the byte-identical single-trial reduction), an end-to-end
+// monotone K = 3 recovery, and a structural state round-trip.
 static void testMultinomial(ext_rng* rng) {
   // ---- isolated combiner: interleaved PG draw and the K = 2 reduction ----
   {
@@ -1851,9 +1864,12 @@ static void testMultinomial(ext_rng* rng) {
     // K = 2: the margin C_i0 is exactly forest 1's fit, so category 0's
     // one-vs-rest is binary logistic with eta = f0 - f1 - the reduction pinned.
     std::vector<int> labels = {0, 1, 0, 1, 0, 1};
+    std::vector<int> counts, trials;
+    oneHotCounts(labels, 2, counts, trials);
     MultinomialSpec spec;
     spec.numCategories = 2;
-    spec.labels = labels.data();
+    spec.counts = counts.data();
+    spec.trials = trials.data();
     MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
 
     std::vector<Forest<ConstantGaussianLeaf>> forests(2);
@@ -1923,9 +1939,12 @@ static void testMultinomial(ext_rng* rng) {
     ColumnStore data;
     data.build(xDummy.data(), n, 1, 100);
     std::vector<int> labels = {0, 1, 2, 1};
+    std::vector<int> counts, trials;
+    oneHotCounts(labels, 3, counts, trials);
     MultinomialSpec spec;
     spec.numCategories = 3;
-    spec.labels = labels.data();
+    spec.counts = counts.data();
+    spec.trials = trials.data();
     MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
 
     std::vector<Forest<ConstantGaussianLeaf>> forests(3);
@@ -2001,6 +2020,139 @@ static void testMultinomial(ext_rng* rng) {
           "combinedTestFits equals combinedFits when test rows equal train");
   }
 
+  // ---- count-native combiner: the binomial(n_i, .) working response and the
+  //      PG(n_i) = sum-of-n_i-PG(1) mean moment (K = 2, n_i > 1) ----
+  {
+    const size_t n = 5;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+
+    // K = 2 grouped counts: category 0's one-vs-rest is binomial(n_i, .) with
+    // margin exactly forest 1's fit (eta = f0 - f1). Category-major counts.
+    std::vector<int> trials = {1, 2, 3, 4, 5};
+    std::vector<int> y0 = {1, 1, 2, 0, 3};  // category-0 successes, y0 <= trials
+    std::vector<int> counts(n * 2);
+    for (size_t i = 0; i < n; ++i) {
+      counts[i] = y0[i];
+      counts[n + i] = trials[i] - y0[i];
+    }
+    MultinomialSpec spec;
+    spec.numCategories = 2;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(2);
+    std::vector<double> f0 = {-0.4, 0.3, 0.9, -0.1, 0.5};
+    std::vector<double> f1 = {0.2, -0.5, 0.1, 0.7, -0.3};
+    for (size_t k = 0; k < 2; ++k) {
+      forests[k].numTrees = 1;
+      forests[k].leaf.scale = 3.0;
+      forests[k].k = 2.0;
+      forests[k].treeFits.assign(n, 0.0);
+    }
+    forests[0].totalFits = f0;
+    forests[1].totalFits = f1;
+
+    combiner.drawForestGlue(0, rng, forests);
+    ForestResponse fr = combiner.formForestResponse(0, forests, nullptr, nullptr);
+    bool positive = true, binomialForm = true;
+    for (size_t i = 0; i < n; ++i) {
+      double omega = fr.weights[i];
+      positive &= omega > 0.0 && std::isfinite(omega);
+      // binomial(n_i, .) working response: (y - n_i/2)/omega + margin (f1)
+      double expected =
+        (static_cast<double>(y0[i]) - trials[i] * 0.5) / omega + f1[i];
+      binomialForm &= std::fabs(fr.response[i] - expected) < 1e-12;
+    }
+    check(positive, "count-native omega positive and finite");
+    check(binomialForm,
+          "K = 2 count fit forms the binomial(n_i, .) working response");
+
+    // PG(n, eta) is a sum of n PG(1, eta), so its mean is n times the PG(1)
+    // moment; match it on a fixed row (weighted-logistic's moment style)
+    const size_t row = 4;  // 5 trials
+    double eta = f0[row] - f1[row];
+    double pgnMean = static_cast<double>(trials[row]) *
+                     std::tanh(0.5 * eta) / (2.0 * eta);
+    const int numDraws = 40000;
+    double sum = 0.0;
+    for (int d = 0; d < numDraws; ++d) {
+      combiner.drawForestGlue(0, rng, forests);
+      ForestResponse s = combiner.formForestResponse(0, forests, nullptr, nullptr);
+      sum += s.weights[row];
+    }
+    checkNear(sum / numDraws, pgnMean, 0.03,
+              "PG(n, eta) mean matches n times the PG(1, eta) moment");
+  }
+
+  // ---- the byte-identical single-trial reduction: a one-hot count fit draws
+  //      the SAME PG stream and forms the SAME working response as the label
+  //      path, bit-for-bit at a fixed seed (the in-process neutrality proof) ----
+  {
+    const size_t n = 8, K = 3;
+    std::vector<double> xDummy(n, 0.0);
+    ColumnStore data;
+    data.build(xDummy.data(), n, 1, 100);
+    std::vector<int> labels = {0, 2, 1, 0, 2, 1, 0, 1};
+    std::vector<int> counts, trials;
+    oneHotCounts(labels, K, counts, trials);
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    MultinomialForestCombiner<ConstantGaussianLeaf> combiner(data, spec);
+
+    std::vector<Forest<ConstantGaussianLeaf>> forests(K);
+    std::vector<std::vector<double>> f = {
+      {0.3, -0.4, 0.8, 0.1, -0.6, 0.5, 0.2, -0.1},
+      {-0.2, 0.6, -0.3, 0.4, 0.7, -0.5, 0.0, 0.3},
+      {0.5, 0.1, -0.7, 0.2, -0.1, 0.6, -0.4, 0.8}};
+    for (size_t k = 0; k < K; ++k) {
+      forests[k].numTrees = 1;
+      forests[k].leaf.scale = 3.0;
+      forests[k].k = 2.0;
+      forests[k].treeFits.assign(n, 0.0);
+      forests[k].totalFits = f[k];
+    }
+
+    // Two rngs seeded identically: the combiner (count path) and a hand-rolled
+    // reference replaying the OLD label path (one PG(1, psi) per observation,
+    // psi = f_if - C_if, working response (indicator - 0.5)/omega + C_if). Same
+    // per-forest draw order, so equal draw streams; every omega and response
+    // must be bitwise equal, not merely close - the n_i = 1 reduction.
+    ext_rng* refRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(refRng, 13579u);
+    ext_rng* combRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(combRng, 13579u);
+
+    bool reductionExact = true;
+    for (size_t fk = 0; fk < K; ++fk) {
+      combiner.drawForestGlue(fk, combRng, forests);
+      ForestResponse fr =
+        combiner.formForestResponse(fk, forests, nullptr, nullptr);
+      for (size_t i = 0; i < n; ++i) {
+        double maxOther = -HUGE_VAL;
+        for (size_t j = 0; j < K; ++j)
+          if (j != fk) maxOther = std::max(maxOther, f[j][i]);
+        double se = 0.0;
+        for (size_t j = 0; j < K; ++j)
+          if (j != fk) se += std::exp(f[j][i] - maxOther);
+        double margin = maxOther + std::log(se);
+        double omegaRef = ext_rng_simulatePolyaGamma(refRng, f[fk][i] - margin);
+        double yif = labels[i] == static_cast<int>(fk) ? 1.0 : 0.0;
+        double respRef = (yif - 0.5) / omegaRef + margin;
+        reductionExact &=
+          fr.weights[i] == omegaRef && fr.response[i] == respRef;
+      }
+    }
+    check(reductionExact,
+          "single-trial one-hot count fit reduces to the label path bit-for-bit");
+    ext_rng_destroy(refRng);
+    ext_rng_destroy(combRng);
+  }
+
   // ---- end-to-end: recover a monotone K = 3 signal ----
   {
     const size_t n = 600, p = 1, K = 3;
@@ -2017,11 +2169,14 @@ static void testMultinomial(ext_rng* rng) {
       labels[i] = u < p0 ? 0 : (u < p0 + p1 ? 1 : 2);
     }
 
+    std::vector<int> counts, trials;
+    oneHotCounts(labels, K, counts, trials);
     SamplerOptions options;
     options.numTrees = 50;
     MultinomialSpec spec;
     spec.numCategories = K;
-    spec.labels = labels.data();
+    spec.counts = counts.data();
+    spec.trials = trials.data();
     spec.forest.numTrees = 50;
 
     Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec, &rng);
@@ -2125,13 +2280,16 @@ static void testMultinomial(ext_rng* rng) {
     for (size_t i = 0; i < nTest; ++i)
       for (size_t j = 0; j < p; ++j) xTest[i + j * nTest] = x[i + j * n];
 
+    std::vector<int> counts, trials;
+    oneHotCounts(labels, K, counts, trials);
     SamplerOptions options;
     options.numTrees = 30;
     options.keepTrees = true;
     options.numSamplesToStore = numSamples;
     MultinomialSpec spec;
     spec.numCategories = K;
-    spec.labels = labels.data();
+    spec.counts = counts.data();
+    spec.trials = trials.data();
     spec.forest.numTrees = 30;
 
     ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -2192,11 +2350,14 @@ static void testMultinomialGrowForestFromRoot() {
     labels[i] = u < p0 ? 0 : (u < p0 + p1 ? 1 : 2);
   }
 
+  std::vector<int> counts, trials;
+  oneHotCounts(labels, K, counts, trials);
   SamplerOptions options;
   options.numTrees = 40;
   MultinomialSpec spec;
   spec.numCategories = K;
-  spec.labels = labels.data();
+  spec.counts = counts.data();
+  spec.trials = trials.data();
   spec.forest.numTrees = 40;
 
   ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -2236,6 +2397,76 @@ static void testMultinomialGrowForestFromRoot() {
   ext_rng_destroy(localRng);
   rngState = savedRngState;
   printf("ok: multinomial grow-from-root sweep\n");
+}
+
+// growForestFromRoot on a GROUPED-COUNT multinomial sampler: the count branch's
+// PG(n_i) summing draw and (y - n_i/2) working response are unreachable from R
+// through grow-from-root, so the engine test is the only cover (the G4 lesson).
+// A local rng plus a snapshot/restore of the shared runif01 stream keep this
+// neutral to the sequenced tests.
+static void testMultinomialCountGrowForestFromRoot() {
+  uint64_t savedRngState = rngState;
+  const size_t n = 300, p = 2, K = 3;
+  std::vector<double> x(n * p);
+  std::vector<int> counts(n * K, 0), trials(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    double e0 = 1.5 * x[i], e1 = -1.0 + x[i + n], e2 = 0.5 * (x[i] - x[i + n]);
+    double m = std::max(e0, std::max(e1, e2));
+    double s = std::exp(e0 - m) + std::exp(e1 - m) + std::exp(e2 - m);
+    double pr0 = std::exp(e0 - m) / s, pr1 = std::exp(e1 - m) / s;
+    size_t ni = 2 + static_cast<size_t>(runif01() * 4.0);  // 2..5 trials
+    trials[i] = static_cast<int>(ni);
+    for (size_t t = 0; t < ni; ++t) {
+      double u = runif01();
+      size_t k = u < pr0 ? 0 : (u < pr0 + pr1 ? 1 : 2);
+      ++counts[k * n + i];
+    }
+  }
+
+  SamplerOptions options;
+  options.numTrees = 40;
+  MultinomialSpec spec;
+  spec.numCategories = K;
+  spec.counts = counts.data();
+  spec.trials = trials.data();
+  spec.forest.numTrees = 40;
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 24680u);
+  Sampler<ConstantGaussianLeaf> sampler(x.data(), n, p, options, spec, &localRng);
+  check(sampler.numForests() == K,
+        "multinomial count grow-from-root builds K forests");
+
+  sampler.chain(0).growForestFromRoot(5);
+
+  std::vector<std::vector<double>> fits(K, std::vector<double>(n));
+  bool finite = true, offZero = true, simplex = true;
+  for (size_t k = 0; k < K; ++k) {
+    sampler.forestTotalFits(0, k, fits[k].data());
+    double ss = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      finite &= std::isfinite(fits[k][i]);
+      ss += fits[k][i] * fits[k][i];
+    }
+    offZero &= ss > 0.0;
+  }
+  for (size_t i = 0; i < n; ++i) {
+    double m = fits[0][i];
+    for (size_t k = 1; k < K; ++k) m = std::max(m, fits[k][i]);
+    double se = 0.0;
+    for (size_t k = 0; k < K; ++k) se += std::exp(fits[k][i] - m);
+    double total = 0.0;
+    for (size_t k = 0; k < K; ++k) total += std::exp(fits[k][i] - m) / se;
+    simplex &= std::fabs(total - 1.0) < 1e-10;
+  }
+  check(finite, "multinomial count grow-from-root fits are finite");
+  check(offZero, "every grown count multinomial forest moves off zero");
+  check(simplex, "grown count multinomial softmax is a per-observation simplex");
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: multinomial count grow-from-root sweep\n");
 }
 
 // The per-observation log-likelihood channel: requesting it draws no rng and
@@ -2533,6 +2764,7 @@ void runSamplerTests(ext_rng* rng) {
   testBCFGrowForestFromRoot();
   testMultinomial(rng);
   testMultinomialGrowForestFromRoot();
+  testMultinomialCountGrowForestFromRoot();
   testViewSamplerMatchesFull();
   testEndToEndGaussian(rng);
   testRunCancellation(rng);
