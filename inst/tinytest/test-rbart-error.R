@@ -29,7 +29,7 @@ expect_error(
 )
 expect_error(
   dbarts::rbart_vi(y ~ x, testData, group.by = not_a_symbol, n.threads = 1L),
-  "'group.by' not of length equal to that of data"
+  "'group.by' not found"
 )
 expect_error(
   dbarts::rbart_vi(y ~ x, testData, group.by = testData$g[-1L], n.threads = 1L),
