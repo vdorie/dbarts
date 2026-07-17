@@ -412,25 +412,35 @@ print(x, ...)
   on every K-shaped output are `colnames(y.train)` when present,
   otherwise `as.character(seq_len(K))`. A one-hot count matrix (every
   \\n_i = 1\\) is the same model as the factor response above,
-  reproduced bit for bit. Only the matrix interface is supported this
-  arc - `bart2(x.train, y.train, family = "multinomial")`, not a
-  formula. `weights`, `offset`, `subset`, `samplerOnly`, `warm.start`,
-  and `n.grow.sweeps` are all refused with an error naming the
-  limitation. `test` is supported: an `x.test` of the same column
-  structure as `x.train` reports the K-category softmax probabilities on
-  the held-out rows as `yhat.test`, shaped and levels-named exactly like
-  `yhat.train` (see ‘Value’). `keepTrees` is supported too: it retains
-  every one of the K forests' trees so `predict` can replay them at new
-  predictors afterward, reproducing `yhat.test` bitwise when `newdata`
-  matches the fit-time `test`; without `keepTrees`, `predict` errors.
-  The per-forest leaf scale follows its own K-dependent calibration (the
-  K = 2 anchor is the logistic scale \\\pi\sqrt{3}\\ divided by
-  \\\sqrt{2}\\, for the identified pairwise log-odds); `k` is read from
-  the usual node prior exactly as for any other family, but the node
-  prior's `node.scale` itself is NOT consulted - the multinomial engine
-  calibrates its own. The fit's class is `"bartMultinomial"`, not
-  `"bart"`: see ‘Value’ below and the `extract`/`fitted`/`predict`
-  methods for `bartMultinomial` objects.
+  reproduced bit for bit. The formula interface is supported alongside
+  the matrix one: `bart2(formula, data, family = "multinomial")` with a
+  factor (or character) left-hand side routes to the factor response
+  above, and a `cbind(c1, ..., cK) ~ x` left-hand side (the same idiom
+  `glm`'s binomial family uses) routes to the count-matrix response
+  above, `K` and the levels taken from the `cbind` column names; the
+  right-hand side is coded exactly as it is for every other family's
+  formula fit, including `predict` on a data frame `newdata`.
+  `family = "multinomial"` is never inferred from a factor or
+  count-matrix response - a multi-level factor left-hand side under any
+  other `family` setting (including the default `"auto"`) is unaffected
+  by this and is not treated as multinomial. `weights`, `offset`,
+  `subset`, `samplerOnly`, `warm.start`, and `n.grow.sweeps` are all
+  refused with an error naming the limitation. `test` is supported: an
+  `x.test` of the same column structure as `x.train` reports the
+  K-category softmax probabilities on the held-out rows as `yhat.test`,
+  shaped and levels-named exactly like `yhat.train` (see ‘Value’).
+  `keepTrees` is supported too: it retains every one of the K forests'
+  trees so `predict` can replay them at new predictors afterward,
+  reproducing `yhat.test` bitwise when `newdata` matches the fit-time
+  `test`; without `keepTrees`, `predict` errors. The per-forest leaf
+  scale follows its own K-dependent calibration (the K = 2 anchor is the
+  logistic scale \\\pi\sqrt{3}\\ divided by \\\sqrt{2}\\, for the
+  identified pairwise log-odds); `k` is read from the usual node prior
+  exactly as for any other family, but the node prior's `node.scale`
+  itself is NOT consulted - the multinomial engine calibrates its own.
+  The fit's class is `"bartMultinomial"`, not `"bart"`: see ‘Value’
+  below and the `extract`/`fitted`/`predict` methods for
+  `bartMultinomial` objects.
 
 - formula:
 
@@ -939,7 +949,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.219168
+#> total seconds in loop: 0.217931
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1005,7 +1015,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001348
+#> total seconds in loop: 0.001065
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 
