@@ -681,17 +681,12 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   /// combined_[k*n + i]); the reported training output. Log-sum-exp-safe.
   const double* combinedFits(const std::vector<Forest<L>>& forests) override {
     std::size_t n = data_.numObservations;
-    for (std::size_t i = 0; i < n; ++i) {
-      double maxFit = forests[0].totalFits[i];
-      for (std::size_t k = 1; k < numCategories_; ++k)
-        maxFit = std::max(maxFit, forests[k].totalFits[i]);
-      double sumExp = 0.0;
-      for (std::size_t k = 0; k < numCategories_; ++k)
-        sumExp += std::exp(forests[k].totalFits[i] - maxFit);
-      for (std::size_t k = 0; k < numCategories_; ++k)
-        combined_[k * n + i] =
-          std::exp(forests[k].totalFits[i] - maxFit) / sumExp;
-    }
+    // plain copy to location-major, then the shared softmax in place, exactly as
+    // combinedTestFits does (byte-identical to the direct per-forest loop)
+    for (std::size_t k = 0; k < numCategories_; ++k)
+      for (std::size_t i = 0; i < n; ++i)
+        combined_[k * n + i] = forests[k].totalFits[i];
+    softmaxLocationMajor(combined_.data(), n, numCategories_, combined_.data());
     return combined_.data();
   }
 
