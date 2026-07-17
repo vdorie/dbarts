@@ -101,25 +101,23 @@ struct ConstantGaussianLeaf {
 
   double scale;  // nodeScale / sqrt(numTrees)
 
-  // The (sum w, sum wz, sum wz^2) sufficient statistic drives the marginal
-  // and the draw directly. This is the crossproduct form of the classic CGM
-  // formula: its centered response sum of squares is
-  // sumWZSq - sumWZ^2 / sumW and its posterior precision is sumW / sigma^2,
-  // so the two forms are algebraically equal and differ only in rounding.
+  // The (sum w, sum wz) sufficient statistic drives the marginal and the draw
+  // directly. The raw response sum of squares a full CGM marginal carries is
+  // additive over a node's members, so it cancels in every birth/death MH
+  // ratio; dropping it leaves only the mean-explained term below.
   double logIntegratedLikelihood(double k, double residualVariance,
-                                 double sumWeights, double sumWeightedResponse,
-                                 double sumWeightedResponseSq) const {
+                                 double sumWeights,
+                                 double sumWeightedResponse) const {
     if (sumWeights == 0.0) return 0.0;
 
     double priorPrecision = (k / scale) * (k / scale);
     double posteriorPrecision = sumWeights / residualVariance;
     double mean = sumWeightedResponse / sumWeights;
-    double centeredSumOfSquares =
-      sumWeightedResponseSq - sumWeightedResponse * mean;
+    double explainedSumOfSquares = sumWeightedResponse * mean;
 
     double result;
     result  = 0.5 * std::log(priorPrecision / (priorPrecision + posteriorPrecision));
-    result -= 0.5 * centeredSumOfSquares / residualVariance;
+    result += 0.5 * explainedSumOfSquares / residualVariance;
     result -= 0.5 * ((priorPrecision * mean) * (posteriorPrecision * mean)) /
               (priorPrecision + posteriorPrecision);
     return result;
@@ -142,15 +140,14 @@ struct ConstantGaussianLeaf {
 
   // The node-context interface the engine drives; delegates to the scalar
   // math above against the node's cached sufficient statistic. y and weights
-  // are unused now that the node caches the full triple.
+  // are unused now that the node caches both sums.
   double logIntegratedLikelihoodForNode(const Tree& tree, const double*,
                                         const double*, double k,
                                         double residualVariance,
                                         int32_t nodeIndex) const {
     const Node& node(tree.at(nodeIndex));
     return logIntegratedLikelihood(k, residualVariance, node.sumWeights,
-                                   node.sumWeightedResponse,
-                                   node.sumWeightedResponseSq);
+                                   node.sumWeightedResponse);
   }
 
   double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree, double k,
@@ -285,11 +282,12 @@ struct LinearGaussianLeaf {
 
   /// log integral of prod N(z_i; b0 + b'u_i, sigma^2 / w_i) against the
   /// N(0, (scale / k)^2 I) prior on (b0, b), dropping the same terms the
-  /// constant leaf drops (they depend only on n and w, which the moves'
-  /// before/after comparisons share). With M = U'WU + tau sigma^2 I and
+  /// constant leaf drops (z'Wz and the pieces depending only on n and w,
+  /// all additive over the member set, so the moves' before/after
+  /// comparisons share them). With M = U'WU + tau sigma^2 I and
   /// tau = (k / scale)^2:
   ///   0.5 (q+1) log(tau sigma^2) - 0.5 log det M
-  ///     - 0.5 (z'Wz - b'M^-1 b) / sigma^2,  b = U'Wz,
+  ///     + 0.5 b'M^-1 b / sigma^2,  b = U'Wz,
   /// which reduces exactly to the constant leaf's formula at q = 0.
   double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
                                         const double* weights, double k,
@@ -299,9 +297,8 @@ struct LinearGaussianLeaf {
 
     std::size_t p = numParams();
     double crossproduct[maxStatisticSize], projection[maxNumCovariates + 1];
-    double responseSumOfSquares;
     accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct,
-                             projection, &responseSumOfSquares);
+                             projection);
 
     double ridge = (k / scale) * (k / scale) * residualVariance;
     for (std::size_t a = 0; a < p; ++a) crossproduct[a * p + a] += ridge;
@@ -317,8 +314,8 @@ struct LinearGaussianLeaf {
     for (std::size_t a = 0; a < p; ++a)
       quadraticForm += projection[a] * projection[a];
 
-    return 0.5 * static_cast<double>(p) * std::log(ridge) - halfLogDet -
-           0.5 * (responseSumOfSquares - quadraticForm) / residualVariance;
+    return 0.5 * static_cast<double>(p) * std::log(ridge) - halfLogDet +
+           0.5 * quadraticForm / residualVariance;
   }
 
   /// (b0, b) | z ~ N(M^-1 b, sigma^2 M^-1): with M = LL' and v = L^-1 b, the
@@ -336,9 +333,7 @@ struct LinearGaussianLeaf {
     }
 
     double crossproduct[maxStatisticSize];
-    double responseSumOfSquares;
-    accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct, out,
-                             &responseSumOfSquares);
+    accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct, out);
 
     double ridge = (k / scale) * (k / scale) * residualVariance;
     for (std::size_t a = 0; a < p; ++a) crossproduct[a * p + a] += ridge;
@@ -362,16 +357,16 @@ private:
     (maxNumCovariates + 1) * (maxNumCovariates + 1);
 
   /// One pass over the node's index segment: crossproduct receives the full
-  /// symmetric U'WU (row-major (q+1) x (q+1), leading intercept column),
-  /// projection U'Wz, and responseSumOfSquares z'Wz. U'WU is served from the
-  /// crossproduct cache when the node's member list matches an entry; the
-  /// residual-dependent projection and z'Wz always rescan. A served value is
-  /// bitwise the fresh scan's, since the entry was built by the identical
-  /// fused loop over the same members, covariates, and weights.
+  /// symmetric U'WU (row-major (q+1) x (q+1), leading intercept column) and
+  /// projection U'Wz. U'WU is served from the crossproduct cache when the
+  /// node's member list matches an entry; the residual-dependent projection
+  /// always rescans. A served value is bitwise the fresh scan's, since the
+  /// entry was built by the identical fused loop over the same members,
+  /// covariates, and weights.
   void accumulateNodeStatistics(const Tree& tree, const double* y,
                                 const double* weights, int32_t nodeIndex,
-                                double* crossproduct, double* projection,
-                                double* responseSumOfSquares) const {
+                                double* crossproduct,
+                                double* projection) const {
     const Node& node(tree.at(nodeIndex));
     std::size_t p = numParams();
     double row[maxNumCovariates + 1];
@@ -380,7 +375,6 @@ private:
     const double* cached = lookupCrossproduct(tree, node, nodeIndex);
     if (cached != nullptr) {
       for (std::size_t a = 0; a < p; ++a) projection[a] = 0.0;
-      *responseSumOfSquares = 0.0;
       for (std::size_t m = node.begin; m < node.end; ++m) {
         std::size_t i = tree.indices[m];
         double w = weights == nullptr ? 1.0 : weights[i];
@@ -391,7 +385,6 @@ private:
           double scaled = w * row[a];
           projection[a] += scaled * z;
         }
-        *responseSumOfSquares += w * z * z;
       }
       std::memcpy(crossproduct, cached, p * p * sizeof(double));
       return;
@@ -399,7 +392,6 @@ private:
 
     for (std::size_t a = 0; a < p * p; ++a) crossproduct[a] = 0.0;
     for (std::size_t a = 0; a < p; ++a) projection[a] = 0.0;
-    *responseSumOfSquares = 0.0;
     for (std::size_t m = node.begin; m < node.end; ++m) {
       std::size_t i = tree.indices[m];
       double w = weights == nullptr ? 1.0 : weights[i];
@@ -412,7 +404,6 @@ private:
         for (std::size_t b = a; b < p; ++b)
           crossproduct[a * p + b] += scaled * row[b];
       }
-      *responseSumOfSquares += w * z * z;
     }
     for (std::size_t a = 0; a < p; ++a)
       for (std::size_t b = a + 1; b < p; ++b)
@@ -682,10 +673,12 @@ struct GPGaussianLeaf {
     evictStaleKernelEntries(tree);
   }
 
-  /// score = -0.5 log det V + 0.5 log det(sigma^2 W^-1) - 0.5 z' V^-1 z with
-  /// V = (scale / k)^2 C + sigma^2 W^-1, dropping the same per-observation
-  /// terms the constant leaf drops; a constant kernel reduces this to the
-  /// constant leaf's formula by Sherman-Morrison.
+  /// score = -0.5 log det V + 0.5 log det(sigma^2 W^-1)
+  /// - 0.5 (z' V^-1 z - z'Wz / sigma^2) with V = (scale / k)^2 C +
+  /// sigma^2 W^-1, dropping the same terms the constant leaf drops (z'Wz is
+  /// the model-free part of z'V^-1 z by Woodbury, added back explicitly
+  /// here); a constant kernel reduces this to the constant leaf's formula by
+  /// Sherman-Morrison, keeping the maxLeafSize fallback below coherent.
   double logIntegratedLikelihoodForNode(const Tree& tree, const double* y,
                                         const double* weights, double k,
                                         double residualVariance,
@@ -716,13 +709,14 @@ struct GPGaussianLeaf {
       buildKernel(numObs, cholV_);
       for (std::size_t a = 0; a < numObs * numObs; ++a) cholV_[a] *= s2;
     }
-    double logDetNoise = 0.0;
+    double logDetNoise = 0.0, responseSumOfSquares = 0.0;
     for (std::size_t r = 0; r < numObs; ++r) {
-      double w =
-        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
+      std::size_t i = tree.indices[node.begin + r];
+      double w = weights == nullptr ? 1.0 : weights[i];
       double noise = residualVariance / w;
       logDetNoise += std::log(noise);
       cholV_[r * numObs + r] += noise;
+      responseSumOfSquares += w * y[i] * y[i];
     }
     choleskyDecomposeLeaf(cholV_.data(), numObs);
 
@@ -738,7 +732,8 @@ struct GPGaussianLeaf {
     for (std::size_t r = 0; r < numObs; ++r)
       quadraticForm += vectorScratch_[r] * vectorScratch_[r];
 
-    return -halfLogDetV + 0.5 * logDetNoise - 0.5 * quadraticForm;
+    return -halfLogDetV + 0.5 * logDetNoise -
+           0.5 * (quadraticForm - responseSumOfSquares / residualVariance);
   }
 
   /// Draws f | z into fits at the leaf's member observations by Matheron's
@@ -1228,12 +1223,16 @@ private:
       for (std::size_t b = 0; b < numPos; ++b)
         cholV_[a * numPos + b] =
           kernel[positiveScratch_[a] * numObs + positiveScratch_[b]] * s2;
-    double logDetNoise = 0.0;
+    // zero-weight members add nothing to z'Wz, so the positive subset's sum
+    // is the full member set's
+    double logDetNoise = 0.0, responseSumOfSquares = 0.0;
     for (std::size_t a = 0; a < numPos; ++a) {
-      double w = weights[tree.indices[node.begin + positiveScratch_[a]]];
+      std::size_t i = tree.indices[node.begin + positiveScratch_[a]];
+      double w = weights[i];
       double noise = residualVariance / w;
       logDetNoise += std::log(noise);
       cholV_[a * numPos + a] += noise;
+      responseSumOfSquares += w * y[i] * y[i];
     }
     choleskyDecomposeLeaf(cholV_.data(), numPos);
 
@@ -1249,7 +1248,8 @@ private:
     for (std::size_t a = 0; a < numPos; ++a)
       quadraticForm += vectorScratch_[a] * vectorScratch_[a];
 
-    return -halfLogDetV + 0.5 * logDetNoise - 0.5 * quadraticForm;
+    return -halfLogDetV + 0.5 * logDetNoise -
+           0.5 * (quadraticForm - responseSumOfSquares / residualVariance);
   }
 
   /// Matheron's rule conditioning only on the positive-weight members: f0

@@ -22,9 +22,8 @@
 // empty-leaf veto (logLikelihoodForBranch's -HUGE_VAL) never runs on this path.
 // The scan omits sum wz^2: it is dead weight for the constant leaf (additive
 // over any partition of a node's fixed member set, so it cancels in every
-// within-node comparison, cut-vs-cut and split-vs-no-split), which is why the
-// bin carries only (count, sum w, sum wz) and the marginal is evaluated with a
-// zero sumWeightedResponseSq.
+// within-node comparison, cut-vs-cut and split-vs-no-split), so the bin and
+// the marginal both carry only (count, sum w, sum wz).
 
 namespace bartcore {
 
@@ -65,9 +64,9 @@ struct ConstantLeafScanBin {
 /// occupancy on the non-missing counts alone keeps both children non-empty.
 ///
 /// binScratch is caller-owned reused storage (numCuts[variable] + 1 bins).
-/// sumWeightedResponseSq is passed as zero to the marginal: its per-node total
-/// is identical under every cut and under no-split, so it cancels against the
-/// no-split term the caller assembles and need never be accumulated.
+/// The marginal carries no sum wz^2: that per-node total is identical under
+/// every cut and under no-split, so it cancels against the no-split term the
+/// caller assembles and is never accumulated.
 ///
 /// RNG-free and residual-only: the scan reads y (the current tree residual)
 /// and weights exactly as computeLeafStats does, so a builder's cut scores are
@@ -114,9 +113,9 @@ void scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
       total.sumWeightedResponse - left.sumWeightedResponse;
     logLikelihood[cut] =
       leaf.logIntegratedLikelihood(k, residualVariance, left.sumWeights,
-                                   left.sumWeightedResponse, 0.0) +
+                                   left.sumWeightedResponse) +
       leaf.logIntegratedLikelihood(k, residualVariance, rightWeights,
-                                   rightWeightedResponse, 0.0);
+                                   rightWeightedResponse);
   }
 }
 

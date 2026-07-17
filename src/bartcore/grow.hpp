@@ -74,7 +74,7 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
   double nodeLogLikelihood =
     leaf.logIntegratedLikelihood(k, residualVariance,
                                  tree.at(nodeIndex).sumWeights,
-                                 tree.at(nodeIndex).sumWeightedResponse, 0.0);
+                                 tree.at(nodeIndex).sumWeightedResponse);
 
   scratch.candidateLogWeights.clear();
   scratch.candidateVariable.clear();

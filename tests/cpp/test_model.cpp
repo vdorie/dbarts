@@ -3,22 +3,22 @@
 static void testIntegratedLikelihood() {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(200.0)};
   double k = 2.0, sigmaSq = 0.01;
-  // raw weighted suffstat over three responses (2 * 0.5 + 1 * -0.2 + 3 * 0.1)
-  double sumW = 6.0, sumWZ = 1.1, sumWZSq = 0.61;
+  // weighted suffstat over three responses (2 * 0.5 + 1 * -0.2 + 3 * 0.1)
+  double sumW = 6.0, sumWZ = 1.1;
 
-  // independent transcription of the CGM marginal in crossproduct form
+  // independent transcription of the reduced marginal: raw sum wz^2 dropped
   double priorPrecision = (k / leaf.scale) * (k / leaf.scale);
   double posteriorPrecision = sumW / sigmaSq;
   double mean = sumWZ / sumW;
-  double centered = sumWZSq - sumWZ * mean;
+  double explained = sumWZ * mean;
   double expected = 0.5 * std::log(priorPrecision / (priorPrecision + posteriorPrecision))
-    - 0.5 * centered / sigmaSq
+    + 0.5 * explained / sigmaSq
     - 0.5 * ((priorPrecision * mean) * (posteriorPrecision * mean)) /
         (priorPrecision + posteriorPrecision);
 
-  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq),
+  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ),
             expected, 1e-13, "integrated likelihood formula");
-  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, 0.0, 0.0, 0.0),
+  checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, 0.0, 0.0),
             0.0, 0.0, "empty leaf contributes zero");
   printf("ok: integrated likelihood\n");
 }
@@ -48,9 +48,9 @@ static void testPosteriorDraw(ext_rng* rng) {
   printf("ok: posterior draws\n");
 }
 
-// The suffstat marginal must equal the classic (mean, effective count,
-// centered variance) form the leaf used to consume, on the same raw data,
-// weighted and unweighted, and against the node-context path.
+// The reduced marginal must equal the classic (mean, effective count,
+// centered variance) form plus the raw sum of squares it drops, on the same
+// raw data, weighted and unweighted, and must agree with the node-context path.
 static void testConstantLeafSuffstatEquivalence() {
   ConstantGaussianLeaf leaf{0.5 / std::sqrt(20.0)};
   double k = 1.7, sigmaSq = 0.05;
@@ -67,7 +67,7 @@ static void testConstantLeafSuffstatEquivalence() {
     double average = sumWZ / sumW;
     double variance = (sumWZSq - sumW * average * average) / (double) (n - 1);
 
-    // the classic three-argument form, transcribed here
+    // the classic centered-variance form; the reduced marginal drops its raw ss
     double priorPrecision = (k / leaf.scale) * (k / leaf.scale);
     double posteriorPrecision = sumW / sigmaSq;
     double classic =
@@ -76,10 +76,10 @@ static void testConstantLeafSuffstatEquivalence() {
       - 0.5 * ((priorPrecision * average) * (posteriorPrecision * average)) /
           (priorPrecision + posteriorPrecision);
 
-    checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq),
-              classic, 1e-12,
-              weighted ? "suffstat marginal equals classic, weighted"
-                       : "suffstat marginal equals classic, unweighted");
+    checkNear(leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ),
+              classic + 0.5 * sumWZSq / sigmaSq, 1e-12,
+              weighted ? "reduced marginal is classic plus dropped ss, weighted"
+                       : "reduced marginal is classic plus dropped ss, unweighted");
   }
 
   // and through the node-context path, over a split's two children
@@ -99,12 +99,12 @@ static void testConstantLeafSuffstatEquivalence() {
 
   auto reference = [&](int32_t nodeIndex) {
     const Node& node = tree.at(nodeIndex);
-    double sumW = 0.0, sumWZ = 0.0, sumWZSq = 0.0;
+    double sumW = 0.0, sumWZ = 0.0;
     for (size_t m = node.begin; m < node.end; ++m) {
       size_t i = tree.indices[m];
-      sumW += wv[i]; sumWZ += wv[i] * zv[i]; sumWZSq += wv[i] * zv[i] * zv[i];
+      sumW += wv[i]; sumWZ += wv[i] * zv[i];
     }
-    return leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ, sumWZSq);
+    return leaf.logIntegratedLikelihood(k, sigmaSq, sumW, sumWZ);
   };
   checkNear(leaf.logIntegratedLikelihoodForNode(tree, zv.data(), wv.data(), k,
                                                 sigmaSq, left),
@@ -499,6 +499,18 @@ struct LinearLeafFixture {
   }
 };
 
+// The R reference constants below were evaluated with the raw z'Wz term the
+// marginals have since dropped; adding the fixture's exact term back keeps
+// them an independent check of everything else in the formula.
+static double droppedSumOfSquaresTerm(const std::vector<double>& z,
+                                      const double* w, size_t begin,
+                                      size_t end, double sigmaSq) {
+  double zwz = 0.0;
+  for (size_t i = begin; i < end; ++i)
+    zwz += (w == nullptr ? 1.0 : w[i]) * z[i] * z[i];
+  return 0.5 * zwz / sigmaSq;
+}
+
 static void testLinearLeafMarginal() {
   LinearLeafFixture f;
 
@@ -511,10 +523,14 @@ static void testLinearLeafMarginal() {
   // root marginals against the R reference
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, 0),
-            -5.517188945419923, 1e-9, "linear marginal, weighted root");
+            -5.517188945419923 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, f.n, f.sigmaSq),
+            1e-9, "linear marginal, weighted root");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), nullptr,
                                                 f.k, f.sigmaSq, 0),
-            -5.256174278535296, 1e-9, "linear marginal, unit-weight root");
+            -5.256174278535296 +
+              droppedSumOfSquaresTerm(f.z, nullptr, 0, f.n, f.sigmaSq),
+            1e-9, "linear marginal, unit-weight root");
 
   // q = 0 reduces exactly to the constant leaf's formula
   LinearGaussianLeaf interceptOnly;
@@ -539,10 +555,14 @@ static void testLinearLeafMarginal() {
         "fixture split partitions 4/4");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, leftChild),
-            -3.760266419465231, 1e-9, "linear marginal, left child");
+            -3.760266419465231 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, 4, f.sigmaSq),
+            1e-9, "linear marginal, left child");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, leftChild + 1),
-            -3.062089185586155, 1e-9, "linear marginal, right child");
+            -3.062089185586155 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 4, f.n, f.sigmaSq),
+            1e-9, "linear marginal, right child");
 
   // two covariates exercise the 3x3 Cholesky
   LinearGaussianLeaf leaf2;
@@ -554,7 +574,9 @@ static void testLinearLeafMarginal() {
   rootTree.initialize(rootIndices.data(), LinearLeafFixture::n);
   checkNear(leaf2.logIntegratedLikelihoodForNode(
               rootTree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
-            -5.791887259328131, 1e-9, "linear marginal, two covariates");
+            -5.791887259328131 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, f.n, f.sigmaSq),
+            1e-9, "linear marginal, two covariates");
 
   // standardization constants match R's mean/sd
   checkNear(leaf2.covariateMeans()[0], 0.275, 1e-12, "covariate mean");
@@ -2452,10 +2474,14 @@ static void testGPLeafMarginal() {
   // of the GP integrated likelihood at the fixture's kernel and inputs
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, 0),
-            -8.4818528980077694, 1e-9, "gp marginal, weighted root");
+            -8.4818528980077694 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, f.n, f.sigmaSq),
+            1e-9, "gp marginal, weighted root");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), nullptr,
                                                 f.k, f.sigmaSq, 0),
-            -7.7744742015613255, 1e-9, "gp marginal, unit-weight root");
+            -7.7744742015613255 +
+              droppedSumOfSquaresTerm(f.z, nullptr, 0, f.n, f.sigmaSq),
+            1e-9, "gp marginal, unit-weight root");
 
   // median pairwise-distance lengthscale heuristic matches R's median
   GPGaussianLeaf heuristic;
@@ -2471,7 +2497,9 @@ static void testGPLeafMarginal() {
   leaf2.initialize(f.store, columns2, 2, f.theta, 256);
   checkNear(leaf2.logIntegratedLikelihoodForNode(f.tree, f.z.data(),
                                                  f.w.data(), f.k, f.sigmaSq, 0),
-            -8.7417667358884774, 1e-9, "gp marginal, two covariates");
+            -8.7417667358884774 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, f.n, f.sigmaSq),
+            1e-9, "gp marginal, two covariates");
   checkNear(leaf2.covariateMeans()[0], 0.275, 1e-12, "gp covariate mean");
   checkNear(leaf2.covariateSds()[0], 1.185326959112970, 1e-12,
             "gp covariate sd");
@@ -2492,10 +2520,14 @@ static void testGPLeafMarginal() {
         "gp fixture split partitions 4/4");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, leftChild),
-            -5.0284693098158764, 1e-9, "gp marginal, left child");
+            -5.0284693098158764 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, 4, f.sigmaSq),
+            1e-9, "gp marginal, left child");
   checkNear(leaf.logIntegratedLikelihoodForNode(f.tree, f.z.data(), f.w.data(),
                                                 f.k, f.sigmaSq, leftChild + 1),
-            -3.7990612354161635, 1e-9, "gp marginal, right child");
+            -3.7990612354161635 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 4, f.n, f.sigmaSq),
+            1e-9, "gp marginal, right child");
 
   // a constant kernel (huge lengthscale) approaches the constant leaf's
   // formula by Sherman-Morrison
@@ -2525,7 +2557,9 @@ static void testGPLeafMarginal() {
         "over-cap marginal equals the constant leaf's exactly");
   checkNear(capped.logIntegratedLikelihoodForNode(
               f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, leftChild),
-            -5.0284693098158764, 1e-9, "at-cap marginal stays gp");
+            -5.0284693098158764 +
+              droppedSumOfSquaresTerm(f.z, f.w.data(), 0, 4, f.sigmaSq),
+            1e-9, "at-cap marginal stays gp");
 
   printf("ok: gp leaf marginal\n");
 }

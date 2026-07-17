@@ -38,11 +38,11 @@ double misc_computeWeightedVarianceForKnownMeanFast(const double* restrict x, mi
 double misc_computeIndexedWeightedVarianceForKnownMeanFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double mean);
 
 // fused constant-leaf sufficient statistic in one order-insensitive pass:
-// sumW = w'1 (= length unweighted), sumWX = w'x, sumWXSq = w'(x .* x)
-void misc_computeSufficientStatisticsFast(const double* x, misc_size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq);
-void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq);
-void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq);
-void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX, double* restrict sumWXSq);
+// sumW = w'1 (= length unweighted), sumWX = w'x
+void misc_computeSufficientStatisticsFast(const double* x, misc_size_t length, double* restrict sumW, double* restrict sumWX);
+void misc_computeIndexedSufficientStatisticsFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, double* restrict sumW, double* restrict sumWX);
+void misc_computeWeightedSufficientStatisticsFast(const double* restrict x, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
+void misc_computeIndexedWeightedSufficientStatisticsFast(const double* restrict x, const misc_size_t* restrict indices, misc_size_t length, const double* restrict w, double* restrict sumW, double* restrict sumWX);
 
 // multithreaded functions below
 
