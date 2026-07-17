@@ -137,8 +137,9 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     build against 1.0-0 and 0.0-13 is submitted alongside (same
     maintainer); revdep summary as above; test environments; goal
     0 errors / 0 warnings / 0 notes.
-  stan4bart follow-up: adopt categorical splits (it pins factors =
-    "indicators"); lockstep with the dbarts release.
+  stan4bart adopted categorical splits 2026-07-16 (its 0.0-14 branch;
+    docs/plans/factors-categorical.md there) - no lockstep follow-up
+    remains on that front.
   on any post-release dbarts.h change: bump DBARTS_C_API_MINOR (or MAJOR
     if incompatible) alongside the hash re-bake, and bump stan4bart's
     Depends/LinkingTo dbarts floor in the same lockstep release - the
