@@ -465,19 +465,44 @@ bart2 <- function(
     if (control@n.samples <= 0L) {
       stop("family = \"multinomial\" requires a positive 'n.samples'")
     }
-    if (is.formula(formula) || inherits(formula, "dbartsData")) {
+    if (inherits(formula, "dbartsData")) {
       stop(
-        "family = \"multinomial\" supports the matrix interface only this ",
-        "arc: bart2(x.train, y.train, family = \"multinomial\")"
+        "family = \"multinomial\" does not support a pre-built dbartsData ",
+        "object this arc; use the formula interface or the matrix ",
+        "interface: bart2(x.train, y.train, family = \"multinomial\")"
       )
     }
-    if (missing(data) || is.null(data)) {
-      stop(
-        "family = \"multinomial\" requires a factor response as the ",
-        "second argument (the matrix-interface y.train)"
+    if (is.formula(formula)) {
+      if (missing(data) || is.null(data)) {
+        stop(
+          "family = \"multinomial\" requires 'data' when 'formula' is a formula"
+        )
+      }
+      extracted <- extractMultinomialFormulaData(
+        matchedCall,
+        callingEnv,
+        formula,
+        data
       )
+      y <- extracted$y
+      # from here on, y drives the same factor-vs-count-matrix dispatch as
+      # the matrix interface; the host sampler (bart2Multinomial/
+      # bart2MultinomialCounts, below) is built from the term-labeled
+      # predictor DATA FRAME, not the formula - dbartsData's own
+      # data-frame-as-x.train branch codes it (makeModelMatrix, chosen by
+      # 'factors' exactly as it would for any other family's formula fit),
+      # which is what threads term.labels/factor.levels onto sampler$data@x
+      # and makes predict's data.frame newdata coding (validateXTest) work
+      matchedCall$formula <- extracted$x
+    } else {
+      if (missing(data) || is.null(data)) {
+        stop(
+          "family = \"multinomial\" requires a factor response as the ",
+          "second argument (the matrix-interface y.train)"
+        )
+      }
+      y <- data
     }
-    y <- data
     # the count-matrix response form (docs/design/multinomial.md): an n x K
     # matrix of nonnegative integer trial counts, beside the factor path
     # below. Any numeric matrix is treated as an attempted count response, so
@@ -686,6 +711,85 @@ bart2 <- function(
   }
 
   result
+}
+
+# Formula ingestion for bart2's family = "multinomial" branch, above. y is
+# pulled with model.response(modelFrame) - NO type coercion - so a factor
+# LHS keeps its levels and a cbind(c1, ..., cK) ~ x LHS keeps its column
+# names; dbartsData's own formula path cannot be reused for this because it
+# calls model.response(modelFrame, "numeric"), which discards both. The
+# right-hand side is returned as the term-labeled predictor DATA FRAME
+# (model.frame -> terms, the data.R formula recipe short of the final
+# makeModelMatrix call), not yet coded: the caller installs it as the
+# matched call's 'formula', and the host sampler build below
+# (bart2Multinomial/bart2MultinomialCounts) reuses dbartsData's own
+# data-frame-as-x.train branch to code it - the same makeModelMatrix
+# call, choosing the categorical or indicators builder the same way via
+# 'factors' - so it carries the same term.labels/factor.levels/drop
+# attributes onto sampler$data@x that let predict.bartMultinomial's
+# validateXTest code a data.frame newdata. (A matrix coded here directly
+# would not work: 'factors = "categorical"', the default, produces a
+# dbartsMixedMatrix container that only dbartsData's data-frame branch
+# knows how to route to a fresh sampler build - the matrix/vector top-level
+# dispatch does not recognize it.)
+extractMultinomialFormulaData <- function(
+  matchedCall,
+  callingEnv,
+  formula,
+  data
+) {
+  if (!is.data.frame(data) && !is.list(data) && !is.environment(data)) {
+    stop(
+      "for formula/data specification, 'data' must be a data frame, list, ",
+      "or environment"
+    )
+  }
+
+  # a sparseFactor predictor dies inside model.frame with a bare S4 type
+  # error; refuse it explicitly first, as the standard formula path does
+  if (is.list(data) || is.environment(data)) {
+    for (variableName in intersect(all.vars(formula), names(data))) {
+      if (methods::is(data[[variableName]], "sparseFactor")) {
+        stop(
+          "sparse categorical predictors must be supplied through the x/y ",
+          "interface; '",
+          variableName,
+          "' is a sparseFactor"
+        )
+      }
+    }
+  }
+
+  modelFrameCall <- matchedCall
+  modelFrameCall <- modelFrameCall[c(
+    1L,
+    match(c("formula", "data"), names(modelFrameCall), nomatch = 0L)
+  )]
+  modelFrameCall$drop.unused.levels <- FALSE
+  modelFrameCall$na.action <- stats::na.pass
+  modelFrameCall[[1L]] <- quote(stats::model.frame)
+
+  modelFrame <- eval(modelFrameCall, callingEnv)
+  if (NROW(modelFrame) == 0) {
+    stop("cannot construct model matrices from formula")
+  }
+
+  y <- model.response(modelFrame)
+  if (is.null(y)) {
+    stop("family = \"multinomial\" requires a response in 'formula'")
+  }
+
+  modelTerms <- terms(modelFrame)
+  if (is.empty.model(modelTerms)) {
+    stop("predictors must be specified for regression tree analysis")
+  }
+  termLabels <- attr(modelTerms, "term.labels")
+  badLabels <- grepl("`.* .*`", termLabels)
+  if (sum(badLabels) > 0) {
+    termLabels[badLabels] <- gsub("^`(.*)`$", "\\1", termLabels[badLabels])
+  }
+
+  list(y = y, x = modelFrame[termLabels])
 }
 
 # The multinomial (softmax) fit path (docs/design/multinomial.md), reached
