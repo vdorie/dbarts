@@ -92,6 +92,16 @@ items
   weighted-binary: post 1.0 - integer-weight probit via replicated
     latents; arbitrary real weights need a real-shape PG sampler (IPW
     is a pseudo-likelihood trap).
+  review-perf-followups: the 2026-07-17 package review's performance
+    findings (docs/plans/package-review-remediation.md Tier 5):
+    constant-leaf treeFits scatter elimination (per-leaf mu + leafOf
+    byte; kills the ~18.5% scatter share, shrinks the hot slab 8x -
+    the threading no-go's revival precondition; claimed rng-neutral),
+    the bitwise-neutral sumWeightedResponseSq suffstat drop, the
+    multinomial O(nK^2) -> O(nK) margin restructuring (posterior-
+    defining, exact-gate re-record), and the move-time gather fusions.
+    Plus the Tier 4 engine notes (level-centering precision gate
+    check, shared softmax helper, zero-row guard). post-release.
   x86-simd: the commented-out linalg intrinsics bodies are NOT needed
     for compute width - the manual unroll plus the per-file -m flag
     already emits 256-bit at -O2 (measured on the bench box,
