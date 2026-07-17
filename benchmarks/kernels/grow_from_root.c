@@ -209,10 +209,10 @@ static double scanThreaded(size_t p, const size_t* idx, size_t nLeaf, bool withS
 static void singleCutMove(size_t jcol, misc_xint_t cut, size_t nLeaf) {
   const misc_xint_t* col = codes + jcol * N_POP;
   size_t numLeft = misc_partitionIndices(col, cut, idxScratch, nLeaf);
-  double sw0, swz0, swz20, sw1, swz1, swz21;
-  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch, numLeft, w, &sw0, &swz0, &swz20);
-  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch + numLeft, nLeaf - numLeft, w, &sw1, &swz1, &swz21);
-  sink_d += sw0 + swz0 + swz20 + sw1 + swz1 + swz21;
+  double sw0, swz0, sw1, swz1;
+  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch, numLeft, w, &sw0, &swz0);
+  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch + numLeft, nLeaf - numLeft, w, &sw1, &swz1);
+  sink_d += sw0 + swz0 + sw1 + swz1;
 }
 
 static size_t repsFor(size_t work, size_t target, size_t floorReps) {
@@ -248,18 +248,17 @@ static void correctnessCheck(void) {
   fillInputs(100);
   // direct suffstat over gather members of column 0
   memcpy(idxScratch, idxGather, nLeaf * sizeof(size_t));
-  double swD, swzD, swz2D;
-  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch, nLeaf, w, &swD, &swzD, &swz2D);
+  double swD, swzD;
+  misc_computeIndexedWeightedSufficientStatisticsFast(z, idxScratch, nLeaf, w, &swD, &swzD);
   // histogram totals for column 0
-  double tW = 0, tWZ = 0, tWZ2 = 0;
+  double tW = 0, tWZ = 0;
   for (size_t i = 0; i < nLeaf; ++i) {
     size_t obs = idxGather[i];
     double wi = w[obs], zi = z[obs], wz = wi * zi;
-    tW += wi; tWZ += wz; tWZ2 += wz * zi;
+    tW += wi; tWZ += wz;
   }
   if (fabs(tW - swD) > 1e-6 * fabs(swD) + 1e-9 ||
-      fabs(tWZ - swzD) > 1e-6 * fabs(swzD) + 1e-9 ||
-      fabs(tWZ2 - swz2D) > 1e-6 * fabs(swz2D) + 1e-9) {
+      fabs(tWZ - swzD) > 1e-6 * fabs(swzD) + 1e-9) {
     fprintf(stderr, "FAIL: histogram totals diverge from direct suffstat\n");
     exit(1);
   }

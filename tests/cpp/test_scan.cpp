@@ -49,8 +49,8 @@ void bruteForcePerCut(const ColumnStore& store, size_t variable,
       out[cut] = cutScanEmptySentinel;
     } else {
       out[cut] =
-        leaf.logIntegratedLikelihood(k, residualVariance, lw, lwz, 0.0) +
-        leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz, 0.0);
+        leaf.logIntegratedLikelihood(k, residualVariance, lw, lwz) +
+        leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz);
     }
   }
 }
@@ -86,8 +86,8 @@ void bitwiseCollapse(const ColumnStore& store, size_t variable,
     double rwz = total.sumWeightedResponse - left.sumWeightedResponse;
     out[cut] =
       leaf.logIntegratedLikelihood(k, residualVariance, left.sumWeights,
-                                   left.sumWeightedResponse, 0.0) +
-      leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz, 0.0);
+                                   left.sumWeightedResponse) +
+      leaf.logIntegratedLikelihood(k, residualVariance, rw, rwz);
   }
 }
 
@@ -170,9 +170,9 @@ void testHistogramTotals() {
   std::vector<size_t> members(n);
   for (size_t i = 0; i < n; ++i) members[i] = i;
 
-  double swK, swzK, swz2K;
+  double swK, swzK;
   misc_computeIndexedWeightedSufficientStatisticsFast(
-    y.data(), members.data(), n, w.data(), &swK, &swzK, &swz2K);
+    y.data(), members.data(), n, w.data(), &swK, &swzK);
 
   size_t numBins = store.numCuts[0] + 1;
   std::vector<ConstantLeafScanBin> bins(numBins);

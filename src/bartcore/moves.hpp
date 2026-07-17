@@ -212,8 +212,6 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
       tree.truncateMaskPool(maskPoolMark);
       tree.at(nodeToChange).sumWeights = oldNode.sumWeights;
       tree.at(nodeToChange).sumWeightedResponse = oldNode.sumWeightedResponse;
-      tree.at(nodeToChange).sumWeightedResponseSq =
-        oldNode.sumWeightedResponseSq;
       *stepTaken = false;
     }
   } else {

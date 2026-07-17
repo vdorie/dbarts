@@ -169,12 +169,10 @@ struct Node {
   int32_t leftChild = invalidNode;
   Rule rule;
   size_t begin = 0, end = 0;
-  // Constant-leaf sufficient statistic (sum w, sum wz, sum wz^2). sumWeights
-  // is the effective count (n when unweighted); the leaf math derives the
-  // mean and centered variance from these when it needs them.
+  // Constant-leaf sufficient statistic (sum w, sum wz); sumWeights is the
+  // effective count (n unweighted). Raw sum wz^2 cancels in every MH ratio.
   double sumWeights = 0.0;
   double sumWeightedResponse = 0.0;
-  double sumWeightedResponseSq = 0.0;
 
   bool isBottom() const { return leftChild == invalidNode; }
   size_t numObservations() const { return end - begin; }
@@ -494,9 +492,9 @@ public:
     return count;
   }
 
-  /// Leaf sufficient statistic (sum w, sum wz, sum wz^2) in one pass. The
-  /// root intentionally uses the non-indexed kernels (identical values,
-  /// cheaper access).
+  /// Leaf sufficient statistic (sum w, sum wz) in one pass. The root
+  /// intentionally uses the non-indexed kernels (identical values, cheaper
+  /// access).
   void computeLeafStats(int32_t nodeIndex, const double* y, const double* weights) {
     Node& node(at(nodeIndex));
     bool isRoot = node.parent == invalidNode;
@@ -504,21 +502,20 @@ public:
       if (isRoot)
         misc_computeSufficientStatisticsFast(
           y, node.numObservations(), &node.sumWeights,
-          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
+          &node.sumWeightedResponse);
       else
         misc_computeIndexedSufficientStatisticsFast(
           y, indices + node.begin, node.numObservations(), &node.sumWeights,
-          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
+          &node.sumWeightedResponse);
     } else {
       if (isRoot)
         misc_computeWeightedSufficientStatisticsFast(
           y, node.numObservations(), weights, &node.sumWeights,
-          &node.sumWeightedResponse, &node.sumWeightedResponseSq);
+          &node.sumWeightedResponse);
       else
         misc_computeIndexedWeightedSufficientStatisticsFast(
           y, indices + node.begin, node.numObservations(), weights,
-          &node.sumWeights, &node.sumWeightedResponse,
-          &node.sumWeightedResponseSq);
+          &node.sumWeights, &node.sumWeightedResponse);
     }
   }
 
@@ -797,8 +794,6 @@ public:
     node.sumWeights = left.sumWeights + right.sumWeights;
     node.sumWeightedResponse =
       left.sumWeightedResponse + right.sumWeightedResponse;
-    node.sumWeightedResponseSq =
-      left.sumWeightedResponseSq + right.sumWeightedResponseSq;
     node.leftChild = invalidNode;
   }
 
