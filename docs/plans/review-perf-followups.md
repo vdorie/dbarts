@@ -3,7 +3,8 @@
 agent: Opus (every commit; engine/numerics)
 rng: C1-C4 neutral (C1 empirically - see Constraints), C5 shifting on
   the multinomial channels only, C6 measurement-only
-budget: C1 ~250 lines; C3 ~150; C4 ~150; C2/C5 carry their own sub-plans
+budget: C1 ~350 lines (widened, below); C3 ~150; C4 ~150; C2/C5 carry
+  their own sub-plans
 
 ## Goal
 
@@ -14,12 +15,21 @@ parked NT-store question with a real large-n profile.
 
 ## Context
 
-- C1 (P2): the constant-leaf suffstat carries sum wz^2, which cancels in
-  every MH comparison; scan.hpp:23-27,68-70 already omits it. Blast
-  radius: tree.hpp:177,497-523,800-801; model.hpp:109-126,146-154 plus
-  the concept at model.hpp:42; moves.hpp:215-216; the four kernel
-  signatures moments.c:311-410 / include/misc/stats.h:42-45 (internal,
-  scalar, undispatched). No serialization field carries it.
+- C1 (P2): the leaf marginals carry sum wz^2 (z'Wz), a model-free data
+  constant that is additive over any partition of a fixed member set and
+  so cancels in every MH comparison; scan.hpp:23-27,68-70 already omits
+  it. Drop it from ALL THREE marginals - constant
+  (model.hpp:109-126,146-154, concept at :42), linear (model.hpp:299,
+  318, computeProjection output :371-412), and GP (:336-338) - because
+  the GP leaf delegates oversized nodes to the constant marginal
+  (model.hpp:693-698): a constant-only drop would mix z'Wz-free and
+  z'Wz-carrying marginals across the maxLeafSize_ boundary and change
+  the GP posterior. Also: tree.hpp:177,497-523,800-801; moves.hpp:
+  215-216; the four kernel signatures moments.c:311-410 /
+  include/misc/stats.h:42-45 (internal, scalar, undispatched). The
+  cross-model marginal tests (test_model.cpp) must pass UNEDITED once
+  all marginals agree; an edit there means the drop is inconsistent.
+  No serialization field carries it.
 - C2 (P1): per-leaf mu plus a per-observation leaf id replace the
   per-tree n-vector scatter (treeFits slab ~8x smaller; kills the
   recorded ~18.5% setIndexedVectorToConstant share). Sub-plan first.
