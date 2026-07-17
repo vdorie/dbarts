@@ -23,6 +23,13 @@ items
     parallelism candidate; an ESS-per-second experiment decides
     (protocol and the memory-wall bound:
     docs/design/within-chain-threading.md). low-ranked.
+  data-store-consolidation: collapse the data layer's accreted
+    structure per the 2026-07-17 data review - train/test twinning
+    into CodeBlock over a shared CutGrid, explicit per-column storage
+    descriptor, build-reset and transaction helpers, isView
+    provenance/capability split, conditional DataHandle raw gather,
+    linear-leaf u_ row-major. Staged, every stage bitwise. VD
+    triggers; do not start unasked.
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
@@ -74,7 +81,17 @@ items
     machinery plus a cutpoint block.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
-    likely out-of-repo. decision-gated.
+    likely out-of-repo. decision-gated. The 2026-07-17 data review
+    adds: host-side ingestion validation (CSC structure, categorical
+    bounds, sparse metadata assembly) lives in the R bridge and would
+    need reimplementing - move it into an R-free bartcore ingest
+    helper when this item opens; mixed/CSC stores also hold lifetime
+    borrows anchored by R protection, an undocumented contract for
+    any other host.
+  r-ingestion-cleanups: R-surface leftovers of the data review -
+    family-routing dedup (three drifted copies), the sparse-test
+    silent densification (decision inside: symmetric dgCMatrix
+    support vs explicit error), shared NA-policy guard.
   repo-modernization: standing hygiene bundle. Sanitizers PR-gated
     2026-07-17 (nine consecutive green push runs met the stability
     condition). Coverage resolved (VD 2026-07-17): one-shot covr audit
