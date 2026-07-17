@@ -90,3 +90,25 @@ multinomial-equivalence.R compare vs multinomial-equivalence-2bd34db.rds
 untouched channels). air format --check . on any R touch. bench-sampler
 compare vs bench-sampler-60a13b6.csv for C1-C3 (quiet window, no
 concurrent load).
+
+## Landings
+
+C1 033c3cc (2026-07-17). Drop landed for ALL THREE marginals, not the
+constant leaf alone: the first, constant-only attempt failed the
+component tests because the GP leaf's maxLeafSize_ fallback delegates
+oversized nodes to the constant marginal - mixing a z'Wz-free fallback
+with z'Wz-carrying GP marginals would have changed the GP posterior.
+The widened shape: constant and linear marginals drop the term
+structurally (linear's marginal becomes + 0.5 b'M^-1 b / sigma^2); GP
+computes z'Wz and adds it back explicitly because z'V^-1 z entangles it
+(Woodbury), which keeps the fallback coherent. Node loses the field,
+the four suffstat kernels lose their third output, moves.hpp loses the
+restore copy. The cross-model marginal tests passed UNEDITED after the
+widening (the built-in consistency check the amendment demanded);
+absolute-value oracle tests updated by adding the analytically exact
+dropped term in-test. Gates: install --preclean, tests/cpp from clean,
+tinytest 3050/0, equivalence 22/22 identical draws (the empirical
+neutrality question resolved: no knife-edge accept flipped), bcf 5x6
+and multinomial 3x5 bitwise; reviewer re-ran the component binary and
+the 22-scenario compare independently. Diff 316 lines. bench-sampler
+compare PENDING the batched quiet window (with C2/C3).
