@@ -761,9 +761,10 @@ public:
   /// chain, fanning across chains on up to min(numThreads, numChains) workers
   /// exactly as run() does, so the grown forest is thread-count-independent
   /// (each chain draws only on its own generator). A single chain runs inline
-  /// on the caller's thread, which the host has wrapped in GetRNGstate so the
-  /// chain riding R's stream is safe; multi-chain workers ride their own
-  /// Mersenne Twisters and never touch R. Constant leaf only (Chain no-ops for
+  /// on the caller's thread; multi-chain workers run on spawned threads.
+  /// Every chain, inline or threaded, draws from its own Mersenne Twister,
+  /// seeded from R's stream once at sampler creation, and never touches R's
+  /// stream during sampling. Constant leaf only (Chain no-ops for
   /// vector/function leaves; the R surface refuses them).
   void growFromRoot(size_t numSweeps) {
     size_t numChains = chains_.size();
@@ -935,8 +936,8 @@ public:
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
-    // the engine keeps no predictor matrix; a rollback restores the snapshotted
-    // codes and the gathered leaf-covariate raw the leaf models re-read
+    // same rollback rationale as setPredictor above (no engine-side
+    // predictor matrix)
     std::vector<double> oldGatheredRaw;
     if (!forceUpdate) {
       oldCodes.resize(n * numColumns);

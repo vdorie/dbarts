@@ -115,8 +115,8 @@ Friedman, J.H. (2001)
      \emph{The Annals of Statistics}, \bold{29}, 1189--1232.
 }
 \author{
-Hugh Chipman: \email{hugh.chipman@acadiau.ca}.\cr
-Robert McCulloch: \email{robert.mcculloch@chicagogsb.edu}.
+Hugh Chipman: \email{hugh.chipman@gmail.com}.\cr
+Robert McCulloch: \email{robert.mcculloch1@gmail.com}.
 }
 \examples{
 \dontrun{

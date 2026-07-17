@@ -12,7 +12,7 @@ Pre-built binaries of the package are built by [CRAN](https://cran.r-project.org
 Features
 --------
 
-- Gaussian, probit, and logistic response families (`family = "gaussian"/"probit"/"logistic"`)
+- Gaussian, probit, logistic, accelerated-failure-time survival, and multinomial response families (`family = "gaussian"/"probit"/"logistic"/"aft"/"multinomial"`)
 - Missing predictor values handled in place via MIA (`missing = "incorporate"`)
 - DART variable selection prior (`dart = TRUE` or `tree.prior = dart()`)
 - Linear and Gaussian-process leaf models (`node.prior = linear(...)` or `gp(...)`)

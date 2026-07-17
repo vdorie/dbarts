@@ -45,9 +45,7 @@ massign <- structure(NA, class = "lval")
       var <- args[[i]]
 
       if (!missing(var)) {
-        #cat("assigning '", varNames[i], " value (", value[[1L]], ") in env '", format(callingEnv), "'\n")
         assign(varNames[i], value[[1L]], envir = callingEnv)
-        #eval.parent(substitute(var <- val, list(var = varNames[i], val = value[[1L]])))
       }
 
       value <- value[-1L]
@@ -88,9 +86,7 @@ massign <- structure(NA, class = "lval")
       sel[selectionIndex] <- TRUE
     }
 
-    #cat("assigning '", varName, " value (", value[sel][[1L]], ") in env '", format(callingEnv), "'\n")
     assign(varName, value[sel][[1L]], envir = callingEnv)
-    #eval.parent(substitute(varName <- val, list(varName = varName, val = value[sel][[1L]])))
     ## check to see if the value is named later, if not pop it off
     if (
       i == length(argNames) ||
@@ -111,9 +107,7 @@ massign <- structure(NA, class = "lval")
     var <- args[[i]]
 
     if (!missing(var)) {
-      #cat("assigning '", as.character(var), " value (", value[[1L]], ") in env '", format(callingEnv), "'\n")
       assign(as.character(var), value[[1L]], envir = callingEnv)
-      #eval.parent(substitute(var <- val, list(var = var, val = value[[1L]])))
     }
 
     ## pop selected values
@@ -142,7 +136,6 @@ unpack <- structure(NA, class = "named_lval")
 
   mc[[2L]] <- x
 
-  #cat("calling ", as.character(mc), "\n")
   callingEnv <- parent.frame(1L)
   eval(mc, callingEnv)
 }

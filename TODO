@@ -79,7 +79,13 @@ items
   repo-modernization: standing hygiene bundle. Sanitizers PR-gated
     2026-07-17 (nine consecutive green push runs met the stability
     condition). Remaining: optional codecov badge (VD's call);
-    optional roxygen2 and NEWS.md migrations (do not start unasked).
+    optional roxygen2 and NEWS.md migrations (do not start unasked);
+    dbarts.h's x_test/offset_test -> xTest/offsetTest cosmetic rename,
+    deferred because DBARTS_API_STRINGIZE stringizes each parameter's
+    full declaration, name included, so the rename alone moves
+    DBARTS_C_API_HASH and forces a MINOR bump with the stan4bart floor
+    in lockstep - ride it on the next hash-moving dbarts.h change
+    instead.
   robust-errors: Student-t residuals as a scale-mixture on the
     workingWeights hook; composes with user weights.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,

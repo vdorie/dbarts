@@ -69,9 +69,6 @@ sliceSample <- function(
       error = function(e) e
     )
     if (inherits(optimResult, "error")) {
-      ## ||
-      ##(is.finite(boundary[1]) && abs(optimResult$par - boundary[1]) < 1e-6) ||
-      ##(is.finite(boundary[2]) && abs(optimResult$par - boundary[2]) < 1e-6))
       ## if optim fails, do own gradient ascent
       delta <- 1e-6
       while (

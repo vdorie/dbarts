@@ -300,6 +300,45 @@
       \item `getTrees` and `extract(., "trees")` accept a `newdata` matrix, routing
             those observations through each tree so the `n` column counts them
             instead of the training data.
+      \item `dbarts`, `bart2`, and `rbart_vi` accept `family = "aft"`: an
+            accelerated failure time, log-normal survival model (the forest
+            models the conditional mean of log survival time, with `sigma` the
+            log-scale residual standard deviation). The response is a
+            `survival::Surv` object (right-censoring only) or a two-column
+            `(time, status)` matrix or data frame; under `family = "auto"` a
+            `Surv` response selects `"aft"` on its own. `rbart_vi` adds a
+            random intercept per group to the same model, through its formula
+            interface; `dbarts` and `bart2` take the response through their
+            x/y interface. None of the three support `weights` or `subset` for
+            a survival fit. `predict`, `extract`, and `fitted` return the
+            log-time-scale linear predictor, never the time scale; the new
+            `survivalProbabilities` generic draws the survival probability
+            over a user-supplied time grid instead.
+      \item `bart2` accepts `family = "multinomial"`: a K-category softmax
+            classifier, K forests coupled through an interleaved Polya-Gamma
+            one-vs-rest augmentation. The response is a factor (or character)
+            with three or more levels, an n x K matrix of nonnegative integer
+            trial counts (one column per category), or the equivalent
+            `cbind(c1, ..., cK) ~ x` formula; under `family = "auto"` a factor
+            (or character) response with three or more levels is detected and
+            routed here, reporting the choice in a one-line message. The
+            fit's class is `"bartMultinomial"`, with its own `residuals`,
+            `plot`, `summary`, `print`, and `predict` (`type = "ev"`/`"ppd"`)
+            methods, separate from `bart`'s.
+      \item `family = "auto"` (`dbarts`, `bart2`, `xbart`, and `rbart_vi`
+            where applicable) now detects a factor, logical, or character
+            response: two levels resolve to probit and three or more to
+            multinomial (`bart2` only; elsewhere an error names the
+            limitation), each reporting the choice in a one-line message.
+            Previously such a response was either rejected outright or,
+            for three or more levels given through the x/y interface,
+            silently fit as a continuous response on the integer level codes.
+      \item `bart`, `bart2`, and `rbart_vi` fits with `keepTrees = TRUE` now
+            capture the sampler's state automatically at fit time, so `save`/
+            `saveRDS` followed by `predict` works with no additional step; a
+            sampler kept only with `keepSampler` (`keepTrees` `FALSE`) still
+            needs an explicit `storeState()` call after mutating it, as
+            before.
     }
   }
   \subsection{C API}{
@@ -356,6 +395,25 @@
             zero-weight rows were numerous. Fits that pass `weights` of 0
             change accordingly; all-positive-weight fits, including the
             unweighted default, are unaffected.
+      \item `rbart_vi`'s `group.by`/`group.by.test` are now looked up by name
+            instead of a positional scan that silently grabbed the wrong
+            column (typically the response) when the given symbol was absent;
+            `predict` also coerces `group.by` to a factor exactly as at fit
+            time, so it now recognizes trained groups instead of silently
+            re-drawing their random intercepts from the prior.
+      \item A factor (or character) response no longer hard-errors
+            ("'range' not meaningful for factors") when passed through a
+            formula to `dbarts`, `bart2`, or `rbart_vi`; the formula path now
+            routes it the same way the x/y interface always has.
+      \item Several inputs that previously failed with an unrelated low-level
+            error now raise a named one instead: a non-finite response
+            (previously "missing value where TRUE/FALSE needed"), zero-row
+            data ("subscript out of bounds"), and a non-positive `n.samples`
+            ("dim(X) must have a positive length"). A `newdata` variable
+            missing from the fit's predictors and sharing its name with a
+            builtin function is now named in the error instead of reported as
+            "invalid type (builtin)". An unnamed-matrix `newdata` with
+            swapped columns now warns naming the assumed column mapping.
     }
   }
 }
