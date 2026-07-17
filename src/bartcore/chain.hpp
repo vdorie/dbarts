@@ -1057,12 +1057,15 @@ public:
         forest.leaf.regatherTrainingCovariates(data_);
       for (size_t t = 0; t < forest.numTrees; ++t) {
         // the subtract reads the pre-reroute (mu, leafOf) pair, exactly the
-        // cached fits totalFits still sums; the rebuild then tracks the
+        // cached fits totalFits still sums; the map then tracks the
         // repartition revalidateTrees performed
         subtractTreeFitsFromTotal(forest, t);
         setTreeFits(forest, t, params[t]);
-        if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
-        addTreeFitsToTotal(forest, t);
+        if constexpr (leafIsConstant) {
+          installLeafOfAndAddToTotal(forest, t);
+        } else {
+          addTreeFitsToTotal(forest, t);
+        }
       }
     }
   }
@@ -1975,6 +1978,29 @@ private:
   /// tree's staleness mark.
   void rebuildLeafOf(Forest<L>& forest, size_t t) {
     updateLeafOfBelow(forest, t, 0);
+    forest.leafOfStale[t] = 0;
+  }
+
+  /// rebuildLeafOf + addTreeFitsToTotal in one walk over the new bottoms
+  /// (each observation receives one map write and one add either way, so the
+  /// fusion is value-identical); the data-mutation transaction runs this per
+  /// tree, where the separate passes measurably cost.
+  void installLeafOfAndAddToTotal(Forest<L>& forest, size_t t) {
+    Tree& tree(forest.trees[t]);
+    const std::vector<double>& mu(forest.muByTree[t]);
+    std::uint32_t* leaf = forest.leafOf.data() + t * data_.numObservations;
+    double* total = forest.totalFits.data();
+    tree.bottomScratch.clear();
+    tree.fillBottom(0, tree.bottomScratch);
+    for (int32_t i : tree.bottomScratch) {
+      const Node& node(tree.at(i));
+      double value = mu[static_cast<size_t>(i)];
+      for (size_t m = node.begin; m < node.end; ++m) {
+        size_t obs = tree.indices[m];
+        leaf[obs] = static_cast<std::uint32_t>(i);
+        total[obs] += value;
+      }
+    }
     forest.leafOfStale[t] = 0;
   }
 
