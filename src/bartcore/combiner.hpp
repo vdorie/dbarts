@@ -618,6 +618,9 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
     // is read, so the cold value is only a fallback.
     omega_.assign(n * numCategories_, 0.25);
     margins_.resize(n);
+    suffix_.resize(n * numCategories_);
+    prefix_.resize(n);
+    lastF_ = numCategories_;  // forces the first glue call to rebuild the suffix
     combined_.resize(n * numCategories_);
     forestResponse_.resize(n);
     forestWeights_.resize(n);
@@ -645,10 +648,43 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   void drawForestGlue(std::size_t f, ext_rng* rng,
                       const std::vector<Forest<L>>& forests) override {
     std::size_t n = data_.numObservations;
+    std::size_t K = numCategories_;
+    if (f == 0 || f != lastF_ + 1) {
+      // Fresh sweep entry (the sampler always starts at f == 0; a direct
+      // out-of-order call lands here too). Every j > f fit is OLD at this
+      // point, so snapshot the whole suffix by one backward two-way merge from
+      // the empty top row: suffix_[g] = LSE over j > g. Seed the prefix (LSE
+      // over j < f) from the below-f fits - empty, hence -inf, when f == 0.
+      double* top = suffix_.data() + (K - 1) * n;
+      for (std::size_t i = 0; i < n; ++i) top[i] = -HUGE_VAL;
+      for (std::size_t g = K - 1; g-- > 0; ) {
+        const double* next = forests[g + 1].totalFits.data();
+        const double* above = suffix_.data() + (g + 1) * n;
+        double* here = suffix_.data() + g * n;
+        for (std::size_t i = 0; i < n; ++i)
+          here[i] = logSumExp2(next[i], above[i]);
+      }
+      for (std::size_t i = 0; i < n; ++i) prefix_[i] = -HUGE_VAL;
+      for (std::size_t g = 0; g < f; ++g) {
+        const double* below = forests[g].totalFits.data();
+        for (std::size_t i = 0; i < n; ++i)
+          prefix_[i] = logSumExp2(prefix_[i], below[i]);
+      }
+    } else {
+      // In-order continuation: category f - 1's tree update landed since its
+      // glue call, so its fit is now NEW; fold it into the running prefix (the
+      // interleaving's below-f mix). suffix_[f] still holds the OLD above-f mix.
+      const double* prev = forests[f - 1].totalFits.data();
+      for (std::size_t i = 0; i < n; ++i)
+        prefix_[i] = logSumExp2(prefix_[i], prev[i]);
+    }
+    lastF_ = f;
+
     const double* fFits = forests[f].totalFits.data();
+    const double* suffix = suffix_.data() + f * n;
     double* omega = omega_.data() + f * n;
     for (std::size_t i = 0; i < n; ++i) {
-      double margin = otherCategoryMargin(f, i, forests);
+      double margin = logSumExp2(prefix_[i], suffix[i]);
       margins_[i] = margin;
       double psi = fFits[i] - margin;
       double draw = ext_rng_simulatePolyaGamma(rng, psi);
@@ -770,17 +806,15 @@ struct MultinomialForestCombiner : ForestCombiner<L> {
   }
 
 private:
-  /// C_if = log sum_{j != f} exp(f_ij), the log-sum-exp margin of every other
-  /// category, computed stably against the max over j != f.
-  double otherCategoryMargin(std::size_t f, std::size_t i,
-                             const std::vector<Forest<L>>& forests) const {
-    double maxOther = -HUGE_VAL;
-    for (std::size_t j = 0; j < numCategories_; ++j)
-      if (j != f) maxOther = std::max(maxOther, forests[j].totalFits[i]);
-    double sumExp = 0.0;
-    for (std::size_t j = 0; j < numCategories_; ++j)
-      if (j != f) sumExp += std::exp(forests[j].totalFits[i] - maxOther);
-    return maxOther + std::log(sumExp);
+  /// Stable two-term log-sum-exp. An empty LSE is passed as -HUGE_VAL and
+  /// returned through exactly (no exp(-inf)), so the empty-set margins are
+  /// bit-exact: C_if for K == 2 is the other category's raw fit.
+  static double logSumExp2(double a, double b) {
+    if (a == -HUGE_VAL) return b;
+    if (b == -HUGE_VAL) return a;
+    double hi = a > b ? a : b;
+    double lo = a > b ? b : a;
+    return hi + std::log1p(std::exp(lo - hi));
   }
 
   const ColumnStore& data_;
@@ -789,6 +823,9 @@ private:
   const int* trials_;    // borrowed per-observation trial count n_i (>= 1)
   std::vector<double> omega_;          // n x K, category-major (column k at k*n)
   std::vector<double> margins_;        // n; the current forest's C_if handoff
+  std::vector<double> suffix_;         // n x K; per-sweep LSE over j > f, old fits
+  std::vector<double> prefix_;         // n; running LSE over j < f, new fits
+  std::size_t lastF_;                  // prior glue category; detects a fresh sweep
   std::vector<double> combined_;       // n x K softmax probabilities
   std::vector<double> combinedTest_;   // nTest x K softmax test probabilities
   std::vector<double> forestResponse_, forestWeights_;  // n each
