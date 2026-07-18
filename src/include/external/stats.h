@@ -32,6 +32,7 @@ extern "C" {
 #define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) Rf_qnorm5((_P_), (_MU_), (_SIGMA_), 1, 0)
 
 extern double Rf_dnorm4(double, double, double, int);
+extern double Rf_dt(double, double, int);
 extern double Rf_pnorm5(double, double, double, int, int);
 extern double Rf_qnorm5(double, double, double, int, int);
 extern double Rf_pchisq(double, double, int, int);

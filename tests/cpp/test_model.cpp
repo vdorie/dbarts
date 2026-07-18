@@ -3320,6 +3320,216 @@ static void testAFTStateRoundTrip() {
   printf("ok: aft state round trip\n");
 }
 
+// lambda_i | z, f, sigma ~ Gamma((nu + 1)/2, rate (nu + w_i r_i^2/sigma^2)/2);
+// over fixed residuals and fixed nu the per-observation draw's mean and
+// variance match that Gamma (the polya-gamma moments precedent). A local
+// generator and a restored global rngState leave the shared stream untouched.
+static void testTLambdaMoments(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 4;
+  const double nu = 5.0, sigma = 0.3;
+  std::vector<double> y(n), weights = {0.5, 1.0, 2.0, 3.0};
+  for (std::size_t i = 0; i < n; ++i) y[i] = runif01();
+
+  TResponse resp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                 0.37804942330213542, nu);
+  std::vector<double> totalFits(n);
+  for (std::size_t i = 0; i < n; ++i)
+    totalFits[i] = 0.1 * static_cast<double>(i) - 0.15;
+  const double* z = resp.workingResponse();  // internal residual r_i = z_i - f_i
+  double sigmaSq = sigma * sigma;
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 8675309u);
+  const int numDraws = 200000;
+  std::vector<double> sum(n, 0.0), sumSq(n, 0.0);
+  for (int d = 0; d < numDraws; ++d) {
+    resp.refreshLatents(localRng, totalFits.data(), sigma);
+    const double* lambda = resp.latents();
+    for (std::size_t i = 0; i < n; ++i) {
+      sum[i] += lambda[i];
+      sumSq[i] += lambda[i] * lambda[i];
+    }
+  }
+
+  for (std::size_t i = 0; i < n; ++i) {
+    double r = z[i] - totalFits[i];
+    double shape = 0.5 * (nu + 1.0);
+    double rate = 0.5 * (nu + weights[i] * r * r / sigmaSq);
+    double expectedMean = shape / rate;
+    double expectedVar = shape / (rate * rate);
+    double mean = sum[i] / numDraws;
+    double var = sumSq[i] / numDraws - mean * mean;
+    double meanSe = std::sqrt(expectedVar / static_cast<double>(numDraws));
+    checkNear(mean, expectedMean, 5.0 * meanSe, "t lambda conditional mean");
+    checkNear(var, expectedVar, 0.05 * expectedVar,
+              "t lambda conditional variance");
+  }
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: t lambda conditional moments\n");
+}
+
+// the sampled-nu grid draw reproduces the hand-computed full conditional: for
+// a fixed lambda vector the empirical grid frequencies match the normalized
+// product of Gamma(lambda_i; nu/2, nu/2) densities times the gamma(2, 0.1)
+// prior, computed here through the exact lambda^{nu/2 - 1} density form the
+// grid draw's k-constant simplification drops. Local generator, restored state.
+static void testTNuGridPosterior(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  ResidualDfPrior prior;
+  const std::size_t n = 12;
+  std::vector<double> lambda = {0.3, 0.5, 0.7, 0.9, 1.0, 1.1,
+                                1.3, 1.5, 1.7, 0.4, 1.6, 1.0};
+  double sumLogLambda = 0.0, sumLambda = 0.0;
+  for (double l : lambda) {
+    sumLogLambda += std::log(l);
+    sumLambda += l;
+  }
+  double nObs = static_cast<double>(n);
+
+  double expected[ResidualDfPrior::gridSize];
+  double maxLog = -HUGE_VAL;
+  for (std::size_t k = 0; k < ResidualDfPrior::gridSize; ++k) {
+    double a = 0.5 * ResidualDfPrior::grid[k];
+    double logPost = nObs * (a * std::log(a) - std::lgamma(a)) +
+                     (a - 1.0) * sumLogLambda - a * sumLambda +
+                     std::log(ResidualDfPrior::grid[k]) -
+                     0.1 * ResidualDfPrior::grid[k];  // gamma(2, 0.1) log kernel
+    expected[k] = logPost;
+    if (logPost > maxLog) maxLog = logPost;
+  }
+  double total = 0.0;
+  for (std::size_t k = 0; k < ResidualDfPrior::gridSize; ++k) {
+    expected[k] = std::exp(expected[k] - maxLog);
+    total += expected[k];
+  }
+  for (std::size_t k = 0; k < ResidualDfPrior::gridSize; ++k) expected[k] /= total;
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 1729u);
+  const int numDraws = 400000;
+  std::vector<int> counts(ResidualDfPrior::gridSize, 0);
+  for (int d = 0; d < numDraws; ++d)
+    ++counts[prior.drawIndex(localRng, nObs, sumLogLambda, sumLambda)];
+
+  for (std::size_t k = 0; k < ResidualDfPrior::gridSize; ++k) {
+    double freq = static_cast<double>(counts[k]) / numDraws;
+    double se = std::sqrt(expected[k] * (1.0 - expected[k]) / numDraws);
+    checkNear(freq, expected[k], std::max(0.003, 5.0 * se),
+              "t nu grid frequency matches the hand-computed posterior");
+  }
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: t nu grid full conditional\n");
+}
+
+// after a sweep, workingWeights()[i] is exactly w_i lambda_i (a zero user
+// weight composing to 0), and the sigma draw consumes that same composite:
+// reproduced bit-for-bit by a bare GaussianResponse fed the composite as fixed
+// weights on a lockstepped rng. Local generators, restored global rngState.
+static void testTCompositeWeightDelegation(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 6;
+  std::vector<double> y(n), weights = {0.0, 0.5, 1.0, 1.5, 2.0, 0.75};
+  for (std::size_t i = 0; i < n; ++i) y[i] = runif01();
+  const double nu = 6.0, sigma = 0.4, sigmaDf = 3.0,
+               sigmaRawScale = 0.37804942330213542;
+
+  TResponse resp(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
+                 sigmaRawScale, nu);
+  std::vector<double> totalFits(n);
+  for (std::size_t i = 0; i < n; ++i) totalFits[i] = 0.05 * static_cast<double>(i);
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 271828u);
+  resp.refreshLatents(localRng, totalFits.data(), sigma);
+
+  const double* lambda = resp.latents();
+  const double* composite = resp.workingWeights();
+  bool exact = true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (composite[i] != weights[i] * lambda[i]) exact = false;
+  check(exact, "t working weights equal w_i lambda_i exactly");
+  check(composite[0] == 0.0, "t zero user weight composes to zero");
+
+  // the composite must be exactly what drawSigma consumes: a bare Gaussian on
+  // the same response, given the composite as its weights, draws the same sigma
+  std::vector<double> compositeCopy(composite, composite + n);
+  GaussianResponse ref(y.data(), nullptr, compositeCopy.data(), n, 1.0, sigmaDf,
+                       sigmaRawScale);
+  ext_rng* rngResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngResp, 424242u);
+  ext_rng_setSeed(rngRef, 424242u);
+  double sResp = resp.drawSigma(rngResp, totalFits.data(), sigma);
+  double sRef = ref.drawSigma(rngRef, totalFits.data(), sigma);
+  check(sResp == sRef, "t sigma draw consumes the composite weights exactly");
+
+  ext_rng_destroy(rngRef);
+  ext_rng_destroy(rngResp);
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: t composite weight delegation\n");
+}
+
+// fixed nu never draws nu: over identical data and identically seeded local
+// generators, a fixed-nu sweep and a grid sweep (both starting at nu = 8) make
+// the same n lambda draws, after which the grid stream is ahead by exactly the
+// one uniform of the discrete nu draw. Restored global rngState.
+static void testTFixedNuNoDraw(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 16;
+  const double median = ResidualDfPrior::grid[ResidualDfPrior::medianIndex];
+  std::vector<double> y(n), weights(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    y[i] = runif01();
+    weights[i] = 0.5 + runif01();
+  }
+  std::vector<double> totalFits(n);
+  for (std::size_t i = 0; i < n; ++i)
+    totalFits[i] = 0.03 * static_cast<double>(i) - 0.2;
+  const double sigma = 0.35;
+
+  TResponse fixedResp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                      0.37804942330213542, median);
+  TResponse gridResp(y.data(), nullptr, weights.data(), n, 1.0, 3.0,
+                     0.37804942330213542, -1.0);  // estimate on the grid
+  check(!fixedResp.estimatesResidualDf() && gridResp.estimatesResidualDf(),
+        "t mode flags: fixed vs grid");
+
+  ext_rng* rngFixed = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngGrid = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngFixed, 90210u);
+  ext_rng_setSeed(rngGrid, 90210u);
+  fixedResp.refreshLatents(rngFixed, totalFits.data(), sigma);
+  gridResp.refreshLatents(rngGrid, totalFits.data(), sigma);
+
+  check(fixedResp.residualDf() == median, "t fixed nu is held");
+  bool onGrid = false;
+  for (std::size_t k = 0; k < ResidualDfPrior::gridSize; ++k)
+    if (gridResp.residualDf() == ResidualDfPrior::grid[k]) onGrid = true;
+  check(onGrid, "t grid nu lands on a grid value");
+
+  // discarding one uniform from the fixed stream aligns it with the grid
+  // stream: proof the grid drew exactly one more (the nu draw) and the fixed
+  // drew none
+  ext_rng_simulateContinuousUniform(rngFixed);
+  bool shiftedByOne = true;
+  for (int j = 0; j < 64; ++j)
+    if (ext_rng_simulateContinuousUniform(rngFixed) !=
+        ext_rng_simulateContinuousUniform(rngGrid))
+      shiftedByOne = false;
+  check(shiftedByOne, "t grid stream is the fixed stream plus one nu draw");
+
+  ext_rng_destroy(rngGrid);
+  ext_rng_destroy(rngFixed);
+  rngState = savedRngState;
+  printf("ok: t fixed nu draws no nu\n");
+}
+
 // The engine test-container entry (facade setTestData): a sampler given a
 // mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
 // the dense test matrix of the same values, and the entry REFUSES a designated
@@ -3464,6 +3674,10 @@ void runModelTests(ext_rng* rng) {
   testAFTReduction(rng);
   testAFTCensoredMoments(rng);
   testAFTStateRoundTrip();
+  testTLambdaMoments(rng);
+  testTNuGridPosterior(rng);
+  testTCompositeWeightDelegation(rng);
+  testTFixedNuNoDraw(rng);
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();

@@ -2,6 +2,7 @@
 #define BARTCORE_MODEL_HPP
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cmath>
 #include <concepts>
@@ -14,7 +15,7 @@
 #include <vector>
 
 #include <external/random.h>
-#include <external/stats.h> // Rf_dnorm4, Rf_pnorm5 for the log-likelihood channel
+#include <external/stats.h> // Rf_dnorm4, Rf_pnorm5, Rf_dt for the log-likelihood channel
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 
@@ -2556,6 +2557,242 @@ private:
   std::vector<double> logT_;             // log survival times; latent when censored
   std::vector<std::size_t> censoredIndices_;
   std::vector<double> censorBound_;      // log censoring time, per censored index
+};
+
+/// Sampled residual degrees of freedom nu on a fixed capped grid under a
+/// normalized gamma(2, 0.1) prior (docs/design/robust-errors.md section 4).
+/// With the mixing precisions lambda_i ~ Gamma(nu/2, nu/2), the log full
+/// conditional at grid point nu is
+///   n [(nu/2) log(nu/2) - lgamma(nu/2)] + (nu/2)(sumLogLambda - sumLambda)
+///     + log p(nu)
+/// (the lambda^{-1} density term is constant across the grid, so it drops from
+/// the normalized draw). The per-point lgamma and prior constants precompute
+/// once, so each draw is O(grid) multiply-adds from the two lambda statistics
+/// (the DartPrior idiom). The grid floor of 3 keeps the marginal variance
+/// finite.
+struct ResidualDfPrior {
+  static constexpr std::size_t gridSize = 9;
+  static constexpr double grid[gridSize] = {3.0,  4.0,  5.0,  6.0, 8.0,
+                                            10.0, 12.0, 15.0, 20.0};
+  static constexpr std::size_t medianIndex = 4;  // nu = 8, the cold-start value
+
+  ResidualDfPrior() {
+    double priorTotal = 0.0;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      double halfNu = 0.5 * grid[k];
+      kernel_[k] = halfNu * std::log(halfNu) - std::lgamma(halfNu);
+      logPrior_[k] = grid[k] * std::exp(-0.1 * grid[k]);  // gamma(2, 0.1) kernel
+      priorTotal += logPrior_[k];
+    }
+    for (std::size_t k = 0; k < gridSize; ++k)
+      logPrior_[k] = std::log(logPrior_[k] / priorTotal);
+  }
+
+  /// Draw a grid index from the full conditional given the informative-row
+  /// count and the two lambda sufficient statistics.
+  std::size_t drawIndex(ext_rng* rng, double numObservations,
+                        double sumLogLambda, double sumLambda) {
+    double maxLogPosterior = -HUGE_VAL;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      weight_[k] = numObservations * kernel_[k] +
+                   0.5 * grid[k] * (sumLogLambda - sumLambda) + logPrior_[k];
+      if (weight_[k] > maxLogPosterior) maxLogPosterior = weight_[k];
+    }
+    double total = 0.0;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      weight_[k] = std::exp(weight_[k] - maxLogPosterior);
+      total += weight_[k];
+    }
+    for (std::size_t k = 0; k < gridSize; ++k) weight_[k] /= total;
+    return ext_rng_drawFromDiscreteDistribution(rng, weight_.data(), gridSize);
+  }
+
+private:
+  std::array<double, gridSize> kernel_;
+  std::array<double, gridSize> logPrior_;
+  std::array<double, gridSize> weight_;
+};
+
+/// Student-t continuous errors by the Gaussian scale-mixture augmentation
+/// (docs/design/robust-errors.md): sqrt(w_i) r_i / sigma ~ t_nu comes from
+///   r_i | lambda_i ~ N(0, sigma^2 / (w_i lambda_i)), lambda_i ~ Gamma(nu/2, nu/2),
+/// so a contained GaussianResponse over the same rescaled response sees the
+/// composite precision c_i = w_i lambda_i through setWeights (model.hpp:1968),
+/// and both its node statistics and its conjugate sigma draw are exact under
+/// the mixture with no GaussianResponse edit. refreshLatents redraws lambda
+/// each sweep (workingWeightsVaryPerSweep() true, as logistic's omega does) and
+/// in grid mode draws nu afterward; fixed mode holds nu. Only
+/// computeLogLikelihood overrides, to the marginal t density; latents() exposes
+/// lambda for the state block. A zero user weight gives c_i = 0, dropping the
+/// row from the sigma df and the nu statistics. sigma is the CONDITIONAL scale
+/// (marginal variance sigma^2 nu/(nu - 2)).
+class TResponse final : public ResponseModel {
+public:
+  /// residualDf > 0 fixes nu there; a non-positive or non-finite residualDf
+  /// estimates nu on the grid, cold-started at its median. offset and weights
+  /// may be null.
+  TResponse(const double* y, const double* offset, const double* weights,
+            std::size_t numObservations, double sigmaEstimate, double sigmaDf,
+            double sigmaRawScale, double residualDf)
+    : y_(y), userWeights_(weights), numObservations_(numObservations),
+      estimateNu_(!(residualDf > 0.0)),
+      nu_(estimateNu_ ? ResidualDfPrior::grid[ResidualDfPrior::medianIndex]
+                      : residualDf) {
+    lambda_.assign(numObservations, 1.0);
+    composite_.resize(numObservations);
+    for (std::size_t i = 0; i < numObservations; ++i)
+      composite_[i] = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+    gaussian_ = std::make_unique<GaussianResponse>(
+      y, offset, composite_.data(), numObservations, sigmaEstimate, sigmaDf,
+      sigmaRawScale);
+  }
+
+  double* workingResponse() override { return gaussian_->workingResponse(); }
+  const double* workingWeights() const override {
+    return gaussian_->workingWeights();
+  }
+  bool workingWeightsVaryPerSweep() const override { return true; }
+  const double* offset() const override { return gaussian_->offset(); }
+
+  /// Draw each lambda_i from its conjugate Gamma((nu + 1)/2, scale) with
+  /// scale = 2 / (nu + w_i r_i^2 / sigma^2) over the internal residual
+  /// r_i = z_i - f_i, compose c_i = w_i lambda_i, draw nu from the two
+  /// informative-row lambda statistics (grid mode), then hand the composite to
+  /// the Gaussian so its weights and sigma draw see the mixture.
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double sigma) override {
+    const double* z = gaussian_->workingResponse();
+    double sigmaSq = sigma * sigma;
+    double shape = 0.5 * (nu_ + 1.0);
+    double sumLogLambda = 0.0, sumLambda = 0.0, numInformative = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double w = userWeights_ != nullptr ? userWeights_[i] : 1.0;
+      double r = z[i] - totalFits[i];
+      double lambda =
+        ext_rng_simulateGamma(rng, shape, 2.0 / (nu_ + w * r * r / sigmaSq));
+      lambda_[i] = lambda;
+      composite_[i] = w * lambda;
+      if (w > 0.0) {
+        sumLogLambda += std::log(lambda);
+        sumLambda += lambda;
+        numInformative += 1.0;
+      }
+    }
+    if (estimateNu_)
+      nu_ = ResidualDfPrior::grid[nuPrior_.drawIndex(rng, numInformative,
+                                                     sumLogLambda, sumLambda)];
+    gaussian_->setWeights(composite_.data());
+  }
+
+  double drawSigma(ext_rng* rng, const double* totalFits,
+                   double sigma) override {
+    return gaussian_->drawSigma(rng, totalFits, sigma);
+  }
+
+  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
+                   bool updateScale, double* sigmaInOut) override {
+    y_ = y;
+    gaussian_->setResponse(y, rng, totalFits, updateScale, sigmaInOut);
+    coldInit();
+  }
+
+  void setOffset(const double* offset, bool updateScale,
+                 double* sigmaInOut) override {
+    gaussian_->setOffset(offset, updateScale, sigmaInOut);
+  }
+
+  void setData(const double* y, const double* offset, const double* weights,
+               std::size_t numObservations, double* sigmaInOut) override {
+    y_ = y;
+    userWeights_ = weights;
+    numObservations_ = numObservations;
+    lambda_.assign(numObservations, 1.0);
+    composite_.assign(numObservations, 0.0);
+    gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
+    coldInit();
+  }
+
+  void setWeights(const double* weights) override {
+    userWeights_ = weights;
+    recompose();
+  }
+
+  void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
+                     double rawScale) override {
+    gaussian_->setSigmaPrior(sigmaEstimate, degreesOfFreedom, rawScale);
+  }
+
+  const double* latents() const override { return lambda_.data(); }
+  void restoreLatents(const double* latents) override {
+    std::memcpy(lambda_.data(), latents, numObservations_ * sizeof(double));
+    recompose();
+  }
+
+  /// The current residual df and, for the state block, whether it is sampled;
+  /// restoreResidualDf reinstalls a stored nu (a grid value in grid mode).
+  double residualDf() const { return nu_; }
+  bool estimatesResidualDf() const { return estimateNu_; }
+  void restoreResidualDf(double nu) { nu_ = nu; }
+
+  void getScale(double& min, double& max) const override {
+    gaussian_->getScale(min, max);
+  }
+  void restoreScale(double min, double max) override {
+    gaussian_->restoreScale(min, max);
+  }
+
+  double initialSigma() const override { return gaussian_->initialSigma(); }
+  double fitScale() const override { return gaussian_->fitScale(); }
+  double fitShift() const override { return gaussian_->fitShift(); }
+  double sigmaScale() const override { return gaussian_->sigmaScale(); }
+
+  /// Marginal density of the observed response: a location-scale t_nu with
+  /// original-scale location mu = fit (offset carried) and scale
+  /// s_i = sigma range_ / sqrt(w_i), so log p = log dt((y - mu)/s_i, nu) - log s_i.
+  void computeLogLikelihood(const double* totalFits, double sigma,
+                            std::size_t numObservations,
+                            double* out) const override {
+    double scale = gaussian_->fitScale();
+    double shift = gaussian_->fitShift();
+    double sigmaOriginal = sigma * scale;
+    const double* offset = gaussian_->offset();
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double mu = scale * totalFits[i] + shift +
+                  (offset != nullptr ? offset[i] : 0.0);
+      double sd = userWeights_ != nullptr
+                    ? sigmaOriginal / std::sqrt(userWeights_[i])
+                    : sigmaOriginal;
+      out[i] = Rf_dt((y_[i] - mu) / sd, nu_, 1) - std::log(sd);
+    }
+  }
+
+private:
+  /// c_i = w_i lambda_i, then hand the composite to the contained Gaussian so
+  /// its weights, node statistics, and sigma draw all see the mixture.
+  void recompose() {
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      composite_[i] =
+        (userWeights_ != nullptr ? userWeights_[i] : 1.0) * lambda_[i];
+    gaussian_->setWeights(composite_.data());
+  }
+
+  /// Cold state after a data swap: lambda = 1 (c_i = w_i) and, in grid mode,
+  /// nu at the grid median; the next sweep draws both.
+  void coldInit() {
+    std::fill(lambda_.begin(), lambda_.end(), 1.0);
+    if (estimateNu_) nu_ = ResidualDfPrior::grid[ResidualDfPrior::medianIndex];
+    recompose();
+  }
+
+  const double* y_;
+  const double* userWeights_;
+  std::size_t numObservations_;
+  bool estimateNu_;
+  double nu_;
+  std::unique_ptr<GaussianResponse> gaussian_;
+  std::vector<double> lambda_;      // per-observation mixing precisions
+  std::vector<double> composite_;   // c_i = w_i lambda_i, the Gaussian's weights
+  ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
 };
 
 /// Tau priors the in-core grouped sampler supports (rbart.priors); custom
