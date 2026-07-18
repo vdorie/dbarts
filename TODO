@@ -104,8 +104,6 @@ items
     DBARTS_C_API_HASH and forces a MINOR bump with the stan4bart floor
     in lockstep - ride it on the next hash-moving dbarts.h change
     instead.
-  robust-errors: Student-t residuals as a scale-mixture on the
-    workingWeights hook; composes with user weights.
   sparse-extensions: in-place nonzero mutation, streaming range kernel,
     mutation on dense-backed mixed columns (sparse-columns.md landing
     notes). consumer-gated.
