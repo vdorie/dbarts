@@ -195,6 +195,10 @@ struct ParsedModel {
   double sigmaQuantile = 0.9;
   // the chi-squared prior's scale before anchoring to the sigma estimate
   double sigmaRawScale = 1.0;
+  // Student-t residual degrees of freedom (docs/design/robust-errors.md): NaN
+  // is the Gaussian default, a positive value fixes nu, 0 estimates it on the
+  // grid. The R surface (C3) attaches it; absent it stays NaN.
+  double residualDf = NA_REAL;
   // a linear or gp node prior's designated covariate columns (0-based);
   // empty for the constant leaf
   std::vector<size_t> leafCovariateColumns;
@@ -908,6 +912,14 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
     Rf_error("unsupported residual variance prior type '%s'", classStr);
   }
 
+  // Student-t residual df (docs/design/robust-errors.md): an optional numeric
+  // model attribute the R surface (C3) attaches; absent it stays NaN, the
+  // Gaussian law. Read raw here - the family cross-check and sign policy live
+  // in parseSamplerSpecification, once the family is known.
+  SEXP residDfExpr = Rf_getAttrib(modelExpr, Rf_install("resid.df"));
+  if (Rf_isReal(residDfExpr) && Rf_xlength(residDfExpr) == 1)
+    model.residualDf = REAL(residDfExpr)[0];
+
   UNPROTECT(3);
 }
 
@@ -1167,6 +1179,9 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   bartcore::SamplerOptions options;
   options.numTrees = control.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
+  // the gaussian construction path reads this: finite selects Student-t errors
+  // (docs/design/robust-errors.md), NaN keeps the Gaussian law
+  options.residualDf = model.residualDf;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   options.base = model.base;
@@ -1495,6 +1510,18 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // rejects weights (docs/design/survival.md)
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
     Rf_error("aft (survival) models do not support case weights");
+  // Student-t continuous errors (docs/design/robust-errors.md): a finite
+  // resid.df selects the scale-mixture error law - a positive value fixes the
+  // degrees of freedom, 0 estimates them on the grid. Only the gaussian family
+  // carries it; NaN (absent) keeps the Gaussian law.
+  if (std::isfinite(model.residualDf)) {
+    if (family != bartcore::ResponseFamily::gaussian)
+      Rf_error("Student-t residuals (resid.df) require a continuous gaussian "
+               "response");
+    if (model.residualDf < 0.0)
+      Rf_error("resid.df must be positive to fix the degrees of freedom, or 0 "
+               "to estimate them");
+  }
   return family;
 }
 
@@ -3706,13 +3733,13 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_BCF, SLOT_COUNT
+    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "bcf"
+    "rng.state", "bcf", "resid.df"
   };
 
   SEXP resultExpr =
@@ -3812,6 +3839,12 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
       bcf[2] = chainState.b0;
       bcf[3] = chainState.b1;
     }
+
+    // the t-only residual df; lambda already rode the latents slot above. A
+    // gaussian (or any non-t) chain carries NaN and writes no block.
+    if (std::isfinite(chainState.residualDf))
+      SET_VECTOR_ELT(chainExpr, SLOT_RESID_DF,
+                     Rf_ScalarReal(chainState.residualDf));
 
     SET_VECTOR_ELT(resultExpr, static_cast<R_xlen_t>(c), chainExpr);
     UNPROTECT(1);
@@ -4113,6 +4146,17 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       chainState.aVariance = REAL(bcfExpr)[1];
       chainState.b0 = REAL(bcfExpr)[2];
       chainState.b1 = REAL(bcfExpr)[3];
+    }
+
+    // additive t-only block: absent (an old or gaussian state) leaves the NaN
+    // default, which stateIsValid refuses only for a t sampler
+    SEXP residDfExpr = getListElement(chainExpr, "resid.df");
+    if (!Rf_isNull(residDfExpr)) {
+      if (!Rf_isReal(residDfExpr) || Rf_xlength(residDfExpr) != 1) {
+        errorMessage = malformedBlock("resid.df");
+        break;
+      }
+      chainState.residualDf = REAL(residDfExpr)[0];
     }
   }
 

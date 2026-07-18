@@ -1893,6 +1893,14 @@ public:
   /// exactly as reported, so restores are exact. A no-op when ungrouped.
   virtual void restoreGroupEffects(const double* /*effects*/,
                                    double /*tau*/) {}
+
+  /// Continuous responses under a Student-t error law (TResponse) carry a
+  /// residual degrees of freedom nu the state block serializes alongside the
+  /// mixing precisions in latents(); other families carry none, so their
+  /// states omit the nu block and a t sampler refuses a state lacking one.
+  virtual bool carriesResidualDf() const { return false; }
+  virtual double residualDf() const { return 0.0; }
+  virtual void restoreResidualDf(double /*nu*/) {}
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -2729,10 +2737,12 @@ public:
   }
 
   /// The current residual df and, for the state block, whether it is sampled;
-  /// restoreResidualDf reinstalls a stored nu (a grid value in grid mode).
-  double residualDf() const { return nu_; }
+  /// restoreResidualDf reinstalls a stored nu (a grid value in grid mode). The
+  /// state block serializes nu whenever carriesResidualDf() is true.
+  bool carriesResidualDf() const override { return true; }
+  double residualDf() const override { return nu_; }
   bool estimatesResidualDf() const { return estimateNu_; }
-  void restoreResidualDf(double nu) { nu_ = nu; }
+  void restoreResidualDf(double nu) override { nu_ = nu; }
 
   void getScale(double& min, double& max) const override {
     gaussian_->getScale(min, max);
@@ -3060,6 +3070,12 @@ public:
     base_->restoreLatents(latents);
     rebuildWorking();
   }
+
+  // forward the t-residual channel so a grouped Student-t response serializes
+  // its nu alongside the lambda latents above
+  bool carriesResidualDf() const override { return base_->carriesResidualDf(); }
+  double residualDf() const override { return base_->residualDf(); }
+  void restoreResidualDf(double nu) override { base_->restoreResidualDf(nu); }
 
   void getScale(double& min, double& max) const override {
     base_->getScale(min, max);

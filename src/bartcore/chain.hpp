@@ -1,6 +1,7 @@
 #ifndef BARTCORE_CHAIN_HPP
 #define BARTCORE_CHAIN_HPP
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -132,6 +133,13 @@ struct SamplerOptions {
   // and is never drawn (the R-level fixed() residual prior); binary families
   // are always sigma-fixed
   bool sigmaIsFixed = false;
+
+  // continuous (gaussian family) responses only: a finite residualDf selects
+  // Student-t errors via the scale-mixture augmentation (TResponse,
+  // docs/design/robust-errors.md) - a positive value fixes nu, <= 0 estimates
+  // it on the grid; NaN (default) and +Inf keep the Gaussian law. Non-gaussian
+  // families ignore it (the bridge refuses the combination host-side).
+  double residualDf = std::numeric_limits<double>::quiet_NaN();
 
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
@@ -298,9 +306,17 @@ public:
         std::make_unique<LogisticResponse>(y, offset, weights, numObservations);
       break;
     case ResponseFamily::gaussian:
-      response_ = std::make_unique<GaussianResponse>(
-        y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
-        sigmaRawScale);
+      // a finite residualDf selects the Student-t scale-mixture error law
+      // (TResponse: > 0 fixes nu, <= 0 estimates it on the grid); NaN and Inf
+      // keep the Gaussian law (docs/design/robust-errors.md)
+      if (std::isfinite(options.residualDf))
+        response_ = std::make_unique<TResponse>(
+          y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
+          sigmaRawScale, options.residualDf);
+      else
+        response_ = std::make_unique<GaussianResponse>(
+          y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
+          sigmaRawScale);
       break;
     case ResponseFamily::aft:
       // y holds the log survival/censoring times; status marks the censored
@@ -1585,6 +1601,11 @@ public:
     } else {
       state.latents.clear();
     }
+    // a t response's lambda rides latents above; its nu is the companion
+    // scalar block, absent (NaN) for every other family
+    state.residualDf = response_->carriesResidualDf()
+                         ? response_->residualDf()
+                         : std::numeric_limits<double>::quiet_NaN();
     if (response_->numGroupEffects() > 0) {
       state.groupEffects.assign(
         response_->groupEffects(),
@@ -1690,6 +1711,12 @@ public:
     }
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
+      return false;
+    // a t sampler needs both its mixing precisions (lambda, in latents) and a
+    // positive residual df; an old gaussian state, or one from a gaussian
+    // sampler, carries neither and cannot continue the mixture
+    if (response_->carriesResidualDf() &&
+        (state.latents.size() != n || !(state.residualDf > 0.0)))
       return false;
     // grouped states must carry a full effects vector for the chain's
     // groups; ungrouped states and chains both hold zero of them
@@ -1804,6 +1831,10 @@ public:
     setSigma(state.sigma);
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
+    // stateIsValid guaranteed a positive df for a t sampler; fixed mode
+    // reinstalls its constant, estimated mode its last grid draw
+    if (response_->carriesResidualDf())
+      response_->restoreResidualDf(state.residualDf);
     if (!state.groupEffects.empty())
       response_->restoreGroupEffects(state.groupEffects.data(),
                                      state.groupTau);

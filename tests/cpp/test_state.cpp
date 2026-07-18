@@ -459,6 +459,124 @@ static void testStateRoundTripLatents(ext_rng* rng) {
   printf("ok: state round trip with latents\n");
 }
 
+static void testStateRoundTripStudentT(ext_rng* /*rng*/) {
+  // Student-t continuous errors: the mixing precisions lambda (in the latents
+  // block) and the residual df nu (its companion scalar) must ride the state,
+  // restore exactly, and let a fresh sampler continue the same posterior; both
+  // fixed-nu and estimated-nu modes. RNG-insulated per testLeafOfConsistency
+  // (local generator + restored rngState): a stray runif01 would shift every
+  // downstream snapshot.
+  std::uint64_t savedRngState = rngState;
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  auto runOneMode = [&](double residualDf, bool estimated, const char* tag) {
+    SamplerOptions options;
+    options.numTrees = 25;
+    options.residualDf = residualDf;
+
+    ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngA, 20240717u);
+    ext_rng_setSeed(rngB, 90909u);  // different: the serialized rng must win
+    ConstantLeafSampler original(x.data(), y.data(), n, 2, nullptr, nullptr,
+                            ResponseFamily::gaussian, 1.0, 3.0,
+                            0.37804942330213542, options, &rngA);
+    Results empty;
+    original.run(40, 0, empty);
+
+    SamplerStateData state;
+    original.getState(state);
+    check(state.chains[0].latents.size() == n,
+          "t state carries the mixing precisions");
+    check(state.chains[0].residualDf > 0.0,
+          "t state carries a positive residual df");
+    if (!estimated)
+      check(state.chains[0].residualDf == residualDf,
+            "fixed-nu state records the exact df");
+
+    ConstantLeafSampler restored(x.data(), y.data(), n, 2, nullptr, nullptr,
+                            ResponseFamily::gaussian, 1.0, 3.0,
+                            0.37804942330213542, options, &rngB);
+    check(restored.setState(state, nullptr), "a t state restores");
+
+    // gate (a): the restored model reproduces the saved one bitwise, lambda
+    // and nu included (statesAgree compares both)
+    checkStructuralRoundTrip(state, restored,
+                             "restored t state reproduces the model");
+    SamplerStateData reState;
+    restored.getState(reState);
+    check(reState.chains[0].residualDf == state.chains[0].residualDf,
+          "nu round-trips exactly");
+    check(reState.chains[0].latents == state.chains[0].latents,
+          "lambda round-trips exactly");
+
+    // gate (b): draws diverge in the last ulp of the re-accumulated fits and
+    // then chaotically, but the restored chain tracks the same sigma posterior
+    // well inside Monte Carlo error
+    const size_t window = 500;
+    std::vector<double> sigmaA(window), sigmaB(window);
+    Results resultsA, resultsB;
+    resultsA.sigma = sigmaA.data();
+    resultsB.sigma = sigmaB.data();
+    original.run(0, window, resultsA);
+    restored.run(0, window, resultsB);
+    double sumA = 0.0, sumB = 0.0, sumSqA = 0.0;
+    for (size_t i = 0; i < window; ++i) {
+      sumA += sigmaA[i];
+      sumB += sigmaB[i];
+      sumSqA += sigmaA[i] * sigmaA[i];
+    }
+    double meanA = sumA / window, meanB = sumB / window;
+    double mcse = std::sqrt((sumSqA / window - meanA * meanA) / window);
+    check(std::fabs(meanA - meanB) < 8.0 * mcse,
+          "restored t chain continues the same posterior");
+
+    ext_rng_destroy(rngB);
+    ext_rng_destroy(rngA);
+    printf("ok: state round trip, student-t (%s)\n", tag);
+  };
+
+  runOneMode(4.0, false, "fixed nu");
+  runOneMode(0.0, true, "estimated nu");
+
+  // a t sampler refuses a state without the t blocks: a gaussian state carries
+  // neither latents nor nu, so the shared latents check and the nu requirement
+  // together reject it
+  SamplerOptions gaussOptions;
+  gaussOptions.numTrees = 25;
+  ext_rng* rngG = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngG, 4242u);
+  ConstantLeafSampler gaussian(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, gaussOptions, &rngG);
+  Results emptyG;
+  gaussian.run(20, 0, emptyG);
+  SamplerStateData gaussState;
+  gaussian.getState(gaussState);
+  check(gaussState.chains[0].latents.empty(),
+        "gaussian state carries no latents");
+  check(std::isnan(gaussState.chains[0].residualDf),
+        "gaussian state carries no residual df");
+
+  SamplerOptions tOptions;
+  tOptions.numTrees = 25;
+  tOptions.residualDf = 4.0;
+  ext_rng* rngT = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngT, 5353u);
+  ConstantLeafSampler tSampler(x.data(), y.data(), n, 2, nullptr, nullptr,
+                          ResponseFamily::gaussian, 1.0, 3.0,
+                          0.37804942330213542, tOptions, &rngT);
+  check(!tSampler.setState(gaussState, nullptr),
+        "a t sampler refuses a gaussian state");
+
+  ext_rng_destroy(rngT);
+  ext_rng_destroy(rngG);
+  rngState = savedRngState;
+  printf("ok: state round trip, student-t rejects a gaussian state\n");
+}
+
 static void testStateValidation(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -506,5 +624,6 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTrip();
   testStateRoundTripScaledOffset();
   testStateRoundTripLatents(rng);
+  testStateRoundTripStudentT(rng);
   testStateValidation(rng);
 }
