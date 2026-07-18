@@ -109,5 +109,46 @@ equivalence (23/23 identical draws), bcf, and multinomial compares
 independently. Note: git dates stages 4/3 2026-07-17; the labels
 above were written a day ahead.
 
-Stage 1 (train/test de-twinning) remains open - approved, next in the
-serialized order.
+Stage 1 C1 e3f9cb1 + C2 54637ab (2026-07-18). Planner-first with an
+independent blind critique (the review pattern earned its keep: REJECT
+with three blocking findings - a test census gap that would have
+broken the component build in test_moves/test_sampler, a
+CodeBlock::clear that would have emptied just-sized code buffers in
+build/buildFromParent, and "byte-identical" bridge claims that were
+false in their per-side error strings - all fixed in the plan before
+implementation). C1: CodeBlock (codes, codeOffsets, sources,
+sparseColumns + the pure accessors and denseRawForColumn) instantiated
+as ColumnStore::train/test; the twinned quantize/rank-build pairs
+collapse into quantizeDenseInto, quantizeCscColumnInto, and
+buildRankStorageInto parameterized by block and row count; one-line
+forwarding accessors keep scan/tree/model/facade/chain untouched;
+sampler.hpp is 12 mechanical renames; ~50 white-box renames across six
+component-test files. Planner corrections accepted: no nested CutGrid
+type (the grid is physically singular on the store and field-read at
+150+ sites - nesting buys zero dedup; the store IS the shared grid),
+dimensions and hasMissing/gathered*/ownedTest*/testOffset stay
+store-level, no CodeBlock::clear (reset helpers address block fields
+directly, preserving the size-then-reset order build depends on).
+C2: codeDenseColumn (x3 factor/real coding), mapColumnSources (x2),
+resolveCscCategoricalReferences (x2, categoryCountsOut train-only),
+composed parseMixedContainerBlock serving both mixed call sites;
+reference resolution stays a separate per-side call (parseData reads
+varTypes only after the x-parse). Per-side error strings preserved
+verbatim - the file's string-literal set diffed identical against
+HEAD; the train-side redundant bound check now runs on both sides
+(verified unreachable) with side wording. ParsedData/
+ParsedTestContainer layouts and the denseAssembly move/borrow
+untouched. Net: C1 -10 src lines, C2 +12 (message parameters offset
+the dedup; the value is the drift hazard, not the count). All six
+gates bitwise per commit; orchestrator re-ran component, suite
+(3098/0), equivalence (23/23 identical draws), bcf, and multinomial
+independently, with one install-provenance ambiguity (implementer
+stash round-trip) resolved by clean reinstall before landing.
+
+ARC COMPLETE: all four stages landed. Findings 5 (isView split), 6
+(conditional DataHandle gather), and 8 (observer quantize core) are
+deferred residuals, finding 7 out of scope - retired to the TODO
+data-store-residuals entry. Outstanding verification: a bench-sampler
+compare vs bench-sampler-b9d53c7 at the next quiet window (stages 2
+and 1 nested the hot storage into descriptor/block structs; expected
+neutral, not yet measured).
