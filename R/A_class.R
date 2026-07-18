@@ -409,13 +409,14 @@ methods::setValidity("dbartsModel", function(object) {
           "logistic",
           "aft",
           "multinomial",
-          "ordinal"
+          "ordinal",
+          "nbinom"
         ))
   ) {
     return(
       paste0(
         "'family' must be \"auto\", \"gaussian\", \"probit\", ",
-        "\"logistic\", \"aft\", \"multinomial\", or \"ordinal\""
+        "\"logistic\", \"aft\", \"multinomial\", \"ordinal\", or \"nbinom\""
       )
     )
   }

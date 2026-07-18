@@ -64,6 +64,30 @@
             \code{xbart} refuse ordinal responses (grouped ordinal
             models and ordinal cross-validation losses are recorded
             follow-ups). See \code{?bart2}.
+      \item Negative-binomial count responses:
+            \code{family = "nbinom"} in \code{dbarts} and \code{bart2}
+            fits non-negative integer counts by the Polya-Gamma
+            negative-binomial augmentation (the forest fits a log-odds
+            latent \eqn{\psi = f(x) + o}{psi = f(x) + o}; the count law
+            is \eqn{y \sim NB(r, \mathrm{plogis}(\psi))}{y ~ NB(r,
+            plogis(psi))} with mean \eqn{r e^{\psi}}{r exp(psi)}, so the
+            offset is a log-exposure). The response must be a
+            non-negative integer count, and \code{family = "nbinom"} is
+            always explicit - a count carries no unambiguous class to
+            auto-detect. The dispersion \code{r} is estimated by default
+            on a capped positive-integer grid
+            (\{1, 2, ..., 20, 30, 50\}) under a renormalized
+            \eqn{\mathrm{gamma}(2, 0.1)}{gamma(2, 0.1)} prior; supplying
+            \code{dispersion} as a positive integer fixes it (v1 ships
+            the exact integer envelope, so a real fixed \code{dispersion}
+            is refused). \code{bart2} returns a \code{"bartNegbin"} fit
+            carrying the mean-count draws, the latent draws, and the
+            per-draw dispersion, with \code{fitted}, \code{extract},
+            \code{predict}, and \code{residuals} methods. Weights are not
+            supported (exposure belongs in the offset); \code{rbart_vi}
+            and \code{xbart} refuse count responses (grouped
+            negative-binomial models, real dispersion, and a Poisson
+            family are recorded follow-ups). See \code{?bart2}.
       \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t

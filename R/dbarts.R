@@ -192,8 +192,17 @@ dbarts <- function(
   sigma = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal"),
-  missing = c("incorporate", "error")
+  family = c(
+    "auto",
+    "gaussian",
+    "probit",
+    "logistic",
+    "aft",
+    "ordinal",
+    "nbinom"
+  ),
+  missing = c("incorporate", "error"),
+  dispersion = NA_real_
 ) {
   matchedCall <- match.call()
 
@@ -301,7 +310,7 @@ dbarts <- function(
     data,
     family,
     "dbarts()/rbart_vi()/bart()/xbart",
-    c("gaussian", "aft"),
+    c("gaussian", "aft", "nbinom"),
     splitMultinomialMessage = TRUE,
     allowOrdinal = TRUE
   )
@@ -316,6 +325,23 @@ dbarts <- function(
     data@y <- ordinal$y
     data@response.levels <- ordinal$levels
     attr(control, "bartcore.n.categories") <- ordinal$K
+  } else if (identical(family, "nbinom")) {
+    # negative-binomial counts (docs/design/negative-binomial.md section 4): the
+    # count response has no unambiguous class, so "nbinom" is never auto - only
+    # explicit. y must be a non-negative integer count (the NB pmf has zero mass
+    # off the integers and the grid kernel's count histogram presumes integer
+    # y), validated here beside the binary 0/1 test.
+    y <- data@y
+    if (anyNA(y) || any(y < 0) || any(y != round(y))) {
+      stop("family \"nbinom\" requires a non-negative integer (count) response")
+    }
+    # the dispersion r: NA (the default) estimates it on the capped integer grid;
+    # a supplied value FIXES it and must be a positive integer (v1 ships the
+    # exact integer envelope, section 2). The C bridge reads the resolved spec
+    # off the control attribute the sampler build attaches below: a positive
+    # value fixes r, a non-positive value estimates it on the grid.
+    dispersionSpec <- resolveDispersion(dispersion)
+    attr(control, "bartcore.dispersion") <- dispersionSpec
   } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
@@ -334,9 +360,14 @@ dbarts <- function(
   # ordinal (cumulative probit) shares probit's fixed unit latent scale - sigma
   # fixed at 1, resid.prior fixed(1), no sigma estimate, node.scale 3.0 - but is
   # NOT binary: the bridge selects it by the bartcore.n.categories attribute
-  # (not control@binary), and it reports K category levels. fixedUnitScale
-  # covers both families wherever the unit-scale handling matters.
-  fixedUnitScale <- control@binary || identical(family, "ordinal")
+  # (not control@binary), and it reports K category levels. nbinom (counts) is
+  # likewise a fixed-unit-scale family (sigma fixed at 1, the log-odds latent
+  # entering kappa directly, docs/design/negative-binomial.md section 1),
+  # selected by the bartcore.dispersion attribute. fixedUnitScale covers all
+  # three families wherever the unit-scale handling matters.
+  fixedUnitScale <- control@binary ||
+    identical(family, "ordinal") ||
+    identical(family, "nbinom")
 
   # binary weight policy, enforced here in the R layer (the bridge keeps the
   # same checks as a backstop for direct-API consumers): a probit has no
@@ -380,6 +411,20 @@ dbarts <- function(
         stop(
           "ordinal models do not support weights: a weighted truncated-normal ",
           "latent likelihood is not a coherent model."
+        )
+      }
+    }
+    # nbinom refuses weights in v1 (docs/design/negative-binomial.md section 4):
+    # the usual count "weight" is exposure, which belongs in the offset as a
+    # log-exposure term, not in observation replication. The R refusal mirrors
+    # the bridge's backstop, with the probit all-ones-are-absent courtesy.
+    if (family == "nbinom") {
+      if (all(data@weights == 1)) {
+        data@weights <- NULL
+      } else {
+        stop(
+          "nbinom (count) models do not support weights: exposure belongs in ",
+          "the offset as a log-exposure term."
         )
       }
     }
@@ -458,6 +503,9 @@ dbarts <- function(
       # ordinal reuses probit's latent scale (docs/design/ordinal.md section 2,
       # scheme C: the K = 2 anchor is probit exactly)
       ordinal = 3.0,
+      # nbinom's psi is a log-odds, so it reuses logistic's node.scale
+      # (docs/design/negative-binomial.md section 1)
+      nbinom = pi * sqrt(3.0),
       logistic = pi * sqrt(3.0)
     )
   )

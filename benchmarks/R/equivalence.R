@@ -497,6 +497,30 @@ makeScenarios <- function() {
     ordinalFit = TRUE
   )
 
+  # negative-binomial counts (NBResponse, docs/design/negative-binomial.md),
+  # newly reachable via family = "nbinom": overdispersed counts drawn from an
+  # NB with a nonlinear log-mean, estimated dispersion (the default). The
+  # Polya-Gamma count augmentation, the grid r update, and the mean-count
+  # reporting all do real work. Recorded channels: the latent test fits
+  # (fhat.test = psi), varcount, the per-draw dispersion r, and the
+  # posterior-mean test mean counts (fitViaNbinom/fitSummaries). The omega
+  # augmentation drives the trees, so its stream is locked transitively through
+  # these downstream channels (the ordinal precedent, which likewise locked its
+  # z augmentation through the latent fit). binary = TRUE skips the sigma
+  # summaries (sigma is fixed at 1). New after equivalence-227f46a.rds, so a
+  # compare against that baseline reports it skipped; the anchor re-records at
+  # landing.
+  set.seed(6120L)
+  x <- matrix(runif(300L * 10L), 300L)
+  mu <- exp(0.6 * as.vector(scale(friedman(x))))
+  result$nbinom <- list(
+    x = x,
+    y = as.double(rnbinom(300L, size = 4L, mu = mu)),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    nbinomFit = TRUE
+  )
+
   result
 }
 
@@ -607,6 +631,35 @@ fitViaOrdinal <- function(scenario) {
   )
 }
 
+# runs bart2's negative-binomial count path (docs/design/negative-binomial.md):
+# family = "nbinom" explicitly (a count response is never auto), estimated
+# dispersion (the default). yhat.test carries the LATENT psi draws on the test
+# rows (the identified log-odds quantity, the standard fhat.test channel shape);
+# the nbinom-only channels - the per-draw dispersion r and the posterior-mean
+# test mean counts - ride their own fields, summarized by fitSummaries' guarded
+# blocks.
+fitViaNbinom <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    scenario$y,
+    test = scenario$x.test,
+    family = "nbinom",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  list(
+    yhat.test = fit$latent.test,
+    varcount = fit$varcount,
+    dispersion = fit$dispersion,
+    means.test = fit$yhat.test
+  )
+}
+
 # runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
 # single chain, no thinning, the harness's global budget. Draw matrices come
 # back sample-major except varcount (predictor x sample), transposed here so
@@ -683,6 +736,8 @@ fitSummaries <- function(scenario, seed) {
     fitViaRbart(scenario)
   } else if (!is.null(scenario$ordinalFit)) {
     fitViaOrdinal(scenario)
+  } else if (!is.null(scenario$nbinomFit)) {
+    fitViaNbinom(scenario)
   } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
@@ -774,6 +829,22 @@ fitSummaries <- function(scenario, seed) {
       setNames(
         as.vector(probMeans),
         paste0("prob.test.", seq_len(length(probMeans)))
+      )
+    )
+  }
+  # nbinom-only channels (fitViaNbinom); NULL - and so absent - for every other
+  # fitter, leaving the existing scenarios' summary vectors untouched. The
+  # per-draw dispersion r and the posterior-mean test mean counts.
+  if (!is.null(fit[["dispersion"]])) {
+    d <- as.vector(fit[["dispersion"]])
+    result <- c(result, dispersion.mean = mean(d), dispersion.sd = sd(d))
+  }
+  if (!is.null(fit[["means.test"]])) {
+    result <- c(
+      result,
+      setNames(
+        colMeans(fit[["means.test"]]),
+        paste0("mean.test.", seq_len(n.test))
       )
     )
   }
