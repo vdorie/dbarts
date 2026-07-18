@@ -870,57 +870,8 @@ public:
   /// collapses emptied leaves into their parents.
   PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
                                      bool updateCutPoints) {
-    size_t n = data_.numObservations;
-    // categorical columns must hold representable codes whether or not cut
-    // points refresh
-    for (size_t j = 0; j < data_.numPredictors; ++j)
-      if ((updateCutPoints ||
-           data_.types[j] == ColumnType::categorical) &&
-          !data_.cutsWouldRemainValid(j, newX + j * n))
-        return PredictorUpdateResult::invalidCutPoints;
-
-    std::vector<xint_t> oldCodes;
-    std::vector<std::uint8_t> oldHasMissing;
-    std::vector<std::vector<double>> oldCuts;
-    // the engine keeps no predictor matrix; a rollback restores the snapshotted
-    // codes and the gathered leaf-covariate raw the leaf models re-read
-    std::vector<double> oldGatheredRaw;
-    if (!forceUpdate) {
-      // move the live codes aside and rebuild into fresh storage rather than
-      // copying them: a reject swaps them back and an accept drops them, so no
-      // whole-matrix snapshot survives either path
-      oldCodes = std::move(data_.codes);
-      data_.codes.assign(oldCodes.size(), 0);
-      // re-quantizing recomputes hasMissing; a rollback must restore it too so
-      // rules stay consistent with the reachable gauge
-      oldHasMissing = data_.hasMissing;
-      oldGatheredRaw = data_.gatheredRawValues;
-      if (updateCutPoints) oldCuts = data_.cutPoints;
-    }
-
-    data_.setPredictors(newX, updateCutPoints);
-
-    if (forceUpdate) {
-      for (auto& chain : chains_) chain->forceRefreshTrees();
-      if (updateCutPoints && data_.numTestObservations > 0)
-        for (size_t j = 0; j < data_.numPredictors; ++j)
-          data_.quantizeTestColumn(j);
-      return PredictorUpdateResult::accepted;
-    }
-
-    if (!revalidateAllChains()) {
-      data_.codes = std::move(oldCodes);
-      data_.hasMissing = std::move(oldHasMissing);
-      data_.gatheredRawValues = std::move(oldGatheredRaw);
-      if (updateCutPoints) data_.cutPoints = std::move(oldCuts);
-      for (auto& chain : chains_) chain->repartitionTrees();
-      return PredictorUpdateResult::rolledBack;
-    }
-
-    if (updateCutPoints && data_.numTestObservations > 0)
-      for (size_t j = 0; j < data_.numPredictors; ++j)
-        data_.quantizeTestColumn(j);
-    return PredictorUpdateResult::accepted;
+    WholeMatrixUpdate strategy{data_, newX};
+    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
 
   /// Overwrite a subset of columns in place; newColumns is column-major,
@@ -930,54 +881,8 @@ public:
                                         const size_t* columns,
                                         size_t numColumns, bool forceUpdate,
                                         bool updateCutPoints) {
-    size_t n = data_.numObservations;
-    for (size_t k = 0; k < numColumns; ++k)
-      if ((updateCutPoints ||
-           data_.types[columns[k]] == ColumnType::categorical) &&
-          !data_.cutsWouldRemainValid(columns[k], newColumns + k * n))
-        return PredictorUpdateResult::invalidCutPoints;
-
-    if (forceUpdate) {
-      data_.setColumns(newColumns, columns, numColumns, updateCutPoints);
-      for (auto& chain : chains_) chain->forceRefreshTrees();
-      if (updateCutPoints && data_.numTestObservations > 0)
-        for (size_t k = 0; k < numColumns; ++k)
-          data_.quantizeTestColumn(columns[k]);
-      return PredictorUpdateResult::accepted;
-    }
-
-    // journal each touched column's changed codes rather than copying it whole
-    // (a column past a quarter changed falls back to a full pre-change copy
-    // inside its record); the small per-column pieces snapshot as before, and
-    // the gathered leaf raw, which no engine matrix backs, copies wholesale
-    std::vector<std::uint8_t> oldHasMissing(numColumns);
-    std::vector<std::vector<double>> oldCuts(updateCutPoints ? numColumns : 0);
-    std::vector<double> oldGatheredRaw = data_.gatheredRawValues;
-    std::vector<ColumnStore::ColumnCodeRollback> records(numColumns);
-    for (size_t k = 0; k < numColumns; ++k) {
-      size_t j = columns[k];
-      oldHasMissing[k] = data_.hasMissing[j];
-      if (updateCutPoints) oldCuts[k] = data_.cutPoints[j];
-      data_.setColumnJournaled(j, newColumns + k * n, updateCutPoints, n / 4,
-                               records[k]);
-    }
-
-    if (!revalidateAllChains()) {
-      data_.gatheredRawValues = std::move(oldGatheredRaw);
-      for (size_t k = 0; k < numColumns; ++k) {
-        size_t j = columns[k];
-        data_.restoreColumn(j, records[k]);
-        data_.hasMissing[j] = oldHasMissing[k];
-        if (updateCutPoints) data_.cutPoints[j] = std::move(oldCuts[k]);
-      }
-      for (auto& chain : chains_) chain->repartitionTrees();
-      return PredictorUpdateResult::rolledBack;
-    }
-
-    if (updateCutPoints && data_.numTestObservations > 0)
-      for (size_t k = 0; k < numColumns; ++k)
-        data_.quantizeTestColumn(columns[k]);
-    return PredictorUpdateResult::accepted;
+    SubsetUpdate strategy{data_, newColumns, columns, numColumns};
+    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
   }
 
   /// Install externally chosen cut points (ascending) for a subset of
@@ -1123,6 +1028,125 @@ private:
     for (size_t c = 0; c < numChains; ++c)
       chains_[c]->rebuildFitsFromParameters(params[c]);
     return true;
+  }
+
+  /// The two ways a predictor-replacement transaction moves its columns: the
+  /// column list each spans (a null columns pointer means every predictor in
+  /// order, over column-major values) and the snapshot/apply/restore triple
+  /// runPredictorTransaction drives. WholeMatrixUpdate swaps the whole code
+  /// storage aside; SubsetUpdate journals a named subset column by column.
+  struct WholeMatrixUpdate {
+    ColumnStore& data;
+    const double* values;
+    const size_t* columns = nullptr;
+    std::vector<xint_t> oldCodes;
+    std::vector<std::uint8_t> oldHasMissing;
+    std::vector<std::vector<double>> oldCuts;
+
+    size_t numColumns() const { return data.numPredictors; }
+    void applyForced(bool updateCuts) { data.setPredictors(values, updateCuts); }
+    void snapshotApply(bool updateCuts) {
+      // move the live codes aside and rebuild into fresh storage: a reject swaps
+      // them back and an accept drops them, so no whole-matrix copy survives
+      oldCodes = std::move(data.codes);
+      data.codes.assign(oldCodes.size(), 0);
+      oldHasMissing = data.hasMissing;
+      if (updateCuts) oldCuts = data.cutPoints;
+      data.setPredictors(values, updateCuts);
+    }
+    void restore(bool updateCuts) {
+      data.codes = std::move(oldCodes);
+      data.hasMissing = std::move(oldHasMissing);
+      if (updateCuts) data.cutPoints = std::move(oldCuts);
+    }
+  };
+
+  struct SubsetUpdate {
+    ColumnStore& data;
+    const double* values;
+    const size_t* columns;
+    size_t count;
+    std::vector<std::uint8_t> oldHasMissing;
+    std::vector<std::vector<double>> oldCuts;
+    std::vector<ColumnStore::ColumnCodeRollback> records;
+
+    size_t numColumns() const { return count; }
+    void applyForced(bool updateCuts) {
+      data.setColumns(values, columns, count, updateCuts);
+    }
+    void snapshotApply(bool updateCuts) {
+      // journal each touched column's changed cells (past a quarter changed the
+      // record falls back to a whole pre-change copy); the small hasMissing and
+      // cut pieces snapshot per column
+      size_t n = data.numObservations;
+      oldHasMissing.resize(count);
+      oldCuts.resize(updateCuts ? count : 0);
+      records.resize(count);
+      for (size_t k = 0; k < count; ++k) {
+        size_t j = columns[k];
+        oldHasMissing[k] = data.hasMissing[j];
+        if (updateCuts) oldCuts[k] = data.cutPoints[j];
+        data.setColumnJournaled(j, values + k * n, updateCuts, n / 4,
+                                records[k]);
+      }
+    }
+    void restore(bool updateCuts) {
+      for (size_t k = 0; k < count; ++k) {
+        size_t j = columns[k];
+        data.restoreColumn(j, records[k]);
+        data.hasMissing[j] = oldHasMissing[k];
+        if (updateCuts) data.cutPoints[j] = std::move(oldCuts[k]);
+      }
+    }
+  };
+
+  /// One predictor-replacement transaction over a strategy's column list:
+  /// precheck that the cuts stay representable, then either collapse emptied
+  /// leaves under forceUpdate or snapshot-apply and keep the change when
+  /// revalidateAllChains holds, else restore the snapshot and repartition. The
+  /// engine keeps no predictor matrix, so the gathered leaf-covariate raw the
+  /// leaf models re-read is snapshotted here; the strategy owns the codes,
+  /// missing flags, and cut grids it moves.
+  template <typename Strategy>
+  PredictorUpdateResult runPredictorTransaction(Strategy& strategy,
+                                                bool forceUpdate,
+                                                bool updateCutPoints) {
+    for (size_t k = 0; k < strategy.numColumns(); ++k) {
+      size_t j = strategy.columns ? strategy.columns[k] : k;
+      // categorical columns must hold representable codes whether or not cut
+      // points refresh
+      if ((updateCutPoints || data_.types[j] == ColumnType::categorical) &&
+          !data_.cutsWouldRemainValid(
+            j, strategy.values + k * data_.numObservations))
+        return PredictorUpdateResult::invalidCutPoints;
+    }
+
+    if (forceUpdate) {
+      strategy.applyForced(updateCutPoints);
+      for (auto& chain : chains_) chain->forceRefreshTrees();
+      requantizeTestColumns(strategy, updateCutPoints);
+      return PredictorUpdateResult::accepted;
+    }
+
+    std::vector<double> oldGatheredRaw = data_.gatheredRawValues;
+    strategy.snapshotApply(updateCutPoints);
+    if (!revalidateAllChains()) {
+      data_.gatheredRawValues = std::move(oldGatheredRaw);
+      strategy.restore(updateCutPoints);
+      for (auto& chain : chains_) chain->repartitionTrees();
+      return PredictorUpdateResult::rolledBack;
+    }
+    requantizeTestColumns(strategy, updateCutPoints);
+    return PredictorUpdateResult::accepted;
+  }
+
+  /// Re-quantize the transaction's columns into the test block after a
+  /// cut-refreshing accept, matching the train-side requantize.
+  template <typename Strategy>
+  void requantizeTestColumns(Strategy& strategy, bool updateCutPoints) {
+    if (updateCutPoints && data_.numTestObservations > 0)
+      for (size_t k = 0; k < strategy.numColumns(); ++k)
+        data_.quantizeTestColumn(strategy.columns ? strategy.columns[k] : k);
   }
 
   /// Caches each observation's leaf and per-leaf occupancy for every tree of
