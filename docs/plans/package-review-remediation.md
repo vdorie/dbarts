@@ -311,3 +311,22 @@ state duplicates the trees on the R side, materialized only on
 request), and the exact incantations for bart/bart2 and rbart_vi.
 Tests reworked to assert the documented ritual round-trips bitwise
 and that an uncaptured fit errors on predict naming storeState().
+
+### T2d follow-up (2026-07-18, 57fbc5a)
+
+The deferred OOM-and-longjmp windows closed, 49 lines, bridge-only:
+the four create entry points register the finalizer on a null-address
+external pointer, build the holder, and install via the non-allocating
+R_SetExternalPtrAddr (holderFinalizer already null-checks, so a
+validation error inside the parse leaves a harmless null pointer);
+bartcore_run copies variableCounts out and swap-frees it before the
+allocating names block; the unwindProtect helper allocates its
+continuation before the closure. setCutPoints documented as already
+covered (by-value closure capture). createFromHandle/createDataHandle
+deliberately NOT reordered - same window class but the fix is a
+restructure of a ~100-line closure, beyond the "where cheap" scope;
+recorded here as the residual (revisit only if valgrind ever flags
+them). Gates: suite 3098/0, 23/23 equivalence identical, component
+tests, all green; reviewer re-ran equivalence and verified the
+finalizer's null-safety directly. The authoritative zero-leak check
+stays the CI valgrind leg on this push.
