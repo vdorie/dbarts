@@ -79,3 +79,40 @@ three equivalence compares (bitwise; after C3 against the NEW
 baseline, trail verified). C3 additionally: the exact gate passes at
 tolerance like logistic-reference; air format --check . exits 0;
 pkgdown check on any new Rd topic.
+
+## Landings
+
+C1 045a058 (2026-07-18). TResponse + ResidualDfPrior in model.hpp;
+one-line Rf_dt decl in external/stats.h. Both modes; grid {3..20}
+under normalized gamma(2,0.1); the grid test verifies against a
+reference keeping the term the code drops. Deviations accepted: nu
+via dedicated accessors (latents() stays length n); zero-weight
+lambdas drawn for stream regularity, excluded from nu statistics.
+All six gates green, anchors bitwise (nothing instantiated it).
+
+C2 9b58662 (2026-07-18). SamplerOptions.residualDf (NaN/Inf =
+gaussian, > 0 fixed, <= 0 estimated), gaussian construction selects
+TResponse when finite; lambda rides the EXISTING latents block, nu is
+the one new by-name scalar ("resid.df"), written only for t; old
+states load into gaussian samplers unchanged, cross-family restores
+refused; bridge reads the model's resid.df attribute and refuses
+non-gaussian families and negative values host-side; GroupedResponse
+forwards the nu channel. State round-trips fixed + estimated, RNG-
+insulated; continuation statistical per the file's own convention
+(lambda/nu themselves bitwise). No dbarts.h diff. Gates green.
+
+C3 31dc05a (2026-07-18). resid.dist = gaussian()/student(df) on
+dbarts/bart/bart2, resolved in the parsePriors environment (no
+stats::gaussian shadowing), df validated at construction, family
+refusal R-side mirroring the bridge backstop; Rd + NEWS with both
+caveats (confounded tail inference; sigma conditional, marginal
+sigma^2 nu/(nu-2)). benchmarks/R/t-exact.R: fixed-nu single-tree
+quadrature reference (never augments) - max arm gap 0.0010 vs
+tolerance 0.012. New student equivalence scenario (contaminated
+normal, estimated nu); baseline re-recorded as equivalence-31dc05a
+(23 scenarios) with the neutrality trail: all 22 pre-existing
+scenarios reproduce ac6ec2c bitwise. equivalence.yaml re-pinned.
+Suite 3088/0. One implementer stall (backgrounded gates), resumed by
+message; reviewer re-ran install, trail, t-exact, and suite
+independently. ARC CLOSED; implementer file overage (483 vs ~375)
+was the two mandated new files.

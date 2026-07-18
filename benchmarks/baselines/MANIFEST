@@ -12,7 +12,8 @@
 #                          docs/design/public-surface.md), not a gate.
 #
 # file                                role                 commit   machine/arch    scenarios
-equivalence-ac6ec2c.rds               current              ac6ec2c  arm64 (macOS)   22: the 21 of de67cbb plus grouped_aft (survival-grouped-surface)
+equivalence-31dc05a.rds               current              31dc05a  arm64 (macOS)   23: the 22 of ac6ec2c plus student (contaminated normal, resid.dist = student() estimated-nu; the robust-errors arc). NEUTRALITY: all 22 pre-existing scenarios reproduce ac6ec2c bitwise inside a compare against it (the student addition changed no existing draws)
+equivalence-ac6ec2c.rds               historical           ac6ec2c  arm64 (macOS)   22: the 21 of de67cbb plus grouped_aft (survival-grouped-surface) - superseded by 31dc05a
 equivalence-de67cbb.rds               historical           de67cbb  arm64 (macOS)   21: same as current minus grouped_aft; every shared scenario identical (the addition changed no existing draws)
 equivalence-0e9ccca.rds               historical           0e9ccca  arm64 (macOS)   21: same as current; pre matrix-interface incorporate fix (de67cbb) - only the missing scenario diverges from it (its rows were complete-cases dropped despite incorporate)
 equivalence-cf99a00.rds               historical           cf99a00  arm64 (macOS)   18: friedman,probit,weighted,splitprobs,chik,chains,setdata,wtoffset,quants,categorical,missing,dart,linear,gp,logistic,wtlogistic,zeroweights,sparse
