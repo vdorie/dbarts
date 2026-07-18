@@ -128,8 +128,9 @@ enum class ColumnSourceKind : std::uint8_t {
 /// carried in a vector sized to numPredictors on every built store. The
 /// discriminated fields are read only for the kinds that own them (rankSlot for
 /// cscRank; denseRaw for denseBorrowed; slice for the two CSC kinds;
-/// cscCategoryCount and refCode for CSC-backed categorical columns, train-side
-/// only). denseOwned has a side-specific raw source the accessor supplies.
+/// cscCategoryCount and refCode for CSC-backed categorical columns -
+/// cscCategoryCount train-side only, refCode on both sides). denseOwned has a
+/// side-specific raw source the accessor supplies.
 struct ColumnSource {
   ColumnSourceKind kind = ColumnSourceKind::denseOwned;
   std::int32_t rankSlot = -1;          // cscRank: slot into the side's sparseColumns
@@ -163,7 +164,7 @@ struct CodeBlock {
   // fixed level count K and reference-level code. A CSC categorical column
   // stores only its non-reference entries, so K cannot be recovered from the
   // slice and the implicit rows' code is the reference level's own level-order
-  // index (never numeric 0).
+  // index, not the storage's structural zero.
   std::vector<ColumnSource> sources;
 
   /// Whether column j quantizes from a borrowed CSC slice (every column of a

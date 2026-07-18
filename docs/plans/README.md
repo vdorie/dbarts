@@ -53,6 +53,9 @@ on a quiet machine (maintainer-run; never concurrent with other load).
 - One item per agent, in an isolated worktree. The prompt is the plan
   file path, CLAUDE.local.md, and the report format below. The plan is
   the spec; do not restate it.
+- Data-adjacent work (the store, ingestion, mutation, or anything reading
+  quantized codes or raw predictors) reads docs/design/data-store.md
+  first: the standing contract for the data layer.
 - After any C/C++ change: R CMD INSTALL . before tinytest (--preclean
   after header or virtual changes).
 - Stop conditions: a step fails twice; the diff exceeds 1.5x budget; a
