@@ -365,6 +365,106 @@ CscSlots parseCscMatrix(SEXP matrixExpr, size_t numObservations) {
   return result;
 }
 
+// Code one dense container column into \p target as the zero-based doubles the
+// retained coded matrix held: a factor's 1-based codes become
+// as.integer(column) - 1 (NA preserved), a real column is copied verbatim. Any
+// other type raises \p malformedMessage (the side's predictor-vs-test wording).
+void codeDenseColumn(double* target, SEXP columnExpr, size_t numRows,
+                     const char* malformedMessage) {
+  if (Rf_isFactor(columnExpr)) {
+    const int* codes = INTEGER(columnExpr);
+    for (size_t i = 0; i < numRows; ++i)
+      target[i] = codes[i] == NA_INTEGER
+        ? NA_REAL : static_cast<double>(codes[i] - 1);
+  } else if (Rf_isReal(columnExpr)) {
+    std::memcpy(target, REAL(columnExpr), numRows * sizeof(double));
+  } else {
+    Rf_error("%s", malformedMessage);
+  }
+}
+
+// Map a mixed container's 1-based column map into engine column sources: a
+// positive k names dense column k (stored as k - 1), a negative -k names CSC
+// column k (stored as the engine's ~(k - 1), the negative value itself). An
+// out-of-range entry raises \p malformedMessage (the side's wording).
+void mapColumnSources(std::vector<std::int32_t>& out, const int* map,
+                      size_t numPredictors, size_t numDenseColumns,
+                      size_t numCscColumns, const char* malformedMessage) {
+  out.resize(numPredictors);
+  for (size_t j = 0; j < numPredictors; ++j) {
+    if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns)
+      out[j] = map[j] - 1;
+    else if (map[j] < 0 && static_cast<size_t>(-map[j]) <= numCscColumns)
+      out[j] = map[j];
+    else
+      Rf_error("%s", malformedMessage);
+  }
+}
+
+// Assemble a mixed container's dense block and column-source map, the shared
+// core of both mixed call sites: code each dense column into \p denseAssembly
+// via codeDenseColumn, publish its base through \p denseValues (null if empty),
+// and fill \p columnSources via mapColumnSources. \p rowLengthMessage and
+// \p malformedMessage carry the side's wording. The CSC slots and reference
+// resolution stay at each call site (sparse requirement / resolve order differ).
+void parseMixedContainerBlock(SEXP denseExpr, const int* map,
+                              size_t numPredictors, size_t numRows,
+                              size_t numCscColumns,
+                              std::vector<double>& denseAssembly,
+                              const double*& denseValues,
+                              std::vector<std::int32_t>& columnSources,
+                              const char* rowLengthMessage,
+                              const char* malformedMessage) {
+  size_t numDenseColumns = Rf_isNull(denseExpr)
+    ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
+  denseAssembly.resize(numDenseColumns * numRows);
+  for (size_t k = 0; k < numDenseColumns; ++k) {
+    SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
+    if (static_cast<size_t>(rc_getLength(columnExpr)) != numRows)
+      Rf_error("%s", rowLengthMessage);
+    codeDenseColumn(denseAssembly.data() + k * numRows, columnExpr, numRows,
+                    malformedMessage);
+  }
+  denseValues = numDenseColumns > 0 ? denseAssembly.data() : NULL;
+  mapColumnSources(columnSources, map, numPredictors, numDenseColumns,
+                   numCscColumns, malformedMessage);
+}
+
+// Resolve each CSC-backed categorical column's reference code (and, for the
+// training side via non-null \p categoryCountsOut, its level count K) from the
+// per-sparse-column metadata in level order. \p boundMessage covers the
+// redundant source-range check (unreachable: mapColumnSources already bounds
+// it) and \p referenceMessage the [0, K) validation; both carry the side's
+// wording.
+void resolveCscCategoricalReferences(
+    const bartcore::ColumnType* columnTypes,
+    const std::int32_t* columnSources, size_t numPredictors,
+    const int* referenceMeta, const int* categoryCountMeta,
+    size_t numSparseColumns,
+    std::vector<bartcore::xint_t>& referenceCodesOut,
+    std::vector<std::uint32_t>* categoryCountsOut, const char* boundMessage,
+    const char* referenceMessage) {
+  referenceCodesOut.assign(numPredictors, 0);
+  if (categoryCountsOut != nullptr)
+    categoryCountsOut->assign(numPredictors, 0);
+  for (size_t j = 0; j < numPredictors; ++j) {
+    if (columnTypes[j] != bartcore::ColumnType::categorical ||
+        columnSources[j] >= 0)
+      continue;
+    size_t source = static_cast<size_t>(~columnSources[j]);
+    if (source >= numSparseColumns)
+      Rf_error("%s", boundMessage);
+    int count = categoryCountMeta[source];
+    int reference = referenceMeta[source];
+    if (count <= 0 || reference == NA_INTEGER || reference < 0 ||
+        reference >= count)
+      Rf_error("%s", referenceMessage);
+    if (categoryCountsOut != nullptr)
+      (*categoryCountsOut)[j] = static_cast<std::uint32_t>(count);
+    referenceCodesOut[j] = static_cast<bartcore::xint_t>(reference);
+  }
+}
+
 // Parse an R-side mixed test container (a dbartsMixedMatrix as x.test) against
 // the training cut grid the engine already holds: assemble the transient dense
 // block (factors carrying zero-based codes), gather the CSC slices, and resolve
@@ -399,36 +499,11 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
   if (hasSparse) csc = parseCscMatrix(sparseExpr, numTest);
   size_t numCscColumns = hasSparse ? csc.numColumns : 0;
 
-  size_t numDenseColumns = Rf_isNull(denseExpr)
-    ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
-  out.denseAssembly.resize(numDenseColumns * numTest);
-  for (size_t k = 0; k < numDenseColumns; ++k) {
-    SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
-    if (static_cast<size_t>(rc_getLength(columnExpr)) != numTest)
-      Rf_error("number of rows of 'x.test' columns must match");
-    double* target = out.denseAssembly.data() + k * numTest;
-    if (Rf_isFactor(columnExpr)) {
-      const int* codes = INTEGER(columnExpr);
-      for (size_t i = 0; i < numTest; ++i)
-        target[i] = codes[i] == NA_INTEGER
-          ? NA_REAL : static_cast<double>(codes[i] - 1);
-    } else if (Rf_isReal(columnExpr)) {
-      std::memcpy(target, REAL(columnExpr), numTest * sizeof(double));
-    } else {
-      Rf_error("malformed mixed test container");
-    }
-  }
-  out.mixedDenseValues = numDenseColumns > 0 ? out.denseAssembly.data() : NULL;
-
-  out.columnSources.resize(numPredictors);
-  for (size_t j = 0; j < numPredictors; ++j) {
-    if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns)
-      out.columnSources[j] = map[j] - 1;
-    else if (map[j] < 0 && static_cast<size_t>(-map[j]) <= numCscColumns)
-      out.columnSources[j] = map[j];
-    else
-      Rf_error("malformed mixed test container");
-  }
+  parseMixedContainerBlock(denseExpr, map, numPredictors, numTest,
+                           numCscColumns, out.denseAssembly,
+                           out.mixedDenseValues, out.columnSources,
+                           "number of rows of 'x.test' columns must match",
+                           "malformed mixed test container");
   if (hasSparse) {
     out.cscColumnPointers = csc.pointers;
     out.cscRowIndices = csc.rows;
@@ -454,22 +529,12 @@ void parseTestContainer(ParsedTestContainer& out, SEXP containerExpr,
         static_cast<size_t>(rc_getLength(categoryCountExpr)) != numCscColumns)
       Rf_error("sparse categorical test predictor columns require reference "
                "metadata");
-    const int* referenceMeta = INTEGER(referenceExpr);
-    const int* categoryCountMeta = INTEGER(categoryCountExpr);
-    out.cscReferenceCodes.assign(numPredictors, 0);
-    for (size_t j = 0; j < numPredictors; ++j) {
-      if (columnTypes[j] != bartcore::ColumnType::categorical ||
-          out.columnSources[j] >= 0)
-        continue;
-      size_t source = static_cast<size_t>(~out.columnSources[j]);
-      int count = categoryCountMeta[source];
-      int reference = referenceMeta[source];
-      if (count <= 0 || reference == NA_INTEGER || reference < 0 ||
-          reference >= count)
-        Rf_error("sparse categorical test predictor columns require reference "
-                 "metadata");
-      out.cscReferenceCodes[j] = static_cast<bartcore::xint_t>(reference);
-    }
+    resolveCscCategoricalReferences(
+      columnTypes, out.columnSources.data(), numPredictors,
+      INTEGER(referenceExpr), INTEGER(categoryCountExpr), numCscColumns,
+      out.cscReferenceCodes, nullptr, "malformed mixed test container",
+      "sparse categorical test predictor columns require reference "
+      "metadata");
   }
   UNPROTECT(3);
 }
@@ -532,21 +597,9 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         if (static_cast<size_t>(rc_getLength(columnExpr)) !=
             data.numObservations)
           Rf_error("number of rows of 'x' must equal length of 'y'");
-        double* target =
-          data.denseAssembly.data() + j * data.numObservations;
-        if (Rf_isFactor(columnExpr)) {
-          // 1-based factor codes become the zero-based doubles the coded
-          // matrix held: as.integer(column) - 1
-          const int* codes = INTEGER(columnExpr);
-          for (size_t i = 0; i < data.numObservations; ++i)
-            target[i] = codes[i] == NA_INTEGER
-              ? NA_REAL : static_cast<double>(codes[i] - 1);
-        } else if (Rf_isReal(columnExpr)) {
-          std::memcpy(target, REAL(columnExpr),
-                      data.numObservations * sizeof(double));
-        } else {
-          Rf_error("malformed mixed predictor container");
-        }
+        codeDenseColumn(
+          data.denseAssembly.data() + j * data.numObservations, columnExpr,
+          data.numObservations, "malformed mixed predictor container");
       }
       data.x = data.denseAssembly.data();
     } else {
@@ -562,43 +615,14 @@ void parseData(ParsedData& data, SEXP dataExpr) {
         Rf_error("malformed mixed predictor container");
       CscSlots csc = parseCscMatrix(sparseExpr, data.numObservations);
 
-      size_t numDenseColumns = Rf_isNull(denseExpr)
-        ? 0 : static_cast<size_t>(rc_getLength(denseExpr));
-      data.denseAssembly.resize(numDenseColumns * data.numObservations);
-      for (size_t k = 0; k < numDenseColumns; ++k) {
-        SEXP columnExpr = VECTOR_ELT(denseExpr, static_cast<R_xlen_t>(k));
-        if (static_cast<size_t>(rc_getLength(columnExpr)) !=
-            data.numObservations)
-          Rf_error("number of rows of 'x' must equal length of 'y'");
-        double* target = data.denseAssembly.data() + k * data.numObservations;
-        if (Rf_isFactor(columnExpr)) {
-          const int* codes = INTEGER(columnExpr);
-          for (size_t i = 0; i < data.numObservations; ++i)
-            target[i] = codes[i] == NA_INTEGER
-              ? NA_REAL : static_cast<double>(codes[i] - 1);
-        } else if (Rf_isReal(columnExpr)) {
-          std::memcpy(target, REAL(columnExpr),
-                      data.numObservations * sizeof(double));
-        } else {
-          Rf_error("malformed mixed predictor container");
-        }
-      }
-      data.mixedDenseValues =
-        numDenseColumns > 0 ? data.denseAssembly.data() : NULL;
-
       data.numPredictors = rc_getLength(mapExpr);
       const int* map = INTEGER(mapExpr);
-      data.columnSources.resize(data.numPredictors);
-      for (size_t j = 0; j < data.numPredictors; ++j) {
-        if (map[j] > 0 && static_cast<size_t>(map[j]) <= numDenseColumns) {
-          data.columnSources[j] = map[j] - 1;
-        } else if (map[j] < 0 &&
-                   static_cast<size_t>(-map[j]) <= csc.numColumns) {
-          data.columnSources[j] = map[j];
-        } else {
-          Rf_error("malformed mixed predictor container");
-        }
-      }
+      parseMixedContainerBlock(
+        denseExpr, map, data.numPredictors, data.numObservations,
+        csc.numColumns, data.denseAssembly, data.mixedDenseValues,
+        data.columnSources,
+        "number of rows of 'x' must equal length of 'y'",
+        "malformed mixed predictor container");
       data.xIsMixed = true;
       data.cscColumnPointers = csc.pointers;
       data.cscRowIndices = csc.rows;
@@ -658,25 +682,13 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       if (data.cscReferenceMeta == NULL || data.cscCategoryCountMeta == NULL)
         Rf_error("sparse categorical predictor columns require reference "
                  "metadata");
-      data.cscCategoryCounts.assign(data.numPredictors, 0);
-      data.cscReferenceCodes.assign(data.numPredictors, 0);
-      for (size_t j = 0; j < data.numPredictors; ++j) {
-        if (data.columnTypes[j] != bartcore::ColumnType::categorical ||
-            data.columnSources[j] >= 0)
-          continue;
-        size_t source = static_cast<size_t>(~data.columnSources[j]);
-        if (source >= data.numSparseColumns)
-          Rf_error("malformed mixed predictor container");
-        int count = data.cscCategoryCountMeta[source];
-        int reference = data.cscReferenceMeta[source];
-        if (count <= 0 || reference == NA_INTEGER || reference < 0 ||
-            reference >= count)
-          Rf_error("sparse categorical predictor columns require reference "
-                   "metadata");
-        data.cscCategoryCounts[j] = static_cast<std::uint32_t>(count);
-        data.cscReferenceCodes[j] =
-          static_cast<bartcore::xint_t>(reference);
-      }
+      resolveCscCategoricalReferences(
+        data.columnTypes.data(), data.columnSources.data(),
+        data.numPredictors, data.cscReferenceMeta, data.cscCategoryCountMeta,
+        data.numSparseColumns, data.cscReferenceCodes,
+        &data.cscCategoryCounts, "malformed mixed predictor container",
+        "sparse categorical predictor columns require reference "
+        "metadata");
     }
   }
 
