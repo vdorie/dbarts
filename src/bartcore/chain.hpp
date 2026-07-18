@@ -147,6 +147,13 @@ struct SamplerOptions {
   // from the ordered-factor level count and refuses K < 2.
   std::size_t numCategories = 0;
 
+  // negative-binomial counts (nbinom family) only: the dispersion spec
+  // (docs/design/negative-binomial.md sections 4, 5), the residualDf sign
+  // convention - a positive value fixes r there (an integer), a non-positive
+  // value estimates r on the capped grid. Only the nbinom construction reads it;
+  // NaN (default) is ignored by every other family.
+  double dispersion = std::numeric_limits<double>::quiet_NaN();
+
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
   // reporting after the run
@@ -343,6 +350,13 @@ public:
       // single-forest model like probit, sigma fixed at 1 (docs/design/ordinal.md)
       response_ = std::make_unique<OrdinalResponse>(y, offset, numObservations,
                                                     options.numCategories);
+      break;
+    case ResponseFamily::nbinom:
+      // y holds non-negative counts; the forest fits the log-odds latent under
+      // the Polya-Gamma augmentation, sigma fixed at 1, with dispersion r fixed
+      // (options.dispersion > 0) or grid-estimated (docs/design/negative-binomial.md)
+      response_ = std::make_unique<NBResponse>(y, offset, numObservations,
+                                               options.dispersion);
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
@@ -1638,6 +1652,11 @@ public:
     } else {
       state.cutpoints.clear();
     }
+    // an NB response's dispersion r is a companion scalar block (the resid.df
+    // pattern); omega rides latents above. Absent (NaN) for every other family.
+    state.dispersion = response_->carriesDispersion()
+                         ? response_->dispersion()
+                         : std::numeric_limits<double>::quiet_NaN();
     if (response_->numGroupEffects() > 0) {
       state.groupEffects.assign(
         response_->groupEffects(),
@@ -1755,6 +1774,13 @@ public:
     if (response_->carriesCutpoints() &&
         state.cutpoints.size() != response_->numCutpoints())
       return false;
+    // an NB sampler needs both its omega latents (in latents) and a finite
+    // positive dispersion r; an old state, or one from another family, carries
+    // neither and cannot continue the augmentation (docs/design/negative-binomial.md)
+    if (response_->carriesDispersion() &&
+        (state.latents.size() != n || !(state.dispersion > 0.0) ||
+         !std::isfinite(state.dispersion)))
+      return false;
     // grouped states must carry a full effects vector for the chain's
     // groups; ungrouped states and chains both hold zero of them
     if (state.groupEffects.size() != response_->numGroupEffects())
@@ -1866,6 +1892,13 @@ public:
       forest.k = fs.k;
     }
     setSigma(state.sigma);
+    // RESTORE CONTRACT (docs/design/negative-binomial.md section 5): an NB
+    // response's restoreLatents rebuilds the working response from omega AND r,
+    // so the dispersion MUST be reinstalled before the latents - a restore that
+    // installs omega first would rebuild working against the stale r. stateIsValid
+    // guaranteed a finite positive r for an NB sampler.
+    if (response_->carriesDispersion())
+      response_->restoreDispersion(state.dispersion);
     if (!state.latents.empty())
       response_->restoreLatents(state.latents.data());
     // stateIsValid guaranteed a positive df for a t sampler; fixed mode

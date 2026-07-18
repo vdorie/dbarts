@@ -66,6 +66,11 @@ struct ChainStateData {
   // vector at capture. Empty marks absent, so every non-ordinal state carries
   // no cutpoint block and an ordinal sampler refuses a state lacking one.
   std::vector<double> cutpoints;
+  // negative-binomial counts (NBResponse) only: the dispersion r at capture
+  // (docs/design/negative-binomial.md). NaN marks absent, so every non-NB state
+  // carries no dispersion block and an NB sampler refuses a state lacking one.
+  // omega rides the latents block above; this is its companion scalar.
+  double dispersion = std::numeric_limits<double>::quiet_NaN();
   // grouped samplers only, internal scale so restores are exact
   std::vector<double> groupEffects;
   double groupTau = 0.0;

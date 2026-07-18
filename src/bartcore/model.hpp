@@ -1774,8 +1774,10 @@ struct ChiSquaredScalePrior {
 
 /// Response families the sampler can run; gaussian fits the response
 /// directly, the binary families fit a latent working response, aft fits
-/// log survival times (right-censored observations carry latent log-times).
-enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal };
+/// log survival times (right-censored observations carry latent log-times),
+/// nbinom fits non-negative counts via the Polya-Gamma augmentation (NBResponse,
+/// docs/design/negative-binomial.md).
+enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
 
 /// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
 /// block, guarding against overflow for large x.

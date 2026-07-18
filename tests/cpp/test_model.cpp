@@ -4218,6 +4218,129 @@ static void testNBSweepOrderAndRestore(ext_rng*) {
   printf("ok: nb sweep order and restore contract\n");
 }
 
+// The nbinom dispersion state block round-trips through the Chain serialization
+// (getState/setState): the scalar r rides its own by-name block and the omega
+// latents ride the shared latents block, both exact, in fixed and grid-estimated
+// modes. The restore ORDER (restoreDispersion before restoreLatents) is a stated
+// contract - a wrong order rebuilds the working response against a stale r, the
+// sensitivity testNBSweepOrderAndRestore proves at the model level above; here
+// the sampler-level round trip is asserted exact under setState's ordering. A
+// fresh sampler seeded differently must let the serialized r and omega win over
+// the cold-start median. RNG-insulated: local generators, restored global
+// rngState, so its fixture draws shift no later test.
+static void testNBStateRoundTrip() {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 200, p = 2, numChains = 2;
+  std::vector<double> x(n * p), y(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    double f = 1.2 * (x[i] - 0.5) - 0.6 * (x[i + n] - 0.5);
+    // a moderate mean count; the data law is immaterial to a state round trip,
+    // only non-negative integrality matters, so a crude count around mu suffices
+    y[i] = std::floor(3.0 * std::exp(f) + 2.0 * runif01());
+  }
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t base) {
+    for (std::size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], base + static_cast<std::uint32_t>(c));
+    }
+  };
+  auto buildNB = [&](double dispersion, std::vector<ext_rng*>& rngs,
+                     std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.numChains = numChains;
+    options.dispersion = dispersion;
+    makeRngs(rngs, seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::nbinom, 1.0,
+      3.0, 0.37804942330213542, options, rngs.data());
+  };
+
+  auto runOneMode = [&](double dispersion, bool estimated, const char* tag) {
+    std::vector<ext_rng*> rngs(numChains, nullptr), rngs2(numChains, nullptr);
+    auto original = buildNB(dispersion, rngs, 71000);
+    Results empty;
+    original->run(40, 0, empty);
+
+    SamplerStateData state;
+    original->getState(state);
+    check(state.chains[0].latents.size() == n,
+          "nb state carries the omega latents");
+    check(std::isfinite(state.chains[0].dispersion) &&
+            state.chains[0].dispersion > 0.0,
+          "nb state carries a finite positive dispersion");
+    if (!estimated)
+      check(state.chains[0].dispersion == dispersion,
+            "fixed-r nb state records the supplied dispersion");
+
+    // a fresh sampler with a DIFFERENT seed: the serialized dispersion and omega
+    // must win over the cold-start median r
+    auto restored = buildNB(dispersion, rngs2, 99000);
+    check(restored->setState(state, nullptr), "an nb state restores");
+    // statesAgree compares the dispersion and omega, both bitwise: restore
+    // reconstructs the block, and setState's restoreDispersion-before-
+    // restoreLatents order rebuilt working under the restored r
+    checkStructuralRoundTrip(state, *restored,
+                             "restored nb dispersion and omega agree");
+    SamplerStateData reState;
+    restored->getState(reState);
+    check(reState.chains[0].dispersion == state.chains[0].dispersion,
+          "nb dispersion round-trips exactly");
+    check(reState.chains[0].latents == state.chains[0].latents,
+          "nb omega round-trips exactly");
+
+    // a state whose dispersion block is absent (an old or non-count state) is
+    // refused: r is NaN and stateIsValid rejects it
+    SamplerStateData noR(state);
+    for (auto& ch : noR.chains)
+      ch.dispersion = std::numeric_limits<double>::quiet_NaN();
+    check(!restored->setState(noR, nullptr),
+          "an nb state lacking a finite dispersion is refused");
+    // a non-positive dispersion is refused (the grid holds positive integers)
+    SamplerStateData badR(state);
+    for (auto& ch : badR.chains) ch.dispersion = 0.0;
+    check(!restored->setState(badR, nullptr),
+          "an nb state with a non-positive dispersion is refused");
+
+    for (ext_rng* r : rngs) ext_rng_destroy(r);
+    for (ext_rng* r : rngs2) ext_rng_destroy(r);
+    printf("ok: nb dispersion state round trip (%s)\n", tag);
+  };
+
+  runOneMode(-1.0, true, "grid estimated");
+  runOneMode(4.0, false, "fixed r");
+
+  // an nb sampler refuses a gaussian state: it carries neither the omega latents
+  // nor a dispersion, so the shared latents check and the dispersion requirement
+  // together reject it (the cross-family refusal, resid.df/cutpoints precedent)
+  {
+    std::vector<ext_rng*> rngsG(numChains, nullptr), rngsN(numChains, nullptr);
+    SamplerOptions gaussOptions;
+    gaussOptions.numTrees = 20;
+    gaussOptions.numChains = numChains;
+    makeRngs(rngsG, 4242);
+    ConstantLeafSampler gaussian(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian, 1.0,
+      3.0, 0.37804942330213542, gaussOptions, rngsG.data());
+    Results emptyG;
+    gaussian.run(20, 0, emptyG);
+    SamplerStateData gaussState;
+    gaussian.getState(gaussState);
+    check(std::isnan(gaussState.chains[0].dispersion),
+          "gaussian state carries no dispersion");
+    auto nbSampler = buildNB(-1.0, rngsN, 5353);
+    check(!nbSampler->setState(gaussState, nullptr),
+          "an nb sampler refuses a gaussian state");
+    for (ext_rng* r : rngsG) ext_rng_destroy(r);
+    for (ext_rng* r : rngsN) ext_rng_destroy(r);
+  }
+
+  rngState = savedRngState;
+  printf("ok: nb dispersion state round trip\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
@@ -4252,6 +4375,7 @@ void runModelTests(ext_rng* rng) {
   testNBPolyaGammaShapeMoments(rng);
   testNBDispersionGridConditional(rng);
   testNBSweepOrderAndRestore(rng);
+  testNBStateRoundTrip();
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();
