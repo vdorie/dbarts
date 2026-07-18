@@ -3964,6 +3964,260 @@ static void testSparseTestDataEndToEnd() {
   printf("ok: sparse test data end to end\n");
 }
 
+// Moments of the shape-parameterized PG helper: PG(b, z) for integer b is the
+// sum of b iid PG(1, z), so its mean is b (tanh(z/2)/(2z)) and its variance b
+// times the PG(1, z) variance (the polya-gamma moments precedent). Plus the
+// stream identity that b = 1 consumes exactly the shipped PG(1) Devroye draw bit
+// for bit (the ordinal K = 2 identity analog). Local generators, restored state.
+static void testNBPolyaGammaShapeMoments(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  auto pg1Mean = [](double c) {
+    return c == 0.0 ? 0.25 : std::tanh(0.5 * c) / (2.0 * c);
+  };
+  auto pg1Var = [](double c) {
+    return c == 0.0 ? 1.0 / 24.0
+                    : (std::sinh(c) - c) / (4.0 * c * c * c *
+                                            std::cosh(0.5 * c) *
+                                            std::cosh(0.5 * c));
+  };
+  const double zs[] = {0.0, 1.5, -3.0};
+  const double bs[] = {1.0, 2.0, 5.0, 11.0};
+  const int numDraws = 50000;
+
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 20260718u);
+  for (double z : zs) {
+    double c = std::fabs(z);
+    for (double b : bs) {
+      double expectedMean = b * pg1Mean(c);
+      double expectedVar = b * pg1Var(c);
+      double sum = 0.0, sumSq = 0.0;
+      for (int i = 0; i < numDraws; ++i) {
+        double draw = simulatePolyaGammaShape(localRng, b, z);
+        if (!(draw > 0.0)) {
+          check(false, "nb shape PG draw not positive");
+          ext_rng_destroy(localRng);
+          rngState = savedRngState;
+          return;
+        }
+        sum += draw;
+        sumSq += draw * draw;
+      }
+      double mean = sum / numDraws;
+      double var = sumSq / numDraws - mean * mean;
+      double meanSe = std::sqrt(expectedVar / static_cast<double>(numDraws));
+      checkNear(mean, expectedMean, 5.0 * meanSe, "nb PG(b, z) shape mean");
+      checkNear(var, expectedVar, 0.05 * expectedVar,
+                "nb PG(b, z) shape variance");
+    }
+  }
+
+  // b = 1 is bit-for-bit the shipped PG(1) Devroye stream
+  ext_rng* rShape = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rDevroye = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rShape, 8675309u);
+  ext_rng_setSeed(rDevroye, 8675309u);
+  bool identical = true;
+  for (int i = 0; i < 256; ++i) {
+    double z = 0.02 * i - 2.5;
+    if (simulatePolyaGammaShape(rShape, 1.0, z) !=
+        ext_rng_simulatePolyaGamma(rDevroye, z))
+      identical = false;
+  }
+  check(identical, "nb PG(1, z) equals the shipped Devroye stream bit for bit");
+
+  ext_rng_destroy(rDevroye);
+  ext_rng_destroy(rShape);
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: nb polya-gamma shape moments\n");
+}
+
+// The NB dispersion grid draw reproduces the hand-computed discrete full
+// conditional: for fixed counts y and a fixed fit, w_k proportional to
+// exp(L_k + r_k S + log prior_k) with S = sum_i log(1 - p_i), L_k the count-
+// histogram lgamma kernel checked against a direct evaluation, prior the
+// renormalized gamma(2, 0.1). The ResidualDfPrior drawIndex test pattern. Local
+// generator, restored global rngState.
+static void testNBDispersionGridConditional(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  NBDispersionPrior prior;
+  std::vector<double> y = {0, 1, 2, 2, 3, 5, 1, 0, 4, 2, 7, 1};
+  const std::size_t n = y.size();
+  prior.computeKernel(y.data(), n);
+
+  // a fixed fit -> S = sum_i log(1 - plogis(psi_i)) = -sum_i log(1 + e^{psi_i})
+  double S = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    S -= logOnePlusExp(0.3 * static_cast<double>(i) - 1.2);
+
+  // (a) the kernel matches a direct lgamma evaluation
+  bool kernelExact = true;
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+    double rk = NBDispersionPrior::grid[k];
+    double L = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+      L += std::lgamma(y[i] + rk) - std::lgamma(rk);
+    if (std::fabs(prior.kernelValue(k) - L) > 1e-9) kernelExact = false;
+  }
+  check(kernelExact, "nb dispersion kernel matches direct lgamma sum");
+
+  // (b) reference posterior over the grid
+  double expected[NBDispersionPrior::gridSize];
+  double maxLog = -HUGE_VAL;
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+    double rk = NBDispersionPrior::grid[k];
+    double logPost = prior.kernelValue(k) + rk * S + std::log(rk) - 0.1 * rk;
+    expected[k] = logPost;
+    if (logPost > maxLog) maxLog = logPost;
+  }
+  double total = 0.0;
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+    expected[k] = std::exp(expected[k] - maxLog);
+    total += expected[k];
+  }
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k)
+    expected[k] /= total;
+
+  // (c) sampled histogram
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 1729u);
+  const int numDraws = 400000;
+  std::vector<int> counts(NBDispersionPrior::gridSize, 0);
+  for (int d = 0; d < numDraws; ++d) ++counts[prior.drawIndex(localRng, S)];
+
+  for (std::size_t k = 0; k < NBDispersionPrior::gridSize; ++k) {
+    double freq = static_cast<double>(counts[k]) / numDraws;
+    double se = std::sqrt(expected[k] * (1.0 - expected[k]) / numDraws);
+    checkNear(freq, expected[k], std::max(0.003, 5.0 * se),
+              "nb dispersion grid frequency matches the hand-computed posterior");
+  }
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: nb dispersion grid full conditional\n");
+}
+
+// The r-FIRST partially-collapsed sweep order (section 5), reconstructed bit for
+// bit: refreshLatents must (1) draw r from the grid conditional against S from
+// the CURRENT fit, then (2) draw omega at r_new, then (3) rebuild working with
+// r_new. An independent replay on an identically seeded generator - drawIndex on
+// the same S, then the shape draws at r_new - reproduces the dispersion, the
+// omega, and the working response exactly. Then the restore contract: restoring
+// r before latents reproduces working exactly, and restoring latents under a
+// stale r yields a different working (so order matters). Local generators,
+// restored global rngState.
+static void testNBSweepOrderAndRestore(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  std::vector<double> y = {0, 2, 1, 4, 3, 1, 2, 5, 0, 2};
+  std::vector<double> offset = {0.1,  -0.2, 0.0,  0.3,  -0.1,
+                                0.2,  -0.3, 0.05, 0.15, -0.05};
+  const std::size_t n = y.size();
+  std::vector<double> totalFits(n);
+  for (std::size_t i = 0; i < n; ++i)
+    totalFits[i] = 0.2 * static_cast<double>(i) - 0.7;
+
+  NBResponse resp(y.data(), offset.data(), n, -1.0);  // grid mode
+  check(resp.estimatesDispersion() && resp.carriesDispersion(),
+        "nb grid mode estimates and carries dispersion");
+
+  ext_rng* rResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rResp, 424242u);
+  ext_rng_setSeed(rRef, 424242u);
+  resp.refreshLatents(rResp, totalFits.data(), 1.0);
+
+  // independent replay in the mandated order on the same rng stream
+  NBDispersionPrior refPrior;
+  refPrior.computeKernel(y.data(), n);
+  double S = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    S -= logOnePlusExp(totalFits[i] + offset[i]);
+  double rNew = NBDispersionPrior::grid[refPrior.drawIndex(rRef, S)];
+  check(rNew == resp.dispersion(),
+        "nb r drawn first from the grid conditional at the current fit");
+  bool omegaMatch = true, workingMatch = true;
+  const double* omega = resp.latents();
+  const double* working = resp.workingResponse();
+  for (std::size_t i = 0; i < n; ++i) {
+    double psi = totalFits[i] + offset[i];
+    double refOmega = simulatePolyaGammaShape(rRef, y[i] + rNew, psi);
+    if (refOmega != omega[i]) omegaMatch = false;
+    if (working[i] != 0.5 * (y[i] - rNew) / refOmega - offset[i])
+      workingMatch = false;
+  }
+  check(omegaMatch, "nb omega drawn at r_new in the mandated order bit for bit");
+  check(workingMatch, "nb working rebuilt with r_new bit for bit");
+
+  // setResponse keeps r (the kept-cutpoints/nu clause): a y swap in grid mode
+  // draws NO r variate, only omega at the CURRENT r - proved bitwise, since an
+  // r draw would consume a uniform first and shift every omega draw after it
+  {
+    std::vector<double> ySwap(y);
+    ySwap[3] += 1.0;
+    double rKept = resp.dispersion();
+    ext_rng* rSet = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* rSetRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rSet, 55555u);
+    ext_rng_setSeed(rSetRef, 55555u);
+    resp.setResponse(ySwap.data(), rSet, totalFits.data(), false, nullptr);
+    check(resp.dispersion() == rKept, "nb setResponse keeps the current r");
+    bool swapExact = true;
+    for (std::size_t i = 0; i < n; ++i) {
+      double psi = totalFits[i] + offset[i];
+      double refOmega = simulatePolyaGammaShape(rSetRef, ySwap[i] + rKept, psi);
+      if (resp.latents()[i] != refOmega ||
+          resp.workingResponse()[i] !=
+            0.5 * (ySwap[i] - rKept) / refOmega - offset[i])
+        swapExact = false;
+    }
+    check(swapExact, "nb setResponse redraws omega at the kept r bit for bit");
+    ext_rng_destroy(rSetRef);
+    ext_rng_destroy(rSet);
+    // put the fixture back for the restore-contract block below
+    ext_rng_setSeed(rResp, 424242u);
+    resp.setResponse(y.data(), rResp, totalFits.data(), false, nullptr);
+  }
+
+  // restore contract: r before latents reproduces working exactly
+  double rSaved = resp.dispersion();
+  std::vector<double> omegaSaved(omega, omega + n);
+  std::vector<double> workingSaved(working, working + n);
+
+  NBResponse dst(y.data(), offset.data(), n, -1.0);
+  dst.restoreDispersion(rSaved);
+  dst.restoreLatents(omegaSaved.data());
+  bool restoreExact = true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (dst.workingResponse()[i] != workingSaved[i]) restoreExact = false;
+  check(restoreExact,
+        "nb restoreDispersion-then-restoreLatents reproduces working exactly");
+
+  // stale-r sensitivity: restoring latents under a different r rebuilds working
+  // against that r, so restoring latents before r (the forbidden order) is
+  // observably wrong
+  double staleR = rSaved + 1.0;
+  NBResponse stale(y.data(), offset.data(), n, staleR);  // fixed at staleR
+  check(!stale.estimatesDispersion() && stale.dispersion() == staleR,
+        "nb fixed mode holds the supplied dispersion");
+  stale.restoreLatents(omegaSaved.data());
+  bool usesCurrentR = true, differsFromSaved = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (stale.workingResponse()[i] !=
+        0.5 * (y[i] - staleR) / omegaSaved[i] - offset[i])
+      usesCurrentR = false;
+    if (stale.workingResponse()[i] != workingSaved[i]) differsFromSaved = true;
+  }
+  check(usesCurrentR, "nb restoreLatents rebuilds working from the current r");
+  check(differsFromSaved,
+        "nb restoring latents under a stale r yields a different working");
+
+  ext_rng_destroy(rRef);
+  ext_rng_destroy(rResp);
+  rngState = savedRngState;
+  printf("ok: nb sweep order and restore contract\n");
+}
+
 void runModelTests(ext_rng* rng) {
   testIntegratedLikelihood();
   testPosteriorDraw(rng);
@@ -3995,6 +4249,9 @@ void runModelTests(ext_rng* rng) {
   testOrdinalCutpointConditional(rng);
   testOrdinalProbitEquivalence(rng);
   testOrdinalStateRoundTrip();
+  testNBPolyaGammaShapeMoments(rng);
+  testNBDispersionGridConditional(rng);
+  testNBSweepOrderAndRestore(rng);
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();

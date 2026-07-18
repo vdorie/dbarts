@@ -1783,6 +1783,21 @@ inline double logOnePlusExp(double x) {
   return x > 0.0 ? x + std::log1p(std::exp(-x)) : std::log1p(std::exp(x));
 }
 
+/// A Polya-Gamma draw PG(b, z) for shape b: the omega-loop's shape-parameterized
+/// seam (docs/design/negative-binomial.md section 2). v1 ships the exact integer
+/// envelope, so b is integer-valued and PG(b, z) is the exact sum of round(b)
+/// independent PG(1, z) variates (the LogisticResponse reduction, PG(n, z) =
+/// sum of n PG(1, z)). At b = 1 this is bit-for-bit the shipped PG(1) Devroye
+/// stream. A later real-shape mode routes a fractional b to an approximate
+/// primitive here without touching the callers.
+inline double simulatePolyaGammaShape(ext_rng* rng, double b, double z) {
+  long reps = std::lround(b);
+  double omega = 0.0;
+  for (long c = 0; c < reps; ++c)
+    omega += ext_rng_simulatePolyaGamma(rng, z);
+  return omega;
+}
+
 /// Response models own the working response the backfitting engine sees and
 /// any per-iteration latent refresh; concrete classes own their O(n) loops.
 /// Response/offset pointers are borrowed: the caller keeps them alive.
@@ -1911,6 +1926,18 @@ public:
   virtual const double* cutpoints() const { return nullptr; }
   virtual std::size_t numCutpoints() const { return 0; }
   virtual void restoreCutpoints(const double* /*gamma*/) {}
+
+  /// Count responses under a negative-binomial law (NBResponse) carry a scalar
+  /// dispersion r the state block serializes as a by-name "dispersion" slot;
+  /// other families carry none, so their states omit it and an NB sampler
+  /// refuses a state lacking one (the residualDf scalar analog). The name is
+  /// parameterization-neutral and the value real-valued (grid mode stores an
+  /// integer-valued double), so a later real-r mode loads and saves with no
+  /// state-format change. RESTORE CONTRACT: restoreDispersion MUST run before
+  /// restoreLatents, which rebuilds the working response from omega AND r.
+  virtual bool carriesDispersion() const { return false; }
+  virtual double dispersion() const { return 0.0; }
+  virtual void restoreDispersion(double /*r*/) {}
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -3093,6 +3120,265 @@ private:
   std::vector<double> lambda_;      // per-observation mixing precisions
   std::vector<double> composite_;   // c_i = w_i lambda_i, the Gaussian's weights
   ResidualDfPrior nuPrior_;         // grid machinery, used only when estimating
+};
+
+/// Sampled negative-binomial dispersion r on a capped positive-integer grid
+/// under a normalized gamma(2, 0.1) prior (docs/design/negative-binomial.md
+/// sections 2A, 3). This is the r-update seam: a grid full conditional today, a
+/// CRT-or-real strategy later, with integrality assumed only inside it. Under
+/// the logit-p parameterization p_i is r-free, so the log full conditional at
+/// grid point r_k separates (dropping the r-free normalizer) into
+///   L_k + r_k * S + log p(r_k),
+/// L_k = sum_c n_c [lgamma(c + r_k) - lgamma(r_k)] over the count histogram n_c,
+/// S = sum_i log(1 - p_i). L_k derives ONLY from the fixed counts, so it
+/// precomputes once per response (computeKernel); each sweep is one O(n)
+/// reduction for S plus O(grid) multiply-adds - the ResidualDfPrior economics,
+/// now an exact analogy. The grid is dense where dispersion matters and sparse
+/// toward the Poisson-like cap at r = 50.
+struct NBDispersionPrior {
+  static constexpr std::size_t gridSize = 13;
+  static constexpr double grid[gridSize] = {1.0,  2.0,  3.0,  4.0,  5.0,
+                                            6.0,  8.0,  10.0, 12.0, 15.0,
+                                            20.0, 30.0, 50.0};
+  static constexpr std::size_t medianIndex = 6;  // r = 8, the cold-start value
+
+  NBDispersionPrior() {
+    double priorTotal = 0.0;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      kernel_[k] = 0.0;
+      logPrior_[k] = grid[k] * std::exp(-0.1 * grid[k]);  // gamma(2, 0.1) kernel
+      priorTotal += logPrior_[k];
+    }
+    for (std::size_t k = 0; k < gridSize; ++k)
+      logPrior_[k] = std::log(logPrior_[k] / priorTotal);
+  }
+
+  /// Precompute the count-dependent lgamma kernel L_k from the response: tally
+  /// the integer-count histogram n_c, then L_k = sum_c n_c [lgamma(c + r_k) -
+  /// lgamma(r_k)]. Called at construction and whenever y changes (setResponse/
+  /// setData), the count analogue of a fixed-data precompute.
+  void computeKernel(const double* y, std::size_t numObservations) {
+    std::size_t maxCount = 0;
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      std::size_t c = static_cast<std::size_t>(std::lround(y[i]));
+      if (c > maxCount) maxCount = c;
+    }
+    std::vector<double> histogram(maxCount + 1, 0.0);
+    for (std::size_t i = 0; i < numObservations; ++i)
+      histogram[static_cast<std::size_t>(std::lround(y[i]))] += 1.0;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      double lgammaR = std::lgamma(grid[k]);
+      double L = 0.0;
+      for (std::size_t c = 0; c <= maxCount; ++c)
+        if (histogram[c] != 0.0)
+          L += histogram[c] *
+               (std::lgamma(static_cast<double>(c) + grid[k]) - lgammaR);
+      kernel_[k] = L;
+    }
+  }
+
+  /// Draw a grid index from the discrete full conditional given the collapsed
+  /// statistic S = sum_i log(1 - p_i).
+  std::size_t drawIndex(ext_rng* rng, double sumLog1mP) {
+    double maxLogPosterior = -HUGE_VAL;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      weight_[k] = kernel_[k] + grid[k] * sumLog1mP + logPrior_[k];
+      if (weight_[k] > maxLogPosterior) maxLogPosterior = weight_[k];
+    }
+    double total = 0.0;
+    for (std::size_t k = 0; k < gridSize; ++k) {
+      weight_[k] = std::exp(weight_[k] - maxLogPosterior);
+      total += weight_[k];
+    }
+    for (std::size_t k = 0; k < gridSize; ++k) weight_[k] /= total;
+    return ext_rng_drawFromDiscreteDistribution(rng, weight_.data(), gridSize);
+  }
+
+  /// The precomputed L_k, exposed so a component test can check the kernel
+  /// against a direct lgamma evaluation.
+  double kernelValue(std::size_t k) const { return kernel_[k]; }
+
+private:
+  std::array<double, gridSize> kernel_;
+  std::array<double, gridSize> logPrior_;
+  std::array<double, gridSize> weight_;
+};
+
+/// Negative-binomial counts by the Polya-Gamma augmentation (Polson-Scott-Windle
+/// 2013; Zhou-Li-Dunson-Carin 2012) under the logit-p parameterization
+/// (docs/design/negative-binomial.md): the forest fits the log-odds latent
+/// psi_i = f(x_i) + offset_i, the count law is y_i ~ NB(r, plogis(psi_i)) with
+/// dispersion r, and E[y_i] = r exp(psi_i) so the offset is a log-exposure. The
+/// augmentation generalizes LogisticResponse: omega_i ~ PG(y_i + r, psi_i) (a
+/// real shape, integer under fork (A)), kappa_i = (y_i - r)/2, working response
+/// z_i = kappa_i/omega_i - offset_i under per-sweep precisions omega_i, sigma
+/// fixed at 1. r is a positive integer, fixed (user-supplied) or estimated on
+/// the capped grid by the closed-form discrete full conditional
+/// (NBDispersionPrior); real r stays behind a recorded door (section 2). Counts
+/// enter kappa directly, so like the binary families it does not rescale the
+/// response. Weights are unsupported (exposure belongs in the offset).
+/// latents() exposes the omega draws.
+class NBResponse final : public ResponseModel {
+public:
+  /// dispersion > 0 fixes r there (an integer; the host validates integrality);
+  /// a non-positive dispersion estimates r on the grid, cold-started at its
+  /// median. offset may be null; weights are unsupported.
+  NBResponse(const double* y, const double* offset,
+             std::size_t numObservations, double dispersion)
+    : y_(y), offset_(offset), numObservations_(numObservations),
+      estimateR_(!(dispersion > 0.0)),
+      r_(estimateR_ ? NBDispersionPrior::grid[NBDispersionPrior::medianIndex]
+                    : dispersion) {
+    omega_.resize(numObservations);
+    working_.resize(numObservations);
+    rPrior_.computeKernel(y, numObservations);
+    coldStart();
+  }
+
+  double* workingResponse() override { return working_.data(); }
+  const double* workingWeights() const override { return omega_.data(); }
+  bool workingWeightsVaryPerSweep() const override { return true; }
+  const double* offset() const override { return offset_; }
+
+  /// Per sweep, in the partially-collapsed order (section 5, van Dyk-Park):
+  /// (1) update r from its grid full conditional given the fit, COLLAPSED over
+  /// omega (it reads only S = sum_i log(1 - p_i), never the omega draws); then
+  /// (2) draw omega_i ~ PG(y_i + r_new, psi_i) at the NEW r; then (3) rebuild the
+  /// working response with r_new. The reverse order is not invariant - the trees
+  /// would consume an omega whose shape carries the stale r. sigma is ignored
+  /// (fixed at 1). Fixed-r mode skips step (1) and draws no dispersion variate.
+  void refreshLatents(ext_rng* rng, const double* totalFits, double) override {
+    if (estimateR_) {
+      double sumLog1mP = 0.0;
+      for (std::size_t i = 0; i < numObservations_; ++i) {
+        double psi = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+        sumLog1mP -= logOnePlusExp(psi);  // log(1 - plogis(psi)) = -log(1 + e^psi)
+      }
+      r_ = NBDispersionPrior::grid[rPrior_.drawIndex(rng, sumLog1mP)];
+    }
+    drawOmega(rng, totalFits);
+  }
+
+  double drawSigma(ext_rng*, const double*, double sigma) override {
+    return sigma;
+  }
+
+  /// Embedded-Gibbs y swap: keep the slow-moving r (a global the outer sampler
+  /// persists across a small y perturbation - the kept-cutpoints/nu clause),
+  /// recompute the count-histogram kernel under the new y, and redraw omega and
+  /// working against the current fit.
+  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
+                   bool, double*) override {
+    y_ = y;
+    rPrior_.computeKernel(y, numObservations_);
+    drawOmega(rng, totalFits);
+  }
+
+  void setOffset(const double* offset, bool, double*) override {
+    // omega and kappa / omega stand; only the shift into the working response
+    // moves (the LogisticResponse setOffset)
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double unshifted = working_[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      working_[i] = unshifted - (offset != nullptr ? offset[i] : 0.0);
+    }
+    offset_ = offset;
+  }
+
+  /// Data swap: everything stale, so cold-init r to the grid median (or the
+  /// held fixed value), rebuild the kernel, and cold-start omega at its
+  /// PG(y+r, 0) mean (y_i + r)/4 (the LogisticResponse w/4 generalization); the
+  /// first sweep's draw replaces it.
+  void setData(const double* y, const double* offset, const double*,
+               std::size_t numObservations, double*) override {
+    y_ = y;
+    offset_ = offset;
+    numObservations_ = numObservations;
+    omega_.resize(numObservations);
+    working_.resize(numObservations);
+    if (estimateR_)
+      r_ = NBDispersionPrior::grid[NBDispersionPrior::medianIndex];
+    rPrior_.computeKernel(y, numObservations);
+    coldStart();
+  }
+
+  const double* latents() const override { return omega_.data(); }
+
+  /// Rebuild the working response from the restored omega AND the current r.
+  /// RESTORE CONTRACT (section 5): restoreDispersion MUST run before this, since
+  /// the rebuild reads r; a restore that installs omega before r rebuilds
+  /// against the stale r.
+  void restoreLatents(const double* latents) override {
+    std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      working_[i] = 0.5 * (y_[i] - r_) / omega_[i] -
+                    (offset_ != nullptr ? offset_[i] : 0.0);
+  }
+
+  double initialSigma() const override { return 1.0; }
+  double fitScale() const override { return 1.0; }
+  double fitShift() const override { return 0.0; }
+  double sigmaScale() const override { return 1.0; }
+
+  /// The dispersion r for the by-name "dispersion" state block: getState reads
+  /// dispersion() when carriesDispersion(), stateIsValid refuses a non-finite/
+  /// non-positive r, and setState restoreDispersion()s it BEFORE restoreLatents
+  /// (the restore contract above). estimatesDispersion() is the grid-vs-fixed
+  /// flag, the estimatesResidualDf analog.
+  bool carriesDispersion() const override { return true; }
+  double dispersion() const override { return r_; }
+  bool estimatesDispersion() const { return estimateR_; }
+  void restoreDispersion(double dispersion) override { r_ = dispersion; }
+
+  /// log dnbinom(y_i; r, plogis(eta_i)) with eta the log-odds f(x) + offset:
+  ///   lgamma(y+r) - lgamma(r) - lgamma(y+1) + y log p + r log(1 - p),
+  /// using the stable log p = -log(1 + e^{-eta}), log(1 - p) = -log(1 + e^{eta}).
+  void computeLogLikelihood(const double* totalFits, double,
+                            std::size_t numObservations,
+                            double* out) const override {
+    double lgammaR = std::lgamma(r_);
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      double y = y_[i];
+      out[i] = std::lgamma(y + r_) - lgammaR - std::lgamma(y + 1.0) -
+               y * logOnePlusExp(-eta) - r_ * logOnePlusExp(eta);
+    }
+  }
+
+private:
+  /// Steps (2)-(3) of the sweep at the CURRENT r: draw omega_i ~ PG(y_i + r,
+  /// psi_i) and rebuild the working response. Shared by refreshLatents (after
+  /// its r step) and setResponse (which keeps r, the ordinal drawLatents
+  /// analog).
+  void drawOmega(ext_rng* rng, const double* totalFits) {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double offset = offset_ != nullptr ? offset_[i] : 0.0;
+      double psi = totalFits[i] + offset;
+      double omega = simulatePolyaGammaShape(rng, y_[i] + r_, psi);
+      omega_[i] = omega;
+      working_[i] = 0.5 * (y_[i] - r_) / omega - offset;
+    }
+  }
+
+  /// Deterministic cold start: omega at PG(y+r, 0)'s mean (y_i + r)/4, so the
+  /// working response starts at 2 (y_i - r)/(y_i + r) - offset independent of the
+  /// fit; real draws replace it after the first sweep.
+  void coldStart() {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double omega = 0.25 * (y_[i] + r_);
+      omega_[i] = omega;
+      working_[i] =
+        0.5 * (y_[i] - r_) / omega - (offset_ != nullptr ? offset_[i] : 0.0);
+    }
+  }
+
+  const double* y_;
+  const double* offset_;
+  std::size_t numObservations_;
+  bool estimateR_;
+  double r_;
+  std::vector<double> omega_;
+  std::vector<double> working_;
+  NBDispersionPrior rPrior_;
 };
 
 /// Tau priors the in-core grouped sampler supports (rbart.priors); custom
