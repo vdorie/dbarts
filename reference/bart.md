@@ -10,9 +10,10 @@ constrained by a prior to be a weak learner.
   \\\Phi\\ denotes the standard normal cdf (probit link).
 
 - `bart2` fits further response families - logistic, accelerated failure
-  time (`family = "aft"`), and K-category multinomial
-  (`family = "multinomial"`) - through its `family` argument, described
-  below.
+  time (`family = "aft"`), K-category multinomial
+  (`family = "multinomial"`), and ordered categorical
+  (`family = "ordinal"`, a cumulative probit) - through its `family`
+  argument, described below.
 
 ## Usage
 
@@ -55,7 +56,8 @@ bart2(
     warm.start = NULL,
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
+               "ordinal"),
     missing = c("incorporate", "error"),
     resid.dist = gaussian,
     ...)
@@ -145,7 +147,8 @@ summary(object, ...)
   `y.train` is a two-level factor (or logical, or two-level character)
   or has only values 0 and 1, then a binary response model with a probit
   link is fit. A factor with three or more levels is an error directing
-  to `bart2`'s `family = "multinomial"`, which `bart` does not fit.
+  to `bart2`'s `family = "multinomial"` (unordered) or
+  `family = "ordinal"` (ordered), neither of which `bart` fits.
 
 - x.test:
 
@@ -482,6 +485,37 @@ summary(object, ...)
   calibrates its own. The fit's class is `"bartMultinomial"`, not
   `"bart"`: see ‘Value’ below and the `extract`/`fitted`/`predict`
   methods for `bartMultinomial` objects.
+
+  `family = "ordinal"` fits an ordered categorical response by a
+  cumulative probit (a single forest, unlike multinomial's K): a latent
+  \\z = f(x) + \epsilon\\ with \\\epsilon \sim N(0, 1)\\ is cut at
+  ordered thresholds \\-\infty = \gamma_0 \< \gamma_1 = 0 \< \gamma_2 \<
+  \ldots \< \gamma\_{K-1} \< \gamma_K = \infty\\, so \\P(Y = k \mid x) =
+  \Phi(\gamma_k - f(x)) - \Phi(\gamma\_{k-1} - f(x))\\. The free
+  cutpoints are sampled by a one-at-a-time marginal Metropolis update
+  (latents integrated out) under a log-gap prior \\N(0, 1.5^2)\\; at \\K
+  = 2\\ the model is exactly the probit family. `y.train` should be an
+  ordered factor ([`is.ordered`](https://rdrr.io/r/base/factor.html));
+  its level order defines the category order, and `levels(y.train)` is
+  captured at fit time and carried on every K-shaped output. Under the
+  default `family = "auto"`, an ordered factor with three or more levels
+  is detected and fit as ordinal, reporting the choice in a one-line
+  message (an unordered factor stays multinomial - the two never
+  overlap, the dispatch key is `is.ordered`); a two-level ordered factor
+  is binary and resolves to probit. Given explicitly,
+  `family = "ordinal"` also accepts an unordered factor or character
+  response (with a message that the category order is taken from the
+  level order - usually alphabetical, so order the levels yourself) and
+  a numeric response, whose ordered levels are `sort(unique(y.train))`.
+  `weights` are not supported (a weighted truncated-normal latent
+  likelihood is not a coherent model); `samplerOnly`, `warm.start`, and
+  `n.grow.sweeps` are refused with an error naming the limitation.
+  `test` and `keepTrees` are supported as for multinomial, and `predict`
+  replays the saved trees at new predictors, differencing the cumulative
+  probit at the stored per-draw cutpoints. `rbart_vi` and `xbart` do not
+  fit ordinal responses (grouped ordinal models and ordinal-scale
+  cross-validation losses are recorded follow-ups). The fit's class is
+  `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
 
 - formula:
 
@@ -906,6 +940,36 @@ per-category mean-probability channel into posterior mean/sd/quantiles
 (R-hat/ESS when the posterior package is installed), the multinomial
 analog of `summary.bart`'s \\\sigma\\/k/\\\tau\\ summary.
 
+`bart2(family = "ordinal")` likewise returns its own list, of class
+`"bartOrdinal"`. Components: `call`, `family` (`"ordinal"`), `levels`
+(the ordered category names, length K), `K`, `n.chains`, `n.trees`, `y`
+(the observed categories as an ordered factor over `levels`),
+`yhat.train` (and `yhat.test` when `test` was supplied) - the posterior
+draws of the K category probabilities, shaped and levels-named exactly
+as the multinomial arrays above - `latent.train` (and `latent.test`) -
+the corresponding draws of the latent \\f(x)\\ on the unit-variance
+probit scale, shaped like a binary family's `yhat.train` - `cutpoints` -
+the posterior draws of the K - 1 finite thresholds \\(\gamma_1 = 0,
+\gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K - 1), the ordinal
+analog of gaussian's `sigma`, from which probabilities at any latent
+value can be reconstructed - and `varcount`. `bc`, `fit`, and
+`cutpoints.raw` (the per-draw thresholds in the internal layout
+`predict` consumes) are present only under `keepTrees`.
+
+Generics for a `"bartOrdinal"` fit: `fitted(object)` returns the
+posterior-mean n \\\times\\ K probability matrix (columns named by
+`levels`); `fitted(object, type = "class")` the argmax category of that
+mean as an ordered factor; `fitted(object, type = "bart")` the
+posterior-mean latent. `extract(object, type = "ev")` returns the
+probability draws, `type = "bart"` (alias `"link"`) the latent draws,
+and `type = "ppd"` draws one category per posterior draw (1-based codes
+indexing `levels`). `predict(object, newdata)` requires
+`keepTrees = TRUE` and returns the probability draws at `newdata`
+(`type = "bart"` the replayed latent; `type = "ppd"` category draws);
+when `newdata` matches the fit-time `test` it reproduces `yhat.test`.
+`residuals(object)` returns the n \\\times\\ K matrix of
+observed-indicator minus fitted probability.
+
 For continuous response fits, the `plot` method sets `mfrow` to
 `c(1, 2)` and makes two plots. The first plot is the sequence of kept
 draws of \\\sigma\\ including the burn-in draws. Initially these draws
@@ -1002,7 +1066,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217448
+#> total seconds in loop: 0.218400
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1068,7 +1132,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001381
+#> total seconds in loop: 0.001442
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

@@ -16,7 +16,7 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft"),
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal"),
     missing = c("incorporate", "error"))
 ```
 
@@ -252,7 +252,24 @@ dbarts(
   are rejected. Survival fits currently use the matrix
   (`x.train`/`y.train`) interface and do not support `subset` or case
   weights. See `weights` for how the families differ in their support
-  for weights.
+  for weights. `"ordinal"` fits an ordered categorical response by a
+  cumulative probit: a latent \\z = f(x) + \epsilon\\, \\\epsilon \sim
+  N(0, 1)\\, is cut at ordered thresholds \\\gamma_1 = 0 \< \gamma_2 \<
+  \ldots \< \gamma\_{K-1}\\ into the \\K\\ ordered categories, the free
+  cutpoints sampled by a marginal Metropolis update with the latents
+  integrated out. The response should be an ordered factor
+  ([`is.ordered`](https://rdrr.io/r/base/factor.html)), whose level
+  order defines the category order; under `family = "auto"` an ordered
+  factor with three or more levels is detected and fit as ordinal,
+  reporting the choice in a one-line message (a two-level ordered factor
+  is binary and resolves to probit). `family = "ordinal"` given
+  explicitly also accepts an unordered factor or character response -
+  with a message that the category order is taken from the level order -
+  and a numeric response, whose ordered levels are `sort(unique(y))`.
+  Like probit, the latent scale is fixed at 1, fits are on the latent
+  scale, and weights are not supported. `bart2` reports ordinal fits as
+  \\n \times K\\ category probabilities; see
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
 
 - missing:
 
