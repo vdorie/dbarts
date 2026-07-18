@@ -224,6 +224,31 @@ assembleMixedMatrix <- function(
   result
 }
 
+## Wrap a bare Matrix::dgCMatrix 'test' set as an all-sparse mixed container,
+## so it takes exactly the resident path a mixed-container test set's sparse
+## columns already do (validateXTest's xTestIsSparseContainer branch, the
+## bridge's parseTestContainer) instead of densifying. All columns map
+## negative (CSC-sourced); a bare numeric sparse matrix carries no factor
+## levels, so it is all-ordinal by construction - validateXTest refuses it
+## against a categorical training design before this runs. Column names come
+## from x.test itself (NULL when unnamed, matching a plain matrix's
+## colnames()), not synthesized, so the unnamed-test position-matching
+## warning still fires when appropriate.
+wrapSparseTestMatrix <- function(x.test) {
+  p <- ncol(x.test)
+  result <- list(
+    dense = NULL,
+    sparse = x.test,
+    map = -seq_len(p),
+    sparseReference = rep(NA_integer_, p),
+    sparseCategoryCount = rep(0L, p),
+    numObservations = as.integer(nrow(x.test)),
+    columnNames = colnames(x.test)
+  )
+  class(result) <- "dbartsMixedMatrix"
+  result
+}
+
 ## Assemble per-input-column blocks - factors, double vectors, or double
 ## matrices (spliced per column) - into the dense columnar flavor.
 assembleDenseColumnMatrix <- function(columns, blockNames, numObservations) {

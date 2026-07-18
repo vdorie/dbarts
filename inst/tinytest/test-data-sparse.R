@@ -165,3 +165,131 @@ xval <- xbart(
   n.threads = 1L
 )
 expect_true(all(is.finite(xval)))
+
+# a bare dgCMatrix 'test' set: accepted symmetrically with a bare dgCMatrix
+# 'x' (docs/plans/r-ingestion-cleanups.md finding 2) - it stays resident as
+# an all-sparse mixed container instead of silently densifying, taking
+# exactly the path a mixed container's own sparse test columns already do
+x.test.dense <- x.dense[1:20, , drop = FALSE]
+x.test.sparse <- x.sparse[1:20, , drop = FALSE]
+
+# ingestion: train sparse + test sparse
+data.sparseTest <- dbartsData(x.sparse, y, test = x.test.sparse)
+expect_inherits(data.sparseTest@x.test, "dbartsMixedMatrix")
+expect_true(dbarts:::predictorSourceIsSparse(data.sparseTest@x.test))
+
+# ingestion: train dense (all-ordinal) + test sparse also stays resident -
+# quantization only reads the training cut grid, which exists regardless of
+# how the training store itself was built
+data.denseTrainSparseTest <- dbartsData(x.dense, y, test = x.test.sparse)
+expect_inherits(data.denseTrainSparseTest@x.test, "dbartsMixedMatrix")
+expect_true(dbarts:::predictorSourceIsSparse(data.denseTrainSparseTest@x.test))
+
+fitControl <- dbartsControl(
+  n.samples = 15L,
+  n.burn = 10L,
+  n.trees = 15L,
+  n.chains = 1L,
+  n.threads = 1L,
+  updateState = FALSE
+)
+
+# train sparse + test sparse fits bitwise-identically to train sparse + the
+# same test values supplied dense
+set.seed(201)
+run.sparseTrain.sparseTest <- dbarts(
+  x.sparse,
+  y,
+  test = x.test.sparse,
+  control = fitControl
+)$run()
+set.seed(201)
+run.sparseTrain.denseTest <- dbarts(
+  x.sparse,
+  y,
+  test = x.test.dense,
+  control = fitControl
+)$run()
+expect_identical(
+  run.sparseTrain.sparseTest$test,
+  run.sparseTrain.denseTest$test
+)
+
+# train dense + test sparse fits bitwise-identically to train dense + the
+# same test values supplied dense
+set.seed(202)
+run.denseTrain.sparseTest <- dbarts(
+  x.dense,
+  y,
+  test = x.test.sparse,
+  control = fitControl
+)$run()
+set.seed(202)
+run.denseTrain.denseTest <- dbarts(
+  x.dense,
+  y,
+  test = x.test.dense,
+  control = fitControl
+)$run()
+expect_identical(run.denseTrain.sparseTest$test, run.denseTrain.denseTest$test)
+
+# column alignment goes through the same name-matching code as a dense test
+# matrix: a reordered, named sparse test set matches by name, not position
+permutation <- c(3L, 1L, 4L, 2L, 6L, 5L)
+set.seed(203)
+run.permuted.sparseTest <- dbarts(
+  x.dense,
+  y,
+  test = x.test.sparse[, permutation, drop = FALSE],
+  control = fitControl
+)$run()
+set.seed(203)
+run.permuted.denseTest <- dbarts(
+  x.dense,
+  y,
+  test = x.test.dense[, permutation, drop = FALSE],
+  control = fitControl
+)$run()
+expect_identical(run.permuted.sparseTest$test, run.permuted.denseTest$test)
+
+# predict() on a bart2 fit takes a bare dgCMatrix newdata the same path
+fit.forPredict <- bart2(
+  x.dense,
+  y,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepTrees = TRUE
+)
+expect_identical(
+  predict(fit.forPredict, x.test.sparse),
+  predict(fit.forPredict, x.test.dense)
+)
+
+# train dense with a categorical (factor) column + a bare dgCMatrix test:
+# a numeric sparse matrix carries no factor levels, so it cannot supply that
+# column's values - refuse informatively rather than error out of the bridge
+df.withFactor <- data.frame(
+  x1 = x.dense[, 1L],
+  x2 = x.dense[, 2L],
+  f = factor(sample(c("a", "b"), n, replace = TRUE))
+)
+expect_error(
+  dbartsData(
+    df.withFactor,
+    y,
+    test = x.test.sparse[, 1:2, drop = FALSE]
+  ),
+  pattern = "categorical training column"
+)
+
+# the class validity union accepts a bare dgCMatrix 'x.test' directly - it
+# is converted to the resident container form before storage (so a
+# validated object never actually holds one), but the union itself stays
+# symmetric with 'x' rather than rejecting it outright
+data.rawSparseTestSlot <- data.sparseTest
+data.rawSparseTestSlot@x.test <- x.test.sparse
+expect_silent(methods::validObject(data.rawSparseTestSlot))

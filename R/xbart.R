@@ -75,31 +75,8 @@ xbart <- function(
   # a factor/logical/character response is a classification; xbart cross-
   # validates the 2-level (probit) case only, never multinomial. A numeric
   # response takes the historic 0/1-vs-continuous path unchanged.
-  if (data@response.type != "numeric") {
-    responseType <- data@response.type
-    K <- data@response.n.levels
-    if (K >= 3L) {
-      stop(
-        "xbart does not fit a ",
-        K,
-        "-level ",
-        responseType,
-        " response; multinomial classification requires ",
-        "bart2(family = \"multinomial\")"
-      )
-    }
-    if (family == "auto") {
-      family <- "probit"
-      announceAutoFamily(responseType, K, family)
-    } else if (family == "gaussian") {
-      stop(
-        "family \"gaussian\" cannot fit a ",
-        responseType,
-        " response; a 2-level factor is a binary classification ",
-        "(family = \"auto\" fits probit)"
-      )
-    }
-  } else {
+  family <- resolveClassificationFamily(data, family, "xbart", "gaussian")
+  if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2L &&
       all(sort(uniqueResponses) == c(0, 1))

@@ -292,47 +292,19 @@ dbarts <- function(
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
   # are multinomial, which only bart2(family = "multinomial") implements. A
   # numeric response takes the historic 0/1-vs-continuous path unchanged.
-  if (data@response.type != "numeric") {
-    responseType <- data@response.type
-    K <- data@response.n.levels
-    if (K >= 3L) {
-      if (family == "auto") {
-        stop(
-          "a ",
-          K,
-          "-level ",
-          responseType,
-          " response is multinomial; fit it with ",
-          "bart2(family = \"multinomial\") - dbarts()/rbart_vi()/bart()/xbart ",
-          "fit only binary and continuous responses"
-        )
-      }
-      stop(
-        "family \"",
-        family,
-        "\" cannot fit a ",
-        K,
-        "-level ",
-        responseType,
-        " response; a 3+-level factor is multinomial ",
-        "(bart2(family = \"multinomial\"))"
-      )
-    }
-    if (family == "auto") {
-      family <- "probit"
-      announceAutoFamily(responseType, K, family)
-    } else if (family == "gaussian" || family == "aft") {
-      stop(
-        "family \"",
-        family,
-        "\" cannot fit a ",
-        responseType,
-        " response; a 2-level factor is a binary classification ",
-        "(family = \"auto\" fits probit)"
-      )
-    }
-    # probit/logistic on a 2-level categorical response proceed as binary
-  } else {
+  # dbarts() is also reached anonymously through bart(), which never sets an
+  # explicit family; see resolveClassificationFamily's doc comment for why
+  # its auto-branch message lists every single-forest entry point instead of
+  # naming itself. probit/logistic on a 2-level categorical response proceed
+  # as binary.
+  family <- resolveClassificationFamily(
+    data,
+    family,
+    "dbarts()/rbart_vi()/bart()/xbart",
+    c("gaussian", "aft"),
+    splitMultinomialMessage = TRUE
+  )
+  if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
       all(sort(uniqueResponses) == c(0, 1))
@@ -997,11 +969,7 @@ dbartsSampler <- setRefClass(
     ) {
       "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState is opt-in; see setData."
 
-      if (data@missing == "error" && anyNA(x)) {
-        stop(
-          "new predictors contain missing values and the sampler was built with missing = \"error\""
-        )
-      }
+      checkMissingPolicy(data, anyNA(x), "predictors")
       result <- bartcoreSamplerSetPredictor(
         .self,
         x,
@@ -1032,11 +1000,7 @@ dbartsSampler <- setRefClass(
     setTestPredictor = function(x.test, column) {
       "Changes a single column of the test predictor matrix."
 
-      if (data@missing == "error" && anyNA(x.test)) {
-        stop(
-          "new test predictors contain missing values and the sampler was built with missing = \"error\""
-        )
-      }
+      checkMissingPolicy(data, anyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
         .self,
         x.test,
@@ -1045,11 +1009,11 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       "Changes the test predictor matrix, and optionally the test offset."
-      if (data@missing == "error" && !is.null(x.test) && anyNA(x.test)) {
-        stop(
-          "new test predictors contain missing values and the sampler was built with missing = \"error\""
-        )
-      }
+      checkMissingPolicy(
+        data,
+        !is.null(x.test) && anyNA(x.test),
+        "test predictors"
+      )
       if (missing(offset.test)) {
         # predictors only; the engine keeps the current offset and the
         # bridge refuses if the row count would orphan its length
