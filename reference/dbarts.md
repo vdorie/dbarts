@@ -11,6 +11,7 @@ dbarts(
     formula, data, test, subset, weights, offset, offset.test = offset,
     verbose = FALSE, n.samples = 800L,
     tree.prior = cgm, node.prior = normal, resid.prior = chisq,
+    resid.dist = gaussian,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
@@ -148,6 +149,32 @@ dbarts(
   prior used on the residual/error variance, or a prior object built
   with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+
+- resid.dist:
+
+  The residual error *law* for a continuous (gaussian) response,
+  orthogonal to `resid.prior` (which is the prior on the error
+  variance). The default
+  [`gaussian()`](https://rdrr.io/r/stats/family.html) gives the usual
+  normal errors. `student(df)` instead fits outlier-robust Student-t
+  errors by the classic Gaussian scale-mixture augmentation: each
+  observation carries a latent precision \\\lambda_i \sim
+  \mathrm{Gamma}(\nu/2, \nu/2)\\ so that \\\sqrt{w_i}\\\epsilon_i /
+  \sigma \sim t\_\nu\\, and a gross outlier draws a small \\\lambda_i\\,
+  downweighting its leverage on the fit and on \\\sigma\\.
+  `student(df = nu)` fixes the degrees of freedom at `nu` (a positive
+  number; `nu = 4` is a conventional robust default), while `student()`
+  (equivalently `student(df = NULL)`) estimates them on a capped grid
+  under a proper tail-bounding prior. Only a continuous gaussian
+  response carries this: `student()` with a `"probit"`, `"logistic"`, or
+  `"aft"` family is an error, as those have their own fixed latent
+  scale. Two caveats: (a) with a flexible tree-forest mean, tail
+  inference is partially confounded with fit flexibility, so an
+  estimated \\\nu\\ should be posterior-checked rather than read as a
+  pure noise property; (b) \\\sigma\\ is now the *conditional* scale, so
+  the marginal residual variance is \\\sigma^2\\\nu/(\nu-2)\\, not
+  \\\sigma^2\\. See “Response scaling” below - robust errors mitigate an
+  outlier's leverage but not the range compression that outlier causes.
 
 - proposal.probs:
 

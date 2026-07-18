@@ -31,7 +31,8 @@ bart(
     keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
     seed = NA_integer_,
     proposalprobs = NULL,
-    keepsampler = keeptrees)
+    keepsampler = keeptrees,
+    resid.dist = gaussian)
 
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
@@ -56,6 +57,7 @@ bart2(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
     missing = c("incorporate", "error"),
+    resid.dist = gaussian,
     ...)
 
 # S3 method for class 'bart'
@@ -176,6 +178,24 @@ summary(object, ...)
   error standard deviations (\\\sigma\\) less than the rough estimate.
   Not applicable when \\y\\ is binary. Default 0.90, from the same
   source as `sigdf`.
+
+- resid.dist:
+
+  The residual error *law* for a continuous (gaussian) response, passed
+  through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). The
+  default [`gaussian()`](https://rdrr.io/r/stats/family.html) gives
+  normal errors; `student(df)` fits outlier-robust Student-t errors by a
+  Gaussian scale-mixture augmentation, with `student(df = nu)` fixing
+  the degrees of freedom and `student()` estimating them on a capped
+  grid. Only continuous gaussian responses carry it (an error
+  otherwise). Two caveats: with a flexible tree-forest mean, tail
+  inference is partially confounded with fit flexibility, so an
+  estimated \\\nu\\ should be posterior-checked; and \\\sigma\\ is then
+  the *conditional* scale, the marginal residual variance being
+  \\\sigma^2\\\nu/(\nu-2)\\. See
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
+  the full description.
 
 - k:
 
@@ -982,7 +1002,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.224524
+#> total seconds in loop: 0.218977
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1048,7 +1068,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001350
+#> total seconds in loop: 0.001345
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

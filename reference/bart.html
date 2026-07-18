@@ -72,7 +72,8 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <span>    keeptrees <span class="op">=</span> <span class="cn">FALSE</span>, keepcall <span class="op">=</span> <span class="cn">TRUE</span>, sampleronly <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>    seed <span class="op">=</span> <span class="cn">NA_integer_</span>,</span>
 <span>    proposalprobs <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    keepsampler <span class="op">=</span> <span class="va">keeptrees</span><span class="op">)</span></span>
+<span>    keepsampler <span class="op">=</span> <span class="va">keeptrees</span>,</span>
+<span>    resid.dist <span class="op">=</span> <span class="va">gaussian</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">bart2</span><span class="op">(</span></span>
 <span>    <span class="va">formula</span>, <span class="va">data</span>, <span class="va">test</span>, <span class="va">subset</span>, <span class="va">weights</span>, <span class="va">offset</span>, offset.test <span class="op">=</span> <span class="va">offset</span>,</span>
@@ -97,6 +98,7 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 <span>    factors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"categorical"</span>, <span class="st">"indicators"</span><span class="op">)</span>,</span>
 <span>    family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"gaussian"</span>, <span class="st">"probit"</span>, <span class="st">"logistic"</span>, <span class="st">"aft"</span>, <span class="st">"multinomial"</span><span class="op">)</span>,</span>
 <span>    missing <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"incorporate"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
+<span>    resid.dist <span class="op">=</span> <span class="va">gaussian</span>,</span>
 <span>    <span class="va">...</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'bart'</span></span>
@@ -181,6 +183,9 @@ bart2 fits further response families - logistic, accelerated failure time (famil
 
    <dt id="arg-sigquant">sigquant<a class="anchor" aria-label="anchor" href="#arg-sigquant"></a></dt>
 <dd><p>The quantile of the error variance prior that the rough estimate (<code>sigest</code>) is placed at. The closer the quantile is to 1, the more aggressive the fit will be as you are putting more prior weight on error standard deviations (\(\sigma\)) less than the rough estimate. Not applicable when \(y\) is binary. Default 0.90, from the same source as <code>sigdf</code>.</p></dd>
+
+   <dt id="arg-resid-dist">resid.dist<a class="anchor" aria-label="anchor" href="#arg-resid-dist"></a></dt>
+<dd><p>The residual error <em>law</em> for a continuous (gaussian) response, passed through to <code><a href="dbarts.html">dbarts</a></code>. The default <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian()</a></code> gives normal errors; <code>student(df)</code> fits outlier-robust Student-t errors by a Gaussian scale-mixture augmentation, with <code>student(df = nu)</code> fixing the degrees of freedom and <code>student()</code> estimating them on a capped grid. Only continuous gaussian responses carry it (an error otherwise). Two caveats: with a flexible tree-forest mean, tail inference is partially confounded with fit flexibility, so an estimated \(\nu\) should be posterior-checked; and \(\sigma\) is then the <em>conditional</em> scale, the marginal residual variance being \(\sigma^2\,\nu/(\nu-2)\). See <code><a href="dbarts.html">dbarts</a></code> for the full description.</p></dd>
 
    <dt id="arg-k">k<a class="anchor" aria-label="anchor" href="#arg-k"></a></dt>
 <dd><p>For numeric \(y\), <code>k</code> is the number of prior standard deviations \(E(Y|x) = f(x)\) is away from \(\pm 0.5\). The response (<code>y.train</code>) is internally scaled to range from \(-0.5\) to \(0.5\). For binary \(y\) fit with the default probit link, <code>k</code> is the number of prior standard deviations \(f(x)\) is away from \(\pm 3\), the probit reference scale; <code>family = "logistic"</code> (<code>bart2</code> only) widens this to \(\pm \pi \sqrt{3}\), the standard deviation of the standard logistic latent variable. In both cases, the bigger \(k\) is, the more conservative the fitting will be. The value can be either a fixed number, or a <em>hyperprior</em> of the form <code>chi(degreesOfFreedom = 1.5, scale = 2)</code>. For <code>bart2</code>, the default of <code>NULL</code> uses the value 2 for continuous responses and the <code>chi(1.5, 2)</code> hyperprior for binary ones, which centers the sampled <code>k</code> near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass <code>k = 2</code> for the fixed BART-package default, or <code>chi(1.5, Inf)</code> for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \(\sigma_\mu = 0.5 / (k \sqrt{m})\) for \(m\) trees, \(k\) prior standard deviations of \(f(x)\) span the whole coded response range regardless of \(m\) – so \(k = 2\) places that range at roughly a 95% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \(y\) values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let <code>k</code> adapt via the <code>chi</code> hyperprior.</p></dd>
@@ -500,7 +505,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.224524</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.218977</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>
@@ -566,7 +571,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001350</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001345</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 </span>
