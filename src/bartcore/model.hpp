@@ -2216,6 +2216,279 @@ private:
   std::vector<double> working_;
 };
 
+/// Ordered categorical response by a cumulative probit (docs/design/ordinal.md).
+/// A latent z_i = f(x_i) + o_i + N(0, 1) is thresholded by ordered cutpoints
+/// -inf = gamma_0 < gamma_1 < ... < gamma_{K-1} < gamma_K = +inf into category
+/// y_i = k iff gamma_{k-1} < z_i <= gamma_k; y_ holds the 1-based category index
+/// in {1..K}. Scheme A identification (section 2): sigma fixed at 1 and gamma_1
+/// pinned at 0, so K - 2 interior cutpoints are free and K = 2 collapses to
+/// probit. Each sweep first updates the free cutpoints by a marginal random-walk
+/// Metropolis step against eta = f + offset with the latents integrated out (the
+/// Phi-difference likelihood), then redraws z from the doubly-truncated normal on
+/// its category interval - cutpoints before latents (section 3). Reuses probit's
+/// working = latents - offset, unit working weights, and fixed sigma; the
+/// boundary categories route through the same one-sided truncation primitives and
+/// NaN fallback probit uses, keeping the K = 2 rng stream bitwise identical.
+/// Weights are unsupported for probit's reason (no coherent weighted latent
+/// likelihood); the host refuses them.
+class OrdinalResponse final : public ResponseModel {
+public:
+  OrdinalResponse(const double* y, const double* offset,
+                  std::size_t numObservations, std::size_t numCategories)
+    : y_(y), offset_(offset), numObservations_(numObservations),
+      numCategories_(numCategories) {
+    latents_.resize(numObservations);
+    working_.resize(numObservations);
+    gamma_.resize(numCategories - 1);
+    proposalScale_.resize(numCategories - 1);
+    coldCutpoints();
+    computeScales();
+    coldLatents();
+    rebuildWorking();
+  }
+
+  double* workingResponse() override { return working_.data(); }
+  const double* workingWeights() const override { return nullptr; }
+  const double* offset() const override { return offset_; }
+
+  void refreshLatents(ext_rng* rng, const double* totalFits,
+                      double) override {
+    updateCutpoints(rng, totalFits);
+    drawLatents(rng, totalFits);
+    rebuildWorking();
+  }
+
+  double drawSigma(ext_rng*, const double*, double sigma) override {
+    return sigma;
+  }
+
+  /// Embedded-Gibbs y swap: keep the slow-moving cutpoints (a global parameter
+  /// the outer sampler wants persisted across a small y perturbation), refresh
+  /// the counts the proposal scale derives from, and redraw z under the new
+  /// intervals - probit's minimal-disruption re-draw plus a kept-cutpoint clause.
+  void setResponse(const double* y, ext_rng* rng, const double* totalFits,
+                   bool, double*) override {
+    y_ = y;
+    computeScales();
+    drawLatents(rng, totalFits);
+    rebuildWorking();
+  }
+
+  void setOffset(const double* offset, bool, double*) override {
+    offset_ = offset;
+    rebuildWorking();
+  }
+
+  /// Data swap: everything stale, so cold-init the cutpoints to the default
+  /// prior spacing and z to a deterministic point in each category interval,
+  /// matching probit/TResponse cold-init on a data swap.
+  void setData(const double* y, const double* offset, const double*,
+               std::size_t numObservations, double*) override {
+    y_ = y;
+    offset_ = offset;
+    numObservations_ = numObservations;
+    latents_.resize(numObservations);
+    working_.resize(numObservations);
+    coldCutpoints();
+    computeScales();
+    coldLatents();
+    rebuildWorking();
+  }
+
+  const double* latents() const override { return latents_.data(); }
+
+  void restoreLatents(const double* latents) override {
+    std::memcpy(latents_.data(), latents, numObservations_ * sizeof(double));
+    rebuildWorking();
+  }
+
+  double initialSigma() const override { return 1.0; }
+  double fitScale() const override { return 1.0; }
+  double fitShift() const override { return 0.0; }
+  double sigmaScale() const override { return 1.0; }
+
+  /// The K - 1 finite cutpoints gamma_1..gamma_{K-1} (gamma_1 pinned at 0);
+  /// exposed for the component tests (the C2 state block promotes this).
+  const double* cutpoints() const { return gamma_.data(); }
+  std::size_t numCutpoints() const { return gamma_.size(); }
+
+  /// log P(y_i = k | eta, gamma) = log(Phi(gamma_k - eta) - Phi(gamma_{k-1} -
+  /// eta)), the cumulative-probit category likelihood generalizing probit's
+  /// two-tail form; the +-inf boundary cutpoints give Phi = 1 / 0.
+  void computeLogLikelihood(const double* totalFits, double,
+                            std::size_t numObservations,
+                            double* out) const override {
+    for (std::size_t i = 0; i < numObservations; ++i) {
+      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      int k = category(i);
+      out[i] = std::log(Phi(cutAt(k) - eta) - Phi(cutAt(k - 1) - eta));
+    }
+  }
+
+  /// The log Metropolis acceptance (Phi-difference log-likelihood ratio plus
+  /// log-prior ratio; symmetric proposal, so no proposal term) for moving free
+  /// cutpoint gamma_s to proposal, exposed so a component test can check the
+  /// incremental two-category computation against a full-likelihood evaluation.
+  double cutpointLogAcceptanceForTesting(const double* totalFits,
+                                         std::size_t s, double proposal) const {
+    return cutpointLogAcceptance(totalFits, s, proposal);
+  }
+
+private:
+  int category(std::size_t i) const { return static_cast<int>(y_[i]); }
+
+  static double Phi(double x) { return Rf_pnorm5(x, 0.0, 1.0, 1, 0); }
+
+  /// gamma_s with the sentinels gamma_0 = -inf and gamma_K = +inf; the finite
+  /// cutpoints live at gamma_[s - 1].
+  double cutAt(int s) const {
+    if (s <= 0) return -std::numeric_limits<double>::infinity();
+    if (s >= static_cast<int>(numCategories_))
+      return std::numeric_limits<double>::infinity();
+    return gamma_[s - 1];
+  }
+
+  /// log of the normal log-gap prior N(log d; mean, sd) times the 1/d Jacobian
+  /// of delta = log d, up to an additive constant; the exact-posterior gate
+  /// integrates this same pushed-forward density (section 7).
+  double logGapTarget(double d) const {
+    if (!(d > 0.0)) return -std::numeric_limits<double>::infinity();
+    double delta = std::log(d);
+    double z = (delta - priorLogGapMean_) / priorLogGapSd_;
+    return -0.5 * z * z - delta;
+  }
+
+  /// Cutpoints at the default prior spacing exp(mean): gamma_s = (s - 1) *
+  /// spacing with gamma_1 = 0 pinned.
+  void coldCutpoints() {
+    double spacing = std::exp(priorLogGapMean_);
+    for (std::size_t s = 1; s < numCategories_; ++s)
+      gamma_[s - 1] = static_cast<double>(s - 1) * spacing;
+  }
+
+  /// z at a deterministic point in each category interval (interval midpoint, or
+  /// one unit past a boundary cutpoint), the ordinal analogue of probit's
+  /// z = 2 y - 1; the first sweep's draw replaces it.
+  void coldLatents() {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      int k = category(i);
+      if (k <= 1) latents_[i] = gamma_[0] - 1.0;
+      else if (k >= static_cast<int>(numCategories_))
+        latents_[i] = gamma_[numCategories_ - 2] + 1.0;
+      else latents_[i] = 0.5 * (gamma_[k - 2] + gamma_[k - 1]);
+    }
+  }
+
+  /// Fixed count-derived random-walk scale for each free cutpoint gamma_s:
+  /// c / sqrt(n_s + n_{s+1}) (section 3), floored so an empty adjacent pair
+  /// still moves under the prior.
+  void computeScales() {
+    std::vector<double> counts(numCategories_ + 1, 0.0);
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      counts[static_cast<std::size_t>(category(i))] += 1.0;
+    for (std::size_t s = 2; s < numCategories_; ++s) {
+      double denom = counts[s] + counts[s + 1];
+      proposalScale_[s - 1] =
+        proposalScaleConstant_ / std::sqrt(denom > 1.0 ? denom : 1.0);
+    }
+  }
+
+  /// One marginal random-walk Metropolis pass over the free cutpoints gamma_2..
+  /// gamma_{K-1} against eta = totalFits + offset, latents integrated out. Plain
+  /// symmetric normal proposal; an out-of-order proposal has acceptance 0 and is
+  /// rejected before the accept draw; an in-bounds proposal is accepted on the
+  /// two-adjacent-cell likelihood ratio times the prior ratio. Consumes no rng
+  /// when there are no free cutpoints, so K = 2 stays bitwise probit.
+  void updateCutpoints(ext_rng* rng, const double* totalFits) {
+    for (std::size_t s = 2; s < numCategories_; ++s) {
+      int si = static_cast<int>(s);
+      double proposal = gamma_[s - 1] +
+        proposalScale_[s - 1] * ext_rng_simulateStandardNormal(rng);
+      if (proposal <= cutAt(si - 1) || proposal >= cutAt(si + 1))
+        continue;
+      double logAccept = cutpointLogAcceptance(totalFits, s, proposal);
+      if (std::log(ext_rng_simulateContinuousUniform(rng)) < logAccept)
+        gamma_[s - 1] = proposal;
+    }
+  }
+
+  /// log acceptance for gamma_s -> proposal: only categories s and s + 1 change
+  /// (gamma_s is their shared cutpoint), plus the two log-gaps gamma_s touches.
+  double cutpointLogAcceptance(const double* totalFits, std::size_t s,
+                               double proposal) const {
+    int si = static_cast<int>(s);
+    double current = gamma_[s - 1];
+    double lo = cutAt(si - 1), hi = cutAt(si + 1);
+    double logLik = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      int k = category(i);
+      if (k != si && k != si + 1) continue;
+      double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      double oldp, newp;
+      if (k == si) {
+        double base = Phi(lo - eta);
+        oldp = Phi(current - eta) - base;
+        newp = Phi(proposal - eta) - base;
+      } else {
+        double base = Phi(hi - eta);
+        oldp = base - Phi(current - eta);
+        newp = base - Phi(proposal - eta);
+      }
+      logLik += std::log(newp) - std::log(oldp);
+    }
+    double logPrior = logGapTarget(proposal - lo) - logGapTarget(current - lo);
+    if (s < numCategories_ - 1)  // finite upper gap only below the top cutpoint
+      logPrior += logGapTarget(hi - proposal) - logGapTarget(hi - current);
+    return logLik + logPrior;
+  }
+
+  /// Redraw z_i from N(eta_i, 1) on its category interval (gamma_{y_i-1},
+  /// gamma_{y_i}]. Boundary categories keep probit's one-sided rejection
+  /// primitives and sign * DBL_EPSILON NaN fallback so K = 2 is bitwise probit;
+  /// interior categories use the doubly-truncated primitive with a midpoint
+  /// fallback.
+  void drawLatents(ext_rng* rng, const double* totalFits) {
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      double mean = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      int k = category(i);
+      if (k <= 1) {
+        double z =
+          ext_rng_simulateUpperTruncatedNormalScale1(rng, mean, gamma_[0]);
+        latents_[i] = !std::isnan(z) ? z : -DBL_EPSILON;
+      } else if (k >= static_cast<int>(numCategories_)) {
+        double z = ext_rng_simulateLowerTruncatedNormalScale1(
+          rng, mean, gamma_[numCategories_ - 2]);
+        latents_[i] = !std::isnan(z) ? z : DBL_EPSILON;
+      } else {
+        double lower = gamma_[k - 2], upper = gamma_[k - 1];
+        double z =
+          ext_rng_simulateTruncatedNormalScale1(rng, mean, lower, upper);
+        latents_[i] = !std::isnan(z) ? z : 0.5 * (lower + upper);
+      }
+    }
+  }
+
+  void rebuildWorking() {
+    std::memcpy(working_.data(), latents_.data(),
+                numObservations_ * sizeof(double));
+    if (offset_ != nullptr)
+      misc_subtractVectorsInPlace(offset_, numObservations_, working_.data());
+  }
+
+  static constexpr double priorLogGapMean_ = 0.0;
+  static constexpr double priorLogGapSd_ = 1.5;
+  static constexpr double proposalScaleConstant_ = 2.5;
+
+  const double* y_;
+  const double* offset_;
+  std::size_t numObservations_;
+  std::size_t numCategories_;
+  std::vector<double> gamma_;          // finite cutpoints gamma_1..gamma_{K-1}
+  std::vector<double> proposalScale_;  // per free cutpoint; index 0 unused
+  std::vector<double> latents_;
+  std::vector<double> working_;
+};
+
 /// Logistic via Polya-Gamma augmentation (Polson, Scott & Windle 2013):
 /// given the fit eta_i = f(x_i) + offset_i, omega_i ~ PG(1, eta_i), and
 /// kappa_i / omega_i with kappa_i = y_i - 0.5 is conditionally

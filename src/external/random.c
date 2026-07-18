@@ -510,14 +510,47 @@ double ext_rng_simulateUpperTruncatedNormal(
                      );
 }
 
-// Polya-Gamma PG(1, psi) via Devroye (2009) as given in Polson, Scott, and
-// Windle (2013): PG(1, psi) = J*(1, psi / 2) / 4, where J* is sampled by
-// accept/reject from a two-piece proposal (truncated inverse-Gaussian below
-// the truncation point, exponential above), with the alternating-series
-// bound deciding acceptance.
-
 // declared in external/stats.h, but including that pulls all of Rmath in
 extern double Rf_pnorm5(double, double, double, int, int);
+extern double Rf_qnorm5(double, double, double, int, int);
+
+// X ~ N(mean, 1) | lower < X <= upper. In the bulk the inverse-CDF transform
+// X = mean + qnorm(Phi(lower - mean) + U (Phi(upper - mean) - Phi(lower - mean)))
+// draws exactly; deep in a tail the probability gap underflows to zero, so fall
+// back to Robert (1995) exponential-proposal rejection, reflecting the interval
+// into the right tail first and rejecting proposals past the upper bound - the
+// two-sided extension of the one-sided primitive above. Returns nan only if the
+// rejection loop stalls (astronomically unlikely for a genuine tail interval).
+double ext_rng_simulateTruncatedNormalScale1(
+  ext_rng* generator,
+  double mean,
+  double lower,
+  double upper
+) {
+  double a = lower - mean, b = upper - mean;
+  double pLower = Rf_pnorm5(a, 0.0, 1.0, 1, 0);
+  double gap = Rf_pnorm5(b, 0.0, 1.0, 1, 0) - pLower;
+  if (gap > 0.0) {
+    double u = ext_rng_simulateContinuousUniform(generator);
+    double x = mean + Rf_qnorm5(pLower + u * gap, 0.0, 1.0, 1, 0);
+    return x < lower ? lower : (x > upper ? upper : x);
+  }
+  bool reflect = a < 0.0;              // interval sits in the left tail
+  double lo = reflect ? -b : a;        // folded right-tail lower bound (>= 0)
+  double hi = reflect ? -a : b;
+  double alpha = 0.5 * (lo + sqrt(lo * lo + 4.0));
+  double x, u, r;
+  int iter = 0;
+  do {
+    x = ext_rng_simulateExponential(generator, 1.0 / alpha) + lo;
+    double diff = x - alpha;
+    r = exp(-0.5 * diff * diff);
+    u = ext_rng_simulateContinuousUniform(generator);
+  } while ((x > hi || u > r) && iter++ < MAX_ITER);
+  if (iter == MAX_ITER && (x > hi || u > r))
+    return nan("");
+  return mean + (reflect ? -x : x);
+}
 
 static const double pgTruncationPoint = 0.64;
 

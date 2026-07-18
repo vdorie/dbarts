@@ -3530,6 +3530,215 @@ static void testTFixedNuNoDraw(ext_rng*) {
   printf("ok: t fixed nu draws no nu\n");
 }
 
+// The doubly-truncated-normal primitive in isolation: draws land in (lower,
+// upper] and their mean/variance match the truncated N(mean, 1) moments, from a
+// midrange interval (the inverse-CDF bulk) through two deep-tail intervals whose
+// Phi gap underflows and hands off to Robert rejection (right tail direct, left
+// tail reflected). Reference moments come from a peak-shifted quadrature that
+// stays finite where the closed-form normalizer underflows. Local generator,
+// restored global rngState.
+static void testOrdinalTruncatedNormal(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  struct Case { double mean, lower, upper; };
+  const Case cases[] = {
+    {0.3, -1.0, 1.5},     // bulk, straddling 0
+    {-0.5, 0.4, 2.2},     // bulk, one-sided
+    {0.0, 8.5, 9.0},      // deep right tail: gap underflows -> Robert
+    {0.0, -41.0, -40.0},  // deep left tail: gap underflows -> Robert reflected
+  };
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 20260718u);
+  const int numDraws = 400000, G = 200000;
+
+  for (const Case& c : cases) {
+    double h = (c.upper - c.lower) / G, gmax = -HUGE_VAL;
+    for (int j = 0; j < G; ++j) {
+      double d = c.lower + (j + 0.5) * h - c.mean;
+      if (-0.5 * d * d > gmax) gmax = -0.5 * d * d;
+    }
+    double sw = 0.0, sxw = 0.0, sx2w = 0.0;
+    for (int j = 0; j < G; ++j) {
+      double x = c.lower + (j + 0.5) * h, d = x - c.mean;
+      double w = std::exp(-0.5 * d * d - gmax);
+      sw += w; sxw += x * w; sx2w += x * x * w;
+    }
+    double refMean = sxw / sw, refVar = sx2w / sw - refMean * refMean;
+
+    double sum = 0.0, sumSq = 0.0;
+    bool inSupport = true;
+    for (int d = 0; d < numDraws; ++d) {
+      double z = ext_rng_simulateTruncatedNormalScale1(localRng, c.mean,
+                                                       c.lower, c.upper);
+      if (!(z >= c.lower && z <= c.upper)) inSupport = false;
+      sum += z; sumSq += z * z;
+    }
+    check(inSupport, "ordinal truncated draw lands in (lower, upper]");
+    double mean = sum / numDraws, var = sumSq / numDraws - mean * mean;
+    checkNear(mean, refMean, std::max(1e-6, 5.0 * std::sqrt(refVar / numDraws)),
+              "ordinal truncated-normal mean");
+    checkNear(var, refVar, 0.05 * refVar + 1e-9,
+              "ordinal truncated-normal variance");
+  }
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: ordinal doubly-truncated normal primitive\n");
+}
+
+// The K = 3 cutpoint update against a hand-computed reference. First the
+// incremental two-category acceptance the sampler forms equals a full
+// all-category log-likelihood-plus-log-prior difference (a direct evaluation).
+// Then, holding (y, eta) fixed, the gamma_2 draws from repeated refreshLatents
+// form a Markov chain whose stationary law is the exact 1-D posterior p(gamma_2)
+// proportional to prod_i (Phi-difference) times the log-gap prior with its
+// Jacobian; the sampler's posterior mean/variance and a coarse histogram match a
+// fine-grid quadrature of it. Local generator, restored global rngState.
+static void testOrdinalCutpointConditional(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 10, K = 3;
+  std::vector<double> y = {1, 1, 2, 2, 2, 3, 3, 2, 3, 1};
+  std::vector<double> eta = {-0.4, 0.1, 0.3, -0.2, 0.5,
+                             0.8, 1.1, -0.1, 0.6, 0.2};
+
+  OrdinalResponse resp(y.data(), nullptr, n, K);
+  const double m0 = 0.0, s0 = 1.5;  // mirror OrdinalResponse's prior constants
+  auto logGapTarget = [&](double d) {
+    double z = (std::log(d) - m0) / s0;
+    return -0.5 * z * z - std::log(d);
+  };
+  auto Phi = [](double x) { return Rf_pnorm5(x, 0.0, 1.0, 1, 0); };
+  // total unnormalized log posterior of gamma_2 over ALL observations
+  auto logPost = [&](double g2) {
+    double lp = logGapTarget(g2);
+    for (std::size_t i = 0; i < n; ++i) {
+      int k = static_cast<int>(y[i]);
+      double lo = k == 1 ? -HUGE_VAL : (k == 2 ? 0.0 : g2);
+      double hi = k == 3 ? HUGE_VAL : (k == 1 ? 0.0 : g2);
+      lp += std::log(Phi(hi - eta[i]) - Phi(lo - eta[i]));
+    }
+    return lp;
+  };
+
+  // (a) the sampler's incremental acceptance equals the direct full evaluation
+  double current = resp.cutpoints()[1];  // cold-init gamma_2 = spacing = 1
+  bool acceptExact = true;
+  for (double p : {0.3, 0.7, 1.4, 2.5}) {
+    double got = resp.cutpointLogAcceptanceForTesting(eta.data(), 2, p);
+    if (std::fabs(got - (logPost(p) - logPost(current))) > 1e-9)
+      acceptExact = false;
+  }
+  check(acceptExact, "ordinal cutpoint incremental acceptance matches full eval");
+
+  // (b) reference moments and bin masses by fine-grid quadrature over gamma_2
+  const int G = 400000, numBins = 8;
+  const double g2Max = 6.0, hq = g2Max / G, binWidth = g2Max / numBins;
+  double gmax = -HUGE_VAL;
+  for (int j = 0; j < G; ++j) {
+    double lpv = logPost(hq * (j + 0.5));
+    if (lpv > gmax) gmax = lpv;
+  }
+  std::vector<double> binMass(numBins, 0.0);
+  double sw = 0.0, swx = 0.0, swx2 = 0.0;
+  for (int j = 0; j < G; ++j) {
+    double g2 = hq * (j + 0.5), w = std::exp(logPost(g2) - gmax);
+    sw += w; swx += w * g2; swx2 += w * g2 * g2;
+    int b = static_cast<int>(g2 / binWidth);
+    binMass[b >= numBins ? numBins - 1 : b] += w;
+  }
+  double refMean = swx / sw, refVar = swx2 / sw - refMean * refMean;
+  for (double& m : binMass) m /= sw;
+
+  // (c) run the marginal-MH chain via refreshLatents and collect gamma_2
+  ext_rng* localRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(localRng, 314159u);
+  const int burn = 20000, keep = 1000000;
+  for (int d = 0; d < burn; ++d) resp.refreshLatents(localRng, eta.data(), 1.0);
+  double sum = 0.0, sumSq = 0.0;
+  std::vector<double> counts(numBins, 0.0);
+  for (int d = 0; d < keep; ++d) {
+    resp.refreshLatents(localRng, eta.data(), 1.0);
+    double g2 = resp.cutpoints()[1];
+    sum += g2; sumSq += g2 * g2;
+    int b = static_cast<int>(g2 / binWidth);
+    if (b >= 0 && b < numBins) counts[b] += 1.0;
+  }
+  double mean = sum / keep, var = sumSq / keep - mean * mean;
+  checkNear(mean, refMean, 0.02, "ordinal gamma_2 posterior mean");
+  checkNear(var, refVar, std::max(0.1 * refVar, 0.005),
+            "ordinal gamma_2 posterior variance");
+  for (int b = 0; b < numBins; ++b) {
+    double freq = counts[b] / keep;
+    // deflate the sample size for the MH chain's autocorrelation
+    double se = std::sqrt(binMass[b] * (1.0 - binMass[b]) / (keep / 40.0));
+    checkNear(freq, binMass[b], std::max(0.01, 5.0 * se),
+              "ordinal gamma_2 posterior histogram bin");
+  }
+
+  ext_rng_destroy(localRng);
+  rngState = savedRngState;
+  printf("ok: ordinal cutpoint conditional\n");
+}
+
+// Ordinal at K = 2 with gamma_1 = 0 reproduces the probit sampler BIT FOR BIT:
+// the empty free-cutpoint set consumes no rng, the boundary categories route
+// through probit's one-sided primitives with the same argument, and the NaN
+// fallback is the same sign * DBL_EPSILON. Identically seeded generators produce
+// identical latents and are left in the identical state (proved by lockstep
+// draws afterward), across several sweeps with a nonzero offset. Local
+// generators, restored global rngState.
+static void testOrdinalProbitEquivalence(ext_rng*) {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 40;
+  std::vector<double> y01(n), y12(n), offset(n), totalFits(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    y01[i] = runif01() < 0.5 ? 0.0 : 1.0;
+    y12[i] = y01[i] + 1.0;  // ordinal category 1 (failure) / 2 (success)
+    offset[i] = 0.4 * (runif01() - 0.5);
+  }
+
+  ProbitResponse probit(y01.data(), offset.data(), n);
+  OrdinalResponse ordinal(y12.data(), offset.data(), n, 2);
+  check(ordinal.numCutpoints() == 1 && ordinal.cutpoints()[0] == 0.0,
+        "ordinal K = 2 pins a single cutpoint at 0");
+
+  ext_rng* rngP = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngO = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngP, 8675309u);
+  ext_rng_setSeed(rngO, 8675309u);
+
+  bool latentsMatch = true, workingMatch = true;
+  for (int sweep = 0; sweep < 5; ++sweep) {
+    // perturb the fits each sweep so both truncation sides are exercised
+    for (std::size_t i = 0; i < n; ++i)
+      totalFits[i] = 1.5 * (runif01() - 0.5);
+    probit.refreshLatents(rngP, totalFits.data(), 1.0);
+    ordinal.refreshLatents(rngO, totalFits.data(), 1.0);
+    const double* lp = probit.latents();
+    const double* lo = ordinal.latents();
+    const double* wp = probit.workingResponse();
+    const double* wo = ordinal.workingResponse();
+    for (std::size_t i = 0; i < n; ++i) {
+      if (lp[i] != lo[i]) latentsMatch = false;
+      if (wp[i] != wo[i]) workingMatch = false;
+    }
+  }
+  check(latentsMatch, "ordinal K = 2 latents equal probit bit for bit");
+  check(workingMatch, "ordinal K = 2 working equals probit bit for bit");
+
+  // identical consumption: subsequent draws stay in lockstep
+  bool lockstep = true;
+  for (int d = 0; d < 64; ++d)
+    if (ext_rng_simulateContinuousUniform(rngP) !=
+        ext_rng_simulateContinuousUniform(rngO))
+      lockstep = false;
+  check(lockstep, "ordinal K = 2 leaves the rng stream identical to probit");
+
+  ext_rng_destroy(rngO);
+  ext_rng_destroy(rngP);
+  rngState = savedRngState;
+  printf("ok: ordinal K = 2 equals probit bit for bit\n");
+}
+
 // The engine test-container entry (facade setTestData): a sampler given a
 // mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
 // the dense test matrix of the same values, and the entry REFUSES a designated
@@ -3678,6 +3887,9 @@ void runModelTests(ext_rng* rng) {
   testTNuGridPosterior(rng);
   testTCompositeWeightDelegation(rng);
   testTFixedNuNoDraw(rng);
+  testOrdinalTruncatedNormal(rng);
+  testOrdinalCutpointConditional(rng);
+  testOrdinalProbitEquivalence(rng);
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();
