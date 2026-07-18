@@ -88,10 +88,6 @@ items
     helper when this item opens; mixed/CSC stores also hold lifetime
     borrows anchored by R protection, an undocumented contract for
     any other host.
-  r-ingestion-cleanups: R-surface leftovers of the data review -
-    family-routing dedup (three drifted copies), the sparse-test
-    silent densification (decision inside: symmetric dgCMatrix
-    support vs explicit error), shared NA-policy guard.
   repo-modernization: standing hygiene bundle. Sanitizers PR-gated
     2026-07-17 (nine consecutive green push runs met the stability
     condition). Coverage resolved (VD 2026-07-17): one-shot covr audit
