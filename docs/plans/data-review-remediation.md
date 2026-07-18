@@ -74,3 +74,38 @@ C2 (Sonnet, R + bridge): B3 - setResponse rejects NA (R side, matching
 Per commit: R CMD INSTALL --preclean .; tests/cpp make clean && make &&
 ./test_bartcore; full tinytest; the three equivalence compares
 (bitwise). C2 additionally: air format --check . exits 0.
+
+## Landings
+
+C1 d9fc90d (2026-07-18). B1: commitObservation routes through setCell
+(the dead re-inlined body deleted; setCell gains its one production
+caller) - safe because the session's cuts are fixed, so setCell's
+requantize reproduces the precommitted code, and the hasMissing mark
+is restored; the fix is discriminating (the old body fails all three
+new assertions). B2: the CSC branch deleted, comment states
+dense-only citing refuseViewSampler. P1: codeFor's ordinal arm is
+std::lower_bound - the old loop counted cuts below value, identical
+result for every input including ties and NaN (returned early).
+One fix round: the implementer's new tests perturbed the shared test
+RNG history and broke the BCF grow-from-root snapshot downstream,
+initially misdiagnosed as pre-existing - the reviewer reproduced
+clean HEAD passing, and both tests now carry the local-generator +
+rngState save/restore insulation convention (second occurrence;
+the convention is now load-bearing for any new tests/cpp test that
+builds a sampler). Gates: suite 3050/0, all three anchors bitwise,
+component tests green with the snapshot at its recorded value;
+reviewer re-ran the battery after a provenance reinstall. Diff 127.
+
+C2 7fcc635 (2026-07-18). setResponse rejects NA R-side; setWeights
+enforces the class-validity trio (length, NA, non-negative);
+setSigma, which had NO validation on either side, gains length-1 /
+non-NA / positive (Rf_asReal previously truncated a vector silently -
+now an explicit error); setOffset gains the NA rejection
+construction already enforced. BONUS FIND: setResponse mutated
+data@y BEFORE the C length check, so a rejected call corrupted the
+R-side slot with no rollback - reordered to install-on-success.
+16 new tinytest expectations assert each rejection fires before any
+sampler state changes. Gates: suite 3066/0, equivalence 22/22
+bitwise, air format clean, no lints. Diff 91. ARC CLOSED; the
+refactor-scale findings live in data-store-consolidation.md and
+r-ingestion-cleanups.md.
