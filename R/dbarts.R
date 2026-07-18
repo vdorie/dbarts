@@ -920,11 +920,22 @@ dbartsSampler <- setRefClass(
     },
     setWeights = function(weights, updateState = NA) {
       "Changes the weights with which the sampler is fitted. updateState is opt-in; see setData."
+      weights <- as.double(weights)
+      if (length(weights) != length(data@y)) {
+        stop("'weights' must have length equal to that of 'y'")
+      }
+      if (anyNA(weights)) {
+        stop("'weights' cannot be NA")
+      }
+      if (any(weights < 0.0)) {
+        stop("'weights' must all be non-negative")
+      }
+
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
       oldWeights <- data@weights
-      selfEnv$data@weights <- as.double(weights)
+      selfEnv$data@weights <- weights
       tryResult <- tryCatch(
         .Call(C_dbarts_bartcore_setWeights, ptr, data@weights),
         error = function(e) {
@@ -943,8 +954,16 @@ dbartsSampler <- setRefClass(
     },
     setSigma = function(sigma, updateState = NA) {
       "Changes the residual standard deviation parameter for each chain. updateState is opt-in; see setData."
+      sigma <- as.double(sigma)
+      if (length(sigma) != 1L) {
+        stop("'sigma' must be of length 1")
+      }
+      if (is.na(sigma) || sigma <= 0.0) {
+        stop("'sigma' must be positive")
+      }
+
       ptr <- getPointer()
-      .Call(C_dbarts_bartcore_setSigma, ptr, as.double(sigma))
+      .Call(C_dbarts_bartcore_setSigma, ptr, sigma)
       if (identical(updateState, TRUE)) {
         storeState(ptr)
       }
