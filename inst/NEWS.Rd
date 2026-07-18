@@ -34,6 +34,13 @@
             holds the residual variance at \code{value}; and
             \code{getSumsOfSquaredResiduals} reports on the documented
             scale.
+      \item The sampler's \code{setResponse} gains an \code{updateScale}
+            argument defaulting to \code{FALSE}: the prior scale set at
+            creation stays locked when the response is swapped, as a
+            conditional update inside a larger sampler requires.
+            Earlier versions always re-derived the prior location and
+            scale from each new response; pass
+            \code{updateScale = TRUE} for that behavior.
     }
   }
   \subsection{NEW FEATURES}{

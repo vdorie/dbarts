@@ -53,21 +53,6 @@ items
     shared scan.
   interaction-constraints: structured sparsity and interaction limits
     on the SplitSelector seam. consumer-gated.
-  issue-80-setresponse-scale: audit GitHub issue #80 (setResponse
-    re-derives the prior location/scale from each new response;
-    request: an updateScale = FALSE option plus documentation of the
-    default - poison for BART-inside-Gibbs, the package's core use
-    case) against bartcore. Likely pre-addressed: the issue cites the
-    DELETED classic engine (src/dbarts/bartFit.cpp), and the release
-    section records the setResponse updateScale switch landed at
-    cf70fd5 as a resolved pre-release decision. Verify: the R-surface
-    argument and its default, that the default's semantics fit the
-    embedded-Gibbs case the issue describes, that the Rd documents the
-    default (the issue's second ask), and whether the issue's probit
-    feedback demo behaves correctly under the shipped default.
-    Deliverable: an assessment of remaining work (possibly none or
-    docs-only); do NOT comment on the issue itself (VD 2026-07-18) -
-    outcome feeds the release-time issue triage. small.
   multi-forest-models: heteroscedastic, hurdle - the BCF two-forest
     machinery is the template; one design note each when picked.
     forest-combiner (docs/design/forest-combiner.md) LANDED 2026-07-14
@@ -177,6 +162,13 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     stan4bart 0.0-13; bartXViz not checkable locally - own gfortran
     runtime, R-level dbarts use only; the 12 Suggests-level packages
     not individually checked).
+  close GitHub issue #80 at release: fully resolved by the setResponse
+    updateScale switch (cf70fd5; default FALSE locks the creation-time
+    prior scale - the safe embedded-Gibbs behavior the issue asks for;
+    latent families never rescale by construction). Audited 2026-07-18:
+    engine behavior spot-checked, dbartsSampler-class.Rd documents the
+    default, NEWS 1.0-0 UPGRADING carries the bullet. Point the
+    reporter at the Rd and NEWS entries.
   write cran-comments.md at submission time. Content it needs: major
     release, engine rewritten, seeded results change; the C++ interface
     is removed and dbarts.h replaces it, so stan4bart 0.0-12 cannot
