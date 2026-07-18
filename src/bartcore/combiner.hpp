@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <external/random.h>
@@ -56,7 +57,11 @@ struct ChainStateData {
   double sigma = 1.0;  // original response scale
   // the gaussian response transform at capture; max <= min marks scale-free
   double fitMin = 0.0, fitMax = 0.0;
-  std::vector<double> latents;            // empty for gaussian
+  std::vector<double> latents;            // empty for gaussian; lambda under t
+  // Student-t continuous errors (TResponse) only: the residual df nu at
+  // capture. NaN marks absent, so gaussian and every non-t state carry no nu
+  // block and a t sampler refuses a state lacking one.
+  double residualDf = std::numeric_limits<double>::quiet_NaN();
   // grouped samplers only, internal scale so restores are exact
   std::vector<double> groupEffects;
   double groupTau = 0.0;

@@ -44,6 +44,10 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
         x.dartProbabilities != y.dartProbabilities ||
         x.rngState != y.rngState)
       return false;
+    // nu round-trips bitwise; a gaussian state carries NaN on both sides, which
+    // an == would reject, so treat both-absent as agreement
+    bool bothNu = std::isnan(x.residualDf) && std::isnan(y.residualDf);
+    if (!bothNu && x.residualDf != y.residualDf) return false;
     if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
