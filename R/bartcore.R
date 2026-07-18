@@ -189,13 +189,19 @@ bartcoreSamplerSetPredictor <- function(
 }
 
 bartcoreSamplerSetResponse <- function(sampler, y, updateScale = FALSE) {
-  sampler$data@y <- as.double(y)
+  y <- as.double(y)
+  if (anyNA(y)) {
+    stop("response contains missing values")
+  }
+  # validate (the C length check) before installing, so a rejected y never
+  # leaves data@y holding the bad replacement
   .Call(
     C_dbarts_bartcore_setResponse,
     sampler$getPointer(),
-    sampler$data@y,
+    y,
     updateScale
   )
+  sampler$data@y <- y
   invisible(NULL)
 }
 
@@ -209,6 +215,9 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
     }
   } else {
     offset <- as.double(offset)
+    if (anyNA(offset)) {
+      stop("'offset' contains missing values")
+    }
     if (length(offset) == 1L) {
       if (identical(sampler$data@testUsesRegularOffset, TRUE)) {
         offset.test <- if (!is.null(sampler$data@x.test)) {
