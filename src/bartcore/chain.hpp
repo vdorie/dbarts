@@ -141,6 +141,12 @@ struct SamplerOptions {
   // families ignore it (the bridge refuses the combination host-side).
   double residualDf = std::numeric_limits<double>::quiet_NaN();
 
+  // ordinal (cumulative-probit) responses only: the number of ordered category
+  // levels K (docs/design/ordinal.md), selecting OrdinalResponse with a K-1
+  // cutpoint vector. 0 (default) is a non-ordinal response; the bridge sets it
+  // from the ordered-factor level count and refuses K < 2.
+  std::size_t numCategories = 0;
+
   // when set, every kept sample's trees are flattened into a circular buffer
   // of numSamplesToStore slots (at least 1) per chain, for prediction and
   // reporting after the run
@@ -323,6 +329,12 @@ public:
       response_ = std::make_unique<AFTResponse>(
         y, options.survivalStatus, offset, numObservations, sigmaEstimate,
         sigmaDf, sigmaRawScale);
+      break;
+    case ResponseFamily::ordinal:
+      // y holds one-based category indices in {1..K}; a ConstantGaussianLeaf
+      // single-forest model like probit, sigma fixed at 1 (docs/design/ordinal.md)
+      response_ = std::make_unique<OrdinalResponse>(y, offset, numObservations,
+                                                    options.numCategories);
       break;
     }
     options_.survivalStatus = nullptr;  // consumed above
@@ -1606,6 +1618,15 @@ public:
     state.residualDf = response_->carriesResidualDf()
                          ? response_->residualDf()
                          : std::numeric_limits<double>::quiet_NaN();
+    // the ordinal-only cutpoint vector (length K-1); z rides latents above. A
+    // non-ordinal chain carries none and writes no block.
+    if (response_->carriesCutpoints()) {
+      state.cutpoints.assign(
+        response_->cutpoints(),
+        response_->cutpoints() + response_->numCutpoints());
+    } else {
+      state.cutpoints.clear();
+    }
     if (response_->numGroupEffects() > 0) {
       state.groupEffects.assign(
         response_->groupEffects(),
@@ -1717,6 +1738,11 @@ public:
     // sampler, carries neither and cannot continue the mixture
     if (response_->carriesResidualDf() &&
         (state.latents.size() != n || !(state.residualDf > 0.0)))
+      return false;
+    // an ordinal sampler needs its full length-(K-1) cutpoint vector; an old
+    // state, or one from another family, carries none and cannot continue
+    if (response_->carriesCutpoints() &&
+        state.cutpoints.size() != response_->numCutpoints())
       return false;
     // grouped states must carry a full effects vector for the chain's
     // groups; ungrouped states and chains both hold zero of them
@@ -1835,6 +1861,10 @@ public:
     // reinstalls its constant, estimated mode its last grid draw
     if (response_->carriesResidualDf())
       response_->restoreResidualDf(state.residualDf);
+    // stateIsValid guaranteed a full length-(K-1) cutpoint vector for an
+    // ordinal sampler; z was restored above under these same cutpoints
+    if (response_->carriesCutpoints())
+      response_->restoreCutpoints(state.cutpoints.data());
     if (!state.groupEffects.empty())
       response_->restoreGroupEffects(state.groupEffects.data(),
                                      state.groupTau);

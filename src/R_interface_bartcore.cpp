@@ -98,6 +98,12 @@ SEXP getListElement(SEXP listExpr, const char* name) {
 
 struct ParsedControl {
   bool responseIsBinary = false;
+  // ordinal (cumulative-probit) response shape (docs/design/ordinal.md): the
+  // ordered category count K, the third response shape beside the binary and
+  // continuous ones. K >= 2 selects the ordinal family; 0 (absent) is a
+  // non-ordinal response, so every existing family parses unchanged. The R
+  // surface (C3) attaches the count; parseControl reads it here.
+  size_t numOrdinalCategories = 0;
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
@@ -311,6 +317,17 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
   control.haveRngSeed = INTEGER(slotExpr)[0] != NA_INTEGER;
   if (control.haveRngSeed)
     control.rngSeed = static_cast<std::uint_least32_t>(INTEGER(slotExpr)[0]);
+
+  // optional ordinal shape (docs/design/ordinal.md): an integer K >= 2 the R
+  // surface (C3) attaches for an ordered-factor response, read raw and guarded
+  // like resid.df. Absent (the default) leaves a non-ordinal response, so every
+  // existing family parses byte-for-byte unchanged.
+  SEXP ordinalExpr =
+    Rf_getAttrib(controlExpr, Rf_install("bartcore.n.categories"));
+  if (Rf_isInteger(ordinalExpr) && Rf_xlength(ordinalExpr) == 1 &&
+      INTEGER(ordinalExpr)[0] >= 2)
+    control.numOrdinalCategories =
+      static_cast<size_t>(INTEGER(ordinalExpr)[0]);
 
   UNPROTECT(1);
 }
@@ -1060,10 +1077,13 @@ void printInitialSummary(const ParsedControl& control,
   }
 }
 
-// family selects the response model. For a binary response: "" or "probit"
-// give the classic probit latents, "logistic" the Polya-Gamma sampler. For a
-// continuous response: "" or "gaussian" fits ordinary BART, "aft" the
-// log-normal survival model (censored latents via a control attribute).
+// family selects the response model, keyed on the response shape. For a binary
+// response: "" or "probit" give the classic probit latents, "logistic" the
+// Polya-Gamma sampler. For a K-level ordinal response (control's category
+// count): "" or "ordinal" give the cumulative probit. For a continuous
+// response: "" or "gaussian" fits ordinary BART, "aft" the log-normal survival
+// model (censored latents via a control attribute). Each shape refuses the
+// others' family names by name.
 bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
                                        const char* familyName) {
   if (control.responseIsBinary) {
@@ -1073,6 +1093,16 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
       return bartcore::ResponseFamily::probit;
     Rf_error("unrecognized response family for a binary response");
   }
+  // ordinal is the K-level categorical shape (docs/design/ordinal.md): the
+  // cumulative probit is the only family defined on it
+  if (control.numOrdinalCategories >= 2) {
+    if (familyName[0] == '\0' || std::strcmp(familyName, "ordinal") == 0)
+      return bartcore::ResponseFamily::ordinal;
+    Rf_error("an ordinal (K-level) response supports only family \"ordinal\"");
+  }
+  // continuous shape: "ordinal" needs the ordered categorical response above
+  if (std::strcmp(familyName, "ordinal") == 0)
+    Rf_error("family \"ordinal\" requires an ordered categorical response");
   // aft fits a continuous response (log survival times) with truncated latents
   // for right-censored observations; the status arrives on a control attribute
   if (std::strcmp(familyName, "aft") == 0)
@@ -1196,6 +1226,9 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // the gaussian construction path reads this: finite selects Student-t errors
   // (docs/design/robust-errors.md), NaN keeps the Gaussian law
   options.residualDf = model.residualDf;
+  // ordinal construction reads this: K >= 2 selects OrdinalResponse with a K-1
+  // cutpoint vector (docs/design/ordinal.md), 0 leaves a non-ordinal response
+  options.numCategories = control.numOrdinalCategories;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   options.base = model.base;
@@ -1524,6 +1557,11 @@ bartcore::ResponseFamily parseSamplerSpecification(
   // rejects weights (docs/design/survival.md)
   if (family == bartcore::ResponseFamily::aft && data.weights != NULL)
     Rf_error("aft (survival) models do not support case weights");
+  // ordinal refuses weights for probit's reason: a weighted truncated-normal
+  // latent likelihood is not a coherent model (docs/design/ordinal.md)
+  if (family == bartcore::ResponseFamily::ordinal && data.weights != NULL)
+    Rf_error("ordinal models do not support weights: a weighted truncated-"
+             "normal latent likelihood is not a coherent model");
   // Student-t continuous errors (docs/design/robust-errors.md): a finite
   // resid.df selects the scale-mixture error law - a positive value fixes the
   // degrees of freedom, 0 estimates them on the grid. Only the gaussian family
@@ -1574,6 +1612,12 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // internal control attribute; the chains copy the indices at construction
     applyGroupAttribute(controlExpr, data.numObservations, options,
                         groupIndices);
+    // grouped ordinal is a recorded but unbuilt door (docs/design/ordinal.md
+    // section 8): the cutpoint block and the group block are not yet shown to
+    // interleave, so refuse the composition here, the host backstop the R
+    // surface (rbart_vi, C3) mirrors
+    if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
+      Rf_error("grouped random effects are not supported for ordinal responses");
     // AFT survival status arrives the same way; the response copies it
     applySurvivalAttribute(controlExpr, data.numObservations, family, options,
                            survivalStatus);
@@ -3760,13 +3804,13 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_COUNT
+    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "bcf", "resid.df"
+    "rng.state", "bcf", "resid.df", "cutpoints"
   };
 
   SEXP resultExpr =
@@ -3872,6 +3916,18 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     if (std::isfinite(chainState.residualDf))
       SET_VECTOR_ELT(chainExpr, SLOT_RESID_DF,
                      Rf_ScalarReal(chainState.residualDf));
+
+    // the ordinal-only length-(K-1) cutpoint vector; z already rode the latents
+    // slot above. A non-ordinal chain leaves it empty and writes no block, so
+    // old and other-family states omit the slot.
+    if (!chainState.cutpoints.empty()) {
+      SET_VECTOR_ELT(chainExpr, SLOT_CUTPOINTS,
+                     Rf_allocVector(REALSXP, static_cast<R_xlen_t>(
+                                      chainState.cutpoints.size())));
+      std::memcpy(REAL(VECTOR_ELT(chainExpr, SLOT_CUTPOINTS)),
+                  chainState.cutpoints.data(),
+                  chainState.cutpoints.size() * sizeof(double));
+    }
 
     SET_VECTOR_ELT(resultExpr, static_cast<R_xlen_t>(c), chainExpr);
     UNPROTECT(1);
@@ -4184,6 +4240,18 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         break;
       }
       chainState.residualDf = REAL(residDfExpr)[0];
+    }
+
+    // additive ordinal-only block: absent (an old or non-ordinal state) leaves
+    // the vector empty, which stateIsValid refuses only for an ordinal sampler
+    SEXP cutpointsExpr = getListElement(chainExpr, "cutpoints");
+    if (!Rf_isNull(cutpointsExpr)) {
+      if (!Rf_isReal(cutpointsExpr)) {
+        errorMessage = malformedBlock("cutpoints");
+        break;
+      }
+      chainState.cutpoints.assign(
+        REAL(cutpointsExpr), REAL(cutpointsExpr) + Rf_xlength(cutpointsExpr));
     }
   }
 

@@ -48,6 +48,9 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
     // an == would reject, so treat both-absent as agreement
     bool bothNu = std::isnan(x.residualDf) && std::isnan(y.residualDf);
     if (!bothNu && x.residualDf != y.residualDf) return false;
+    // the ordinal cutpoint vector round-trips bitwise (restoreCutpoints is a
+    // copy); a non-ordinal state carries an empty vector on both sides
+    if (x.cutpoints != y.cutpoints) return false;
     if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)

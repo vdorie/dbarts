@@ -3739,6 +3739,110 @@ static void testOrdinalProbitEquivalence(ext_rng*) {
   printf("ok: ordinal K = 2 equals probit bit for bit\n");
 }
 
+// The ordinal cutpoint block round-trips through getState/setState: a by-name
+// length-(K-1) "cutpoints" slot the resid.df pattern serializes for a vector,
+// written only for the ordinal family and restored exactly. Covers the fixed
+// (pinned K = 2, length 1) and the after-sweeps (moved K = 4) blocks, and
+// refuses an ordinal state whose cutpoint vector is the wrong length or absent.
+// Local generators and a restored global rngState leave the shared stream
+// untouched (the sampler draws through its own local rngs).
+static void testOrdinalStateRoundTrip() {
+  std::uint64_t savedRngState = rngState;
+  const std::size_t n = 200, p = 2, numChains = 2;
+  const double gamma4[3] = {0.0, 0.8, 1.7};  // K = 4 truth, gamma_1 = 0
+  std::vector<double> x(n * p), y2(n), y4(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    double f = 1.4 * (x[i] - 0.5) - 0.7 * (x[i + n] - 0.5);
+    double u1 = runif01(), u2 = runif01();
+    double z = f + std::sqrt(-2.0 * std::log(u1)) *
+                     std::cos(6.283185307179586 * u2);
+    y2[i] = z <= 0.0 ? 1.0 : 2.0;
+    int k = 1;
+    while (k < 4 && z > gamma4[k - 1]) ++k;
+    y4[i] = static_cast<double>(k);
+  }
+
+  auto makeRngs = [](std::vector<ext_rng*>& rngs, std::uint32_t base) {
+    for (std::size_t c = 0; c < rngs.size(); ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], base + static_cast<std::uint32_t>(c));
+    }
+  };
+  auto buildOrdinal = [&](std::size_t K, const double* y,
+                          std::vector<ext_rng*>& rngs, std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = 20;
+    options.numChains = numChains;
+    options.numCategories = K;
+    makeRngs(rngs, seed);
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y, n, p, nullptr, nullptr, ResponseFamily::ordinal, 1.0, 3.0,
+      0.37804942330213542, options, rngs.data());
+  };
+
+  // (a) K = 2: the single cutpoint is pinned at 0 and never moves, yet still
+  // rides its own length-1 block through the round trip
+  {
+    std::vector<ext_rng*> rngs(numChains, nullptr), rngs2(numChains, nullptr);
+    auto original = buildOrdinal(2, y2.data(), rngs, 2200);
+    Results empty;
+    original->run(40, 0, empty);
+    SamplerStateData state;
+    original->getState(state);
+    check(state.chains[0].cutpoints.size() == 1 &&
+          state.chains[0].cutpoints[0] == 0.0,
+          "ordinal K = 2 state carries the pinned length-1 cutpoint");
+    auto restored = buildOrdinal(2, y2.data(), rngs2, 5500);
+    check(restored->setState(state, nullptr), "an ordinal K = 2 state restores");
+    checkStructuralRoundTrip(state, *restored,
+                             "restored ordinal K = 2 cutpoint agrees");
+    for (ext_rng* r : rngs) ext_rng_destroy(r);
+    for (ext_rng* r : rngs2) ext_rng_destroy(r);
+  }
+
+  // (b) K = 4: the two free cutpoints move over sweeps and round-trip; a
+  // wrong-length or absent cutpoint block is refused
+  {
+    std::vector<ext_rng*> rngs(numChains, nullptr), rngs2(numChains, nullptr);
+    auto original = buildOrdinal(4, y4.data(), rngs, 3300);
+    SamplerStateData fixedState;
+    original->getState(fixedState);
+    check(fixedState.chains[0].cutpoints.size() == 3,
+          "ordinal K = 4 state carries a length-(K-1) cutpoint vector");
+    Results empty;
+    original->run(80, 0, empty);
+    SamplerStateData state;
+    original->getState(state);
+    bool moved = false;
+    for (std::size_t c = 0; c < numChains; ++c)
+      if (state.chains[c].cutpoints != fixedState.chains[c].cutpoints)
+        moved = true;
+    check(moved, "ordinal free cutpoints move over sweeps");
+    check(state.chains[0].cutpoints[0] == 0.0,
+          "ordinal gamma_1 stays pinned at 0 across sweeps");
+
+    auto restored = buildOrdinal(4, y4.data(), rngs2, 8800);
+    check(restored->setState(state, nullptr), "an ordinal K = 4 state restores");
+    checkStructuralRoundTrip(state, *restored,
+                             "restored ordinal cutpoints and latents agree");
+
+    SamplerStateData badLen(state);
+    badLen.chains[0].cutpoints.resize(2);
+    check(!restored->setState(badLen, nullptr),
+          "an ordinal state with a short cutpoint vector is refused");
+    SamplerStateData noCut(state);
+    for (auto& ch : noCut.chains) ch.cutpoints.clear();
+    check(!restored->setState(noCut, nullptr),
+          "an ordinal state lacking the cutpoint vector is refused");
+    for (ext_rng* r : rngs) ext_rng_destroy(r);
+    for (ext_rng* r : rngs2) ext_rng_destroy(r);
+  }
+
+  rngState = savedRngState;
+  printf("ok: ordinal cutpoint state round trip\n");
+}
+
 // The engine test-container entry (facade setTestData): a sampler given a
 // mixed dense + CSC test set records test fits BITWISE-IDENTICALLY to one given
 // the dense test matrix of the same values, and the entry REFUSES a designated
@@ -3890,6 +3994,7 @@ void runModelTests(ext_rng* rng) {
   testOrdinalTruncatedNormal(rng);
   testOrdinalCutpointConditional(rng);
   testOrdinalProbitEquivalence(rng);
+  testOrdinalStateRoundTrip();
   testSparseKernel();
   testSparseColumnStore();
   testSparseEndToEnd();

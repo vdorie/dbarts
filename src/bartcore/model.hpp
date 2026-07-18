@@ -1775,7 +1775,7 @@ struct ChiSquaredScalePrior {
 /// Response families the sampler can run; gaussian fits the response
 /// directly, the binary families fit a latent working response, aft fits
 /// log survival times (right-censored observations carry latent log-times).
-enum class ResponseFamily { gaussian, probit, logistic, aft };
+enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal };
 
 /// Numerically stable log(1 + exp(x)): the logistic log-likelihood's building
 /// block, guarding against overflow for large x.
@@ -1901,6 +1901,16 @@ public:
   virtual bool carriesResidualDf() const { return false; }
   virtual double residualDf() const { return 0.0; }
   virtual void restoreResidualDf(double /*nu*/) {}
+
+  /// Ordinal (cumulative-probit) responses (OrdinalResponse) carry a length-
+  /// (K-1) cutpoint vector the state block serializes as a by-name "cutpoints"
+  /// slot; other families carry none, so their states omit it and an ordinal
+  /// sampler refuses a state lacking one. numCutpoints() is the block length,
+  /// the residualDf trio's vector analog (a scalar needed no length).
+  virtual bool carriesCutpoints() const { return false; }
+  virtual const double* cutpoints() const { return nullptr; }
+  virtual std::size_t numCutpoints() const { return 0; }
+  virtual void restoreCutpoints(const double* /*gamma*/) {}
 };
 
 class GaussianResponse final : public ResponseModel {
@@ -2307,10 +2317,17 @@ public:
   double fitShift() const override { return 0.0; }
   double sigmaScale() const override { return 1.0; }
 
-  /// The K - 1 finite cutpoints gamma_1..gamma_{K-1} (gamma_1 pinned at 0);
-  /// exposed for the component tests (the C2 state block promotes this).
-  const double* cutpoints() const { return gamma_.data(); }
-  std::size_t numCutpoints() const { return gamma_.size(); }
+  /// The K - 1 finite cutpoints gamma_1..gamma_{K-1} (gamma_1 pinned at 0), the
+  /// by-name "cutpoints" state block: getState reads numCutpoints() values from
+  /// cutpoints(), stateIsValid refuses a state of the wrong length, and setState
+  /// restoreCutpoints() reinstalls them. The one-based category index rides the
+  /// existing latents block. Also read by the component tests.
+  bool carriesCutpoints() const override { return true; }
+  const double* cutpoints() const override { return gamma_.data(); }
+  std::size_t numCutpoints() const override { return gamma_.size(); }
+  void restoreCutpoints(const double* gamma) override {
+    std::memcpy(gamma_.data(), gamma, gamma_.size() * sizeof(double));
+  }
 
   /// log P(y_i = k | eta, gamma) = log(Phi(gamma_k - eta) - Phi(gamma_{k-1} -
   /// eta)), the cumulative-probit category likelihood generalizing probit's
