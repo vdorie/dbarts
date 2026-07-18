@@ -148,7 +148,9 @@ stash round-trip) resolved by clean reinstall before landing.
 ARC COMPLETE: all four stages landed. Findings 5 (isView split), 6
 (conditional DataHandle gather), and 8 (observer quantize core) are
 deferred residuals, finding 7 out of scope - retired to the TODO
-data-store-residuals entry. Outstanding verification: a bench-sampler
-compare vs bench-sampler-b9d53c7 at the next quiet window (stages 2
-and 1 nested the hot storage into descriptor/block structs; expected
-neutral, not yet measured).
+data-store-residuals entry. Bench verification (2026-07-18, quiet
+window granted by VD, compare vs bench-sampler-b9d53c7 on the arm64
+box at 54637ab): speed-neutral - no flags, "OK: no metric regressed
+more than 5%"; run-binary and setPredictor-accept at ratio 1.000,
+worst arm run-n10000-p10-t75 at 1.029, the rest within 1.6%. The
+descriptor/block nesting costs nothing measurable.
