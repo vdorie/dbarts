@@ -67,10 +67,11 @@ s.charForm <- suppressMessages(
 )
 expect_identical(s.char$run(30L, 30L)$train, s.charForm$run(30L, 30L)$train)
 
-# --- ordered factor: routed as a plain factor, the verdict notes it ---
+# --- 2-level ordered factor: binary, so probit (a 3+-level ordered factor
+# --- auto-dispatches to ordinal instead; test-ordinal.R covers that) ---
 expect_message(
   dbarts(x, ordered(yf2), control = control()),
-  "ordered levels treated as unordered"
+  "2-level ordered factor response detected, fitting family = \"probit\""
 )
 
 # --- an explicit family that contradicts a factor response errors ---

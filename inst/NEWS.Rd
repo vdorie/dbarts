@@ -38,6 +38,25 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Ordinal (ordered categorical) responses:
+            \code{family = "ordinal"} in \code{dbarts} and \code{bart2}
+            fits a cumulative probit - probit's truncated-normal latents
+            generalized to K ordered categories split by sampled
+            cutpoints (\eqn{\gamma_1 = 0}{gamma_1 = 0} pinned; the free
+            cutpoints move by a marginal Metropolis update with the
+            latents integrated out, under a log-gap
+            \eqn{N(0, 1.5^2)}{N(0, 1.5^2)} prior). At K = 2 the model is
+            probit exactly. An ordered factor response with three or
+            more levels is auto-detected under \code{family = "auto"},
+            announced; the level order defines the category order.
+            \code{bart2} returns a \code{"bartOrdinal"} fit carrying the
+            levels, the n x K category-probability draws, the latent
+            draws, and the cutpoint draws, with \code{fitted},
+            \code{extract}, \code{predict}, and \code{residuals}
+            methods. Weights are not supported; \code{rbart_vi} and
+            \code{xbart} refuse ordinal responses (grouped ordinal
+            models and ordinal cross-validation losses are recorded
+            follow-ups). See \code{?bart2}.
       \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
             in \code{dbarts}, \code{bart}, and \code{bart2} fits a
             continuous gaussian response with outlier-robust Student-t

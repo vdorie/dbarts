@@ -471,6 +471,32 @@ makeScenarios <- function() {
     samplerArgs = list(resid.dist = dbarts:::student())
   )
 
+  # ordinal (cumulative-probit) responses (OrdinalResponse,
+  # docs/design/ordinal.md), newly reachable via family = "ordinal": an
+  # ordered 4-level outcome cut from a latent continuous truth, so the
+  # doubly-truncated latent draws, the marginal-MH cutpoint block, and the
+  # category-probability reporting all do real work. Recorded channels: the
+  # latent test fits (fhat.test), varcount, the K-1 cutpoint draws, and the
+  # posterior-mean test category probabilities (fitViaOrdinal/fitSummaries).
+  # binary = TRUE skips the sigma summaries (sigma is fixed at 1). New after
+  # equivalence-31dc05a.rds, so a compare against that baseline reports it
+  # skipped; the anchor re-records at landing.
+  set.seed(5123L)
+  x <- matrix(runif(400L * 10L), 400L)
+  latent <- as.vector(scale(friedman(x))) + rnorm(400L)
+  result$ordinal <- list(
+    x = x,
+    y = cut(
+      latent,
+      c(-Inf, -0.8, 0.2, 1.0, Inf),
+      labels = c("a", "b", "c", "d"),
+      ordered_result = TRUE
+    ),
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = TRUE,
+    ordinalFit = TRUE
+  )
+
   result
 }
 
@@ -553,6 +579,34 @@ fitViaSamplerApi <- function(scenario, engineIsNew) {
   )
 }
 
+# runs bart2's ordinal (cumulative-probit) path (docs/design/ordinal.md):
+# family = "ordinal" explicitly, so no auto announcement. yhat.test carries the
+# LATENT eta draws on the test rows (the identified quantity on the unit latent
+# scale, the standard fhat.test channel shape); the ordinal-only channels -
+# per-draw cutpoints and the posterior-mean test category probabilities - ride
+# their own fields, summarized by fitSummaries' guarded blocks.
+fitViaOrdinal <- function(scenario) {
+  fit <- bart2(
+    scenario$x,
+    scenario$y,
+    test = scenario$x.test,
+    family = "ordinal",
+    n.samples = ndpost,
+    n.burn = nskip,
+    n.trees = ntree,
+    n.chains = 1L,
+    n.threads = 1L,
+    combineChains = TRUE,
+    verbose = FALSE
+  )
+  list(
+    yhat.test = fit$latent.test,
+    varcount = fit$varcount,
+    cutpoints = fit$cutpoints,
+    probs.test = fit$yhat.test
+  )
+}
+
 # runs rbart_vi's in-core grouped path (built-in tau prior, no callback):
 # single chain, no thinning, the harness's global budget. Draw matrices come
 # back sample-major except varcount (predictor x sample), transposed here so
@@ -627,6 +681,8 @@ fitSummaries <- function(scenario, seed) {
   splitprobs <- scenario$splitprobs
   fit <- if (!is.null(scenario$rbart)) {
     fitViaRbart(scenario)
+  } else if (!is.null(scenario$ordinalFit)) {
+    fitViaOrdinal(scenario)
   } else if (!is.null(scenario$samplerApi)) {
     fitViaSamplerApi(scenario, useNewEngine)
   } else if (useNewEngine) {
@@ -697,6 +753,28 @@ fitSummaries <- function(scenario, seed) {
     result <- c(
       result,
       setNames(colMeans(fit$ranef), paste0("ranef.", seq_len(ncol(fit$ranef))))
+    )
+  }
+  # ordinal-only channels (fitViaOrdinal); NULL - and so absent - for every
+  # other fitter, leaving the existing scenarios' summary vectors untouched.
+  # cutpoint.*.1 is the pinned gamma_1 = 0 (a constant across seeds: its Welch
+  # z is NaN and ignored, but it anchors the identical-draws comparison).
+  if (!is.null(fit[["cutpoints"]])) {
+    cp <- as.matrix(fit[["cutpoints"]])
+    result <- c(
+      result,
+      setNames(colMeans(cp), paste0("cutpoint.mean.", seq_len(ncol(cp)))),
+      setNames(apply(cp, 2L, sd), paste0("cutpoint.sd.", seq_len(ncol(cp))))
+    )
+  }
+  if (!is.null(fit[["probs.test"]])) {
+    probMeans <- apply(fit[["probs.test"]], c(2L, 3L), mean)
+    result <- c(
+      result,
+      setNames(
+        as.vector(probMeans),
+        paste0("prob.test.", seq_len(length(probMeans)))
+      )
     )
   }
   result

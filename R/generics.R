@@ -561,6 +561,176 @@ print.bartMultinomial <- function(x, ...) {
   invisible(x)
 }
 
+# bart2(family = "ordinal") generics (docs/design/ordinal.md section 5). Like
+# bartMultinomial, the fit object is class "bartOrdinal" - never "bart" - so the
+# K-widened category-probability arrays never fall through to the single-forest
+# "bart" methods. Unlike multinomial, ordinal DOES carry a latent scale: the
+# cumulative-probit fits are formed from a single latent eta = f(x), so
+# type = "bart"/"link" returns that latent (as it does for probit), while
+# type = "ev"/"response" returns the n x K category probabilities computed from
+# the latent and the sampled cutpoints. type = "ppd" draws one category per
+# posterior draw. The K-1 cutpoint draws ride the fit's $cutpoints field.
+extract.bartOrdinal <- function(
+  object,
+  type = c("ev", "ppd", "bart"),
+  sample = c("train", "test"),
+  ...
+) {
+  type <- match.arg(type)
+  sample <- match.arg(sample)
+  if (type == "bart") {
+    latent <- if (sample == "test") {
+      object$latent.test
+    } else {
+      object$latent.train
+    }
+    if (is.null(latent)) {
+      stop(
+        "this ordinal fit carries no test channel; refit with 'test' to ",
+        "report out-of-sample latent fits"
+      )
+    }
+    return(latent)
+  }
+  probs <- if (sample == "test") {
+    if (is.null(object$yhat.test)) {
+      stop(
+        "this ordinal fit carries no test channel; refit with 'test' to ",
+        "report out-of-sample category probabilities"
+      )
+    }
+    object$yhat.test
+  } else {
+    object$yhat.train
+  }
+  if (type == "ev") {
+    return(probs)
+  }
+  multinomialPpdFromProbs(probs)
+}
+
+# The posterior-mean n x K probability matrix (colnames = levels), or
+# (type = "class") the argmax category as an ordered factor over the original
+# levels, or (type = "bart") the posterior-mean latent eta per observation.
+fitted.bartOrdinal <- function(object, type = c("ev", "class", "bart"), ...) {
+  type <- match.arg(type)
+  if (type == "bart") {
+    latent <- object$latent.train
+    return(apply(latent, length(dim(latent)), mean))
+  }
+  probs <- extract.bartOrdinal(object, type = "ev", sample = "train")
+  d <- dim(probs)
+  numDims <- length(d)
+  meanProbs <- apply(probs, c(numDims - 1L, numDims), mean)
+  dimnames(meanProbs) <- list(NULL, object$levels)
+  if (type == "ev") {
+    return(meanProbs)
+  }
+  factor(
+    object$levels[max.col(meanProbs, ties.method = "first")],
+    levels = object$levels,
+    ordered = TRUE
+  )
+}
+
+# y - fitted() on the response scale has no single scalar for a categorical
+# response, so the per-category analog is the observed 1[y = k] indicator minus
+# the fitted probability, an n x K matrix (columns named by 'levels').
+residuals.bartOrdinal <- function(object, ...) {
+  phat <- fitted.bartOrdinal(object, type = "ev")
+  y <- object$y
+  indicator <- matrix(0, length(y), ncol(phat), dimnames = dimnames(phat))
+  indicator[cbind(seq_along(y), match(y, object$levels))] <- 1
+  indicator - phat
+}
+
+# Out-of-sample category probabilities by replaying the saved forest's trees to
+# the newdata latent, then differencing the cumulative probit at the STORED
+# per-draw cutpoints (docs/design/ordinal.md). Requires a fit kept with
+# keepTrees. type = "bart" returns the replayed latent eta; type = "ppd" draws
+# one category per posterior draw. Only ppd touches the RNG, so type = "ev" is
+# draw-neutral.
+predict.bartOrdinal <- function(
+  object,
+  newdata,
+  type = c("ev", "ppd", "bart"),
+  combineChains = TRUE,
+  ...
+) {
+  type <- match.arg(type)
+  if (is.null(object[["bc"]])) {
+    stop(
+      "predict requires bart2(family = \"ordinal\") to be called with ",
+      "'keepTrees' == TRUE"
+    )
+  }
+  newdata <- validateXTest(newdata, object$fit$data@x)
+  if (is.null(newdata)) {
+    stop("newdata cannot be NULL")
+  }
+  if (!is.matrix(newdata)) {
+    newdata <- as.matrix(newdata)
+  }
+  n.chains <- object$n.chains
+  # raw is n.new x n.samples (x n.chains): the replayed latent eta, the test
+  # channel's shape
+  raw <- bartcorePredict(object$bc, newdata)
+  if (type == "bart") {
+    return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
+  }
+  K <- object$K
+  cutpoints <- object$cutpoints.raw # (K-1) x n.samples x n.chains
+  if (length(dim(raw)) == 2L) {
+    dim(raw) <- c(dim(raw), 1L)
+  }
+  n.new <- dim(raw)[1L]
+  n.samples <- dim(raw)[2L]
+  probs <- array(0, c(n.new, K, n.samples, n.chains))
+  for (s in seq_len(n.samples)) {
+    for (chain in seq_len(n.chains)) {
+      probs[,, s, chain] <-
+        ordinalCategoryProbabilities(raw[, s, chain], cutpoints[, s, chain])
+    }
+  }
+  if (n.chains == 1L) {
+    probs <- array(probs, dim(probs)[1:3])
+  }
+  probs <- shapeMultinomialChannel(
+    probs,
+    object$levels,
+    n.chains,
+    combineChains
+  )
+  if (type == "ppd") {
+    return(multinomialPpdFromProbs(probs))
+  }
+  probs
+}
+
+print.bartOrdinal <- function(x, ...) {
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  cat("family: ordinal (cumulative probit)\n")
+  cat("levels: ", paste(x$levels, collapse = " < "), "\n", sep = "")
+  cat("n.chains: ", x$n.chains, "\n", sep = "")
+  cat("n.trees: ", x$n.trees, "\n", sep = "")
+  d <- dim(x$yhat.train)
+  n.kept <- if (length(d) == 4L) d[2L] else d[1L] %/% x$n.chains
+  cat("kept draws (per chain): ", n.kept, "\n", sep = "")
+  if (!is.null(x$yhat.test)) {
+    dt <- dim(x$yhat.test)
+    n.test <- if (length(dt) == 4L) dt[3L] else dt[2L]
+    cat("test rows: ", n.test, "\n", sep = "")
+  }
+  invisible(x)
+}
+
 predict.rbart <- function(
   object,
   newdata,

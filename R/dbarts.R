@@ -192,7 +192,7 @@ dbarts <- function(
   sigma = NA_real_,
   seed = NA_integer_,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic", "aft"),
+  family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal"),
   missing = c("incorporate", "error")
 ) {
   matchedCall <- match.call()
@@ -302,9 +302,21 @@ dbarts <- function(
     family,
     "dbarts()/rbart_vi()/bart()/xbart",
     c("gaussian", "aft"),
-    splitMultinomialMessage = TRUE
+    splitMultinomialMessage = TRUE,
+    allowOrdinal = TRUE
   )
-  if (data@response.type == "numeric") {
+  # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest fixed-
+  # unit-scale model like probit, but K-level. Recode the response to the
+  # 1-based category codes the engine reads, and attach K on the control
+  # attribute the bridge (C2) reads to select OrdinalResponse (the
+  # bartcore.survival precedent below). The resolved ordered levels ride the
+  # data object for the round-trip.
+  if (identical(family, "ordinal")) {
+    ordinal <- resolveOrdinalResponse(data)
+    data@y <- ordinal$y
+    data@response.levels <- ordinal$levels
+    attr(control, "bartcore.n.categories") <- ordinal$K
+  } else if (data@response.type == "numeric") {
     uniqueResponses <- unique(data@y)
     responseIsBinary <- length(uniqueResponses) == 2 &&
       all(sort(uniqueResponses) == c(0, 1))
@@ -319,6 +331,12 @@ dbarts <- function(
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale
   control@binary <- family %in% c("probit", "logistic")
+  # ordinal (cumulative probit) shares probit's fixed unit latent scale - sigma
+  # fixed at 1, resid.prior fixed(1), no sigma estimate, node.scale 3.0 - but is
+  # NOT binary: the bridge selects it by the bartcore.n.categories attribute
+  # (not control@binary), and it reports K category levels. fixedUnitScale
+  # covers both families wherever the unit-scale handling matters.
+  fixedUnitScale <- control@binary || identical(family, "ordinal")
 
   # binary weight policy, enforced here in the R layer (the bridge keeps the
   # same checks as a backstop for direct-API consumers): a probit has no
@@ -352,9 +370,22 @@ dbarts <- function(
         )
       }
     }
+    # ordinal refuses weights for probit's reason (a weighted truncated-normal
+    # latent likelihood is not a coherent model), with the same all-ones-are-
+    # absent courtesy the probit path extends to SuperLearner-style callers
+    if (family == "ordinal") {
+      if (all(data@weights == 1)) {
+        data@weights <- NULL
+      } else {
+        stop(
+          "ordinal models do not support weights: a weighted truncated-normal ",
+          "latent likelihood is not a coherent model."
+        )
+      }
+    }
   }
 
-  if (is.na(data@sigma) && !control@binary) {
+  if (is.na(data@sigma) && !fixedUnitScale) {
     tryResult <- tryCatch(
       data@sigma <- estimateSigmaFromLinearModel(data),
       error = function(e) e
@@ -365,12 +396,13 @@ dbarts <- function(
   }
 
   # bart will passthrough with offset == something no matter what, which we
-  # can NULL out
-  if (!control@binary && !is.null(data@offset) && all(data@offset == 0.0)) {
+  # can NULL out; a latent-scale fixed-unit family (binary, ordinal) keeps its
+  # zero offset as the meaningful reference, as probit always has
+  if (!fixedUnitScale && !is.null(data@offset) && all(data@offset == 0.0)) {
     data@offset <- NULL
   }
   if (
-    !control@binary &&
+    !fixedUnitScale &&
       !is.null(data@offset.test) &&
       all(data@offset.test == 0.0)
   ) {
@@ -396,7 +428,7 @@ dbarts <- function(
   parsePriorsCall$data <- data
   parsePriorsCall$parentEnv <- evalEnv
 
-  if (control@binary) {
+  if (fixedUnitScale) {
     if (any(names(parsePriorsCall) == "resid.prior")) {
       parsePriorsCall[[which(
         names(parsePriorsCall) == "resid.prior"
@@ -423,6 +455,9 @@ dbarts <- function(
       gaussian = 0.5,
       aft = 0.5,
       probit = 3.0,
+      # ordinal reuses probit's latent scale (docs/design/ordinal.md section 2,
+      # scheme C: the K = 2 anchor is probit exactly)
+      ordinal = 3.0,
       logistic = pi * sqrt(3.0)
     )
   )

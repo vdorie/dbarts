@@ -402,12 +402,20 @@ methods::setValidity("dbartsModel", function(object) {
     length(object@family) != 1L ||
       is.na(object@family) ||
       !(object@family %in%
-        c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"))
+        c(
+          "auto",
+          "gaussian",
+          "probit",
+          "logistic",
+          "aft",
+          "multinomial",
+          "ordinal"
+        ))
   ) {
     return(
       paste0(
         "'family' must be \"auto\", \"gaussian\", \"probit\", ",
-        "\"logistic\", \"aft\", or \"multinomial\""
+        "\"logistic\", \"aft\", \"multinomial\", or \"ordinal\""
       )
     )
   }
@@ -445,6 +453,13 @@ methods::setClass(
     # already-coded y (0/1/2 codes are indistinguishable from integer data).
     response.type = "character",
     response.n.levels = "integer",
+    # the original response's levels in order, kept for the round-trip an
+    # ordinal (cumulative-probit) fit needs to label its K category-probability
+    # columns and map an argmax code back to a level (docs/design/ordinal.md
+    # section 5). Character for a factor/character response, NULL otherwise (a
+    # numeric ordinal fit derives sort(unique(y)) itself). The other families
+    # never read it.
+    response.levels = "ANY",
 
     testUsesRegularOffset = "logical"
   ),
@@ -462,6 +477,7 @@ methods::setClass(
     missing = "incorporate",
     response.type = "numeric",
     response.n.levels = NA_integer_,
+    response.levels = NULL,
 
     testUsesRegularOffset = NA
   )

@@ -371,7 +371,11 @@ classifyResponse <- function(y) {
 # Code a raw response to the doubles the engine reads and report its original
 # type. A factor (or a character coerced with factor(), or a logical) becomes
 # 0-based codes exactly as the historic x/y path did; a numeric response is
-# passed through as.double, byte-identical to the previous handling.
+# passed through as.double, byte-identical to the previous handling. The
+# original levels are returned alongside so an ordinal fit can round-trip them
+# (docs/design/ordinal.md section 5); they are NULL for a numeric response
+# (a numeric ordinal derives sort(unique(y)) itself) and were previously
+# discarded.
 codeResponse <- function(y) {
   info <- classifyResponse(y)
   coded <- if (info$type == "numeric" || info$type == "logical") {
@@ -379,7 +383,14 @@ codeResponse <- function(y) {
   } else {
     as.double(as.integer(if (is.character(y)) factor(y) else y) - 1L)
   }
-  list(y = coded, type = info$type, n.levels = info$n.levels)
+  levels <- if (is.factor(y)) {
+    levels(y)
+  } else if (info$type == "character") {
+    levels(factor(y))
+  } else {
+    NULL
+  }
+  list(y = coded, type = info$type, n.levels = info$n.levels, levels = levels)
 }
 
 # Resolve family for a categorical (factor/logical/character) response ahead
@@ -406,14 +417,43 @@ resolveClassificationFamily <- function(
   family,
   caller,
   incompatibleFamilies,
-  splitMultinomialMessage = FALSE
+  splitMultinomialMessage = FALSE,
+  allowOrdinal = FALSE
 ) {
-  if (data@response.type == "numeric") {
-    return(family)
-  }
   responseType <- data@response.type
   K <- data@response.n.levels
+  # ordinal (cumulative probit, docs/design/ordinal.md section 5): only
+  # dbarts()/bart2() pass allowOrdinal = TRUE. family = "ordinal" is the
+  # explicit primitive and forces the model on any response (numeric levels are
+  # sort(unique(y)), resolved later); family = "auto" auto-dispatches an ORDERED
+  # factor to it, announced. The other single-forest entries leave allowOrdinal
+  # FALSE and fall through to their K >= 3 refusals below. is.ordered() is the
+  # disjoint key: an unordered K >= 3 factor stays multinomial.
+  if (allowOrdinal) {
+    if (identical(family, "ordinal")) {
+      return("ordinal")
+    }
+    # a 2-level ordered factor is binary (probit); only a 3+-level ordered
+    # factor is a genuine ordinal scale worth auto-dispatching
+    if (family == "auto" && responseType == "ordered factor" && K >= 3L) {
+      announceAutoFamily(responseType, K, "ordinal")
+      return("ordinal")
+    }
+  }
+  if (responseType == "numeric") {
+    return(family)
+  }
   if (K >= 3L) {
+    # a 3+-level ORDERED factor is ordinal (reached here only from an entry that
+    # cannot fit it - xbart, rbart_vi; dbarts/bart2 route ordinal above); every
+    # other 3+-level factor/character is unordered multinomial
+    isOrdered <- identical(responseType, "ordered factor")
+    model <- if (isOrdered) "ordinal" else "multinomial"
+    suggestion <- if (isOrdered) {
+      "bart2(family = \"ordinal\")"
+    } else {
+      "bart2(family = \"multinomial\")"
+    }
     if (!splitMultinomialMessage) {
       stop(
         caller,
@@ -421,8 +461,10 @@ resolveClassificationFamily <- function(
         K,
         "-level ",
         responseType,
-        " response; multinomial classification requires ",
-        "bart2(family = \"multinomial\")"
+        " response; ",
+        model,
+        " classification requires ",
+        suggestion
       )
     }
     if (family == "auto") {
@@ -431,8 +473,11 @@ resolveClassificationFamily <- function(
         K,
         "-level ",
         responseType,
-        " response is multinomial; fit it with ",
-        "bart2(family = \"multinomial\") - ",
+        " response is ",
+        model,
+        "; fit it with ",
+        suggestion,
+        " - ",
         caller,
         " fit only binary and continuous responses"
       )
@@ -444,8 +489,13 @@ resolveClassificationFamily <- function(
       K,
       "-level ",
       responseType,
-      " response; a 3+-level factor is multinomial ",
-      "(bart2(family = \"multinomial\"))"
+      " response; a 3+-level ",
+      responseType,
+      " is ",
+      model,
+      " (",
+      suggestion,
+      ")"
     )
   }
   if (family == "auto") {
@@ -462,6 +512,43 @@ resolveClassificationFamily <- function(
     )
   }
   family
+}
+
+# Resolve the ordered category structure for an ordinal (cumulative-probit) fit
+# from a dbartsData whose family has resolved to "ordinal" (docs/design/
+# ordinal.md section 5). Returns the ONE-based category codes the engine reads
+# (its y_ holds 1..K), the count K, and the ordered level labels for the
+# round-trip. A factor/character response takes its stored level order - an
+# UNORDERED one with an informational note, since the factor default
+# (alphabetical) is rarely the intended scale; a numeric/integer/logical
+# response uses sort(unique(y)) as the ordered levels. Called once, where the
+# recoding happens (dbarts()), so the note fires once.
+resolveOrdinalResponse <- function(data) {
+  labels <- data@response.levels
+  if (is.null(labels)) {
+    # numeric/integer/logical: the distinct sorted values are the ordered levels
+    levels <- sort(unique(data@y))
+    codes <- match(data@y, levels)
+    labels <- as.character(levels)
+  } else {
+    # data@y holds 0-based factor codes (codeResponse); the engine wants 1..K
+    codes <- as.integer(data@y) + 1L
+    if (data@response.type != "ordered factor") {
+      message(
+        "family = \"ordinal\": the ",
+        data@response.type,
+        " response is unordered; its category order is taken from the level ",
+        "order (",
+        paste(labels, collapse = " < "),
+        ")"
+      )
+    }
+  }
+  K <- length(labels)
+  if (K < 2L) {
+    stop("family = \"ordinal\" requires a response with at least 2 categories")
+  }
+  list(y = as.double(codes), K = as.integer(K), levels = labels)
 }
 
 dbartsData <- function(
@@ -499,7 +586,7 @@ dbartsData <- function(
   # the response's original type, recorded on the result so the fitters can
   # route family = "auto" and reject a categorical response an unsupported
   # family cannot fit; each y-producing branch below refreshes it
-  responseInfo <- list(type = "numeric", n.levels = NA_integer_)
+  responseInfo <- list(type = "numeric", n.levels = NA_integer_, levels = NULL)
 
   if (missing(formula)) {
     stop("first argument to dbartsData - 'formula'/'x.train' - must be present")
@@ -653,7 +740,7 @@ dbartsData <- function(
     }
     coded <- codeResponse(y)
     y <- coded$y
-    responseInfo <- coded[c("type", "n.levels")]
+    responseInfo <- coded[c("type", "n.levels", "levels")]
     numObservations <- NROW(y)
 
     ## weights
@@ -719,7 +806,7 @@ dbartsData <- function(
 
     coded <- codeResponse(data)
     y <- coded$y
-    responseInfo <- coded[c("type", "n.levels")]
+    responseInfo <- coded[c("type", "n.levels", "levels")]
     if (nrow(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
     }
@@ -795,7 +882,7 @@ dbartsData <- function(
 
     coded <- codeResponse(data)
     y <- coded$y
-    responseInfo <- coded[c("type", "n.levels")]
+    responseInfo <- coded[c("type", "n.levels", "levels")]
     if (NROW(formula) != NROW(y)) {
       stop("'x' must have the same number of observations as 'y'")
     }
@@ -1117,5 +1204,6 @@ dbartsData <- function(
   result@missing <- missing
   result@response.type <- responseInfo$type
   result@response.n.levels <- as.integer(responseInfo$n.levels)
+  result@response.levels <- responseInfo$levels
   result
 }

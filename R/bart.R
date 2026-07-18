@@ -375,7 +375,15 @@ bart2 <- function(
   warm.start = NULL,
   n.grow.sweeps = 0L,
   factors = c("categorical", "indicators"),
-  family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
+  family = c(
+    "auto",
+    "gaussian",
+    "probit",
+    "logistic",
+    "aft",
+    "multinomial",
+    "ordinal"
+  ),
   missing = c("incorporate", "error"),
   resid.dist = gaussian,
   ...
@@ -384,15 +392,18 @@ bart2 <- function(
   callingEnv <- parent.frame()
   family <- match.arg(family)
 
-  # family = "auto" with a 3+-level factor/character response is multinomial
-  # (docs/design/multinomial.md); route it into the branch below and announce.
-  # 2-level and numeric responses stay on the standard path, where dbarts()
-  # resolves probit/gaussian (and announces a factor probit itself).
+  # family = "auto" with a 3+-level UNORDERED factor/character response is
+  # multinomial (docs/design/multinomial.md); a 3+-level ORDERED factor is
+  # ordinal (docs/design/ordinal.md, the disjoint is.ordered() key). Route
+  # either into its branch below and announce. 2-level and numeric responses
+  # stay on the standard path, where dbarts() resolves probit/gaussian (and
+  # announces a factor probit itself).
   if (family == "auto") {
     dataMissing <- missing(data)
+    autoData <- if (dataMissing) NULL else data
     autoMultinomial <- detectAutoMultinomial(
       formula,
-      if (dataMissing) NULL else data,
+      autoData,
       dataMissing,
       callingEnv
     )
@@ -403,6 +414,17 @@ bart2 <- function(
         autoMultinomial$n.levels,
         family
       )
+    } else {
+      autoOrdinal <- detectAutoOrdinal(
+        formula,
+        autoData,
+        dataMissing,
+        callingEnv
+      )
+      if (!is.null(autoOrdinal)) {
+        family <- "ordinal"
+        announceAutoFamily(autoOrdinal$type, autoOrdinal$n.levels, family)
+      }
     }
   }
 
@@ -621,6 +643,41 @@ bart2 <- function(
     ))
   }
 
+  # ordinal (cumulative probit, docs/design/ordinal.md): a single-forest fixed-
+  # scale latent model whose n x K category probabilities and per-draw cutpoints
+  # are synthesized in R (the engine reports only the latent eta), dispatched
+  # here rather than threaded through the standard single-forest path so its
+  # K-widened fit object (class "bartOrdinal", never "bart") stays distinct.
+  if (family == "ordinal") {
+    if (isTRUE(samplerOnly)) {
+      stop("family = \"ordinal\" does not support 'samplerOnly' this arc")
+    }
+    grownSweeps <- as.integer(n.grow.sweeps)[1L]
+    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
+      stop(
+        "family = \"ordinal\" does not support 'warm.start' or ",
+        "'n.grow.sweeps' this arc"
+      )
+    }
+    if (!control@keepTrainingFits) {
+      stop(
+        "family = \"ordinal\" requires keepTrainingFits = TRUE (the default): ",
+        "the category probabilities are built from the training latent fits"
+      )
+    }
+    return(bart2Ordinal(
+      matchedCall,
+      callingEnv,
+      control,
+      power,
+      base,
+      sigdf,
+      sigquant,
+      dart,
+      combineChains
+    ))
+  }
+
   keepSampler <- keepSampler || control@keepTrees
 
   if (control@n.burn == 0L && keepTrees == TRUE) {
@@ -822,13 +879,16 @@ extractMultinomialFormulaData <- function(
   list(y = y, x = modelFrame[termLabels])
 }
 
-# family = "auto" peek for bart2: a 3+-level factor or character response
-# selects multinomial. Returns classifyResponse's descriptor for that case,
+# family = "auto" peek for bart2: a 3+-level UNORDERED factor or character
+# response selects multinomial (an ORDERED factor is ordinal, split out here and
+# caught by detectAutoOrdinal instead - the disjoint is.ordered() key,
+# docs/design/ordinal.md). Returns classifyResponse's descriptor for that case,
 # NULL for anything that stays on the standard single-forest path (numeric,
-# 2-level, logical, a count matrix, or a pre-built dbartsData). Type detection
-# only - the multinomial branch re-extracts and validates the response, so
-# this evaluates the formula LHS directly rather than building a model frame.
-detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
+# 2-level, logical, ordered, a count matrix, or a pre-built dbartsData). Type
+# detection only - the multinomial branch re-extracts and validates the
+# response, so this evaluates the formula LHS directly rather than building a
+# model frame.
+detectAutoResponse <- function(formula, data, dataIsMissing, callingEnv) {
   response <- if (is.formula(formula)) {
     if (length(formula) != 3L || dataIsMissing || is.null(data)) {
       return(NULL)
@@ -846,10 +906,32 @@ detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
   } else {
     data
   }
-  info <- classifyResponse(response)
+  classifyResponse(response)
+}
+
+detectAutoMultinomial <- function(formula, data, dataIsMissing, callingEnv) {
+  info <- detectAutoResponse(formula, data, dataIsMissing, callingEnv)
   if (
-    info$type %in%
-      c("factor", "ordered factor", "character") &&
+    !is.null(info) &&
+      info$type %in% c("factor", "character") &&
+      !is.na(info$n.levels) &&
+      info$n.levels >= 3L
+  ) {
+    info
+  } else {
+    NULL
+  }
+}
+
+# The ordinal analog of detectAutoMultinomial: a 3+-level ORDERED factor
+# response selects family = "ordinal" (docs/design/ordinal.md section 5). Only
+# is.ordered() responses match, so ordinal and unordered multinomial never
+# overlap; everything else stays on the standard path.
+detectAutoOrdinal <- function(formula, data, dataIsMissing, callingEnv) {
+  info <- detectAutoResponse(formula, data, dataIsMissing, callingEnv)
+  if (
+    !is.null(info) &&
+      identical(info$type, "ordered factor") &&
       !is.na(info$n.levels) &&
       info$n.levels >= 3L
   ) {
@@ -1111,6 +1193,254 @@ packageMultinomialResults <- function(
   result
 }
 
+# The cumulative-probit category probabilities for one posterior draw
+# (docs/design/ordinal.md section 1): given the latent means eta (length n) and
+# the K-1 finite cutpoints gamma (gamma_1 < ... < gamma_{K-1}), returns the
+# n x K matrix P(y = k) = Phi(gamma_k - eta) - Phi(gamma_{k-1} - eta), with
+# gamma_0 = -Inf and gamma_K = +Inf supplying the boundary columns of 0 and 1.
+# Shared by the fit-time reshape and predict.bartOrdinal's replay.
+ordinalCategoryProbabilities <- function(eta, cutpoints) {
+  n <- length(eta)
+  K <- length(cutpoints) + 1L
+  bounds <- matrix(0, n, K + 1L)
+  bounds[, K + 1L] <- 1
+  for (j in seq_len(K - 1L)) {
+    bounds[, j + 1L] <- pnorm(cutpoints[j] - eta)
+  }
+  bounds[, 2L:(K + 1L), drop = FALSE] - bounds[, 1L:K, drop = FALSE]
+}
+
+# The ordinal (cumulative probit) fit path (docs/design/ordinal.md section 5),
+# reached from bart2's family = "ordinal" branch. Unlike multinomial's K-forest
+# engine, ordinal is a SINGLE forest whose kept samples report only the latent
+# eta = f(x) (like probit); the n x K category probabilities and the per-draw
+# cutpoints are synthesized here. The engine has no per-sample cutpoint output
+# channel - the cutpoints live only in its state block - so the run is driven
+# one kept sample at a time (through the low-level bc, as multinomial-exact.R
+# does) and the cutpoints read from the state after each sweep, aligned with
+# that sweep's latent draw. dbarts(family = "ordinal") does the 1-based
+# recoding, the fixed unit scale, and attaches K, so this reuses the standard
+# bart2 host-build machinery unchanged. The fit is class "bartOrdinal", never
+# "bart", so the K-widened arrays never flow through a single-forest method.
+bart2Ordinal <- function(
+  matchedCall,
+  callingEnv,
+  control,
+  power,
+  base,
+  sigdf,
+  sigquant,
+  dart,
+  combineChains
+) {
+  priors <- buildSamplerPriors(
+    matchedCall,
+    power,
+    base,
+    sigdf,
+    sigquant,
+    nodeK = matchedCall[["k"]],
+    dart = dart,
+    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+  )
+
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
+  samplerCall$n.samples <- NULL
+  samplerCall$family <- "ordinal"
+  samplerCall$tree.prior <- priors$tree.prior
+  samplerCall$node.prior <- priors$node.prior
+  samplerCall$resid.prior <- priors$resid.prior
+
+  sampler <- eval(samplerCall, envir = callingEnv)
+
+  K <- attr(sampler$control, "bartcore.n.categories")
+  levels <- sampler$data@response.levels
+  n.chains <- control@n.chains
+  n.obs <- length(sampler$data@y)
+  n.test <- NROW(sampler$data@x.test)
+  n.samples <- control@n.samples
+
+  bc <- bartcoreSampler(sampler, family = "ordinal")
+
+  probsTrain <- array(0, c(n.obs, K, n.samples, n.chains))
+  latentTrain <- array(0, c(n.obs, n.samples, n.chains))
+  probsTest <- if (n.test > 0L) {
+    array(0, c(n.test, K, n.samples, n.chains))
+  } else {
+    NULL
+  }
+  latentTest <- if (n.test > 0L) {
+    array(0, c(n.test, n.samples, n.chains))
+  } else {
+    NULL
+  }
+  cutpointsRaw <- array(0, c(K - 1L, n.samples, n.chains))
+  varcountRaw <- NULL
+
+  # one chain's eta for a single-sample run channel (the chain margin is dropped
+  # by the engine when n.chains == 1)
+  etaOf <- function(channel, chain) {
+    if (n.chains == 1L) channel[, 1L] else channel[, 1L, chain]
+  }
+
+  for (s in seq_len(n.samples)) {
+    # the first kept sample absorbs the burn-in, so every run keeps one sample
+    r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
+    state <- bartcoreStoreState(bc)
+    if (is.null(varcountRaw)) {
+      varWidth <- if (n.chains == 1L) {
+        nrow(as.matrix(r$varcount))
+      } else {
+        dim(r$varcount)[1L]
+      }
+      varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
+    }
+    for (chain in seq_len(n.chains)) {
+      gamma <- state[[chain]]$cutpoints
+      cutpointsRaw[, s, chain] <- gamma
+      etaTrain <- etaOf(r$train, chain)
+      latentTrain[, s, chain] <- etaTrain
+      probsTrain[,, s, chain] <-
+        ordinalCategoryProbabilities(etaTrain, gamma)
+      if (n.test > 0L) {
+        etaTest <- etaOf(r$test, chain)
+        latentTest[, s, chain] <- etaTest
+        probsTest[,, s, chain] <- ordinalCategoryProbabilities(etaTest, gamma)
+      }
+      varcountRaw[, s, chain] <- etaOf(r$varcount, chain)
+    }
+  }
+
+  # keep the full 3-D (K-1) x n.samples x n.chains cutpoints for predict, which
+  # pairs each replayed latent draw with its own thresholds
+  cutpointsRawFull <- cutpointsRaw
+
+  # drop the trailing singleton chain margin so the reshapers see the
+  # n.chains == 1 layout their multinomial/gaussian siblings emit
+  if (n.chains == 1L) {
+    probsTrain <- array(probsTrain, dim(probsTrain)[1:3])
+    latentTrain <- matrix(latentTrain, n.obs, n.samples)
+    if (!is.null(probsTest)) {
+      probsTest <- array(probsTest, dim(probsTest)[1:3])
+      latentTest <- matrix(latentTest, n.test, n.samples)
+    }
+    cutpointsRaw <- matrix(cutpointsRaw, K - 1L, n.samples)
+    varcountRaw <- matrix(varcountRaw, dim(varcountRaw)[1L], n.samples)
+  }
+
+  result <- packageOrdinalResults(
+    control,
+    sampler,
+    levels,
+    K,
+    probsTrain,
+    latentTrain,
+    probsTest,
+    latentTest,
+    cutpointsRaw,
+    varcountRaw,
+    combineChains
+  )
+  # keepTrees retains the handles predict.bartOrdinal replays through: bc holds
+  # the saved trees (the sweeps wrote them), and the sampler codes newdata to
+  # the training columns. cutpoints.raw supplies predict's per-draw thresholds
+  # in the raw (K-1) x n.samples x n.chains layout that pairs with the replayed
+  # latent draws, so no re-run is needed.
+  if (control@keepTrees) {
+    result$bc <- bc
+    result$fit <- sampler
+    result$cutpoints.raw <- cutpointsRawFull
+  }
+  result
+}
+
+# Assemble a bart2(family = "ordinal") fit from the synthesized channels
+# (docs/design/ordinal.md section 5). yhat.train/test are the n x K category
+# probabilities in the multinomial draws-first convention (levels named on the
+# K margin); cutpoints are the per-draw K-1 thresholds, the ordinal analog of
+# gaussian's sigma; y is rebuilt as the ordered factor of observed categories
+# for residuals and reporting.
+packageOrdinalResults <- function(
+  control,
+  sampler,
+  levels,
+  K,
+  probsTrain,
+  latentTrain,
+  probsTest,
+  latentTest,
+  cutpointsRaw,
+  varcountRaw,
+  combineChains
+) {
+  n.chains <- control@n.chains
+
+  varcount <- convertSamplesFromDbartsToBart(
+    varcountRaw,
+    n.chains,
+    combineChains
+  )
+  predictorNames <- colnames(sampler$data@x)
+  if (!is.null(predictorNames) && !is.null(dim(varcount))) {
+    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
+      list(NULL, NULL, predictorNames)
+    } else {
+      list(NULL, predictorNames)
+    }
+  }
+
+  result <- list(
+    call = control@call,
+    family = "ordinal",
+    levels = levels,
+    K = K,
+    n.chains = n.chains,
+    n.trees = control@n.trees,
+    # the observed category as an ordered factor over the resolved levels, for
+    # residuals() and printing (sampler$data@y holds 1-based codes)
+    y = factor(
+      levels[as.integer(sampler$data@y)],
+      levels = levels,
+      ordered = TRUE
+    ),
+    cutpoints = convertSamplesFromDbartsToBart(
+      cutpointsRaw,
+      n.chains,
+      combineChains
+    ),
+    yhat.train = shapeMultinomialChannel(
+      probsTrain,
+      levels,
+      n.chains,
+      combineChains
+    ),
+    # the latent eta = f(x) draws (type = "bart"/"link"), the single-column
+    # probit-scale channel the K probabilities are formed from
+    latent.train = convertSamplesFromDbartsToBart(
+      latentTrain,
+      n.chains,
+      combineChains
+    ),
+    varcount = varcount
+  )
+  if (!is.null(probsTest)) {
+    result$yhat.test <- shapeMultinomialChannel(
+      probsTest,
+      levels,
+      n.chains,
+      combineChains
+    )
+    result$latent.test <- convertSamplesFromDbartsToBart(
+      latentTest,
+      n.chains,
+      combineChains
+    )
+  }
+  class(result) <- "bartOrdinal"
+  result
+}
+
 # S(t | x) draws from an AFT linear predictor and its per-draw sigma, in the
 # uncombined convention (chains x samples x observations) where the sigma
 # draws align with the fit draws unambiguously - the loglik channel's
@@ -1313,6 +1643,23 @@ bart <- function(
   numcut <- coerceOrError(numcut, "integer")
   ndpost <- coerceOrError(ndpost, "integer")
 
+  # bart() is the frozen BayesTree shim and does not package an ordinal fit; an
+  # ordered-factor response (which dbarts() would auto-dispatch to ordinal) is
+  # refused up front, pointing to bart2 (docs/design/ordinal.md section 5). The
+  # matrix interface names the response directly; a formula response is caught
+  # by the family backstop after the sampler is built.
+  if (
+    !is.formula(x.train) &&
+      is.factor(y.train) &&
+      is.ordered(y.train) &&
+      nlevels(y.train) >= 3L
+  ) {
+    stop(
+      "bart() does not fit ordinal (ordered-factor) responses; use ",
+      "bart2(x.train, y.train, family = \"ordinal\")"
+    )
+  }
+
   control <- dbartsControl(
     keepTrainingFits = as.logical(keeptrainfits),
     useQuantiles = as.logical(usequants),
@@ -1375,6 +1722,15 @@ bart <- function(
     missing = "error"
   )
   sampler <- do.call(dbarts::dbarts, args, envir = parent.frame(1L))
+
+  # formula-response backstop for the pre-check above: dbarts() auto-dispatched
+  # an ordered-factor response to ordinal, which bart() cannot package
+  if (identical(sampler$model@family, "ordinal")) {
+    stop(
+      "bart() does not fit ordinal (ordered-factor) responses; use ",
+      "bart2(..., family = \"ordinal\")"
+    )
+  }
 
   if (sampleronly) {
     return(sampler)
