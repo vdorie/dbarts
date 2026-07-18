@@ -382,10 +382,12 @@ bart2 <- function(
     "logistic",
     "aft",
     "multinomial",
-    "ordinal"
+    "ordinal",
+    "nbinom"
   ),
   missing = c("incorporate", "error"),
   resid.dist = gaussian,
+  dispersion = NA_real_,
   ...
 ) {
   matchedCall <- match.call()
@@ -666,6 +668,42 @@ bart2 <- function(
       )
     }
     return(bart2Ordinal(
+      matchedCall,
+      callingEnv,
+      control,
+      power,
+      base,
+      sigdf,
+      sigquant,
+      dart,
+      combineChains
+    ))
+  }
+
+  # negative-binomial counts (docs/design/negative-binomial.md): a single-forest
+  # fixed-scale latent model whose mean counts mu = r exp(f + o) and per-draw
+  # dispersion r are synthesized in R (the engine reports the log-odds latent
+  # psi; r lives only in its state block), dispatched here so its bartNegbin fit
+  # object (never "bart") stays distinct. family = "nbinom" is always explicit -
+  # a count response has no unambiguous class to auto-detect.
+  if (family == "nbinom") {
+    if (isTRUE(samplerOnly)) {
+      stop("family = \"nbinom\" does not support 'samplerOnly' this arc")
+    }
+    grownSweeps <- as.integer(n.grow.sweeps)[1L]
+    if (!is.null(warm.start) || (!is.na(grownSweeps) && grownSweeps > 0L)) {
+      stop(
+        "family = \"nbinom\" does not support 'warm.start' or ",
+        "'n.grow.sweeps' this arc"
+      )
+    }
+    if (!control@keepTrainingFits) {
+      stop(
+        "family = \"nbinom\" requires keepTrainingFits = TRUE (the default): ",
+        "the mean counts are built from the training latent fits"
+      )
+    }
+    return(bart2Negbin(
       matchedCall,
       callingEnv,
       control,
@@ -1437,6 +1475,236 @@ packageOrdinalResults <- function(
     )
   }
   class(result) <- "bartOrdinal"
+  result
+}
+
+# The negative-binomial mean counts for one posterior draw (docs/design/
+# negative-binomial.md section 1): given the log-odds latent psi = f(x) + o and
+# the dispersion r, the mean is mu_i = r exp(psi_i). Shared by the fit-time
+# reshape and predict.bartNegbin's replay.
+negbinMeanCounts <- function(psi, r) {
+  r * exp(psi)
+}
+
+# One posterior-predictive count per (draw, observation) of a negative-binomial
+# fit: y ~ NB(size = r, mean = mu) with mu the draw's mean count and r its
+# dispersion (docs/design/negative-binomial.md). mu is a (chains x) draws x obs
+# array; r is the draws-shaped dispersion, broadcast across the observation
+# margin so each column shares its draw's r. Only this and predict's ppd touch
+# the RNG, so type = "ev"/"bart" stay draw-neutral.
+negbinPpd <- function(mu, r) {
+  d <- dim(mu)
+  array(
+    rnbinom(length(mu), size = as.vector(array(r, d)), mu = as.vector(mu)),
+    d
+  )
+}
+
+# The negative-binomial count fit path (docs/design/negative-binomial.md
+# sections 4-5), reached from bart2's family = "nbinom" branch. A SINGLE forest
+# fits the log-odds latent psi = f(x) + o (like logistic under the Polya-Gamma
+# augmentation); the mean counts mu = r exp(psi) and the per-draw dispersion r
+# are synthesized here. The engine has no per-sample dispersion output channel -
+# r lives only in its state block - so the run is driven one kept sample at a
+# time (through the low-level bc) and r read from the state after each sweep,
+# aligned with that sweep's latent draw (the ordinal-original C3 driving;
+# draw-neutral). dbarts(family = "nbinom") does the count validation, the fixed
+# unit scale, and attaches the dispersion spec, so this reuses the standard
+# bart2 host-build machinery. The fit is class "bartNegbin", never "bart".
+bart2Negbin <- function(
+  matchedCall,
+  callingEnv,
+  control,
+  power,
+  base,
+  sigdf,
+  sigquant,
+  dart,
+  combineChains
+) {
+  priors <- buildSamplerPriors(
+    matchedCall,
+    power,
+    base,
+    sigdf,
+    sigquant,
+    nodeK = matchedCall[["k"]],
+    dart = dart,
+    splitProbsDefault = formals(dbarts::bart2)[["split.probs"]]
+  )
+
+  samplerCall <- redirectCall(matchedCall, dbarts::dbarts)
+  samplerCall$control <- control
+  samplerCall$n.samples <- NULL
+  samplerCall$family <- "nbinom"
+  samplerCall$tree.prior <- priors$tree.prior
+  samplerCall$node.prior <- priors$node.prior
+  samplerCall$resid.prior <- priors$resid.prior
+
+  sampler <- eval(samplerCall, envir = callingEnv)
+
+  n.chains <- control@n.chains
+  n.obs <- length(sampler$data@y)
+  n.test <- NROW(sampler$data@x.test)
+  n.samples <- control@n.samples
+
+  bc <- bartcoreSampler(sampler, family = "nbinom")
+
+  latentTrain <- array(0, c(n.obs, n.samples, n.chains))
+  meanTrain <- array(0, c(n.obs, n.samples, n.chains))
+  latentTest <- if (n.test > 0L) {
+    array(0, c(n.test, n.samples, n.chains))
+  } else {
+    NULL
+  }
+  meanTest <- if (n.test > 0L) {
+    array(0, c(n.test, n.samples, n.chains))
+  } else {
+    NULL
+  }
+  # r is a scalar per (sample, chain), so it rides a sigma-shaped matrix
+  dispersionRaw <- matrix(0, n.samples, n.chains)
+  varcountRaw <- NULL
+
+  # one chain's channel column for a single-sample run (the engine drops the
+  # trailing chain margin when n.chains == 1)
+  etaOf <- function(channel, chain) {
+    if (n.chains == 1L) channel[, 1L] else channel[, 1L, chain]
+  }
+
+  for (s in seq_len(n.samples)) {
+    # the first kept sample absorbs the burn-in, so every run keeps one sample
+    r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
+    state <- bartcoreStoreState(bc)
+    if (is.null(varcountRaw)) {
+      varWidth <- if (n.chains == 1L) {
+        nrow(as.matrix(r$varcount))
+      } else {
+        dim(r$varcount)[1L]
+      }
+      varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
+    }
+    for (chain in seq_len(n.chains)) {
+      rDraw <- state[[chain]]$dispersion
+      dispersionRaw[s, chain] <- rDraw
+      psiTrain <- etaOf(r$train, chain)
+      latentTrain[, s, chain] <- psiTrain
+      meanTrain[, s, chain] <- negbinMeanCounts(psiTrain, rDraw)
+      if (n.test > 0L) {
+        psiTest <- etaOf(r$test, chain)
+        latentTest[, s, chain] <- psiTest
+        meanTest[, s, chain] <- negbinMeanCounts(psiTest, rDraw)
+      }
+      varcountRaw[, s, chain] <- etaOf(r$varcount, chain)
+    }
+  }
+
+  # drop the trailing singleton chain margin so the reshapers see the
+  # n.chains == 1 layout their gaussian siblings emit (dispersionRaw keeps its
+  # matrix form, the sigma channel's shape)
+  if (n.chains == 1L) {
+    latentTrain <- matrix(latentTrain, n.obs, n.samples)
+    meanTrain <- matrix(meanTrain, n.obs, n.samples)
+    if (n.test > 0L) {
+      latentTest <- matrix(latentTest, n.test, n.samples)
+      meanTest <- matrix(meanTest, n.test, n.samples)
+    }
+    varcountRaw <- matrix(varcountRaw, dim(varcountRaw)[1L], n.samples)
+  }
+
+  result <- packageNegbinResults(
+    control,
+    sampler,
+    latentTrain,
+    meanTrain,
+    latentTest,
+    meanTest,
+    dispersionRaw,
+    varcountRaw,
+    combineChains
+  )
+  # keepTrees retains the handles predict.bartNegbin replays through: bc holds
+  # the saved trees, and dispersion.raw supplies predict's per-draw r in the raw
+  # n.samples x n.chains layout that pairs with the replayed latent draws.
+  if (control@keepTrees) {
+    result$bc <- bc
+    result$fit <- sampler
+    result$dispersion.raw <- dispersionRaw
+  }
+  result
+}
+
+# Assemble a bart2(family = "nbinom") fit from the synthesized channels
+# (docs/design/negative-binomial.md section 4). yhat.train/test are the mean
+# counts mu = r exp(f + o), the reported deliverable; latent.train/test are the
+# log-odds latent psi draws (type = "bart"/"link"); dispersion is the per-draw r,
+# the count analog of gaussian's sigma; y is the observed counts.
+packageNegbinResults <- function(
+  control,
+  sampler,
+  latentTrain,
+  meanTrain,
+  latentTest,
+  meanTest,
+  dispersionRaw,
+  varcountRaw,
+  combineChains
+) {
+  n.chains <- control@n.chains
+
+  varcount <- convertSamplesFromDbartsToBart(
+    varcountRaw,
+    n.chains,
+    combineChains
+  )
+  predictorNames <- colnames(sampler$data@x)
+  if (!is.null(predictorNames) && !is.null(dim(varcount))) {
+    dimnames(varcount) <- if (length(dim(varcount)) > 2L) {
+      list(NULL, NULL, predictorNames)
+    } else {
+      list(NULL, predictorNames)
+    }
+  }
+
+  result <- list(
+    call = control@call,
+    family = "nbinom",
+    n.chains = n.chains,
+    n.trees = control@n.trees,
+    y = sampler$data@y,
+    # the per-draw dispersion r, the sigma-shaped count analog
+    dispersion = convertSamplesFromDbartsToBart(
+      if (n.chains == 1L) dispersionRaw[, 1L] else dispersionRaw,
+      n.chains,
+      combineChains
+    ),
+    # the mean counts mu = r exp(f + o) (type = "ev"/"response")
+    yhat.train = convertSamplesFromDbartsToBart(
+      meanTrain,
+      n.chains,
+      combineChains
+    ),
+    # the log-odds latent psi = f(x) + o draws (type = "bart"/"link")
+    latent.train = convertSamplesFromDbartsToBart(
+      latentTrain,
+      n.chains,
+      combineChains
+    ),
+    varcount = varcount
+  )
+  if (!is.null(meanTest)) {
+    result$yhat.test <- convertSamplesFromDbartsToBart(
+      meanTest,
+      n.chains,
+      combineChains
+    )
+    result$latent.test <- convertSamplesFromDbartsToBart(
+      latentTest,
+      n.chains,
+      combineChains
+    )
+  }
+  class(result) <- "bartNegbin"
   result
 }
 

@@ -731,6 +731,139 @@ print.bartOrdinal <- function(x, ...) {
   invisible(x)
 }
 
+# bart2(family = "nbinom") generics (docs/design/negative-binomial.md section
+# 4). The fit object is class "bartNegbin" - never "bart" - so the count arrays
+# never fall through to the single-forest "bart" methods. A single forest fits
+# the log-odds latent psi = f(x) + o, so type = "bart" returns that latent (like
+# probit/logistic), while type = "ev" returns the mean counts mu = r exp(psi)
+# (the reported deliverable) and type = "ppd" draws one count per posterior draw
+# from NB(r, plogis(psi)). The per-draw dispersion r rides the fit's $dispersion
+# field, the count analog of gaussian's sigma.
+extract.bartNegbin <- function(
+  object,
+  type = c("ev", "ppd", "bart"),
+  sample = c("train", "test"),
+  ...
+) {
+  type <- match.arg(type)
+  sample <- match.arg(sample)
+  latent <- if (sample == "test") object$latent.test else object$latent.train
+  mu <- if (sample == "test") object$yhat.test else object$yhat.train
+  if (sample == "test" && is.null(mu)) {
+    stop(
+      "this nbinom fit carries no test channel; refit with 'test' to report ",
+      "out-of-sample counts"
+    )
+  }
+  if (type == "bart") {
+    return(latent)
+  }
+  if (type == "ev") {
+    return(mu)
+  }
+  negbinPpd(mu, object$dispersion)
+}
+
+# The posterior-mean count per observation (type = "ev"), or the posterior-mean
+# log-odds latent per observation (type = "bart"). The observation margin is the
+# array's last dimension in every chain layout, gaussian's yhat.train.mean move.
+fitted.bartNegbin <- function(object, type = c("ev", "bart"), ...) {
+  type <- match.arg(type)
+  channel <- if (type == "bart") object$latent.train else object$yhat.train
+  apply(channel, length(dim(channel)), mean)
+}
+
+# y - fitted() on the count scale: the observed count minus the posterior-mean
+# count, an n-vector (the gaussian residual, on counts).
+residuals.bartNegbin <- function(object, ...) {
+  object$y - fitted.bartNegbin(object, type = "ev")
+}
+
+# Out-of-sample mean counts by replaying the saved forest's trees to the newdata
+# log-odds latent psi, then mu = r exp(psi) at the STORED per-draw dispersion
+# (docs/design/negative-binomial.md). A log-exposure offset.test enters psi
+# additively, the fit-time convention. Requires a fit kept with keepTrees.
+# type = "bart" returns the replayed latent; type = "ppd" draws one count per
+# posterior draw. Only ppd touches the RNG, so type = "ev" is draw-neutral.
+predict.bartNegbin <- function(
+  object,
+  newdata,
+  type = c("ev", "ppd", "bart"),
+  offset.test = NULL,
+  combineChains = TRUE,
+  ...
+) {
+  type <- match.arg(type)
+  if (is.null(object[["bc"]])) {
+    stop(
+      "predict requires bart2(family = \"nbinom\") to be called with ",
+      "'keepTrees' == TRUE"
+    )
+  }
+  newdata <- validateXTest(newdata, object$fit$data@x)
+  if (is.null(newdata)) {
+    stop("newdata cannot be NULL")
+  }
+  if (!is.matrix(newdata)) {
+    newdata <- as.matrix(newdata)
+  }
+  n.chains <- object$n.chains
+  # raw is n.new x n.samples (x n.chains): the replayed log-odds latent psi
+  raw <- bartcorePredict(object$bc, newdata, offset.test)
+  if (type == "bart") {
+    return(convertSamplesFromDbartsToBart(raw, n.chains, combineChains))
+  }
+  if (length(dim(raw)) == 2L) {
+    dim(raw) <- c(dim(raw), 1L)
+  }
+  disp <- object$dispersion.raw # n.samples x n.chains
+  n.new <- dim(raw)[1L]
+  n.samples <- dim(raw)[2L]
+  means <- array(0, c(n.new, n.samples, n.chains))
+  for (s in seq_len(n.samples)) {
+    for (chain in seq_len(n.chains)) {
+      means[, s, chain] <- negbinMeanCounts(raw[, s, chain], disp[s, chain])
+    }
+  }
+  if (n.chains == 1L) {
+    means <- matrix(means, n.new, n.samples)
+  }
+  means <- convertSamplesFromDbartsToBart(means, n.chains, combineChains)
+  if (type == "ppd") {
+    return(negbinPpd(means, object$dispersion))
+  }
+  means
+}
+
+print.bartNegbin <- function(x, ...) {
+  if (!identical(x[["call"]], call("NULL"))) {
+    cat(
+      "\nCall:\n",
+      paste(deparse(x$call), sep = "\n", collapse = "\n"),
+      "\n\n",
+      sep = ""
+    )
+  }
+  cat("family: negative binomial (log-odds latent)\n")
+  cat(
+    "posterior mean dispersion (r): ",
+    format(mean(x$dispersion), digits = 4L),
+    "\n",
+    sep = ""
+  )
+  cat("n.chains: ", x$n.chains, "\n", sep = "")
+  cat("n.trees: ", x$n.trees, "\n", sep = "")
+  d <- dim(x$yhat.train)
+  n.kept <- if (length(d) == 3L) d[2L] else d[1L] %/% x$n.chains
+  cat("kept draws (per chain): ", n.kept, "\n", sep = "")
+  if (!is.null(x$yhat.test)) {
+    dt <- dim(x$yhat.test)
+    n.test <- if (length(dt) == 3L) dt[3L] else dt[2L]
+    cat("test rows: ", n.test, "\n", sep = "")
+  }
+  invisible(x)
+}
+
 predict.rbart <- function(
   object,
   newdata,

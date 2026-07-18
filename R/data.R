@@ -551,6 +551,32 @@ resolveOrdinalResponse <- function(data) {
   list(y = as.double(codes), K = as.integer(K), levels = labels)
 }
 
+# Resolve the negative-binomial dispersion argument to the length-1 real the C
+# bridge reads off the control's bartcore.dispersion attribute (docs/design/
+# negative-binomial.md section 2). NA (the default) estimates r on the capped
+# integer grid, encoded as a non-positive spec; a supplied value FIXES r. v1
+# ships the exact integer envelope, so a fixed dispersion must be a single
+# positive integer - a real fixed value is refused informatively, so admitting
+# it later is a validation relaxation, not a signature change.
+resolveDispersion <- function(dispersion) {
+  if (length(dispersion) != 1L) {
+    stop("'dispersion' must be a single value")
+  }
+  if (is.na(dispersion)) {
+    return(-1) # a non-positive spec estimates r on the grid
+  }
+  if (!is.numeric(dispersion) || dispersion <= 0) {
+    stop("'dispersion' must be a positive number")
+  }
+  if (dispersion != round(dispersion)) {
+    stop(
+      "family \"nbinom\" fits an integer dispersion; real dispersion is not ",
+      "yet supported"
+    )
+  }
+  as.double(dispersion)
+}
+
 dbartsData <- function(
   formula,
   data,

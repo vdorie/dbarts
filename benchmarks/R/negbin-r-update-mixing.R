@@ -54,18 +54,24 @@ ess_ips <- function(x) {
   x <- x - mean(x)
   n <- length(x)
   v0 <- sum(x * x) / n
-  if (v0 <= 0) return(NA_real_)
-  acf_full <- as.numeric(acf(x, lag.max = n - 1, plot = FALSE, demean = FALSE)$acf)
+  if (v0 <= 0) {
+    return(NA_real_)
+  }
+  acf_full <- as.numeric(
+    acf(x, lag.max = n - 1, plot = FALSE, demean = FALSE)$acf
+  )
   ## pair up (Gamma_k = rho_{2k} + rho_{2k+1}); stop when a pair goes <= 0
   gsum <- 0
   k <- 1
   while (2 * k + 1 < n) {
-    g <- acf_full[2 * k] + acf_full[2 * k + 1]  # acf_full[1] is lag 0
-    if (g <= 0) break
+    g <- acf_full[2 * k] + acf_full[2 * k + 1] # acf_full[1] is lag 0
+    if (g <= 0) {
+      break
+    }
     gsum <- gsum + g
     k <- k + 1
   }
-  tau <- 1 + 2 * gsum          # integrated autocorrelation time (rho_0 = 1)
+  tau <- 1 + 2 * gsum # integrated autocorrelation time (rho_0 = 1)
   n / tau
 }
 
@@ -73,7 +79,9 @@ ess_ips <- function(x) {
 draw_CRT_total <- function(y, r) {
   L <- numeric(length(y))
   maxy <- max(y)
-  if (maxy < 1) return(0)
+  if (maxy < 1) {
+    return(0)
+  }
   for (j in 1:maxy) {
     active <- y >= j
     pj <- r / (r + (j - 1))
@@ -86,10 +94,13 @@ draw_CRT_total <- function(y, r) {
 ## y_i ~ NB(r, p_i); log lik = sum lgamma(y+r) - lgamma(r) - lgamma(y+1)
 ##  + r log(1-p_i) + y log p_i, with p_i FIXED (independent of r).
 logpost_r <- function(r, y, p) {
-  if (r <= 0) return(-Inf)
-  ll <- sum(lgamma(y + r) - lgamma(r) - lgamma(y + 1) +
-            r * log1p(-p) + y * log(p))
-  ll + (a0 - 1) * log(r) - b0 * r          # + Gamma(a0,b0) log-prior kernel
+  if (r <= 0) {
+    return(-Inf)
+  }
+  ll <- sum(
+    lgamma(y + r) - lgamma(r) - lgamma(y + 1) + r * log1p(-p) + y * log(p)
+  )
+  ll + (a0 - 1) * log(r) - b0 * r # + Gamma(a0,b0) log-prior kernel
 }
 
 ## ---- one experimental cell ------------------------------------------------
@@ -97,69 +108,109 @@ run_cell <- function(n, r_true, n_iter = 6000L, burn = 1500L) {
   ## logit-p model: psi_i = logit(p_i) fixed (does NOT depend on r); the mean
   ## r*exp(psi_i) varies with r, which is precisely the r-vs-level confounding
   ## a real fit would carry and this isolation deliberately removes.
-  x   <- rnorm(n)
-  psi <- -0.4 + 0.5 * x                    # spread of p_i in ~(0.2, 0.8)
-  p   <- plogis(psi)                       # p_i fixed
-  y   <- rnbinom(n, size = r_true, prob = 1 - p)  # R prob = 1 - p (our p)
-  sumLog1mp <- sum(log1p(-p))              # sum log(1-p_i) (< 0), fixed
+  x <- rnorm(n)
+  psi <- -0.4 + 0.5 * x # spread of p_i in ~(0.2, 0.8)
+  p <- plogis(psi) # p_i fixed
+  y <- rnbinom(n, size = r_true, prob = 1 - p) # R prob = 1 - p (our p)
+  sumLog1mp <- sum(log1p(-p)) # sum log(1-p_i) (< 0), fixed
 
   ## ---- (A) CRT-Gamma Gibbs ----
-  rA <- numeric(n_iter); r_cur <- 1.0
+  rA <- numeric(n_iter)
+  r_cur <- 1.0
   for (t in 1:n_iter) {
-    Ltot  <- draw_CRT_total(y, r_cur)
+    Ltot <- draw_CRT_total(y, r_cur)
     shape <- a0 + Ltot
-    rate  <- b0 - sumLog1mp                # b0 + sum(-log(1-p_i)) > 0
+    rate <- b0 - sumLog1mp # b0 + sum(-log(1-p_i)) > 0
     r_cur <- rgamma(1, shape = shape, rate = rate)
     rA[t] <- r_cur
   }
 
   ## ---- (B) MH on xi = log r ----
-  rB <- numeric(n_iter); xi <- log(1.0)
-  lp <- logpost_r(exp(xi), y, p) + xi      # target in xi carries the Jacobian
-  prop_sd <- 0.4; acc <- 0
+  rB <- numeric(n_iter)
+  xi <- log(1.0)
+  lp <- logpost_r(exp(xi), y, p) + xi # target in xi carries the Jacobian
+  prop_sd <- 0.4
+  acc <- 0
   adapt_to <- burn
   for (t in 1:n_iter) {
     xi_p <- xi + prop_sd * rnorm(1)
     lp_p <- logpost_r(exp(xi_p), y, p) + xi_p
-    if (log(runif(1)) < lp_p - lp) { xi <- xi_p; lp <- lp_p; acc <- acc + 1 }
+    if (log(runif(1)) < lp_p - lp) {
+      xi <- xi_p
+      lp <- lp_p
+      acc <- acc + 1
+    }
     rB[t] <- exp(xi)
     ## diminishing adaptation of the proposal sd during burn-in only (frozen after)
     if (t <= adapt_to) {
       target <- 0.44
-      prop_sd <- exp(log(prop_sd) + (1 / sqrt(t)) *
-                     ((acc / t) - target))
+      prop_sd <- exp(
+        log(prop_sd) +
+          (1 / sqrt(t)) *
+            ((acc / t) - target)
+      )
     }
   }
 
   ## ---- fine-grid exact posterior (same prior) ----
   grid <- seq(0.02, 60, length.out = 8000)
   lg <- vapply(grid, logpost_r, numeric(1), y = y, p = p)
-  w  <- exp(lg - max(lg)); w <- w / sum(w)
+  w <- exp(lg - max(lg))
+  w <- w / sum(w)
   grid_mean <- sum(grid * w)
-  grid_sd   <- sqrt(sum((grid - grid_mean)^2 * w))
+  grid_sd <- sqrt(sum((grid - grid_mean)^2 * w))
 
   keep <- (burn + 1):n_iter
-  list(n = n, r_true = r_true,
-       ess_CRT = ess_ips(rA[keep]), ess_MH = ess_ips(rB[keep]),
-       mh_accept = acc / n_iter,
-       mean_CRT = mean(rA[keep]), mean_MH = mean(rB[keep]),
-       mean_grid = grid_mean, sd_grid = grid_sd)
+  list(
+    n = n,
+    r_true = r_true,
+    ess_CRT = ess_ips(rA[keep]),
+    ess_MH = ess_ips(rB[keep]),
+    mh_accept = acc / n_iter,
+    mean_CRT = mean(rA[keep]),
+    mean_MH = mean(rB[keep]),
+    mean_grid = grid_mean,
+    sd_grid = grid_sd
+  )
 }
 
 ## ---- run the grid of cells ------------------------------------------------
 cells <- expand.grid(n = c(200L, 2000L), r_true = c(0.5, 2, 10))
-res <- lapply(seq_len(nrow(cells)),
-              function(i) run_cell(cells$n[i], cells$r_true[i]))
+res <- lapply(seq_len(nrow(cells)), function(i) {
+  run_cell(cells$n[i], cells$r_true[i])
+})
 
-cat(sprintf("prior: Gamma(shape=%.2f, rate=%.2f); 6000 iter, 1500 burn; seed 20260718\n\n",
-            a0, b0))
-cat(sprintf("%5s %6s | %8s %8s %7s | %8s %8s %8s %8s\n",
-            "n", "r", "ESS_CRT", "ESS_MH", "MHacc",
-            "post_CRT", "post_MH", "grid", "grid_sd"))
-for (r in res)
-  cat(sprintf("%5d %6.1f | %8.0f %8.0f %7.2f | %8.3f %8.3f %8.3f %8.3f\n",
-              r$n, r$r_true, r$ess_CRT, r$ess_MH, r$mh_accept,
-              r$mean_CRT, r$mean_MH, r$mean_grid, r$sd_grid))
+cat(sprintf(
+  "prior: Gamma(shape=%.2f, rate=%.2f); 6000 iter, 1500 burn; seed 20260718\n\n",
+  a0,
+  b0
+))
+cat(sprintf(
+  "%5s %6s | %8s %8s %7s | %8s %8s %8s %8s\n",
+  "n",
+  "r",
+  "ESS_CRT",
+  "ESS_MH",
+  "MHacc",
+  "post_CRT",
+  "post_MH",
+  "grid",
+  "grid_sd"
+))
+for (r in res) {
+  cat(sprintf(
+    "%5d %6.1f | %8.0f %8.0f %7.2f | %8.3f %8.3f %8.3f %8.3f\n",
+    r$n,
+    r$r_true,
+    r$ess_CRT,
+    r$ess_MH,
+    r$mh_accept,
+    r$mean_CRT,
+    r$mean_MH,
+    r$mean_grid,
+    r$sd_grid
+  ))
+}
 
 ## ---- Part B: real-shape PG(b, z) truncation-error characterization --------
 ## With real r the NB-PG mean update needs omega_i ~ PG(y_i + r, psi_i) with
@@ -184,20 +235,44 @@ pg_gamma_sum <- function(a, z, K = 200L) {
   sum(g / denom) / (2 * pi^2)
 }
 pg_real <- function(b, z, K = 200L) {
-  ib <- floor(b); fb <- b - ib
+  ib <- floor(b)
+  fb <- b - ib
   s <- 0
-  if (ib >= 1) for (i in 1:ib) s <- s + pg_gamma_sum(1, z, K)
-  if (fb > 0) s <- s + pg_gamma_sum(fb, z, K)
+  if (ib >= 1) {
+    for (i in 1:ib) {
+      s <- s + pg_gamma_sum(1, z, K)
+    }
+  }
+  if (fb > 0) {
+    s <- s + pg_gamma_sum(fb, z, K)
+  }
   s
 }
 pg_mean_exact <- function(b, z) (b / (2 * z)) * tanh(z / 2)
 
-cat("\nPart B: real-shape PG(b,z) gamma-sum composition, mean check (K=200 terms)\n")
-cat(sprintf("%6s %5s | %10s %10s %8s\n", "b", "z", "emp_mean", "exact", "relerr"))
+cat(
+  "\nPart B: real-shape PG(b,z) gamma-sum composition, mean check (K=200 terms)\n"
+)
+cat(sprintf(
+  "%6s %5s | %10s %10s %8s\n",
+  "b",
+  "z",
+  "emp_mean",
+  "exact",
+  "relerr"
+))
 for (bz in list(c(2.5, 1.0), c(0.5, 0.8), c(10.7, 1.5), c(3.3, 0.3))) {
-  b <- bz[1]; z <- bz[2]
+  b <- bz[1]
+  z <- bz[2]
   draws <- replicate(4000, pg_real(b, z))
-  em <- mean(draws); ex <- pg_mean_exact(b, z)
-  cat(sprintf("%6.1f %5.1f | %10.4f %10.4f %8.4f\n",
-              b, z, em, ex, abs(em - ex) / ex))
+  em <- mean(draws)
+  ex <- pg_mean_exact(b, z)
+  cat(sprintf(
+    "%6.1f %5.1f | %10.4f %10.4f %8.4f\n",
+    b,
+    z,
+    em,
+    ex,
+    abs(em - ex) / ex
+  ))
 }
