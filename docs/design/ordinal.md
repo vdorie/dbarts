@@ -217,7 +217,12 @@ extreme cell imbalance.
 **Cutpoint prior.** A weakly-informative proper prior on the K-2 free gaps keeps
 the posterior proper even when a boundary or interior cell is empty (the case that
 breaks flat-prior AC): concretely a normal prior on the log-gaps delta_j with
-mean and sd set so the default spacing is O(1) on the unit latent scale. The
+mean and sd set so the default spacing is O(1) on the unit latent scale.
+Shipped constants (C1): log-gap prior N(0, 1.5^2) (default spacing exp(0) = 1
+on the unit latent scale), proposal-scale constant c = 2.5, and the interior
+categories' NaN fallback is the interval midpoint (the boundary categories keep
+probit's sign * DBL_EPSILON). The exact gate (section 7) and any reference
+computation must use these same constants. The
 classic improper flat prior on the ordered region (Albert-Chib, Cowles) is the
 recorded alternative - fine when every cell is occupied, and it is the limit the
 proper prior approaches as its sd grows. A proper prior is also required for the

@@ -105,6 +105,15 @@ double ext_rng_simulateUpperTruncatedNormal(
   double sd,
   double bound
 );
+// standard normal (sd 1) with mean, truncated to the interval (lower, upper]:
+// inverse-CDF in the bulk, Robert (1995) rejection when the tail probability
+// gap underflows
+double ext_rng_simulateTruncatedNormalScale1(
+  ext_rng* generator,
+  double mean,
+  double lower,
+  double upper
+);
 
 // subsequent in random.c
 double ext_rng_simulateExponential(ext_rng* generator, double scale);
