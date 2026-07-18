@@ -104,6 +104,16 @@ struct ParsedControl {
   // non-ordinal response, so every existing family parses unchanged. The R
   // surface (C3) attaches the count; parseControl reads it here.
   size_t numOrdinalCategories = 0;
+  // negative-binomial count response shape (docs/design/negative-binomial.md
+  // section 4): the fourth response shape beside the binary, ordinal, and
+  // continuous ones. countResponse marks it (a count is none of the others);
+  // dispersion is the r spec, the residualDf sign convention - a positive value
+  // fixes r there (an integer), a non-positive value estimates r on the grid.
+  // The R surface (C3) attaches both through one control attribute; parseControl
+  // reads them here. Absent (the default) leaves a non-count response, so every
+  // existing family parses byte-for-byte unchanged.
+  bool countResponse = false;
+  double dispersion = NA_REAL;
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
@@ -328,6 +338,19 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
       INTEGER(ordinalExpr)[0] >= 2)
     control.numOrdinalCategories =
       static_cast<size_t>(INTEGER(ordinalExpr)[0]);
+
+  // optional count shape (docs/design/negative-binomial.md section 4): a length-1
+  // real the R surface (C3) attaches for a count response, guarded like
+  // bartcore.n.categories. Its presence marks the count shape; its value is the
+  // dispersion spec (positive fixes r, non-positive estimates on the grid).
+  // Absent (the default) leaves a non-count response, so every existing family
+  // parses byte-for-byte unchanged.
+  SEXP dispersionExpr =
+    Rf_getAttrib(controlExpr, Rf_install("bartcore.dispersion"));
+  if (Rf_isReal(dispersionExpr) && Rf_xlength(dispersionExpr) == 1) {
+    control.countResponse = true;
+    control.dispersion = REAL(dispersionExpr)[0];
+  }
 
   UNPROTECT(1);
 }
@@ -1100,9 +1123,20 @@ bartcore::ResponseFamily resolveFamily(const ParsedControl& control,
       return bartcore::ResponseFamily::ordinal;
     Rf_error("an ordinal (K-level) response supports only family \"ordinal\"");
   }
+  // nbinom is the count shape (docs/design/negative-binomial.md section 4): the
+  // negative binomial is the only family defined on it
+  if (control.countResponse) {
+    if (familyName[0] == '\0' || std::strcmp(familyName, "nbinom") == 0)
+      return bartcore::ResponseFamily::nbinom;
+    Rf_error("a count response supports only family \"nbinom\"");
+  }
   // continuous shape: "ordinal" needs the ordered categorical response above
   if (std::strcmp(familyName, "ordinal") == 0)
     Rf_error("family \"ordinal\" requires an ordered categorical response");
+  // "nbinom" needs the count response (a non-negative integer y the R surface
+  // marks) above
+  if (std::strcmp(familyName, "nbinom") == 0)
+    Rf_error("family \"nbinom\" requires a non-negative integer (count) response");
   // aft fits a continuous response (log survival times) with truncated latents
   // for right-censored observations; the status arrives on a control attribute
   if (std::strcmp(familyName, "aft") == 0)
@@ -1229,6 +1263,10 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // ordinal construction reads this: K >= 2 selects OrdinalResponse with a K-1
   // cutpoint vector (docs/design/ordinal.md), 0 leaves a non-ordinal response
   options.numCategories = control.numOrdinalCategories;
+  // nbinom construction reads this: a positive value fixes the dispersion r, a
+  // non-positive value estimates it on the grid (docs/design/negative-binomial.md);
+  // NaN (a non-count response) is ignored
+  options.dispersion = control.dispersion;
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   options.base = model.base;
@@ -1562,6 +1600,12 @@ bartcore::ResponseFamily parseSamplerSpecification(
   if (family == bartcore::ResponseFamily::ordinal && data.weights != NULL)
     Rf_error("ordinal models do not support weights: a weighted truncated-"
              "normal latent likelihood is not a coherent model");
+  // nbinom refuses weights in v1 (docs/design/negative-binomial.md section 4):
+  // the usual count "weight" is exposure, which belongs in the offset as a
+  // log-exposure term, not in observation replication
+  if (family == bartcore::ResponseFamily::nbinom && data.weights != NULL)
+    Rf_error("nbinom (count) models do not support weights: exposure belongs in "
+             "the offset as a log-exposure term");
   // Student-t continuous errors (docs/design/robust-errors.md): a finite
   // resid.df selects the scale-mixture error law - a positive value fixes the
   // degrees of freedom, 0 estimates them on the grid. Only the gaussian family
@@ -1618,6 +1662,11 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // surface (rbart_vi, C3) mirrors
     if (family == bartcore::ResponseFamily::ordinal && options.numGroups > 0)
       Rf_error("grouped random effects are not supported for ordinal responses");
+    // grouped nbinom is a recorded but unbuilt door (docs/design/negative-binomial.md
+    // section 7): the dispersion block and the group block are not yet shown to
+    // interleave, so refuse the composition here, the backstop rbart_vi (C3) mirrors
+    if (family == bartcore::ResponseFamily::nbinom && options.numGroups > 0)
+      Rf_error("grouped random effects are not supported for count (nbinom) responses");
     // AFT survival status arrives the same way; the response copies it
     applySurvivalAttribute(controlExpr, data.numObservations, family, options,
                            survivalStatus);
@@ -3825,13 +3874,14 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
     SLOT_FORESTS = 0, SLOT_SIGMA, SLOT_FIT_SCALE, SLOT_LATENTS,
     SLOT_RANEF, SLOT_TAU,
     SLOT_DART_PROBABILITIES, SLOT_DART_ALPHA, SLOT_DART_UPDATES_SKIPPED,
-    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_COUNT
+    SLOT_RNG_STATE, SLOT_BCF, SLOT_RESID_DF, SLOT_CUTPOINTS, SLOT_DISPERSION,
+    SLOT_COUNT
   };
   static const char* slotNames[SLOT_COUNT] = {
     "forests", "sigma", "fit.scale",
     "latents", "ranef", "tau",
     "dart.probabilities", "dart.alpha", "dart.updates.skipped",
-    "rng.state", "bcf", "resid.df", "cutpoints"
+    "rng.state", "bcf", "resid.df", "cutpoints", "dispersion"
   };
 
   SEXP resultExpr =
@@ -3949,6 +3999,13 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                   chainState.cutpoints.data(),
                   chainState.cutpoints.size() * sizeof(double));
     }
+
+    // the nbinom-only dispersion r; omega already rode the latents slot above. A
+    // non-count chain carries NaN and writes no block, so old and other-family
+    // states omit the slot.
+    if (std::isfinite(chainState.dispersion))
+      SET_VECTOR_ELT(chainExpr, SLOT_DISPERSION,
+                     Rf_ScalarReal(chainState.dispersion));
 
     SET_VECTOR_ELT(resultExpr, static_cast<R_xlen_t>(c), chainExpr);
     UNPROTECT(1);
@@ -4273,6 +4330,17 @@ void setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       }
       chainState.cutpoints.assign(
         REAL(cutpointsExpr), REAL(cutpointsExpr) + Rf_xlength(cutpointsExpr));
+    }
+
+    // additive nbinom-only block: absent (an old or non-count state) leaves the
+    // NaN default, which stateIsValid refuses only for an NB sampler
+    SEXP dispersionExpr = getListElement(chainExpr, "dispersion");
+    if (!Rf_isNull(dispersionExpr)) {
+      if (!Rf_isReal(dispersionExpr) || Rf_xlength(dispersionExpr) != 1) {
+        errorMessage = malformedBlock("dispersion");
+        break;
+      }
+      chainState.dispersion = REAL(dispersionExpr)[0];
     }
   }
 

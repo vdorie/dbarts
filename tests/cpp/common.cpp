@@ -51,6 +51,11 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
     // the ordinal cutpoint vector round-trips bitwise (restoreCutpoints is a
     // copy); a non-ordinal state carries an empty vector on both sides
     if (x.cutpoints != y.cutpoints) return false;
+    // the nbinom dispersion r round-trips bitwise (restoreDispersion is a copy);
+    // a non-count state carries NaN on both sides, which an == would reject
+    bool bothDispersion =
+      std::isnan(x.dispersion) && std::isnan(y.dispersion);
+    if (!bothDispersion && x.dispersion != y.dispersion) return false;
     if (x.fitMin != y.fitMin || x.fitMax != y.fitMax ||
         x.groupTau != y.groupTau || x.dartAlpha != y.dartAlpha ||
         x.dartNumUpdatesSkipped != y.dartNumUpdatesSkipped)
