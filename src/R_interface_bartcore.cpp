@@ -2358,11 +2358,18 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
     return R_NilValue;
   }
 
+  // ordinal reports its K-1 cutpoints in an extra channel appended after ranef;
+  // every other family carries none, so the list keeps its 8 slots and byte-for-
+  // byte layout. numCutpoints == 0 off ordinal.
+  size_t numCutpoints = sampler.numCutpoints();
+  bool hasCutpoints = numCutpoints > 0;
+  int numResultSlots = hasCutpoints ? 9 : 8;
+
   // several chains add a trailing chain dimension, as the classic engine's
   // results do. Every column roots in the protected container the moment it
   // is allocated (installResult), so there is no hand-counted PROTECT stack
   // to keep in sync with the slot list.
-  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, 8));
+  SEXP resultExpr = PROTECT(Rf_allocVector(VECSXP, numResultSlots));
   SEXP sigmaExpr = installResult(
     resultExpr, 0,
     numChains == 1
@@ -2430,6 +2437,15 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
         ? Rf_allocMatrix(REALSXP, static_cast<int>(numGroups), numSamplesInt)
         : Rf_alloc3DArray(REALSXP, static_cast<int>(numGroups),
                           numSamplesInt, numChainsInt));
+  SEXP cutpointsExpr = !hasCutpoints
+    ? R_NilValue
+    : installResult(
+        resultExpr, 8,
+        numChains == 1
+          ? Rf_allocMatrix(REALSXP, static_cast<int>(numCutpoints),
+                           numSamplesInt)
+          : Rf_alloc3DArray(REALSXP, static_cast<int>(numCutpoints),
+                            numSamplesInt, numChainsInt));
 
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
@@ -2450,6 +2466,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // one varcount slab per reported forest; 1 for every additive model, K for
   // multinomial's per-category counts. Drives the chain-major varcount stride.
   results.numVariableCountForests = numVCForests;
+  // K-1 cutpoints per sample for ordinal, none otherwise; drives the chain-major
+  // cutpoint stride
+  results.cutpoints = hasCutpoints ? REAL(cutpointsExpr) : NULL;
+  results.numCutpoints = numCutpoints;
 
   GetRNGstate();
   bool cancelled = sampler.run(numBurnIn, numSamples, results,
@@ -2471,7 +2491,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   // drop-in replacements for each other; varprobs, tau, and ranef are
   // bartcore extensions. The names vector roots through the container's
   // attribute before the mkChar allocations fill it.
-  SEXP namesExpr = Rf_allocVector(STRSXP, 8);
+  SEXP namesExpr = Rf_allocVector(STRSXP, numResultSlots);
   Rf_setAttrib(resultExpr, R_NamesSymbol, namesExpr);
   SET_STRING_ELT(namesExpr, 0, Rf_mkChar("sigma"));
   SET_STRING_ELT(namesExpr, 1, Rf_mkChar("train"));
@@ -2481,6 +2501,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   SET_STRING_ELT(namesExpr, 5, Rf_mkChar("varprobs"));
   SET_STRING_ELT(namesExpr, 6, Rf_mkChar("tau"));
   SET_STRING_ELT(namesExpr, 7, Rf_mkChar("ranef"));
+  if (hasCutpoints) SET_STRING_ELT(namesExpr, 8, Rf_mkChar("cutpoints"));
 
   UNPROTECT(1);
   return resultExpr;

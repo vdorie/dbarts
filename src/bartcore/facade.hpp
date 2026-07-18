@@ -148,6 +148,11 @@ public:
   /// run bridge reads it to size the varcount array; internal, invisible to
   /// dbarts.h.
   virtual std::size_t numVariableCountForests() const = 0;
+  /// Per-sample cutpoints the recorded cutpoint channel carries: 0 for every
+  /// family but ordinal (K-1). The run bridge reads it to size and name the
+  /// cutpoints channel, present only when nonzero; internal, invisible to
+  /// dbarts.h.
+  virtual std::size_t numCutpoints() const = 0;
   /// Whether the recorded test-fit channel carries a defined value: false only
   /// for BCF (no test treatment vector to blend off-sample). The bridge's
   /// test-surface refusal gates on it, so multinomial and single-forest
@@ -353,6 +358,7 @@ public:
   std::size_t numVariableCountForests() const override {
     return impl_.numVariableCountForests();
   }
+  std::size_t numCutpoints() const override { return impl_.numCutpoints(); }
   bool testFitsAreDefined() const override {
     return impl_.testFitsAreDefined();
   }
