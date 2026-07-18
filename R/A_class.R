@@ -426,8 +426,10 @@ methods::setClass(
     # cannot appear in a slot union without Matrix at load time)
     x = "ANY",
     varTypes = "integer",
-    # a dense matrix, a mixed container, or null (validated below; a mixed
-    # container rides the same "ANY" treatment as 'x')
+    # a dense matrix, a Matrix::dgCMatrix, a mixed container, or null
+    # (validated below; validateXTest wraps a bare dgCMatrix as an all-sparse
+    # mixed container before storage, so this slot never actually holds a
+    # bare dgCMatrix - the class union stays symmetric with 'x' regardless)
     x.test = "ANY",
     weights = "numericOrNULL",
     weights.test = "numericOrNULL",
@@ -507,9 +509,12 @@ methods::setValidity("dbartsData", function(object) {
   if (!is.null(object@x.test)) {
     if (
       !is.matrix(object@x.test) &&
+        !inherits(object@x.test, "dgCMatrix") &&
         !inherits(object@x.test, "dbartsMixedMatrix")
     ) {
-      return("'x.test' must be a matrix, a mixed container, or null")
+      return(
+        "'x.test' must be a matrix, a Matrix::dgCMatrix, a mixed container, or null"
+      )
     }
     if (ncol(object@x.test) != ncol(object@x)) {
       return("'x.test' must be null or have number of columns equal to 'x'")

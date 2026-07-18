@@ -41,6 +41,20 @@ announceAutoFamily <- function(responseType, nLevels, family) {
   )
 }
 
+# The dbartsSampler mutators (setPredictor/setTestPredictor/
+# setTestPredictorAndOffset) refuse a new predictor matrix containing NA when
+# the sampler was built with missing = "error"; `what` names the refused
+# argument ("predictors"/"test predictors") in the message.
+checkMissingPolicy <- function(data, hasMissing, what) {
+  if (data@missing == "error" && hasMissing) {
+    stop(
+      "new ",
+      what,
+      " contain missing values and the sampler was built with missing = \"error\""
+    )
+  }
+}
+
 coerceOrError <- function(x, type) {
   mc <- match.call()
 

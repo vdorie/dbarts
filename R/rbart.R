@@ -328,34 +328,15 @@ rbart_vi <- function(
   # a factor/logical/character response is a classification. rbart_vi's
   # random-effects model fits the 2-level (probit) case only; 3+ levels are
   # multinomial (bart2). Resolve here and pass an explicit family so the
-  # per-chain dbarts() calls below do not each re-announce the verdict.
-  if (data@response.type != "numeric") {
-    responseType <- data@response.type
-    K <- data@response.n.levels
-    if (K >= 3L) {
-      stop(
-        "rbart_vi does not fit a ",
-        K,
-        "-level ",
-        responseType,
-        " response; multinomial classification requires ",
-        "bart2(family = \"multinomial\")"
-      )
-    }
-    if (family == "auto") {
-      announceAutoFamily(responseType, K, "probit")
-      family <- "probit"
-    } else if (family == "gaussian" || family == "aft") {
-      stop(
-        "family \"",
-        family,
-        "\" cannot fit a ",
-        responseType,
-        " response; a 2-level factor is a binary classification ",
-        "(family = \"auto\" fits probit)"
-      )
-    }
-  }
+  # per-chain dbarts() calls below do not each re-announce the verdict. A
+  # numeric response is left alone - there is no message to deduplicate, so
+  # the per-chain dbarts() calls resolve it themselves.
+  family <- resolveClassificationFamily(
+    data,
+    family,
+    "rbart_vi",
+    c("gaussian", "aft")
+  )
 
   rbartArgs <- namedList(
     group.by,

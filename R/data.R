@@ -109,6 +109,22 @@ validateXTest <- function(x.test, x.train) {
       }
     }
   }
+  # a bare dgCMatrix test set takes the same resident path a mixed-container
+  # test set's sparse columns already do (below), symmetric with a bare
+  # dgCMatrix train set: wrap it as an all-sparse mixed container rather than
+  # densifying. A bare numeric sparse matrix carries no factor levels, so it
+  # cannot supply a categorical training column's values - refuse informatively
+  # rather than let the bridge reject a malformed container.
+  if (inherits(x.test, "dgCMatrix")) {
+    if (!is.null(factorLevels)) {
+      stop(
+        "sparse (dgCMatrix) test predictors cannot supply values for a ",
+        "categorical training column; supply 'test' as a dense matrix or ",
+        "data frame instead"
+      )
+    }
+    x.test <- wrapSparseTestMatrix(x.test)
+  }
   # a sparse-backed container stays resident (the engine codes it against the
   # training cuts); everything else densifies as before
   xTestIsSparseContainer <-
@@ -364,6 +380,88 @@ codeResponse <- function(y) {
     as.double(as.integer(if (is.character(y)) factor(y) else y) - 1L)
   }
   list(y = coded, type = info$type, n.levels = info$n.levels)
+}
+
+# Resolve family for a categorical (factor/logical/character) response ahead
+# of a single-forest fit: a 2-level response is a binary classification
+# (family = "auto" fits probit); 3+ levels is multinomial, which none of
+# dbarts()/xbart()/rbart_vi() implement (only bart2(family = "multinomial")
+# does). A numeric response is returned unchanged - a caller that also
+# resolves the 0/1-vs-continuous ambiguity for numeric responses does so
+# itself afterward (dbarts()/xbart() do; rbart_vi() defers it to the
+# per-chain dbarts() call, since there is no message to deduplicate there).
+#
+# `caller` names the entry point for the 2-level conflict message and the
+# non-split multinomial message ("CALLER does not fit a K-level ..."), used
+# as-is by xbart() and rbart_vi(): each is reached only directly, so the
+# auto/explicit distinction adds nothing at K >= 3 (every family choice is
+# equally invalid). dbarts() passes splitMultinomialMessage = TRUE instead,
+# because it is also reached anonymously through bart() (which never sets an
+# explicit family): its auto-branch message cannot name a single caller and
+# instead lists every single-forest entry point (passed via `caller`), while
+# its explicit-family branch echoes the conflicting family like the 2-level
+# message does.
+resolveClassificationFamily <- function(
+  data,
+  family,
+  caller,
+  incompatibleFamilies,
+  splitMultinomialMessage = FALSE
+) {
+  if (data@response.type == "numeric") {
+    return(family)
+  }
+  responseType <- data@response.type
+  K <- data@response.n.levels
+  if (K >= 3L) {
+    if (!splitMultinomialMessage) {
+      stop(
+        caller,
+        " does not fit a ",
+        K,
+        "-level ",
+        responseType,
+        " response; multinomial classification requires ",
+        "bart2(family = \"multinomial\")"
+      )
+    }
+    if (family == "auto") {
+      stop(
+        "a ",
+        K,
+        "-level ",
+        responseType,
+        " response is multinomial; fit it with ",
+        "bart2(family = \"multinomial\") - ",
+        caller,
+        " fit only binary and continuous responses"
+      )
+    }
+    stop(
+      "family \"",
+      family,
+      "\" cannot fit a ",
+      K,
+      "-level ",
+      responseType,
+      " response; a 3+-level factor is multinomial ",
+      "(bart2(family = \"multinomial\"))"
+    )
+  }
+  if (family == "auto") {
+    family <- "probit"
+    announceAutoFamily(responseType, K, family)
+  } else if (family %in% incompatibleFamilies) {
+    stop(
+      "family \"",
+      family,
+      "\" cannot fit a ",
+      responseType,
+      " response; a 2-level factor is a binary classification ",
+      "(family = \"auto\" fits probit)"
+    )
+  }
+  family
 }
 
 dbartsData <- function(
