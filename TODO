@@ -73,9 +73,16 @@ items
     MoveStrategy the design anticipated but never built, and a
     decision on per-observation residual variance (fold into the
     workingWeights channel vs a sigma vector).
-  negative-binomial: count outcomes via the Polya-Gamma NB
-    augmentation (the PG sampler already ships); the r update decides
-    integer vs real shape - a caveat shared with weighted-binary.
+  negbin-real-dispersion: the recorded door out of the negative-binomial
+    landing (docs/plans/negative-binomial.md; design section 2 carries
+    fork B's full spec): real-valued dispersion needs a non-integer-shape
+    Polya-Gamma draw, for which no exact sampler exists - shipping it
+    means dbarts' first documented-approximate family (truncated
+    gamma-sum, bias bounded ~1e-3 at K = 200) behind an explicit opt-in.
+    The same decision gates weighted-binary's fractional weights. The
+    engine seams (shape-parameterized PG helper, r-update strategy) are
+    already in place; VD decides if user demand appears. Poisson family
+    and grouped NB are companion doors in the design's section 7.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated. The 2026-07-17 data review
