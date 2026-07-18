@@ -64,3 +64,27 @@ builds and transactions is written once.
 - Stages 4 and 3 run under VD's 2026-07-18 maintenance directive;
   stages 2 and 1 (the large-review-surface carves) still wait for
   VD's explicit go.
+
+## Landings
+
+Stage 4 6841e6b (2026-07-18). runPredictorTransaction owns precheck,
+gatheredRaw snapshot, forceUpdate collapse, validate-or-rollback, and
+the requantize-test epilogue (was 4x); setPredictor/updatePredictor
+are two-line shells over WholeMatrixUpdate (move-swap) / SubsetUpdate
+(journaled, owns the ColumnCodeRollback records). Oracle mutation
+tests + fuzzer UNMODIFIED. Net +24 (accepted: the strategy structs
+cost more than two call sites save; the shape amortizes if stage 1
+adds a third transaction form). All six gates bitwise.
+
+Stage 3 ad78c06 (2026-07-18). resetTrainStorage (14 fields) /
+resetTestStorage (8 fields) in data.hpp; reset sites: build,
+buildMixed, buildFromParent / buildMixed tail, clearTest. Kept
+divergences, verified field-for-field: buildMixed installs its CSC
+kind after the reset; build repopulates gathered; buildFromParent
+copies grid fields from the parent; active test BUILDERS stay inline
+(they size, not clear, and buildTest deliberately preserves
+testOffset). Net -6, no deviations, all six gates bitwise.
+
+Stages 2 (storage descriptor) and 1 (train/test de-twinning) remain
+open, awaiting VD's explicit go - the stage-order rationale is in
+Constraints.
