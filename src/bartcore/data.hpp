@@ -633,6 +633,29 @@ struct ColumnStore {
     gatheredSds.clear();
   }
 
+  /// Reset the per-column source storage to the dense-empty baseline: no CSC or
+  /// rank backing, no gathered raw, no recorded missingness. Every train builder
+  /// resets through here, then overwrites the fields its storage kind owns
+  /// (buildMixed the CSC slices, counts, and reference codes; build the gathered
+  /// raw via setupGatheredColumns). numPredictors must already hold the new
+  /// column count; codes/codeOffsets and the cut grid are sized by each builder.
+  void resetTrainStorage() {
+    sparseSlot.assign(numPredictors, -1);
+    sparseColumns.clear();
+    cscSlices.clear();
+    mixedRawColumns.clear();
+    cscCategoryCounts.clear();
+    cscReferenceCodes.clear();
+    builtFromCsc = false;
+    hasSparse = false;
+    hasMissing.assign(numPredictors, 0);
+    gatheredRawColumns.clear();
+    gatheredRawValues.clear();
+    gatheredRawTestValues.clear();
+    gatheredMeans.clear();
+    gatheredSds.clear();
+  }
+
   /// columnTypes may be null for all-ordinal. Categorical columns must hold
   /// integral values 0..K-1 with K <= maxCategories; the caller validates.
   /// gatherColumns names the columns whose raw values a leaf model reads (or
@@ -662,15 +685,7 @@ struct ColumnStore {
     codes.resize(n * p);
     codeOffsets.resize(p);
     for (size_t j = 0; j < p; ++j) codeOffsets[j] = j * n;
-    sparseSlot.assign(p, -1);
-    sparseColumns.clear();
-    cscSlices.clear();
-    mixedRawColumns.clear();
-    cscCategoryCounts.clear();
-    cscReferenceCodes.clear();
-    builtFromCsc = false;
-    hasSparse = false;
-    hasMissing.assign(p, 0);
+    resetTrainStorage();
     setupGatheredColumns(gatherColumns, numGatherColumns);
 
     for (size_t j = 0; j < p; ++j) {
@@ -703,18 +718,11 @@ struct ColumnStore {
     numObservations = n;
     numPredictors = p;
     useQuantiles = useQuantiles_;
-    builtFromCsc = true;
     if (columnTypes != nullptr) {
       types.assign(columnTypes, columnTypes + p);
     } else {
       types.assign(p, ColumnType::ordinal);
     }
-    if (cscCategoryCounts_ != nullptr)
-      cscCategoryCounts.assign(cscCategoryCounts_, cscCategoryCounts_ + p);
-    else cscCategoryCounts.clear();
-    if (cscReferenceCodes_ != nullptr)
-      cscReferenceCodes.assign(cscReferenceCodes_, cscReferenceCodes_ + p);
-    else cscReferenceCodes.clear();
     cutPoints.resize(p);
     numCuts.resize(p);
     if (maxNumCutsPerColumn != nullptr) {
@@ -725,17 +733,16 @@ struct ColumnStore {
     for (size_t j = 0; j < p; ++j)
       if (maxNumCuts[j] > maxNumCutsRepresentable)
         maxNumCuts[j] = maxNumCutsRepresentable;
-    hasMissing.assign(p, 0);
-    gatheredRawColumns.clear();
-    gatheredRawValues.clear();
-    gatheredRawTestValues.clear();
-    gatheredMeans.clear();
-    gatheredSds.clear();
-
+    resetTrainStorage();
+    // this builder owns the CSC storage: borrowed slices, densified/rank
+    // backing, and per-column level counts and reference codes for categoricals
+    builtFromCsc = true;
+    if (cscCategoryCounts_ != nullptr)
+      cscCategoryCounts.assign(cscCategoryCounts_, cscCategoryCounts_ + p);
+    if (cscReferenceCodes_ != nullptr)
+      cscReferenceCodes.assign(cscReferenceCodes_, cscReferenceCodes_ + p);
     cscSlices.assign(p, CscColumnSlice());
     mixedRawColumns.assign(p, nullptr);
-    sparseSlot.assign(p, -1);
-    sparseColumns.clear();
     codeOffsets.assign(p, 0);
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
@@ -791,14 +798,7 @@ struct ColumnStore {
     }
     refreshCategoricalTiers();
 
-    numTestObservations = 0;
-    ownedTestValues.clear();
-    testCodes.clear();
-    testCodeOffsets.clear();
-    testSparseSlot.clear();
-    testSparseColumns.clear();
-    clearTestCscSources();
-    testOffset = nullptr;
+    resetTestStorage();
   }
 
   /// Build from a CSC (dgCMatrix-layout) predictor matrix: buildMixed with
@@ -832,6 +832,21 @@ struct ColumnStore {
     testMixedRawColumns.clear();
     testCscReferenceCodes.clear();
     testBuiltFromCsc = false;
+  }
+
+  /// Reset the whole test store to empty: no test rows or codes, no CSC or rank
+  /// test backing, no test offset. The reset-to-empty test sites route through
+  /// here; active test builders size the fields they populate and keep any
+  /// caller-owned test offset.
+  void resetTestStorage() {
+    numTestObservations = 0;
+    ownedTestValues.clear();
+    testCodes.clear();
+    testCodeOffsets.clear();
+    testSparseSlot.clear();
+    testSparseColumns.clear();
+    clearTestCscSources();
+    testOffset = nullptr;
   }
 
   /// Own a copy of the test predictors and quantize them against the current
@@ -1002,23 +1017,9 @@ struct ColumnStore {
     codes.resize(numRows * numPredictors);
     codeOffsets.resize(numPredictors);
     for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * numRows;
-    sparseSlot.assign(numPredictors, -1);
-    sparseColumns.clear();
-    cscSlices.clear();
-    mixedRawColumns.clear();
-    cscCategoryCounts.clear();
-    cscReferenceCodes.clear();
-    builtFromCsc = false;
-    hasSparse = false;
-    hasMissing.assign(numPredictors, 0);
+    resetTrainStorage();
     refreshCategoricalTiers();
-
     ownedTestValues.clear();
-    gatheredRawColumns.clear();
-    gatheredRawValues.clear();
-    gatheredRawTestValues.clear();
-    gatheredMeans.clear();
-    gatheredSds.clear();
     // gather what the parent can serve raw (dense-backed columns, or its
     // own gathered copies); columns it cannot are left ungathered, so the
     // view's rawColumn returns null and the facade refuses the designation.
@@ -1192,14 +1193,7 @@ struct ColumnStore {
   }
 
   void clearTest() {
-    ownedTestValues.clear();
-    numTestObservations = 0;
-    testCodes.clear();
-    testCodeOffsets.clear();
-    testSparseSlot.clear();
-    testSparseColumns.clear();
-    clearTestCscSources();
-    testOffset = nullptr;
+    resetTestStorage();
   }
 
   /// Dense-stored columns only; rank columns have no contiguous codes.
