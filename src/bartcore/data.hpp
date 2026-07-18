@@ -145,6 +145,56 @@ struct ColumnSource {
   bool isRank() const { return kind == ColumnSourceKind::cscRank; }
 };
 
+/// One row set's code storage over the store's shared cut grid: the packed
+/// dense codes and their per-column starts, the rank storage of the sparse
+/// columns, and the per-column source descriptors. Instantiated train and test
+/// on ColumnStore; the grid-dependent operations that fill a block are
+/// ColumnStore methods parameterized by the block and its row count.
+struct CodeBlock {
+  // packed dense codes; per-column starts in codeOffsets (j * numRows for
+  // dense-matrix builds, packed among densified columns for CSC builds, unused
+  // for rank-stored columns)
+  std::vector<xint_t> codes;
+  std::vector<size_t> codeOffsets;
+  std::vector<SparseColumnData> sparseColumns;
+  // per column, where its codes live and what re-quantization reads: the
+  // storage kind, the rank slot into sparseColumns, the borrowed dense raw of a
+  // mixed build, the retained CSC slice, and a CSC-backed categorical column's
+  // fixed level count K and reference-level code. A CSC categorical column
+  // stores only its non-reference entries, so K cannot be recovered from the
+  // slice and the implicit rows' code is the reference level's own level-order
+  // index (never numeric 0).
+  std::vector<ColumnSource> sources;
+
+  /// Whether column j quantizes from a borrowed CSC slice (every column of a
+  /// buildFromCsc store, the sparse-source columns of a mixed build).
+  bool columnIsCscBacked(size_t j) const { return sources[j].isCscBacked(); }
+
+  bool columnIsSparse(size_t j) const { return sources[j].isRank(); }
+  const SparseColumnData& sparseColumn(size_t j) const {
+    return sparseColumns[static_cast<size_t>(sources[j].rankSlot)];
+  }
+
+  /// Dense-stored columns only; rank columns have no contiguous codes.
+  const xint_t* column(size_t j) const { return codes.data() + codeOffsets[j]; }
+
+  /// Storage-aware single-code access (tree descent, restore validation),
+  /// reading only the columns a rule visits rather than materializing a row.
+  xint_t codeAt(size_t j, size_t i) const {
+    return columnIsSparse(j) ? sparseColumn(j).at(i)
+                             : codes[codeOffsets[j] + i];
+  }
+
+  /// A dense-backed column's raw source for re-quantization: the borrowed dense
+  /// raw when denseBorrowed, else the side's owned dense fallback at column j
+  /// (the call-time x for train, ownedTestValues for test).
+  const double* denseRawForColumn(size_t j, size_t numRows,
+                                  const double* ownedFallback) const {
+    return sources[j].kind == ColumnSourceKind::denseBorrowed
+      ? sources[j].denseRaw : ownedFallback + j * numRows;
+  }
+};
+
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
 /// uniformly spaced over the column's range or at unique-value midpoints
@@ -163,20 +213,8 @@ struct ColumnStore {
   bool isView = false;
 
   std::vector<ColumnType> types;
-  // packed dense codes; per-column starts in codeOffsets (j * numObservations
-  // for dense-matrix builds, packed among densified columns for CSC builds,
-  // unused for rank-stored columns)
-  std::vector<xint_t> codes;
-  std::vector<size_t> codeOffsets;
-  std::vector<SparseColumnData> sparseColumns;
-  // per column, where its codes live and what re-quantization reads: the
-  // storage kind, the rank slot into sparseColumns, the borrowed dense raw of a
-  // mixed build, the retained CSC slice, and a CSC-backed categorical column's
-  // fixed level count K and reference-level code. A CSC categorical column
-  // stores only its non-reference entries, so K cannot be recovered from the
-  // slice and the implicit rows' code is the reference level's own level-order
-  // index (never numeric 0).
-  std::vector<ColumnSource> sources;
+  // the training rows' codes over this store's cut grid
+  CodeBlock train;
   bool builtFromCsc = false;
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
@@ -210,23 +248,15 @@ struct ColumnStore {
   // changes re-quantize the test codes from this copy, and rawTestColumn serves
   // it to leaf models. Views hold none (they gather test-subset columns below).
   std::vector<double> ownedTestValues;
-  // Per-column test store sharing this store's cut grid (types, numCuts,
-  // cutPoints), the training-side layout mirrored for the test rows: dense
-  // packed codes with per-column starts in testCodeOffsets (j *
-  // numTestObservations for a dense build), a rank-storage slot in
-  // testSparseColumns for a rank-stored column. testCodeAt reads whichever
-  // storage a column takes, so descent routes a test row without materializing
-  // it. Views hold dense codes only (every testSources entry denseOwned).
-  std::vector<xint_t> testCodes;
-  std::vector<size_t> testCodeOffsets;
-  std::vector<SparseColumnData> testSparseColumns;
-  // per column, where its test codes live and what re-quantization reads (the
-  // test analog of sources; cscCategoryCount is unused on the test side, which
-  // shares the training cut grid and rebuilds no counts)
-  std::vector<ColumnSource> testSources;
+  // The test rows' codes over this store's cut grid (types, numCuts,
+  // cutPoints), the training-side layout mirrored for the test rows. testCodeAt
+  // reads whichever storage a column takes, so descent routes a test row
+  // without materializing it. Views hold dense codes only (every test.sources
+  // entry denseOwned).
+  CodeBlock test;
   // Owned raw of a mixed/CSC test build (the test store owns its raw, so no
   // borrowed pointer survives the build): ownedTestCscValues/ownedTestCscRows
-  // pack every CSC-backed test column's nonzeros, which each testSources entry's
+  // pack every CSC-backed test column's nonzeros, which each test.sources entry's
   // slice points into. A dense-backed column's entry instead borrows into
   // ownedTestValues via denseRaw, and a CSC-backed categorical column's carries
   // the reference level's code. Both owned CSC buffers are empty on the dense
@@ -260,7 +290,7 @@ struct ColumnStore {
   /// Whether column j quantizes from a borrowed CSC slice (every column of
   /// a buildFromCsc store, the sparse-source columns of a mixed build).
   bool columnIsCscBacked(size_t j) const {
-    return sources[j].isCscBacked();
+    return train.columnIsCscBacked(j);
   }
 
   /// Column j's raw values for a re-quantize, given the call-time predictor
@@ -268,9 +298,9 @@ struct ColumnStore {
   /// build's retained dense slice, x's column for a dense build, null for
   /// CSC-backed columns (which re-quantize from their retained slices instead).
   const double* rawColumnForRequantize(size_t j, const double* x) const {
-    if (sources[j].isCscBacked()) return nullptr;
-    if (sources[j].kind == ColumnSourceKind::denseBorrowed)
-      return sources[j].denseRaw;
+    if (train.sources[j].isCscBacked()) return nullptr;
+    if (train.sources[j].kind == ColumnSourceKind::denseBorrowed)
+      return train.sources[j].denseRaw;
     return x != nullptr ? x + j * numObservations : nullptr;
   }
 
@@ -282,16 +312,16 @@ struct ColumnStore {
     if (slot >= 0)
       return gatheredRawValues.data() +
              static_cast<size_t>(slot) * numObservations;
-    return sources[j].kind == ColumnSourceKind::denseBorrowed
-      ? sources[j].denseRaw : nullptr;
+    return train.sources[j].kind == ColumnSourceKind::denseBorrowed
+      ? train.sources[j].denseRaw : nullptr;
   }
 
   /// Raw test values of column j: the mixed build's owned dense slice (null for
   /// its CSC-backed columns, which serve no leaf raw), the dense buildTest copy,
   /// or the values gathered at view construction.
   const double* rawTestColumn(size_t j) const {
-    if (!testSources.empty()) {
-      const ColumnSource& source = testSources[j];
+    if (!test.sources.empty()) {
+      const ColumnSource& source = test.sources[j];
       if (source.kind == ColumnSourceKind::denseBorrowed) return source.denseRaw;
       if (source.isCscBacked()) return nullptr;
     }
@@ -379,7 +409,7 @@ struct ColumnStore {
   /// entries plus a single zero when implicit zeros exist, the same value
   /// set the dense collector sees, so the induced grid is identical.
   QuantileGrid quantileGridForCscColumn(size_t j) const {
-    const CscColumnSlice& slice = sources[j].slice;
+    const CscColumnSlice& slice = train.sources[j].slice;
     QuantileGrid grid;
     grid.sortedUnique.reserve(slice.numNonzero + 1);
     if (slice.numNonzero < numObservations) grid.sortedUnique.push_back(0.0);
@@ -425,7 +455,7 @@ struct ColumnStore {
   /// The dense range scan over a CSC column's logical values: implicit
   /// zeros seed the range at 0, observed stored entries fold in.
   void fillCutsUniformlyCsc(size_t j) {
-    const CscColumnSlice& slice = sources[j].slice;
+    const CscColumnSlice& slice = train.sources[j].slice;
     double xMin = 0.0, xMax = 0.0;
     size_t k = 0;
     if (slice.numNonzero == numObservations) {  // no implicit zeros
@@ -449,7 +479,7 @@ struct ColumnStore {
   void buildCutsForColumn(size_t j, const double* column) {
     if (types[j] == ColumnType::categorical) {
       if (columnIsCscBacked(j)) {
-        numCuts[j] = sources[j].cscCategoryCount;
+        numCuts[j] = train.sources[j].cscCategoryCount;
       } else {
         double maxValue = -1.0;
         for (size_t i = 0; i < numObservations; ++i)
@@ -531,21 +561,91 @@ struct ColumnStore {
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
 
+  /// Quantize column j's dense raw values into block against the current cuts,
+  /// recording any missingness through hasMissingOut[j] when non-null (train
+  /// tracks missingness; test tracks none and passes null).
+  void quantizeDenseInto(CodeBlock& block, size_t numRows, size_t j,
+                         const double* raw, std::uint8_t* hasMissingOut) {
+    xint_t* column = block.codes.data() + block.codeOffsets[j];
+    std::uint8_t anyMissing = 0;
+    for (size_t i = 0; i < numRows; ++i) {
+      xint_t code = codeFor(j, raw[i]);
+      if (isNA(raw[i])) anyMissing = 1;
+      column[i] = code;
+    }
+    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+  }
+
+  /// Quantize a CSC-backed column j into block against its current cuts: rank
+  /// columns rewrite their packed codes and zero code in place (the pattern is
+  /// fixed at build), densified ones fill with the zero code and scatter the
+  /// stored entries. A categorical column's implicit rows carry the reference
+  /// level's level-order code; an ordinal column's carry the quantized zero.
+  /// Missing values are stored NaN entries and take the reserved code, recorded
+  /// through hasMissingOut[j] when non-null.
+  void quantizeCscColumnInto(CodeBlock& block, size_t numRows, size_t j,
+                             std::uint8_t* hasMissingOut) {
+    const CscColumnSlice& slice = block.sources[j].slice;
+    xint_t zeroCode = types[j] == ColumnType::categorical
+      ? block.sources[j].refCode : codeFor(j, 0.0);
+    std::uint8_t anyMissing = 0;
+    if (block.columnIsSparse(j)) {
+      SparseColumnData& sparse =
+        block.sparseColumns[static_cast<size_t>(block.sources[j].rankSlot)];
+      sparse.zeroCode = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k) {
+        size_t i = static_cast<size_t>(slice.rows[k]);
+        std::uint64_t word = sparse.bits[i >> 6];
+        size_t rank = sparse.wordRanks[i >> 6] +
+          static_cast<size_t>(std::popcount(
+            word & ((std::uint64_t{1} << (i & 63u)) - 1u)));
+        sparse.nzCodes[rank] = codeFor(j, slice.values[k]);
+        if (isNA(slice.values[k])) anyMissing = 1;
+      }
+    } else {
+      xint_t* column = block.codes.data() + block.codeOffsets[j];
+      for (size_t i = 0; i < numRows; ++i) column[i] = zeroCode;
+      for (size_t k = 0; k < slice.numNonzero; ++k) {
+        column[static_cast<size_t>(slice.rows[k])] =
+          codeFor(j, slice.values[k]);
+        if (isNA(slice.values[k])) anyMissing = 1;
+      }
+    }
+    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+  }
+
+  /// Build column j's rank-bitmap pattern in block from its retained CSC slice:
+  /// the fixed bits/wordRanks and the nzCodes capacity. A non-sparse column has
+  /// none. Must precede the quantize that writes nzCodes by rank.
+  void buildRankStorageInto(CodeBlock& block, size_t numRows, size_t j) {
+    if (!block.columnIsSparse(j)) return;
+    SparseColumnData& sparse =
+      block.sparseColumns[static_cast<size_t>(block.sources[j].rankSlot)];
+    const CscColumnSlice& slice = block.sources[j].slice;
+    size_t numWords = (numRows + 63) / 64;
+    sparse.bits.assign(numWords, 0);
+    sparse.wordRanks.assign(numWords, 0);
+    sparse.nzCodes.assign(slice.numNonzero, 0);
+    for (size_t k = 0; k < slice.numNonzero; ++k) {
+      size_t i = static_cast<size_t>(slice.rows[k]);
+      sparse.bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
+    }
+    std::uint32_t runningRank = 0;
+    for (size_t w = 0; w < numWords; ++w) {
+      sparse.wordRanks[w] = runningRank;
+      runningRank += static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
+    }
+  }
+
   /// Re-quantize column j's codes from column (the dense raw, or null for a
   /// CSC-backed column, which reads its retained slice), refreshing the
   /// gathered raw copy of a leaf-covariate column in the same pass.
   void quantizeColumn(size_t j, const double* column) {
     if (columnIsCscBacked(j)) {
-      quantizeCscColumn(j);
+      quantizeCscColumnInto(train, numObservations, j, hasMissing.data());
       return;
     }
-    std::uint8_t anyMissing = 0;
-    for (size_t i = 0; i < numObservations; ++i) {
-      xint_t code = codeFor(j, column[i]);
-      if (isNA(column[i])) anyMissing = 1;
-      codes[codeOffsets[j] + i] = code;
-    }
-    hasMissing[j] = anyMissing;
+    quantizeDenseInto(train, numObservations, j, column, hasMissing.data());
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot >= 0)
       std::memcpy(gatheredRawValues.data() +
@@ -553,93 +653,24 @@ struct ColumnStore {
                   column, numObservations * sizeof(double));
   }
 
-  /// Quantize a CSC column against its current cuts: rank columns rewrite
-  /// their packed codes and zero code in place (the pattern is fixed),
-  /// densified ones fill with the zero code and scatter the stored entries.
-  /// Missing values are stored NaN entries and take the reserved code.
-  void quantizeCscColumn(size_t j) {
-    const CscColumnSlice& slice = sources[j].slice;
-    // a categorical column's implicit rows carry the reference level's
-    // level-order code; an ordinal column's carry the quantized zero
-    xint_t zeroCode = types[j] == ColumnType::categorical
-      ? sources[j].refCode : codeFor(j, 0.0);
-    std::uint8_t anyMissing = 0;
-    if (columnIsSparse(j)) {
-      SparseColumnData& sparse =
-        sparseColumns[static_cast<size_t>(sources[j].rankSlot)];
-      sparse.zeroCode = zeroCode;
-      for (size_t k = 0; k < slice.numNonzero; ++k) {
-        size_t i = static_cast<size_t>(slice.rows[k]);
-        std::uint64_t word = sparse.bits[i >> 6];
-        size_t rank = sparse.wordRanks[i >> 6] +
-          static_cast<size_t>(std::popcount(
-            word & ((std::uint64_t{1} << (i & 63u)) - 1u)));
-        sparse.nzCodes[rank] = codeFor(j, slice.values[k]);
-        if (isNA(slice.values[k])) anyMissing = 1;
-      }
-    } else {
-      xint_t* column = codes.data() + codeOffsets[j];
-      for (size_t i = 0; i < numObservations; ++i) column[i] = zeroCode;
-      for (size_t k = 0; k < slice.numNonzero; ++k) {
-        column[slice.rows[k]] = codeFor(j, slice.values[k]);
-        if (isNA(slice.values[k])) anyMissing = 1;
-      }
-    }
-    hasMissing[j] = anyMissing;
-  }
-
   /// Whether test column j re-quantizes from a retained CSC test slice (the
   /// CSC-backed columns of a mixed test build), test analog of columnIsCscBacked.
   bool testColumnIsCscBacked(size_t j) const {
-    return testSources[j].isCscBacked();
+    return test.columnIsCscBacked(j);
   }
 
   /// Re-quantize test column j against the current cuts. A CSC-backed column
   /// reads its retained owned slice; a dense-backed one reads the owned dense
-  /// raw (the mixed build's slice or the buildTest per-column copy). The offset
-  /// addresses a dense-stored column's packed codes.
+  /// raw (the mixed build's slice or the buildTest per-column copy). The test
+  /// side gates no draws, so it tracks no missingness.
   void quantizeTestColumn(size_t j) {
     if (testColumnIsCscBacked(j)) {
-      quantizeTestCscColumn(j);
+      quantizeCscColumnInto(test, numTestObservations, j, nullptr);
       return;
     }
-    xint_t* column = testCodes.data() + testCodeOffsets[j];
-    const double* raw = testSources[j].kind == ColumnSourceKind::denseBorrowed
-      ? testSources[j].denseRaw
-      : ownedTestValues.data() + j * numTestObservations;
-    for (size_t i = 0; i < numTestObservations; ++i)
-      column[i] = codeFor(j, raw[i]);
-  }
-
-  /// Quantize a CSC-backed test column against its current cuts, mirroring
-  /// quantizeCscColumn: rank columns rewrite their packed codes and zero code
-  /// in place (the pattern is fixed at build), densified ones fill with the
-  /// zero code and scatter the stored entries. A categorical column's implicit
-  /// rows carry the reference level's code; an ordinal column's carry the
-  /// quantized zero. The test side gates no draws, so it tracks no missingness.
-  void quantizeTestCscColumn(size_t j) {
-    const CscColumnSlice& slice = testSources[j].slice;
-    xint_t zeroCode = types[j] == ColumnType::categorical
-      ? testSources[j].refCode : codeFor(j, 0.0);
-    if (testColumnIsSparse(j)) {
-      SparseColumnData& sparse =
-        testSparseColumns[static_cast<size_t>(testSources[j].rankSlot)];
-      sparse.zeroCode = zeroCode;
-      for (size_t k = 0; k < slice.numNonzero; ++k) {
-        size_t i = static_cast<size_t>(slice.rows[k]);
-        std::uint64_t word = sparse.bits[i >> 6];
-        size_t rank = sparse.wordRanks[i >> 6] +
-          static_cast<size_t>(std::popcount(
-            word & ((std::uint64_t{1} << (i & 63u)) - 1u)));
-        sparse.nzCodes[rank] = codeFor(j, slice.values[k]);
-      }
-    } else {
-      xint_t* column = testCodes.data() + testCodeOffsets[j];
-      for (size_t i = 0; i < numTestObservations; ++i) column[i] = zeroCode;
-      for (size_t k = 0; k < slice.numNonzero; ++k)
-        column[static_cast<size_t>(slice.rows[k])] =
-          codeFor(j, slice.values[k]);
-    }
+    const double* raw =
+      test.denseRawForColumn(j, numTestObservations, ownedTestValues.data());
+    quantizeDenseInto(test, numTestObservations, j, raw, nullptr);
   }
 
   /// Designate the columns build/setData own an owned raw copy of, so
@@ -663,8 +694,8 @@ struct ColumnStore {
   /// setupGatheredColumns). numPredictors must already hold the new column
   /// count; codes/codeOffsets and the cut grid are sized by each builder.
   void resetTrainStorage() {
-    sources.assign(numPredictors, ColumnSource{});
-    sparseColumns.clear();
+    train.sources.assign(numPredictors, ColumnSource{});
+    train.sparseColumns.clear();
     builtFromCsc = false;
     hasSparse = false;
     hasMissing.assign(numPredictors, 0);
@@ -701,9 +732,9 @@ struct ColumnStore {
     for (size_t j = 0; j < p; ++j)
       if (maxNumCuts[j] > maxNumCutsRepresentable)
         maxNumCuts[j] = maxNumCutsRepresentable;
-    codes.resize(n * p);
-    codeOffsets.resize(p);
-    for (size_t j = 0; j < p; ++j) codeOffsets[j] = j * n;
+    train.codes.resize(n * p);
+    train.codeOffsets.resize(p);
+    for (size_t j = 0; j < p; ++j) train.codeOffsets[j] = j * n;
     resetTrainStorage();
     setupGatheredColumns(gatherColumns, numGatherColumns);
 
@@ -757,14 +788,14 @@ struct ColumnStore {
     // densified/rank backing, and per-column level counts and reference codes
     // for categoricals
     builtFromCsc = true;
-    codeOffsets.assign(p, 0);
+    train.codeOffsets.assign(p, 0);
     size_t numDenseCodes = 0;
     for (size_t j = 0; j < p; ++j) {
-      ColumnSource& desc = sources[j];
+      ColumnSource& desc = train.sources[j];
       if (columnSources[j] >= 0) {
         desc.kind = ColumnSourceKind::denseBorrowed;
         desc.denseRaw = denseValues + static_cast<size_t>(columnSources[j]) * n;
-        codeOffsets[j] = numDenseCodes;
+        train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
         continue;
       }
@@ -780,41 +811,23 @@ struct ColumnStore {
         sparseDensityThreshold * static_cast<double>(n);
       if (sparse) {
         desc.kind = ColumnSourceKind::cscRank;
-        desc.rankSlot = static_cast<std::int32_t>(sparseColumns.size());
-        sparseColumns.emplace_back();
+        desc.rankSlot = static_cast<std::int32_t>(train.sparseColumns.size());
+        train.sparseColumns.emplace_back();
       } else {
         desc.kind = ColumnSourceKind::cscDensified;
-        codeOffsets[j] = numDenseCodes;
+        train.codeOffsets[j] = numDenseCodes;
         numDenseCodes += n;
       }
     }
-    codes.resize(numDenseCodes);
-    hasSparse = !sparseColumns.empty();
+    train.codes.resize(numDenseCodes);
+    hasSparse = !train.sparseColumns.empty();
 
-    size_t numWords = (n + 63) / 64;
     for (size_t j = 0; j < p; ++j) {
-      if (columnIsSparse(j)) {
-        SparseColumnData& sparse =
-          sparseColumns[static_cast<size_t>(sources[j].rankSlot)];
-        const CscColumnSlice& slice = sources[j].slice;
-        sparse.bits.assign(numWords, 0);
-        sparse.wordRanks.assign(numWords, 0);
-        sparse.nzCodes.assign(slice.numNonzero, 0);
-        for (size_t k = 0; k < slice.numNonzero; ++k) {
-          size_t i = static_cast<size_t>(slice.rows[k]);
-          sparse.bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
-        }
-        std::uint32_t runningRank = 0;
-        for (size_t w = 0; w < numWords; ++w) {
-          sparse.wordRanks[w] = runningRank;
-          runningRank +=
-            static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
-        }
-      }
-      // sources[j].denseRaw is the dense slice for a dense-backed column and
-      // null for a CSC-backed one (which quantizes from its retained slice)
-      buildCutsForColumn(j, sources[j].denseRaw);
-      quantizeColumn(j, sources[j].denseRaw);
+      buildRankStorageInto(train, n, j);
+      // train.sources[j].denseRaw is the dense slice for a dense-backed column
+      // and null for a CSC-backed one (which quantizes from its retained slice)
+      buildCutsForColumn(j, train.sources[j].denseRaw);
+      quantizeColumn(j, train.sources[j].denseRaw);
     }
     refreshCategoricalTiers();
 
@@ -845,7 +858,7 @@ struct ColumnStore {
   }
 
   /// Clear the owned-CSC test payload (the packed nonzeros); the per-column CSC
-  /// state now lives in testSources, which callers reset directly.
+  /// state now lives in test.sources, which callers reset directly.
   void clearTestCscSources() {
     ownedTestCscValues.clear();
     ownedTestCscRows.clear();
@@ -858,10 +871,10 @@ struct ColumnStore {
   void resetTestStorage() {
     numTestObservations = 0;
     ownedTestValues.clear();
-    testCodes.clear();
-    testCodeOffsets.clear();
-    testSources.clear();
-    testSparseColumns.clear();
+    test.codes.clear();
+    test.codeOffsets.clear();
+    test.sources.clear();
+    test.sparseColumns.clear();
     clearTestCscSources();
     testOffset = nullptr;
   }
@@ -872,11 +885,11 @@ struct ColumnStore {
   void buildTest(const double* x_test_, size_t numTest) {
     numTestObservations = numTest;
     ownedTestValues.assign(x_test_, x_test_ + numTest * numPredictors);
-    testCodes.resize(numTest * numPredictors);
-    testCodeOffsets.resize(numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) testCodeOffsets[j] = j * numTest;
-    testSources.assign(numPredictors, ColumnSource{});
-    testSparseColumns.clear();
+    test.codes.resize(numTest * numPredictors);
+    test.codeOffsets.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) test.codeOffsets[j] = j * numTest;
+    test.sources.assign(numPredictors, ColumnSource{});
+    test.sparseColumns.clear();
     clearTestCscSources();
     for (size_t j = 0; j < numPredictors; ++j) quantizeTestColumn(j);
   }
@@ -907,9 +920,9 @@ struct ColumnStore {
       maxDenseSource >= 0 ? static_cast<size_t>(maxDenseSource) + 1 : 0;
     ownedTestValues.assign(denseValues, denseValues + numDenseColumns * numTest);
 
-    testSources.assign(p, ColumnSource{});
-    testSparseColumns.clear();
-    testCodeOffsets.assign(p, 0);
+    test.sources.assign(p, ColumnSource{});
+    test.sparseColumns.clear();
+    test.codeOffsets.assign(p, 0);
 
     // own the CSC nonzeros: pack them so each column's slice points into
     // storage that never reallocates for the store's lifetime
@@ -925,12 +938,12 @@ struct ColumnStore {
 
     size_t numDenseCodes = 0, cursor = 0;
     for (size_t j = 0; j < p; ++j) {
-      ColumnSource& desc = testSources[j];
+      ColumnSource& desc = test.sources[j];
       if (columnSources[j] >= 0) {
         desc.kind = ColumnSourceKind::denseBorrowed;
         desc.denseRaw = ownedTestValues.data() +
           static_cast<size_t>(columnSources[j]) * numTest;
-        testCodeOffsets[j] = numDenseCodes;
+        test.codeOffsets[j] = numDenseCodes;
         numDenseCodes += numTest;
         continue;
       }
@@ -950,36 +963,18 @@ struct ColumnStore {
         sparseDensityThreshold * static_cast<double>(numTest);
       if (sparse) {
         desc.kind = ColumnSourceKind::cscRank;
-        desc.rankSlot = static_cast<std::int32_t>(testSparseColumns.size());
-        testSparseColumns.emplace_back();
+        desc.rankSlot = static_cast<std::int32_t>(test.sparseColumns.size());
+        test.sparseColumns.emplace_back();
       } else {
         desc.kind = ColumnSourceKind::cscDensified;
-        testCodeOffsets[j] = numDenseCodes;
+        test.codeOffsets[j] = numDenseCodes;
         numDenseCodes += numTest;
       }
     }
-    testCodes.resize(numDenseCodes);
+    test.codes.resize(numDenseCodes);
 
-    size_t numWords = (numTest + 63) / 64;
     for (size_t j = 0; j < p; ++j) {
-      if (testColumnIsSparse(j)) {
-        SparseColumnData& sparse =
-          testSparseColumns[static_cast<size_t>(testSources[j].rankSlot)];
-        const CscColumnSlice& slice = testSources[j].slice;
-        sparse.bits.assign(numWords, 0);
-        sparse.wordRanks.assign(numWords, 0);
-        sparse.nzCodes.assign(slice.numNonzero, 0);
-        for (size_t k = 0; k < slice.numNonzero; ++k) {
-          size_t i = static_cast<size_t>(slice.rows[k]);
-          sparse.bits[i >> 6] |= std::uint64_t{1} << (i & 63u);
-        }
-        std::uint32_t runningRank = 0;
-        for (size_t w = 0; w < numWords; ++w) {
-          sparse.wordRanks[w] = runningRank;
-          runningRank +=
-            static_cast<std::uint32_t>(std::popcount(sparse.bits[w]));
-        }
-      }
+      buildRankStorageInto(test, numTest, j);
       quantizeTestColumn(j);
     }
   }
@@ -1030,9 +1025,9 @@ struct ColumnStore {
     }
     // views densify: gathered codes are fully dense whatever the parent's
     // per-column storage (docs/design/sparse-columns.md)
-    codes.resize(numRows * numPredictors);
-    codeOffsets.resize(numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * numRows;
+    train.codes.resize(numRows * numPredictors);
+    train.codeOffsets.resize(numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) train.codeOffsets[j] = j * numRows;
     resetTrainStorage();
     refreshCategoricalTiers();
     ownedTestValues.clear();
@@ -1066,7 +1061,7 @@ struct ColumnStore {
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = types[j] == ColumnType::categorical
         ? missingCategoryCode(numCuts[j]) : naCode;
-      xint_t* column = codes.data() + j * numRows;
+      xint_t* column = train.codes.data() + j * numRows;
       for (size_t i = 0; i < numRows; ++i) {
         column[i] = parent.codeAt(parentColumns[j], rows[i]);
         if (column[i] == missingCode) hasMissing[j] = 1;
@@ -1075,15 +1070,15 @@ struct ColumnStore {
     // views densify their test codes too: dense per-column codes gathered
     // from the parent's storage-aware codeAt, no sparse test slots
     numTestObservations = numTestRows;
-    testCodes.resize(numTestRows * numPredictors);
-    testCodeOffsets.resize(numPredictors);
+    test.codes.resize(numTestRows * numPredictors);
+    test.codeOffsets.resize(numPredictors);
     for (size_t j = 0; j < numPredictors; ++j)
-      testCodeOffsets[j] = j * numTestRows;
-    testSources.assign(numPredictors, ColumnSource{});
-    testSparseColumns.clear();
+      test.codeOffsets[j] = j * numTestRows;
+    test.sources.assign(numPredictors, ColumnSource{});
+    test.sparseColumns.clear();
     clearTestCscSources();
     for (size_t j = 0; j < numPredictors; ++j) {
-      xint_t* column = testCodes.data() + j * numTestRows;
+      xint_t* column = test.codes.data() + j * numTestRows;
       for (size_t i = 0; i < numTestRows; ++i)
         column[i] = parent.codeAt(parentColumns[j], testRows[i]);
     }
@@ -1138,7 +1133,7 @@ struct ColumnStore {
   void setColumnJournaled(size_t j, const double* newColumn, bool updateCuts,
                           size_t maxJournal, ColumnCodeRollback& rollback) {
     if (updateCuts) refreshCutsForColumn(j, newColumn);
-    xint_t* column = codes.data() + codeOffsets[j];
+    xint_t* column = train.codes.data() + train.codeOffsets[j];
     std::uint8_t anyMissing = 0;
     for (size_t i = 0; i < numObservations; ++i) {
       xint_t code = codeFor(j, newColumn[i]);
@@ -1167,7 +1162,7 @@ struct ColumnStore {
 
   /// Undo a journaled re-quantize, restoring column j's codes from rollback.
   void restoreColumn(size_t j, const ColumnCodeRollback& rollback) {
-    xint_t* column = codes.data() + codeOffsets[j];
+    xint_t* column = train.codes.data() + train.codeOffsets[j];
     if (rollback.full)
       std::memcpy(column, rollback.fullColumn.data(),
                   numObservations * sizeof(xint_t));
@@ -1181,7 +1176,7 @@ struct ColumnStore {
   /// column; the flag only clears on a full column re-quantize (conservative
   /// but never wrong - the NA-aware partition handles NA-free columns too).
   void setCell(size_t i, size_t j, double value) {
-    codes[codeOffsets[j] + i] = codeFor(j, value);
+    train.codes[train.codeOffsets[j] + i] = codeFor(j, value);
     if (isNA(value)) hasMissing[j] = 1;
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot >= 0)
@@ -1197,8 +1192,8 @@ struct ColumnStore {
   /// values). Dense stores only (setData is refused on CSC/mixed).
   void setData(const double* x_, size_t n) {
     numObservations = n;
-    codes.resize(n * numPredictors);
-    for (size_t j = 0; j < numPredictors; ++j) codeOffsets[j] = j * n;
+    train.codes.resize(n * numPredictors);
+    for (size_t j = 0; j < numPredictors; ++j) train.codeOffsets[j] = j * n;
     // resize the gathered leaf-covariate copies for the new observation count
     gatheredRawValues.assign(gatheredRawColumns.size() * n, 0.0);
     for (size_t j = 0; j < numPredictors; ++j) {
@@ -1213,34 +1208,29 @@ struct ColumnStore {
   }
 
   /// Dense-stored columns only; rank columns have no contiguous codes.
-  const xint_t* column(size_t variable) const {
-    return codes.data() + codeOffsets[variable];
-  }
+  const xint_t* column(size_t variable) const { return train.column(variable); }
 
   bool columnIsSparse(size_t variable) const {
-    return sources[variable].isRank();
+    return train.columnIsSparse(variable);
   }
   const SparseColumnData& sparseColumn(size_t variable) const {
-    return sparseColumns[static_cast<size_t>(sources[variable].rankSlot)];
+    return train.sparseColumn(variable);
   }
   /// Storage-aware single-code access (tree descent, restore validation).
   xint_t codeAt(size_t variable, size_t i) const {
-    return columnIsSparse(variable) ? sparseColumn(variable).at(i)
-                                    : codes[codeOffsets[variable] + i];
+    return train.codeAt(variable, i);
   }
 
   bool testColumnIsSparse(size_t variable) const {
-    return testSources[variable].isRank();
+    return test.columnIsSparse(variable);
   }
   const SparseColumnData& testSparseColumn(size_t variable) const {
-    return testSparseColumns[static_cast<size_t>(testSources[variable].rankSlot)];
+    return test.sparseColumn(variable);
   }
   /// Storage-aware single test-code access (test-row descent), reading only
   /// the columns a rule visits rather than materializing a row.
   xint_t testCodeAt(size_t variable, size_t i) const {
-    return testColumnIsSparse(variable)
-      ? testSparseColumn(variable).at(i)
-      : testCodes[testCodeOffsets[variable] + i];
+    return test.codeAt(variable, i);
   }
 };
 

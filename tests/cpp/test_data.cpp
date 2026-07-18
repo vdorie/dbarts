@@ -31,7 +31,7 @@ static void testColumnStoreCodes() {
     for (size_t i = 0; i < n; ++i) {
       uint32_t k = 0;
       while (k < 100 && column[i] > xMin + (double) (k + 1) * increment) ++k;
-      if (store.codes[i + j * n] != (xint_t) k) {
+      if (store.train.codes[i + j * n] != (xint_t) k) {
         check(false, "column store code mismatch");
         return;
       }
@@ -82,14 +82,14 @@ static void testColumnStoreView() {
   for (size_t j = 0; j < p && codesMatch; ++j)
     for (size_t i = 0; i < rows.size() && codesMatch; ++i)
       codesMatch =
-        view.codes[i + j * rows.size()] == parent.codes[rows[i] + j * n];
+        view.train.codes[i + j * rows.size()] == parent.train.codes[rows[i] + j * n];
   check(codesMatch, "view gathers subset codes");
 
   bool testCodesMatch = true;
   for (size_t i = 0; i < testRows.size() && testCodesMatch; ++i)
     for (size_t j = 0; j < p && testCodesMatch; ++j)
       testCodesMatch =
-        view.testCodeAt(j, i) == parent.codes[testRows[i] + j * n];
+        view.testCodeAt(j, i) == parent.train.codes[testRows[i] + j * n];
   check(testCodesMatch, "view gathers test codes from parent rows");
 
   // demonstrate the property matters: a store built over the subset's raw
@@ -102,7 +102,7 @@ static void testColumnStoreView() {
   rebuilt.build(subsetX.data(), rows.size(), p, 25, false, types.data());
   bool anyDiffer = false;
   for (size_t i = 0; i < rows.size() && !anyDiffer; ++i)
-    anyDiffer = rebuilt.codes[i] != view.codes[i];
+    anyDiffer = rebuilt.train.codes[i] != view.train.codes[i];
   check(anyDiffer, "subset-built store bins differently than the view");
 
   printf("ok: column store view\n");
@@ -147,12 +147,12 @@ static void testColumnStoreColumnSubset() {
   viewFull.buildFromParent(parent, rows.data(), rows.size(), testRows.data(),
                            testRows.size(), viewCovariate, 1,
                            allColumns.data(), allColumns.size());
-  check(viewFull.numPredictors == p && viewFull.codes == viewDefault.codes &&
+  check(viewFull.numPredictors == p && viewFull.train.codes == viewDefault.train.codes &&
           viewFull.cutPoints == viewDefault.cutPoints &&
           viewFull.numCuts == viewDefault.numCuts &&
           viewFull.types == viewDefault.types &&
           viewFull.maxNumCuts == viewDefault.maxNumCuts &&
-          viewFull.testCodes == viewDefault.testCodes &&
+          viewFull.test.codes == viewDefault.test.codes &&
           viewFull.gatheredRawColumns == viewDefault.gatheredRawColumns &&
           viewFull.gatheredRawValues == viewDefault.gatheredRawValues &&
           viewFull.gatheredMeans == viewDefault.gatheredMeans &&
@@ -179,7 +179,7 @@ static void testColumnStoreColumnSubset() {
   for (size_t j = 0; j < subset.size() && codesMatch; ++j)
     for (size_t i = 0; i < rows.size() && codesMatch; ++i)
       codesMatch =
-        view.codes[i + j * rows.size()] == parent.codeAt(subset[j], rows[i]);
+        view.train.codes[i + j * rows.size()] == parent.codeAt(subset[j], rows[i]);
   for (size_t i = 0; i < testRows.size() && codesMatch; ++i)
     for (size_t j = 0; j < subset.size() && codesMatch; ++j)
       codesMatch = view.testCodeAt(j, i) == parent.codeAt(subset[j], testRows[i]);
@@ -284,7 +284,7 @@ static void testColumnStoreMutation() {
 
   ColumnStore store;
   store.build(x.data(), n, p, 100);
-  std::vector<xint_t> originalCodes(store.codes);
+  std::vector<xint_t> originalCodes(store.train.codes);
   std::vector<double> originalCuts0(store.cutPoints[0]);
 
   // column overwrite with cut refresh: column 0 codes untouched, column 1
@@ -298,8 +298,8 @@ static void testColumnStoreMutation() {
   for (size_t i = 0; i < n; ++i) {
     // column 0's codes untouched; the store owns codes and never writes the
     // new values back into the caller's matrix (no write-through)
-    codesMatch &= store.codes[i] == originalCodes[i];
-    codesMatch &= store.codes[i + n] == store.codeFor(1, newColumn[i]);
+    codesMatch &= store.train.codes[i] == originalCodes[i];
+    codesMatch &= store.train.codes[i + n] == store.codeFor(1, newColumn[i]);
   }
   check(codesMatch, "setColumns re-quantizes only the target column");
   check(store.cutPoints[1].front() > 2.0 && store.cutPoints[1].back() < 5.0,
@@ -307,9 +307,9 @@ static void testColumnStoreMutation() {
   check(store.cutPoints[0] == originalCuts0, "setColumns leaves other cuts");
 
   // single-cell overwrite against existing cuts
-  xint_t before = store.codes[7];
+  xint_t before = store.train.codes[7];
   store.setCell(7, 0, x[8]);
-  check(store.codes[7] == originalCodes[8], "setCell re-quantizes one cell");
+  check(store.train.codes[7] == originalCodes[8], "setCell re-quantizes one cell");
   check(before == originalCodes[7], "");  // silence unused warning
 
   // whole-matrix replacement without cut refresh: quantized on old cuts, codes
@@ -319,7 +319,7 @@ static void testColumnStoreMutation() {
   store.setPredictors(x2.data(), false);
   codesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    codesMatch &= store.codes[i] == store.codeFor(0, x2[i]);
+    codesMatch &= store.train.codes[i] == store.codeFor(0, x2[i]);
   check(codesMatch, "setPredictors re-quantizes against existing cuts");
 
   printf("ok: column store mutation\n");
@@ -434,7 +434,7 @@ static void testQuantileCutPoints() {
   check(discreteCutsMatch, "discrete quantile cuts are unique-value midpoints");
   bool discreteCodesMatch = true;
   for (size_t i = 0; i < n; ++i)
-    discreteCodesMatch &= store.codes[i + n] == static_cast<xint_t>(i % 10);
+    discreteCodesMatch &= store.train.codes[i + n] == static_cast<xint_t>(i % 10);
   check(discreteCodesMatch, "discrete quantile codes are value ranks");
 
   // continuous column: reference the thinning directly
@@ -596,9 +596,9 @@ static void testMissingIngestion() {
 
   bool codesRight = true;
   for (size_t i = 0; i < n; ++i) {
-    codesRight &= (store.codes[i] == naCode) == (i % 10 == 0);
+    codesRight &= (store.train.codes[i] == naCode) == (i % 10 == 0);
     codesRight &=
-      (store.codes[i + n] == static_cast<xint_t>(naCategory)) == (i % 7 == 0);
+      (store.train.codes[i + n] == static_cast<xint_t>(naCategory)) == (i % 7 == 0);
   }
   check(codesRight, "missing values take the reserved codes");
 
@@ -668,7 +668,7 @@ static void testTransientBlockAssembly() {
   fromReference.build(reference.data(), n, p, 100, false, types.data());
   fromAssembled.build(assembled.data(), n, p, 100, false, types.data());
 
-  check(fromAssembled.codes == fromReference.codes,
+  check(fromAssembled.train.codes == fromReference.train.codes,
         "container-assembled block quantizes to the cbind reference codes");
   check(fromAssembled.cutPoints == fromReference.cutPoints,
         "container-assembled block builds the cbind reference cut grid");
