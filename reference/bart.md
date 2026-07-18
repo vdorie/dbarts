@@ -11,9 +11,10 @@ constrained by a prior to be a weak learner.
 
 - `bart2` fits further response families - logistic, accelerated failure
   time (`family = "aft"`), K-category multinomial
-  (`family = "multinomial"`), and ordered categorical
-  (`family = "ordinal"`, a cumulative probit) - through its `family`
-  argument, described below.
+  (`family = "multinomial"`), ordered categorical (`family = "ordinal"`,
+  a cumulative probit), and negative-binomial counts
+  (`family = "nbinom"`) - through its `family` argument, described
+  below.
 
 ## Usage
 
@@ -57,9 +58,10 @@ bart2(
     n.grow.sweeps = 0L,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial",
-               "ordinal"),
+               "ordinal", "nbinom"),
     missing = c("incorporate", "error"),
     resid.dist = gaussian,
+    dispersion = NA_real_,
     ...)
 
 # S3 method for class 'bart'
@@ -199,6 +201,17 @@ summary(object, ...)
   \\\sigma^2\\\nu/(\nu-2)\\. See
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) for
   the full description.
+
+- dispersion:
+
+  The negative-binomial dispersion \\r\\ (`family = "nbinom"` only;
+  ignored otherwise), passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). `NA`
+  (the default) estimates \\r\\ on a capped positive-integer grid under
+  a renormalized \\\mathrm{gamma}(2, 0.1)\\ prior; a supplied value
+  fixes it and must be a positive integer (v1 ships the exact integer
+  envelope, so a real fixed dispersion is refused). Larger \\r\\
+  approaches the Poisson limit; smaller \\r\\ is more overdispersed.
 
 - k:
 
@@ -516,6 +529,35 @@ summary(object, ...)
   fit ordinal responses (grouped ordinal models and ordinal-scale
   cross-validation losses are recorded follow-ups). The fit's class is
   `"bartOrdinal"`, not `"bart"`: see ‘Value’ below.
+
+  `family = "nbinom"` fits a non-negative integer (count) response by a
+  negative-binomial model with the Polya-Gamma augmentation (a single
+  forest, like logistic): the forest fits a log-odds latent \\\psi =
+  f(x) + o\\, the count law is \\y_i \sim \mathrm{NB}(r,
+  \mathrm{plogis}(\psi_i))\\ with dispersion \\r\\, and the mean is
+  \\E\[y_i \mid x\] = r e^{\psi_i} = r e^{f(x_i) + o_i}\\. The offset
+  \\o_i\\ therefore enters the mean multiplicatively and is a
+  log-exposure (\\o_i = \log(\mathrm{exposure}\_i)\\). `y.train` must be
+  a non-negative integer count, and `family = "nbinom"` is always
+  explicit - a count carries no unambiguous class, so it is never
+  inferred under `family = "auto"` (a numeric response there stays
+  gaussian). The dispersion `r` is estimated by default on a capped
+  positive-integer grid (\\\\1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 30,
+  50\\\\) under a renormalized \\\mathrm{gamma}(2, 0.1)\\ prior by a
+  closed-form discrete full conditional; passing `dispersion` as a
+  positive integer fixes \\r\\ instead (v1 ships the exact integer
+  envelope, so a real fixed `dispersion` is refused - continuous
+  dispersion is a recorded follow-up). Like probit, the latent scale is
+  fixed at 1 and `weights` are not supported (exposure belongs in the
+  offset, not in observation replication); `samplerOnly`, `warm.start`,
+  and `n.grow.sweeps` are refused with an error naming the limitation.
+  `test` and `keepTrees` are supported as for ordinal, and `predict`
+  replays the saved trees at new predictors, reporting mean counts \\r
+  e^{\psi}\\ at the stored per-draw dispersion (a log-exposure
+  `offset.test` enters \\\psi\\ additively). `rbart_vi` and `xbart` do
+  not fit count responses (grouped negative-binomial models, real
+  dispersion, and a Poisson family are recorded follow-ups). The fit's
+  class is `"bartNegbin"`, not `"bart"`: see ‘Value’ below.
 
 - formula:
 
@@ -970,6 +1012,30 @@ when `newdata` matches the fit-time `test` it reproduces `yhat.test`.
 `residuals(object)` returns the n \\\times\\ K matrix of
 observed-indicator minus fitted probability.
 
+`bart2(family = "nbinom")` likewise returns its own list, of class
+`"bartNegbin"`. Components: `call`, `family` (`"nbinom"`), `n.chains`,
+`n.trees`, `y` (the observed counts), `yhat.train` (and `yhat.test` when
+`test` was supplied) - the posterior draws of the mean counts \\\mu = r
+e^{f(x) + o}\\, shaped like a binary family's `yhat.train` -
+`latent.train` (and `latent.test`) - the corresponding draws of the
+log-odds latent \\\psi = f(x) + o\\ - `dispersion` - the per-draw
+dispersion \\r\\, the count analog of gaussian's `sigma` - and
+`varcount`. `bc`, `fit`, and `dispersion.raw` (the per-draw \\r\\ in the
+internal layout `predict` consumes) are present only under `keepTrees`.
+
+Generics for a `"bartNegbin"` fit: `fitted(object)` returns the
+posterior-mean count per observation; `fitted(object, type = "bart")`
+the posterior-mean log-odds latent. `extract(object, type = "ev")`
+returns the mean-count draws, `type = "bart"` the latent draws, and
+`type = "ppd"` draws one count per posterior draw from \\\mathrm{NB}(r,
+\mathrm{plogis}(\psi))\\; `sample = "test"` selects the test channel.
+`predict(object, newdata)` requires `keepTrees = TRUE` and returns the
+mean-count draws at `newdata` (`type = "bart"` the replayed latent;
+`type = "ppd"` count draws), with an optional log-exposure
+`offset.test`; when `newdata` matches the fit-time `test` and no offset
+is given it reproduces `yhat.test`. `residuals(object)` returns the
+observed count minus the posterior-mean count per observation.
+
 For continuous response fits, the `plot` method sets `mfrow` to
 `c(1, 2)` and makes two plots. The first plot is the sequence of kept
 draws of \\\sigma\\ including the burn-in draws. Initially these draws
@@ -1066,7 +1132,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218444
+#> total seconds in loop: 0.231285
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1132,7 +1198,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001316
+#> total seconds in loop: 0.001385
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

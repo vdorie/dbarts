@@ -16,8 +16,9 @@ dbarts(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
-    family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal"),
-    missing = c("incorporate", "error"))
+    family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
+               "nbinom"),
+    missing = c("incorporate", "error"), dispersion = NA_real_)
 ```
 
 ## Arguments
@@ -270,6 +271,28 @@ dbarts(
   scale, and weights are not supported. `bart2` reports ordinal fits as
   \\n \times K\\ category probabilities; see
   [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+  `"nbinom"` fits a non-negative integer (count) response by a
+  negative-binomial model with the Polya-Gamma augmentation: the forest
+  fits a log-odds latent \\\psi = f(x) + o\\ and \\y \sim \mathrm{NB}(r,
+  \mathrm{plogis}(\psi))\\, with mean \\E\[y \mid x\] = r e^{\psi}\\, so
+  the offset enters multiplicatively as a log-exposure. The response
+  must be a non-negative integer, and `"nbinom"` is never inferred - a
+  count carries no unambiguous class, so it must be requested
+  explicitly. The dispersion `r` is estimated by default (see
+  `dispersion`); like probit, the latent scale is fixed at 1, fits are
+  on the latent (log-odds) scale, and weights are not supported
+  (exposure belongs in the offset). `bart2` reports mean counts; see
+  [`bart2`](https://vdorie.github.io/dbarts/reference/bart.md).
+
+- dispersion:
+
+  The negative-binomial dispersion \\r\\ (family `"nbinom"` only;
+  ignored otherwise). `NA` (the default) estimates \\r\\ on a capped
+  positive-integer grid under a renormalized \\\mathrm{gamma}(2, 0.1)\\
+  prior. A supplied value fixes \\r\\ and must be a positive integer: v1
+  ships the exact integer envelope, so a real fixed dispersion is
+  refused. Larger \\r\\ approaches the Poisson limit (variance \\\to\\
+  mean); smaller \\r\\ is more overdispersed.
 
 - missing:
 
