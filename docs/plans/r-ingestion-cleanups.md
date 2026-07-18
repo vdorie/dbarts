@@ -22,10 +22,12 @@ not cover.
    matrix or dbartsMixedMatrix only (A_class.R:482-491), so
    validateXTest silently densifies a bare dgCMatrix test set
    (data.R:112-128) while mixed-container test data stays sparse; no
-   test covers the coercion. DECISION for VD inside the item: accept
-   dgCMatrix test input symmetrically, or error explicitly - silent
-   densification is the one wrong answer. Add the missing test either
-   way.
+   test covers the coercion. RESOLVED (VD 2026-07-18): accept
+   dgCMatrix test input SYMMETRICALLY - a bare sparse x.test flows
+   like the mixed container's, never silently densified. Add tests
+   for the sparse-test path (train sparse + test sparse; train dense
+   + test sparse behavior defined and tested, erroring informatively
+   if the train store cannot serve it).
 3. The three copy-pasted NA-policy guards (dbarts.R:962-966,
    997-1001, 1010-1014): shared checkMissingPolicy() helper;
    cosmetic, ride along.
