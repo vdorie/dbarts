@@ -61,9 +61,10 @@ builds and transactions is written once.
   helpers (3) are low-risk and independently valuable; the storage
   descriptor (2) then makes the de-twinning (1) simpler, not the
   reverse. 5-8 ride their stages opportunistically.
-- Stages 4 and 3 run under VD's 2026-07-18 maintenance directive;
-  stages 2 and 1 (the large-review-surface carves) still wait for
-  VD's explicit go.
+- Stages 4 and 3 ran under VD's 2026-07-18 maintenance directive.
+  Stages 2 and 1 APPROVED by VD after the post-maintenance
+  discussion: both, serialized, 2 then 1; planner-first, one
+  implementer at a time, every gate bitwise per stage.
 
 ## Landings
 
@@ -85,6 +86,28 @@ copies grid fields from the parent; active test BUILDERS stay inline
 (they size, not clear, and buildTest deliberately preserves
 testOffset). Net -6, no deviations, all six gates bitwise.
 
-Stages 2 (storage descriptor) and 1 (train/test de-twinning) remain
-open, awaiting VD's explicit go - the stage-order rationale is in
-Constraints.
+Stage 2 4f03854 (2026-07-17). ColumnSourceKind (denseOwned |
+denseBorrowed | cscRank | cscDensified) + ColumnSource (kind, rankSlot,
+denseRaw, slice, cscCategoryCount, refCode) in data.hpp; per-side
+sources/testSources vectors, always sized numPredictors on a built
+store, replace sparseSlot, cscSlices, mixedRawColumns,
+cscCategoryCounts, cscReferenceCodes and their four test twins;
+testBuiltFromCsc deleted (its only reader subsumed by kind). The
+planner corrected two stale review premises: the test side already
+had a full CSC/rank twin, and builtFromCsc/hasSparse have external
+readers (bridge refuseViewSampler, tests/cpp) so both stay as
+store-level flags; columnIsCscBacked and the sparse accessors keep
+their signatures, so no file outside data.hpp changed. Finding 5
+(isView) deferred: a whole-store capability axis, sequenced against
+the data-ownership plan, orthogonal to per-column kind. Deviation
+accepted: cscCategoryCount/refCode assigned only in the CSC branch
+(dense-backed categoricals take the max-value scan and never read
+them). Descriptor designed per-row-set so stage 1's CodeBlock absorbs
+it verbatim. Net +16 (224 lines changed), under budget. All six gates
+bitwise; orchestrator re-ran component binary, suite (3098/0),
+equivalence (23/23 identical draws), bcf, and multinomial compares
+independently. Note: git dates stages 4/3 2026-07-17; the labels
+above were written a day ahead.
+
+Stage 1 (train/test de-twinning) remains open - approved, next in the
+serialized order.
