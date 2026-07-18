@@ -31,6 +31,18 @@ items
     needing its own gate analysis), observer-parameterized quantize
     core for setColumnJournaled (perf-sensitive hot loop), linear-leaf
     u_ row-major. Each is a small independent pass. low-ranked.
+  data-architecture-note: write docs/design/data-store.md, the standing
+    reference for the consolidated data layer (VD 2026-07-18): each
+    abstraction with its invariants (ColumnSource kinds, the
+    CodeBlock/grid split, codes-vs-raw duality, view semantics, the
+    predictor-transaction and rollback contract, ownership and borrow
+    rules incl. R-protection lifetimes), plus what-you-may-touch
+    contracts by implementer role (leaf model, response family,
+    host/bridge). Then wire it in: docs/plans/README.md lists it as
+    required reading for data-adjacent work, and orchestrator
+    implementer prompts cite it as a standing spec. The knowledge
+    exists only in landing notes, code comments, and scattered design
+    docs today. next up.
   forest-ranef-interweaving: the grouped-fit mixing bottleneck is
     forest-ranef confounding, not the tau draw (measurements and
     ranked remedies: docs/plans/tau-slice-review.md). Candidates: a
@@ -78,8 +90,12 @@ items
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
-  ordinal-outcomes: cumulative probit on the existing truncated-normal
-    machinery plus a cutpoint block.
+  ordinal-results-channel: a per-sample cutpoint results channel in the
+    engine run path, so the bart2 ordinal driver stops keeping one
+    sample per run() call to read cutpoints from state (the accepted
+    C3 deviation, docs/plans/ordinal-outcomes.md landings).
+    Draw-neutral by construction; the ordinal equivalence scenario is
+    the gate. small.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated. The 2026-07-17 data review
