@@ -570,13 +570,13 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
     std::vector<std::uint32_t> oldMaxNumCuts(data_.maxNumCuts);
-    std::vector<xint_t> oldCodes(data_.codes);
-    std::vector<xint_t> oldTestCodes(data_.testCodes);
+    std::vector<xint_t> oldCodes(data_.train.codes);
+    std::vector<xint_t> oldTestCodes(data_.test.codes);
     // rank columns re-quantize into their own storage, not codes; a rank-backed
-    // test column likewise re-quantizes into testSparseColumns (empty, hence a
+    // test column likewise re-quantizes into test.sparseColumns (empty, hence a
     // no-op restore, on every dense-test path)
-    std::vector<SparseColumnData> oldSparseColumns(data_.sparseColumns);
-    std::vector<SparseColumnData> oldTestSparseColumns(data_.testSparseColumns);
+    std::vector<SparseColumnData> oldSparseColumns(data_.train.sparseColumns);
+    std::vector<SparseColumnData> oldTestSparseColumns(data_.test.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.types[j] == ColumnType::categorical) continue;
       // a restored grid equal to the live one leaves the codes already correct
@@ -596,10 +596,10 @@ public:
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
       data_.maxNumCuts = std::move(oldMaxNumCuts);
-      data_.codes = std::move(oldCodes);
-      data_.testCodes = std::move(oldTestCodes);
-      data_.sparseColumns = std::move(oldSparseColumns);
-      data_.testSparseColumns = std::move(oldTestSparseColumns);
+      data_.train.codes = std::move(oldCodes);
+      data_.test.codes = std::move(oldTestCodes);
+      data_.train.sparseColumns = std::move(oldSparseColumns);
+      data_.test.sparseColumns = std::move(oldTestSparseColumns);
       return false;
     }
 
@@ -1048,14 +1048,14 @@ private:
     void snapshotApply(bool updateCuts) {
       // move the live codes aside and rebuild into fresh storage: a reject swaps
       // them back and an accept drops them, so no whole-matrix copy survives
-      oldCodes = std::move(data.codes);
-      data.codes.assign(oldCodes.size(), 0);
+      oldCodes = std::move(data.train.codes);
+      data.train.codes.assign(oldCodes.size(), 0);
       oldHasMissing = data.hasMissing;
       if (updateCuts) oldCuts = data.cutPoints;
       data.setPredictors(values, updateCuts);
     }
     void restore(bool updateCuts) {
-      data.codes = std::move(oldCodes);
+      data.train.codes = std::move(oldCodes);
       data.hasMissing = std::move(oldHasMissing);
       if (updateCuts) data.cutPoints = std::move(oldCuts);
     }

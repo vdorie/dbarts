@@ -1697,7 +1697,7 @@ static void testSparseColumnStore() {
     bool codesMatch = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < n; ++i)
-        codesMatch &= fromCsc.codeAt(j, i) == fromDense.codes[i + j * n];
+        codesMatch &= fromCsc.codeAt(j, i) == fromDense.train.codes[i + j * n];
     check(codesMatch, "CSC codes match the dense builder's at every cell");
 
     check(fromCsc.sparseColumn(0).zeroCode == fromDense.codeFor(0, 0.0),
@@ -1714,7 +1714,7 @@ static void testSparseColumnStore() {
     bool viewMatches = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < viewRows.size(); ++i)
-        viewMatches &= view.codes[i + j * viewRows.size()] ==
+        viewMatches &= view.train.codes[i + j * viewRows.size()] ==
           fromCsc.codeAt(j, viewRows[i]);
     check(viewMatches, "view gathers parent codes through the rank layout");
   }
@@ -1998,7 +1998,7 @@ static void testSparseCategoricalColumnStore() {
     allOk &= sparseStore.numCuts[0] == config.K &&
              denseStore.numCuts[0] == config.K;
     for (size_t i = 0; i < n; ++i)
-      allOk &= sparseStore.codeAt(0, i) == denseStore.codes[i];
+      allOk &= sparseStore.codeAt(0, i) == denseStore.train.codes[i];
 
     if (!config.expectSparse) continue;  // dense kernel path, no new sibling
 
@@ -2205,7 +2205,7 @@ static void testMixedColumnStore() {
     bool codesMatch = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < n; ++i)
-        codesMatch &= mixed.codeAt(j, i) == reference.codes[i + j * n];
+        codesMatch &= mixed.codeAt(j, i) == reference.train.codes[i + j * n];
     check(codesMatch, "mixed codes match the dense builder's at every cell");
 
     check(mixed.sparseColumn(1).zeroCode == reference.codeFor(1, 0.0),
@@ -2224,7 +2224,7 @@ static void testMixedColumnStore() {
     bool viewMatches = true;
     for (size_t j = 0; j < fixture.p; ++j)
       for (size_t i = 0; i < viewRows.size(); ++i)
-        viewMatches &= view.codes[i + j * viewRows.size()] ==
+        viewMatches &= view.train.codes[i + j * viewRows.size()] ==
           mixed.codeAt(j, viewRows[i]);
     check(viewMatches, "view gathers parent codes through the mixed layout");
     const double* gathered = view.rawColumn(0);

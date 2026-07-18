@@ -40,7 +40,7 @@ struct FuzzSnapshot {
 template <typename S>
 static FuzzSnapshot<S> fuzzCapture(const S& s) {
   FuzzSnapshot<S> snap;
-  snap.codes = s.data().codes;
+  snap.codes = s.data().train.codes;
   snap.cuts = s.data().cutPoints;
   for (size_t c = 0; c < s.numChains(); ++c) {
     snap.fits.push_back(s.chain(c).treeFits());
