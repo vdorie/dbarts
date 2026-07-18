@@ -224,6 +224,10 @@ struct Results {
   // per-draw training log-likelihood, numObservations x numSamples, or null;
   // gaussian and binary families, NaN under BCF
   double* logLikelihood = nullptr;
+  // per-sample cutpoints, numCutpoints x numSamples, or null; filled only when
+  // the response family carriesCutpoints() (ordinal's K-1 thresholds). Every
+  // other family leaves it null and allocates nothing.
+  double* cutpoints = nullptr;
   // per-observation channels the trainingFits/testFits arrays carry: 1 for
   // every additive model (the exact current layout), more for a multi-location
   // combiner. The run bridge sizes the fits buffers by it and Sampler strides
@@ -234,6 +238,10 @@ struct Results {
   // bridge sizes variableCounts by it and Sampler strides per chain by it;
   // storeSample reads the count from the combiner directly.
   std::size_t numVariableCountForests = 1;
+  // per-sample cutpoints the cutpoints array carries: 0 for every family but
+  // ordinal (K-1). The run bridge sizes cutpoints by it and Sampler strides per
+  // chain by it; storeSample reads the count from the response directly.
+  std::size_t numCutpoints = 0;
 };
 
 /// A host's per-sweep conditioning hook, invoked before every sweep on the
@@ -487,6 +495,9 @@ public:
   std::size_t numVariableCountForests() const {
     return combiner_ ? combiner_->numVariableCountForests() : 1;
   }
+  /// Per-sample cutpoints the recorded cutpoint channel carries: the response's
+  /// K-1 for a cutpoint-carrying family (ordinal), 0 for every other.
+  std::size_t numCutpoints() const { return response_->numCutpoints(); }
   /// Whether the recorded test-fit channel carries a defined value: true off any
   /// combiner (single forest) and for a combiner that blends a test surface
   /// (multinomial softmax), false for BCF (no test treatment vector). The bridge
@@ -2529,6 +2540,15 @@ private:
       double sigmaScale = response_->sigmaScale();
       for (std::size_t j = 0; j < numGroups; ++j)
         out[j] = effects[j] * sigmaScale;
+    }
+
+    // the K-1 ordinal thresholds, aligned with this sweep's latent draw; the
+    // marginal cutpoint MH ran inside refreshLatents before this store, so
+    // gamma is the accepted value the drawn latents are consistent with
+    if (results.cutpoints != nullptr && response_->carriesCutpoints()) {
+      std::size_t numCutpoints = response_->numCutpoints();
+      std::memcpy(results.cutpoints + sampleNum * numCutpoints,
+                  response_->cutpoints(), numCutpoints * sizeof(double));
     }
 
     if (results.logLikelihood != nullptr) {

@@ -1212,16 +1212,15 @@ ordinalCategoryProbabilities <- function(eta, cutpoints) {
 
 # The ordinal (cumulative probit) fit path (docs/design/ordinal.md section 5),
 # reached from bart2's family = "ordinal" branch. Unlike multinomial's K-forest
-# engine, ordinal is a SINGLE forest whose kept samples report only the latent
-# eta = f(x) (like probit); the n x K category probabilities and the per-draw
-# cutpoints are synthesized here. The engine has no per-sample cutpoint output
-# channel - the cutpoints live only in its state block - so the run is driven
-# one kept sample at a time (through the low-level bc, as multinomial-exact.R
-# does) and the cutpoints read from the state after each sweep, aligned with
-# that sweep's latent draw. dbarts(family = "ordinal") does the 1-based
-# recoding, the fixed unit scale, and attaches K, so this reuses the standard
-# bart2 host-build machinery unchanged. The fit is class "bartOrdinal", never
-# "bart", so the K-widened arrays never flow through a single-forest method.
+# engine, ordinal is a SINGLE forest whose kept samples report the latent
+# eta = f(x) (like probit) and, in an ordinal-only run channel, the per-draw
+# K-1 cutpoints; the n x K category probabilities are synthesized here from the
+# two. A single run(n.burn, n.samples) drives the whole chain (the cutpoint
+# channel is aligned with each kept sweep's latent draw), so no per-sample
+# state read is needed. dbarts(family = "ordinal") does the 1-based recoding,
+# the fixed unit scale, and attaches K, so this reuses the standard bart2
+# host-build machinery unchanged. The fit is class "bartOrdinal", never "bart",
+# so the K-widened arrays never flow through a single-forest method.
 bart2Ordinal <- function(
   matchedCall,
   callingEnv,
@@ -1276,39 +1275,39 @@ bart2Ordinal <- function(
     NULL
   }
   cutpointsRaw <- array(0, c(K - 1L, n.samples, n.chains))
-  varcountRaw <- NULL
 
-  # one chain's eta for a single-sample run channel (the chain margin is dropped
-  # by the engine when n.chains == 1)
-  etaOf <- function(channel, chain) {
-    if (n.chains == 1L) channel[, 1L] else channel[, 1L, chain]
+  # one run drives the whole chain; the cutpoints ride their own run channel
+  # (r$cutpoints, present because the ordinal family carries them), aligned with
+  # each kept sweep's latent draw, so no per-sample state read is needed
+  r <- bartcoreRun(bc, control@n.burn, n.samples)
+
+  # one chain's sample-s column of a run channel; the engine drops the trailing
+  # chain margin when n.chains == 1
+  colOf <- function(channel, s, chain) {
+    if (n.chains == 1L) channel[, s] else channel[, s, chain]
   }
 
-  for (s in seq_len(n.samples)) {
-    # the first kept sample absorbs the burn-in, so every run keeps one sample
-    r <- bartcoreRun(bc, if (s == 1L) control@n.burn else 0L, 1L)
-    state <- bartcoreStoreState(bc)
-    if (is.null(varcountRaw)) {
-      varWidth <- if (n.chains == 1L) {
-        nrow(as.matrix(r$varcount))
-      } else {
-        dim(r$varcount)[1L]
-      }
-      varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
-    }
-    for (chain in seq_len(n.chains)) {
-      gamma <- state[[chain]]$cutpoints
+  varWidth <- if (n.chains == 1L) {
+    nrow(as.matrix(r$varcount))
+  } else {
+    dim(r$varcount)[1L]
+  }
+  varcountRaw <- array(0, c(varWidth, n.samples, n.chains))
+
+  for (chain in seq_len(n.chains)) {
+    for (s in seq_len(n.samples)) {
+      gamma <- colOf(r$cutpoints, s, chain)
       cutpointsRaw[, s, chain] <- gamma
-      etaTrain <- etaOf(r$train, chain)
+      etaTrain <- colOf(r$train, s, chain)
       latentTrain[, s, chain] <- etaTrain
       probsTrain[,, s, chain] <-
         ordinalCategoryProbabilities(etaTrain, gamma)
       if (n.test > 0L) {
-        etaTest <- etaOf(r$test, chain)
+        etaTest <- colOf(r$test, s, chain)
         latentTest[, s, chain] <- etaTest
         probsTest[,, s, chain] <- ordinalCategoryProbabilities(etaTest, gamma)
       }
-      varcountRaw[, s, chain] <- etaOf(r$varcount, chain)
+      varcountRaw[, s, chain] <- colOf(r$varcount, s, chain)
     }
   }
 

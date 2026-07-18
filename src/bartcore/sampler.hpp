@@ -303,11 +303,15 @@ public:
     // (1 everywhere but multinomial), so the per-chain varcount stride folds it
     // in; count 1 leaves the exact current chain-major stride
     size_t numVCForests = results.numVariableCountForests;
+    // the per-sample cutpoint slab carries numCutpoints thresholds (0 off
+    // ordinal), so the per-chain cutpoint stride folds it in
+    size_t numCutpoints = results.numCutpoints;
     std::vector<Results> chainResults(numChains);
     for (size_t c = 0; c < numChains; ++c) {
       Results& r(chainResults[c]);
       r.numReportedLocations = numLocations;
       r.numVariableCountForests = numVCForests;
+      r.numCutpoints = numCutpoints;
       if (results.sigma != nullptr) r.sigma = results.sigma + c * numSamples;
       if (results.k != nullptr) r.k = results.k + c * numSamples;
       if (results.trainingFits != nullptr)
@@ -329,6 +333,8 @@ public:
       if (results.logLikelihood != nullptr)
         r.logLikelihood =
           results.logLikelihood + c * numSamples * data_.numObservations;
+      if (results.cutpoints != nullptr)
+        r.cutpoints = results.cutpoints + c * numSamples * numCutpoints;
     }
 
     if (options_.verbose) ext_printf("Running mcmc loop:\n");
@@ -967,6 +973,7 @@ public:
   size_t numVariableCountForests() const {
     return chains_[0]->numVariableCountForests();
   }
+  size_t numCutpoints() const { return chains_[0]->numCutpoints(); }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();
   }
