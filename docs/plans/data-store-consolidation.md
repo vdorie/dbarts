@@ -54,8 +54,13 @@ builds and transactions is written once.
 
 ## Constraints
 
-- Every gate bitwise at every stage (equivalence 22/22, bcf,
-  multinomial, suite); no dbarts.h change; stage order 1 -> 2 -> 3/4
-  (3 and 4 independent), 5-8 opportunistic riders on their stages.
-- Do NOT start unasked: this is a large-review-surface refactor; VD
-  triggers it.
+- Every gate bitwise at every stage (equivalence NOW 23/23 on
+  31dc05a, bcf, multinomial, suite); no dbarts.h change.
+- Stage order REVISED (2026-07-18, maintenance block): smallest-first
+  4 -> 3 -> 2 -> 1. The transaction helper (4) and build-reset
+  helpers (3) are low-risk and independently valuable; the storage
+  descriptor (2) then makes the de-twinning (1) simpler, not the
+  reverse. 5-8 ride their stages opportunistically.
+- Stages 4 and 3 run under VD's 2026-07-18 maintenance directive;
+  stages 2 and 1 (the large-review-surface carves) still wait for
+  VD's explicit go.
