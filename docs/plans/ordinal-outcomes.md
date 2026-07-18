@@ -105,3 +105,16 @@ equivalence scenario), retired by the ordinal-results-channel TODO
 entry. One implementer API failure mid-run, resumed cleanly from
 transcript. ARC CLOSED; recorded doors: grouped ordinal, robit-style
 links, xbart ordinal loss, dbarts.h exposure.
+
+Follow-up 4727d1e (2026-07-18). The results channel: "cutpoints"
+appended as a ninth run-result slot only when the family carries
+cutpoints (Results.cutpoints + numCutpoints mirror the
+numVariableCountForests pattern; per-chain stride in the sampler;
+facade virtual; non-ordinal result lists byte-identical at 8 slots);
+the bart2 driver collapsed to a single run(n.burn, n.samples) reading
+the channel - the per-sample state reads are gone. Draw-neutrality
+VERIFIED: the ordinal equivalence scenario, recorded under the old
+one-sample-per-run driving, reproduces bitwise under the single run
+(24/24 identical draws), proving the drivings equivalent. All seven
+gates green; exact gate unchanged (0.0006 vs 0.012); dbarts.h
+untouched. The C3 deviation is fully retired.

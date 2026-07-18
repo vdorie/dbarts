@@ -76,12 +76,6 @@ items
   negative-binomial: count outcomes via the Polya-Gamma NB
     augmentation (the PG sampler already ships); the r update decides
     integer vs real shape - a caveat shared with weighted-binary.
-  ordinal-results-channel: a per-sample cutpoint results channel in the
-    engine run path, so the bart2 ordinal driver stops keeping one
-    sample per run() call to read cutpoints from state (the accepted
-    C3 deviation, docs/plans/ordinal-outcomes.md landings).
-    Draw-neutral by construction; the ordinal equivalence scenario is
-    the gate. small.
   python-bindings: post kernel-cleanups the engine is R-free below the
     bridge; a pybind11 facade wrapper becomes prototype-scale. horizon,
     likely out-of-repo. decision-gated. The 2026-07-17 data review
