@@ -448,6 +448,29 @@ makeScenarios <- function() {
     aft = TRUE
   )
 
+  # Student-t (robust) residuals in the estimated-nu mode (TResponse,
+  # docs/design/robust-errors.md), newly reachable via resid.dist = student().
+  # Contaminated-normal data - a gaussian bulk with a 5% heavy-outlier tail -
+  # so both mixture channels do real work: the per-observation lambda draws
+  # downweight the contaminants and the capped-grid nu draw responds to the
+  # tail. The default gaussian() error law adds no draws (the existing anchors
+  # are untouched), so this scenario is new and a compare against an earlier
+  # baseline reports it skipped; the anchor re-records at landing.
+  set.seed(5122L)
+  x <- matrix(runif(500L * 10L), 500L)
+  noise <- rnorm(500L)
+  contaminated <- sample(500L, 25L)
+  noise[contaminated] <- noise[contaminated] +
+    sample(c(-1, 1), 25L, replace = TRUE) * runif(25L, 8, 12)
+  result$student <- list(
+    x = x,
+    y = friedman(x) + noise,
+    x.test = matrix(runif(n.test * 10L), n.test),
+    binary = FALSE,
+    samplerApi = TRUE,
+    samplerArgs = list(resid.dist = dbarts:::student())
+  )
+
   result
 }
 

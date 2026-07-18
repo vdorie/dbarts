@@ -377,6 +377,7 @@ bart2 <- function(
   factors = c("categorical", "indicators"),
   family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
   missing = c("incorporate", "error"),
+  resid.dist = gaussian,
   ...
 ) {
   matchedCall <- match.call()
@@ -1293,8 +1294,12 @@ bart <- function(
   sampleronly = FALSE,
   seed = NA_integer_,
   proposalprobs = NULL,
-  keepsampler = keeptrees
+  keepsampler = keeptrees,
+  resid.dist = gaussian
 ) {
+  # forwarded to dbarts() unevaluated (as the prior expressions are), so a bare
+  # gaussian()/student() resolves in dbarts()'s residual-distribution vocabulary
+  residDist <- substitute(resid.dist)
   # coerce eagerly, naming the argument as the caller typed it - dbartsControl
   # re-coerces its own (already-integer) inputs and would otherwise blame its
   # internal slot names (n.burn/n.trees/...) for a bad ntree/nskip/... value
@@ -1362,6 +1367,7 @@ bart <- function(
     tree.prior = tree.prior,
     node.prior = node.prior,
     resid.prior = resid.prior,
+    resid.dist = residDist,
     proposal.probs = proposalprobs,
     control = control,
     sigma = as.numeric(sigest),

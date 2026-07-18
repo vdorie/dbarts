@@ -39,7 +39,8 @@ bart(
     keeptrees = FALSE, keepcall = TRUE, sampleronly = FALSE,
     seed = NA_integer_,
     proposalprobs = NULL,
-    keepsampler = keeptrees)
+    keepsampler = keeptrees,
+    resid.dist = gaussian)
 
 bart2(
     formula, data, test, subset, weights, offset, offset.test = offset,
@@ -64,6 +65,7 @@ bart2(
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "multinomial"),
     missing = c("incorporate", "error"),
+    resid.dist = gaussian,
     \dots)
 
 \method{plot}{bart}(
@@ -133,6 +135,9 @@ extract(object, \dots)
    }
    \item{sigquant}{
      The quantile of the error variance prior that the rough estimate (\code{sigest}) is placed at. The closer the quantile is to 1, the more aggressive the fit will be as you are putting more prior weight on error standard deviations (\eqn{\sigma}) less than the rough estimate. Not applicable when \eqn{y} is binary. Default 0.90, from the same source as \code{sigdf}.
+   }
+   \item{resid.dist}{
+     The residual error \emph{law} for a continuous (gaussian) response, passed through to \code{\link{dbarts}}. The default \code{gaussian()} gives normal errors; \code{student(df)} fits outlier-robust Student-t errors by a Gaussian scale-mixture augmentation, with \code{student(df = nu)} fixing the degrees of freedom and \code{student()} estimating them on a capped grid. Only continuous gaussian responses carry it (an error otherwise). Two caveats: with a flexible tree-forest mean, tail inference is partially confounded with fit flexibility, so an estimated \eqn{\nu} should be posterior-checked; and \eqn{\sigma} is then the \emph{conditional} scale, the marginal residual variance being \eqn{\sigma^2\,\nu/(\nu-2)}{sigma^2 nu / (nu - 2)}. See \code{\link{dbarts}} for the full description.
    }
    \item{k}{
      For numeric \eqn{y}, \code{k} is the number of prior standard deviations \eqn{E(Y|x) = f(x)} is away from \eqn{\pm 0.5}{+/- 0.5}. The response (\code{y.train}) is internally scaled to range from \eqn{-0.5} to \eqn{0.5}. For binary \eqn{y} fit with the default probit link, \code{k} is the number of prior standard deviations \eqn{f(x)} is away from \eqn{\pm 3}{+/- 3}, the probit reference scale; \code{family = "logistic"} (\code{bart2} only) widens this to \eqn{\pm \pi \sqrt{3}}{+/- pi*sqrt(3)}, the standard deviation of the standard logistic latent variable. In both cases, the bigger \eqn{k} is, the more conservative the fitting will be. The value can be either a fixed number, or a \emph{hyperprior} of the form \code{chi(degreesOfFreedom = 1.5, scale = 2)}. For \code{bart2}, the default of \code{NULL} uses the value 2 for continuous responses and the \code{chi(1.5, 2)} hyperprior for binary ones, which centers the sampled \code{k} near the field-standard fixed value of 2 (prior median 1.9) while adapting to the data; pass \code{k = 2} for the fixed BART-package default, or \code{chi(1.5, Inf)} for the old improper prior. The default of 2 for continuous responses follows Chipman, George, and McCulloch's argument (see References) that with node prior standard deviation \eqn{\sigma_\mu = 0.5 / (k \sqrt{m})}{sigma_mu = 0.5 / (k * sqrt(m))} for \eqn{m} trees, \eqn{k} prior standard deviations of \eqn{f(x)} span the whole coded response range regardless of \eqn{m} -- so \eqn{k = 2} places that range at roughly a 95\% prior interval. The range scaling itself is an outlier-sensitive convention shared with BayesTree/bartMachine: extreme \eqn{y} values compress the effective prior on everything else, for which the published workaround is to log-transform or winsorize such values before fitting, or to let \code{k} adapt via the \code{chi} hyperprior.

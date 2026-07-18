@@ -183,6 +183,31 @@ methods::setValidity("dbartsFixedPrior", function(object) {
   TRUE
 })
 
+## The residual error LAW, orthogonal to resid.prior (the sigma^2 prior):
+## gaussian() is the default; student(df) selects Student-t errors by the
+## Gaussian scale-mixture augmentation (docs/design/robust-errors.md). df of
+## NA_real_ means estimate the degrees of freedom on a capped grid; a finite
+## positive df fixes them. The resolved value reaches the C bridge as a
+## length-1 numeric resid.df attribute on the model object (0 = estimate).
+methods::setClass("dbartsResidDist")
+methods::setClass("dbartsGaussianDist", contains = "dbartsResidDist")
+methods::setClass(
+  "dbartsStudentDist",
+  contains = "dbartsResidDist",
+  slots = list(df = "numeric"),
+  prototype = list(df = NA_real_)
+)
+methods::setValidity("dbartsStudentDist", function(object) {
+  if (length(object@df) != 1L) {
+    return("'df' must be a single value")
+  }
+  ## NA means estimate; a supplied value must be finite and positive
+  if (!is.na(object@df) && (!is.finite(object@df) || object@df <= 0.0)) {
+    return("'df' must be NULL (estimate) or a positive finite scalar")
+  }
+  TRUE
+})
+
 methods::setClass(
   "dbartsControl",
   slots = list(

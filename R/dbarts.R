@@ -186,6 +186,7 @@ dbarts <- function(
   tree.prior = cgm,
   node.prior = normal,
   resid.prior = chisq,
+  resid.dist = gaussian,
   proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
   control = dbarts::dbartsControl(),
   sigma = NA_real_,
@@ -416,7 +417,8 @@ dbarts <- function(
     formals(dbarts),
     "tree.prior",
     "node.prior",
-    "resid.prior"
+    "resid.prior",
+    "resid.dist"
   )
   parsePriorsCall$control <- control
   parsePriorsCall$data <- data
@@ -452,6 +454,23 @@ dbarts <- function(
       logistic = pi * sqrt(3.0)
     )
   )
+
+  # Student-t residuals (docs/design/robust-errors.md): only a continuous
+  # gaussian response carries them (the binary families and aft have their own
+  # latent scale), refused here R-side to match the C bridge's backstop. The
+  # resolved degrees of freedom ride the model's resid.df attribute the bridge
+  # reads - the bartcore.survival precedent above - absent for the Gaussian law.
+  if (is(priors$resid.dist, "dbartsStudentDist") && family != "gaussian") {
+    stop(
+      "student residuals require a continuous gaussian response; family \"",
+      family,
+      "\" has its own fixed error scale"
+    )
+  }
+  residDf <- residDistDf(priors$resid.dist)
+  if (!is.null(residDf)) {
+    attr(model, "resid.df") <- residDf
+  }
 
   # the AFT survival family reads its per-observation status off this control
   # attribute (the bartcore.groups precedent); the C bridge validates it

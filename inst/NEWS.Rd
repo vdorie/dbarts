@@ -38,6 +38,22 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item Robust (Student-t) residuals: \code{resid.dist = student(df)}
+            in \code{dbarts}, \code{bart}, and \code{bart2} fits a
+            continuous gaussian response with outlier-robust Student-t
+            errors by the classic Gaussian scale-mixture augmentation
+            (per-observation latent precisions, drawn conjugately each
+            sweep, that downweight gross outliers). \code{student(df =
+            nu)} fixes the degrees of freedom (\code{nu = 4} a
+            conventional robust default); \code{student()} estimates them
+            on a capped grid under a proper prior. The default remains
+            \code{gaussian()}. Only continuous gaussian responses carry
+            it; the binary and survival families keep their fixed latent
+            scale. Note that \eqn{\sigma}{sigma} is then the conditional
+            scale (marginal residual variance
+            \eqn{\sigma^2\nu/(\nu-2)}{sigma^2 nu / (nu - 2)}), and that a
+            flexible tree-forest mean partially confounds tail inference,
+            so an estimated \eqn{\nu}{nu} should be posterior-checked.
       \item Sparse predictor matrices: the x/y interfaces of
             \code{dbarts}, \code{dbartsData}, \code{bart}, \code{bart2},
             and \code{xbart} accept a \code{Matrix::dgCMatrix}. Columns

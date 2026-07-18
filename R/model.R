@@ -92,6 +92,7 @@ parsePriors <- function(
   tree.prior,
   node.prior,
   resid.prior,
+  resid.dist,
   parentEnv
 ) {
   matchedCall <- match.call()
@@ -103,6 +104,10 @@ parsePriors <- function(
   for (name in names(dbartsPriors)) {
     assign(name, dbartsPriors[[name]], envir = evalEnv)
   }
+  # the residual-distribution vocabulary rides the same environment, so a bare
+  # gaussian()/student() in resid.dist resolves without shadowing stats::gaussian
+  evalEnv$gaussian <- gaussian
+  evalEnv$student <- student
   evalEnv$control <- control
   evalEnv$data <- data
   evalEnv$num.vars <- evalEnv$numvars <- ncol(data@x)
@@ -135,6 +140,13 @@ parsePriors <- function(
     )
   }
 
+  resid.dist <- resolveSpec(matchedCall$resid.dist)
+  if (!is(resid.dist, "dbartsResidDist")) {
+    stop(
+      "'resid.dist' must be a residual distribution: gaussian() or student()"
+    )
+  }
+
   node.prior <- resolveSpec(matchedCall$node.prior)
   if (!is(node.prior, "dbartsNodePrior")) {
     stop("'node.prior' must be a node prior specification; see ?dbartsPriors")
@@ -144,7 +156,17 @@ parsePriors <- function(
   }
   node.hyperprior <- resolveNodeHyperprior(node.prior@k, control@binary)
 
-  namedList(tree.prior, resid.prior, node.prior, node.hyperprior)
+  namedList(tree.prior, resid.prior, resid.dist, node.prior, node.hyperprior)
+}
+
+## The residual error degrees of freedom the C bridge reads off the model's
+## resid.df attribute: NULL for gaussian errors (no attribute; the Gaussian
+## law), 0 for an estimated Student-t df, and the fixed value otherwise.
+residDistDf <- function(resid.dist) {
+  if (!is(resid.dist, "dbartsStudentDist")) {
+    return(NULL)
+  }
+  if (is.na(resid.dist@df)) 0.0 else resid.dist@df
 }
 
 ## Turn a linear or gp node prior's raw columns specification into 1-based
@@ -453,6 +475,36 @@ chi <- function(degreesOfFreedom = 1.5, scale = 2.0) {
     "dbartsChiHyperprior",
     degreesOfFreedom = degreesOfFreedom,
     scale = scale
+  )
+}
+
+## Residual-distribution constructors (docs/design/robust-errors.md), passed
+## as resid.dist to dbarts()/bart()/bart2(). gaussian() is the default error
+## law; student(df) selects outlier-robust Student-t errors. Not exported:
+## resolved by bare name inside the resid.dist argument, like the priors, so
+## nothing shadows stats::gaussian.
+gaussian <- function() {
+  new("dbartsGaussianDist")
+}
+
+student <- function(df = NULL) {
+  if (!is.null(df)) {
+    if (
+      !is.numeric(df) ||
+        length(df) != 1L ||
+        is.na(df) ||
+        !is.finite(df) ||
+        df <= 0.0
+    ) {
+      stop(
+        "student residual 'df' must be NULL (estimate the degrees of ",
+        "freedom) or a single positive finite number"
+      )
+    }
+  }
+  newValidated(
+    "dbartsStudentDist",
+    df = if (is.null(df)) NA_real_ else as.double(df)
   )
 }
 
