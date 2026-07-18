@@ -40,3 +40,24 @@ not cover.
 - Verify each duplicated site's behavior is truly identical before
   unifying; any intentional divergence gets kept and documented, not
   averaged away.
+
+## Landing
+
+2fe1d14 (2026-07-18). F1: resolveClassificationFamily (data.R) serves
+all three callers; dbarts()'s auto-vs-explicit K >= 3 message split
+KEPT as intentional signal behind a flag - dbarts() is reached
+anonymously through bart(), so its auto branch must enumerate entry
+points rather than self-name; xbart/rbart_vi keep their single
+self-named message. F2: a bare dgCMatrix x.test wraps
+(wrapSparseTestMatrix, mixedMatrix.R) into the all-sparse mixed
+container and takes the resident sparse path - never densified, zero
+C changes (test quantization reads only the training cut grid,
+independent of train storage). Train-sparse+test-sparse and
+train-dense(ordinal)+test-sparse verified bitwise vs equivalent
+dense input; dense-train-with-factor + numeric CSC test errors
+informatively (a numeric sparse matrix cannot carry levels). F3:
+checkMissingPolicy replaces the three guards. Suite 3098/0,
+equivalence 23/23 identical draws, air/lintr clean; reviewer re-ran
+install, suite, equivalence, format independently. Diff 304/112 -
+over the ~300 guideline, accepted: ~128 lines are the mandated
+sparse-path tests. ITEM CLOSED.
