@@ -99,3 +99,42 @@ recommendation.
 - Follow-ups: discrete-time hazard (person-period ingestion over the
   binary families, same note) and survival-grouped-surface (rbart_vi
   family = "aft" + the rbart survivalProbabilities method) remain open.
+
+## Discrete-time hazard landing
+
+Design f494156 (2026-07-19; the "Discrete-time hazard" section of
+docs/design/survival.md). Independently critiqued: REJECT round caught
+the false no-new-R-code thesis (the hazard token cannot survive the
+family-keyed switches - node.scale, control@binary, fixedUnitScale,
+weight policy - so the design became remap-before-switches with a
+packaged-fit marker; $family keeps the binary token so every link
+generic is correct unchanged), the Surv-guard collision, and the
+ragged-training-design prediction path. VD then requested the
+precedent survey (surv.bart verified source-level: internal expansion,
+unique-times default grid, K quantile coarsening, probit default;
+discSurv/pammtools conventions; link traditions), which moved the
+time-grid fork to unique-observed-times default with breaks
+coarsening. VD resolved all three forks 2026-07-19: that grid, the
+two tokens (hazard = probit, hazard.logistic; hazard.probit shipped
+as a self-documenting alias), probit default.
+
+Implementation e58ab73 (2026-07-19). R-only: person-period expander
+(resolveHazardGrid, expandDiscreteTimeHazard, appendHazardPeriodColumn;
+breaks = NULL distinct times / integer quantile count / boundary
+vector; max.rows refusal guard), shared survival parsing refactored so
+the hazard sibling keeps raw time, the Surv guard admits the hazard
+tokens, remap precedes every family-keyed switch, $periods is the one
+new packaged field and carries dispatch, survivalProbabilities gains
+the re-expanding keepTrees-requiring branch, offsets/weights replicate
+per subject. Formula interface and in-fit test sets refused
+informatively (matrix interface + predict-time expansion). Gates:
+benchmarks/R/hazard-reduction.R - the fit reduces BITWISE to the
+hand-expanded binary fit on both links (yhat/varcount/trees), the
+family's primary correctness gate; suite 3230 -> 3267; new hazard
+equivalence scenario, baseline re-recorded as equivalence-f494156.rds
+(engine binary unchanged since 1d9388d) with the trail: all 25
+pre-existing scenarios bitwise; equivalence.yaml re-pinned. Doors
+recorded in the design section 6: cloglog, competing risks, left
+truncation, grouped frailty, time-varying covariates in the
+auto-expander, continuous-time models. ITEM CLOSED except
+survival-grouped-surface (its own plan).
