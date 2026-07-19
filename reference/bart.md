@@ -53,6 +53,7 @@ bart2(
     keepCall = TRUE, samplerOnly = FALSE,
     seed = NA_integer_,
     proposal.probs = NULL,
+    monotone = NULL,
     keepSampler = keepTrees,
     warm.start = NULL,
     n.grow.sweeps = 0L,
@@ -415,6 +416,17 @@ summary(object, ...)
   `"birth"` to give the relative frequency of birth/death in the
   `"birth_death"` step. Defaults are 0.5, 0.1, 0.4, and 0.5
   respectively.
+
+- monotone:
+
+  Optional per-predictor monotonicity constraints, passed through to
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md); see
+  its `monotone` argument. A named vector selects predictors by
+  model-matrix column name, each direction one of
+  `"+"`/`"increasing"`/`1` or `"-"`/`"decreasing"`/`-1`; only numeric
+  and ordered columns are eligible. A constraint forces birth/death-only
+  proposals and a fixed `k = 2`. `NULL` (the default) fits the
+  unconstrained model.
 
 - keepsampler, keepSampler:
 
@@ -1189,7 +1201,7 @@ bartFit <- bart(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217424
+#> total seconds in loop: 0.216881
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
@@ -1255,7 +1267,7 @@ fit.logit <- bart2(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001325
+#> total seconds in loop: 0.001398
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 2 2 2 2 3 2 2 2 3 3 2 2 3 

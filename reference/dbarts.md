@@ -14,6 +14,7 @@ dbarts(
     resid.dist = gaussian,
     proposal.probs = c(
         birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
+    monotone = NULL,
     control = dbarts::dbartsControl(), sigma = NA_real_, seed = NA_integer_,
     factors = c("categorical", "indicators"),
     family = c("auto", "gaussian", "probit", "logistic", "aft", "ordinal",
@@ -185,6 +186,24 @@ dbarts(
   `"change"`, and `"swap"` to control tree change proposals, and
   `"birth"` to give the relative frequency of birth/death in the
   `"birth_death"` step.
+
+- monotone:
+
+  Optional per-predictor monotonicity constraints (monotone BART;
+  Chipman, George, McCulloch, and Shively 2022). The forest is
+  constrained so that the fitted function is monotone increasing or
+  decreasing in each named predictor. Supply a named vector selecting
+  predictors by model-matrix column name, each element one of
+  `"+"`/`"increasing"`/`1` (increasing) or `"-"`/`"decreasing"`/`-1`
+  (decreasing); an unnamed integer or character vector of length equal
+  to the number of columns assigns directions positionally, with `0` for
+  unconstrained. Only numeric and ordered columns are eligible - a
+  direction on a categorical (unordered factor) predictor is an error. A
+  constraint forces birth/death-only tree proposals (an explicit
+  non-default `proposal.probs` is then an error) and a fixed `k = 2` (an
+  explicit `k` hyperprior is an error); linear and Gaussian-process
+  leaves are not supported under the constraint. `NULL` (the default) or
+  an all-zero vector fits the ordinary unconstrained model.
 
 - control:
 
