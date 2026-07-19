@@ -95,6 +95,32 @@ template <typename L>
 concept IntegrableLeafModel =
   ScalarLeafModel<L> || VectorLeafModel<L> || FunctionLeafModel<L>;
 
+/// Optional leaf-model seams the engine dispatches on at compile time; no
+/// default leaf declares either, so both compile out and the rng stream is
+/// unchanged. A TreeDrawLeafModel draws its whole leaf vector in one coupled
+/// sweep (the monotone constrained draw) in place of the default independent
+/// per-node draw. A ParamScoringLeafModel scores a structure move against the
+/// current leaf-parameter vector M (the tree's persistent block) rather than
+/// integrating every leaf out - the generic hook a constrained-conjugate
+/// (monotone) or non-conjugate (heteroscedastic) move specializes.
+template <typename L>
+concept TreeDrawLeafModel =
+  requires(const L leaf, ext_rng* rng, const Tree& tree,
+           const std::vector<std::int32_t>& bottoms, double d, double* out) {
+    { leaf.drawParametersForTree(rng, tree, bottoms, d, d, out) }
+      -> std::same_as<void>;
+  };
+
+template <typename L>
+concept ParamScoringLeafModel =
+  requires(const L leaf, const Tree& tree, std::int32_t branchIndex,
+           const double* y, const double* weights, double k, double sigma2,
+           const double* leafParams) {
+    { leaf.logLikelihoodForBranchWithParams(tree, branchIndex, y, weights, k,
+                                            sigma2, leafParams) }
+      -> std::same_as<double>;
+  };
+
 /// Constant Gaussian leaf: mu ~ N(0, (scale / k)^2), Gaussian likelihood.
 struct ConstantGaussianLeaf {
   static constexpr bool hasVectorParams = false;
