@@ -126,3 +126,10 @@ psi/mean/r/varcount - omega locked transitively through the trees,
 the ordinal-z precedent. ARC CLOSED; doors recorded: real dispersion
 (TODO negbin-real-dispersion, the fork-B spec; gates weighted-binary
 fractional weights), Poisson family, grouped NB.
+
+Bench verification (2026-07-19, VD-granted quiet window, compare vs
+bench-sampler-b9d53c7 at 9c28b31): speed-neutral across the block of
+landings since the consolidation bench (ordinal arc, results channel,
+negbin arc) - no flags, "OK: no metric regressed more than 5%";
+run-binary at ratio 1.000, worst arm run-n1000-p10-t75 at 1.023, one
+arm below 1. Existing-family paths measurably untouched.
